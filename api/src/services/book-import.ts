@@ -477,14 +477,21 @@ function matchKey(value: unknown): string {
   )
 }
 
-/** 书名相同、或一侧完整包含另一侧（长边至少 4 字）时算同一本书。 */
+/** 只允许清理导出标记后的完整书名相同，包含关系不能证明是同一本书。 */
 function titlesMatch(a: unknown, b: unknown): boolean {
-  const left = matchKey(a)
-  const right = matchKey(b)
-  if (!left || !right) return false
-  if (left === right) return true
-  const [short, long] = left.length <= right.length ? [left, right] : [right, left]
-  return short.length >= 4 && long.includes(short)
+  const titleKey = (value: unknown) => {
+    let title = text(value)
+    for (const pattern of FILE_NAME_NOISE) title = title.replace(pattern, '')
+    return matchKey(title)
+  }
+  const left = titleKey(a)
+  const right = titleKey(b)
+  return Boolean(left && right && left === right)
+}
+
+function knownAuthor(value: unknown): string {
+  const author = matchKey(value)
+  return author === matchKey('未知作者') ? '' : author
 }
 
 /**
@@ -1427,7 +1434,7 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): 
 
 async function findCandidates(db: Db, book: BookImportPayload): Promise<BookImportNovelCandidate[]> {
   const rows = await all<NovelRow>(db, 'SELECT * FROM novels ORDER BY updated_at DESC')
-  const incomingAuthor = matchKey(book.author)
+  const incomingAuthor = knownAuthor(book.author)
   const incomingSource = safeSourceUrl(book.sourceUrl)
   return rows
     .map((row) => {
@@ -1436,9 +1443,8 @@ async function findCandidates(db: Db, book: BookImportPayload): Promise<BookImpo
       const sameSource = incomingSource && safeSourceUrl(novel.sourceUrl) === incomingSource
       const sameTitle = titlesMatch(novel.title, book.title)
       if (!sameSource && !sameTitle) return null
-      const sameAuthor = incomingAuthor && matchKey(novel.author) === incomingAuthor
-      // 作者也对得上时才给最高分，避免「书名包含」的弱匹配盖过真正的同名同作者作品。
-      const score = sameSource ? 100 : sameTitle && sameAuthor ? 95 : sameAuthor ? 90 : 80
+      const sameAuthor = incomingAuthor && knownAuthor(novel.author) === incomingAuthor
+      const score = sameSource ? 100 : sameAuthor ? 95 : 80
       const matchReason: BookImportNovelCandidate['matchReason'] = sameSource ? 'source-url' : sameAuthor ? 'title-author' : 'title'
       return { novel, matchReason, score }
     })
@@ -1453,7 +1459,13 @@ async function loadLocalChapters(db: Db, novelId: string): Promise<ChapterRow[]>
 export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise<BookImportPreview> {
   const payload = normalizeImportPayload(opts.payload)
   const candidates = await findCandidates(db, payload)
-  const targetNovelId = opts.targetNovelId || (candidates.length === 1 ? candidates[0]!.novel.id : null)
+  const unique = candidates.length === 1 ? candidates[0]! : null
+  const authorConflict = unique && knownAuthor(payload.author) && knownAuthor(unique.novel.author)
+    && knownAuthor(payload.author) !== knownAuthor(unique.novel.author)
+  // undefined 表示首次自动匹配；null 表示管理员明确选择新建，不能回退到旧书。
+  const targetNovelId = opts.targetNovelId !== undefined
+    ? opts.targetNovelId
+    : unique && (unique.matchReason === 'source-url' || !authorConflict) ? unique.novel.id : null
   const targetCandidate = candidates.find((candidate) => candidate.novel.id === targetNovelId)
   const targetNovel = targetCandidate?.novel || null
   const local = targetNovel ? await loadLocalChapters(db, targetNovel.id) : []
@@ -1465,7 +1477,8 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
     conflictCount: chapters.filter((chapter) => chapter.status === 'conflict').length,
   }
   const warnings: string[] = []
-  if (candidates.length > 1 && !targetNovel) warnings.push('发现多个同名作品，请先选择导入目标。')
+  if (opts.targetNovelId === undefined && candidates.length > 1 && !targetNovel) warnings.push('发现多个同名作品，请选择已有作品或新建作品。')
+  if (authorConflict && unique?.matchReason !== 'source-url') warnings.push('同名候选的作者与导入作品不同，请核对后选择已有作品或新建作品。')
   if (summary.conflictCount) warnings.push(`有 ${summary.conflictCount} 个章节存在同名冲突，默认不会导入。`)
   if (payload.chapters.length >= MAX_IMPORT_CHAPTERS) warnings.push(`最多展示前 ${MAX_IMPORT_CHAPTERS} 章，超出部分未进入预览。`)
 

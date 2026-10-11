@@ -76,6 +76,29 @@ async function previewTxt(content: string, fileName: string) {
 /** 「序章」无编号，启发式判为正文 → 进待复核证据；第 1 章是确定边界。 */
 const SAMPLE_TXT = ['序章', '序章正文，足够长的一段内容用来构成一章。', '第1章 起', '正文甲，同样足够长的一段内容。'].join('\n')
 
+it('唯一同名候选可切换为新建，提交不会向旧书追加章节', async () => {
+  await t.db.query("INSERT INTO novels (id,title,author,created_at,updated_at) VALUES ('import-existing-target','切换新建样本','作者',1,1)")
+  const res = await previewTxt('作者：作者\n第一章 起\n新作品的章节正文。', '切换新建样本.txt')
+  expect(res.status).toBe(200)
+  const preview = await res.json() as BookImportPreview
+  expect(preview.targetNovelId).toBe('import-existing-target')
+  const target = await call(`/api/book-import/${preview.runId}/target`, 'POST', { targetNovelId: null })
+  expect(target.status).toBe(200)
+  const next = await target.json() as BookImportPreview
+  expect(next.targetNovelId).toBeNull()
+  expect(next.targetNovel).toBeNull()
+  const committed = await call(`/api/book-import/${preview.runId}/commit`, 'POST', {
+    targetNovelId: null,
+    selectedChapterIds: next.chapters.map((chapter) => chapter.id),
+    metadataFields: [],
+    metadataMode: 'missing',
+  })
+  expect(committed.status).toBe(200)
+  expect(await committed.json()).toMatchObject({ novelCreated: true, created: 1 })
+  const oldChapters = await t.db.query<{ count: number }>("SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id='import-existing-target'")
+  expect(oldChapters.rows[0]?.count).toBe(0)
+})
+
 describe('导入 AI 复核端到端', () => {
   it('预览返回解析诊断与待复核证据', async () => {
     const res = await previewTxt(SAMPLE_TXT, '序章样本.txt')

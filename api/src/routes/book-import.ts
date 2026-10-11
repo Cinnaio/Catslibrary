@@ -165,7 +165,7 @@ bookImportRoutes.post('/preview', async (c) => {
       sourceLabel,
       sourceUrl,
       payload,
-      targetNovelId,
+      targetNovelId: targetNovelId || undefined,
       diagnostics,
     })
     preview.warnings = Array.from(new Set([...warnings, ...preview.warnings]))

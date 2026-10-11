@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { BookImportAiReview, BookImportPreview } from '@shared/types'
-const api = vi.hoisted(() => ({ previewFile: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn() }))
+const api = vi.hoisted(() => ({ previewFile: vi.fn(), selectTarget: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn() }))
 vi.mock('@/lib/api', () => ({ bookImportApi: api }))
 import BookImportDialog from './BookImportDialog'
 const original: BookImportPreview = {
@@ -53,6 +53,22 @@ async function openDiff() {
   fireEvent.click(await screen.findByRole('button', { name: '查看差异' }))
   fireEvent.click(await screen.findByRole('button', { name: /展开明细/ }))
 }
+it('唯一候选也可以改为新建作品，并使用新目标预览提交', async () => {
+  const novel = { id: 'older-book', title: '样本', author: '作者', chapterCount: 10 } as NonNullable<BookImportPreview['targetNovel']>
+  api.previewFile.mockResolvedValue({ ...original, candidates: [{ novel, matchReason: 'title-author', score: 95 }], targetNovelId: novel.id, targetNovel: novel })
+  api.selectTarget.mockResolvedValue({ ...original, revision: 1 })
+  api.commit.mockRejectedValue(new Error('测试停止提交'))
+  render(<BookImportDialog open onOpenChange={vi.fn()} />)
+  fireEvent.change(screen.getByLabelText('选择书籍文件'), { target: { files: [new File(['正文'], '样本.txt')] } })
+  fireEvent.click(screen.getByRole('button', { name: '生成预览' }))
+  fireEvent.click(await screen.findByRole('button', { name: /新建作品/ }))
+  fireEvent.click(screen.getByRole('button', { name: '查看差异' }))
+  await screen.findByText(/提交后会创建新的书库作品/)
+  expect(api.selectTarget).toHaveBeenCalledWith('run', null, 0)
+  fireEvent.click(screen.getByRole('button', { name: /确认导入/ }))
+  await screen.findByText('测试停止提交')
+  expect(api.commit).toHaveBeenCalledWith('run', expect.objectContaining({ targetNovelId: null, revision: 1 }))
+})
 it('复核期间禁止提交和返回，完成后使用新版本逐条采纳并提示重新核对', async () => {
   let resolve!: (review: BookImportAiReview) => void
   api.aiReview.mockImplementation(

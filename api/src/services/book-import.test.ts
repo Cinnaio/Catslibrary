@@ -40,8 +40,10 @@ describe('book import normalization and diffing', () => {
   it('matches a decorated title against the clean library title', () => {
     expect(helpers.titlesMatch('和哥哥在乱交世界里假装do爱', '[更73] 和哥哥在乱交世界里假装do爱 作者：归雾')).toBe(true)
     expect(helpers.titlesMatch('和哥哥在乱交世界里假装do爱', '和哥哥在乱交世界里假装do爱')).toBe(true)
-    // 太短的包含关系不算同一本，避免单字书名把整库都匹配上。
+    // 包含关系不能算同一本，无论短书名是否超过四个字。
     expect(helpers.titlesMatch('爱', '和哥哥在乱交世界里假装do爱')).toBe(false)
+    expect(helpers.titlesMatch('她身娇体软', '病弱软妹她身娇体软易推倒')).toBe(false)
+    expect(helpers.titlesMatch('病弱软妹她身娇体软易推倒', '她身娇体软')).toBe(false)
     expect(helpers.titlesMatch('魔王哥哥的千层馅饼', '和哥哥在乱交世界里假装do爱')).toBe(false)
   })
 
@@ -62,6 +64,56 @@ describe('book import normalization and diffing', () => {
     expect(preview.book.title).toBe('和哥哥在乱交世界里假装do爱')
     expect(preview.candidates.map((candidate) => candidate.novel.id)).toContain(created.rows[0]!.id)
     // 唯一候选自动成为导入目标，增量导入才不会误建一本新书。
+    expect(preview.targetNovelId).toBe('novel-target-1')
+  })
+
+  it('does not select an older book whose title merely contains the incoming title', async () => {
+    await testDb.db.query(
+      `INSERT INTO novels (id, title, author, created_at, updated_at)
+       VALUES ('unrelated-older-book', '病弱软妹她身娇体软易推倒', '妖吃饭了', $1, $1)`,
+      [Date.now()],
+    )
+    const preview = await createPreview(testDb.db, {
+      sourceType: 'file',
+      sourceLabel: '[更116]她身娇体软 作者：阿隐.txt',
+      sourceUrl: '',
+      payload: helpers.parseTextImport('作者：阿隐\n第一章 初见\n她推开门。', '[更116]她身娇体软 作者：阿隐.txt'),
+    })
+
+    expect(preview.book).toMatchObject({ title: '她身娇体软', author: '阿隐' })
+    expect(preview.candidates).toEqual([])
+    expect(preview.targetNovelId).toBeNull()
+    expect(preview.targetNovel).toBeNull()
+  })
+
+  it('respects choosing a new book even when a unique same-title candidate exists', async () => {
+    const preview = await createPreview(testDb.db, {
+      sourceType: 'file', sourceLabel: '同名.txt', sourceUrl: '',
+      payload: { title: '和哥哥在乱交世界里假装do爱', author: '归雾', chapters: [{ title: '第一章', order: 1, content: '正文' }] },
+      targetNovelId: null,
+    })
+    expect(preview.candidates).toHaveLength(1)
+    expect(preview.targetNovelId).toBeNull()
+    expect(preview.targetNovel).toBeNull()
+    expect(preview.chapters.every((chapter) => chapter.status === 'new')).toBe(true)
+  })
+
+  it('requires confirmation when an exact title belongs to a different known author', async () => {
+    const preview = await createPreview(testDb.db, {
+      sourceType: 'file', sourceLabel: '同名.txt', sourceUrl: '',
+      payload: { title: '和哥哥在乱交世界里假装do爱', author: '另一位作者', chapters: [{ title: '第一章', order: 1, content: '正文' }] },
+    })
+    expect(preview.candidates).toHaveLength(1)
+    expect(preview.targetNovelId).toBeNull()
+  })
+
+  it('preserves source URL matching when the same work has changed its metadata', async () => {
+    const preview = await createPreview(testDb.db, {
+      sourceType: 'url', sourceLabel: '同一来源', sourceUrl: 'https://www.po18.tw/books/902326',
+      payload: { title: '更新后的书名', author: '更新后的笔名', sourceUrl: 'https://www.po18.tw/books/902326', chapters: [{ title: '第一章', order: 1, content: '正文' }] },
+    })
+    expect(preview.candidates).toHaveLength(1)
+    expect(preview.candidates[0]?.matchReason).toBe('source-url')
     expect(preview.targetNovelId).toBe('novel-target-1')
   })
 
