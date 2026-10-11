@@ -28,6 +28,27 @@
   padding-inline: var(--admin-pagination-padding-inline);
 }
 
+/* 后台弹窗沿用三段式纸面；分页不另加描边、底色或内边距。 */
+.admin-pagination--dialog {
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.admin-dialog .admin-pagination--dialog .admin-pagination__jump-input[type='number'] {
+  width: var(--admin-pagination-jump-width);
+  min-width: var(--admin-pagination-jump-width);
+  height: var(--admin-pagination-control-size);
+  min-height: var(--admin-pagination-control-size);
+  padding: 0;
+  text-align: center;
+}
+.admin-dialog .admin-pagination--dialog .admin-pagination__controls > [data-slot='button'] {
+  height: var(--admin-pagination-control-size);
+  min-height: var(--admin-pagination-control-size);
+  padding-block: 0;
+}
+
 .admin-pagination__summary {
   min-width: 0;
   overflow: hidden;
@@ -106,6 +127,18 @@
 
 /* 窄屏：计数与控件各占一行、控件左起，避免计数与按钮互压。 */
 @media (max-width: 640px) {
+  .admin-pagination--dialog .admin-pagination__controls {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .admin-pagination--dialog .admin-pagination__info {
+    text-align: center;
+  }
+  .admin-pagination--dialog .admin-pagination__jump {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: end;
+  }
   .admin-pagination {
     align-items: flex-start;
     flex-direction: column;
