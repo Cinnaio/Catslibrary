@@ -154,3 +154,50 @@ it('迁移前没有实际快照的已应用历史只读展示，不能推断撤�
   expect((await getSourceSyncHistoryDetail(t.db, s.runId)).changes).toEqual([])
   await expect(rollbackSourceSync(t.db, s.runId, 'admin')).rejects.toThrow('旧记录没有应用快照')
 })
+
+
+it('仅修复所选序号并记录实际历史，不修改未选章节或小说信息', async () => {
+  const s = await seed(['起程', '归途'], ['起程', '归途'], [3, 4])
+  const result = await applySourceSync(t.db, { runId: s.runId, repairOrder: true, confirmedOrderIds: [s.local[0]!.id] })
+  expect(result).toMatchObject({ updated: 0, orderUpdated: 1, metadataUpdated: [] })
+  const rows = (await t.db.query<{ id: string; sort_order: number }>('SELECT id,sort_order FROM chapters WHERE novel_id=$1 ORDER BY id', [s.novelId])).rows
+  expect(rows.map(row => row.sort_order)).toEqual([1, 4])
+  const detail = await getSourceSyncHistoryDetail(t.db, s.runId)
+  expect(detail.changes).toHaveLength(1)
+  expect(detail.changes[0]).toMatchObject({ id: s.local[0]!.id, before: { order: 3 }, after: { order: 1 } })
+  expect((await rollbackSourceSync(t.db, s.runId, 'admin')).restored).toBe(1)
+})
+
+it('所选序号占用未选章节时拒绝应用，完整选择可交换且无效选择不能写入', async () => {
+  const s = await seed(['起程', '归途'], ['起程', '归途'], [2, 1])
+  await expect(applySourceSync(t.db, { runId: s.runId, repairOrder: true, confirmedOrderIds: [s.local[0]!.id] })).rejects.toThrow('未选章节占用')
+  await expect(applySourceSync(t.db, { runId: s.runId, repairOrder: true, confirmedOrderIds: ['missing'] })).rejects.toThrow('不在序号修复预览中')
+  expect((await t.db.query<{ status: string }>('SELECT status FROM source_sync_runs WHERE id=$1', [s.runId])).rows[0]?.status).toBe('preview')
+  expect((await applySourceSync(t.db, { runId: s.runId, repairOrder: true, confirmedOrderIds: s.local.map(row => row.id) })).orderUpdated).toBe(2)
+})
+
+it('102章中3章未匹配不会阻塞其余30项序号修复，冲突项保留且可撤回', async () => {
+  const shape = (await import('../../../shared/__fixtures__/source-sync-partial.json')).default
+  const localTitles = shape.locals.map((row, i) => row.sourceOrder === null ? `第${1000 + i}章 未匹配公告` : `第${row.sourceOrder}章 测试故事-${row.sourceOrder}`)
+  const sourceTitles = shape.sourceOrders.map(order => `第${order}章 测试故事-${order}`)
+  const s = await seed(localTitles, sourceTitles, shape.locals.map(row => row.order))
+  expect(s.preview.localChapterCount).toBe(102)
+  expect(s.preview.mappings).toHaveLength(99)
+  expect(s.preview.changes).toHaveLength(0)
+  expect(s.preview.unmatchedLocal).toHaveLength(3)
+  expect(s.preview.orderChanges).toHaveLength(30)
+  expect(s.preview.orderRepairBlockedReason).toBeUndefined()
+  expect(s.preview.orderRepairSkipped).toHaveLength(5)
+  const original = new Map(s.local.map(row => [row.id, row.order]))
+  const selected = s.preview.orderChanges.map(row => row.localChapterId)
+  const result = await applySourceSync(t.db, { runId: s.runId, repairOrder: true, confirmedOrderIds: selected })
+  expect(result).toMatchObject({ updated: 0, orderUpdated: 30, metadataUpdated: [] })
+  const rows = (await t.db.query<{ id: string; sort_order: number; content: string }>('SELECT id,sort_order,content FROM chapters WHERE novel_id=$1', [s.novelId])).rows
+  const targets = new Map(s.preview.orderChanges.map(row => [row.localChapterId, row.newOrder]))
+  for (const row of rows) {
+    expect(row.sort_order).toBe(targets.get(row.id) ?? original.get(row.id))
+    expect(row.content).toBe('正文保持')
+  }
+  expect((await getSourceSyncHistoryDetail(t.db, s.runId)).changes).toHaveLength(30)
+  expect((await rollbackSourceSync(t.db, s.runId, 'admin')).restored).toBe(30)
+})

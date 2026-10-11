@@ -481,6 +481,8 @@ scrapeRoutes.post('/', async (c) => {
       const confirmedChangeIds = Array.isArray(body.confirmedChangeIds)
         ? body.confirmedChangeIds.map((id: unknown) => String(id)).filter(Boolean)
         : []
+      if (body.confirmedOrderIds !== undefined && !Array.isArray(body.confirmedOrderIds)) return c.json({ error: 'confirmedOrderIds must be an array' }, 400)
+      const confirmedOrderIds = Array.isArray(body.confirmedOrderIds) ? body.confirmedOrderIds.map((id: unknown) => String(id)).filter(Boolean) : undefined
       const metadataFields = Array.isArray(body.metadataFields) ? body.metadataFields.map((field: unknown) => String(field)) : []
       const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
       return withIdempotency(
@@ -488,7 +490,7 @@ scrapeRoutes.post('/', async (c) => {
         {
           scope: `scrape.source-sync-apply.${c.get('user').id}.${runId}`,
           operationKey,
-          payload: { runId, revision: body.revision ?? 0, applyMetadata: body.applyMetadata === true, metadataFields, metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing', confirmedChangeIds, repairOrder: body.repairOrder === true },
+          payload: { runId, revision: body.revision ?? 0, applyMetadata: body.applyMetadata === true, metadataFields, metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing', confirmedChangeIds, confirmedOrderIds, repairOrder: body.repairOrder === true },
           audit: { actorUserId: c.get('user').id, action: 'source-sync-apply', targetCount: confirmedChangeIds.length },
         },
         async () => {
@@ -500,6 +502,7 @@ scrapeRoutes.post('/', async (c) => {
                 metadataFields,
                 metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing',
                 confirmedChangeIds,
+                confirmedOrderIds,
                 repairOrder: body.repairOrder === true,
                 revision: (body.revision ?? 0) as number,
                 actorUserId: c.get('user').id,
