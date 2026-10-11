@@ -72,7 +72,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
     </div>
 
     <OrderRepairPreview preview={preview} checked={repairOrder} onChange={onRepairOrderChange} disabled={disabled} />
-    <ChapterMappingReview preview={preview} disabled={disabled} onRemap={onRemap} />
+    <ChapterMappingReview preview={preview} disabled={disabled} onRemap={onRemap} confirmedManualIds={confirmedManualIds} onConfirmTitles={confirmChanges} />
 
     <div className="chapter-merge-dialog__preview-section">
       <div className="chapter-merge-dialog__review-toolbar">
