@@ -155,3 +155,108 @@ it('人工强制边界保持裸编号的归一化与导入键', () => {
   const result = helpers.parseTextImportDetailed(content, '强制.txt', { forceHeadings: [1] })
   expect(result.payload.chapters[0]?.title).toBe('0012 短标题')
 })
+
+/**
+ * 编号缺口回填。
+ *
+ * 实测《同时做四个人的金丝雀》第 15 章标题 47 字、第 32 章标题 70 字，都是真章节，
+ * 却因超过长度阈值被判为正文，文件名写着「更38」而只切出 36 章。阈值不能放宽
+ * （会把正文首句吃成标题），真正的判据是全文编号序列的连续性。
+ */
+describe('编号缺口回填', () => {
+  /** 长度确定超过 MAX_CHAPTER_TITLE_LENGTH 的章名。 */
+  const longTitle = '长'.repeat(45)
+
+  it('补回因超长被否决的章名，无需人工或 AI 复核', () => {
+    const text = [
+      '第0014章 套话',
+      '正文甲。',
+      `第0015章\t景谅声公开暗示/和段闻透明玻璃花房play（好长的一章可以给我珠珠奖励一下吗！）`,
+      '正文乙。',
+      '第0016章 电影院',
+      '正文丙。',
+    ].join('\n')
+    const { payload, diagnostics } = helpers.parseTextImportDetailed(text, '长章名.txt')
+
+    expect(payload.chapters).toHaveLength(3)
+    expect(diagnostics.stats.numbering).toMatchObject({ detected: 3, min: 14, max: 16, missing: 0 })
+    expect(payload.chapters[1]?.title).toContain('景谅声公开暗示')
+    // 已由规则确定，不该再占用复核额度。
+    expect(diagnostics.uncertainTotal).toBe(0)
+    expect(diagnostics.anomalies.map((item) => item.code)).toContain('numbering-gap-filled')
+  })
+
+  it('裸编号的超长章名同样补回', () => {
+    const text = [
+      '31 他是谁？',
+      '正文甲。',
+      '32 沈冬聆只是偶然地，幸运地，接近了星星的轨迹，相交过后各自回归自己的世界，她仍有自己的生活要开启，而他继续做那个聚光灯前万众瞩目的星星。',
+      '正文乙。',
+      '33 只要能拥有她，我不介意和你分享。',
+      '正文丙。',
+    ].join('\n')
+    const { payload, diagnostics } = helpers.parseTextImportDetailed(text, '裸编号长章名.txt')
+
+    expect(payload.chapters).toHaveLength(3)
+    expect(payload.chapters[1]?.title).toContain('沈冬聆')
+    expect(diagnostics.uncertainTotal).toBe(0)
+  })
+
+  it('回填出来的幂等键与常规路径一致', () => {
+    // 键一旦分叉，增量导入会把库里已存在的章节整片误判成新增。
+    const text = ['第0014章 套话', '正文甲。', `第0015章 ${longTitle}`, '正文乙。', '第0016章 电影院', '正文丙。'].join('\n')
+    const { payload } = helpers.parseTextImportDetailed(text, '键一致.txt')
+    const rescued = helpers.parseTextImportDetailed(text, '键一致.txt', { forceHeadings: [3] })
+
+    expect(helpers.importChapterKey(payload.chapters[1]!.title)).toBe('#15')
+    expect(payload.chapters.map((chapter) => helpers.importChapterKey(chapter.title))).toEqual(
+      rescued.payload.chapters.map((chapter) => helpers.importChapterKey(chapter.title)),
+    )
+  })
+
+  it('缺口填不满时不回填，避免把跳号当成漏判', () => {
+    // 14 → 17 之间只有 15 一个候选：文件本身跳号，不能假定 15 就是边界。
+    const text = ['第0014章 套话', '正文甲。', `第0015章 ${longTitle}`, '正文乙。', '第0017章 尾声', '正文丙。'].join('\n')
+    const { payload, diagnostics } = helpers.parseTextImportDetailed(text, '跳号.txt')
+
+    expect(payload.chapters).toHaveLength(2)
+    expect(diagnostics.uncertainTotal).toBe(1)
+    expect(diagnostics.anomalies.map((item) => item.code)).not.toContain('numbering-gap-filled')
+  })
+
+  it('缺口内出现多个同号候选时整段放弃', () => {
+    // 正文里恰好也有一行以「第0015章」开头的长句时，无法判定哪一条是边界。
+    const text = ['第0014章 套话', '正文甲。', `第0015章 ${longTitle}`, '正文乙。', `第0015章 ${longTitle}`, '正文丙。', '第0016章 电影院', '正文丁。'].join(
+      '\n',
+    )
+    const { payload } = helpers.parseTextImportDetailed(text, '同号候选.txt')
+
+    expect(payload.chapters).toHaveLength(2)
+  })
+
+  it('确定否决的理由不参与回填', () => {
+    // 「2 楼」是论坛楼层，形态上确定不是章节；编号缺口不能把它救成第 2 章。
+    const text = ['第1章 起', '正文甲。', '2 楼', '正文乙。', '第3章 承', '正文丙。'].join('\n')
+    const { payload, diagnostics } = helpers.parseTextImportDetailed(text, '楼层.txt')
+
+    expect(payload.chapters).toHaveLength(2)
+    expect(diagnostics.anomalies.map((item) => item.code)).not.toContain('numbering-gap-filled')
+  })
+
+  it('没有后继章节时不回填', () => {
+    // 末章之后无法用编号连续性判断，仍交给复核。
+    const text = ['第1章 起', '正文甲。', `第2章 ${longTitle}`, '正文乙。'].join('\n')
+    const { payload, diagnostics } = helpers.parseTextImportDetailed(text, '末章.txt')
+
+    expect(payload.chapters).toHaveLength(1)
+    expect(diagnostics.uncertainTotal).toBe(1)
+  })
+
+  it('多章连续被否决时整段补回', () => {
+    const text = ['第0014章 套话', '正文甲。', `第0015章 ${longTitle}`, '正文乙。', `第0016章 ${longTitle}`, '正文丙。', '第0017章 尾声', '正文丁。'].join('\n')
+    const { payload, diagnostics } = helpers.parseTextImportDetailed(text, '连续缺两章.txt')
+
+    expect(payload.chapters).toHaveLength(4)
+    expect(diagnostics.stats.numbering).toMatchObject({ detected: 4, min: 14, max: 17, missing: 0 })
+  })
+})

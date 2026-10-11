@@ -280,6 +280,21 @@ export function probeChapterHeadingLine(line: string): HeadingProbe {
 }
 
 /**
+ * 因「长度 / 句读 / 缩进」这类弱证据被否决的理由。这些行只是「形似正文」，
+ * 并非确定不是章节，因此允许由编号缺口回填救回。
+ *
+ * 论坛楼层、编号列表项、数量单位、编号超界不在此列：它们是被形态确定排除的，
+ * 编号缺口也救不回（否则会把「2016 年……」这类正文重新吃成章节）。
+ */
+const WEAK_REJECTION_REASONS = new Set(['overlong-title', 'prose-ending-long-title', 'prose-ending', 'leading-indent'])
+
+/**
+ * 单次回填允许填补的最大缺口。缺口越大，「候选恰好填满」越不可能是巧合，
+ * 但也越可能是作者跳号或文件残缺；取 50 作上界，避免为超大缺口做无谓扫描。
+ */
+const MAX_RESCUE_RUN = 50
+
+/**
  * 卷/部/篇是容器级标题，不是章节。真实站点导出的 TXT 里「第三卷」往往直接跟在
  * 上一章正文后面，若当章节切，上一章正文会被截到卷标题为止。
  */
@@ -494,6 +509,18 @@ export function importChapterKey(title: unknown): string {
   return normalizeImportChapterTitle(raw)
 }
 
+/**
+ * 从疑似标题行里取章节编号，取不到返回 null。
+ * 复用 importChapterKey 的编号归一化，保证回填出来的键与常规路径逐字一致——
+ * 幂等键一旦分叉，增量导入就会把已有章节整片误判成新增。
+ */
+export function chapterNumberFromTitle(title: unknown): number | null {
+  const key = importChapterKey(title)
+  if (!key.startsWith('#')) return null
+  const value = Number(key.slice(1))
+  return Number.isFinite(value) && value >= 1 ? value : null
+}
+
 const CHINESE_DIGITS: Record<string, number> = {
   零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
   壹: 1, 贰: 2, 叁: 3, 肆: 4, 伍: 5, 陆: 6, 柒: 7, 捌: 8, 玖: 9,
@@ -537,8 +564,9 @@ const MAX_DIAGNOSTIC_CONTEXT = 120
 /**
  * 当前启发式版本。AI 复核结果与标注样本据此判断基线是否已变——
  * 拿旧模型结论对照新规则，会把规则修复误读成模型失误。
+ * 版本 3：增加编号缺口回填，长章名不再需要人工或 AI 复核。
  */
-export const IMPORT_HEURISTIC_VERSION = 2
+export const IMPORT_HEURISTIC_VERSION = 3
 
 /**
  * 行号覆盖。AI 边界复核只回答「哪几行是章节边界」，切分与幂等键生成仍由
@@ -572,6 +600,8 @@ interface DiagnosticsInput {
   chapters: BookImportChapterInput[]
   uncertain: BookImportLineEvidence[]
   uncertainTotal: number
+  /** 由编号缺口回填救回的章节数；0 表示未触发回填。 */
+  rescuedHeadings: number
 }
 
 /** 正文字符数分位（忽略空白），用于识别切碎与漏切。 */
@@ -709,11 +739,21 @@ function buildImportDiagnostics(input: DiagnosticsInput): BookImportDiagnostics 
     frontMatterChars: input.frontMatterChars,
     numbering: chapterNumberingStats(input.chapters),
   }
+  const anomalies = detectImportAnomalies(stats, input.uncertainTotal)
+  if (input.rescuedHeadings > 0) {
+    // 回填是「规则自己修好了」，不是异常；但必须让管理员看见，否则无法判断
+    // 某个长章名是被规则救回的还是被人工/AI 指定的。
+    anomalies.unshift({
+      code: 'numbering-gap-filled',
+      severity: 'info',
+      message: `按编号缺口补回 ${input.rescuedHeadings} 个超长章名，无需人工复核`,
+    })
+  }
   return {
     stats,
     uncertain: ordered.slice(0, MAX_DIAGNOSTIC_LINES),
     uncertainTotal: input.uncertainTotal,
-    anomalies: detectImportAnomalies(stats, input.uncertainTotal),
+    anomalies,
     heuristicVersion: IMPORT_HEURISTIC_VERSION,
   }
 }
@@ -747,6 +787,66 @@ export function parseTextImportDetailed(
   const denySet = new Set(overrides.denyHeadings || [])
   const reviewedSet = new Set(overrides.reviewedLines || [])
   let reviewedCount = 0
+
+  // ---- 编号缺口回填 ----
+  /**
+   * 长度与句读阈值挡掉的是「正文长句」，但它们同样会挡掉真实的长章名：
+   * 实测《同时做四个人的金丝雀》第 15 章标题 47 字、第 32 章标题 70 字，都是
+   * 真章节，却因超长被判为正文，38 章的文件只切出 36 章（文件名「更38」）。
+   *
+   * 阈值本身不能放宽——放宽会把正文首句吃成标题，那是负收益。真正的判据是
+   * 全文编号序列：若被否决的行其编号恰好落在前后两个已识别章节之间，且完整
+   * 填满这段缺口，它就是漏掉的章节边界。这条判据与长度无关，不随作者写法失效。
+   *
+   * 关键在于「完整填满」：只有当缺口 (prev, next) 内的每个编号都恰好有一个候选
+   * 时才算数。文件本身跳号、或正文里恰好出现同号长句时，缺口都填不满，不会误切。
+   */
+  const rescuedHeadings = new Set<number>()
+  {
+    const acceptedNumbers = new Set<number>()
+    const rejectedByNumber = new Map<number, Array<{ line: number; title: string }>>()
+    for (const [index, line] of lines.entries()) {
+      const lineNumber = index + 1
+      if (denySet.has(lineNumber)) continue
+      const forcedRaw = forceSet.has(lineNumber) ? text(String(line || '').replace(LEADING_INVISIBLE, '')) : ''
+      const probe: HeadingProbe = forcedRaw
+        ? { title: probeChapterHeadingLine(forcedRaw).title || forcedRaw, rule: 'forced-heading', confidence: 'high', uncertain: false }
+        : probeChapterHeadingLine(line)
+      if (probe.title) {
+        // 卷标题并进正文，不参与章节编号序列。
+        if (VOLUME_HEADING.test(probe.title)) continue
+        const number = chapterNumberFromTitle(probe.title)
+        if (number !== null) acceptedNumbers.add(number)
+        continue
+      }
+      if (!probe.rejectedBy || !WEAK_REJECTION_REASONS.has(probe.rejectedBy)) continue
+      const raw = text(String(line || '').replace(LEADING_INVISIBLE, ''))
+      const number = chapterNumberFromTitle(raw)
+      if (number === null || !isPlausibleChapterNumber(number)) continue
+      const list = rejectedByNumber.get(number) || []
+      list.push({ line: lineNumber, title: raw })
+      rejectedByNumber.set(number, list)
+    }
+
+    const accepted = [...acceptedNumbers].sort((a, b) => a - b)
+    for (const number of [...rejectedByNumber.keys()].sort((a, b) => a - b)) {
+      let prev: number | undefined
+      let next: number | undefined
+      for (const value of accepted) {
+        if (value < number) prev = value
+        else if (value > number) { next = value; break }
+      }
+      if (prev === undefined || next === undefined) continue
+      const gapSize = next - prev - 1
+      if (gapSize <= 0 || gapSize > MAX_RESCUE_RUN) continue
+      const expected: number[] = []
+      for (let value = prev + 1; value < next; value++) expected.push(value)
+      // 每个编号必须恰好一个候选；多一个候选就说明有正文长句混进来了，整段放弃。
+      if (!expected.every((value) => rejectedByNumber.get(value)?.length === 1)) continue
+      for (const value of expected) rescuedHeadings.add(rejectedByNumber.get(value)![0]!.line)
+    }
+  }
+  for (const line of rescuedHeadings) forceSet.add(line)
 
   // ---- 诊断累积 ----
   let headingLines = 0
@@ -887,6 +987,7 @@ export function parseTextImportDetailed(
     chapters: payload.chapters,
     uncertain: uncertainBuckets.flat(),
     uncertainTotal,
+    rescuedHeadings: rescuedHeadings.size,
   })
 
   diagnostics.reviewedCount = reviewedCount

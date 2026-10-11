@@ -185,6 +185,7 @@ export interface BookImportAnomaly {
     | 'chapters-fragmented'
     | 'chapters-missing'
     | 'numbering-gaps'
+    | 'numbering-gap-filled'
     | 'numbering-duplicated'
     | 'chapter-length-outlier'
     | 'front-matter-oversized'
