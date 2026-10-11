@@ -109,6 +109,7 @@ export default function BookImportDialog({
   const [sourceUrl, setSourceUrl] = useState('')
   const [preview, setPreview] = useState<BookImportPreview | null>(null)
   const [targetNovelId, setTargetNovelId] = useState<string | null>(null)
+  const [createNewSelected, setCreateNewSelected] = useState(false)
   const [selectedChapterIds, setSelectedChapterIds] = useState<Set<string>>(new Set())
   const [metadataFields, setMetadataFields] = useState<Set<string>>(new Set())
   const [metadataMode, setMetadataMode] = useState<'missing' | 'replace'>('missing')
@@ -129,6 +130,7 @@ export default function BookImportDialog({
   function applyPreview(next: BookImportPreview) {
     setPreview(next)
     setTargetNovelId(next.targetNovelId)
+    setCreateNewSelected(false)
     setSelectedChapterIds(new Set(next.chapters.filter((chapter) => chapter.selected).map((chapter) => chapter.id)))
     setMetadataFields(new Set(next.metadataDiff.filter((field) => field.selected).map((field) => field.field)))
     setMetadataMode('missing')
@@ -177,8 +179,8 @@ export default function BookImportDialog({
 
   async function handleMatchContinue() {
     if (!preview || operationBusy || operationLock.current) return
-    if (preview.candidates.length > 1 && !targetNovelId) {
-      setError('请先选择一个导入目标；如果都不是目标，也可以返回来源重新检查书名。')
+    if (preview.candidates.length > 0 && !targetNovelId && !createNewSelected) {
+      setError('请选择一个已有作品，或选择新建作品。')
       return
     }
     setError('')
@@ -187,6 +189,7 @@ export default function BookImportDialog({
       if (targetNovelId !== preview.targetNovelId) {
         const next = await bookImportApi.selectTarget(preview.runId, targetNovelId, preview.revision || 0)
         applyPreview(next)
+        setCreateNewSelected(next.targetNovelId === null)
       }
       setStep('diff')
     } catch (err) {
@@ -462,7 +465,7 @@ export default function BookImportDialog({
                 <div className="book-import__section-heading">
                   <div>
                     <h3 id="book-import-match-title">书库匹配</h3>
-                    <p>选择已有作品，继续补充章节；没有同名作品时会创建新书。</p>
+                    <p>确认书名和作者后选择已有作品；候选都不符时，可选择新建作品。</p>
                   </div>
                   <Badge variant="secondary">{preview.candidates.length ? `找到 ${preview.candidates.length} 个候选` : '没有同名作品'}</Badge>
                 </div>
@@ -477,7 +480,10 @@ export default function BookImportDialog({
                           className="book-import__candidate"
                           data-selected={selected}
                           aria-pressed={selected}
-                          onClick={() => setTargetNovelId(candidate.novel.id)}
+                          onClick={() => {
+                            setTargetNovelId(candidate.novel.id)
+                            setCreateNewSelected(false)
+                          }}
                         >
                           <span className="book-import__candidate-check" aria-hidden="true">
                             {selected && <Check className="size-3.5" />}
@@ -490,6 +496,24 @@ export default function BookImportDialog({
                         </button>
                       )
                     })}
+                    <button
+                      type="button"
+                      className="book-import__candidate"
+                      data-selected={createNewSelected}
+                      aria-pressed={createNewSelected}
+                      onClick={() => {
+                        setTargetNovelId(null)
+                        setCreateNewSelected(true)
+                      }}
+                    >
+                      <span className="book-import__candidate-check" aria-hidden="true">
+                        {createNewSelected && <Check className="size-3.5" />}
+                      </span>
+                      <span className="book-import__candidate-copy">
+                        <strong>新建作品</strong>
+                        <span>候选都不是这本书，将单独创建作品并导入章节。</span>
+                      </span>
+                    </button>
                   </div>
                 ) : (
                   <div className="book-import__empty-state">
@@ -643,7 +667,7 @@ export default function BookImportDialog({
               </div>
             ) : step === 'diff' ? <span>已选 {selectedChapterCount} 章 · {selectedMetadataCount} 项作品信息</span>
               : step === 'source' ? <span>生成预览后，再确认导入</span>
-                : step === 'match' ? <span>{targetNovelId ? '导入到已有作品' : '确认目标后，继续查看差异'}</span>
+                : step === 'match' ? <span>{targetNovelId ? '导入到已有作品' : createNewSelected || !preview?.candidates.length ? '将创建新作品' : '确认目标后，继续查看差异'}</span>
                   : <span>{rollbackResult ? '撤回结果已保存' : '已保留本次导入快照'}</span>}
           </div>
           <div className="book-import__footer-actions">
