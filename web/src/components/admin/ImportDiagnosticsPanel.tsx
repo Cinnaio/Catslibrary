@@ -180,8 +180,8 @@ export default function ImportDiagnosticsPanel({
               <span>
                 本轮复核了 {aiReview.candidateCount} 行，
                 {changed > 0
-                  ? `待采纳建议改判 ${changed} 行，全部采纳后为 ${aiReview.projectedChapterCount} 章（当前 ${stats.chapterCount} 章）。`
-                  : '未发现需要改判的边界。'}
+                  ? `有 ${changed} 行建议调整；整份文件全部采纳后预计识别为 ${aiReview.projectedChapterCount} 章（当前 ${stats.chapterCount} 章）。`
+                  : '未发现需要调整的章节划分。'}
               </span>
             </div>
           )}
@@ -247,25 +247,83 @@ export default function ImportDiagnosticsPanel({
 function ImpactRows({ impacts }: { impacts: BookImportBoundaryImpact[] }) {
   return (
     <div className="book-import__boundary-impacts">
+      {impacts.length > 1 && <p className="book-import__diagnostics-clean">以下展示本次所选调整的整体影响；同一章节涉及多处调整时，字数包含这些调整。</p>}
       {impacts.map((impact) => (
         <div className="book-import__boundary-impact" key={impact.line}>
           <p>
-            第 {impact.line} 行：{impact.raw}
+            调整第 {impact.line} 行：{impact.raw}
           </p>
+          {impact.change ? (
+            <>
+              <p className="book-import__impact-explanation">
+                {impact.change.beforeRole === impact.change.afterRole
+                  ? '这一行的识别方式未变化；下方展示本次所选调整对相关章节的影响。'
+                  : impact.change.afterRole === 'prose'
+                    ? `这一行不再作为章节标题，改为「${impact.after.title}」的正文。`
+                    : `从这一行开始新章节「${impact.after.title}」，后续正文按新边界重新归属。`}
+              </p>
+              <p className="book-import__impact-role">
+                {impact.change.beforeRole === 'heading' ? '章节标题' : '正文'} → {impact.change.afterRole === 'heading' ? '章节标题' : '正文'}
+              </p>
+              {impact.change.addedChars !== undefined && (
+                <p className="book-import__diagnostics-clean">
+                  「{impact.after.title}」正文：{impact.before.chars} → {impact.after.chars} 字
+                  {impact.after.chars !== impact.before.chars
+                    ? `（${impact.after.chars > impact.before.chars ? '增加' : '减少'} ${Math.abs(impact.after.chars - impact.before.chars)} 字）`
+                    : '（总字数不变）'}
+                </p>
+              )}
+              {!!impact.change.removedChars && (
+                <div className="book-import__impact-text" data-kind="removed">
+                  <span>
+                    {impact.change.addedChars ? '调整前的变化片段' : '从正文移出的文字'} · {impact.change.removedChars} 字
+                  </span>
+                  <p>
+                    <del>{impact.change.removedText}</del>
+                  </p>
+                </div>
+              )}
+              {!!impact.change.addedChars && (
+                <div className="book-import__impact-text" data-kind="added">
+                  <span>
+                    {impact.change.removedChars ? '调整后的变化片段' : '新增到正文的文字'} · {impact.change.addedChars} 字
+                  </span>
+                  <p>
+                    <mark>{impact.change.addedText}</mark>
+                  </p>
+                </div>
+              )}
+              {impact.change.textTruncated && <p className="book-import__diagnostics-clean">变化片段较长，仅展示前 400 字；字数统计包含整个变化区域。</p>}
+            </>
+          ) : (
+            <p className="book-import__diagnostics-clean">此预览未包含具体边界变化，请重新点击「查看调整效果」获取完整说明。</p>
+          )}
           <div className="book-import__boundary-comparison">
-            <div>
-              <strong>
-                修正前 · {impact.before.title} · {impact.before.chars} 字
-              </strong>
-              <p>{impact.before.excerpt || '无正文'}</p>
-            </div>
-            <div>
-              <strong>
-                修正后 · {impact.after.title} · {impact.after.chars} 字
-              </strong>
-              <p>{impact.after.excerpt || '无正文'}</p>
-            </div>
+            {(['before', 'after'] as const).map((side) => (
+              <div key={side}>
+                <strong>{side === 'before' ? '调整前' : '调整后'} · 相关章节</strong>
+                {(impact[side].chapters || [impact[side]]).map((chapter, index) => (
+                  <p key={index}>
+                    {chapter.title} · 正文共 {chapter.chars} 字
+                  </p>
+                ))}
+                {impact[side].chapters?.length === 0 && <p>前置信息，尚未形成章节</p>}
+              </div>
+            ))}
           </div>
+          {impact.context && (
+            <details className="book-import__impact-context">
+              <summary>查看这一行附近的原文</summary>
+              <ol className="book-import__source-lines" aria-label={`第 ${impact.line} 行附近原文`}>
+                {impact.context.map((row) => (
+                  <li key={row.line} data-active={row.line === impact.line}>
+                    <span>{row.line}</span>
+                    <span>{row.raw || '（空行）'}</span>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
         </div>
       ))}
     </div>
@@ -328,20 +386,25 @@ function BoundarySuggestions({
           />
           <span>
             <strong>
-              第 {item.line} 行 · {item.heuristic === 'heading' ? '标题' : '正文'} → {item.verdict === 'heading' ? '标题' : '正文'}
+              建议：将第 {item.line} 行{item.verdict === 'heading' ? '作为章节标题，从这里开始新章节' : '作为正文，不在此处新建章节'}
             </strong>
-            <span>{item.raw}</span>
+            <span>
+              当前识别为{item.heuristic === 'heading' ? '章节标题' : '正文'} · 原文：{item.raw}
+            </span>
           </span>
         </label>
       ))}
+      <p className="book-import__diagnostics-clean">
+        已选 {selected.size} 处识别建议。采纳后只更新导入预览、调整章节划分，不改写原文；点击「确认导入」才会写入书库。
+      </p>
       <div className="book-import__boundary-actions">
         {runId && (
           <Button size="sm" variant="outline" disabled={busy || loading || !selected.size || !canResplit} onClick={() => void compare()}>
-            {loading ? '计算中…' : '比较所选修正'}
+            {loading ? '计算中…' : '查看调整效果'}
           </Button>
         )}
         <Button size="sm" disabled={busy || loading || !selected.size || !canResplit} onClick={() => onApply([...selected])}>
-          采纳建议并重新切分 · {selected.size} 行
+          按建议重新识别章节 · {selected.size} 处
         </Button>
       </div>
       {error && (
@@ -351,7 +414,7 @@ function BoundarySuggestions({
       )}
       {comparison && (
         <p role="status" className="book-import__diagnostics-clean">
-          采纳所选修正后为 {comparison.chapterCount} 章。
+          整份文件按所选建议调整后，预计识别为 {comparison.chapterCount} 章；最终仅导入你选中的章节。
         </p>
       )}
       <ImpactRows impacts={comparison?.impacts || (selected.size === review.suggestions.length ? review.impacts || [] : [])} />
@@ -468,7 +531,7 @@ function ManualBoundaryEditor({
       {comparison && (
         <>
           <p role="status" className="book-import__diagnostics-clean">
-            修正后为 {comparison.chapterCount} 章。
+            整份文件调整后，预计识别为 {comparison.chapterCount} 章；最终仅导入你选中的章节。
           </p>
           <ImpactRows impacts={comparison.impacts} />
         </>

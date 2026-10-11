@@ -51,6 +51,7 @@ async function openDiff() {
   fireEvent.change(screen.getByLabelText('选择书籍文件'), { target: { files: [new File(['序章'], '样本.txt', { type: 'text/plain' })] } })
   fireEvent.click(screen.getByRole('button', { name: '生成预览' }))
   fireEvent.click(await screen.findByRole('button', { name: '查看差异' }))
+  fireEvent.mouseDown(await screen.findByRole('tab', { name: '解析检查' }), { button: 0, ctrlKey: false })
   fireEvent.click(await screen.findByRole('button', { name: /展开明细/ }))
 }
 it('唯一候选也可以改为新建作品，并使用新目标预览提交', async () => {
@@ -87,6 +88,7 @@ it('复核期间禁止提交和返回，完成后使用新版本逐条采纳并�
   fireEvent.click(screen.getByRole('button', { name: '运行 AI 复核' }))
   expect(screen.getByRole('button', { name: /确认导入/ })).toBeDisabled()
   expect(screen.getByRole('button', { name: '返回' })).toBeDisabled()
+  expect(screen.getByRole('tab', { name: /章节差异/ })).toBeDisabled()
   await act(async () =>
     resolve({
       revision: 1,
@@ -101,7 +103,7 @@ it('复核期间禁止提交和返回，完成后使用新版本逐条采纳并�
     }),
   )
   expect(api.aiReview).toHaveBeenCalledWith('run', 0)
-  fireEvent.click(screen.getByRole('button', { name: /采纳建议并重新切分/ }))
+  fireEvent.click(screen.getByRole('button', { name: /按建议重新识别章节/ }))
   await screen.findByText(/章节和作品信息的勾选已重置/)
   expect(api.applyAiReview).toHaveBeenCalledWith('run', 1, [1])
 })

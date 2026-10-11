@@ -237,8 +237,19 @@ export interface BookImportBoundaryOverride {
 export interface BookImportBoundaryImpact {
   line: number
   raw: string
-  before: { title: string; chars: number; excerpt: string }
-  after: { title: string; chars: number; excerpt: string }
+  before: { title: string; chars: number; excerpt: string; chapters?: Array<{ title: string; chars: number }> }
+  after: { title: string; chars: number; excerpt: string; chapters?: Array<{ title: string; chars: number }> }
+  context?: Array<{ line: number; raw: string }>
+  change?: {
+    beforeRole: BookImportLineVerdict
+    afterRole: BookImportLineVerdict
+    /** 仅同一个相关章节前后对比时提供；拆章/合章不作跨章节字数相减。 */
+    addedText?: string
+    removedText?: string
+    addedChars?: number
+    removedChars?: number
+    textTruncated?: boolean
+  }
 }
 
 export interface BookImportAiReview {

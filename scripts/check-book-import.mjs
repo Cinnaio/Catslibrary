@@ -19,6 +19,8 @@ const chapters = Array.from({ length: 24 }, (_, i) => ({
 }))
 const fixture = {
   runId: 'fixture-run',
+  canResplit: true,
+  revision: 0,
   sourceType: 'file',
   sourceLabel: '山雨来时.txt',
   sourceUrl: '',
@@ -69,6 +71,14 @@ const aiReview = {
   suggestions: [{ line: 42, raw: '山雨将至', heuristic: 'prose', verdict: 'heading', confidence: 'high', reason: '独立标题行' }],
   usage: { promptTokens: 0, completionTokens: 0, costMillicents: 0 },
 }
+const authorNoteImpact = {
+  line: 42,
+  raw: '100珠的加更送上啦，感谢投珠支持的宝贝们',
+  before: { title: '第21章 夜雨', chars: 1738, excerpt: '', chapters: [{ title: '第21章 夜雨', chars: 1738 }] },
+  after: { title: '第21章 夜雨', chars: 1759, excerpt: '', chapters: [{ title: '第21章 夜雨', chars: 1759 }] },
+  change: { beforeRole: 'heading', afterRole: 'prose', addedText: '100珠的加更送上啦，感谢投珠支持的宝贝们', removedText: '', addedChars: 21, removedChars: 0 },
+  context: [{ line: 41, raw: '原章节的末尾正文。' }, { line: 42, raw: '100珠的加更送上啦，感谢投珠支持的宝贝们' }, { line: 43, raw: '第22章 清晨' }],
+}
 const browser = await chromium.launch({ channel: 'msedge', headless: true }),
   evidence = []
 try {
@@ -90,6 +100,7 @@ try {
       showDiagnostics = false,
       reviewCalls = 0,
       applyCalls = 0
+    let authorNoteCase = false
     await context.route('**/api/**', async (route) => {
       const path = new URL(route.request().url()).pathname
       let data = {}
@@ -101,12 +112,17 @@ try {
         if (delay) await new Promise((r) => setTimeout(r, 800))
         if (fail) return route.fulfill({ status: 500, json: { error: '模拟解析失败，请检查文件后重试。' } })
         data = showDiagnostics ? { ...fixture, diagnostics } : fixture
+      } else if (path.endsWith('/boundaries')) {
+        assert.equal(route.request().postDataJSON().dryRun, true)
+        data = { chapterCount: 25, impacts: [{ line: 42, raw: '山雨将至', before: { title: '原章节', chars: 1200, excerpt: '调整前的正文节选。', chapters: [{ title: '原章节', chars: 1200 }] }, after: { title: '山雨将至', chars: 600, excerpt: '调整后的正文节选。', chapters: [{ title: '原章节', chars: 596 }, { title: '山雨将至', chars: 600 }] }, change: { beforeRole: 'prose', afterRole: 'heading' }, context: [{ line: 41, raw: '原章节的末尾正文。' }, { line: 42, raw: '山雨将至' }, { line: 43, raw: '新章节的开头正文。' }] }] }
+        if (authorNoteCase) data = { chapterCount: 24, impacts: [authorNoteImpact] }
       } else if (path.endsWith('/ai-review/apply')) {
         applyCalls++
         data = { ...fixture, diagnostics }
       } else if (path.endsWith('/ai-review')) {
         reviewCalls++
         data = aiReview
+        if (authorNoteCase) data = { ...aiReview, projectedChapterCount: 24, suggestions: [{ line: 42, raw: authorNoteImpact.raw, heuristic: 'heading', verdict: 'prose', confidence: 'high', reason: '作者说明' }] }
       } else if (path.endsWith('/commit')) {
         posted = route.request().postDataJSON()
         data = {
@@ -147,8 +163,8 @@ try {
       assert.ok(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth), `${name}: overflow`)
     }
     assert.ok(await dialog.getByRole('button', { name: '生成预览', exact: true }).isDisabled())
-    assert.equal(await dialog.locator('[aria-current="step"]').innerText(), '选择来源')
-    if (width === 1440) assert.equal(Math.round((await dialog.boundingBox()).width), 760)
+    assert.ok((await dialog.locator('[aria-current="step"]').innerText()).includes('选择来源'))
+    if (width === 1440) assert.equal(Math.round((await dialog.boundingBox()).width), 896)
     await capture('source')
     assert.notEqual(await dialog.locator('.book-import__source-tabs').evaluate(el => getComputedStyle(el, '::before').content), 'none', 'source tabs use shared activation surface')
     const input = dialog.locator('input[type=file]')
@@ -184,16 +200,23 @@ try {
     await dialog.getByRole('heading', { name: '章节差异', exact: true }).waitFor()
     assert.equal(await dialog.locator('.book-import__body').evaluate((el) => el.scrollTop), 0)
     await capture('diff')
-    await dialog.locator('.book-import__metadata-disclosure > summary').click()
+    await dialog.getByRole('tab', { name: /章节差异/ }).focus()
+    await page.keyboard.press('ArrowRight')
+    await dialog.locator('.book-import__review-tabs [data-state="active"]').filter({ hasText: '作品信息' }).waitFor()
+    assert.equal(await dialog.getByRole('tab', { name: /作品信息/ }).getAttribute('aria-selected'), 'true', 'review tabs support keyboard navigation')
+    assert.equal(await dialog.getByRole('heading', { name: '章节差异', exact: true }).count(), 0)
     const fieldLabels = await dialog.locator('.book-import__metadata-copy strong').evaluateAll(elements => elements.map(el => ({size: getComputedStyle(el).fontSize, weight: getComputedStyle(el).fontWeight})))
     assert.ok(fieldLabels.length > 0 && fieldLabels.every(label => label.size === '12px' && label.weight === '500'), 'metadata field labels follow shared dialog scale')
     const selectedMode = await dialog.locator('.book-import__mode-picker label:has(input:checked)').evaluate(el => ({weight: getComputedStyle(el).fontWeight, size: getComputedStyle(el).fontSize}))
     assert.equal(selectedMode.weight, '600', 'selected metadata mode keeps shared emphasis')
     assert.equal(selectedMode.size, '13px', 'metadata mode keeps shared size on every viewport')
     await capture('metadata')
-    await dialog.locator('.book-import__metadata-disclosure > summary').click()
+    await dialog.getByRole('tab', { name: /章节差异/ }).click()
     await dialog.getByRole('button').filter({ hasText: '第2章 山雨来时' }).click()
     await dialog.getByRole('checkbox', { name: '有变化章节：第2章 山雨来时，沿着旧日书页寻找归途' }).check()
+    await dialog.getByRole('tab', { name: /作品信息/ }).click()
+    await dialog.getByRole('tab', { name: /章节差异/ }).click()
+    assert.ok(await dialog.getByRole('checkbox', { name: '有变化章节：第2章 山雨来时，沿着旧日书页寻找归途' }).isChecked(), 'review tabs retain chapter selection')
     await dialog.locator('.book-import__chapter-diff').scrollIntoViewIfNeeded()
     await capture('comparison')
     assert.ok(await dialog.getByRole('checkbox', { name: '需确认章节：第4章 山雨来时，沿着旧日书页寻找归途' }).isDisabled())
@@ -216,19 +239,39 @@ try {
     await dialog.getByLabel('书籍详情页 URL').press('Enter')
     await dialog.getByRole('heading', { name: '书库匹配', exact: true }).waitFor()
     await dialog.getByRole('button', { name: '查看差异', exact: true }).click()
+    await dialog.getByRole('button', { name: '前往检查' }).click()
     await dialog.getByRole('button', { name: '展开明细' }).click()
     await capture('diagnostics')
     await dialog.getByRole('button', { name: '运行 AI 复核' }).click()
-    await dialog.getByRole('button', { name: '采纳建议并重新切分' }).waitFor()
+    await dialog.getByRole('button', { name: '按建议重新识别章节' }).waitFor()
+    await dialog.getByRole('button', { name: '查看调整效果' }).click()
+    await dialog.getByText('整份文件按所选建议调整后，预计识别为 25 章；最终仅导入你选中的章节。').waitFor()
+    assert.equal(applyCalls, 0)
+    await dialog.getByText('从这一行开始新章节「山雨将至」，后续正文按新边界重新归属。').waitFor()
+    assert.equal(await dialog.getByText(/减少 600 字/).count(), 0, 'split chapters must not subtract unrelated chapter sizes')
+    await dialog.getByText('查看这一行附近的原文').click()
+    await dialog.getByRole('list', { name: '第 42 行附近原文' }).waitFor()
+    await dialog.getByRole('tab', { name: /章节差异/ }).click()
+    await dialog.getByRole('tab', { name: '解析检查' }).click()
+    await dialog.getByText('整份文件按所选建议调整后，预计识别为 25 章；最终仅导入你选中的章节。').waitFor()
     await dialog.locator('.book-import__diagnostics-review-result').scrollIntoViewIfNeeded()
     await capture('ai-review')
-    await dialog.getByRole('button', { name: '采纳建议并重新切分' }).click()
+    await dialog.getByRole('button', { name: '按建议重新识别章节' }).click()
     await dialog.getByRole('button', { name: '运行 AI 复核' }).waitFor()
     assert.equal(reviewCalls, 1)
     assert.equal(applyCalls, 1)
     assert.equal(previews, 3)
+    if (width === 1440 && theme === 'light') {
+      authorNoteCase = true
+      await dialog.getByRole('button', { name: '运行 AI 复核' }).click()
+      await dialog.getByRole('button', { name: '查看调整效果' }).click()
+      await dialog.getByText('新增到正文的文字 · 21 字').waitFor()
+      await dialog.getByText(/1738 → 1759 字（增加 21 字）/).waitFor()
+      await dialog.locator('.book-import__boundary-impacts').scrollIntoViewIfNeeded()
+      await capture('author-note')
+    }
     assert.deepEqual(errors, [])
-    evidence.push({ width, height, theme, pass: true, states: 13 })
+    evidence.push({ width, height, theme, pass: true, states: width === 1440 && theme === 'light' ? 14 : 13 })
     await context.close()
   }
 } finally {
