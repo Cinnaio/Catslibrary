@@ -61,6 +61,25 @@
 [data-slot='dialog-content'].admin-dialog.chapter-merge-dialog {
   max-width: 47.5rem;
 }
+[data-slot='dialog-content'].admin-dialog.chapter-merge-dialog--review {
+  width: min(calc(100% - 2rem), var(--admin-reading-dialog-wide-width));
+  max-width: var(--admin-reading-dialog-wide-width);
+}
+.chapter-merge-dialog--review .chapter-merge-dialog__preview-section {
+  margin-top: var(--admin-space-5);
+}
+.chapter-merge-dialog--review .chapter-merge-dialog__preview-summary {
+  padding: var(--admin-space-5);
+  gap: var(--admin-space-3);
+}
+.chapter-merge-dialog--review .chapter-merge-dialog__review-toolbar {
+  gap: var(--admin-space-4);
+  margin-bottom: var(--admin-space-4);
+}
+.chapter-merge-dialog--review [data-slot='dialog-footer'] {
+  border-top: 1px solid var(--admin-border);
+  padding-top: var(--admin-space-4);
+}
 .chapter-merge-dialog__context {
   display: grid;
   gap: var(--admin-space-1);

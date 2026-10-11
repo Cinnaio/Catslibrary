@@ -45,10 +45,116 @@
   flex-shrink: 0;
 }
 
+/* 映射核对：沿用纸面、字号与间距契约，以列对照和留白组织信息。 */
+.chapter-merge-dialog__mapping-review {
+  border-top: 1px solid var(--admin-border);
+  padding-top: var(--admin-space-4);
+}
+
+.chapter-merge-dialog__mapping-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--admin-space-4);
+  margin-top: var(--admin-space-4);
+}
+
+.chapter-merge-dialog__mapping-tools > input {
+  flex: 0 1 18rem;
+  min-width: 0;
+}
+
+.chapter-merge-dialog__mapping-guidance {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: var(--admin-space-4);
+  padding-block: var(--admin-space-2);
+}
+
+.chapter-merge-dialog__mapping-guidance > details { min-width: 0; }
+.chapter-merge-dialog__mapping-guidance > button { flex-shrink: 0; }
+.chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-guidance summary {
+  color: var(--text-muted);
+  font-size: var(--admin-dialog-hint-size);
+}
+
+.chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-list > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--admin-space-4);
+  padding-block: var(--admin-space-5);
+}
+
+.chapter-merge-dialog__mapping-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--admin-space-5);
+  line-height: 1.75;
+}
+
+.chapter-merge-dialog__mapping-comparison > div { min-width: 0; }
+.chapter-merge-dialog__mapping-comparison strong { font-weight: 500; color: var(--text-primary); }
+.chapter-merge-dialog__mapping-label {
+  display: block;
+  margin-bottom: var(--admin-space-2);
+  color: var(--text-muted);
+  font-size: var(--admin-dialog-label-size);
+}
+
+.chapter-merge-dialog__mapping-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--admin-space-2) var(--admin-space-4);
+  margin-top: var(--admin-space-3);
+  color: var(--text-muted);
+  font-size: var(--admin-dialog-hint-size);
+  line-height: 1.65;
+}
+
+.chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-meta summary {
+  padding: 0;
+  color: var(--text-muted);
+  font-size: inherit;
+  font-weight: 400;
+}
+
+.chapter-merge-dialog__mapping-meta details[open] { flex-basis: 100%; }
+.chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-meta p { margin-top: var(--admin-space-2); }
+.chapter-merge-dialog__mapping-adjust { margin-top: var(--admin-space-5); }
+.chapter-merge-dialog__mapping-adjust[aria-expanded='true'] { background: var(--accent-subtle); color: var(--accent-hover); }
+
+.chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-editor {
+  grid-column: 1 / -1;
+  gap: var(--admin-space-4);
+  padding: var(--admin-space-5);
+  background: var(--admin-panel-muted);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  line-height: 1.7;
+}
+
+.chapter-merge-dialog__mapping-editor h4 { margin: 0; font-weight: 500; color: var(--text-primary); }
+.chapter-merge-dialog__mapping-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--admin-space-4); }
+.chapter-merge-dialog__mapping-fields > div { min-width: 0; }
+.chapter-merge-dialog__mapping-editor .chapter-merge-dialog__metadata-actions { margin: 0; flex-wrap: wrap; padding-top: var(--admin-space-2); }
+
 @media (max-width: 640px) {
   .chapter-merge-dialog__mapping-list > li {
     flex-direction: column;
   }
+
+  .chapter-merge-dialog__mapping-tools { gap: var(--admin-space-3); }
+  .chapter-merge-dialog__mapping-tools > input { flex-basis: 100%; width: 100%; }
+  .chapter-merge-dialog__mapping-comparison,
+  .chapter-merge-dialog__mapping-fields { grid-template-columns: minmax(0, 1fr); gap: var(--admin-space-4); }
+  .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-list > li { gap: var(--admin-space-2); }
+  .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-editor { padding: var(--admin-space-4); }
+  .chapter-merge-dialog__mapping-adjust { padding-inline: var(--admin-space-2); min-height: var(--admin-dialog-mobile-action-min-height); }
+  .chapter-merge-dialog__mapping-meta { row-gap: var(--admin-space-2); }
+  .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-meta summary { min-height: 2.75rem; padding-block: var(--admin-space-2); }
 }
 
 .admin-redesign-page--chapters {

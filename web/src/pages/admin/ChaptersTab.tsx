@@ -739,7 +739,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
         open={renameModal}
         onOpenChange={(open) => { if (!open) closeRenameModal() }}
       >
-        <AdminDialogContent variant="editor" className="chapter-merge-dialog" onInteractOutside={(event) => { if (mergeBusy.current) event.preventDefault() }} onEscapeKeyDown={(event) => { if (mergeBusy.current) event.preventDefault() }}>
+        <AdminDialogContent variant="editor" className="chapter-merge-dialog chapter-merge-dialog--review" onInteractOutside={(event) => { if (mergeBusy.current) event.preventDefault() }} onEscapeKeyDown={(event) => { if (mergeBusy.current) event.preventDefault() }}>
           <DialogHeader>
             <DialogTitle className="editor-modal__title">融合章节名</DialogTitle>
             <DialogDescription>从原作者源站补全章节名，先核对变化，再应用更新。</DialogDescription>
