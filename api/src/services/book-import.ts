@@ -589,6 +589,8 @@ export interface TextImportOverrides {
 }
 
 export interface TextImportResult {
+  /** 包括之后因无正文被丢弃的章节边界，供调整效果解释使用。 */
+  boundaryLines?: number[]
   frontMatterContent?: string
   chapterRanges?: Array<{ startLine: number; endLine: number }>
   payload: BookImportPayload
@@ -785,6 +787,7 @@ export function parseTextImportDetailed(
   /** 切分期的内部章节：额外记住它是否由权威标题（第NNN章 / NNN）开出，用于识别重抄标题。 */
   type WorkingChapter = BookImportChapterInput & { fromAuthoritative?: boolean; startLine?: number }
   const chapters: WorkingChapter[] = []
+  const boundaryLines: number[] = []
   let current: WorkingChapter | null = null
   const byKey = new Map<string, WorkingChapter>()
   /** 首个章节标题之前的所有行：站点前置信息（元数据、宣传位、避雷说明）。 */
@@ -942,6 +945,7 @@ export function parseTextImportDetailed(
       }
       current = beginChapter(title, [embeddedKey, key], authoritative)
       current.startLine = lineNumber
+      boundaryLines.push(lineNumber)
       continue
     }
     if (current) {
@@ -1008,7 +1012,7 @@ export function parseTextImportDetailed(
     startLine: (finalChapters[index] as WorkingChapter)?.startLine || 1,
     endLine: index + 1 < payload.chapters.length ? ((finalChapters[index + 1] as WorkingChapter)?.startLine || lines.length + 1) - 1 : lines.length,
   }))
-  return { payload, diagnostics, chapterRanges, frontMatterContent: leftover.join('\n').trim() }
+  return { payload, diagnostics, chapterRanges, boundaryLines, frontMatterContent: leftover.join('\n').trim() }
 }
 
 /** TXT 章节切分。诊断走 parseTextImportDetailed，这里只取切分结果。 */
