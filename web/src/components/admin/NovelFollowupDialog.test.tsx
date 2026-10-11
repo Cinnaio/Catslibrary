@@ -31,6 +31,19 @@ it('未配置爬虫时不能开启或手动更新', async () => {
   expect(await screen.findByRole('checkbox', { name: '自动追更' })).toBeDisabled()
   expect(screen.getByRole('button', { name: '检查更新' })).toBeDisabled()
 })
+it('完结作品默认关闭但允许手动开启并保存', async () => {
+  const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...state, ongoing: false }) })
+  vi.stubGlobal('fetch', fetch)
+  render(<NovelFollowupDialog novel={{ id: 'done', title: '完结作品' }} onClose={() => {}} />)
+  const checkbox = await screen.findByRole('checkbox', { name: '自动追更' })
+  expect(checkbox).toBeEnabled()
+  expect(checkbox).not.toBeChecked()
+  expect(screen.getByText('已完结作品默认不追更；如需继续检查，可手动开启。')).toBeInTheDocument()
+  fireEvent.click(checkbox)
+  fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+  await screen.findByText('追更设置已保存')
+  expect(JSON.parse(fetch.mock.calls[1]![1].body)).toMatchObject({ novelId: 'done', enabled: true })
+})
 it('手动更新出错时显示服务端原因并允许重试', async () => {
   const fetch = vi
     .fn()
@@ -47,12 +60,10 @@ it('手动更新出错时显示服务端原因并允许重试', async () => {
 it('追更窗口显示待入库中的受保护数量，并说明访问权限', async () => {
   vi.stubGlobal(
     'fetch',
-    vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({ ...state, pendingChapterCount: 4, pendingProtectedChapterCount: 2, pendingPublicChapterCount: 2, pendingUnknownChapterCount: 0 }),
-      }),
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ...state, pendingChapterCount: 4, pendingProtectedChapterCount: 2, pendingPublicChapterCount: 2, pendingUnknownChapterCount: 0 }),
+    }),
   )
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
   expect(await screen.findByText('待入库 4 章')).toBeInTheDocument()

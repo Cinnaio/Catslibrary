@@ -8,6 +8,7 @@ import type { Db } from '../../db/pool'
 import { all, first, withTx } from '../../db/query'
 import { newId } from '../auth'
 import { SITE_PRESETS } from './presets'
+import { applyFollowupDefaults } from '../novel-followup-defaults'
 import { legadoHost, sourceToPreset } from './legado'
 
 export interface ScrapeLink {
@@ -509,6 +510,7 @@ export class PgScrapeStore implements ScrapeStore {
        ON CONFLICT (novel_id) DO UPDATE SET source_url = EXCLUDED.source_url, selectors = EXCLUDED.selectors, encoding = EXCLUDED.encoding, updated_at = EXCLUDED.updated_at`,
       [cfg.novelId, cfg.sourceUrl, JSON.stringify(cfg.selectors || {}), cfg.encoding || 'utf-8', Date.now()],
     )
+    await applyFollowupDefaults(this.db, cfg.novelId)
   }
 
   async getScrapeConfig(novelId: string): Promise<ScrapeConfig | null> {

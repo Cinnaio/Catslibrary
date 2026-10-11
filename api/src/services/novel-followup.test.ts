@@ -31,10 +31,10 @@ describe('连载追更', () => {
       }
     },
   })
-  it('默认关闭，拒绝未配置及已完结作品开启', async () => {
-    expect((await getFollowup(t.db, 'follow'))?.enabled).toBe(false)
+  it('有效来源的连载作品默认开启，未配置作品不能开启', async () => {
+    expect((await getFollowup(t.db, 'follow'))?.enabled).toBe(true)
     await expect(saveFollowup(t.db, 'unconfigured', true, 6)).rejects.toThrow('已配置')
-    await expect(saveFollowup(t.db, 'done', true, 6)).rejects.toThrow('连载')
+    await expect(saveFollowup(t.db, 'done', true, 6)).rejects.toThrow('已配置')
     await expect(saveFollowup(t.db, 'follow', true, 2)).rejects.toThrow('频率')
   })
   it('保存频率，到期创建任务；再次手动更新复用活动任务', async () => {

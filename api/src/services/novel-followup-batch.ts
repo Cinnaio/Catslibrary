@@ -1,5 +1,6 @@
 import type { Db } from '../db/pool'
 import { withTx } from '../db/query'
+import { hasFollowupSource } from './novel-followup-defaults'
 import { FOLLOWUP_INTERVAL_HOURS, MAX_BATCH_FOLLOWUPS, type BatchFollowupMode, type BatchFollowupResult } from '@shared/novel-followup'
 
 export async function saveBatchFollowups(db: Db, ids: string[], mode: BatchFollowupMode, hours?: number): Promise<BatchFollowupResult> {
@@ -10,9 +11,17 @@ export async function saveBatchFollowups(db: Db, ids: string[], mode: BatchFollo
   const uniqueIds = [...new Set(ids)]
   return withTx(db, async (q) => {
     const rows = (
-      await q<{ id: string; title: string; status: string; selectors: string | null; enabled: boolean | null; interval_hours: number | null }>(
+      await q<{
+        id: string
+        title: string
+        status: string
+        source_url: string | null
+        selectors: string | null
+        enabled: boolean | null
+        interval_hours: number | null
+      }>(
         `
-      SELECT n.id,n.title,n.status,c.selectors,f.enabled,f.interval_hours FROM novels n
+      SELECT n.id,n.title,n.status,c.source_url,c.selectors,f.enabled,f.interval_hours FROM novels n
       LEFT JOIN scrape_configs c ON c.novel_id=n.id LEFT JOIN novel_followups f ON f.novel_id=n.id
       WHERE n.id=ANY($1::text[]) ORDER BY n.id FOR UPDATE OF n`,
         [uniqueIds],
@@ -27,19 +36,7 @@ export async function saveBatchFollowups(db: Db, ids: string[], mode: BatchFollo
       else if (mode !== 'pause') {
         if (row.status !== 'ongoing') reason = '已完结作品不参与自动追更'
         else {
-          let selectors: Record<string, unknown> = {}
-          try {
-            selectors = JSON.parse(row.selectors || '{}') || {}
-          } catch {
-            /* 无效配置按未配置处理 */
-          }
-          if (
-            typeof selectors.chapterList !== 'string' ||
-            !selectors.chapterList.trim() ||
-            typeof selectors.chapterContent !== 'string' ||
-            !selectors.chapterContent.trim()
-          )
-            reason = '尚未配置有效的目录和正文选择器'
+          if (!hasFollowupSource(row.source_url, row.selectors)) reason = '尚未配置有效的目录和正文选择器'
         }
       }
       if (!reason && row)
@@ -52,10 +49,10 @@ export async function saveBatchFollowups(db: Db, ids: string[], mode: BatchFollo
     })
     if (valid.length) {
       await q(
-        `INSERT INTO novel_followups (novel_id,enabled,interval_hours,next_check_at)
-        SELECT id,enabled,hours,CASE WHEN enabled THEN $4::bigint + hours * 3600000::bigint ELSE 0 END
+        `INSERT INTO novel_followups (novel_id,enabled,interval_hours,next_check_at,user_configured)
+        SELECT id,enabled,hours,CASE WHEN enabled THEN $4::bigint + hours * 3600000::bigint ELSE 0 END,TRUE
         FROM UNNEST($1::text[],$2::boolean[],$3::integer[]) AS items(id,enabled,hours)
-        ON CONFLICT (novel_id) DO UPDATE SET enabled=EXCLUDED.enabled,interval_hours=EXCLUDED.interval_hours,next_check_at=EXCLUDED.next_check_at`,
+        ON CONFLICT (novel_id) DO UPDATE SET enabled=EXCLUDED.enabled,interval_hours=EXCLUDED.interval_hours,next_check_at=EXCLUDED.next_check_at,user_configured=TRUE`,
         [valid.map((row) => row.id), valid.map((row) => row.enabled), valid.map((row) => row.hours), Date.now()],
       )
     }

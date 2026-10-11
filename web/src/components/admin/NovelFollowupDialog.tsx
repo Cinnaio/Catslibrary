@@ -131,15 +131,10 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
                   <Label htmlFor="followup-enabled">自动追更</Label>
                   <p className="admin-dialog-hint">定期检查目录，有新章节时自动入库。</p>
                 </div>
-                <Checkbox
-                  id="followup-enabled"
-                  checked={enabled}
-                  disabled={!state.hasConfig || !state.ongoing || busy}
-                  onCheckedChange={(value) => setEnabled(value === true)}
-                />
+                <Checkbox id="followup-enabled" checked={enabled} disabled={!state.hasConfig || busy} onCheckedChange={(value) => setEnabled(value === true)} />
               </div>
               {!state.hasConfig && <p className="admin-dialog-hint">请先在抓取中心为这本书配置目录和正文选择器。</p>}
-              {!state.ongoing && <p className="admin-dialog-hint">已完结作品暂停自动检查，仍可手动更新。</p>}
+              {!state.ongoing && <p className="admin-dialog-hint">已完结作品默认不追更；如需继续检查，可手动开启。</p>}
               <div className="novel-followup-dialog__frequency">
                 <Label id="followup-frequency">检查频率</Label>
                 <CustomSelect
@@ -179,9 +174,7 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
                   </div>
                   <div>
                     <dt>下次检查</dt>
-                    <dd>
-                      {state.enabled && state.ongoing ? state.result === 'running' ? '更新完成后安排' : <CheckTime value={state.nextCheckAt} /> : '已暂停'}
-                    </dd>
+                    <dd>{state.enabled ? state.result === 'running' ? '更新完成后安排' : <CheckTime value={state.nextCheckAt} /> : '已暂停'}</dd>
                   </div>
                 </dl>
               </section>

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest'
 import { createTestDb, type TestDb } from '../test/db'
 import { PgScrapeStore } from './scraper/store'
 import { saveBatchFollowups } from './novel-followup-batch'
-import { getFollowup } from './novel-followup'
+import { getFollowup, saveFollowup } from './novel-followup'
 let t: TestDb
 beforeAll(async () => {
   t = await createTestDb()
@@ -12,6 +12,7 @@ beforeAll(async () => {
   const store = new PgScrapeStore(t.db)
   for (const id of ['ready', 'paused', 'done'])
     await store.upsertScrapeConfig({ novelId: id, sourceUrl: 'https://example.com/book', selectors: { chapterList: 'a', chapterContent: '.content' } })
+  await saveFollowup(t.db, 'paused', false, 6)
   await store.upsertScrapeConfig({ novelId: 'bad-config', sourceUrl: 'https://example.com/book', selectors: { chapterList: 'a' } })
 })
 afterAll(async () => {
