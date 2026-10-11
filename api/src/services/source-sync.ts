@@ -213,7 +213,11 @@ function parseNumberToken(value: string): number | null {
 }
 
 function chapterNumber(title: string): number | null {
-  const text = cleanTitle(title)
+  const text = cleanTitle(title).normalize('NFKC')
+  // 导入器可能添加「第0011章」，作者原题却以「10.」开头；优先使用内层作者编号。
+  const withoutImportPrefix = text.replace(/^第\s*\d+\s*[章节回卷集部篇]\s*/, '')
+  const innerNumber = withoutImportPrefix.match(/^(\d+(?:\.\d+)?)(?:[.、:：]|\s)/)
+  if (innerNumber) return Number(innerNumber[1])
   const extra = text.match(EXTRA_NUMBER)
   if (extra) return parseNumberToken(extra[1]!)
   const arabic = text.match(ARABIC_NUMBER)
@@ -227,13 +231,15 @@ function isExtraTitle(title: string): boolean {
 }
 
 function normalizedTitle(title: string): string {
-  return cleanTitle(title)
+  return cleanTitle(title).normalize('NFKC')
     .replace(/^第\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回卷集部篇]?\s*/i, '')
     .replace(/^chapter\s*\d+\s*/i, '')
+    // 清除目录序号及作者编号，支持「38 36.5 论坛番外」这样的多层前缀。
+    .replace(/^(?:\d+(?:\.\d+)?(?:[.、:：]\s*|\s+))+/, '')
     .replace(SPLIT_MARKER, '')
     .replace(/[【】「」『』《》]/g, '')
     .toLocaleLowerCase()
-    .replace(/\s+/g, '')
+    .replace(/[\s.,，。:：!！?？、]/g, '')
 }
 
 function isWeakTitle(title: string, order: number): boolean {
@@ -288,14 +294,21 @@ function groupLocalChapters(rows: LocalChapterForSync[]): LocalGroup[] {
 function groupScore(source: SourceChapter, group: LocalGroup): number {
   const first = group.chapters[0]!
   if (INTRO_TITLES.test(source.title) && INTRO_TITLES.test(first.title)) return 10
+  const s = normalizedTitle(source.title)
+  const l = normalizedTitle(first.title)
+  // 完整标题一致比导入编号更可靠，缺章或插入公告也不能使它让位给相邻编号。
+  if (s && l && s === l) return 24 + (group.explicitSplit ? 2 : 0)
   if (isExtraTitle(source.title) !== isExtraTitle(first.title)) return -8
   let score = group.chapters.length > 1 ? 2 : 0
   const sourceNumber = chapterNumber(source.title)
   const localNumber = chapterNumber(first.title)
-  if (sourceNumber !== null && localNumber !== null) score += sourceNumber === localNumber ? 8 : -5
-  const s = normalizedTitle(source.title)
-  const l = normalizedTitle(first.title)
-  if (s && l && (s === l || s.includes(l) || l.includes(s))) score += 8
+  const titleContains = Boolean(s && l && (s.includes(l) || l.includes(s)))
+  // 编号冲突且标题无对应关系时，跳过两侧章节的代价为 -5，不能以同分强行配对。
+  if (sourceNumber !== null && localNumber !== null) {
+    if (sourceNumber !== localNumber && !titleContains) return -6
+    score += sourceNumber === localNumber ? 8 : -5
+  }
+  if (titleContains) score += 8
   if (isWeakTitle(first.title, first.order)) score += 3
   if (group.explicitSplit) score += 2
   return score
