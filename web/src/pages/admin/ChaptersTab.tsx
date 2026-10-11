@@ -23,6 +23,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import ChapterMergePreview from './ChapterMergePreview'
+import SourceSyncHistoryDialog from './SourceSyncHistoryDialog'
+import type { SourceSyncManualMapping } from '@/lib/api'
 import ChapterIllustrations from '@/components/reader/ChapterIllustrations'
 import { formatContent } from '@/lib/reader-utils'
 import AdminRowActions from '@/components/admin/AdminRowActions'
@@ -72,6 +74,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const chapterSaveLock = useRef(false)
   const [draft, setDraft] = useState<ChapterDraft>({ order: 1, title: '', content: '' })
   const [renameModal, setRenameModal] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [sourceUrl, setSourceUrl] = useState('')
   const [sourcePreview, setSourcePreview] = useState<SourceSyncPreview | null>(null)
   const [sourceSearch, setSourceSearch] = useState<TitleSourceSearchResponse | null>(null)
@@ -424,6 +427,17 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     return sourceSearch?.sources?.[site]?.results || []
   }
 
+  async function remapSource(manualMappings: SourceSyncManualMapping[]) {
+    if (mergeBusy.current || !sourcePreview) return
+    mergeBusy.current = true; setRenaming(true); setSourceError('')
+    try {
+      const next = await scrapeApi.sourceSyncRemap({ runId: sourcePreview.runId, revision: sourcePreview.revision || 0, manualMappings })
+      setSourcePreview(next); setConfirmedManualIds(new Set()); setRepairOrder(false)
+      toast('映射已更新，请重新核对标题变化；人工确认与序号修复选择已清空。', 'success')
+    } catch (err) { setSourceError((err as Error).message || '映射更新失败，请重新读取源站') }
+    finally { mergeBusy.current = false; setRenaming(false) }
+  }
+
   async function applyRename() {
     if (mergeBusy.current) return
     if (!sourcePreview) {
@@ -457,6 +471,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     try {
       const result = await scrapeApi.sourceSyncApply({
         runId: sourcePreview.runId,
+        revision: sourcePreview.revision || 0,
         applyMetadata: availableMetadataFields.length > 0,
         metadataFields: availableMetadataFields,
         metadataMode: 'replace',
@@ -526,6 +541,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 融合章节名
               </Button>
             )}
+            <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>融合历史</Button>
           </div>
         </AdminToolbar>
       )}
@@ -810,7 +826,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             </details>
             {sourceError && <p role="alert" className="chapter-merge-dialog__error">{sourceError}</p>}
             {renaming && !sourcePreview && <p role="status" className="admin-dialog-hint">正在读取源站并匹配本地章节，请稍候…</p>}
-            {sourcePreview && <ChapterMergePreview key={sourcePreview.runId} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} repairOrder={repairOrder} onRepairOrderChange={setRepairOrder} disabled={renaming} />}
+            {sourcePreview && <ChapterMergePreview key={`${sourcePreview.runId}:${sourcePreview.revision || 0}`} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} repairOrder={repairOrder} onRepairOrderChange={setRepairOrder} onRemap={mappings => void remapSource(mappings)} disabled={renaming} />}
           </AdminDialogBody>
           <DialogFooter className="chapter-merge-dialog__footer">
             <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${updateCount} 个标题待更新 · ${orderUpdateCount} 个序号修复 · ${availableMetadataFields.length} 项信息同步` : '读取后可预览全部变化'}</span>
@@ -825,6 +841,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           </DialogFooter>
         </AdminDialogContent>
       </Dialog>
+      {historyOpen && <SourceSyncHistoryDialog key={selectedNovel} open novelId={selectedNovel} onOpenChange={setHistoryOpen} onCompleted={() => void loadChapters(selectedNovel)} />}
     </AdminPage>
   )
 }

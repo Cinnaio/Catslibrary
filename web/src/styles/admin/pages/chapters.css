@@ -1,4 +1,48 @@
 /* 章节管理页的页面专属布局；卡片、指标、工具栏和标题都复用共享组件。 */
+.chapter-merge-dialog__mapping-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0;
+}
+
+.chapter-merge-dialog__mapping-list > li {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.chapter-merge-dialog__mapping-list > li > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chapter-merge-dialog__mapping-list p {
+  margin: 0.25rem 0;
+}
+
+.chapter-merge-dialog__mapping-editor {
+  display: grid;
+  gap: 0.75rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.chapter-merge-dialog__history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .chapter-merge-dialog__mapping-list > li {
+    flex-direction: column;
+  }
+}
+
 .admin-redesign-page--chapters {
   display: grid;
   gap: var(--admin-page-section-gap);

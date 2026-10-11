@@ -25,7 +25,7 @@ import {
   type Po18RankingKind,
   type Po18RankingType,
 } from '../services/scraper/enrich'
-import { applySourceSync, createSourceSyncPreview, listSourceBindings } from '../services/source-sync'
+import { applySourceSync, createSourceSyncPreview, listSourceBindings, remapSourceSync, listSourceSyncHistory, getSourceSyncHistoryDetail, rollbackSourceSync, type SourceSyncManualMapping } from '../services/source-sync'
 import {
   clearPo18Account,
   createPo18Captcha,
@@ -212,6 +212,11 @@ scrapeRoutes.get('/', async (c) => {
   }
   if (action === 'source-bindings' && novelId) {
     return c.json({ bindings: await listSourceBindings(db, novelId) }, 200, { 'Cache-Control': 'no-store' })
+  }
+  if (action === 'source-sync-history' && novelId) return c.json(await listSourceSyncHistory(db, novelId, Number(c.req.query('limit') || 20), Number(c.req.query('offset') || 0)), 200, { 'Cache-Control': 'no-store' })
+  if (action === 'source-sync-history-detail') {
+    try { return c.json(await getSourceSyncHistoryDetail(db, String(c.req.query('runId') || '')), 200, { 'Cache-Control': 'no-store' }) }
+    catch (err) { return c.json({ error: (err as Error).message }, 404) }
   }
   if (action === 'po18-account') {
     return c.json(await getPo18AccountStatus(db), 200, { 'Cache-Control': 'no-store' })
@@ -451,6 +456,25 @@ scrapeRoutes.post('/', async (c) => {
         return c.json({ error: message }, status as 400 | 502)
       }
     }
+    case 'source-sync-remap': {
+      try {
+        return c.json(await remapSourceSync(db, { runId: String(body.runId || ''), revision: body.revision as number, manualMappings: body.manualMappings as SourceSyncManualMapping[] }))
+      } catch (err) {
+        const message = (err as Error).message
+        return c.json({ error: message }, /已发生变化|已应用|不存在/.test(message) ? 409 : 400)
+      }
+    }
+    case 'source-sync-rollback': {
+      const runId = String(body.runId || '').trim()
+      if (!runId) return c.json({ error: 'runId is required' }, 400)
+      return withIdempotency(db, {
+        scope: `scrape.source-sync-rollback.${c.get('user').id}.${runId}`, operationKey: idempotencyKeyFromRequest(c, body, ['operationId']), payload: { runId },
+        audit: { actorUserId: c.get('user').id, action: 'source-sync-rollback', targetCount: 1 },
+      }, async () => {
+        try { return c.json(await rollbackSourceSync(db, runId, c.get('user').id)) }
+        catch (err) { return c.json({ error: (err as Error).message }, 409) }
+      })
+    }
     case 'source-sync-apply': {
       const runId = String(body.runId || '').trim()
       if (!runId) return c.json({ error: 'runId is required' }, 400)
@@ -464,7 +488,7 @@ scrapeRoutes.post('/', async (c) => {
         {
           scope: `scrape.source-sync-apply.${c.get('user').id}.${runId}`,
           operationKey,
-          payload: { runId, applyMetadata: body.applyMetadata === true, metadataFields, metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing', confirmedChangeIds, repairOrder: body.repairOrder === true },
+          payload: { runId, revision: body.revision ?? 0, applyMetadata: body.applyMetadata === true, metadataFields, metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing', confirmedChangeIds, repairOrder: body.repairOrder === true },
           audit: { actorUserId: c.get('user').id, action: 'source-sync-apply', targetCount: confirmedChangeIds.length },
         },
         async () => {
@@ -477,6 +501,7 @@ scrapeRoutes.post('/', async (c) => {
                 metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing',
                 confirmedChangeIds,
                 repairOrder: body.repairOrder === true,
+                revision: (body.revision ?? 0) as number,
                 actorUserId: c.get('user').id,
               }),
             )
