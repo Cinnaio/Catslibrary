@@ -24,7 +24,6 @@ import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, CircleA
 type ImportStep = 'source' | 'match' | 'diff' | 'result'
 type SourceMode = 'file' | 'url'
 
-const SOURCE_MODE_INDEX: Record<SourceMode, number> = { file: 0, url: 1 }
 
 const STEP_LABELS: Array<{ id: ImportStep; label: string }> = [
   { id: 'source', label: '选择来源' },
@@ -370,7 +369,7 @@ export default function BookImportDialog({
                   setError('')
                 }}
               >
-                <TabsList className="book-import__source-tabs" aria-label="选择导入来源" data-active-index={SOURCE_MODE_INDEX[sourceMode]}>
+                <TabsList variant="line" className="book-import__source-tabs" aria-label="选择导入来源">
                   <TabsTrigger value="file" disabled={operationBusy}>
                     <FileText aria-hidden="true" /> 本地文件
                   </TabsTrigger>

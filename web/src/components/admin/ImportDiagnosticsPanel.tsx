@@ -456,86 +456,92 @@ function ManualBoundaryEditor({
   return (
     <details className="book-import__manual-boundary">
       <summary>人工修正边界</summary>
-      <p className="book-import__diagnostics-clean">按原文行号修正遗漏或误识别的标题。先预览影响，再应用；已采纳的其他修正会保留。</p>
-      <div className="book-import__boundary-form">
-        <div>
-          <Label htmlFor="import-boundary-line">原文行号</Label>
-          <Input
-            id="import-boundary-line"
-            type="number"
-            min="1"
-            step="1"
-            value={line}
-            disabled={busy || loading}
-            onChange={(event) => {
-              setLine(event.target.value)
-              setComparison(null)
-              setContext([])
-            }}
-          />
+      <div className="book-import__manual-content">
+        <p className="book-import__diagnostics-clean">按原文行号修正遗漏或误识别的标题。先预览影响，再应用；已采纳的其他修正会保留。</p>
+        <div className="book-import__boundary-form">
+          <div>
+            <Label htmlFor="import-boundary-line">原文行号</Label>
+            <Input
+              id="import-boundary-line"
+              type="number"
+              min="1"
+              step="1"
+              value={line}
+              disabled={busy || loading}
+              onChange={(event) => {
+                setLine(event.target.value)
+                setComparison(null)
+                setContext([])
+              }}
+            />
+          </div>
+          <fieldset disabled={busy || loading}>
+            <legend>判定为</legend>
+            <div className="book-import__mode-picker book-import__boundary-verdict-options">
+              <label>
+                <input
+                  type="radio"
+                  name="import-boundary-verdict"
+                  checked={verdict === 'heading'}
+                  onChange={() => {
+                    setVerdict('heading')
+                    setComparison(null)
+                  }}
+                />
+                <span>章节标题</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="import-boundary-verdict"
+                  checked={verdict === 'prose'}
+                  onChange={() => {
+                    setVerdict('prose')
+                    setComparison(null)
+                  }}
+                />
+                <span>正文</span>
+              </label>
+            </div>
+          </fieldset>
         </div>
-        <fieldset disabled={busy || loading}>
-          <legend>判定为</legend>
-          <label>
-            <input
-              type="radio"
-              name="import-boundary-verdict"
-              checked={verdict === 'heading'}
-              onChange={() => {
-                setVerdict('heading')
-                setComparison(null)
-              }}
-            />
-            章节标题
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="import-boundary-verdict"
-              checked={verdict === 'prose'}
-              onChange={() => {
-                setVerdict('prose')
-                setComparison(null)
-              }}
-            />
-            正文
-          </label>
-        </fieldset>
-      </div>
-      <div className="book-import__boundary-actions">
-        <Button size="sm" variant="outline" disabled={busy || loading || !valid} onClick={() => void inspect(false)}>
-          查看附近原文
-        </Button>
-        <Button size="sm" variant="outline" disabled={busy || loading || !valid} onClick={() => void inspect(true)}>
-          {loading ? '读取中…' : '预览修正影响'}
-        </Button>
-        <Button size="sm" disabled={busy || loading || !comparison} onClick={() => onEdit([{ line: Number(line), verdict }])}>
-          应用人工修正
-        </Button>
-      </div>
-      {error && (
-        <p role="alert" className="book-import__boundary-error">
-          {error}
-        </p>
-      )}
-      {context.length > 0 && (
-        <ol className="book-import__source-lines" aria-label="附近原文">
-          {context.map((item) => (
-            <li key={item.line} data-active={item.line === Number(line)}>
-              <span>{item.line}</span>
-              <span>{item.raw || '（空行）'}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-      {comparison && (
-        <>
-          <p role="status" className="book-import__diagnostics-clean">
-            整份文件调整后，预计识别为 {comparison.chapterCount} 章；最终仅导入你选中的章节。
+        <div className="book-import__manual-actions">
+          <div className="book-import__manual-preview-actions">
+            <Button size="sm" variant="outline" disabled={busy || loading || !valid} onClick={() => void inspect(false)}>
+              查看附近原文
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy || loading || !valid} onClick={() => void inspect(true)}>
+              {loading ? '读取中…' : '预览修正影响'}
+            </Button>
+          </div>
+          <Button size="sm" disabled={busy || loading || !comparison} onClick={() => onEdit([{ line: Number(line), verdict }])}>
+            应用人工修正
+          </Button>
+        </div>
+        {error && (
+          <p role="alert" className="book-import__boundary-error">
+            {error}
           </p>
-          <ImpactRows impacts={comparison.impacts} />
-        </>
-      )}
+        )}
+        {context.length > 0 && (
+          <ol className="book-import__source-lines" aria-label="附近原文">
+            {context.map((item) => (
+              <li key={item.line} data-active={item.line === Number(line)}>
+                <span>{item.line}</span>
+                <span>{item.raw || '（空行）'}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+        {comparison && (
+          <>
+            <p role="status" className="book-import__diagnostics-clean">
+              整份文件调整后，预计识别为 {comparison.chapterCount} 章；最终仅导入你选中的章节。
+            </p>
+            <ImpactRows impacts={comparison.impacts} />
+          </>
+        )}
+      </div>
     </details>
   )
 }
