@@ -8,8 +8,9 @@ const out = '.impeccable/review/source-sync-review'
 await mkdir(out, { recursive: true })
 const novel = { id: 'review-book', title: '山雨来时', author: '测试作者', chapterCount: 3 }
 const localChapters = [44, 46, 46].map((order, i) => ({ id: `c${i}`, order, title: ['他注视着她【900珠加更】', '不行了，累累', '没有喊哥哥'][i] }))
+localChapters.push(...Array.from({ length: 20 }, (_, i) => ({ id: `c${i + 3}`, order: i + 47, title: `后续章节 ${i + 1}` })))
 const sourceChapters = localChapters.map((row, i) => ({ key: `s${i}`, order: 44 + i, title: row.title }))
-const original = { runId: 'review-run', revision: 0, site: 'po18tw', metadata: { title: novel.title, author: novel.author, description: '', coverUrl: '', categories: [], status: 'ongoing' }, sourceChapterCount: 3, localChapterCount: 3, matchedSourceCount: 2, unmatchedLocal: [localChapters[1]], unmatchedSource: [sourceChapters[1]], warnings: [], changes: [], manualMappings: [], localChapters, sourceChapters, mappings: [0, 2].map(i => ({ sourceChapterKey: `s${i}`, sourceOrder: 44 + i, sourceTitle: localChapters[i].title, localChapterIds: [`c${i}`], relation: 'one_to_one', confidence: 'high', matchReason: 'exact-title', matchEvidence: '完整标题一致，序号不同仍可独立定位。' })) }
+const original = { runId: 'review-run', revision: 0, site: 'po18tw', metadata: { title: novel.title, author: novel.author, description: '', coverUrl: '', categories: [], status: 'ongoing' }, sourceChapterCount: 23, localChapterCount: 23, matchedSourceCount: 22, unmatchedLocal: [localChapters[1]], unmatchedSource: [sourceChapters[1]], warnings: [], changes: [], manualMappings: [], localChapters, sourceChapters, mappings: localChapters.flatMap((_, i) => i === 1 ? [] : [{ sourceChapterKey: `s${i}`, sourceOrder: 44 + i, sourceTitle: localChapters[i].title, localChapterIds: [`c${i}`], relation: 'one_to_one', confidence: 'high', matchReason: 'exact-title', matchEvidence: '完整标题一致，序号不同仍可独立定位。' }]) }
 const browser = await chromium.launch({ channel: 'msedge', headless: true })
 try {
   for (const [width, height, theme] of [[1440, 1000, 'light'], [390, 844, 'light'], [1440, 1000, 'dark']]) {
@@ -49,8 +50,13 @@ try {
     await dialog.locator('summary').filter({ hasText: '核对与调整映射' }).click()
     await dialog.getByRole('button', { name: '调整映射：本地 46', exact: true }).first().click()
     const editor = dialog.getByRole('region', { name: '人工映射编辑' })
+    await page.waitForTimeout(100)
+    const heading = editor.getByRole('heading')
+    const bounds = await heading.boundingBox()
+    assert.ok(bounds && bounds.y >= 0 && bounds.y + bounds.height < height, '点击调整后，编辑标题必须立即出现在视口内')
+    assert.equal(await heading.evaluate(el => el === document.activeElement), true, '点击调整后，焦点必须进入编辑区域')
     await editor.getByRole('combobox').click()
-    assert.equal(await page.getByRole('option').filter({ hasText: '已占用' }).count(), 2)
+    assert.equal(await page.getByRole('option').filter({ hasText: '已占用' }).count(), 22)
     await page.getByRole('option', { name: '45 · 不行了，累累', exact: true }).click()
     await editor.scrollIntoViewIfNeeded()
     await page.screenshot({ path: `${out}/${width}-${theme}-mapping.png` })
@@ -58,6 +64,11 @@ try {
     await editor.getByRole('button', { name: '保存映射并重新预览' }).click()
     await page.waitForFunction(() => document.body.textContent.includes('映射已更新'))
     assert.equal(remapped, true)
+    await dialog.locator('summary').filter({ hasText: '核对与调整映射' }).click()
+    await dialog.getByRole('button', { name: '有差异 1', exact: true }).click()
+    assert.equal(await dialog.getByRole('list', { name: '全部章节映射' }).locator(':scope > li').count(), 1)
+    await dialog.getByText('序号不同', { exact: true }).waitFor()
+    await page.screenshot({ path: `${out}/${width}-${theme}-differences.png` })
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: '融合历史', exact: true }).click()
     await dialog.getByRole('button', { name: '查看变化', exact: true }).click()
@@ -69,7 +80,7 @@ try {
     await dialog.getByText('已恢复 1 项，保留 0 项冲突。', { exact: true }).waitFor()
     assert.equal(rolledBack, true)
     assert.deepEqual(errors, [])
-    console.log(`PASS ${width}px ${theme}: reasons, occupied targets, neighbor review, remap revision, history detail, rollback, overflow`)
+    console.log(`PASS ${width}px ${theme}: immediate editor visibility/focus in long catalog, difference filter, occupied targets, remap revision, history detail, rollback, overflow`)
     await context.close()
   }
 } finally { await browser.close() }
