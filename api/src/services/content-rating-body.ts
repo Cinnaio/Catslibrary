@@ -18,7 +18,7 @@
  * 本模块**不产出分级**。分级只由模型建议 + 人工审核决定，信号词只负责挑样本。
  */
 import type { DbClient } from '../db/pool'
-import { RESTRICTED_BODY_KEYWORDS, matchRestrictedBodyKeywords } from '@shared/restricted-patterns'
+import { RESTRICTED_BODY_KEYWORDS, matchRestrictedBodyKeywordGroups } from '@shared/restricted-patterns'
 
 /** 单段样本的正文上限（字符）。 */
 export const BODY_EXCERPT_CHARS = 420
@@ -37,8 +37,12 @@ export interface ContentRatingBodyExcerpt {
   chapterOrder: number
   /** `match`：信号词命中定位；`spread`：全书均匀采样。 */
   origin: 'match' | 'spread'
-  /** 该片段文本里出现的信号词（去重）。 */
+  /** 该片段文本里出现的全部信号词（去重）。 */
   keywords: string[]
+  /** 其中的直白信号词（权重 3）：性器官/性行为/体液，几乎只出现在成人向正文。 */
+  strongKeywords: string[]
+  /** 其中的语境依赖信号词（权重 1）：正常剧情里同样常见，命中不等于限制级。 */
+  weakKeywords: string[]
   text: string
 }
 
@@ -73,7 +77,7 @@ interface BodyChapterRow {
 interface BodyChapterDetailRow {
   id: string
   score: number | string | null
-  first_pos: number | string | null
+  positions: Array<number | string | null> | null
 }
 
 interface ExcerptRow {
@@ -127,11 +131,55 @@ function buildScoreExpression(): string {
 }
 
 /**
- * 首个信号词出现的位置。Postgres 的 `least` 忽略 NULL，全部未命中时返回 NULL，
- * 因此可以直接用 `nullif(strpos(...), 0)` 过滤未命中项。
+ * 各信号词在章内的出现位置，按 `RESTRICTED_BODY_KEYWORDS` 的顺序组成数组。
+ * 未命中处为 NULL。回传的是位置下标而不是正文，因此这一列很轻；
+ * 窗口选择由此可以在 Node 侧精确完成，不必把 100 个词的位置挤进 SQL 表达式。
  */
-function buildFirstPositionExpression(): string {
-  return `least(${RESTRICTED_BODY_KEYWORDS.map((_, index) => `nullif(strpos(content, $${index + 2}), 0)`).join(', ')})`
+function buildPositionsExpression(): string {
+  return `ARRAY[${RESTRICTED_BODY_KEYWORDS.map((_, index) => `nullif(strpos(content, $${index + 2}), 0)`).join(', ')}]`
+}
+
+/**
+ * 在章节内选出证据最密集的窗口起点。
+ *
+ * 为什么要挑窗口而不是直接用第一个命中词：第一个命中词常出现在铺垫句里
+ * （「胸口」「湿了」这类弱词尤其如此）。按它开窗，420 字里大半是剧情，
+ * 真正的证据可能落在窗口边缘甚至窗口外——审核员打开片段看到一段无关的剧情，
+ * 会以为判级没有依据。
+ *
+ * 候选窗口以每个命中点为锚（命中点前 `lead` 字为起点，保证句子完整），
+ * 取窗口内命中权重之和最大者；同权重取更靠前的窗口，保证结果确定性。
+ */
+export function pickEvidenceWindow(
+  // 位置来自 SQL 的 `ARRAY[...]`，驱动可能回传字符串数字，故入口放宽、内部统一归一。
+  positions: readonly (number | string | null | undefined)[],
+  chapterChars: number,
+  windowChars: number,
+  lead: number,
+): number {
+  const lastStart = Math.max(1, chapterChars - windowChars + 1)
+  const hits: Array<{ pos: number; weight: number }> = []
+  for (let index = 0; index < positions.length; index++) {
+    const pos = toInt(positions[index])
+    if (pos > 0) hits.push({ pos, weight: RESTRICTED_BODY_KEYWORDS[index]!.weight })
+  }
+  if (!hits.length) return 1
+
+  let bestStart = 1
+  let bestScore = -1
+  for (const anchor of hits) {
+    const start = Math.min(lastStart, Math.max(1, anchor.pos - lead))
+    const end = start + windowChars
+    let score = 0
+    for (const hit of hits) if (hit.pos >= start && hit.pos < end) score += hit.weight
+    // 平局必须显式取更靠前的窗口：锚点按信号词表顺序遍历，若只判 `score > bestScore`，
+    // 平局结果会取决于词表排列顺序——调整词表就会静默改变采样窗口。
+    if (score > bestScore || (score === bestScore && start < bestStart)) {
+      bestScore = score
+      bestStart = start
+    }
+  }
+  return bestStart
 }
 
 /** 每个信号词命中多少章；单行聚合，避免把逐章布尔矩阵回传到 Node。 */
@@ -159,12 +207,15 @@ function excerptFrom(
   text: string,
 ): ContentRatingBodyExcerpt {
   const normalized = normalizeBodyText(text)
+  const { strong, weak } = matchRestrictedBodyKeywordGroups(normalized)
   return {
     chapterId: String(chapter.id),
     chapterTitle: String(chapter.title || ''),
     chapterOrder: toInt(chapter.sort_order),
     origin,
-    keywords: matchRestrictedBodyKeywords(normalized),
+    keywords: [...strong, ...weak],
+    strongKeywords: strong,
+    weakKeywords: weak,
     text: normalized,
   }
 }
@@ -205,7 +256,7 @@ export async function loadContentRatingBodySample(
   const keywordParams: unknown[] = [novelId, ...RESTRICTED_BODY_KEYWORDS.map((item) => item.keyword)]
 
   let keywordHits: ContentRatingBodyKeywordHit[] = []
-  const detailById = new Map<string, { score: number; firstPos: number }>()
+  const detailById = new Map<string, { score: number; positions: Array<number | string | null> }>()
   if (matched.length) {
     // 逐词统计与权重只作用于命中章节：粗筛已经把范围收窄，这里不必再扫全书。
     const keywordRows = await query<Record<string, unknown>>(
@@ -223,18 +274,20 @@ export async function loadContentRatingBodySample(
       .sort((a, b) => b.chapters - a.chapters || a.keyword.localeCompare(b.keyword))
 
     const details = await query<BodyChapterDetailRow>(
-      `SELECT id, (${buildScoreExpression()}) AS score, (${buildFirstPositionExpression()}) AS first_pos
+      `SELECT id, (${buildScoreExpression()}) AS score, (${buildPositionsExpression()}) AS positions
          FROM chapters
         WHERE novel_id = $1 AND length(content) > 0 AND content ~ $${RESTRICTED_BODY_KEYWORDS.length + 2}`,
       [...keywordParams, BODY_MATCH_REGEX],
     )
-    for (const row of details.rows) detailById.set(String(row.id), { score: toInt(row.score), firstPos: toInt(row.first_pos) })
+    for (const row of details.rows) {
+      detailById.set(String(row.id), { score: toInt(row.score), positions: Array.isArray(row.positions) ? row.positions : [] })
+    }
   }
 
   // 命中章节的挑选：先按信号强度取候选池，再在候选池里按章节顺序均匀取样。
   // 直接取 top-N 会让样本全部集中在某一卷，无法反映全书分布。
   const ranked = matched
-    .map((chapter) => ({ chapter, ...(detailById.get(chapter.id) || { score: 0, firstPos: 0 }) }))
+    .map((chapter) => ({ chapter, ...(detailById.get(chapter.id) || { score: 0, positions: [] }) }))
     .sort((a, b) => b.score - a.score || a.chapter.sort_order - b.chapter.sort_order)
   const candidatePool = ranked.slice(0, Math.max(matchLimit * 3, matchLimit)).sort((a, b) => a.chapter.sort_order - b.chapter.sort_order)
   const matchPicked = evenlySpacedIndexes(candidatePool.length, Math.min(matchLimit, candidatePool.length)).map((index) => candidatePool[index]!)
@@ -246,8 +299,8 @@ export async function loadContentRatingBodySample(
   const matchTargets = matchPicked.map((item) => ({
     chapter: item.chapter,
     origin: 'match' as const,
-    // 从命中点前 200 字开始，保证片段里含完整句子与上下文。
-    startAt: Math.max(1, item.firstPos > 0 ? item.firstPos - MATCH_CONTEXT_LEAD : 1),
+    // 窗口对准证据最密集处，而不是第一个命中词——第一个命中常落在铺垫句里。
+    startAt: pickEvidenceWindow(item.positions, item.chapter.chars, BODY_EXCERPT_CHARS, MATCH_CONTEXT_LEAD),
     take: BODY_EXCERPT_CHARS,
   }))
   const spreadTargets = spreadPicked.map((chapter) => ({

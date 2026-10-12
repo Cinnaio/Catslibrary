@@ -109,10 +109,6 @@ const STRONG_BODY_KEYWORDS = [
   '吞吐',
   '淫荡',
   '骚货',
-  '发情',
-  '催情',
-  '春药',
-  '媚药',
   '呻吟',
   '娇喘',
   '浪叫',
@@ -169,6 +165,12 @@ const WEAK_BODY_KEYWORDS = [
   '穴',
   '乳',
   '骚',
+  // 药物与生理词：办案、医疗、宫斗剧情里同样常见（「体内检出催情药物」不是色情描写），
+  // 因此只能做采样信号，不能当直白证据。
+  '发情',
+  '催情',
+  '春药',
+  '媚药',
 ] as const
 
 /** 正文采样信号词全表。强信号在前，便于按权重排序与测试断言稳定。 */
@@ -177,14 +179,29 @@ export const RESTRICTED_BODY_KEYWORDS: readonly RestrictedBodyKeyword[] = [
   ...WEAK_BODY_KEYWORDS.map((keyword) => ({ keyword, weight: 1 as const })),
 ]
 
+/**
+ * 单段正文里出现的信号词，按强度分组。
+ *
+ * 强弱必须分开呈现给审核员：弱词（「胸口」「湿了」「腰肢」）在正常剧情里同样常见，
+ * 命中只代表「这段值得让模型看一眼」。如果界面把强弱词混在一起展示，审核员会把
+ * 弱词的误报读成判级依据——那正是这套机制要避免的事。
+ */
+export function matchRestrictedBodyKeywordGroups(text: string): { strong: string[]; weak: string[] } {
+  const strong: string[] = []
+  const weak: string[] = []
+  if (!text) return { strong, weak }
+  for (const { keyword, weight } of RESTRICTED_BODY_KEYWORDS) {
+    if (!text.includes(keyword)) continue
+    if (weight === 3) strong.push(keyword)
+    else weak.push(keyword)
+  }
+  return { strong, weak }
+}
+
 /** 单段正文里出现的信号词（去重、保序）。 */
 export function matchRestrictedBodyKeywords(text: string): string[] {
-  if (!text) return []
-  const hits: string[] = []
-  for (const { keyword } of RESTRICTED_BODY_KEYWORDS) {
-    if (text.includes(keyword)) hits.push(keyword)
-  }
-  return hits
+  const { strong, weak } = matchRestrictedBodyKeywordGroups(text)
+  return [...strong, ...weak]
 }
 
 /** 单段正文的信号强度合计，用于挑选最可能含成人内容的章节。 */

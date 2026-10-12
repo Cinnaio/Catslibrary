@@ -24,6 +24,7 @@ import {
 } from '@/lib/api'
 import { formatDateTime, timeAgo } from '@/lib/format'
 import type { ContentRating } from '@shared/types'
+import { RESTRICTED_BODY_KEYWORDS } from '@shared/restricted-patterns'
 import { useToast } from '@/components/feedback'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import AdminPage from '@/components/admin/AdminPage'
@@ -148,6 +149,19 @@ function EvidenceList({ evidence, compact = false }: { evidence: AdminContentRat
  * 只给结论不给样本，审核员无法判断这次判级是「读了正文后的判断」还是
  * 「没读正文、只看了简介的猜测」—— 后者正是漏判《入红尘》那类作品的成因。
  */
+/**
+ * 信号词强度查表。
+ *
+ * 为什么界面必须区分强弱：弱信号词（「胸口」「湿了」「腰肢」）在正常剧情里同样常见，
+ * 命中只代表「这段值得让模型看一眼」。如果强弱在界面上长得一样，审核员会把弱词的
+ * 误报读成判级依据——那正是这套采样机制要避免的事。
+ */
+const BODY_KEYWORD_WEIGHT = new Map(RESTRICTED_BODY_KEYWORDS.map((item) => [item.keyword, item.weight]))
+
+function isStrongBodyKeyword(keyword: string): boolean {
+  return (BODY_KEYWORD_WEIGHT.get(keyword) ?? 1) >= 3
+}
+
 function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
   if (!body) return null
   if (!body.hasBody) {
@@ -161,6 +175,7 @@ function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
     )
   }
   const topKeywords = body.keywordHits.slice(0, 8)
+  const strongHitCount = body.keywordHits.filter((item) => isStrongBodyKeyword(item.keyword)).length
   return (
     <div className="content-ratings-body-samples rounded-md border border-border p-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -173,22 +188,38 @@ function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
       {topKeywords.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {topKeywords.map((item) => (
-            <Badge key={item.keyword} variant="outline" className="font-normal">
+            <Badge key={item.keyword} variant={isStrongBodyKeyword(item.keyword) ? 'destructive' : 'outline'} className="font-normal">
               {item.keyword} · {item.chapters} 章
             </Badge>
           ))}
         </div>
       )}
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+        {strongHitCount > 0
+          ? `红色为直白词（性器官、性行为、体液），几乎只出现在成人向正文；灰色为语境依赖词，正常剧情同样常见，命中不代表限制级。本次命中 ${strongHitCount} 个直白词。`
+          : '本次只命中语境依赖词（灰色），它们在正常剧情里同样常见。是否属于限制级必须读下面的原文片段判断。'}
+      </p>
       {body.excerpts.length > 0 ? (
         <div className="mt-3 grid gap-2">
-          {body.excerpts.map((excerpt, index) => (
-            <details key={`${excerpt.chapter}-${index}`} className="rounded border border-border/60 bg-muted/20 p-2">
-              <summary className="cursor-pointer text-xs text-muted-foreground">
-                {excerpt.chapter} · {excerpt.origin === 'match' ? '成人词命中定位' : '全书均匀抽样'}
-              </summary>
-              <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/90">{excerpt.text}</p>
-            </details>
-          ))}
+          {body.excerpts.map((excerpt, index) => {
+            const strong = excerpt.strongKeywords || []
+            const weak = excerpt.weakKeywords || []
+            return (
+              <details key={`${excerpt.chapter}-${index}`} className="rounded border border-border/60 bg-muted/20 p-2">
+                <summary className="cursor-pointer text-xs text-muted-foreground">
+                  {excerpt.chapter} · {excerpt.origin === 'match' ? '成人词命中定位' : '全书均匀抽样'} ·{' '}
+                  {strong.length > 0 ? (
+                    <span className="font-medium text-destructive">本段含直白描写：{strong.slice(0, 8).join('、')}</span>
+                  ) : weak.length > 0 ? (
+                    <span>仅弱信号：{weak.slice(0, 8).join('、')}</span>
+                  ) : (
+                    <span>本段未命中成人词</span>
+                  )}
+                </summary>
+                <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/90">{excerpt.text}</p>
+              </details>
+            )
+          })}
         </div>
       ) : (
         <p className="mt-2 leading-relaxed text-muted-foreground">正文里没有采样到片段，请以元数据证据为准。</p>

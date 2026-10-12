@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDb, type TestDb } from '../test/db'
-import { BODY_MAX_TOTAL_CHARS, loadContentRatingBodySample, normalizeBodyText } from './content-rating-body'
+import { BODY_MAX_TOTAL_CHARS, loadContentRatingBodySample, normalizeBodyText, pickEvidenceWindow } from './content-rating-body'
+import { RESTRICTED_BODY_KEYWORDS } from '@shared/restricted-patterns'
 
 let t: TestDb
 
@@ -106,5 +107,69 @@ describe('正文证据采样', () => {
   it('规范化会清掉标签、零宽字符与多余空白', () => {
     expect(normalizeBodyText('<p>她&nbsp;湿了</p>\n\n  第二天')).toBe('她 湿了 第二天')
     expect(normalizeBodyText('前\u200b后')).toBe('前后')
+  })
+
+  it('窗口对准证据密集处，而不是第一个命中词出现的铺垫句', async () => {
+    await seedNovel('body-window')
+    // 铺垫段里埋一个弱词（胸口），成人描写排在其后。若按「第一个命中词」开窗，
+    // 420 字里会全是剧情，审核员打开片段看不到任何判级依据。
+    const leadIn = `${'清晨的山雾散得很慢，他沿着石阶往上走。'.repeat(20)}她胸口一紧，随即压下情绪。${'他继续往山上走，心里盘算着今日的功课。'.repeat(20)}`
+    await seedChapter('body-window', 1, '上山', leadIn)
+    await seedChapter('body-window', 2, '温泉', `${leadIn}${EXPLICIT_TEXT}`)
+
+    const sample = await loadContentRatingBodySample(t.db.query.bind(t.db), 'body-window')
+    const matched = sample.excerpts.filter((item) => item.origin === 'match' && item.chapterOrder === 2)
+    expect(matched).toHaveLength(1)
+    // 片段必须真的落在成人描写上，而不是停在前面那段铺垫里
+    expect(matched[0]!.text).toContain('性器')
+    expect(matched[0]!.strongKeywords).toContain('性器')
+    // 铺垫段里那个弱词不应该出现在选中窗口内
+    expect(matched[0]!.weakKeywords).not.toContain('胸口')
+  })
+
+  it('办案与医疗剧情里的药物词只算弱信号，不能被当成直白描写', async () => {
+    await seedNovel('body-medical')
+    // 真实场景：悬疑剧情写「体内检出催情药物」。它命中信号词，但完全不是色情描写。
+    // 这类词必须留在弱信号里，否则会把整本正常作品渲染成「含直白描写」。
+    await seedChapter('body-medical', 1, '笔录', '警察给受害人做了尿液检测和血液检测，结果显示其体内有催情药物，嫌疑人已被控制。')
+    await seedChapter('body-medical', 2, '收网', '他握着性器，抵着肉缝上下抚弄，淋漓丰沛的淫液不停外溢。')
+
+    const sample = await loadContentRatingBodySample(t.db.query.bind(t.db), 'body-medical')
+    const plot = sample.excerpts.find((item) => item.chapterOrder === 1)
+    const explicit = sample.excerpts.find((item) => item.chapterOrder === 2)
+    expect(plot?.strongKeywords).toEqual([])
+    expect(plot?.weakKeywords).toContain('催情')
+    expect(explicit?.strongKeywords.length).toBeGreaterThan(0)
+  })
+})
+
+describe('证据窗口选择', () => {
+  const indexOf = (keyword: string) => RESTRICTED_BODY_KEYWORDS.findIndex((item) => item.keyword === keyword)
+
+  /** 构造位置数组：只有列出的下标带命中位置，其余为 NULL。 */
+  function positionsOf(entries: Array<[string, number]>): Array<number | null> {
+    const positions: Array<number | null> = new Array(RESTRICTED_BODY_KEYWORDS.length).fill(null)
+    for (const [keyword, pos] of entries) positions[indexOf(keyword)] = pos
+    return positions
+  }
+
+  it('取窗口内命中权重之和最大的位置，而不是最靠前的命中', () => {
+    // 弱词在前（权重 1），强词在后（权重 3）：必须选强词那一窗
+    const start = pickEvidenceWindow(positionsOf([['胸口', 50], ['淫液', 1_200]]), 2_000, 420, 200)
+    expect(start).toBe(1_000)
+  })
+
+  it('同权重时取更靠前的窗口，保证采样可复现', () => {
+    const start = pickEvidenceWindow(positionsOf([['淫液', 300], ['性器', 1_200]]), 2_000, 420, 200)
+    expect(start).toBe(100)
+  })
+
+  it('窗口不会越过章节末尾，避免片段被截成几个字', () => {
+    const start = pickEvidenceWindow(positionsOf([['淫液', 480]]), 500, 420, 200)
+    expect(start).toBe(81)
+  })
+
+  it('没有命中时回到章节开头', () => {
+    expect(pickEvidenceWindow(new Array(RESTRICTED_BODY_KEYWORDS.length).fill(null), 2_000, 420, 200)).toBe(1)
   })
 })

@@ -1007,7 +1007,12 @@ export interface AdminContentRatingEvidence {
 export interface AdminContentRatingBodyExcerpt {
   chapter: string
   origin: 'match' | 'spread'
+  /** 片段内命中的全部信号词。 */
   keywords: string[]
+  /** 直白信号词：性器官/性行为/体液，几乎只出现在成人向正文。 */
+  strongKeywords?: string[]
+  /** 语境依赖信号词：正常剧情里同样常见，命中不等于限制级。 */
+  weakKeywords?: string[]
   text: string
 }
 
