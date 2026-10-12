@@ -622,6 +622,7 @@ export default function ContentRatingsTab() {
   const [aiReviewReason, setAiReviewReason] = useState('')
   const [aiReviewError, setAiReviewError] = useState('')
   const [aiReviewSaving, setAiReviewSaving] = useState(false)
+  const aiReviewReasonInput = useRef<HTMLTextAreaElement>(null)
 
   const listSeqRef = useRef(0)
   const historySeqRef = useRef(0)
@@ -1045,6 +1046,8 @@ export default function ContentRatingsTab() {
     const reason = aiReviewReason.trim()
     if (!reason) {
       setAiReviewError('请填写本次审核决定的理由。')
+      aiReviewReasonInput.current?.focus({ preventScroll: true })
+      aiReviewReasonInput.current?.scrollIntoView({ block: 'center', behavior: 'instant' })
       return
     }
 
@@ -1697,6 +1700,7 @@ export default function ContentRatingsTab() {
                       )}
                     </div>
                     <Textarea
+                      ref={aiReviewReasonInput}
                       id="content-rating-ai-review-reason"
                       value={aiReviewReason}
                       onChange={(event) => setAiReviewReason(event.target.value)}
@@ -1738,7 +1742,7 @@ export default function ContentRatingsTab() {
                 <Button type="button" variant="outline" onClick={() => setAiReviewDecision(null)} disabled={aiReviewSaving}>
                   返回查看
                 </Button>
-                <Button type="button" onClick={() => void reviewAiSuggestion()} disabled={aiReviewSaving || !aiReviewReason.trim()}>
+                <Button type="button" onClick={() => void reviewAiSuggestion()} disabled={aiReviewSaving}>
                   {aiReviewSaving ? '提交中…' : aiReviewDecision === 'approve' ? '确认批准建议' : '确认拒绝建议'}
                 </Button>
               </>
