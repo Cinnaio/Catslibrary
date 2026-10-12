@@ -311,3 +311,133 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+
+/* 审核仅定义内容布局；标题、小标题、辅助说明及按钮沿用共享弹窗契约。
+   首尾间距留在滚动区外，长证据滚动时不贴住固定页头与操作区。 */
+[data-slot='dialog-content'].admin-dialog.content-ratings-review-dialog {
+  max-width: 47.5rem;
+  row-gap: var(--admin-space-5);
+}
+.content-ratings-review-dialog [data-slot='dialog-header'] {
+  padding-bottom: 0;
+}
+.content-ratings-review-work {
+  margin: 0;
+  padding-inline: var(--admin-space-6);
+  color: var(--text-primary);
+  font-size: var(--admin-table-title-size);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.content-ratings-review-work > span {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.content-ratings-review-dialog .admin-dialog__body {
+  padding-block: 0;
+}
+.content-ratings-review-dialog [data-slot='dialog-footer'] {
+  padding-top: 0;
+}
+.content-ratings-review-content {
+  display: grid;
+  gap: var(--admin-space-5);
+  min-width: 0;
+}
+.content-ratings-review-content > * { min-width: 0; }
+.content-ratings-review-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--admin-space-2) var(--admin-space-4);
+  margin-bottom: var(--admin-space-2);
+}
+.content-ratings-review-section-head h3,
+.content-ratings-review-section > h3 { margin: 0; }
+.content-ratings-review-confidence strong {
+  margin-left: var(--admin-space-1);
+  font-weight: var(--admin-dialog-hint-weight);
+  font-variant-numeric: tabular-nums;
+}
+.content-ratings-review-reason {
+  margin: 0;
+  font-size: var(--admin-table-title-size);
+  line-height: 1.8;
+  color: var(--text-primary);
+}
+.content-ratings-review-evidence {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.content-ratings-review-evidence li {
+  display: grid;
+  grid-template-columns: var(--admin-space-5) minmax(0, 1fr);
+  gap: var(--admin-space-3);
+  padding-block: var(--admin-space-3);
+}
+.content-ratings-review-evidence li + li,
+.content-ratings-excerpt + .content-ratings-excerpt {
+  border-top: 1px solid var(--admin-border);
+}
+.content-ratings-review-evidence li:first-child { padding-top: 0; }
+.content-ratings-review-evidence li:last-child { padding-bottom: 0; }
+.content-ratings-review-evidence-number {
+  color: var(--admin-dialog-hint-color);
+  font-size: var(--admin-dialog-hint-size);
+  line-height: 1.8;
+  font-variant-numeric: tabular-nums;
+}
+.content-ratings-review-evidence p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--admin-table-title-size);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.content-ratings-body-samples > p,
+.content-ratings-body-empty > p,
+.content-ratings-review-boundary > p {
+  margin: var(--admin-space-2) 0 0;
+}
+.content-ratings-excerpts {
+  margin-top: var(--admin-space-3);
+}
+.content-ratings-excerpt-summary {
+  cursor: pointer;
+  padding-block: var(--admin-space-3);
+}
+.content-ratings-excerpt-text {
+  margin: 0 0 var(--admin-space-4);
+  padding-left: var(--admin-space-4);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-size: var(--admin-table-title-size);
+  line-height: 1.8;
+}
+.content-ratings-review-metadata { margin-top: var(--admin-space-3); }
+.content-ratings-review-metadata summary { cursor: pointer; width: fit-content; }
+.content-ratings-review-metadata dl { display: grid; gap: var(--admin-space-2); margin: var(--admin-space-3) 0 0; }
+.content-ratings-review-metadata dl > div { display: grid; grid-template-columns: 5rem minmax(0, 1fr); gap: var(--admin-space-3); }
+.content-ratings-review-metadata dd { margin: 0; overflow-wrap: anywhere; }
+.content-ratings-review-dialog summary:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent-subtle);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+@media (max-width: 639px) {
+  [data-slot='dialog-content'].admin-dialog.content-ratings-review-dialog {
+    max-width: calc(100% - 1rem);
+    row-gap: var(--admin-space-4);
+  }
+  .content-ratings-review-dialog [data-slot='dialog-footer'] {
+    gap: var(--admin-dialog-mobile-footer-gap);
+  }
+  .content-ratings-excerpt-summary {
+    min-height: var(--admin-dialog-mobile-action-min-height);
+  }
+}
