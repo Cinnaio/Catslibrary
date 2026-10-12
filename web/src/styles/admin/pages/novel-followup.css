@@ -208,3 +208,17 @@
   gap: 0.25rem;
   overflow-wrap: anywhere;
 }
+.novel-followup-dialog--event .novel-followup-dialog__result {
+  border-top: 0;
+  padding-top: 0;
+}
+.novel-followup-dialog--event .novel-followup-dialog__times [data-slot='button'] {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  justify-content: flex-start;
+  font-size: var(--admin-dialog-hint-size);
+}
+.novel-followup-dialog--event .novel-followup-dialog__result > p {
+  white-space: pre-wrap;
+}

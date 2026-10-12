@@ -1,5 +1,7 @@
 import type { PendingChapterCounts } from '@shared/novel-updates'
 import { pendingUpdateDisplay } from '@shared/novel-updates'
+import { Link } from 'react-router-dom'
+import ScrapeTaskDetailsDialog from './ScrapeTaskDetailsDialog'
 import { LockKeyhole } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { url, authHeaders } from '@/lib/api'
@@ -21,6 +23,9 @@ interface Followup extends PendingChapterCounts {
   result: string
   message: string
   addedCount: number
+  jobId?: string
+  sourceUrl?: string
+  failures?: number
   hasConfig: boolean
   ongoing: boolean
 }
@@ -46,14 +51,26 @@ function CheckTime({ value }: { value: number }) {
   )
 }
 
-export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: string; title: string }; onClose: () => void }) {
+export default function NovelFollowupDialog({
+  novel,
+  onClose,
+  variant = 'settings',
+}: {
+  novel: { id: string; title: string }
+  onClose: () => void
+  variant?: 'settings' | 'event'
+}) {
   const titleRef = useRef<HTMLHeadingElement>(null)
+  const [returnFocus] = useState(() => document.activeElement as HTMLElement | null)
   const [state, setState] = useState<Followup | null>(null)
   const [enabled, setEnabled] = useState(false)
   const [hours, setHours] = useState('6')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [taskId, setTaskId] = useState<string | null>(null)
+  const showSettings = variant === 'settings' || editing
   const refresh = useCallback(async () => {
     const data = await request(novel.id)
     setState(data)
@@ -101,19 +118,25 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) onClose()
+        if (!open && !busy) onClose()
       }}
     >
       <AdminDialogContent
-        className="novel-followup-dialog"
+        className={`novel-followup-dialog${variant === 'event' ? ' novel-followup-dialog--event' : ''}`}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           titleRef.current?.focus()
         }}
+        onCloseAutoFocus={(event) => {
+          if (variant === 'event' && returnFocus?.isConnected) {
+            event.preventDefault()
+            returnFocus.focus()
+          }
+        }}
       >
         <DialogHeader>
           <DialogTitle ref={titleRef} tabIndex={-1}>
-            追更设置
+            {variant === 'event' ? '追更事件详情' : '追更设置'}
           </DialogTitle>
           <DialogDescription className="novel-followup-dialog__book">{novel.title}</DialogDescription>
         </DialogHeader>
@@ -126,28 +149,37 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
           {!state && !error && <p role="status">正在读取追更设置…</p>}
           {state && (
             <>
-              <div className="novel-followup-dialog__setting">
-                <div>
-                  <Label htmlFor="followup-enabled">自动追更</Label>
-                  <p className="admin-dialog-hint">定期检查目录，有新章节时自动入库。</p>
-                </div>
-                <Checkbox id="followup-enabled" checked={enabled} disabled={!state.hasConfig || busy} onCheckedChange={(value) => setEnabled(value === true)} />
-              </div>
-              {!state.hasConfig && <p className="admin-dialog-hint">请先在抓取中心为这本书配置目录和正文选择器。</p>}
-              {!state.ongoing && <p className="admin-dialog-hint">已完结作品默认不追更；如需继续检查，可手动开启。</p>}
-              <div className="novel-followup-dialog__frequency">
-                <Label id="followup-frequency">检查频率</Label>
-                <CustomSelect
-                  aria-labelledby="followup-frequency"
-                  value={hours}
-                  onChange={setHours}
-                  disabled={busy}
-                  options={[1, 3, 6, 12, 24].map((h) => ({ value: String(h), label: `每 ${h} 小时` }))}
-                />
-                <p className="admin-dialog-hint">无新章时逐步降低频率，失败后自动重试。</p>
-              </div>
+              {showSettings && (
+                <>
+                  <div className="novel-followup-dialog__setting">
+                    <div>
+                      <Label htmlFor="followup-enabled">自动追更</Label>
+                      <p className="admin-dialog-hint">定期检查目录，有新章节时自动入库。</p>
+                    </div>
+                    <Checkbox
+                      id="followup-enabled"
+                      checked={enabled}
+                      disabled={!state.hasConfig || busy}
+                      onCheckedChange={(value) => setEnabled(value === true)}
+                    />
+                  </div>
+                  {!state.hasConfig && <p className="admin-dialog-hint">请先在抓取中心为这本书配置目录和正文选择器。</p>}
+                  {!state.ongoing && <p className="admin-dialog-hint">已完结作品默认不追更；如需继续检查，可手动开启。</p>}
+                  <div className="novel-followup-dialog__frequency">
+                    <Label id="followup-frequency">检查频率</Label>
+                    <CustomSelect
+                      aria-labelledby="followup-frequency"
+                      value={hours}
+                      onChange={setHours}
+                      disabled={busy}
+                      options={[1, 3, 6, 12, 24].map((h) => ({ value: String(h), label: `每 ${h} 小时` }))}
+                    />
+                    <p className="admin-dialog-hint">无新章时逐步降低频率，失败后自动重试。</p>
+                  </div>
+                </>
+              )}
               <section className="novel-followup-dialog__result" aria-label="最近检查">
-                <span className="admin-dialog-section-label">最近检查</span>
+                <span className="admin-dialog-section-label">{variant === 'event' ? '最新检查结果' : '最近检查'}</span>
                 <p role="status" data-result={state.result}>
                   {state.message || '尚未检查'}
                 </p>
@@ -167,6 +199,40 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
                 {pending && pending.protectedCount > 0 && (
                   <p className="admin-dialog-hint">受保护不代表无法抓取；请确认源站账号与购买权限，权限变化后重新检查。</p>
                 )}
+                {variant === 'event' && (
+                  <dl className="novel-followup-dialog__times">
+                    <div>
+                      <dt>自动追更</dt>
+                      <dd>{state.enabled ? `已开启 · 每 ${state.intervalHours} 小时` : '已暂停'}</dd>
+                    </div>
+                    <div>
+                      <dt>上次新增</dt>
+                      <dd>{state.addedCount || 0} 章</dd>
+                    </div>
+                    <div>
+                      <dt>连续失败</dt>
+                      <dd>{state.failures == null ? '未统计' : `${state.failures} 次`}</dd>
+                    </div>
+                    <div>
+                      <dt>关联任务</dt>
+                      <dd>
+                        {state.jobId ? (
+                          <Button variant="link" size="sm" disabled={busy} onClick={() => setTaskId(state.jobId!)}>
+                            查看任务详情
+                          </Button>
+                        ) : (
+                          '暂无关联任务'
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+                )}
+                {variant === 'event' && (
+                  <div className="dashboard-event-source">
+                    <span className="admin-dialog-section-label">当前来源</span>
+                    <p>{state.sourceUrl || '未记录来源地址'}</p>
+                  </div>
+                )}
                 <dl className="novel-followup-dialog__times">
                   <div>
                     <dt>上次完成</dt>
@@ -178,7 +244,19 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
                   </div>
                 </dl>
               </section>
-              <p className="admin-dialog-hint">暂停追更后，正在执行的任务仍会完成。</p>
+              {showSettings && <p className="admin-dialog-hint">暂停追更后，正在执行的任务仍会完成。</p>}
+              {variant === 'event' && (
+                <Link
+                  className="dashboard-panel-link"
+                  aria-disabled={busy}
+                  onClick={(event) => {
+                    if (busy) event.preventDefault()
+                  }}
+                  to={`/admin/novels?novelId=${encodeURIComponent(novel.id)}`}
+                >
+                  管理这本小说 →
+                </Link>
+              )}
               {notice && (
                 <p role="status" className="text-sm">
                   {notice}
@@ -188,14 +266,35 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
           )}
         </AdminDialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={() => void act(false)} disabled={busy || !state?.hasConfig || state.result === 'running'}>
-            {state?.result === 'running' ? '更新中…' : '检查更新'}
-          </Button>
-          <Button onClick={() => void act(true)} disabled={busy || !state}>
-            保存设置
-          </Button>
+          {variant === 'event' && editing ? (
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                setEditing(false)
+                setEnabled(state?.enabled || false)
+                setHours(String(state?.intervalHours || 6))
+              }}
+            >
+              取消调整
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => void act(false)} disabled={busy || !state?.hasConfig || state.result === 'running'}>
+              {state?.result === 'running' ? '更新中…' : '检查更新'}
+            </Button>
+          )}
+          {showSettings ? (
+            <Button onClick={() => void act(true)} disabled={busy || !state}>
+              保存设置
+            </Button>
+          ) : (
+            <Button variant="secondary" onClick={() => setEditing(true)} disabled={busy || !state}>
+              调整追更设置
+            </Button>
+          )}
         </DialogFooter>
       </AdminDialogContent>
+      {taskId && <ScrapeTaskDetailsDialog key={taskId} jobId={taskId} title={novel.title} onClose={() => setTaskId(null)} />}
     </Dialog>
   )
 }

@@ -32,7 +32,7 @@ describe('连载追更', () => {
     },
   })
   it('有效来源的连载作品默认开启，未配置作品不能开启', async () => {
-    expect((await getFollowup(t.db, 'follow'))?.enabled).toBe(true)
+    expect(await getFollowup(t.db, 'follow')).toMatchObject({ enabled: true, sourceUrl: 'https://example.com/book', failures: 0 })
     await expect(saveFollowup(t.db, 'unconfigured', true, 6)).rejects.toThrow('已配置')
     await expect(saveFollowup(t.db, 'done', true, 6)).rejects.toThrow('已配置')
     await expect(saveFollowup(t.db, 'follow', true, 2)).rejects.toThrow('频率')
@@ -74,6 +74,7 @@ describe('连载追更', () => {
     await finishFollowup(t.db, job.jobId)
     const state = await getFollowup(t.db, 'follow')
     expect(state?.result).toBe('failed')
+    expect(state?.failures).toBe(1)
     expect(state?.message).toContain('源站不可达')
     expect(state!.nextCheckAt - state!.checkedAt).toBe(900000)
     await saveFollowup(t.db, 'follow', false, 6)
