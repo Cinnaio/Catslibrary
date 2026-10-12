@@ -53,12 +53,12 @@ interface ChapterDraft {
   content: string
 }
 
-export default function ChaptersTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
+export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }: { highlightNovelId?: string; onHighlightConsumed?: () => void; mergeNovel?: IndexNovel; onMergeClose?: () => void; onMergeApplied?: () => void }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
 
-  const [novelOptions, setNovelOptions] = useState<IndexNovel[]>([])
-  const [selectedNovel, setSelectedNovel] = useState('')
+  const [novelOptions, setNovelOptions] = useState<IndexNovel[]>(mergeNovel ? [mergeNovel] : [])
+  const [selectedNovel, setSelectedNovel] = useState(mergeNovel?.id || '')
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -126,11 +126,13 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     setConfirmedManualIds(new Set())
     setSourceSearch(null)
     setSourceSearching(false)
+    onMergeClose?.()
   }
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 小说下拉：全库紧凑索引 + 服务端补搜
   useEffect(() => {
+    if (mergeNovel) return
     let alive = true
     adminApi
       .novelIndex({ limit: '2000' })
@@ -145,7 +147,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     return () => {
       alive = false
     }
-  }, [])
+  }, [mergeNovel])
 
   const novelSelectOptions = useMemo(
     () => novelOptions.map((n) => ({ value: n.id, label: n.title, sub: `${n.author || '未知作者'} · ${n.chapterCount}章` })),
@@ -504,7 +506,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       setRenameModal(false)
       setSourcePreview(null)
       setConfirmedManualIds(new Set())
-      void loadChapters(selectedNovel)
+      if (mergeNovel) { onMergeApplied?.(); onMergeClose?.() }
+      else void loadChapters(selectedNovel)
     } catch (err) {
       toast((err as Error).message || '同步应用失败', 'error')
     } finally {
@@ -512,6 +515,123 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       setRenaming(false)
     }
   }
+
+  // 小说管理入口仅挂载同一融合弹窗，不展示章节管理页面或加载全库索引。
+  useEffect(() => {
+    if (mergeNovel) void openRenameModal()
+    // 打开时使用当前作品快照；更换作品由调用方的 key 重新挂载。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const renameDialog = (
+    <Dialog
+      open={renameModal}
+      onOpenChange={(open) => { if (!open) closeRenameModal() }}
+    >
+      <AdminDialogContent variant="editor" className="chapter-merge-dialog chapter-merge-dialog--review" onInteractOutside={(event) => { if (mergeBusy.current) event.preventDefault() }} onEscapeKeyDown={(event) => { if (mergeBusy.current) event.preventDefault() }}>
+        <DialogHeader>
+          <DialogTitle className="editor-modal__title">融合章节名</DialogTitle>
+          <DialogDescription>从原作者源站补全章节名，先核对变化，再应用更新。</DialogDescription>
+        </DialogHeader>
+        <AdminDialogBody className="chapter-merge-dialog__body">
+          <div className="chapter-merge-dialog__context">
+            <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
+            <span>{selectedNovelInfo?.author || '未知作者'} · {selectedNovelInfo?.chapterCount || chapters.length} 章</span>
+            <p>弱标题可自动补全，其他标题需确认。序号修复需另行勾选，章节正文保持不变。</p>
+          </div>
+          <details className="chapter-merge-dialog__source" open={sourceExpanded} onToggle={(event) => setSourceExpanded(event.currentTarget.open)}>
+            <summary>原作者源站<span>{sourcePreview ? '已读取 · 更换来源' : '搜索作品或粘贴链接'}</span></summary>
+            <p className="admin-dialog-hint">支持晋江与 PO18.tw。选择搜索结果后会直接读取并生成预览。</p>
+            <div className="chapter-merge-dialog__source-grid grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
+              <Input aria-label="搜索书名" placeholder="书名" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchTitle} onChange={(e) => setSourceSearchTitle(e.target.value)} />
+              <Input aria-label="搜索作者" placeholder="作者（可选）" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchAuthor} onChange={(e) => setSourceSearchAuthor(e.target.value)} />
+              <Button variant="secondary" disabled={renaming || sourceSearching} onClick={() => void searchSourceSites()}>
+                {sourceSearching ? '搜索中…' : '搜索两处源站'}
+              </Button>
+            </div>
+            {sourceSearch && (
+              <div className="chapter-merge-dialog__search-results mt-3 space-y-3">
+                {(['jjwxc', 'po18tw'] as const).map((site) => {
+                  const bucket = sourceSearch.sources?.[site]
+                  const results = sourceResults(site)
+                  const label = site === 'jjwxc' ? '晋江' : 'PO18.tw'
+                  return (
+                    <div key={site}>
+                      <div className="admin-dialog-section-label mb-1 flex items-center justify-between gap-2">
+                        <span>{label}</span>
+                        <span className="admin-dialog-hint">{results.length ? `${results.length} 个结果` : bucket?.ok ? '没有匹配结果' : '搜索不可用'}</span>
+                      </div>
+                      {bucket?.error && <p className="mb-2 text-xs text-amber-600">{bucket.error}</p>}
+                      {results.length > 0 && (
+                        <div className="grid gap-2">
+                          {results.map((candidate) => (
+                            <button
+                              type="button"
+                              key={`${candidate.site}-${candidate.bookId || candidate.url}`}
+                              className="group rounded-md border border-border bg-background p-2.5 text-left transition-colors hover:border-primary/60 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              onClick={() => void previewSourceSync(candidate.url)}
+                              disabled={renaming}
+                            >
+                              <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+                                <span>{candidate.title || '未识别书名'}</span>
+                                {candidate.status && (
+                                  <span className="text-xs font-normal text-muted-foreground">{candidate.status === 'completed' ? '完结' : '连载'}</span>
+                                )}
+                              </span>
+                              <span className="mt-1 block truncate text-xs text-muted-foreground">
+                                {candidate.author || '作者未识别'} · {candidate.url}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div className="chapter-merge-dialog__url-field chapter-dialog-field">
+              <Label htmlFor="chapter-source-url">已有作品链接</Label>
+              <div className="chapter-merge-dialog__url-row flex gap-2">
+                <Input
+                  id="chapter-source-url"
+                  disabled={renaming}
+                  onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void previewSourceSync() }}
+                  value={sourceUrl}
+                  placeholder="https://www.jjwxc.net/onebook.php?novelid=… 或 https://www.po18.tw/…"
+                  onChange={(e) => {
+                    ++mergeRequest.current
+                    setSourceError('')
+                    setSourceUrl(e.target.value)
+                    setSourcePreview(null)
+                    setConfirmedManualIds(new Set())
+                  }}
+                />
+                <Button variant="secondary" disabled={renaming || !sourceUrl.trim()} onClick={() => void previewSourceSync()}>
+                  {renaming ? '读取中…' : '读取源站'}
+                </Button>
+              </div>
+            </div>
+          </details>
+          {sourceError && <p role="alert" className="chapter-merge-dialog__error">{sourceError}</p>}
+          {renaming && !sourcePreview && <p role="status" className="admin-dialog-hint">正在读取源站并匹配本地章节，请稍候…</p>}
+          {sourcePreview && <ChapterMergePreview key={`${sourcePreview.runId}:${sourcePreview.revision || 0}`} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} onRemap={mappings => void remapSource(mappings)} onSelectedMappingsChange={selectMappings} disabled={renaming} />}
+        </AdminDialogBody>
+        <DialogFooter className="chapter-merge-dialog__footer">
+          <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${updateCount} 个标题待更新 · ${orderUpdateCount} 个序号修复 · ${availableMetadataFields.length} 项信息同步` : '读取后可预览全部变化'}</span>
+          <Button variant="secondary" disabled={renaming} onClick={closeRenameModal}>
+            取消
+          </Button>
+          {sourcePreview && (
+            <Button disabled={renaming || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename()}>
+              {renaming ? '更新中…' : orderUpdateCount ? '应用已选更新' : updateCount ? `更新 ${updateCount} 个标题` : '同步小说信息'}
+            </Button>
+          )}
+        </DialogFooter>
+      </AdminDialogContent>
+    </Dialog>
+  )
+  if (mergeNovel) return renameDialog
 
   const pageAllSelected = pageRows.length > 0 && pageRows.every((c) => selectedIds.has(c.id))
   const pageSomeSelected = pageRows.some((c) => selectedIds.has(c.id))
@@ -753,112 +873,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
         </AdminDialogContent>
       </Dialog>
 
-      <Dialog
-        open={renameModal}
-        onOpenChange={(open) => { if (!open) closeRenameModal() }}
-      >
-        <AdminDialogContent variant="editor" className="chapter-merge-dialog chapter-merge-dialog--review" onInteractOutside={(event) => { if (mergeBusy.current) event.preventDefault() }} onEscapeKeyDown={(event) => { if (mergeBusy.current) event.preventDefault() }}>
-          <DialogHeader>
-            <DialogTitle className="editor-modal__title">融合章节名</DialogTitle>
-            <DialogDescription>从原作者源站补全章节名，先核对变化，再应用更新。</DialogDescription>
-          </DialogHeader>
-          <AdminDialogBody className="chapter-merge-dialog__body">
-            <div className="chapter-merge-dialog__context">
-              <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
-              <span>{selectedNovelInfo?.author || '未知作者'} · {selectedNovelInfo?.chapterCount || chapters.length} 章</span>
-              <p>弱标题可自动补全，其他标题需确认。序号修复需另行勾选，章节正文保持不变。</p>
-            </div>
-            <details className="chapter-merge-dialog__source" open={sourceExpanded} onToggle={(event) => setSourceExpanded(event.currentTarget.open)}>
-              <summary>原作者源站<span>{sourcePreview ? '已读取 · 更换来源' : '搜索作品或粘贴链接'}</span></summary>
-              <p className="admin-dialog-hint">支持晋江与 PO18.tw。选择搜索结果后会直接读取并生成预览。</p>
-              <div className="chapter-merge-dialog__source-grid grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
-                <Input aria-label="搜索书名" placeholder="书名" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchTitle} onChange={(e) => setSourceSearchTitle(e.target.value)} />
-                <Input aria-label="搜索作者" placeholder="作者（可选）" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchAuthor} onChange={(e) => setSourceSearchAuthor(e.target.value)} />
-                <Button variant="secondary" disabled={renaming || sourceSearching} onClick={() => void searchSourceSites()}>
-                  {sourceSearching ? '搜索中…' : '搜索两处源站'}
-                </Button>
-              </div>
-              {sourceSearch && (
-                <div className="chapter-merge-dialog__search-results mt-3 space-y-3">
-                  {(['jjwxc', 'po18tw'] as const).map((site) => {
-                    const bucket = sourceSearch.sources?.[site]
-                    const results = sourceResults(site)
-                    const label = site === 'jjwxc' ? '晋江' : 'PO18.tw'
-                    return (
-                      <div key={site}>
-                        <div className="admin-dialog-section-label mb-1 flex items-center justify-between gap-2">
-                          <span>{label}</span>
-                          <span className="admin-dialog-hint">{results.length ? `${results.length} 个结果` : bucket?.ok ? '没有匹配结果' : '搜索不可用'}</span>
-                        </div>
-                        {bucket?.error && <p className="mb-2 text-xs text-amber-600">{bucket.error}</p>}
-                        {results.length > 0 && (
-                          <div className="grid gap-2">
-                            {results.map((candidate) => (
-                              <button
-                                type="button"
-                                key={`${candidate.site}-${candidate.bookId || candidate.url}`}
-                                className="group rounded-md border border-border bg-background p-2.5 text-left transition-colors hover:border-primary/60 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => void previewSourceSync(candidate.url)}
-                                disabled={renaming}
-                              >
-                                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
-                                  <span>{candidate.title || '未识别书名'}</span>
-                                  {candidate.status && (
-                                    <span className="text-xs font-normal text-muted-foreground">{candidate.status === 'completed' ? '完结' : '连载'}</span>
-                                  )}
-                                </span>
-                                <span className="mt-1 block truncate text-xs text-muted-foreground">
-                                  {candidate.author || '作者未识别'} · {candidate.url}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-              <div className="chapter-merge-dialog__url-field chapter-dialog-field">
-                <Label htmlFor="chapter-source-url">已有作品链接</Label>
-                <div className="chapter-merge-dialog__url-row flex gap-2">
-                  <Input
-                    id="chapter-source-url"
-                    disabled={renaming}
-                    onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void previewSourceSync() }}
-                    value={sourceUrl}
-                    placeholder="https://www.jjwxc.net/onebook.php?novelid=… 或 https://www.po18.tw/…"
-                    onChange={(e) => {
-                      ++mergeRequest.current
-                      setSourceError('')
-                      setSourceUrl(e.target.value)
-                      setSourcePreview(null)
-                      setConfirmedManualIds(new Set())
-                    }}
-                  />
-                  <Button variant="secondary" disabled={renaming || !sourceUrl.trim()} onClick={() => void previewSourceSync()}>
-                    {renaming ? '读取中…' : '读取源站'}
-                  </Button>
-                </div>
-              </div>
-            </details>
-            {sourceError && <p role="alert" className="chapter-merge-dialog__error">{sourceError}</p>}
-            {renaming && !sourcePreview && <p role="status" className="admin-dialog-hint">正在读取源站并匹配本地章节，请稍候…</p>}
-            {sourcePreview && <ChapterMergePreview key={`${sourcePreview.runId}:${sourcePreview.revision || 0}`} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} onRemap={mappings => void remapSource(mappings)} onSelectedMappingsChange={selectMappings} disabled={renaming} />}
-          </AdminDialogBody>
-          <DialogFooter className="chapter-merge-dialog__footer">
-            <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${updateCount} 个标题待更新 · ${orderUpdateCount} 个序号修复 · ${availableMetadataFields.length} 项信息同步` : '读取后可预览全部变化'}</span>
-            <Button variant="secondary" disabled={renaming} onClick={closeRenameModal}>
-              取消
-            </Button>
-            {sourcePreview && (
-              <Button disabled={renaming || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename()}>
-                {renaming ? '更新中…' : orderUpdateCount ? '应用已选更新' : updateCount ? `更新 ${updateCount} 个标题` : '同步小说信息'}
-              </Button>
-            )}
-          </DialogFooter>
-        </AdminDialogContent>
-      </Dialog>
+      {renameDialog}
       {historyOpen && <SourceSyncHistoryDialog key={selectedNovel} open novelId={selectedNovel} onOpenChange={setHistoryOpen} onCompleted={() => void loadChapters(selectedNovel)} />}
     </AdminPage>
   )

@@ -186,3 +186,31 @@ it('102章含未匹配项时全选35项差异，可以提交30个可修复序号
   fireEvent.click(screen.getByRole('button', { name: '应用已选更新' }))
   await waitFor(() => expect(mocks.sourceApply).toHaveBeenCalledWith(expect.objectContaining({ repairOrder: true, confirmedOrderIds: orderChanges.map(row => row.localChapterId).sort(), applyMetadata: false })))
 })
+
+it('小说管理嵌入入口无需加载全库索引，直接使用当前作品并可关闭', async () => {
+  const close = vi.fn()
+  render(<ChaptersTab mergeNovel={{ id: 'outside-index', title: '索引外的作品', author: '原作者', chapterCount: 88 }} onMergeClose={close} />)
+  expect(await screen.findByRole('heading', { name: '融合章节名' })).toBeInTheDocument()
+  expect(screen.getByRole('dialog')).toHaveTextContent('索引外的作品')
+  expect(screen.getByRole('dialog')).toHaveTextContent('原作者 · 88 章')
+  expect(mocks.index).not.toHaveBeenCalled()
+  expect(mocks.list).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '取消' }))
+  expect(close).toHaveBeenCalledTimes(1)
+})
+it('嵌入融合应用成功通知小说列表刷新并关闭，不加载章节管理列表', async () => {
+  const applied = vi.fn(), close = vi.fn()
+  mocks.sourcePreview.mockResolvedValue({ runId: 'embedded', site: 'po18tw', sourceChapterCount: 1, localChapterCount: 1, matchedSourceCount: 1,
+    metadata: { title: '', author: '', description: '', coverUrl: '', categories: [], status: '' }, changes: [{ localChapterId: 'c', oldTitle: '原章', newTitle: '新章', eligible: true }],
+    mappings: [], unmatchedSource: [], unmatchedLocal: [], warnings: [], localChapters: [], sourceChapters: [], orderChanges: [] })
+  mocks.sourceApply.mockResolvedValue({ updated: 1, orderUpdated: 0, metadataUpdated: [], mappings: 1 })
+  render(<ChaptersTab mergeNovel={{ id: 'n', title: '测试书', author: '', chapterCount: 1 }} onMergeClose={close} onMergeApplied={applied} />)
+  await screen.findByRole('heading', { name: '融合章节名' })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
+  fireEvent.click(await screen.findByRole('button', { name: '更新 1 个标题' }))
+  await waitFor(() => expect(applied).toHaveBeenCalledTimes(1))
+  expect(close).toHaveBeenCalledTimes(1)
+  expect(mocks.list).not.toHaveBeenCalled()
+  expect(mocks.sourcePreview).toHaveBeenCalledWith(expect.objectContaining({ novelId: 'n' }))
+})
