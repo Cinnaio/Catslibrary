@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ list: vi.fn(), replace: vi.fn(), shelf: vi.fn(), add: vi.fn(), remove: vi.fn(), recent: vi.fn(), removeProgress: vi.fn(), toast: vi.fn(), safeMode: false, user: { id: 'a' } }))
@@ -43,6 +43,7 @@ it('安全模式请求带筛选，并不展示设备残留的受限阅读记录'
 })
 it('进度删除失败保留本机记录，不能提示删除成功', async () => {
   saveHistory('n', { novelTitle: '阅读中的书', chapterId: 'c', timestamp: 100 })
+  mocks.recent.mockResolvedValue({ progress: [{ novelId: 'n', novelTitle: '阅读中的书', chapterId: 'c', updatedAt: 100 }], tombstones: [] })
   mocks.removeProgress.mockRejectedValueOnce(new Error('offline'))
   render(<MemoryRouter><Bookshelf /></MemoryRouter>)
   await screen.findByText(/上次同步/)
@@ -53,6 +54,7 @@ it('进度删除失败保留本机记录，不能提示删除成功', async () =
 })
 it('旧删除请求被服务端跳过时接纳较新位置，保留阅读记录', async () => {
   saveHistory('n', { novelTitle: '阅读中的书', chapterId: 'old', timestamp: 100 })
+  mocks.recent.mockResolvedValue({ progress: [{ novelId: 'n', novelTitle: '阅读中的书', chapterId: 'old', updatedAt: 100 }], tombstones: [] })
   mocks.removeProgress.mockResolvedValueOnce({ success: true, skipped: true, progress: { novelId: 'n', chapterId: 'new', scrollPercent: .8, updatedAt: 200 }, tombstone: null })
   render(<MemoryRouter><Bookshelf /></MemoryRouter>)
   await screen.findByText(/上次同步/)
@@ -60,6 +62,50 @@ it('旧删除请求被服务端跳过时接纳较新位置，保留阅读记录'
   fireEvent.click(screen.getByRole('button', { name: '清除记录' }))
   await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith('阅读位置已更新，保留较新的记录', 'default'))
   expect(getNovelHistory('n')).toMatchObject({ chapterId: 'new', scrollPercent: .8 })
+})
+it('成人模式同步也不会把云端已不存在的书从本机缓存重新并入', async () => {
+  saveHistory('deleted', { novelTitle: '已删除的书', chapterId: 'old', timestamp: 300 })
+  saveHistory('n', { novelTitle: '仍在阅读的书', chapterId: 'new', timestamp: 200 })
+  mocks.recent.mockResolvedValue({ progress: [{ novelId: 'n', novelTitle: '仍在阅读的书', chapterId: 'c', updatedAt: 100 }], tombstones: [] })
+  render(<MemoryRouter><Bookshelf /></MemoryRouter>)
+  await screen.findByText(/上次同步/)
+  fireEvent.click(screen.getByRole('button', { name: /最近阅读/ }))
+  expect(screen.queryByText('已删除的书')).not.toBeInTheDocument()
+  expect(screen.getByText('仍在阅读的书').closest('a')).toHaveAttribute('href', '/read/n/new')
+  mocks.recent.mockResolvedValue({ progress: [], tombstones: [] })
+  fireEvent.click(screen.getByRole('button', { name: '立即同步' }))
+  await screen.findByText('还没有阅读记录')
+  expect(screen.queryByText('仍在阅读的书')).not.toBeInTheDocument()
+})
+it('不存在书籍的幂等删除成功即清除缓存，不带回其他本机残留记录', async () => {
+  saveHistory('deleted', { novelTitle: '本机残留', chapterId: 'old', timestamp: 300 })
+  mocks.recent.mockResolvedValue({ progress: [{ novelId: 'n', novelTitle: '待清除的书', chapterId: 'c', updatedAt: 100 }], tombstones: [] })
+  mocks.removeProgress.mockResolvedValue({ success: true, progress: null, tombstone: null })
+  render(<MemoryRouter><Bookshelf /></MemoryRouter>)
+  await screen.findByText(/上次同步/)
+  fireEvent.click(screen.getByRole('button', { name: /最近阅读/ }))
+  fireEvent.click(screen.getByRole('button', { name: '清除记录' }))
+  await screen.findByText('还没有阅读记录')
+  expect(getNovelHistory('n')).toBeNull()
+  expect(screen.queryByText('本机残留')).not.toBeInTheDocument()
+  expect(mocks.toast).toHaveBeenCalledWith('阅读记录已删除', 'success')
+})
+it('清除记录后忽略此前发出的同步响应', async () => {
+  const response = { progress: [{ novelId: 'n', novelTitle: '待清除的书', chapterId: 'c', updatedAt: 100 }], tombstones: [] }
+  mocks.recent.mockResolvedValueOnce(response)
+  mocks.removeProgress.mockResolvedValue({ success: true, progress: null, tombstone: null })
+  render(<MemoryRouter><Bookshelf /></MemoryRouter>)
+  await screen.findByText(/上次同步/)
+  fireEvent.click(screen.getByRole('button', { name: /最近阅读/ }))
+  let finishSync!: (value: typeof response) => void
+  mocks.recent.mockImplementationOnce(() => new Promise(resolve => { finishSync = resolve }))
+  fireEvent.click(screen.getByRole('button', { name: '立即同步' }))
+  fireEvent.click(screen.getByRole('button', { name: '清除记录' }))
+  await screen.findByText('还没有阅读记录')
+  await act(async () => { finishSync(response) })
+  await waitFor(() => expect(screen.getByRole('button', { name: '立即同步' })).toBeEnabled())
+  expect(getNovelHistory('n')).toBeNull()
+  expect(screen.queryByText('待清除的书')).not.toBeInTheDocument()
 })
 it('打开或手动同步书架只读云端，不回传旧设备收藏或复活书签', async () => {
   addBookmark('old', '旧书签', 'c', '', 1)
