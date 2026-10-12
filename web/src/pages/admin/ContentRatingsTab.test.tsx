@@ -1,6 +1,6 @@
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdminContentRatingAiSuggestion, AdminContentRatingItem } from '@/lib/api'
 
@@ -703,4 +703,57 @@ describe('ContentRatingsTab', () => {
     expect(toolbar).not.toBeNull()
     expect(toolbar?.className).toContain('admin-toolbar')
   })
+
+  it('LLM 建议支持跨页选择和批量审核，保留各条修订号', async () => {
+    const user = userEvent.setup()
+    const suggestions = Array.from({ length: 31 }, (_, index) => ({
+      id: `bulk-${index}`, title: `批量作品${index + 1}`, author: '作者', suggestedRating: index === 0 ? 'restricted' : 'unknown',
+      confidence: 0.8, reason: '测试依据', evidence: [], revision: index + 2, status: 'pending',
+    }))
+    mocks.aiList.mockImplementation(({ limit, offset }) => Promise.resolve({
+      items: suggestions.slice(offset, offset + limit), total: suggestions.length,
+      counts: { pending: suggestions.length },
+    }))
+    mocks.aiReview.mockResolvedValue({ ok: true, decision: 'approve', applied: false })
+    renderView('ai')
+    await screen.findByText('批量作品1')
+    const panel = screen.getByRole('region', { name: 'LLM 内容分级建议' })
+    await user.click(within(panel).getByRole('checkbox', { name: '选择 LLM 建议：批量作品1' }))
+    await user.click(within(panel).getByRole('button', { name: '下一页' }))
+    await screen.findByText('批量作品16')
+    expect(mocks.aiList).toHaveBeenCalledWith({ status: 'pending', limit: 15, offset: 15 })
+    await user.click(within(panel).getByRole('checkbox', { name: '全选本页 LLM 建议' }))
+    expect(within(panel).getByText('已选 16 条')).toBeInTheDocument()
+    await user.click(within(panel).getByRole('button', { name: '批量批准' }))
+    expect(screen.getByRole('list', { name: '所选 LLM 建议' }).children).toHaveLength(16)
+    await user.click(screen.getByRole('button', { name: '确认批准所选建议' }))
+    expect(mocks.aiReview).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText('批量审核理由'), '人工逐条核对证据后确认')
+    await user.click(screen.getByRole('button', { name: '确认批准所选建议' }))
+    await waitFor(() => expect(mocks.aiReview).toHaveBeenCalledTimes(16))
+    expect(mocks.aiReview).toHaveBeenCalledWith('bulk-0', { decision: 'approve', expectedRevision: 2, reason: '人工逐条核对证据后确认' })
+    expect(mocks.aiReview).toHaveBeenCalledWith('bulk-15', { decision: 'approve', expectedRevision: 17, reason: '人工逐条核对证据后确认' })
+    await waitFor(() => expect(within(panel).getByText('已选 0 条')).toBeInTheDocument())
+  })
+
+  it('LLM 建议可跳转指定页，队列缩短后回到有效页', async () => {
+    const user = userEvent.setup()
+    let total = 31
+    mocks.aiList.mockImplementation(({ offset }) => Promise.resolve({
+      items: [{ id: `page-${offset}`, title: `当前偏移${offset}`, evidence: [], confidence: 0.5, suggestedRating: 'unknown' }],
+      total, counts: { pending: total },
+    }))
+    renderView('ai')
+    await screen.findByText('当前偏移0')
+    const panel = screen.getByRole('region', { name: 'LLM 内容分级建议' })
+    const jump = within(panel).getByLabelText('跳转到指定页')
+    await user.clear(jump)
+    await user.type(jump, '3{Enter}')
+    await screen.findByText('当前偏移30')
+    total = 10
+    await user.click(screen.getByRole('button', { name: '刷新建议' }))
+    await waitFor(() => expect(mocks.aiList).toHaveBeenLastCalledWith({ status: 'pending', limit: 15, offset: 0 }))
+    await screen.findByText('当前偏移0')
+  })
+
 })

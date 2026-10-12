@@ -31,6 +31,8 @@ import CustomSelect, { type SelectOption } from '@/components/admin/CustomSelect
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import AiSuggestionBulkReview from './AiSuggestionBulkReview'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -372,6 +374,7 @@ function AiSuggestionPanel({
   onCancel,
   onResume,
   onReview,
+  page, pageSize, onPage, onPageSize, onBulkCompleted,
 }: {
   data: AdminContentRatingAiListResponse | null
   loading: boolean
@@ -388,7 +391,26 @@ function AiSuggestionPanel({
   onCancel: () => void
   onResume: () => void
   onReview: (suggestion: AdminContentRatingAiSuggestion) => void
+  page: number
+  pageSize: number
+  onPage: (page: number) => void
+  onPageSize: (size: number) => void
+  onBulkCompleted: () => Promise<void>
 }) {
+  const [selected, setSelected] = useState(new Map<string, AdminContentRatingAiSuggestion>())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const locked = loading || !!error || bulkBusy
+  const rows = data?.items || []
+  const allSelected = rows.length > 0 && rows.every(row => selected.has(row.id))
+  const someSelected = rows.some(row => selected.has(row.id))
+  function select(row: AdminContentRatingAiSuggestion, checked: boolean) {
+    setSelected(previous => {
+      const next = new Map(previous)
+      if (checked) next.set(row.id, row)
+      else next.delete(row.id)
+      return next
+    })
+  }
   const active = !!task && ['queued', 'running'].includes(task.status)
   return (
     <AdminDataPanel ariaLabel="LLM 内容分级建议" className="content-ratings-panel content-ratings-ai">
@@ -414,6 +436,21 @@ function AiSuggestionPanel({
       />
       <p className="content-ratings-panel-description">只分析未标注作品的元数据。模型建议经人工审核才可修改分级；批准“继续未标注”不会标为一般。</p>
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
+      <div className="content-ratings-ai-selection" role="group" aria-label="LLM 建议批量操作">
+        <Label><Checkbox aria-label="全选本页 LLM 建议" checked={allSelected ? true : someSelected ? 'indeterminate' : false} disabled={locked || !rows.length} onCheckedChange={checked => {
+          setSelected(previous => {
+            const next = new Map(previous)
+            rows.forEach(row => { if (checked === true) next.set(row.id, row); else next.delete(row.id) })
+            return next
+          })
+        }} />全选本页</Label>
+        <span>已选 {selected.size} 条</span>
+        <Button variant="ghost" size="sm" disabled={bulkBusy || !selected.size} onClick={() => setSelected(new Map())}>清空选择</Button>
+        <AiSuggestionBulkReview items={[...selected.values()]} disabled={locked} onBusy={setBulkBusy} onCompleted={async ids => {
+          setSelected(previous => { const next = new Map(previous); ids.forEach(id => next.delete(id)); return next })
+          await onBulkCompleted()
+        }} />
+      </div>
       {error ? (
         <ErrorState message={`LLM 建议加载失败：${error}`} onRetry={onRetry} />
       ) : loading && !data ? (
@@ -424,6 +461,7 @@ function AiSuggestionPanel({
         <div className="content-ratings-queue">
           {data.items.map((suggestion) => (
             <article className="content-ratings-queue-item" key={suggestion.id}>
+              <Checkbox aria-label={`选择 LLM 建议：${suggestion.title || suggestion.id}`} checked={selected.has(suggestion.id)} disabled={locked} onCheckedChange={checked => select(suggestion, checked === true)} />
               <div className="content-ratings-queue-copy">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-foreground">{suggestion.title || '未命名作品'}</span>
@@ -443,7 +481,7 @@ function AiSuggestionPanel({
                 )}
               </div>
               <div className="content-ratings-queue-actions">
-                <Button type="button" variant="outline" size="sm" onClick={() => onReview(suggestion)}>
+                <Button type="button" variant="outline" size="sm" disabled={locked} onClick={() => onReview(suggestion)}>
                   <Eye className="size-3.5" aria-hidden="true" />
                   审核建议
                 </Button>
@@ -452,6 +490,9 @@ function AiSuggestionPanel({
           ))}
         </div>
       )}
+      <Pagination variant="detached" page={page} totalPages={Math.max(1, Math.ceil((data?.total || 0) / pageSize))} onPage={onPage}
+        summary={`共 ${data?.total ?? '—'} 条建议`}
+        pageSize={{ value: pageSize, options: ADMIN_PAGE_SIZE_OPTIONS, onChange: onPageSize }} busy={locked} />
     </AdminDataPanel>
   )
 }
@@ -500,6 +541,8 @@ export default function ContentRatingsTab() {
   const [candidateReviewError, setCandidateReviewError] = useState('')
   const [candidateReviewSaving, setCandidateReviewSaving] = useState(false)
 
+  const [aiPage, setAiPage] = useState(1)
+  const [aiPageSize, setAiPageSize] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [aiData, setAiData] = useState<AdminContentRatingAiListResponse | null>(null)
   const [aiLoading, setAiLoading] = useState(true)
   const [aiError, setAiError] = useState('')
@@ -597,14 +640,18 @@ export default function ContentRatingsTab() {
     setAiLoading(true)
     setAiError('')
     try {
-      const response = await adminApi.contentRatingAi.list({ status: 'pending', limit: 20, offset: 0 })
-      if (seq === aiListSeqRef.current) setAiData(response)
+      const response = await adminApi.contentRatingAi.list({ status: 'pending', limit: aiPageSize, offset: (aiPage - 1) * aiPageSize })
+      if (seq === aiListSeqRef.current) {
+        const lastPage = Math.max(1, Math.ceil(response.total / aiPageSize))
+        if (aiPage > lastPage) setAiPage(lastPage)
+        else setAiData(response)
+      }
     } catch (error) {
       if (seq === aiListSeqRef.current) setAiError(errorMessage(error, '请检查网络后重试'))
     } finally {
       if (seq === aiListSeqRef.current) setAiLoading(false)
     }
-  }, [])
+  }, [aiPage, aiPageSize])
 
   useEffect(() => {
     // This effect keeps the LLM review queue synchronized with the pending suggestions.
@@ -1241,6 +1288,11 @@ export default function ContentRatingsTab() {
             onScan={() => void scanAiSuggestions()}
             onCancel={() => void cancelAiTask()}
             onResume={() => void resumeAiTask()}
+            page={aiPage}
+            pageSize={aiPageSize}
+            onPage={setAiPage}
+            onPageSize={size => { setAiPageSize(size); setAiPage(1) }}
+            onBulkCompleted={async () => { await Promise.all([load(true), loadAiSuggestions()]) }}
             onReview={openAiReview}
           />
         </TabsContent>
