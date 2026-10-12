@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SourceSyncManualMapping, SourceSyncPreview } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,6 +29,13 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
   const [sourceQuery, setSourceQuery] = useState('')
   const [page, setPage] = useState(1)
   const [editingId, setEditingId] = useState('')
+  const [inspection, setInspection] = useState<{ id: string } | null>(null)
+  const localHeadings = useRef(new Map<string, HTMLElement>())
+  useLayoutEffect(() => {
+    const heading = localHeadings.current.get(inspection?.id || '')
+    heading?.focus({ preventScroll: true })
+    heading?.scrollIntoView({ block: 'center', behavior: 'instant' })
+  }, [inspection])
   const [targetKey, setTargetKey] = useState('unmatched')
   useEffect(() => { if (editingId) revealEditor() }, [editingId])
   const locals = preview.localChapters || []
@@ -48,7 +55,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
   const differenceCount = locals.filter(local => differences.get(local.id)!.length > 0).length
   const filtered = locals.filter(row => (filter === 'all' || differences.get(row.id)!.length > 0) && `${row.order} ${row.title}`.toLowerCase().includes(query.trim().toLowerCase()))
   const orderChanges = new Map(preview.orderChanges?.map(row => [row.localChapterId, row]) || [])
-  const skipped = new Map(preview.orderRepairSkipped?.map(row => [row.localChapterId, row.reason]) || [])
+  const skipped = new Map(preview.orderRepairSkipped?.map(row => [row.localChapterId, row]) || [])
   const selectedSkipped = [...selectedIds].filter(id => skipped.has(id)).length
   const selectedLocals = locals.filter(local => selectedIds.has(local.id))
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -101,12 +108,24 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
           }} />
           <div className="chapter-merge-dialog__mapping-content">
             <div className="chapter-merge-dialog__mapping-comparison">
-              <div><span className="chapter-merge-dialog__mapping-label">本地目录</span><strong>本地 {local.order} · {local.title}</strong></div>
+              <div><span className="chapter-merge-dialog__mapping-label">本地目录</span><strong tabIndex={-1} ref={element => { if (element) localHeadings.current.set(local.id, element); else localHeadings.current.delete(local.id) }}>本地 {local.order} · {local.title}</strong></div>
               <div><span className="chapter-merge-dialog__mapping-label">源站目录</span><p>{mapping ? `源站 ${mapping.sourceOrder} · ${mapping.sourceTitle}` : '尚未匹配，保持本地章节原样'}</p></div>
             </div>
             <div className="chapter-merge-dialog__mapping-meta">
               {orderChanges.has(local.id) && <span>序号 {local.order} → {orderChanges.get(local.id)!.newOrder} · {selectedIds.has(local.id) ? '已选，将修复' : '勾选后修复'}</span>}
-              {skipped.has(local.id) && <span className="chapter-merge-dialog__warning">暂不修复序号：{skipped.get(local.id)}</span>}
+              {skipped.has(local.id) && <span className="chapter-merge-dialog__warning">暂不修复序号：{skipped.get(local.id)!.reason}</span>}
+              {skipped.get(local.id)?.blockingChapterIds?.map(blockerId => {
+                const blockerIndex = locals.findIndex(row => row.id === blockerId)
+                const blocker = locals[blockerIndex]
+                if (!blocker) return null
+                return <Button key={blockerId} variant="ghost" size="sm" disabled={disabled} aria-label={`查看阻塞章节：本地 ${blocker.order} · ${blocker.title}`} onClick={() => {
+                  setQuery('')
+                  setFilter('all')
+                  setPage(Math.floor(blockerIndex / PAGE_SIZE) + 1)
+                  setEditingId('')
+                  setInspection({ id: blockerId })
+                }}>查看阻塞章节 · 本地 {blocker.order}</Button>
+              })}
               {!!differences.get(local.id)!.length && <span className="chapter-merge-dialog__warning">{differences.get(local.id)!.join(' · ')}</span>}
               {mapping && <span>{mapping.matchReason ? MATCH_REASON_LABELS[mapping.matchReason] : '旧预览未记录依据'} · 置信度{CONFIDENCE_LABELS[mapping.confidence]}{mapping.relation === 'split' ? ' · 拆分组' : ''}</span>}
               {mapping?.matchEvidence && <details><summary>匹配说明</summary><p>{mapping.matchEvidence}</p></details>}

@@ -96,7 +96,7 @@ export interface SourceSyncPreview {
   warnings: string[]
   orderChanges: SourceSyncOrderChange[]
   orderRepairBlockedReason?: string
-  orderRepairSkipped?: Array<{ localChapterId: string; reason: string }>
+  orderRepairSkipped?: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }>
   revision?: number
   sourceChapters?: SourceChapter[]
   localChapters?: LocalChapterForSync[]
@@ -446,9 +446,9 @@ function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Ali
 
 function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterForSync[], source: SourceChapter[]): {
   orderChanges: SourceSyncOrderChange[]; orderRepairBlockedReason?: string
-  orderRepairSkipped: Array<{ localChapterId: string; reason: string }>
+  orderRepairSkipped: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }>
 } {
-  const orderRepairSkipped: Array<{ localChapterId: string; reason: string }> = []
+  const orderRepairSkipped: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }> = []
   const count = (values: string[]) => {
     const counts = new Map<string, number>()
     values.forEach(value => counts.set(value, (counts.get(value) || 0) + 1))
@@ -465,13 +465,19 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
     const matches = byLocal.get(local.id) || []
     const mapping = matches[0]
     let reason = ''
-    if (!mapping) reason = '尚未匹配，不能确定源站序号'
+    if (!mapping) reason = (localTitles.get(normalizedTitle(local.title)) || 0) > 1
+      ? '本地存在重复完整标题，请先核查重复章节'
+      : '尚未匹配，不能确定源站序号'
     else if (mapping.relation !== 'one_to_one' || mapping.localChapterIds.length !== 1) reason = '拆分章节不能直接使用源站序号'
     else if (matches.length !== 1 || mappedSources.get(mapping.sourceChapterKey) !== 1) reason = '章节对应关系不唯一'
     else if (mapping.confidence !== 'high') reason = '匹配证据不足，请先核对映射'
     else {
       const title = normalizedTitle(local.title)
-      if (!title || localTitles.get(title) !== 1 || sourceTitles.get(normalizedTitle(mapping.sourceTitle)) !== 1 || title !== normalizedTitle(mapping.sourceTitle) || isWeakTitle(local.title, local.order)) {
+      if ((localTitles.get(title) || 0) > 1) {
+        reason = '本地存在重复完整标题，请先核查重复章节'
+      } else if ((sourceTitles.get(normalizedTitle(mapping.sourceTitle)) || 0) > 1) {
+        reason = '源站存在重复完整标题，不能唯一确定序号'
+      } else if (!title || title !== normalizedTitle(mapping.sourceTitle) || isWeakTitle(local.title, local.order)) {
         reason = '序号修复需要唯一且完整一致的标题'
       } else if (!Number.isSafeInteger(mapping.sourceOrder) || mapping.sourceOrder < 1 || sourceOrders.get(String(mapping.sourceOrder)) !== 1) {
         reason = '源站序号重复或无效'
@@ -480,14 +486,25 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
     if (reason) orderRepairSkipped.push({ localChapterId: local.id, reason })
     else if (mapping && mapping.sourceOrder !== local.order) candidates.set(local.id, { localChapterId: local.id, title: local.title, oldOrder: local.order, newOrder: mapping.sourceOrder })
   }
+  const skippedById = new Map(orderRepairSkipped.map(row => [row.localChapterId, row]))
+  const localById = new Map(locals.map(row => [row.id, row]))
   // 只允许目标位置为空或其占用章节也能在本次修复中移走；保留交换和连续偏移。
   let removed = true
   while (removed) {
     removed = false
     for (const [id, change] of candidates) {
-      if (locals.some(local => local.id !== id && local.order === change.newOrder && !candidates.has(local.id))) {
+      const blockers = locals.filter(local => local.id !== id && local.order === change.newOrder && !candidates.has(local.id))
+      if (blockers.length) {
         candidates.delete(id)
-        orderRepairSkipped.push({ localChapterId: id, reason: '目标序号被无法修复的章节占用，请先调整该章节的映射或序号' })
+        // 沿连续偏移追到真正无法移走的章节，而不是只提示下一章。
+        const blockingChapterIds = [...new Set(blockers.flatMap(local => skippedById.get(local.id)?.blockingChapterIds || [local.id]))]
+        const details = blockingChapterIds.map(blockerId => {
+          const local = localById.get(blockerId)!
+          return `本地 ${local.order}「${local.title}」（${skippedById.get(blockerId)?.reason || '序号保持不变'}）`
+        }).join('；')
+        const skipped = { localChapterId: id, blockingChapterIds, reason: `目标序号 ${change.newOrder} 的移动依赖受阻：${details}` }
+        skippedById.set(id, skipped)
+        orderRepairSkipped.push(skipped)
         removed = true
       }
     }

@@ -45,7 +45,7 @@
   flex-shrink: 0;
 }
 
-/* 历史记录：记录间一条线，页脚负责唯一的底部分隔。 */
+/* 历史记录：仅记录之间使用细线，页脚沿用共享纸面与留白。 */
 .source-sync-history__body { color: var(--text-secondary); font-size: 0.875rem; line-height: 1.7; }
 .source-sync-history__list,
 .source-sync-history__changes { list-style: none; margin: 0; padding: 0; }
@@ -78,7 +78,7 @@
 .source-sync-history__comparison p { margin: 0; }
 .source-sync-history__comparison p:first-child { color: var(--text-muted); }
 .source-sync-history__comparison p:last-child { color: var(--text-primary); }
-.chapter-merge-dialog.source-sync-history-dialog [data-slot='dialog-footer'] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--admin-space-3); border-top: 1px solid var(--admin-border); padding-top: var(--admin-space-4); }
+.chapter-merge-dialog.source-sync-history-dialog [data-slot='dialog-footer'] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--admin-space-3); border-top: 0; padding-top: var(--admin-space-4); }
 .source-sync-history-dialog .source-sync-history__pagination,
 .source-sync-history-dialog .source-sync-history__detail-pagination { border: 0; background: transparent; padding: 0; }
 .source-sync-history__pagination { flex: 1 1 18rem; min-width: 0; }

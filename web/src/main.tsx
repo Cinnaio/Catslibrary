@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import AppErrorBoundary from './components/AppErrorBoundary'
 import { AccentProvider } from './context/AccentContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { SessionProvider } from './context/SessionContext'
@@ -13,22 +14,24 @@ import './styles/reader-highlights.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <AccentProvider>
-        <ThemeProvider>
-          <SessionProvider>
-            <SearchProvider>
-              <ContentPolicyProvider>
-                <ToastProvider>
-                  <ConfirmProvider>
-                    <App />
-                  </ConfirmProvider>
-                </ToastProvider>
-              </ContentPolicyProvider>
-            </SearchProvider>
-          </SessionProvider>
-        </ThemeProvider>
-      </AccentProvider>
-    </BrowserRouter>
+    <AppErrorBoundary>
+      <BrowserRouter>
+        <AccentProvider>
+          <ThemeProvider>
+            <SessionProvider>
+              <SearchProvider>
+                <ContentPolicyProvider>
+                  <ToastProvider>
+                    <ConfirmProvider>
+                      <App />
+                    </ConfirmProvider>
+                  </ToastProvider>
+                </ContentPolicyProvider>
+              </SearchProvider>
+            </SessionProvider>
+          </ThemeProvider>
+        </AccentProvider>
+      </BrowserRouter>
+    </AppErrorBoundary>
   </StrictMode>,
 )

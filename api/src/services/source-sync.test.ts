@@ -445,3 +445,26 @@ describe('source sync chapter mapping', () => {
   })
 
 })
+
+it('连续偏移受阻时指出根本占用章节，并保留其他独立修复', () => {
+  const source = [
+    { key: 'a', order: 2, title: '第一章 起程', url: '' },
+    { key: 'b', order: 3, title: '第二章 归途', url: '' },
+    { key: 'c', order: 5, title: '第三章 重逢', url: '' },
+  ]
+  const local = [
+    { id: 'a', order: 1, title: '第一章 起程' },
+    { id: 'b', order: 2, title: '第二章 归途' },
+    { id: 'blocked', order: 3, title: '未匹配公告' },
+    { id: 'c', order: 4, title: '第三章 重逢' },
+  ]
+  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+    { runId: 'blocked-chain', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+  expect(preview.orderChanges.map(row => row.localChapterId)).toEqual(['c'])
+  for (const id of ['a', 'b']) {
+    const skipped = preview.orderRepairSkipped?.find(row => row.localChapterId === id)
+    expect(skipped?.blockingChapterIds).toEqual(['blocked'])
+    expect(skipped?.reason).toContain('本地 3「未匹配公告」')
+    expect(skipped?.reason).toContain('尚未匹配')
+  }
+})
