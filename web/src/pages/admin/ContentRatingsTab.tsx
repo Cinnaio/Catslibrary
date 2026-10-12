@@ -130,9 +130,9 @@ function EvidenceList({ evidence, compact = false }: { evidence: AdminContentRat
   const overflow = compact ? evidence.length - visible.length : 0
 
   return (
-    <div className="admin-cell-tags" title={evidence.map(evidenceLabel).join('、')}>
+    <div className={compact ? 'admin-cell-tags' : 'content-ratings-evidence'} title={evidence.map(evidenceLabel).join('、')}>
       {visible.map((item, index) => (
-        <Badge key={`${item.type}-${item.field || ''}-${index}`} variant="outline" className="admin-cell-tags__tag max-w-full truncate font-normal">
+        <Badge key={`${item.type}-${item.field || ''}-${index}`} variant="outline" className={compact ? 'admin-cell-tags__tag max-w-full truncate font-normal' : 'content-ratings-evidence__tag font-normal'}>
           {evidenceLabel(item)}
         </Badge>
       ))}
@@ -162,7 +162,7 @@ function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
   }
   const topKeywords = body.keywordHits.slice(0, 8)
   return (
-    <div className="rounded-md border border-border p-4 text-sm">
+    <div className="content-ratings-body-samples rounded-md border border-border p-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <p className="font-medium text-foreground">正文采样</p>
         <span className="text-xs text-muted-foreground">

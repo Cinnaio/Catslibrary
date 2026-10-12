@@ -278,3 +278,36 @@
 }
 .content-ratings-ai .content-ratings-queue-item--stale { grid-template-columns: minmax(0, 1fr); }
 .content-ratings-stale-reason { margin: 0; color: var(--text-muted); font-size: var(--admin-dialog-hint-size); }
+
+/* 长证据不能撑大弹窗的隐式栅格列；正文在纸面宽度内自然换行。 */
+.content-ratings-dialog {
+  grid-template-columns: minmax(0, 1fr);
+}
+.content-ratings-dialog .admin-dialog__body,
+.content-ratings-dialog .admin-dialog__body > .grid,
+.content-ratings-dialog .admin-dialog__body > .grid > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.content-ratings-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--admin-space-2);
+  min-width: 0;
+}
+.content-ratings-evidence > .content-ratings-evidence__tag {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  justify-content: flex-start;
+}
+.content-ratings-body-samples summary,
+.content-ratings-body-samples p,
+.content-ratings-body-samples [data-slot='badge'] {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
