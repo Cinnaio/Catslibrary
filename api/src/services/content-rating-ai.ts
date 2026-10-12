@@ -157,6 +157,8 @@ function bodySnapshot(body: ContentRatingBodySample) {
       chapter: `第${excerpt.chapterOrder + 1}章 ${boundedText(excerpt.chapterTitle, 80)}`.trim(),
       origin: excerpt.origin,
       keywords: excerpt.keywords.slice(0, 20),
+      strongKeywords: excerpt.strongKeywords.slice(0, 20),
+      weakKeywords: excerpt.weakKeywords.slice(0, 20),
       text: boundedText(excerpt.text, 600),
     })),
   }

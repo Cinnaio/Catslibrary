@@ -225,7 +225,16 @@ describe('LLM 内容分级建议审核闭环', () => {
         matchedChapterCount: 1,
         matchedChapterRatio: 1,
         keywordHits: [{ keyword: '淫液', chapters: 1 }],
-        excerpts: [{ chapter: '第55章 操穴', origin: 'match', keywords: ['淫液'], text: '淋漓丰沛的淫液不停外溢。' }],
+        excerpts: [
+          {
+            chapter: '第55章 操穴',
+            origin: 'match',
+            keywords: ['淫液'],
+            strongKeywords: ['淫液'],
+            weakKeywords: [],
+            text: '淋漓丰沛的淫液不停外溢。',
+          },
+        ],
       },
     })
     expect(prompt).toContain('淫液')
