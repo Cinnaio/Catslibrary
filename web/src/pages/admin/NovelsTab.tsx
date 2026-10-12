@@ -9,7 +9,7 @@ import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import { AdminDialogContent, AdminDialogBody } from '@/components/admin/AdminDialog'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { ErrorState } from '@/components/admin/AsyncStates'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { newOperationId, novelsApi, url, authHeaders } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
@@ -28,13 +28,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableCaption, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowDown, ArrowUp, BookOpen, CirclePlus, ChevronsUpDown, FileUp, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, GitMerge, CirclePlus, ChevronsUpDown, FileUp, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import BookImportDialog from '@/components/admin/BookImportDialog'
 import BookImportHistoryDialog from '@/components/admin/BookImportHistoryDialog'
 import { AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+
+const ChapterMergeDialog = lazy(() => import('./ChaptersTab'))
 
 /**
  * 表格列定义：桌面端据此固定列宽（表头与内容对齐），移动端据此折成卡片并
@@ -158,6 +160,7 @@ function NovelSortButton({
 export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
   const [batchFollowupNovels, setBatchFollowupNovels] = useState<Array<{ id: string; title: string }> | null>(null)
   const novelTitleCache = useRef(new Map<string, string>())
+  const [mergeNovel, setMergeNovel] = useState<Novel | null>(null)
   const [followupNovel, setFollowupNovel] = useState<Novel | null>(null)
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -707,6 +710,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                         // 阅读是只读出口，编辑是日常主操作，两者常驻；
                         // 删除低频且不可逆，收进菜单以免与主操作同权重并列。
                         { label: '查看详情', icon: BookOpen, onSelect: () => navigate(`/novel/${encodeURIComponent(n.id)}`) },
+                        { label: '融合章节名', icon: GitMerge, onSelect: () => setMergeNovel(n) },
                         { label: '追更设置', icon: RefreshCw, onSelect: () => setFollowupNovel(n) },
                         { label: '生成封面', icon: Palette, onSelect: () => navigate(`/admin/ai?sub=cover&novel=${encodeURIComponent(n.id)}`) },
                         { label: '删除小说', icon: Trash2, onSelect: () => void handleDelete(n), danger: true },
@@ -732,6 +736,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       </AdminDataPanel>
 
       {batchFollowupNovels && <BatchNovelFollowupDialog novels={batchFollowupNovels} onClose={() => setBatchFollowupNovels(null)} />}
+      {mergeNovel && <Suspense fallback={<p role="status">正在打开融合章节名…</p>}><ChapterMergeDialog key={mergeNovel.id} mergeNovel={{ id: mergeNovel.id, title: mergeNovel.title, author: mergeNovel.author || '', chapterCount: mergeNovel.chapterCount || 0 }} onMergeClose={() => setMergeNovel(null)} onMergeApplied={() => void load()} /></Suspense>}
       {followupNovel && <NovelFollowupDialog key={followupNovel.id} novel={followupNovel} onClose={() => setFollowupNovel(null)} />}
 
       <Pagination

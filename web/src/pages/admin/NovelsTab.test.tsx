@@ -41,3 +41,17 @@ it('勾选作品后可以打开批量追更设置，范围是已选作品', asyn
   expect(await screen.findByRole('heading', { name: '批量追更设置' })).toBeInTheDocument()
   expect(screen.getByText('将设置应用到选中的 1 本作品。')).toBeInTheDocument()
 })
+
+it('更多操作中的融合章节名直接打开当前作品弹窗，取消后仍保留小说列表', async () => {
+  render(<MemoryRouter><NovelsTab /></MemoryRouter>)
+  fireEvent.keyDown(await screen.findByRole('button', { name: '测试书：更多操作' }), { key: 'ArrowDown' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: '融合章节名' }))
+  expect(await screen.findByRole('heading', { name: '融合章节名' })).toBeInTheDocument()
+  expect(screen.getByRole('dialog')).toHaveTextContent('测试书')
+  expect(screen.getByRole('dialog')).toHaveTextContent('原作者')
+  expect(screen.getByRole('heading', { name: '小说管理', hidden: true })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: '章节管理', hidden: true })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '取消' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(screen.getByText('测试书')).toBeVisible()
+})
