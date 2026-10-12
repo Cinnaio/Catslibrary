@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
+import { buildContentRatingAiPrompt } from '../services/content-rating-ai'
 
 let t: TestDb
 let aiRating: 'restricted' | 'general' = 'restricted'
@@ -71,14 +72,21 @@ const req = (path: string, init?: RequestInit) => app.request(path, init)
 const jsonOf = async <T>(res: Response): Promise<T> => (await res.json()) as T
 
 async function waitForSuggestion(novelId: string, status = 'pending') {
+  // 只把「本次等待期间」写入的失败视为失败。测试里会用 UPDATE 手工把旧建议置为 failed
+  // 来制造补跑缺口，那是上一阶段的残留行，不该让新一轮等待立刻结束。
+  const since = Date.now()
   for (let attempt = 0; attempt < 100; attempt++) {
-    const result = await t.db.query<{ id: string; status: string; suggested_rating: string }>(
-      'SELECT id, status, suggested_rating FROM content_rating_ai_suggestions WHERE novel_id = $1 ORDER BY created_at DESC LIMIT 1',
+    const result = await t.db.query<{ id: string; status: string; suggested_rating: string; updated_at: number }>(
+      'SELECT id, status, suggested_rating, updated_at FROM content_rating_ai_suggestions WHERE novel_id = $1 ORDER BY created_at DESC LIMIT 1',
       [novelId],
     )
     const row = result.rows[0]
     if (row?.status === status) return row
-    if (row?.status === 'failed') throw new Error('AI suggestion task failed')
+    if (row?.status === 'failed' && Number(row.updated_at) >= since) {
+      // 把模型/采样阶段写进 error 的原始原因带出来，否则失败只留下一句无信息量的断言错误。
+      const detail = await t.db.query<{ error: string }>('SELECT error FROM content_rating_ai_suggestions WHERE id = $1', [row.id])
+      throw new Error(`AI suggestion task failed: ${detail.rows[0]?.error || 'unknown'}`)
+    }
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
   throw new Error(`AI suggestion did not reach ${status}`)
@@ -99,7 +107,7 @@ describe('LLM 内容分级建议审核闭环', () => {
         {
           title: '待分析作品',
           author: '测试作者',
-          description: '只提供元数据，正文不发送给 LLM。',
+          description: '元数据干净：只写仙凡婚姻与代嫁的平淡情节。',
           categories: ['测试成人标签'],
         },
         adminToken,
@@ -127,12 +135,20 @@ describe('LLM 内容分级建议审核闭环', () => {
     const list = await req('/api/admin/content-rating-ai?status=pending', json('GET', undefined, adminToken))
     expect(list.status).toBe(200)
     const listBody = await jsonOf<{
-      items: Array<{ id: string; model: string; promptVersion: string; inputSnapshot: { description?: string }; evidence: Array<{ type: string }> }>
+      items: Array<{
+        id: string
+        model: string
+        promptVersion: string
+        inputSnapshot: { description?: string; body?: { hasBody?: boolean; matchedChapterCount?: number } }
+        evidence: Array<{ type: string }>
+      }>
       counts: { pending: number }
     }>(list)
     expect(listBody.counts.pending).toBe(1)
-    expect(listBody.items[0]).toMatchObject({ model: 'rating-test-model', promptVersion: 'content-rating-ai-v1' })
-    expect(listBody.items[0]?.inputSnapshot.description).toContain('只提供元数据')
+    expect(listBody.items[0]).toMatchObject({ model: 'rating-test-model', promptVersion: 'content-rating-ai-v2' })
+    expect(listBody.items[0]?.inputSnapshot.description).toContain('元数据干净')
+    // 这本书没有章节，样本必须如实标记「未获取正文」，而不是假装读过
+    expect(listBody.items[0]?.inputSnapshot.body).toMatchObject({ hasBody: false })
     expect(listBody.items[0]?.evidence[0]).toMatchObject({ type: 'llm' })
 
     const approved = await req(
@@ -149,7 +165,7 @@ describe('LLM 内容分级建议审核闭环', () => {
       content_rating_rule_version: string
     }>('SELECT content_rating, content_rating_source, content_rating_revision, content_rating_rule_version FROM novels WHERE id = $1', [novelId])
     expect(rated.rows[0]).toMatchObject({ content_rating: 'restricted', content_rating_source: 'ai_task', content_rating_revision: 2 })
-    expect(rated.rows[0]?.content_rating_rule_version).toContain('llm:rating-test-model:content-rating-ai-v1')
+    expect(rated.rows[0]?.content_rating_rule_version).toContain('llm:rating-test-model:content-rating-ai-v2')
 
     const audit = await t.db.query<{ source: string; evidence: string; rule_version: string }>(
       'SELECT source, evidence, rule_version FROM novel_content_rating_audit WHERE novel_id = $1 ORDER BY created_at DESC LIMIT 1',
@@ -157,13 +173,84 @@ describe('LLM 内容分级建议审核闭环', () => {
     )
     expect(audit.rows[0]?.source).toBe('ai_task')
     expect(audit.rows[0]?.evidence).toContain('rating-test-model')
-    expect(audit.rows[0]?.rule_version).toContain('content-rating-ai-v1')
+    expect(audit.rows[0]?.rule_version).toContain('content-rating-ai-v2')
 
     const usage = await t.db.query<{ generation_type: string; novel_id: string }>(
       'SELECT generation_type, novel_id FROM ai_usage WHERE novel_id = $1 ORDER BY created_at DESC LIMIT 1',
       [novelId],
     )
     expect(usage.rows[0]).toMatchObject({ generation_type: 'content-rating-llm', novel_id: novelId })
+  })
+
+  it('元数据干净而正文露骨时，正文样本进入判据快照，不再只凭简介下结论', async () => {
+    const created = await req(
+      '/api/novels',
+      json('POST', { title: '入红尘', author: '米缪灵雨', description: '仙凡婚姻与代嫁情节。', categories: ['仙侠'] }, adminToken),
+    )
+    const novelId = (await jsonOf<{ novel: { id: string } }>(created)).novel.id
+    await t.db.query(
+      'INSERT INTO chapters(id,novel_id,title,content,sort_order,word_count,created_at) VALUES($1,$2,$3,$4,$5,$6,1)',
+      ['explicit-chapter', novelId, '55.操穴', '她早就湿透了。淋漓丰沛的淫液不停外溢。他握着性器，抵着肉缝上下抚弄。', 54, 40],
+    )
+
+    const scan = await req('/api/admin/content-rating-ai/scan', json('POST', { novelIds: [novelId], limit: 10 }, adminToken))
+    expect(scan.status).toBe(202)
+    await waitForSuggestion(novelId)
+
+    const list = await req('/api/admin/content-rating-ai?status=pending&search=入红尘', json('GET', undefined, adminToken))
+    const listBody = await jsonOf<{
+      items: Array<{
+        inputSnapshot: {
+          body?: { hasBody?: boolean; matchedChapterCount?: number; matchedChapterRatio?: number; excerpts?: Array<{ origin?: string; text?: string }> }
+        }
+      }>
+    }>(list)
+    const body = listBody.items.find((item) => item.inputSnapshot.body?.hasBody)?.inputSnapshot.body
+    expect(body?.matchedChapterCount).toBe(1)
+    expect(body?.matchedChapterRatio).toBe(1)
+    expect(body?.excerpts?.some((excerpt) => excerpt.origin === 'match' && excerpt.text?.includes('淫液'))).toBe(true)
+
+    // prompt 由这份快照序列化而来，正文必须真的出现在送模型的文本里
+    const prompt = buildContentRatingAiPrompt({
+      novelId,
+      title: '入红尘',
+      author: '米缪灵雨',
+      description: '仙凡婚姻与代嫁情节。',
+      categories: ['仙侠'],
+      ratingRevision: 0,
+      body: {
+        hasBody: true,
+        chapterCount: 1,
+        scannedCharacters: 40,
+        matchedChapterCount: 1,
+        matchedChapterRatio: 1,
+        keywordHits: [{ keyword: '淫液', chapters: 1 }],
+        excerpts: [{ chapter: '第55章 操穴', origin: 'match', keywords: ['淫液'], text: '淋漓丰沛的淫液不停外溢。' }],
+      },
+    })
+    expect(prompt).toContain('淫液')
+    expect(prompt).toContain('"hasBody":true')
+    expect(prompt).toContain('绝不能返回 general')
+  })
+
+  it('判据升级后归档旧版本建议，作品重新进入待分析目标', async () => {
+    const created = await req('/api/novels', json('POST', { title: '旧判据作品', author: '测试作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(created)).novel.id
+    const scan = await req('/api/admin/content-rating-ai/scan', json('POST', { novelIds: [novelId], limit: 10 }, adminToken))
+    expect(scan.status).toBe(202)
+    const pending = await waitForSuggestion(novelId)
+
+    // 模拟这条建议来自上一版判据（只读元数据）
+    await t.db.query("UPDATE content_rating_ai_suggestions SET prompt_version = 'content-rating-ai-v1' WHERE id = $1", [pending.id])
+
+    const rescan = await req('/api/admin/content-rating-ai/scan', json('POST', { novelIds: [novelId], limit: 10 }, adminToken))
+    expect(rescan.status).toBe(202)
+    // 旧建议被归档后不再占用「仅一条 pending」的位置，作品能被重新分析
+    expect((await jsonOf<{ selected: number }>(rescan)).selected).toBe(1)
+
+    const stale = await t.db.query<{ status: string; error: string }>('SELECT status, error FROM content_rating_ai_suggestions WHERE id = $1', [pending.id])
+    expect(stale.rows[0]?.status).toBe('stale')
+    expect(stale.rows[0]?.error).toContain('判据已升级')
   })
 
   it('把模型返回的 general 归一为 unknown，不能借 AI 结论覆盖一般作品或生成一般结论', async () => {
@@ -305,7 +392,7 @@ describe('LLM 内容分级建议审核闭环', () => {
     )
     // 刚跑完的批次就是「最近一条」，进度口径与 /tasks/:id/progress 一致
     expect(body.task?.id).toBe(taskId)
-    expect(body).toMatchObject({ total: 1, done: 1, remaining: 0, canResume: false, promptVersion: 'content-rating-ai-v1' })
+    expect(body).toMatchObject({ total: 1, done: 1, remaining: 0, canResume: false, promptVersion: 'content-rating-ai-v2' })
   })
 
   it('/latest 在没有任何历史批次时返回 task:null，而不是报错', async () => {
