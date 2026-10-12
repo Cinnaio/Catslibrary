@@ -1003,6 +1003,24 @@ export interface AdminContentRatingEvidence {
   rule?: string
 }
 
+/** 正文采样片段：`match` 由正文成人词命中定位，`spread` 是全书均匀采样。 */
+export interface AdminContentRatingBodyExcerpt {
+  chapter: string
+  origin: 'match' | 'spread'
+  keywords: string[]
+  text: string
+}
+
+export interface AdminContentRatingBodySnapshot {
+  hasBody: boolean
+  chapterCount: number
+  scannedCharacters: number
+  matchedChapterCount: number
+  matchedChapterRatio: number
+  keywordHits: Array<{ keyword: string; chapters: number }>
+  excerpts: AdminContentRatingBodyExcerpt[]
+}
+
 export interface AdminContentRatingItem {
   id: string
   title: string
@@ -1122,7 +1140,15 @@ export interface AdminContentRatingAiSuggestion {
   currentRating: ContentRating
   currentSource: AdminContentRatingSource
   currentRevision: number
-  inputSnapshot: { novelId?: string; title?: string; author?: string; description?: string; categories?: string[]; ratingRevision?: number }
+  inputSnapshot: {
+    novelId?: string
+    title?: string
+    author?: string
+    description?: string
+    categories?: string[]
+    ratingRevision?: number
+    body?: AdminContentRatingBodySnapshot
+  }
   suggestedRating: 'restricted' | 'unknown'
   confidence: number
   reason: string

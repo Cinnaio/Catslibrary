@@ -8,6 +8,7 @@ import {
   adminApi,
   aiApi,
   type AdminContentRatingEvidence,
+  type AdminContentRatingBodySnapshot,
   type AdminContentRatingHistoryItem,
   type AdminContentRatingItem,
   type AdminContentRatingAiListResponse,
@@ -115,7 +116,7 @@ function ratingValue(value: string): ContentRating {
 function evidenceLabel(item: AdminContentRatingEvidence): string {
   if (item.type === 'category') return item.value ? `分类：${item.value}` : '分类命中'
   if (item.type === 'text') {
-    const field = item.field === 'title' ? '标题' : item.field === 'description' ? '简介' : '文本'
+    const field = item.field === 'title' ? '标题' : item.field === 'description' ? '简介' : item.field === 'body' ? '正文' : '文本'
     return `${field}命中`
   }
   if (item.type === 'note') return item.value || '备注'
@@ -136,6 +137,62 @@ function EvidenceList({ evidence, compact = false }: { evidence: AdminContentRat
         </Badge>
       ))}
       {overflow > 0 && <span className="admin-cell-tags__overflow">+{overflow}</span>}
+    </div>
+  )
+}
+
+/**
+ * 正文采样证据。
+ *
+ * 为什么审核员必须看到它：模型给「限制级」还是「继续未标注」，取决于它读到了什么正文。
+ * 只给结论不给样本，审核员无法判断这次判级是「读了正文后的判断」还是
+ * 「没读正文、只看了简介的猜测」—— 后者正是漏判《入红尘》那类作品的成因。
+ */
+function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
+  if (!body) return null
+  if (!body.hasBody) {
+    return (
+      <div className="rounded-md border border-dashed border-border p-4 text-sm">
+        <p className="font-medium text-foreground">正文采样</p>
+        <p className="mt-2 leading-relaxed text-muted-foreground">
+          该书尚未抓取到正文，本次建议只能依据标题、简介与分类。置信度天然偏低，不足以据此确认“非限制级”。
+        </p>
+      </div>
+    )
+  }
+  const topKeywords = body.keywordHits.slice(0, 8)
+  return (
+    <div className="rounded-md border border-border p-4 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="font-medium text-foreground">正文采样</p>
+        <span className="text-xs text-muted-foreground">
+          已读 {formatNumber(body.chapterCount)} 章 · {formatNumber(body.scannedCharacters)} 字 · 成人词命中 {formatNumber(body.matchedChapterCount)} 章（
+          {Math.round(body.matchedChapterRatio * 100)}%）
+        </span>
+      </div>
+      {topKeywords.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {topKeywords.map((item) => (
+            <Badge key={item.keyword} variant="outline" className="font-normal">
+              {item.keyword} · {item.chapters} 章
+            </Badge>
+          ))}
+        </div>
+      )}
+      {body.excerpts.length > 0 ? (
+        <div className="mt-3 grid gap-2">
+          {body.excerpts.map((excerpt, index) => (
+            <details key={`${excerpt.chapter}-${index}`} className="rounded border border-border/60 bg-muted/20 p-2">
+              <summary className="cursor-pointer text-xs text-muted-foreground">
+                {excerpt.chapter} · {excerpt.origin === 'match' ? '成人词命中定位' : '全书均匀抽样'}
+              </summary>
+              <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground/90">{excerpt.text}</p>
+            </details>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 leading-relaxed text-muted-foreground">正文里没有采样到片段，请以元数据证据为准。</p>
+      )}
     </div>
   )
 }
@@ -437,7 +494,7 @@ function AiSuggestionPanel({
           </div>
         }
       />
-      <p className="content-ratings-panel-description">只分析未标注作品的元数据。模型建议经人工审核才可修改分级；批准“继续未标注”不会标为一般。</p>
+      <p className="content-ratings-panel-description">只分析未标注作品。判级依据是元数据加正文采样片段，正文成人词命中只用于定位采样章节，不直接决定分级。模型建议经人工审核才可修改分级；批准“继续未标注”不会标为一般。</p>
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
       <div className="content-ratings-ai-selection">
         <CustomSelect aria-label="LLM 建议状态" value={status} options={[{ value: 'pending', label: '待审核建议' }, { value: 'stale', label: '已过期建议' }]} onChange={value => { setSelected(new Map()); onStatus(value as 'pending' | 'stale') }} disabled={bulkBusy || loading} />
@@ -1583,7 +1640,7 @@ export default function ContentRatingsTab() {
         <AdminDialogContent className="content-ratings-dialog max-h-[min(86vh,800px)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>审核 LLM 分级建议 · {aiReviewSuggestion?.title || '作品'}</DialogTitle>
-            <DialogDescription>批准限制级建议前请核对元数据证据。LLM 不能直接发布分级；批准“继续未标注”也不会把作品改为一般。</DialogDescription>
+            <DialogDescription>批准限制级建议前请核对元数据与正文采样证据。LLM 不能直接发布分级；批准“继续未标注”也不会把作品改为一般。</DialogDescription>
           </DialogHeader>
           <AdminDialogBody className="space-y-4">
             {aiReviewSuggestion && (
@@ -1609,6 +1666,8 @@ export default function ContentRatingsTab() {
                     </div>
                   )}
                 </div>
+
+                <BodySamplePanel body={aiReviewSuggestion.inputSnapshot.body} />
 
                 <div className="rounded-md border border-border p-4 text-sm">
                   <p className="font-medium text-foreground">审核边界</p>
