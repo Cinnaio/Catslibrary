@@ -150,7 +150,9 @@ export default function Bookshelf() {
         if (h && Number(t.updatedAt || 0) >= h.timestamp) clearHistory(t.novelId)
       })
       const visibleIds = new Set(progressData.progress.map(p => p.novelId))
-      const localRecent = getRecentHistory(8).filter(h => !safeMode || visibleIds.has(h.novelId))
+      // 列表成员以云端为准，缓存只补充仍在列表中的阅读位置。
+      // 未返回的记录可能已删除、受限或不在最近八本内，不能重新并入。
+      const localRecent = getRecentHistory(Number.MAX_SAFE_INTEGER).filter(h => visibleIds.has(h.novelId))
       const recentList = mergeRecent(localRecent, progressData.progress, 8)
       recentList.forEach(h => saveHistory(h.novelId, h))
       setRecent(recentList)
@@ -195,14 +197,23 @@ export default function Bookshelf() {
 
   async function deleteRecent(novelId: string) {
     if (!novelId) return
+    loadRevision.current++
+    setSyncing(false)
     const token = getToken()
     const scope = getStorageScope()
     try {
       if (token) {
         const state = await progressApi.remove(novelId)
         if (token !== getToken() || scope !== getStorageScope()) return
+        loadRevision.current++
+        setSyncing(false)
         applyProgressState(novelId, state)
-        setRecent(previous => getRecentHistory(8).filter(h => !safeMode || previous.some(p => p.novelId === h.novelId)))
+        // 已删书的幂等删除可能没有墓碑；确认成功后也要清理本机记录。
+        if (!state.skipped && !state.progress) clearHistory(novelId)
+        setRecent(previous => previous.flatMap(h => {
+          const local = getNovelHistory(h.novelId)
+          return local ? [local] : []
+        }))
         toast(state.skipped ? '阅读位置已更新，保留较新的记录' : '阅读记录已删除', state.skipped ? 'default' : 'success')
       } else {
         clearHistory(novelId)
