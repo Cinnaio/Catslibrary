@@ -756,4 +756,23 @@ describe('ContentRatingsTab', () => {
     await screen.findByText('当前偏移0')
   })
 
+  it('已过期建议可查看历史原因，但不能选中或审核，切换状态回到第一页', async () => {
+    const user = userEvent.setup()
+    mocks.aiList.mockImplementation(({ status }) => Promise.resolve({
+      items: status === 'stale' ? [{ id: 'expired-1', title: '已人工调整作品', suggestedRating: 'unknown', confidence: 0.5, evidence: [], error: '作品分级或修订已变化', currentRating: 'general' }] : [],
+      total: status === 'stale' ? 1 : 0, counts: { pending: 0, stale: 1 },
+    }))
+    renderView('ai')
+    await screen.findByText('还没有待审核的 LLM 分级建议；分析任务只会读取未标注作品。')
+    await user.click(screen.getByRole('combobox', { name: 'LLM 建议状态' }))
+    await user.click(screen.getByRole('option', { name: '已过期建议' }))
+    await screen.findByText('已人工调整作品')
+    expect(mocks.aiList).toHaveBeenLastCalledWith({ status: 'stale', limit: 15, offset: 0 })
+    const panel = screen.getByRole('region', { name: 'LLM 内容分级建议' })
+    expect(within(panel).getByRole('status')).toHaveTextContent('当前分级：一般')
+    expect(within(panel).queryByRole('button', { name: '审核建议' })).not.toBeInTheDocument()
+    expect(within(panel).queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(within(panel).queryByRole('button', { name: '批量批准' })).not.toBeInTheDocument()
+  })
+
 })

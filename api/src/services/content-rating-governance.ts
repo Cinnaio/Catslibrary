@@ -2,6 +2,7 @@ import { isRestrictedCategoryTag } from '@shared/restricted-categories'
 import { matchesRestrictedPattern } from '@shared/restricted-patterns'
 import type { ContentRating } from '@shared/types'
 import type { DbClient } from '../db/pool'
+import { expireContentRatingAiSuggestions } from './content-rating-ai-lifecycle'
 import { newId } from './auth'
 
 /** 当前规则版本写入分级记录，规则调整时递增，便于筛出需要重新复核的作品。 */
@@ -39,6 +40,7 @@ export interface ContentRatingChangeInput {
   evidence?: unknown
   ruleVersion?: string
   operationId?: string
+  excludeAiSuggestionId?: string
   expectedRevision?: number
   now?: number
 }
@@ -207,6 +209,7 @@ export async function applyContentRatingChange(query: DbClient['query'], input: 
       WHERE id = $10`,
     [nextRating, revision, source, reason, evidence, ruleVersion, updatedBy, now, operationId, novelId],
   )
+  await expireContentRatingAiSuggestions(query, { novelId, excludeSuggestionId: input.excludeAiSuggestionId, now })
   await query(
     `INSERT INTO novel_content_rating_audit
       (id, novel_id, from_rating, to_rating, source, reason, evidence, rule_version, operation_id, actor_user_id, expected_revision, resulting_revision, created_at)

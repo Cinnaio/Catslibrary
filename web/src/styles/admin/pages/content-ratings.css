@@ -276,3 +276,5 @@
   .content-ratings-ai .content-ratings-queue-actions { grid-column: 2; justify-self: end; }
   .content-ratings-ai-selection { margin-inline: 1rem; }
 }
+.content-ratings-ai .content-ratings-queue-item--stale { grid-template-columns: minmax(0, 1fr); }
+.content-ratings-stale-reason { margin: 0; color: var(--text-muted); font-size: var(--admin-dialog-hint-size); }

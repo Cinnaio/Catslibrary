@@ -1,3 +1,4 @@
+import { expireContentRatingAiSuggestions } from './content-rating-ai-lifecycle'
 import type { ContentRating } from '@shared/types'
 import type { Db, DbClient } from '../db/pool'
 import { all, first, run } from '../db/query'
@@ -220,6 +221,7 @@ export async function listContentRatingAiSuggestions(
   total: number
   counts: Record<ContentRatingAiSuggestionStatus, number>
 }> {
+  await expireContentRatingAiSuggestions(db.query.bind(db))
   const conditions: string[] = []
   const params: unknown[] = []
   if (isContentRatingAiSuggestionStatus(options.status)) {
@@ -581,6 +583,14 @@ export async function reviewContentRatingAiSuggestion(
   if (!reason) throw new ContentRatingAiValidationError('审核决定必须填写理由')
   if (!actorUserId) throw new ContentRatingAiValidationError('actorUserId is required')
 
+  // All rating writers lock the novel before its suggestions, avoiding inverted lock order.
+  const novel = await query<{ id: string; content_rating: string; content_rating_revision: number }>(
+    'SELECT id, content_rating, content_rating_revision FROM novels WHERE id = (SELECT novel_id FROM content_rating_ai_suggestions WHERE id = $1) FOR UPDATE',
+    [suggestionId],
+  )
+  const novelRow = novel.rows[0]
+  if (!novelRow) throw new ContentRatingAiNotFoundError()
+
   const result = await query<AiSuggestionRow>(
     `SELECT s.id, s.novel_id, s.task_id, s.novel_rating_revision, s.input_snapshot,
             s.suggested_rating, s.confidence, s.reason, s.evidence, s.model,
@@ -600,12 +610,6 @@ export async function reviewContentRatingAiSuggestion(
     throw new ContentRatingAiConflictError('content_rating_ai_conflict', 'AI 分级建议已被其他管理员更新，请刷新后重新审核')
   }
 
-  const novel = await query<{ id: string; content_rating: string; content_rating_revision: number }>(
-    'SELECT id, content_rating, content_rating_revision FROM novels WHERE id = $1 FOR UPDATE',
-    [current.novel_id],
-  )
-  const novelRow = novel.rows[0]
-  if (!novelRow) throw new ContentRatingAiNotFoundError('建议对应的作品不存在')
   if (novelRow.content_rating !== 'unknown' || Number(novelRow.content_rating_revision) !== Number(current.novel_rating_revision)) {
     throw new ContentRatingAiConflictError('content_rating_ai_stale', '作品分级已发生变化，这条 AI 建议已经过期')
   }
@@ -633,6 +637,7 @@ export async function reviewContentRatingAiSuggestion(
       ruleVersion: `llm:${String(current.model || 'unknown').slice(0, 60)}:${String(current.prompt_version || CONTENT_RATING_AI_PROMPT_VERSION).slice(0, 60)}`,
       operationId,
       expectedRevision: Number(current.novel_rating_revision) || 0,
+      excludeAiSuggestionId: suggestionId,
       now,
     })
     applied = change.changed
