@@ -775,4 +775,27 @@ describe('ContentRatingsTab', () => {
     expect(within(panel).queryByRole('button', { name: '批量批准' })).not.toBeInTheDocument()
   })
 
+  it.each(['approve', 'reject'] as const)('单条建议%s确认缺少理由时聚焦并滚动到必填项，不发送审核请求', async decision => {
+    const user = userEvent.setup()
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
+    mocks.aiList.mockResolvedValue({ items: [{
+      id: 'focus-review', title: '审核焦点作品', author: '作者', inputSnapshot: {}, evidence: [],
+      suggestedRating: 'restricted', confidence: 0.9, reason: '模型理由', currentRating: 'unknown', revision: 0,
+    }], total: 1, counts: { pending: 1 } })
+    renderView('ai')
+    await screen.findByText('审核焦点作品')
+    await user.click(screen.getByRole('button', { name: '审核建议' }))
+    await user.click(screen.getByRole('button', { name: decision === 'approve' ? '进入批准确认' : '拒绝建议' }))
+    const confirm = screen.getByRole('button', { name: decision === 'approve' ? '确认批准建议' : '确认拒绝建议' })
+    expect(confirm).toBeEnabled()
+    await user.click(confirm)
+    const reason = screen.getByLabelText(decision === 'approve' ? '批准理由' : '拒绝理由')
+    expect(reason).toHaveFocus()
+    expect(reason).toHaveAttribute('aria-invalid', 'true')
+    expect(scroll).toHaveBeenCalledWith({ block: 'center', behavior: 'instant' })
+    expect(screen.getByRole('alert')).toHaveTextContent('请填写本次审核决定的理由。')
+    expect(mocks.aiReview).not.toHaveBeenCalled()
+    scroll.mockRestore()
+  })
+
 })
