@@ -374,7 +374,7 @@ function AiSuggestionPanel({
   onCancel,
   onResume,
   onReview,
-  page, pageSize, onPage, onPageSize, onBulkCompleted,
+  page, pageSize, onPage, onPageSize, onBulkCompleted, status, onStatus,
 }: {
   data: AdminContentRatingAiListResponse | null
   loading: boolean
@@ -395,11 +395,14 @@ function AiSuggestionPanel({
   pageSize: number
   onPage: (page: number) => void
   onPageSize: (size: number) => void
+  status: 'pending' | 'stale'
+  onStatus: (status: 'pending' | 'stale') => void
   onBulkCompleted: () => Promise<void>
 }) {
   const [selected, setSelected] = useState(new Map<string, AdminContentRatingAiSuggestion>())
   const [bulkBusy, setBulkBusy] = useState(false)
   const locked = loading || !!error || bulkBusy
+  const history = status === 'stale'
   const rows = data?.items || []
   const allSelected = rows.length > 0 && rows.every(row => selected.has(row.id))
   const someSelected = rows.some(row => selected.has(row.id))
@@ -436,7 +439,10 @@ function AiSuggestionPanel({
       />
       <p className="content-ratings-panel-description">只分析未标注作品的元数据。模型建议经人工审核才可修改分级；批准“继续未标注”不会标为一般。</p>
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
-      <div className="content-ratings-ai-selection" role="group" aria-label="LLM 建议批量操作">
+      <div className="content-ratings-ai-selection">
+        <CustomSelect aria-label="LLM 建议状态" value={status} options={[{ value: 'pending', label: '待审核建议' }, { value: 'stale', label: '已过期建议' }]} onChange={value => { setSelected(new Map()); onStatus(value as 'pending' | 'stale') }} disabled={bulkBusy || loading} />
+      </div>
+      {!history && <div className="content-ratings-ai-selection" role="group" aria-label="LLM 建议批量操作">
         <Label><Checkbox aria-label="全选本页 LLM 建议" checked={allSelected ? true : someSelected ? 'indeterminate' : false} disabled={locked || !rows.length} onCheckedChange={checked => {
           setSelected(previous => {
             const next = new Map(previous)
@@ -450,18 +456,18 @@ function AiSuggestionPanel({
           setSelected(previous => { const next = new Map(previous); ids.forEach(id => next.delete(id)); return next })
           await onBulkCompleted()
         }} />
-      </div>
+      </div>}
       {error ? (
         <ErrorState message={`LLM 建议加载失败：${error}`} onRetry={onRetry} />
       ) : loading && !data ? (
         <LoadingState label="正在加载 LLM 分级建议" rows={2} />
       ) : !data || data.items.length === 0 ? (
-        <AdminEmptyState message="还没有待审核的 LLM 分级建议；分析任务只会读取未标注作品。" />
+        <AdminEmptyState message={history ? '没有已过期的 LLM 分级建议。' : '还没有待审核的 LLM 分级建议；分析任务只会读取未标注作品。'} />
       ) : (
         <div className="content-ratings-queue">
           {data.items.map((suggestion) => (
-            <article className="content-ratings-queue-item" key={suggestion.id}>
-              <Checkbox aria-label={`选择 LLM 建议：${suggestion.title || suggestion.id}`} checked={selected.has(suggestion.id)} disabled={locked} onCheckedChange={checked => select(suggestion, checked === true)} />
+            <article className={`content-ratings-queue-item${history ? ' content-ratings-queue-item--stale' : ''}`} key={suggestion.id}>
+              {!history && <Checkbox aria-label={`选择 LLM 建议：${suggestion.title || suggestion.id}`} checked={selected.has(suggestion.id)} disabled={locked} onCheckedChange={checked => select(suggestion, checked === true)} />}
               <div className="content-ratings-queue-copy">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-foreground">{suggestion.title || '未命名作品'}</span>
@@ -480,12 +486,13 @@ function AiSuggestionPanel({
                   </div>
                 )}
               </div>
-              <div className="content-ratings-queue-actions">
+              {history && <p className="content-ratings-stale-reason" role="status">已过期：{suggestion.error || '作品分级或修订已变化'}，当前分级：{suggestion.currentRating === 'restricted' ? '限制级' : suggestion.currentRating === 'general' ? '一般' : '未标注'}。</p>}
+              {!history && <div className="content-ratings-queue-actions">
                 <Button type="button" variant="outline" size="sm" disabled={locked} onClick={() => onReview(suggestion)}>
                   <Eye className="size-3.5" aria-hidden="true" />
                   审核建议
                 </Button>
-              </div>
+              </div>}
             </article>
           ))}
         </div>
@@ -541,6 +548,7 @@ export default function ContentRatingsTab() {
   const [candidateReviewError, setCandidateReviewError] = useState('')
   const [candidateReviewSaving, setCandidateReviewSaving] = useState(false)
 
+  const [aiStatus, setAiStatus] = useState<'pending' | 'stale'>('pending')
   const [aiPage, setAiPage] = useState(1)
   const [aiPageSize, setAiPageSize] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [aiData, setAiData] = useState<AdminContentRatingAiListResponse | null>(null)
@@ -640,7 +648,7 @@ export default function ContentRatingsTab() {
     setAiLoading(true)
     setAiError('')
     try {
-      const response = await adminApi.contentRatingAi.list({ status: 'pending', limit: aiPageSize, offset: (aiPage - 1) * aiPageSize })
+      const response = await adminApi.contentRatingAi.list({ status: aiStatus, limit: aiPageSize, offset: (aiPage - 1) * aiPageSize })
       if (seq === aiListSeqRef.current) {
         const lastPage = Math.max(1, Math.ceil(response.total / aiPageSize))
         if (aiPage > lastPage) setAiPage(lastPage)
@@ -651,7 +659,7 @@ export default function ContentRatingsTab() {
     } finally {
       if (seq === aiListSeqRef.current) setAiLoading(false)
     }
-  }, [aiPage, aiPageSize])
+  }, [aiPage, aiPageSize, aiStatus])
 
   useEffect(() => {
     // This effect keeps the LLM review queue synchronized with the pending suggestions.
@@ -1288,6 +1296,8 @@ export default function ContentRatingsTab() {
             onScan={() => void scanAiSuggestions()}
             onCancel={() => void cancelAiTask()}
             onResume={() => void resumeAiTask()}
+            status={aiStatus}
+            onStatus={status => { setAiStatus(status); setAiPage(1); setAiData(null) }}
             page={aiPage}
             pageSize={aiPageSize}
             onPage={setAiPage}

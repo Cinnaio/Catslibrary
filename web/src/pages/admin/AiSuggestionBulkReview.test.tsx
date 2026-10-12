@@ -22,3 +22,18 @@ it('批量拒绝部分失败时报告具体作品，仅清除成功项并保留�
   expect(onCompleted).toHaveBeenCalledWith(['a'])
   await waitFor(() => expect(onBusy).toHaveBeenLastCalledWith(false))
 })
+
+it('未填理由点击确认时滚动并聚焦理由输入框，禁止发起审核', async () => {
+  review.mockReset()
+  const user = userEvent.setup()
+  const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
+  const items = [{ id: 'a', title: '作品a', revision: 0, confidence: 0.5, suggestedRating: 'unknown' }] as AdminContentRatingAiSuggestion[]
+  render(<AiSuggestionBulkReview items={items} disabled={false} onCompleted={vi.fn()} onBusy={vi.fn()} />)
+  await user.click(screen.getByRole('button', { name: '批量拒绝' }))
+  await user.click(screen.getByRole('button', { name: '确认拒绝所选建议' }))
+  expect(screen.getByLabelText('批量审核理由')).toHaveFocus()
+  expect(screen.getByLabelText('批量审核理由')).toHaveAttribute('aria-invalid', 'true')
+  expect(scroll).toHaveBeenCalledWith({ block: 'center', behavior: 'instant' })
+  expect(review).not.toHaveBeenCalled()
+  scroll.mockRestore()
+})

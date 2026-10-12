@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { adminApi, type AdminContentRatingAiSuggestion } from '@/lib/api'
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ export default function AiSuggestionBulkReview({ items, disabled, onCompleted, o
   onCompleted: (ids: string[]) => Promise<void>
   onBusy: (busy: boolean) => void
 }) {
+  const reasonInput = useRef<HTMLTextAreaElement>(null)
   const [decision, setDecision] = useState<'approve' | 'reject' | null>(null)
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
@@ -25,7 +26,12 @@ export default function AiSuggestionBulkReview({ items, disabled, onCompleted, o
   }
   async function submit() {
     if (!decision || saving || !items.length) return
-    if (!reason.trim()) { setMessage('请填写本次批量审核的理由。'); return }
+    if (!reason.trim()) {
+      setMessage('请填写本次批量审核的理由。')
+      reasonInput.current?.focus({ preventScroll: true })
+      reasonInput.current?.scrollIntoView({ block: 'center', behavior: 'instant' })
+      return
+    }
     setSaving(true)
     onBusy(true)
     setMessage('')
@@ -70,7 +76,7 @@ export default function AiSuggestionBulkReview({ items, disabled, onCompleted, o
             </li>)}
           </ul>
           <Label htmlFor="ai-bulk-review-reason">批量审核理由</Label>
-          <Textarea id="ai-bulk-review-reason" value={reason} onChange={event => setReason(event.target.value)} maxLength={500} rows={3} disabled={saving} placeholder="说明本次人工审核的共同依据；该理由将逐条写入审核记录。" />
+          <Textarea ref={reasonInput} aria-invalid={!!message && !reason.trim()} id="ai-bulk-review-reason" value={reason} onChange={event => setReason(event.target.value)} maxLength={500} rows={3} disabled={saving} placeholder="说明本次人工审核的共同依据；该理由将逐条写入审核记录。" />
           {message && <p role="status" className="admin-dialog-hint">{message}</p>}
           {!!failures.length && <ul role="alert" className="content-ratings-bulk-preview">{failures.map((failure, index) => <li key={index}>{failure}</li>)}</ul>}
         </AdminDialogBody>
