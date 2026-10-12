@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
+import type { DashboardFollowups } from '../../../shared/admin-dashboard'
 
 let t: TestDb
 
@@ -148,7 +149,10 @@ describe('管理 API 端到端（pglite）', () => {
   it('admin/stats：总数 + 最近任务/小说', async () => {
     const res = await req('/api/admin/stats', json('GET', undefined, adminToken))
     expect(res.status).toBe(200)
-    const data = await jsonOf<{ totals: Record<string, number>; jobStatus: Record<string, number>; recentJobs: unknown[]; recentNovels: unknown[] }>(res)
+    const data = await jsonOf<{ snapshotAt: number; followups: DashboardFollowups; totals: Record<string, number>; jobStatus: Record<string, number>; recentJobs: unknown[]; recentNovels: unknown[] }>(res)
+    expect(data.snapshotAt).toBeGreaterThan(0)
+    expect(data.followups).toMatchObject({ enabled: expect.any(Number), waiting: expect.any(Number), running: expect.any(Number), attention: expect.any(Number) })
+    expect(data.followups.scheduled).toBeInstanceOf(Array)
     expect(data.totals.novels).toBeGreaterThanOrEqual(1)
     expect(data.totals.chapters).toBeGreaterThanOrEqual(1)
     expect(data.totals.users).toBeGreaterThanOrEqual(2)

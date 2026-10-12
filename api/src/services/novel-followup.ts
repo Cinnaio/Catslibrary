@@ -46,6 +46,8 @@ export async function getFollowup(db: Db, novelId: string) {
     result: active ? 'running' : row?.result || 'idle',
     message: active ? active.step || '正在检查目录并抓取新章节…' : row?.message || '',
     addedCount: row?.added_count || 0,
+    failures: row?.failures || 0,
+    sourceUrl: config?.source_url || '',
     jobId: active?.id || row?.last_job_id || '',
     hasConfig: hasFollowupSource(config?.source_url ?? null, config?.selectors ?? null),
     ...(await getPendingChapterCounts(db, [novelId])).get(novelId),

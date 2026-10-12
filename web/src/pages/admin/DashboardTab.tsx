@@ -1,229 +1,348 @@
-/**
- * 总览 tab —— 库存读数行、任务状态条、最近任务/小说（只读，手动刷新）。
- * 由 Novel-KV js/admin-dashboard.js 平移。
- *
- * 库存读数原为 AdminMetricStrip（1.45rem 大数字 + 独立表面）：它吃掉首屏上半屏，
- * 而真正要看的任务状态与最近任务被推到折叠线以下。现改为一行紧凑读数
- * （.dashboard-stat-line），同屏看到全部 9 项。
- */
+/** 后台总览：追更安排与异常优先，书库规模作为次级信息。 */
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowUpRight, ChevronRight, RefreshCw } from 'lucide-react'
+import type { DashboardFollowupBook, DashboardFollowups } from '@shared/admin-dashboard'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { RefreshCw } from 'lucide-react'
-import { adminApi } from '../../lib/api'
-import { formatBytes, timeAgo } from '../../lib/format'
-import { jobStatusLabel } from '../../lib/admin'
+import { adminApi } from '@/lib/api'
+import { formatBytes, formatDateTime, timeAgo } from '@/lib/format'
+import { jobStatusLabel } from '@/lib/admin'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { ErrorState, LoadingState } from '@/components/admin/AsyncStates'
+import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import NovelFollowupDialog from '@/components/admin/NovelFollowupDialog'
+import ScrapeTaskDetailsDialog from '@/components/admin/ScrapeTaskDetailsDialog'
 
 interface AdminStats {
+  snapshotAt?: number
+  followups?: DashboardFollowups
   totals: { novels: number; chapters: number; users: number; covers: number; failedJobs: number; todayChapters: number; dbSize: number | null }
   contentRating: { general: number; restricted: number; unknown: number }
   jobStatus: { running: number; completed: number; failed: number }
-  recentJobs: Array<{
-    id: string
-    novelId: string
-    novelTitle: string
-    status: string
-    step: string
-    current: number
-    total: number
-    chapterCount: number
-    progress: number
-    error: string
-    startedAt: number
-    updatedAt: number
-  }>
+  recentJobs: Array<{ id: string; novelId: string; novelTitle: string; status: string; step: string; error: string; updatedAt: number }>
   recentNovels: Array<{ id: string; title: string; author: string; chapterCount: number; updatedAt: number }>
 }
 
-const STAT_CARDS: Array<{ label: string; key: keyof AdminStats['totals']; unit: string }> = [
-  { label: '小说总数', key: 'novels', unit: '本' },
-  { label: '章节总数', key: 'chapters', unit: '章' },
-  { label: '用户数', key: 'users', unit: '人' },
-  { label: '今日新增章节', key: 'todayChapters', unit: '章' },
-  { label: '失败任务', key: 'failedJobs', unit: '个' },
-  { label: '封面缓存', key: 'covers', unit: '张' },
-  { label: '数据库大小', key: 'dbSize', unit: '' },
-]
-
-const STATUS_TONE: Record<string, AdminStatusTone> = {
+const FOLLOWUP_RESULT: Record<string, [string, AdminStatusTone]> = {
+  running: ['检查中', 'info'],
+  updated: ['有新章', 'success'],
+  no_change: ['暂无新章', 'neutral'],
+  failed: ['检查失败', 'danger'],
+  partial: ['部分失败', 'warning'],
+  pending: ['待补章节', 'warning'],
+  protected: ['章节受保护', 'warning'],
+  cancelled: ['已取消', 'neutral'],
+  idle: ['尚未检查', 'neutral'],
+}
+const JOB_TONE: Record<string, AdminStatusTone> = {
+  starting: 'info',
   running: 'info',
   completed: 'success',
   failed: 'danger',
+  partial: 'warning',
+  cancelled: 'neutral',
 }
+const number = (value: number) => value.toLocaleString('zh-CN')
+const manageNovel = (id: string) => `/admin/novels?novelId=${encodeURIComponent(id)}`
 
-function formatNumber(value: number | string): string {
-  if (value === '—') return '—'
-  const n = Number(value)
-  return Number.isFinite(n) ? n.toLocaleString('zh-CN') : String(value)
+function FollowupRows({
+  books,
+  view,
+  now,
+  onSelect,
+}: {
+  books: DashboardFollowupBook[]
+  view: string
+  now: number
+  onSelect: (book: DashboardFollowupBook) => void
+}) {
+  if (!books.length)
+    return (
+      <AdminEmptyState
+        message={view === 'issues' ? '没有需要处理的追更异常' : view === 'recent' ? '还没有检查结果' : '暂无自动追更安排'}
+        hint={
+          view === 'issues'
+            ? '检查失败、待补章节或受保护章节会汇总在这里。'
+            : view === 'recent'
+              ? '完成检查后，这里会显示结果与新增章节。'
+              : '在小说管理中为有来源的书籍开启追更。'
+        }
+      />
+    )
+  return (
+    <div className="dashboard-rows">
+      {books.map((book) => {
+        const [label, tone] = FOLLOWUP_RESULT[book.result] || [book.result || '尚未检查', 'neutral']
+        return (
+          <button
+            type="button"
+            key={book.novelId}
+            onClick={() => onSelect(book)}
+            className="dashboard-row dashboard-followup-row"
+            aria-label={`查看追更事件：${book.title}`}
+          >
+            <div className="dashboard-row__body">
+              <div className="dashboard-row__identity">
+                <span className="dashboard-row__title">{book.title}</span>
+                <AdminStatusBadge tone={tone}>{label}</AdminStatusBadge>
+              </div>
+              <p className="dashboard-row__detail">
+                {book.result === 'updated' && book.addedCount > 0
+                  ? `已新增 ${number(book.addedCount)} 章`
+                  : book.message || (book.checkedAt ? '检查已完成' : '等待首次检查')}
+              </p>
+              <div className="dashboard-row__meta">
+                {book.checkedAt ? `上次检查 ${timeAgo(book.checkedAt)}` : '尚未检查'} · {book.enabled ? `每 ${book.intervalHours} 小时检查` : '未安排自动检查'}
+              </div>
+            </div>
+            <div className="dashboard-row__aside">
+              <span>{book.result === 'running' ? '正在执行' : !book.enabled ? '未调度' : book.nextCheckAt <= now ? '等待调度' : '下次检查'}</span>
+              {book.enabled && book.result !== 'running' && book.nextCheckAt > now && (
+                <time dateTime={new Date(book.nextCheckAt).toISOString()}>{formatDateTime(book.nextCheckAt)}</time>
+              )}
+              <ChevronRight className="size-3.5" aria-hidden="true" />
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 export default function DashboardTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
   const [data, setData] = useState<AdminStats | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-
-  const load = useCallback(async (force = false) => {
+  const [view, setView] = useState<string | null>(null)
+  const [selectedFollowup, setSelectedFollowup] = useState<DashboardFollowupBook | null>(null)
+  const [selectedJob, setSelectedJob] = useState<AdminStats['recentJobs'][number] | null>(null)
+  const revision = useRef(0)
+  const load = useCallback(async () => {
+    const seq = ++revision.current
     setLoading(true)
     setError('')
     try {
       const stats = (await adminApi.stats()) as unknown as AdminStats
-      setData(stats)
+      if (seq === revision.current) setData({ ...stats, snapshotAt: stats.snapshotAt || Date.now() })
     } catch (err) {
-      setError((err as Error).message || '未知错误')
+      if (seq === revision.current) setError((err as Error).message || '未知错误')
     } finally {
-      setLoading(false)
+      if (seq === revision.current) setLoading(false)
     }
-    void force
   }, [])
-
   useEffect(() => {
     void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const totals = data?.totals
-  const jobStatus = data?.jobStatus || { running: 0, completed: 0, failed: 0 }
-  const contentRating = data?.contentRating || { general: 0, restricted: 0, unknown: 0 }
-  const totalJobs = Math.max(1, jobStatus.running + jobStatus.completed + jobStatus.failed)
-  // 三项全零时 totalJobs 被 Math.max 兜成 1，三条 0% 的片段渲染成一条空轨道；
-  // 必须单独判断「真的没有任务」，否则空轨道看起来像坏掉的进度条。
-  const hasJobs = jobStatus.running + jobStatus.completed + jobStatus.failed > 0
+    return () => {
+      revision.current++
+    }
+  }, [load])
+  const followups = data?.followups
+  const activeView = view || (followups?.attention ? 'issues' : 'scheduled')
 
   return (
     <AdminPage
-      className="admin-redesign-page admin-redesign-page--dashboard"
+      className="admin-redesign-page--dashboard"
       title="后台总览"
-      description="书库、抓取任务和站点数据的即时状态。"
+      description="查看追更安排、检查结果与需要处理的事项。"
       actions={
-        <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>
-          <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
-          {loading ? '加载中…' : '刷新总览'}
+        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+          <RefreshCw className={`size-3.5${loading ? ' animate-spin' : ''}`} />
+          {loading ? '刷新中…' : '刷新总览'}
         </Button>
       }
     >
-      {error ? (
-        <ErrorState className="admin-panel-card" message={`总览加载失败：${error}`} onRetry={() => void load(true)} />
-      ) : !data ? (
-        <LoadingState className="admin-panel-card" label="正在加载总览数据" />
+      {!data ? (
+        error ? (
+          <ErrorState message={`总览加载失败：${error}`} onRetry={() => void load()} />
+        ) : (
+          <LoadingState label="正在加载总览数据" />
+        )
       ) : (
-        <div className="space-y-4">
-          {/* 库存统计是总览的实义内容（它就是这个页面的「数据」），故保留为一行紧凑
-              读数而非删除。但它不再用 AdminMetricStrip 的 1.45rem 大数字 + 独立表面：
-              那套层级的用途是「一眼读到数」，而这里要的是同屏看到全部 9 项，
-              且不能让概览把任务状态与最近任务推到折叠线以下。 */}
-          <AdminDataPanel className="dashboard-stat-line" ariaLabel="书库统计">
-            <dl className="dashboard-stat-line__grid">
-              {STAT_CARDS.map((card) => {
-                const raw = totals ? totals[card.key] : 0
-                // dbSize 为 null 表示后端没取到库大小（非 PostgreSQL / 权限不足），
-                // 与「库是空的」是两件事。单给一个「—」操作员无法分辨，
-                // 因此把单位位换成原因说明。
-                const dbSizeUnknown = card.key === 'dbSize' && (raw === null || raw === undefined)
-                return (
-                  <div key={card.key}>
-                    <dt>{card.label}</dt>
-                    <dd>
-                      {card.key === 'dbSize' ? formatBytes(typeof raw === 'number' ? raw : null) : formatNumber(raw as number)}
-                      {!dbSizeUnknown && card.unit && <small>{card.unit}</small>}
-                    </dd>
-                    {dbSizeUnknown && <span className="dashboard-stat-line__note">未统计</span>}
-                  </div>
-                )
-              })}
-              <div>
-                <dt>待标注分级</dt>
-                <dd>
-                  {formatNumber(contentRating.unknown)}
-                  <small>本</small>
-                </dd>
-              </div>
-              <div>
-                <dt>限制级</dt>
-                <dd>
-                  {formatNumber(contentRating.restricted)}
-                  <small>本</small>
-                </dd>
-              </div>
-            </dl>
-          </AdminDataPanel>
-
-          <AdminDataPanel className="dashboard-task-status p-5" ariaLabel="抓取任务状态">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold text-foreground">任务状态</span>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                运行 {jobStatus.running} · 完成 {jobStatus.completed} · 失败 {jobStatus.failed}
-              </span>
-            </div>
-            {hasJobs ? (
-              <div className="mt-3 flex h-2 gap-1 overflow-hidden rounded-full bg-border" aria-hidden="true">
-                {(['running', 'completed', 'failed'] as const).map((key) => (
-                  <div
-                    key={key}
-                    className={`h-full rounded-full ${key === 'running' ? 'bg-info' : key === 'completed' ? 'bg-success' : 'bg-destructive'}`}
-                    style={{ width: `${(jobStatus[key] / totalJobs) * 100}%` }}
-                  />
-                ))}
-              </div>
-            ) : (
-              // 全零时原本渲染一条空轨道——看起来像「进度条坏了」而不是
-              // 「还没有任务」。改为明确陈述 + 指向下一步。
-              <p className="admin-empty-value mt-3 text-xs">暂无抓取任务记录，从「爬虫抓取」发起第一次抓取后这里会显示进度。</p>
-            )}
-          </AdminDataPanel>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <AdminDataPanel className="overflow-hidden" ariaLabel="最近抓取任务">
-              <AdminPanelHeading title="最近抓取任务" />
-              <div className="px-6 py-2">
-                {data.recentJobs.length === 0 ? (
-                  <AdminEmptyState message="暂无抓取任务" hint="从「爬虫抓取」提交一个链接或搜索书名，任务进度与结果会汇总到这里。" />
-                ) : (
-                  data.recentJobs.map((j) => (
-                    <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" key={j.id}>
-                      <div className="min-w-0">
-                        <div className="truncate font-medium text-foreground">{j.novelTitle || j.novelId || j.id}</div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">{(j.step || '任务') + ' · ' + timeAgo(j.updatedAt)}</div>
+        <div className="dashboard-workspace" aria-busy={loading}>
+          {error && <InlineError message={`刷新失败：${error}，当前显示上次成功读取的数据。`} />}
+          <div className="dashboard-primary-grid">
+            <AdminDataPanel ariaLabel="自动追更" className="dashboard-followups">
+              <AdminPanelHeading
+                title="自动追更"
+                actions={
+                  <Link className="dashboard-panel-link" to="/admin/novels">
+                    管理书籍
+                    <ArrowUpRight className="size-3.5" />
+                  </Link>
+                }
+              />
+              {followups ? (
+                <>
+                  <dl className="dashboard-followup-counts">
+                    {(
+                      [
+                        ['已开启', followups.enabled],
+                        ['等待调度', followups.waiting],
+                        ['检查中', followups.running],
+                        ['需要处理', followups.attention],
+                      ] as const
+                    ).map(([label, value]) => (
+                      <div key={label}>
+                        <dt>{label}</dt>
+                        <dd>
+                          {number(value)}
+                          <small>本</small>
+                        </dd>
                       </div>
-                      <AdminStatusBadge tone={STATUS_TONE[j.status] || 'brand'}>{jobStatusLabel(j.status)}</AdminStatusBadge>
-                    </div>
+                    ))}
+                  </dl>
+                  <Tabs value={activeView} onValueChange={setView} className="dashboard-followup-tabs">
+                    <TabsList aria-label="追更记录">
+                      <TabsTrigger value="issues">需要处理</TabsTrigger>
+                      <TabsTrigger value="scheduled">检查安排</TabsTrigger>
+                      <TabsTrigger value="recent">最近结果</TabsTrigger>
+                    </TabsList>
+                    {(['issues', 'scheduled', 'recent'] as const).map((key) => (
+                      <TabsContent key={key} value={key}>
+                        <FollowupRows books={followups[key]} view={key} now={data.snapshotAt || 0} onSelect={setSelectedFollowup} />
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                  <p className="dashboard-panel-note">展示最多 6 本。到期书籍按队列调度，检查时间会随任务占用和失败重试调整。</p>
+                </>
+              ) : (
+                <AdminEmptyState message="追更概况暂不可用" hint="请确认 API 已更新后刷新总览。" />
+              )}
+            </AdminDataPanel>
+            <AdminDataPanel ariaLabel="运营事项" className="dashboard-operations">
+              <AdminPanelHeading title="运营事项" />
+              <div className="dashboard-operation-lead">
+                <span>今日入库</span>
+                <strong>
+                  {number(data.totals.todayChapters)}
+                  <small>章</small>
+                </strong>
+                <p>今日新增章节，包含抓取与手动添加。</p>
+              </div>
+              <div className="dashboard-operation-links">
+                <Link to="/admin/tasks?view=scrape">
+                  <div>
+                    <strong>抓取任务</strong>
+                    <span>{data.jobStatus.running ? `${number(data.jobStatus.running)} 个正在运行` : '当前没有运行中的任务'}</span>
+                  </div>
+                  <ChevronRight className="size-4" />
+                </Link>
+                <Link to="/admin/tasks?view=scrape">
+                  <div>
+                    <strong>失败记录</strong>
+                    <span>{number(data.jobStatus.failed)} 条历史失败 · 进入任务中心查看</span>
+                  </div>
+                  <ChevronRight className="size-4" />
+                </Link>
+                <Link to="/admin/content-ratings">
+                  <div>
+                    <strong>分级标注</strong>
+                    <span>{data.contentRating.unknown ? `${number(data.contentRating.unknown)} 本尚未标注` : '现有书籍均已标注'}</span>
+                  </div>
+                  <ChevronRight className="size-4" />
+                </Link>
+              </div>
+              <p className="dashboard-panel-note">{data.snapshotAt ? `数据更新于 ${formatDateTime(data.snapshotAt)}` : '数据来自最近一次刷新'}</p>
+            </AdminDataPanel>
+          </div>
+          <div className="dashboard-secondary-grid">
+            <AdminDataPanel ariaLabel="最近抓取任务">
+              <AdminPanelHeading
+                title="最近抓取任务"
+                actions={
+                  <Link className="dashboard-panel-link" to="/admin/tasks?view=scrape">
+                    任务中心
+                    <ArrowUpRight className="size-3.5" />
+                  </Link>
+                }
+              />
+              <div className="dashboard-rows">
+                {!data.recentJobs.length ? (
+                  <AdminEmptyState message="暂无抓取任务" />
+                ) : (
+                  data.recentJobs.map((job) => (
+                    <button
+                      type="button"
+                      key={job.id}
+                      onClick={() => setSelectedJob(job)}
+                      className="dashboard-row"
+                      aria-label={`查看抓取任务：${job.novelTitle || job.id}`}
+                    >
+                      <div className="dashboard-row__body">
+                        <div className="dashboard-row__identity">
+                          <span className="dashboard-row__title">{job.novelTitle || job.novelId || job.id}</span>
+                          <AdminStatusBadge tone={JOB_TONE[job.status] || 'neutral'}>{jobStatusLabel(job.status)}</AdminStatusBadge>
+                        </div>
+                        <p className="dashboard-row__detail">{job.error || job.step || '等待任务进度'}</p>
+                        <div className="dashboard-row__meta">{timeAgo(job.updatedAt)}</div>
+                      </div>
+                      <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
+                    </button>
                   ))
                 )}
               </div>
             </AdminDataPanel>
-            <AdminDataPanel className="overflow-hidden" ariaLabel="最近更新小说">
-              <AdminPanelHeading title="最近更新小说" />
-              <div className="px-6 py-2">
-                {data.recentNovels.length === 0 ? (
-                  <AdminEmptyState message="书库还是空的" hint="抓取或手动添加小说后，最近更新的作品会出现在这里。" />
+            <AdminDataPanel ariaLabel="书库动态">
+              <AdminPanelHeading
+                title="书库动态"
+                status={
+                  <span className="dashboard-heading-status">
+                    {number(data.totals.novels)} 本 · {number(data.totals.chapters)} 章
+                  </span>
+                }
+              />
+              <div className="dashboard-rows">
+                {!data.recentNovels.length ? (
+                  <AdminEmptyState message="书库还是空的" />
                 ) : (
-                  data.recentNovels.map((n) => (
-                    <Link
-                      className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"
-                      to={`/novel/${encodeURIComponent(n.id)}`}
-                      key={n.id}
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-medium text-foreground">{n.title}</div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                          {(n.author || '未知作者') + ' · ' + (n.chapterCount || 0) + ' 章 · ' + timeAgo(n.updatedAt)}
+                  data.recentNovels.map((book) => (
+                    <Link key={book.id} to={manageNovel(book.id)} className="dashboard-row">
+                      <div className="dashboard-row__body">
+                        <span className="dashboard-row__title">{book.title}</span>
+                        <div className="dashboard-row__meta">
+                          {book.author || '未知作者'} · {number(book.chapterCount)} 章 · {timeAgo(book.updatedAt)}
                         </div>
                       </div>
-                      <span className="shrink-0 text-muted-foreground" aria-hidden="true">
-                        ›
-                      </span>
+                      <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
                     </Link>
                   ))
                 )}
               </div>
+              <div className="dashboard-library-footer">
+                <span>封面 {number(data.totals.covers)} 张</span>
+                <span>数据库 {data.totals.dbSize === null ? '未统计' : formatBytes(data.totals.dbSize)}</span>
+                <span>用户 {number(data.totals.users)} 人</span>
+                <span>限制级 {number(data.contentRating.restricted)} 本</span>
+              </div>
             </AdminDataPanel>
           </div>
         </div>
+      )}
+      {selectedFollowup && (
+        <NovelFollowupDialog
+          key={selectedFollowup.novelId}
+          variant="event"
+          novel={{ id: selectedFollowup.novelId, title: selectedFollowup.title }}
+          onClose={() => {
+            setSelectedFollowup(null)
+            void load()
+          }}
+        />
+      )}
+      {selectedJob && (
+        <ScrapeTaskDetailsDialog
+          key={selectedJob.id}
+          jobId={selectedJob.id}
+          title={selectedJob.novelTitle}
+          onClose={() => {
+            setSelectedJob(null)
+            void load()
+          }}
+        />
       )}
     </AdminPage>
   )

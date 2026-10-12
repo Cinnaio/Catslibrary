@@ -10,6 +10,7 @@ import { cleanText, clampInt, escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { getAdultContentEnabled, setAdultContentEnabled } from '../services/content-policy'
 import { effectiveTurnstile } from '../services/turnstile'
+import { getDashboardFollowups } from '../services/dashboard-followups'
 
 export const adminRoutes = new Hono<AuthEnv>()
 
@@ -39,7 +40,7 @@ adminRoutes.get('/stats', async (c) => {
   start.setHours(0, 0, 0, 0)
   const todayStart = start.getTime()
 
-  const [novels, chapters, users, covers, failedJobs, todayChapters, running, completed, dbSize, recentJobsRows, recentNovelsRows, ratingRows] = await Promise.all([
+  const [novels, chapters, users, covers, failedJobs, todayChapters, running, completed, dbSize, recentJobsRows, recentNovelsRows, ratingRows, followups] = await Promise.all([
     count(db, 'SELECT COUNT(*)::int AS total FROM novels'),
     count(db, 'SELECT COUNT(*)::int AS total FROM chapters'),
     count(db, 'SELECT COUNT(*)::int AS total FROM users'),
@@ -70,6 +71,7 @@ adminRoutes.get('/stats', async (c) => {
       db,
       'SELECT content_rating, COUNT(*)::int AS count FROM novels GROUP BY content_rating',
     ),
+    getDashboardFollowups(db, now),
   ])
 
   const ratingCounts = { general: 0, restricted: 0, unknown: 0 }
@@ -80,6 +82,8 @@ adminRoutes.get('/stats', async (c) => {
 
   return c.json(
     {
+      snapshotAt: now,
+      followups,
       totals: {
         novels,
         chapters,
