@@ -104,3 +104,18 @@ it('选择和清空立即通知同步流程，禁用时不能操作', () => {
   fireEvent.click(screen.getByRole('button', { name: '清空映射选择' }))
   expect(onSelectedMappingsChange).toHaveBeenLastCalledWith(new Set())
 })
+
+it('查看阻塞章节跨越筛选与分页定位到实际占用章节，不改变同步选择', () => {
+  const locals = Array.from({ length: 25 }, (_, index) => ({ id: `l${index}`, order: index + 1, title: `目录章节${index + 1}` }))
+  const onSelectedMappingsChange = vi.fn()
+  render(<ChapterMappingReview preview={{ ...preview,
+    localChapters: locals,
+    orderRepairSkipped: [{ localChapterId: 'l0', reason: '目标序号的移动依赖受阻：本地 25', blockingChapterIds: ['l24'] }],
+  }} disabled={false} onRemap={vi.fn()} onSelectedMappingsChange={onSelectedMappingsChange} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /查看阻塞章节：本地 25/ }))
+  expect(screen.getByText('本地 25 · 目录章节25')).toHaveFocus()
+  expect(screen.queryByRole('region', { name: '人工映射编辑' })).not.toBeInTheDocument()
+  expect(screen.getByText('本地 25 · 目录章节25')).toBeInTheDocument()
+  expect(onSelectedMappingsChange).not.toHaveBeenCalled()
+})

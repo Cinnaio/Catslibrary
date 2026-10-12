@@ -77,7 +77,7 @@
   margin-bottom: var(--admin-space-4);
 }
 .chapter-merge-dialog--review [data-slot='dialog-footer'] {
-  border-top: 1px solid var(--admin-border);
+  border-top: 0;
   padding-top: var(--admin-space-4);
 }
 .chapter-merge-dialog__context {

@@ -506,7 +506,7 @@ export interface SourceSyncPreview {
   warnings: string[]
   orderChanges?: Array<{ localChapterId: string; title: string; oldOrder: number; newOrder: number }>
   orderRepairBlockedReason?: string
-  orderRepairSkipped?: Array<{ localChapterId: string; reason: string }>
+  orderRepairSkipped?: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }>
   revision?: number
   sourceChapters?: Array<{ key: string; order: number; title: string; url: string }>
   localChapters?: Array<{ id: string; order: number; title: string }>
