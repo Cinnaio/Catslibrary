@@ -11,6 +11,7 @@ import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { getAdultContentEnabled, setAdultContentEnabled } from '../services/content-policy'
 import { effectiveTurnstile } from '../services/turnstile'
 import { getDashboardFollowups } from '../services/dashboard-followups'
+import { getSourceAnalytics } from '../services/source-analytics'
 
 export const adminRoutes = new Hono<AuthEnv>()
 
@@ -32,6 +33,10 @@ adminRoutes.put('/content-policy', async (c) => {
 })
 
 // ---------- 总览统计 ----------
+
+adminRoutes.get('/source-analytics', async (c) => {
+  return c.json(await getSourceAnalytics(getDb(), c.req.query()), 200, { 'Cache-Control': 'no-store' })
+})
 
 adminRoutes.get('/stats', async (c) => {
   const db = getDb()

@@ -56,6 +56,7 @@
    下列页面各自只覆盖两处与范本不同的地方（是否留底线、搜索框多宽），
    动作区的排布、换行与不压缩规则统一由下面这组基础选择器提供——
    此前只有小说管理页有这套规则，其余页面各写各的，收口在 2026-09-25。 */
+.admin-redesign-page--source-analytics > .admin-tab-header,
 .admin-redesign-page--dashboard > .admin-tab-header,
 .admin-redesign-page--content-ratings > .admin-tab-header,
 .admin-redesign-page--content-policy > .admin-tab-header,

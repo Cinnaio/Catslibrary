@@ -1356,6 +1356,9 @@ export const adminApi = {
   stats(): Promise<Record<string, unknown>> {
     return request('GET', '/admin/stats', null, true)
   },
+  sourceAnalytics(params: Record<string, string>): Promise<import('@shared/source-analytics').SourceAnalyticsResponse> {
+    return request('GET', `/admin/source-analytics?${new URLSearchParams(params)}`, null, true)
+  },
   novelIndex(params: Record<string, string> = {}): Promise<Record<string, unknown>> {
     const qs = new URLSearchParams(params).toString()
     return request('GET', `/admin/novel-index${qs ? '?' + qs : ''}`, null, true)
