@@ -113,3 +113,14 @@ describe('CenterView 榜单入口', () => {
     expect(screen.getByPlaceholderText('也可以粘贴自定义榜单 URL')).toHaveValue(POPO_RANKING_LIST_URL)
   })
 })
+
+it('统计页带入来源只预填链接，不自动分析或启动任务', () => {
+  vi.clearAllMocks()
+  const previous = window.location.href
+  window.history.replaceState({}, '', '/admin/scrape?view=center&source=https%3A%2F%2Fexample.com%2Fbook')
+  try {
+    render(<CenterView />)
+    expect(screen.getByDisplayValue('https://example.com/book')).toBeInTheDocument()
+    expect(mocks.scrapePost).not.toHaveBeenCalled()
+  } finally { window.history.replaceState({}, '', previous) }
+})

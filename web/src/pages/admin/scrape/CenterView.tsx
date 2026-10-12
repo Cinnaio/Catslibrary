@@ -40,7 +40,7 @@ export default function CenterView() {
 
   // 统一入口
   const [intakeMode, setIntakeMode] = useState<IntakeMode>('link')
-  const [sourceUrl, setSourceUrl] = useState('')
+  const [sourceUrl, setSourceUrl] = useState(() => new URLSearchParams(window.location.search).get('source') || '')
   const [searchInput, setSearchInput] = useState('')
   const [searchType, setSearchType] = useState('articlename')
   const [siteValue, setSiteValue] = useState('')

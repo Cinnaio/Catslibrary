@@ -66,6 +66,7 @@ describe('管理 API 端到端（pglite）', () => {
   it('非管理员访问 admin 接口返回 403', async () => {
     const res = await req('/api/admin/stats', json('GET', undefined, readerToken))
     expect(res.status).toBe(403)
+    expect((await req('/api/admin/source-analytics', json('GET', undefined, readerToken))).status).toBe(403)
   })
 
   it('content-policy：公开读取，管理员可切换成人内容总开关', async () => {
@@ -159,6 +160,16 @@ describe('管理 API 端到端（pglite）', () => {
     expect(data.totals.dbSize).toBeGreaterThanOrEqual(0)
     expect(data.recentNovels.length).toBeGreaterThanOrEqual(1)
     expect(data.recentNovels[0]).toMatchObject({ id: novelId, title: '管理测试书' })
+  })
+
+  it('书源与追更：管理员读取全库统计及可筛选明细，响应不缓存', async () => {
+    const res = await req('/api/admin/source-analytics?search=管理测试&limit=1', json('GET', undefined, adminToken))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    const data = await jsonOf<{ total: number; filteredTotal: number; books: Array<{ id: string }> }>(res)
+    expect(data.total).toBeGreaterThan(0)
+    expect(data.filteredTotal).toBe(1)
+    expect(data.books[0]?.id).toBe(novelId)
   })
 
   it('admin/novel-index：全量索引 + q 搜索', async () => {

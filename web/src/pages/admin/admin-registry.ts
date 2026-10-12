@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 
 // 导航只读取注册表元数据；真正打开模块后才下载其组件和重依赖。
+const SourceAnalyticsTab = lazy(() => import('./SourceAnalyticsTab'))
 const DashboardTab = lazy(() => import('./DashboardTab'))
 const NovelsTab = lazy(() => import('./NovelsTab'))
 const ChaptersTab = lazy(() => import('./ChaptersTab'))
@@ -97,6 +98,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
     items: [
       { id: 'tasks', label: '任务中心', icon: ListChecks },
       { id: 'calls', label: '调用与用量', icon: Activity },
+      { id: 'source-analytics', label: '书源与追更', icon: BarChart3 },
     ],
   },
   {
@@ -163,6 +165,7 @@ export const TABS = NAV_GROUPS.flatMap((group) => group.items)
 
 export const TAB_COMPONENTS = {
   dashboard: DashboardTab,
+  'source-analytics': SourceAnalyticsTab,
   novels: NovelsTab,
   chapters: ChaptersTab,
   scrape: ScrapeTab,
