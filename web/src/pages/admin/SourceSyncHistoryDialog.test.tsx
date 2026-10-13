@@ -39,3 +39,20 @@ it('撤回期间阻止关闭，重复点击只发送一次请求', async () => {
   resolve({ runId: 'run', restored: 1, conflicts: [] })
   await screen.findByText(/已恢复 1 项，保留 0 项冲突/)
 })
+
+it('撤回后等待作品信息刷新，刷新失败不误报撤回失败或允许重复撤回', async () => {
+  let failRefresh!: (reason: Error) => void
+  const completed = vi.fn(()=>new Promise<void>((_,reject)=>{failRefresh=reject}))
+  const closed = vi.fn()
+  mocks.rollback.mockResolvedValue({runId:'run',restored:1,conflicts:[]})
+  render(<SourceSyncHistoryDialog open novelId="n" onOpenChange={closed} onCompleted={completed} />)
+  fireEvent.click(await screen.findByRole('button',{name:'撤回此次融合'}))
+  await waitFor(()=>expect(completed).toHaveBeenCalledOnce())
+  expect(screen.getByRole('button',{name:'撤回此次融合'})).toBeDisabled()
+  fireEvent.keyDown(document,{key:'Escape'})
+  expect(closed).not.toHaveBeenCalled()
+  failRefresh(new Error('临时网络错误'))
+  expect(await screen.findByRole('alert')).toHaveTextContent('撤回已完成，但作品信息刷新失败')
+  expect(screen.getByRole('button',{name:'撤回此次融合'})).toBeDisabled()
+  expect(mocks.rollback).toHaveBeenCalledOnce()
+})

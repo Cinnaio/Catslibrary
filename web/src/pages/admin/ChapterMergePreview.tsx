@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowRight, ChevronDown } from 'lucide-react'
+import { TITLE_UPDATE_REASON_LABELS } from '@shared/source-sync'
 
 interface Props {
   preview: SourceSyncPreview
@@ -26,43 +27,10 @@ interface Props {
 
 const PAGE_SIZE = 20
 
-// 章节名尾部/中段的分级标记（H/微H/高h）与源站推广水印：后端 normalizedTitle 已剥离，
-// 前端据此解释「为什么这条无需人工确认」，不再新增后端字段依赖。
-const H_MARKER = /[（(]\s*(?:微|高|小|重|轻|肉|无|超)?\s*[hH]\s*[)）]/g
-const PROMO_SUFFIX = /[「"'“”]?(?:po\s*1[0-9０-９]{0,2}\s*[.．。]?\s*(?:home|homes|com|net|tw|cc|xyz|top|vip|me|info|site|org)|[a-z]{2,10}\s*[.．。]\s*(?:com|net|tw|cc|xyz|top|vip|me|info|site|org))\s*(?:[」"'“”]|[0-9０-９]*)?\s*$/i
-// 导入器留下的裸序号前缀（「84.」「12、」「7：」）。
-const IMPORT_ORDER_PREFIX = /^\s*\d{1,4}(?:\.\d+)?\s*[.、:：]\s*/
-
-/**
- * 推导「这条标题修正为何可自动完成」，只依据 oldTitle/newTitle/matchReason。
- *
- * 与后端 isNoiseOnlyDiff 同口径：exact-title + 高置信度 ⇒ 差异全部来自被剥离的
- * 噪声成分。此处只做呈现用归类，不参与任何写入判定——不可提交的项自然不会走到这里。
- */
+/** 旧预览没有更新类型时保留通用说明，不在展示层重做后端判定。 */
 function autoUpdateReason(change: SourceSyncChange): string {
   if (!change.eligible) return ''
-  const oldTitle = change.oldTitle.normalize('NFKC')
-  const newTitle = change.newTitle.normalize('NFKC')
-  const strip = (text: string) => {
-    let value = text
-    for (let round = 0; round < 4; round++) {
-      const next = value.replace(PROMO_SUFFIX, '').replace(H_MARKER, '').trim()
-      if (next === value) break
-      value = next
-    }
-    return value.replace(/[\s\p{P}]/gu, '')
-  }
-  const parts: string[] = []
-  if (IMPORT_ORDER_PREFIX.test(oldTitle) && !IMPORT_ORDER_PREFIX.test(newTitle)) parts.push('剥离导入编号')
-  if (H_MARKER.test(oldTitle) !== H_MARKER.test(newTitle)) {
-    H_MARKER.lastIndex = 0
-    parts.push(H_MARKER.test(oldTitle) ? '剥离分级标记' : '补齐分级标记')
-  }
-  H_MARKER.lastIndex = 0
-  if (PROMO_SUFFIX.test(oldTitle) && !PROMO_SUFFIX.test(newTitle)) parts.push('剥离推广水印')
-  if (!parts.length && strip(oldTitle) === strip(newTitle)) parts.push('仅标点与空白差异')
-  if (!parts.length) return ''
-  return `${parts.join('、')}；归一化后标题一致，属确定修正`
+  return change.titleUpdateReasons?.map(reason => TITLE_UPDATE_REASON_LABELS[reason]).filter(Boolean).join('、') || '按当前匹配规则可自动同步'
 }
 
 export default function ChapterMergePreview({ preview, fields, onFieldsChange, confirmedManualIds, onConfirmedManualIdsChange, disabled, onRemap, onSelectedMappingsChange, selectedMappingIds, onPendingMappingsChange, onInspect, onDelete, onPendingDeletionChange }: Props) {
@@ -114,9 +82,14 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
       {preview.warnings.map((warning) => <p className="chapter-merge-dialog__warning" key={warning}>{warning}</p>)}
     </div>
 
-    <ChapterMappingReview preview={preview} disabled={disabled} onRemap={onRemap} onSelectedMappingsChange={onSelectedMappingsChange} selectedMappingIds={selectedMappingIds} onPendingMappingsChange={onPendingMappingsChange} onInspect={onInspect} onDelete={onDelete} onPendingDeletionChange={onPendingDeletionChange} />
+    <ChapterMappingReview preview={preview} disabled={disabled} onRemap={onRemap} onSelectedMappingsChange={onSelectedMappingsChange} selectedMappingIds={selectedMappingIds} confirmedManualIds={confirmedManualIds} onPendingMappingsChange={onPendingMappingsChange} onInspect={onInspect} onDelete={onDelete} onPendingDeletionChange={onPendingDeletionChange} />
 
     <div className="chapter-merge-dialog__preview-section">
+      <h3>章节名同步</h3>
+      {!preview.changes.length ? <div className="chapter-merge-dialog__empty" role="status">
+        <p>已匹配章节暂无需要同步的章节名。</p>
+        {preview.unmatchedLocal.length > 0 && <p>仍有 {preview.unmatchedLocal.length} 个本地章节未匹配，可继续核对映射。</p>}
+      </div> : <>
       <div className="chapter-merge-dialog__review-toolbar">
         <div className="chapter-merge-dialog__filters" role="group" aria-label="标题变化筛选">
           {([['all', `全部 ${preview.changes.length}`], ['eligible', `自动更新 ${eligible}`], ['manual', `人工核对 ${manual}`]] as const).map(([value, label]) =>
@@ -162,6 +135,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
         <span>{currentPage} / {pages}</span>
         <Button variant="ghost" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>下一页</Button>
       </nav>}
+      </>}
     </div>
 
     <details className="chapter-merge-dialog__metadata chapter-merge-dialog__preview-section">

@@ -104,6 +104,29 @@
   min-width: 0;
 }
 
+.chapter-merge-dialog__mapping-candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--admin-space-2);
+  min-width: 0;
+}
+
+.chapter-merge-dialog__mapping-candidates > p {
+  flex-basis: 100%;
+}
+
+.chapter-merge-dialog__mapping-candidates > button {
+  max-width: 100%;
+  height: auto;
+  min-height: 2.25rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.chapter-merge-dialog__mapping-editor > [data-slot='button'] {
+  justify-self: start;
+}
+
 .chapter-merge-dialog__mapping-guidance {
   display: flex;
   justify-content: space-between;

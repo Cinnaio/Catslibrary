@@ -80,6 +80,11 @@
   border-top: 0;
   padding-top: var(--admin-space-4);
 }
+
+/* 共享三段式标题区有层级，关闭按钮必须位于其上，避免命中标题背景。 */
+.chapter-merge-dialog [data-slot='dialog-close'] {
+  z-index: 2;
+}
 .chapter-merge-dialog__context {
   display: grid;
   gap: var(--admin-space-1);

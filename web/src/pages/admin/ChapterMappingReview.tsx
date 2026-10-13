@@ -22,23 +22,6 @@ function titleKey(value: string): string {
   return value.normalize('NFKC').toLocaleLowerCase().replace(/[\s\p{P}]/gu, '')
 }
 
-// 章节名尾部/中段的分级标记（H/微H/高h），后端 normalizedTitle 会剥离，前端比较键保持一致。
-const H_MARKER = /[（(]\s*(?:微|高|小|重|轻|肉|无|超)?\s*[hH]\s*[)）]/g
-// 源站章节名尾部夹带的推广水印（「po1⒏homes」）。
-const PROMO_SUFFIX = /[「"'“”]?(?:po\s*1[0-9０-９]{0,2}\s*[.．。]?\s*(?:home|homes|com|net|tw|cc|xyz|top|vip|me|info|site|org)|[a-z]{2,10}\s*[.．。]\s*(?:com|net|tw|cc|xyz|top|vip|me|info|site|org))\s*(?:[」"'“”]|[0-9０-９]*)?\s*$/i
-// 导入器留下的裸序号前缀（「84.」「12、」「7：」）；其后的章节编号不算噪声。
-const IMPORT_ORDER_PREFIX = /^\s*\d{1,4}(?:\.\d+)?\s*[.、:：]\s*/
-
-function strippedTitleKey(value: string): string {
-  let text = value.normalize('NFKC')
-  for (let round = 0; round < 4; round++) {
-    const next = text.replace(PROMO_SUFFIX, '').replace(H_MARKER, '').trim()
-    if (next === text) break
-    text = next
-  }
-  return titleKey(text).replace(IMPORT_ORDER_PREFIX, '')
-}
-
 type ShiftSegment = NonNullable<SourceSyncPreview['orderShiftSegments']>[number]
 
 /** 段内命中不依赖 id 数量：拆分组的多个本地 id 只取首个落在段内的即可。 */
@@ -59,10 +42,11 @@ const formatSegmentLabel = (segment: ShiftSegment) =>
     ? `本地第 ${segment.localRange.from} 章（源站第 ${segment.sourceRange.from} 章）`
     : `本地 ${segment.localRange.from}–${segment.localRange.to} 章（源站 ${segment.sourceRange.from}–${segment.sourceRange.to} 章）`
 
-export default function ChapterMappingReview({ preview, disabled, onRemap, onSelectedMappingsChange, selectedMappingIds, onPendingMappingsChange, onInspect, onDelete, onPendingDeletionChange }: {
+export default function ChapterMappingReview({ preview, disabled, onRemap, onSelectedMappingsChange, selectedMappingIds, confirmedManualIds, onPendingMappingsChange, onInspect, onDelete, onPendingDeletionChange }: {
   preview: SourceSyncPreview; disabled: boolean; onRemap: (mappings: SourceSyncManualMapping[]) => void | Promise<boolean>
   onSelectedMappingsChange?: (ids: Set<string>) => void
   selectedMappingIds?: Set<string>
+  confirmedManualIds?: Set<string>
   onPendingMappingsChange?: (count: number) => void
   onInspect?: (id: string) => void
   onDelete?: (ids: string[]) => void
@@ -85,7 +69,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
     onSelectedMappingsChange?.(ids)
   }
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<'all' | 'different'>('all')
+  const [filter, setFilter] = useState<'all' | 'different' | 'unmatched' | 'title' | 'order' | 'blocked'>('different')
   const editorHeading = useRef<HTMLHeadingElement>(null)
   function revealEditor() {
     editorHeading.current?.focus({ preventScroll: true })
@@ -106,24 +90,25 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
   const locals = preview.localChapters || []
   const sources = preview.sourceChapters || []
   const byLocal = useMemo(() => new Map(preview.mappings.flatMap(mapping => mapping.localChapterIds.map(id => [id, mapping] as const))), [preview])
+  const titleChanges = new Map((preview.changes || []).map(change => [change.localChapterId, change]))
   const shiftSegments = useMemo(() => preview.orderShiftSegments || [], [preview])
-  // 差异判定：只有 kind='gap' 段（真实错位）才计入「需处理」；kind='layout' 段
-  // （作者把番外前移造成的良性排版偏移）只作中性提示，不进「有差异」筛选。
+  // 序号不同即进入核对；分段种类不再隐藏排序差异。
   // orderShiftSegments 缺失（旧响应）时回退到「序号不同即差异」的原行为。
   const differences = new Map(locals.map(local => {
     const mapping = byLocal.get(local.id)
     const reasons: string[] = []
+    if (preview.orderRepairSkipped?.some(row => row.localChapterId === local.id && row.blockingChapterIds?.length)) reasons.push('修复受阻')
     if (!mapping) reasons.push('未匹配')
     else {
       if (local.order !== mapping.sourceOrder) {
         const segment = segmentOf(shiftSegments, local.order, mapping.localChapterIds)
         if (!segment) reasons.push('序号不同')
-        else if (isGapSegment(segment)) reasons.push('序号错位')
-        // layout 段不在此处报差异，改由 orderShifts 呈现中性提示。
+        else reasons.push(isGapSegment(segment) ? '序号错位' : '序号不同')
       }
       // 后端已认定 exact-title 的映射，其差异全部来自 normalizedTitle 已剥离的
       // 噪声成分（导入前缀/分级标记/广告后缀/标点），前端不得再报「标题不同」。
       if (mapping.matchReason !== 'exact-title' && titleKey(local.title) !== titleKey(mapping.sourceTitle)) reasons.push('标题不同')
+      else if (titleChanges.has(local.id)) reasons.push('标题待同步')
     }
     return [local.id, reasons] as const
   }))
@@ -135,13 +120,18 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
     return [[local.id, { segment, shifted: matchesShift(segment, local.order, mapping.sourceOrder), gap: isGapSegment(segment) }] as const]
   }))
   const differenceCount = locals.filter(local => differences.get(local.id)!.length > 0).length
-  const layoutShiftCount = locals.filter(local => {
-    const shift = orderShifts.get(local.id)
-    return Boolean(shift && !shift.gap && shift.shifted)
-  }).length
-  const filtered = locals.filter(row => (filter === 'all' || differences.get(row.id)!.length > 0) && `${row.order} ${row.title}`.toLowerCase().includes(query.trim().toLowerCase()))
   const orderChanges = new Map(preview.orderChanges?.map(row => [row.localChapterId, row]) || [])
   const skipped = new Map(preview.orderRepairSkipped?.map(row => [row.localChapterId, row]) || [])
+  const blockedIds = new Set((preview.orderRepairSkipped || []).filter(row => row.blockingChapterIds?.length).map(row => row.localChapterId))
+  function inFilter(id: string, value: typeof filter) {
+    if (value === 'all') return true
+    if (value === 'unmatched') return !byLocal.has(id)
+    if (value === 'title') return titleChanges.has(id) || differences.get(id)!.includes('标题不同')
+    if (value === 'order') return orderChanges.has(id)
+    if (value === 'blocked') return blockedIds.has(id)
+    return differences.get(id)!.length > 0 || blockedIds.has(id)
+  }
+  const filtered = locals.filter(row => inFilter(row.id, filter) && `${row.order} ${row.title}`.toLowerCase().includes(query.trim().toLowerCase()))
   const blockers = useMemo(() => new Map((preview.orderRepairBlockers || []).flatMap(row => row.blockingChapterIds.map(id => [id, row] as const))), [preview])
   const shiftSkipped = new Map<ShiftSegment, string[]>()
   locals.forEach(local => {
@@ -151,11 +141,16 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
   })
   const selectedSkipped = [...selectedIds].filter(id => skipped.has(id)).length
   const selectedLocals = locals.filter(local => selectedIds.has(local.id))
+  const selectedTitles = selectedLocals.filter(local => { const change = titleChanges.get(local.id); return change && !change.eligible && (confirmedManualIds ? confirmedManualIds.has(local.id) : true) }).length
+  const selectedOrders = selectedLocals.filter(local => orderChanges.has(local.id)).length
+  const missingDependencies = new Set(selectedLocals.flatMap(local => orderChanges.get(local.id)?.requiredChapterIds || []).filter(id => !selectedIds.has(id)))
+  const selectedUnchanged = selectedLocals.filter(local => !orderChanges.has(local.id) && !titleChanges.has(local.id) && !skipped.has(local.id)).length
   const deleteLocals = locals.filter(local => deleteIds.has(local.id))
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pages)
   const editingIndex = locals.findIndex(row => row.id === editingId)
   const editing = locals[editingIndex]
+  const sameTitleCandidates = editing ? sources.filter(source => titleKey(source.title) === titleKey(editing.title) && titleKey(editing.title)) : []
   const sourceIndex = sources.findIndex(row => row.key === targetKey)
   const sourceMatches = sources.filter(row => `${row.order} ${row.title}`.toLowerCase().includes(sourceQuery.trim().toLowerCase()))
   const shownSources = sourceMatches.slice(0, 100)
@@ -175,7 +170,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
     const merged = [...(preview.manualMappings || []).filter(row => !drafts.some(draft => draft.localChapterId === row.localChapterId)), ...drafts]
     if (await onRemap(merged) !== false) updateDrafts([])
   }
-  /** 段内首个未修复章节的勾选状态代表整段：段是作为一个整体归位的。 */
+  /** 定位只改变筛选、分页与焦点，不改变同步勾选。 */
   function focusSegment(segment: ShiftSegment) {
     const ids = shiftSkipped.get(segment) || segment.chapterIds
     const first = locals.findIndex(local => local.id === ids[0])
@@ -199,39 +194,24 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
   return <details className="chapter-merge-dialog__preview-section chapter-merge-dialog__mapping-review">
     <summary>核对与调整映射<span>查看匹配依据，处理未匹配章节</span></summary>
     {preview.orderRepairBlockedReason && <p className="chapter-merge-dialog__warning">序号检查：{preview.orderRepairBlockedReason}</p>}
-    {!!shiftSegments.length && (() => {
-      const gapSegments = shiftSegments.filter(isGapSegment)
-      // 段报告从 orderShiftSegments 直接渲染，与「有差异」筛选无关；两者的计数口径必须对齐，
-      // 否则会同时出现「有差异 66」和「60 项需处理」这类自相矛盾的读数。
-      const gapTotal = locals.filter(local => { const shift = orderShifts.get(local.id); return Boolean(shift?.gap && shift.shifted) }).length
-      const detail = `${shiftSegments.length} 段 · ${differenceCount} 项需处理${layoutShiftCount ? ` · ${layoutShiftCount} 项排版偏移仅提示` : ''}`
-      // 真实错位成因是「段前本地多插了无源站对应的章节」，把具体章节号写出来才可核查；
-      // 该段没有可独立归位的章节时（被占位章挡住），如实说明而不是写「0 章待归位」。
-      const gapIds = [...new Set(gapSegments.flatMap(segment => segment.blockingChapterIds))]
-      const cause = gapIds.length
-        ? `成因是本地 ${ordersOf(gapIds)} 等 ${gapIds.length} 章无源站对应，把其后本地序号整体顶开`
-        : '成因是本段前的本地目录与源站不一致'
-      // 真实错位集中于单个不连续段时，分区列表纯属噪音（真实书 8 段里只有少数是错位）。
-      const consolidated = gapSegments.length === 1 && gapSegments[0]!.localRange.from === gapSegments[0]!.localRange.to
-      if (consolidated) {
-        return <p className="chapter-merge-dialog__shift-summary">
-          <span>序号偏移 {detail}。真实错位位于{formatSegmentLabel(gapSegments[0]!)}，{cause}；可归位 {gapTotal} 章，{layoutShiftCount} 条排版偏移不生成修复。</span>
-          <Button variant="ghost" size="sm" disabled={disabled} onClick={() => focusSegment(gapSegments[0]!)}>定位真实错位</Button>
-        </p>
-      }
+    {shiftSegments.some(segment => segment.offset !== 0) && (() => {
+      const shiftedSegments = shiftSegments.filter(segment => segment.offset !== 0)
+      const detail = `${shiftedSegments.length} 段 · ${orderChanges.size} 个序号可修复 · ${blockedIds.size} 章受阻`
       return <details className="chapter-merge-dialog__shift-summary">
         <summary>序号偏移分段<span>{detail}</span></summary>
-        <p className="admin-dialog-hint">按映射偏移切分出的连续区段。真实错位可按源站序号归位（本页 {gapTotal} 章）；排版偏移来自作者主动重排（如把番外前移到中段），归位会打乱章节先后，只作提示。</p>
+        <p className="admin-dialog-hint">序号不同的章节可勾选按源站排序，未勾选保持原样。移动依赖其他章节让位时需一并选择；受阻项先核对占位章节。</p>
         <ul>
-          {shiftSegments.map(segment => {
+          {shiftedSegments.map(segment => {
             const gap = isGapSegment(segment)
-            const ids = gap ? segmentChapterIds(segment) : []
+            const ids = segmentChapterIds(segment)
+            const repairable = ids.filter(id => orderChanges.has(id)).length
+            const blocked = ids.filter(id => blockedIds.has(id)).length
             return <li key={`${segment.localRange.from}-${segment.localRange.to}`}>
               <strong>{formatSegmentLabel(segment)}</strong>
               <span className={gap ? 'chapter-merge-dialog__warning' : 'chapter-merge-dialog__shift-neutral'}>
-                {gap ? `真实错位 ${segment.offset > 0 ? '+' : ''}${segment.offset}` : `排版偏移 ${segment.offset > 0 ? '+' : ''}${segment.offset}`}
+                {gap ? `真实错位 ${segment.offset > 0 ? '+' : ''}${segment.offset}` : `编排差异 ${segment.offset > 0 ? '+' : ''}${segment.offset}`}
               </span>
-              <span>{gap ? `${ids.length} 章待归位（本地 ${ordersOf(ids)}）` : '仅提示，不生成修复'}</span>
+              <span>{repairable} 章可修复{blocked ? ` · ${blocked} 章受阻` : ''}（本地 {ordersOf(ids)}）</span>
               <Button variant="ghost" size="sm" disabled={disabled} onClick={() => focusSegment(segment)}>定位</Button>
             </li>
           })}
@@ -240,7 +220,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
     })()}
     {!!blockers.size && <details className="chapter-merge-dialog__shift-summary">
       <summary>序号修复受阻汇总<span>{blockers.size} 个阻塞源 · {(preview.orderRepairBlockers || []).reduce((total, row) => total + row.affectedChapterIds.length, 0)} 项待处理</span></summary>
-      <p className="admin-dialog-hint">以下章节因缺少有效源站对应而挡住了其后章节的序号归位。处理阻塞源后可重新核对。</p>
+      <p className="admin-dialog-hint">修复目标序号被以下本地章节占用。请先核对阻塞源，再重新生成修复方案。</p>
       <ul>
         {(preview.orderRepairBlockers || []).map(row => <li key={row.blockingChapterIds.join('|')}>
           <strong>阻塞源 {row.blockingChapterIds.map(id => `本地 ${locals.find(local => local.id === id)?.order ?? id}`).join('、')}</strong>
@@ -262,6 +242,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
       <div className="chapter-merge-dialog__filters" role="group" aria-label="映射差异筛选">
         <Button variant="ghost" aria-pressed={filter === 'all'} onClick={() => { setFilter('all'); setPage(1); setEditingId('') }}>全部 {locals.length}</Button>
         <Button variant="ghost" aria-pressed={filter === 'different'} onClick={() => { setFilter('different'); setPage(1); setEditingId('') }}>有差异 {differenceCount}</Button>
+        {([['unmatched', '未匹配'], ['title', '标题待同步'], ['order', '可修复序号'], ['blocked', '修复受阻']] as const).map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={filter === value} onClick={() => { setFilter(value); setPage(1); setEditingId('') }}>{label} {locals.filter(local => inFilter(local.id, value)).length}</Button>)}
       </div>
       <Input aria-label="搜索本地章节映射" placeholder="搜索本地标题或序号" value={query} onChange={event => { setQuery(event.target.value); setPage(1); setEditingId('') }} />
     </div>
@@ -281,11 +262,16 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
     </div>}
     <div className="chapter-merge-dialog__mapping-selection">
       <p role="status">已选 {selectedLocals.length} 项映射</p>
+      {!!selectedLocals.length && <p role="status">本次映射选择：确认 {selectedTitles} 个标题 · 修复 {selectedOrders} 个序号 · {selectedUnchanged} 项无需更新</p>}
+      {!!missingDependencies.size && <div role="status">
+        <p className="chapter-merge-dialog__warning">所选序号仍需 {missingDependencies.size} 项关联映射同时让位，补选后再应用。</p>
+        <Button variant="secondary" disabled={disabled} onClick={() => selectMappings(new Set([...selectedIds, ...missingDependencies]))}>补选 {missingDependencies.size} 项关联映射</Button>
+      </div>}
       <div>
         <Button variant="secondary" disabled={disabled || !filtered.length} onClick={() => selectMappings(new Set([...selectedIds, ...filtered.map(local => local.id)]))}>全选当前筛选结果 {filtered.length} 项</Button>
         <Button variant="ghost" disabled={disabled || !selectedLocals.length} onClick={() => selectMappings(new Set())}>清空映射选择</Button>
       </div>
-      <p className="admin-dialog-hint">全选包含当前筛选结果的所有页。勾选会将待人工核对的标题及可修复序号加入本次同步；点击底部按钮确认应用。没有变化或未匹配的章节保持原样。</p>
+      <p className="admin-dialog-hint">全选包含当前筛选结果的所有页。勾选将确认对应标题及可修复序号；自动更新的标题不受映射勾选影响，本次全部变化以底部数量为准。</p>
       {selectedSkipped > 0 && <p className="admin-dialog-hint" role="status">所选映射中 {selectedSkipped} 项暂不修复序号，原因见对应章节；其余可修复序号按底部数量同步。</p>}
     </div>
     <ol className="chapter-merge-dialog__mapping-list" aria-label="全部章节映射">
@@ -305,6 +291,8 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
             </div>
             <div className="chapter-merge-dialog__mapping-meta">
               {orderChanges.has(local.id) && <span>序号 {local.order} → {orderChanges.get(local.id)!.newOrder} · {selectedIds.has(local.id) ? '已选，将修复' : '勾选后修复'}</span>}
+              {blockedIds.has(local.id) && mapping && <span>序号 {local.order} → {mapping.sourceOrder} · 修复受阻</span>}
+              {!!orderChanges.get(local.id)?.requiredChapterIds?.length && <span>需关联 {orderChanges.get(local.id)!.requiredChapterIds!.length} 项映射同时让位</span>}
               {skipped.has(local.id) && <span className="chapter-merge-dialog__warning">暂不修复序号：{skipped.get(local.id)!.reason}</span>}
               {skipped.get(local.id)?.blockingChapterIds?.map(blockerId => {
                 const blockerIndex = locals.findIndex(row => row.id === blockerId)
@@ -330,7 +318,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
                 // 文案保持短：一个 66 章的错位段会渲染 66 条同样的提示。
                 return shift.gap
                   ? <span className="chapter-merge-dialog__shift-gap">序号错位 {sign}{shift.segment.offset}（真实错位）</span>
-                  : <span className="chapter-merge-dialog__shift-neutral">排版偏移 {sign}{shift.segment.offset}（仅提示）</span>
+                  : <span className="chapter-merge-dialog__shift-neutral">序号偏移 {sign}{shift.segment.offset}（按勾选同步）</span>
               })()}
               {mapping && <span>{mapping.matchReason ? MATCH_REASON_LABELS[mapping.matchReason] : '旧预览未记录依据'} · 置信度{CONFIDENCE_LABELS[mapping.confidence]}{mapping.relation === 'split' ? ' · 拆分组' : ''}</span>}
               {mapping?.matchEvidence && <details><summary>匹配说明</summary><p>{mapping.matchEvidence}</p></details>}
@@ -347,6 +335,11 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
           {editingId === local.id && editing && <section id="chapter-mapping-editor" className="chapter-merge-dialog__mapping-editor" aria-label="人工映射编辑">
             <h4 ref={editorHeading} tabIndex={-1}>调整本地 {editing.order} · {editing.title}</h4>
             <p className="admin-dialog-hint">本地前章：{locals[editingIndex - 1]?.title || '无'}；后章：{locals[editingIndex + 1]?.title || '无'}</p>
+            {onInspect && <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onInspect(editing.id)}>预览此章正文</Button>}
+            {!!sameTitleCandidates.length && <div className="chapter-merge-dialog__mapping-candidates" aria-label="同名源站候选">
+              <p className="admin-dialog-hint">找到 {sameTitleCandidates.length} 个同名候选，仅供核对，不会自动匹配。请选择候选查看源站邻章，并结合正文确认。</p>
+              {sameTitleCandidates.map(source => <Button key={source.key} variant="secondary" size="sm" disabled={disabled || locals.some(local => local.id !== editingId && effectiveMappings.get(local.id) === source.key && (byLocal.get(local.id)?.relation === 'split' || /[（(]\s*\d+\s*[/／]\s*\d+\s*[)）]$/.test(local.title)))} aria-pressed={targetKey === source.key} onClick={() => setTargetKey(source.key)}>核对源站 {source.order} · {source.title}</Button>)}
+            </div>}
             <div className="chapter-merge-dialog__mapping-fields">
               <div className="chapter-dialog-field">
                 <Label htmlFor="chapter-mapping-search">查找源站章节</Label>
@@ -369,13 +362,14 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
             </div>
             {sourceMatches.length > 100 && <p className="admin-dialog-hint">找到 {sourceMatches.length} 章，展示前 100 章；输入标题或序号缩小范围。</p>}
             {selected && <p className="admin-dialog-hint">源站前章：{sources[sourceIndex - 1]?.title || '无'}；后章：{sources[sourceIndex + 1]?.title || '无'}</p>}
+            {selected && Math.abs(selected.order - editing.order) > 20 && <p className="chapter-merge-dialog__warning">两侧相距 {Math.abs(selected.order - editing.order)} 个序号，位置差异较大；同名不足以证明对应，请结合邻章与正文核实。</p>}
             {occupant && <p className="chapter-merge-dialog__warning">将与本地 {occupant.order} · {occupant.title} 交换对应关系；双方都会加入暂存调整。</p>}
             <div className="chapter-merge-dialog__metadata-actions"><Button disabled={disabled} onClick={save}>暂存映射调整</Button><Button variant="ghost" disabled={disabled} onClick={() => setEditingId('')}>取消调整</Button></div>
           </section>}
         </li>
       })}
     </ol>
-    {!filtered.length && <p>没有符合条件的本地章节。</p>}
+    {!filtered.length && <p role="status">{!query && filter === 'different' ? '当前没有需要处理的映射差异，可切换“全部”查看完整目录。' : '没有符合条件的本地章节。'}</p>}
     {pages > 1 && <nav className="chapter-merge-dialog__pagination" aria-label="映射核对分页">
       <Button variant="ghost" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setEditingId('') }}>上一页</Button><span>{currentPage} / {pages}</span><Button variant="ghost" disabled={currentPage === pages} onClick={() => { setPage(currentPage + 1); setEditingId('') }}>下一页</Button>
     </nav>}

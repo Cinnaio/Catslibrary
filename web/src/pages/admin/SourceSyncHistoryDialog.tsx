@@ -10,7 +10,7 @@ import { timeAgo } from '@/lib/format'
 const STATUS: Record<string, string> = { applied: '已应用', rolled_back: '已撤回', rollback_partial: '部分撤回，保留冲突' }
 
 export default function SourceSyncHistoryDialog({ open, novelId, onOpenChange, onCompleted }: {
-  open: boolean; novelId: string; onOpenChange: (open: boolean) => void; onCompleted: () => void
+  open: boolean; novelId: string; onOpenChange: (open: boolean) => void; onCompleted: () => void | Promise<void>
 }) {
   const { confirm } = useConfirm()
   const [page, setPage] = useState(1)
@@ -52,15 +52,25 @@ export default function SourceSyncHistoryDialog({ open, novelId, onOpenChange, o
   async function rollback(item: SourceSyncHistoryItem) {
     if (lock.current) return
     lock.current = true
+    let rolledBack = false
     try {
       if (!await confirm({ title: '撤回此次融合？', message: '恢复本次实际修改的标题、序号和小说信息。再次编辑或审核过的内容将保留，并列出冲突。正文和阅读记录保持原样。', okText: '确认撤回', danger: true })) return
       setBusyId(item.runId); setError(''); setResult(null)
       const operationId = operations.current.get(item.runId) || newOperationId('source-sync-rollback')
       operations.current.set(item.runId, operationId)
       const next = await scrapeApi.sourceSyncRollback(item.runId, operationId)
+      rolledBack = true
       operations.current.delete(item.runId)
-      setResult(next); setDetail(null); onCompleted(); await load()
-    } catch (err) { setError((err as Error).message || '撤回失败，请重试') }
+      setResult(next); setDetail(null)
+      setItems(previous => previous.map(row => row.runId === item.runId ? {
+        ...row, canRollback: false, status: next.conflicts.length ? 'rollback_partial' : 'rolled_back', rollback: next,
+      } : row))
+      await onCompleted()
+      await load()
+    } catch (err) {
+      const message = (err as Error).message || '请重试'
+      setError(rolledBack ? `撤回已完成，但作品信息刷新失败：${message}。请刷新页面查看最新信息。` : `撤回失败：${message}`)
+    }
     finally { lock.current = false; setBusyId('') }
   }
   return <Dialog open={open} onOpenChange={value => { if (!lock.current) onOpenChange(value) }}>

@@ -133,6 +133,39 @@ describe('scrape 路由（免网络动作）', () => {
     expect((await req('/api/scrape', json('POST', { action: 'source-sync-apply', runId: manualRunId, revision: 2, repairOrder: true }, adminToken))).status).toBe(200)
   })
 
+  it('真实路由串联删除杂章、复用目录、修复序号与撤回，重试不重复删除', async () => {
+    const novelId='delete-refresh-route',bindingId='delete-refresh-binding',runId='delete-refresh-run'
+    const sourceUrl='https://www.po18.tw/books/902326/articles'
+    const source=[{key:'s1',order:1,title:'起程',url:''},{key:'s2',order:2,title:'归途',url:''}]
+    const locals=[{id:'cleanup-a',order:1,title:'起程'},{id:'cleanup-junk',order:2,title:'无关公告'},{id:'cleanup-b',order:3,title:'归途'}]
+    const metadata={title:'',author:'',description:'',coverUrl:'',category:'',categories:[],status:'',sourceUrl}
+    const preview=sourceSyncTestHelpers().buildPreview(source,locals,metadata,true,{runId,bindingId,novelId,site:'po18tw',sourceUrl},[])
+    expect(preview.orderChanges).toEqual([])
+    await t.db.query('INSERT INTO novels (id,title,chapter_count,created_at,updated_at) VALUES ($1,$1,3,1,1)',[novelId])
+    for(const row of locals) await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,$5,1)',[row.id,novelId,row.title,'隔离正文',row.order])
+    await t.db.query('INSERT INTO novel_source_bindings (id,novel_id,source_url,created_at,updated_at) VALUES ($1,$2,$3,1,1)',[bindingId,novelId,sourceUrl])
+    await t.db.query('INSERT INTO source_sync_runs (id,binding_id,novel_id,metadata_json,source_chapters_json,changes_json,mapping_json,local_snapshot_json,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1)',
+      [runId,bindingId,novelId,JSON.stringify(metadata),JSON.stringify(source),JSON.stringify(preview.changes),JSON.stringify(preview.mappings),JSON.stringify(locals)])
+    const deletion={action:'batch-delete',novelId,chapterIds:['cleanup-junk'],operationId:'delete-refresh-once'}
+    expect((await req('/api/chapters',json('POST',deletion))).status).toBe(401)
+    const deleted=await req('/api/chapters',json('POST',deletion,adminToken))
+    expect(deleted.status).toBe(200)
+    expect((await req('/api/chapters',json('POST',deletion,adminToken))).status).toBe(200)
+    expect((await t.db.query<{chapter_count:number}>('SELECT chapter_count FROM novels WHERE id=$1',[novelId])).rows[0]?.chapter_count).toBe(2)
+    // 没有配置源站账号，仍能成功重新匹配，证明使用已保存目录。
+    const refreshed=await req('/api/scrape',json('POST',{action:'source-sync-refresh',runId,revision:0},adminToken))
+    expect(refreshed.status).toBe(200)
+    const next=await jsonOf<{runId:string;sourceChapterCount:number;localChapterCount:number;orderChanges:unknown[]}>(refreshed)
+    expect(next).toMatchObject({sourceChapterCount:2,localChapterCount:2,orderChanges:[{localChapterId:'cleanup-b',oldOrder:3,newOrder:2}]})
+    const applied=await req('/api/scrape',json('POST',{action:'source-sync-apply',runId:next.runId,revision:0,repairOrder:true,confirmedOrderIds:['cleanup-b'],operationId:'delete-refresh-apply'},adminToken))
+    expect(applied.status).toBe(200)
+    expect(await applied.json()).toMatchObject({updated:0,orderUpdated:1})
+    const rollback=await req('/api/scrape',json('POST',{action:'source-sync-rollback',runId:next.runId,operationId:'delete-refresh-rollback'},adminToken))
+    expect(rollback.status).toBe(200)
+    const stored=(await t.db.query<{id:string;sort_order:number;content:string}>('SELECT id,sort_order,content FROM chapters WHERE novel_id=$1 ORDER BY sort_order',[novelId])).rows
+    expect(stored).toEqual([{id:'cleanup-a',sort_order:1,content:'隔离正文'},{id:'cleanup-b',sort_order:3,content:'隔离正文'}])
+  })
+
   it('追更设置保存并读回，默认关闭，缺少配置时拒绝开启', async () => {
     await t.db.query("INSERT INTO novels (id,title,status,created_at,updated_at) VALUES ('follow-route','追更路由','ongoing',1,1)")
     const initial = await req('/api/scrape?action=followup&novelId=follow-route', json('GET', undefined, adminToken))

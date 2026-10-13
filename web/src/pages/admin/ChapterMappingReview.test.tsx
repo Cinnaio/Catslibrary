@@ -4,6 +4,43 @@ import { expect, it, vi } from 'vitest'
 import type { SourceSyncPreview } from '@/lib/api'
 import ChapterMappingReview from './ChapterMappingReview'
 
+it('默认聚焦待办，同名远距离候选展示邻章而不自动暂存', () => {
+  const onRemap = vi.fn(), onInspect = vi.fn()
+  const localChapters = [{id:'ok',order:91,title:'自由'},{id:'game',order:112,title:'游戏'}]
+  render(<ChapterMappingReview preview={{
+    ...preview, localChapters,
+    mappings: [{...preview.mappings[0]!,sourceChapterKey:'free',sourceOrder:91,sourceTitle:'自由',localChapterIds:['ok']}],
+    sourceChapters: [{key:'before',order:53,title:'前章',url:''},{key:'game-src',order:54,title:'游戏',url:''},{key:'after',order:55,title:'后章',url:''}],
+    orderShiftSegments: [{localRange:{from:91,to:91},sourceRange:{from:91,to:91},offset:0,kind:'layout',reason:'已一致',blockingChapterIds:[],chapterIds:['ok']}],
+  }} disabled={false} onRemap={onRemap} onInspect={onInspect} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  expect(screen.getByRole('button', {name:'有差异 1'})).toHaveAttribute('aria-pressed','true')
+  expect(screen.queryByText('本地 91 · 自由')).not.toBeInTheDocument()
+  expect(screen.queryByText('序号偏移分段')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button',{name:'调整映射：本地 112'}))
+  fireEvent.click(screen.getByRole('button',{name:'核对源站 54 · 游戏'}))
+  expect(screen.getByText('源站前章：前章；后章：后章')).toBeInTheDocument()
+  expect(screen.getByText(/两侧相距 58 个序号/)).toBeInTheDocument()
+  expect(onRemap).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button',{name:'预览此章正文'}))
+  expect(onInspect).toHaveBeenCalledWith('game')
+})
+
+it('批量选择显示实际标题和序号影响，受阻项单独筛选', () => {
+  const localChapters = ['a','b','c'].map((id,i)=>({id,order:i+1,title:`章节${id}`}))
+  const changes = [{localChapterId:'a',eligible:false}] as SourceSyncPreview['changes']
+  render(<ChapterMappingReview preview={{...preview,localChapters,changes,mappings:[],
+    orderChanges:[{localChapterId:'b',title:'章节b',oldOrder:2,newOrder:1}],
+    orderRepairSkipped:[{localChapterId:'c',reason:'被占用',blockingChapterIds:['a']}],
+  }} disabled={false} onRemap={vi.fn()} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button',{name:'全选当前筛选结果 3 项'}))
+  expect(screen.getByText('本次映射选择：确认 1 个标题 · 修复 1 个序号 · 0 项无需更新')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button',{name:'修复受阻 1'}))
+  expect(screen.getByRole('list',{name:'全部章节映射'}).children).toHaveLength(1)
+  expect(screen.getByText('本地 3 · 章节c')).toBeInTheDocument()
+})
+
 const preview = {
   mappings: [{ sourceChapterKey: 's1', sourceOrder: 1, sourceTitle: '源站第一章', localChapterIds: ['a'], relation: 'one_to_one', confidence: 'high', matchReason: 'exact-title', matchEvidence: '完整标题一致。' }],
   localChapters: [{ id: 'a', order: 1, title: '本地第一章' }, { id: 'b', order: 2, title: '本地第二章' }],
@@ -20,6 +57,7 @@ it('展示匹配依据与相邻章节，保存未匹配章的人工对应关系'
   const user = userEvent.setup()
   render(<ChapterMappingReview preview={preview} disabled={false} onRemap={onRemap} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   expect(screen.getByText(/完整标题一致 · 置信度高/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '调整映射：本地 2' }))
   expect(screen.getByRole('heading', { name: '调整本地 2 · 本地第二章' })).toHaveFocus()
@@ -41,6 +79,7 @@ it('选择占用目标暂存双方交换，保存失败保留草稿可重试', a
   const user = userEvent.setup()
   render(<ChapterMappingReview preview={preview} disabled={false} onRemap={onRemap} onPendingMappingsChange={onPendingMappingsChange} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByRole('button', { name: '调整映射：本地 2' }))
   await user.click(screen.getByRole('combobox'))
   await user.click(screen.getByRole('option', { name: /源站第一章（选择后交换）/ }))
@@ -70,6 +109,7 @@ it('有差异筛选保留序号偏移、标题不同及未匹配，忽略完整�
   ]
   render(<ChapterMappingReview preview={{ ...preview, localChapters: locals, mappings }} disabled={false} onRemap={vi.fn()} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByRole('button', { name: '有差异 3' }))
   expect(screen.queryByText('本地 1 · 第一章，标题')).not.toBeInTheDocument()
   expect(screen.getByText('本地 53 · 相同标题')).toBeInTheDocument()
@@ -87,6 +127,7 @@ it('恢复自动匹配清除覆盖，拆分组不能被单章重映射', () => {
   const onRemap = vi.fn()
   render(<ChapterMappingReview preview={{ ...preview, manualMappings: [{ localChapterId: 'b', sourceChapterKey: null }], mappings: [{ ...preview.mappings[0]!, relation: 'split' }] }} disabled={false} onRemap={onRemap} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   expect(screen.getByRole('button', { name: '调整映射：本地 1' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: '恢复自动匹配' }))
   expect(onRemap).toHaveBeenCalledWith([])
@@ -96,6 +137,7 @@ it('全选覆盖筛选结果所有页，跨筛选保留选择，逐项取消和�
   const localChapters = Array.from({ length: 25 }, (_, i) => ({ id: `local-${i}`, order: i + 1, title: `章节 ${i + 1}` }))
   render(<ChapterMappingReview preview={{ ...preview, localChapters, mappings: [] }} disabled={false} onRemap={vi.fn()} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.change(screen.getByLabelText('搜索本地章节映射'), { target: { value: '章节 25' } })
   fireEvent.click(screen.getByRole('button', { name: '全选当前筛选结果 1 项' }))
   expect(screen.getByText('已选 1 项映射')).toBeInTheDocument()
@@ -116,6 +158,7 @@ it('选择和清空立即通知同步流程，禁用时不能操作', () => {
   const props = { preview, onRemap: vi.fn(), onSelectedMappingsChange }
   const { rerender } = render(<ChapterMappingReview {...props} disabled={false} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByRole('button', { name: '全选当前筛选结果 2 项' }))
   expect(onSelectedMappingsChange).toHaveBeenLastCalledWith(new Set(['a', 'b']))
   fireEvent.click(screen.getByRole('checkbox', { name: '选择映射：本地 1' }))
@@ -136,6 +179,7 @@ it('查看阻塞章节跨越筛选与分页定位到实际占用章节，不改�
     orderRepairSkipped: [{ localChapterId: 'l0', reason: '目标序号的移动依赖受阻：本地 25', blockingChapterIds: ['l24'] }],
   }} disabled={false} onRemap={vi.fn()} onSelectedMappingsChange={onSelectedMappingsChange} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByRole('button', { name: /查看阻塞章节：本地 25/ }))
   expect(screen.getByText('本地 25 · 目录章节25')).toHaveFocus()
   expect(screen.queryByRole('region', { name: '人工映射编辑' })).not.toBeInTheDocument()
@@ -166,19 +210,20 @@ const shiftedPreview = {
   ],
 } as unknown as SourceSyncPreview
 
-it('真实错位段（kind=gap）与良性排版段（kind=layout）分开呈现，只有前者进入有差异筛选', () => {
+it('真实错位段（kind=gap）与良性排版段（kind=layout）分开呈现，两者均进入序号核对', () => {
   render(<ChapterMappingReview preview={shiftedPreview} disabled={false} onRemap={vi.fn()} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
-  // 只有真实错位那一条算差异；两条偏移的 matchReason 同为 exact-title。
-  fireEvent.click(screen.getByRole('button', { name: '有差异 1' }))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
+  // 两类序号偏移都进入核对，标题匹配正确并不代表序号一致。
+  fireEvent.click(screen.getByRole('button', { name: '有差异 2' }))
   expect(screen.getByText('本地 40 · 笼子')).toBeInTheDocument()
   expect(screen.getByText('序号错位')).toBeInTheDocument()
-  expect(screen.queryByText('本地 120 · 番外前移')).not.toBeInTheDocument()
+  expect(screen.getByText('本地 120 · 番外前移')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '全部 3' }))
-  // 良性排版段只给中性提示，不得标红催办，也不得报「序号不同」。
-  expect(screen.getByText('排版偏移 +7（仅提示）')).toBeInTheDocument()
-  expect(screen.getByText('排版偏移 +7（仅提示）').className).toContain('chapter-merge-dialog__shift-neutral')
-  expect(screen.queryByText('序号不同')).not.toBeInTheDocument()
+  // 编排差异展示具体偏移，允许按勾选同步。
+  expect(screen.getByText('序号偏移 +7（按勾选同步）')).toBeInTheDocument()
+  expect(screen.getByText('序号偏移 +7（按勾选同步）').className).toContain('chapter-merge-dialog__shift-neutral')
+  expect(screen.getByText('序号不同')).toBeInTheDocument()
   const gapNote = screen.getByText('序号错位 +1（真实错位）')
   expect(gapNote.className).toContain('chapter-merge-dialog__shift-gap')
 })
@@ -203,13 +248,14 @@ it('段汇总区分真实错位与排版偏移，可定位到段内章节', () =
     orderChanges,
   }} disabled={false} onRemap={vi.fn()} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByText('序号偏移分段'))
   expect(screen.getByText('本地 3–4 章（源站 1–2 章）')).toBeInTheDocument()
   expect(screen.getAllByText('真实错位 +2')).toHaveLength(2)
-  expect(screen.getAllByText('2 章待归位（本地 3、4）')).toHaveLength(1)
-  expect(screen.getByText('2 章待归位（本地 6、7）')).toBeInTheDocument()
-  expect(screen.getByText('仅提示，不生成修复')).toBeInTheDocument()
-  fireEvent.click(screen.getAllByRole('button', { name: '定位' })[1]!)
+  expect(screen.getAllByText('2 章可修复（本地 3、4）')).toHaveLength(1)
+  expect(screen.getByText('2 章可修复（本地 6、7）')).toBeInTheDocument()
+  expect(screen.queryByText('编排差异 0')).not.toBeInTheDocument()
+  fireEvent.click(screen.getAllByRole('button', { name: '定位' })[0]!)
   expect(screen.getByText('本地 3 · 目录章节3')).toHaveFocus()
 })
 
@@ -217,6 +263,7 @@ it('缺少 orderShiftSegments 的旧响应回退为序号不同，不崩溃', ()
   const legacy = { ...shiftedPreview, orderShiftSegments: undefined } as unknown as SourceSyncPreview
   render(<ChapterMappingReview preview={legacy} disabled={false} onRemap={vi.fn()} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByRole('button', { name: '有差异 2' }))
   expect(screen.getAllByText('序号不同')).toHaveLength(2)
   expect(screen.queryByText(/排版偏移/)).not.toBeInTheDocument()
@@ -228,12 +275,12 @@ it('缺少 orderShiftSegments 的旧响应回退为序号不同，不崩溃', ()
  * 66 条真实错位与 69 条良性排版在 matchReason 上完全同形（都是 exact-title）。
  * 用 matchReason 判定会一条都报不出来。
  */
-it('真实书的 +1 真实错位段报出可归位章节，+7/+8 排版段一条不报', () => {
+it('真实书的 +1 真实错位段报出可归位章节，+7/+8 编排差异同样进入核对', () => {
   const shifted = Array.from({ length: 66 }, (_, index) => ({ id: `g${index}`, order: 40 + index, title: `正文${index}` }))
   const laid = Array.from({ length: 69 }, (_, index) => ({ id: `y${index}`, order: 113 + index, title: `番外${index}` }))
   const localChapters = [...shifted, ...laid]
   const mappings = localChapters.map(row => ({
-    ...preview.mappings[0]!, sourceChapterKey: `s${row.order - 1}`, sourceOrder: row.order - 1, sourceTitle: row.title,
+    ...preview.mappings[0]!, sourceChapterKey: `s${row.order - 1}`, sourceOrder: row.order >= 113 ? row.order - 8 : row.order - 1, sourceTitle: row.title,
     localChapterIds: [row.id], matchReason: 'exact-title' as const,
   }))
   const orderShiftSegments = [
@@ -243,14 +290,15 @@ it('真实书的 +1 真实错位段报出可归位章节，+7/+8 排版段一条
   const orderChanges = shifted.slice(0, 66).map(row => ({ localChapterId: row.id, title: row.title, oldOrder: row.order, newOrder: row.order - 1 }))
   render(<ChapterMappingReview preview={{ ...preview, localChapters, mappings, orderShiftSegments, orderChanges }} disabled={false} onRemap={vi.fn()} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   // 真实错位段内的可归位章节全部进入有差异筛选（分页只显示前 20 条）。
-  fireEvent.click(screen.getByRole('button', { name: '有差异 66' }))
+  fireEvent.click(screen.getByRole('button', { name: '有差异 135' }))
   expect(screen.getAllByText('序号错位 +1（真实错位）')).toHaveLength(20)
-  // 69 条良性排版偏移不进差异筛选、不催办；差异计数与真实错位段一一对应。
-  expect(screen.getByRole('button', { name: '有差异 66' })).toBeInTheDocument()
+  // 69 条编排差异同样纳入核对，不能静默隐藏。
+  expect(screen.getByRole('button', { name: '有差异 135' })).toBeInTheDocument()
   fireEvent.click(screen.getByText('序号偏移分段'))
-  expect(screen.getByText('66 章待归位（本地 40、41、42、43、44、45…）')).toBeInTheDocument()
-  expect(screen.getByText('仅提示，不生成修复')).toBeInTheDocument()
+  expect(screen.getByText('66 章可修复（本地 40、41、42、43、44、45…）')).toBeInTheDocument()
+  expect(screen.queryByText('编排差异 0')).not.toBeInTheDocument()
   fireEvent.click(screen.getAllByRole('button', { name: '定位' })[0]!)
   expect(screen.getByText('本地 40 · 正文0')).toHaveFocus()
 })
@@ -271,6 +319,7 @@ it('后端认定 exact-title 时前端不报标题不同，源站编号前缀差
   } as unknown as SourceSyncPreview
   render(<ChapterMappingReview preview={cases} disabled={false} onRemap={vi.fn()} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByRole('button', { name: '有差异 2' }))
   expect(screen.queryByText('本地 1 · 掉马')).not.toBeInTheDocument()
   expect(screen.getByText('本地 2 · 12、分岔山路')).toBeInTheDocument()
@@ -289,6 +338,7 @@ it('源站选择器支持序号与标题子串搜索，超过 100 章给出引�
     mappings: [{ ...preview.mappings[0]!, sourceChapterKey: 's1', sourceOrder: 1, sourceTitle: '源站章节1', localChapterIds: ['a'] }],
   }} disabled={false} onRemap={vi.fn()} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByRole('button', { name: '调整映射：本地 2' }))
   await user.click(screen.getByRole('combobox'))
   // 未搜索时给出上限引导，且只展示前 100 章。
