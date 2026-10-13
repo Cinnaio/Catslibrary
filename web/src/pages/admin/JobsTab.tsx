@@ -468,19 +468,28 @@ export default function JobsTab({
       {view !== 'downloads' && (
         <>
           <AdminToolbar className="task-workspace-toolbar" ariaLive="polite">
-            <div className="task-workspace-filters" role="group" aria-label="任务状态筛选">
+            <div className="task-workspace-filters bg-muted/60 p-1 rounded-full gap-1 flex items-center" role="group" aria-label="任务状态筛选">
               {FILTERS.map((item) => (
-                <Button key={item.value} variant="ghost" size="sm" aria-pressed={filter === item.value} onClick={() => setFilter(item.value)}>
+                <Button
+                  key={item.value}
+                  variant={filter === item.value ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="rounded-full h-7 px-3 text-xs font-medium"
+                  aria-pressed={filter === item.value}
+                  onClick={() => setFilter(item.value)}
+                >
                   {item.label}
-                  <span>{filterCounts[item.value]}</span>
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full bg-background/80 text-[10px] font-mono text-muted-foreground">
+                    {filterCounts[item.value]}
+                  </span>
                 </Button>
               ))}
             </div>
-            <Button variant="ghost" size="sm" disabled={!hasCompleted || jobsLoading} onClick={() => void clearCompleted()}>
+            <Button variant="ghost" size="sm" className="rounded-full" disabled={!hasCompleted || jobsLoading} onClick={() => void clearCompleted()}>
               清除已结束
             </Button>
           </AdminToolbar>
-          <AdminDataPanel className="task-workspace-panel overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS}>
+          <AdminDataPanel className="task-workspace-panel overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS} density="comfortable">
             <AdminPanelHeading title="抓取任务" status={<span className={`admin-panel-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
             {hasJobs ? (
               <Table>
@@ -498,7 +507,7 @@ export default function JobsTab({
                   {filtered.map((j, index) => (
                     <TableRow key={j.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, filtered.length)}ms` }}>
                       <TableCell data-primary="" data-label="作品 / 类型">
-                        <div className="task-workspace-title">{renderNovelTitle(j)}</div>
+                        <div className="task-workspace-title font-medium font-serif">{renderNovelTitle(j)}</div>
                         <div className="task-workspace-meta">
                           {j.updateMode ? '更新' : '抓取'} ·{' '}
                           <span className="task-workspace-id" title={j.id}>

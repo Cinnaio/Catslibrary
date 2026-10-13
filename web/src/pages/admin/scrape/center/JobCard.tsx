@@ -55,12 +55,12 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
       ? '[&_[data-slot=progress-indicator]]:bg-destructive'
       : job.status === 'cancelled'
         ? '[&_[data-slot=progress-indicator]]:bg-muted-foreground'
-        : ''
+        : '[&_[data-slot=progress-indicator]]:bg-gradient-to-r [&_[data-slot=progress-indicator]]:from-[#D97757] [&_[data-slot=progress-indicator]]:to-[#E58C6E]'
 
   return (
-    <article className="scrape-job">
+    <article className="scrape-job scrape-job-card--claude">
       <div className="scrape-job__head">
-        <span className="scrape-job__name text-sm font-medium" title={job.novelTitle}>
+        <span className="scrape-job__name text-sm font-medium font-serif" title={job.novelTitle}>
           {job.novelTitle}
         </span>
         <AdminStatusBadge tone={statusTone}>
@@ -80,31 +80,21 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
         aria-valuetext={job.total > 0 ? `${job.current || 0} / ${job.total} 章` : `${Math.round(pct)}%`}
       />
 
-      <div className="scrape-job__metrics text-xs">
-        <span>
-          公开章节 <strong>{job.publicChapterCount}</strong>
+      <div className="scrape-job-card__metrics-pill-group">
+        <span className="scrape-job-card__metric-pill">
+          进度 <strong>{job.current || 0}/{job.total || 0}</strong>
         </span>
-        <span>
-          受保护正文 <strong>{job.protectedChapterCount}</strong>
-        </span>
-        <span>
+        <span className="scrape-job-card__metric-pill">
           成功 <strong>{job.successCount}</strong>
+          {job.failedCount > 0 && <span className="text-destructive font-semibold">· 失败 {job.failedCount}</span>}
+          {job.skippedCount > 0 && <span className="text-muted-foreground">· 跳过 {job.skippedCount}</span>}
         </span>
-        <span>
-          失败 <strong>{job.failedCount}</strong>
-        </span>
-        <span>
-          跳过 <strong>{job.skippedCount}</strong>
-        </span>
-        <span>
-          速度 <strong>{formatJobSpeed(job.speed)}</strong>
-        </span>
-        <span>
-          ETA <strong>{formatEta(job.etaSeconds)}</strong>
+        <span className="scrape-job-card__metric-pill">
+          {formatJobSpeed(job.speed)} · ETA {formatEta(job.etaSeconds)}
         </span>
       </div>
 
-      <p className="m-0 text-xs text-muted-foreground" aria-live="polite">
+      <p className="m-0 mt-1.5 text-xs text-muted-foreground" aria-live="polite">
         {job.step}
         {job.total > 0 ? ` (${job.current || 0}/${job.total})` : ''}
       </p>
