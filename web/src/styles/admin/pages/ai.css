@@ -1573,3 +1573,104 @@
     flex: 1;
   }
 }
+
+/* ==========================================================================
+   Claude (Anthropic) 风格扩展：AI 服务工作台与创作工坊
+   ========================================================================== */
+
+/* 1. 顶部大药丸胶囊滑块导航轨道 (Pill Tabs Navigation Track) */
+.ai-workbench-nav-track {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.ai-pill-tabs-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, #faf9f5);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ai-pill-tab {
+  border-radius: 9999px !important;
+  font-size: 0.8rem !important;
+  padding: 0.45rem 1rem !important;
+  color: var(--text-muted) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.ai-pill-tab:hover {
+  color: var(--text-primary) !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* 2. AI 用量与指标读数：人文衬线数码字 */
+.calls-trend-grid .ai-usage-totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  padding: 0.5rem 1.5rem 1rem;
+}
+
+.calls-trend-grid .ai-usage-totals strong {
+  font-family: var(--font-serif), Newsreader, Georgia, Cambria, serif !important;
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary) !important;
+}
+
+/* 3. 封面画风展台 3D 书脊微拟真 (Cover Style Gallery) */
+.cover-style-choice {
+  border-radius: 14px !important;
+  background: var(--admin-panel, #ffffff) !important;
+  box-shadow: 0 4px 14px rgba(20, 20, 19, 0.04) !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.cover-style-choice:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 12px 24px -4px rgba(217, 119, 87, 0.15), 0 4px 12px rgba(20, 20, 19, 0.06) !important;
+  border-color: rgba(217, 119, 87, 0.6) !important;
+}
+
+.cover-style-choice[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px #D97757, 0 8px 20px -2px rgba(217, 119, 87, 0.25) !important;
+  border-color: #D97757 !important;
+}
+
+/* 4. AI 创作工坊与提示词调试书案 (Editorial Literary Desk) */
+.ai-writing-workbench {
+  border-radius: 18px;
+}
+
+.ai-writing-prompt-box textarea {
+  font-family: var(--font-serif), Newsreader, Georgia, Cambria, serif !important;
+  line-height: 1.75 !important;
+}
+
+/* 5. 悬浮保存操作坞 (Save Action Dock) */
+.ai-config-save-dock {
+  position: sticky;
+  bottom: 1.5rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  box-shadow: 0 8px 30px rgba(35, 30, 24, 0.08);
+}
+

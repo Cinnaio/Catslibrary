@@ -121,6 +121,34 @@ export default function AiTab() {
         )
       }
     >
+      <div className="ai-workbench-nav-track mb-6 flex items-center justify-between">
+        <div className="ai-pill-tabs-track inline-flex items-center gap-1.5 rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-1.5 shadow-inner">
+          {VALID_SUBS.map((subKey) => {
+            const active = currentSubTab === subKey
+            return (
+              <button
+                key={subKey}
+                type="button"
+                onClick={() => {
+                  setActiveSubTab(subKey)
+                  const next = new URLSearchParams(searchParams)
+                  next.set('sub', subKey)
+                  setSearchParams(next, { replace: false })
+                }}
+                className={`ai-pill-tab relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-medium transition-all duration-200 cursor-pointer ${
+                  active
+                    ? 'bg-[var(--admin-panel)] text-[var(--text-primary)] font-semibold shadow-sm ring-1 ring-[var(--admin-border-strong)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--admin-panel-hover)]'
+                }`}
+              >
+                {active && <span className="size-1.5 rounded-full bg-[var(--admin-accent,#D97757)] shadow-[0_0_6px_var(--admin-accent,#D97757)]" />}
+                <span>{AI_SUBTAB_META[subKey].title}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       <div className="ai-service-tabs__content min-w-0">
         {currentSubTab === 'writing' && <AiWritingPanel model={provider?.model} onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />}
 
