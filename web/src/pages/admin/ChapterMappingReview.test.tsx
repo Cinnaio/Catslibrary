@@ -142,3 +142,166 @@ it('查看阻塞章节跨越筛选与分页定位到实际占用章节，不改�
   expect(screen.getByText('本地 25 · 目录章节25')).toBeInTheDocument()
   expect(onSelectedMappingsChange).not.toHaveBeenCalled()
 })
+
+/**
+ * 真实书「虐文女主求生指南」181 章 / 源站 182 章的段形态。
+ * 关键事实：+1 段（真实错位）与 +7/+8 段（良性排版）的 matchReason **全部**是
+ * exact-title，所以区分只能用段级 kind，不能用匹配依据。
+ */
+const shiftedPreview = {
+  ...preview,
+  localChapters: [
+    { id: 'gap', order: 40, title: '笼子' },
+    { id: 'layout', order: 120, title: '番外前移' },
+    { id: 'plain', order: 130, title: '同序号同标题' },
+  ],
+  mappings: [
+    { ...preview.mappings[0]!, sourceChapterKey: 's39', sourceTitle: '笼子', sourceOrder: 39, localChapterIds: ['gap'] },
+    { ...preview.mappings[0]!, sourceChapterKey: 's113', sourceTitle: '番外前移', sourceOrder: 113, localChapterIds: ['layout'] },
+    { ...preview.mappings[0]!, sourceChapterKey: 's130', sourceTitle: '同序号同标题', sourceOrder: 130, localChapterIds: ['plain'] },
+  ],
+  orderShiftSegments: [
+    { localRange: { from: 40, to: 40 }, sourceRange: { from: 39, to: 39 }, offset: 1, kind: 'gap' as const, reason: '本地第 40-40 章相对源站偏移 +1，等于其前 1 个无源站对应章节造成的位移，需按源站序号归位。', blockingChapterIds: ['junk'], chapterIds: ['gap'] },
+    { localRange: { from: 120, to: 120 }, sourceRange: { from: 113, to: 113 }, offset: 7, kind: 'layout' as const, reason: '本地第 120-120 章相对源站偏移 +7，无法由其前 1 个无源站对应章节解释，属本地主动重排，不按源站序号归位。', blockingChapterIds: [], chapterIds: ['layout'] },
+  ],
+} as unknown as SourceSyncPreview
+
+it('真实错位段（kind=gap）与良性排版段（kind=layout）分开呈现，只有前者进入有差异筛选', () => {
+  render(<ChapterMappingReview preview={shiftedPreview} disabled={false} onRemap={vi.fn()} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  // 只有真实错位那一条算差异；两条偏移的 matchReason 同为 exact-title。
+  fireEvent.click(screen.getByRole('button', { name: '有差异 1' }))
+  expect(screen.getByText('本地 40 · 笼子')).toBeInTheDocument()
+  expect(screen.getByText('序号错位')).toBeInTheDocument()
+  expect(screen.queryByText('本地 120 · 番外前移')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '全部 3' }))
+  // 良性排版段只给中性提示，不得标红催办，也不得报「序号不同」。
+  expect(screen.getByText('排版偏移 +7（仅提示）')).toBeInTheDocument()
+  expect(screen.getByText('排版偏移 +7（仅提示）').className).toContain('chapter-merge-dialog__shift-neutral')
+  expect(screen.queryByText('序号不同')).not.toBeInTheDocument()
+  const gapNote = screen.getByText('序号错位 +1（真实错位）')
+  expect(gapNote.className).toContain('chapter-merge-dialog__shift-gap')
+})
+
+it('段汇总区分真实错位与排版偏移，可定位到段内章节', () => {
+  const locals = Array.from({ length: 25 }, (_, index) => ({ id: `l${index + 1}`, order: index + 1, title: `目录章节${index + 1}` }))
+  // 两个真实错位段（真实书 L39-54 与 L56-105 两段同偏移、被 L55 断开），走分区列表而非折叠结论。
+  const segments = [
+    { localRange: { from: 1, to: 2 }, sourceRange: { from: 1, to: 2 }, offset: 0, kind: 'layout' as const, reason: '本地序号与源站一致，无需调整。', blockingChapterIds: [], chapterIds: ['l1', 'l2'] },
+    { localRange: { from: 3, to: 4 }, sourceRange: { from: 1, to: 2 }, offset: 2, kind: 'gap' as const, reason: '本地第 3-4 章相对源站偏移 +2，需按源站序号归位。', blockingChapterIds: [], chapterIds: ['l3', 'l4'] },
+    { localRange: { from: 6, to: 7 }, sourceRange: { from: 4, to: 5 }, offset: 2, kind: 'gap' as const, reason: '本地第 6-7 章相对源站偏移 +2，需按源站序号归位。', blockingChapterIds: [], chapterIds: ['l6', 'l7'] },
+  ]
+  const orderChanges = ['l3', 'l4', 'l6', 'l7'].map(id => ({ localChapterId: id, title: '目录章节', oldOrder: Number(id.slice(1)), newOrder: Number(id.slice(1)) - 2 }))
+  render(<ChapterMappingReview preview={{
+    ...preview,
+    localChapters: locals,
+    mappings: locals.map(local => ({
+      ...preview.mappings[0]!, sourceChapterKey: `s${local.order}`, sourceTitle: local.title, localChapterIds: [local.id],
+      sourceOrder: local.order >= 3 && local.order <= 7 ? local.order - 2 : local.order,
+    })),
+    orderShiftSegments: segments,
+    orderChanges,
+  }} disabled={false} onRemap={vi.fn()} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByText('序号偏移分段'))
+  expect(screen.getByText('本地 3–4 章（源站 1–2 章）')).toBeInTheDocument()
+  expect(screen.getAllByText('真实错位 +2')).toHaveLength(2)
+  expect(screen.getAllByText('2 章待归位（本地 3、4）')).toHaveLength(1)
+  expect(screen.getByText('2 章待归位（本地 6、7）')).toBeInTheDocument()
+  expect(screen.getByText('仅提示，不生成修复')).toBeInTheDocument()
+  fireEvent.click(screen.getAllByRole('button', { name: '定位' })[1]!)
+  expect(screen.getByText('本地 3 · 目录章节3')).toHaveFocus()
+})
+
+it('缺少 orderShiftSegments 的旧响应回退为序号不同，不崩溃', () => {
+  const legacy = { ...shiftedPreview, orderShiftSegments: undefined } as unknown as SourceSyncPreview
+  render(<ChapterMappingReview preview={legacy} disabled={false} onRemap={vi.fn()} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: '有差异 2' }))
+  expect(screen.getAllByText('序号不同')).toHaveLength(2)
+  expect(screen.queryByText(/排版偏移/)).not.toBeInTheDocument()
+  expect(screen.queryByText('序号偏移分段')).not.toBeInTheDocument()
+})
+
+/**
+ * 真实书形态的回归：真实错位段（全部 exact-title）+ 良性排版段，
+ * 66 条真实错位与 69 条良性排版在 matchReason 上完全同形（都是 exact-title）。
+ * 用 matchReason 判定会一条都报不出来。
+ */
+it('真实书的 +1 真实错位段报出可归位章节，+7/+8 排版段一条不报', () => {
+  const shifted = Array.from({ length: 66 }, (_, index) => ({ id: `g${index}`, order: 40 + index, title: `正文${index}` }))
+  const laid = Array.from({ length: 69 }, (_, index) => ({ id: `y${index}`, order: 113 + index, title: `番外${index}` }))
+  const localChapters = [...shifted, ...laid]
+  const mappings = localChapters.map(row => ({
+    ...preview.mappings[0]!, sourceChapterKey: `s${row.order - 1}`, sourceOrder: row.order - 1, sourceTitle: row.title,
+    localChapterIds: [row.id], matchReason: 'exact-title' as const,
+  }))
+  const orderShiftSegments = [
+    { localRange: { from: 40, to: 105 }, sourceRange: { from: 39, to: 104 }, offset: 1, kind: 'gap' as const, reason: '需按源站序号归位。', blockingChapterIds: ['junk'], chapterIds: shifted.map(row => row.id) },
+    { localRange: { from: 113, to: 181 }, sourceRange: { from: 105, to: 173 }, offset: 8, kind: 'layout' as const, reason: '属本地主动重排，不按源站序号归位。', blockingChapterIds: [], chapterIds: laid.map(row => row.id) },
+  ]
+  const orderChanges = shifted.slice(0, 66).map(row => ({ localChapterId: row.id, title: row.title, oldOrder: row.order, newOrder: row.order - 1 }))
+  render(<ChapterMappingReview preview={{ ...preview, localChapters, mappings, orderShiftSegments, orderChanges }} disabled={false} onRemap={vi.fn()} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  // 真实错位段内的可归位章节全部进入有差异筛选（分页只显示前 20 条）。
+  fireEvent.click(screen.getByRole('button', { name: '有差异 66' }))
+  expect(screen.getAllByText('序号错位 +1（真实错位）')).toHaveLength(20)
+  // 69 条良性排版偏移不进差异筛选、不催办；差异计数与真实错位段一一对应。
+  expect(screen.getByRole('button', { name: '有差异 66' })).toBeInTheDocument()
+  fireEvent.click(screen.getByText('序号偏移分段'))
+  expect(screen.getByText('66 章待归位（本地 40、41、42、43、44、45…）')).toBeInTheDocument()
+  expect(screen.getByText('仅提示，不生成修复')).toBeInTheDocument()
+  fireEvent.click(screen.getAllByRole('button', { name: '定位' })[0]!)
+  expect(screen.getByText('本地 40 · 正文0')).toHaveFocus()
+})
+
+it('后端认定 exact-title 时前端不报标题不同，源站编号前缀差异仍提示', () => {
+  const cases = {
+    ...preview,
+    localChapters: [
+      { id: 'noise', order: 1, title: '掉马' },
+      { id: 'prefix', order: 2, title: '12、分岔山路' },
+      { id: 'real', order: 3, title: '原标题' },
+    ],
+    mappings: [
+      { ...preview.mappings[0]!, sourceChapterKey: 's1', sourceTitle: '掉马（微H）', sourceOrder: 1, localChapterIds: ['noise'], matchReason: 'exact-title' as const },
+      { ...preview.mappings[0]!, sourceChapterKey: 's2', sourceTitle: '第12章 分岔山路', sourceOrder: 2, localChapterIds: ['prefix'], matchReason: 'chapter-number' as const },
+      { ...preview.mappings[0]!, sourceChapterKey: 's3', sourceTitle: '新标题', sourceOrder: 3, localChapterIds: ['real'], matchReason: 'sequence' as const },
+    ],
+  } as unknown as SourceSyncPreview
+  render(<ChapterMappingReview preview={cases} disabled={false} onRemap={vi.fn()} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: '有差异 2' }))
+  expect(screen.queryByText('本地 1 · 掉马')).not.toBeInTheDocument()
+  expect(screen.getByText('本地 2 · 12、分岔山路')).toBeInTheDocument()
+  expect(screen.getByText('本地 3 · 原标题')).toBeInTheDocument()
+  expect(screen.getAllByText('标题不同')).toHaveLength(2)
+})
+
+it('源站选择器支持序号与标题子串搜索，超过 100 章给出引导', async () => {
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.releasePointerCapture = () => {}
+  const user = userEvent.setup()
+  const sources = Array.from({ length: 120 }, (_, index) => ({ key: `s${index + 1}`, order: index + 1, title: `源站章节${index + 1}`, url: '' }))
+  render(<ChapterMappingReview preview={{ ...preview,
+    sourceChapters: sources,
+    mappings: [{ ...preview.mappings[0]!, sourceChapterKey: 's1', sourceOrder: 1, sourceTitle: '源站章节1', localChapterIds: ['a'] }],
+  }} disabled={false} onRemap={vi.fn()} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: '调整映射：本地 2' }))
+  await user.click(screen.getByRole('combobox'))
+  // 未搜索时给出上限引导，且只展示前 100 章。
+  expect(screen.getByText('找到 120 章，展示前 100 章；输入标题或序号缩小范围。')).toBeInTheDocument()
+  expect(screen.getByRole('option', { name: '100 · 源站章节100' })).toBeInTheDocument()
+  expect(screen.queryByRole('option', { name: '101 · 源站章节101' })).not.toBeInTheDocument()
+  // 标题子串可定位到 100 条之外的章节。
+  fireEvent.change(screen.getByLabelText('搜索源站映射目标'), { target: { value: '章节120' } })
+  expect(screen.getByRole('option', { name: '120 · 源站章节120' })).toBeInTheDocument()
+  expect(screen.queryByText(/展示前 100 章/)).not.toBeInTheDocument()
+  // 序号子串同样有效。
+  fireEvent.change(screen.getByLabelText('搜索源站映射目标'), { target: { value: '119' } })
+  expect(screen.getByRole('option', { name: '119 · 源站章节119' })).toBeInTheDocument()
+  expect(screen.queryByRole('option', { name: '120 · 源站章节120' })).not.toBeInTheDocument()
+})
+

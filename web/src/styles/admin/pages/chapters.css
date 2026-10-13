@@ -177,6 +177,40 @@
 .chapter-merge-dialog__mapping-adjust { margin-top: var(--admin-space-5); }
 .chapter-merge-dialog__mapping-adjust[aria-expanded='true'] { background: var(--accent-subtle); color: var(--accent-hover); }
 
+/* 序号偏移提示：真实错位需处理（警示色），排版偏移仅提示（中性色），两者不可混用同一视觉。 */
+.chapter-merge-dialog__shift-gap { color: color-mix(in srgb, var(--color-warning) 70%, var(--text-primary)); }
+.chapter-merge-dialog__shift-neutral { color: var(--text-muted); }
+.chapter-merge-dialog__shift-summary > summary { color: var(--text-primary); }
+.chapter-merge-dialog__shift-summary > summary span { margin-left: var(--admin-space-3); color: var(--text-muted); font-weight: 400; }
+p.chapter-merge-dialog__shift-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-2) var(--admin-space-3);
+  margin: 0 0 var(--admin-space-3);
+  color: var(--text-muted);
+  font-size: var(--admin-dialog-hint-size);
+  line-height: 1.65;
+}
+p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
+.chapter-merge-dialog__shift-summary > ul {
+  display: grid;
+  gap: var(--admin-space-2);
+  margin: var(--admin-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.chapter-merge-dialog__shift-summary > ul > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--admin-space-2) var(--admin-space-4);
+  font-size: var(--admin-dialog-hint-size);
+  line-height: 1.65;
+}
+.chapter-merge-dialog__shift-summary > ul > li > strong { font-weight: 500; color: var(--text-primary); }
+.chapter-merge-dialog__shift-summary > ul > li > strong + span { white-space: nowrap; }
+
 .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-editor {
   grid-column: 1 / -1;
   gap: var(--admin-space-4);

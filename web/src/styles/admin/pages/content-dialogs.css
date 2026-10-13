@@ -168,6 +168,8 @@
 .chapter-merge-dialog__old { color: var(--text-muted); }
 .chapter-merge-dialog__new { color: var(--text-primary); }
 .chapter-merge-dialog__new small { display: block; font-size: 0.75rem; margin-top: var(--admin-space-1); }
+/* 自动更新的可解释说明：中性色，避免与需人工核对的警示信息抢注意力。 */
+.chapter-merge-dialog__new .chapter-merge-dialog__auto-reason { color: var(--text-muted); }
 .chapter-merge-dialog__pagination { display: flex; flex-wrap: wrap; align-items: center; gap: var(--admin-space-2); font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--text-muted); }
 .chapter-merge-dialog__pagination > span:first-child { margin-right: auto; }
 .chapter-merge-dialog__empty { padding: var(--admin-space-4) 0; color: var(--text-muted); }

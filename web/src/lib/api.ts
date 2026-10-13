@@ -507,6 +507,18 @@ export interface SourceSyncPreview {
   orderChanges?: Array<{ localChapterId: string; title: string; oldOrder: number; newOrder: number }>
   orderRepairBlockedReason?: string
   orderRepairSkipped?: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }>
+  /** 按阻塞源章聚合后的序号修复受阻摘要；逐章明细仍在 orderRepairSkipped。 */
+  orderRepairBlockers?: Array<{ blockingChapterIds: string[]; reason: string; affectedChapterIds: string[] }>
+  /** 序号偏移区段：layout 为良性排版差异（不标红、不催办），gap 为真实错位（需归位）。 */
+  orderShiftSegments?: Array<{
+    localRange: { from: number; to: number }
+    sourceRange: { from: number; to: number }
+    offset: number
+    kind: 'layout' | 'gap'
+    reason: string
+    blockingChapterIds: string[]
+    chapterIds: string[]
+  }>
   revision?: number
   sourceChapters?: Array<{ key: string; order: number; title: string; url: string }>
   localChapters?: Array<{ id: string; order: number; title: string }>

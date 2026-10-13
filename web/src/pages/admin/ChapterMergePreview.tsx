@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { SourceSyncManualMapping, SourceSyncPreview } from '@/lib/api'
+import type { SourceSyncChange, SourceSyncManualMapping, SourceSyncPreview } from '@/lib/api'
 import ChapterMappingReview from './ChapterMappingReview'
 import { MATCH_REASON_LABELS } from './source-sync-labels'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,45 @@ interface Props {
 }
 
 const PAGE_SIZE = 20
+
+// 章节名尾部/中段的分级标记（H/微H/高h）与源站推广水印：后端 normalizedTitle 已剥离，
+// 前端据此解释「为什么这条无需人工确认」，不再新增后端字段依赖。
+const H_MARKER = /[（(]\s*(?:微|高|小|重|轻|肉|无|超)?\s*[hH]\s*[)）]/g
+const PROMO_SUFFIX = /[「"'“”]?(?:po\s*1[0-9０-９]{0,2}\s*[.．。]?\s*(?:home|homes|com|net|tw|cc|xyz|top|vip|me|info|site|org)|[a-z]{2,10}\s*[.．。]\s*(?:com|net|tw|cc|xyz|top|vip|me|info|site|org))\s*(?:[」"'“”]|[0-9０-９]*)?\s*$/i
+// 导入器留下的裸序号前缀（「84.」「12、」「7：」）。
+const IMPORT_ORDER_PREFIX = /^\s*\d{1,4}(?:\.\d+)?\s*[.、:：]\s*/
+
+/**
+ * 推导「这条标题修正为何可自动完成」，只依据 oldTitle/newTitle/matchReason。
+ *
+ * 与后端 isNoiseOnlyDiff 同口径：exact-title + 高置信度 ⇒ 差异全部来自被剥离的
+ * 噪声成分。此处只做呈现用归类，不参与任何写入判定——不可提交的项自然不会走到这里。
+ */
+function autoUpdateReason(change: SourceSyncChange): string {
+  if (!change.eligible) return ''
+  const oldTitle = change.oldTitle.normalize('NFKC')
+  const newTitle = change.newTitle.normalize('NFKC')
+  const strip = (text: string) => {
+    let value = text
+    for (let round = 0; round < 4; round++) {
+      const next = value.replace(PROMO_SUFFIX, '').replace(H_MARKER, '').trim()
+      if (next === value) break
+      value = next
+    }
+    return value.replace(/[\s\p{P}]/gu, '')
+  }
+  const parts: string[] = []
+  if (IMPORT_ORDER_PREFIX.test(oldTitle) && !IMPORT_ORDER_PREFIX.test(newTitle)) parts.push('剥离导入编号')
+  if (H_MARKER.test(oldTitle) !== H_MARKER.test(newTitle)) {
+    H_MARKER.lastIndex = 0
+    parts.push(H_MARKER.test(oldTitle) ? '剥离分级标记' : '补齐分级标记')
+  }
+  H_MARKER.lastIndex = 0
+  if (PROMO_SUFFIX.test(oldTitle) && !PROMO_SUFFIX.test(newTitle)) parts.push('剥离推广水印')
+  if (!parts.length && strip(oldTitle) === strip(newTitle)) parts.push('仅标点与空白差异')
+  if (!parts.length) return ''
+  return `${parts.join('、')}；归一化后标题一致，属确定修正`
+}
 
 export default function ChapterMergePreview({ preview, fields, onFieldsChange, confirmedManualIds, onConfirmedManualIdsChange, disabled, onRemap, onSelectedMappingsChange, selectedMappingIds, onPendingMappingsChange, onInspect, onDelete, onPendingDeletionChange }: Props) {
   const [filter, setFilter] = useState('all')
@@ -102,6 +141,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
           <ArrowRight size={14} aria-hidden="true" />
           <span className="chapter-merge-dialog__new"><span className="sr-only">更新后：</span>{change.newTitle}
             {change.matchReason && <small>{MATCH_REASON_LABELS[change.matchReason]} · 置信度{{ high: '高', medium: '中', low: '低' }[change.confidence]}。{change.matchEvidence}</small>}
+            {autoUpdateReason(change) && <small className="chapter-merge-dialog__auto-reason">自动更新：{autoUpdateReason(change)}</small>}
             {change.partCount > 1 && <small>拆分 {change.partIndex}/{change.partCount}</small>}
             {!change.eligible && <label className="chapter-merge-dialog__manual-choice">
               <Checkbox aria-label={`确认更新第 ${change.localOrder} 章`} checked={confirmedManualIds.has(change.localChapterId)} disabled={disabled} onCheckedChange={(checked) => {
