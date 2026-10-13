@@ -9,11 +9,12 @@
 }
 
 .admin-redesign-page--moderation .moderation-source-cell a {
-  color: var(--accent-hover);
+  color: var(--admin-accent);
   text-decoration: none;
 }
 
 .admin-redesign-page--moderation .moderation-source-cell a:hover {
+  color: var(--admin-accent-hover);
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
