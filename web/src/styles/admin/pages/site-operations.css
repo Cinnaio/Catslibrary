@@ -4,11 +4,11 @@
   min-width: 0;
 }
 .site-operations .traffic-panel {
-  border: 0;
-  border-radius: 20px;
-  box-shadow: none;
+  border: 1px solid var(--admin-panel-border);
+  border-radius: var(--admin-table-panel-radius);
+  box-shadow: var(--admin-panel-shadow);
   min-width: 0;
-  background: var(--bg-card);
+  background: var(--admin-panel);
 }
 .traffic-toolbar {
   display: flex;
@@ -18,26 +18,29 @@
 }
 .traffic-segment {
   display: inline-flex;
-  padding: 4px;
-  gap: 4px;
-  border-radius: 12px;
-  background: var(--admin-inset);
+  padding: var(--tabs-segmented-inset);
+  gap: var(--tabs-segmented-gap);
+  border-radius: var(--tabs-segmented-radius);
+  border: 1px solid var(--tabs-segmented-track-border);
+  background: var(--tabs-segmented-track-background);
   max-width: 100%;
 }
 .traffic-segment button {
-  border-radius: 9px;
-  padding: 8px 14px;
-  color: var(--text-muted);
+  border-radius: var(--tabs-segmented-inner-radius);
+  padding: 6px 14px;
+  color: var(--tabs-segmented-muted-foreground);
   font-size: 13px;
   white-space: nowrap;
   transition:
-    background 150ms,
-    color 150ms;
+    background var(--tabs-segmented-transition),
+    color var(--tabs-segmented-transition),
+    box-shadow var(--tabs-segmented-transition);
 }
 .traffic-segment button[aria-pressed='true'] {
-  background: var(--bg-card);
-  color: var(--accent);
+  background: var(--tabs-segmented-active-background);
+  color: var(--tabs-segmented-active-foreground);
   font-weight: 600;
+  box-shadow: var(--tabs-segmented-active-shadow);
 }
 .traffic-segment button:focus-visible,
 .traffic-share:focus-visible,

@@ -80,8 +80,9 @@
 }
 .backup-notice {
   padding: var(--admin-space-4) var(--admin-space-5);
-  background: var(--bg-secondary);
-  border-radius: var(--admin-radius);
+  background: var(--admin-panel-muted);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-card);
   font-size: 0.8125rem;
   color: var(--text-secondary);
   line-height: 1.8;
@@ -212,8 +213,9 @@
 .backup-impact-item {
   min-width: 0;
   padding: var(--admin-space-4);
-  border-radius: var(--admin-radius-sm);
-  background: var(--bg-secondary);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-card);
+  background: var(--admin-panel-muted);
 }
 .backup-impact-counts strong,
 .backup-impact-preserved strong,
