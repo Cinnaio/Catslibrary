@@ -17,10 +17,11 @@
 }
 
 .admin-redesign-page > .admin-data-panel {
-  border: 0;
-  border-color: transparent;
+  border: 1px solid var(--admin-border);
   border-radius: var(--admin-data-panel-radius);
-  box-shadow: none;
+  background: var(--admin-table-background);
+  box-shadow: var(--admin-shadow-soft);
+  overflow: hidden;
 }
 
 .admin-redesign-page [data-slot='card-header'] {
@@ -38,13 +39,14 @@
 
 .admin-redesign-page [data-slot='tabs-trigger'] {
   min-height: calc(var(--admin-control-height) - 0.5rem);
-  border-radius: var(--admin-radius-sm);
+  border-radius: var(--radius-full);
   color: var(--text-muted);
+  transition: all 0.15s ease;
 }
 
 .admin-redesign-page [data-slot='tabs-trigger'][data-state='active'] {
   background: var(--admin-panel);
-  color: var(--accent-hover);
+  color: var(--admin-accent);
   box-shadow: var(--admin-shadow-soft);
 }
 

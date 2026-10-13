@@ -32,24 +32,26 @@
   max-width: none;
   height: var(--admin-filter-chip-height);
   gap: var(--admin-filter-chip-gap);
-  border-color: var(--admin-filter-chip-border);
-  border-style: var(--admin-filter-chip-border-style);
-  border-radius: var(--admin-filter-chip-radius);
-  background: var(--admin-filter-chip-background);
-  padding-inline: var(--admin-filter-chip-padding-inline);
+  border-color: var(--admin-border);
+  border-style: solid;
+  border-radius: var(--radius-full);
+  background: var(--admin-panel);
+  padding-inline: 1rem;
   color: var(--admin-filter-chip-foreground);
   font-size: var(--admin-filter-chip-font-size);
   font-weight: var(--admin-filter-chip-font-weight);
+  transition: all 0.16s ease;
 }
 
 .admin-layout [data-slot='popover-trigger'].admin-filter-chip:hover {
-  border-color: var(--accent);
-  background: var(--admin-filter-chip-hover-background);
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-subtle);
+  color: var(--admin-accent);
 }
 
 .admin-layout [data-slot='popover-trigger'].admin-filter-chip:focus-visible {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.2);
 }
 
 /* 搜索占据剩余空间，其余控件按内容宽度靠右 */
@@ -58,6 +60,7 @@
   flex: 1 1 16rem;
   min-width: 0;
   max-width: none;
+  border-radius: var(--radius-full);
 }
 
 /* 搜索框：项目已有 .admin-layout [data-slot='input'] 的 --admin-border-strong，

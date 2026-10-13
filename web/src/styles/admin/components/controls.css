@@ -47,43 +47,58 @@
   padding: 0 0.75rem;
 }
 
-/* ——— secondary 按钮：暖灰底、无描边，与共享 Button 的次要操作语义一致 ——— */
+/* ——— secondary 按钮：微描边纸面胶囊，悬停带暖光过渡 ——— */
 .admin-layout [data-slot='button'][data-variant='secondary'] {
-  background: var(--bg-secondary);
+  background: transparent;
   color: var(--text-primary);
-  border: 0;
+  border: 1px solid var(--admin-border-strong);
   box-shadow: none;
+  transition: all 0.16s ease;
 }
 .admin-layout [data-slot='button'][data-variant='secondary']:hover {
-  background: var(--bg-hover);
+  background: var(--admin-accent-subtle);
+  border-color: var(--admin-accent);
+  color: var(--admin-accent);
 }
 .admin-layout [data-slot='button'][data-variant='secondary']:focus-visible {
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.2);
 }
 
-/* ——— primary（default）按钮：白底 + 统一细灰边框 + 暖棕文字 ——— */
+/* ——— primary（default）按钮：Claude 标志性陶土红 (Terracotta #D97757) 胶囊 ——— */
 .admin-layout [data-slot='button'][data-variant='default'] {
-  background: var(--admin-panel);
-  color: var(--sh-primary);
-  border: 1px solid var(--admin-border-strong);
+  background: var(--admin-accent);
+  color: #FFFFFF;
+  border: 1px solid transparent;
+  box-shadow: 0 2px 8px rgba(217, 119, 87, 0.28);
+  font-weight: 550;
+  transition: all 0.16s cubic-bezier(0.2, 0, 0, 1);
 }
 .admin-layout [data-slot='button'][data-variant='default']:hover {
-  background: color-mix(in srgb, var(--sh-primary) 8%, var(--admin-panel));
+  background: var(--admin-accent-hover);
+  box-shadow: 0 4px 14px rgba(217, 119, 87, 0.36);
+  transform: translateY(-1px);
+}
+.admin-layout [data-slot='button'][data-variant='default']:active {
+  transform: translateY(0);
 }
 .admin-layout [data-slot='button'][data-variant='default']:disabled {
   background: color-mix(in srgb, var(--admin-panel) 85%, var(--bg-secondary));
   color: var(--text-muted);
   border-color: var(--admin-border);
+  box-shadow: none;
+  transform: none;
 }
 
-/* ——— destructive 按钮：白底 + 统一细灰边框 + 红色文字 ——— */
+/* ——— destructive 按钮：低饱和陶土玫瑰色微边框 ——— */
 .admin-layout [data-slot='button'][data-variant='destructive'] {
   background: var(--admin-panel);
   color: var(--color-danger);
-  border: 1px solid var(--admin-border-strong);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, var(--admin-border));
+  transition: all 0.16s ease;
 }
 .admin-layout [data-slot='button'][data-variant='destructive']:hover {
-  background: color-mix(in srgb, var(--color-danger) 6%, var(--admin-panel));
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--admin-panel));
+  border-color: var(--color-danger);
 }
 .admin-layout [data-slot='button'][data-variant='destructive']:disabled {
   background: color-mix(in srgb, var(--admin-panel) 85%, var(--bg-secondary));
@@ -91,16 +106,29 @@
   border-color: var(--admin-border);
 }
 
-/* ——— 输入框：白底 + 细灰边框 ——— */
+/* ——— 输入框：全圆角胶囊与陶土红柔和光晕 ——— */
 .admin-layout [data-slot='input'] {
   background: var(--input-background);
-  border: 1px solid var(--input-border);
+  border: 1px solid var(--admin-border);
   box-shadow: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.admin-layout [data-slot='input']:focus-visible {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.18);
+  outline: none;
 }
 .admin-layout [data-slot='textarea'] {
   background: var(--input-background);
-  border: 1px solid var(--input-border);
+  border: 1px solid var(--admin-border);
   box-shadow: none;
+  border-radius: var(--radius-lg);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.admin-layout [data-slot='textarea']:focus-visible {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.18);
+  outline: none;
 }
 
 /* CustomSelect 弹层：统一风格，移除搜索框底部的分割线 */

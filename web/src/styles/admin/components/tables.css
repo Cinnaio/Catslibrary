@@ -93,6 +93,27 @@
   background: var(--admin-table-header-background);
   color: var(--admin-table-header-foreground);
   border-color: var(--admin-table-border);
+  height: 2.75rem;
+}
+
+.admin-data-panel--grid table > thead > tr > th {
+  font-size: var(--admin-table-head-size);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding-inline: 0.75rem;
+}
+
+.admin-sort-button {
+  color: var(--admin-table-header-foreground);
+  font-weight: 600;
+  font-size: var(--admin-table-head-size);
+  transition: color 0.15s ease;
+}
+.admin-sort-button:hover {
+  color: var(--text-primary);
+}
+.admin-sort-button[data-active='true'] {
+  color: var(--admin-accent);
 }
 
 .admin-data-panel--grid table > tbody > tr {
@@ -105,6 +126,13 @@
 
 .admin-data-panel--grid table > tbody > tr:hover {
   background: var(--admin-table-row-hover-background);
+}
+
+.admin-data-panel--grid table td[data-primary] strong {
+  transition: color 0.15s ease;
+}
+.admin-data-panel--grid table > tbody > tr:hover td[data-primary] strong {
+  color: var(--admin-accent);
 }
 
 /* 定长行高：分类标签数量不同会让行高参差，锁定后列表节奏统一。
@@ -124,6 +152,20 @@
   flex-wrap: nowrap;
 }
 
+.admin-cell-tags__tag {
+  border-radius: var(--radius-full) !important;
+  font-size: 0.72rem !important;
+  padding: 0.1rem 0.55rem !important;
+  border: 1px solid var(--admin-border) !important;
+  background: var(--admin-panel-muted) !important;
+  color: var(--text-secondary) !important;
+  transition: all 0.15s ease;
+}
+.admin-cell-tags__tag:hover {
+  border-color: var(--admin-accent) !important;
+  color: var(--admin-accent) !important;
+}
+
 /* 分类标签：标签多时（实测最多 6 个）会把表格行高撑得参差。
    统一只显示前 3 个，其余折叠为 +N。
    计数徽章由组件按 categories.length - 3 生成，与此处显示的 3 个保持一致
@@ -136,14 +178,12 @@
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  padding: 0.15rem 0.4rem;
+  padding: 0.1rem 0.45rem;
   border: 1px dashed var(--admin-border-strong, var(--admin-border));
   border-radius: var(--radius-full, 9999px);
-  /* 用次级文字色而非 muted：muted 在浅底上对比不足，+N 几乎看不清，
-     而它承载「还有更多」的信息，需要可读。 */
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -207,6 +247,7 @@
 .admin-icon-button {
   width: var(--admin-table-action-size);
   height: var(--admin-table-action-size);
+  border-radius: var(--radius-full);
   color: var(--text-secondary);
   transition:
     background-color var(--admin-table-row-interaction),
@@ -221,8 +262,8 @@
 }
 
 .admin-icon-button:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
+  color: var(--admin-accent);
+  background: var(--admin-accent-subtle);
 }
 
 /* 删除键 hover 前保持中性，避免整列图标都在喊「危险」；
