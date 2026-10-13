@@ -1,10 +1,11 @@
-/* 小说管理的搜索与分级筛选共享一条表格外轻量控制行：搜索占据剩余空间，
-   分级胶囊靠右收口；不伪装成第三张等权卡片，数据面板从选择条/表格开始。 */
+/* 小说管理的搜索与多维度筛选共享一条轻量胶囊轨道（Filter Rail） */
+.novels-filter-rail,
 .novels-rating-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--admin-space-2);
+  justify-content: space-between;
+  gap: 0.75rem;
   width: 100%;
   max-width: 100%;
   padding: 0;
@@ -12,16 +13,19 @@
   background: transparent;
 }
 
+.novels-filter-rail > .admin-search,
 .novels-rating-toolbar > .admin-search {
-  width: auto;
-  max-width: none;
-  flex: 1 1 auto;
+  width: min(22rem, 100%);
+  max-width: 22rem;
+  flex: 1 1 18rem;
 }
 
+.novels-filter-chips,
 .novels-rating-toolbar__filter {
   display: flex;
-  flex: 0 0 auto;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 0.5rem;
   margin-left: auto;
 }
 

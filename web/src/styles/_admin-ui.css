@@ -1,31 +1,9 @@
 .editor-modal__title {
   margin: 0;
-  font-size: 1.34rem;
-  line-height: 1.18;
-  letter-spacing: -0.035em;
-}
-.novel-editor__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 170px;
-  gap: 14px 16px;
-}
-.novel-editor__field {
-  margin-bottom: 0 !important;
-}
-.novel-editor__field--wide {
-  grid-column: 1 / -1;
-}
-.novel-editor__field textarea.form-input {
-  min-height: 150px;
-  line-height: 1.75;
-}
-@media (max-width: 720px) {
-  .editor-modal__title {
-    font-size: 1.22rem;
-  }
-  .novel-editor__grid {
-    grid-template-columns: 1fr;
-  }
+  font-family: var(--admin-font-serif), Georgia, serif !important;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
 }
 .btn {
   transition:

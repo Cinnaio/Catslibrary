@@ -1,16 +1,7 @@
-import BatchNovelFollowupDialog from '@/components/admin/BatchNovelFollowupDialog'
-import NovelUpdateTag from '@/components/admin/NovelUpdateTag'
-/**
- * 小说管理 tab —— 小说列表 / 搜索 / 排序 / 分页 / 增删改 / 批量操作。
- * 由 Novel-KV js/admin-novels.js + admin.html #tab-novels 平移。
- */
-import NovelFollowupDialog from '@/components/admin/NovelFollowupDialog'
-import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
-import { AdminDialogContent, AdminDialogBody } from '@/components/admin/AdminDialog'
-import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { ErrorState } from '@/components/admin/AsyncStates'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, CirclePlus, FileUp, GitMerge, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import type { Novel } from '@shared/types'
 import { newOperationId, novelsApi, url, authHeaders } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
@@ -18,110 +9,57 @@ import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
-import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
-import type { ContentRating, Novel } from '@shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableCaption, TableHeader, TableRow } from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
-import { ArrowDown, ArrowUp, BookOpen, GitMerge, CirclePlus, ChevronsUpDown, FileUp, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
+import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import { ErrorState } from '@/components/admin/AsyncStates'
+import { AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import BatchNovelFollowupDialog from '@/components/admin/BatchNovelFollowupDialog'
+import NovelFollowupDialog from '@/components/admin/NovelFollowupDialog'
+import NovelUpdateTag from '@/components/admin/NovelUpdateTag'
 import BookImportDialog from '@/components/admin/BookImportDialog'
 import BookImportHistoryDialog from '@/components/admin/BookImportHistoryDialog'
-import { AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import NovelEditorDialog from '@/components/admin/NovelEditorDialog'
+import NovelDeleteDialog from '@/components/admin/NovelDeleteDialog'
 
 const ChapterMergeDialog = lazy(() => import('./ChaptersTab'))
 
-/**
- * 表格列定义：桌面端据此固定列宽（表头与内容对齐），移动端据此折成卡片并
- * 显示字段名。顺序必须与 thead/tbody 的单元格顺序一致。
- *
- * 宽度全部用百分比：fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度，
- * 剩余空间再分给百分比列，窄容器里百分比列会被压到不可读（900px 实测标题列
- * 只剩 40px）。纯百分比合计 100%，任何宽度下都等比缩放。
- */
 const NOVEL_COLUMNS: readonly AdminColumn[] = [
   { key: 'check', width: '3%' },
-  { key: 'title', label: '标题', width: '21%', primary: true },
-  { key: 'author', label: '作者', width: '14%' },
-  { key: 'categories', label: '分类', width: '18%' },
+  { key: 'title', label: '作品', width: '23%', primary: true },
+  { key: 'author', label: '作者', width: '13%' },
+  { key: 'categories', label: '分类', width: '16%' },
   { key: 'status', label: '状态', width: '9%' },
   { key: 'rating', label: '分级', width: '9%' },
-  { key: 'chapters', label: '章节', width: '7%' },
+  { key: 'chapters', label: '章节', width: '8%' },
   { key: 'updated', label: '更新', width: '8%' },
   { key: 'actions', actions: true, width: '11%' },
 ]
 
-const STATUS_OPTIONS = [
+const RATING_FILTER_OPTIONS = [
+  { value: '', label: '全部分级' },
+  { value: 'unknown', label: '未标注' },
+  { value: 'general', label: '一般作品' },
+  { value: 'restricted', label: '限制级' },
+]
+
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: '全部连载状态' },
   { value: 'ongoing', label: '连载中' },
   { value: 'completed', label: '已完结' },
 ]
 
-/**
- * 内容分级筛选。「未标注」是默认主力项：标注作业的真实入口是「找出还没判定的」，
- * 而不是逐本翻目录。空字符串代表不筛选。
- */
-const RATING_FILTER_OPTIONS = [
-  { value: '', label: '全部分级' },
-  { value: 'unknown', label: '仅看未标注' },
-  { value: 'restricted', label: '限制级' },
-  { value: 'general', label: '一般' },
-]
-
-/** 编辑弹窗里的分级选项。 */
-const CONTENT_RATING_OPTIONS = [
-  { value: 'unknown', label: '未标注' },
-  { value: 'general', label: '一般' },
-  { value: 'restricted', label: '限制级' },
-]
-
-interface NovelDraft {
-  title: string
-  author: string
-  status: string
-  contentRating: ContentRating
-  description: string
-  coverUrl: string
-  categories: string
-  sourceUrl: string
+const STATUS_LABELS: Record<string, string> = {
+  ongoing: '连载中',
+  completed: '已完结',
 }
 
-const EMPTY_DRAFT: NovelDraft = {
-  title: '',
-  author: '',
-  status: 'ongoing',
-  contentRating: 'unknown',
-  description: '',
-  coverUrl: '',
-  categories: '',
-  sourceUrl: '',
-}
-
-/** 归一化分类输入：支持中英文逗号/顿号，去重（忽略大小写）。 */
-function parseCategories(input: string): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
-  String(input || '')
-    .split(/[,，、]/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .forEach((s) => {
-      const key = s.toLowerCase()
-      if (!seen.has(key)) {
-        seen.add(key)
-        out.push(s)
-      }
-    })
-  return out
-}
-
-/** 增量更新：scrapeApi 未暴露原始 update action，用本地 fetch 包装。 */
 async function scrapeUpdate(novelId: string): Promise<Record<string, unknown>> {
   const res = await fetch(url('/scrape'), {
     method: 'POST',
@@ -145,19 +83,22 @@ function NovelSortButton({
   onSort: (field: string) => void
   children: string
 }) {
-  // 用图标而非 ↑↓↕ 字符：字符箭头在 12px 下渲染模糊且宽度不一，
-  // 切换排序时会造成表头文字左右抖动。
   const Caret = active ? (order === 'asc' ? ArrowUp : ArrowDown) : ChevronsUpDown
   return (
     <button type="button" className="admin-sort-button" data-active={active} onClick={() => onSort(field)}>
-      {/* 文字包一层 span：裸文本节点不参与 flex gap，会导致图标紧贴文字 */}
       <span>{children}</span>
       <Caret className="admin-sort-caret" aria-hidden="true" />
     </button>
   )
 }
 
-export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
+export default function NovelsTab({
+  highlightNovelId,
+  onHighlightConsumed,
+}: {
+  highlightNovelId?: string
+  onHighlightConsumed?: () => void
+}) {
   const [batchFollowupNovels, setBatchFollowupNovels] = useState<Array<{ id: string; title: string }> | null>(null)
   const novelTitleCache = useRef(new Map<string, string>())
   const [mergeNovel, setMergeNovel] = useState<Novel | null>(null)
@@ -166,7 +107,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const { toast } = useToast()
   const { confirm } = useConfirm()
 
-  // --- List state ---
+  // 列表状态
   const [novels, setNovels] = useState<Novel[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -177,20 +118,19 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const [searchInput, setSearchInput] = useState('')
   const [query, setQuery] = useState('')
   const [ratingFilter, setRatingFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  // --- Edit modal state ---
+  // 弹窗状态
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Novel | null>(null)
-  const [draft, setDraft] = useState<NovelDraft>(EMPTY_DRAFT)
   const [bookImportOpen, setBookImportOpen] = useState(false)
   const [importHistoryOpen, setImportHistoryOpen] = useState(false)
-  // 提交中标志：键盘快捷键（Ctrl+Enter）与保存按钮共用，防止重复提交。
-  const [saving, setSaving] = useState(false)
+  const [deletingNovels, setDeletingNovels] = useState<Novel[] | null>(null)
 
-  // --- Highlight (jump from detail page "管理") ---
+  // 定位高亮
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [locateId, setLocateId] = useState<string | null>(null)
   const highlightRowRef = useRef<HTMLTableRowElement>(null)
@@ -199,10 +139,9 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     consumeRef.current = onHighlightConsumed
   }, [onHighlightConsumed])
 
-  // 忽略过期响应（快速切换搜索/排序/翻页时）
   const seqRef = useRef(0)
 
-  // 搜索防抖 250ms → 重置到第 1 页
+  // 搜索防抖
   useEffect(() => {
     if (searchInput.trim() === query) return
     const t = setTimeout(() => {
@@ -220,12 +159,13 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       const params: Record<string, string | number> = { page, limit: pageSize, sort: sortField, order: sortOrder }
       if (query) params.search = query
       if (ratingFilter) params.contentRating = ratingFilter
+      if (statusFilter) params.status = statusFilter
       if (locateId) params.locateNovelId = locateId
       const data = await novelsApi.list(params)
       if (seq !== seqRef.current) return
       const rows = Array.isArray(data.novels) ? data.novels : []
       const tp = data.totalPages || 1
-      rows.forEach(novel => novelTitleCache.current.set(novel.id, novel.title))
+      rows.forEach((novel) => novelTitleCache.current.set(novel.id, novel.title))
       setNovels(rows)
       setTotalPages(tp)
       setTotal(data.total || 0)
@@ -240,7 +180,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         }
         return
       }
-      // 结果收缩导致越界 → 钳回末页重试
       if (page > tp && tp >= 1 && rows.length === 0) {
         setPage(tp)
         return
@@ -253,13 +192,12 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     } finally {
       if (seq === seqRef.current) setLoading(false)
     }
-  }, [page, pageSize, sortField, sortOrder, query, ratingFilter, toast, locateId])
+  }, [page, pageSize, sortField, sortOrder, query, ratingFilter, statusFilter, toast, locateId])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  // 详情页「管理」跳转：清除旧筛选，按目标 ID 定位到它实际所在页。
   useEffect(() => {
     if (!highlightNovelId) return
     seqRef.current++
@@ -267,10 +205,10 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     setSearchInput('')
     setQuery('')
     setRatingFilter('')
+    setStatusFilter('')
     setLocateId(highlightNovelId)
   }, [highlightNovelId])
 
-  // 等目标行加载完成后滚动、高亮，再消耗入口参数，刷新不会重复触发。
   useEffect(() => {
     if (!highlightId || loading) return
     const targetVisible = novels.some((n) => n.id === highlightId)
@@ -280,14 +218,16 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         block: 'center',
       })
     }
-    const t = setTimeout(() => {
-      consumeRef.current?.()
-      setHighlightId(null)
-    }, targetVisible ? 1800 : 0)
+    const t = setTimeout(
+      () => {
+        consumeRef.current?.()
+        setHighlightId(null)
+      },
+      targetVisible ? 1800 : 0,
+    )
     return () => clearTimeout(t)
   }, [novels, loading, highlightId])
 
-  // --- Sort ---
   function toggleSort(field: string) {
     if (field === sortField) {
       setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
@@ -303,7 +243,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     return sortOrder === 'asc' ? 'ascending' : 'descending'
   }
 
-  // --- Selection ---
   const allChecked = novels.length > 0 && novels.every((n) => selected.has(n.id))
 
   function toggleRow(id: string) {
@@ -318,171 +257,37 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   function handleSelectAll(checked: boolean | 'indeterminate') {
     setSelected((prev) => {
       const next = new Set(prev)
-      novels.forEach((n) => {
-        if (checked) next.add(n.id)
-        else next.delete(n.id)
-      })
+      if (checked) {
+        novels.forEach((n) => next.add(n.id))
+      } else {
+        novels.forEach((n) => next.delete(n.id))
+      }
       return next
     })
   }
 
   function invertSelection() {
     setSelected((prev) => {
-      const next = new Set(prev)
+      const next = new Set<string>()
       novels.forEach((n) => {
-        if (next.has(n.id)) next.delete(n.id)
-        else next.add(n.id)
+        if (!prev.has(n.id)) next.add(n.id)
       })
       return next
     })
   }
 
   function titleFor(id: string): string {
-    const n = novels.find((x) => x.id === id)
-    return n ? n.title : novelTitleCache.current.get(id) || id.slice(0, 8)
+    const fromCache = novelTitleCache.current.get(id)
+    if (fromCache) return fromCache
+    const found = novels.find((n) => n.id === id)
+    return found ? found.title : id.slice(0, 8)
   }
 
-  // --- Modal ---
   function openModal(novel: Novel | null) {
     setEditing(novel)
-    setDraft(
-      novel
-        ? {
-            title: novel.title || '',
-            author: novel.author || '',
-            status: novel.status || 'ongoing',
-            contentRating: novel.contentRating || 'unknown',
-            description: novel.description || '',
-            coverUrl: novel.coverUrl || '',
-            categories: (novel.categories || []).join(', '),
-            sourceUrl: novel.sourceUrl || '',
-          }
-        : EMPTY_DRAFT,
-    )
     setModalOpen(true)
   }
 
-  function closeModal() {
-    setModalOpen(false)
-    setEditing(null)
-    // 必须复位提交态：用户可能在请求飞行中按 Esc / 点遮罩关掉弹窗，
-    // handleSave 的 finally 虽会复位，但若组件在此期间已卸载或该次提交
-    // 抛在 setState 之前，残留的 true 会让「下次打开」直接是禁用态的
-    // 「保存中…」——一个再也点不动的弹窗。
-    setSaving(false)
-  }
-
-  async function handleSave() {
-    // 提交闸门：重复点保存或按住 Ctrl+Enter 只走一次。
-    if (saving) return
-    const title = draft.title.trim()
-    const author = draft.author.trim()
-    const sourceUrl = draft.sourceUrl.trim()
-    if (!title || !author) {
-      toast('标题和作者为必填项', 'error')
-      return
-    }
-    const dup = novels.find((n) => n.id !== (editing ? editing.id : null) && (n.title === title || (sourceUrl && n.sourceUrl === sourceUrl)))
-    if (dup) {
-      const ok = await confirm({
-        title: '发现重复小说',
-        message: '已存在同名小说，仍要继续保存吗？',
-        okText: '继续保存',
-        danger: false,
-        items: [dup.title],
-      })
-      if (!ok) return
-    }
-    const data = {
-      title,
-      author,
-      description: draft.description.trim(),
-      coverUrl: draft.coverUrl.trim(),
-      categories: parseCategories(draft.categories),
-      status: draft.status,
-      ...(!editing || draft.contentRating !== (editing.contentRating || 'unknown')
-        ? { contentRating: draft.contentRating, ...(editing ? { contentRatingRevision: editing.contentRatingRevision || 0 } : {}) }
-        : {}),
-      sourceUrl,
-    }
-    setSaving(true)
-    try {
-      if (editing) {
-        await novelsApi.update(editing.id, data)
-        toast('小说已更新', 'success')
-      } else {
-        await novelsApi.create(data)
-        toast('小说已创建', 'success')
-      }
-      closeModal()
-      void load()
-    } catch (err) {
-      toast('保存失败: ' + ((err as Error).message || '请检查网络和认证令牌'), 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  // 弹窗键盘路径：Ctrl/Cmd + Enter 或 Ctrl/Cmd + S 提交；打开后焦点落到标题输入。
-  useDialogHotkeys({ open: modalOpen, onSubmit: handleSave, submitting: saving })
-  useDialogFocus(modalOpen, '#novel-title')
-
-  // --- Delete ---
-  async function handleDelete(novel: Novel) {
-    const ok = await confirm({
-      title: '删除小说',
-      message: '确定删除该小说及其所有章节？此操作不可恢复。',
-      okText: '删除',
-      danger: true,
-      items: [`${novel.title || novel.id} — ${novel.chapterCount || 0} 章`],
-    })
-    if (!ok) return
-    try {
-      await novelsApi.remove(novel.id)
-      setSelected((prev) => {
-        const next = new Set(prev)
-        next.delete(novel.id)
-        return next
-      })
-      toast('小说已删除', 'success')
-    } catch (err) {
-      toast('删除失败: ' + ((err as Error).message || '请检查网络和认证令牌'), 'error')
-    }
-    void load()
-  }
-
-  async function handleBatchDelete() {
-    const ids = Array.from(selected).filter(Boolean).sort()
-    if (ids.length === 0) {
-      toast('请先选择小说', 'error')
-      return
-    }
-    const ok = await confirm({
-      title: '批量删除小说',
-      message: `确定删除以下 ${ids.length} 本小说及其所有章节？此操作不可恢复。`,
-      okText: '确认删除',
-      danger: true,
-      items: ids.map((id) => {
-        const n = novels.find((x) => x.id === id)
-        return (n ? n.title : id.slice(0, 8)) + (n ? ` — ${n.chapterCount || 0} 章` : '')
-      }),
-    })
-    if (!ok) return
-    try {
-      const data = await novelsApi.batchDelete(ids, newOperationId('batch-delete-novels'))
-      toast(`已删除 ${(data as { deleted?: number }).deleted || ids.length} 本小说`, 'success')
-    } catch (err) {
-      toast('批量删除失败: ' + ((err as Error).message || '请检查网络和认证令牌'), 'error')
-    }
-    setSelected((prev) => {
-      const next = new Set(prev)
-      ids.forEach((id) => next.delete(id))
-      return next
-    })
-    void load()
-  }
-
-  // --- Batch update (incremental scrape) ---
   async function handleBatchUpdate() {
     const ids = Array.from(selected)
     if (ids.length === 0) {
@@ -522,6 +327,19 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     void load()
   }
 
+  function handleBatchDeletePrompt() {
+    const ids = Array.from(selected)
+    if (ids.length === 0) {
+      toast('请先选择小说', 'error')
+      return
+    }
+    const toDelete = novels.filter((n) => selected.has(n.id))
+    if (!toDelete.length) {
+      toDelete.push(...ids.map((id) => ({ id, title: titleFor(id) } as Novel)))
+    }
+    setDeletingNovels(toDelete)
+  }
+
   const emptyMessage = query ? `没有匹配「${query}」的小说` : '暂无小说，点击「+ 添加小说」开始'
 
   return (
@@ -535,7 +353,9 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             <FileUp aria-hidden="true" />
             导入书籍
           </Button>
-          <Button variant="secondary" onClick={() => setImportHistoryOpen(true)}>导入历史</Button>
+          <Button variant="secondary" onClick={() => setImportHistoryOpen(true)}>
+            导入历史
+          </Button>
           <Button variant="secondary" onClick={() => openModal(null)}>
             <span aria-hidden="true">＋</span>
             添加小说
@@ -543,17 +363,31 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </>
       }
     >
-      <AdminToolbar layout="inline" className="novels-rating-toolbar">
+      {/* Claude 风格全要素胶囊筛选轨道 */}
+      <AdminToolbar layout="inline" className="novels-filter-rail">
         <AdminSearch
           id="novel-search"
           label="搜索小说"
           type="search"
           data-admin-search
-          placeholder="搜索标题、作者或简介"
+          placeholder="搜索作品标题、作者名或简介…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
-        <div className="novels-rating-toolbar__filter">
+        <div className="novels-filter-chips">
+          <CustomSelect
+            compact
+            chip
+            filterChip
+            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            aria-label="按连载状态筛选小说"
+            options={STATUS_FILTER_OPTIONS}
+            value={statusFilter}
+            onChange={(v) => {
+              setStatusFilter(v)
+              setPage(1)
+            }}
+          />
           <CustomSelect
             compact
             chip
@@ -570,24 +404,40 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </div>
       </AdminToolbar>
 
+      {/* 浮动岛屿批量操作条 */}
       {selected.size > 0 && (
-        <AdminSelectionBar count={selected.size} label={`已选 ${selected.size} 本`} onClear={() => setSelected(new Set())} clearPlacement="selection">
+        <AdminSelectionBar
+          count={selected.size}
+          label={`已选择 ${selected.size} 部作品`}
+          onClear={() => setSelected(new Set())}
+          clearPlacement="selection"
+        >
           <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
-            批量更新
+            批量检查更新
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => setBatchFollowupNovels(Array.from(selected, id => ({ id, title: titleFor(id) })))}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setBatchFollowupNovels(Array.from(selected, (id) => ({ id, title: titleFor(id) })))}
+          >
             批量追更设置
           </Button>
           <Button variant="secondary" size="sm" onClick={invertSelection}>
             反选
           </Button>
-          <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
+          <Button variant="destructive" size="sm" onClick={handleBatchDeletePrompt}>
             删除所选
           </Button>
         </AdminSelectionBar>
       )}
 
-      <AdminDataPanel className="novels-data-panel" ariaLabel="作品目录数据" columns={NOVEL_COLUMNS}>
+      {/* 采用 comfortable 舒适行距的数据面板 */}
+      <AdminDataPanel
+        className="novels-data-panel"
+        ariaLabel="作品目录数据"
+        columns={NOVEL_COLUMNS}
+        density="comfortable"
+      >
         <Table>
           <TableCaption className="sr-only">小说目录列表，可按标题、作者、分类、状态、分级、章节数和更新时间排序</TableCaption>
           <TableHeader>
@@ -597,7 +447,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
               </TableHead>
               <TableHead scope="col" aria-sort={sortAria('title')}>
                 <NovelSortButton field="title" active={sortField === 'title'} order={sortOrder} onSort={toggleSort}>
-                  标题
+                  作品
                 </NovelSortButton>
               </TableHead>
               <TableHead scope="col" aria-sort={sortAria('author')}>
@@ -633,89 +483,153 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
               <TableHead scope="col">操作</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody key={pageSize}>
-            {loading ? (
+          <TableBody>
+            {loading && novels.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={NOVEL_COLUMNS.length} className="table-empty">
-                  加载中…
+                <TableCell colSpan={NOVEL_COLUMNS.length} className="text-center py-12 text-muted-foreground">
+                  <div className="flex flex-col items-center gap-2">
+                    <RefreshCw className="size-5 animate-spin text-accent" />
+                    <span>正在加载书库作品…</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : loadError && novels.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={NOVEL_COLUMNS.length} className="text-center py-8">
+                  <ErrorState message={`加载失败：${loadError}`} onRetry={() => void load()} />
                 </TableCell>
               </TableRow>
             ) : novels.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={NOVEL_COLUMNS.length} className="table-empty">
-                  {loadError ? <ErrorState message={`小说列表加载失败：${loadError}`} /> : emptyMessage}
+                <TableCell colSpan={NOVEL_COLUMNS.length} className="text-center py-12 text-muted-foreground">
+                  {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
-              novels.map((n, index) => (
+              novels.map((n, idx) => (
                 <TableRow
                   key={n.id}
-                  className={n.id === highlightId ? 'novel-row--highlight' : undefined}
                   ref={n.id === highlightId ? highlightRowRef : undefined}
+                  className={n.id === highlightId ? 'novel-row--highlight' : undefined}
                   style={{
-                    animationDelay: `${getAdminTableRowStaggerDelay(index, novels.length)}ms`,
+                    animationDelay: `${getAdminTableRowStaggerDelay(idx, novels.length)}ms`,
                   }}
                 >
-                  <TableCell data-check="">
-                    <Checkbox aria-label={`选择小说：${n.title}`} checked={selected.has(n.id)} onCheckedChange={() => toggleRow(n.id)} />
+                  <TableCell>
+                    <Checkbox
+                      aria-label={`选择小说：${n.title}`}
+                      checked={selected.has(n.id)}
+                      onCheckedChange={() => toggleRow(n.id)}
+                    />
                   </TableCell>
-                  <TableCell data-primary="" data-label="标题">
-                    {/* 长书名（实测有 60+ 字）会被定长行高 + overflow:hidden
-                        静默裁掉；改为截断 + 省略号，完整值挂 title 与读屏。 */}
-                    <AdminCellText strong>{n.title || '—'}</AdminCellText>
-                  </TableCell>
-                  <TableCell data-label="作者">
-                    <AdminCellText>{n.author || '—'}</AdminCellText>
-                  </TableCell>
-                  <TableCell data-label="分类">
-                    {n.categories && n.categories.length > 0 ? (
-                      // 全部标签都渲染，由 CSS 按视口截断显示数量（见
-                      // .admin-cell-tags__overflow）。这样桌面与移动可显示不同
-                      // 数量，且完整列表对读屏软件仍可见。
-                      <span className="admin-cell-tags" title={n.categories.join('、')}>
-                        {n.categories.map((c) => (
-                          <Badge variant="outline" key={c} className="admin-cell-tags__tag">
-                            {c}
-                          </Badge>
-                        ))}
-                        {n.categories.length > 3 && (
-                          <span className="admin-cell-tags__overflow" aria-hidden="true">
-                            +{n.categories.length - 3}
+                  <TableCell className="font-medium novel-title-cell">
+                    {/* 微型立体书影实体 + 书名 */}
+                    <div className="novel-book-entity">
+                      <div className="novel-book-cover">
+                        {n.coverUrl && !/noimg\.jpg/i.test(n.coverUrl) ? (
+                          <img src={n.coverUrl} alt={n.title} className="novel-book-cover__img" loading="lazy" />
+                        ) : (
+                          <div className="novel-book-cover__placeholder">
+                            <span>{n.title.charAt(0)}</span>
+                          </div>
+                        )}
+                        <span className="novel-book-cover__spine" aria-hidden="true" />
+                      </div>
+                      <div className="novel-book-info">
+                        <span className="novel-book-title">{n.title}</span>
+                        {n.sourceUrl && (
+                          <span className="novel-book-sub">
+                            {(() => {
+                              try {
+                                return new URL(n.sourceUrl).hostname.replace('www.', '')
+                              } catch {
+                                return ''
+                              }
+                            })()}
                           </span>
                         )}
-                      </span>
-                    ) : (
-                      <span className="admin-empty-value">—</span>
-                    )}
+                      </div>
+                    </div>
                   </TableCell>
-                  <TableCell data-label="状态">
-                    <AdminStatusBadge tone={n.status === 'completed' ? 'success' : 'info'}>{n.status === 'completed' ? '已完结' : '连载中'}</AdminStatusBadge>
+                  <TableCell>
+                    <AdminCellText>{n.author || '未知作者'}</AdminCellText>
                   </TableCell>
-                  <TableCell data-label="分级">
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {(n.categories || []).length === 0 ? (
+                        <span className="text-xs text-muted-foreground">未分类</span>
+                      ) : (
+                        <>
+                          {n.categories!.slice(0, 2).map((c) => (
+                            <Badge key={c} variant="outline" className="text-xs rounded-full px-2 py-0.5">
+                              {c}
+                            </Badge>
+                          ))}
+                          {n.categories!.length > 2 && (
+                            <Badge variant="outline" className="text-xs rounded-full px-1.5 py-0.5 text-muted-foreground">
+                              +{n.categories!.length - 2}
+                            </Badge>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <AdminStatusBadge tone={n.status === 'completed' ? 'neutral' : 'info'}>
+                      {STATUS_LABELS[n.status || 'ongoing'] || n.status}
+                    </AdminStatusBadge>
+                  </TableCell>
+                  <TableCell>
                     <AdminContentRatingBadge rating={n.contentRating} />
                   </TableCell>
-                  <TableCell data-label="章节">
-                    <div className="novel-chapter-summary">
-                      <span>{n.chapterCount || 0}</span>
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="tabular-nums font-semibold">{n.chapterCount || 0} 章</span>
                       <NovelUpdateTag novel={n} />
                     </div>
                   </TableCell>
-                  <TableCell data-label="更新" className="text-sm text-muted">
-                    {timeAgo(n.updatedAt)}
+                  <TableCell>
+                    <span className="text-xs text-muted-foreground" title={n.updatedAt ? new Date(n.updatedAt).toLocaleString() : ''}>
+                      {timeAgo(n.updatedAt)}
+                    </span>
                   </TableCell>
-                  <TableCell data-actions="">
+                  <TableCell>
                     <AdminRowActions
                       label={n.title}
                       items={[
-                        // 阅读是只读出口，编辑是日常主操作，两者常驻；
-                        // 删除低频且不可逆，收进菜单以免与主操作同权重并列。
-                        { label: '查看详情', icon: BookOpen, onSelect: () => navigate(`/novel/${encodeURIComponent(n.id)}`) },
-                        { label: '融合章节名', icon: GitMerge, onSelect: () => setMergeNovel(n) },
-                        { label: '追更设置', icon: RefreshCw, onSelect: () => setFollowupNovel(n) },
-                        { label: '生成封面', icon: Palette, onSelect: () => navigate(`/admin/ai?sub=cover&novel=${encodeURIComponent(n.id)}`) },
-                        { label: '删除小说', icon: Trash2, onSelect: () => void handleDelete(n), danger: true },
+                        {
+                          label: '章节列表',
+                          icon: BookOpen,
+                          onSelect: () => navigate(`/admin/chapters?novelId=${encodeURIComponent(n.id)}`),
+                        },
+                        {
+                          label: '融合章节名',
+                          icon: GitMerge,
+                          onSelect: () => setMergeNovel(n),
+                        },
+                        {
+                          label: '生成 AI 封面',
+                          icon: Palette,
+                          onSelect: () => navigate(`/admin/ai?tab=illustrations&novelId=${encodeURIComponent(n.id)}`),
+                        },
+                        {
+                          label: '删除小说',
+                          icon: Trash2,
+                          danger: true,
+                          onSelect: () => setDeletingNovels([n]),
+                        },
                       ]}
                     >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="admin-icon-button"
+                        aria-label={`追更设置：${n.title}`}
+                        title="追更设置"
+                        onClick={() => setFollowupNovel(n)}
+                      >
+                        <RefreshCw className="size-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -735,8 +649,18 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </Table>
       </AdminDataPanel>
 
+      {/* 弹窗集合 */}
       {batchFollowupNovels && <BatchNovelFollowupDialog novels={batchFollowupNovels} onClose={() => setBatchFollowupNovels(null)} />}
-      {mergeNovel && <Suspense fallback={<p role="status">正在打开融合章节名…</p>}><ChapterMergeDialog key={mergeNovel.id} mergeNovel={{ id: mergeNovel.id, title: mergeNovel.title, author: mergeNovel.author || '', chapterCount: mergeNovel.chapterCount || 0 }} onMergeClose={() => setMergeNovel(null)} onMergeApplied={load} /></Suspense>}
+      {mergeNovel && (
+        <Suspense fallback={<p role="status">正在打开融合章节名…</p>}>
+          <ChapterMergeDialog
+            key={mergeNovel.id}
+            mergeNovel={{ id: mergeNovel.id, title: mergeNovel.title, author: mergeNovel.author || '', chapterCount: mergeNovel.chapterCount || 0 }}
+            onMergeClose={() => setMergeNovel(null)}
+            onMergeApplied={load}
+          />
+        </Suspense>
+      )}
       {followupNovel && <NovelFollowupDialog key={followupNovel.id} novel={followupNovel} onClose={() => setFollowupNovel(null)} />}
 
       <Pagination
@@ -753,7 +677,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         }
         pageSize={{
           value: pageSize,
-          // 本地常量换成 state 才能改页大小；改动后回第 1 页避免越界。
           onChange: (size) => {
             setPageSize(size)
             setPage(1)
@@ -765,112 +688,30 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       <BookImportDialog key={bookImportOpen ? 'open' : 'closed'} open={bookImportOpen} onOpenChange={setBookImportOpen} onCompleted={() => void load()} />
       <BookImportHistoryDialog open={importHistoryOpen} onOpenChange={setImportHistoryOpen} onCompleted={() => void load()} />
 
-      <Dialog
+      {/* 独立的编辑弹窗与删除确认弹窗 */}
+      <NovelEditorDialog
         open={modalOpen}
-        onOpenChange={(open) => {
-          if (!open) closeModal()
-        }}
-      >
-        <AdminDialogContent variant="editor" className="novel-editor-dialog sm:max-w-[540px]">
-          <DialogHeader>
-            <DialogTitle className="editor-modal__title">{editing ? '编辑小说' : '添加小说'}</DialogTitle>
-          </DialogHeader>
-          <AdminDialogBody>
-            <div className="novel-editor__grid">
-              <div className="form-group novel-editor__field novel-editor__field--wide">
-                <Label htmlFor="novel-title">标题</Label>
-                <Input
-                  id="novel-title"
-                  type="text"
-                  placeholder="小说标题"
-                  value={draft.title}
-                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                />
-              </div>
-              <div className="form-group novel-editor__field">
-                <Label htmlFor="novel-author">作者</Label>
-                <Input
-                  id="novel-author"
-                  type="text"
-                  placeholder="作者名"
-                  value={draft.author}
-                  onChange={(e) => setDraft({ ...draft, author: e.target.value })}
-                />
-              </div>
-              <div className="form-group novel-editor__field">
-                <Label id="novel-status-label">状态</Label>
-                <CustomSelect
-                  aria-labelledby="novel-status-label"
-                  options={STATUS_OPTIONS}
-                  value={draft.status}
-                  onChange={(v) => setDraft({ ...draft, status: v })}
-                />
-              </div>
-              <div className="form-group novel-editor__field novel-editor__field--wide">
-                <Label htmlFor="novel-description">简介</Label>
-                <Textarea
-                  id="novel-description"
-                  rows={5}
-                  className="min-h-[150px]"
-                  placeholder="小说简介…"
-                  value={draft.description}
-                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                />
-              </div>
-              <div className="form-group novel-editor__field novel-editor__field--wide">
-                <Label htmlFor="novel-cover-url">来源封面 URL</Label>
-                <Input
-                  id="novel-cover-url"
-                  type="url"
-                  placeholder="https://..."
-                  value={draft.coverUrl}
-                  onChange={(e) => setDraft({ ...draft, coverUrl: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">外部来源封面地址；AI 生成或本地上传的当前封面保存在封面库中，此处会保持为空</p>
-              </div>
-              <div className="form-group novel-editor__field">
-                <Label htmlFor="novel-categories">分类</Label>
-                <Input
-                  id="novel-categories"
-                  type="text"
-                  placeholder="玄幻, 修真, 仙侠"
-                  value={draft.categories}
-                  onChange={(e) => setDraft({ ...draft, categories: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">多个分类用逗号分隔</p>
-              </div>
-              <div className="form-group novel-editor__field">
-                <Label htmlFor="novel-source-url">源网址</Label>
-                <Input
-                  id="novel-source-url"
-                  type="url"
-                  placeholder="https://..."
-                  value={draft.sourceUrl}
-                  onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
-                />
-              </div>
-              <div className="form-group novel-editor__field">
-                <Label id="novel-rating-label">内容分级</Label>
-                <CustomSelect
-                  aria-labelledby="novel-rating-label"
-                  options={CONTENT_RATING_OPTIONS}
-                  value={draft.contentRating}
-                  onChange={(v) => setDraft({ ...draft, contentRating: v as ContentRating })}
-                />
-                <p className="text-xs text-muted-foreground">未标注时保存会自动初判；命中成人标签或文本特征的作品会标为限制级。</p>
-              </div>
-            </div>
-          </AdminDialogBody>
-          <DialogFooter>
-            <Button variant="secondary" onClick={closeModal} disabled={saving}>
-              取消
-            </Button>
-            <Button onClick={() => void handleSave()} disabled={saving}>
-              {saving ? '保存中…' : '保存'}
-            </Button>
-          </DialogFooter>
-        </AdminDialogContent>
-      </Dialog>
+        editing={editing}
+        existingNovels={novels}
+        onClose={() => setModalOpen(false)}
+        onSaved={() => void load()}
+      />
+
+      {deletingNovels && (
+        <NovelDeleteDialog
+          open={Boolean(deletingNovels)}
+          novels={deletingNovels}
+          onClose={() => setDeletingNovels(null)}
+          onDeleted={(deletedIds) => {
+            setSelected((prev) => {
+              const next = new Set(prev)
+              deletedIds.forEach((id) => next.delete(id))
+              return next
+            })
+            void load()
+          }}
+        />
+      )}
     </AdminPage>
   )
 }
