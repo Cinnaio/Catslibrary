@@ -16,7 +16,7 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
   const id = c.req.param('id')
   if (!id || id.includes('/')) return c.json({ error: 'Invalid novel ID' }, 400)
 
-  const novel = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [id])
+  const novel = await first<{ id: string; content_rating: string; cover_url: string }>(db, 'SELECT id, content_rating, cover_url FROM novels WHERE id = $1', [id])
   if (!novel) return c.json({ error: 'Novel not found' }, 404)
   if (novel.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -24,11 +24,15 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
   }
 
   let cover = await getStoredCover(db, id)
-  // 首次读取时缓存源封面；缺省图直接读取打包资产，不重复入库。
-  if (!cover) {
+  // 修复历史上只更新 URL 的记录；本地上传/AI 来源不与外部 URL 比较。
+  const staleSource = cover && (isDefaultCoverSource(cover.source) || /^https?:\/\//i.test(cover.source))
+    && cover.source !== String(novel.cover_url || '').trim()
+  let retrySource = false
+  if (!cover || staleSource) {
     const cached = await cacheCoverForNovel(db, id)
     if (!cached.ok) return c.json({ error: cached.error || 'Cover not found' }, (cached.status || 404) as 404)
     cover = await getStoredCover(db, id)
+    retrySource = !cover && /^https?:\/\//i.test(novel.cover_url) && !isDefaultCoverSource(novel.cover_url)
   }
 
   // 旧库中的缺省图片也展示新版；保留原始存储版本供后台替换并发校验。
@@ -44,7 +48,7 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
     // Covers use private client caches. Access is checked on every network request,
     // including conditional requests; clients hide restricted covers when mode closes.
     // Rating/cover changes bump novels.updated_at, part of the iOS cover URL.
-    'Cache-Control': 'private, max-age=604800, must-revalidate',
+    'Cache-Control': retrySource ? 'private, no-store' : 'private, max-age=604800, must-revalidate',
     Vary: 'Cookie, Authorization, X-Content-Access',
     ETag: etag,
   }

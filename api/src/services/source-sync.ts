@@ -13,6 +13,8 @@ import { getPo18Session } from './source-account'
 import { applyContentRatingChange, CONTENT_RATING_RULE_VERSION } from './content-rating-governance'
 import { evaluateContentRatingRules, loadContentRatingRuleSet } from './content-rating-rules'
 import { toContentRating } from '../db/mappers'
+import { invalidateCoverForSourceChange, type StoredCover } from './covers'
+import { isDefaultCoverSource } from '@shared/covers'
 
 export type SourceSyncConfidence = 'high' | 'medium' | 'low'
 export type SourceSyncMatchReason = 'exact-title' | 'chapter-number' | 'title-overlap' | 'sequence' | 'manual'
@@ -145,7 +147,7 @@ interface AppliedChapterChange {
   after: { title: string; order: number }
 }
 const NOVEL_SNAPSHOT_FIELDS = ['title', 'author', 'description', 'cover_url', 'categories', 'status', 'content_rating', 'content_rating_revision'] as const
-interface AppliedMetadataChange { kind: 'metadata'; before: Record<string, unknown>; after: Record<string, unknown> }
+interface AppliedMetadataChange { kind: 'metadata'; before: Record<string, unknown>; after: Record<string, unknown>; coverHistoryId?: string | null }
 type AppliedSyncChange = AppliedChapterChange | AppliedMetadataChange
 export interface SourceSyncRollbackResult { runId: string; restored: number; conflicts: Array<{ id: string; title: string; reason: string }> }
 
@@ -931,18 +933,19 @@ export async function applySourceSync(
   const confirmedChangeIds = new Set(opts.confirmedChangeIds || [])
   const metadataUpdated: string[] = []
   const changesToApply = changes.filter((change) => change.eligible || confirmedChangeIds.has(change.localChapterId))
-  const now = Date.now()
+  let now = Date.now()
   let orderUpdated = 0
 
   await withTx(db, async (q) => {
     const lockedRun = await q<SourceSyncRunRow>('SELECT * FROM source_sync_runs WHERE id = $1 FOR UPDATE', [run.id])
     if (!lockedRun.rows[0] || lockedRun.rows[0].status !== 'preview') throw new Error('该同步预览已应用或已过期，请重新预览')
     assertSyncRevision(lockedRun.rows[0], opts.revision ?? 0)
-    const novel = await q('SELECT title, author, description, cover_url, categories, status, content_rating, content_rating_revision FROM novels WHERE id = $1 FOR UPDATE', [
+    const novel = await q('SELECT title, author, description, cover_url, categories, status, content_rating, content_rating_revision, updated_at FROM novels WHERE id = $1 FOR UPDATE', [
       run.novel_id,
     ])
     const novelRow = novel.rows[0] as Record<string, unknown> | undefined
     if (!novelRow) throw new Error('Novel not found')
+    now = Math.max(now, (Number(novelRow.updated_at) || 0) + 1)
     const audit: AppliedSyncChange[] = []
     const chapterBefore = new Map<string, { title: string; order: number }>()
     if (safeJsonParse<SourceSyncManualMapping[]>(run.manual_mappings_json || '[]', []).length) {
@@ -1011,7 +1014,11 @@ export async function applySourceSync(
     if (nextTitle !== currentNovel.title) metadataUpdated.push('title')
     if (nextAuthor !== currentNovel.author) metadataUpdated.push('author')
     if (nextDescription !== currentNovel.description) metadataUpdated.push('description')
-    if (nextCover !== currentNovel.cover_url) metadataUpdated.push('coverUrl')
+    let coverHistoryId: string | null | undefined
+    if (nextCover !== currentNovel.cover_url) {
+      metadataUpdated.push('coverUrl')
+      coverHistoryId = await invalidateCoverForSourceChange(q, run.novel_id, { actorId: opts.actorUserId, reason: 'source-sync' })
+    }
     if (nextCategories !== currentNovel.categories) metadataUpdated.push('categories')
     if (nextStatus !== currentNovel.status) metadataUpdated.push('status')
     const ruleDecision = evaluateContentRatingRules(
@@ -1046,7 +1053,7 @@ export async function applySourceSync(
     }
     if (metadataUpdated.length || nextRating !== currentNovel.content_rating) {
       const after = (await q<Record<string, unknown>>('SELECT title,author,description,cover_url,categories,status,content_rating,content_rating_revision FROM novels WHERE id=$1', [run.novel_id])).rows[0]!
-      audit.push({ kind: 'metadata', before: Object.fromEntries(NOVEL_SNAPSHOT_FIELDS.map(field => [field, currentNovel[field]])), after })
+      audit.push({ kind: 'metadata', before: Object.fromEntries(NOVEL_SNAPSHOT_FIELDS.map(field => [field, currentNovel[field]])), after, ...(coverHistoryId !== undefined ? { coverHistoryId } : {}) })
     }
     for (const mapping of mappings) {
       const localIds = mapping.localChapterIds
@@ -1157,6 +1164,29 @@ export async function rollbackSourceSync(db: Db, runId: string, actorUserId: str
         result.conflicts.push({ id: run.novel_id, title: '小说信息', reason: '小说信息或分级已再次编辑、审核，保留当前值。' })
         continue
       }
+      if (change.coverHistoryId !== undefined) {
+        const cover = (await q<StoredCover>('SELECT data, content_type, source, prompt, metadata, updated_at FROM novel_covers WHERE novel_id = $1 FOR UPDATE', [run.novel_id])).rows[0]
+        if (cover && !isDefaultCoverSource(cover.source) && cover.source !== String(change.after.cover_url || '').trim()) {
+          result.conflicts.push({ id: run.novel_id, title: '小说封面', reason: '封面已被后续替换，保留当前封面与小说信息。' })
+          continue
+        }
+        const previous = change.coverHistoryId
+          ? (await q<StoredCover>('SELECT data, content_type, source, prompt, metadata FROM novel_cover_history WHERE id=$1 AND novel_id=$2', [change.coverHistoryId, run.novel_id])).rows[0]
+          : undefined
+        if (change.coverHistoryId && !previous) {
+          result.conflicts.push({ id: run.novel_id, title: '小说封面', reason: '原封面历史已清理，保留当前封面与小说信息。' })
+          continue
+        }
+        await invalidateCoverForSourceChange(q, run.novel_id, { actorId: actorUserId, reason: 'source-sync-rollback' })
+        if (previous) await q(
+          `INSERT INTO novel_covers (novel_id,data,content_type,source,prompt,metadata,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [run.novel_id, previous.data, previous.content_type, previous.source, previous.prompt, previous.metadata, Date.now()],
+        )
+      } else if (change.before.cover_url !== change.after.cover_url) {
+        // 兼容修复前的融合历史：旧记录只保存了 URL，恢复时让源封面重新按旧 URL 缓存。
+        const cover = (await q<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id=$1', [run.novel_id])).rows[0]
+        if (cover && /^https?:\/\//i.test(cover.source)) await invalidateCoverForSourceChange(q, run.novel_id, { actorId: actorUserId, reason: 'source-sync-rollback' })
+      }
       const before = change.before
       await q('UPDATE novels SET title=$1,author=$2,description=$3,cover_url=$4,categories=$5,status=$6 WHERE id=$7',
         [before.title, before.author, before.description, before.cover_url, before.categories, before.status, run.novel_id])
@@ -1167,7 +1197,7 @@ export async function rollbackSourceSync(db: Db, runId: string, actorUserId: str
       result.restored++
     }
     if (!result.conflicts.length) await q('DELETE FROM source_chapter_mappings WHERE sync_run_id=$1', [runId])
-    await q('UPDATE novels SET updated_at=$1 WHERE id=$2', [Date.now(), run.novel_id])
+    await q('UPDATE novels SET updated_at=GREATEST(updated_at+1,$1) WHERE id=$2', [Date.now(), run.novel_id])
     await q('UPDATE source_sync_runs SET status=$1,rolled_back_at=$2,rollback_result_json=$3 WHERE id=$4',
       [result.conflicts.length ? 'rollback_partial' : 'rolled_back', Date.now(), JSON.stringify(result), runId])
     return result

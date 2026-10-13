@@ -9,10 +9,10 @@ import NovelCoverStatus from './NovelCoverStatus'
 import { getNovelHistory, isInBookshelf } from '../lib/storage'
 import { timeAgo } from '../lib/format'
 
-/** 封面 URL：优先本地 cover 端点；demo 数据无封面。 */
+/** 封面走本地端点；cover=4 使历史旧源图缓存重新请求并自愈，后续变更由 updatedAt 刷新。 */
 export function coverUrl(novel: { id: string; updatedAt?: number }): string {
   if (!novel.id || novel.id.startsWith('demo_')) return ''
-  return url(`/cover/${encodeURIComponent(novel.id)}?v=${encodeURIComponent(novel.updatedAt || 0)}&cover=3`)
+  return url(`/cover/${encodeURIComponent(novel.id)}?v=${encodeURIComponent(novel.updatedAt || 0)}&cover=4`)
 }
 
 export default function NovelCard({ novel, variant, category }: { novel: Novel; variant?: 'library'; category?: string }) {
