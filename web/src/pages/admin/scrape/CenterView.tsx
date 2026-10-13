@@ -14,6 +14,8 @@ import DiscoveryPanel from './center/DiscoveryPanel'
 import ScrapeIntake, { type IntakeMode } from './center/ScrapeIntake'
 import ScrapeSetupPanel, { type SetupPreview } from './center/ScrapeSetupPanel'
 import type { Selectors, TestResult } from './center/StepConfig'
+import { useScrapeJobs } from './center/useScrapeJobs'
+import JobQueue from './center/JobQueue'
 
 const PO18_PRESET = {
   name: 'PO18',
@@ -37,6 +39,7 @@ export default function CenterView() {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const setupRef = useRef<HTMLDivElement>(null)
+  const { jobs, track, cancel, retry, retryFailed, dismiss, toggleLog } = useScrapeJobs()
 
   // 统一入口
   const [intakeMode, setIntakeMode] = useState<IntakeMode>('link')
@@ -373,7 +376,8 @@ export default function CenterView() {
     try {
       const result = await scrapeApi.start({ novelId: currentScrapeNovelId, sourceUrl: src, encoding: activeEncoding || null, selectors: currentSelectors })
       if (!result.jobId) throw new Error((result as { error?: string }).error || '没有返回任务 ID')
-      toast('抓取任务已启动，可在任务中心中查看', 'success')
+      track(result.jobId, preview.title || '抓取任务')
+      toast('抓取任务已启动并在侧边栏追踪', 'success')
     } catch (err) {
       toast('启动失败：' + (err as Error).message, 'error')
     }
@@ -401,6 +405,7 @@ export default function CenterView() {
       selectors: currentSelectors,
     })
     if (!startResult.jobId) throw new Error((startResult as { error?: string }).error || '启动抓取失败')
+    track(startResult.jobId, novel.title || item.title)
     return novelId
   }
 
@@ -611,6 +616,16 @@ export default function CenterView() {
           </AdminDataPanel>
         </main>
 
+        <aside className="scrape-center-live-dock">
+          <JobQueue
+            jobs={jobs}
+            onCancel={cancel}
+            onRetry={retry}
+            onRetryFailed={retryFailed}
+            onDismiss={dismiss}
+            onToggleLog={toggleLog}
+          />
+        </aside>
       </div>
     </div>
   )

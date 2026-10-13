@@ -65,15 +65,17 @@ export default function ScrapeIntake({
         titleId="scrape-intake-title"
       />
 
-      <Tabs value={mode} onValueChange={(value) => onModeChange(value as IntakeMode)} className="scrape-intake__tabs">
-        <TabsList aria-label="选择抓取入口" data-active-index={INTAKE_MODE_INDEX[mode]}>
-          {MODES.map(({ value, label }) => (
-            <TabsTrigger value={value} key={value} className="scrape-intake__tab">
-              <span>{label}</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="scrape-intake-capsule-track">
+        <Tabs value={mode} onValueChange={(value) => onModeChange(value as IntakeMode)} className="scrape-intake__tabs">
+          <TabsList aria-label="选择抓取入口" data-active-index={INTAKE_MODE_INDEX[mode]} className="rounded-full">
+            {MODES.map(({ value, label }) => (
+              <TabsTrigger value={value} key={value} className="scrape-intake__tab rounded-full">
+                <span>{label}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
 
       <div className="scrape-intake__form">
         {mode === 'link' && (

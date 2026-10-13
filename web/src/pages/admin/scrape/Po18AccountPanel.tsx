@@ -160,34 +160,69 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
     }
   }
 
+  const [collapsed, setCollapsed] = useState(true)
   const disabled = Boolean(busy)
 
-  return (
-    <Card className="admin-panel-card po18-account-panel">
-      <AdminPanelHeading
-        title="PO18.tw 原作者账号"
-        status={
-          <div className="po18-account-status">
-            {accountBadge(status)}
-            <div className="po18-account-saved">
-              {status?.hasPassword && (
-                <span>
-                  <Check aria-hidden="true" />
-                  密码已保存
-                </span>
-              )}
-              {status?.hasSession && (
-                <span>
-                  <Check aria-hidden="true" />
-                  Cookie 已保存
-                </span>
-              )}
-            </div>
-          </div>
-        }
-      />
+  const isHealthy = status?.status === 'authenticated' || status?.status === 'session_saved'
+  const isWarning = status?.status === 'needs_captcha' || status?.status === 'credentials_saved'
+  const pulseClass = isHealthy ? 'status-dot-pulse--emerald' : isWarning ? 'status-dot-pulse--amber' : 'status-dot-pulse--terracotta'
 
-      <CardContent className="po18-account-body">
+  return (
+    <div className={`po18-account-pill-card ${collapsed ? 'is-collapsed' : 'is-expanded'}`}>
+      <div className="po18-account-compact-bar" onClick={() => setCollapsed(!collapsed)}>
+        <div className="flex items-center gap-3">
+          <span className={`status-dot-pulse ${pulseClass}`} />
+          <span className="font-medium text-sm text-foreground">PO18.tw 原作者账号</span>
+          {accountBadge(status)}
+          {status?.username && (
+            <span className="text-xs text-muted-foreground font-mono">
+              ({status.username})
+            </span>
+          )}
+          <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+            {status?.hasPassword && (
+              <span className="flex items-center gap-0.5">
+                <Check className="size-3 text-emerald-600" aria-hidden="true" />
+                密码已存
+              </span>
+            )}
+            {status?.hasSession && (
+              <span className="flex items-center gap-0.5">
+                <Check className="size-3 text-emerald-600" aria-hidden="true" />
+                Cookie 已存
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {status?.hasSession && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full h-7 text-xs px-2.5"
+              disabled={disabled}
+              onClick={(e) => {
+                e.stopPropagation()
+                void testSession()
+              }}
+            >
+              {busy === 'test' ? '测试中…' : '测试会话'}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 rounded-full"
+            aria-label={collapsed ? '展开 PO18 账号配置' : '收起 PO18 账号配置'}
+          >
+            <ChevronDown className={`size-4 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
+          </Button>
+        </div>
+      </div>
+
+      <div className="po18-account-expand-wrapper">
+        <div className="po18-account-expand-content po18-account-inner-padding">
         {/* 主路径：账号密码登录。验证码区紧随登录动作，不落到面板底部。 */}
         <section className="po18-account-section" aria-labelledby="po18-login-title">
           <div className="po18-account-section__head">
@@ -338,7 +373,8 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
             清除账号
           </Button>
         </footer>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   )
 }

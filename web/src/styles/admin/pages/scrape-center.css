@@ -1196,3 +1196,228 @@
 
 /* 深色主题：--admin-* 大多数由 color-mix 从语义色派生，会自动跟随 [data-theme="dark"]；
    这里只补三处派生结果在暗底上会失真或过曝的值（描边偏亮、白高光刺眼）。 */
+
+/* ==========================================================================
+   Claude (Anthropic) 风格扩展：抓取控制中心与实时任务工作台
+   ========================================================================== */
+
+/* 1. 微光呼吸状态指示灯 (Status Dot Pulse) */
+.status-dot-pulse {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.status-dot-pulse--emerald {
+  background-color: #10B981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  animation: pulse-emerald 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+.status-dot-pulse--amber {
+  background-color: #F59E0B;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5);
+  animation: pulse-amber 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+.status-dot-pulse--terracotta {
+  background-color: #D97757;
+  box-shadow: 0 0 0 0 rgba(217, 119, 87, 0.5);
+  animation: pulse-terracotta 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+@keyframes pulse-emerald {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+  70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes pulse-amber {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45); }
+  70% { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+@keyframes pulse-terracotta {
+  0% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0.45); }
+  70% { box-shadow: 0 0 0 7px rgba(217, 119, 87, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0); }
+}
+
+/* 2. PO18 账号折叠手风琴卡片 (Po18 Account Pill Card) */
+.po18-account-pill-card {
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  border-radius: 18px;
+  box-shadow: 0 4px 20px rgba(35, 30, 24, 0.03);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.po18-account-pill-card:hover {
+  border-color: rgba(217, 119, 87, 0.3);
+}
+
+.po18-account-compact-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  cursor: pointer;
+  user-select: none;
+  background: var(--admin-panel, #ffffff);
+  transition: background-color 0.15s ease;
+}
+
+.po18-account-compact-bar:hover {
+  background: var(--admin-panel-muted, #faf9f5);
+}
+
+.po18-account-expand-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.po18-account-pill-card.is-expanded .po18-account-expand-wrapper {
+  grid-template-rows: 1fr;
+}
+
+.po18-account-expand-content {
+  overflow: hidden;
+  border-top: 1px solid var(--admin-border, #e6e4dc);
+}
+
+.po18-account-inner-padding {
+  padding: 1.25rem;
+}
+
+/* 3. 宽幅大药丸输入枢纽 (Scrape Intake Track) */
+.scrape-intake-capsule-track {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.scrape-intake-capsule-track .scrape-intake__tabs {
+  max-width: 32rem;
+  width: 100%;
+}
+
+/* 4. 双栏实时控制坞布局 (Scrape Center Layout & Live Dock) */
+.scrape-center-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+  align-items: start;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.scrape-center-workbench--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.scrape-center-live-dock {
+  position: sticky;
+  top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.scrape-center-live-dock__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.25rem;
+}
+
+.scrape-center-live-dock__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* 5. 抓取任务卡片 Claude 升级 (JobCard Claude) */
+.scrape-job-card--claude {
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  border-radius: 16px;
+  padding: 1.15rem;
+  box-shadow: 0 4px 16px rgba(35, 30, 24, 0.04);
+  transition: all 0.2s ease;
+}
+
+.scrape-job-card--claude:hover {
+  border-color: rgba(217, 119, 87, 0.35);
+  box-shadow: 0 6px 20px rgba(217, 119, 87, 0.06);
+}
+
+.scrape-job-card__progress-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, #edebe5);
+  overflow: hidden;
+  margin: 0.75rem 0;
+}
+
+.scrape-job-card__progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #D97757 0%, #E58C6E 100%);
+  transition: width 0.3s ease;
+}
+
+.scrape-job-card__metrics-pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.scrape-job-card__metric-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, #faf9f5);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.scrape-job-card__log-drawer {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.725rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 1024px) {
+  .scrape-center-workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scrape-center-live-dock {
+    position: static;
+    margin-top: 1.5rem;
+  }
+}
+
