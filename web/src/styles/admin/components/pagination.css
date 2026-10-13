@@ -118,6 +118,13 @@
   min-width: var(--admin-pagination-control-size);
   height: var(--admin-pagination-control-size);
   padding: 0;
+  border-radius: var(--radius-full);
+  transition: all 0.15s ease;
+}
+
+.admin-pagination__icon-button:hover {
+  background: var(--admin-accent-subtle);
+  color: var(--admin-accent);
 }
 
 .admin-pagination__icon-button > svg {

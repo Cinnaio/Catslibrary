@@ -1,31 +1,41 @@
-/* Compact semantic pills; business owns the tone, the library owns the geometry. */
+/* Compact semantic pills; business owns the tone, the library owns the geometry.
+   Claude (Anthropic) Aesthetic: low saturation, delicate border, calm humanist tones */
 .admin-status-badge {
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--radius-full);
-  padding: var(--badge-padding-block) var(--badge-padding-inline);
+  padding: 0.15rem 0.65rem;
   font-size: var(--badge-label-size);
-  font-weight: 400;
+  font-weight: 500;
   line-height: 1.5;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
-.admin-status-badge--success {
-  --admin-status-color: var(--color-success);
-}
-
+.admin-status-badge--success,
 .admin-status-badge--info {
-  --admin-status-color: var(--color-info);
+  --admin-status-color: #3D7346;
+  --admin-status-bg: rgba(77, 128, 86, 0.12);
+  --admin-status-border: rgba(77, 128, 86, 0.22);
 }
 
 .admin-status-badge--warning {
-  --admin-status-color: var(--color-warning);
+  --admin-status-color: #A06428;
+  --admin-status-bg: rgba(160, 100, 40, 0.12);
+  --admin-status-border: rgba(160, 100, 40, 0.24);
 }
 
 .admin-status-badge--danger {
-  --admin-status-color: var(--color-danger);
+  --admin-status-color: #BF5333;
+  --admin-status-bg: rgba(217, 119, 87, 0.14);
+  --admin-status-border: rgba(217, 119, 87, 0.26);
 }
 
 .admin-status-badge--accent {
-  --admin-status-color: var(--accent);
+  --admin-status-color: var(--admin-accent);
+  --admin-status-bg: var(--admin-accent-light);
+  --admin-status-border: rgba(217, 119, 87, 0.25);
 }
 
 .admin-status-badge:is(
@@ -36,29 +46,44 @@
   .admin-status-badge--accent
 ) {
   color: var(--admin-status-color);
-  background: color-mix(in oklab, var(--admin-status-color) var(--admin-status-tint), var(--bg-card));
+  background: var(--admin-status-bg);
+  border-color: var(--admin-status-border);
 }
 
-.admin-status-badge--muted {
+.admin-status-badge--muted,
+.admin-status-badge--neutral {
   color: var(--text-muted);
-  background: var(--bg-secondary);
+  background: var(--admin-panel-muted);
+  border-color: var(--admin-border);
 }
 
 .admin-status-badge--subtle {
   color: var(--text-muted);
-  background: color-mix(in oklab, var(--bg-secondary) 20%, transparent);
-}
-
-.admin-status-badge--neutral {
-  color: var(--text-muted);
-  background: var(--bg-secondary);
+  background: transparent;
+  border-color: var(--admin-border);
 }
 
 .admin-status-badge--brand {
-  color: var(--accent-ink);
-  background: var(--accent);
+  color: #FFFFFF;
+  background: var(--admin-accent);
+  border-color: transparent;
 }
 
-.admin-status-badge:is(.admin-status-badge--info, .admin-status-badge--accent) {
-  background: var(--accent-light);
+[data-theme='dark'] .admin-status-badge--success,
+[data-theme='dark'] .admin-status-badge--info {
+  --admin-status-color: #85BF8E;
+  --admin-status-bg: rgba(133, 191, 142, 0.14);
+  --admin-status-border: rgba(133, 191, 142, 0.26);
+}
+
+[data-theme='dark'] .admin-status-badge--warning {
+  --admin-status-color: #D69752;
+  --admin-status-bg: rgba(214, 151, 82, 0.14);
+  --admin-status-border: rgba(214, 151, 82, 0.26);
+}
+
+[data-theme='dark'] .admin-status-badge--danger {
+  --admin-status-color: #E58B70;
+  --admin-status-bg: rgba(229, 139, 112, 0.15);
+  --admin-status-border: rgba(229, 139, 112, 0.28);
 }

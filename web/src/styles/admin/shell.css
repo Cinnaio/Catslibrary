@@ -2,9 +2,15 @@
    形成强烈的视觉噪点，滚到底部时尤其明显。改为中性偏灰的纸面画布，层次靠
    画布、表格、表头、侧栏的语义表面阶梯和间距表达。 */
 .admin-layout {
+  --accent: var(--admin-accent);
+  --accent-hover: var(--admin-accent-hover);
+  --accent-light: var(--admin-accent-light);
+  --accent-subtle: var(--admin-accent-subtle);
+  --focus-ring: rgba(217, 119, 87, 0.24);
   background: var(--admin-canvas);
   min-height: 100dvh;
 }
+
 
 .admin-layout__inset {
   background: transparent;

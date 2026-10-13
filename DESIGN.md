@@ -183,17 +183,22 @@ components:
 - **Border Mist** (#ECE8E2): 边框和分隔线，极淡的暖灰。
 - **Border Frost** (#F3F0EB): 比 Border Mist 更淡，用于表格行内侧分隔。
 
-### Admin Surfaces
-后台表面全部从上面这套色板派生，而不是另建一套颜色。亮色表面参考 Claude 官网的暖白底和克制强调色用法，但不复用 Claude 品牌色；知舟奶茶棕仍负责品牌、主要操作与选中状态。它们定义在 `:root`，但公开页面不引用；明暗主题和用户自定义强调色都会沿用同一套关系重新计算。
+### Admin Surfaces & Claude (Anthropic) Aesthetic
+管理后台遵循 Claude (Anthropic) 视觉设计语言，与公开前台（保持奶茶纸质书房沉浸感）形成明确隔离：
+后台聚焦于**温润橄榄炭黑/象牙羊皮纸、陶土红品牌色（Terracotta #D97757）、大圆角胶囊药丸（Pill shape）与人文杂志式排版**。它们统一定义在 `web/src/styles/admin/tokens.css` 及 `admin/components/`，不污染公开前台全局 token。
 
-- **Admin Canvas** (`color-mix(in srgb, var(--bg-secondary) 55%, var(--border) 45%)`): 后台画布底色 `--admin-canvas`，使用可辨识的灰米色地面拉开与白色内容的明度差；暖色保持低饱和，不铺成深灰棕。
-- **Admin Panel** (`var(--bg-card)`): 普通面板与弹窗的表面基色 `--admin-panel`；数据表面另走 `--admin-table-background`，侧栏另走 `--admin-sidebar`。
-- **Admin Table** (`color-mix(in srgb, var(--bg-card) 96%, var(--accent-subtle) 4%)`): 表格内容区使用 `--admin-table-background`，保持接近纸白，让行内容成为后台阅读的主层。
-- **Admin Table Header:** 表头使用 `--admin-table-header-background`。亮色主题以 85% 次级背景混合 15% 品牌强调色，形成奶茶棕暖调（默认约 `#E6DED7`）；暗色主题以 85% 表格内容底色混合 15% 弱化文字色，形成中性炭灰（默认约 `#3D3C3E`），与表格行保持清晰层级并去掉棕金偏色。文字仍使用 `--admin-table-header-foreground`。
-- **Admin Panel Muted** (`color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle))`): 胶囊、弹窗页脚、次级表面 `--admin-panel-muted`。
-- **Admin Sidebar** (`color-mix(in srgb, var(--bg-card) 70%, var(--admin-canvas) 30%)`): 侧栏与移动抽屉底色 `--admin-sidebar`，使用接近 `#FBFAF8` 的轻暖白，与灰米画布形成柔和分层；颜色仍由公共面板色和后台画布派生，品牌棕保留给导航选中态。暗色主题继续使用 58% 面板底色与 42% 主背景混合，形成稳定的炭灰导航层。
-- **Admin Border** (`color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%)`): 后台通用描边 `--admin-border`。
-- **Admin Border Strong** (`color-mix(in srgb, var(--border) 62%, var(--text-primary) 15%)`): 后台控件与弹窗描边 `--admin-border-strong`，比通用描边更明确，用于输入框这类需要被看见边界的元素。
+- **Admin Accent (Terracotta #D97757):** 后台核心行动强调色（按钮、高光、聚焦环、排序活动态）。Hover 为加深陶土色 `#C56344`，弱态为 `rgba(217, 119, 87, 0.12)`。
+- **Admin Canvas:** 后台画布底色 `--admin-canvas`。暗色模式采用 Claude 标志性的温润近黑/橄榄炭黑 `#141413`，亮色模式采用象牙米白羊皮纸 `#FAF9F5`，避免生硬数码黑白。
+- **Admin Panel:** 普通面板与数据卡片的表面基色 `--admin-panel`。暗色采用 `#1D1D1B`，亮色采用高质感纸白 `#FFFFFF`。
+- **Admin Table Background:** 表格与数据面板容器使用 `--admin-table-background`，暗色为 `#1D1D1B`，亮色为 `#FFFFFF`，外框使用 16px 圆角（`var(--admin-table-panel-radius)`）。
+- **Admin Table Header:** 表头底色 `--admin-table-header-background`，暗色为 `#232220`，亮色为 `#F6F4ED`，字号清秀（0.74rem）、舒展字间距（0.04em）、中性弱化色，克制典雅。
+- **Admin Panel Muted:** 次级表面、胶囊底色 `--admin-panel-muted`，暗色为 `#242320`，亮色为 `#F6F4ED`。
+- **Admin Sidebar:** 侧栏底色 `--admin-sidebar`，暗色为 `#191917`，亮色为 `#F5F3EC`。导航项采用圆润药丸悬停与活动态（陶土红弱底 + 陶土红字墨）。
+- **Admin Border:** 细柔的 Hairline 边界线 `--admin-border`，暗色为 `#2C2B28`，亮色为 `#E6E4DC`。
+- **Admin Border Strong:** 强边界线 `--admin-border-strong`，暗色为 `#383733`，亮色为 `#D5D2C7`。
+- **Pill Shape Geometry:** 后台主次按钮、搜索输入框、筛选胶囊（Filter Chip）、批量操作条（Selection Bar）、状态与分级徽章统一采用全圆角胶囊药丸（`var(--radius-full)` 9999px）。
+- **Spacious Table Rhythm:** 表格普通行高舒展至 3.5rem（56px），行底部分割线采用 `--c-border-subtle`，悬停为柔和的陶土漫反射暖光（暗色 `rgba(217, 119, 87, 0.05)`，亮色 `#F8F6F0`）。
+- **Low-Saturation Semantic Badges:** 连载状态使用草木冷绿（#85BF8E 暗 / #3D7346 亮），完结状态使用暖石板灰，限制级使用柔和陶土粉（#E58B70 暗 / #BF5333 亮），杜绝高饱和亮红大绿。
 
 ### Semantic
 - **Reading Green** (#4F7A52): 成功状态。柔和的书页绿，不刺眼。

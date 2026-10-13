@@ -11,6 +11,24 @@
   padding-bottom: 1rem;
 }
 
+.admin-tab-header h2 {
+  font-family: var(--font-serif), Georgia, Cambria, 'Times New Roman', serif;
+  font-weight: 500;
+  font-size: var(--admin-page-title-size);
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+}
+
+.admin-tab-header p {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin-top: 0.35rem;
+  font-weight: 400;
+}
+
+
 /* 小说管理的搜索与新增操作属于同一组，放在页面标题右侧；标题区不再使用底部分隔线。 */
 .admin-redesign-page--novels > .admin-tab-header {
   border-bottom: 0;
