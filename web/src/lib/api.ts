@@ -521,6 +521,9 @@ export interface TitleSource {
   author: string
   status: string
   url: string
+  confidence?: 'high' | 'medium' | 'low'
+  matchScore?: number
+  matchReason?: string
 }
 
 export interface TitleSourceSearchResponse {

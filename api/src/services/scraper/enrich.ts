@@ -11,6 +11,7 @@ import { SITE_PRESETS, buildCoverUrl } from './presets'
 import { toSimplifiedForSource } from '../zh-convert'
 import { outboundFetch } from '../outbound-fetch'
 import type { Db } from '../../db/pool'
+import { rankTitleSources, type TitleSourceMatch } from './title-source-match'
 
 const DISCOVER_CACHE_TTL = 5 * 60000
 const DISCOVER_CACHE_MAX = 20
@@ -604,7 +605,7 @@ function parsePo18RankingForm(html: string, baseUrl: string): { action: string; 
 
 // ---------- 标题源搜索（晋江 / PO18.tw） ----------
 
-export interface TitleSource {
+export interface TitleSource extends Partial<TitleSourceMatch> {
   site: string
   siteName: string
   bookId?: string
@@ -675,7 +676,10 @@ export async function searchTitleSources(
   options: TitleSourceSearchOptions = {},
 ): Promise<{ title: string; author: string; sources: Record<string, { ok: boolean; results: TitleSource[]; error?: string }> }> {
   const [jjwxc, po18tw] = await Promise.all([searchJjwxcTitlesSource(title, author), searchPo18twTitlesSource(title, author, options)])
-  return { title, author, sources: { jjwxc, po18tw } }
+  return { title, author, sources: {
+    jjwxc: { ...jjwxc, results: rankTitleSources(jjwxc.results, title, author) },
+    po18tw: { ...po18tw, results: rankTitleSources(po18tw.results, title, author) },
+  } }
 }
 
 async function searchJjwxcTitlesSource(title: string, author: string): Promise<{ ok: boolean; results: TitleSource[]; error?: string }> {
