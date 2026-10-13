@@ -320,7 +320,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   min-width: 0;
   padding: 1.25rem;
   border: 1px solid var(--admin-border);
-  border-radius: var(--radius-xl);
+  border-radius: 16px;
   background: var(--admin-panel-muted);
 }
 

@@ -12,20 +12,25 @@
 }
 .content-ratings-tabs [data-slot='tabs-list'] {
   height: 2.75rem;
-  padding: 4px;
-  border: 0;
+  padding: 3px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
   box-shadow: none;
-  background: var(--bg-secondary);
+  background: var(--admin-panel-muted);
 }
 .content-ratings-tabs [data-slot='tabs-trigger'] {
-  padding-inline: 1rem;
+  padding-inline: 1.15rem;
+  border-radius: var(--radius-full);
   border: 0;
-  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 0.825rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
 }
 .content-ratings-tabs [data-slot='tabs-trigger'][data-state='active'] {
-  background: var(--bg-card);
-  color: var(--text-primary);
-  box-shadow: none;
+  background: var(--admin-panel);
+  color: var(--admin-accent);
+  box-shadow: var(--admin-shadow-soft);
 }
 .content-ratings-tab-count {
   font-size: 0.75rem;
@@ -61,10 +66,10 @@
   line-height: 1.7;
 }
 .content-ratings-panel.admin-data-panel {
-  border: 0;
+  border: 1px solid var(--admin-border);
   border-radius: var(--admin-data-panel-radius);
-  background: var(--bg-card);
-  box-shadow: none;
+  background: var(--admin-table-background);
+  box-shadow: var(--admin-shadow-soft);
   overflow: hidden;
 }
 .content-ratings-panel-description {
@@ -101,6 +106,7 @@
   height: var(--admin-table-action-size);
   min-width: 3.25rem;
   padding-inline: 0.75rem;
+  border-radius: var(--radius-full);
 }
 .content-ratings-queue {
   padding-inline: 1.5rem;
