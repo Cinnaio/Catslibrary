@@ -278,6 +278,23 @@ export default function BackupsTab() {
         </>
       }
     >
+      <div className="backup-pill-tabs-track" role="tablist" aria-label="备份视图切换">
+        {(Object.keys(titles) as Array<keyof typeof titles>).map((key) => {
+          const isActive = view === key
+          return (
+            <Link
+              key={key}
+              to={`/admin/backups?view=${key}`}
+              className={`backup-pill-tab ${isActive ? 'active' : ''}`}
+              role="tab"
+              aria-selected={isActive}
+            >
+              <span className={`backup-pill-dot ${isActive ? 'active' : ''}`} />
+              {titles[key]}
+            </Link>
+          )
+        })}
+      </div>
       {error && (
         <div role="alert" className="backup-error">
           <span>{error}</span>
