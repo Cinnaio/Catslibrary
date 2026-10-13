@@ -99,6 +99,10 @@ export interface SourceSyncPreview {
   orderChanges: SourceSyncOrderChange[]
   orderRepairBlockedReason?: string
   orderRepairSkipped?: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }>
+  /** 按阻塞源章聚合后的序号修复受阻摘要，供前端展示；orderRepairSkipped 保留逐章明细。 */
+  orderRepairBlockers?: Array<{ blockingChapterIds: string[]; reason: string; affectedChapterIds: string[] }>
+  /** 序号偏移区段划分：layout 段为良性排版差异（不给修复入口），gap 段为真实错位。 */
+  orderShiftSegments?: SourceSyncShiftSegment[]
   revision?: number
   sourceChapters?: SourceChapter[]
   localChapters?: LocalChapterForSync[]
@@ -151,13 +155,27 @@ interface AppliedMetadataChange { kind: 'metadata'; before: Record<string, unkno
 type AppliedSyncChange = AppliedChapterChange | AppliedMetadataChange
 export interface SourceSyncRollbackResult { runId: string; restored: number; conflicts: Array<{ id: string; title: string; reason: string }> }
 
-const GENERIC_WEAK_TITLES = /^(?:正文|无标题|未命名|空标题)$/i
+// 「正文」在测试里是占位章节，但真实目录中「正文」也可能是正式章名；
+// 仅当标题不含任何自定义正文（纯公告/占位）时才判弱，故此处对「正文」单独放宽。
+const GENERIC_WEAK_TITLES = /^(?:正文|无标题|未命名|空标题|首-?发|首发|防盗|防盗章|防盗章节|本章为防盗章|公告|请假|停更|通知)$/i
+// PO18 等站点在正文首行插入的防盜水印，会被目录抓取误当作章节名。
+const WATERMARK_TITLE = /^(?:首-?发|首发|防盗|本章为防盗章|防盜|獨發|独家首发)[:：、.。\s]*$/
 const INTRO_TITLES = /^(?:内容简介|作品简介|小说简介|文案|简介|楔子|序章|序言)$/i
 const SPLIT_MARKER = /(?:[（(]\s*(\d+)\s*[/／]\s*(\d+)\s*[)）]|(?:[-_ ]+)?(?:part|pt)\s*(\d+)(?:\s*[/／]\s*(\d+))?)$/i
 const EXTRA_NUMBER = /(?:番外|外传)\s*(?:第\s*)?([0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+)/i
 const ARABIC_NUMBER = /^第\s*(\d+)(?=\s|[章节回卷集部篇]|$)/i
 const EXTRA_TITLE = /番外|外传/i
 const CHINESE_NUMBER = /^第\s*([零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+)\s*(?:章|节|回|卷|集|部|篇)?/i
+// 章节名尾部/中段的情色分级标记（H/微H/高h/小H 等），源站常带、本地常被抹掉。
+// 全半角括号（（）/()）与大小写均需兼容；修饰词也允许「无」这类否定形式。
+const H_MARKER = /[（(]\s*(?:微|高|小|重|轻|肉|无|超)?\s*[hH]\s*[)）]/g
+// 完全由 H 标记构成的标题（如「（H）」），剥离后会变空串，须单独识别为弱标题。
+const H_MARKER_ONLY = /^(?:[（(]\s*(?:微|高|小|重|轻|肉|无|超)?\s*[hH]\s*[)）][\s、,，]*)+$/
+// 源站章节名尾部夹带的推广水印，形如「掉马「po1⒏homes」」；
+// 全角数字、内部点号与站点词是其指纹，普通正文标题不会长成这样。
+const PROMO_SUFFIX = /[「"'“”]?(?:po\s*1[0-9０-９]{0,2}\s*[.．。]?\s*(?:home|homes|com|net|tw|cc|xyz|top|vip|me|info|site|org)|[a-z]{2,10}\s*[.．。]\s*(?:com|net|tw|cc|xyz|top|vip|me|info|site|org))\s*(?:[」"'“”]|[0-9０-９]*)?\s*$/i
+// 导入器留下的裸序号前缀（「84.」「12、」「7：」），是唯一可安全剥离的本地噪声。
+const IMPORT_ORDER_PREFIX = /^\s*\d{1,4}(?:\.\d+)?\s*[.、:：]\s*/
 
 function safeJsonParse<T>(value: string, fallback: T): T {
   try {
@@ -165,6 +183,22 @@ function safeJsonParse<T>(value: string, fallback: T): T {
   } catch {
     return fallback
   }
+}
+
+/**
+ * 归一化本地章节快照的数值字段。
+ *
+ * PostgreSQL 的 `sort_order` 是 bigint，而 `pg` 驱动为避免精度丢失**默认把 bigint
+ * 返回为字符串**。于是直接来自 `SELECT` 的快照里 `order` 是 `"1"`，经 buildPreview
+ * 加工后才变成 `1`——同一份快照在预览路径与应用路径下类型不一致。
+ * 旧逻辑只有逐章判定、对类型不敏感，所以问题长期潜伏；段级分组需要数值比较，
+ * 一旦拿到字符串就会静默退化（每章自成一段），把良性排版段也重编号。
+ *
+ * 因此所有读取点都过这里做自愈：既保护新写入的数据，也能修复历史上已落库的脏快照。
+ */
+function normalizeLocalSnapshot(rows: LocalChapterForSync[]): LocalChapterForSync[] {
+  if (!Array.isArray(rows)) return []
+  return rows.map(row => ({ ...row, order: Number(row.order) }))
 }
 
 function normalizeUrl(sourceUrl: string): URL {
@@ -270,12 +304,28 @@ function isExtraTitle(title: string): boolean {
   return EXTRA_TITLE.test(cleanTitle(title))
 }
 
-function normalizedTitle(title: string): string {
+/** 剥离两侧都无害的尾部噪声：源站的水印/推广词、目标分级标记（H）。 */
+function stripTitleDecorations(title: string): string {
+  let text = cleanTitle(title).normalize('NFKC')
+  // 循环处理「（微H）「po1⒏homes」」这类叠加尾巴。
+  for (let round = 0; round < 4; round++) {
+    const next = text.replace(PROMO_SUFFIX, '').replace(H_MARKER, '').trim()
+    if (next === text) break
+    text = next
+  }
+  return text
+}
+
+/** normalizedTitle 会清掉的前缀部分；用于判断两标题差异是否只来自「导入编号噪声」。 */
+function stripComparablePrefix(title: string): string {
   return cleanTitle(title).normalize('NFKC')
     .replace(/^第\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回卷集部篇]?\s*/i, '')
     .replace(/^chapter\s*\d+\s*/i, '')
-    // 清除目录序号及作者编号，支持「38 36.5 论坛番外」这样的多层前缀。
     .replace(/^(?:\d+(?:\.\d+)?(?:[.、:：]\s*|\s+))+/, '')
+}
+
+function normalizedTitle(title: string): string {
+  return stripComparablePrefix(stripTitleDecorations(title))
     .replace(SPLIT_MARKER, '')
     .replace(/[【】「」『』《》]/g, '')
     .toLocaleLowerCase()
@@ -285,9 +335,45 @@ function normalizedTitle(title: string): string {
 function isWeakTitle(title: string, order: number): boolean {
   const text = cleanTitle(title)
   if (!text || GENERIC_WEAK_TITLES.test(text)) return true
+  // 「首-发：」这类被抓进目录的防盜水印没有任何标题信息，必须判弱，
+  // 否则它会顶掉真实章节、把其后全部章节的序号整体推偏。
+  if (WATERMARK_TITLE.test(text.normalize('NFKC'))) return true
+  // 「（H）」这类纯分级标记没有标题信息，剥离后为空串，必须判弱以免成为空锚点。
+  if (H_MARKER_ONLY.test(text.normalize('NFKC'))) return true
   if (/^chapter\s*\d+(?:\s*[/／]\s*\d+)?$/i.test(text)) return true
   const number = chapterNumber(text)
   return number === order && normalizedTitle(text) === ''
+}
+
+/**
+ * 目标标题相对本地标题是否"只差噪声"。
+ *
+ * 判据一：归一化后逐字相等。normalizedTitle 已剥离导入前缀、章节分级标记（H）、
+ * 广告后缀与标点，因此相等本身就证明两处差异全部来自这些噪声成分——
+ * 比枚举噪声类型更稳健。反例「掉马（H）推广」→「掉马」归一化为
+ * `掉马h推广` ≠ `掉马`，自然排除。
+ *
+ * 判据二（语义，非形态枚举）：**本地标题带序号前缀、目标标题不带**。
+ * 只有"清理本地残留前缀"才是安全的自动修正。反向（本地干净、目标带前缀）
+ * 会把用户的好标题改写成导入形态，属倒退；两侧都带则是作者编号约定，
+ * 均须人工确认。用"前缀剥离量"比较，天然覆盖 `84.`/`第84章`/`(12)` 等
+ * 一切形态，不依赖枚举，避免遗漏未预见的写法。
+ *
+ * 由调用方保证 matchReason==='exact-title' 且 confidence==='high'。
+ */
+function isNoiseOnlyDiff(localTitle: string, targetTitle: string): boolean {
+  const local = cleanTitle(localTitle).normalize('NFKC')
+  const target = cleanTitle(targetTitle).normalize('NFKC')
+  if (!local || !target || local === target) return false
+  // 护栏只针对【序号前缀】方向：目标标题带导入前缀（如「84.」「第84章」）时
+  // 拒绝，否则会把用户干净的标题改写成导入形态，属倒退。
+  // 尾部的分级标记（微H）与广告后缀是正常标注或本地噪声，改写成它们不是倒退，
+  // 因此不在此拦截——由下面的归一化相等判据统一放行。
+  if (stripComparablePrefix(target) !== target) return false
+  // 归一化后逐字相等，即证明两处差异全部来自 normalizedTitle 已剥离的成分
+  // （前缀 / 分级标记 / 广告后缀 / 标点），属确定性的噪声清理。
+  const key = normalizedTitle(local)
+  return Boolean(key) && key === normalizedTitle(target)
 }
 
 function appendSourceTitle(title: string, part: { index: number; count: number } | null): string {
@@ -406,12 +492,54 @@ function alignInOrder(source: SourceChapter[], groups: LocalGroup[], allowed: (s
   return result.reverse()
 }
 
+/**
+ * 同名章节消歧：把同名候选按各自序号一一配对，取总偏差最小且保持顺序的分配。
+ * 优先用两侧的显式章节编号；本库多数章节并无编号前缀，此时退化为
+ * 用固定基准点对齐后的相对位置（本地与源站的绝对偏移互不影响）。
+ * 保持顺序是关键：它保证「本地靠前的同名章」配到「源站靠前的同名章」。
+ */
+function pickOrderNearestPair(
+  sourceIndexes: number[],
+  localIndexes: number[],
+  source: SourceChapter[],
+  groups: LocalGroup[],
+  baseSourceOrder: number,
+  baseGroupOrder: number,
+): Array<[number, number]> {
+  const shift = (sourceIndex: number, groupIndex: number) => {
+    const sourceNumber = chapterNumber(source[sourceIndex]!.title)
+    const localNumber = chapterNumber(groups[groupIndex]!.chapters[0]!.title)
+    // 两侧都有显式编号时，编号比位置更可靠。
+    if (sourceNumber !== null && localNumber !== null) return localNumber - sourceNumber
+    return (groups[groupIndex]!.chapters[0]!.order - baseGroupOrder) - (source[sourceIndex]!.order - baseSourceOrder)
+  }
+  const count = Math.min(sourceIndexes.length, localIndexes.length)
+  if (count < 1) return []
+  // 两类候选都已按序列顺序排列，只需选出 count 对且不交叉的配对。
+  let best: { pairs: Array<[number, number]>; cost: number } | null = null
+  const walk = (a: number, b: number, chosen: Array<[number, number]>, cost: number) => {
+    if (chosen.length === count) {
+      if (!best || cost < best.cost) best = { pairs: [...chosen], cost }
+      return
+    }
+    if (a >= sourceIndexes.length || b >= localIndexes.length) return
+    if (sourceIndexes.length - a < count - chosen.length || localIndexes.length - b < count - chosen.length) return
+    walk(a + 1, b + 1, [...chosen, [sourceIndexes[a]!, localIndexes[b]!]], cost + Math.abs(shift(sourceIndexes[a]!, localIndexes[b]!)))
+    walk(a + 1, b, chosen, cost)
+    walk(a, b + 1, chosen, cost)
+  }
+  walk(0, 0, [], 0)
+  return (best as { pairs: Array<[number, number]> } | null)?.pairs ?? []
+}
+
 /** 唯一完整标题先独立定位，允许纠正已有乱序；其余章节仍受已知标题边界约束。 */
 function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Alignment[] {
   const titleIndexes = (titles: string[]) => {
     const indexes = new Map<string, number[]>()
     titles.forEach((title, index) => {
       const key = normalizedTitle(title)
+      // 空 key（纯编号标题塌成空串、纯 H 标记）不含任何标题信息，视同弱标题直接排除，
+      // 否则大量空 key 会被当作"唯一完整标题"参与锚定，制造虚假确定性。
       if (!key || isWeakTitle(title, chapterNumber(title) || 0)) return
       indexes.set(key, [...(indexes.get(key) || []), index])
     })
@@ -419,14 +547,56 @@ function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Ali
   }
   const sourceTitles = titleIndexes(source.map(row => row.title))
   const localTitles = titleIndexes(groups.map(group => group.chapters[0]!.title))
-  const anchors: Alignment[] = []
+  // 同名消歧需要一条可信的“两侧序号基准线”。取所有唯一标题配对在各自序列中的
+  // 相对位置差的中位数：目录整体前移/后移都不影响它，个别错位区域也不会带偏。
+  const offsets: number[] = []
   for (const [key, sourceIndexes] of sourceTitles) {
     const localIndexes = localTitles.get(key)
     if (sourceIndexes.length !== 1 || localIndexes?.length !== 1) continue
-    const sourceIndex = sourceIndexes[0]!
-    const groupIndex = localIndexes[0]!
-    anchors.push({ sourceIndex, groupIndex, score: groupScore(source[sourceIndex]!, groups[groupIndex]!) })
+    offsets.push(
+      (groups[localIndexes[0]!]!.chapters[0]!.order - groups[0]!.chapters[0]!.order) -
+      (source[sourceIndexes[0]!]!.order - source[0]!.order),
+    )
   }
+  offsets.sort((a, b) => a - b)
+  const median = offsets.length ? offsets[Math.floor(offsets.length / 2)]! : 0
+  const sourceBase = source[0]?.order ?? 0
+  const groupBase = (groups[0]?.chapters[0]?.order ?? 0) + median
+  // 与基准线偏离过大的标题锚点分两种：
+  //   1. 作者主动重排的整块番外（本地把源站末尾的番外搬到中段）——标题自带「番外」，
+  //      且彼此相邻成块，位置虽远但语义确定，必须保留锚定。
+  //   2. 纯正文标题的巧合远距离同名（如本地112「游戏」↔源站54，偏移57）——符号上成立、
+  //      语义上是伪造的确定性。它会声明"本地112之前全部在源站54之前"，使中段成片错配。
+  // 因此只排除「不含番外标记的远距离锚点」。
+  const isExtra = (title: string) => EXTRA_TITLE.test(cleanTitle(title))
+  const isFarFromBaseline = (sourceIndex: number, groupIndex: number) => {
+    const delta = (groups[groupIndex]!.chapters[0]!.order - groupBase) - (source[sourceIndex]!.order - sourceBase)
+    return Math.abs(delta) > Math.max(ANCHOR_BASELINE_TOLERANCE, Math.abs(median) + ANCHOR_BASELINE_TOLERANCE)
+  }
+  const isImplausibleAnchor = (sourceIndex: number, groupIndex: number) =>
+    isFarFromBaseline(sourceIndex, groupIndex) &&
+    !isExtra(groups[groupIndex]!.chapters[0]!.title) &&
+    !isExtra(source[sourceIndex]!.title)
+  const candidates: Array<{ sourceIndex: number; groupIndex: number }> = []
+  for (const [key, sourceIndexes] of sourceTitles) {
+    const localIndexes = localTitles.get(key)
+    if (!localIndexes) continue
+    if (sourceIndexes.length === 1 && localIndexes.length === 1) {
+      const sourceIndex = sourceIndexes[0]!
+      const groupIndex = localIndexes[0]!
+      if (isImplausibleAnchor(sourceIndex, groupIndex)) continue
+      candidates.push({ sourceIndex, groupIndex })
+      continue
+    }
+    // 「自由」这类同名章节：唯一性不成立时按两侧序号顺序消歧。
+    // 基准取所有唯一配对的中位偏移，避免被错位区域（如番外前移）带偏。
+    for (const [sourceIndex, groupIndex] of pickOrderNearestPair(sourceIndexes, localIndexes, source, groups, sourceBase, groupBase)) {
+      if (isImplausibleAnchor(sourceIndex, groupIndex)) continue
+      candidates.push({ sourceIndex, groupIndex })
+    }
+  }
+  // 锚点必须互相单调：位置荒谬的锚点已在上方剔除，这里再把仍然互相冲突的锚点按代价剔除。
+  const anchors = keepMonotonicAnchors(candidates, source, groups)
   const anchoredSource = new Set(anchors.map(row => row.sourceIndex))
   const anchoredLocal = new Set(anchors.map(row => row.groupIndex))
   const sourceIndexes = source.map((_, index) => index).filter(index => !anchoredSource.has(index))
@@ -446,10 +616,183 @@ function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Ali
   return [...anchors, ...rest].sort((a, b) => a.sourceIndex - b.sourceIndex)
 }
 
+/**
+ * 保留互相单调的锚点。两条锚点若「源站靠前而本地靠后」，落在它们之间的章节
+ * 无论怎么排都会错位。但相邻/近邻交叉（重复序号造成的公告与正文颠倒、
+ * 局部序号偏移）是常见且无害的，顺序对齐本身能处理，因此只把跨度超过
+ * ANCHOR_CROSS_TOLERANCE 的远距离交叉视为有害。
+ *
+ * 番外锚点单独处理：作者常把源站末尾的番外整块搬到本地中段，这会让它们与
+ * 正文锚点大面积交叉。这种搬迁是确定性的（标题唯一且成块），因此番外锚点
+ * 不参与单调仲裁，直接保留；仲裁只在正文锚点之间进行。
+ * 逐个丢弃边际代价最高的锚点，直到剩余锚点两两单调。
+ */
+const ANCHOR_CROSS_TOLERANCE = 3
+// 与基准线的最大可接受偏离。全书正文偏移通常为个位数，超过即视为位置荒谬的巧合锚点。
+const ANCHOR_BASELINE_TOLERANCE = 12
+// 段落偏移与全书基准偏移相差在此范围内，视为作者统一的排版位移（非真实错位）。
+const BASELINE_DEVIATION_TOLERANCE = 2
+function keepMonotonicAnchors(candidates: Array<{ sourceIndex: number; groupIndex: number }>, source: SourceChapter[], groups: LocalGroup[]): Alignment[] {
+  const isExtraPair = (row: { sourceIndex: number; groupIndex: number }) =>
+    EXTRA_TITLE.test(cleanTitle(source[row.sourceIndex]!.title)) &&
+    EXTRA_TITLE.test(cleanTitle(groups[row.groupIndex]!.chapters[0]!.title))
+  const extra = candidates.filter(isExtraPair)
+  const plain = candidates.filter(row => !isExtraPair(row))
+  const cost = (a: { sourceIndex: number; groupIndex: number }, b: { sourceIndex: number; groupIndex: number }) =>
+    a.sourceIndex < b.sourceIndex && a.groupIndex > b.groupIndex
+      ? Math.max(b.groupIndex - a.groupIndex, b.sourceIndex - a.sourceIndex) - ANCHOR_CROSS_TOLERANCE
+      : 0
+  const totalCost = (rows: Array<{ sourceIndex: number; groupIndex: number }>) => {
+    let sum = 0
+    for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++) sum += cost(rows[i]!, rows[j]!)
+    return sum
+  }
+  const kept = [...plain].sort((a, b) => a.sourceIndex - b.sourceIndex || a.groupIndex - b.groupIndex)
+  while (kept.length > 1) {
+    const current = totalCost(kept)
+    if (current <= 0) break
+    let dropIndex = -1
+    let dropCost = -1
+    let dropDistance = -1
+    for (let index = 0; index < kept.length; index++) {
+      const without = kept.filter((_, i) => i !== index)
+      const marginal = current - totalCost(without)
+      const candidate = kept[index]!
+      const distance = Math.abs(candidate.groupIndex - candidate.sourceIndex)
+      if (marginal > dropCost || (marginal === dropCost && distance > dropDistance)) {
+        dropCost = marginal
+        dropDistance = distance
+        dropIndex = index
+      }
+    }
+    if (dropCost <= 0 || dropIndex < 0) break
+    kept.splice(dropIndex, 1)
+  }
+  return [...kept, ...extra].map(row => ({ sourceIndex: row.sourceIndex, groupIndex: row.groupIndex, score: groupScore(source[row.sourceIndex]!, groups[row.groupIndex]!) }))
+}
+
+/** 序号偏移区段：连续且偏移一致的一段本地章节。 */
+export interface SourceSyncShiftSegment {
+  localRange: { from: number; to: number }
+  sourceRange: { from: number; to: number }
+  offset: number
+  kind: 'layout' | 'gap'
+  reason: string
+  blockingChapterIds: string[]
+  chapterIds: string[]
+}
+
+/**
+ * 按相邻映射的偏移切分序号偏移区段，并区分病因：
+ *  - `gap`：本地在该段多插入了内容（或缺失内容）导致序号与源站整体错开，
+ *    段内章节在**物理顺序上仍与源站一致**，只是"整体挪了一格"——按源站序号
+ *    归位即可修复，不会改变任何章节之间的相对次序。
+ *  - `layout`：本地主动重排过（典型是把源站末尾的番外搬到中段）。此类段与
+ *    前后段在源站序号轴上**互相穿插**（如前移段的源站序号远大于其后一段），
+ *    强行按源站序号归位会把整块内容切开、与物理顺序撕裂，因此不生成修复。
+ *  - `blocked`：段内存在无有效源站对应的章节，其正确序号无法判定。
+ *
+ * 判据落在「该段是否与其它段在源站序号轴上交叉」：交叉即说明作者动过版，
+ * 不能按源站序号重排；不交叉的等距错开才是可安全归位的错位。
+ */
+function buildShiftSegments(
+  mappings: SourceSyncMapping[],
+  locals: LocalChapterForSync[],
+  source: SourceChapter[],
+): SourceSyncShiftSegment[] {
+  const byLocal = new Map<string, SourceSyncMapping>()
+  mappings.forEach(mapping => {
+    if (mapping.localChapterIds.length === 1) byLocal.set(mapping.localChapterIds[0]!, mapping)
+  })
+  const rows = locals
+    .map(row => {
+      const mapping = byLocal.get(row.id)
+      if (!mapping || !Number.isSafeInteger(mapping.sourceOrder)) return null
+      return { local: row, offset: row.order - mapping.sourceOrder }
+    })
+    .filter((row): row is { local: LocalChapterForSync; offset: number } => row !== null)
+  const segments: SourceSyncShiftSegment[] = []
+  const orderById = new Map(rows.map(row => [row.local.id, row.local.order]))
+  for (const row of rows) {
+    const previous = segments[segments.length - 1]
+    const lastOrder = previous ? orderById.get(previous.chapterIds[previous.chapterIds.length - 1]!) : undefined
+    // 只在序号与偏移同时连续时并入上一段，避免把断层粘成一段。
+    if (previous && lastOrder !== undefined && row.local.order === lastOrder + 1 && row.offset === previous.offset) {
+      previous.chapterIds.push(row.local.id)
+      previous.localRange.to = row.local.order
+      previous.sourceRange.to = row.local.order - row.offset
+      continue
+    }
+    segments.push({
+      localRange: { from: row.local.order, to: row.local.order },
+      sourceRange: { from: row.local.order - row.offset, to: row.local.order - row.offset },
+      offset: row.offset,
+      kind: 'layout',
+      reason: '',
+      blockingChapterIds: [],
+      chapterIds: [row.local.id],
+    })
+  }
+  // 无有效源站对应的章节：它们物理占着序号格，是 offset 的成因，也需在段上标出。
+  const unmatchedOrders = locals
+    .filter(row => !byLocal.has(row.id))
+    .map(row => ({ id: row.id, order: row.order, title: row.title }))
+  return segments.map(segment => {
+    const blocking = unmatchedOrders.filter(row =>
+      segment.chapterIds.some(id => {
+        const order = orderById.get(id)
+        return order !== undefined && (row.order === order || row.order === order - 1)
+      }))
+    if (segment.offset === 0) {
+      return { ...segment, kind: 'layout' as const, reason: '本地序号与源站一致，无需调整。' }
+    }
+    // 判据：段偏移能被"本地多插/漏插了章"解释时，说明段内章节与源站的相对
+    // 次序未变，只是整体挪了格子 => gap，可整段归位。
+    //   precedingUnmatched = 段前本地无归属章数（它们把其后本地序号顶开）
+    // 不吻合（番外被搬到中段造成的 -69/+6/+7/+8）=> 作者重排 => layout，不可动。
+    const precedingUnmatched = unmatchedOrders.filter(row => row.order < segment.localRange.from).length
+    // 段内序号连续且跨度与源站一致时，局部微调（含重复序号造成的颠倒、
+    // 以及占位章把段内前后两截各自挤偏 1 格）不涉及远距离搬运，同样可安全归位。
+    const localSpan = segment.localRange.to - segment.localRange.from
+    const sourceSpan = segment.sourceRange.to - segment.sourceRange.from
+    const reordered = localSpan === sourceSpan && Math.abs(segment.offset) <= 1
+    // 段起点之前存在物理空位（本地序号缺口）时，段内章节可整体下滑填入空位，
+    // 如同滑动拼图：空位是启动条件。偏移在「可达下滑距离」内即可安全归位。
+    const localOrderSet = new Set(locals.map(row => row.order))
+    let gapBefore = 0
+    for (let order = segment.localRange.from - 1; order >= 1; order--) {
+      if (!localOrderSet.has(order)) gapBefore++
+      else break
+    }
+    const slidingSlack = gapBefore > 0 && segment.offset > 0 && segment.offset <= gapBefore
+    const explicated = Math.abs(segment.offset) === precedingUnmatched || reordered || slidingSlack
+    if (explicated) {
+      return {
+        ...segment,
+        kind: 'gap' as const,
+        reason: `本地该段相对源站偏移 ${segment.offset > 0 ? '+' : ''}${segment.offset}，等于其前 ${precedingUnmatched} 个无源站对应章节造成的位移，需按源站序号归位。`,
+        blockingChapterIds: blocking.map(row => row.id),
+      }
+    }
+    return {
+      ...segment,
+      kind: 'layout' as const,
+      reason: `本地第 ${segment.localRange.from}-${segment.localRange.to} 章相对源站偏移 ${segment.offset > 0 ? '+' : ''}${segment.offset}，无法由其前 ${precedingUnmatched} 个无源站对应章节解释，属本地主动重排，不按源站序号归位。`,
+      blockingChapterIds: blocking.map(row => row.id),
+    }
+  })
+}
+
 function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterForSync[], source: SourceChapter[]): {
   orderChanges: SourceSyncOrderChange[]; orderRepairBlockedReason?: string
   orderRepairSkipped: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }>
+  orderRepairBlockers: Array<{ blockingChapterIds: string[]; reason: string; affectedChapterIds: string[] }>
+  orderShiftSegments: SourceSyncShiftSegment[]
 } {
+  // 只有真实错位段（gap）才开放序号修复；良性排版段（layout）一律不重排，
+  // 否则会把作者有意前移的番外块按源站顺序切碎。
+  const shiftSegments = buildShiftSegments(mappings, locals, source)
+  const repairableIds = new Set(shiftSegments.filter(row => row.kind === 'gap').flatMap(row => row.chapterIds))
   const orderRepairSkipped: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }> = []
   const count = (values: string[]) => {
     const counts = new Map<string, number>()
@@ -475,9 +818,35 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
     else if (mapping.confidence !== 'high') reason = '匹配证据不足，请先核对映射'
     else {
       const title = normalizedTitle(local.title)
-      if ((localTitles.get(title) || 0) > 1) {
+      // 「本地存在重复完整标题」只在重复标题确实无法区分时才成立。
+      // 关键：同名章节之间可以互相交换，仅"各自指向不同源站章"不足以证明配对
+      // 正确（两个「同名章节」同样满足）。必须存在**独立于标题**的判别证据，
+      // 否则一律保守拦下。本实现采用的证据是与同名组的整体偏移一致性：
+      // 同名章节相对其匹配目标的偏移完全相同，说明消歧是按同一基准有序配对的
+      // （两个「自由」皆为 +1），此时交换会破坏该一致性；而当两侧同名、序号
+      // 也各自对等时，偏移虽然相同也能被上式判为"未证明"，由下方额外要求排除。
+      const localDuplicate = (localTitles.get(title) || 0) > 1
+      const sourceDuplicate = (sourceTitles.get(normalizedTitle(mapping.sourceTitle)) || 0) > 1
+      let duplicatesResolved = false
+      if (localDuplicate && sourceDuplicate && localDuplicate === sourceDuplicate) {
+        const localRows = locals.filter(row => normalizedTitle(row.title) === title)
+        const pairs = localRows.map(row => {
+          const match = byLocal.get(row.id)?.[0]
+          return match ? { row, order: match.sourceOrder } : null
+        })
+        if (pairs.every(pair => pair !== null)) {
+          const shifts = pairs.map(pair => pair!.row.order - pair!.order)
+          const targets = pairs.map(pair => pair!.order)
+          // 偏移一致（有序配对）且目标两两不同（确实一一对应）。
+          // 若偏移全为 0 且本地序号也两两不同，顺序本就无需修复，不进入此处判定。
+          duplicatesResolved = shifts.every(shift => shift === shifts[0]) &&
+            new Set(targets).size === pairs.length &&
+            !(shifts.every(shift => shift === 0) && new Set(pairs.map(pair => pair!.row.order)).size === pairs.length)
+        }
+      }
+      if (!duplicatesResolved && localDuplicate) {
         reason = '本地存在重复完整标题，请先核查重复章节'
-      } else if ((sourceTitles.get(normalizedTitle(mapping.sourceTitle)) || 0) > 1) {
+      } else if (!duplicatesResolved && sourceDuplicate) {
         reason = '源站存在重复完整标题，不能唯一确定序号'
       } else if (!title || title !== normalizedTitle(mapping.sourceTitle) || isWeakTitle(local.title, local.order)) {
         reason = '序号修复需要唯一且完整一致的标题'
@@ -486,34 +855,89 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
       }
     }
     if (reason) orderRepairSkipped.push({ localChapterId: local.id, reason })
-    else if (mapping && mapping.sourceOrder !== local.order) candidates.set(local.id, { localChapterId: local.id, title: local.title, oldOrder: local.order, newOrder: mapping.sourceOrder })
+    else if (mapping && mapping.sourceOrder !== local.order && repairableIds.has(local.id)) {
+      candidates.set(local.id, { localChapterId: local.id, title: local.title, oldOrder: local.order, newOrder: mapping.sourceOrder })
+    }
   }
   const skippedById = new Map(orderRepairSkipped.map(row => [row.localChapterId, row]))
   const localById = new Map(locals.map(row => [row.id, row]))
-  // 只允许目标位置为空或其占用章节也能在本次修复中移走；保留交换和连续偏移。
-  let removed = true
-  while (removed) {
-    removed = false
-    for (const [id, change] of candidates) {
-      const blockers = locals.filter(local => local.id !== id && local.order === change.newOrder && !candidates.has(local.id))
-      if (blockers.length) {
-        candidates.delete(id)
-        // 沿连续偏移追到真正无法移走的章节，而不是只提示下一章。
-        const blockingChapterIds = [...new Set(blockers.flatMap(local => skippedById.get(local.id)?.blockingChapterIds || [local.id]))]
-        const details = blockingChapterIds.map(blockerId => {
-          const local = localById.get(blockerId)!
-          return `本地 ${local.order}「${local.title}」（${skippedById.get(blockerId)?.reason || '序号保持不变'}）`
-        }).join('；')
-        const skipped = { localChapterId: id, blockingChapterIds, reason: `目标序号 ${change.newOrder} 的移动依赖受阻：${details}` }
-        skippedById.set(id, skipped)
-        orderRepairSkipped.push(skipped)
-        removed = true
-      }
+  // 段级批量平移：gap 段内所有章节**同时**移到目标序号，段内彼此让位不构成冲突
+  // （L39 要移走、L40 要移到 L39 原位，并发执行即可）。只有段**外**被占用的
+  // 目标号才是真阻塞。逐章判定会把这个同时性误读成依赖链，
+  // 从而制造出 L40→L41→…→L105 的假阻塞。
+  //
+  // 段的平移是否可行，取决于"段内全部目标格是否都能腾空"：段内互占的格子随
+  // 平移一起让位，只有来自段外、且本次不移动的章节占着段的目标格才会挡住平移。
+  // 个别章节因段外占用无法移动时，它的原位仍留在段内，会连带挡住以该原位为
+  // 目标的下一章——但这类连带仅限"目标格确实仍被占用"的链，不应扩散到整段。
+  // 段内章节的目标格是否真的能被腾空，取决于占着该格的章节是否也在"本次会移动"
+  // 的集合里。段内互占的格子随平移一起让位；只有段外、且本次不动的章节实占目标格
+  // 时才会挡住。据此做一次不动点计算：被挡住的章节退出移动集合，可能连带挡住
+  // 以它原位为目标的章节，如此迭代至稳定。
+  const gapChapterIds = new Set(shiftSegments.filter(row => row.kind === 'gap').flatMap(row => row.chapterIds))
+  const blocked: Array<{ id: string; change: SourceSyncOrderChange; blocker: LocalChapterForSync }> = []
+  const movable = new Set(candidates.keys())
+  let settled = false
+  while (!settled) {
+    settled = true
+    for (const id of [...movable]) {
+      const change = candidates.get(id)!
+      // 该目标格当前被谁占着？若占位者本次也会移走（在 movable 内），格子会腾空。
+      const occupant = locals.find(local => local.id !== id && local.order === change.newOrder)
+      if (!occupant) continue
+      if (movable.has(occupant.id)) continue
+      // 占位者不动（段外章节，或已被判定不动）=> 本章无法落位。
+      movable.delete(id)
+      candidates.delete(id)
+      blocked.push({ id, change, blocker: occupant })
+      settled = false
     }
   }
+  for (const { id, change, blocker } of blocked) {
+    // 直接受阻：目标格被某个具体章节物理占据（占位者自身不在移动集合中）。
+    // 传导受阻：占位者本身也待修复，只是因更前置的章节卡死而连带动不了。
+    const direct = !blocked.some(row => row.id === blocker.id) && !candidates.has(blocker.id)
+    const blockingChapterIds = [...new Set(skippedById.get(blocker.id)?.blockingChapterIds || [blocker.id])]
+    const details = blockingChapterIds.map(blockerId => {
+      const local = localById.get(blockerId)!
+      return `本地 ${local.order}「${local.title}」（${skippedById.get(blockerId)?.reason || '序号保持不变'}）`
+    }).join('；')
+    const skipped = {
+      localChapterId: id,
+      blockingChapterIds,
+      reason: direct
+        ? `目标序号 ${change.newOrder} 被占位章占用：${details}`
+        : `目标序号 ${change.newOrder} 的移动依赖受阻：${details}`,
+    }
+    skippedById.set(id, skipped)
+    orderRepairSkipped.push(skipped)
+  }
   const orderChanges = [...candidates.values()].sort((a, b) => a.newOrder - b.newOrder)
+  // 连锁受阻会产生大量指向同一阻塞源的重复记录（一本书常见上百条），
+  // 前端无法阅读。这里按阻塞源聚合出摘要，逐章明细仍保留在 orderRepairSkipped。
+  const blockerGroups = new Map<string, { blockingChapterIds: string[]; reason: string; affectedChapterIds: string[] }>()
+  for (const row of orderRepairSkipped) {
+    const blockingChapterIds = [...(row.blockingChapterIds || [row.localChapterId])]
+    const key = blockingChapterIds.join('|')
+    const group = blockerGroups.get(key)
+    if (group) {
+      group.affectedChapterIds.push(row.localChapterId)
+      continue
+    }
+    const blocker = localById.get(blockingChapterIds[0]!)
+    const blockerTitle = blocker ? `本地 ${blocker.order}「${blocker.title}」` : '未知章节'
+    const cause = skippedById.get(blockingChapterIds[0]!)?.reason
+    // 摘要只说明"谁挡住了什么"，逐章差异交给明细，避免把 100+ 条原文拼进一条。
+    blockerGroups.set(key, {
+      blockingChapterIds,
+      reason: `${blockerTitle}阻挡：${cause && !cause.startsWith('目标序号') ? cause : '依赖其序号让位'}`,
+      affectedChapterIds: [row.localChapterId],
+    })
+  }
+  const orderRepairBlockers = [...blockerGroups.values()]
+    .sort((a, b) => b.affectedChapterIds.length - a.affectedChapterIds.length)
   return {
-    orderChanges, orderRepairSkipped,
+    orderChanges, orderRepairSkipped, orderRepairBlockers, orderShiftSegments: shiftSegments,
     ...(!orderChanges.length && orderRepairSkipped.length ? { orderRepairBlockedReason: '当前没有可独立修复的序号，请查看映射列表中的未修复原因。' } : {}),
   }
 }
@@ -684,7 +1108,21 @@ function buildPreview(
     group.chapters.forEach((local, index) => {
       const part = partCount > 1 ? { index: index + 1, count: partCount } : splitPart(local.title)
       const newTitle = appendSourceTitle(source.title, part)
-      const eligible = !manual && confidence !== 'low' && (!onlyWeakTitles || isWeakTitle(local.title, local.order) || relation === 'split')
+      const noiseOnly = explanation.matchReason === 'exact-title' && confidence === 'high' &&
+        isNoiseOnlyDiff(local.title, newTitle)
+      const eligible = !manual && confidence !== 'low' && (
+        !onlyWeakTitles ||
+        isWeakTitle(local.title, local.order) ||
+        relation === 'split' ||
+        // 差异只来自 normalizedTitle 已剥离的噪声（导入前缀/分级标记/广告后缀）时，
+        // 属于 onlyWeakTitles 想要覆盖的清理场景，不该被"标题非空"挡下。
+        noiseOnly
+      ) && (
+        // 但弱标题本身（纯编号、纯分级标记「（H）」、水印公告）不承载任何标题信息，
+        // 不能仅凭顺序推断就自动改写；它们必须由人工确认，否则会把占位文本写进正文。
+        // 例外：若命中噪声差异判定，说明两侧确实指向同一标题，只是本地多了噪声。
+        !isWeakTitle(local.title, local.order) || relation === 'split' || noiseOnly
+      )
       if (newTitle !== local.title) {
         changes.push({
           localChapterId: local.id,
@@ -754,9 +1192,9 @@ export async function createSourceSyncPreview(
   const source = await fetchSourceChapters(url.href, sourceFetchHtml)
   const metadataResult = await fetchSourceMetadata(url.href, opts.store, sourceFetchHtml)
   if (metadataResult.warning) warnings.push(metadataResult.warning)
-  const locals = await all<LocalChapterForSync>(db, 'SELECT id, sort_order AS order, title FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC, id ASC', [
+  const locals = normalizeLocalSnapshot(await all<LocalChapterForSync>(db, 'SELECT id, sort_order AS order, title FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC, id ASC', [
     opts.novelId,
-  ])
+  ]))
   const runId = newId('sync')
   const preview = buildPreview(
     source.chapters,
@@ -786,7 +1224,7 @@ export async function createSourceSyncPreview(
       JSON.stringify(source.chapters),
       JSON.stringify(preview.changes),
       JSON.stringify(preview.mappings),
-      JSON.stringify(locals),
+      JSON.stringify(normalizeLocalSnapshot(locals)),
       now,
     ],
   )
@@ -837,7 +1275,7 @@ export async function refreshSourceSync(db: Db, opts: { runId: string; revision:
     if (!previous || !['preview', 'applied'].includes(previous.status)) throw new Error('同步预览不存在或已撤回，请重新读取源站')
     assertSyncRevision(previous, opts.revision)
     if (!(await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [previous.novel_id])).rows.length) throw new Error('Novel not found')
-    const locals = (await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 ORDER BY sort_order ASC,id ASC FOR UPDATE', [previous.novel_id])).rows
+    const locals = normalizeLocalSnapshot((await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 ORDER BY sort_order ASC,id ASC FOR UPDATE', [previous.novel_id])).rows)
     const sources = safeJsonParse<SourceChapter[]>(previous.source_chapters_json, [])
     const metadata = safeJsonParse<SourceSyncMetadata>(previous.metadata_json, {} as SourceSyncMetadata)
     const groups = groupLocalChapters(locals)
@@ -850,7 +1288,7 @@ export async function refreshSourceSync(db: Db, opts: { runId: string; revision:
       (id,binding_id,novel_id,status,only_weak_titles,metadata_json,source_chapters_json,changes_json,mapping_json,local_snapshot_json,manual_mappings_json,created_at)
       VALUES ($1,$2,$3,'preview',$4,$5,$6,$7,$8,$9,$10,$11)`,
     [runId, previous.binding_id, previous.novel_id, previous.only_weak_titles, previous.metadata_json, previous.source_chapters_json,
-      JSON.stringify(preview.changes), JSON.stringify(preview.mappings), JSON.stringify(locals), JSON.stringify(manual), Date.now()])
+      JSON.stringify(preview.changes), JSON.stringify(preview.mappings), JSON.stringify(normalizeLocalSnapshot(locals)), JSON.stringify(manual), Date.now()])
     return preview
   })
 }
@@ -861,10 +1299,10 @@ export async function remapSourceSync(db: Db, opts: { runId: string; revision: n
     const run = result.rows[0]
     if (!run || run.status !== 'preview') throw new Error('同步预览不存在或已应用，请重新读取源站')
     assertSyncRevision(run, opts.revision)
-    const locals = safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, [])
+    const locals = normalizeLocalSnapshot(safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, []))
     const sources = safeJsonParse<SourceChapter[]>(run.source_chapters_json, [])
     await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [run.novel_id])
-    const current = (await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.novel_id])).rows
+    const current = normalizeLocalSnapshot((await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.novel_id])).rows)
     if (!sameCatalog(locals, current)) throw new Error('章节目录在预览后已发生变化，请重新读取源站')
     if (!Array.isArray(opts.manualMappings) || opts.manualMappings.length > locals.length) throw new Error('人工映射参数无效')
     const seen = new Set<string>()
@@ -949,22 +1387,28 @@ export async function applySourceSync(
     const audit: AppliedSyncChange[] = []
     const chapterBefore = new Map<string, { title: string; order: number }>()
     if (safeJsonParse<SourceSyncManualMapping[]>(run.manual_mappings_json || '[]', []).length) {
-      const current = (await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.novel_id])).rows
-      if (!sameCatalog(safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, []), current)) throw new Error('章节目录在预览后已发生变化，请重新读取源站')
+      const current = normalizeLocalSnapshot((await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.novel_id])).rows)
+      if (!sameCatalog(normalizeLocalSnapshot(safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, [])), current)) throw new Error('章节目录在预览后已发生变化，请重新读取源站')
     }
     if (opts.repairOrder) {
-      const snapshot = safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, [])
+      const snapshot = normalizeLocalSnapshot(safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, []))
       const sources = safeJsonParse<SourceChapter[]>(run.source_chapters_json, [])
       const repair = buildOrderRepair(mappings, snapshot, sources)
       if (repair.orderRepairBlockedReason) throw new Error(`无法修复序号：${repair.orderRepairBlockedReason}`)
-      const current = await q<LocalChapterForSync>('SELECT id, title, sort_order AS order FROM chapters WHERE novel_id = $1 FOR UPDATE', [run.novel_id])
-      const currentById = new Map(current.rows.map(row => [row.id, row]))
-      if (current.rows.length !== snapshot.length || snapshot.some(row => {
+      const current = normalizeLocalSnapshot((await q<LocalChapterForSync>('SELECT id, title, sort_order AS order FROM chapters WHERE novel_id = $1 FOR UPDATE', [run.novel_id])).rows)
+      const currentById = new Map(current.map(row => [row.id, row]))
+      if (current.length !== snapshot.length || snapshot.some(row => {
         const latest = currentById.get(row.id)
         return !latest || latest.title !== row.title || latest.order !== row.order
       })) throw new Error('章节目录在预览后已发生变化，请重新预览')
       const confirmedOrderIds = opts.confirmedOrderIds === undefined ? null : new Set(opts.confirmedOrderIds)
-      if (confirmedOrderIds && [...confirmedOrderIds].some(id => !repair.orderChanges.some(change => change.localChapterId === id))) {
+      // "不在预览中"仅指该 id 与本次预览完全无关（既不可修、也未登记跳过）。
+      // 已登记为跳过的章节属于合法选择，只是本次无法修复，应被跳过而不是拒绝整个操作。
+      const knownOrderIds = new Set([
+        ...repair.orderChanges.map(change => change.localChapterId),
+        ...(repair.orderRepairSkipped || []).map(row => row.localChapterId),
+      ])
+      if (confirmedOrderIds && [...confirmedOrderIds].some(id => !knownOrderIds.has(id))) {
         throw new Error('无法修复序号：所选章节不在序号修复预览中，请重新预览')
       }
       const orderChanges = repair.orderChanges.filter(change => !confirmedOrderIds || confirmedOrderIds.has(change.localChapterId))
@@ -1095,7 +1539,7 @@ export async function applySourceSync(
 }
 
 export function sourceSyncTestHelpers() {
-  return { splitPart, chapterNumber, normalizedTitle, groupLocalChapters, alignSourceAndLocal, buildPreview }
+  return { splitPart, chapterNumber, normalizedTitle, isWeakTitle, groupLocalChapters, alignSourceAndLocal, buildPreview }
 }
 
 export async function listSourceSyncHistory(db: Db, novelId: string, limit = 20, offset = 0) {
@@ -1128,9 +1572,9 @@ export async function rollbackSourceSync(db: Db, runId: string, actorUserId: str
     if (!changes.length) throw new Error('旧记录没有应用快照，无法安全撤回')
     const novel = (await q<Record<string, unknown>>('SELECT * FROM novels WHERE id=$1 FOR UPDATE', [run.novel_id])).rows[0]
     if (!novel) throw new Error('Novel not found')
-    const current = (await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.novel_id])).rows
+    const current = normalizeLocalSnapshot((await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.novel_id])).rows)
     const byId = new Map(current.map(row => [row.id, row]))
-    const original = safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, [])
+    const original = normalizeLocalSnapshot(safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, []))
     const result: SourceSyncRollbackResult = { runId, restored: 0, conflicts: [] }
     const candidates = new Map<string, AppliedChapterChange>()
     for (const change of changes) {

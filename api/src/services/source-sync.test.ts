@@ -4,6 +4,7 @@ import { PgScrapeStore } from './scraper/store'
 import {
   applySourceSync,
   createSourceSyncPreview,
+  refreshSourceSync,
   sourceSyncTestHelpers,
   type LocalChapterForSync,
   type SourceChapter,
@@ -467,4 +468,354 @@ it('连续偏移受阻时指出根本占用章节，并保留其他独立修复'
     expect(skipped?.reason).toContain('本地 3「未匹配公告」')
     expect(skipped?.reason).toContain('尚未匹配')
   }
+})
+
+describe('标题归一化剥离修饰词与污染标题', () => {
+  const { normalizedTitle, isWeakTitle } = sourceSyncTestHelpers()
+
+  it.each([
+    ['被迫穿上情趣旗袍', '被迫穿上情趣旗袍（微H）'],
+    ['被迫穿着旗袍自慰', '被迫穿着旗袍自慰（H）'],
+    ['兄弟', '兄弟（微H）'],
+    ['掉马「po1⒏homes」', '掉马'],
+  ])('本地「%s」与源站「%s」归一化后相等', (local, source) => {
+    expect(normalizedTitle(local)).toBe(normalizedTitle(source))
+  })
+
+  it.each([
+    ['(H)', '半角括号'],
+    ['（高h）', '小写h'],
+    ['（H）（加更）', '标记后仍有正文'],
+    ['（微h）（加更）', '微标记叠加正文'],
+    ['（高H）', '高H'],
+  ])('剥离 %s（%s）后保留正文', (title, reason) => {
+    expect(reason).toBeTruthy()
+    expect(normalizedTitle(title)).not.toContain('h')
+  })
+
+  it.each(['首-发：', '首-发', '首发', '防盗', '本章为防盗章'])('污染标题「%s」判为弱标题', (title) => {
+    expect(isWeakTitle(title, 38)).toBe(true)
+  })
+
+  it('纯分级标记剥离后为空串，必须判弱以免成为空锚点', () => {
+    for (const title of ['（H）', '（微H）', '(H)', '（高h）', '( 微 h )']) {
+      expect(normalizedTitle(title)).toBe('')
+      expect(isWeakTitle(title, 7)).toBe(true)
+    }
+  })
+
+  it('含 H 的正常正文标题不被误剥离', () => {
+    expect(normalizedTitle('他的心跳')).toBe('他的心跳')
+    expect(normalizedTitle('H市往事')).toBe('h市往事')
+    expect(normalizedTitle('她说她很happy')).toBe('她说她很happy')
+    expect(isWeakTitle('他的心跳', 3)).toBe(false)
+  })
+})
+
+it('污染标题不参与锚定，避免顶掉真实章节并推偏后续序号', () => {
+  const source = [
+    { key: 's37', order: 37, title: '项圈（微H）', url: '' },
+    { key: 's38', order: 38, title: '失踪', url: '' },
+    { key: 's39', order: 39, title: '笼子', url: '' },
+  ]
+  // 本地目录里插入了 PO18 防盜水印「首-发：」，把真实章节整体推后一位。
+  const local = [
+    { id: 'l37', order: 37, title: '项圈（微H）' },
+    { id: 'l38', order: 38, title: '首-发：' },
+    { id: 'l39', order: 39, title: '失踪' },
+    { id: 'l40', order: 40, title: '笼子' },
+  ]
+  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+    { runId: 'watermark', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+  // 水印章必须落进未匹配本地，而不是抢占源站第38章。
+  expect(preview.unmatchedLocal.map(row => row.id)).toEqual(['l38'])
+  expect(preview.mappings.map(row => [row.sourceOrder, row.localChapterIds[0]])).toEqual([[37, 'l37'], [38, 'l39'], [39, 'l40']])
+})
+
+it('同名章节按两侧序号顺序消歧，两个「自由」各归其位', () => {
+  const titles = ['真空', '自由', '狗咬狗', '夹心三明治', '兄弟', '警犬', '遛狗', '最后的晚餐', '自由', '霸道总裁爱上我']
+  const source = titles.map((title, index) => ({ key: `s${index}`, order: 90 + index, title, url: '' }))
+  // 本地整体比源站靠后 1 位，两个「自由」分别位于第 92、99 章。
+  const local = titles.map((title, index) => ({ id: `l${index}`, order: 91 + index, title }))
+  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+    { runId: 'dup-title', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+
+  expect(preview.unmatchedLocal).toEqual([])
+  expect(preview.unmatchedSource).toEqual([])
+  for (const [localIndex, order] of [[1, 91], [8, 98]] as const) {
+    const mapping = preview.mappings.find(row => row.localChapterIds.includes(`l${localIndex}`))
+    expect(mapping).toMatchObject({ sourceChapterKey: `s${order - 90}`, sourceOrder: order, confidence: 'high' })
+  }
+})
+
+it('远离基准位置的巧合同名锚点被拒绝，不伪造确定性', () => {
+  // 本地把源站第54章「游戏」的正文缺失，却在第112章另有一个同名「游戏」。
+  const source = [
+    { key: 's52', order: 52, title: '约会', url: '' },
+    { key: 's53', order: 53, title: '发泄', url: '' },
+    { key: 's54', order: 54, title: '游戏', url: '' },
+    { key: 's55', order: 55, title: '出气', url: '' },
+  ]
+  const local = [
+    { id: 'l52', order: 52, title: '约会' },
+    { id: 'l53', order: 53, title: '发泄' },
+    { id: 'l55', order: 55, title: '出气' },
+    { id: 'l112', order: 112, title: '游戏' },
+  ]
+  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+    { runId: 'far-anchor', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+
+  // 正确匹配必须保住。
+  expect(preview.mappings.find(row => row.localChapterIds.includes('l53'))).toMatchObject({ sourceOrder: 53, confidence: 'high' })
+  expect(preview.mappings.find(row => row.localChapterIds.includes('l55'))).toMatchObject({ sourceOrder: 55, confidence: 'high' })
+  // 本地112的「游戏」不得以 high/exact-title 伪造确定性。
+  const forged = preview.mappings.find(row => row.localChapterIds.includes('l112'))
+  expect(forged?.confidence).not.toBe('high')
+  expect(preview.unmatchedLocal.map(row => row.id)).toContain('l112')
+})
+
+it('导入残留序号前缀制造的纯清理修正可自动应用', () => {
+  const source = [
+    { key: 's83', order: 83, title: '阴差阳错', url: '' },
+    { key: 's84', order: 84, title: '首长和太子', url: '' },
+    { key: 's85', order: 85, title: '巧克力（微H）', url: '' },
+  ]
+  const local = [
+    { id: 'l83', order: 83, title: '阴差阳错' },
+    { id: 'l85', order: 85, title: '84.首长和太子' },
+    { id: 'l86', order: 86, title: '巧克力（微H）' },
+  ]
+  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+    { runId: 'import-prefix', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+
+  const change = preview.changes.find(row => row.localChapterId === 'l85')
+  expect(change).toMatchObject({ newTitle: '首长和太子', sourceOrder: 84, confidence: 'high', eligible: true })
+})
+
+it('连续受阻记录按阻塞源聚合，明细逐章保留', () => {
+  const source = [
+    { key: 'a', order: 2, title: '第一章 起程', url: '' },
+    { key: 'b', order: 3, title: '第二章 归途', url: '' },
+    { key: 'c', order: 4, title: '第三章 重逢', url: '' },
+    { key: 'd', order: 5, title: '第四章 远行', url: '' },
+  ]
+  const local = [
+    { id: 'a', order: 1, title: '第一章 起程' },
+    { id: 'blocked', order: 2, title: '未匹配公告' },
+    { id: 'b', order: 3, title: '第二章 归途' },
+    { id: 'c', order: 4, title: '第三章 重逢' },
+    { id: 'd', order: 5, title: '第四章 远行' },
+  ]
+  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+    { runId: 'aggregate-blockers', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+
+  // 逐章明细保留原有契约字段。
+  expect(preview.orderRepairSkipped?.length).toBeGreaterThan(1)
+  expect(preview.orderRepairSkipped?.every(row => typeof row.reason === 'string')).toBe(true)
+  // 聚合摘要：同一阻塞源只出现一次，并列出全部受影响章节。
+  const blockers = preview.orderRepairBlockers || []
+  expect(blockers).toHaveLength(1)
+  expect(blockers[0]).toMatchObject({ blockingChapterIds: ['blocked'] })
+  expect(blockers[0]?.reason).toContain('本地 2「未匹配公告」')
+  const covered = blockers.flatMap(row => row.affectedChapterIds)
+  expect(covered).toEqual(preview.orderRepairSkipped?.map(row => row.localChapterId))
+  expect(new Set(covered).size).toBe(covered.length)
+})
+
+it('弱标题占位章占据的序号不会被静默覆盖', async () => {
+  const novelId = 'weak-blocker-order'
+  const source = [
+    { order: 1, title: '教室里' },
+    { order: 2, title: '失踪' },
+    { order: 3, title: '笼子' },
+  ]
+  await testDb.db.query('INSERT INTO novels (id,title,author,created_at,updated_at) VALUES ($1,$1,\'作者\',1,1)', [novelId])
+  // 本地第2格被 PO18 防盜水印占据，导致「失踪」整体后移一位。
+  const local = [
+    { id: `${novelId}-n1`, title: '教室里', order: 1 },
+    { id: `${novelId}-junk`, title: '首-发：', order: 2 },
+    { id: `${novelId}-n2`, title: '失踪', order: 3 },
+    { id: `${novelId}-n3`, title: '笼子', order: 4 },
+  ]
+  for (const row of local) {
+    await testDb.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,\'正文保持\',$4,1)',
+      [row.id, novelId, row.title, row.order])
+  }
+  const preview = await createSourceSyncPreview(testDb.db, {
+    novelId, sourceUrl: 'https://www.po18.tw/books/902326/articles', store: new PgScrapeStore(testDb.db),
+    fetchHtml: async () => ({ html: po18Directory(source), encoding: 'utf-8' }),
+  })
+
+  // 水印章不参与锚定，也不会被当成某章的配对目标。
+  expect(preview.unmatchedLocal.map(row => row.id)).toEqual([`${novelId}-junk`])
+  // 但「失踪」的目标号 2 被水印章实占：不能静默覆盖，必须留给人工处理。
+  expect(preview.orderChanges).toEqual([])
+  const missing = preview.orderRepairSkipped?.find(row => row.localChapterId === `${novelId}-n2`)
+  expect(missing?.reason).toContain('被占位章占用')
+  expect(missing?.blockingChapterIds).toEqual([`${novelId}-junk`])
+
+  // 应用后目录保持原样，不产生重复序号。
+  await expect(applySourceSync(testDb.db, { runId: preview.runId, repairOrder: true })).rejects.toThrow('无法修复序号')
+  const stored = await testDb.db.query<{ id: string; sort_order: number }>(
+    'SELECT id, sort_order FROM chapters WHERE novel_id=$1 ORDER BY id', [novelId])
+  expect(stored.rows.map(row => [row.id.replace(`${novelId}-`, ''), row.sort_order])).toEqual([
+    ['junk', 2], ['n1', 1], ['n2', 3], ['n3', 4],
+  ])
+})
+
+it('差异仅来自被剥离的噪声标记时，修正可自动应用', () => {
+  // 与「84.首长和太子」性质相同的确定性清理：分级标记与广告后缀。
+  const source = [
+    { key: 's78', order: 78, title: '被迫穿上情趣旗袍（微H）', url: '' },
+    { key: 's94', order: 94, title: '兄弟（微H）', url: '' },
+    { key: 's171', order: 171, title: '掉马', url: '' },
+  ]
+  const local = [
+    { id: 'l79', order: 79, title: '被迫穿上情趣旗袍' },
+    { id: 'l95', order: 95, title: '兄弟' },
+    { id: 'l179', order: 179, title: '掉马「po1⒏homes」' },
+  ]
+  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+    { runId: 'noise-only', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+
+  expect(preview.changes).toHaveLength(3)
+  expect(preview.changes.every(row => row.confidence === 'high' && row.matchReason === 'exact-title')).toBe(true)
+  expect(preview.changes.map(row => [row.localChapterId, row.eligible])).toEqual([['l79', true], ['l95', true], ['l179', true]])
+})
+
+it('目标标题仍含噪声标记时不算纯清理，不得自动应用', () => {
+  // 反例：归一化不相等（`掉马推广` vs `掉马`），后端无法证明是同一标题。
+  const preview = sourceSyncTestHelpers().buildPreview(
+    [{ key: 's', order: 1, title: '掉马', url: '' }],
+    [{ id: 'l', order: 1, title: '掉马（H）推广' }],
+    metadata, true,
+    { runId: 'not-noise-only', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+
+  expect(preview.changes[0]?.eligible).toBe(false)
+})
+
+it.each([
+  ['首长和太子', '84.首长和太子', '目标带导入前缀'],
+  ['首长和太子', '第84章 首长和太子', '目标带「第N章」前缀'],
+  ['40 38.我怎么可能会喜欢她', '38.我怎么可能会喜欢她', '两侧都带前缀'],
+  ['掉马（H）推广', '掉马', '标题本身也变了'],
+  ['被迫穿上情趣旗袍', '被迫穿上旗袍（微H）X', '标题正文被删改'],
+])('反向护栏：本地「%s」→ 目标「%s」（%s）不得自动应用', (localTitle, sourceTitle, reason) => {
+  expect(reason).toBeTruthy()
+  const preview = sourceSyncTestHelpers().buildPreview(
+    [{ key: 's', order: 1, title: sourceTitle, url: '' }],
+    [{ id: 'l', order: 1, title: localTitle }],
+    metadata, true,
+    { runId: 'guard', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+
+  for (const change of preview.changes) expect(change.eligible).toBe(false)
+})
+
+it('弱标题不因顺序推断而被自动改写', () => {
+  // 纯分级标记「（H）」不承载标题信息，即使被顺序对齐也不能自动写入。
+  const preview = sourceSyncTestHelpers().buildPreview(
+    [{ key: 's', order: 1, title: 'H', url: '' }],
+    [{ id: 'l', order: 1, title: '（H）' }],
+    metadata, true,
+    { runId: 'weak-eligible', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+
+  expect(preview.mappings[0]?.matchReason).toBe('sequence')
+  for (const change of preview.changes) expect(change.eligible).toBe(false)
+})
+
+it('两侧都带多层前缀时差异不是纯导入噪声，不得据此自动应用', () => {
+  const source = [
+    { key: 's1', order: 1, title: '38.我怎么可能会喜欢她', url: '' },
+  ]
+  const local = [
+    { id: 'l1', order: 1, title: '40 38.我怎么可能会喜欢她' },
+  ]
+  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+    { runId: 'both-prefix', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+
+  expect(preview.mappings[0]).toMatchObject({ matchReason: 'exact-title', confidence: 'high' })
+  const change = preview.changes[0]
+  expect(change?.newTitle).toBe('38.我怎么可能会喜欢她')
+  expect(change?.eligible).toBe(false)
+})
+
+describe('数值字段类型与快照往返一致性', () => {
+  const source = [
+    { order: 1, title: '教室里' },
+    { order: 2, title: '失踪' },
+    { order: 3, title: '笼子' },
+    { order: 4, title: '浴室' },
+  ]
+  /**
+   * 占位章 + 正文错位。真实书里链首被占位章卡住、缺口提供滑动启动位；
+   * 这个小用例只验证"快照 order 始终是 number"这一类型契约。
+   */
+  async function seedShifted(novelId: string) {
+    await testDb.db.query('INSERT INTO novels (id,title,author,created_at,updated_at) VALUES ($1,$1,\'作者\',1,1)', [novelId])
+    const local = [
+      { id: `${novelId}-junk`, title: '首-发：', order: 1 },
+      { id: `${novelId}-n1`, title: '教室里', order: 2 },
+      { id: `${novelId}-n2`, title: '失踪', order: 3 },
+      { id: `${novelId}-n3`, title: '笼子', order: 5 },
+      { id: `${novelId}-n4`, title: '浴室', order: 6 },
+    ]
+    for (const row of local) {
+      await testDb.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,\'正文保持\',$4,1)',
+        [row.id, novelId, row.title, row.order])
+    }
+    return createSourceSyncPreview(testDb.db, {
+      novelId, sourceUrl: 'https://www.po18.tw/books/902326/articles', store: new PgScrapeStore(testDb.db),
+      fetchHtml: async () => ({ html: po18Directory(source), encoding: 'utf-8' }),
+    })
+  }
+
+  it('预览落库的快照 order 为数值，应用后仍为数值且不产生重复序号', async () => {
+    const novelId = 'bigint-order-roundtrip'
+    const preview = await seedShifted(novelId)
+
+    const stored = await testDb.db.query<{ local_snapshot_json: string }>(
+      'SELECT local_snapshot_json FROM source_sync_runs WHERE id=$1', [preview.runId])
+    const snapshot = JSON.parse(stored.rows[0]!.local_snapshot_json)
+    // 回归：pg 把 bigint 返回为字符串，未归一化会让段级分组静默退化。
+    expect(snapshot.every((row: { order: unknown }) => typeof row.order === 'number')).toBe(true)
+
+    const confirmed = preview.orderChanges.map(row => row.localChapterId)
+    // repairOrder 仅在预览确有可修项时开启，否则 applySourceSync 会明确拒绝（无独立可修序号）。
+    const result = await applySourceSync(testDb.db, {
+      runId: preview.runId,
+      repairOrder: preview.orderChanges.length > 0,
+      confirmedOrderIds: confirmed,
+    })
+    // 应用条数必须与预览一致：两条路径不能各自算出不同的量。
+    expect(result.orderUpdated).toBe(preview.orderChanges.length)
+
+    const after = await testDb.db.query<{ sort_order: number }>('SELECT sort_order FROM chapters WHERE novel_id=$1', [novelId])
+    const orders = after.rows.map(row => Number(row.sort_order))
+    expect(new Set(orders).size).toBe(orders.length)
+
+    const applied = await testDb.db.query<{ local_snapshot_json: string }>(
+      'SELECT local_snapshot_json FROM source_sync_runs WHERE id=$1', [preview.runId])
+    const appliedSnapshot = JSON.parse(applied.rows[0]!.local_snapshot_json)
+    expect(appliedSnapshot.every((row: { order: unknown }) => typeof row.order === 'number')).toBe(true)
+  })
+
+  it('历史快照中 order 为字符串时能被归一化自愈', async () => {
+    const novelId = 'legacy-string-order'
+    const preview = await seedShifted(novelId)
+
+    // 模拟历史脏数据：快照中的 order 全部是字符串（pg bigint 直返所致）。
+    const stored = await testDb.db.query<{ local_snapshot_json: string }>(
+      'SELECT local_snapshot_json FROM source_sync_runs WHERE id=$1', [preview.runId])
+    const dirty = JSON.parse(stored.rows[0]!.local_snapshot_json).map((row: { id: string; title: string; order: number }) => ({ ...row, order: String(row.order) }))
+    await testDb.db.query('UPDATE source_sync_runs SET local_snapshot_json=$1 WHERE id=$2', [JSON.stringify(dirty), preview.runId])
+
+    // 读取侧归一化后仍能正常修复序号（脏数据不会让段级判定退化）。
+    const healed = await refreshSourceSync(testDb.db, { runId: preview.runId, revision: 0 })
+    expect(healed.orderShiftSegments).toBeDefined()
+    // 归一化生效：所有段都基于数值 order 计算，偏移量不会是 NaN。
+    expect(healed.orderShiftSegments!.every(row => Number.isFinite(row.offset))).toBe(true)
+    // 与干净数据（未污染的原始快照）产出相同的段结构。
+    expect(healed.orderShiftSegments!.map(row => [row.localRange.from, row.localRange.to, row.offset, row.kind]))
+      .toEqual(preview.orderShiftSegments!.map(row => [row.localRange.from, row.localRange.to, row.offset, row.kind]))
+  })
 })
