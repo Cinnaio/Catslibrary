@@ -376,3 +376,235 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
     width: 100%;
   }
 }
+
+/* ==========================================================================
+   Claude (Anthropic) 风格扩展：章节管理工作台与专属导轨
+   ========================================================================== */
+
+/* 1. 作品专属导航导轨 (Novel Context Hero Rail) */
+.chapter-novel-hero-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  border-radius: 18px;
+  box-shadow: 0 4px 20px rgba(35, 30, 24, 0.03);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chapter-novel-hero-rail:hover {
+  border-color: rgba(217, 119, 87, 0.3);
+  box-shadow: 0 6px 24px rgba(217, 119, 87, 0.06);
+}
+
+.chapter-novel-hero-rail__left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.chapter-novel-hero-rail__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(217, 119, 87, 0.1);
+  color: #D97757;
+  flex-shrink: 0;
+}
+
+.chapter-novel-hero-rail__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.chapter-novel-hero-rail__title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.chapter-novel-hero-rail__title {
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.chapter-novel-hero-rail__author {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.chapter-novel-hero-rail__stats {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.chapter-novel-hero-rail__stat-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.04));
+  border-radius: 9999px;
+  font-weight: 500;
+}
+
+.chapter-novel-hero-rail__right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* 未选小说时的温润占位卡 */
+.chapter-novel-hero-rail--empty {
+  justify-content: center;
+  text-align: center;
+  padding: 2rem 1.5rem;
+  background: var(--admin-panel-muted, #faf9f5);
+  border: 1px dashed var(--admin-border, #e6e4dc);
+}
+
+.chapter-novel-hero-rail--empty .chapter-novel-hero-rail__info {
+  align-items: center;
+  max-width: 480px;
+}
+
+/* 2. 章节序号胶囊 */
+.chapter-order-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--admin-border, #e6e4dc);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 3. 卷标徽章 */
+.chapter-volume-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  margin-right: 0.4rem;
+  border-radius: 6px;
+  background: rgba(217, 119, 87, 0.1);
+  color: #D97757;
+  font-size: 0.7rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* 4. 排序切换胶囊 */
+.chapter-sort-pill {
+  border-radius: 9999px !important;
+  font-size: 0.8rem !important;
+  height: 2rem !important;
+  padding: 0 0.75rem !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--admin-border, #e6e4dc) !important;
+  background: var(--admin-panel, #ffffff) !important;
+  transition: all 0.18s ease !important;
+}
+
+.chapter-sort-pill:hover {
+  background: var(--admin-panel-muted, #faf9f5) !important;
+  border-color: rgba(217, 119, 87, 0.4) !important;
+  color: #D97757 !important;
+}
+
+/* 5. 沉浸式章节速读抽屉 (Quick Reader) */
+.chapter-quick-reader-dialog {
+  background: var(--admin-canvas, #FAF9F5) !important;
+}
+
+.chapter-quick-reader__header {
+  border-bottom: 1px solid var(--admin-border, #e6e4dc);
+  padding-bottom: 1rem;
+}
+
+.chapter-quick-reader__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.chapter-quick-reader__novel-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  background: rgba(217, 119, 87, 0.1);
+  color: #D97757;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.chapter-quick-reader__title {
+  font-size: 1.35rem !important;
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.015em;
+}
+
+.chapter-quick-reader__body {
+  max-height: 65vh;
+  overflow-y: auto;
+  padding: 1.5rem 1rem;
+}
+
+.chapter-quick-reader__content {
+  font-size: 1.05rem;
+  line-height: 1.85;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.chapter-quick-reader__content p {
+  text-indent: 2em;
+  margin-bottom: 1.25rem;
+}
+
+.chapter-quick-reader__loading,
+.chapter-quick-reader__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+
+.chapter-quick-reader__footer {
+  border-top: 1px solid var(--admin-border, #e6e4dc);
+  padding-top: 0.75rem;
+}
+

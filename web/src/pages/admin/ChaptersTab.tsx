@@ -12,7 +12,7 @@ import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
 import { adminApi, chaptersApi, novelsApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSourceSearchResponse } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
-import type { ChapterMeta } from '@shared/types'
+import type { ChapterMeta, Chapter } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -20,12 +20,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, BookOpen, ExternalLink, ArrowUpDown, Eye } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import ChapterMergePreview from './ChapterMergePreview'
 import SourceSyncHistoryDialog from './SourceSyncHistoryDialog'
 import TitleSourceSearchResults from './TitleSourceSearchResults'
 import ChapterMergeContentDialog from './ChapterMergeContentDialog'
+import ChapterQuickReaderDialog from './ChapterQuickReaderDialog'
 import { unchangedSourceSyncIds } from '@/lib/source-sync-selection'
 import type { SourceSyncManualMapping } from '@/lib/api'
 import ChapterIllustrations from '@/components/reader/ChapterIllustrations'
@@ -56,6 +57,11 @@ interface ChapterDraft {
   content: string
 }
 
+function extractVolumeTag(title: string): string | null {
+  const match = title.match(/^(第[一二三四五六七八九十百千0-9]+卷|[Vv]ol(?:ume)?\.?\s*\d+)/)
+  return match ? match[1] : null
+}
+
 export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }: { highlightNovelId?: string; onHighlightConsumed?: () => void; mergeNovel?: IndexNovel; onMergeClose?: () => void; onMergeApplied?: () => void | Promise<void> }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -64,6 +70,8 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
   const [selectedNovel, setSelectedNovel] = useState(mergeNovel?.id || '')
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [search, setSearch] = useState('')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [quickReaderChapter, setQuickReaderChapter] = useState<Chapter | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -220,9 +228,15 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return chapters
-    return chapters.filter((c) => c.title.toLowerCase().includes(q) || String(c.order).startsWith(q))
-  }, [chapters, search])
+    let list = chapters
+    if (q) {
+      list = chapters.filter((c) => c.title.toLowerCase().includes(q) || String(c.order).startsWith(q))
+    }
+    if (sortOrder === 'desc') {
+      return [...list].sort((a, b) => (b.order ?? 0) - (a.order ?? 0))
+    }
+    return list
+  }, [chapters, search, sortOrder])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -691,25 +705,90 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       title="章节管理"
       description="按作品维护目录与正文，搜索和批量操作只作用于当前作品。"
       actions={
-        <>
-          <CustomSelect
-            className="chapter-novel-select"
-            searchable
-            searchPlaceholder="搜索书名 / 拼音…"
-            placeholder="请选择小说"
-            options={novelSelectOptions}
-            value={selectedNovel}
-            onChange={pickNovel}
-            filter={novelFilter}
-            onServerSearch={handleNovelServerSearch}
-          />
-          <Button onClick={() => void openChapterModal(null)} disabled={!selectedNovel}>
-            <span aria-hidden="true">＋</span>
-            添加章节
-          </Button>
-        </>
+        <Button
+          onClick={() => void openChapterModal(null)}
+          disabled={!selectedNovel}
+          className="rounded-full"
+        >
+          <span aria-hidden="true">＋</span>
+          添加章节
+        </Button>
       }
     >
+      {/* 沉浸式小说上下文看板轨 (Novel Context Rail) */}
+      {!selectedNovel ? (
+        <div className="chapter-novel-hero-rail chapter-novel-hero-rail--empty">
+          <div className="chapter-novel-hero-rail__icon">
+            <BookOpen className="size-6" />
+          </div>
+          <div className="chapter-novel-hero-rail__info">
+            <h3 className="chapter-novel-hero-rail__title">请选择需要维护的小说</h3>
+            <p className="chapter-novel-hero-rail__author">选择小说后可查看目录、调整序号、批量重命名或预览章节正文。</p>
+            <div className="mt-3 w-full max-w-[320px]">
+              <CustomSelect
+                className="chapter-novel-select"
+                searchable
+                searchPlaceholder="搜索书名 / 拼音…"
+                placeholder="请选择小说"
+                options={novelSelectOptions}
+                value={selectedNovel}
+                onChange={pickNovel}
+                filter={novelFilter}
+                onServerSearch={handleNovelServerSearch}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="chapter-novel-hero-rail">
+          <div className="chapter-novel-hero-rail__left">
+            <div className="chapter-novel-hero-rail__icon">
+              <BookOpen className="size-5" />
+            </div>
+            <div className="chapter-novel-hero-rail__info">
+              <div className="chapter-novel-hero-rail__title-row">
+                <h3 className="chapter-novel-hero-rail__title">{selectedNovelInfo?.title || '未命名作品'}</h3>
+                <span className="chapter-novel-hero-rail__author">
+                  {selectedNovelInfo?.author ? `作者：${selectedNovelInfo.author}` : '未知作者'}
+                </span>
+              </div>
+              <div className="chapter-novel-hero-rail__stats">
+                <span className="chapter-novel-hero-rail__stat-pill">共 {chapters.length} 章</span>
+                <span className="chapter-novel-hero-rail__stat-pill">
+                  {chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0).toLocaleString()} 字
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="chapter-novel-hero-rail__right">
+            <div className="w-[180px] sm:w-[220px]">
+              <CustomSelect
+                className="chapter-novel-select"
+                searchable
+                searchPlaceholder="切换小说…"
+                placeholder="切换小说"
+                options={novelSelectOptions}
+                value={selectedNovel}
+                onChange={pickNovel}
+                filter={novelFilter}
+                onServerSearch={handleNovelServerSearch}
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full gap-1.5"
+              asChild
+            >
+              <a href={`/book/${encodeURIComponent(selectedNovel)}`} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-3.5" />
+                读者视图
+              </a>
+            </Button>
+          </div>
+        </div>
+      )}
+
       {selectedNovel && (
         <AdminToolbar layout="inline" className="chapter-toolbar" ariaLive="polite">
           <div className="chapter-toolbar__search">
@@ -722,21 +801,35 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="chapter-toolbar__actions">
+          <div className="chapter-toolbar__actions flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="chapter-sort-pill gap-1"
+              onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+              title={sortOrder === 'asc' ? '切换为倒序显示' : '切换为正序显示'}
+            >
+              <ArrowUpDown className="size-3.5" />
+              <span>{sortOrder === 'asc' ? '正序 (1→N)' : '倒序 (N→1)'}</span>
+            </Button>
             {selectedIds.size === 0 && (
-              <Button variant="secondary" size="sm" onClick={() => void openRenameModal()}>
+              <Button variant="secondary" size="sm" className="rounded-full" onClick={() => void openRenameModal()}>
                 融合章节名
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>融合历史</Button>
+            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => setHistoryOpen(true)}>
+              融合历史
+            </Button>
           </div>
         </AdminToolbar>
       )}
+
       {selectedNovel && selectedIds.size > 0 && (
         <AdminSelectionBar count={selectedIds.size} label={`已选 ${selectedIds.size} 章`} onClear={() => setSelectedIds(new Set())}>
           <Button
             variant="secondary"
             size="sm"
+            className="rounded-full"
             onClick={() =>
               setSelectedIds((prev) => {
                 const pageIds = pageRows.map((c) => c.id)
@@ -748,12 +841,13 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
           >
             反选本页
           </Button>
-          <Button variant="destructive" size="sm" onClick={() => void batchDelete()}>
+          <Button variant="destructive" size="sm" className="rounded-full" onClick={() => void batchDelete()}>
             批量删除 ({selectedIds.size})
           </Button>
         </AdminSelectionBar>
       )}
-      <AdminDataPanel className="chapter-directory-panel" ariaLabel="章节目录数据" columns={CHAPTER_COLUMNS}>
+
+      <AdminDataPanel className="chapter-directory-panel" ariaLabel="章节目录数据" columns={CHAPTER_COLUMNS} density="comfortable">
         <Table>
           <TableCaption className="sr-only">章节目录列表，包含序号、章节标题、字数、创建时间和操作</TableCaption>
           <TableHeader>
@@ -792,11 +886,33 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                   <TableCell data-check="">
                     <Checkbox aria-label={`选择章节：第${c.order}章 ${c.title}`} checked={selectedIds.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
                   </TableCell>
-                  <TableCell data-label="序号">{c.order || <span className="admin-empty-value">—</span>}</TableCell>
-                  <TableCell data-primary="" data-label="章节标题">
-                    <AdminCellText strong>{c.title || '—'}</AdminCellText>
+                  <TableCell data-label="序号">
+                    <span className="chapter-order-pill">
+                      {c.order != null ? String(c.order).padStart(2, '0') : '—'}
+                    </span>
                   </TableCell>
-                  <TableCell data-label="字数">{c.wordCount ? c.wordCount.toLocaleString('zh-CN') : <span className="admin-empty-value">—</span>}</TableCell>
+                  <TableCell data-primary="" data-label="章节标题">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {extractVolumeTag(c.title) && (
+                        <span className="chapter-volume-tag">{extractVolumeTag(c.title)}</span>
+                      )}
+                      <AdminCellText strong>
+                        <button
+                          type="button"
+                          className="text-left hover:text-primary transition-colors cursor-pointer"
+                          onClick={() => setQuickReaderChapter(c as unknown as Chapter)}
+                          title="点击速读章节内容"
+                        >
+                          {c.title || '—'}
+                        </button>
+                      </AdminCellText>
+                    </div>
+                  </TableCell>
+                  <TableCell data-label="字数">
+                    <span className="tabular-nums text-muted-foreground font-medium">
+                      {c.wordCount ? `${c.wordCount.toLocaleString('zh-CN')} 字` : <span className="admin-empty-value">—</span>}
+                    </span>
+                  </TableCell>
                   <TableCell data-label="创建时间" className="text-sm text-muted-foreground">
                     {timeAgo(c.createdAt)}
                   </TableCell>
@@ -808,6 +924,16 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                         { label: '删除章节', icon: Trash2, onSelect: () => void deleteChapter(c), danger: true },
                       ]}
                     >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="admin-icon-button"
+                        aria-label={`速读：第${c.order}章 ${c.title}`}
+                        title="速读"
+                        onClick={() => setQuickReaderChapter(c as unknown as Chapter)}
+                      >
+                        <Eye className="size-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -925,6 +1051,18 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       {renameDialog}
       {contentDialog}
       {historyOpen && <SourceSyncHistoryDialog key={selectedNovel} open novelId={selectedNovel} onOpenChange={setHistoryOpen} onCompleted={refreshAfterRollback} />}
+
+      <ChapterQuickReaderDialog
+        open={Boolean(quickReaderChapter)}
+        onClose={() => setQuickReaderChapter(null)}
+        chapter={quickReaderChapter}
+        novelTitle={selectedNovelInfo?.title}
+        chapters={chapters as unknown as Chapter[]}
+        onEdit={(ch) => {
+          setQuickReaderChapter(null)
+          void openChapterModal(ch as unknown as ChapterMeta)
+        }}
+      />
     </AdminPage>
   )
 }
