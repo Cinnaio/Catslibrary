@@ -266,6 +266,11 @@ export default function NovelFollowupDialog({
           )}
         </AdminDialogBody>
         <DialogFooter>
+          {variant === 'event' && !editing && (
+            <Button variant="outline" disabled={busy} onClick={onClose}>
+              关闭
+            </Button>
+          )}
           {variant === 'event' && editing ? (
             <Button
               variant="outline"
