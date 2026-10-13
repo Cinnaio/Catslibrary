@@ -13,6 +13,10 @@
   --admin-accent-subtle: rgba(217, 119, 87, 0.05);
   --admin-accent-ink: #FFFFFF;
 
+  /* Claude 人文书卷感衬线与无衬线字体栈（针对 Windows/macOS 深度优化） */
+  --admin-font-serif: "Newsreader", "Georgia", "Cambria", "Source Han Serif SC", "Noto Serif SC", "STSong", "SimSun", serif;
+  --admin-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+
   --admin-button-primary-label-size: 0.875rem;
   --admin-button-secondary-label-size: 0.8125rem;
   --admin-button-tertiary-label-size: 0.8125rem;

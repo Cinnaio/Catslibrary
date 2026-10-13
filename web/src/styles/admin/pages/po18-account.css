@@ -99,17 +99,26 @@
 
 .po18-account-fallback {
   min-width: 0;
-  border-top: 1px solid var(--admin-border);
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+  background: var(--admin-panel-muted);
+  padding: 0 1.25rem 1.25rem;
+  transition: all 0.16s ease;
+}
+
+.po18-account-fallback[open] {
+  background: var(--admin-panel);
+  border-color: var(--admin-border-strong);
+  box-shadow: 0 4px 14px rgba(20, 20, 19, 0.04);
 }
 
 .po18-account-fallback__summary {
   display: flex;
   align-items: center;
   gap: var(--admin-space-2);
-  padding-block: var(--admin-space-4);
+  padding-block: 1rem;
   list-style: none;
   cursor: pointer;
-  border-radius: var(--admin-radius-sm);
 }
 
 .po18-account-fallback__summary::-webkit-details-marker {
