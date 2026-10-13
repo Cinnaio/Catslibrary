@@ -54,7 +54,7 @@ interface ChapterDraft {
   content: string
 }
 
-export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }: { highlightNovelId?: string; onHighlightConsumed?: () => void; mergeNovel?: IndexNovel; onMergeClose?: () => void; onMergeApplied?: () => void }) {
+export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }: { highlightNovelId?: string; onHighlightConsumed?: () => void; mergeNovel?: IndexNovel; onMergeClose?: () => void; onMergeApplied?: () => void | Promise<void> }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
 
@@ -499,11 +499,13 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       const parts = [`已更新 ${result.updated} 个章节名`]
       if (result.orderUpdated) parts.push(`修复 ${result.orderUpdated} 个章节序号`)
       if (result.metadataUpdated.length) parts.push(`更新 ${result.metadataUpdated.length} 项小说信息`)
+      // 嵌入小说管理时，等列表读取完成再报告成功并关闭，避免回到旧列表。
+      if (mergeNovel) await onMergeApplied?.()
       toast(parts.join('，'), 'success')
       setRenameModal(false)
       setSourcePreview(null)
       setConfirmedManualIds(new Set())
-      if (mergeNovel) { onMergeApplied?.(); onMergeClose?.() }
+      if (mergeNovel) onMergeClose?.()
       else void loadChapters(selectedNovel)
     } catch (err) {
       toast((err as Error).message || '同步应用失败', 'error')
