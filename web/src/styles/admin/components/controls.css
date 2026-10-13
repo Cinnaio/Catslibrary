@@ -131,10 +131,18 @@
   outline: none;
 }
 
-/* CustomSelect 弹层：统一风格，移除搜索框底部的分割线 */
-.admin-custom-select-popover {
+/* CustomSelect 弹层与下拉浮层：14px 圆角与温润漫反射投影 */
+.admin-custom-select-popover,
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='select-content'],
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='popover-content'] {
   border: 1px solid var(--admin-border-strong);
+  border-radius: 14px;
+  background: var(--admin-panel);
+  box-shadow: 0 14px 34px -4px rgba(20, 20, 19, 0.12), 0 4px 12px -2px rgba(20, 20, 19, 0.08);
+  padding: 4px;
+  overflow: hidden;
 }
+
 .admin-custom-select-popover [data-slot='command-input-wrapper'] {
   border-bottom: none;
 }
@@ -148,6 +156,148 @@
   box-shadow: none;
 }
 
+.admin-custom-select-popover [data-slot='command-item'],
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='select-item'] {
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin: 2px 0;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  transition: background-color 0.14s ease, color 0.14s ease;
+  cursor: pointer;
+}
+
+.admin-custom-select-popover [data-slot='command-item'][data-selected='true'],
+.admin-custom-select-popover [data-slot='command-item']:hover,
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='select-item']:hover,
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='select-item'][data-state='checked'] {
+  background: var(--admin-accent-subtle);
+  color: var(--admin-accent);
+  font-weight: 550;
+}
+
 [data-slot='dialog-content'].admin-dialog {
   border-radius: var(--admin-radius-dialog);
+}
+
+/* ——— Switch 开关：全圆角胶囊药丸与弹性微动效 ——— */
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='switch'] {
+  width: 2.375rem;
+  height: 1.375rem;
+  padding: 2px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--admin-border-strong);
+  background: var(--admin-panel-muted);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  outline: none;
+  cursor: pointer;
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='switch']:focus-visible {
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.22);
+  border-color: var(--admin-accent);
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='switch'][data-state='checked'] {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+  box-shadow: 0 2px 6px rgba(217, 119, 87, 0.28);
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='switch-thumb'] {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: var(--radius-full);
+  background: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16), 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.15s ease;
+}
+
+[data-theme='dark'] :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='switch-thumb'] {
+  background: #FFFFFF;
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='switch'][data-state='checked'] [data-slot='switch-thumb'] {
+  transform: translateX(1rem);
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='switch']:active [data-slot='switch-thumb'] {
+  width: 1.25rem;
+}
+
+/* ——— Checkbox 复选框：温和圆角与陶土红弹簧微动效 ——— */
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox'] {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 5px;
+  border: 1.5px solid var(--admin-border-strong);
+  background: var(--admin-panel);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background-color 0.18s ease,
+              border-color 0.18s ease,
+              box-shadow 0.18s ease;
+  outline: none;
+  cursor: pointer;
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox']:hover {
+  border-color: var(--admin-accent);
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox']:focus-visible {
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.2);
+  border-color: var(--admin-accent);
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox'][data-state='checked'] {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+  color: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(217, 119, 87, 0.25);
+}
+
+@keyframes admin-check-spring {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox'][data-state='checked'] [data-slot='checkbox-indicator'] {
+  animation: admin-check-spring 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) input[type='checkbox'] {
+  accent-color: var(--admin-accent);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ——— 折叠详情手风琴（Details & Summary）优雅过渡 ——— */
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog) details {
+  transition: all 0.2s ease;
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog) summary {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog) summary:hover {
+  color: var(--admin-accent);
+}
+
+/* ——— 减弱动效适配 ——— */
+@media (prefers-reduced-motion: reduce) {
+  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='switch-thumb'],
+  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='switch'],
+  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'],
+  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox-indicator'] {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
 }
