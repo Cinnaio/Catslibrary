@@ -93,6 +93,7 @@ export default function ScrapeTaskDetailsDialog({ jobId, title, onClose }: { job
                 <dt>状态</dt>
                 <dd>
                   <AdminStatusBadge tone={job.status === 'failed' ? 'danger' : job.status === 'completed' ? 'success' : 'neutral'}>
+                    {isJobRunning(job.status) && <span className="status-dot-pulse" aria-hidden="true" />}
                     {jobStatusLabel(job.status)}
                   </AdminStatusBadge>
                 </dd>
