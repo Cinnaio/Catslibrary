@@ -443,6 +443,7 @@ export const bookImportApi = {
 // ---------- 原作者源站同步 ----------
 
 export interface SourceSyncChange {
+  titleUpdateReasons?: import('@shared/source-sync').TitleUpdateReason[]
   localChapterId: string
   localOrder: number
   oldTitle: string
@@ -504,12 +505,12 @@ export interface SourceSyncPreview {
   changes: SourceSyncChange[]
   onlyWeakTitles: boolean
   warnings: string[]
-  orderChanges?: Array<{ localChapterId: string; title: string; oldOrder: number; newOrder: number }>
+  orderChanges?: Array<{ localChapterId: string; title: string; oldOrder: number; newOrder: number; requiredChapterIds?: string[] }>
   orderRepairBlockedReason?: string
   orderRepairSkipped?: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }>
   /** 按阻塞源章聚合后的序号修复受阻摘要；逐章明细仍在 orderRepairSkipped。 */
   orderRepairBlockers?: Array<{ blockingChapterIds: string[]; reason: string; affectedChapterIds: string[] }>
-  /** 序号偏移区段：layout 为良性排版差异（不标红、不催办），gap 为真实错位（需归位）。 */
+  /** 序号偏移区段仅解释差异，不限制按源站排序；执行依赖 orderChanges 与勾选。 */
   orderShiftSegments?: Array<{
     localRange: { from: number; to: number }
     sourceRange: { from: number; to: number }

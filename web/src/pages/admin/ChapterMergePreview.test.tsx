@@ -22,8 +22,8 @@ const preview = {
     { sourceChapterKey: 's9', sourceOrder: 9, sourceTitle: '第九个故事', sourceUrl: '', localChapterIds: ['l9'], relation: 'one_to_one', confidence: 'law', matchReason: 'sequence' },
   ],
   changes: [
-    change({ localChapterId: 'l85', localOrder: 85, oldTitle: '84.首长和太子', newTitle: '首长和太子', sourceOrder: 84, sourceTitle: '首长和太子', matchReason: 'exact-title', matchEvidence: '清理导入编号、空白和常见标点后，完整标题一致。' }),
-    change({ localChapterId: 'l79', localOrder: 79, oldTitle: '被迫穿上情趣旗袍', newTitle: '被迫穿上情趣旗袍（微H）', sourceOrder: 78, sourceTitle: '被迫穿上情趣旗袍（微H）', matchReason: 'exact-title', matchEvidence: '清理导入编号、空白和常见标点后，完整标题一致。' }),
+    change({ localChapterId: 'l85', localOrder: 85, oldTitle: '84.首长和太子', newTitle: '首长和太子', sourceOrder: 84, sourceTitle: '首长和太子', titleUpdateReasons: ['import-prefix'], matchReason: 'exact-title', matchEvidence: '清理导入编号、空白和常见标点后，完整标题一致。' }),
+    change({ localChapterId: 'l79', localOrder: 79, oldTitle: '被迫穿上情趣旗袍', newTitle: '被迫穿上情趣旗袍（微H）', sourceOrder: 78, sourceTitle: '被迫穿上情趣旗袍（微H）', titleUpdateReasons: ['rating-marker'], matchReason: 'exact-title', matchEvidence: '清理导入编号、空白和常见标点后，完整标题一致。' }),
   ],
   onlyWeakTitles: false,
   orderChanges: [], revision: 0,
@@ -50,8 +50,8 @@ it('高置信度确定修正全部计入自动更新，并在行内解释为何�
   expect(screen.getByRole('button', { name: '自动更新 2' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '人工核对 0' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '自动更新 2' }))
-  expect(screen.getByText('自动更新：剥离导入编号；归一化后标题一致，属确定修正')).toBeInTheDocument()
-  expect(screen.getByText('自动更新：补齐分级标记；归一化后标题一致，属确定修正')).toBeInTheDocument()
+  expect(screen.getByText('自动更新：清理导入编号')).toBeInTheDocument()
+  expect(screen.getByText('自动更新：同步源站章节标记')).toBeInTheDocument()
   // 确定的修正不需要逐条勾选。
   expect(screen.queryByRole('checkbox', { name: /确认更新第 85 章/ })).not.toBeInTheDocument()
 })
@@ -107,4 +107,12 @@ it('人工指定的映射仍留在人工核对分组，不因 eligible 放宽被
   expect(screen.getByRole('button', { name: '人工核对 1' })).toBeInTheDocument()
   expect(screen.getByRole('checkbox', { name: '确认更新第 30 章' })).not.toBeChecked()
   expect(screen.queryByText(/自动更新：/)).not.toBeInTheDocument()
+})
+
+it('没有标题变化时显示完成状态，未匹配章仍引导核对且不渲染空表头', () => {
+  renderPreview({ changes: [], unmatchedLocal: [{id:'game',order:112,title:'游戏'}] })
+  expect(screen.getByText('已匹配章节暂无需要同步的章节名。')).toBeInTheDocument()
+  expect(screen.getByText('仍有 1 个本地章节未匹配，可继续核对映射。')).toBeInTheDocument()
+  expect(screen.queryByText('原章节名', {exact:true})).not.toBeInTheDocument()
+  expect(screen.queryByRole('group', {name:'标题变化筛选'})).not.toBeInTheDocument()
 })

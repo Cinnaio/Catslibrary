@@ -60,6 +60,10 @@ try {
     await page.getByRole('option').filter({ hasText: novel.title }).click()
     await page.getByRole('button', { name: '融合章节名', exact: true }).click()
     const dialog = page.locator('.chapter-merge-dialog')
+    assert.equal(await dialog.locator('[data-slot=dialog-close]').evaluate(el => {
+      const rect = el.getBoundingClientRect()
+      return el.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+    }), true, '关闭按钮必须接收点击，不能被共享标题区覆盖')
     await page.waitForFunction(() => document.querySelector('#chapter-source-url')?.value.includes('/books/'))
     await dialog.getByRole('button', { name: '读取源站', exact: true }).click()
     assert.equal(await dialog.locator('[data-slot=dialog-footer]').evaluate(el => getComputedStyle(el).borderTopWidth), '0px', '融合弹窗页脚不能添加分隔线')
@@ -110,6 +114,10 @@ try {
     await page.keyboard.press('Escape')
     await page.waitForFunction(() => document.querySelectorAll('[data-sonner-toast]').length === 0, null, { timeout: 8000 })
     await page.getByRole('button', { name: '融合历史', exact: true }).click()
+    assert.equal(await dialog.locator('[data-slot=dialog-close]').evaluate(el => {
+      const rect = el.getBoundingClientRect()
+      return el.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+    }), true, '融合历史的关闭按钮必须位于标题区上层')
     const records = dialog.getByRole('list', { name: '融合历史记录' })
     await records.locator(':scope > li').last().waitFor()
     assert.equal(await records.locator(':scope > li').last().evaluate(el => getComputedStyle(el).borderBottomWidth), '0px')

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), update: vi.fn(), batchDelete: vi.fn(), toast: vi.fn(), illustrations: vi.fn(), saveIllustration: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn(), sourceRefresh: vi.fn(), sourceRemap: vi.fn(), confirm: vi.fn() }))
-vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update, batchDelete: mocks.batchDelete }, illustrationsApi: { list: mocks.illustrations, save: mocks.saveIllustration, imageBlob: async () => new Blob() }, scrapeApi: { sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply, sourceSyncRefresh: mocks.sourceRefresh, sourceSyncRemap: mocks.sourceRemap }, newOperationId: () => 'test' }))
+const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), novelGet: vi.fn(), history: vi.fn(), rollback: vi.fn(), update: vi.fn(), batchDelete: vi.fn(), toast: vi.fn(), illustrations: vi.fn(), saveIllustration: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn(), sourceRefresh: vi.fn(), sourceRemap: vi.fn(), confirm: vi.fn() }))
+vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, novelsApi: { get: mocks.novelGet }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update, batchDelete: mocks.batchDelete }, illustrationsApi: { list: mocks.illustrations, save: mocks.saveIllustration, imageBlob: async () => new Blob() }, scrapeApi: { sourceSyncHistory: mocks.history, sourceSyncRollback: mocks.rollback, sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply, sourceSyncRefresh: mocks.sourceRefresh, sourceSyncRemap: mocks.sourceRemap }, newOperationId: () => 'test' }))
 vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: mocks.confirm }) }))
 vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, onChange }: any) => <select aria-label="选择小说" onChange={e => onChange(e.target.value)}><option value="" />{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 import ChaptersTab from './ChaptersTab'
@@ -13,6 +13,25 @@ beforeEach(() => {
   mocks.update.mockResolvedValue({})
   mocks.confirm.mockResolvedValue(true)
   mocks.illustrations.mockResolvedValue({ illustrations: [], chapterRevision: 'revision', contentHash: hashParagraphText('原正文') })
+})
+
+it('融合撤回后刷新作品信息，重新打开弹窗显示恢复后的书名和作者', async () => {
+  mocks.index.mockResolvedValue({novels:[{id:'n',title:'同步后书名',author:'同步后作者',chapterCount:1}]})
+  const item = {runId:'history',status:'applied',appliedAt:1,canRollback:true,summary:{novelTitle:'同步后书名',metadataUpdated:2}}
+  mocks.history.mockResolvedValueOnce({total:1,items:[item]}).mockResolvedValue({total:1,items:[{...item,status:'rolled_back',canRollback:false}]})
+  mocks.rollback.mockResolvedValue({runId:'history',restored:1,conflicts:[]})
+  mocks.novelGet.mockResolvedValue({novel:{id:'n',title:'原书名',author:'原作者',chapterCount:1}})
+  render(<ChaptersTab />)
+  await screen.findByRole('option',{name:'同步后书名'})
+  fireEvent.change(screen.getByLabelText('选择小说'),{target:{value:'n'}})
+  fireEvent.click(await screen.findByRole('button',{name:'融合历史'}))
+  fireEvent.click(await screen.findByRole('button',{name:'撤回此次融合'}))
+  await waitFor(()=>expect(mocks.novelGet).toHaveBeenCalledWith('n'),{timeout:1000})
+  await waitFor(()=>expect(screen.getByRole('button',{name:'撤回此次融合'})).toBeDisabled())
+  fireEvent.click(screen.getByRole('button',{name:'Close'}))
+  fireEvent.click(screen.getByRole('button',{name:'融合章节名'}))
+  expect(await screen.findByLabelText('搜索书名')).toHaveValue('原书名')
+  expect(screen.getByLabelText('搜索作者')).toHaveValue('原作者')
 })
 it('融合标题没有变化时仍可单独修复序号，默认不勾选且提交前明确确认', async () => {
   mocks.sourcePreview.mockResolvedValue({
@@ -296,7 +315,25 @@ it('应用后继续核对复用源站目录生成新预览，不关闭且不重�
   expect(applied).toHaveBeenCalledTimes(1)
   expect(mocks.sourceApply).toHaveBeenCalledTimes(1)
   expect(mocks.sourcePreview).toHaveBeenCalledTimes(1)
+  fireEvent.click(screen.getByRole('button', {name:/^全部 \d+$/}))
   expect(screen.getByText('本地 1 · 开始')).toBeVisible()
+})
+
+it('部分勾选缺少让位依赖时禁止应用，补选关联映射后按完整集合提交', async () => {
+  const preview = workflowPreview()
+  preview.changes = []
+  preview.localChapters = [{id:'c',order:2,title:'开始'},{id:'junk',order:1,title:'后续'}]
+  preview.mappings = preview.localChapters.map((row,i)=>({sourceChapterKey:`s${i}`,sourceOrder:i+1,sourceTitle:row.title,localChapterIds:[row.id],relation:'one_to_one',confidence:'high',matchReason:'exact-title'}))
+  Object.assign(preview,{orderChanges:[{localChapterId:'c',title:'开始',oldOrder:2,newOrder:1,requiredChapterIds:['junk']},{localChapterId:'junk',title:'后续',oldOrder:1,newOrder:2,requiredChapterIds:['c']}]})
+  mocks.sourceApply.mockResolvedValue({updated:0,orderUpdated:2,metadataUpdated:[],mappings:2})
+  await openWorkflow(preview)
+  fireEvent.click(screen.getByRole('checkbox',{name:'选择映射：本地 2'}))
+  expect(screen.getByRole('button',{name:'应用已选更新'})).toBeDisabled()
+  expect(screen.getByText(/尚缺 1 项关联映射/)).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:'补选 1 项关联映射'}))
+  expect(screen.getByRole('checkbox',{name:'选择映射：本地 1'})).toBeChecked()
+  fireEvent.click(screen.getByRole('button',{name:'应用已选更新'}))
+  await waitFor(()=>expect(mocks.sourceApply).toHaveBeenCalledWith(expect.objectContaining({confirmedOrderIds:['c','junk'],repairOrder:true})))
 })
 it('保存映射保留展开与搜索以及未受影响的确认，仅清除已变化的映射选择', async () => {
   const preview = workflowPreview()

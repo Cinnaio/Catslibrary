@@ -15,6 +15,7 @@ import { evaluateContentRatingRules, loadContentRatingRuleSet } from './content-
 import { toContentRating } from '../db/mappers'
 import { invalidateCoverForSourceChange, type StoredCover } from './covers'
 import { isDefaultCoverSource } from '@shared/covers'
+import type { TitleUpdateReason } from '@shared/source-sync'
 
 export type SourceSyncConfidence = 'high' | 'medium' | 'low'
 export type SourceSyncMatchReason = 'exact-title' | 'chapter-number' | 'title-overlap' | 'sequence' | 'manual'
@@ -47,6 +48,7 @@ export interface SourceSyncChange {
   eligible: boolean
   matchReason?: SourceSyncMatchReason
   matchEvidence?: string
+  titleUpdateReasons?: TitleUpdateReason[]
 }
 
 export interface SourceSyncMapping {
@@ -66,6 +68,7 @@ export interface SourceSyncOrderChange {
   title: string
   oldOrder: number
   newOrder: number
+  requiredChapterIds?: string[]
 }
 
 export interface SourceSyncMetadata {
@@ -101,7 +104,7 @@ export interface SourceSyncPreview {
   orderRepairSkipped?: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }>
   /** 按阻塞源章聚合后的序号修复受阻摘要，供前端展示；orderRepairSkipped 保留逐章明细。 */
   orderRepairBlockers?: Array<{ blockingChapterIds: string[]; reason: string; affectedChapterIds: string[] }>
-  /** 序号偏移区段划分：layout 段为良性排版差异（不给修复入口），gap 段为真实错位。 */
+  /** 序号偏移区段仅解释差异，修复资格由映射证据与目标占位独立判断。 */
   orderShiftSegments?: SourceSyncShiftSegment[]
   revision?: number
   sourceChapters?: SourceChapter[]
@@ -174,8 +177,6 @@ const H_MARKER_ONLY = /^(?:[（(]\s*(?:微|高|小|重|轻|肉|无|超)?\s*[hH]\
 // 源站章节名尾部夹带的推广水印，形如「掉马「po1⒏homes」」；
 // 全角数字、内部点号与站点词是其指纹，普通正文标题不会长成这样。
 const PROMO_SUFFIX = /[「"'“”]?(?:po\s*1[0-9０-９]{0,2}\s*[.．。]?\s*(?:home|homes|com|net|tw|cc|xyz|top|vip|me|info|site|org)|[a-z]{2,10}\s*[.．。]\s*(?:com|net|tw|cc|xyz|top|vip|me|info|site|org))\s*(?:[」"'“”]|[0-9０-９]*)?\s*$/i
-// 导入器留下的裸序号前缀（「84.」「12、」「7：」），是唯一可安全剥离的本地噪声。
-const IMPORT_ORDER_PREFIX = /^\s*\d{1,4}(?:\.\d+)?\s*[.、:：]\s*/
 
 function safeJsonParse<T>(value: string, fallback: T): T {
   try {
@@ -370,10 +371,30 @@ function isNoiseOnlyDiff(localTitle: string, targetTitle: string): boolean {
   // 尾部的分级标记（微H）与广告后缀是正常标注或本地噪声，改写成它们不是倒退，
   // 因此不在此拦截——由下面的归一化相等判据统一放行。
   if (stripComparablePrefix(target) !== target) return false
+  if (PROMO_SUFFIX.test(target.replace(H_MARKER, '').trim())) return false
   // 归一化后逐字相等，即证明两处差异全部来自 normalizedTitle 已剥离的成分
   // （前缀 / 分级标记 / 广告后缀 / 标点），属确定性的噪声清理。
   const key = normalizedTitle(local)
   return Boolean(key) && key === normalizedTitle(target)
+}
+
+function titleUpdateReasons(localTitle: string, targetTitle: string): TitleUpdateReason[] {
+  const local = cleanTitle(localTitle).normalize('NFKC')
+  const target = cleanTitle(targetTitle).normalize('NFKC')
+  const reasons: TitleUpdateReason[] = []
+  if (stripComparablePrefix(local) !== local && stripComparablePrefix(target) === target) reasons.push('import-prefix')
+  if (PROMO_SUFFIX.test(local.replace(H_MARKER, '').trim()) && !PROMO_SUFFIX.test(target.replace(H_MARKER, '').trim())) reasons.push('promo-cleanup')
+  // match() 不依赖全局正则的 lastIndex；分级标记与广告水印分别解释。
+  if (JSON.stringify(local.match(H_MARKER)) !== JSON.stringify(target.match(H_MARKER))) reasons.push('rating-marker')
+  if (!reasons.length && normalizedTitle(local) === normalizedTitle(target)) reasons.push('typography')
+  return reasons.length ? reasons : ['source-title']
+}
+
+function introducesTitleNoise(localTitle: string, targetTitle: string): boolean {
+  const target = cleanTitle(targetTitle).normalize('NFKC')
+  const local = cleanTitle(localTitle).normalize('NFKC')
+  return PROMO_SUFFIX.test(target.replace(H_MARKER, '').trim()) ||
+    (stripComparablePrefix(target) !== target && stripComparablePrefix(local) === local)
 }
 
 function appendSourceTitle(title: string, part: { index: number; count: number } | null): string {
@@ -630,8 +651,6 @@ function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Ali
 const ANCHOR_CROSS_TOLERANCE = 3
 // 与基准线的最大可接受偏离。全书正文偏移通常为个位数，超过即视为位置荒谬的巧合锚点。
 const ANCHOR_BASELINE_TOLERANCE = 12
-// 段落偏移与全书基准偏移相差在此范围内，视为作者统一的排版位移（非真实错位）。
-const BASELINE_DEVIATION_TOLERANCE = 2
 function keepMonotonicAnchors(candidates: Array<{ sourceIndex: number; groupIndex: number }>, source: SourceChapter[], groups: LocalGroup[]): Alignment[] {
   const isExtraPair = (row: { sourceIndex: number; groupIndex: number }) =>
     EXTRA_TITLE.test(cleanTitle(source[row.sourceIndex]!.title)) &&
@@ -698,7 +717,6 @@ export interface SourceSyncShiftSegment {
 function buildShiftSegments(
   mappings: SourceSyncMapping[],
   locals: LocalChapterForSync[],
-  source: SourceChapter[],
 ): SourceSyncShiftSegment[] {
   const byLocal = new Map<string, SourceSyncMapping>()
   mappings.forEach(mapping => {
@@ -777,7 +795,7 @@ function buildShiftSegments(
     return {
       ...segment,
       kind: 'layout' as const,
-      reason: `本地第 ${segment.localRange.from}-${segment.localRange.to} 章相对源站偏移 ${segment.offset > 0 ? '+' : ''}${segment.offset}，无法由其前 ${precedingUnmatched} 个无源站对应章节解释，属本地主动重排，不按源站序号归位。`,
+      reason: `本地第 ${segment.localRange.from}-${segment.localRange.to} 章相对源站偏移 ${segment.offset > 0 ? '+' : ''}${segment.offset}，可核对后勾选按源站序号同步。`,
       blockingChapterIds: blocking.map(row => row.id),
     }
   })
@@ -789,10 +807,9 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
   orderRepairBlockers: Array<{ blockingChapterIds: string[]; reason: string; affectedChapterIds: string[] }>
   orderShiftSegments: SourceSyncShiftSegment[]
 } {
-  // 只有真实错位段（gap）才开放序号修复；良性排版段（layout）一律不重排，
-  // 否则会把作者有意前移的番外块按源站顺序切碎。
-  const shiftSegments = buildShiftSegments(mappings, locals, source)
-  const repairableIds = new Set(shiftSegments.filter(row => row.kind === 'gap').flatMap(row => row.chapterIds))
+  // 分段只解释目录差异，不决定能否同步。唯一且高置信度的对应关系可按源站排序，
+  // 目标占位与移动依赖由下方完整方案计算，执行仍需管理员勾选。
+  const shiftSegments = buildShiftSegments(mappings, locals)
   const orderRepairSkipped: Array<{ localChapterId: string; reason: string; blockingChapterIds?: string[] }> = []
   const count = (values: string[]) => {
     const counts = new Map<string, number>()
@@ -809,6 +826,8 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
   for (const local of locals) {
     const matches = byLocal.get(local.id) || []
     const mapping = matches[0]
+    // 已对齐就没有移动需求；重复标题的消歧限制不能制造虚假的修复待办。
+    if (mapping?.relation === 'one_to_one' && matches.length === 1 && mapping.sourceOrder === local.order) continue
     let reason = ''
     if (!mapping) reason = (localTitles.get(normalizedTitle(local.title)) || 0) > 1
       ? '本地存在重复完整标题，请先核查重复章节'
@@ -855,7 +874,7 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
       }
     }
     if (reason) orderRepairSkipped.push({ localChapterId: local.id, reason })
-    else if (mapping && mapping.sourceOrder !== local.order && repairableIds.has(local.id)) {
+    else if (mapping && mapping.sourceOrder !== local.order) {
       candidates.set(local.id, { localChapterId: local.id, title: local.title, oldOrder: local.order, newOrder: mapping.sourceOrder })
     }
   }
@@ -874,7 +893,6 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
   // 的集合里。段内互占的格子随平移一起让位；只有段外、且本次不动的章节实占目标格
   // 时才会挡住。据此做一次不动点计算：被挡住的章节退出移动集合，可能连带挡住
   // 以它原位为目标的章节，如此迭代至稳定。
-  const gapChapterIds = new Set(shiftSegments.filter(row => row.kind === 'gap').flatMap(row => row.chapterIds))
   const blocked: Array<{ id: string; change: SourceSyncOrderChange; blocker: LocalChapterForSync }> = []
   const movable = new Set(candidates.keys())
   let settled = false
@@ -883,9 +901,8 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
     for (const id of [...movable]) {
       const change = candidates.get(id)!
       // 该目标格当前被谁占着？若占位者本次也会移走（在 movable 内），格子会腾空。
-      const occupant = locals.find(local => local.id !== id && local.order === change.newOrder)
+      const occupant = locals.find(local => local.id !== id && local.order === change.newOrder && !movable.has(local.id))
       if (!occupant) continue
-      if (movable.has(occupant.id)) continue
       // 占位者不动（段外章节，或已被判定不动）=> 本章无法落位。
       movable.delete(id)
       candidates.delete(id)
@@ -913,11 +930,27 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
     orderRepairSkipped.push(skipped)
   }
   const orderChanges = [...candidates.values()].sort((a, b) => a.newOrder - b.newOrder)
+  const occupants = new Map<number, string[]>()
+  locals.forEach(local => occupants.set(local.order, [...(occupants.get(local.order) || []), local.id]))
+  for (const change of orderChanges) {
+    const required = new Set<string>()
+    const collect = (id: string) => {
+      for (const occupant of occupants.get(candidates.get(id)!.newOrder) || []) {
+        if (occupant === change.localChapterId || occupant === id || required.has(occupant) || !candidates.has(occupant)) continue
+        required.add(occupant)
+        collect(occupant)
+      }
+    }
+    collect(change.localChapterId)
+    if (required.size) change.requiredChapterIds = [...required].sort()
+  }
   // 连锁受阻会产生大量指向同一阻塞源的重复记录（一本书常见上百条），
   // 前端无法阅读。这里按阻塞源聚合出摘要，逐章明细仍保留在 orderRepairSkipped。
   const blockerGroups = new Map<string, { blockingChapterIds: string[]; reason: string; affectedChapterIds: string[] }>()
   for (const row of orderRepairSkipped) {
-    const blockingChapterIds = [...(row.blockingChapterIds || [row.localChapterId])]
+    // 缺乏修复资格仅是核对事项，只有实际占位导致的移动失败才是阻塞源。
+    if (!row.blockingChapterIds?.length) continue
+    const blockingChapterIds = [...row.blockingChapterIds]
     const key = blockingChapterIds.join('|')
     const group = blockerGroups.get(key)
     if (group) {
@@ -938,7 +971,7 @@ function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterFor
     .sort((a, b) => b.affectedChapterIds.length - a.affectedChapterIds.length)
   return {
     orderChanges, orderRepairSkipped, orderRepairBlockers, orderShiftSegments: shiftSegments,
-    ...(!orderChanges.length && orderRepairSkipped.length ? { orderRepairBlockedReason: '当前没有可独立修复的序号，请查看映射列表中的未修复原因。' } : {}),
+    ...(!orderChanges.length && orderRepairBlockers.length ? { orderRepairBlockedReason: '序号修复受占位章节阻塞，请核对下方阻塞源。' } : {}),
   }
 }
 
@@ -1110,7 +1143,7 @@ function buildPreview(
       const newTitle = appendSourceTitle(source.title, part)
       const noiseOnly = explanation.matchReason === 'exact-title' && confidence === 'high' &&
         isNoiseOnlyDiff(local.title, newTitle)
-      const eligible = !manual && confidence !== 'low' && (
+      const eligible = !manual && !introducesTitleNoise(local.title, newTitle) && confidence !== 'low' && (
         !onlyWeakTitles ||
         isWeakTitle(local.title, local.order) ||
         relation === 'split' ||
@@ -1136,6 +1169,7 @@ function buildPreview(
           partCount: part?.count || 1,
           confidence,
           eligible,
+          titleUpdateReasons: relation === 'split' ? ['split-title'] : titleUpdateReasons(local.title, newTitle),
           ...explanation,
         })
       }
@@ -1356,6 +1390,9 @@ export async function applySourceSync(
   if (run.status === 'applied') throw new Error('该同步预览已经应用过')
   assertSyncRevision(run, opts.revision ?? 0)
   const changes = safeJsonParse<SourceSyncChange[]>(run.changes_json, [])
+  if (changes.some(change => change.eligible && introducesTitleNoise(change.oldTitle, change.newTitle))) {
+    throw new Error('旧预览包含新增编号或推广水印的自动更新，请重新生成预览后核对')
+  }
   const mappings = safeJsonParse<SourceSyncMapping[]>(run.mapping_json, [])
   const metadata = safeJsonParse<SourceSyncMetadata>(run.metadata_json, {
     title: '',
@@ -1395,6 +1432,7 @@ export async function applySourceSync(
       const sources = safeJsonParse<SourceChapter[]>(run.source_chapters_json, [])
       const repair = buildOrderRepair(mappings, snapshot, sources)
       if (repair.orderRepairBlockedReason) throw new Error(`无法修复序号：${repair.orderRepairBlockedReason}`)
+      if (!repair.orderChanges.length && repair.orderRepairSkipped?.length) throw new Error('无法修复序号：当前没有可执行的序号修复，请先核对映射')
       const current = normalizeLocalSnapshot((await q<LocalChapterForSync>('SELECT id, title, sort_order AS order FROM chapters WHERE novel_id = $1 FOR UPDATE', [run.novel_id])).rows)
       const currentById = new Map(current.map(row => [row.id, row]))
       if (current.length !== snapshot.length || snapshot.some(row => {

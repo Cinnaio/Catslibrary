@@ -10,7 +10,7 @@ import Pagination from '../../components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
-import { adminApi, chaptersApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSourceSearchResponse } from '../../lib/api'
+import { adminApi, chaptersApi, novelsApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSourceSearchResponse } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
 import { Button } from '@/components/ui/button'
@@ -102,6 +102,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
   const manualConfirmedCount = sourcePreview?.changes.filter((change) => !change.eligible && confirmedManualIds.has(change.localChapterId)).length || 0
   const updateCount = eligibleCount + manualConfirmedCount
   const orderUpdateCount = sourcePreview?.orderChanges?.filter(change => selectedOrderIds.has(change.localChapterId)).length || 0
+  const missingOrderDependencies = new Set((sourcePreview?.orderChanges || []).filter(change => selectedOrderIds.has(change.localChapterId)).flatMap(change => change.requiredChapterIds || []).filter(id => !selectedOrderIds.has(id)))
   function selectMappings(ids: Set<string>) {
     const removed = [...selectedMappingIds].filter(id => !ids.has(id))
     setConfirmedManualIds(previous => {
@@ -187,6 +188,14 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     },
     [toast],
   )
+
+  async function refreshAfterRollback() {
+    const novelId = selectedNovel
+    const [data] = await Promise.all([novelsApi.get(novelId), loadChapters(novelId)])
+    setNovelOptions(previous => previous.map(novel => novel.id === novelId ? {
+      ...novel, title: data.novel.title, author: data.novel.author || '', chapterCount: data.novel.chapterCount || 0,
+    } : novel))
+  }
 
   function pickNovel(id: string) {
     setSelectedNovel(id)
@@ -510,6 +519,10 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
 
   async function applyRename(continueReview = false) {
     if (mergeBusy.current || pendingMappings || pendingDeletion || previewStale) return
+    if (missingOrderDependencies.size) {
+      toast('请先补选需要同时让位的关联映射，再应用序号同步', 'error')
+      return
+    }
     if (!sourcePreview) {
       toast('请先读取源站', 'error')
       return
@@ -651,16 +664,16 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
           </>}
         </AdminDialogBody>
         <DialogFooter className="chapter-merge-dialog__footer">
-          <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${updateCount} 个标题待更新 · ${orderUpdateCount} 个序号修复 · ${availableMetadataFields.length} 项信息同步` : '读取后可预览全部变化'}</span>
+          <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${updateCount} 个标题待更新 · ${orderUpdateCount} 个序号修复 · ${availableMetadataFields.length} 项信息同步${missingOrderDependencies.size ? ` · 尚缺 ${missingOrderDependencies.size} 项关联映射` : ''}` : '读取后可预览全部变化'}</span>
           <Button variant="secondary" disabled={renaming} onClick={closeRenameModal}>
             取消
           </Button>
           {sourcePreview && (
-            <Button disabled={renaming || previewStale || !!pendingMappings || !!pendingDeletion || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename()}>
+            <Button disabled={renaming || previewStale || !!pendingMappings || !!pendingDeletion || !!missingOrderDependencies.size || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename()}>
               {renaming ? '更新中…' : orderUpdateCount ? '应用已选更新' : updateCount ? `更新 ${updateCount} 个标题` : '同步小说信息'}
             </Button>
           )}
-          {sourcePreview && <Button className="chapter-merge-dialog__continue" variant="secondary" disabled={renaming || previewStale || !!pendingMappings || !!pendingDeletion || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename(true)}>应用后继续核对</Button>}
+          {sourcePreview && <Button className="chapter-merge-dialog__continue" variant="secondary" disabled={renaming || previewStale || !!pendingMappings || !!pendingDeletion || !!missingOrderDependencies.size || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename(true)}>应用后继续核对</Button>}
         </DialogFooter>
       </AdminDialogContent>
     </Dialog>
@@ -911,7 +924,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
 
       {renameDialog}
       {contentDialog}
-      {historyOpen && <SourceSyncHistoryDialog key={selectedNovel} open novelId={selectedNovel} onOpenChange={setHistoryOpen} onCompleted={() => void loadChapters(selectedNovel)} />}
+      {historyOpen && <SourceSyncHistoryDialog key={selectedNovel} open novelId={selectedNovel} onOpenChange={setHistoryOpen} onCompleted={refreshAfterRollback} />}
     </AdminPage>
   )
 }
