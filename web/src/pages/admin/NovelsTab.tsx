@@ -736,7 +736,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       </AdminDataPanel>
 
       {batchFollowupNovels && <BatchNovelFollowupDialog novels={batchFollowupNovels} onClose={() => setBatchFollowupNovels(null)} />}
-      {mergeNovel && <Suspense fallback={<p role="status">正在打开融合章节名…</p>}><ChapterMergeDialog key={mergeNovel.id} mergeNovel={{ id: mergeNovel.id, title: mergeNovel.title, author: mergeNovel.author || '', chapterCount: mergeNovel.chapterCount || 0 }} onMergeClose={() => setMergeNovel(null)} onMergeApplied={() => void load()} /></Suspense>}
+      {mergeNovel && <Suspense fallback={<p role="status">正在打开融合章节名…</p>}><ChapterMergeDialog key={mergeNovel.id} mergeNovel={{ id: mergeNovel.id, title: mergeNovel.title, author: mergeNovel.author || '', chapterCount: mergeNovel.chapterCount || 0 }} onMergeClose={() => setMergeNovel(null)} onMergeApplied={load} /></Suspense>}
       {followupNovel && <NovelFollowupDialog key={followupNovel.id} novel={followupNovel} onClose={() => setFollowupNovel(null)} />}
 
       <Pagination
