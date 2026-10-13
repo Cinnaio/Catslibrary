@@ -519,17 +519,19 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         </TableCell>
         <TableCell data-label="小说" className="moderation-source-cell">
           {r.commentNovelId ? (
-            <Link to={`/novel/${encodeURIComponent(r.commentNovelId)}`}>{r.novelTitle || r.commentNovelId || '—'}</Link>
+            <Link to={`/novel/${encodeURIComponent(r.commentNovelId)}`} className="moderation-table-novel-link">
+              {r.novelTitle || r.commentNovelId || '—'}
+            </Link>
           ) : (
             r.novelTitle || '—'
           )}
         </TableCell>
         <TableCell data-primary="" data-label="评论" className="thought-admin-cell">
-          {r.commentText || '评论已删除'}
+          <div className="moderation-quote-bubble">{r.commentText || '评论已删除'}</div>
         </TableCell>
         <TableCell data-label="举报人">{r.reporterDisplayName || r.reporterUsername || r.reportedBy || '—'}</TableCell>
         <TableCell data-label="原因">
-          {MODERATION_REASON_LABELS[r.reason || ''] || r.reason}
+          <span className="moderation-report-reason-badge">{MODERATION_REASON_LABELS[r.reason || ''] || r.reason}</span>
           {r.note ? (
             <>
               <br />
@@ -551,7 +553,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
                 { label: '驳回举报', icon: X, onSelect: () => void resolveReport(r.id, 'dismissed', 'none') },
               ]}
             >
-              <Button variant="ghost" size="sm" title="隐藏并解决" onClick={() => void resolveReport(r.id, 'resolved', 'hide')}>
+              <Button variant="default" size="sm" className="rounded-full bg-[#D97757] hover:bg-[#c86646] text-white" title="隐藏并解决" onClick={() => void resolveReport(r.id, 'resolved', 'hide')}>
                 隐藏并解决
               </Button>
             </AdminRowActions>
