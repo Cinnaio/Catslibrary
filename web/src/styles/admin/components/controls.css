@@ -1,5 +1,5 @@
 /* ——— admin 控件统一圆角 ——— */
-.admin-layout [data-slot='button'],
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'],
 .admin-layout [data-slot='sidebar-menu-button'],
 .admin-layout [data-slot='sidebar-trigger'],
 .admin-layout [data-slot='theme-menu-trigger'],
@@ -11,8 +11,8 @@
   border-radius: var(--admin-button-radius);
 }
 
-.admin-layout [data-slot='input'],
-.admin-layout [data-slot='textarea'] {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='input'],
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='textarea'] {
   border-radius: var(--admin-input-radius);
 }
 
@@ -22,50 +22,50 @@
 }
 
 /* ——— admin 控件统一尺寸：高度 / 字号 / 文字颜色 / 内边距 ——— */
-.admin-layout [data-slot='input'] {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='input'] {
   height: var(--admin-control-height);
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   color: var(--text-primary);
 }
 
-.admin-layout [data-slot='textarea'] {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='textarea'] {
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   color: var(--text-primary);
 }
 
-.admin-layout [data-slot='button'][data-size='sm'] {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-size='sm'] {
   height: var(--admin-control-height);
   font-size: 0.875rem;
 }
 
 /* CustomSelect trigger（compact 模式）与其他控件对齐 */
-.admin-layout .admin-input--select-sm {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) .admin-input--select-sm {
   height: var(--admin-control-height) !important;
   font-size: 0.875rem;
   padding: 0 0.75rem;
 }
 
 /* ——— secondary 按钮：微描边纸面胶囊，悬停带暖光过渡 ——— */
-.admin-layout [data-slot='button'][data-variant='secondary'] {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='secondary'] {
   background: transparent;
   color: var(--text-primary);
   border: 1px solid var(--admin-border-strong);
   box-shadow: none;
   transition: all 0.16s ease;
 }
-.admin-layout [data-slot='button'][data-variant='secondary']:hover {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='secondary']:hover {
   background: var(--admin-accent-subtle);
   border-color: var(--admin-accent);
   color: var(--admin-accent);
 }
-.admin-layout [data-slot='button'][data-variant='secondary']:focus-visible {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='secondary']:focus-visible {
   box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.2);
 }
 
 /* ——— primary（default）按钮：Claude 标志性陶土红 (Terracotta #D97757) 胶囊 ——— */
-.admin-layout [data-slot='button'][data-variant='default'] {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='default'] {
   background: var(--admin-accent);
   color: #FFFFFF;
   border: 1px solid transparent;
@@ -73,15 +73,15 @@
   font-weight: 550;
   transition: all 0.16s cubic-bezier(0.2, 0, 0, 1);
 }
-.admin-layout [data-slot='button'][data-variant='default']:hover {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='default']:hover {
   background: var(--admin-accent-hover);
   box-shadow: 0 4px 14px rgba(217, 119, 87, 0.36);
   transform: translateY(-1px);
 }
-.admin-layout [data-slot='button'][data-variant='default']:active {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='default']:active {
   transform: translateY(0);
 }
-.admin-layout [data-slot='button'][data-variant='default']:disabled {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='default']:disabled {
   background: color-mix(in srgb, var(--admin-panel) 85%, var(--bg-secondary));
   color: var(--text-muted);
   border-color: var(--admin-border);
@@ -90,42 +90,42 @@
 }
 
 /* ——— destructive 按钮：低饱和陶土玫瑰色微边框 ——— */
-.admin-layout [data-slot='button'][data-variant='destructive'] {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='destructive'] {
   background: var(--admin-panel);
   color: var(--color-danger);
   border: 1px solid color-mix(in srgb, var(--color-danger) 40%, var(--admin-border));
   transition: all 0.16s ease;
 }
-.admin-layout [data-slot='button'][data-variant='destructive']:hover {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='destructive']:hover {
   background: color-mix(in srgb, var(--color-danger) 10%, var(--admin-panel));
   border-color: var(--color-danger);
 }
-.admin-layout [data-slot='button'][data-variant='destructive']:disabled {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button'][data-variant='destructive']:disabled {
   background: color-mix(in srgb, var(--admin-panel) 85%, var(--bg-secondary));
   color: var(--text-muted);
   border-color: var(--admin-border);
 }
 
 /* ——— 输入框：全圆角胶囊与陶土红柔和光晕 ——— */
-.admin-layout [data-slot='input'] {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='input'] {
   background: var(--input-background);
   border: 1px solid var(--admin-border);
   box-shadow: none;
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
-.admin-layout [data-slot='input']:focus-visible {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='input']:focus-visible {
   border-color: var(--admin-accent);
   box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.18);
   outline: none;
 }
-.admin-layout [data-slot='textarea'] {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='textarea'] {
   background: var(--input-background);
   border: 1px solid var(--admin-border);
   box-shadow: none;
   border-radius: var(--radius-lg);
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
-.admin-layout [data-slot='textarea']:focus-visible {
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='textarea']:focus-visible {
   border-color: var(--admin-accent);
   box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.18);
   outline: none;
@@ -149,5 +149,5 @@
 }
 
 [data-slot='dialog-content'].admin-dialog {
-  border-radius: var(--radius-lg);
+  border-radius: var(--admin-radius-dialog);
 }
