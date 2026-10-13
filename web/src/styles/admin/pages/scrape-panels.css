@@ -24,13 +24,10 @@
   overflow: hidden;
   min-width: 0;
   padding: 0;
-  border: 0;
-  /* 与同列「配置迁移」面板取同一档外框圆角。此处原为 --radius-xl(16px)，
-     而 .admin-data-panel 走 --admin-table-panel-radius(20px)，同一列相邻两个
-     面板弧线不一致——这就是「确认作品并配置章节」看起来不属于这一页的来源。 */
+  border: 1px solid var(--admin-panel-border);
   border-radius: var(--admin-table-panel-radius);
   background: var(--admin-panel);
-  box-shadow: none;
+  box-shadow: var(--admin-panel-shadow);
 }
 
 .admin-redesign-page--scrape .scrape-intake__tabs,
