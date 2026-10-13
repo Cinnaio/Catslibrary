@@ -335,3 +335,116 @@
     transition: none;
   }
 }
+
+/* ==========================================================================
+   Claude (Anthropic) 风格站点运营与流量监控深度重塑
+   ========================================================================== */
+
+.site-operations .traffic-panel {
+  background: var(--admin-surface, #ffffff);
+  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
+  border-radius: 1.125rem;
+  box-shadow: 0 2px 12px -4px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+:root[data-theme='dark'] .site-operations .traffic-panel,
+.dark .site-operations .traffic-panel {
+  background: var(--admin-panel, #1a1a19);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.35);
+}
+
+.traffic-segment {
+  border-radius: var(--radius-full, 9999px) !important;
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.04)) !important;
+  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08)) !important;
+  padding: 4px !important;
+}
+
+:root[data-theme='dark'] .traffic-segment,
+.dark .traffic-segment {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.traffic-segment button {
+  border-radius: var(--radius-full, 9999px) !important;
+  font-weight: 500;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.traffic-segment button[aria-pressed='true'] {
+  background: var(--admin-surface, #ffffff) !important;
+  color: var(--admin-text-main, #1c1b18) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
+}
+
+:root[data-theme='dark'] .traffic-segment button[aria-pressed='true'],
+.dark .traffic-segment button[aria-pressed='true'] {
+  background: var(--admin-panel, #242422) !important;
+  color: #f3f3ee !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+.traffic-share {
+  border-radius: 0.75rem;
+  transition: background 0.15s ease, transform 0.15s ease;
+  padding: 0.625rem 0.75rem;
+}
+
+.traffic-share:hover {
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.03));
+}
+
+:root[data-theme='dark'] .traffic-share:hover,
+.dark .traffic-share:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.traffic-share__track {
+  height: 5px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.06));
+}
+
+.traffic-share__track i {
+  background: var(--admin-terracotta, #D97757);
+  border-radius: var(--radius-full, 9999px);
+}
+
+.traffic-dialog-total strong {
+  font-family: var(--font-serif, "Newsreader", "Source Serif 4", Georgia, serif);
+  font-weight: 700;
+  color: var(--admin-text-main, #1c1b18);
+  letter-spacing: -0.02em;
+}
+
+:root[data-theme='dark'] .traffic-dialog-total strong,
+.dark .traffic-dialog-total strong {
+  color: #f3f3ee;
+}
+
+.traffic-details summary,
+.traffic-privacy summary {
+  cursor: pointer;
+  border-radius: var(--radius-full, 9999px);
+  padding: 0.5rem 1rem;
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.025));
+  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.06));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted, #78756d);
+  transition: all 0.15s ease;
+}
+
+.traffic-details summary:hover,
+.traffic-privacy summary:hover {
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.05));
+  color: var(--admin-text-main, #1c1b18);
+}
+

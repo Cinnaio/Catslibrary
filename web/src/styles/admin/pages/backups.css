@@ -238,3 +238,108 @@
     flex-wrap: wrap;
   }
 }
+
+/* ==========================================================================
+   Claude (Anthropic) 风格备份与恢复中心深度重塑
+   ========================================================================== */
+
+.backup-pill-tabs-track {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 4px;
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-full, 9999px);
+  margin-bottom: 1.5rem;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+:root[data-theme='dark'] .backup-pill-tabs-track,
+.dark .backup-pill-tabs-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.backup-pill-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.125rem;
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted, #78756d);
+  text-decoration: none;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.backup-pill-tab:hover {
+  color: var(--admin-text-main, #1c1b18);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+:root[data-theme='dark'] .backup-pill-tab:hover,
+.dark .backup-pill-tab:hover {
+  color: #f3f3ee;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.backup-pill-tab.active {
+  background: var(--admin-surface, #ffffff);
+  color: var(--admin-text-main, #1c1b18);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+:root[data-theme='dark'] .backup-pill-tab.active,
+.dark .backup-pill-tab.active {
+  background: var(--admin-panel, #242422);
+  color: #f3f3ee;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+.backup-pill-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: var(--radius-full, 9999px);
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.backup-pill-dot.active {
+  background: var(--admin-terracotta, #D97757);
+  box-shadow: 0 0 6px rgba(217, 119, 87, 0.5);
+}
+
+.backup-page .admin-data-panel {
+  background: var(--admin-surface, #ffffff);
+  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
+  border-radius: 1.125rem;
+  box-shadow: 0 2px 10px -4px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+:root[data-theme='dark'] .backup-page .admin-data-panel,
+.dark .backup-page .admin-data-panel {
+  background: var(--admin-panel, #1a1a19);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.35);
+}
+
+.backup-notice {
+  border-radius: 1rem !important;
+  border-color: rgba(217, 119, 87, 0.25) !important;
+  background: rgba(217, 119, 87, 0.04) !important;
+}
+
+.backup-hint {
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 0.8125rem;
+  color: var(--text-muted, #78756d);
+}
+
