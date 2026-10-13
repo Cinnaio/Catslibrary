@@ -90,18 +90,18 @@
 }
 .calls-chart-body {
   min-width: 0;
-  padding: 0 1rem 1.25rem;
+  padding: 0 1.25rem 1.5rem;
   flex: 1;
 }
 .calls-chart {
   width: 100%;
-  height: 14.5rem;
+  height: 16rem;
 }
 .calls-chart-state {
-  min-height: 14.5rem;
+  min-height: 16rem;
 }
 .calls-trend-grid .admin-empty-state {
-  min-height: 14.5rem;
+  min-height: 16rem;
 }
 .admin-monitoring-page .ai-audit-panel .admin-panel-heading {
   align-items: center;
