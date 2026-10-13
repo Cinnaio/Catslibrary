@@ -20,10 +20,10 @@ interface LoadingStateProps {
 
 export function LoadingState({ label = '加载中', rows = 3, className }: LoadingStateProps) {
   return (
-    <div role="status" aria-live="polite" className={cn('flex h-32 flex-col justify-center gap-3 px-4', className)}>
+    <div role="status" aria-live="polite" className={cn('admin-loading-skeleton flex h-32 flex-col justify-center gap-3 px-4', className)}>
       <span className="sr-only">{label}</span>
       {Array.from({ length: rows }).map((_, index) => (
-        <div key={index} className="h-4 animate-pulse rounded-sm bg-muted/60" style={{ width: `${Math.max(40, 100 - index * 18)}%` }} />
+        <div key={index} className="admin-loading-skeleton__bar h-4 rounded-full" style={{ width: `${Math.max(40, 100 - index * 18)}%` }} />
       ))}
     </div>
   )

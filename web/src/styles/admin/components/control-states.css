@@ -21,23 +21,8 @@
   background: var(--input-background);
 }
 
-.admin-layout [data-slot='button'][data-variant='default'] {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-.admin-layout [data-slot='button'][data-variant='default']:hover {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
-}
-
-.admin-layout [data-slot='button'][data-variant='secondary'] {
-  background: var(--bg-secondary);
-}
-
-.admin-layout [data-slot='button'][data-variant='secondary']:hover {
-  background: var(--bg-hover);
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='button']:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .admin-layout [data-slot='tabs-list'] {
