@@ -10,7 +10,7 @@ import Pagination from '../../components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
-import { adminApi, chaptersApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSource, type TitleSourceSearchResponse } from '../../lib/api'
+import { adminApi, chaptersApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSourceSearchResponse } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import ChapterMergePreview from './ChapterMergePreview'
 import SourceSyncHistoryDialog from './SourceSyncHistoryDialog'
+import TitleSourceSearchResults from './TitleSourceSearchResults'
 import type { SourceSyncManualMapping } from '@/lib/api'
 import ChapterIllustrations from '@/components/reader/ChapterIllustrations'
 import { formatContent } from '@/lib/reader-utils'
@@ -442,10 +443,6 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     }
   }
 
-  function sourceResults(site: string): TitleSource[] {
-    return sourceSearch?.sources?.[site]?.results || []
-  }
-
   async function remapSource(manualMappings: SourceSyncManualMapping[]) {
     if (mergeBusy.current || !sourcePreview) return
     mergeBusy.current = true; setRenaming(true); setSourceError('')
@@ -549,47 +546,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                 {sourceSearching ? '搜索中…' : '搜索两处源站'}
               </Button>
             </div>
-            {sourceSearch && (
-              <div className="chapter-merge-dialog__search-results mt-3 space-y-3">
-                {(['jjwxc', 'po18tw'] as const).map((site) => {
-                  const bucket = sourceSearch.sources?.[site]
-                  const results = sourceResults(site)
-                  const label = site === 'jjwxc' ? '晋江' : 'PO18.tw'
-                  return (
-                    <div key={site}>
-                      <div className="admin-dialog-section-label mb-1 flex items-center justify-between gap-2">
-                        <span>{label}</span>
-                        <span className="admin-dialog-hint">{results.length ? `${results.length} 个结果` : bucket?.ok ? '没有匹配结果' : '搜索不可用'}</span>
-                      </div>
-                      {bucket?.error && <p className="mb-2 text-xs text-amber-600">{bucket.error}</p>}
-                      {results.length > 0 && (
-                        <div className="grid gap-2">
-                          {results.map((candidate) => (
-                            <button
-                              type="button"
-                              key={`${candidate.site}-${candidate.bookId || candidate.url}`}
-                              className="group rounded-md border border-border bg-background p-2.5 text-left transition-colors hover:border-primary/60 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              onClick={() => void previewSourceSync(candidate.url)}
-                              disabled={renaming}
-                            >
-                              <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
-                                <span>{candidate.title || '未识别书名'}</span>
-                                {candidate.status && (
-                                  <span className="text-xs font-normal text-muted-foreground">{candidate.status === 'completed' ? '完结' : '连载'}</span>
-                                )}
-                              </span>
-                              <span className="mt-1 block truncate text-xs text-muted-foreground">
-                                {candidate.author || '作者未识别'} · {candidate.url}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+            {sourceSearch && <TitleSourceSearchResults search={sourceSearch} disabled={renaming} onSelect={(url) => void previewSourceSync(url)} />}
             <div className="chapter-merge-dialog__url-field chapter-dialog-field">
               <Label htmlFor="chapter-source-url">已有作品链接</Label>
               <div className="chapter-merge-dialog__url-row flex gap-2">
