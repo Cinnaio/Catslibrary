@@ -24,10 +24,11 @@ vi.mock('@/components/admin/NovelFollowupDialog', () => ({
   ),
 }))
 vi.mock('./ChaptersTab', () => ({
-  default: ({ mergeNovel, onMergeClose }: any) => (
+  default: ({ mergeNovel, onMergeClose, onMergeApplied }: any) => (
     <div role="dialog">
       <h2>融合详情：{mergeNovel.title}</h2>
       <button onClick={onMergeClose}>关闭融合</button>
+      <button onClick={onMergeApplied}>应用并继续核对</button>
     </div>
   ),
 }))
@@ -184,4 +185,15 @@ it('书名搜索有可访问标签并防抖提交，点击图表会清除旧搜�
   fireEvent.click(screen.getByRole('button', { name: 'site.example：已开启 1 本' }))
   await waitFor(() => expect(mocks.analytics).toHaveBeenLastCalledWith(expect.objectContaining({ search: '', followup: 'enabled', site: 'site.example' })))
   expect(screen.getByRole('textbox', { name: '搜索小说' })).toHaveValue('')
+})
+it('融合更新后刷新统计并保留详情和融合弹窗，支持连续核对', async () => {
+  show()
+  fireEvent.click(await screen.findByRole('button', { name: '连载的作品' }))
+  fireEvent.click(screen.getByRole('button', { name: '融合章节名' }))
+  await screen.findByRole('heading', { name: '融合详情：连载的作品' })
+  const previousReads = mocks.analytics.mock.calls.length
+  fireEvent.click(screen.getByRole('button', { name: '应用并继续核对' }))
+  await waitFor(() => expect(mocks.analytics.mock.calls.length).toBeGreaterThan(previousReads))
+  expect(screen.getByRole('heading', { name: '融合详情：连载的作品' })).toBeVisible()
+  expect(screen.getByRole('heading', { name: '书源与追更详情', hidden: true })).toBeInTheDocument()
 })

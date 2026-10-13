@@ -39,7 +39,7 @@ const columns: readonly AdminColumn[] = [
   { key: 'check', label: '最近检查 / 下次安排', width: '26%' },
   { key: 'pending', label: '待入库', width: '13%' },
 ]
-function BookDetails({ book, snapshotAt, onClose }: { book: SourceAnalyticsBook; snapshotAt: number; onClose: () => void }) {
+function BookDetails({ book, snapshotAt, onClose, onUpdated }: { book: SourceAnalyticsBook; snapshotAt: number; onClose: () => void; onUpdated: () => Promise<void> }) {
   const [followup, setFollowup] = useState(false),
     [merge, setMerge] = useState(false)
   const [returnFocus] = useState(() => document.activeElement as HTMLElement | null)
@@ -129,7 +129,7 @@ function BookDetails({ book, snapshotAt, onClose }: { book: SourceAnalyticsBook;
       {followup && <NovelFollowupDialog variant="event" novel={book} onClose={() => setFollowup(false)} />}
       {merge && (
         <Suspense fallback={<span role="status">正在打开融合弹窗…</span>}>
-          <MergeDialog mergeNovel={book} onMergeClose={() => setMerge(false)} onMergeApplied={onClose} />
+          <MergeDialog mergeNovel={book} onMergeClose={() => setMerge(false)} onMergeApplied={onUpdated} />
         </Suspense>
       )}
     </Dialog>
@@ -165,6 +165,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
       const next = await adminApi.sourceAnalytics(filters)
       if (seq === revision.current) {
         setData(next)
+        setSelected(current => current ? next.books.find(book => book.id === current.id) || current : null)
         setLoadedKey(key)
       }
     } catch (err) {
@@ -501,6 +502,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
           key={selected.id}
           book={selected}
           snapshotAt={data.snapshotAt}
+          onUpdated={load}
           onClose={() => {
             setSelected(null)
             void load()

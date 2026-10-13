@@ -16,12 +16,17 @@ interface Props {
   onConfirmedManualIdsChange: (ids: Set<string>) => void
   disabled: boolean
   onSelectedMappingsChange: (ids: Set<string>) => void
-  onRemap: (mappings: SourceSyncManualMapping[]) => void
+  onRemap: (mappings: SourceSyncManualMapping[]) => void | Promise<boolean>
+  selectedMappingIds?: Set<string>
+  onPendingMappingsChange?: (count: number) => void
+  onInspect?: (id: string) => void
+  onDelete?: (ids: string[]) => void
+  onPendingDeletionChange?: (count: number) => void
 }
 
 const PAGE_SIZE = 20
 
-export default function ChapterMergePreview({ preview, fields, onFieldsChange, confirmedManualIds, onConfirmedManualIdsChange, disabled, onRemap, onSelectedMappingsChange }: Props) {
+export default function ChapterMergePreview({ preview, fields, onFieldsChange, confirmedManualIds, onConfirmedManualIdsChange, disabled, onRemap, onSelectedMappingsChange, selectedMappingIds, onPendingMappingsChange, onInspect, onDelete, onPendingDeletionChange }: Props) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -70,7 +75,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
       {preview.warnings.map((warning) => <p className="chapter-merge-dialog__warning" key={warning}>{warning}</p>)}
     </div>
 
-    <ChapterMappingReview preview={preview} disabled={disabled} onRemap={onRemap} onSelectedMappingsChange={onSelectedMappingsChange} />
+    <ChapterMappingReview preview={preview} disabled={disabled} onRemap={onRemap} onSelectedMappingsChange={onSelectedMappingsChange} selectedMappingIds={selectedMappingIds} onPendingMappingsChange={onPendingMappingsChange} onInspect={onInspect} onDelete={onDelete} onPendingDeletionChange={onPendingDeletionChange} />
 
     <div className="chapter-merge-dialog__preview-section">
       <div className="chapter-merge-dialog__review-toolbar">

@@ -55,6 +55,23 @@ describe('scrape 路由（免网络动作）', () => {
     expect(invalid.status).toBe(400)
   })
 
+  it('复用目录重新匹配要求管理员及当前版本，应用后可生成新预览', async () => {
+    const novelId = 'refresh-route', bindingId = 'refresh-binding', runId = 'refresh-run'
+    const metadata = { title: '', author: '', description: '', coverUrl: '', category: '', categories: [], status: '', sourceUrl: 'https://www.po18.tw/books/1' }
+    await t.db.query('INSERT INTO novels (id,title,created_at,updated_at) VALUES ($1,$1,1,1)', [novelId])
+    await t.db.query('INSERT INTO novel_source_bindings (id,novel_id,source_url,created_at,updated_at) VALUES ($1,$2,$3,1,1)', [bindingId, novelId, metadata.sourceUrl])
+    await t.db.query("INSERT INTO source_sync_runs (id,binding_id,novel_id,status,metadata_json,created_at) VALUES ($1,$2,$3,'applied',$4,1)", [runId, bindingId, novelId, JSON.stringify(metadata)])
+    const body = { action: 'source-sync-refresh', runId, revision: 0 }
+    expect((await req('/api/scrape', json('POST', body))).status).toBe(401)
+    expect((await req('/api/scrape', json('POST', { ...body, revision: 1 }, adminToken))).status).toBe(409)
+    const response = await req('/api/scrape', json('POST', body, adminToken))
+    expect(response.status).toBe(200)
+    const next = await jsonOf<{ runId: string; localChapterCount: number; sourceChapterCount: number }>(response)
+    expect(next.runId).not.toBe(runId)
+    expect(next.localChapterCount).toBe(0)
+    expect(next.sourceChapterCount).toBe(0)
+  })
+
   it('源站融合接口传递序号修复选项，重复请求回放结果且不能复用键更改选项', async () => {
     const novelId = 'route-order-repair'
     const bindingId = 'route-order-binding'

@@ -25,6 +25,8 @@ import AdminPage from '@/components/admin/AdminPage'
 import ChapterMergePreview from './ChapterMergePreview'
 import SourceSyncHistoryDialog from './SourceSyncHistoryDialog'
 import TitleSourceSearchResults from './TitleSourceSearchResults'
+import ChapterMergeContentDialog from './ChapterMergeContentDialog'
+import { unchangedSourceSyncIds } from '@/lib/source-sync-selection'
 import type { SourceSyncManualMapping } from '@/lib/api'
 import ChapterIllustrations from '@/components/reader/ChapterIllustrations'
 import { formatContent } from '@/lib/reader-utils'
@@ -89,6 +91,10 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
   const [renaming, setRenaming] = useState(false)
   const [sourceError, setSourceError] = useState('')
   const [sourceExpanded, setSourceExpanded] = useState(true)
+  const [pendingMappings, setPendingMappings] = useState(0)
+  const [pendingDeletion, setPendingDeletion] = useState(0)
+  const [previewStale, setPreviewStale] = useState(false)
+  const [mergeInspection, setMergeInspection] = useState<string | null>(null)
   const mergeRequest = useRef(0)
   const mergeBusy = useRef(false)
   const mergeSearchRequest = useRef(0)
@@ -127,6 +133,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     setConfirmedManualIds(new Set())
     setSourceSearch(null)
     setSourceSearching(false)
+    setPendingMappings(0); setPendingDeletion(0); setPreviewStale(false); setMergeInspection(null)
     onMergeClose?.()
   }
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -372,6 +379,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     setSourceError('')
     setSourceExpanded(true)
     setSourceMetadataFields([])
+    setPendingMappings(0); setPendingDeletion(0); setPreviewStale(false)
     setRenameModal(true)
     setSourcePreview(null)
     setSelectedOrderIds(new Set()); setSelectedMappingIds(new Set())
@@ -434,6 +442,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     try {
       const result = await scrapeApi.sourceSyncPreview({ novelId: selectedNovel, sourceUrl: url, onlyWeakTitles: true })
       setSourcePreview(result)
+      setPendingMappings(0); setPendingDeletion(0); setPreviewStale(false)
       setSourceExpanded(false)
     } catch (err) {
       setSourceError((err as Error).message || '源站读取失败，请检查链接后重试。')
@@ -443,19 +452,64 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     }
   }
 
-  async function remapSource(manualMappings: SourceSyncManualMapping[]) {
-    if (mergeBusy.current || !sourcePreview) return
+  function replaceSourcePreview(next: SourceSyncPreview, preserve = true) {
+    const unchanged = preserve && sourcePreview ? unchangedSourceSyncIds(sourcePreview, next) : new Set<string>()
+    const retain = (ids: Set<string>) => new Set([...ids].filter(id => unchanged.has(id)))
+    setConfirmedManualIds(retain); setSelectedOrderIds(retain); setSelectedMappingIds(retain)
+    setSourcePreview(next); setPendingMappings(0); setPreviewStale(false)
+    setNovelOptions(previous => previous.map(novel => novel.id === selectedNovel ? { ...novel, chapterCount: next.localChapterCount } : novel))
+  }
+
+  async function remapSource(manualMappings: SourceSyncManualMapping[]): Promise<boolean> {
+    if (mergeBusy.current || !sourcePreview || previewStale) return false
     mergeBusy.current = true; setRenaming(true); setSourceError('')
     try {
       const next = await scrapeApi.sourceSyncRemap({ runId: sourcePreview.runId, revision: sourcePreview.revision || 0, manualMappings })
-      setSourcePreview(next); setConfirmedManualIds(new Set()); setSelectedOrderIds(new Set()); setSelectedMappingIds(new Set())
-      toast('映射已更新，请重新核对标题变化；人工确认与序号修复选择已清空。', 'success')
-    } catch (err) { setSourceError((err as Error).message || '映射更新失败，请重新读取源站') }
+      replaceSourcePreview(next)
+      toast('映射已更新，未变化的选择已保留；调整过的对应关系请重新确认。', 'success')
+      return true
+    } catch (err) { setSourceError((err as Error).message || '映射更新失败，请重新读取源站'); return false }
     finally { mergeBusy.current = false; setRenaming(false) }
   }
 
-  async function applyRename() {
-    if (mergeBusy.current) return
+  async function refreshLocalPreview() {
+    if (mergeBusy.current || !sourcePreview || pendingMappings || (pendingDeletion && !previewStale)) return
+    mergeBusy.current = true; setRenaming(true); setSourceError('')
+    try {
+      replaceSourcePreview(await scrapeApi.sourceSyncRefresh({ runId: sourcePreview.runId, revision: sourcePreview.revision || 0 }))
+      setPendingDeletion(0)
+      toast('已按最新本地目录重新匹配，源站目录无需再次读取。', 'success')
+    } catch (err) { setPreviewStale(true); setSourceError((err as Error).message || '重新匹配失败，请重试') }
+    finally { mergeBusy.current = false; setRenaming(false) }
+  }
+
+  async function deleteMergeChapters(ids: string[]) {
+    if (mergeBusy.current || !sourcePreview || pendingMappings || previewStale) return
+    const targets = (sourcePreview.localChapters || []).filter(chapter => ids.includes(chapter.id))
+    if (!targets.length) return
+    mergeBusy.current = true
+    let deleted = false
+    try {
+      if (!await confirm({ title: `删除 ${targets.length} 个杂章？`, message: '将永久删除所选本地章节及正文。请先预览确认；删除后复用源站目录重新匹配，其他章节保持不变。融合历史不能恢复此次删除。', danger: true, okText: '确认删除并重新匹配', items: targets.map(chapter => `本地 ${chapter.order} · ${chapter.title}`) })) return
+      setRenaming(true); setSourceError('')
+      await chaptersApi.batchDelete(selectedNovel, targets.map(chapter => chapter.id), newOperationId('merge-delete-chapters'))
+      deleted = true
+      setPreviewStale(true)
+      if (mergeNovel) await onMergeApplied?.()
+      else void loadChapters(selectedNovel)
+      const next = await scrapeApi.sourceSyncRefresh({ runId: sourcePreview.runId, revision: sourcePreview.revision || 0 })
+      replaceSourcePreview(next)
+      setPendingDeletion(0)
+      toast(`已删除 ${targets.length} 个杂章并重新匹配，请继续核对。`, 'success')
+    } catch (err) {
+      const message = (err as Error).message || '请重试'
+      setSourceError(deleted ? `杂章已删除，重新匹配失败：${message}。请点击重新匹配后继续。` : `删除未完成：${message}`)
+    }
+    finally { mergeBusy.current = false; setRenaming(false) }
+  }
+
+  async function applyRename(continueReview = false) {
+    if (mergeBusy.current || pendingMappings || pendingDeletion || previewStale) return
     if (!sourcePreview) {
       toast('请先读取源站', 'error')
       return
@@ -499,8 +553,23 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       const parts = [`已更新 ${result.updated} 个章节名`]
       if (result.orderUpdated) parts.push(`修复 ${result.orderUpdated} 个章节序号`)
       if (result.metadataUpdated.length) parts.push(`更新 ${result.metadataUpdated.length} 项小说信息`)
+      setNovelOptions(previous => previous.map(novel => novel.id === selectedNovel ? { ...novel,
+        title: result.metadataUpdated.includes('title') ? sourcePreview.metadata.title : novel.title,
+        author: result.metadataUpdated.includes('author') ? sourcePreview.metadata.author : novel.author,
+      } : novel))
       // 嵌入小说管理时，等列表读取完成再报告成功并关闭，避免回到旧列表。
       if (mergeNovel) await onMergeApplied?.()
+      if (continueReview) {
+        // 应用后旧预览不可再次提交；即使重新匹配失败也保持旧预览禁用。
+        setPreviewStale(true)
+        setSourceMetadataFields([])
+        setConfirmedManualIds(new Set()); setSelectedOrderIds(new Set()); setSelectedMappingIds(new Set())
+        try {
+          replaceSourcePreview(await scrapeApi.sourceSyncRefresh({ runId: sourcePreview.runId, revision: sourcePreview.revision || 0 }), false)
+          toast(`${parts.join('，')}，可继续核对。`, 'success')
+        } catch (err) { setSourceError(`更新已应用，重新匹配失败：${(err as Error).message}。请点击重新匹配后继续。`) }
+        return
+      }
       toast(parts.join('，'), 'success')
       setRenameModal(false)
       setSourcePreview(null)
@@ -574,7 +643,12 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
           </details>
           {sourceError && <p role="alert" className="chapter-merge-dialog__error">{sourceError}</p>}
           {renaming && !sourcePreview && <p role="status" className="admin-dialog-hint">正在读取源站并匹配本地章节，请稍候…</p>}
-          {sourcePreview && <ChapterMergePreview key={`${sourcePreview.runId}:${sourcePreview.revision || 0}`} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} onRemap={mappings => void remapSource(mappings)} onSelectedMappingsChange={selectMappings} disabled={renaming} />}
+          {sourcePreview && <>
+            <Button variant="secondary" disabled={renaming || !!pendingMappings || (!!pendingDeletion && !previewStale)} onClick={() => void refreshLocalPreview()}>按本地最新目录重新匹配</Button>
+            {!!pendingMappings && <p className="admin-dialog-hint">请先保存或放弃暂存的映射调整，再应用更新或重新匹配。</p>}
+            {!!pendingDeletion && <p className="admin-dialog-hint">请先确认删除或清空删除选择，再应用标题及序号更新。</p>}
+            <ChapterMergePreview preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} onRemap={remapSource} onSelectedMappingsChange={selectMappings} selectedMappingIds={selectedMappingIds} onPendingMappingsChange={setPendingMappings} onInspect={setMergeInspection} onDelete={ids => void deleteMergeChapters(ids)} onPendingDeletionChange={setPendingDeletion} disabled={renaming || previewStale} />
+          </>}
         </AdminDialogBody>
         <DialogFooter className="chapter-merge-dialog__footer">
           <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${updateCount} 个标题待更新 · ${orderUpdateCount} 个序号修复 · ${availableMetadataFields.length} 项信息同步` : '读取后可预览全部变化'}</span>
@@ -582,15 +656,18 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
             取消
           </Button>
           {sourcePreview && (
-            <Button disabled={renaming || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename()}>
+            <Button disabled={renaming || previewStale || !!pendingMappings || !!pendingDeletion || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename()}>
               {renaming ? '更新中…' : orderUpdateCount ? '应用已选更新' : updateCount ? `更新 ${updateCount} 个标题` : '同步小说信息'}
             </Button>
           )}
+          {sourcePreview && <Button className="chapter-merge-dialog__continue" variant="secondary" disabled={renaming || previewStale || !!pendingMappings || !!pendingDeletion || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename(true)}>应用后继续核对</Button>}
         </DialogFooter>
       </AdminDialogContent>
     </Dialog>
   )
-  if (mergeNovel) return renameDialog
+  const inspectedChapter = sourcePreview?.localChapters?.find(chapter => chapter.id === mergeInspection)
+  const contentDialog = inspectedChapter && <ChapterMergeContentDialog key={inspectedChapter.id} chapter={inspectedChapter} onClose={() => setMergeInspection(null)} />
+  if (mergeNovel) return <>{renameDialog}{contentDialog}</>
 
   const pageAllSelected = pageRows.length > 0 && pageRows.every((c) => selectedIds.has(c.id))
   const pageSomeSelected = pageRows.some((c) => selectedIds.has(c.id))
@@ -833,6 +910,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       </Dialog>
 
       {renameDialog}
+      {contentDialog}
       {historyOpen && <SourceSyncHistoryDialog key={selectedNovel} open novelId={selectedNovel} onOpenChange={setHistoryOpen} onCompleted={() => void loadChapters(selectedNovel)} />}
     </AdminPage>
   )
