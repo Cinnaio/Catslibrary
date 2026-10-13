@@ -94,9 +94,11 @@
   /* 右上角关闭按钮需要避让，居中时左右对称留白，否则整行会视觉偏左 */
   padding-inline: 3rem;
   color: var(--text-primary);
+  font-family: var(--font-serif);
   font-size: var(--admin-dialog-title-size);
-  letter-spacing: 0;
-  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
 .admin-dialog [data-slot='dialog-description'] {

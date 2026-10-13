@@ -18,6 +18,8 @@
   max-height: var(--admin-preview-dialog-height);
   max-width: var(--admin-preview-dialog-width);
   overflow: hidden;
+  border-radius: var(--admin-radius-dialog);
+  background: var(--admin-panel);
 }
 
 @media (min-width: 640px) {

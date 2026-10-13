@@ -11,6 +11,14 @@
   min-height: 100dvh;
 }
 
+:is(.admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) {
+  --accent: var(--admin-accent);
+  --accent-hover: var(--admin-accent-hover);
+  --accent-light: var(--admin-accent-light);
+  --accent-subtle: var(--admin-accent-subtle);
+  --focus-ring: rgba(217, 119, 87, 0.24);
+}
+
 
 .admin-layout__inset {
   background: transparent;
