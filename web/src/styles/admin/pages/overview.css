@@ -79,6 +79,7 @@
 }
 .dashboard-followup-counts dd {
   margin: 0;
+  font-family: var(--font-serif);
   font-size: var(--admin-section-title-size);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
