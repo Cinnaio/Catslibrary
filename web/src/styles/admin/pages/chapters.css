@@ -325,7 +325,10 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
 }
 
 .chapter-work-note h3 {
-  font-size: 1rem;
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .chapter-work-note__rows {

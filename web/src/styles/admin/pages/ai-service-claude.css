@@ -12,10 +12,10 @@
 
 .ai-service .admin-panel-card {
   min-width: 0;
-  border: 0;
-  border-radius: var(--radius-2xl);
+  border: 1px solid var(--admin-panel-border);
+  border-radius: var(--admin-table-panel-radius);
   background: var(--admin-panel);
-  box-shadow: none;
+  box-shadow: var(--admin-panel-shadow);
 }
 
 .ai-service :is(.ai-writing-panel, .ai-writing-context, .ai-config-panel, .ai-params-sections) {
@@ -1337,7 +1337,10 @@
   padding: 28px 28px 12px;
 }
 .ai-service .ai-params-card > .admin-panel-heading h3 {
-  font-size: 18px;
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .ai-service.ai-admin-page .ai-params-card > [data-slot='card-content'] {
   padding: 0 28px 28px;
