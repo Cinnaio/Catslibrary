@@ -196,19 +196,37 @@ export async function cacheCoverForNovel(
 ): Promise<{ ok: boolean; error?: string; status?: number; source?: string; contentType?: string; bytes?: number; isDefault?: boolean }> {
   const row = await first<{ cover_url: string }>(db, 'SELECT cover_url FROM novels WHERE id = $1', [novelId])
   if (!row) return { ok: false, error: 'novel not found', status: 404 }
-
+  const beforeCover = await getStoredCover(db, novelId)
   const coverUrl = (row.cover_url || '').trim()
-  let img = isDefaultCoverSource(coverUrl) ? null : await fetchImage(coverUrl)
-  let source = coverUrl
+  const img = isDefaultCoverSource(coverUrl) ? null : await fetchImage(coverUrl)
+  const fallback = img ? null : (opts.defaultImage || await getDefaultCoverImage())
 
-  if (!img) {
-    img = opts.defaultImage || (await getDefaultCoverImage())
-    source = 'default'
-  }
-  if (!img) return { ok: false, error: '源图与缺省图均下载失败', status: 502 }
-
-  if (source !== 'default') await storeCover(db, novelId, img.data, img.contentType, source)
-  return { ok: true, source, contentType: img.contentType, bytes: img.data.byteLength, isDefault: source === 'default' }
+  // 下载在事务外；写入前同时检查 URL 与图片版本，避免慢请求覆盖后来同步/上传的封面。
+  return withTx(db, async q => {
+    const novel = (await q<{ cover_url: string }>('SELECT cover_url FROM novels WHERE id = $1 FOR UPDATE', [novelId])).rows[0]
+    if (!novel) return { ok: false, error: 'novel not found', status: 404 }
+    if (String(novel.cover_url || '').trim() !== coverUrl) return { ok: false, error: '封面地址已变化，请重新读取', status: 409 }
+    const current = (await q<StoredCover>('SELECT data, content_type, source, prompt, metadata, updated_at FROM novel_covers WHERE novel_id = $1 FOR UPDATE', [novelId])).rows[0]
+    if (current?.source !== beforeCover?.source || Number(current?.updated_at || 0) !== Number(beforeCover?.updated_at || 0)
+      || coverVersion(current?.data, current?.metadata || '') !== coverVersion(beforeCover?.data, beforeCover?.metadata || '')) {
+      return { ok: true, source: current?.source }
+    }
+    if (img) {
+      await q(
+        `INSERT INTO novel_covers (novel_id, data, content_type, source, prompt, metadata, updated_at)
+         VALUES ($1,$2,$3,$4,'','',$5)
+         ON CONFLICT (novel_id) DO UPDATE SET data=EXCLUDED.data, content_type=EXCLUDED.content_type,
+           source=EXCLUDED.source, prompt='', metadata='', updated_at=EXCLUDED.updated_at`,
+        [novelId, img.data, img.contentType, coverUrl, Date.now()],
+      )
+      return { ok: true, source: coverUrl, contentType: img.contentType, bytes: img.data.byteLength }
+    }
+    // URL 已更换的旧源图不能继续冒充新图；下载失败不存占位图，下一次读取仍会重试。
+    if (current && (isDefaultCoverSource(current.source) || (/^https?:\/\//i.test(current.source) && current.source !== coverUrl))) {
+      await invalidateCoverForSourceChange(q, novelId, { reason: 'source-refresh' })
+    }
+    return { ok: true, source: 'default', contentType: fallback!.contentType, bytes: fallback!.data.byteLength, isDefault: true }
+  })
 }
 
 // ---------- AI 封面候选：生成结果先存候选，采纳后才覆盖当前封面 ----------
@@ -365,9 +383,30 @@ async function pruneCoverHistory(q: DbClient['query'], novelId: string): Promise
   if (remove.length) await q(`DELETE FROM novel_cover_history WHERE novel_id = $1 AND id IN (${remove.map((_, index) => `$${index + 2}`).join(',')})`, [novelId, ...remove])
 }
 
+/** 调用方已锁定小说；源站地址替换与旧缓存失效必须在同一事务提交。 */
+export async function invalidateCoverForSourceChange(
+  q: DbClient['query'], novelId: string, opts: { actorId?: string; reason: string },
+): Promise<string | null> {
+  const current = (await q<StoredCover>('SELECT data, content_type, source, prompt, metadata, updated_at FROM novel_covers WHERE novel_id = $1 FOR UPDATE', [novelId])).rows[0]
+  let historyId: string | null = null
+  if (current && !coverIsPlaceholder(current.source)) {
+    historyId = newId('coverhist')
+    await q(
+      `INSERT INTO novel_cover_history
+       (id, novel_id, data, content_type, source, prompt, metadata, image_hash, created_at, reason, actor_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [historyId, novelId, current.data, current.content_type, current.source, current.prompt || '', current.metadata || '',
+        coverImageHash(current.data), Date.now(), opts.reason, opts.actorId || ''],
+    )
+    await pruneCoverHistory(q, novelId)
+  }
+  await q('DELETE FROM novel_covers WHERE novel_id = $1', [novelId])
+  return historyId
+}
+
 /**
- * 管理员封面替换的唯一事务入口。候选采纳、上传和历史恢复都走这里，
- * 爬虫/懒缓存继续使用 storeCover，不会自动建立历史记录。
+ * 候选采纳、上传和历史恢复的事务入口。源站融合在自身事务中保存旧图并失效缓存；
+ * 爬虫/懒缓存只在旧源图失效时备份，正常读取不会自动建立历史记录。
  */
 export async function replaceCoverForAdmin(db: Db, input: CoverReplacementInput): Promise<CoverReplacementResult> {
   const novelId = String(input.novelId || '').trim()

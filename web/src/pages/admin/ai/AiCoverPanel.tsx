@@ -593,8 +593,8 @@ export default function AiCoverPanel({
 
   const focusedCandidate = candidates.find((candidate) => candidate.id === focusedCandidateId) || candidates[0]
   const selected = novels.find((n) => n.id === novelId)
-  // /api/cover/:id 公开无鉴权（与 NovelCard 同源），img 直接拉，带 coverVersion 破缓存
-  const previewSrc = novelId ? url(`/cover/${encodeURIComponent(novelId)}?v=${coverVersion}&cover=3`) : ''
+  // 与书卡共用本地封面端点，受限封面由服务端校验；coverVersion 用于刷新预览。
+  const previewSrc = novelId ? url(`/cover/${encodeURIComponent(novelId)}?v=${coverVersion}&cover=4`) : ''
   const recentNovels = novels.slice(0, 5)
   const hasCurrentGeneratedPrompt = !!prompt.trim() && !!promptSourceSignature && !promptConfigMismatch
   const canGenerateCover = !!novelId && !busy && !taskActive && !generatingPrompt && !promptConfigMismatch && (usesExactPrompt || hasCurrentGeneratedPrompt)
