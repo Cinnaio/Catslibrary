@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import type { SourceSyncPreview } from '@/lib/api'
@@ -26,11 +26,34 @@ it('展示匹配依据与相邻章节，保存未匹配章的人工对应关系'
   expect(screen.getByRole('button', { name: '调整映射：本地 2' })).toHaveAttribute('aria-expanded', 'true')
   expect(screen.getByText(/本地前章：本地第一章/)).toBeInTheDocument()
   await user.click(screen.getByRole('combobox'))
-  expect(screen.getByRole('option', { name: /源站第一章（已占用）/ })).toHaveAttribute('aria-disabled', 'true')
+  expect(screen.getByRole('option', { name: /源站第一章（选择后交换）/ })).not.toHaveAttribute('aria-disabled', 'true')
   await user.click(screen.getByRole('option', { name: '2 · 源站第二章' }))
   expect(screen.getByText(/源站前章：源站第一章/)).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: '保存映射并重新预览' }))
+  fireEvent.click(screen.getByRole('button', { name: '暂存映射调整' }))
+  expect(onRemap).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '保存 1 项映射并重新预览' }))
   expect(onRemap).toHaveBeenCalledWith([{ localChapterId: 'b', sourceChapterKey: 's2' }])
+  await waitFor(() => expect(screen.queryByText(/已暂存/)).not.toBeInTheDocument())
+})
+
+it('选择占用目标暂存双方交换，保存失败保留草稿可重试', async () => {
+  const onRemap = vi.fn().mockResolvedValue(false), onPendingMappingsChange = vi.fn()
+  const user = userEvent.setup()
+  render(<ChapterMappingReview preview={preview} disabled={false} onRemap={onRemap} onPendingMappingsChange={onPendingMappingsChange} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: '调整映射：本地 2' }))
+  await user.click(screen.getByRole('combobox'))
+  await user.click(screen.getByRole('option', { name: /源站第一章（选择后交换）/ }))
+  expect(screen.getByText(/将与本地 1/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '暂存映射调整' }))
+  expect(onPendingMappingsChange).toHaveBeenLastCalledWith(2)
+  fireEvent.click(screen.getByRole('button', { name: '保存 2 项映射并重新预览' }))
+  await waitFor(() => expect(onRemap).toHaveBeenCalledWith([
+    { localChapterId: 'b', sourceChapterKey: 's1' }, { localChapterId: 'a', sourceChapterKey: null },
+  ]))
+  expect(screen.getByText(/已暂存 2/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '放弃暂存调整' }))
+  expect(onPendingMappingsChange).toHaveBeenLastCalledWith(0)
 })
 
 it('有差异筛选保留序号偏移、标题不同及未匹配，忽略完整标题的标点差别', () => {

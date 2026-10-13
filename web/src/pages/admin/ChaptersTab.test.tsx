@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), update: vi.fn(), toast: vi.fn(), illustrations: vi.fn(), saveIllustration: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn(), confirm: vi.fn() }))
-vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update }, illustrationsApi: { list: mocks.illustrations, save: mocks.saveIllustration, imageBlob: async () => new Blob() }, scrapeApi: { sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply }, newOperationId: () => 'test' }))
+const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), update: vi.fn(), batchDelete: vi.fn(), toast: vi.fn(), illustrations: vi.fn(), saveIllustration: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn(), sourceRefresh: vi.fn(), sourceRemap: vi.fn(), confirm: vi.fn() }))
+vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update, batchDelete: mocks.batchDelete }, illustrationsApi: { list: mocks.illustrations, save: mocks.saveIllustration, imageBlob: async () => new Blob() }, scrapeApi: { sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply, sourceSyncRefresh: mocks.sourceRefresh, sourceSyncRemap: mocks.sourceRemap }, newOperationId: () => 'test' }))
 vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: mocks.confirm }) }))
 vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, onChange }: any) => <select aria-label="选择小说" onChange={e => onChange(e.target.value)}><option value="" />{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 import ChaptersTab from './ChaptersTab'
@@ -213,4 +213,118 @@ it('嵌入融合应用成功通知小说列表刷新并关闭，不加载章节�
   expect(close).toHaveBeenCalledTimes(1)
   expect(mocks.list).not.toHaveBeenCalled()
   expect(mocks.sourcePreview).toHaveBeenCalledWith(expect.objectContaining({ novelId: 'n' }))
+})
+
+function workflowPreview(runId = 'workflow') {
+  return {
+    runId, revision: 0, site: 'po18tw', sourceChapterCount: 1, localChapterCount: 2, matchedSourceCount: 1,
+    metadata: { title: '', author: '', description: '', coverUrl: '', categories: [], status: '' },
+    changes: [{ localChapterId: 'c', localOrder: 1, oldTitle: '第1章', newTitle: '开始', eligible: true, confidence: 'high' }],
+    mappings: [{ sourceChapterKey: 's1', sourceOrder: 1, sourceTitle: '开始', localChapterIds: ['c'], relation: 'one_to_one', confidence: 'high', matchReason: 'chapter-number' }],
+    unmatchedSource: [], unmatchedLocal: [{ id: 'junk', order: 2, title: '混入的其他作品' }], warnings: [],
+    localChapters: [{ id: 'c', order: 1, title: '第1章' }, { id: 'junk', order: 2, title: '混入的其他作品' }],
+    sourceChapters: [{ key: 's1', order: 1, title: '开始', url: '' }], orderChanges: [],
+  }
+}
+async function openWorkflow(preview = workflowPreview()) {
+  const close = vi.fn(), applied = vi.fn()
+  mocks.sourcePreview.mockResolvedValue(preview)
+  render(<ChaptersTab mergeNovel={{ id: 'n', title: '测试书', author: '', chapterCount: 2 }} onMergeClose={close} onMergeApplied={applied} />)
+  await screen.findByRole('heading', { name: '融合章节名' })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
+  fireEvent.click(await screen.findByText('核对与调整映射'))
+  return { close, applied }
+}
+it('融合内预览正文并批量删除杂章后重新匹配，保留弹窗及不变的同步选择', async () => {
+  mocks.get.mockResolvedValue({ chapter: { content: '这是混入的其他作品正文' } })
+  mocks.batchDelete.mockResolvedValue({ ok: true })
+  const next = workflowPreview('cleaned')
+  mocks.sourceRefresh.mockResolvedValue({ ...next, localChapterCount: 1, localChapters: [next.localChapters[0]], unmatchedLocal: [] })
+  const { close, applied } = await openWorkflow()
+  fireEvent.click(screen.getByRole('checkbox', { name: '选择映射：本地 1' }))
+  fireEvent.click(screen.getByRole('button', { name: '预览正文：本地 2' }))
+  expect(await screen.findByText('这是混入的其他作品正文')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '返回核对' }))
+  fireEvent.click(screen.getByRole('checkbox', { name: '标记删除：本地 2' }))
+  expect(screen.getByRole('button', { name: '更新 1 个标题' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '删除 1 个杂章并重新匹配' }))
+  await waitFor(() => expect(mocks.sourceRefresh).toHaveBeenCalledWith({ runId: 'workflow', revision: 0 }))
+  expect(mocks.batchDelete).toHaveBeenCalledWith('n', ['junk'], 'test')
+  expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true, items: ['本地 2 · 混入的其他作品'] }))
+  await waitFor(() => expect(screen.queryByText('本地 2 · 混入的其他作品')).not.toBeInTheDocument())
+  expect(screen.getByRole('checkbox', { name: '选择映射：本地 1' })).toBeChecked()
+  expect(screen.getByRole('button', { name: '更新 1 个标题' })).toBeEnabled()
+  expect(close).not.toHaveBeenCalled()
+  expect(applied).toHaveBeenCalledTimes(1)
+  expect(mocks.sourcePreview).toHaveBeenCalledTimes(1)
+})
+it('取消杂章删除保留选择，不发送删除或重新读取源站请求', async () => {
+  mocks.confirm.mockResolvedValueOnce(false)
+  await openWorkflow()
+  fireEvent.click(screen.getByRole('checkbox', { name: '标记删除：本地 2' }))
+  fireEvent.click(screen.getByRole('button', { name: '删除 1 个杂章并重新匹配' }))
+  await waitFor(() => expect(mocks.confirm).toHaveBeenCalled())
+  expect(mocks.batchDelete).not.toHaveBeenCalled()
+  expect(mocks.sourceRefresh).not.toHaveBeenCalled()
+  expect(screen.getByRole('checkbox', { name: '标记删除：本地 2' })).toBeChecked()
+})
+it('杂章已删除但重新匹配失败时禁用旧预览，重试匹配不重复删除', async () => {
+  mocks.batchDelete.mockResolvedValue({ ok: true })
+  mocks.sourceRefresh.mockRejectedValueOnce(new Error('临时错误'))
+  const next = workflowPreview('retried')
+  mocks.sourceRefresh.mockResolvedValueOnce({ ...next, localChapters: [next.localChapters[0]], unmatchedLocal: [] })
+  await openWorkflow()
+  fireEvent.click(screen.getByRole('checkbox', { name: '标记删除：本地 2' }))
+  fireEvent.click(screen.getByRole('button', { name: '删除 1 个杂章并重新匹配' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('临时错误')
+  expect(screen.getByRole('button', { name: '更新 1 个标题' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '按本地最新目录重新匹配' }))
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+  expect(mocks.batchDelete).toHaveBeenCalledTimes(1)
+  expect(mocks.sourceRefresh).toHaveBeenCalledTimes(2)
+})
+it('应用后继续核对复用源站目录生成新预览，不关闭且不重复提交旧更新', async () => {
+  mocks.sourceApply.mockResolvedValue({ updated: 1, metadataUpdated: [], mappings: 1 })
+  const next = workflowPreview('continued')
+  mocks.sourceRefresh.mockResolvedValue({ ...next, localChapters: [{ id: 'c', order: 1, title: '开始' }, next.localChapters[1]], changes: [] })
+  const { close, applied } = await openWorkflow()
+  fireEvent.click(screen.getByRole('button', { name: '应用后继续核对' }))
+  await waitFor(() => expect(mocks.sourceRefresh).toHaveBeenCalledWith({ runId: 'workflow', revision: 0 }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '应用后继续核对' })).toBeDisabled())
+  expect(close).not.toHaveBeenCalled()
+  expect(applied).toHaveBeenCalledTimes(1)
+  expect(mocks.sourceApply).toHaveBeenCalledTimes(1)
+  expect(mocks.sourcePreview).toHaveBeenCalledTimes(1)
+  expect(screen.getByText('本地 1 · 开始')).toBeVisible()
+})
+it('保存映射保留展开与搜索以及未受影响的确认，仅清除已变化的映射选择', async () => {
+  const preview = workflowPreview()
+  preview.changes[0]!.eligible = false
+  preview.changes.push({ localChapterId: 'junk', localOrder: 2, oldTitle: '混入的其他作品', newTitle: '第二章', eligible: false, confidence: 'high' })
+  preview.mappings.push({ sourceChapterKey: 's2', sourceOrder: 2, sourceTitle: '第二章', localChapterIds: ['junk'], relation: 'one_to_one', confidence: 'high', matchReason: 'chapter-number' })
+  preview.sourceChapters.push({ key: 's2', order: 2, title: '第二章', url: '' })
+  mocks.sourceRemap.mockResolvedValue({ ...preview, revision: 1,
+    changes: [{ ...preview.changes[0], newTitle: '新的对应章' }, preview.changes[1]],
+    mappings: [{ ...preview.mappings[0], sourceTitle: '新的对应章' }, preview.mappings[1]],
+  })
+  await openWorkflow({ ...preview, manualMappings: [{ localChapterId: 'c', sourceChapterKey: 's1' }] } as ReturnType<typeof workflowPreview>)
+  fireEvent.click(screen.getByRole('button', { name: '全选当前筛选结果 2 项' }))
+  fireEvent.change(screen.getByLabelText('搜索本地章节映射'), { target: { value: '第1章' } })
+  fireEvent.click(screen.getByRole('button', { name: '恢复自动匹配' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '更新 1 个标题' })).toBeEnabled())
+  expect(screen.getByLabelText('搜索本地章节映射')).toHaveValue('第1章')
+  expect(screen.getByRole('checkbox', { name: '选择映射：本地 1' })).not.toBeChecked()
+  fireEvent.change(screen.getByLabelText('搜索本地章节映射'), { target: { value: '' } })
+  expect(screen.getByRole('checkbox', { name: '选择映射：本地 2' })).toBeChecked()
+})
+it('暂存映射未保存时禁止应用，放弃暂存后恢复原有更新', async () => {
+  await openWorkflow()
+  fireEvent.click(screen.getByRole('button', { name: '调整映射：本地 2' }))
+  fireEvent.click(screen.getByRole('button', { name: '暂存映射调整' }))
+  expect(screen.getByRole('button', { name: '更新 1 个标题' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '按本地最新目录重新匹配' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '放弃暂存调整' }))
+  expect(screen.getByRole('button', { name: '更新 1 个标题' })).toBeEnabled()
+  expect(mocks.sourceRemap).not.toHaveBeenCalled()
 })

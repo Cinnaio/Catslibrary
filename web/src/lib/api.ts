@@ -1671,6 +1671,9 @@ export const scrapeApi = {
   sourceSyncRemap(data: { runId: string; revision: number; manualMappings: SourceSyncManualMapping[] }): Promise<SourceSyncPreview> {
     return request('POST', '/scrape', { action: 'source-sync-remap', ...data }, true)
   },
+  sourceSyncRefresh(data: { runId: string; revision: number }): Promise<SourceSyncPreview> {
+    return request('POST', '/scrape', { action: 'source-sync-refresh', ...data }, true)
+  },
   sourceSyncHistory(novelId: string, limit = 20, offset = 0): Promise<{ items: SourceSyncHistoryItem[]; total: number }> {
     return request('GET', `/scrape?action=source-sync-history&novelId=${encodeURIComponent(novelId)}&limit=${limit}&offset=${offset}`, null, true)
   },

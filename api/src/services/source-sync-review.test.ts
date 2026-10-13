@@ -3,7 +3,7 @@ import { createTestDb, type TestDb } from '../test/db'
 import { applyContentRatingChange } from './content-rating-governance'
 import { withTx } from '../db/query'
 import {
-  applySourceSync, remapSourceSync, rollbackSourceSync, listSourceSyncHistory, getSourceSyncHistoryDetail, sourceSyncTestHelpers,
+  applySourceSync, remapSourceSync, refreshSourceSync, rollbackSourceSync, listSourceSyncHistory, getSourceSyncHistoryDetail, sourceSyncTestHelpers,
   type LocalChapterForSync, type SourceChapter,
 } from './source-sync'
 
@@ -79,6 +79,35 @@ it('人工指定目标不会自动应用，拆分组不能被单章重映射', a
   expect((await applySourceSync(t.db, { runId: s.runId, revision: 1 })).updated).toBe(0)
   const split = await seed(['第1章 (1/2)', '第1章 (2/2)'], ['第一章 新标题'])
   await expect(remapSourceSync(t.db, { runId: split.runId, revision: 0, manualMappings: [{ localChapterId: split.local[0]!.id, sourceChapterKey: null }] })).rejects.toThrow('拆分章节')
+})
+
+it('清理杂章后复用源站快照重新匹配，保留存活的人工映射并更新本地快照', async () => {
+  const s = await seed(['第一章 新标题', '杂章', '第二章 新标题'], ['第一章 新标题', '第二章 新标题'])
+  const mapped = await remapSourceSync(t.db, { runId: s.runId, revision: 0, manualMappings: [
+    { localChapterId: s.local[1]!.id, sourceChapterKey: null },
+    { localChapterId: s.local[2]!.id, sourceChapterKey: 's1' },
+  ] })
+  await t.db.query('DELETE FROM chapters WHERE id=$1', [s.local[1]!.id])
+  await expect(applySourceSync(t.db, { runId: s.runId, revision: 1 })).rejects.toThrow('目录在预览后已发生变化')
+  const next = await refreshSourceSync(t.db, { runId: s.runId, revision: mapped.revision! })
+  expect(next.runId).not.toBe(s.runId)
+  expect(next.localChapterCount).toBe(2)
+  expect(next.matchedSourceCount).toBe(2)
+  expect(next.manualMappings).toEqual([{ localChapterId: s.local[2]!.id, sourceChapterKey: 's1' }])
+  expect(next.sourceChapters).toEqual(s.preview.sourceChapters)
+  expect((await applySourceSync(t.db, { runId: next.runId, revision: 0 })).updated).toBe(0)
+  expect((await t.db.query<{ content: string }>('SELECT content FROM chapters WHERE novel_id=$1', [s.novelId])).rows.every(row => row.content === '正文保持')).toBe(true)
+})
+
+it('应用后继续核对产生新预览，不重复更新已应用标题，拒绝陈旧版本及撤回记录', async () => {
+  const s = await seed()
+  await applySourceSync(t.db, { runId: s.runId, confirmedChangeIds: [s.local[0]!.id] })
+  const next = await refreshSourceSync(t.db, { runId: s.runId, revision: 0 })
+  expect(next.changes.map(change => change.localChapterId)).not.toContain(s.local[0]!.id)
+  expect(next.changes.map(change => change.localChapterId)).toContain(s.local[1]!.id)
+  await expect(refreshSourceSync(t.db, { runId: s.runId, revision: 1 })).rejects.toThrow('版本已发生变化')
+  await rollbackSourceSync(t.db, s.runId, 'admin')
+  await expect(refreshSourceSync(t.db, { runId: s.runId, revision: 0 })).rejects.toThrow('已撤回')
 })
 
 it('历史记录实际应用项，撤回仅恢复标题与小说信息并保留后续正文编辑', async () => {

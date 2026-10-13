@@ -10,11 +10,27 @@ import { MATCH_REASON_LABELS } from './source-sync-labels'
 const CONFIDENCE_LABELS = { high: '高', medium: '中', low: '低' }
 const PAGE_SIZE = 20
 
-export default function ChapterMappingReview({ preview, disabled, onRemap, onSelectedMappingsChange }: {
-  preview: SourceSyncPreview; disabled: boolean; onRemap: (mappings: SourceSyncManualMapping[]) => void
+export default function ChapterMappingReview({ preview, disabled, onRemap, onSelectedMappingsChange, selectedMappingIds, onPendingMappingsChange, onInspect, onDelete, onPendingDeletionChange }: {
+  preview: SourceSyncPreview; disabled: boolean; onRemap: (mappings: SourceSyncManualMapping[]) => void | Promise<boolean>
   onSelectedMappingsChange?: (ids: Set<string>) => void
+  selectedMappingIds?: Set<string>
+  onPendingMappingsChange?: (count: number) => void
+  onInspect?: (id: string) => void
+  onDelete?: (ids: string[]) => void
+  onPendingDeletionChange?: (count: number) => void
 }) {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [internalSelectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectedIds = selectedMappingIds || internalSelectedIds
+  const [drafts, setDrafts] = useState<SourceSyncManualMapping[]>([])
+  const [deleteIds, setDeleteIds] = useState<Set<string>>(new Set())
+  function selectDeletions(ids: Set<string>) {
+    setDeleteIds(ids)
+    onPendingDeletionChange?.(ids.size)
+  }
+  function updateDrafts(next: SourceSyncManualMapping[]) {
+    setDrafts(next)
+    onPendingMappingsChange?.(next.length)
+  }
   function selectMappings(ids: Set<string>) {
     setSelectedIds(ids)
     onSelectedMappingsChange?.(ids)
@@ -58,6 +74,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
   const skipped = new Map(preview.orderRepairSkipped?.map(row => [row.localChapterId, row]) || [])
   const selectedSkipped = [...selectedIds].filter(id => skipped.has(id)).length
   const selectedLocals = locals.filter(local => selectedIds.has(local.id))
+  const deleteLocals = locals.filter(local => deleteIds.has(local.id))
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pages)
   const editingIndex = locals.findIndex(row => row.id === editingId)
@@ -68,10 +85,19 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
   const selected = sources[sourceIndex]
   if (selected && !shownSources.some(row => row.key === selected.key)) shownSources.unshift(selected)
   if (!locals.length || !sources.length) return null
-  const save = () => onRemap([
-    ...(preview.manualMappings || []).filter(row => row.localChapterId !== editingId),
-    { localChapterId: editingId, sourceChapterKey: targetKey === 'unmatched' ? null : targetKey },
-  ])
+  const effectiveMappings = new Map(locals.map(local => [local.id, byLocal.get(local.id)?.sourceChapterKey || null]))
+  drafts.forEach(row => effectiveMappings.set(row.localChapterId, row.sourceChapterKey))
+  const occupant = targetKey === 'unmatched' ? undefined : locals.find(local => local.id !== editingId && effectiveMappings.get(local.id) === targetKey)
+  const save = () => {
+    const updates: SourceSyncManualMapping[] = [{ localChapterId: editingId, sourceChapterKey: targetKey === 'unmatched' ? null : targetKey }]
+    if (occupant) updates.push({ localChapterId: occupant.id, sourceChapterKey: effectiveMappings.get(editingId) || null })
+    updateDrafts([...drafts.filter(row => !updates.some(update => update.localChapterId === row.localChapterId)), ...updates])
+    setEditingId('')
+  }
+  async function saveDrafts() {
+    const merged = [...(preview.manualMappings || []).filter(row => !drafts.some(draft => draft.localChapterId === row.localChapterId)), ...drafts]
+    if (await onRemap(merged) !== false) updateDrafts([])
+  }
 
   return <details className="chapter-merge-dialog__preview-section chapter-merge-dialog__mapping-review">
     <summary>核对与调整映射<span>查看匹配依据，处理未匹配章节</span></summary>
@@ -84,9 +110,19 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
       <Input aria-label="搜索本地章节映射" placeholder="搜索本地标题或序号" value={query} onChange={event => { setQuery(event.target.value); setPage(1); setEditingId('') }} />
     </div>
     <div className="chapter-merge-dialog__mapping-guidance">
-      <details><summary>核对说明</summary><p className="admin-dialog-hint">有差异包括序号不同、标题不同和未匹配章节；完整标题一致仍可能存在序号差异。调整后会重新生成差异并清空人工确认。拆分组保留现有映射；源站章节已被占用时，请先解除原对应关系。</p></details>
-      <Button variant="ghost" size="sm" disabled={disabled || !preview.manualMappings?.length} onClick={() => onRemap([])}>恢复自动匹配</Button>
+      <details><summary>核对说明</summary><p className="admin-dialog-hint">可以先暂存多条调整，再统一保存并重新预览。未受影响的确认与勾选会保留，变化的映射需重新确认。选择已占用的源站章节可交换对应关系；拆分组保持原样。</p></details>
+      <Button variant="ghost" size="sm" disabled={disabled || !preview.manualMappings?.length || !!drafts.length} onClick={() => void onRemap([])}>恢复自动匹配</Button>
     </div>
+    {!!drafts.length && <div className="chapter-merge-dialog__mapping-selection">
+      <p role="status">已暂存 {drafts.length} 项映射调整，保存后生成新的更新预览。</p>
+      <Button disabled={disabled} onClick={() => void saveDrafts()}>保存 {drafts.length} 项映射并重新预览</Button>
+      <Button variant="ghost" disabled={disabled} onClick={() => updateDrafts([])}>放弃暂存调整</Button>
+    </div>}
+    {onDelete && !!deleteLocals.length && <div className="chapter-merge-dialog__mapping-selection">
+      <p role="status">待删除 {deleteLocals.length} 个本地章节。删除正文前会再次确认。</p>
+      <Button variant="destructive" disabled={disabled || !!drafts.length} onClick={() => onDelete(deleteLocals.map(local => local.id))}>删除 {deleteLocals.length} 个杂章并重新匹配</Button>
+      <Button variant="ghost" disabled={disabled} onClick={() => selectDeletions(new Set())}>清空删除选择</Button>
+    </div>}
     <div className="chapter-merge-dialog__mapping-selection">
       <p role="status">已选 {selectedLocals.length} 项映射</p>
       <div>
@@ -129,9 +165,16 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
               {!!differences.get(local.id)!.length && <span className="chapter-merge-dialog__warning">{differences.get(local.id)!.join(' · ')}</span>}
               {mapping && <span>{mapping.matchReason ? MATCH_REASON_LABELS[mapping.matchReason] : '旧预览未记录依据'} · 置信度{CONFIDENCE_LABELS[mapping.confidence]}{mapping.relation === 'split' ? ' · 拆分组' : ''}</span>}
               {mapping?.matchEvidence && <details><summary>匹配说明</summary><p>{mapping.matchEvidence}</p></details>}
+              {drafts.some(row => row.localChapterId === local.id) && <span className="chapter-merge-dialog__warning">暂存目标：{sources.find(source => source.key === effectiveMappings.get(local.id))?.title || '解除匹配'}（尚未保存）</span>}
+              {onInspect && <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onInspect(local.id)} aria-label={`预览正文：本地 ${local.order}`}>预览正文</Button>}
+              {onDelete && <label className="chapter-merge-dialog__manual-choice"><Checkbox aria-label={`标记删除：本地 ${local.order}`} checked={deleteIds.has(local.id)} disabled={disabled} onCheckedChange={checked => {
+                const next = new Set(deleteIds)
+                if (checked === true) next.add(local.id); else next.delete(local.id)
+                selectDeletions(next)
+              }} /><span>杂章待删除</span></label>}
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="chapter-merge-dialog__mapping-adjust" aria-label={`调整映射：本地 ${local.order}`} aria-expanded={editingId === local.id} aria-controls={editingId === local.id ? 'chapter-mapping-editor' : undefined} disabled={disabled || mapping?.relation === 'split' || /[（(]\s*\d+\s*[/／]\s*\d+\s*[)）]$/.test(local.title)} onClick={() => { if (editingId === local.id) revealEditor(); setEditingId(local.id); setTargetKey(mapping?.sourceChapterKey || 'unmatched'); setSourceQuery('') }}>调整映射</Button>
+          <Button variant="ghost" size="sm" className="chapter-merge-dialog__mapping-adjust" aria-label={`调整映射：本地 ${local.order}`} aria-expanded={editingId === local.id} aria-controls={editingId === local.id ? 'chapter-mapping-editor' : undefined} disabled={disabled || mapping?.relation === 'split' || /[（(]\s*\d+\s*[/／]\s*\d+\s*[)）]$/.test(local.title)} onClick={() => { if (editingId === local.id) revealEditor(); setEditingId(local.id); setTargetKey(effectiveMappings.get(local.id) || 'unmatched'); setSourceQuery('') }}>调整映射</Button>
           {editingId === local.id && editing && <section id="chapter-mapping-editor" className="chapter-merge-dialog__mapping-editor" aria-label="人工映射编辑">
             <h4 ref={editorHeading} tabIndex={-1}>调整本地 {editing.order} · {editing.title}</h4>
             <p className="admin-dialog-hint">本地前章：{locals[editingIndex - 1]?.title || '无'}；后章：{locals[editingIndex + 1]?.title || '无'}</p>
@@ -147,8 +190,9 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
                   <SelectContent>
                     <SelectItem value="unmatched">解除匹配，保持本地章节原样</SelectItem>
                     {shownSources.map(source => {
-                      const occupied = preview.mappings.some(mapping => mapping.sourceChapterKey === source.key && mapping.localChapterIds.some(id => id !== editingId))
-                      return <SelectItem key={source.key} value={source.key} disabled={occupied}>{source.order} · {source.title}{occupied ? '（已占用）' : ''}</SelectItem>
+                      const occupiedBy = locals.filter(local => local.id !== editingId && effectiveMappings.get(local.id) === source.key)
+                      const blocked = occupiedBy.some(local => byLocal.get(local.id)?.relation === 'split' || /[（(]\s*\d+\s*[/／]\s*\d+\s*[)）]$/.test(local.title))
+                      return <SelectItem key={source.key} value={source.key} disabled={blocked}>{source.order} · {source.title}{blocked ? '（拆分组已占用）' : occupiedBy.length ? '（选择后交换）' : ''}</SelectItem>
                     })}
                   </SelectContent>
                 </Select>
@@ -156,7 +200,8 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
             </div>
             {sourceMatches.length > 100 && <p className="admin-dialog-hint">找到 {sourceMatches.length} 章，展示前 100 章；输入标题或序号缩小范围。</p>}
             {selected && <p className="admin-dialog-hint">源站前章：{sources[sourceIndex - 1]?.title || '无'}；后章：{sources[sourceIndex + 1]?.title || '无'}</p>}
-            <div className="chapter-merge-dialog__metadata-actions"><Button disabled={disabled} onClick={save}>保存映射并重新预览</Button><Button variant="ghost" disabled={disabled} onClick={() => setEditingId('')}>取消调整</Button></div>
+            {occupant && <p className="chapter-merge-dialog__warning">将与本地 {occupant.order} · {occupant.title} 交换对应关系；双方都会加入暂存调整。</p>}
+            <div className="chapter-merge-dialog__metadata-actions"><Button disabled={disabled} onClick={save}>暂存映射调整</Button><Button variant="ghost" disabled={disabled} onClick={() => setEditingId('')}>取消调整</Button></div>
           </section>}
         </li>
       })}

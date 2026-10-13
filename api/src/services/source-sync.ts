@@ -828,6 +828,31 @@ function sameCatalog(snapshot: LocalChapterForSync[], current: LocalChapterForSy
   })
 }
 
+/** 复用已经读取的源站目录，针对最新本地目录创建可继续处理的预览。 */
+export async function refreshSourceSync(db: Db, opts: { runId: string; revision: number }): Promise<SourceSyncPreview> {
+  return withTx(db, async q => {
+    const previous = (await q<SourceSyncRunRow>('SELECT * FROM source_sync_runs WHERE id=$1 FOR UPDATE', [opts.runId])).rows[0]
+    if (!previous || !['preview', 'applied'].includes(previous.status)) throw new Error('同步预览不存在或已撤回，请重新读取源站')
+    assertSyncRevision(previous, opts.revision)
+    if (!(await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [previous.novel_id])).rows.length) throw new Error('Novel not found')
+    const locals = (await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 ORDER BY sort_order ASC,id ASC FOR UPDATE', [previous.novel_id])).rows
+    const sources = safeJsonParse<SourceChapter[]>(previous.source_chapters_json, [])
+    const metadata = safeJsonParse<SourceSyncMetadata>(previous.metadata_json, {} as SourceSyncMetadata)
+    const groups = groupLocalChapters(locals)
+    const manual = safeJsonParse<SourceSyncManualMapping[]>(previous.manual_mappings_json || '[]', []).filter(mapping =>
+      groups.some(group => group.chapters.length === 1 && !group.explicitSplit && group.chapters[0]!.id === mapping.localChapterId))
+    const runId = newId('sync')
+    const preview = buildPreview(sources, locals, metadata, Boolean(previous.only_weak_titles),
+      { runId, bindingId: previous.binding_id, novelId: previous.novel_id, site: sourceSite(metadata.sourceUrl), sourceUrl: metadata.sourceUrl }, [], manual)
+    await q(`INSERT INTO source_sync_runs
+      (id,binding_id,novel_id,status,only_weak_titles,metadata_json,source_chapters_json,changes_json,mapping_json,local_snapshot_json,manual_mappings_json,created_at)
+      VALUES ($1,$2,$3,'preview',$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [runId, previous.binding_id, previous.novel_id, previous.only_weak_titles, previous.metadata_json, previous.source_chapters_json,
+      JSON.stringify(preview.changes), JSON.stringify(preview.mappings), JSON.stringify(locals), JSON.stringify(manual), Date.now()])
+    return preview
+  })
+}
+
 export async function remapSourceSync(db: Db, opts: { runId: string; revision: number; manualMappings: SourceSyncManualMapping[] }): Promise<SourceSyncPreview> {
   return withTx(db, async q => {
     const result = await q<SourceSyncRunRow>('SELECT * FROM source_sync_runs WHERE id=$1 FOR UPDATE', [opts.runId])

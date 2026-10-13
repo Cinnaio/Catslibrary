@@ -25,7 +25,7 @@ import {
   type Po18RankingKind,
   type Po18RankingType,
 } from '../services/scraper/enrich'
-import { applySourceSync, createSourceSyncPreview, listSourceBindings, remapSourceSync, listSourceSyncHistory, getSourceSyncHistoryDetail, rollbackSourceSync, type SourceSyncManualMapping } from '../services/source-sync'
+import { applySourceSync, createSourceSyncPreview, refreshSourceSync, listSourceBindings, remapSourceSync, listSourceSyncHistory, getSourceSyncHistoryDetail, rollbackSourceSync, type SourceSyncManualMapping } from '../services/source-sync'
 import {
   clearPo18Account,
   createPo18Captcha,
@@ -454,6 +454,14 @@ scrapeRoutes.post('/', async (c) => {
         const message = (err as Error).message || '源站同步预览失败'
         const status = /Novel not found|URL|支持的原作者源站|需要使用/i.test(message) ? 400 : 502
         return c.json({ error: message }, status as 400 | 502)
+      }
+    }
+    case 'source-sync-refresh': {
+      try {
+        return c.json(await refreshSourceSync(db, { runId: String(body.runId || ''), revision: body.revision as number }))
+      } catch (err) {
+        const message = (err as Error).message
+        return c.json({ error: message }, /已发生变化|已撤回|不存在|Novel not found/.test(message) ? 409 : 400)
       }
     }
     case 'source-sync-remap': {
