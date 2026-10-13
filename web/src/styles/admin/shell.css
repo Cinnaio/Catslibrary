@@ -9,6 +9,14 @@
   --focus-ring: rgba(217, 119, 87, 0.24);
   background: var(--admin-canvas);
   min-height: 100dvh;
+  font-family: var(--admin-font-sans);
+}
+
+.admin-layout h1,
+.admin-layout h2,
+.admin-layout [data-slot='dialog-title'] {
+  font-family: var(--admin-font-serif), Georgia, Cambria, 'Times New Roman', serif !important;
+  font-weight: 500 !important;
 }
 
 :is(.admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) {

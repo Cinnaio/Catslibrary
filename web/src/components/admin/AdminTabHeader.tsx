@@ -31,7 +31,7 @@ export default function AdminTabHeader({
       )}
     >
       <div className="min-w-0">
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
+        <h2 className="text-2xl font-medium tracking-tight text-foreground font-serif">{title}</h2>
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
       {actions && (

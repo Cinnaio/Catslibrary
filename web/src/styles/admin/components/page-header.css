@@ -12,9 +12,9 @@
 }
 
 .admin-tab-header h2 {
-  font-family: var(--font-serif), Georgia, Cambria, 'Times New Roman', serif;
-  font-weight: 500;
-  font-size: var(--admin-page-title-size);
+  font-family: var(--admin-font-serif), Georgia, Cambria, 'Times New Roman', serif !important;
+  font-weight: 500 !important;
+  font-size: var(--admin-page-title-size) !important;
   line-height: 1.25;
   letter-spacing: -0.025em;
   color: var(--text-primary);
