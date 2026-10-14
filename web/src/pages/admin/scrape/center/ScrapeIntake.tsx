@@ -80,7 +80,7 @@ export default function ScrapeIntake({
       <div className="scrape-intake__form">
         {mode === 'link' && (
           <div className="scrape-intake__field">
-            <label htmlFor="scrape-source-url">小说源站链接</label>
+            <label htmlFor="scrape-source-url" className="text-xs font-medium text-muted-foreground">小说源站链接</label>
             <div className="scrape-intake__control-row">
               <Input
                 id="scrape-source-url"
@@ -92,18 +92,23 @@ export default function ScrapeIntake({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') onSubmit()
                 }}
+                className="rounded-full h-11 px-5 text-sm bg-background border-border shadow-2xs"
               />
-              <Button onClick={onSubmit} disabled={loading}>
+              <Button
+                onClick={onSubmit}
+                disabled={loading}
+                className="rounded-full h-11 px-6 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+              >
                 {loading ? '分析中…' : '分析链接'}
               </Button>
             </div>
-            <p>支持 PO18 预设与通用 HTML；自动识别书名、章节数和选择器。</p>
+            <p className="text-xs text-muted-foreground">支持 PO18 预设与通用 HTML；自动识别书名、章节数和选择器。</p>
           </div>
         )}
 
         {mode === 'search' && (
           <div className="scrape-intake__field">
-            <label htmlFor="scrape-search-input">搜索 PO18 作品</label>
+            <label htmlFor="scrape-search-input" className="text-xs font-medium text-muted-foreground">搜索 PO18 作品</label>
             <div className="scrape-intake__control-row scrape-intake__control-row--search">
               <Input
                 id="scrape-search-input"
@@ -115,30 +120,35 @@ export default function ScrapeIntake({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') onSubmit()
                 }}
+                className="rounded-full h-11 px-5 text-sm bg-background border-border shadow-2xs"
               />
               <Tabs value={searchType} onValueChange={onSearchTypeChange} aria-label="搜索类型">
                 <TabsList
-                  className="scrape-intake__search-type"
+                  className="scrape-intake__search-type rounded-full p-1 bg-muted/60"
                   data-active-index={SEARCH_TYPE_INDEX[searchType as keyof typeof SEARCH_TYPE_INDEX] ?? 0}
                 >
-                  <TabsTrigger value="articlename">书名</TabsTrigger>
-                  <TabsTrigger value="author">作者</TabsTrigger>
+                  <TabsTrigger value="articlename" className="rounded-full h-8 px-3 text-xs font-medium">书名</TabsTrigger>
+                  <TabsTrigger value="author" className="rounded-full h-8 px-3 text-xs font-medium">作者</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <Button onClick={onSubmit} disabled={loading}>
+              <Button
+                onClick={onSubmit}
+                disabled={loading}
+                className="rounded-full h-11 px-6 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+              >
                 {loading ? '搜索中…' : '搜索作品'}
               </Button>
             </div>
-            <p>结果可单本配置，也可勾选多本后批量加入抓取队列。</p>
+            <p className="text-xs text-muted-foreground">结果可单本配置，也可勾选多本后批量加入抓取队列。</p>
           </div>
         )}
 
         {mode === 'ranking' && (
           <div className="scrape-intake__field">
-            <label htmlFor="scrape-ranking-url">榜单来源</label>
+            <label htmlFor="scrape-ranking-url" className="text-xs font-medium text-muted-foreground">榜单来源</label>
             <div className="scrape-intake__control-row scrape-intake__control-row--ranking">
               <CustomSelect
-                className="scrape-intake__site"
+                className="scrape-intake__site rounded-full h-11"
                 options={RANKING_SITES}
                 value={siteValue}
                 onChange={onSiteChange}
@@ -154,12 +164,17 @@ export default function ScrapeIntake({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') onSubmit()
                 }}
+                className="rounded-full h-11 px-5 text-sm bg-background border-border shadow-2xs"
               />
-              <Button onClick={onSubmit} disabled={loading}>
+              <Button
+                onClick={onSubmit}
+                disabled={loading}
+                className="rounded-full h-11 px-6 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+              >
                 {loading ? '加载中…' : '加载榜单'}
               </Button>
             </div>
-            <p>POPO 榜单可直接读取；详情与章节校验需登录或 Cookie。确认前不会写入书库或创建任务。</p>
+            <p className="text-xs text-muted-foreground">POPO 榜单可直接读取；详情与章节校验需登录或 Cookie。确认前不会写入书库或创建任务。</p>
           </div>
         )}
       </div>

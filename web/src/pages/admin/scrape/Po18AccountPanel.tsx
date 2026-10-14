@@ -235,33 +235,45 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
           <div className="po18-account-login-form">
             <div className="po18-account-fields">
               <AdminFormField label="账号" htmlFor="po18-account-username">
-                <Input
-                  id="po18-account-username"
-                  autoComplete="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="PO18.tw 登录账号"
-                />
+                <div className="relative flex items-center">
+                  <Input
+                    id="po18-account-username"
+                    autoComplete="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="PO18.tw 登录账号"
+                    className="rounded-full h-10 px-4 text-sm bg-background border-border"
+                  />
+                </div>
               </AdminFormField>
               <AdminFormField label="密码" htmlFor="po18-account-password">
-                <Input
-                  id="po18-account-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={status?.hasPassword ? '留空表示保持原密码' : 'PO18.tw 登录密码'}
-                />
+                <div className="relative flex items-center">
+                  <Input
+                    id="po18-account-password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={status?.hasPassword ? '留空表示保持原密码' : 'PO18.tw 登录密码'}
+                    className="rounded-full h-10 px-4 text-sm bg-background border-border"
+                  />
+                </div>
               </AdminFormField>
             </div>
 
             <div className="po18-account-actions">
-              <Button size="sm" disabled={disabled} onClick={() => void saveAccount()}>
+              <Button
+                size="sm"
+                disabled={disabled}
+                className="rounded-full h-9 px-4 text-xs font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+                onClick={() => void saveAccount()}
+              >
                 {busy === 'save' ? '保存中…' : '保存账号'}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
+                className="rounded-full h-9 px-4 text-xs font-medium"
                 disabled={disabled}
                 aria-expanded={Boolean(challenge)}
                 aria-controls="po18-account-challenge"
@@ -269,9 +281,15 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
               >
                 {busy === 'captcha' ? '读取中…' : '获取验证码'}
               </Button>
-              <Button variant="ghost" size="sm" disabled={disabled || !status?.hasSession} onClick={() => void testSession()}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full h-9 px-3.5 text-xs text-muted-foreground hover:text-foreground"
+                disabled={disabled || !status?.hasSession}
+                onClick={() => void testSession()}
+              >
                 {busy === 'test' ? '测试中…' : '测试会话'}
-                <ArrowRight className="size-3.5" aria-hidden="true" />
+                <ArrowRight className="size-3.5 ml-1" aria-hidden="true" />
               </Button>
             </div>
 
@@ -279,18 +297,18 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
               图片、输入框和提交按钮保持同行，避免验证码出现后需要跳离当前操作。
               标签置于整行上方，既保留常驻字段标签，又不让标签高度把图片挤到错位。 */}
             {challenge && (
-              <div id="po18-account-challenge" className="po18-account-captcha" role="group" aria-label="登录验证码">
+              <div id="po18-account-challenge" className="po18-account-captcha p-3 rounded-2xl bg-muted/40 border border-border" role="group" aria-label="登录验证码">
                 {challenge.captchaRequired && (
-                  <Label htmlFor="po18-account-captcha" className="po18-account-captcha__label">
+                  <Label htmlFor="po18-account-captcha" className="po18-account-captcha__label text-xs font-medium text-foreground">
                     验证码
                   </Label>
                 )}
                 <div className="po18-account-captcha__row">
                   {challenge.imageDataUrl ? (
-                    <img src={challenge.imageDataUrl} alt="PO18.tw 登录验证码" className="po18-account-captcha__image" />
+                    <img src={challenge.imageDataUrl} alt="PO18.tw 登录验证码" className="po18-account-captcha__image rounded-lg shadow-xs" />
                   ) : (
                     <span className="po18-account-captcha__note">
-                      <CircleCheck className="size-3.5 shrink-0" aria-hidden="true" />
+                      <CircleCheck className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
                       未检测到图片验证码，可直接尝试登录。
                     </span>
                   )}
@@ -301,10 +319,15 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                       onChange={(e) => setCaptcha(e.target.value)}
                       placeholder="填写图片中的字符"
                       autoComplete="off"
-                      className="po18-account-captcha__input"
+                      className="po18-account-captcha__input rounded-full h-9 px-3 text-xs bg-background"
                     />
                   )}
-                  <Button size="sm" disabled={disabled || (challenge.captchaRequired && !captcha.trim())} onClick={() => void login()}>
+                  <Button
+                    size="sm"
+                    className="rounded-full h-9 px-4 text-xs font-semibold bg-[#D97757] hover:bg-[#c86646] text-white"
+                    disabled={disabled || (challenge.captchaRequired && !captcha.trim())}
+                    onClick={() => void login()}
+                  >
                     {busy === 'login' ? '登录中…' : '提交登录'}
                   </Button>
                 </div>
@@ -316,7 +339,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
         {/* 默认展开以保留现有字段的可发现性；收起时仍保留输入与验证链接。 */}
         <details className="po18-account-fallback" open>
           <summary className="po18-account-fallback__summary">
-            <LockKeyhole className="size-4" aria-hidden="true" />
+            <LockKeyhole className="size-4 text-[#D97757]" aria-hidden="true" />
             <span className="po18-account-section__title">导入浏览器 Cookie</span>
             <span className="po18-account-fallback__aside">自动登录不成功时使用</span>
             <ChevronDown className="po18-account-fallback__chevron" aria-hidden="true" />
@@ -333,6 +356,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                   value={sessionCookie}
                   onChange={(e) => setSessionCookie(e.target.value)}
                   placeholder={'粘贴 Cookie，例如 PHPSESSID=…; other=…'}
+                  className="rounded-xl text-xs font-mono p-3 bg-background border-border"
                 />
               </AdminFormField>
               <AdminFormField label="会话验证链接（可选）" htmlFor="po18-session-test-url">
@@ -342,6 +366,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                   value={testSourceUrl}
                   onChange={(e) => setTestSourceUrl(e.target.value)}
                   placeholder="粘贴有权限的 POPO 目录或章节链接"
+                  className="rounded-full h-10 px-4 text-xs bg-background border-border"
                 />
                 <p id="po18-session-test-hint" className="admin-form-field__hint">
                   留空只检查站点可访问；填写链接才能验证实际抓取权限。
@@ -351,7 +376,13 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
 
             {/* 操作行独立于字段之外，避免按钮挂在某一列下方造成两列不等高。 */}
             <div className="po18-account-actions">
-              <Button variant="outline" size="sm" disabled={disabled || !sessionCookie.trim()} onClick={() => void saveAccount(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full h-9 px-4 text-xs font-medium"
+                disabled={disabled || !sessionCookie.trim()}
+                onClick={() => void saveAccount(true)}
+              >
                 {busy === 'save' ? '保存中…' : '加密保存 Cookie'}
               </Button>
               <span className="po18-account-actions__hint">导入后，使用上方“测试会话”检查可用性。</span>
@@ -360,7 +391,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
         </details>
 
         {status?.lastError && (
-          <p className="po18-account-error" role="alert">
+          <p className="po18-account-error rounded-xl" role="alert">
             {status.lastError}
           </p>
         )}
@@ -368,8 +399,14 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
         {/* 破坏性操作与常规操作隔离，并说明其影响范围。 */}
         <footer className="po18-account-footer">
           <p className="po18-account-footer__note">仅支持正常登录或手动导入本人已登录会话，不绕过验证码或其他站点安全措施。晋江无需配置账号。</p>
-          <Button variant="ghost" size="sm" disabled={disabled || !status?.configured} onClick={() => void clearAccount()}>
-            <Trash2 className="size-3.5" aria-hidden="true" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-full h-8 px-3 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            disabled={disabled || !status?.configured}
+            onClick={() => void clearAccount()}
+          >
+            <Trash2 className="size-3.5 mr-1" aria-hidden="true" />
             清除账号
           </Button>
         </footer>
