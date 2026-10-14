@@ -270,35 +270,38 @@
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  gap: 0.625rem;
-  padding: 0.625rem 0.875rem;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
   border: 1px solid var(--admin-border);
-  border-radius: var(--admin-input-radius);
-  background: var(--bg-card);
+  border-radius: 14px;
+  background: var(--admin-panel, #ffffff);
   color: var(--text-primary);
   text-align: left;
-  transition:
-    border-color var(--admin-table-row-interaction),
-    background-color var(--admin-table-row-interaction);
+  box-shadow: 0 2px 6px rgba(35, 30, 24, 0.03);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
 }
 
 .ai-writing-suggest__item:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--admin-border));
-  background: var(--admin-table-row-hover-background);
+  transform: translateY(-1px);
+  border-color: rgba(217, 119, 87, 0.4);
+  background: var(--admin-panel-muted, #faf9f5);
+  box-shadow: 0 4px 12px rgba(217, 119, 87, 0.06);
 }
 
 .ai-writing-suggest__item:focus-visible {
   outline: none;
-  border-color: var(--sh-primary);
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  border-color: #D97757;
+  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.25);
 }
 
 /* 这些按钮执行的是「把该条文本填进创作要求」，不是持久化的选择，
    故用 aria-pressed 表达「它当前是否就是框里的那一份」，读屏可播报该状态。
    选中态是唯一使用暖底的位置：此刻这条正文确实就是创作要求框里的内容。 */
 .ai-writing-suggest__item[aria-pressed='true'] {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--admin-border));
-  background: var(--accent-subtle);
+  border-color: #D97757;
+  background: color-mix(in srgb, #D97757 6%, var(--admin-panel, #ffffff));
+  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.18), 0 4px 12px rgba(217, 119, 87, 0.06);
 }
 
 .ai-writing-suggest__direction {
