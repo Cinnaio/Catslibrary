@@ -2,7 +2,7 @@
 // 抓取中心 — 统一入口、发现、校验与任务追踪
 // ============================================================
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { Archive } from 'lucide-react'
+import { Archive, RefreshCw, SearchX } from 'lucide-react'
 import { novelsApi, scrapeApi } from '@/lib/api'
 import { useConfirm, useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
@@ -541,28 +541,32 @@ export default function CenterView() {
       />
 
       {activeCandidate && (
-        <div ref={setupRef}>
+        <div ref={setupRef} className="w-full">
           {setupState === 'loading' && (
-            <section className="scrape-setup-state" role="status">
-              <div className="scrape-setup-state__icon">
-                <Archive aria-hidden="true" />
+            <div className="scrape-intake scrape-setup-card rounded-2xl border border-border/80 bg-stone-50/50 dark:bg-stone-900/30 p-8 flex flex-col items-center justify-center gap-3 text-center" role="status">
+              <RefreshCw className="size-6 animate-spin text-[#D97757]" aria-hidden="true" />
+              <div className="space-y-1">
+                <strong className="font-serif text-base font-semibold text-foreground block">正在分析源站</strong>
+                <span className="text-xs text-muted-foreground">读取书名、章节目录和页面结构，请稍候…</span>
               </div>
-              <div>
-                <strong>正在分析源站</strong>
-                <span>读取书名、章节目录和页面结构，请稍候…</span>
-              </div>
-            </section>
+            </div>
           )}
           {setupState === 'error' && (
-            <section className="scrape-setup-state is-error" role="alert">
-              <div>
-                <strong>这本书暂时无法继续</strong>
-                <span>{activeCandidate.error}</span>
+            <div className="scrape-intake scrape-setup-card rounded-2xl border border-rose-200/80 bg-rose-50/30 dark:bg-rose-950/20 dark:border-rose-900/40 p-8 flex flex-col items-center justify-center text-center gap-3" role="alert">
+              <SearchX className="size-7 text-rose-500" aria-hidden="true" />
+              <div className="space-y-1">
+                <strong className="font-serif text-base font-semibold text-foreground block">这本书暂时无法继续</strong>
+                <span className="text-xs text-muted-foreground">{activeCandidate.error}</span>
               </div>
-              <Button variant="secondary" size="sm" onClick={() => void loadCandidate(activeCandidate.item)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg text-xs font-medium px-4 border-[#dedcd5] hover:border-[#d97757]/60 hover:text-[#c15f3d] dark:border-[#38352f] transition-all cursor-pointer"
+                onClick={() => void loadCandidate(activeCandidate.item)}
+              >
                 重新分析
               </Button>
-            </section>
+            </div>
           )}
           {setupState === 'ready' && activeCandidate.meta && (
             <ScrapeSetupPanel
