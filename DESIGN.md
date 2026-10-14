@@ -516,6 +516,8 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **States:** 普通、搜索、筛选胶囊共用 Input 纸面、描边、文字、占位与焦点 token，不保留描边按钮的静态投影、按下缩放或陶土 hover 填充。禁用不改变几何；`aria-invalid="true"` 使用同一危险描边和焦点光晕。筛选胶囊保留前置图标与最小宽度，不另开一套字段外观。
 - **Portal contract:** Radix Select 和 CustomSelect 浮层显式带 `.shared-select-content`，不依赖 `.admin-layout` / `.admin-dialog` 祖先。浮层使用共享纸面、12px圆角、暖灰描边与菜单阴影，选项使用13px / 400字阶、36px桌面 / 44px窄屏或触屏命中高度，键盘高亮使用暖灰底和正常文字色；选中勾选保持独立可见。搜索框聚焦描边放在含图标的 wrapper。cmdk 的禁用值为 `data-disabled="true"`，不能用属性存在与否判断（启用项也有 `data-disabled="false"`）。
 - **Behavior and verification:** 保留选项值、搜索过滤、服务端补搜、键盘导航、Escape、焦点归还、禁用项与碰撞避让。检查明暗、1440/900/390/320px、普通/紧凑/搜索/筛选胶囊、后台表单/AI/账户/弹窗/分页；对照同排 Input 的最终高度、圆角、底色、描边、字号与 focus 样式，同时确认浮层及页面无横向溢出。操作菜单继续使用 `DropdownMenu` 的独立语义。
+- **Page override guard:** 页面不得用 `!important` 单独覆盖共享字段的高度、字号、圆角、纸面、描边及焦点。抓取入口 `ScrapeIntake` 的榜单来源与同排 URL Input 均使用40px、14px和后台全圆角；链接导入、作品搜索共用同一字段规则，不另写深色皮肤。验收必须带上实际页面祖先（如 `.admin-redesign-page--scrape`）与完整样式入口，而不是只在裸 `.admin-layout` 中渲染共享组件。2026-10-14 曾因此遗漏榜单下拉8px圆角、Input 38px及独立深色覆盖；后续字段检查将抓取入口三种模式加入固定验证范围。
+- **Scrape intake on narrow screens:** 640px及以下，抓取入口字段与提交按钮改为单列，三个模式按钮均分可用宽度并隐藏装饰图标，保留完整文字、顺序和当前状态。检查每个字段及按钮都在卡片边界内且真实可点击；只检查页面没有横向滚动不足以验收，卡片自身的 overflow 也可能裁掉控件。
 
 ### Named Rules
 **The Fit-Content Rule.** 输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 `flex-1` / `w-full` 把输入框撑满整行——工具栏里的过滤/搜索框用 `min-w` 限定下限、内容自然决定宽度，长 URL 输入才放宽。
