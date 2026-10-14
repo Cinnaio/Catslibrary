@@ -1,105 +1,104 @@
-/* --- 跨页选择计数常驻 ------------------------------------------------
-   分页翻页后勾选状态跨页存活，但计数条只出现在工具栏顶端；滚到表格中段
-   勾选时，「已选几项」在视口外，操作员无法判断影响范围。
-
-   sticky 的参照系是最近的滚动容器（AdminShell 的 .admin-layout__content），
-   不是视口，因此 top 取 0（吸附在滚动口顶端）。曾用负 top 去抵消内容区
-   内边距，实测把整条推到滚动口之上（y=-36，上半截被裁掉）——内边距的
-   补偿交给 sticky 元素自己的 margin 与相邻间距，不能用负偏移。 */
+/* --- Claude 标志性底部悬浮胶囊岛屿（Floating Selection Dock） --- */
 .admin-selection-bar {
-  position: sticky;
-  top: 0;
-  z-index: 6;
-  display: flex;
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: inline-flex;
   min-width: 0;
+  max-width: min(calc(100vw - 2.5rem), 54rem);
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  padding: 0.35rem 0.6rem 0.35rem 0.85rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
-  background: var(--admin-panel);
-  box-shadow: var(--admin-shadow);
+  gap: 0.875rem;
+  padding: 0.45rem 0.65rem 0.45rem 0.85rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--admin-panel) 88%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--admin-border-strong) 65%, transparent);
+  box-shadow: 0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  animation: adminSelectionDockSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* 小说批量操作与目录表使用独立区块和滚动边界，沿用后台暖纸面而不再嵌套在表格卡片内。 */
-.admin-redesign-page--novels > .admin-selection-bar {
-  width: fit-content;
-  max-width: 100%;
-  justify-content: flex-start;
-  gap: 0.75rem;
-  margin-bottom: 0;
-  padding: 0.375rem 0.5rem;
-  border-color: var(--admin-border);
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
-  box-shadow: none;
+[data-theme='dark'] .admin-selection-bar {
+  background: color-mix(in srgb, var(--admin-panel) 92%, transparent);
+  border-color: color-mix(in srgb, var(--admin-border-strong) 40%, transparent);
+  box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.5), 0 6px 16px -2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+@keyframes adminSelectionDockSlideUp {
+  0% {
+    transform: translate(-50%, 24px) scale(0.96);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
 }
 
 .admin-selection-bar__selection {
-  display: flex;
-  min-width: 0;
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-}
-
-.admin-redesign-page--novels > .admin-selection-bar .admin-selection-bar__count {
-  border-color: transparent;
-  background: transparent;
-  padding-inline: 0.625rem;
-}
-
-.admin-redesign-page--novels > .admin-selection-bar .admin-selection-bar__actions {
-  margin-left: 0;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .admin-selection-bar__count {
   display: inline-flex;
-  min-height: 1.75rem;
+  min-height: 1.85rem;
   align-items: center;
   border: none;
-  border-radius: var(--radius-full);
+  border-radius: 9999px;
   background: var(--admin-accent);
-  padding: 0.15rem 0.65rem;
+  padding: 0.2rem 0.75rem;
   color: #FFFFFF;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(217, 119, 87, 0.32);
 }
 
 .admin-selection-bar__actions {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
-  margin-left: auto;
+}
+
+.admin-selection-bar__actions > button,
+.admin-selection-bar__actions > [data-slot='button'] {
+  border-radius: 9999px !important;
+  font-size: 0.825rem !important;
+  height: 2.125rem !important;
+  padding-inline: 0.875rem !important;
+  white-space: nowrap;
+}
+
+/* 消除旧版本在 novels 页面覆盖的局促样式 */
+.admin-redesign-page--novels > .admin-selection-bar {
+  width: auto;
+  max-width: min(calc(100vw - 2.5rem), 54rem);
+  background: color-mix(in srgb, var(--admin-panel) 88%, transparent);
+  box-shadow: 0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08);
+}
+
+.admin-redesign-page--novels > .admin-selection-bar .admin-selection-bar__count {
+  background: var(--admin-accent);
+  color: #FFFFFF;
+  padding-inline: 0.75rem;
 }
 
 @media (max-width: 640px) {
-  .admin-selection-bar {
-    position: static;
-    padding: 0.5rem 0.75rem;
-  }
-
+  .admin-selection-bar,
   .admin-redesign-page--novels > .admin-selection-bar {
-    width: 100%;
-    align-items: flex-start;
-    flex-direction: column;
-    padding-inline: 0.75rem;
-    border-radius: var(--radius-lg);
-  }
-
-  .admin-selection-bar__actions {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .admin-selection-bar__actions > button {
-    flex: 1 1 auto;
-    min-height: 2.5rem;
+    bottom: 1rem;
+    max-width: calc(100vw - 1.5rem);
+    padding: 0.5rem 0.65rem;
+    overflow-x: auto;
+    justify-content: flex-start;
   }
 }
 
