@@ -400,11 +400,12 @@ export default function AiConfigPanel(props: {
           </CardContent>
         </Card>
       </div>
-      <div className="ai-config-save">
-        <span role="status">{providerDirty || imageProviderDirty || readerDirty ? '有未保存的修改' : '配置与当前生效值一致'}</span>
-        <div className="flex gap-2">
+      <div className="ai-config-save p-4 rounded-2xl bg-muted/30 border border-border/80 flex items-center justify-between">
+        <span role="status" className="text-xs text-muted-foreground">{providerDirty || imageProviderDirty || readerDirty ? '有未保存的修改' : '配置与当前生效值一致'}</span>
+        <div className="flex gap-2.5">
           <Button
-            variant="secondary"
+            variant="outline"
+            className="rounded-full h-9 px-4 text-xs font-medium border-border"
             disabled={saving || props.loading || !(providerDirty || imageProviderDirty || readerDirty)}
             onClick={() => {
               setProviderDraft(providerValues(props.providerConfig))
@@ -414,7 +415,11 @@ export default function AiConfigPanel(props: {
           >
             撤销修改
           </Button>
-          <Button disabled={saving || props.loading || !(providerDirty || imageProviderDirty || readerDirty)} onClick={() => void saveAll()}>
+          <Button
+            className="rounded-full h-9 px-5 text-xs font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-xs transition-all"
+            disabled={saving || props.loading || !(providerDirty || imageProviderDirty || readerDirty)}
+            onClick={() => void saveAll()}
+          >
             {saving ? '保存中…' : '保存配置'}
           </Button>
         </div>

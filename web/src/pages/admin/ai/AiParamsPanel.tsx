@@ -653,15 +653,25 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </CardContent>
         </Card>
       </div>
-      <div className="ai-params-save">
-        <span className="text-sm text-muted-foreground" role="status">
+      <div className="ai-params-save p-4 rounded-2xl bg-muted/30 border border-border/80 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground" role="status">
           {changeCount ? `${changeCount} 项参数待保存 · 切换分类保留修改` : '参数与当前生效值一致'}
         </span>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" disabled={props.loading || saving || !dirty} onClick={() => setLocalSettings(props.settings)}>
+        <div className="flex flex-wrap gap-2.5">
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-full h-9 px-4 text-xs font-medium border-border"
+            disabled={props.loading || saving || !dirty}
+            onClick={() => setLocalSettings(props.settings)}
+          >
             撤销修改
           </Button>
-          <Button type="submit" disabled={props.loading || saving || !dirty}>
+          <Button
+            type="submit"
+            className="rounded-full h-9 px-5 text-xs font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-xs transition-all"
+            disabled={props.loading || saving || !dirty}
+          >
             {saving ? '保存中…' : '保存所有参数'}
           </Button>
         </div>

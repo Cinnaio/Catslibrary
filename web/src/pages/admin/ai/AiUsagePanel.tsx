@@ -98,38 +98,50 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
           title="成本与调用趋势"
           actions={
             selectedDays == null ? (
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 p-1 rounded-full bg-muted/60">
                 {[7, 30, 90].map((d) => (
-                  <Button key={d} variant={days === d ? 'default' : 'outline'} size="sm" onClick={() => setDays(d)}>
+                  <Button
+                    key={d}
+                    variant={days === d ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className={`rounded-full h-7 px-3 text-xs font-medium ${days === d ? 'bg-background shadow-xs text-foreground font-semibold' : 'text-muted-foreground'}`}
+                    onClick={() => setDays(d)}
+                  >
                     {d} 天
                   </Button>
                 ))}
               </div>
             ) : (
-              <Button variant="ghost" size="icon" onClick={() => void loadTrend()} disabled={loading} aria-label="刷新用量趋势" title="刷新用量趋势">
-                <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+              <Button variant="ghost" size="icon" className="size-8 rounded-full" onClick={() => void loadTrend()} disabled={loading} aria-label="刷新用量趋势" title="刷新用量趋势">
+                <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
               </Button>
             )
           }
         />
         {!(trend.length === 0 && (loading || error)) && (
-          <span className="ai-usage-totals">
-            <span>
-              总调用 <strong>{totalCalls.toLocaleString()}</strong>
-            </span>
-            <span>
-              {costReportedCalls < totalCalls ? '已回传成本' : '总成本'}{' '}
-              <strong>{totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(totalCost)}</strong>
-            </span>
-            <span>
-              平均单次 <strong>{totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(avgCost)}</strong>
-            </span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 my-3 rounded-2xl bg-muted/30 border border-border/80">
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">总调用次数</span>
+              <strong className="font-serif font-bold text-2xl tracking-tight text-foreground mt-0.5">{totalCalls.toLocaleString()}</strong>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">{costReportedCalls < totalCalls ? '已回传成本' : '总预估成本'}</span>
+              <strong className="font-serif font-bold text-2xl tracking-tight text-[#D97757] mt-0.5">
+                {totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(totalCost)}
+              </strong>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">平均单次成本</span>
+              <strong className="font-serif font-bold text-2xl tracking-tight text-foreground mt-0.5">
+                {totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(avgCost)}
+              </strong>
+            </div>
             {costReportedCalls < totalCalls && (
-              <span>
+              <div className="col-span-full text-xs text-muted-foreground/80 font-mono mt-1">
                 金额已回传 {costReportedCalls} / {totalCalls} 次
-              </span>
+              </div>
             )}
-          </span>
+          </div>
         )}
         <div className="calls-chart-body">
           {loading && trend.length === 0 ? (
@@ -198,22 +210,29 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
       <AdminDataPanel className="ai-usage-card" ariaLabel="Token 消耗趋势">
         <AdminPanelHeading title="Token 消耗趋势" />
         {!(trend.length === 0 && (loading || error)) && (
-          <span className="ai-usage-totals">
-            <span>
-              总 Token <strong>{totalTokens.toLocaleString()}</strong>
-            </span>
-            <span>
-              缓存读取 <strong>{cacheReadReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheRead.toLocaleString()}</strong>
-            </span>
-            <span>
-              缓存写入 <strong>{cacheWriteReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheWrite.toLocaleString()}</strong>
-            </span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 my-3 rounded-2xl bg-muted/30 border border-border/80">
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">总消耗 Token</span>
+              <strong className="font-serif font-bold text-2xl tracking-tight text-foreground mt-0.5">{totalTokens.toLocaleString()}</strong>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">缓存读取 Token</span>
+              <strong className="font-serif font-bold text-2xl tracking-tight text-[#D97757] mt-0.5">
+                {cacheReadReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheRead.toLocaleString()}
+              </strong>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">缓存写入 Token</span>
+              <strong className="font-serif font-bold text-2xl tracking-tight text-foreground mt-0.5">
+                {cacheWriteReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheWrite.toLocaleString()}
+              </strong>
+            </div>
             {totalCalls > 0 && (
-              <span title="仅汇总已回传字段的调用，缓存计数已包含在输入 Token 中">
+              <div className="col-span-full text-xs text-muted-foreground/80 font-mono mt-1" title="仅汇总已回传字段的调用，缓存计数已包含在输入 Token 中">
                 读取已回传 {cacheReadReportedCalls} / {totalCalls} 次 · 写入已回传 {cacheWriteReportedCalls} / {totalCalls} 次
-              </span>
+              </div>
             )}
-          </span>
+          </div>
         )}
         <div className="calls-chart-body">
           {loading && trend.length === 0 ? (

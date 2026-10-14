@@ -1362,18 +1362,33 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </p>
               </details>
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-3 pt-1">
               {mode === 'new' ? (
                 <>
-                  <Button variant="secondary" disabled={busy || taskActive} onClick={() => void generateOutline()}>
+                  <Button
+                    variant="outline"
+                    className="rounded-full h-11 px-6 text-sm font-medium border-border hover:border-[#D97757]/40 hover:text-[#D97757]"
+                    disabled={busy || taskActive}
+                    onClick={() => void generateOutline()}
+                  >
                     {taskActive && task?.kind === 'write_outline' ? '生成中…' : '生成大纲'}
                   </Button>
-                  <Button disabled={busy || taskActive} onClick={() => void generateChapter()}>
+                  <Button
+                    className="rounded-full h-11 px-7 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+                    disabled={busy || taskActive}
+                    onClick={() => void generateChapter()}
+                  >
+                    <Sparkles className="size-4 mr-1.5" />
                     {taskActive && task?.kind === 'write_chapter' ? '生成中…' : '生成章节'}
                   </Button>
                 </>
               ) : (
-                <Button disabled={busy || taskActive} onClick={() => void continueNovel()}>
+                <Button
+                  className="rounded-full h-11 px-7 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+                  disabled={busy || taskActive}
+                  onClick={() => void continueNovel()}
+                >
+                  <Sparkles className="size-4 mr-1.5" />
                   {taskActive && task?.kind === 'continue' ? '生成中…' : '生成续写'}
                 </Button>
               )}

@@ -1003,7 +1003,12 @@ export default function AiCoverPanel({
                   />
                 </div>
                 {/* 描述词仍在生成时禁止提交，确保任务使用屏幕上已确认的方向。 */}
-                <Button size="lg" className="w-full gap-2" disabled={!canGenerateCover} onClick={() => void generate()}>
+                <Button
+                  size="lg"
+                  className="w-full gap-2 rounded-full h-11 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+                  disabled={!canGenerateCover}
+                  onClick={() => void generate()}
+                >
                   {busy || taskActive ? (
                     <>
                       <Loader2 className="size-4 animate-spin" />
@@ -1017,7 +1022,7 @@ export default function AiCoverPanel({
                   )}
                 </Button>
                 {task && (
-                  <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--admin-inset)]">
+                  <div className="overflow-hidden rounded-2xl border border-border bg-muted/30">
                     <div className="flex flex-wrap items-center gap-2.5 px-3.5 py-3 text-sm">
                       <span className="relative flex size-2.5">
                         {taskActive && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />}
@@ -1027,13 +1032,13 @@ export default function AiCoverPanel({
                       {taskNovel && task.novelId !== novelId && <span className="text-xs text-muted-foreground">任务作品：{taskNovel.title}</span>}
                       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{task.step || '等待处理'}</span>
                       {taskActive && (
-                        <Button variant="outline" size="sm" onClick={() => void cancelTask()}>
+                        <Button variant="outline" size="sm" className="rounded-full h-7 px-3 text-xs" onClick={() => void cancelTask()}>
                           取消任务
                         </Button>
                       )}
                     </div>
                     {taskActive && <div className="ai-task-progress" />}
-                    {task.error && <p className="border-t border-[var(--border)] px-3.5 py-2 text-xs leading-relaxed text-destructive">{task.error}</p>}
+                    {task.error && <p className="border-t border-border px-3.5 py-2 text-xs leading-relaxed text-destructive">{task.error}</p>}
                   </div>
                 )}
               </div>
@@ -1105,11 +1110,16 @@ export default function AiCoverPanel({
                           {focusedCandidate.metadata?.visualSummary && (
                             <p className="line-clamp-3 text-xs leading-relaxed text-foreground/90">{focusedCandidate.metadata.visualSummary}</p>
                           )}
-                          <div className="flex gap-1.5">
-                            <Button size="sm" className="flex-1" disabled={!!candidateBusy} onClick={() => void adopt(focusedCandidate)}>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="flex-1 rounded-full h-9 px-4 text-xs font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-xs"
+                              disabled={!!candidateBusy}
+                              onClick={() => void adopt(focusedCandidate)}
+                            >
                               {candidateBusy === focusedCandidate.id ? (
                                 <>
-                                  <Loader2 className="size-3.5 animate-spin" />
+                                  <Loader2 className="size-3.5 animate-spin mr-1" />
                                   处理中
                                 </>
                               ) : (
@@ -1119,6 +1129,7 @@ export default function AiCoverPanel({
                             <Button
                               size="sm"
                               variant="outline"
+                              className="rounded-full size-9 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                               disabled={!!candidateBusy}
                               onClick={() => void discard(focusedCandidate)}
                               aria-label={`弃用候选 ${candidates.indexOf(focusedCandidate) + 1}`}
@@ -1143,7 +1154,7 @@ export default function AiCoverPanel({
 
                 <section className="ai-cover-current">
                   <div className="flex items-center justify-between gap-3">
-                    <h3>当前封面与历史</h3>{' '}
+                    <h3 className="font-serif font-semibold text-base">当前封面与历史</h3>{' '}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -1151,15 +1162,21 @@ export default function AiCoverPanel({
                       className="hidden"
                       onChange={(event) => void handleUploadFile(event)}
                     />
-                    <Button variant="outline" size="sm" disabled={candidateBusy === 'upload' || !novelId} onClick={() => fileInputRef.current?.click()}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full h-8 px-3 text-xs font-medium border-border hover:border-[#D97757]/40 hover:text-[#D97757]"
+                      disabled={candidateBusy === 'upload' || !novelId}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
                       {candidateBusy === 'upload' ? (
                         <>
-                          <Loader2 className="size-3.5 animate-spin" />
+                          <Loader2 className="size-3.5 animate-spin mr-1" />
                           上传中…
                         </>
                       ) : (
                         <>
-                          <Upload className="size-3.5" />
+                          <Upload className="size-3.5 mr-1" />
                           上传替换
                         </>
                       )}
