@@ -260,7 +260,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                   title="最近抓取任务"
                   actions={
                     <Link className="dashboard-panel-link" to="/admin/tasks?view=scrape">
-                      进入任务中心
+                      任务中心
                       <ArrowUpRight className="size-3.5" />
                     </Link>
                   }
@@ -349,10 +349,10 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                   )}
                 </div>
                 <div className="dashboard-library-footer">
-                  <span>封面 <strong>{number(data.totals.covers)}</strong> 张</span>
-                  <span>数据库 <strong>{data.totals.dbSize === null ? '未统计' : formatBytes(data.totals.dbSize)}</strong></span>
-                  <span>读者 <strong>{number(data.totals.users)}</strong> 人</span>
-                  <span>限制级 <strong>{number(data.contentRating.restricted)}</strong> 本</span>
+                  <span>封面 {number(data.totals.covers)} 张</span>
+                  <span>数据库 {data.totals.dbSize === null ? '未统计' : formatBytes(data.totals.dbSize)}</span>
+                  <span>读者 {number(data.totals.users)} 人</span>
+                  <span>限制级 {number(data.contentRating.restricted)} 本</span>
                 </div>
               </AdminDataPanel>
             </div>
