@@ -1,9 +1,8 @@
-import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { Check, ExternalLink, RefreshCw, SearchX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
-import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import Pagination from '@/components/admin/Pagination'
 import type { BatchState, DiscoverNovel } from '../types'
 import { FALLBACK_COVER, coverOnError } from '../utils'
@@ -20,6 +19,7 @@ interface DiscoveryPanelProps {
   batch: BatchState | null
   onToggleAll: () => void
   onToggleSelect: (index: number) => void
+  onClearSelect?: () => void
   onInspect: (index: number) => void
   onBatchScrape: () => void
   onPage: (page: number) => void
@@ -37,6 +37,7 @@ export default function DiscoveryPanel({
   batch,
   onToggleAll,
   onToggleSelect,
+  onClearSelect,
   onInspect,
   onBatchScrape,
   onPage,
@@ -65,23 +66,9 @@ export default function DiscoveryPanel({
             )}
           </div>
           <p className="scrape-intake-card__subtitle">
-            {info || '检索到以下源站候选作品，可点击单独配置入库，或批量勾选后一键抓取。'}
+            {info || '检索到以下源站候选作品，可点击单独配置入库，或批量勾选后通过悬浮岛一键抓取。'}
           </p>
         </div>
-
-        {novels.length > 0 && !loading && (
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              size="sm"
-              onClick={onBatchScrape}
-              disabled={selectedNewCount === 0}
-              className="h-8 rounded-lg px-3.5 text-xs font-medium bg-[#D97757] hover:bg-[#c56344] text-white shadow-xs disabled:opacity-40 transition-all cursor-pointer"
-            >
-              <RefreshCw className="size-3.5 mr-1.5" aria-hidden="true" />
-              批量抓取 {selectedNewCount > 0 ? `(${selectedNewCount})` : ''}
-            </Button>
-          </div>
-        )}
       </div>
 
       {loading && (
@@ -100,10 +87,10 @@ export default function DiscoveryPanel({
       )}
 
       {novels.length > 0 && !loading && (
-        <div className="flex flex-col gap-3">
-          {/* 轻量优雅的 Claude 批量操作栏 */}
-          <div className="scrape-discovery-toolbar" aria-live="polite">
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium text-foreground">
+        <div className="flex flex-col gap-2">
+          {/* 轻量纯净的列表表头全选行 */}
+          <div className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground border-b border-border/40 mb-1">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium text-foreground hover:text-[#D97757] transition-colors">
               <Checkbox
                 checked={selected.size === selectableCount && selectableCount > 0}
                 onCheckedChange={onToggleAll}
@@ -113,13 +100,8 @@ export default function DiscoveryPanel({
               <span>全选可抓取作品</span>
             </label>
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              （已在书库的作品会自动跳过）
+              已收录的作品会自动跳过
             </span>
-            {selected.size > 0 && (
-              <span className="text-xs text-[#D97757] font-medium ml-auto">
-                已选中 {selected.size} 部作品
-              </span>
-            )}
           </div>
 
           {/* Claude 风格作品列表 */}
@@ -249,6 +231,25 @@ export default function DiscoveryPanel({
           )}
         </div>
       )}
+
+      {/* 底部悬浮胶囊岛（批量操作） */}
+      <AdminSelectionBar
+        count={selected.size}
+        label={`已选择 ${selected.size} 部作品`}
+        onClear={onClearSelect || onToggleAll}
+        clearLabel="取消选择"
+        clearPlacement="actions"
+      >
+        <Button
+          size="sm"
+          className="h-8 rounded-full px-4 text-xs font-medium bg-[#D97757] hover:bg-[#c56344] text-white shadow-xs disabled:opacity-40 transition-all cursor-pointer"
+          onClick={onBatchScrape}
+          disabled={selectedNewCount === 0}
+        >
+          <RefreshCw className="size-3.5 mr-1.5" aria-hidden="true" />
+          批量抓取 {selectedNewCount > 0 ? `(${selectedNewCount})` : ''}
+        </Button>
+      </AdminSelectionBar>
     </div>
   )
 }

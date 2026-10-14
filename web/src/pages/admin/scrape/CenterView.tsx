@@ -530,6 +530,7 @@ export default function CenterView() {
         batch={batch}
         onToggleAll={toggleAll}
         onToggleSelect={toggleSelect}
+        onClearSelect={() => setSelected(new Set())}
         onInspect={(index) => {
           const item = novels[index]
           if (item) void loadCandidate(item)
