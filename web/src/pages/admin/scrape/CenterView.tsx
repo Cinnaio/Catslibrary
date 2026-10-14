@@ -2,11 +2,10 @@
 // 抓取中心 — 统一入口、发现、校验与任务追踪
 // ============================================================
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { Archive, Download, FileUp } from 'lucide-react'
+import { Archive } from 'lucide-react'
 import { novelsApi, scrapeApi } from '@/lib/api'
 import { useConfirm, useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
-import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { CheckItem, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
 import { scrapePost, parseCategories, po18CoverFallback, resolveRankingSource } from './utils'
 import Po18AccountPanel from './Po18AccountPanel'
@@ -497,136 +496,118 @@ export default function CenterView() {
   const setupState = activeCandidate?.loading ? 'loading' : activeCandidate?.error ? 'error' : activeCandidate?.meta ? 'ready' : 'none'
 
   return (
-    <div className="scrape-center">
+    <div className="scrape-center scrape-claude-frame">
       <Po18AccountPanel active />
 
-      <div className="scrape-center__layout">
-        <main className="scrape-center__main">
-          <ScrapeIntake
-            mode={intakeMode}
-            onModeChange={setIntakeMode}
-            sourceUrl={sourceUrl}
-            onSourceUrlChange={setSourceUrl}
-            searchInput={searchInput}
-            onSearchInputChange={setSearchInput}
-            searchType={searchType}
-            onSearchTypeChange={setSearchType}
-            siteValue={siteValue}
-            onSiteChange={(value) => {
-              setSiteValue(value)
-              // 输入框展示真实请求地址；POPO 的 15 个榜单共用 /rank/index，靠 kind/type 区分。
-              setDiscoverUrl(resolveRankingSource(value)?.listUrl || value)
-            }}
-            discoverUrl={discoverUrl}
-            onDiscoverUrlChange={setDiscoverUrl}
-            loading={intakeLoading || discoveryLoading}
-            onSubmit={submitIntake}
-          />
+      <ScrapeIntake
+        mode={intakeMode}
+        onModeChange={setIntakeMode}
+        sourceUrl={sourceUrl}
+        onSourceUrlChange={setSourceUrl}
+        searchInput={searchInput}
+        onSearchInputChange={setSearchInput}
+        searchType={searchType}
+        onSearchTypeChange={setSearchType}
+        siteValue={siteValue}
+        onSiteChange={(value) => {
+          setSiteValue(value)
+          // 输入框展示真实请求地址；POPO 的 15 个榜单共用 /rank/index，靠 kind/type 区分。
+          setDiscoverUrl(resolveRankingSource(value)?.listUrl || value)
+        }}
+        discoverUrl={discoverUrl}
+        onDiscoverUrlChange={setDiscoverUrl}
+        loading={intakeLoading || discoveryLoading}
+        onSubmit={submitIntake}
+      />
 
-          <DiscoveryPanel
-            novels={novels}
-            selected={selected}
-            loading={discoveryLoading}
-            error={discoveryError}
-            info={discoveryInfo}
-            page={page}
-            totalPages={totalPages}
-            batch={batch}
-            onToggleAll={toggleAll}
-            onToggleSelect={toggleSelect}
-            onInspect={(index) => {
-              const item = novels[index]
-              if (item) void loadCandidate(item)
-            }}
-            onBatchScrape={() => void batchScrapeDiscovered()}
-            onPage={(nextPage) => void goPage(nextPage)}
-            onClearBatch={() => setBatch(null)}
-          />
+      <DiscoveryPanel
+        novels={novels}
+        selected={selected}
+        loading={discoveryLoading}
+        error={discoveryError}
+        info={discoveryInfo}
+        page={page}
+        totalPages={totalPages}
+        batch={batch}
+        onToggleAll={toggleAll}
+        onToggleSelect={toggleSelect}
+        onInspect={(index) => {
+          const item = novels[index]
+          if (item) void loadCandidate(item)
+        }}
+        onBatchScrape={() => void batchScrapeDiscovered()}
+        onPage={(nextPage) => void goPage(nextPage)}
+        onClearBatch={() => setBatch(null)}
+      />
 
-          {activeCandidate && (
-            <div ref={setupRef}>
-              {setupState === 'loading' && (
-                <section className="scrape-setup-state" role="status">
-                  <div className="scrape-setup-state__icon">
-                    <Archive aria-hidden="true" />
-                  </div>
-                  <div>
-                    <strong>正在分析源站</strong>
-                    <span>读取书名、章节目录和页面结构，请稍候…</span>
-                  </div>
-                </section>
-              )}
-              {setupState === 'error' && (
-                <section className="scrape-setup-state is-error" role="alert">
-                  <div>
-                    <strong>这本书暂时无法继续</strong>
-                    <span>{activeCandidate.error}</span>
-                  </div>
-                  <Button variant="secondary" size="sm" onClick={() => void loadCandidate(activeCandidate.item)}>
-                    重新分析
-                  </Button>
-                </section>
-              )}
-              {setupState === 'ready' && activeCandidate.meta && (
-                <ScrapeSetupPanel
-                  item={activeCandidate.item}
-                  preview={preview}
-                  onPreviewChange={setPreview}
-                  coverUrl={effectiveCover}
-                  novelId={currentScrapeNovelId}
-                  confirming={confirming}
-                  advancedOpen={advancedOpen}
-                  onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
-                  chapterCount={activeCandidate.meta.chapterCount || 0}
-                  hasMoreChapters={Boolean(activeCandidate.meta.hasMoreChapters)}
-                  protectedChapterCount={activeCandidate.meta.protectedChapterCount || 0}
-                  sitePreset={sitePreset}
-                  onSitePresetChange={applySitePreset}
-                  chapterListUrl={chapterListUrl}
-                  onChapterListUrlChange={setChapterListUrl}
-                  encoding={activeEncoding}
-                  onEncodingChange={setActiveEncoding}
-                  selectors={selectors}
-                  onSelectorsChange={setSelectors}
-                  testResult={testResult}
-                  testChecks={testChecks}
-                  onTest={() => void testSelectors()}
-                  onConfirm={() => void confirmNovel()}
-                  onStart={() => void startScrape()}
-                  onReset={resetSetup}
-                />
-              )}
-            </div>
+      {activeCandidate && (
+        <div ref={setupRef}>
+          {setupState === 'loading' && (
+            <section className="scrape-setup-state" role="status">
+              <div className="scrape-setup-state__icon">
+                <Archive aria-hidden="true" />
+              </div>
+              <div>
+                <strong>正在分析源站</strong>
+                <span>读取书名、章节目录和页面结构，请稍候…</span>
+              </div>
+            </section>
           )}
-
-          <AdminDataPanel className="scrape-config-card admin-utility-panel" ariaLabel="配置迁移">
-            <AdminPanelHeading title="配置迁移" />
-            <div className="scrape-config-card__actions admin-utility-panel__actions">
-              <Button variant="secondary" size="sm" onClick={() => void exportConfigs()}>
-                <Download aria-hidden="true" />
-                导出配置
+          {setupState === 'error' && (
+            <section className="scrape-setup-state is-error" role="alert">
+              <div>
+                <strong>这本书暂时无法继续</strong>
+                <span>{activeCandidate.error}</span>
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => void loadCandidate(activeCandidate.item)}>
+                重新分析
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => configFileRef.current?.click()}>
-                <FileUp aria-hidden="true" />
-                导入配置
-              </Button>
-              <input ref={configFileRef} type="file" accept=".json" hidden onChange={(event) => void handleConfigFileSelected(event)} />
-              <span aria-live="polite">{configImportStatus}</span>
-            </div>
-          </AdminDataPanel>
-        </main>
+            </section>
+          )}
+          {setupState === 'ready' && activeCandidate.meta && (
+            <ScrapeSetupPanel
+              item={activeCandidate.item}
+              preview={preview}
+              onPreviewChange={setPreview}
+              coverUrl={effectiveCover}
+              novelId={currentScrapeNovelId}
+              confirming={confirming}
+              advancedOpen={advancedOpen}
+              onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
+              chapterCount={activeCandidate.meta.chapterCount || 0}
+              hasMoreChapters={Boolean(activeCandidate.meta.hasMoreChapters)}
+              protectedChapterCount={activeCandidate.meta.protectedChapterCount || 0}
+              sitePreset={sitePreset}
+              onSitePresetChange={applySitePreset}
+              chapterListUrl={chapterListUrl}
+              onChapterListUrlChange={setChapterListUrl}
+              encoding={activeEncoding}
+              onEncodingChange={setActiveEncoding}
+              selectors={selectors}
+              onSelectorsChange={setSelectors}
+              testResult={testResult}
+              testChecks={testChecks}
+              onTest={() => void testSelectors()}
+              onConfirm={() => void confirmNovel()}
+              onStart={() => void startScrape()}
+              onReset={resetSetup}
+            />
+          )}
+        </div>
+      )}
 
-        <aside className="scrape-center-live-dock">
-          <JobQueue
-            jobs={jobs}
-            onCancel={cancel}
-            onRetry={retry}
-            onRetryFailed={retryFailed}
-            onDismiss={dismiss}
-            onToggleLog={toggleLog}
-          />
-        </aside>
-      </div>
+      <JobQueue
+        jobs={jobs}
+        onCancel={cancel}
+        onRetry={retry}
+        onRetryFailed={retryFailed}
+        onDismiss={dismiss}
+        onToggleLog={toggleLog}
+        onExportConfigs={() => void exportConfigs()}
+        onImportConfigs={() => configFileRef.current?.click()}
+        configImportStatus={configImportStatus}
+      />
+      <input ref={configFileRef} type="file" accept=".json" hidden onChange={(event) => void handleConfigFileSelected(event)} />
     </div>
   )
 }

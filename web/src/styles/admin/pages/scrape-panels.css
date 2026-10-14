@@ -6,19 +6,289 @@
   border-bottom: 0;
 }
 
-.admin-redesign-page--scrape .scrape-center,
-.admin-redesign-page--scrape .scrape-center__main {
+.admin-redesign-page--scrape .scrape-claude-frame {
+  max-width: 980px;
+  width: 100%;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* PO18 账号状态卡片 */
+.admin-redesign-page--scrape .po18-account-pill-card {
+  background: var(--admin-panel, #faf9f5);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-redesign-page--scrape .po18-account-pill-card:hover {
+  border-color: rgba(217, 119, 87, 0.35);
+}
+
+.admin-redesign-page--scrape .po18-account-compact-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.admin-redesign-page--scrape .po18-account-compact-bar:hover {
+  background: var(--admin-panel-muted, #f4f2ec);
+}
+
+/* 抓取入口卡片 */
+.admin-redesign-page--scrape .scrape-intake {
+  background: var(--admin-panel, #faf9f5);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  border-radius: 14px;
+  padding: 1.5rem 1.75rem;
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__title {
+  font-family: var(--font-serif, Georgia, "Noto Serif SC", serif);
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__mode-tabs {
+  display: inline-flex !important;
+  background: var(--admin-panel-muted, #edebe5) !important;
+  border: 1px solid var(--admin-border, #e6e4dc) !important;
+  border-radius: 8px !important;
+  padding: 3px !important;
+  gap: 3px !important;
+  height: auto !important;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__tab {
+  border-radius: 6px !important;
+  padding: 0.4rem 0.85rem !important;
+  font-size: 0.825rem !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  border: 0 !important;
+  background: transparent !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  height: 1.85rem !important;
+  box-shadow: none !important;
+  transition: all 0.15s ease !important;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__tab[data-state='active'] {
+  background: var(--admin-panel, #ffffff) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+  font-weight: 600 !important;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__control-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__control-row--search {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__ranking-row {
+  display: grid;
+  grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__input {
+  height: 2.625rem !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--admin-border, #dedcd5) !important;
+  background: var(--admin-field, #ffffff) !important;
+  padding-inline: 0.85rem !important;
+  font-size: 0.875rem !important;
+  color: var(--text-primary) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__input:focus-visible {
+  border-color: #d97757 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.15) !important;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__btn-primary {
+  height: 2.625rem !important;
+  border-radius: 8px !important;
+  background: #d97757 !important;
+  color: #ffffff !important;
+  font-weight: 500 !important;
+  padding-inline: 1.25rem !important;
+  font-size: 0.875rem !important;
+  border: 1px solid #d97757 !important;
+  box-shadow: 0 1px 2px rgba(217, 119, 87, 0.2) !important;
+  transition: all 0.15s ease !important;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__btn-primary:hover:not(:disabled) {
+  background: #c56344 !important;
+  border-color: #c56344 !important;
+}
+
+.admin-redesign-page--scrape .scrape-intake-card__hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0.25rem 0 0;
+  line-height: 1.5;
+}
+
+/* 任务队列卡片 */
+.admin-redesign-page--scrape .scrape-queue-card {
+  background: var(--admin-panel, #faf9f5);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
 }
 
-.admin-redesign-page--scrape .scrape-center__layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+.admin-redesign-page--scrape .scrape-queue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--admin-border, #e6e4dc);
 }
 
-.admin-redesign-page--scrape :is(.scrape-intake, .scrape-discovery, .scrape-setup, .scrape-workbench__aside, .scrape-config-card) {
+.admin-redesign-page--scrape .scrape-queue-head__title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-redesign-page--scrape .scrape-queue-head__title {
+  font-family: var(--font-serif, Georgia, "Noto Serif SC", serif);
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.015em;
+}
+
+.admin-redesign-page--scrape .scrape-queue-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-redesign-page--scrape .scrape-queue-empty-calm {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.15rem;
+  border-radius: 8px;
+  border: 1px dashed var(--admin-border, #dedcd5);
+  background: var(--admin-panel-muted, #f7f5ef);
+  color: var(--text-muted);
+  font-size: 0.825rem;
+  line-height: 1.5;
+}
+
+/* Dark Mode Overrides */
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-account-pill-card,
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-intake,
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-queue-card {
+  background: #1c1c1a;
+  border-color: #2e2e2b;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-account-compact-bar:hover {
+  background: #252522;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-intake-card__mode-tabs {
+  background: #252522 !important;
+  border-color: #333330 !important;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-intake-card__tab[data-state='active'] {
+  background: #1c1c1a !important;
+  color: #eeece3 !important;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-intake-card__input {
+  background: #181816 !important;
+  border-color: #333330 !important;
+  color: #eeece3 !important;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-queue-head {
+  border-bottom-color: #2e2e2b;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-queue-empty-calm {
+  background: #22221f;
+  border-color: #333330;
+}
+
+.admin-redesign-page--scrape :is(.scrape-discovery, .scrape-setup) {
   display: grid;
   gap: 0;
   overflow: hidden;
@@ -28,61 +298,6 @@
   border-radius: var(--admin-table-panel-radius);
   background: var(--admin-panel);
   box-shadow: var(--admin-panel-shadow);
-}
-
-.admin-redesign-page--scrape .scrape-intake__tabs,
-.admin-redesign-page--scrape .scrape-intake__form {
-  width: auto;
-  margin-inline: 1.25rem;
-}
-
-.admin-redesign-page--scrape .scrape-intake > .scrape-intake__heading {
-  padding-bottom: 0;
-}
-
-.admin-redesign-page--scrape .scrape-intake__tabs {
-  margin-top: var(--admin-space-3);
-  margin-bottom: var(--admin-space-3);
-  width: min(18rem, calc(100% - 2.5rem));
-  margin-right: auto;
-}
-
-.admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'] {
-  min-height: 2.5rem;
-  height: auto;
-}
-
-.admin-redesign-page--scrape .scrape-intake__tab {
-  min-height: 1.75rem;
-  height: auto;
-  justify-content: center;
-  text-align: center;
-  padding: 0.15rem 0.35rem;
-}
-
-.admin-redesign-page--scrape .scrape-intake__tab[data-state='active'] {
-  background: transparent;
-  box-shadow: none;
-}
-
-.admin-redesign-page--scrape .scrape-intake__tab > span {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--tabs-segmented-muted-foreground);
-  font-size: var(--tabs-segmented-label-size);
-  font-weight: var(--tabs-segmented-label-weight);
-  line-height: var(--tabs-segmented-label-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.admin-redesign-page--scrape .scrape-intake__tab[data-state='active'] > span {
-  color: var(--tabs-segmented-active-foreground);
-  font-weight: var(--tabs-segmented-active-label-weight);
-}
-
-.admin-redesign-page--scrape .scrape-intake__form {
-  margin-bottom: 1.25rem;
 }
 
 .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__loading,
