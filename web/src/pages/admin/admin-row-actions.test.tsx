@@ -92,6 +92,37 @@ describe('AdminSelectionBar', () => {
     await userEvent.click(screen.getByRole('button', { name: /取消选择/ }))
     expect(onClear).toHaveBeenCalledTimes(1)
   })
+
+  it('count 变为 0 时经历退出动效状态并在延迟后卸载', async () => {
+    const { rerender } = render(
+      <AdminSelectionBar count={2} label="已选 2 项" onClear={vi.fn()}>
+        <button>操作</button>
+      </AdminSelectionBar>,
+    )
+
+    const bar = screen.getByRole('status')
+    expect(bar).toHaveAttribute('data-state', 'open')
+    expect(bar).toHaveClass('admin-selection-bar--entering')
+
+    // 重新渲染为 0
+    rerender(
+      <AdminSelectionBar count={0} label="已选 0 项" onClear={vi.fn()}>
+        <button>操作</button>
+      </AdminSelectionBar>,
+    )
+
+    // 退出状态：标记 closed 与 exiting
+    expect(bar).toHaveAttribute('data-state', 'closed')
+    expect(bar).toHaveClass('admin-selection-bar--exiting')
+
+    // 220ms 退出动画结束后完全卸载
+    await waitFor(
+      () => {
+        expect(screen.queryByRole('status')).toBeNull()
+      },
+      { timeout: 500 },
+    )
+  })
 })
 
 describe('useDialogHotkeys', () => {

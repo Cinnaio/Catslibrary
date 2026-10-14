@@ -1,15 +1,4 @@
-/**
- * AdminSelectionBar —— 跨页选择计数常驻条。
- *
- * 背景：勾选状态跨分页存活（selected 集合在换页时不清空），但计数与批量操作
- * 只出现在工具栏顶端。操作员滚到表格中段勾选时，「已选几项、能做什么」在
- * 视口之外，翻页后更是完全不可见——风险最高的批量删除反而最不显眼。
- *
- * 契约：只要 selectedCount > 0 就常驻在内容区顶部（sticky），显示计数、
- * 主批量动作与清空入口；≤640px 转静态并按整行排布按钮（触屏拇指区）。
- * aria-live="polite" 让读屏在计数变化时播报，不必重新定位。
- */
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -33,25 +22,64 @@ export default function AdminSelectionBar({
   clearLabel = '取消选择',
   clearPlacement = 'actions',
 }: AdminSelectionBarProps) {
-  if (count <= 0) return null
+  // 维护退出动画渲染周期：当 count 变为 0 时保持渲染至退出动画结束
+  const [rendered, setRendered] = useState(count > 0)
+  const [isExiting, setIsExiting] = useState(false)
+  const lastState = useRef({ label, children })
+  const exitTimer = useRef<number | null>(null)
+
+  if (count > 0) {
+    lastState.current = { label, children }
+  }
+
+  useEffect(() => {
+    if (count > 0) {
+      if (exitTimer.current) {
+        clearTimeout(exitTimer.current)
+        exitTimer.current = null
+      }
+      setRendered(true)
+      setIsExiting(false)
+    } else if (rendered) {
+      setIsExiting(true)
+      exitTimer.current = window.setTimeout(() => {
+        setRendered(false)
+        setIsExiting(false)
+      }, 220) // 与 CSS 退出动画时长一致
+    }
+
+    return () => {
+      if (exitTimer.current) clearTimeout(exitTimer.current)
+    }
+  }, [count, rendered])
+
+  if (!rendered && count <= 0) return null
+
+  const displayLabel = count > 0 ? label : lastState.current.label
+  const displayChildren = count > 0 ? children : lastState.current.children
 
   return (
-    <div className="admin-selection-bar" role="status" aria-live="polite">
+    <div
+      className={`admin-selection-bar ${isExiting ? 'admin-selection-bar--exiting' : 'admin-selection-bar--entering'}`}
+      role="status"
+      aria-live="polite"
+      data-state={isExiting ? 'closed' : 'open'}
+    >
       {clearPlacement === 'selection' ? (
         <div className="admin-selection-bar__selection">
-          <span className="admin-selection-bar__count">{label}</span>
-          <Button variant="ghost" size="sm" onClick={onClear}>
+          <span className="admin-selection-bar__count">{displayLabel}</span>
+          <Button variant="ghost" size="sm" onClick={onClear} disabled={isExiting}>
             <X className="size-3.5" />
             {clearLabel}
           </Button>
         </div>
       ) : (
-        <span className="admin-selection-bar__count">{label}</span>
+        <span className="admin-selection-bar__count">{displayLabel}</span>
       )}
       <div className="admin-selection-bar__actions">
-        {children}
+        {displayChildren}
         {clearPlacement === 'actions' && (
-          <Button variant="ghost" size="sm" onClick={onClear}>
+          <Button variant="ghost" size="sm" onClick={onClear} disabled={isExiting}>
             <X className="size-3.5" />
             {clearLabel}
           </Button>

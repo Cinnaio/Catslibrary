@@ -824,7 +824,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
         </AdminToolbar>
       )}
 
-      {selectedNovel && selectedIds.size > 0 && (
+      {selectedNovel && (
         <AdminSelectionBar count={selectedIds.size} label={`已选 ${selectedIds.size} 章`} onClear={() => setSelectedIds(new Set())}>
           <Button
             variant="secondary"

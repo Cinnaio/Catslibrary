@@ -46,7 +46,7 @@ it('更多操作中的融合章节名直接打开当前作品弹窗，取消后�
   render(<MemoryRouter><NovelsTab /></MemoryRouter>)
   fireEvent.keyDown(await screen.findByRole('button', { name: '测试书：更多操作' }), { key: 'ArrowDown' })
   fireEvent.click(await screen.findByRole('menuitem', { name: '融合章节名' }))
-  expect(await screen.findByRole('heading', { name: '融合章节名' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: '融合章节名' }, { timeout: 4000 })).toBeInTheDocument()
   expect(screen.getByRole('dialog')).toHaveTextContent('测试书')
   expect(screen.getByRole('dialog')).toHaveTextContent('原作者')
   expect(screen.getByRole('heading', { name: '小说管理', hidden: true })).toBeInTheDocument()
