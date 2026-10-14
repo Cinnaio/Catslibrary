@@ -506,6 +506,9 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Geometry:** 后台常规 Input 与下拉继续使用40px高度，公共页保留各自布局尺寸；搜索图标内缩、密码显示按钮及输入宽度由调用点保留。分页下拉和跳转框使用当前34px尺寸，跳转框保留居中零内边距。共享下拉通过所在区域的 `--field-control-height` / `--field-control-padding-inline` / `--field-control-font-size` 对齐周围控件，不从按钮 variant 推断尺寸。后台常规字段14px，弹窗窄屏 Input 与下拉同时使用16px，768px及以上为14px。复合 Command 搜索框将描边放在含图标的外层容器，内部 input 保持透明。
 - **Multiline:** textarea 与单行输入共用白色纸面、细暖灰边框、12px 圆角和无静态阴影，聚焦与非法状态沿用共享输入 token；文本与占位字色沿用共享语义色。单行输入的固定高度规则不得作用于 textarea；保留各场景的最小高度、换行、行高、内边距与拖动调整大小。长提示词、章节正文、JSON 使用可伸缩的多行区域。
 
+- **Single Focus Boundary（复合输入单一焦点边界，2026-10-14）：** 图标与文本组合成一个搜索字段时，外层容器独占描边、圆角、纸面和焦点反馈。`CommandInput` 由 `[data-slot='command-input-wrapper']:focus-within` 读取共享焦点 token；内部 `[data-slot='command-input']` 在普通与 `:focus-visible` 状态都显式设置透明背景、零描边、零圆角、无 outline / box-shadow，不得只从普通 Input 规则中排除它——全局可访问性规则仍会重新画出内层焦点框。内部高度为容器的100%、最小高度0、上下内边距0，避免40px输入溢出36px外框。强制颜色模式下仅给外框系统色 outline，确保去重后仍有可见焦点。规则在 `input-fields.css` 共享，页面与下拉浮层不重复声明焦点外观；其他独立输入、按钮及清空操作保留各自焦点。
+- **Focus verification:** 检查普通 Command 与可搜索下拉，覆盖自动聚焦、鼠标、Tab、搜索输入、Escape 与焦点归还，以及明暗/窄屏/强制颜色模式。读取内部 input 的最终 border、outline、box-shadow 和实际边界，确认内部无高亮、外框仍高亮且输入没有越界；不能只检查外框已有光晕。后台 Command 搜索的所有使用点共同受此规则约束。
+
 ### Selection Fields（下拉与 Input 同步，2026-10-14）
 
 - **Single source:** `SelectTrigger` 与 `CustomSelect` 触发器统一标记 `data-field="select"`，由 `select-fields.css` 负责外观；原生 select 共享纸面与状态，保留原生箭头、菜单和已有布局尺寸。Radix `PopoverTrigger asChild` 会把 CustomSelect 的 `data-slot` 改为 `popover-trigger`，因此禁止用 `[data-slot='button']` 推断它是否已获得后台字段样式。
