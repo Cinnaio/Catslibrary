@@ -37,6 +37,7 @@
 @import './admin/pages/moderation-responsive.css';
 @import './admin/pages/scrape-panels.css';
 @import './admin/components/row-actions.css';
+@import './admin/components/floating-dock.css';
 @import './admin/components/selection.css';
 @import './admin/components/readability.css';
 @import './admin/components/form-fields.css';

@@ -310,7 +310,6 @@
   background: #181715;
   border-color: var(--admin-border, #2a2825);
 }
-}
 .admin-monitoring-page .ai-audit-cell__name {
   font-weight: 500;
 }

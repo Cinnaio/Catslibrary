@@ -31,6 +31,24 @@
 - 批量操作和行内操作沿用共用组件；业务负责危险操作确认与请求处理。
 - `AdminMetricStrip` 保持已有停用约定，不在新页面重新引入。
 
+## 悬浮胶囊岛
+
+`AdminFloatingDock` 是批量选择与表单保存共用的外壳。`AdminSelectionBar` 保留计数、清空入口与退出缓冲；AI 参数页直接消费外壳。共享规则在 `components/floating-dock.css`，`components/selection.css` 只负责选择计数及清空分组；材质、阴影、底距、模糊、尺寸和进退场动效集中到 `--admin-dock-*` token，旧 `--admin-selection-*` 几何与主操作颜色为兼容别名。
+
+桌面使用随内容收窄的全圆角岛，视口底部居中，底距32px加安全区；≤900px底距16px、外框24px圆角。按钮36px，≤900px或粗指针44px，外框内缩和操作间距均为8px。主要/次要操作沿用共享14px/13px字阶，禁用与保存中保持几何；不能在页面重写按钮高度、颜色、圆角或阴影。
+
+```tsx
+<AdminFloatingDock reserveSpace role="region" aria-label="参数保存操作" data-state="open">
+  <span className="admin-floating-dock__status" role="status">{status}</span>
+  <div className="admin-floating-dock__actions">
+    <Button type="button" variant="outline" disabled={!dirty || saving} onClick={revert}>撤销修改</Button>
+    <Button type="submit" disabled={!dirty || saving}>{saving ? '保存中…' : '保存所有参数'}</Button>
+  </div>
+</AdminFloatingDock>
+```
+
+保存岛留在原表单内，保留原生提交和校验；`reserveSpace` 以 `ResizeObserver` 测量实际高度并留出底距及间隔，防止最后一组字段被遮挡。≤600px状态独占一行，动作右对齐并可换行。无改动、保存中、失败后仍由业务维护原有文案、禁用和草稿状态，不将表单保存动作套入选择数量驱动的显隐逻辑。明暗主题、1440/900/390/320px、粗指针、长状态、键盘焦点与 reduced motion 都要检查最终计算样式及页尾可达性；组件预览使用模拟数据时，不代替真实 API 验收。
+
 ## 字段
 
 全站单行输入框与多行文本框由 `web/src/styles/input-fields.css` 统一外观，后台不另设一套强描边。默认白色纸面、1px 暖灰边框、12px 圆角、无静态阴影，分别读取全站 `tokens.css` 的 `--input-background`、`--input-border`、`--input-radius`。共享 `Input`、`Textarea` 和原生文本、数字、密码、搜索与日期输入均使用该规则；深色读取相同语义变量。键盘焦点使用品牌色边框和 2px 光晕，非法输入保留危险色提示。

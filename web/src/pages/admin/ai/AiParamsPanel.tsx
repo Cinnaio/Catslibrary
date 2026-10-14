@@ -1,5 +1,6 @@
 /** 参数调优：前情提要 / 回顾总结 / AI 创作参数与审计配置。 */
 import AdminFormField from '@/components/admin/AdminFormField'
+import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
 import { useEffect, useRef, useState } from 'react'
 import { aiApi, type AiSettings } from '@/lib/api'
 import { useToast } from '@/components/feedback'
@@ -653,15 +654,14 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </CardContent>
         </Card>
       </div>
-      <div className="ai-params-save p-4 rounded-2xl bg-muted/30 border border-border/80 flex items-center justify-between">
-        <span className="text-xs text-muted-foreground" role="status">
+      <AdminFloatingDock reserveSpace role="region" aria-label="参数保存操作" data-state="open">
+        <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
           {changeCount ? `${changeCount} 项参数待保存 · 切换分类保留修改` : '参数与当前生效值一致'}
         </span>
-        <div className="flex flex-wrap gap-2.5">
+        <div className="admin-floating-dock__actions">
           <Button
             type="button"
             variant="outline"
-            className="rounded-full h-9 px-4 text-xs font-medium border-border"
             disabled={props.loading || saving || !dirty}
             onClick={() => setLocalSettings(props.settings)}
           >
@@ -669,13 +669,12 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </Button>
           <Button
             type="submit"
-            className="rounded-full h-9 px-5 text-xs font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-xs transition-all"
             disabled={props.loading || saving || !dirty}
           >
             {saving ? '保存中…' : '保存所有参数'}
           </Button>
         </div>
-      </div>
+      </AdminFloatingDock>
     </form>
   )
 }

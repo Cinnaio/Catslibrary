@@ -23,17 +23,37 @@
   --admin-button-label-weight: 550;
   --admin-field-label-weight: 400;
 
-  /* 悬浮选择岛：按钮、清空入口和计数共享几何，触屏独立放大。 */
-  --admin-selection-control-height: 2.25rem;
-  --admin-selection-touch-height: 2.75rem;
-  --admin-selection-padding-inline: 0.875rem;
-  --admin-selection-icon-size: 1rem;
-  --admin-selection-gap: 0.5rem;
-  --admin-selection-inset: 0.5rem;
-  --admin-selection-mobile-radius: 1.5rem;
-  --admin-selection-count-foreground: color-mix(in srgb, var(--admin-accent) 60%, var(--text-primary));
-  --admin-selection-primary-background: color-mix(in srgb, var(--admin-accent) 72%, var(--text-primary));
-  --admin-selection-primary-foreground: var(--admin-accent-ink);
+  /* 悬浮胶囊岛：选择操作与表单保存共用外壳、按钮及材质。 */
+  --admin-dock-control-height: 2.25rem;
+  --admin-dock-touch-height: 2.75rem;
+  --admin-dock-padding-inline: 0.875rem;
+  --admin-dock-icon-size: 1rem;
+  --admin-dock-gap: 0.5rem;
+  --admin-dock-inset: 0.5rem;
+  --admin-dock-mobile-radius: 1.5rem;
+  --admin-dock-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  --admin-dock-blur: 16px;
+  --admin-dock-background: color-mix(in srgb, var(--admin-panel) 88%, transparent);
+  --admin-dock-border: color-mix(in srgb, var(--admin-border-strong) 65%, transparent);
+  --admin-dock-shadow: 0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --admin-dock-enter-duration: 280ms;
+  --admin-dock-exit-duration: 220ms;
+  --admin-dock-enter-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --admin-dock-exit-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --admin-dock-primary-background: color-mix(in srgb, var(--admin-accent) 72%, var(--text-primary));
+  --admin-dock-primary-foreground: var(--admin-accent-ink);
+  --admin-dock-status-foreground: color-mix(in srgb, var(--admin-accent) 60%, var(--text-primary));
+  /* 保留选择岛 token 接口，计数随所在岛的触屏尺寸继承。 */
+  --admin-selection-control-height: var(--admin-dock-control-height);
+  --admin-selection-touch-height: var(--admin-dock-touch-height);
+  --admin-selection-padding-inline: var(--admin-dock-padding-inline);
+  --admin-selection-icon-size: var(--admin-dock-icon-size);
+  --admin-selection-gap: var(--admin-dock-gap);
+  --admin-selection-inset: var(--admin-dock-inset);
+  --admin-selection-mobile-radius: var(--admin-dock-mobile-radius);
+  --admin-selection-count-foreground: var(--admin-dock-status-foreground);
+  --admin-selection-primary-background: var(--admin-dock-primary-background);
+  --admin-selection-primary-foreground: var(--admin-dock-primary-foreground);
 
   /* 筛选胶囊 (Filter Chip) - 全药丸圆角 */
   --admin-filter-chip-height: 2.5rem;
@@ -194,8 +214,11 @@
   --admin-accent-hover: #E08264;
   --admin-accent-light: rgba(217, 119, 87, 0.16);
   --admin-accent-subtle: rgba(217, 119, 87, 0.08);
-  --admin-selection-primary-background: var(--admin-accent);
-  --admin-selection-primary-foreground: var(--admin-canvas);
+  --admin-dock-primary-background: var(--admin-accent);
+  --admin-dock-primary-foreground: var(--admin-canvas);
+  --admin-dock-background: color-mix(in srgb, var(--admin-panel) 92%, transparent);
+  --admin-dock-border: color-mix(in srgb, var(--admin-border-strong) 40%, transparent);
+  --admin-dock-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.5), 0 6px 16px -2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.06);
 
   --admin-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
   --admin-shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.28);

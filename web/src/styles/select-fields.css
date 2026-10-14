@@ -19,9 +19,9 @@
   --field-control-font-size: var(--admin-pagination-font-size);
 }
 
-.admin-selection-bar {
-  --field-control-height: var(--admin-selection-control-height);
-  --field-control-padding-inline: var(--admin-selection-padding-inline);
+.admin-floating-dock {
+  --field-control-height: var(--admin-dock-control-height);
+  --field-control-padding-inline: var(--admin-dock-padding-inline);
 }
 
 :root :is(select, [data-field='select'][role='combobox']) {

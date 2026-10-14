@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import AdminFloatingDock from './AdminFloatingDock'
 
 interface AdminSelectionBarProps {
   /** 已选数量；为 0 时组件自身不渲染。 */
@@ -59,7 +60,7 @@ export default function AdminSelectionBar({
   const displayChildren = count > 0 ? children : lastState.current.children
 
   return (
-    <div
+    <AdminFloatingDock
       className={`admin-selection-bar ${isExiting ? 'admin-selection-bar--exiting' : 'admin-selection-bar--entering'}`}
       role="status"
       aria-live="polite"
@@ -76,7 +77,7 @@ export default function AdminSelectionBar({
       ) : (
         <span className="admin-selection-bar__count">{displayLabel}</span>
       )}
-      <div className="admin-selection-bar__actions">
+      <div className="admin-floating-dock__actions admin-selection-bar__actions">
         {displayChildren}
         {clearPlacement === 'actions' && (
           <Button variant="ghost" size="sm" onClick={onClear} disabled={isExiting}>
@@ -85,6 +86,6 @@ export default function AdminSelectionBar({
           </Button>
         )}
       </div>
-    </div>
+    </AdminFloatingDock>
   )
 }

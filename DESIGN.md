@@ -200,9 +200,9 @@ components:
 - **Spacious Table Rhythm:** 表格普通行高舒展至 3.5rem（56px），行底部分割线采用 `--c-border-subtle`，悬停为柔和的陶土漫反射暖光（暗色 `rgba(217, 119, 87, 0.05)`，亮色 `#F8F6F0`）。
 - **Low-Saturation Semantic Badges:** 连载状态使用草木冷绿（#85BF8E 暗 / #3D7346 亮），完结状态使用暖石板灰，限制级使用柔和陶土粉（#E58B70 暗 / #BF5333 亮），杜绝高饱和亮红大绿。
 
-### Floating Selection Dock Pattern (Claude 悬浮胶囊岛屿与进退场动效)
+### Floating Dock Pattern (Claude 悬浮胶囊岛屿与进退场动效)
 
-后台批量选择操作（`AdminSelectionBar`）彻底构筑为 Claude 标志性的**底部视口悬浮胶囊岛屿（Floating Pill Dock）**，兼顾高频操作效率与全景沉浸质感：
+后台批量选择操作（`AdminSelectionBar`）与 AI 参数保存操作共用 `AdminFloatingDock` 的**底部视口悬浮胶囊岛屿（Floating Pill Dock）**。共享外壳负责定位、暖纸材质、按钮几何和动效，业务组件负责状态文案、动作、提交及显示周期：
 
 1. **零布局跳动（Zero Layout Shift）：**
    - 采用 `position: fixed; bottom: calc(2rem + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 50;` 悬浮吸附于视口底部中央；900px 及以下底距为 1rem 加安全区；
@@ -215,15 +215,19 @@ components:
 3. **物理阻尼进退场动效（Entrance & Exit Motion Physics）：**
    - **进入动效（Enter）**：从视口底部平滑弹起并微放大。时长 `0.28s`，运动曲线为 Claude 标志性物理阻尼弹簧 `cubic-bezier(0.16, 1, 0.3, 1)`（`translate(-50%, 28px) scale(0.94) -> translate(-50%, 0) scale(1)`）；
    - **退出动效（Exit）**：当勾选清空或取消选择（`count` 归零）时，组件内部通过退出状态机保留当前渲染镜像，执行平滑下沉与消散动效。时长 `0.22s`，运动曲线为减速缓冲 `cubic-bezier(0.4, 0, 0.2, 1)`（`translate(-50%, 0) scale(1) -> translate(-50%, 24px) scale(0.94)`），并在退出期间通过 `pointer-events: none` 锁闭事件防止误触；
-   - **动态偏好减弱适配**：`@media (prefers-reduced-motion: reduce)` 下位移与形变关闭，平滑收敛为 0.15s 纯透明度渐变（Fade In / Out）。
+   - **动态偏好减弱适配**：`@media (prefers-reduced-motion: reduce)` 下位移与形变关闭，组件仅保留最多0.15s的透明度变化；全站 `base.css` 的减弱动态守卫会进一步收敛到0.001ms，实际页面近乎即时切换。
 4. **组件生命周期与消费契约：**
    - 页面消费端（如 `NovelsTab`, `ChaptersTab`）直接常驻渲染 `<AdminSelectionBar count={selected.size} ... />`，禁止在外层使用 `{count > 0 && <AdminSelectionBar />}` 短路包裹，进退场动效完全由组件内置缓冲状态机与定时器驱动闭环。
 5. **岛内按钮统一契约（2026-10-14）：**
-   - **单一来源**：几何 token 位于 `admin/tokens.css`，规则位于 `admin/components/selection.css`。小说管理、章节管理与抓取发现共同消费；`clearPlacement="actions"` 和 `"selection"` 的取消入口使用完全相同的尺寸规则。页面只传 `Button` 的 variant、事件和禁用态，不重复写 `h-*`、`px-*`、`text-*`、圆角、十六进制颜色或阴影。
+   - **单一来源**：共享 `--admin-dock-*` token 位于 `admin/tokens.css`，外壳、按钮、动作分组和状态规则位于 `admin/components/floating-dock.css`；`selection.css` 仅保留批量选择的计数与清空分组。小说管理、章节管理、抓取发现和 AI 参数调优共同消费；既有 `--admin-selection-*` 几何和主操作颜色保留为兼容别名。`clearPlacement="actions"` 和 `"selection"` 的取消入口使用完全相同的尺寸规则。页面只传 `Button` 的 variant、事件和禁用态，不重复写 `h-*`、`px-*`、`text-*`、圆角、十六进制颜色或阴影。
    - **尺寸**：桌面按钮和计数高度为 `--admin-selection-control-height`（36px）；900px 及以下或粗指针设备提升为 `--admin-selection-touch-height`（44px）。按钮的 `height` 与 `min-height` 同时设置，覆盖通用后台 40px 下限；图标按钮宽高同档。水平内边距14px，按钮间距与图文间距8px，图标16px，外框内缩8px。分别使用 `--admin-selection-padding-inline` / `gap` / `icon-size` / `inset`，禁止靠字号或按钮内容反推高度。
    - **字阶与层级**：保留后台共享字阶和550字重：主要/危险操作14px，次要/描边/取消13px。主操作用陶土实底，次操作用中性微描边，取消用 Ghost，删除保留危险语义描边；同一岛内只突出当前主要动作。主操作颜色使用 `--admin-selection-primary-background/foreground`，亮色加深陶土底、暗色用陶土底配炭黑字，以满足小字号对比度；按钮不叠加阴影或悬停抬升。
    - **响应式与状态**：窄屏最大宽度为视口减24px，操作组自然换行，不依赖水平滚动藏住取消或删除。禁用/处理中保留控件尺寸，统一弱化；键盘焦点使用2px陶土轮廓和2px偏移，不能被裁切。reduced motion 下关闭按钮位移和过渡，保留既有岛屿淡入淡出。
    - **检查方法与适用边界**：修改后检查明暗主题、桌面/900px/390px/320px、粗指针、两种取消位置、图标按钮、焦点、禁用及长操作组；读取浏览器最终高度、最小高度、字号与内边距，不能只看声明值。分页与表格行内图标按钮保留各自专属尺寸 token，不套用悬浮岛规则。
+6. **持续显示的保存岛（2026-10-15）：**
+   - AI 参数页使用 `<AdminFloatingDock reserveSpace>`，随内容自然收窄并固定于视口底部中央，不使用铺满内容区的 sticky 保存长条；桌面底距32px，≤900px为16px，均叠加底部安全区。外壳内缩8px，按钮36px，≤900px或粗指针为44px，和选择岛共享相同的材质、阴影、焦点与禁用态。
+   - 状态使用 `.admin-floating-dock__status` 和 `role="status"`；未修改时显示生效值一致，有草稿时使用强调文字。动作放在 `.admin-floating-dock__actions`，保持撤销在前、保存主操作在后；≤600px状态单独占一行，动作右对齐并允许自然换行。保存中及无改动时仍显示操作岛，按钮尺寸保持稳定。
+   - 外壳留在原表单 DOM 中，保存按钮继续用原生 `type="submit"`。`reserveSpace` 通过 `ResizeObserver` 测量实际高度并预留底距和间隔，文字换行、页面缩放及安全区变化后，末尾字段仍能滚动到岛上方。分类草稿保留、撤销、隐藏分类校验与失败后保留草稿继续由页面管理。
 
 ### Semantic
 - **Reading Green** (#4F7A52): 成功状态。柔和的书页绿，不刺眼。

@@ -3,6 +3,18 @@
   "generatedAt": "2026-10-02T00:00:00.000Z",
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
+    "adminFloatingDock": {
+      "component": "web/src/components/admin/AdminFloatingDock.tsx",
+      "styles": "web/src/styles/admin/components/floating-dock.css",
+      "tokens": "web/src/styles/admin/tokens.css (--admin-dock-*)",
+      "consumers": [
+        "AdminSelectionBar",
+        "AiParamsPanel"
+      ],
+      "geometry": "Fixed viewport center, intrinsic pill width capped at 54rem; 32px bottom plus safe area. At <=900px use 16px bottom plus safe area, viewport minus 24px max width, 24px outer radius and wrapping actions. Controls 36px desktop, 44px at <=900px or coarse pointer; inset and gap 8px. Preserve --admin-selection-* aliases.",
+      "saveBehavior": "Keep native form DOM and submit validation. Persistent save dock remains visible when pristine, dirty or saving. reserveSpace measures dock offsetHeight with ResizeObserver and reserves measured height plus bottom inset and 16px gap. Status uses role=status, 13px secondary text and dirty accent; at <=600px it takes a full row with right-aligned wrapping actions. Draft, revert, validation and save semantics belong to the page.",
+      "material": "Shared light/dark warm paper, 16px backdrop blur, border and shadow tokens; primary foreground/background, focus and disabled states shared with selection. Enter 280ms and exit 220ms; reduced motion removes transforms and uses at most 150ms opacity; the global base.css guard reduces actual page animation to 0.001ms."
+    },
     "selectionFields": {
       "scrapeIntakeNarrow": "At <=640px intake fields and submit actions use one column; the three mode labels share available width and decorative icons are hidden. Verify every control inside card bounds and clickable; absence of page-level horizontal scrolling can conceal clipping by the card.",
       "pageOverrideGuard": "No page-level important field skins for height, typography, radius, paper, border or focus. ScrapeIntake ranking select and URL input use shared 40px/14px/pill geometry in all three intake modes. Verify under real ancestor classes such as admin-redesign-page--scrape and full styles; generic isolated admin wrappers missed the legacy 8px select radius, 38px Input height and dark override.",
@@ -17,12 +29,12 @@
     },
     "adminPaginationGeometry": { "source": "web/src/styles/admin/components/pagination.css", "sizeToken": "--admin-pagination-control-size", "size": "34px", "variants": ["panel", "detached", "dialog"], "contract": "Set height and min-height together; button selectors include data-slot and data-size so ordinary sm rules cannot expand text buttons to 40px while icon buttons stay 34px." },
     "adminFloatingSelectionDock": {
-      "source": "web/src/styles/admin/components/selection.css",
+      "source": "web/src/styles/admin/components/floating-dock.css (shared shell and buttons); selection.css (selection count and clear group)",
       "tokens": "web/src/styles/admin/tokens.css",
       "consumers": ["NovelsTab", "ChaptersTab", "DiscoveryPanel"],
       "geometry": { "desktopHeight": "36px", "touchHeight": "44px", "touchCondition": "max-width: 900px or pointer: coarse", "paddingInline": "14px", "gap": "8px", "iconSize": "16px", "inset": "8px", "controlRadius": "9999px", "mobileShellRadius": "24px" },
       "typography": { "primaryAndDestructive": "14px", "secondaryAndGhost": "13px", "weight": 550 },
-      "contract": "Both clear placements share height and min-height rules. Consumers use Button variants with no local geometry or colors. Narrow layouts wrap with bottom safe area; icon buttons are square. Primary colors derive from admin-selection tokens; no per-button shadow or hover lift. Keyboard focus and disabled geometry remain visible and stable. Pagination and row controls keep their own tokens."
+      "contract": "Both clear placements share height and min-height rules. Consumers use Button variants with no local geometry or colors. Narrow layouts wrap with bottom safe area; icon buttons are square. Primary colors derive from admin-dock tokens with admin-selection compatibility aliases; no per-button shadow or hover lift. Keyboard focus and disabled geometry remain visible and stable. Pagination and row controls keep their own tokens."
     },
     "novelCoverDepth": {"token":"--novel-cover-shadow","light":"0 2px 4px rgba(40,32,24,.08), 0 8px 18px rgba(40,32,24,.12)","dark":"0 2px 5px rgba(0,0,0,.24), 0 8px 20px rgba(0,0,0,.32)","scope":"Public NovelCard and Novel detail covers only; containers stay flat."},
     "novelCardTypography": {"title":"0.875rem","meta":"0.75rem","description":"0.75rem","footer":"0.7rem","source":"web/src/styles/tokens.css","scope":"Shared public NovelCard in Home and Bookshelf; desktop and mobile use the same sizes."},
