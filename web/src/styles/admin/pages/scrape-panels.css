@@ -746,3 +746,133 @@
     margin-inline: 1rem;
   }
 }
+
+/* ==========================================================================
+   Claude 风格发现结果列表规范 (Claude Discovery Results Card)
+   ========================================================================== */
+.admin-redesign-page--scrape .scrape-discovery-card {
+  padding: 1.5rem 1.75rem;
+}
+
+/* 轻量通透的批量操作栏 */
+.admin-redesign-page--scrape .scrape-discovery-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  background: var(--admin-panel-muted, #f7f5ef);
+  border: 1px solid var(--admin-border, #e6e4dc);
+}
+
+/* 作品列表容器 */
+.admin-redesign-page--scrape .scrape-discovery-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* 单个作品条目：左右排布，从容呼吸感，hover 微暖反馈 */
+.admin-redesign-page--scrape .scrape-discovery-item {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.15rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.admin-redesign-page--scrape .scrape-discovery-item:hover {
+  background: var(--admin-panel-muted, #f8f6f0);
+  border-color: rgba(217, 119, 87, 0.2);
+}
+
+.admin-redesign-page--scrape .scrape-discovery-item.is-existing {
+  opacity: 0.65;
+}
+
+/* 封面：标准 1:1.37 书影比例，圆角与柔和阴影 */
+.admin-redesign-page--scrape .scrape-discovery-cover {
+  width: 3.5rem;
+  height: 4.8rem;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid var(--admin-border, #dedcd5);
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.08);
+  background: linear-gradient(145deg, #f5efe6, #ebe5db);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+.admin-redesign-page--scrape .scrape-discovery-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.admin-redesign-page--scrape .scrape-discovery-cover.is-broken::before {
+  content: attr(data-letter);
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #c15f3d;
+}
+
+/* 书籍信息区域 */
+.admin-redesign-page--scrape .scrape-discovery-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.admin-redesign-page--scrape .scrape-discovery-title {
+  font-family: var(--font-serif, Georgia, "Noto Serif SC", serif);
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-redesign-page--scrape .scrape-discovery-desc {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.admin-redesign-page--scrape .scrape-discovery-action-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+/* Dark Mode Overrides for Discovery Panel */
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-discovery-toolbar {
+  background: #22221f;
+  border-color: #333330;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-discovery-item:hover {
+  background: #242320;
+  border-color: rgba(217, 119, 87, 0.3);
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-discovery-cover {
+  border-color: #38352f;
+  background: #252320;
+}
+

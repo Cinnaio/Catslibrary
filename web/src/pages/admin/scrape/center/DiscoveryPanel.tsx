@@ -50,74 +50,97 @@ export default function DiscoveryPanel({
   if (!loading && !error && !info && novels.length === 0 && !batch) return null
 
   return (
-    <AdminDataPanel className="scrape-discovery" ariaLabel="发现结果">
-      <AdminPanelHeading
-        className="scrape-discovery__heading"
-        title="发现结果"
-        titleId="scrape-discovery-title"
-        status={
-          info || novels.length > 0 ? (
-            <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
-              {info && (
-                <span role="status" className="text-xs text-muted-foreground">
-                  {info}
-                </span>
-              )}
-              {novels.length > 0 && (
-                <span className="scrape-discovery__count">{selected.size > 0 ? `已选 ${selected.size} 本` : `当前 ${novels.length} 本`}</span>
-              )}
-            </div>
-          ) : undefined
-        }
-      />
-
-      {loading && (
-        <div className="scrape-discovery__loading" role="status">
-          <div className="scrape-skeleton-row" />
-          <div className="scrape-skeleton-row" />
-          <div className="scrape-skeleton-row" />
-          <span>正在读取作品信息…</span>
+    <div className="scrape-intake scrape-discovery-card" aria-label="发现结果">
+      {/* 头部：完全对齐 Claude 标准卡片规范 */}
+      <div className="scrape-intake-card__head">
+        <div className="scrape-intake-card__title-group">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h2 id="scrape-discovery-title" className="scrape-intake-card__title">
+              发现结果
+            </h2>
+            {novels.length > 0 && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-700/80">
+                {selected.size > 0 ? `已选 ${selected.size} / ${novels.length} 部` : `共 ${novels.length} 部候选作品`}
+              </span>
+            )}
+          </div>
+          <p className="scrape-intake-card__subtitle">
+            {info || '检索到以下源站候选作品，可点击单独配置入库，或批量勾选后一键抓取。'}
+          </p>
         </div>
-      )}
 
-      {error && !loading && (
-        <div className="scrape-discovery__empty" role="alert">
-          <SearchX aria-hidden="true" />
-          <strong>{error}</strong>
-          <span>可以换一个入口，或检查源站地址和代理设置。</span>
-        </div>
-      )}
-
-      {novels.length > 0 && !loading && (
-        <>
-          <div className="scrape-discovery__toolbar rounded-xl" aria-live="polite">
-            <label className="scrape-discovery__select-all">
-              <Checkbox checked={selected.size === selectableCount && selectableCount > 0} onCheckedChange={onToggleAll} aria-label="选择所有可抓取作品" className="rounded-md" />
-              <span>选择可抓取作品</span>
-            </label>
-            <span className="scrape-discovery__toolbar-note">已收录的作品会自动跳过</span>
+        {novels.length > 0 && !loading && (
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               size="sm"
               onClick={onBatchScrape}
               disabled={selectedNewCount === 0}
-              className="rounded-full h-8 px-3.5 text-xs font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-xs"
+              className="h-8 rounded-lg px-3.5 text-xs font-medium bg-[#D97757] hover:bg-[#c56344] text-white shadow-xs disabled:opacity-40 transition-all cursor-pointer"
             >
-              <RefreshCw className="size-3 mr-1" aria-hidden="true" />
+              <RefreshCw className="size-3.5 mr-1.5" aria-hidden="true" />
               批量抓取 {selectedNewCount > 0 ? `(${selectedNewCount})` : ''}
             </Button>
           </div>
+        )}
+      </div>
 
-          <div className="scrape-discovery__list rounded-2xl border-border/80" role="list">
+      {loading && (
+        <div className="scrape-discovery__loading rounded-xl border border-border/60 bg-stone-50/50 dark:bg-stone-900/30 p-6 flex flex-col items-center justify-center gap-3 text-muted-foreground" role="status">
+          <RefreshCw className="size-5 animate-spin text-[#D97757]" aria-hidden="true" />
+          <span className="text-xs">正在从源站检索作品信息，请稍候…</span>
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="scrape-discovery__empty rounded-xl border border-rose-200/60 bg-rose-50/40 dark:bg-rose-950/20 dark:border-rose-900/40 p-6 flex flex-col items-center justify-center text-center gap-2" role="alert">
+          <SearchX className="size-6 text-rose-500" aria-hidden="true" />
+          <strong className="text-sm text-foreground font-medium">{error}</strong>
+          <span className="text-xs text-muted-foreground">可以换一个入口链接，或检查出站代理设置。</span>
+        </div>
+      )}
+
+      {novels.length > 0 && !loading && (
+        <div className="flex flex-col gap-3">
+          {/* 轻量优雅的 Claude 批量操作栏 */}
+          <div className="scrape-discovery-toolbar" aria-live="polite">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-medium text-foreground">
+              <Checkbox
+                checked={selected.size === selectableCount && selectableCount > 0}
+                onCheckedChange={onToggleAll}
+                aria-label="选择所有可抓取作品"
+                className="rounded-md"
+              />
+              <span>全选可抓取作品</span>
+            </label>
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              （已在书库的作品会自动跳过）
+            </span>
+            {selected.size > 0 && (
+              <span className="text-xs text-[#D97757] font-medium ml-auto">
+                已选中 {selected.size} 部作品
+              </span>
+            )}
+          </div>
+
+          {/* Claude 风格作品列表 */}
+          <div className="scrape-discovery-list" role="list">
             {novels.map((novel, index) => (
-              <article className={`scrape-discovery__row${novel.existing ? ' is-existing' : ''}`} key={`${novel.url}-${index}`} role="listitem">
-                <Checkbox
-                  className="scrape-discovery__checkbox rounded-md"
-                  checked={selected.has(index)}
-                  disabled={novel.existing}
-                  onCheckedChange={() => onToggleSelect(index)}
-                  aria-label={`选择 ${novel.title}`}
-                />
-                <div className="scrape-discovery__cover shadow-xs rounded-lg" data-letter={(novel.title || '书').slice(0, 1)}>
+              <article
+                className={`scrape-discovery-item ${novel.existing ? 'is-existing' : ''}`}
+                key={`${novel.url}-${index}`}
+                role="listitem"
+              >
+                <div className="flex items-center self-center shrink-0 pr-1">
+                  <Checkbox
+                    className="rounded-md"
+                    checked={selected.has(index)}
+                    disabled={novel.existing}
+                    onCheckedChange={() => onToggleSelect(index)}
+                    aria-label={`选择 ${novel.title}`}
+                  />
+                </div>
+
+                <div className="scrape-discovery-cover" data-letter={(novel.title || '书').slice(0, 1)}>
                   <img
                     src={novel.coverUrl && !isDefaultCoverSource(novel.coverUrl) ? novel.coverUrl : FALLBACK_COVER}
                     alt=""
@@ -126,39 +149,59 @@ export default function DiscoveryPanel({
                     onError={coverOnError}
                   />
                 </div>
-                <div className="scrape-discovery__copy">
-                  <div className="scrape-discovery__title-line">
-                    <h4 className="font-serif font-semibold text-base">{novel.title || '未命名作品'}</h4>
+
+                <div className="scrape-discovery-details">
+                  <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                    <h4 className="scrape-discovery-title m-0">
+                      {novel.title || '未命名作品'}
+                    </h4>
                     {novel.existing && (
-                      <AdminStatusBadge tone="success">
-                        <Check aria-hidden="true" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60">
+                        <Check className="size-3" aria-hidden="true" />
                         已在书库
-                      </AdminStatusBadge>
+                      </span>
                     )}
                   </div>
-                  <div className="scrape-discovery__meta">
-                    <span className="font-medium text-foreground/80">{novel.author || '未知作者'}</span>
-                    {novel.chapterCount ? <span>{novel.chapterCount} 章</span> : null}
-                    {novel.status ? <span>{novel.status === 'completed' ? '已完结' : '连载中'}</span> : null}
+
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                    <span className="font-medium text-stone-700 dark:text-stone-300">
+                      {novel.author || '未知作者'}
+                    </span>
+                    {novel.chapterCount ? (
+                      <>
+                        <span className="text-stone-300 dark:text-stone-700 select-none">·</span>
+                        <span>{novel.chapterCount} 章</span>
+                      </>
+                    ) : null}
+                    {novel.status ? (
+                      <>
+                        <span className="text-stone-300 dark:text-stone-700 select-none">·</span>
+                        <span>{novel.status === 'completed' ? '已完结' : '连载中'}</span>
+                      </>
+                    ) : null}
                   </div>
-                  <p>{novel.description || '暂无简介，打开详情后会重新分析源站信息。'}</p>
+
+                  <p className="scrape-discovery-desc m-0">
+                    {novel.description || '暂无简介，打开详情后会重新分析源站信息。'}
+                  </p>
                 </div>
-                <div className="scrape-discovery__action">
+
+                <div className="scrape-discovery-action-group">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-full h-8 px-3 text-xs font-medium border-border hover:border-[#D97757]/40 hover:text-[#D97757]"
+                    className="h-8 rounded-lg text-xs font-medium px-3.5 border-[#dedcd5] hover:border-[#d97757]/60 hover:text-[#c15f3d] dark:border-[#38352f] dark:hover:bg-[#25231f] transition-all cursor-pointer"
                     onClick={() => onInspect(index)}
                     disabled={novel.existing}
                   >
-                    查看并配置
+                    {novel.existing ? '已收录' : '查看并配置'}
                   </Button>
                   <a
                     href={novel.url}
                     target="_blank"
                     rel="noreferrer"
                     aria-label={`打开 ${novel.title} 源站`}
-                    className="size-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-[#D97757] hover:bg-muted transition-colors"
+                    className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-[#d97757] hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
                   >
                     <ExternalLink className="size-3.5" aria-hidden="true" />
                   </a>
@@ -167,21 +210,25 @@ export default function DiscoveryPanel({
             ))}
           </div>
 
-          {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onPage={onPage} summary={`本页 ${novels.length} 本`} />}
-        </>
+          {totalPages > 1 && (
+            <div className="pt-2">
+              <Pagination page={page} totalPages={totalPages} onPage={onPage} summary={`本页 ${novels.length} 部作品`} />
+            </div>
+          )}
+        </div>
       )}
 
       {batch && (
-        <div className="scrape-batch rounded-2xl border-border bg-muted/40 p-4" role="status" aria-live="polite">
-          <div className="scrape-batch__heading">
+        <div className="scrape-batch rounded-xl border border-border/80 bg-stone-50/60 dark:bg-stone-900/40 p-4 mt-2" role="status" aria-live="polite">
+          <div className="scrape-batch__heading flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <strong className="font-serif text-sm">{batch.done ? '批量抓取处理完成' : '正在批量处理作品'}</strong>
+              <strong className="font-serif text-sm text-foreground">{batch.done ? '批量抓取处理完成' : '正在批量处理作品'}</strong>
               <span className="font-mono text-xs text-muted-foreground">
                 {processed} / {batch.total} 本
               </span>
             </div>
             {batch.done && (
-              <Button variant="ghost" size="sm" className="rounded-full h-7 text-xs" onClick={onClearBatch}>
+              <Button variant="ghost" size="sm" className="rounded-lg h-7 text-xs" onClick={onClearBatch}>
                 清除记录
               </Button>
             )}
@@ -189,10 +236,10 @@ export default function DiscoveryPanel({
           <Progress
             value={batchPercent}
             aria-label="批量抓取进度"
-            className="my-2.5 h-2 rounded-full [&_[data-slot=progress-indicator]]:bg-gradient-to-r [&_[data-slot=progress-indicator]]:from-[#D97757] [&_[data-slot=progress-indicator]]:to-[#E58C6E]"
+            className="my-2.5 h-2 rounded-full [&_[data-slot=progress-indicator]]:bg-[#D97757]"
           />
           {batch.entries.length > 0 && (
-            <div className="scrape-batch__last">
+            <div className="scrape-batch__last text-xs text-muted-foreground flex flex-wrap gap-2">
               {batch.entries.slice(-3).map((entry, index) => (
                 <span className={`is-${entry.type}`} key={`${entry.text}-${index}`}>
                   {entry.text}
@@ -202,6 +249,6 @@ export default function DiscoveryPanel({
           )}
         </div>
       )}
-    </AdminDataPanel>
+    </div>
   )
 }
