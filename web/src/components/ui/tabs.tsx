@@ -41,16 +41,63 @@ const tabsListVariants = cva(
 function TabsList({
   className,
   variant = "default",
+  children,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> &
   VariantProps<typeof tabsListVariants>) {
+  const listRef = React.useRef<HTMLDivElement>(null)
+  const [indicatorStyle, setIndicatorStyle] = React.useState<React.CSSProperties>({
+    opacity: 0,
+  })
+
+  const update = React.useCallback(() => {
+    if (typeof window === "undefined") return
+    const list = listRef.current
+    if (!list) return
+    const active = list.querySelector<HTMLElement>(
+      '[data-slot="tabs-trigger"][data-state="active"]'
+    )
+    if (!active) {
+      setIndicatorStyle({ opacity: 0 })
+      return
+    }
+    // 当元素在 jsdom 下 offsetWidth 为 0 时不显示，避免测试环境计算
+    if (active.offsetWidth === 0 && active.offsetHeight === 0) {
+      return
+    }
+    setIndicatorStyle({
+      transform: `translate3d(${active.offsetLeft}px, ${active.offsetTop}px, 0)`,
+      width: `${active.offsetWidth}px`,
+      height: `${active.offsetHeight}px`,
+      opacity: 1,
+    })
+  }, [])
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || variant === "line") return
+    const id = requestAnimationFrame(update)
+    return () => cancelAnimationFrame(id)
+  })
+
   return (
     <TabsPrimitive.List
+      ref={listRef}
       data-slot="tabs-list"
       data-variant={variant}
-      className={cn(tabsListVariants({ variant }), className)}
+      className={cn("relative isolate", tabsListVariants({ variant }), className)}
+      onClick={update}
       {...props}
-    />
+    >
+      {variant !== "line" && (
+        <span
+          data-slot="tabs-indicator"
+          className="tabs-sliding-indicator pointer-events-none absolute left-0 top-0 z-0 rounded-full transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+          style={indicatorStyle}
+          aria-hidden="true"
+        />
+      )}
+      {children}
+    </TabsPrimitive.List>
   )
 }
 

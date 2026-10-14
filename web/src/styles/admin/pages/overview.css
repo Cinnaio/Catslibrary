@@ -195,12 +195,14 @@
   text-align: left;
   width: 100%;
   background: transparent;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.dashboard-row:hover {
+.dashboard-row:hover,
+.dashboard-row.is-selected,
+.dashboard-row[aria-selected='true'] {
   background: var(--admin-accent-subtle);
-  border-color: color-mix(in srgb, var(--admin-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--admin-accent) 22%, transparent);
 }
 
 .dashboard-row:active {
@@ -208,8 +210,9 @@
 }
 
 .dashboard-row:focus-visible {
-  outline: 2px solid var(--admin-accent);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.22);
 }
 
 .dashboard-row__arrow {
@@ -217,7 +220,10 @@
   transition: transform 0.16s ease, color 0.16s ease;
 }
 
-.dashboard-row:hover .dashboard-row__arrow {
+.dashboard-row:hover .dashboard-row__arrow,
+.dashboard-row.is-selected .dashboard-row__arrow,
+.dashboard-row[aria-selected='true'] .dashboard-row__arrow,
+.dashboard-row:focus-visible .dashboard-row__arrow {
   transform: translateX(3px);
   color: var(--admin-accent);
 }
@@ -346,15 +352,30 @@
   margin-bottom: 0.35rem;
   border-radius: 12px;
   border: 1px solid transparent;
-  transition: all 0.15s ease;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.dashboard-op-item:hover {
+.dashboard-op-item:hover,
+.dashboard-op-item.is-selected,
+.dashboard-op-item[aria-selected='true'] {
   background: var(--admin-accent-subtle);
-  border-color: color-mix(in srgb, var(--admin-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--admin-accent) 22%, transparent);
 }
 
-.dashboard-op-item:hover .dashboard-row__arrow {
+.dashboard-op-item:active {
+  transform: scale(0.996);
+}
+
+.dashboard-op-item:focus-visible {
+  outline: none;
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.22);
+}
+
+.dashboard-op-item:hover .dashboard-row__arrow,
+.dashboard-op-item.is-selected .dashboard-row__arrow,
+.dashboard-op-item[aria-selected='true'] .dashboard-row__arrow,
+.dashboard-op-item:focus-visible .dashboard-row__arrow {
   transform: translateX(3px);
   color: var(--admin-accent);
 }
@@ -504,12 +525,12 @@
   line-height: 1.15;
 }
 
-/* 事件入口使用整行按钮；详情内保留完整文本，不沿用列表截断。 */
+/* 事件入口使用整行按钮；继承 12px 圆角与平滑交互 */
 button.dashboard-row {
   width: 100%;
   text-align: left;
   background: transparent;
-  border-radius: 0;
+  border-radius: 12px;
   font: inherit;
   cursor: pointer;
 }
