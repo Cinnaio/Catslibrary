@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { Pencil, Trash2, BookOpen, ExternalLink, ArrowUpDown, Eye } from 'lucide-react'
+import { Pencil, Trash2, BookOpen, ArrowUpDown, Eye } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import ChapterMergePreview from './ChapterMergePreview'
@@ -704,29 +704,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     <AdminPage
       className="admin-redesign-page admin-redesign-page--chapters"
       title="章节管理"
-      description={
-        selectedNovel && selectedNovelInfo ? (
-          <span className="flex items-center gap-2 flex-wrap">
-            <span>{selectedNovelInfo.author ? `作者：${selectedNovelInfo.author}` : '未知作者'}</span>
-            <span className="opacity-40">·</span>
-            <span>共 {chapters.length} 章</span>
-            <span className="opacity-40">·</span>
-            <span>{chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0).toLocaleString()} 字</span>
-            <span className="opacity-40">·</span>
-            <a
-              href={`/book/${encodeURIComponent(selectedNovel)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-primary hover:underline font-medium ml-0.5"
-            >
-              <ExternalLink className="size-3.5" />
-              读者视图
-            </a>
-          </span>
-        ) : (
-          '按作品维护目录与正文，搜索和批量操作只作用于当前作品。'
-        )
-      }
+      description="按作品维护目录与正文，搜索和批量操作只作用于当前作品。"
       actions={
         <div className="flex items-center gap-2">
           <CustomSelect
