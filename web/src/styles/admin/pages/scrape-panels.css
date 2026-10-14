@@ -250,18 +250,19 @@
 
 .admin-redesign-page--scrape .scrape-intake-card__title {
   font-family: var(--font-serif, Georgia, "Noto Serif SC", serif);
-  font-size: 1.3rem;
-  font-weight: 500;
+  font-size: var(--admin-section-title-size, 1.05rem);
+  font-weight: 600;
   color: var(--text-primary);
   margin: 0;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
 }
 
 .admin-redesign-page--scrape .scrape-intake-card__subtitle {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .admin-redesign-page--scrape .scrape-intake-card__mode-tabs {
@@ -276,15 +277,15 @@
 
 .admin-redesign-page--scrape .scrape-intake-card__tab {
   border-radius: 6px !important;
-  padding: 0.4rem 0.85rem !important;
-  font-size: 0.825rem !important;
+  padding: 0.35rem 0.8rem !important;
+  font-size: 0.8rem !important;
   font-weight: 500 !important;
   color: var(--text-muted) !important;
   border: 0 !important;
   background: transparent !important;
   display: inline-flex !important;
   align-items: center !important;
-  height: 1.85rem !important;
+  height: 1.75rem !important;
   box-shadow: none !important;
   transition: all 0.15s ease !important;
 }
@@ -309,7 +310,7 @@
 }
 
 .admin-redesign-page--scrape .scrape-intake-card__label {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -333,12 +334,12 @@
 }
 
 .admin-redesign-page--scrape .scrape-intake-card__input {
-  height: 2.625rem !important;
+  height: 2.375rem !important;
   border-radius: 8px !important;
   border: 1px solid var(--admin-border, #dedcd5) !important;
   background: var(--admin-field, #ffffff) !important;
   padding-inline: 0.85rem !important;
-  font-size: 0.875rem !important;
+  font-size: 0.85rem !important;
   color: var(--text-primary) !important;
   transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
@@ -350,13 +351,13 @@
 }
 
 .admin-redesign-page--scrape .scrape-intake-card__btn-primary {
-  height: 2.625rem !important;
+  height: 2.375rem !important;
   border-radius: 8px !important;
   background: #d97757 !important;
   color: #ffffff !important;
   font-weight: 500 !important;
-  padding-inline: 1.25rem !important;
-  font-size: 0.875rem !important;
+  padding-inline: 1.15rem !important;
+  font-size: 0.825rem !important;
   border: 1px solid #d97757 !important;
   box-shadow: 0 1px 2px rgba(217, 119, 87, 0.2) !important;
   transition: all 0.15s ease !important;
