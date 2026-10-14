@@ -1,8 +1,9 @@
+import { ArrowRight, Flame, Globe, Link2, Search, Sparkles } from 'lucide-react'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel } from '@/components/admin/AdminWorkspace'
 import { RANKING_SITES } from '../utils'
 
 export type IntakeMode = 'link' | 'search' | 'ranking'
@@ -25,9 +26,9 @@ interface ScrapeIntakeProps {
 }
 
 const MODES = [
-  { value: 'link' as const, label: '链接导入' },
-  { value: 'search' as const, label: '作品搜索' },
-  { value: 'ranking' as const, label: '榜单发现' },
+  { value: 'link' as const, label: '链接导入', icon: Link2 },
+  { value: 'search' as const, label: '作品搜索', icon: Search },
+  { value: 'ranking' as const, label: '榜单发现', icon: Flame },
 ]
 
 const INTAKE_MODE_INDEX: Record<IntakeMode, number> = {
@@ -59,17 +60,21 @@ export default function ScrapeIntake({
 }: ScrapeIntakeProps) {
   return (
     <AdminDataPanel className="scrape-intake" ariaLabel="抓取入口">
-      <AdminPanelHeading
-        className="scrape-intake__heading"
-        title="从哪里开始？"
-        titleId="scrape-intake-title"
-      />
+      <div className="scrape-intake-card__head">
+        <div className="scrape-intake-card__title-group">
+          <h2 id="scrape-intake-title" className="scrape-intake-card__title">
+            从哪里开始？
+          </h2>
+          <p className="scrape-intake-card__subtitle">
+            输入小说链接、检索源站作品，或直接选择榜单进入抓取工作流。
+          </p>
+        </div>
 
-      <div className="scrape-intake-capsule-track">
-        <Tabs value={mode} onValueChange={(value) => onModeChange(value as IntakeMode)} className="scrape-intake__tabs">
-          <TabsList aria-label="选择抓取入口" data-active-index={INTAKE_MODE_INDEX[mode]} className="rounded-full">
-            {MODES.map(({ value, label }) => (
-              <TabsTrigger value={value} key={value} className="scrape-intake__tab rounded-full">
+        <Tabs value={mode} onValueChange={(value) => onModeChange(value as IntakeMode)} className="scrape-intake-card__tabs">
+          <TabsList aria-label="选择抓取入口" data-active-index={INTAKE_MODE_INDEX[mode]} className="scrape-intake-card__mode-tabs">
+            {MODES.map(({ value, label, icon: Icon }) => (
+              <TabsTrigger value={value} key={value} className="scrape-intake-card__tab">
+                <Icon className="size-3.5 mr-1.5 opacity-70" aria-hidden="true" />
                 <span>{label}</span>
               </TabsTrigger>
             ))}
@@ -77,11 +82,11 @@ export default function ScrapeIntake({
         </Tabs>
       </div>
 
-      <div className="scrape-intake__form">
+      <div className="scrape-intake-card__body">
         {mode === 'link' && (
-          <div className="scrape-intake__field">
-            <label htmlFor="scrape-source-url" className="text-xs font-medium text-muted-foreground">小说源站链接</label>
-            <div className="scrape-intake__control-row">
+          <div className="scrape-intake-card__field">
+            <label htmlFor="scrape-source-url" className="scrape-intake-card__label">小说源站链接</label>
+            <div className="scrape-intake-card__control-row">
               <Input
                 id="scrape-source-url"
                 data-admin-search
@@ -92,24 +97,34 @@ export default function ScrapeIntake({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') onSubmit()
                 }}
-                className="rounded-full h-11 px-5 text-sm bg-background border-border shadow-2xs"
+                className="scrape-intake-card__input"
               />
               <Button
                 onClick={onSubmit}
                 disabled={loading}
-                className="rounded-full h-11 px-6 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+                aria-label={loading ? '分析中…' : '分析链接'}
+                className="scrape-intake-card__btn-primary"
               >
-                {loading ? '分析中…' : '分析链接'}
+                {loading ? (
+                  '分析中…'
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    分析链接
+                    <ArrowRight className="size-3.5 opacity-80" aria-hidden="true" />
+                  </span>
+                )}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">支持 PO18 预设与通用 HTML；自动识别书名、章节数和选择器。</p>
+            <p className="scrape-intake-card__hint">
+              支持 PO18.tw 预设与通用 HTML；自动识别书名、章节目录与正文选择器。
+            </p>
           </div>
         )}
 
         {mode === 'search' && (
-          <div className="scrape-intake__field">
-            <label htmlFor="scrape-search-input" className="text-xs font-medium text-muted-foreground">搜索 PO18 作品</label>
-            <div className="scrape-intake__control-row scrape-intake__control-row--search">
+          <div className="scrape-intake-card__field">
+            <label htmlFor="scrape-search-input" className="scrape-intake-card__label">搜索 PO18 作品</label>
+            <div className="scrape-intake-card__control-row scrape-intake-card__control-row--search">
               <Input
                 id="scrape-search-input"
                 data-admin-search
@@ -120,35 +135,45 @@ export default function ScrapeIntake({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') onSubmit()
                 }}
-                className="rounded-full h-11 px-5 text-sm bg-background border-border shadow-2xs"
+                className="scrape-intake-card__input"
               />
               <Tabs value={searchType} onValueChange={onSearchTypeChange} aria-label="搜索类型">
                 <TabsList
-                  className="scrape-intake__search-type rounded-full p-1 bg-muted/60"
+                  className="scrape-intake-card__type-pill"
                   data-active-index={SEARCH_TYPE_INDEX[searchType as keyof typeof SEARCH_TYPE_INDEX] ?? 0}
                 >
-                  <TabsTrigger value="articlename" className="rounded-full h-8 px-3 text-xs font-medium">书名</TabsTrigger>
-                  <TabsTrigger value="author" className="rounded-full h-8 px-3 text-xs font-medium">作者</TabsTrigger>
+                  <TabsTrigger value="articlename" className="scrape-intake-card__type-btn">书名</TabsTrigger>
+                  <TabsTrigger value="author" className="scrape-intake-card__type-btn">作者</TabsTrigger>
                 </TabsList>
               </Tabs>
               <Button
                 onClick={onSubmit}
                 disabled={loading}
-                className="rounded-full h-11 px-6 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+                aria-label={loading ? '搜索中…' : '搜索作品'}
+                className="scrape-intake-card__btn-primary"
               >
-                {loading ? '搜索中…' : '搜索作品'}
+                {loading ? (
+                  '搜索中…'
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    搜索作品
+                    <ArrowRight className="size-3.5 opacity-80" aria-hidden="true" />
+                  </span>
+                )}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">结果可单本配置，也可勾选多本后批量加入抓取队列。</p>
+            <p className="scrape-intake-card__hint">
+              搜索 PO18 原创书库；结果可单本配置，也可勾选多本后批量加入抓取队列。
+            </p>
           </div>
         )}
 
         {mode === 'ranking' && (
-          <div className="scrape-intake__field">
-            <label htmlFor="scrape-ranking-url" className="text-xs font-medium text-muted-foreground">榜单来源</label>
-            <div className="scrape-intake__control-row scrape-intake__control-row--ranking">
+          <div className="scrape-intake-card__field">
+            <label htmlFor="scrape-ranking-url" className="scrape-intake-card__label">榜单来源</label>
+            <div className="scrape-intake-card__ranking-row">
               <CustomSelect
-                className="scrape-intake__site rounded-full h-11"
+                className="scrape-intake-card__site"
                 options={RANKING_SITES}
                 value={siteValue}
                 onChange={onSiteChange}
@@ -164,17 +189,27 @@ export default function ScrapeIntake({
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') onSubmit()
                 }}
-                className="rounded-full h-11 px-5 text-sm bg-background border-border shadow-2xs"
+                className="scrape-intake-card__input"
               />
               <Button
                 onClick={onSubmit}
                 disabled={loading}
-                className="rounded-full h-11 px-6 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+                aria-label={loading ? '加载中…' : '加载榜单'}
+                className="scrape-intake-card__btn-primary"
               >
-                {loading ? '加载中…' : '加载榜单'}
+                {loading ? (
+                  '加载中…'
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    加载榜单
+                    <ArrowRight className="size-3.5 opacity-80" aria-hidden="true" />
+                  </span>
+                )}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">POPO 榜单可直接读取；详情与章节校验需登录或 Cookie。确认前不会写入书库或创建任务。</p>
+            <p className="scrape-intake-card__hint">
+              POPO 榜单可直接免密读取目录；详情与章节校验需登录或 Cookie。确认前不会写入书库或创建任务。
+            </p>
           </div>
         )}
       </div>

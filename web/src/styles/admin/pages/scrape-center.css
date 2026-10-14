@@ -978,52 +978,82 @@
 }
 
 .scrape-workbench__aside {
-  display: grid;
-  position: sticky;
-  top: 1rem;
-  gap: 0.75rem;
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, #eae6df);
+  border-radius: 18px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: 0 4px 18px rgba(35, 30, 24, 0.035);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   min-width: 0;
 }
 
+.scrape-workbench__aside .admin-panel-heading {
+  padding: 0 0 0.85rem;
+  border-bottom: 1px solid var(--admin-border, #eae6df);
+  margin-bottom: 0.25rem;
+}
+
+.scrape-workbench__aside .admin-panel-heading__title {
+  font-family: var(--font-serif, Georgia, "Noto Serif SC", serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .scrape-workbench__count {
-  display: grid;
-  min-width: 1.65rem;
-  height: 1.65rem;
-  place-items: center;
-  border-radius: var(--radius-full);
-  background: var(--accent-subtle);
-  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, #f4f2ec);
+  border: 1px solid var(--admin-border, #eae6df);
+  color: var(--text-secondary);
   font-size: 0.75rem;
-  font-weight: 750;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .scrape-job-queue__empty {
-  display: grid;
-  justify-items: center;
-  gap: 0.5rem;
-  padding: 2rem 1.25rem;
-  border: 1px dashed var(--admin-border-strong);
-  border-radius: var(--admin-radius);
-  background: var(--admin-inset);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 2.25rem 1.5rem;
+  border: 1px solid var(--admin-border, #eae6df);
+  border-radius: 16px;
+  background: var(--admin-panel-muted, #faf9f5);
   text-align: center;
 }
 
-.scrape-job-queue__empty > svg {
-  width: 1.5rem;
-  height: 1.5rem;
-  color: var(--text-muted);
+.scrape-job-queue__empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, #eae6df);
+  color: #d97757;
+  margin-bottom: 0.25rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
 
 .scrape-job-queue__empty strong {
   color: var(--text-primary);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .scrape-job-queue__empty span {
   color: var(--text-muted);
-  font-size: 0.72rem;
-  line-height: 1.55;
+  font-size: 0.775rem;
+  line-height: 1.6;
+  max-width: 28ch;
 }
 
 @media (max-width: 1100px) {
@@ -1250,15 +1280,16 @@
 /* 2. PO18 账号折叠手风琴卡片 (Po18 Account Pill Card) */
 .po18-account-pill-card {
   background: var(--admin-panel, #ffffff);
-  border: 1px solid var(--admin-border, #e6e4dc);
-  border-radius: 18px;
-  box-shadow: 0 4px 20px rgba(35, 30, 24, 0.03);
+  border: 1px solid var(--admin-border, #eae6df);
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(35, 30, 24, 0.03);
   overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .po18-account-pill-card:hover {
-  border-color: rgba(217, 119, 87, 0.3);
+  border-color: rgba(217, 119, 87, 0.35);
+  box-shadow: 0 4px 16px rgba(217, 119, 87, 0.05);
 }
 
 .po18-account-compact-bar {
@@ -1279,7 +1310,8 @@
 .po18-account-expand-wrapper {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  transition: grid-template-rows 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .po18-account-pill-card.is-expanded .po18-account-expand-wrapper {
@@ -1287,25 +1319,245 @@
 }
 
 .po18-account-expand-content {
+  min-height: 0;
   overflow: hidden;
-  border-top: 1px solid var(--admin-border, #e6e4dc);
+}
+
+.po18-account-pill-card.is-collapsed .po18-account-expand-content {
+  border-top: none;
+  visibility: hidden;
+}
+
+.po18-account-pill-card.is-expanded .po18-account-expand-content {
+  border-top: 1px solid var(--admin-border, #eae6df);
+  visibility: visible;
 }
 
 .po18-account-inner-padding {
-  padding: 1.25rem;
+  padding: 1.5rem 1.5rem 1.75rem;
 }
 
-/* 3. 宽幅大药丸输入枢纽 (Scrape Intake Track) */
+/* 3. Claude 风格抓取入口卡片 (Claude Scrape Intake Hub) */
+.scrape-intake {
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, #eae6df);
+  border-radius: 20px;
+  padding: 1.5rem 1.75rem 1.75rem;
+  box-shadow: 0 4px 20px rgba(35, 30, 24, 0.035);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.scrape-intake__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.scrape-intake__title {
+  font-family: var(--font-serif, Georgia, "Noto Serif SC", serif);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.015em;
+}
+
+.scrape-intake__subtitle {
+  font-size: 0.825rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
 .scrape-intake-capsule-track {
   display: flex;
-  justify-content: center;
   width: 100%;
-  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
 }
 
-.scrape-intake-capsule-track .scrape-intake__tabs {
-  max-width: 32rem;
-  width: 100%;
+.scrape-intake__mode-pills {
+  display: inline-flex !important;
+  background: var(--admin-panel-muted, #f4f2ec) !important;
+  border: 1px solid var(--admin-border, #eae6df) !important;
+  border-radius: 9999px !important;
+  padding: 3px !important;
+  gap: 4px !important;
+  width: auto !important;
+}
+
+.scrape-intake__tab {
+  border-radius: 9999px !important;
+  padding: 0.45rem 1.15rem !important;
+  font-size: 0.825rem !important;
+  font-weight: 500 !important;
+  color: var(--text-muted) !important;
+  transition: all 0.18s ease !important;
+  border: 0 !important;
+  background: transparent !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 2rem !important;
+  height: auto !important;
+}
+
+.scrape-intake__tab[data-state='active'] {
+  background: var(--admin-panel, #ffffff) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+  font-weight: 600 !important;
+}
+
+.scrape-intake__tab[data-state='active'] span {
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+}
+
+.scrape-intake__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.scrape-intake__field-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.scrape-intake__prompt-box {
+  display: flex;
+  align-items: center;
+  background: var(--admin-panel, #ffffff);
+  border: 1.5px solid var(--admin-border, #dedcd5);
+  border-radius: 16px;
+  padding: 0.35rem 0.45rem 0.35rem 0.85rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  min-width: 0;
+}
+
+.scrape-intake__prompt-box:focus-within {
+  border-color: #d97757;
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.16);
+}
+
+.scrape-intake__prompt-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.scrape-intake__prompt-input {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  font-size: 0.875rem !important;
+  height: 2.75rem !important;
+  padding-inline: 0.25rem !important;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.scrape-intake__prompt-input:focus-visible {
+  outline: none !important;
+}
+
+.scrape-intake__prompt-btn {
+  height: 2.5rem !important;
+  border-radius: 12px !important;
+  padding-inline: 1.25rem !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  background: #d97757 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(217, 119, 87, 0.22) !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.scrape-intake__prompt-btn:hover:not(:disabled) {
+  background: #c86646 !important;
+  transform: translateY(-0.5px);
+}
+
+.scrape-intake__features {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.scrape-intake__feature-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, #faf9f5);
+  border: 1px solid var(--admin-border, #eae6df);
+}
+
+.scrape-intake__feature-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #d97757;
+}
+
+.scrape-intake__search-type-pill {
+  display: inline-flex !important;
+  background: var(--admin-panel-muted, #f4f2ec) !important;
+  border-radius: 9999px !important;
+  padding: 2px !important;
+  margin-right: 0.5rem;
+}
+
+.scrape-intake__search-type-btn {
+  border-radius: 9999px !important;
+  height: 1.9rem !important;
+  padding-inline: 0.75rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+}
+
+.scrape-intake__ranking-grid {
+  display: grid;
+  grid-template-columns: minmax(11rem, 14rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.scrape-intake__site {
+  border-radius: 14px !important;
+  height: 2.75rem !important;
+}
+
+.scrape-intake__ranking-input {
+  border-radius: 14px !important;
+  height: 2.75rem !important;
+  padding-inline: 1rem !important;
+  background: var(--admin-panel, #ffffff) !important;
+  border: 1.5px solid var(--admin-border, #dedcd5) !important;
+}
+
+.scrape-intake__ranking-input:focus-visible {
+  border-color: #d97757 !important;
+  outline: 2px solid rgba(217, 119, 87, 0.2) !important;
+}
+
+.scrape-intake__hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.6;
 }
 
 /* 4. 双栏实时控制坞布局 (Scrape Center Layout & Live Dock) */
@@ -1326,7 +1578,28 @@
   top: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
+}
+
+.scrape-config-card {
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, #eae6df);
+  border-radius: 18px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 4px 16px rgba(35, 30, 24, 0.03);
+}
+
+.scrape-config-card .admin-panel-heading {
+  padding: 0 0 0.85rem;
+  border-bottom: 1px solid var(--admin-border, #eae6df);
+  margin-bottom: 0.85rem;
+}
+
+.scrape-config-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
 }
 
 .scrape-center-live-dock__header {

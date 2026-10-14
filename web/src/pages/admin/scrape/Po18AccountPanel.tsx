@@ -169,7 +169,19 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
 
   return (
     <div className={`po18-account-pill-card ${collapsed ? 'is-collapsed' : 'is-expanded'}`}>
-      <div className="po18-account-compact-bar" onClick={() => setCollapsed(!collapsed)}>
+      <div
+        className="po18-account-compact-bar"
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed(!collapsed)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setCollapsed(!collapsed)
+          }
+        }}
+      >
         <div className="flex items-center gap-3">
           <span className={`status-dot-pulse ${pulseClass}`} />
           <span className="font-medium text-sm text-foreground">PO18.tw 原作者账号</span>
@@ -200,7 +212,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
             <Button
               variant="outline"
               size="sm"
-              className="rounded-full h-7 text-xs px-2.5"
+              className="rounded-md h-7 text-xs px-2.5"
               disabled={disabled}
               onClick={(e) => {
                 e.stopPropagation()
@@ -213,7 +225,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-7 rounded-full"
+            className="size-7 rounded-md"
             aria-label={collapsed ? '展开 PO18 账号配置' : '收起 PO18 账号配置'}
           >
             <ChevronDown className={`size-4 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
@@ -221,7 +233,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
         </div>
       </div>
 
-      <div className="po18-account-expand-wrapper">
+      <div className="po18-account-expand-wrapper" aria-hidden={collapsed} inert={collapsed || undefined}>
         <div className="po18-account-expand-content po18-account-inner-padding">
         {/* 主路径：账号密码登录。验证码区紧随登录动作，不落到面板底部。 */}
         <section className="po18-account-section" aria-labelledby="po18-login-title">
