@@ -29,6 +29,7 @@
   --input-radius: var(--radius-lg);
   --input-focus-border: var(--accent);
   --input-focus-shadow: 0 0 0 2px var(--focus-ring);
+  --select-default-font-size: 1rem;
   --focus-ring: rgba(139, 96, 69, 0.24);
   --selection-bg: rgba(212, 184, 150, 0.5);
   --overlay-bg: rgba(33, 30, 26, 0.45);

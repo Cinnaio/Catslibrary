@@ -24,34 +24,17 @@
   gap: 0.75rem;
 }
 
-/* 筛选胶囊：与普通 CustomSelect 的 outline 触发器区分开。
-   前置图标表达“添加筛选”，虚线边界保留可操作性但不制造新的卡片层。 */
+/* 筛选胶囊保留前置图标与宽度；纸面、描边和焦点由 select-fields.css 共享。 */
 .admin-layout [data-slot='popover-trigger'].admin-filter-chip {
+  --field-control-height: var(--admin-filter-chip-height);
+  --field-control-padding-inline: var(--admin-filter-chip-padding-inline);
   width: auto;
   min-width: var(--admin-filter-chip-min-width);
   max-width: none;
   height: var(--admin-filter-chip-height);
   gap: var(--admin-filter-chip-gap);
-  border-color: var(--admin-border);
-  border-style: solid;
-  border-radius: var(--radius-full);
-  background: var(--admin-panel);
-  padding-inline: 1rem;
-  color: var(--admin-filter-chip-foreground);
   font-size: var(--admin-filter-chip-font-size);
   font-weight: var(--admin-filter-chip-font-weight);
-  transition: all 0.16s ease;
-}
-
-.admin-layout [data-slot='popover-trigger'].admin-filter-chip:hover {
-  border-color: var(--admin-accent);
-  background: var(--admin-accent-subtle);
-  color: var(--admin-accent);
-}
-
-.admin-layout [data-slot='popover-trigger'].admin-filter-chip:focus-visible {
-  border-color: var(--admin-accent);
-  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.2);
 }
 
 /* 搜索占据剩余空间，其余控件按内容宽度靠右 */
@@ -61,17 +44,6 @@
   min-width: 0;
   max-width: none;
   border-radius: var(--radius-full);
-}
-
-/* 搜索框：项目已有 .admin-layout [data-slot='input'] 的 --admin-border-strong，
-   此处仅补 hover/focus 态。不要用更弱的 --admin-border 覆盖它。 */
-.admin-toolbar [data-slot='input']:hover {
-  border-color: color-mix(in srgb, var(--admin-border-strong) 80%, var(--text-primary));
-}
-
-.admin-toolbar [data-slot='input']:focus-visible {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .admin-toolbar--stacked {

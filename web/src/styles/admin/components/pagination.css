@@ -80,7 +80,7 @@
    必须带 .admin-layout 前缀且写到 [type='number'] 这一层：shadcn Input 自带
    w-full，而 .ai-admin-page [data-slot='input'][type='number']（width: 9rem）
    也会命中分页跳转框——单类选择器会被压掉，实测 AI 面板下宽度失控为 144px。 */
-.admin-layout .admin-pagination__jump-input[type='number'] {
+.admin-layout .admin-pagination .admin-pagination__jump-input[type='number'] {
   width: var(--admin-pagination-jump-width);
   min-width: var(--admin-pagination-jump-width);
   height: var(--admin-pagination-control-size);
@@ -107,10 +107,6 @@
   height: var(--admin-pagination-control-size);
   min-height: var(--admin-pagination-control-size);
   padding-block: 0;
-}
-
-.admin-layout .admin-pagination--detached .admin-pagination__page-size [data-slot='select-trigger'] {
-  background: var(--admin-panel);
 }
 
 .admin-pagination__icon-button {
@@ -203,6 +199,18 @@
   .admin-pagination--detached .admin-pagination__controls > [aria-label='最后一页'] {
     grid-column: 3;
     grid-row: 2;
+  }
+}
+
+/* 极窄屏把页码读数移到末行，避免四列最小内容宽度撑破分页容器。 */
+@media (max-width: 400px) {
+  .admin-pagination--detached .admin-pagination__controls {
+    grid-template-columns: max-content repeat(2, var(--admin-pagination-control-size));
+  }
+
+  .admin-pagination--detached .admin-pagination__info {
+    grid-column: 1 / -1;
+    grid-row: 3;
   }
 }
 

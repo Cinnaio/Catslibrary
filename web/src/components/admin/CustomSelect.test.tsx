@@ -54,7 +54,8 @@ describe('CustomSelect', () => {
     render(<CustomSelect compact options={[{ value: '', label: '全部分级' }]} value="" onChange={() => undefined} />)
 
     const trigger = screen.getByRole('combobox')
-    expect(trigger.className).toContain('h-8')
+    expect(trigger).toHaveAttribute('data-field', 'select')
+    expect(trigger).toHaveAttribute('data-field-size', 'sm')
     expect(trigger.className).toContain('max-w-[var(--admin-filter-width)]')
     expect(trigger.className).not.toContain('max-w-none')
   })

@@ -3,6 +3,15 @@
   "generatedAt": "2026-10-02T00:00:00.000Z",
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
+    "selectionFields": {
+      "source": "web/src/styles/select-fields.css",
+      "marker": "data-field=select; data-slot is not stable through PopoverTrigger asChild",
+      "appearance": "Reuse --input-background/border/radius/focus-border/focus-shadow; public radius 12px, admin single-line radius --admin-input-radius; no resting shadow or button press scale.",
+      "geometry": "Public default 36px, sm/compact 32px; admin regular Input and selection controls 40px; pagination 34px; selection dock 36px desktop/44px touch. Inherit --field-control-height/padding-inline/font-size; set height and min-height together. Preserve purpose-based widths.",
+      "typography": "Admin 14px; narrow admin dialogs 16px, 14px from 768px; fields use 400 weight.",
+      "portals": "SelectContent and CustomSelect PopoverContent carry shared-select-content; 12px menu radius, 13px/400 options, 36px desktop and 44px touch rows. Theme comes from shared paper tokens, not admin ancestors. cmdk disabled items require data-disabled=true; enabled options have data-disabled=false.",
+      "behavior": "Preserve values, search, remote fallback, disabled options, keyboard navigation, Escape, focus return and viewport collision handling."
+    },
     "adminPaginationGeometry": { "source": "web/src/styles/admin/components/pagination.css", "sizeToken": "--admin-pagination-control-size", "size": "34px", "variants": ["panel", "detached", "dialog"], "contract": "Set height and min-height together; button selectors include data-slot and data-size so ordinary sm rules cannot expand text buttons to 40px while icon buttons stay 34px." },
     "adminFloatingSelectionDock": {
       "source": "web/src/styles/admin/components/selection.css",

@@ -4,7 +4,7 @@
  * 内部改为 shadcn 组件：键盘导航/焦点管理由 cmdk 接管。
  * onServerSearch 的「本地空结果才补搜」副作用原样保留。
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type AriaAttributes, type ReactNode } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,7 @@ interface CustomSelectProps {
   dropdownSide?: 'top' | 'right' | 'bottom' | 'left'
   'aria-label'?: string
   'aria-labelledby'?: string
+  'aria-invalid'?: AriaAttributes['aria-invalid']
 }
 
 export default function CustomSelect({
@@ -63,6 +64,7 @@ export default function CustomSelect({
   dropdownSide = 'bottom',
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledBy,
+  'aria-invalid': ariaInvalid,
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -115,17 +117,20 @@ export default function CustomSelect({
           type="button"
           variant="outline"
           role="combobox"
+          data-field="select"
+          data-field-size={compact ? 'sm' : 'default'}
           aria-expanded={open}
           aria-label={ariaLabel}
           aria-labelledby={ariaLabelledBy}
+          aria-invalid={ariaInvalid}
           disabled={disabled}
           className={cn(
-            'w-full max-w-[400px] justify-between bg-card font-normal text-[0.9rem]',
-            // compact 只负责「更矮」，宽度上限必须保留：
+            'w-full max-w-[400px] justify-between font-normal',
+            // compact 保留宽度上限；高度由所在表单/工具条/分页的共享尺寸决定。
             // 原实现用 max-w-none 解除约束，裸用 compact 时按钮会被 flex 容器
             // 拉满整行（实测 .admin-toolbar--inline 下各占 1440px，两个筛选器
             // 各占一行）。调用方仍可用 className 覆盖，如 w-40。
-            compact && 'h-8 max-w-[var(--admin-filter-width)]',
+            compact && 'max-w-[var(--admin-filter-width)]',
             chip && 'rounded-full',
             filterChip && 'admin-filter-chip',
             className,
@@ -137,7 +142,7 @@ export default function CustomSelect({
                 {leadingIcon}
               </span>
             )}
-            <span className={cn('truncate', !selected && 'text-muted-foreground')}>{selected?.label || placeholder}</span>
+            <span className={cn('truncate', !selected && 'custom-select__placeholder text-muted-foreground')}>{selected?.label || placeholder}</span>
           </span>
           {!filterChip && <ChevronsUpDown className="size-4 shrink-0 opacity-50" />}
         </Button>
@@ -146,7 +151,7 @@ export default function CustomSelect({
         align="start"
         side={dropdownSide}
         className={cn(
-          'admin-custom-select-popover w-(--radix-popover-trigger-width) min-w-[200px] p-0',
+          'admin-custom-select-popover shared-select-content w-(--radix-popover-trigger-width) min-w-[200px] p-0',
           searchable && 'pt-1', // 顶部留白，避免搜索框聚焦环向上溢出到触发器
           compact && 'w-auto',
         )}
