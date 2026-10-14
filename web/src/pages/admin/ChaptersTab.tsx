@@ -22,6 +22,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2, BookOpen, ExternalLink, ArrowUpDown, Eye } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
+import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import ChapterMergePreview from './ChapterMergePreview'
 import SourceSyncHistoryDialog from './SourceSyncHistoryDialog'
 import TitleSourceSearchResults from './TitleSourceSearchResults'
@@ -705,276 +706,257 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       title="章节管理"
       description="按作品维护目录与正文，搜索和批量操作只作用于当前作品。"
       actions={
-        <Button
-          onClick={() => void openChapterModal(null)}
-          disabled={!selectedNovel}
-          className="rounded-full"
-        >
-          <span aria-hidden="true">＋</span>
-          添加章节
-        </Button>
+        <div className="flex items-center gap-2">
+          <CustomSelect
+            className="chapter-novel-select"
+            searchable
+            searchPlaceholder="搜索或切换小说…"
+            placeholder="请选择小说"
+            options={novelSelectOptions}
+            value={selectedNovel}
+            onChange={pickNovel}
+            filter={novelFilter}
+            onServerSearch={handleNovelServerSearch}
+          />
+          <Button
+            onClick={() => void openChapterModal(null)}
+            disabled={!selectedNovel}
+            className="rounded-full shrink-0"
+          >
+            <span aria-hidden="true">＋</span>
+            添加章节
+          </Button>
+        </div>
       }
     >
-      {/* 沉浸式小说上下文看板轨 (Novel Context Rail) */}
       {!selectedNovel ? (
-        <div className="chapter-novel-hero-rail chapter-novel-hero-rail--empty">
-          <div className="chapter-novel-hero-rail__icon">
-            <BookOpen className="size-6" />
-          </div>
-          <div className="chapter-novel-hero-rail__info">
-            <h3 className="chapter-novel-hero-rail__title">请选择需要维护的小说</h3>
-            <p className="chapter-novel-hero-rail__author">选择小说后可查看目录、调整序号、批量重命名或预览章节正文。</p>
-            <div className="mt-3 w-full max-w-[320px]">
-              <CustomSelect
-                className="chapter-novel-select"
-                searchable
-                searchPlaceholder="搜索书名 / 拼音…"
-                placeholder="请选择小说"
-                options={novelSelectOptions}
-                value={selectedNovel}
-                onChange={pickNovel}
-                filter={novelFilter}
-                onServerSearch={handleNovelServerSearch}
-              />
-            </div>
-          </div>
+        <div className="chapter-empty-container">
+          <AdminEmptyState
+            icon={
+              <div className="chapter-empty-container__icon-wrap">
+                <BookOpen className="size-7" />
+              </div>
+            }
+            message="请选择需要维护的小说"
+            hint="在右上方下拉菜单选择或搜索一部小说，即可查看和编排其章节目录、编辑正文或融合章节名。"
+          />
         </div>
       ) : (
-        <div className="chapter-novel-hero-rail">
-          <div className="chapter-novel-hero-rail__left">
-            <div className="chapter-novel-hero-rail__icon">
-              <BookOpen className="size-5" />
+        <>
+          {/* 沉浸式小说上下文看板轨 (Novel Context Rail) */}
+          <div className="chapter-novel-hero-rail">
+            <div className="chapter-novel-hero-rail__left">
+              <div className="chapter-novel-hero-rail__icon">
+                <BookOpen className="size-5" />
+              </div>
+              <div className="chapter-novel-hero-rail__info">
+                <div className="chapter-novel-hero-rail__title-row">
+                  <h3 className="chapter-novel-hero-rail__title">{selectedNovelInfo?.title || '未命名作品'}</h3>
+                  <span className="chapter-novel-hero-rail__author">
+                    {selectedNovelInfo?.author ? `作者：${selectedNovelInfo.author}` : '未知作者'}
+                  </span>
+                </div>
+                <div className="chapter-novel-hero-rail__stats">
+                  <span className="chapter-novel-hero-rail__stat-pill">共 {chapters.length} 章</span>
+                  <span className="chapter-novel-hero-rail__stat-pill">
+                    {chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0).toLocaleString()} 字
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="chapter-novel-hero-rail__info">
-              <div className="chapter-novel-hero-rail__title-row">
-                <h3 className="chapter-novel-hero-rail__title">{selectedNovelInfo?.title || '未命名作品'}</h3>
-                <span className="chapter-novel-hero-rail__author">
-                  {selectedNovelInfo?.author ? `作者：${selectedNovelInfo.author}` : '未知作者'}
-                </span>
-              </div>
-              <div className="chapter-novel-hero-rail__stats">
-                <span className="chapter-novel-hero-rail__stat-pill">共 {chapters.length} 章</span>
-                <span className="chapter-novel-hero-rail__stat-pill">
-                  {chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0).toLocaleString()} 字
-                </span>
-              </div>
+            <div className="chapter-novel-hero-rail__right">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full gap-1.5"
+                asChild
+              >
+                <a href={`/book/${encodeURIComponent(selectedNovel)}`} target="_blank" rel="noreferrer">
+                  <ExternalLink className="size-3.5" />
+                  读者视图
+                </a>
+              </Button>
             </div>
           </div>
-          <div className="chapter-novel-hero-rail__right">
-            <div className="w-[180px] sm:w-[220px]">
-              <CustomSelect
-                className="chapter-novel-select"
-                searchable
-                searchPlaceholder="切换小说…"
-                placeholder="切换小说"
-                options={novelSelectOptions}
-                value={selectedNovel}
-                onChange={pickNovel}
-                filter={novelFilter}
-                onServerSearch={handleNovelServerSearch}
+
+          <AdminToolbar layout="inline" className="chapter-toolbar" ariaLive="polite">
+            <div className="chapter-toolbar__search">
+              <AdminSearch
+                id="chapter-search"
+                label="搜索章节"
+                type="text"
+                placeholder="搜索章节标题…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full gap-1.5"
-              asChild
-            >
-              <a href={`/book/${encodeURIComponent(selectedNovel)}`} target="_blank" rel="noreferrer">
-                <ExternalLink className="size-3.5" />
-                读者视图
-              </a>
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {selectedNovel && (
-        <AdminToolbar layout="inline" className="chapter-toolbar" ariaLive="polite">
-          <div className="chapter-toolbar__search">
-            <AdminSearch
-              id="chapter-search"
-              label="搜索章节"
-              type="text"
-              placeholder="搜索章节标题…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="chapter-toolbar__actions flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="chapter-sort-pill gap-1"
-              onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-              title={sortOrder === 'asc' ? '切换为倒序显示' : '切换为正序显示'}
-            >
-              <ArrowUpDown className="size-3.5" />
-              <span>{sortOrder === 'asc' ? '正序 (1→N)' : '倒序 (N→1)'}</span>
-            </Button>
-            {selectedIds.size === 0 && (
-              <Button variant="secondary" size="sm" className="rounded-full" onClick={() => void openRenameModal()}>
-                融合章节名
+            <div className="chapter-toolbar__actions flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="chapter-sort-pill gap-1"
+                onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                title={sortOrder === 'asc' ? '切换为倒序显示' : '切换为正序显示'}
+              >
+                <ArrowUpDown className="size-3.5" />
+                <span>{sortOrder === 'asc' ? '正序 (1→N)' : '倒序 (N→1)'}</span>
               </Button>
-            )}
-            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => setHistoryOpen(true)}>
-              融合历史
+              {selectedIds.size === 0 && (
+                <Button variant="secondary" size="sm" className="rounded-full" onClick={() => void openRenameModal()}>
+                  融合章节名
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="rounded-full" onClick={() => setHistoryOpen(true)}>
+                融合历史
+              </Button>
+            </div>
+          </AdminToolbar>
+
+          <AdminSelectionBar count={selectedIds.size} label={`已选 ${selectedIds.size} 章`} onClear={() => setSelectedIds(new Set())}>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="rounded-full"
+              onClick={() =>
+                setSelectedIds((prev) => {
+                  const pageIds = pageRows.map((c) => c.id)
+                  const next = new Set(prev)
+                  pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
+                  return next
+                })
+              }
+            >
+              反选本页
             </Button>
-          </div>
-        </AdminToolbar>
-      )}
+            <Button variant="destructive" size="sm" className="rounded-full" onClick={() => void batchDelete()}>
+              批量删除 ({selectedIds.size})
+            </Button>
+          </AdminSelectionBar>
 
-      {selectedNovel && (
-        <AdminSelectionBar count={selectedIds.size} label={`已选 ${selectedIds.size} 章`} onClear={() => setSelectedIds(new Set())}>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="rounded-full"
-            onClick={() =>
-              setSelectedIds((prev) => {
-                const pageIds = pageRows.map((c) => c.id)
-                const next = new Set(prev)
-                pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
-                return next
-              })
-            }
-          >
-            反选本页
-          </Button>
-          <Button variant="destructive" size="sm" className="rounded-full" onClick={() => void batchDelete()}>
-            批量删除 ({selectedIds.size})
-          </Button>
-        </AdminSelectionBar>
-      )}
-
-      <AdminDataPanel className="chapter-directory-panel" ariaLabel="章节目录数据" columns={CHAPTER_COLUMNS} density="comfortable">
-        <Table>
-          <TableCaption className="sr-only">章节目录列表，包含序号、章节标题、字数、创建时间和操作</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">
-                <Checkbox
-                  aria-label="选择当前页全部章节"
-                  disabled={!selectedNovel || pageRows.length === 0}
-                  checked={pageAllSelected ? true : pageSomeSelected ? 'indeterminate' : false}
-                  onCheckedChange={toggleAll}
-                />
-              </TableHead>
-              <TableHead scope="col">序号</TableHead>
-              <TableHead scope="col">章节标题</TableHead>
-              <TableHead scope="col">字数</TableHead>
-              <TableHead scope="col">创建时间</TableHead>
-              <TableHead scope="col">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody key={pageSize}>
-            {!selectedNovel ? (
-              <TableRow>
-                <TableCell colSpan={CHAPTER_COLUMNS.length} className="table-empty">
-                  先选择一本小说以查看章节目录。
-                </TableCell>
-              </TableRow>
-            ) : pageRows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={CHAPTER_COLUMNS.length} className="table-empty">
-                  {search ? '没有匹配的章节，换一个标题或序号试试。' : '当前小说还没有章节，可以选择“添加章节”创建第一章。'}
-                </TableCell>
-              </TableRow>
-            ) : (
-              pageRows.map((c, index) => (
-                <TableRow key={c.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, pageRows.length)}ms` }}>
-                  <TableCell data-check="">
-                    <Checkbox aria-label={`选择章节：第${c.order}章 ${c.title}`} checked={selectedIds.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
-                  </TableCell>
-                  <TableCell data-label="序号">
-                    <span className="chapter-order-pill">
-                      {c.order != null ? String(c.order).padStart(2, '0') : '—'}
-                    </span>
-                  </TableCell>
-                  <TableCell data-primary="" data-label="章节标题">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {extractVolumeTag(c.title) && (
-                        <span className="chapter-volume-tag">{extractVolumeTag(c.title)}</span>
-                      )}
-                      <AdminCellText strong>
-                        <button
-                          type="button"
-                          className="text-left hover:text-primary transition-colors cursor-pointer"
-                          onClick={() => setQuickReaderChapter(c as unknown as Chapter)}
-                          title="点击速读章节内容"
-                        >
-                          {c.title || '—'}
-                        </button>
-                      </AdminCellText>
-                    </div>
-                  </TableCell>
-                  <TableCell data-label="字数">
-                    <span className="tabular-nums text-muted-foreground font-medium">
-                      {c.wordCount ? `${c.wordCount.toLocaleString('zh-CN')} 字` : <span className="admin-empty-value">—</span>}
-                    </span>
-                  </TableCell>
-                  <TableCell data-label="创建时间" className="text-sm text-muted-foreground">
-                    {timeAgo(c.createdAt)}
-                  </TableCell>
-                  <TableCell data-actions="">
-                    <AdminRowActions
-                      label={`第${c.order}章`}
-                      items={[
-                        // 编辑是高频主操作，常驻；删除不可逆且低频，收进菜单。
-                        { label: '删除章节', icon: Trash2, onSelect: () => void deleteChapter(c), danger: true },
-                      ]}
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="admin-icon-button"
-                        aria-label={`速读：第${c.order}章 ${c.title}`}
-                        title="速读"
-                        onClick={() => setQuickReaderChapter(c as unknown as Chapter)}
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="admin-icon-button"
-                        aria-label={`编辑：第${c.order}章 ${c.title}`}
-                        title="编辑"
-                        onClick={() => void openChapterModal(c)}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                    </AdminRowActions>
-                  </TableCell>
+          <AdminDataPanel className="chapter-directory-panel" ariaLabel="章节目录数据" columns={CHAPTER_COLUMNS} density="comfortable">
+            <Table>
+              <TableCaption className="sr-only">章节目录列表，包含序号、章节标题、字数、创建时间和操作</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">
+                    <Checkbox
+                      aria-label="选择当前页全部章节"
+                      disabled={pageRows.length === 0}
+                      checked={pageAllSelected ? true : pageSomeSelected ? 'indeterminate' : false}
+                      onCheckedChange={toggleAll}
+                    />
+                  </TableHead>
+                  <TableHead scope="col">序号</TableHead>
+                  <TableHead scope="col">章节标题</TableHead>
+                  <TableHead scope="col">字数</TableHead>
+                  <TableHead scope="col">创建时间</TableHead>
+                  <TableHead scope="col">操作</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </AdminDataPanel>
+              </TableHeader>
+              <TableBody key={pageSize}>
+                {pageRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={CHAPTER_COLUMNS.length} className="table-empty">
+                      {search ? '没有匹配的章节，换一个标题或序号试试。' : '当前小说还没有章节，可以选择“添加章节”创建第一章。'}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pageRows.map((c, index) => (
+                    <TableRow key={c.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, pageRows.length)}ms` }}>
+                      <TableCell data-check="">
+                        <Checkbox aria-label={`选择章节：第${c.order}章 ${c.title}`} checked={selectedIds.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
+                      </TableCell>
+                      <TableCell data-label="序号">
+                        <span className="chapter-order-pill">
+                          {c.order != null ? String(c.order).padStart(2, '0') : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell data-primary="" data-label="章节标题">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {extractVolumeTag(c.title) && (
+                            <span className="chapter-volume-tag">{extractVolumeTag(c.title)}</span>
+                          )}
+                          <AdminCellText strong>
+                            <button
+                              type="button"
+                              className="text-left hover:text-primary transition-colors cursor-pointer"
+                              onClick={() => setQuickReaderChapter(c as unknown as Chapter)}
+                              title="点击速读章节内容"
+                            >
+                              {c.title || '—'}
+                            </button>
+                          </AdminCellText>
+                        </div>
+                      </TableCell>
+                      <TableCell data-label="字数">
+                        <span className="tabular-nums text-muted-foreground font-medium">
+                          {c.wordCount ? `${c.wordCount.toLocaleString('zh-CN')} 字` : <span className="admin-empty-value">—</span>}
+                        </span>
+                      </TableCell>
+                      <TableCell data-label="创建时间" className="text-sm text-muted-foreground">
+                        {timeAgo(c.createdAt)}
+                      </TableCell>
+                      <TableCell data-actions="">
+                        <AdminRowActions
+                          label={`第${c.order}章`}
+                          items={[
+                            // 编辑是高频主操作，常驻；删除不可逆且低频，收进菜单。
+                            { label: '删除章节', icon: Trash2, onSelect: () => void deleteChapter(c), danger: true },
+                          ]}
+                        >
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="admin-icon-button"
+                            aria-label={`速读：第${c.order}章 ${c.title}`}
+                            title="速读"
+                            onClick={() => setQuickReaderChapter(c as unknown as Chapter)}
+                          >
+                            <Eye className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="admin-icon-button"
+                            aria-label={`编辑：第${c.order}章 ${c.title}`}
+                            title="编辑"
+                            onClick={() => void openChapterModal(c)}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                        </AdminRowActions>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </AdminDataPanel>
 
-      {selectedNovel && pageRows.length > 0 && (
-        <Pagination
-          variant="detached"
-          className="chapters-pagination"
-          page={currentPage}
-          totalPages={totalPages}
-          onPage={setPage}
-          summary={
-            <>
-              共 {filtered.length} 章，显示 {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)}
-            </>
-          }
-          pageSize={{
-            value: pageSize,
-            // 本地切片分页：改页大小后回第 1 页，避免落在越界区间。
-            onChange: (size) => {
-              setPageSize(size)
-              setPage(1)
-            },
-            options: ADMIN_PAGE_SIZE_OPTIONS,
-          }}
-        />
+          {pageRows.length > 0 && (
+            <Pagination
+              variant="detached"
+              className="chapters-pagination"
+              page={currentPage}
+              totalPages={totalPages}
+              onPage={setPage}
+              summary={
+                <>
+                  共 {filtered.length} 章，显示 {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)}
+                </>
+              }
+              pageSize={{
+                value: pageSize,
+                // 本地切片分页：改页大小后回第 1 页，避免落在越界区间。
+                onChange: (size) => {
+                  setPageSize(size)
+                  setPage(1)
+                },
+                options: ADMIN_PAGE_SIZE_OPTIONS,
+              }}
+            />
+          )}
+        </>
       )}
 
       <Dialog

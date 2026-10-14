@@ -365,3 +365,12 @@ it('暂存映射未保存时禁止应用，放弃暂存后恢复原有更新', a
   expect(screen.getByRole('button', { name: '更新 1 个标题' })).toBeEnabled()
   expect(mocks.sourceRemap).not.toHaveBeenCalled()
 })
+
+it('未选择小说时呈现统一的空状态，不渲染章节表格与冗余虚线卡片', async () => {
+  render(<ChaptersTab />)
+  expect(screen.getByText('请选择需要维护的小说')).toBeInTheDocument()
+  expect(screen.getByText(/在右上方下拉菜单选择或搜索一部小说/)).toBeInTheDocument()
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '添加章节' })).toBeDisabled()
+})
+
