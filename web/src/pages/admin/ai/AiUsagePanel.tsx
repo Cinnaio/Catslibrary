@@ -212,20 +212,24 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
         {!(trend.length === 0 && (loading || error)) && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 my-3 rounded-2xl bg-muted/30 border border-border/80">
             <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">总消耗 Token</span>
+              <span className="text-xs text-muted-foreground">总 Token</span>
               <strong className="font-serif font-bold text-2xl tracking-tight text-foreground mt-0.5">{totalTokens.toLocaleString()}</strong>
             </div>
             <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">缓存读取 Token</span>
-              <strong className="font-serif font-bold text-2xl tracking-tight text-[#D97757] mt-0.5">
-                {cacheReadReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheRead.toLocaleString()}
-              </strong>
+              <span className="text-xs text-muted-foreground">
+                缓存读取{' '}
+                <strong className="font-serif font-bold text-2xl tracking-tight text-[#D97757] mt-0.5 block">
+                  {cacheReadReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheRead.toLocaleString()}
+                </strong>
+              </span>
             </div>
             <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">缓存写入 Token</span>
-              <strong className="font-serif font-bold text-2xl tracking-tight text-foreground mt-0.5">
-                {cacheWriteReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheWrite.toLocaleString()}
-              </strong>
+              <span className="text-xs text-muted-foreground">
+                缓存写入{' '}
+                <strong className="font-serif font-bold text-2xl tracking-tight text-foreground mt-0.5 block">
+                  {cacheWriteReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheWrite.toLocaleString()}
+                </strong>
+              </span>
             </div>
             {totalCalls > 0 && (
               <div className="col-span-full text-xs text-muted-foreground/80 font-mono mt-1" title="仅汇总已回传字段的调用，缓存计数已包含在输入 Token 中">
