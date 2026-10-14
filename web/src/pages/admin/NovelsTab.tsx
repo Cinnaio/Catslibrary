@@ -410,7 +410,7 @@ export default function NovelsTab({
           count={selected.size}
           label={`已选择 ${selected.size} 部作品`}
           onClear={() => setSelected(new Set())}
-          clearPlacement="selection"
+          clearPlacement="actions"
         >
           <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
             批量检查更新
