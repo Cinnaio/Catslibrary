@@ -396,23 +396,6 @@
 .ai-service .ai-prompt-details[open] summary {
   margin-bottom: 1rem;
 }
-.ai-service .ai-params-save {
-  position: sticky;
-  bottom: 1.25rem;
-  z-index: 20;
-  grid-column: 1 / -1;
-  grid-row: auto;
-  align-self: end;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-lg);
-  background: var(--admin-panel);
-  padding: 1rem 1.25rem;
-}
 .ai-service .ai-generations-toolbar .admin-search {
   flex: 1 1 17.5rem;
   max-width: 22rem;
@@ -466,12 +449,6 @@
   .ai-service .ai-params-nav a {
     flex: 0 0 auto;
     background: var(--admin-panel);
-  }
-  .ai-service .ai-params-save {
-    grid-column: 1;
-    grid-row: 2;
-    bottom: 0.5rem;
-    padding: 0.875rem;
   }
   .ai-service .ai-provider-section,
   .ai-service .ai-cover-controls,
@@ -1227,10 +1204,6 @@
   box-shadow: none;
   min-height: 2.5rem;
 }
-.ai-service .ai-params-save {
-  grid-column: 1 / -1;
-}
-
 .ai-service .ai-generation-identity {
   display: flex;
   align-items: center;
@@ -1638,7 +1611,6 @@
 /* 参数调优：顶部分类切换，通栏参数面板。 */
 .ai-service .ai-params-panel {
   grid-template-columns: minmax(0, 1fr);
-  padding-bottom: 5rem;
 }
 .ai-service .ai-params-sections {
   grid-column: 1;
@@ -1863,33 +1835,6 @@
   border-color: var(--admin-border, #2a2825);
   background: var(--admin-panel-muted, #23221f);
 }
-.ai-service .ai-params-save {
-  position: sticky;
-  bottom: 1.25rem;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1.25rem;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--admin-border, #e5e3dc);
-  border-radius: 9999px;
-  box-shadow: 0 4px 20px rgba(35, 30, 24, 0.08);
-}
-:root[data-theme='dark'] .ai-service .ai-params-save,
-[data-theme='dark'] .ai-service .ai-params-save {
-  background: rgba(28, 27, 24, 0.94);
-  border-color: var(--admin-border, #2a2825);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-}
-.ai-service .ai-params-save > span {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  padding-left: 0.25rem;
-}
 @media (max-width: 767px) {
   .ai-service .ai-parameter-tabs {
     width: 100%;
@@ -1913,9 +1858,5 @@
   .ai-service.ai-admin-page .ai-params-panel .ai-form-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
-  }
-  .ai-service .ai-params-save {
-    bottom: 0.75rem;
-    flex-wrap: wrap;
   }
 }
