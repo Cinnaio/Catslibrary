@@ -14,8 +14,10 @@
   border-radius: 9999px !important;
 }
 
-/* ——— tabs 分段控件：Claude 标志性药丸胶囊轨道与白底滑块 ——— */
+/* ——— tabs 分段控件：Claude 标志性药丸胶囊轨道与实体滑动指示器 ——— */
 :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='tabs-list'] {
+  position: relative !important;
+  isolation: isolate !important;
   border-radius: 9999px !important;
   background: var(--admin-panel-muted) !important;
   border: 1px solid var(--admin-border) !important;
@@ -23,17 +25,38 @@
   gap: 2px !important;
 }
 
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) .tabs-sliding-indicator {
+  background: var(--admin-panel) !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+
+[data-theme='dark'] :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) .tabs-sliding-indicator {
+  background: var(--admin-panel) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+}
+
 :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='tabs-trigger'] {
+  position: relative !important;
+  z-index: 1 !important;
   border-radius: 9999px !important;
   font-weight: 500 !important;
-  transition: all 0.16s ease !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition: color 0.16s ease !important;
   color: var(--text-muted) !important;
 }
 
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='tabs-trigger']:hover {
+  color: var(--text-primary) !important;
+}
+
 :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='tabs-trigger'][data-state='active'] {
-  background: var(--admin-panel) !important;
+  background: transparent !important;
+  box-shadow: none !important;
   color: var(--admin-accent) !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
   font-weight: 600 !important;
 }
 
@@ -333,4 +356,41 @@
     animation: none !important;
     transform: none !important;
   }
+}
+
+/* ——— 全局交互列表行与卡片行统一四态规范（Claude 暖纸质感） ——— */
+:is(.admin-layout, .admin-dialog) .admin-interactive-row,
+:is(.admin-layout, .admin-dialog) [data-interactive-row='true'],
+:is(.admin-layout, .admin-dialog) .dashboard-row,
+:is(.admin-layout, .admin-dialog) .dashboard-op-item {
+  border-radius: 12px;
+  border: 1px solid transparent;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:is(.admin-layout, .admin-dialog) .admin-interactive-row:hover,
+:is(.admin-layout, .admin-dialog) [data-interactive-row='true']:hover,
+:is(.admin-layout, .admin-dialog) .admin-interactive-row.is-selected,
+:is(.admin-layout, .admin-dialog) [data-interactive-row='true'][data-selected='true'],
+:is(.admin-layout, .admin-dialog) [data-interactive-row='true'][aria-selected='true'] {
+  background: var(--admin-accent-subtle) !important;
+  border-color: color-mix(in srgb, var(--admin-accent) 22%, transparent) !important;
+}
+
+:is(.admin-layout, .admin-dialog) .admin-interactive-row:active,
+:is(.admin-layout, .admin-dialog) [data-interactive-row='true']:active {
+  transform: scale(0.996);
+}
+
+:is(.admin-layout, .admin-dialog) .admin-interactive-row:focus-visible,
+:is(.admin-layout, .admin-dialog) [data-interactive-row='true']:focus-visible {
+  outline: none !important;
+  border-color: var(--admin-accent) !important;
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.22) !important;
+}
+
+/* 表格被选中行的暖色底色统一（压制默认冷灰） */
+:is(.admin-layout, .admin-dialog) .admin-data-table tr[data-state='selected'],
+:is(.admin-layout, .admin-dialog) [data-slot='table-row'][data-state='selected'] {
+  background: var(--admin-accent-subtle) !important;
 }

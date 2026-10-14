@@ -253,14 +253,14 @@
   gap: 0;
 }
 
-.admin-redesign-page--scrape .scrape-job {
+.admin-redesign-page--scrape .scrape-job:not(.scrape-job-card--claude) {
   padding: 1rem 1.25rem;
   border: 0;
   border-radius: 0;
   background: var(--admin-panel);
 }
 
-.admin-redesign-page--scrape .scrape-job + .scrape-job {
+.admin-redesign-page--scrape .scrape-job:not(.scrape-job-card--claude) + .scrape-job:not(.scrape-job-card--claude) {
   border-top: 1px solid var(--admin-border);
 }
 
