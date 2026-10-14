@@ -1,15 +1,11 @@
-import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
-import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useId } from 'react'
-import { ArrowRight, Check, ChevronDown, FlaskConical, RotateCcw } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, ExternalLink, FlaskConical, RefreshCw, RotateCcw } from 'lucide-react'
 import type { ContentRating } from '@shared/types'
 import CustomSelect from '@/components/admin/CustomSelect'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { CheckItem, DiscoverNovel } from '../types'
 import ScrapeChecks from './ScrapeChecks'
 import type { Selectors, TestResult } from './StepConfig'
@@ -118,204 +114,288 @@ export default function ScrapeSetupPanel({
   const chapterText = chapterCount > 0 ? `${chapterCount}${hasMoreChapters ? '+' : ''}` : '—'
 
   return (
-    <AdminDataPanel className="scrape-setup" ariaLabel="作品与章节配置">
-      <AdminPanelHeading
-        className="scrape-setup__heading"
-        title="确认作品并配置章节"
-        titleId="scrape-setup-title"
-        actions={
-          <Button variant="ghost" size="sm" onClick={onReset}>
-            <RotateCcw aria-hidden="true" />
+    <div className="scrape-intake scrape-setup-card" aria-label="作品与章节配置">
+      {/* 头部：完全对齐 Claude 标准卡片规范 */}
+      <div className="scrape-intake-card__head">
+        <div className="scrape-intake-card__title-group">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h2 id="scrape-setup-title" className="scrape-intake-card__title">
+              确认作品并配置章节
+            </h2>
+            <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-700/80">
+              {novelId ? '已录入书库' : '待录入核对'}
+            </span>
+          </div>
+          <p className="scrape-intake-card__subtitle">
+            智能分析已填入初始信息。保存书籍基础信息后，即可配置章节规则并启动抓取任务。
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onReset}
+            className="h-8 rounded-lg text-xs font-medium px-3 border-[#dedcd5] hover:border-[#d97757]/60 hover:text-[#c15f3d] dark:border-[#38352f] dark:hover:bg-[#25231f] transition-all cursor-pointer"
+          >
+            <RotateCcw className="size-3.5 mr-1.5" aria-hidden="true" />
             换一本
           </Button>
-        }
-      />
+        </div>
+      </div>
 
-      <div className="scrape-setup__book p-4 rounded-2xl bg-muted/30 border border-border/80">
-        <div className={`scrape-setup__cover shadow-sm rounded-lg${showCover ? '' : ' is-empty'}`} data-letter={(preview.title || item.title || '书').slice(0, 1)}>
-          {showCover && (
+      {/* 书籍信息英雄预览区 */}
+      <div className="scrape-setup-hero">
+        <div
+          className={`scrape-setup-hero__cover ${showCover ? '' : 'is-empty'}`}
+          data-letter={(preview.title || item.title || '书').slice(0, 1)}
+        >
+          {showCover ? (
             <img
               src={coverUrl}
               alt=""
+              loading="lazy"
               referrerPolicy="no-referrer"
               onError={(event) => {
                 event.currentTarget.style.display = 'none'
                 event.currentTarget.parentElement?.classList.add('is-empty')
               }}
             />
-          )}
+          ) : null}
         </div>
-        <div className="scrape-setup__book-copy">
-          <div className="scrape-setup__book-title font-serif text-lg font-semibold text-foreground">{preview.title || item.title || '待确认作品'}</div>
-          <div className="scrape-setup__book-source text-xs text-muted-foreground font-mono">
-            {preview.author || item.author || '未知作者'} · {item.url}
-          </div>
-          <div className="scrape-setup__book-badges mt-1">
-            {!novelId && <Badge variant="outline" className="rounded-full text-xs">待导入</Badge>}
-            {preview.status && (
-              <AdminStatusBadge tone={preview.status === 'completed' ? 'success' : 'warning'}>
-                {preview.status === 'completed' ? '已完结' : '连载中'}
-              </AdminStatusBadge>
+
+        <div className="flex flex-col gap-2 min-w-0 flex-1">
+          <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+            <h3 className="font-serif text-lg font-semibold text-foreground tracking-tight m-0">
+              {preview.title || item.title || '待确认作品'}
+            </h3>
+            {novelId ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60">
+                <Check className="size-3" aria-hidden="true" />
+                已保存至书库
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300 border border-stone-200/80 dark:border-stone-700/80">
+                待导入
+              </span>
             )}
-            <AdminContentRatingBadge rating={preview.contentRating} />
-            {novelId && (
-              <AdminStatusBadge tone="success">
-                <Check aria-hidden="true" />
-                已保存
-              </AdminStatusBadge>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+            <span className="font-medium text-stone-700 dark:text-stone-300">
+              {preview.author || item.author || '未知作者'}
+            </span>
+            <span className="text-stone-300 dark:text-stone-700 select-none">·</span>
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 font-mono text-muted-foreground hover:text-[#D97757] transition-colors truncate max-w-full sm:max-w-md"
+              title={item.url}
+            >
+              <span className="truncate">{item.url}</span>
+              <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
+            </a>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap pt-0.5">
+            {preview.status && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200/70 dark:border-amber-800/60">
+                {preview.status === 'completed' ? '已完结' : '连载中'}
+              </span>
+            )}
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400 border border-stone-200/80 dark:border-stone-700/80">
+              {preview.contentRating === 'restricted' ? '限制级' : preview.contentRating === 'general' ? '一般' : '未标注'}
+            </span>
+            {chapterCount > 0 && (
+              <span className="text-xs text-stone-500 dark:text-stone-400">
+                源站约 <span className="font-medium text-foreground">{chapterText}</span> 章
+              </span>
             )}
           </div>
         </div>
       </div>
 
-      <section className="scrape-setup__metadata" aria-labelledby="scrape-setup-metadata-title">
-        <div className="scrape-setup__metadata-copy">
-          <h4 id="scrape-setup-metadata-title" className="font-serif font-semibold text-base">作品信息</h4>
-          <p className="text-xs text-muted-foreground">智能分析已填入初始信息。保存前，可以在这里核对并修改。</p>
+      {/* 分区 1：作品基础信息编辑 */}
+      <section className="scrape-setup-section" aria-labelledby="scrape-setup-metadata-title">
+        <div className="scrape-setup-section__head">
+          <div>
+            <h3 id="scrape-setup-metadata-title" className="scrape-setup-section__title">
+              作品基础信息
+            </h3>
+            <p className="scrape-setup-section__subtitle">
+              智能分析已填入初始信息。保存前，可以在这里核对并修改。
+            </p>
+          </div>
+          {novelId && (
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-1">
+              <Check className="size-3.5" aria-hidden="true" />
+              基础信息已录入
+            </span>
+          )}
         </div>
-        <div className="scrape-setup__metadata-form">
-          <div className="scrape-setup__fields">
-            <ScrapeField label="书名">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={preview.title}
-                  onChange={(event) => onPreviewChange({ ...preview, title: event.target.value })}
-                  className="rounded-full h-10 px-4 text-sm bg-background border-border"
-                />
-              )}
-            </ScrapeField>
-            <ScrapeField label="作者">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={preview.author}
-                  onChange={(event) => onPreviewChange({ ...preview, author: event.target.value })}
-                  className="rounded-full h-10 px-4 text-sm bg-background border-border"
-                />
-              )}
-            </ScrapeField>
-            <ScrapeField label="分类">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={preview.category}
-                  placeholder="玄幻, 修真"
-                  onChange={(event) => onPreviewChange({ ...preview, category: event.target.value })}
-                  className="rounded-full h-10 px-4 text-sm bg-background border-border"
-                />
-              )}
-            </ScrapeField>
-            <ScrapeField label="状态">
-              {({ labelId }) => (
-                <CustomSelect
-                  aria-labelledby={labelId}
-                  options={STATUS_OPTIONS}
-                  value={preview.status}
-                  onChange={(value) => onPreviewChange({ ...preview, status: value })}
-                  className="rounded-full h-10"
-                />
-              )}
-            </ScrapeField>
-            <ScrapeField label="内容分级">
-              {({ labelId }) => (
-                <CustomSelect
-                  aria-labelledby={labelId}
-                  options={CONTENT_RATING_OPTIONS}
-                  value={preview.contentRating}
-                  onChange={(value) => onPreviewChange({ ...preview, contentRating: value as ContentRating })}
-                  className="rounded-full h-10"
-                />
-              )}
-            </ScrapeField>
-            <ScrapeField label="简介" className="scrape-setup__field--wide">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+          <ScrapeField label="书名">
+            {({ id }) => (
+              <Input
+                id={id}
+                value={preview.title}
+                onChange={(event) => onPreviewChange({ ...preview, title: event.target.value })}
+                className="h-9 rounded-lg px-3 text-sm bg-background border-border/80 focus-visible:border-[#D97757]/80 focus-visible:ring-1 focus-visible:ring-[#D97757]/30 transition-colors"
+              />
+            )}
+          </ScrapeField>
+          <ScrapeField label="作者">
+            {({ id }) => (
+              <Input
+                id={id}
+                value={preview.author}
+                onChange={(event) => onPreviewChange({ ...preview, author: event.target.value })}
+                className="h-9 rounded-lg px-3 text-sm bg-background border-border/80 focus-visible:border-[#D97757]/80 focus-visible:ring-1 focus-visible:ring-[#D97757]/30 transition-colors"
+              />
+            )}
+          </ScrapeField>
+          <ScrapeField label="分类">
+            {({ id }) => (
+              <Input
+                id={id}
+                value={preview.category}
+                placeholder="其他, 强制, np"
+                onChange={(event) => onPreviewChange({ ...preview, category: event.target.value })}
+                className="h-9 rounded-lg px-3 text-sm bg-background border-border/80 focus-visible:border-[#D97757]/80 focus-visible:ring-1 focus-visible:ring-[#D97757]/30 transition-colors"
+              />
+            )}
+          </ScrapeField>
+          <ScrapeField label="状态">
+            {({ labelId }) => (
+              <CustomSelect
+                aria-labelledby={labelId}
+                options={STATUS_OPTIONS}
+                value={preview.status}
+                onChange={(value) => onPreviewChange({ ...preview, status: value })}
+                className="h-9 rounded-lg"
+              />
+            )}
+          </ScrapeField>
+          <ScrapeField label="内容分级">
+            {({ labelId }) => (
+              <CustomSelect
+                aria-labelledby={labelId}
+                options={CONTENT_RATING_OPTIONS}
+                value={preview.contentRating}
+                onChange={(value) => onPreviewChange({ ...preview, contentRating: value as ContentRating })}
+                className="h-9 rounded-lg"
+              />
+            )}
+          </ScrapeField>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <ScrapeField label="简介">
               {({ id }) => (
                 <Textarea
                   id={id}
-                  className="scrape-setup__description rounded-xl p-3 text-sm bg-background border-border"
+                  className="scrape-setup__description resize-y min-h-[5.5rem]"
                   value={preview.description}
                   onChange={(event) => onPreviewChange({ ...preview, description: event.target.value })}
                 />
               )}
             </ScrapeField>
           </div>
+        </div>
 
-          <div className="scrape-setup__save-row">
+        <div className="scrape-setup__save-row pt-2 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
             <Button
               onClick={onConfirm}
               disabled={confirming || Boolean(novelId)}
               className={
                 novelId
-                  ? 'rounded-full h-10 px-5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-600 text-white'
-                  : 'rounded-full h-10 px-5 text-xs font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-xs'
+                  ? 'rounded-full h-9 px-5 text-xs font-medium bg-emerald-600 hover:bg-emerald-600 text-white cursor-default'
+                  : 'rounded-full h-9 px-5 text-xs font-medium bg-[#D97757] hover:bg-[#c56344] text-white shadow-xs cursor-pointer transition-all'
               }
             >
               {confirming ? '保存中…' : novelId ? '书籍已保存' : '保存书籍并继续'}
-              {!novelId && <ArrowRight className="size-3.5 ml-1" aria-hidden="true" />}
+              {!novelId && <ArrowRight className="size-3.5 ml-1.5" aria-hidden="true" />}
             </Button>
-            <span className="text-xs text-muted-foreground">{novelId ? '可以检查章节配置并启动抓取。' : '保存后才能启动章节抓取任务。'}</span>
+            <span className="text-xs text-muted-foreground">
+              {novelId ? '基础信息已入库，接下来可核对章节配置并启动任务。' : '保存后才能启动章节抓取任务。'}
+            </span>
           </div>
         </div>
       </section>
 
-      <div className="scrape-setup__config">
-        <div className="scrape-setup__config-heading">
-          <div className="scrape-setup__config-copy">
-            <h4>章节配置</h4>
-            <p>智能分析已经填入初始值；只有源站结构特殊时才需要展开修改。</p>
+      {/* 分区 2：章节配置与启动 */}
+      <section className="scrape-setup-section" aria-labelledby="scrape-setup-config-title">
+        <div className="scrape-setup-section__head">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 id="scrape-setup-config-title" className="scrape-setup-section__title">
+                章节配置
+              </h3>
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-700/80">
+                {sitePreset === 'po18' ? 'PO18 预设' : '自定义配置'}
+              </span>
+            </div>
+            <p className="scrape-setup-section__subtitle">
+              智能分析已自动生成选择器与规则；源站结构特殊时可展开微调。
+            </p>
           </div>
-          <span className="scrape-setup__preset-label">{sitePreset === 'po18' ? 'PO18 预设' : '自定义配置'}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggleAdvanced}
+            aria-expanded={advancedOpen}
+            aria-controls={advancedId}
+            className="h-8 rounded-lg text-xs font-medium px-3 text-stone-600 dark:text-stone-300 hover:text-foreground hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+          >
+            <ChevronDown className={`size-3.5 mr-1.5 transition-transform duration-200 ${advancedOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+            {advancedOpen ? '收起章节选择器' : '编辑章节选择器'}
+          </Button>
         </div>
-        <Button
-          className="scrape-setup__disclosure rounded-full h-8 px-3 text-xs"
-          variant="ghost"
-          size="sm"
-          onClick={onToggleAdvanced}
-          aria-expanded={advancedOpen}
-          aria-controls={advancedId}
-        >
-          <ChevronDown className={advancedOpen ? 'rotate-180 size-3.5 mr-1' : 'size-3.5 mr-1'} aria-hidden="true" />
-          {advancedOpen ? '收起章节选择器' : '编辑章节选择器'}
-        </Button>
 
         {advancedOpen && (
-          <div id={advancedId} className="scrape-setup__advanced p-4 rounded-2xl bg-muted/20 border border-border/80">
-            <div className="scrape-setup__preset-row">
+          <div id={advancedId} className="scrape-setup-advanced-box">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <span className="text-xs font-medium text-foreground">选择器来源</span>
               <Tabs value={sitePreset} onValueChange={onSitePresetChange} className="scrape-setup__preset-tabs">
-                <TabsList aria-label="选择器来源" data-active-index={PRESET_INDEX[sitePreset] ?? 0} className="rounded-full p-1 bg-muted/60">
-                  <TabsTrigger value="po18" className="rounded-full h-7 px-3 text-xs">PO18 预设</TabsTrigger>
-                  <TabsTrigger value="custom" className="rounded-full h-7 px-3 text-xs">自定义</TabsTrigger>
+                <TabsList aria-label="选择器来源" data-active-index={PRESET_INDEX[sitePreset] ?? 0} className="rounded-lg p-1 bg-stone-200/60 dark:bg-stone-800/60">
+                  <TabsTrigger value="po18" className="rounded-md h-7 px-3 text-xs font-medium">PO18 预设</TabsTrigger>
+                  <TabsTrigger value="custom" className="rounded-md h-7 px-3 text-xs font-medium">自定义</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
-            <div className="scrape-setup__config-fields">
-              <ScrapeField label="章节列表页 URL" className="scrape-setup__field--wide">
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    type="url"
-                    value={chapterListUrl}
-                    onChange={(event) => onChapterListUrlChange(event.target.value)}
-                    className="rounded-full h-10 px-4 text-xs font-mono bg-background border-border"
-                  />
-                )}
-              </ScrapeField>
-              <ScrapeField label="编码">
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    value={encoding}
-                    placeholder="utf-8 / gbk"
-                    onChange={(event) => onEncodingChange(event.target.value)}
-                    className="rounded-full h-10 px-4 text-xs font-mono bg-background border-border"
-                  />
-                )}
-              </ScrapeField>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <ScrapeField label="章节列表页 URL">
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      type="url"
+                      value={chapterListUrl}
+                      onChange={(event) => onChapterListUrlChange(event.target.value)}
+                      className="h-9 rounded-lg px-3 text-xs font-mono bg-background border-border/80 focus-visible:border-[#D97757]/80"
+                    />
+                  )}
+                </ScrapeField>
+              </div>
+              <div>
+                <ScrapeField label="编码">
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      value={encoding}
+                      placeholder="utf-8 / gbk"
+                      onChange={(event) => onEncodingChange(event.target.value)}
+                      className="h-9 rounded-lg px-3 text-xs font-mono bg-background border-border/80 focus-visible:border-[#D97757]/80"
+                    />
+                  )}
+                </ScrapeField>
+              </div>
             </div>
-            <fieldset className="scrape-setup__fieldset mt-2">
-              <legend className="text-xs font-medium text-muted-foreground mb-2">CSS 选择器</legend>
-              <div className="scrape-setup__selector-grid">
+
+            <div className="flex flex-col gap-2 pt-1 border-t border-border/40">
+              <span className="text-xs font-medium text-stone-600 dark:text-stone-300">CSS 选择器</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {SELECTOR_FIELDS.map((field) => (
                   <ScrapeField label={field.label} key={field.key}>
                     {({ id }) => (
@@ -324,88 +404,100 @@ export default function ScrapeSetupPanel({
                         placeholder={field.placeholder}
                         value={selectors[field.key]}
                         onChange={(event) => onSelectorsChange({ ...selectors, [field.key]: event.target.value })}
-                        className="rounded-full h-10 px-4 text-xs font-mono bg-background border-border"
+                        className="h-9 rounded-lg px-3 text-xs font-mono bg-background border-border/80 focus-visible:border-[#D97757]/80"
                       />
                     )}
                   </ScrapeField>
                 ))}
               </div>
-            </fieldset>
-          </div>
-        )}
-
-        {/* 选择器测试与诊断只在展开高级配置（或已产出结果）时出现。
-            折叠态把主操作留给「开始抓取」，避免次要动作争夺注意力。 */}
-        {(advancedOpen || testResult.data || testResult.empty || testResult.error) && (
-          <div className="scrape-setup__test-row">
-            <Button
-              variant="outline"
-              onClick={onTest}
-              disabled={!chapterListUrl.trim() || !selectors.chapterList.trim()}
-              className="rounded-full h-9 px-4 text-xs font-medium border-border hover:border-[#D97757]/40 hover:text-[#D97757]"
-            >
-              <FlaskConical className="size-3.5 mr-1" aria-hidden="true" />
-              测试章节选择器
-            </Button>
-          </div>
-        )}
-
-        {testResult.loading && (
-          <div className="scrape-setup__test-result rounded-xl p-3 bg-muted/30" role="status">
-            <span className="text-xs text-muted-foreground">正在读取样章并检查选择器…</span>
-          </div>
-        )}
-
-        {!testResult.loading && (testResult.data || testResult.empty || testResult.error) && (
-          <div className="scrape-setup__test-result rounded-xl p-3.5 bg-muted/30 border border-border" role="status">
-            {links.length > 0 ? (
-              <>
-                <AdminStatusBadge tone="success">
-                  <Check aria-hidden="true" />
-                  测试通过 · {links.length} 个章节链接
-                </AdminStatusBadge>
-                <ul className="mt-2 text-xs font-mono">
-                  {links.slice(0, 8).map((link, index) => (
-                    <li key={index} className="py-0.5 text-muted-foreground">{link.text || link.href}</li>
-                  ))}
-                </ul>
-              </>
-            ) : testResult.empty ? (
-              <Badge variant="secondary" className="rounded-full">没有找到章节链接，请检查选择器</Badge>
-            ) : testResult.error ? (
-              <span className="text-destructive text-xs">测试失败：{testResult.error}</span>
-            ) : null}
-          </div>
-        )}
-        <div className="scrape-setup__run p-4 rounded-2xl bg-muted/20 border border-border/80">
-          <dl className="scrape-setup__run-stats flex items-center gap-8">
-            <div className="scrape-setup__run-stat">
-              <dt className="text-xs text-muted-foreground uppercase tracking-wider">可抓章节</dt>
-              <dd className="font-serif font-bold text-2xl tracking-tight text-foreground">{chapterText}</dd>
             </div>
-            <div className="scrape-setup__run-stat">
-              <dt className="text-xs text-muted-foreground uppercase tracking-wider">受保护章节</dt>
-              <dd className={protectedChapterCount > 0 ? 'font-serif font-bold text-2xl tracking-tight text-amber-600' : 'font-serif font-bold text-2xl tracking-tight text-muted-foreground'}>
+
+            <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onTest}
+                disabled={!chapterListUrl.trim() || !selectors.chapterList.trim()}
+                className="h-8 rounded-lg px-3.5 text-xs font-medium border-border/80 hover:border-[#D97757]/60 hover:text-[#D97757] transition-all cursor-pointer"
+              >
+                <FlaskConical className="size-3.5 mr-1.5" aria-hidden="true" />
+                测试章节选择器
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                实时抓取前几章链接，验证选择器准确性
+              </span>
+            </div>
+
+            {testResult.loading && (
+              <div className="rounded-lg p-3 bg-stone-100/70 dark:bg-stone-800/40 text-xs text-muted-foreground flex items-center gap-2" role="status">
+                <RefreshCw className="size-3.5 animate-spin text-[#D97757]" aria-hidden="true" />
+                正在读取样章并检查选择器…
+              </div>
+            )}
+
+            {!testResult.loading && (testResult.data || testResult.empty || testResult.error) && (
+              <div className="rounded-lg p-3.5 bg-stone-100/70 dark:bg-stone-800/40 border border-border/60 text-xs" role="status">
+                {links.length > 0 ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60">
+                        <Check className="size-3" aria-hidden="true" />
+                        测试通过 · {links.length} 个章节链接
+                      </span>
+                    </div>
+                    <ul className="mt-2 text-xs font-mono max-h-36 overflow-y-auto space-y-1">
+                      {links.slice(0, 8).map((link, index) => (
+                        <li key={index} className="text-muted-foreground truncate">{link.text || link.href}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : testResult.empty ? (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium">没有找到章节链接，请检查选择器</span>
+                ) : testResult.error ? (
+                  <span className="text-destructive font-medium">测试失败：{testResult.error}</span>
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 启动与统计底栏 */}
+        <div className="scrape-setup-run-card">
+          <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
+            <div>
+              <div className="text-xs text-muted-foreground font-medium">可抓章节</div>
+              <div className="font-serif text-2xl font-bold tracking-tight text-foreground">{chapterText}</div>
+            </div>
+            <div className="w-px h-8 bg-border/60 hidden sm:block" />
+            <div>
+              <div className="text-xs text-muted-foreground font-medium">受保护章节</div>
+              <div className={`font-serif text-2xl font-bold tracking-tight ${protectedChapterCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-stone-400'}`}>
                 {protectedChapterCount}
-              </dd>
+              </div>
             </div>
-          </dl>
-          <div className="scrape-setup__run-action ml-auto flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">{!novelId ? '请先保存书籍信息' : !selectors.chapterContent.trim() ? '请填写章节正文选择器' : '配置将在启动时应用'}</span>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            <span className="text-xs text-muted-foreground hidden md:inline">
+              {!novelId ? '请先保存书籍信息' : !selectors.chapterContent.trim() ? '请填写正文选择器' : '配置将在启动时应用'}
+            </span>
             <Button
-              className="scrape-setup__start rounded-full h-11 px-6 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
+              className="rounded-full h-10 px-6 text-xs font-semibold bg-[#D97757] hover:bg-[#c56344] text-white shadow-xs transition-all cursor-pointer disabled:opacity-40"
               onClick={onStart}
               disabled={!novelId || !selectors.chapterContent.trim()}
             >
               开始抓取
-              <ArrowRight className="size-4 ml-1.5" aria-hidden="true" />
+              <ArrowRight className="size-3.5 ml-1.5" aria-hidden="true" />
             </Button>
           </div>
         </div>
-        <p className="scrape-setup__config-note text-xs text-muted-foreground">先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务；受保护章节需要账号具备读取权限。</p>
+
+        <p className="text-xs text-muted-foreground m-0">
+          先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务；受保护章节需要 PO18 账号具备读取权限。
+        </p>
 
         <ScrapeChecks items={testChecks} />
-      </div>
-    </AdminDataPanel>
+      </section>
+    </div>
   )
 }
