@@ -205,19 +205,25 @@ components:
 后台批量选择操作（`AdminSelectionBar`）彻底构筑为 Claude 标志性的**底部视口悬浮胶囊岛屿（Floating Pill Dock）**，兼顾高频操作效率与全景沉浸质感：
 
 1. **零布局跳动（Zero Layout Shift）：**
-   - 采用 `position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); z-index: 50;` 悬浮吸附于视口底部中央；
+   - 采用 `position: fixed; bottom: calc(2rem + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 50;` 悬浮吸附于视口底部中央；900px 及以下底距为 1rem 加安全区；
    - 彻底解除与表格工具栏、数据面板的垂直高度绑定，无论用户在表格任意位置滚动或跨分页浏览，操作岛屿始终平稳跟随视线，不引发任何页面布局回流或表头抖动。
 2. **材质、层次与几何形态：**
-   - **全圆角药丸**：外框采用 `var(--radius-full, 9999px)` 极致大圆角，内嵌操作按钮与计数徽章全量对齐胶囊轮廓；
-   - **毛玻璃暖纸表面**：背景使用高透暖白/炭黑混合色（亮色 `color-mix(in srgb, var(--admin-panel) 88%, transparent)`，暗色 `color-mix(in srgb, var(--admin-panel) 82%, transparent)`），配合 16px 硬件加速毛玻璃（`backdrop-filter: blur(16px)`）；
+   - **全圆角药丸**：桌面外框、内嵌操作按钮与计数徽章使用 `--admin-button-radius`（9999px）；900px 及以下外框使用 `--admin-selection-mobile-radius`（24px），允许操作换行，内部按钮仍为胶囊；
+   - **毛玻璃暖纸表面**：背景使用高透暖白/炭黑混合色（亮色 `color-mix(in srgb, var(--admin-panel) 88%, transparent)`，暗色 `color-mix(in srgb, var(--admin-panel) 92%, transparent)`），配合 16px 毛玻璃（`backdrop-filter: blur(16px)`）；
    - **双层漫反射落影**：亮色 `0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.08)`；暗色 `0 16px 40px -4px rgba(0, 0, 0, 0.5)`，提供强烈的空间立体纵深；
-   - **陶土红计数指示**：左侧已选项计数使用陶土红弱底（`color-mix(in srgb, var(--admin-accent) 14%, transparent)`）+ 陶土红高亮字（`var(--admin-accent)` #D97757），保持 Claude 人文杂志排版质感。
+   - **陶土红计数指示**：左侧已选项计数使用陶土红弱底（亮色 12%、暗色 18%）与 `--admin-selection-count-foreground`；文字由强调色和正文色混合加深或提亮，保证小字号可读性。
 3. **物理阻尼进退场动效（Entrance & Exit Motion Physics）：**
    - **进入动效（Enter）**：从视口底部平滑弹起并微放大。时长 `0.28s`，运动曲线为 Claude 标志性物理阻尼弹簧 `cubic-bezier(0.16, 1, 0.3, 1)`（`translate(-50%, 28px) scale(0.94) -> translate(-50%, 0) scale(1)`）；
    - **退出动效（Exit）**：当勾选清空或取消选择（`count` 归零）时，组件内部通过退出状态机保留当前渲染镜像，执行平滑下沉与消散动效。时长 `0.22s`，运动曲线为减速缓冲 `cubic-bezier(0.4, 0, 0.2, 1)`（`translate(-50%, 0) scale(1) -> translate(-50%, 24px) scale(0.94)`），并在退出期间通过 `pointer-events: none` 锁闭事件防止误触；
    - **动态偏好减弱适配**：`@media (prefers-reduced-motion: reduce)` 下位移与形变关闭，平滑收敛为 0.15s 纯透明度渐变（Fade In / Out）。
 4. **组件生命周期与消费契约：**
    - 页面消费端（如 `NovelsTab`, `ChaptersTab`）直接常驻渲染 `<AdminSelectionBar count={selected.size} ... />`，禁止在外层使用 `{count > 0 && <AdminSelectionBar />}` 短路包裹，进退场动效完全由组件内置缓冲状态机与定时器驱动闭环。
+5. **岛内按钮统一契约（2026-10-14）：**
+   - **单一来源**：几何 token 位于 `admin/tokens.css`，规则位于 `admin/components/selection.css`。小说管理、章节管理与抓取发现共同消费；`clearPlacement="actions"` 和 `"selection"` 的取消入口使用完全相同的尺寸规则。页面只传 `Button` 的 variant、事件和禁用态，不重复写 `h-*`、`px-*`、`text-*`、圆角、十六进制颜色或阴影。
+   - **尺寸**：桌面按钮和计数高度为 `--admin-selection-control-height`（36px）；900px 及以下或粗指针设备提升为 `--admin-selection-touch-height`（44px）。按钮的 `height` 与 `min-height` 同时设置，覆盖通用后台 40px 下限；图标按钮宽高同档。水平内边距14px，按钮间距与图文间距8px，图标16px，外框内缩8px。分别使用 `--admin-selection-padding-inline` / `gap` / `icon-size` / `inset`，禁止靠字号或按钮内容反推高度。
+   - **字阶与层级**：保留后台共享字阶和550字重：主要/危险操作14px，次要/描边/取消13px。主操作用陶土实底，次操作用中性微描边，取消用 Ghost，删除保留危险语义描边；同一岛内只突出当前主要动作。主操作颜色使用 `--admin-selection-primary-background/foreground`，亮色加深陶土底、暗色用陶土底配炭黑字，以满足小字号对比度；按钮不叠加阴影或悬停抬升。
+   - **响应式与状态**：窄屏最大宽度为视口减24px，操作组自然换行，不依赖水平滚动藏住取消或删除。禁用/处理中保留控件尺寸，统一弱化；键盘焦点使用2px陶土轮廓和2px偏移，不能被裁切。reduced motion 下关闭按钮位移和过渡，保留既有岛屿淡入淡出。
+   - **检查方法与适用边界**：修改后检查明暗主题、桌面/900px/390px/320px、粗指针、两种取消位置、图标按钮、焦点、禁用及长操作组；读取浏览器最终高度、最小高度、字号与内边距，不能只看声明值。分页与表格行内图标按钮保留各自专属尺寸 token，不套用悬浮岛规则。
 
 ### Semantic
 - **Reading Green** (#4F7A52): 成功状态。柔和的书页绿，不刺眼。
@@ -376,17 +382,17 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 
 ## Shapes
 
-圆角策略温和而一致：公共按钮 6px（--radius-sm），单行输入框统一 12px（--input-radius），全局基础圆角 8px（--radius），紧凑控件与卡片 10px（--radius-md），管理后台控件与分段 tabs 药丸 12px（--admin-button-radius / --admin-input-radius / --radius-lg），嵌套表面与对话框 16px（--radius-xl / --admin-radius-dialog），后台大面板与 `.admin-panel-card` 20px（--radius-2xl）。分段 Tabs 另有明确的内外弧线契约：外框 12px、3px 内缩、激活表面 9px，统一由 `--tabs-segmented-*` token 提供。
+圆角按公开页与后台作用域区分：公共按钮6px（--radius-sm），公开单行输入框12px（--input-radius），全局基础圆角8px（--radius），紧凑控件与卡片10px（--radius-md）。后台按钮、单行输入与分段 tabs 使用全圆角胶囊（--admin-button-radius / --admin-input-radius / --radius-full），textarea 保留12px；嵌套表面与对话框使用各自组件圆角，不能把胶囊规则扩散到大面板。悬浮岛窄屏外框为24px，内部按钮仍为胶囊。
 
 - **公共控件圆角 (6px)**: 公共页按钮、输入框、标签、复选框——足够圆润但不接近圆形，像文具的倒角。
 - **shadcn 控件圆角 (10px)**: shadcn/ui 基类（button/dialog）用 `rounded-md`，经 `shadcn.css` 的 `@theme inline` 桥接到 `--sh-radius`（即 `--radius-md` = 10px）。单行 Input 的最终圆角由全站 `--input-radius`（12px）覆盖。这里是 Tailwind 与站点 token 的接缝，也是唯一一处"工具类默认值不等于同名 CSS 变量"的地方——调整前台圆角时先看这里，不要改 Tailwind 工具类。
-- **管理后台控件圆角 (12px)**: 后台的按钮、输入框、表单控件与 tabs 药丸统一 12px。作用范围是 `.admin-layout` 下的 `[data-slot='button']`、`[data-slot='input']`、`[data-slot='textarea']` 等，公开按钮不受影响；单行输入框外观由全站共享 input 规范统一。
+- **管理后台控件圆角 (9999px)**: 后台按钮、单行输入、筛选器与分段 tabs 统一全圆角，适用于 `.admin-layout`、`.admin-dialog` 及共享后台弹窗作用域；textarea 保留12px，公开控件沿用公开规范。
 - **卡片圆角 (10px)**: 紧凑卡片与旧版表格包裹器使用 `--radius-md`。
 - **嵌套表面与对话框圆角 (16px)**: shadcn `Card`（`rounded-xl`）、对话框、嵌套表面。
 - **后台大面板圆角 (20px)**: 数据面板（`--admin-table-panel-radius`）、`.admin-panel-card`——更明显的圆润感，像精装书的封面弧度。
 - **表格顶部裁切**: 桌面端（901px 及以上）表格作为 `AdminDataPanel` 首段时，直属的 `[data-slot='table-container']:first-child` 统一使用 `--admin-data-panel-radius`（20px），由共享 `Table` 的滚动容器裁切表头背景，只设置左右上角，底部两角为 0，确保表头下沿保持直线；空态独立于表格容器时也不能把表头裁成胶囊。空态、加载态和有数据时采用相同规则。共享实现位于 `admin/components/tables.css`，不再仅对白名单页面生效。有前置标题或工具条时不额外给内部表格顶部添加外轮廓圆角，小说与章节既有独立表格圆角保留；移动端继续沿用连续卡片规则。
 - **公开页面结构归并**: 紧凑字段使用 `--radius-md`，控件使用 `--radius-lg`，操作下拉菜单遵循 `--menu-radius`（12px），内嵌卡片、浮层与对话框使用 `--radius-xl`，Hero 与大卡片使用 `--radius-2xl`；公开页面不再直接新增 11/13/14/15/17/18/22/24/26/28/30px 档位。
-- **全圆角 (9999px)**: 胶囊标签、计数徽章、状态条——仅用于信息密度极高的辅助元素。
+- **全圆角 (9999px)**: 公开页用于胶囊标签、计数徽章、状态条；后台还用于按钮、单行输入、筛选器、分段 tabs 和桌面悬浮选择岛。
 - **阅读纸面圆角**: `--reader-radius-paper` 复用通用 xl，桌面与手机同档。阅读器不再保留超大圆角例外；正文纸面为平面，不带外描边、投影、渐变或水印。浮层仍使用既有阴影表达交互层次。
 
 ## Components
@@ -445,12 +451,13 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 组件以 shadcn/ui 为基础，通过 CSS custom properties 桥接到知舟的暖色调系统。后台组件另有一套 workspace 原语（`components/admin/AdminWorkspace.tsx`）：`AdminToolbar`、`AdminSearch`、`AdminContextPanel`、`AdminMetricStrip`、`AdminQueueSummary`、`AdminDataPanel`、`AdminPanelHeading`。
 
 ### Buttons
-- **Shape:** 公共页圆角 6px（--radius-sm）；管理后台圆角 12px（--admin-button-radius）。后台按钮最小高度 2.5rem（--admin-control-height），图标按钮不套用该高度。
-- **Typography:** 后台常规按钮统一使用 500 字重（`--admin-button-label-weight`）；主要/危险操作字号为 14px，次要/描边及 Ghost/Link 为 13px。只有选中的分段 Tab 使用 600 字重。规则同时覆盖 `.admin-layout` 与 `.admin-dialog`；图标尺寸按钮和 combobox 不套用按钮字阶，`xs` 按钮保留组件字号。`.admin-layout` 内输入框与 SelectTrigger 为 14px；`.admin-dialog` 保留组件的响应字号（共享 Input 窄屏 16px、`md` 及以上 14px），不受按钮规则影响。
+- **Shape:** 公共页圆角6px（--radius-sm）；管理后台全圆角（--admin-button-radius）。后台常规按钮最小高度40px（--admin-control-height），图标按钮保留组件尺寸。悬浮选择岛使用上述36px / 44px专属契约，分页和表格行操作继续使用各自 token；紧凑尺寸必须同时定义 `height` 与 `min-height`。
+- **Typography:** 后台常规按钮统一使用550字重（`--admin-button-label-weight`）；主要/危险操作字号为14px，次要/描边及 Ghost/Link 为13px。只有选中的分段 Tab 使用600字重。规则同时覆盖 `.admin-layout` 与 `.admin-dialog`；图标尺寸按钮和 combobox 不套用按钮字阶，`xs` 按钮保留组件字号。`.admin-layout` 内输入框与 SelectTrigger 为14px；`.admin-dialog` 保留组件的响应字号（共享 Input 窄屏16px、`md`及以上14px），不受按钮规则影响。页面不得用局部字号强制抹平共享按钮层级。
 - **Primary:** 奶茶棕背景（#8B6045）+ 白色文字，用于主要操作（保存、确认）
 - **Secondary:** 暖灰背景（#F6F4F1）+ 深色文字，用于次要操作（刷新、取消）
 - **Ghost:** 透明背景 + 次要文字色，用于图标按钮（表格行操作）
 - **Destructive:** 危险红背景 + 白色文字，用于删除操作
+- **Admin variants:** 上述实色为公开页语义。后台以 `admin/components/controls.css` 为准：主要操作陶土底，次要/描边中性微描边，Ghost透明底，危险操作使用危险文字与柔和描边；悬浮岛的主要操作使用专属对比度 token，不在调用点复制品牌颜色。
 - **Hover / Focus:** 背景色加深一档；键盘焦点是 3px 半透明暖色光晕（`--focus-ring: rgba(139,96,69,0.24)`，经 `--sh-ring` 桥接），并伴随边框变色。焦点态必须同时有颜色变化和光晕，不要只留光晕。
 
 ### Dialogs
@@ -595,7 +602,7 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 ### Pagination (Pagination)
 
 - **Single Source:** 全站后台分页只有一个实现（`components/admin/Pagination.tsx`），默认是「数据面板页脚」形态：左计数、右控件（每页条数 → 翻页 → 第 X / Y 页 → 跳转），共享分页 token。需要把表格与页码控件分开时，使用 `variant="detached"`：分页作为 `AdminDataPanel` 的同级元素，形成透明、无边框、无圆角的独立控制行，只靠页面区块间距与内容对齐表达层级。
-- **Shared Geometry:** `panel` 与 `detached` 分页的关键控件统一使用 `--admin-pagination-control-size: 2rem`（32px）：每页条数下拉触发器、文字或图标翻页按钮、页码输入框共用同一高度与最小高度，不继承后台普通控件的 40px 高度。宽度按用途保留：下拉使用 `--admin-pagination-page-size-width`，图标按钮为正方形，文字按钮随文案，页码输入框使用 `--admin-pagination-jump-width` 固定宽度、取消水平内边距并居中数字。尺寸由共享 `components/pagination.css` 提供；不要在调用点或页面 CSS 重新写高度、宽度或对齐魔法值。验收时同时检查两种变体、明暗主题和窄屏布局。
+- **Shared Geometry:** `panel`、`detached` 与 `dialog` 分页的关键控件统一使用当前 `--admin-pagination-control-size: 2.125rem`（34px）：每页条数下拉触发器、文字或图标翻页按钮、页码输入框共用同一高度与最小高度，不继承后台普通控件的40px高度。宽度按用途保留：下拉使用 `--admin-pagination-page-size-width`，图标按钮为正方形，文字按钮随文案，页码输入框使用 `--admin-pagination-jump-width` 固定宽度、取消水平内边距并居中数字。尺寸由共享 `components/pagination.css` 提供；不要在调用点或页面 CSS 重新写高度、宽度或对齐魔法值。2026-10-14 检查确认通用 `sm` 规则会把 panel 的文字按钮撑到40px，而 detached 图标仍为34px；分页尺寸选择器必须包含 `[data-slot='button'][data-size]` 以稳定覆盖通用规则，不能只依赖导入顺序。验收时同时检查文字/图标、三种变体、明暗主题和窄屏布局。
 - **Novels Footer Rhythm:** 小说管理的 `variant="detached"` 分页与表格相邻但不套卡片；分页控制行通过 `margin-top: calc(-1 * var(--admin-space-2))` 抵消默认区块间距的一档，使表格与分页保持连续的页脚节奏。该收紧只属于小说列表，不外溢到其他后台页面。
 - **Default Page Size:** 默认每页 **15** 条，档位 **15 / 20 / 50 / 100**。两个常量 `ADMIN_DEFAULT_PAGE_SIZE` 与 `ADMIN_PAGE_SIZE_OPTIONS` 定义在 `lib/admin-pagination.ts`（独立模块，不是 `Pagination.tsx`——组件文件必须保持「只导出组件」，否则运行时常量导出会破坏 HMR 边界），是全站唯一来源——页面 `useState(ADMIN_DEFAULT_PAGE_SIZE)` 取初值并把 `ADMIN_PAGE_SIZE_OPTIONS` 传给 `pageSize.options`。**不要在页面里再写 `useState(50)` 或字面档位数组**：历史上小说 20 / 章节 50 / 审计 50 / 生成内容 50 四处分叉，正是这么来的。
 - **Presentation, Not API:** 15 是**展示层**默认值，后端各列表路由未传 limit 时仍回落到 50。这样未显式传参的调用方（含公开页）不会被静默截断。需要「一次拉全」的页面（抓取中心候选列表 `PAGE_SIZE=100`、审核队列 `limit: '80'`、章节索引 `limit: '2000'`）显式传自己的 limit，不消费本默认值。

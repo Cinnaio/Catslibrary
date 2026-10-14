@@ -43,7 +43,7 @@
   padding: 0;
   text-align: center;
 }
-.admin-dialog .admin-pagination--dialog .admin-pagination__controls > [data-slot='button'] {
+.admin-dialog .admin-pagination--dialog .admin-pagination__controls > [data-slot='button'][data-size] {
   height: var(--admin-pagination-control-size);
   min-height: var(--admin-pagination-control-size);
   padding-block: 0;
@@ -102,7 +102,7 @@
 }
 
 /* panel 与 detached 都使用分页紧凑高度，覆盖后台通用按钮的 40px 高度。 */
-.admin-layout .admin-pagination .admin-pagination__controls > [data-slot='button'],
+.admin-layout .admin-pagination .admin-pagination__controls > [data-slot='button'][data-size],
 .admin-layout .admin-pagination__page-size [data-slot='select-trigger'] {
   height: var(--admin-pagination-control-size);
   min-height: var(--admin-pagination-control-size);

@@ -1,7 +1,7 @@
 /* --- Claude 标志性底部悬浮胶囊岛屿（Floating Selection Dock） --- */
 .admin-selection-bar {
   position: fixed;
-  bottom: 2rem;
+  bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
@@ -10,9 +10,9 @@
   max-width: min(calc(100vw - 2.5rem), 54rem);
   align-items: center;
   justify-content: space-between;
-  gap: 0.875rem;
-  padding: 0.45rem 0.65rem 0.45rem 0.85rem;
-  border-radius: 9999px;
+  gap: var(--admin-selection-gap);
+  padding: var(--admin-selection-inset);
+  border-radius: var(--admin-button-radius);
   background: color-mix(in srgb, var(--admin-panel) 88%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -80,20 +80,21 @@
 .admin-selection-bar__selection {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--admin-selection-gap);
   flex-shrink: 0;
 }
 
 .admin-selection-bar__count {
   display: inline-flex;
-  height: 2rem;
+  height: var(--admin-selection-control-height);
+  flex: 0 0 auto;
   align-items: center;
   border: 1px solid color-mix(in srgb, var(--admin-accent) 28%, transparent);
-  border-radius: 9999px;
+  border-radius: var(--admin-button-radius);
   background: color-mix(in srgb, var(--admin-accent) 12%, transparent);
-  padding: 0 0.75rem;
-  color: var(--admin-accent);
-  font-size: 0.8rem;
+  padding: 0 var(--admin-selection-padding-inline);
+  color: var(--admin-selection-count-foreground);
+  font-size: var(--admin-button-secondary-label-size);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   white-space: nowrap;
@@ -102,41 +103,107 @@
 [data-theme='dark'] .admin-selection-bar__count {
   background: color-mix(in srgb, var(--admin-accent) 18%, transparent);
   border-color: color-mix(in srgb, var(--admin-accent) 40%, transparent);
-  color: #E58B70;
 }
 
 .admin-selection-bar__actions {
   display: inline-flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 0.45rem;
+  gap: var(--admin-selection-gap);
 }
 
-.admin-selection-bar__actions > button,
-.admin-selection-bar__actions > [data-slot='button'] {
-  border-radius: 9999px !important;
-  font-size: 0.8rem !important;
-  height: 2rem !important;
-  padding-inline: 0.85rem !important;
+/* 同时覆盖两种 clearPlacement；height 与 min-height 必须一起收敛，
+   避免通用 40px 下限吞掉岛内紧凑尺寸。字阶继续由共享 variant 规则决定。 */
+.admin-layout .admin-selection-bar button[data-slot='button'][data-size] {
+  height: var(--admin-selection-control-height);
+  min-height: var(--admin-selection-control-height);
+  flex: 0 0 auto;
+  gap: var(--admin-selection-gap);
+  border-radius: var(--admin-button-radius) !important;
+  padding: 0 var(--admin-selection-padding-inline) !important;
+  font-family: var(--admin-font-sans);
+  line-height: 1;
   white-space: nowrap;
+  transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out), color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
 }
 
-/* 消除旧版本在 novels 页面覆盖的局促样式 */
-.admin-redesign-page--novels > .admin-selection-bar {
-  width: auto;
-  max-width: min(calc(100vw - 2.5rem), 54rem);
-  background: color-mix(in srgb, var(--admin-panel) 88%, transparent);
-  box-shadow: 0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08);
+.admin-layout .admin-selection-bar button[data-slot='button'][data-size^='icon'] {
+  width: var(--admin-selection-control-height);
+  min-width: var(--admin-selection-control-height);
+  padding: 0 !important;
 }
 
-@media (max-width: 640px) {
-  .admin-selection-bar,
-  .admin-redesign-page--novels > .admin-selection-bar {
-    bottom: 1rem;
+.admin-layout .admin-selection-bar [data-slot='button'] svg {
+  width: var(--admin-selection-icon-size);
+  height: var(--admin-selection-icon-size);
+}
+
+/* 纸面岛内用颜色表达层级，避免按钮再堆一层投影或悬停位移。 */
+.admin-layout .admin-selection-bar [data-slot='button'][data-variant='default'] {
+  background: var(--admin-selection-primary-background) !important;
+  color: var(--admin-selection-primary-foreground) !important;
+  box-shadow: none !important;
+}
+
+.admin-layout .admin-selection-bar [data-slot='button'][data-variant='default']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--admin-selection-primary-background) 90%, var(--text-primary)) !important;
+  transform: none;
+}
+
+.admin-layout .admin-selection-bar [data-slot='button'][data-variant='ghost'] {
+  color: var(--text-secondary);
+}
+
+.admin-layout .admin-selection-bar [data-slot='button'][data-variant='ghost']:hover:not(:disabled) {
+  background: var(--admin-panel-muted);
+  color: var(--text-primary);
+}
+
+.admin-layout .admin-selection-bar [data-slot='button'][data-size]:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+  box-shadow: none !important;
+}
+
+.admin-layout .admin-selection-bar [data-slot='button'][data-size]:disabled {
+  background: var(--admin-panel-muted) !important;
+  color: var(--text-muted) !important;
+  border-color: var(--admin-border) !important;
+  box-shadow: none !important;
+  transform: none;
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+  .admin-selection-bar {
+    --admin-selection-control-height: var(--admin-selection-touch-height);
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-selection-bar {
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     max-width: calc(100vw - 1.5rem);
-    padding: 0.5rem 0.65rem;
-    overflow-x: auto;
+    width: max-content;
+    flex-wrap: wrap;
+    border-radius: var(--admin-selection-mobile-radius);
     justify-content: flex-start;
+  }
+
+  .admin-selection-bar__actions {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-layout .admin-selection-bar button[data-slot='button'][data-size] {
+    transition: none;
+    transform: none;
+  }
+
+  .admin-layout .admin-selection-bar button[data-slot='button'][data-size]:active:not(:disabled) {
+    transform: none;
   }
 }
 
