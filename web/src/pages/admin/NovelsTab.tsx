@@ -405,31 +405,29 @@ export default function NovelsTab({
       </AdminToolbar>
 
       {/* 浮动岛屿批量操作条 */}
-      {selected.size > 0 && (
-        <AdminSelectionBar
-          count={selected.size}
-          label={`已选择 ${selected.size} 部作品`}
-          onClear={() => setSelected(new Set())}
-          clearPlacement="actions"
+      <AdminSelectionBar
+        count={selected.size}
+        label={`已选择 ${selected.size} 部作品`}
+        onClear={() => setSelected(new Set())}
+        clearPlacement="actions"
+      >
+        <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
+          批量检查更新
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setBatchFollowupNovels(Array.from(selected, (id) => ({ id, title: titleFor(id) })))}
         >
-          <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
-            批量检查更新
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setBatchFollowupNovels(Array.from(selected, (id) => ({ id, title: titleFor(id) })))}
-          >
-            批量追更设置
-          </Button>
-          <Button variant="secondary" size="sm" onClick={invertSelection}>
-            反选
-          </Button>
-          <Button variant="destructive" size="sm" onClick={handleBatchDeletePrompt}>
-            删除所选
-          </Button>
-        </AdminSelectionBar>
-      )}
+          批量追更设置
+        </Button>
+        <Button variant="secondary" size="sm" onClick={invertSelection}>
+          反选
+        </Button>
+        <Button variant="destructive" size="sm" onClick={handleBatchDeletePrompt}>
+          删除所选
+        </Button>
+      </AdminSelectionBar>
 
       {/* 采用 comfortable 舒适行距的数据面板 */}
       <AdminDataPanel

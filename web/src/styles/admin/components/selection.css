@@ -18,7 +18,20 @@
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid color-mix(in srgb, var(--admin-border-strong) 65%, transparent);
   box-shadow: 0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.08);
-  animation: adminSelectionDockSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+/* 进入动效：平滑上浮弹起 */
+.admin-selection-bar--entering,
+.admin-selection-bar[data-state='open'] {
+  animation: adminSelectionDockEnter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* 退出动效：平滑下沉消散 */
+.admin-selection-bar--exiting,
+.admin-selection-bar[data-state='closed'] {
+  animation: adminSelectionDockExit 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+  pointer-events: none;
 }
 
 [data-theme='dark'] .admin-selection-bar {
@@ -27,14 +40,40 @@
   box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.5), 0 6px 16px -2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
-@keyframes adminSelectionDockSlideUp {
+@keyframes adminSelectionDockEnter {
   0% {
-    transform: translate(-50%, 24px) scale(0.96);
+    transform: translate(-50%, 28px) scale(0.94);
     opacity: 0;
   }
   100% {
     transform: translate(-50%, 0) scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes adminSelectionDockExit {
+  0% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, 24px) scale(0.94);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-selection-bar--entering,
+  .admin-selection-bar--exiting {
+    animation-duration: 0.15s;
+  }
+  @keyframes adminSelectionDockEnter {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  @keyframes adminSelectionDockExit {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
   }
 }
 

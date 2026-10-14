@@ -200,6 +200,25 @@ components:
 - **Spacious Table Rhythm:** 表格普通行高舒展至 3.5rem（56px），行底部分割线采用 `--c-border-subtle`，悬停为柔和的陶土漫反射暖光（暗色 `rgba(217, 119, 87, 0.05)`，亮色 `#F8F6F0`）。
 - **Low-Saturation Semantic Badges:** 连载状态使用草木冷绿（#85BF8E 暗 / #3D7346 亮），完结状态使用暖石板灰，限制级使用柔和陶土粉（#E58B70 暗 / #BF5333 亮），杜绝高饱和亮红大绿。
 
+### Floating Selection Dock Pattern (Claude 悬浮胶囊岛屿与进退场动效)
+
+后台批量选择操作（`AdminSelectionBar`）彻底构筑为 Claude 标志性的**底部视口悬浮胶囊岛屿（Floating Pill Dock）**，兼顾高频操作效率与全景沉浸质感：
+
+1. **零布局跳动（Zero Layout Shift）：**
+   - 采用 `position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); z-index: 50;` 悬浮吸附于视口底部中央；
+   - 彻底解除与表格工具栏、数据面板的垂直高度绑定，无论用户在表格任意位置滚动或跨分页浏览，操作岛屿始终平稳跟随视线，不引发任何页面布局回流或表头抖动。
+2. **材质、层次与几何形态：**
+   - **全圆角药丸**：外框采用 `var(--radius-full, 9999px)` 极致大圆角，内嵌操作按钮与计数徽章全量对齐胶囊轮廓；
+   - **毛玻璃暖纸表面**：背景使用高透暖白/炭黑混合色（亮色 `color-mix(in srgb, var(--admin-panel) 88%, transparent)`，暗色 `color-mix(in srgb, var(--admin-panel) 82%, transparent)`），配合 16px 硬件加速毛玻璃（`backdrop-filter: blur(16px)`）；
+   - **双层漫反射落影**：亮色 `0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.08)`；暗色 `0 16px 40px -4px rgba(0, 0, 0, 0.5)`，提供强烈的空间立体纵深；
+   - **陶土红计数指示**：左侧已选项计数使用陶土红弱底（`color-mix(in srgb, var(--admin-accent) 14%, transparent)`）+ 陶土红高亮字（`var(--admin-accent)` #D97757），保持 Claude 人文杂志排版质感。
+3. **物理阻尼进退场动效（Entrance & Exit Motion Physics）：**
+   - **进入动效（Enter）**：从视口底部平滑弹起并微放大。时长 `0.28s`，运动曲线为 Claude 标志性物理阻尼弹簧 `cubic-bezier(0.16, 1, 0.3, 1)`（`translate(-50%, 28px) scale(0.94) -> translate(-50%, 0) scale(1)`）；
+   - **退出动效（Exit）**：当勾选清空或取消选择（`count` 归零）时，组件内部通过退出状态机保留当前渲染镜像，执行平滑下沉与消散动效。时长 `0.22s`，运动曲线为减速缓冲 `cubic-bezier(0.4, 0, 0.2, 1)`（`translate(-50%, 0) scale(1) -> translate(-50%, 24px) scale(0.94)`），并在退出期间通过 `pointer-events: none` 锁闭事件防止误触；
+   - **动态偏好减弱适配**：`@media (prefers-reduced-motion: reduce)` 下位移与形变关闭，平滑收敛为 0.15s 纯透明度渐变（Fade In / Out）。
+4. **组件生命周期与消费契约：**
+   - 页面消费端（如 `NovelsTab`, `ChaptersTab`）直接常驻渲染 `<AdminSelectionBar count={selected.size} ... />`，禁止在外层使用 `{count > 0 && <AdminSelectionBar />}` 短路包裹，进退场动效完全由组件内置缓冲状态机与定时器驱动闭环。
+
 ### Semantic
 - **Reading Green** (#4F7A52): 成功状态。柔和的书页绿，不刺眼。
 - **Amber Warning** (#B07C2F): 警告。旧纸般的琥珀色。
