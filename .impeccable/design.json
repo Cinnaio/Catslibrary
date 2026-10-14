@@ -4,6 +4,7 @@
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
     "selectionFields": {
+      "compoundFocus": "input-fields.css owns one wrapper focus boundary for Command search. Inner command-input explicitly has no border/outline/shadow in both normal and focus-visible states; height 100%, min-height 0 and padding-block 0 prevent inner overflow. Forced colors gives only the wrapper a Highlight outline. Preserve standalone input/button focus and verify computed styles, search, Escape and focus return across themes and widths.",
       "source": "web/src/styles/select-fields.css",
       "marker": "data-field=select; data-slot is not stable through PopoverTrigger asChild",
       "appearance": "Reuse --input-background/border/radius/focus-border/focus-shadow; public radius 12px, admin single-line radius --admin-input-radius; no resting shadow or button press scale.",

@@ -118,12 +118,6 @@
 
 .shared-select-content [data-slot='command-input-wrapper'] {
   margin: 0.25rem;
-  border-bottom: 1px solid var(--input-border);
-}
-
-.shared-select-content [data-slot='command-input-wrapper']:focus-within {
-  border-color: var(--input-focus-border);
-  box-shadow: var(--input-focus-shadow);
 }
 
 @media (max-width: 767px) {

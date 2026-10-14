@@ -114,3 +114,28 @@
   border-color: var(--input-focus-border);
   box-shadow: var(--input-focus-shadow);
 }
+
+/* A compound search field has one focus boundary: the wrapper includes its
+   icon. Reset the inner input explicitly; merely excluding it above still lets
+   base.css's global :focus-visible outline and halo draw a second frame. */
+:root [data-slot='command-input'],
+:root [data-slot='command-input']:focus-visible {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  padding-block: 0;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+/* System high-contrast modes suppress shadows, so the single outer boundary
+   needs a system outline instead of relying on its normal focus halo. */
+@media (forced-colors: active) {
+  :root [data-slot='command-input-wrapper']:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
