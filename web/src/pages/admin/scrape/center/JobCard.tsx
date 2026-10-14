@@ -100,40 +100,40 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
       </p>
 
       {job.failedItems.length > 0 && (
-        <div>
-          <p className="scrape-job__failures-title m-0 mb-1 text-xs">失败章节</p>
-          <ul className="scrape-job__failures text-xs">
+        <div className="mt-2 p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-xs">
+          <p className="scrape-job__failures-title m-0 mb-1 font-semibold text-destructive">失败章节 ({job.failedItems.length})</p>
+          <ul className="scrape-job__failures space-y-1">
             {job.failedItems.map((item, i) => (
-              <li className="scrape-job__failure" key={i}>
-                <span>{item.chapterTitle || item.chapterUrl || '未知章节'}</span>
-                <em>{item.error || '抓取失败'}</em>
+              <li className="scrape-job__failure flex items-center justify-between text-[11px]" key={i}>
+                <span className="font-mono truncate max-w-[140px] text-foreground/80">{item.chapterTitle || item.chapterUrl || '未知章节'}</span>
+                <em className="text-destructive/90 not-italic">{item.error || '抓取失败'}</em>
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      <div className="scrape-job__foot">
+      <div className="scrape-job__foot mt-3 pt-2 border-t border-border/60 flex items-center justify-between">
         <ScrapeDisclosure open={job.logOpen} onToggle={() => onToggleLog(job.jobId)} controls={logId}>
           日志
         </ScrapeDisclosure>
-        <div className="scrape-job__actions">
+        <div className="scrape-job__actions flex items-center gap-1">
           {job.failedCount > 0 && (
-            <Button variant="ghost" size="icon-sm" title="重试失败章节" aria-label="重试失败章节" onClick={() => onRetryFailed(job.jobId)}>
+            <Button variant="ghost" size="icon-sm" className="size-7 rounded-full text-muted-foreground hover:text-foreground" title="重试失败章节" aria-label="重试失败章节" onClick={() => onRetryFailed(job.jobId)}>
               <RotateCcw className={ICON} />
             </Button>
           )}
           {!running && (job.status === 'failed' || job.status === 'cancelled' || job.status === 'partial') && (
-            <Button variant="ghost" size="icon-sm" title="整本重试" aria-label="整本重试" onClick={() => onRetry(job.jobId)}>
+            <Button variant="ghost" size="icon-sm" className="size-7 rounded-full text-muted-foreground hover:text-foreground" title="整本重试" aria-label="整本重试" onClick={() => onRetry(job.jobId)}>
               <RefreshCw className={ICON} />
             </Button>
           )}
           {terminal ? (
-            <Button variant="ghost" size="icon-sm" title="清除" aria-label="清除任务卡" onClick={() => onDismiss(job.jobId)}>
+            <Button variant="ghost" size="icon-sm" className="size-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="清除" aria-label="清除任务卡" onClick={() => onDismiss(job.jobId)}>
               <X className={ICON} />
             </Button>
           ) : (
-            <Button variant="ghost" size="icon-sm" title="终止" aria-label="终止任务" onClick={() => onCancel(job.jobId)}>
+            <Button variant="ghost" size="icon-sm" className="size-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="终止" aria-label="终止任务" onClick={() => onCancel(job.jobId)}>
               <CircleMinus className={ICON} />
             </Button>
           )}
@@ -141,12 +141,12 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
       </div>
 
       {job.logOpen && (
-        <ul id={logId} className="scrape-job__logs text-xs">
+        <ul id={logId} className="scrape-job__logs mt-2.5 p-3 rounded-xl bg-muted/50 border border-border text-xs font-mono max-h-48 overflow-y-auto space-y-1.5">
           {job.recentLogs.map((log, i) => (
-            <li className={`scrape-job__log scrape-job__log--${log.level || 'info'}`} key={i}>
-              <span>{fmtLogTime(log.createdAt)}</span>
-              <strong>{log.message}</strong>
-              {log.detail ? <em>{String(log.detail).slice(0, 160)}</em> : null}
+            <li className={`scrape-job__log scrape-job__log--${log.level || 'info'} leading-relaxed`} key={i}>
+              <span className="text-muted-foreground/70 mr-1.5">{fmtLogTime(log.createdAt)}</span>
+              <strong className="font-medium text-foreground">{log.message}</strong>
+              {log.detail ? <em className="block text-[11px] text-muted-foreground/90 not-italic break-all">{String(log.detail).slice(0, 160)}</em> : null}
             </li>
           ))}
         </ul>

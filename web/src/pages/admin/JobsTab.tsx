@@ -394,21 +394,21 @@ export default function JobsTab({
   function renderActions(j: Job): ReactNode {
     const retryable = ['failed', 'cancelled', 'partial'].includes(j.status)
     return (
-      <>
+      <div className="flex items-center gap-1.5 justify-end">
         {retryable &&
           ((j.failedCount ?? j.summary?.failedCount ?? 0) > 0 ? (
-            <Button variant="outline" size="sm" onClick={() => void retryFailedJob(j)}>
+            <Button variant="outline" size="sm" className="rounded-full h-7 px-2.5 text-xs font-medium border-border hover:border-[#D97757]/40 hover:text-[#D97757]" onClick={() => void retryFailedJob(j)}>
               重试失败章节
             </Button>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => void retryJob(j)}>
+            <Button variant="outline" size="sm" className="rounded-full h-7 px-2.5 text-xs font-medium border-border hover:border-[#D97757]/40 hover:text-[#D97757]" onClick={() => void retryJob(j)}>
               重试
             </Button>
           ))}
-        <Button variant="ghost" size="sm" onClick={() => setDetailsId(j.id)}>
+        <Button variant="ghost" size="sm" className="rounded-full h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setDetailsId(j.id)}>
           详情
         </Button>
-      </>
+      </div>
     )
   }
 
@@ -605,6 +605,7 @@ export default function JobsTab({
               {isJobRunning(detailJob.status) && (
                 <Button
                   variant="destructive"
+                  className="rounded-full h-8 px-4 text-xs font-semibold"
                   onClick={() => {
                     setDetailsId(null)
                     void cancelJob(detailJob)
@@ -616,6 +617,7 @@ export default function JobsTab({
               {['failed', 'cancelled', 'partial'].includes(detailJob.status) && (
                 <Button
                   variant="outline"
+                  className="rounded-full h-8 px-4 text-xs font-medium"
                   onClick={() => {
                     setDetailsId(null)
                     void retryJob(detailJob)
