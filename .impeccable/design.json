@@ -4,6 +4,8 @@
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
     "selectionFields": {
+      "scrapeIntakeNarrow": "At <=640px intake fields and submit actions use one column; the three mode labels share available width and decorative icons are hidden. Verify every control inside card bounds and clickable; absence of page-level horizontal scrolling can conceal clipping by the card.",
+      "pageOverrideGuard": "No page-level important field skins for height, typography, radius, paper, border or focus. ScrapeIntake ranking select and URL input use shared 40px/14px/pill geometry in all three intake modes. Verify under real ancestor classes such as admin-redesign-page--scrape and full styles; generic isolated admin wrappers missed the legacy 8px select radius, 38px Input height and dark override.",
       "compoundFocus": "input-fields.css owns one wrapper focus boundary for Command search. Inner command-input explicitly has no border/outline/shadow in both normal and focus-visible states; height 100%, min-height 0 and padding-block 0 prevent inner overflow. Forced colors gives only the wrapper a Highlight outline. Preserve standalone input/button focus and verify computed styles, search, Escape and focus return across themes and widths.",
       "source": "web/src/styles/select-fields.css",
       "marker": "data-field=select; data-slot is not stable through PopoverTrigger asChild",
