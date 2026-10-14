@@ -215,6 +215,8 @@
 
 .ai-service .ai-cover-card:has(.ai-cover-workspace) {
   background: transparent;
+  border: 0;
+  box-shadow: none;
   padding: 0;
 }
 .ai-service .ai-cover-card:has(.ai-cover-workspace) > [data-slot='card-content'] {
@@ -226,14 +228,76 @@
 .ai-service .ai-cover-card:has(.ai-cover-workspace) > [data-slot='card-content'] > section,
 .ai-service .ai-cover-controls,
 .ai-service .ai-cover-results > section {
-  border: 0;
-  border-radius: var(--radius-2xl);
-  background: var(--admin-panel);
+  border: 1px solid var(--admin-border, #e5e3dc);
+  border-radius: 1.25rem;
+  background: var(--admin-panel, #ffffff);
   padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
 }
+
+:root[data-theme='dark'] .ai-service .ai-cover-controls,
+:root[data-theme='dark'] .ai-service .ai-cover-results > section,
+[data-theme='dark'] .ai-service .ai-cover-controls,
+[data-theme='dark'] .ai-service .ai-cover-results > section {
+  border-color: var(--admin-border, #2a2825);
+  background: var(--admin-panel, #1c1b18);
+  box-shadow: none;
+}
+
+.ai-service .ai-cover-controls .divide-y {
+  border: 1px solid var(--admin-border, #e5e3dc);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: var(--admin-panel, #ffffff);
+}
+
+:root[data-theme='dark'] .ai-service .ai-cover-controls .divide-y,
+[data-theme='dark'] .ai-service .ai-cover-controls .divide-y {
+  border-color: var(--admin-border, #2a2825);
+  background: var(--admin-panel, #1c1b18);
+}
+
+.ai-service .ai-cover-controls .divide-y > button {
+  padding: 0.75rem 1rem;
+  transition: all 0.15s ease;
+}
+
+.ai-service .ai-cover-controls .divide-y > button:hover {
+  background: var(--admin-panel-muted, #f8f7f3);
+}
+
+:root[data-theme='dark'] .ai-service .ai-cover-controls .divide-y > button:hover,
+[data-theme='dark'] .ai-service .ai-cover-controls .divide-y > button:hover {
+  background: var(--admin-panel-muted, #23221f);
+}
+
+.ai-service .ai-cover-controls .divide-y > button .shrink-0:last-child {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, #f8f7f3);
+  border: 1px solid var(--admin-border, #e5e3dc);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 550;
+  transition: all 0.15s ease;
+}
+
+:root[data-theme='dark'] .ai-service .ai-cover-controls .divide-y > button .shrink-0:last-child,
+[data-theme='dark'] .ai-service .ai-cover-controls .divide-y > button .shrink-0:last-child {
+  background: var(--admin-panel-muted, #23221f);
+  border-color: var(--admin-border, #2a2825);
+  color: var(--text-secondary);
+}
+
+.ai-service .ai-cover-controls .divide-y > button:hover .shrink-0:last-child {
+  background: #d97757;
+  border-color: #d97757;
+  color: #ffffff;
+}
+
 .ai-service .ai-cover-workspace {
-  grid-template-columns: minmax(18rem, 0.8fr) minmax(0, 1.2fr);
-  gap: var(--ai-workspace-gap);
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(0, 1.1fr);
+  gap: var(--ai-workspace-gap, 1.5rem);
 }
 
 .ai-service .ai-config-providers-card {
