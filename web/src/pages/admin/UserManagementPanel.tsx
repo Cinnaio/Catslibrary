@@ -259,6 +259,7 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="rounded-full h-7 px-3 text-xs"
                           disabled={!selfId}
                           onClick={() => {
                             clearDialog()
@@ -270,7 +271,7 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
                         {!self && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label={`更多操作：${user.username}`} disabled={!selfId}>
+                              <Button variant="ghost" size="icon" className="rounded-full size-7" aria-label={`更多操作：${user.username}`} disabled={!selfId}>
                                 <MoreHorizontal />
                               </Button>
                             </DropdownMenuTrigger>

@@ -752,13 +752,14 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                         </TableCell>
                         <TableCell data-actions="">
                           <div className="admin-cell-actions flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => void copyInvite(i.code)}>
+                            <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs" onClick={() => void copyInvite(i.code)}>
                               复制
                             </Button>
                             {(used || disabled) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className="rounded-full h-7 px-3 text-xs"
                                 onClick={() =>
                                   setInviteDetail({
                                     title: '邀请码详情',
@@ -780,7 +781,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="account-record-danger"
+                                className="account-record-danger rounded-full h-7 px-3 text-xs text-destructive hover:bg-destructive/10"
                                 disabled={inviteBusy}
                                 onClick={() => void disableInvite(i.code)}
                               >
