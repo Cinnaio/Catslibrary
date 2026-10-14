@@ -2,6 +2,18 @@
    套字段节奏，不铺满整个内容区。 */
 .admin-redesign-page--content-policy .content-policy-panel {
   max-width: 48rem;
+  border-radius: 16px;
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 4px 16px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+}
+
+:root[data-theme='dark'] .admin-redesign-page--content-policy .content-policy-panel,
+.dark .admin-redesign-page--content-policy .content-policy-panel {
+  background: var(--admin-panel, #242422);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
 }
 
 .admin-redesign-page--content-policy .content-policy-row {
@@ -9,10 +21,16 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--admin-space-4);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--admin-panel-muted) 40%, transparent);
-  padding: var(--admin-space-3) var(--admin-space-4);
+  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
+  border-radius: 14px;
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.025));
+  padding: 1rem 1.25rem;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.admin-redesign-page--content-policy .content-policy-row:hover {
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.04));
+  border-color: rgba(217, 119, 87, 0.3);
 }
 
 .admin-redesign-page--content-policy .content-policy-row__copy {
@@ -23,23 +41,37 @@
 .admin-redesign-page--content-policy .content-policy-row__label {
   display: block;
   color: var(--text-primary);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .admin-redesign-page--content-policy .content-policy-row__hint {
   display: block;
-  margin-top: 0.125rem;
+  margin-top: 0.25rem;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.6;
 }
 
 .admin-redesign-page--content-policy .content-policy-status {
-  margin: var(--admin-space-3) 0 0;
+  margin: var(--admin-space-4) 0 0;
   color: var(--text-muted);
-  font-size: 0.75rem;
-  line-height: 1.6;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+.admin-redesign-page--content-policy .content-policy-status a {
+  color: var(--admin-terracotta, #D97757);
+  font-weight: 500;
+  text-decoration: none;
+  margin-left: 0.25rem;
+  transition: color 0.15s ease;
+}
+
+.admin-redesign-page--content-policy .content-policy-status a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 @media (max-width: 640px) {
