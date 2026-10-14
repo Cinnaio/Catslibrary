@@ -433,15 +433,15 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         <TableCell data-actions="">
           <div className="admin-cell-actions">
             {visible ? (
-              <Button variant="ghost" size="sm" title="隐藏" onClick={() => void updateThoughtStatus(t.id, 'hidden')}>
+              <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs" title="隐藏" onClick={() => void updateThoughtStatus(t.id, 'hidden')}>
                 隐藏
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" title="恢复" onClick={() => void updateThoughtStatus(t.id, 'visible')}>
+              <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs text-[#D97757] hover:bg-[#D97757]/10" title="恢复" onClick={() => void updateThoughtStatus(t.id, 'visible')}>
                 恢复
               </Button>
             )}
-            <Button variant="ghost" size="sm" title="永久删除" onClick={() => void deleteThought(t)}>
+            <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs text-destructive hover:bg-destructive/10" title="永久删除" onClick={() => void deleteThought(t)}>
               删除
             </Button>
           </div>
@@ -493,15 +493,15 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         <TableCell data-actions="">
           <div className="admin-cell-actions">
             {visible ? (
-              <Button variant="ghost" size="sm" title="隐藏" onClick={() => void updateCommentStatus(c.id, 'hidden')}>
+              <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs" title="隐藏" onClick={() => void updateCommentStatus(c.id, 'hidden')}>
                 隐藏
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" title="恢复" onClick={() => void updateCommentStatus(c.id, 'visible')}>
+              <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs text-[#D97757] hover:bg-[#D97757]/10" title="恢复" onClick={() => void updateCommentStatus(c.id, 'visible')}>
                 恢复
               </Button>
             )}
-            <Button variant="ghost" size="sm" title="永久删除" onClick={() => void deleteComment(c)}>
+            <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs text-destructive hover:bg-destructive/10" title="永久删除" onClick={() => void deleteComment(c)}>
               删除
             </Button>
           </div>
