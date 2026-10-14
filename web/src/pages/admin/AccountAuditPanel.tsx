@@ -309,7 +309,7 @@ export default function AccountAuditPanel({
                     </TableCell>
                     <TableCell data-actions="">
                       <div className="admin-cell-actions account-user-actions">
-                        <Button variant="ghost" size="sm" aria-label={`查看${name}的${title}详情`} onClick={() => showDetail(record)}>
+                        <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs" aria-label={`查看${name}的${title}详情`} onClick={() => showDetail(record)}>
                           详情
                         </Button>
                       </div>
