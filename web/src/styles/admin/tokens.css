@@ -39,16 +39,16 @@
   --admin-filter-chip-height: 2.5rem;
   --admin-filter-chip-min-width: 8rem;
   --admin-filter-chip-radius: var(--radius-full);
-  --admin-filter-chip-border: var(--admin-border-strong);
+  --admin-filter-chip-border: var(--input-border);
   --admin-filter-chip-border-style: solid;
-  --admin-filter-chip-background: var(--admin-panel);
+  --admin-filter-chip-background: var(--input-background);
   --admin-filter-chip-foreground: var(--text-primary);
-  --admin-filter-chip-hover-background: var(--admin-accent-subtle);
+  --admin-filter-chip-hover-background: var(--input-background);
   --admin-filter-chip-padding-inline: 1rem;
   --admin-filter-chip-gap: 0.5rem;
   --admin-filter-chip-icon-size: 1rem;
-  --admin-filter-chip-font-size: 0.825rem;
-  --admin-filter-chip-font-weight: 500;
+  --admin-filter-chip-font-size: 0.875rem;
+  --admin-filter-chip-font-weight: 400;
 
   /* 侧栏导航 (Sidebar) */
   --admin-sidebar-nav-height: 2.375rem;

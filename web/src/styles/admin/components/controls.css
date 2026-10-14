@@ -166,74 +166,16 @@
   border-color: var(--admin-border) !important;
 }
 
-/* ——— 输入框：全圆角胶囊与陶土红柔和光晕 ——— */
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='input'] {
-  background: var(--input-background);
-  border: 1px solid var(--admin-border);
-  box-shadow: none;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
-}
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='input']:focus-visible {
-  border-color: var(--admin-accent);
-  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.18);
-  outline: none;
-}
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='textarea'] {
-  background: var(--input-background);
-  border: 1px solid var(--admin-border);
-  box-shadow: none;
-  border-radius: var(--radius-lg);
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
-}
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='textarea']:focus-visible {
-  border-color: var(--admin-accent);
-  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.18);
-  outline: none;
-}
+/* Input / textarea 的纸面、描边和焦点统一由 input-fields.css 提供。 */
 
-/* CustomSelect 弹层与下拉浮层：14px 圆角与温润漫反射投影 */
-.admin-custom-select-popover,
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='select-content'],
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='popover-content'] {
+/* 普通后台 Popover 保留原有外观；选择浮层由 select-fields.css 直接命中 portal。 */
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='popover-content']:not(.shared-select-content) {
   border: 1px solid var(--admin-border-strong);
   border-radius: 14px;
   background: var(--admin-panel);
   box-shadow: 0 14px 34px -4px rgba(20, 20, 19, 0.12), 0 4px 12px -2px rgba(20, 20, 19, 0.08);
   padding: 4px;
   overflow: hidden;
-}
-
-.admin-custom-select-popover [data-slot='command-input-wrapper'] {
-  border-bottom: none;
-}
-
-/* 搜索框聚焦态：克制的细边，不溢出不突兀 */
-.admin-custom-select-popover [data-slot='command-input']:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-.admin-custom-select-popover [data-slot='command-input-wrapper']:focus-within {
-  box-shadow: none;
-}
-
-.admin-custom-select-popover [data-slot='command-item'],
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='select-item'] {
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  margin: 2px 0;
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  transition: background-color 0.14s ease, color 0.14s ease;
-  cursor: pointer;
-}
-
-.admin-custom-select-popover [data-slot='command-item'][data-selected='true'],
-.admin-custom-select-popover [data-slot='command-item']:hover,
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='select-item']:hover,
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='select-item'][data-state='checked'] {
-  background: var(--admin-accent-subtle);
-  color: var(--admin-accent);
-  font-weight: 550;
 }
 
 [data-slot='dialog-content'].admin-dialog {

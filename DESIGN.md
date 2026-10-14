@@ -501,10 +501,18 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Internal Padding:** 说明面板使用 `--admin-context-panel-padding`；数据面板工具条使用 `--admin-data-panel-toolbar-padding-block` × `--admin-data-panel-toolbar-padding-inline`，存在面板标题时仍使用 `1.5rem 1.5rem 1.25rem`
 
 ### Inputs / Fields
-- **Style:** 全站单行 input 与多行 textarea 使用白色纸面、1px 细暖灰描边、12px 圆角和无静态阴影，参照「留空，由 AI 拟定」输入框样式。共享外观由 `styles/input-fields.css` 提供，读取 `--input-background`、`--input-border`、`--input-radius`；默认分别映射 `--bg-card`、`--border`、`--radius-lg`，深色随语义变量适配。覆盖共享 Input/Textarea、原生文本/数字/密码/搜索/日期输入、多行文本与弹窗表单，页面不再自行加深边框或添加静态阴影。
+- **Style:** 全站单行 input、下拉选择与多行 textarea 共用纸面、1px 细暖灰描边和无静态阴影，参照「留空，由 AI 拟定」输入框样式。Input/Textarea 外观由 `styles/input-fields.css` 提供，下拉由 `styles/select-fields.css` 读取同一组 `--input-background`、`--input-border`、`--input-radius`、`--input-focus-border/shadow`。默认分别映射 `--bg-card`、`--border`、`--radius-lg`，公开控件为12px圆角；后台作用域将单行字段的 `--input-radius` 映射到 `--admin-input-radius`（全圆角），textarea 仍为12px。深色随语义变量适配，页面不再自行加深边框或添加静态阴影。
 - **Focus:** 键盘聚焦使用 `--input-focus-border` 强调色边框及 `--input-focus-shadow` 2px 半透明光晕；`aria-invalid="true"` 使用危险色边框和聚焦光晕。不得用静态阴影替代焦点状态。
-- **Geometry:** 后台常规控件继续使用 40px 高度，公共页保留原有布局尺寸和字体；搜索图标内缩、密码显示按钮及输入宽度由调用点保留。`.admin-input--compact` 为 34px，分页跳转框保留 32px 高度和居中零内边距；视觉外观统一，不统一扩大尺寸。复合 Command 搜索框将描边放在含图标的外层容器，内部 input 保持透明。
+- **Geometry:** 后台常规 Input 与下拉继续使用40px高度，公共页保留各自布局尺寸；搜索图标内缩、密码显示按钮及输入宽度由调用点保留。分页下拉和跳转框使用当前34px尺寸，跳转框保留居中零内边距。共享下拉通过所在区域的 `--field-control-height` / `--field-control-padding-inline` / `--field-control-font-size` 对齐周围控件，不从按钮 variant 推断尺寸。后台常规字段14px，弹窗窄屏 Input 与下拉同时使用16px，768px及以上为14px。复合 Command 搜索框将描边放在含图标的外层容器，内部 input 保持透明。
 - **Multiline:** textarea 与单行输入共用白色纸面、细暖灰边框、12px 圆角和无静态阴影，聚焦与非法状态沿用共享输入 token；文本与占位字色沿用共享语义色。单行输入的固定高度规则不得作用于 textarea；保留各场景的最小高度、换行、行高、内边距与拖动调整大小。长提示词、章节正文、JSON 使用可伸缩的多行区域。
+
+### Selection Fields（下拉与 Input 同步，2026-10-14）
+
+- **Single source:** `SelectTrigger` 与 `CustomSelect` 触发器统一标记 `data-field="select"`，由 `select-fields.css` 负责外观；原生 select 共享纸面与状态，保留原生箭头、菜单和已有布局尺寸。Radix `PopoverTrigger asChild` 会把 CustomSelect 的 `data-slot` 改为 `popover-trigger`，因此禁止用 `[data-slot='button']` 推断它是否已获得后台字段样式。
+- **Contextual size:** 公开共享下拉默认36px，显式 `sm` / `compact` 为32px；进入后台表单、筛选栏、AI配置和账户管理后，两档都按周围常规 Input 使用40px。分页仍为34px，悬浮岛继承36px桌面 / 44px触屏尺寸。高度和最小高度必须一起设定；尺寸由区域 token 继承，业务页只保留用途决定的宽度。
+- **States:** 普通、搜索、筛选胶囊共用 Input 纸面、描边、文字、占位与焦点 token，不保留描边按钮的静态投影、按下缩放或陶土 hover 填充。禁用不改变几何；`aria-invalid="true"` 使用同一危险描边和焦点光晕。筛选胶囊保留前置图标与最小宽度，不另开一套字段外观。
+- **Portal contract:** Radix Select 和 CustomSelect 浮层显式带 `.shared-select-content`，不依赖 `.admin-layout` / `.admin-dialog` 祖先。浮层使用共享纸面、12px圆角、暖灰描边与菜单阴影，选项使用13px / 400字阶、36px桌面 / 44px窄屏或触屏命中高度，键盘高亮使用暖灰底和正常文字色；选中勾选保持独立可见。搜索框聚焦描边放在含图标的 wrapper。cmdk 的禁用值为 `data-disabled="true"`，不能用属性存在与否判断（启用项也有 `data-disabled="false"`）。
+- **Behavior and verification:** 保留选项值、搜索过滤、服务端补搜、键盘导航、Escape、焦点归还、禁用项与碰撞避让。检查明暗、1440/900/390/320px、普通/紧凑/搜索/筛选胶囊、后台表单/AI/账户/弹窗/分页；对照同排 Input 的最终高度、圆角、底色、描边、字号与 focus 样式，同时确认浮层及页面无横向溢出。操作菜单继续使用 `DropdownMenu` 的独立语义。
 
 ### Named Rules
 **The Fit-Content Rule.** 输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 `flex-1` / `w-full` 把输入框撑满整行——工具栏里的过滤/搜索框用 `min-w` 限定下限、内容自然决定宽度，长 URL 输入才放宽。
@@ -604,6 +612,7 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Single Source:** 全站后台分页只有一个实现（`components/admin/Pagination.tsx`），默认是「数据面板页脚」形态：左计数、右控件（每页条数 → 翻页 → 第 X / Y 页 → 跳转），共享分页 token。需要把表格与页码控件分开时，使用 `variant="detached"`：分页作为 `AdminDataPanel` 的同级元素，形成透明、无边框、无圆角的独立控制行，只靠页面区块间距与内容对齐表达层级。
 - **Shared Geometry:** `panel`、`detached` 与 `dialog` 分页的关键控件统一使用当前 `--admin-pagination-control-size: 2.125rem`（34px）：每页条数下拉触发器、文字或图标翻页按钮、页码输入框共用同一高度与最小高度，不继承后台普通控件的40px高度。宽度按用途保留：下拉使用 `--admin-pagination-page-size-width`，图标按钮为正方形，文字按钮随文案，页码输入框使用 `--admin-pagination-jump-width` 固定宽度、取消水平内边距并居中数字。尺寸由共享 `components/pagination.css` 提供；不要在调用点或页面 CSS 重新写高度、宽度或对齐魔法值。2026-10-14 检查确认通用 `sm` 规则会把 panel 的文字按钮撑到40px，而 detached 图标仍为34px；分页尺寸选择器必须包含 `[data-slot='button'][data-size]` 以稳定覆盖通用规则，不能只依赖导入顺序。验收时同时检查文字/图标、三种变体、明暗主题和窄屏布局。
 - **Novels Footer Rhythm:** 小说管理的 `variant="detached"` 分页与表格相邻但不套卡片；分页控制行通过 `margin-top: calc(-1 * var(--admin-space-2))` 抵消默认区块间距的一档，使表格与分页保持连续的页脚节奏。该收紧只属于小说列表，不外溢到其他后台页面。
+- **Narrow Geometry:** 400px及以下，detached 分页的页码读数移到末行，避免“每页行数 + 下拉 + 翻页 + 页码”四列最小宽度撑破容器。跳转输入框的尺寸规则也必须高于通用 Input 规则，确保下拉、按钮与输入全部为34px，不能只验证按钮高度。
 - **Default Page Size:** 默认每页 **15** 条，档位 **15 / 20 / 50 / 100**。两个常量 `ADMIN_DEFAULT_PAGE_SIZE` 与 `ADMIN_PAGE_SIZE_OPTIONS` 定义在 `lib/admin-pagination.ts`（独立模块，不是 `Pagination.tsx`——组件文件必须保持「只导出组件」，否则运行时常量导出会破坏 HMR 边界），是全站唯一来源——页面 `useState(ADMIN_DEFAULT_PAGE_SIZE)` 取初值并把 `ADMIN_PAGE_SIZE_OPTIONS` 传给 `pageSize.options`。**不要在页面里再写 `useState(50)` 或字面档位数组**：历史上小说 20 / 章节 50 / 审计 50 / 生成内容 50 四处分叉，正是这么来的。
 - **Presentation, Not API:** 15 是**展示层**默认值，后端各列表路由未传 limit 时仍回落到 50。这样未显式传参的调用方（含公开页）不会被静默截断。需要「一次拉全」的页面（抓取中心候选列表 `PAGE_SIZE=100`、审核队列 `limit: '80'`、章节索引 `limit: '2000'`）显式传自己的 limit，不消费本默认值。
 - **Page-Size Change Resets Page:** 改变每页条数必须回到第 1 页（组件内部已回调 `onPage(1)`，调用方需把 offset 一并归零）；换筛选条件同理。留在原 offset 会落在越界区间，表现为「改完一片空白」。
@@ -644,18 +653,18 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 
 ### Custom Combobox (CustomSelect)
 - **Style:** 基于 Popover + Command (cmdk) 的搜索下拉
-- **Trigger:** outline 按钮样式，右对齐 ChevronsUpDown 图标
-- **Dropdown:** 白色背景，支持键盘导航和搜索过滤
+- **Trigger:** 使用基础 Input 的共享字段外观，右对齐 ChevronsUpDown 图标；不要把触发器按 outline 操作按钮单独着色。
+- **Dropdown:** 使用上述 `.shared-select-content` 纸面浮层，支持键盘导航和搜索过滤。
 - **Width:** 触发器基础宽度为 `w-full` + `max-w-[400px]`（表单内单列使用）。放入 flex 容器（尤其 `AdminToolbar`）时必须给出明确宽度，见下条。
-- **`compact` 的语义是「更矮」，不是「解除宽度约束」：** `compact` 只改高度（`h-8`）并保留宽度上限 `max-w-[var(--admin-filter-width)]`（11rem）。调用方可用 `className` 覆盖该上限。
+- **`compact` 保留宽度约束并服从所在区域尺寸：** 保留 `max-w-[var(--admin-filter-width)]`（11rem），公开环境默认32px，后台仍与相邻 Input 对齐为40px；分页及悬浮岛继承各自区域高度，不再硬编码 `h-8`。调用方可用 `className` 覆盖用途决定的宽度上限。
 - **在 `AdminToolbar` 中的宽度契约：** 筛选器要么由 `CustomSelect` 自身的 `compact` 提供上限（11rem，适合「全部分级 / 全部来源」这类短选项），要么由外层容器用 `flex: 0 0 <宽度>` 固定（如 `.moderation-toolbar__status { flex: 0 0 9rem }`）。两者取其一即可，不必同时写。
-- **`.admin-toolbar__filters` 是裸容器，没有任何 CSS 宽度规则：** 它不提供宽度约束，放在里面的 `compact` 下拉依赖 `compact` 自带的上限。
+- **`.admin-toolbar__filters` 提供横向分组：** 子项不收缩、下拉触发器按内容宽度，窄屏允许换行；它不替代 `compact` 自带的11rem上限或业务容器的显式宽度。
 
 ### Filter Chip (CustomSelect `filterChip`)
 
 - **Purpose:** 用于与列表搜索并排的可选筛选条件，视觉上对应“状态 / 模型 / 可见性”一类的添加筛选控件；它不是普通表单下拉，也不是独立卡片。
 - **Anatomy:** 前置 `CirclePlus` 图标 + 当前筛选文案 + 可点击触发器；隐藏普通下拉的 ChevronsUpDown，以加号图标表达“添加/打开筛选”。当前值仍由同一个 `CustomSelect` 下拉承载，不改变筛选行为。
-- **Tokens:** 高度使用 `--admin-filter-chip-height`，最小宽度使用 `--admin-filter-chip-min-width`，圆角使用 `--admin-filter-chip-radius`，虚线边界使用 `--admin-filter-chip-border` / `--admin-filter-chip-border-style`，内间距、图标尺寸、文字字号与状态底色均使用同组 `--admin-filter-chip-*` token；禁止在调用点重新写魔法值。
+- **Tokens:** 保留 `--admin-filter-chip-height`、`--admin-filter-chip-min-width`、`--admin-filter-chip-padding-inline` 和图标布局；纸面、实线描边、圆角与焦点统一读取 Input token，不再使用独立虚线/陶土 hover 皮肤。后台同排字号14px、字重400，禁止在调用点重新写魔法值。
 - **Layout:** 当它与搜索框位于同一条 `AdminToolbar` 时，搜索框 `flex: 1 1 auto`，筛选胶囊 `flex: 0 0 auto` 并靠右；≤900px 搜索框独占第一行，筛选胶囊仍贴右对齐。
 - **Accessibility:** 触发器保留 `role="combobox"`、`aria-expanded` 和可读的 `aria-label`；图标仅作装饰，不能替代控件名称。
 
