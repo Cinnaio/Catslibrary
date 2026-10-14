@@ -118,8 +118,9 @@
    选择器需带上 .admin-search 提升特异性——Input 自带的 Tailwind px-3
    是单类选择器，同特异性下由层叠顺序决定，会被 Tailwind 层胜出。 */
 .admin-search > .admin-search__input,
-.admin-search .admin-search__input {
-  padding-left: 2.25rem;
+.admin-search .admin-search__input,
+.admin-search [data-slot='input'] {
+  padding-left: 2.25rem !important;
   box-shadow: none;
 }
 

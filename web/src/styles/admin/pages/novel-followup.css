@@ -143,18 +143,17 @@
 .novel-update-unknown {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
   color: var(--text-muted);
-  font-size: 0.75rem;
-  line-height: 1.6;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 100%;
 }
 .novel-update-protection svg {
   width: 0.75rem;
   height: 0.75rem;
   flex-shrink: 0;
-}
-.novel-update-protection {
-  white-space: nowrap;
 }
 .novel-followup-dialog__chapters {
   display: flex;

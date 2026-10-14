@@ -31,14 +31,14 @@ import NovelDeleteDialog from '@/components/admin/NovelDeleteDialog'
 const ChapterMergeDialog = lazy(() => import('./ChaptersTab'))
 
 const NOVEL_COLUMNS: readonly AdminColumn[] = [
-  { key: 'check', width: '3%' },
-  { key: 'title', label: '作品', width: '23%', primary: true },
-  { key: 'author', label: '作者', width: '13%' },
-  { key: 'categories', label: '分类', width: '16%' },
-  { key: 'status', label: '状态', width: '9%' },
-  { key: 'rating', label: '分级', width: '9%' },
-  { key: 'chapters', label: '章节', width: '8%' },
-  { key: 'updated', label: '更新', width: '8%' },
+  { key: 'check', width: '4.5%' },
+  { key: 'title', label: '作品', width: '22%', primary: true },
+  { key: 'author', label: '作者', width: '12%' },
+  { key: 'categories', label: '分类', width: '15%' },
+  { key: 'status', label: '状态', width: '8.5%' },
+  { key: 'rating', label: '分级', width: '8.5%' },
+  { key: 'chapters', label: '章节', width: '11%' },
+  { key: 'updated', label: '更新', width: '7.5%' },
   { key: 'actions', actions: true, width: '11%' },
 ]
 
@@ -442,7 +442,7 @@ export default function NovelsTab({
           <TableCaption className="sr-only">小说目录列表，可按标题、作者、分类、状态、分级、章节数和更新时间排序</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead scope="col">
+              <TableHead scope="col" data-check="">
                 <Checkbox aria-label="选择当前页全部小说" checked={allChecked} onCheckedChange={handleSelectAll} />
               </TableHead>
               <TableHead scope="col" aria-sort={sortAria('title')}>
@@ -480,7 +480,7 @@ export default function NovelsTab({
                   更新
                 </NovelSortButton>
               </TableHead>
-              <TableHead scope="col">操作</TableHead>
+              <TableHead scope="col" className="text-right pr-6">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -515,7 +515,7 @@ export default function NovelsTab({
                     animationDelay: `${getAdminTableRowStaggerDelay(idx, novels.length)}ms`,
                   }}
                 >
-                  <TableCell>
+                  <TableCell data-check="">
                     <Checkbox
                       aria-label={`选择小说：${n.title}`}
                       checked={selected.has(n.id)}
@@ -593,7 +593,7 @@ export default function NovelsTab({
                       {timeAgo(n.updatedAt)}
                     </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-actions="">
                     <AdminRowActions
                       label={n.title}
                       items={[

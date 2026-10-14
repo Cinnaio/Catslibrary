@@ -492,6 +492,24 @@
   .admin-data-panel--comfortable table > thead > tr > th {
     padding-inline: var(--admin-table-comfortable-padding-inline);
   }
+
+  /* 首列选择框：专属紧凑内边距与防截断 */
+  .admin-data-panel table > thead > tr > th:first-child:has([role='checkbox']),
+  .admin-data-panel table > thead > tr > th:first-child[data-check],
+  .admin-data-panel table > tbody > tr > td:first-child:has([role='checkbox']),
+  .admin-data-panel table > tbody > tr > td:first-child[data-check] {
+    padding-inline: 1rem 0.25rem !important;
+    overflow: visible !important;
+  }
+
+  /* 末列操作栏：充足的右侧呼吸内边距并平滑向右贴齐 */
+  .admin-data-panel table > thead > tr > th:last-child,
+  .admin-data-panel table > tbody > tr > td:last-child {
+    padding-right: 1.5rem !important;
+  }
+  .admin-data-panel table > tbody > tr > td:last-child > .admin-cell-actions {
+    justify-content: flex-end;
+  }
 }
 @media (max-width: 900px) {
   .admin-data-panel--comfortable tbody tr {

@@ -68,6 +68,10 @@
   color: var(--text-primary);
 }
 
+:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) .admin-search [data-slot='input'] {
+  padding-left: 2.25rem !important;
+}
+
 :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='textarea'] {
   padding: 0.65rem 0.875rem;
   font-size: 0.875rem;
