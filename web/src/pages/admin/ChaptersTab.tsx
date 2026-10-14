@@ -704,7 +704,29 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     <AdminPage
       className="admin-redesign-page admin-redesign-page--chapters"
       title="章节管理"
-      description="按作品维护目录与正文，搜索和批量操作只作用于当前作品。"
+      description={
+        selectedNovel && selectedNovelInfo ? (
+          <span className="flex items-center gap-2 flex-wrap">
+            <span>{selectedNovelInfo.author ? `作者：${selectedNovelInfo.author}` : '未知作者'}</span>
+            <span className="opacity-40">·</span>
+            <span>共 {chapters.length} 章</span>
+            <span className="opacity-40">·</span>
+            <span>{chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0).toLocaleString()} 字</span>
+            <span className="opacity-40">·</span>
+            <a
+              href={`/book/${encodeURIComponent(selectedNovel)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-primary hover:underline font-medium ml-0.5"
+            >
+              <ExternalLink className="size-3.5" />
+              读者视图
+            </a>
+          </span>
+        ) : (
+          '按作品维护目录与正文，搜索和批量操作只作用于当前作品。'
+        )
+      }
       actions={
         <div className="flex items-center gap-2">
           <CustomSelect
@@ -743,42 +765,6 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
         </div>
       ) : (
         <>
-          {/* 沉浸式小说上下文看板轨 (Novel Context Rail) */}
-          <div className="chapter-novel-hero-rail">
-            <div className="chapter-novel-hero-rail__left">
-              <div className="chapter-novel-hero-rail__icon">
-                <BookOpen className="size-5" />
-              </div>
-              <div className="chapter-novel-hero-rail__info">
-                <div className="chapter-novel-hero-rail__title-row">
-                  <h3 className="chapter-novel-hero-rail__title">{selectedNovelInfo?.title || '未命名作品'}</h3>
-                  <span className="chapter-novel-hero-rail__author">
-                    {selectedNovelInfo?.author ? `作者：${selectedNovelInfo.author}` : '未知作者'}
-                  </span>
-                </div>
-                <div className="chapter-novel-hero-rail__stats">
-                  <span className="chapter-novel-hero-rail__stat-pill">共 {chapters.length} 章</span>
-                  <span className="chapter-novel-hero-rail__stat-pill">
-                    {chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0).toLocaleString()} 字
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="chapter-novel-hero-rail__right">
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-full gap-1.5"
-                asChild
-              >
-                <a href={`/book/${encodeURIComponent(selectedNovel)}`} target="_blank" rel="noreferrer">
-                  <ExternalLink className="size-3.5" />
-                  读者视图
-                </a>
-              </Button>
-            </div>
-          </div>
-
           <AdminToolbar layout="inline" className="chapter-toolbar" ariaLive="polite">
             <div className="chapter-toolbar__search">
               <AdminSearch
