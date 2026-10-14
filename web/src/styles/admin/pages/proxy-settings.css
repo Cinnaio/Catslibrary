@@ -1,4 +1,11 @@
-/* 代理设置：沿用共享面板、字段和按钮，只定义此页的设置行与结果布局。 */
+/* ==========================================================================
+   知舟 Admin — 出站代理设置 (Proxy Settings)
+   Claude (Anthropic) 极简双栏工作台设计：
+   - 陶土红 (Terracotta #D97757) 品牌核心色与温润炭黑/羊皮纸表面
+   - 桌面端配置与诊断双栏并排 (Dual-Pane Workbench)，移动端自然堆叠
+   - 舒展克制的人文排版与全圆角胶囊药丸 (Pill Shape)
+   ========================================================================== */
+
 .admin-redesign-page--proxy > .admin-tab-header {
   border-bottom: 0;
   padding-bottom: 0;
@@ -6,342 +13,583 @@
 
 .proxy-settings-page {
   display: grid;
-  gap: var(--admin-page-section-gap);
+  gap: var(--admin-page-section-gap, 1.25rem);
+  width: 100%;
 }
 
-.proxy-settings-page > .admin-panel-card {
+/* --------------------------------------------------------------------------
+   双栏工作台网格 (Dual-Pane Workbench Grid)
+   -------------------------------------------------------------------------- */
+.proxy-settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* --------------------------------------------------------------------------
+   面板卡片 (Claude Panel Card)
+   -------------------------------------------------------------------------- */
+.proxy-settings-page .admin-panel-card {
+  position: relative;
+  border-radius: var(--admin-table-panel-radius, 1rem);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  background: var(--admin-panel, #ffffff);
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.03), 0 8px 24px -6px rgba(35, 30, 24, 0.04);
   overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+:root[data-theme='dark'] .proxy-settings-page .admin-panel-card,
+[data-theme='dark'] .proxy-settings-page .admin-panel-card {
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-panel, #1d1d1b);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 8px 24px -4px rgba(0, 0, 0, 0.35);
 }
 
 .proxy-settings-page .admin-panel-heading {
-  flex-direction: row;
+  display: flex;
   align-items: center;
-  padding: var(--admin-space-5);
-  padding-bottom: var(--admin-space-4);
-  border-bottom: 1px solid var(--admin-border);
+  justify-content: space-between;
+  padding: 1.125rem 1.5rem;
+  border-bottom: 1px solid var(--admin-border, #e6e4dc);
 }
 
-.proxy-effective,
-.proxy-setting-row {
+:root[data-theme='dark'] .proxy-settings-page .admin-panel-heading,
+[data-theme='dark'] .proxy-settings-page .admin-panel-heading {
+  border-bottom-color: var(--admin-border, #2c2b28);
+}
+
+.proxy-settings-page .admin-panel-heading h3 {
+  font-family: var(--admin-font-serif, serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary, #211e1a);
+}
+
+:root[data-theme='dark'] .proxy-settings-page .admin-panel-heading h3,
+[data-theme='dark'] .proxy-settings-page .admin-panel-heading h3 {
+  color: var(--dark-text, #e7e0d6);
+}
+
+/* --------------------------------------------------------------------------
+   左栏：出站配置内容
+   -------------------------------------------------------------------------- */
+.proxy-panel-content {
+  padding: 1.25rem 1.5rem;
   display: grid;
-  grid-template-columns: 11.625rem minmax(0, 1fr);
-  gap: var(--admin-space-5);
-  padding: var(--admin-space-4) var(--admin-space-5);
+  gap: 1.25rem;
 }
 
+/* 当前生效配置卡片 */
 .proxy-effective {
-  border-bottom: 1px solid var(--admin-border);
-  background: color-mix(in srgb, var(--admin-panel-muted) 58%, var(--admin-panel));
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 1.125rem;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  background: var(--admin-panel-muted, #f6f4ed);
 }
 
-.proxy-effective__label,
-.proxy-effective__value > span,
-.proxy-effective__rules,
-.proxy-hint,
-.proxy-setting-row__copy p,
-.proxy-save-feedback,
-.proxy-result-row__label,
-.proxy-result-row__content p,
-.proxy-help__content p {
-  color: var(--text-muted);
-  font-size: var(--admin-dialog-hint-size);
-  line-height: 1.65;
+:root[data-theme='dark'] .proxy-effective,
+[data-theme='dark'] .proxy-effective {
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-panel-muted, #242320);
+}
+
+.proxy-effective__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.proxy-effective__label {
+  font-size: 0.725rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #736d65);
+}
+
+.proxy-effective__source {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #5b554e);
+}
+
+:root[data-theme='dark'] .proxy-effective__source,
+[data-theme='dark'] .proxy-effective__source {
+  color: #a8a39b;
 }
 
 .proxy-effective__value {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--admin-space-2) var(--admin-space-4);
 }
 
-.proxy-effective code,
-.proxy-settings-page input,
-.proxy-help code {
-  font-family: var(--font-mono);
-  font-size: var(--admin-table-cell-size);
-}
-
-.proxy-effective__value > span {
-  color: var(--text-secondary);
-}
-
-.proxy-effective__rules {
-  display: grid;
-  gap: var(--admin-space-1);
-  margin-top: var(--admin-space-1);
-}
-
-.proxy-effective code,
-.proxy-effective__rules,
-.proxy-result-row__content p,
-.proxy-help code,
-.proxy-save-feedback {
+.proxy-effective__value code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary, #211e1a);
+  background: transparent;
+  padding: 0;
   overflow-wrap: anywhere;
 }
 
+:root[data-theme='dark'] .proxy-effective__value code,
+[data-theme='dark'] .proxy-effective__value code {
+  color: var(--dark-text, #e7e0d6);
+}
+
+.proxy-effective__rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--admin-border, #e6e4dc) 60%, transparent);
+  font-size: 0.75rem;
+  color: var(--text-muted, #736d65);
+}
+
+/* 环境变量优先横幅 */
 .proxy-override {
   display: flex;
   align-items: flex-start;
-  gap: var(--admin-space-2);
-  margin: var(--admin-space-4) var(--admin-space-5) 0;
-  padding: var(--admin-space-3);
-  border-radius: var(--admin-input-radius);
-  background: color-mix(in srgb, var(--color-warning) 9%, var(--admin-panel));
-  color: color-mix(in srgb, var(--color-warning) 70%, var(--text-primary));
-  font-size: var(--admin-dialog-hint-size);
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid rgba(217, 119, 87, 0.3);
+  background: var(--admin-accent-subtle, rgba(217, 119, 87, 0.06));
+  color: var(--text-primary, #211e1a);
+  font-size: 0.785rem;
+  line-height: 1.5;
 }
 
-.proxy-override svg {
+:root[data-theme='dark'] .proxy-override,
+[data-theme='dark'] .proxy-override {
+  border-color: rgba(217, 119, 87, 0.35);
+  background: rgba(217, 119, 87, 0.08);
+  color: var(--dark-text, #e7e0d6);
+}
+
+.proxy-override__icon {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
+  color: var(--admin-accent, #d97757);
   margin-top: 0.125rem;
 }
 
-.proxy-setting-row {
-  padding-top: var(--admin-space-5);
-  padding-bottom: var(--admin-space-5);
+/* 表单设置行 (Vertical Field Flow) */
+.proxy-config-form {
+  display: grid;
+  gap: 1.125rem;
 }
 
-.proxy-setting-row + .proxy-setting-row {
-  padding-top: 0;
+.proxy-setting-row {
+  display: grid;
+  gap: 0.375rem;
 }
 
 .proxy-setting-row__copy label {
   display: block;
-  margin-bottom: var(--admin-field-gap);
-  color: var(--text-primary);
-  font-size: var(--admin-table-cell-size);
-  font-weight: var(--admin-field-label-weight);
+  font-size: 0.85rem;
+  font-weight: 550;
+  color: var(--text-primary, #211e1a);
+}
+
+:root[data-theme='dark'] .proxy-setting-row__copy label,
+[data-theme='dark'] .proxy-setting-row__copy label {
+  color: var(--dark-text, #e7e0d6);
 }
 
 .proxy-setting-row__copy p {
-  max-width: 25ch;
-  margin: 0;
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.775rem;
+  line-height: 1.5;
+  color: var(--text-muted, #736d65);
 }
 
 .proxy-setting-row__control {
-  min-width: 0;
-  max-width: 40rem;
+  display: grid;
+  gap: 0.35rem;
 }
 
 .proxy-hint {
-  margin: var(--admin-space-2) 0 0;
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-muted, #736d65);
 }
 
+.proxy-hint--warning {
+  color: var(--admin-accent, #d97757);
+  font-weight: 500;
+}
+
+/* 输入框通用药丸样式 */
+.proxy-settings-page input[data-slot='input'],
+.proxy-settings-page input {
+  height: var(--admin-control-height, 2.5rem);
+  border-radius: var(--radius-full, 9999px) !important;
+  border: 1px solid var(--admin-border, #e6e4dc);
+  background: var(--admin-panel, #ffffff);
+  padding-inline: 1rem;
+  font-size: 0.825rem;
+  font-family: var(--font-mono, monospace);
+  transition: all 0.15s ease;
+}
+
+:root[data-theme='dark'] .proxy-settings-page input[data-slot='input'],
+:root[data-theme='dark'] .proxy-settings-page input,
+[data-theme='dark'] .proxy-settings-page input[data-slot='input'],
+[data-theme='dark'] .proxy-settings-page input {
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-canvas, #141413);
+  color: var(--dark-text, #e7e0d6);
+}
+
+.proxy-settings-page input:focus,
+.proxy-settings-page input:focus-visible {
+  border-color: var(--admin-accent, #d97757) !important;
+  box-shadow: 0 0 0 3px var(--admin-accent-light, rgba(217, 119, 87, 0.16)) !important;
+  outline: none;
+}
+
+/* 操作行 */
 .proxy-config-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--admin-space-2);
-  margin-left: calc(11.625rem + var(--admin-space-5));
-  padding: 0 var(--admin-space-5) var(--admin-space-5);
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--admin-border, #e6e4dc);
+}
+
+:root[data-theme='dark'] .proxy-config-actions,
+[data-theme='dark'] .proxy-config-actions {
+  border-top-color: var(--admin-border, #2c2b28);
+}
+
+.proxy-config-actions__buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Claude 陶土红保存按钮 */
+.proxy-config-actions button[type='submit'] {
+  height: var(--admin-control-height, 2.5rem);
+  padding-inline: 1.25rem;
+  border-radius: var(--radius-full, 9999px) !important;
+  background: var(--admin-accent, #d97757) !important;
+  color: #ffffff !important;
+  font-size: 0.825rem;
+  font-weight: 550;
+  border: 1px solid transparent !important;
+  transition: all 0.15s ease;
+}
+
+.proxy-config-actions button[type='submit']:hover:not(:disabled) {
+  background: var(--admin-accent-hover, #c56344) !important;
+  box-shadow: 0 2px 8px -2px rgba(217, 119, 87, 0.4);
+}
+
+.proxy-config-actions button[type='submit']:disabled {
+  opacity: 0.45;
+}
+
+.proxy-config-actions button[variant='ghost'],
+.proxy-config-actions button:not([type='submit']) {
+  height: var(--admin-control-height, 2.5rem);
+  border-radius: var(--radius-full, 9999px) !important;
+  font-size: 0.825rem;
 }
 
 .proxy-save-feedback {
-  flex: 1 1 12rem;
-  margin-left: var(--admin-space-2);
+  font-size: 0.775rem;
+  color: var(--text-muted, #736d65);
 }
 
+/* --------------------------------------------------------------------------
+   右栏：路由与连通性诊断
+   -------------------------------------------------------------------------- */
 .proxy-test-body {
-  padding: var(--admin-space-5);
+  padding: 1.25rem 1.5rem;
+  display: grid;
+  gap: 1rem;
 }
 
 .proxy-target-row {
+  display: grid;
+  gap: 0.625rem;
+}
+
+.proxy-target-actions {
   display: flex;
-  gap: var(--admin-space-2);
-  align-items: center;
+  gap: 0.5rem;
 }
 
-.proxy-target-row > input {
-  min-width: 0;
-  flex: 1 1 20rem;
-  max-width: 36.25rem;
+.proxy-target-actions button {
+  flex: 1;
+  height: var(--admin-control-height, 2.5rem);
+  border-radius: var(--radius-full, 9999px) !important;
+  font-size: 0.8125rem;
+  font-weight: 550;
 }
 
-.proxy-target-row > button {
-  flex: 0 0 auto;
-}
-
+/* 结果区域 */
 .proxy-results {
   display: grid;
-  gap: var(--admin-space-3);
-  margin-top: var(--admin-space-4);
-  padding-top: var(--admin-space-4);
-  border-top: 1px solid var(--admin-border);
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--admin-border, #e6e4dc);
 }
 
-.proxy-results > .proxy-hint {
-  margin: 0;
+:root[data-theme='dark'] .proxy-results,
+[data-theme='dark'] .proxy-results {
+  border-top-color: var(--admin-border, #2c2b28);
 }
 
+.proxy-results__empty {
+  padding: 0.875rem;
+  border-radius: var(--radius-md, 10px);
+  border: 1px dashed var(--admin-border, #e6e4dc);
+  background: var(--admin-panel-muted, #f6f4ed);
+}
+
+:root[data-theme='dark'] .proxy-results__empty,
+[data-theme='dark'] .proxy-results__empty {
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-panel-muted, #242320);
+}
+
+/* 诊断结果卡片 */
 .proxy-result-row {
   display: grid;
-  grid-template-columns: 6.875rem minmax(0, 1fr);
-  gap: var(--admin-space-4);
+  gap: 0.35rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  background: var(--admin-panel-muted, #f6f4ed);
+  transition: all 0.2s ease;
+}
+
+:root[data-theme='dark'] .proxy-result-row,
+[data-theme='dark'] .proxy-result-row {
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-panel-muted, #242320);
+}
+
+.proxy-result-row--success {
+  border-color: rgba(79, 122, 82, 0.3);
+  background: color-mix(in srgb, #4f7a52 4%, var(--admin-panel, #ffffff));
+}
+
+:root[data-theme='dark'] .proxy-result-row--success,
+[data-theme='dark'] .proxy-result-row--success {
+  border-color: rgba(79, 122, 82, 0.35);
+  background: rgba(79, 122, 82, 0.08);
+}
+
+.proxy-result-row--error {
+  border-color: rgba(190, 18, 60, 0.3);
+  background: color-mix(in srgb, #be123c 4%, var(--admin-panel, #ffffff));
+}
+
+:root[data-theme='dark'] .proxy-result-row--error,
+[data-theme='dark'] .proxy-result-row--error {
+  border-color: rgba(190, 18, 60, 0.35);
+  background: rgba(190, 18, 60, 0.08);
+}
+
+.proxy-result-row__label {
+  font-size: 0.725rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #736d65);
 }
 
 .proxy-result-row__content {
-  min-width: 0;
-  font-variant-numeric: tabular-nums;
+  display: grid;
+  gap: 0.25rem;
 }
 
 .proxy-result-row__title {
   display: flex;
   align-items: center;
-  gap: var(--admin-field-gap);
-  font-size: var(--admin-table-cell-size);
-  font-weight: 500;
-}
-
-.proxy-result-row__title svg {
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .proxy-result-row__title--success {
-  color: var(--color-success);
-}
-.proxy-result-row__title--error {
-  color: var(--color-danger);
-}
-.proxy-result-row__content p {
-  margin: var(--admin-space-1) 0 0;
+  color: var(--color-success, #4f7a52);
 }
 
+.proxy-result-row__title--error {
+  color: var(--color-danger, #be123c);
+}
+
+.proxy-result-row__title--muted {
+  color: var(--text-secondary, #5b554e);
+}
+
+:root[data-theme='dark'] .proxy-result-row__title--muted,
+[data-theme='dark'] .proxy-result-row__title--muted {
+  color: var(--dark-text, #e7e0d6);
+}
+
+.proxy-result-row__content p {
+  margin: 0;
+  font-size: 0.785rem;
+  line-height: 1.5;
+  color: var(--text-secondary, #5b554e);
+  overflow-wrap: anywhere;
+}
+
+:root[data-theme='dark'] .proxy-result-row__content p,
+[data-theme='dark'] .proxy-result-row__content p {
+  color: #c9c5bd;
+}
+
+/* --------------------------------------------------------------------------
+   底部折叠帮助 (Claude Help Accordion)
+   -------------------------------------------------------------------------- */
 .proxy-help {
-  padding-inline: var(--admin-field-gap);
+  border-radius: var(--admin-table-panel-radius, 1rem);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  background: var(--admin-panel, #ffffff);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
+}
+
+:root[data-theme='dark'] .proxy-help,
+[data-theme='dark'] .proxy-help {
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-panel, #1d1d1b);
 }
 
 .proxy-help summary {
   display: flex;
   align-items: center;
-  gap: var(--admin-space-2);
-  min-height: var(--admin-control-height);
-  width: fit-content;
+  gap: 0.5rem;
+  padding: 0.875rem 1.25rem;
   cursor: pointer;
   list-style: none;
-  color: var(--text-secondary);
-  font-size: var(--admin-table-cell-size);
+  font-size: 0.835rem;
+  font-weight: 550;
+  color: var(--text-secondary, #5b554e);
+  transition: all 0.15s ease;
+}
+
+:root[data-theme='dark'] .proxy-help summary,
+[data-theme='dark'] .proxy-help summary {
+  color: var(--dark-text, #e7e0d6);
+}
+
+.proxy-help summary:hover {
+  background: var(--admin-panel-muted, #f6f4ed);
+  color: var(--admin-accent, #d97757);
+}
+
+:root[data-theme='dark'] .proxy-help summary:hover,
+[data-theme='dark'] .proxy-help summary:hover {
+  background: var(--admin-panel-muted, #242320);
 }
 
 .proxy-help summary::-webkit-details-marker {
   display: none;
 }
+
 .proxy-help summary svg {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-.proxy-help[open] summary svg {
-  transform: rotate(90deg);
-}
-.proxy-help__content {
-  display: grid;
-  gap: var(--admin-space-3);
-  max-width: 52.5rem;
-  padding: var(--admin-space-1) 0 0 1.375rem;
-}
-.proxy-help__content p {
-  margin: 0;
-}
-.proxy-help strong {
-  color: var(--text-secondary);
-  font-weight: 500;
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--text-muted, #736d65);
+  transition: transform 0.2s ease;
 }
 
-@media (max-width: 1100px) {
-  .proxy-target-row {
-    flex-wrap: wrap;
-  }
-  .proxy-target-row > input {
-    flex-basis: 100%;
-    max-width: none;
+.proxy-help[open] summary svg {
+  transform: rotate(90deg);
+  color: var(--admin-accent, #d97757);
+}
+
+.proxy-help__content {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 1.25rem 1.125rem;
+  border-top: 1px solid var(--admin-border, #e6e4dc);
+  background: color-mix(in srgb, var(--admin-panel-muted, #f6f4ed) 30%, var(--admin-panel, #ffffff));
+}
+
+:root[data-theme='dark'] .proxy-help__content,
+[data-theme='dark'] .proxy-help__content {
+  border-top-color: var(--admin-border, #2c2b28);
+  background: color-mix(in srgb, var(--admin-panel-muted, #242320) 30%, var(--admin-panel, #1d1d1b));
+}
+
+.proxy-help__content p {
+  margin: 0;
+  padding-top: 0.625rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #5b554e);
+}
+
+:root[data-theme='dark'] .proxy-help__content p,
+[data-theme='dark'] .proxy-help__content p {
+  color: #c9c5bd;
+}
+
+.proxy-help code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.775rem;
+  padding: 0.125rem 0.35rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--admin-panel-muted, #f6f4ed);
+  border: 1px solid var(--admin-border, #e6e4dc);
+}
+
+:root[data-theme='dark'] .proxy-help code,
+[data-theme='dark'] .proxy-help code {
+  background: var(--admin-canvas, #141413);
+  border-color: var(--admin-border, #2c2b28);
+}
+
+/* --------------------------------------------------------------------------
+   响应式断点 (Responsive Breakpoints)
+   -------------------------------------------------------------------------- */
+@media (max-width: 960px) {
+  .proxy-settings-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
   }
 }
 
 @media (max-width: 640px) {
-  .admin-redesign-page--proxy .admin-tab-header__actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-  .admin-redesign-page--proxy .admin-tab-header__actions > [data-slot='button'] {
-    padding-left: 0;
-  }
+  .proxy-panel-content,
+  .proxy-test-body,
   .proxy-settings-page .admin-panel-heading {
-    padding: var(--admin-space-4);
+    padding-inline: 1.125rem;
   }
-  .proxy-effective {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--admin-field-gap);
-    padding: var(--admin-space-4);
+
+  .proxy-target-actions {
+    flex-direction: column;
   }
-  .proxy-setting-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--admin-space-2);
-    padding: var(--admin-space-4);
-  }
-  .proxy-setting-row__copy p {
-    max-width: none;
-  }
-  .proxy-override {
-    margin-inline: var(--admin-space-4);
-  }
+
   .proxy-config-actions {
-    margin-left: 0;
-    padding: 0 var(--admin-space-4) var(--admin-space-4);
+    flex-direction: column;
+    align-items: stretch;
   }
-  .proxy-save-feedback {
-    flex-basis: 100%;
-    margin-left: 0;
-  }
-  .proxy-test-body {
-    padding: var(--admin-space-4);
-  }
-  .proxy-target-row {
+
+  .proxy-config-actions__buttons {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr 1fr;
   }
-  .proxy-target-row > input {
-    grid-column: 1 / -1;
-  }
-  .proxy-target-row > button {
-    padding-inline: var(--admin-space-2);
-  }
-  .proxy-result-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--admin-space-1);
-  }
-}
-
-/* ==========================================================================
-   Claude (Anthropic) 风格 Proxy 出站代理面板优化
-   ========================================================================== */
-
-.proxy-settings-page > .admin-panel-card {
-  background: var(--admin-surface, #ffffff);
-  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
-  border-radius: 1.125rem;
-  box-shadow: 0 2px 10px -4px rgba(0, 0, 0, 0.04);
-}
-
-:root[data-theme='dark'] .proxy-settings-page > .admin-panel-card,
-.dark .proxy-settings-page > .admin-panel-card {
-  background: var(--admin-panel, #1a1a19);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.35);
-}
-
-.proxy-help summary {
-  border-radius: var(--radius-full, 9999px);
-  padding: 0.5rem 1rem;
-  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.025));
-  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.06));
-  transition: all 0.15s ease;
-}
-
-.proxy-help summary:hover {
-  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.05));
-  color: var(--admin-text-main, #1c1b18);
 }
