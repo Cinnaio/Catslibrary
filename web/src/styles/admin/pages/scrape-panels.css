@@ -6,29 +6,207 @@
   border-bottom: 0;
 }
 
+/* 抓取中心整体左对齐，去除居中 */
+.admin-redesign-page--scrape.tab-content {
+  margin-left: 0;
+  margin-right: auto;
+}
+
 .admin-redesign-page--scrape .scrape-claude-frame {
-  max-width: 980px;
+  max-width: 1060px;
   width: 100%;
-  margin-inline: auto;
+  margin-left: 0;
+  margin-right: auto;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
-/* PO18 账号状态卡片 */
-.admin-redesign-page--scrape .po18-account-pill-card {
-  background: var(--admin-panel, #faf9f5);
-  border: 1px solid var(--admin-border, #e6e4dc);
-  border-radius: 14px;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
-  overflow: hidden;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+/* PO18 账号凭据卡片 — 完全承接 Claude 标准卡片规范（与「从哪里开始？」完全同一视觉语言） */
+.admin-redesign-page--scrape .scrape-account-card {
+  padding: 1.5rem 1.75rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.admin-redesign-page--scrape .po18-account-pill-card:hover {
+.admin-redesign-page--scrape .scrape-account-card:hover {
   border-color: rgba(217, 119, 87, 0.35);
 }
 
+.admin-redesign-page--scrape .scrape-account-card .po18-claude-expand-content {
+  display: grid;
+  gap: var(--admin-space-4, 1rem);
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--admin-border, #e6e4dc);
+}
+
+/* 呼吸微光状态圆点（取代原先 40px 的笨重图标方块） */
+.admin-redesign-page--scrape .po18-claude-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+.admin-redesign-page--scrape .po18-claude-dot.is-healthy {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.admin-redesign-page--scrape .po18-claude-dot.is-warning {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+
+.admin-redesign-page--scrape .po18-claude-dot.is-danger {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.admin-redesign-page--scrape .po18-claude-dot.is-neutral {
+  background: #d97757;
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.2);
+}
+
+/* 紧凑测试按钮 */
+.admin-redesign-page--scrape .po18-claude-test-btn {
+  height: 1.625rem !important;
+  border-radius: 6px !important;
+  font-size: 0.725rem !important;
+  font-weight: 500 !important;
+  padding-inline: 0.55rem !important;
+  border: 1px solid var(--admin-border, #dedcd5) !important;
+  background: var(--admin-panel, #ffffff) !important;
+  color: var(--text-primary) !important;
+  transition: all 0.15s ease !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-test-btn:hover:not(:disabled) {
+  border-color: rgba(217, 119, 87, 0.45) !important;
+  background: #faf6f0 !important;
+  color: #c15f3d !important;
+}
+
+/* 折叠/展开文字触发器 */
+.admin-redesign-page--scrape .po18-claude-toggle-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.775rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.admin-redesign-page--scrape .po18-claude-bar:hover .po18-claude-toggle-trigger {
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* 展开区域内边距与细分割线 */
+.admin-redesign-page--scrape .po18-claude-expand-content {
+  display: grid;
+  gap: var(--admin-space-5, 1.25rem);
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-top: 1px solid var(--admin-border, #e6e4dc);
+  background: var(--admin-panel, #faf9f5);
+}
+
+/* 输入控件 Claude 风格外壳 */
+.admin-redesign-page--scrape .po18-claude-input {
+  height: 2.5rem !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--admin-border, #dedcd5) !important;
+  background: var(--admin-field, #ffffff) !important;
+  padding-inline: 0.85rem !important;
+  font-size: 0.825rem !important;
+  color: var(--text-primary) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-input:focus-visible,
+.admin-redesign-page--scrape .po18-claude-textarea:focus-visible {
+  border-color: #d97757 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.15) !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-textarea {
+  border-radius: 8px !important;
+  border: 1px solid var(--admin-border, #dedcd5) !important;
+  background: var(--admin-field, #ffffff) !important;
+  padding: 0.65rem 0.85rem !important;
+  font-size: 0.8rem !important;
+  color: var(--text-primary) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+/* 操作按钮 Claude 陶土色与暖调 */
+.admin-redesign-page--scrape .po18-claude-primary-btn {
+  height: 2.25rem !important;
+  border-radius: 8px !important;
+  background: #d97757 !important;
+  color: #ffffff !important;
+  font-weight: 500 !important;
+  padding-inline: 1rem !important;
+  font-size: 0.8rem !important;
+  border: 1px solid #d97757 !important;
+  box-shadow: 0 1px 2px rgba(217, 119, 87, 0.2) !important;
+  transition: all 0.15s ease !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-primary-btn:hover:not(:disabled) {
+  background: #c56344 !important;
+  border-color: #c56344 !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-secondary-btn {
+  height: 2.25rem !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  padding-inline: 1rem !important;
+  border: 1px solid var(--admin-border, #dedcd5) !important;
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  transition: all 0.15s ease !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-secondary-btn:hover:not(:disabled) {
+  background: var(--admin-panel-muted, #f4f2ec) !important;
+  border-color: rgba(217, 119, 87, 0.4) !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-ghost-btn {
+  height: 2.25rem !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  padding-inline: 0.85rem !important;
+  color: var(--text-muted) !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-ghost-btn:hover:not(:disabled) {
+  color: var(--text-primary) !important;
+  background: var(--admin-panel-muted, #f4f2ec) !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-clear-btn {
+  height: 2rem !important;
+  border-radius: 6px !important;
+  font-size: 0.775rem !important;
+  color: var(--text-muted) !important;
+  transition: all 0.15s ease !important;
+}
+
+.admin-redesign-page--scrape .po18-claude-clear-btn:hover:not(:disabled) {
+  color: #e11d48 !important;
+  background: rgba(225, 29, 72, 0.08) !important;
+}
+
+/* 兼容旧选择器 */
 .admin-redesign-page--scrape .po18-account-compact-bar {
   display: flex;
   align-items: center;
@@ -252,6 +430,7 @@
 }
 
 /* Dark Mode Overrides */
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-account-card,
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-account-pill-card,
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-intake,
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-queue-card {
@@ -259,8 +438,26 @@
   border-color: #2e2e2b;
 }
 
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-bar:hover,
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-account-compact-bar:hover {
   background: #252522;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-expand-content {
+  background: #1c1c1a;
+  border-color: #2e2e2b;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-test-btn {
+  background: #22221f !important;
+  border-color: #333330 !important;
+  color: #eeece3 !important;
+}
+
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-test-btn:hover:not(:disabled) {
+  border-color: rgba(217, 119, 87, 0.6) !important;
+  background: #2a2521 !important;
+  color: #e08a68 !important;
 }
 
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-intake-card__mode-tabs {

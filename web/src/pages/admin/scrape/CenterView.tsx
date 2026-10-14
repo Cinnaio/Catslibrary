@@ -14,7 +14,6 @@ import ScrapeIntake, { type IntakeMode } from './center/ScrapeIntake'
 import ScrapeSetupPanel, { type SetupPreview } from './center/ScrapeSetupPanel'
 import type { Selectors, TestResult } from './center/StepConfig'
 import { useScrapeJobs } from './center/useScrapeJobs'
-import JobQueue from './center/JobQueue'
 
 const PO18_PRESET = {
   name: 'PO18',
@@ -38,7 +37,7 @@ export default function CenterView() {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const setupRef = useRef<HTMLDivElement>(null)
-  const { jobs, track, cancel, retry, retryFailed, dismiss, toggleLog } = useScrapeJobs()
+  const { track } = useScrapeJobs()
 
   // 统一入口
   const [intakeMode, setIntakeMode] = useState<IntakeMode>('link')
@@ -596,17 +595,6 @@ export default function CenterView() {
         </div>
       )}
 
-      <JobQueue
-        jobs={jobs}
-        onCancel={cancel}
-        onRetry={retry}
-        onRetryFailed={retryFailed}
-        onDismiss={dismiss}
-        onToggleLog={toggleLog}
-        onExportConfigs={() => void exportConfigs()}
-        onImportConfigs={() => configFileRef.current?.click()}
-        configImportStatus={configImportStatus}
-      />
       <input ref={configFileRef} type="file" accept=".json" hidden onChange={(event) => void handleConfigFileSelected(event)} />
     </div>
   )
