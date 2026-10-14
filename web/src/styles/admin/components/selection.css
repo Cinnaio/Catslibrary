@@ -86,33 +86,38 @@
 
 .admin-selection-bar__count {
   display: inline-flex;
-  min-height: 1.85rem;
+  height: 2rem;
   align-items: center;
-  border: none;
+  border: 1px solid color-mix(in srgb, var(--admin-accent) 28%, transparent);
   border-radius: 9999px;
-  background: var(--admin-accent);
-  padding: 0.2rem 0.75rem;
-  color: #FFFFFF;
-  font-size: 0.8125rem;
+  background: color-mix(in srgb, var(--admin-accent) 12%, transparent);
+  padding: 0 0.75rem;
+  color: var(--admin-accent);
+  font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(217, 119, 87, 0.32);
+}
+
+[data-theme='dark'] .admin-selection-bar__count {
+  background: color-mix(in srgb, var(--admin-accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--admin-accent) 40%, transparent);
+  color: #E58B70;
 }
 
 .admin-selection-bar__actions {
   display: inline-flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .admin-selection-bar__actions > button,
 .admin-selection-bar__actions > [data-slot='button'] {
   border-radius: 9999px !important;
-  font-size: 0.825rem !important;
-  height: 2.125rem !important;
-  padding-inline: 0.875rem !important;
+  font-size: 0.8rem !important;
+  height: 2rem !important;
+  padding-inline: 0.85rem !important;
   white-space: nowrap;
 }
 
@@ -122,12 +127,6 @@
   max-width: min(calc(100vw - 2.5rem), 54rem);
   background: color-mix(in srgb, var(--admin-panel) 88%, transparent);
   box-shadow: 0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08);
-}
-
-.admin-redesign-page--novels > .admin-selection-bar .admin-selection-bar__count {
-  background: var(--admin-accent);
-  color: #FFFFFF;
-  padding-inline: 0.75rem;
 }
 
 @media (max-width: 640px) {

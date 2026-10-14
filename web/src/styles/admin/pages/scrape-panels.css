@@ -333,6 +333,14 @@
   gap: 0.75rem;
 }
 
+.admin-redesign-page--scrape .scrape-intake-card__site {
+  height: 2.375rem !important;
+  font-size: 0.85rem !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--admin-border, #dedcd5) !important;
+  background: var(--admin-field, #ffffff) !important;
+}
+
 .admin-redesign-page--scrape .scrape-intake-card__input {
   height: 2.375rem !important;
   border-radius: 8px !important;
@@ -834,11 +842,12 @@
 }
 
 .admin-redesign-page--scrape .scrape-discovery-title {
-  font-family: var(--font-serif, Georgia, "Noto Serif SC", serif);
-  font-size: 1.05rem;
-  font-weight: 500;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.015em;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
