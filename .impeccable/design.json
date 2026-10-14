@@ -3,6 +3,15 @@
   "generatedAt": "2026-10-02T00:00:00.000Z",
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
+    "adminPaginationGeometry": { "source": "web/src/styles/admin/components/pagination.css", "sizeToken": "--admin-pagination-control-size", "size": "34px", "variants": ["panel", "detached", "dialog"], "contract": "Set height and min-height together; button selectors include data-slot and data-size so ordinary sm rules cannot expand text buttons to 40px while icon buttons stay 34px." },
+    "adminFloatingSelectionDock": {
+      "source": "web/src/styles/admin/components/selection.css",
+      "tokens": "web/src/styles/admin/tokens.css",
+      "consumers": ["NovelsTab", "ChaptersTab", "DiscoveryPanel"],
+      "geometry": { "desktopHeight": "36px", "touchHeight": "44px", "touchCondition": "max-width: 900px or pointer: coarse", "paddingInline": "14px", "gap": "8px", "iconSize": "16px", "inset": "8px", "controlRadius": "9999px", "mobileShellRadius": "24px" },
+      "typography": { "primaryAndDestructive": "14px", "secondaryAndGhost": "13px", "weight": 550 },
+      "contract": "Both clear placements share height and min-height rules. Consumers use Button variants with no local geometry or colors. Narrow layouts wrap with bottom safe area; icon buttons are square. Primary colors derive from admin-selection tokens; no per-button shadow or hover lift. Keyboard focus and disabled geometry remain visible and stable. Pagination and row controls keep their own tokens."
+    },
     "novelCoverDepth": {"token":"--novel-cover-shadow","light":"0 2px 4px rgba(40,32,24,.08), 0 8px 18px rgba(40,32,24,.12)","dark":"0 2px 5px rgba(0,0,0,.24), 0 8px 20px rgba(0,0,0,.32)","scope":"Public NovelCard and Novel detail covers only; containers stay flat."},
     "novelCardTypography": {"title":"0.875rem","meta":"0.75rem","description":"0.75rem","footer":"0.7rem","source":"web/src/styles/tokens.css","scope":"Shared public NovelCard in Home and Bookshelf; desktop and mobile use the same sizes."},
     "publicAccountPaper": {
@@ -250,7 +259,7 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Main action button. Milk-tea brown background, white text. Public pages use 6px radius; admin uses 12px (--admin-button-radius) with a 2.5rem minimum height.",
+      "description": "Public main action: milk-tea brown background, white text, 6px radius. Admin main actions use terracotta and full pill radius (--admin-button-radius), ordinarily with a 40px minimum height. Floating selection docks use their dedicated 36px desktop / 44px touch contract.",
       "html": "<button class=\"ds-btn-primary\">保存</button>",
       "css": ".ds-btn-primary { background: #8B6045; color: #FFFFFF; padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-primary:hover { background: #74503A; } .ds-btn-primary:focus-visible { outline: none; border-color: #74503A; box-shadow: 0 0 0 3px rgba(139,96,69,0.24); }"
     },

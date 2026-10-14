@@ -242,11 +242,10 @@ export default function DiscoveryPanel({
       >
         <Button
           size="sm"
-          className="h-8 rounded-full px-4 text-xs font-medium bg-[#D97757] hover:bg-[#c56344] text-white shadow-xs disabled:opacity-40 transition-all cursor-pointer"
           onClick={onBatchScrape}
           disabled={selectedNewCount === 0}
         >
-          <RefreshCw className="size-3.5 mr-1.5" aria-hidden="true" />
+          <RefreshCw aria-hidden="true" />
           批量抓取 {selectedNewCount > 0 ? `(${selectedNewCount})` : ''}
         </Button>
       </AdminSelectionBar>

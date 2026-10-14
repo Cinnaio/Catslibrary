@@ -780,7 +780,6 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
             <Button
               variant="secondary"
               size="sm"
-              className="rounded-full"
               onClick={() =>
                 setSelectedIds((prev) => {
                   const pageIds = pageRows.map((c) => c.id)
@@ -792,7 +791,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
             >
               反选本页
             </Button>
-            <Button variant="destructive" size="sm" className="rounded-full" onClick={() => void batchDelete()}>
+            <Button variant="destructive" size="sm" onClick={() => void batchDelete()}>
               批量删除 ({selectedIds.size})
             </Button>
           </AdminSelectionBar>
