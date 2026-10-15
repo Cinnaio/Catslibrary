@@ -8,7 +8,6 @@ import { useSearchParams } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
 import { aiApi, type AiSettings, type AiProviderConfig } from '../../lib/api'
 import { useToast } from '../../components/feedback'
-import { AdminSearch } from '@/components/admin/AdminWorkspace'
 import AdminPage from '@/components/admin/AdminPage'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -47,7 +46,6 @@ export default function AiTab() {
   const [imageProvider, setImageProvider] = useState<Provider | null>(null)
   const [imageProviderConfig, setImageProviderConfig] = useState<AiProviderConfig | null>(null)
   const [loading, setLoading] = useState(true)
-  const [generationSearch, setGenerationSearch] = useState('')
   // URL 深链优先于 localStorage：进入/刷新/返回时按 sub 参数定位子页
   const [searchParams, setSearchParams] = useSearchParams()
   const urlSub = searchParams.get('sub')
@@ -105,21 +103,10 @@ export default function AiTab() {
       description={currentMeta.description}
       className="admin-redesign-page admin-redesign-page--ai ai-admin-page ai-service"
       actions={
-        currentSubTab === 'content' ? (
-          <AdminSearch
-            id="ai-generation-search"
-            label="搜索生成内容"
-            placeholder="搜索作品、章节或正文"
-            maxLength={100}
-            value={generationSearch}
-            onChange={(event) => setGenerationSearch(event.target.value)}
-          />
-        ) : (
-          <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
-            {loading ? '刷新中…' : '刷新'}
-          </Button>
-        )
+        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+          <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+          {loading ? '刷新中…' : '刷新'}
+        </Button>
       }
     >
       <Tabs
@@ -132,7 +119,7 @@ export default function AiTab() {
         }}
         className="ai-service-tabs admin-capsule-tabs"
       >
-        <div className="ai-workbench-nav-track mb-6 flex items-center justify-between">
+        <div className="ai-workbench-nav-track flex items-center justify-between">
           <TabsList aria-label="AI 服务视图">
             {VALID_SUBS.map((subKey) => (
               <TabsTrigger key={subKey} value={subKey}>
@@ -157,7 +144,7 @@ export default function AiTab() {
             />
           )}
 
-          {currentSubTab === 'content' && <AiGenerationsPanel scope="all" status="all" search={generationSearch} focusBatchId={urlBatch} />}
+          {currentSubTab === 'content' && <AiGenerationsPanel scope="all" status="all" focusBatchId={urlBatch} />}
 
           {currentSubTab === 'config' && (
             <AiConfigPanel

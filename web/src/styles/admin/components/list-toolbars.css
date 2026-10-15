@@ -22,7 +22,7 @@
    作为平铺在画布上的独立筛选控制层，与下方纸白数据卡片解耦。 */
 .ai-service .ai-tasks-toolbar,
 .ai-service .ai-audit-toolbar,
-.ai-service .ai-generations-toolbar {
+.ai-service :is(.ai-generations-toolbar, .ai-generations-filter-rail) {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -35,12 +35,12 @@
 }
 
 .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='select-trigger'],
-.ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='select-trigger'] {
+.ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar, .ai-generations-filter-rail) [data-slot='select-trigger'] {
   flex: 0 0 auto;
 }
 
 .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='input'],
-.ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='input'] {
+.ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar, .ai-generations-filter-rail) [data-slot='input'] {
   width: min(100%, 20rem);
   flex: 0 1 20rem;
 }
