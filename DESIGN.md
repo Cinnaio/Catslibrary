@@ -647,6 +647,9 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 在具有明确业务语境（页面标题或 Tabs）的数据列表页中，严禁在 `AdminDataPanel` 内部再包裹带有二级对象名的 `AdminPanelHeading` 或内嵌二级工具条（Card-in-Card 俄罗斯套娃）。
 数据面板直接从 `<thead>` 开始，以数据实体本身作为卡片。外置控制行使用透明背景、无描边、无圆角（`.admin-filter-rail`），只靠自然流式排版与极细 Hairline 分隔表达层级。分页默认作为同级元素外置（`Pagination variant="detached"`）。
 
+- **AI 建议与异步任务控制流（AI Suggestion & Task Control Flatness）:**
+  在 AI 分级建议或异步模型生成等任务工作台视图中，工具筛选条（状态切换、单批上限选择、分析未标注按钮）、说明性指引以及任务执行进度条/断点恢复卡片（`AiTaskProgressBar`），必须作为独立的控制表面平铺渲染在数据面板外部画布上，严禁打包揉塞进 `AdminDataPanel`。下方建议记录直接复用统一的数据表格设计规范（`AdminDataPanel columns={...} density="comfortable"` + `Table`），使用标准列宽契约、表头批量复选框与 `Pagination variant="detached"`，消灭非标队列卡片堆叠，实现纯粹的 Claude 纸白单层控制流。
+
 **The Claude Table Motion & Transition Standard (数据流转与列表微动效规范).**
 后台数据列表在筛选维度切换（分级、来源、状态）、搜索实时过滤及翻页流转时，必须具备轻量、克制、符合感知即时性（Perceived Speed）的微动效反馈：
 1. **数据请求流转态（Transitioning Feedback）**：加载/刷新中表格内容进入轻度半透明态（`.admin-data-table--transitioning`，`opacity: 0.58` + `filter: blur(0.4px)`，时长 150ms），明确告知用户正在请求最新数据切片并锁定操作指针；
@@ -727,6 +730,7 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Do** 把筛选读数贴在能筛出它的控件旁边（「待标注 67 · 限制级 340」紧邻分级下拉），而不是另起指标条
 - **Do** 用 `data-slot` 属性匹配 shadcn 组件（`table.tsx` / `dialog.tsx` 都带契约），而不是依赖 Tailwind 生成的类名
 - **Do** 给放进 flex 工具条的紧凑控件一个显式宽度（控件自身 `max-w-*` 或容器 `flex: 0 0 <宽度>`）；短选项筛选器直接用 `CustomSelect compact`
+- **Do** 将 AI 建议与异步任务控制流（状态筛选、批次控制、进度恢复卡片）作为独立层外置于数据面板之前，下方队列严格复用 `AdminDataPanel` 表格规范
 
 ### Don't:
 - **Don't** 使用纯黑（#000000）或纯白作为大面积背景——永远带暖调
@@ -744,6 +748,7 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Don't** 让 `w-full` 的元素在 flex 容器里失去 `max-width`——`max-w-none` + `w-full` 会让筛选器独占整行，把工具条撑成多行
 - **Don't** 依赖 flex 布局替控件决定宽度：`flex: 0 0 auto` 配合 `w-full` 的宽高组合在 `flex-wrap` 下没有稳定结果
 - **Don't** 在弹窗内部的页头下方或页脚上方添加水平分割线（`border-bottom` / `border-top`），或在弹窗正文内滥用多层带边框的嵌套灰底矩形卡片（杜绝盒中盒反模式）
+- **Don't** 将工具条、状态进度条和描述性说明全部塞进数据面板内部，造成面板内部多层灰色带与边框挤压（Card-in-Card 俄罗斯套娃反模式）
 
 ### Directory Row Density and Dates
 

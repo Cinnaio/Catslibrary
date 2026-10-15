@@ -85,6 +85,14 @@ const RATING_COLUMNS: readonly AdminColumn[] = [
   { key: 'actions', label: '操作', width: '16%', actions: true },
 ]
 
+const AI_SUGGESTION_COLUMNS: readonly AdminColumn[] = [
+  { key: 'work', label: '作品', width: '22%', primary: true },
+  { key: 'rating', label: 'AI 建议', width: '13%' },
+  { key: 'model', label: '模型与规则', width: '15%' },
+  { key: 'evidence', label: '判定依据与证据', width: '38%' },
+  { key: 'actions', label: '操作', width: '12%', actions: true },
+]
+
 const CANDIDATE_KIND_OPTIONS: SelectOption[] = [
   { value: 'category', label: '分类标签' },
   { value: 'phrase', label: '文本短语' },
@@ -582,20 +590,30 @@ function AiSuggestionPanel({
     })
   }
   const active = !!task && ['queued', 'running'].includes(task.status)
+
   return (
-    <AdminDataPanel ariaLabel="LLM 内容分级建议" className="content-ratings-panel content-ratings-ai-panel">
-      <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-ai-rail">
+    <>
+      {/* 独立外置工具条与全局操作区（位于表格之外） */}
+      <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-ai-rail" ariaLive="polite">
         <CustomSelect
           aria-label="LLM 建议状态"
           value={status}
-          options={[{ value: 'pending', label: '待审核建议' }, { value: 'stale', label: '已过期建议' }]}
-          onChange={value => { setSelected(new Map()); onStatus(value as 'pending' | 'stale') }}
+          options={[
+            { value: 'pending', label: '待审核建议' },
+            { value: 'stale', label: '已过期建议' },
+          ]}
+          onChange={(value) => {
+            setSelected(new Map())
+            onStatus(value as 'pending' | 'stale')
+          }}
           disabled={bulkBusy || loading}
           compact
           chip
         />
-        <div className="content-ratings-ai-actions ml-auto">
-          <Label id="content-rating-batch-label">单批</Label>
+        <div className="content-ratings-ai-actions ml-auto flex items-center gap-2">
+          <Label id="content-rating-batch-label" className="text-xs text-muted-foreground">
+            单批
+          </Label>
           <CustomSelect
             options={AI_BATCH_LIMIT_OPTIONS}
             value={String(batchLimit)}
@@ -604,75 +622,187 @@ function AiSuggestionPanel({
             className="content-ratings-batch-select"
             compact
           />
-          <Button type="button" size="sm" onClick={onScan} disabled={scanning || active}>
-            <Bot className={scanning ? 'size-3.5 animate-pulse' : 'size-3.5'} aria-hidden="true" />
+          <Button type="button" size="sm" onClick={onScan} disabled={scanning || active} className="rounded-full px-4 h-9 text-xs font-medium">
+            <Bot className={scanning ? 'size-3.5 animate-pulse mr-1' : 'size-3.5 mr-1'} aria-hidden="true" />
             {scanning ? '创建任务…' : '分析未标注'}
           </Button>
         </div>
       </AdminToolbar>
-      <p className="content-ratings-panel-description">
+
+      <p className="content-ratings-panel-description text-xs text-muted-foreground/80 leading-relaxed mb-3">
         只分析未标注作品。判级依据是元数据加正文采样片段，正文成人词命中只用于定位采样章节，不直接决定分级。模型建议经人工审核才可修改分级；批准“继续未标注”不会标为一般。
       </p>
+
+      {/* 任务进度条独立卡片 */}
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
-      {!history && <div className="content-ratings-ai-selection" role="group" aria-label="LLM 建议批量操作">
-        <Label><Checkbox aria-label="全选本页 LLM 建议" checked={allSelected ? true : someSelected ? 'indeterminate' : false} disabled={locked || !rows.length} onCheckedChange={checked => {
-          setSelected(previous => {
-            const next = new Map(previous)
-            rows.forEach(row => { if (checked === true) next.set(row.id, row); else next.delete(row.id) })
-            return next
-          })
-        }} />全选本页</Label>
-        <span>已选 {selected.size} 条</span>
-        <Button variant="ghost" size="sm" disabled={bulkBusy || !selected.size} onClick={() => setSelected(new Map())}>清空选择</Button>
-        <AiSuggestionBulkReview items={[...selected.values()]} disabled={locked} onBusy={setBulkBusy} onCompleted={async ids => {
-          setSelected(previous => { const next = new Map(previous); ids.forEach(id => next.delete(id)); return next })
-          await onBulkCompleted()
-        }} />
-      </div>}
-      {error ? (
-        <ErrorState message={`LLM 建议加载失败：${error}`} onRetry={onRetry} />
-      ) : loading && !data ? (
-        <LoadingState label="正在加载 LLM 分级建议" rows={2} />
-      ) : !data || data.items.length === 0 ? (
-        <AdminEmptyState message={history ? '没有已过期的 LLM 分级建议。' : '还没有待审核的 LLM 分级建议；分析任务只会读取未标注作品。'} />
-      ) : (
-        <div className="content-ratings-queue" key={`${status}-${page}`}>
-          {data.items.map((suggestion) => (
-            <article className={`content-ratings-queue-item${history ? ' content-ratings-queue-item--stale' : ''}`} key={suggestion.id}>
-              {!history && <Checkbox aria-label={`选择 LLM 建议：${suggestion.title || suggestion.id}`} checked={selected.has(suggestion.id)} disabled={locked} onCheckedChange={checked => select(suggestion, checked === true)} />}
-              <div className="content-ratings-queue-copy">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-foreground">{suggestion.title || '未命名作品'}</span>
-                  <AdminStatusBadge tone={suggestion.suggestedRating === 'restricted' ? 'danger' : 'muted'}>
-                    {suggestion.suggestedRating === 'restricted' ? '建议限制级' : '建议继续未标注'}
-                  </AdminStatusBadge>
-                  <Badge variant="outline">置信度 {Math.round(suggestion.confidence * 100)}%</Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {suggestion.author || '未知作者'} · 模型 {suggestion.model || '未记录'} · {suggestion.promptVersion}
-                </p>
-                <p className="content-ratings-queue-reason">{suggestion.reason || '未记录 AI 理由'}</p>
-                {suggestion.evidence.length > 0 && (
-                  <div className="mt-2">
-                    <EvidenceList evidence={suggestion.evidence} compact />
-                  </div>
-                )}
-              </div>
-              {history && <p className="content-ratings-stale-reason" role="status">已过期：{suggestion.error || '作品分级或修订已变化'}，当前分级：{suggestion.currentRating === 'restricted' ? '限制级' : suggestion.currentRating === 'general' ? '一般' : '未标注'}。</p>}
-              {!history && <div className="content-ratings-queue-actions">
-                <Button type="button" variant="outline" size="sm" disabled={locked} onClick={() => onReview(suggestion)}>
-                  <Eye className="size-3.5" aria-hidden="true" />
-                  审核建议
-                </Button>
-              </div>}
-            </article>
-          ))}
+
+      {/* 批量操作条（当有选中项时浮现） */}
+      {!history && selected.size > 0 && (
+        <div
+          className="content-ratings-ai-selection flex items-center gap-3 px-4 py-2.5 rounded-xl bg-muted/40 border border-border/60 text-xs text-foreground mb-3 animate-in fade-in slide-in-from-top-1 duration-150"
+          role="group"
+          aria-label="LLM 建议批量操作"
+        >
+          <span className="font-medium text-foreground">已选 {selected.size} 条</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground hover:text-foreground"
+            disabled={bulkBusy || !selected.size}
+            onClick={() => setSelected(new Map())}
+          >
+            清空选择
+          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <AiSuggestionBulkReview
+              items={[...selected.values()]}
+              disabled={locked}
+              onBusy={setBulkBusy}
+              onCompleted={async (ids) => {
+                setSelected((previous) => {
+                  const next = new Map(previous)
+                  ids.forEach((id) => next.delete(id))
+                  return next
+                })
+                await onBulkCompleted()
+              }}
+            />
+          </div>
         </div>
       )}
-      <Pagination variant="detached" page={page} totalPages={Math.max(1, Math.ceil((data?.total || 0) / pageSize))} onPage={onPage}
+
+      {/* 复用表格设计规范的主数据面板 */}
+      <AdminDataPanel ariaLabel="LLM 内容分级建议" columns={AI_SUGGESTION_COLUMNS} className="content-ratings-panel content-ratings-ai-panel" density="comfortable">
+        {error ? (
+          <ErrorState message={`LLM 建议加载失败：${error}`} onRetry={onRetry} />
+        ) : loading && !data ? (
+          <LoadingState label="正在加载 LLM 分级建议" rows={2} />
+        ) : !data || data.items.length === 0 ? (
+          <AdminEmptyState message={history ? '没有已过期的 LLM 分级建议。' : '还没有待审核的 LLM 分级建议；分析任务只会读取未标注作品。'} />
+        ) : (
+          <Table className={cn('admin-data-table admin-data-table--animated', (loading || bulkBusy) && 'admin-data-table--transitioning')}>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <div className="flex items-center gap-2.5">
+                    {!history && (
+                      <Checkbox
+                        aria-label="全选本页 LLM 建议"
+                        checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                        disabled={locked || !rows.length}
+                        onCheckedChange={(checked) => {
+                          setSelected((previous) => {
+                            const next = new Map(previous)
+                            rows.forEach((row) => {
+                              if (checked === true) next.set(row.id, row)
+                              else next.delete(row.id)
+                            })
+                            return next
+                          })
+                        }}
+                      />
+                    )}
+                    <span>作品</span>
+                  </div>
+                </TableHead>
+                <TableHead>AI 建议</TableHead>
+                <TableHead>模型与规则</TableHead>
+                <TableHead>判定依据与证据</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody key={`${status}-${page}`}>
+              {data.items.map((suggestion) => (
+                <TableRow key={suggestion.id} className={history ? 'content-ratings-queue-item--stale opacity-75' : undefined}>
+                  <TableCell data-primary="" data-label="作品">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      {!history && (
+                        <Checkbox
+                          className="mt-0.5 shrink-0"
+                          aria-label={`选择 LLM 建议：${suggestion.title || suggestion.id}`}
+                          checked={selected.has(suggestion.id)}
+                          disabled={locked}
+                          onCheckedChange={(checked) => select(suggestion, checked === true)}
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-foreground" title={suggestion.title}>
+                          {suggestion.title || '未命名作品'}
+                        </div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground">
+                          {suggestion.author || '未知作者'}
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell data-label="AI 建议">
+                    <AdminStatusBadge tone={suggestion.suggestedRating === 'restricted' ? 'danger' : 'muted'}>
+                      {suggestion.suggestedRating === 'restricted' ? '建议限制级' : '建议继续未标注'}
+                    </AdminStatusBadge>
+                    <div className="mt-1 text-xs text-muted-foreground tabular-nums">
+                      置信度 {Math.round(suggestion.confidence * 100)}%
+                    </div>
+                  </TableCell>
+                  <TableCell data-label="模型与规则">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm text-foreground">{suggestion.model || '未记录模型'}</div>
+                      <div className="mt-1 truncate text-xs text-muted-foreground font-mono" title={suggestion.promptVersion}>
+                        {suggestion.promptVersion}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell data-label="判定依据与证据">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs text-foreground/90 line-clamp-2 leading-relaxed" title={suggestion.reason}>
+                        {suggestion.reason || '未记录 AI 理由'}
+                      </p>
+                      {suggestion.evidence.length > 0 && (
+                        <div className="mt-1">
+                          <EvidenceList evidence={suggestion.evidence} compact />
+                        </div>
+                      )}
+                      {history && (
+                        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                          已过期：{suggestion.error || '作品分级或修订已变化'}
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell data-label="操作" className="text-right">
+                    {!history ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={locked}
+                        onClick={() => onReview(suggestion)}
+                        className="rounded-full px-3.5 h-7 text-xs font-medium border-border/80 hover:bg-muted/50 cursor-pointer"
+                      >
+                        <Eye className="size-3.5 mr-1" aria-hidden="true" />
+                        审核建议
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">已失效</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </AdminDataPanel>
+
+      {/* 分页组件位于表格面板外部 */}
+      <Pagination
+        variant="detached"
+        page={page}
+        totalPages={Math.max(1, Math.ceil((data?.total || 0) / pageSize))}
+        onPage={onPage}
         summary={`共 ${data?.total ?? '—'} 条建议`}
-        pageSize={{ value: pageSize, options: ADMIN_PAGE_SIZE_OPTIONS, onChange: onPageSize }} busy={locked} />
-    </AdminDataPanel>
+        pageSize={{ value: pageSize, options: ADMIN_PAGE_SIZE_OPTIONS, onChange: onPageSize }}
+        busy={locked}
+      />
+    </>
   )
 }
 
