@@ -3,7 +3,7 @@ import { AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminFormField from '@/components/admin/AdminFormField'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronUp, CirclePlus, Layers, RefreshCw } from 'lucide-react'
+import { ChevronDown, CirclePlus, CornerDownRight, RefreshCw } from 'lucide-react'
 import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
@@ -242,8 +242,18 @@ export default function AiGenerationsPanel(props: {
     return item.groupItems ? item.groupItems.map((chapter) => chapter.id) : [item.id]
   }
 
+  function getItemCheckedState(item: AiGenerationListItem): boolean | 'indeterminate' {
+    const itemIds = idsForItem(item)
+    const isAllChecked = itemIds.length > 0 && itemIds.every((id) => selectedIds.has(id))
+    if (isAllChecked) return true
+    if (itemIds.some((id) => selectedIds.has(id))) return 'indeterminate'
+    return false
+  }
+
   const selectedCount = [...selectedIds].length
   const allSelected = items.length > 0 && items.every((item) => idsForItem(item).every((id) => selectedIds.has(id)))
+  const isAnySelected = items.length > 0 && items.some((item) => idsForItem(item).some((id) => selectedIds.has(id)))
+  const headerCheckedState = allSelected ? true : isAnySelected ? 'indeterminate' : false
 
   function toggleItem(item: AiGenerationListItem, checked: boolean): void {
     setSelectedIds((current) => {
@@ -525,7 +535,7 @@ export default function AiGenerationsPanel(props: {
                     <div className="ai-generation-identity">
                       <Checkbox
                         aria-label="全选当前列表"
-                        checked={allSelected}
+                        checked={headerCheckedState}
                         onCheckedChange={(checked) => {
                           for (const item of items) toggleItem(item, checked === true)
                         }}
@@ -547,7 +557,7 @@ export default function AiGenerationsPanel(props: {
                           <div className="ai-generation-identity">
                             <Checkbox
                               aria-label={`选择${item.chapterTitle || item.kind}`}
-                              checked={idsForItem(item).every((id) => selectedIds.has(id))}
+                              checked={getItemCheckedState(item)}
                               onCheckedChange={(checked) => toggleItem(item, checked === true)}
                             />
                             <div className="min-w-0">
@@ -687,101 +697,93 @@ export default function AiGenerationsPanel(props: {
                           </div>
                         </TableCell>
                       </TableRow>
-                      {item.groupItems && expandedBatchId === item.id && (
-                        <TableRow className="ai-generation-batch-detail" id={`ai-generation-batch-${item.id}`}>
-                          <TableCell colSpan={5}>
-                            <div className="ai-generation-batch-sheet">
-                              <div className="ai-generation-batch-sheet__header">
-                                <div className="ai-generation-batch-sheet__lead">
-                                  <Layers className="size-3.5 text-accent" aria-hidden="true" />
-                                  <span className="ai-generation-batch-sheet__title">批次生成明细</span>
-                                  <span className="ai-generation-batch-sheet__badge">共 {item.groupItems.length} 章</span>
-                                  <span className="ai-generation-batch-sheet__count tabular-nums">
-                                    总计约 {item.groupItems.reduce((acc, c) => acc + (c.result ? Array.from(c.result).length : 0), 0).toLocaleString()} 字
-                                  </span>
-                                </div>
-                                <div className="ai-generation-batch-sheet__actions">
-                                  {item.groupItems.some((c) => c.status === 'draft') && (
-                                    <Button
-                                      type="button"
-                                      variant="secondary"
-                                      size="sm"
-                                      className="content-ratings-edit-button h-7 px-3 text-xs"
-                                      disabled={publishingBatchId === item.batchId}
-                                      onClick={() => void publishBatch(item)}
+                      {item.groupItems && expandedBatchId === item.id &&
+                        item.groupItems.map((chapter) => {
+                          const wordCount = chapter.result ? Array.from(chapter.result).length : 0
+                          const isChapterChecked = selectedIds.has(chapter.id)
+                          return (
+                            <TableRow
+                              key={chapter.id}
+                              className="ai-generation-row ai-generation-row--child"
+                              data-child-of={item.id}
+                            >
+                              <TableCell data-primary="" data-label="关联内容">
+                                <div className="ai-generation-child-identity">
+                                  <CornerDownRight className="ai-generation-child-tree" aria-hidden="true" />
+                                  <Checkbox
+                                    aria-label={`选择${chapter.draftTitle || chapter.chapterTitle || `第 ${chapter.batchIndex} 章`}`}
+                                    checked={isChapterChecked}
+                                    onCheckedChange={(checked) => {
+                                      setSelectedIds((current) => {
+                                        const next = new Set(current)
+                                        if (checked === true) next.add(chapter.id)
+                                        else next.delete(chapter.id)
+                                        return next
+                                      })
+                                    }}
+                                  />
+                                  <div className="ai-generation-child-meta min-w-0">
+                                    <span className="ai-generation-child-index">第 {chapter.batchIndex} 章</span>
+                                    <span
+                                      className="ai-generation-child-title"
+                                      title={chapter.draftTitle || chapter.chapterTitle || '待命名章节'}
                                     >
-                                      {publishingBatchId === item.batchId ? '发布中…' : '整批发布全部'}
-                                    </Button>
-                                  )}
+                                      {chapter.draftTitle || chapter.chapterTitle || '待命名章节'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell data-label="类型与状态">
+                                <div className="ai-generation-classification">
+                                  <span>{kindLabel(chapter.kind)}</span>
+                                  <AdminStatusBadge
+                                    tone={chapter.status === 'draft' ? 'accent' : chapter.status === 'published' ? 'success' : 'muted'}
+                                  >
+                                    {generationStatusLabel(chapter.status)}
+                                  </AdminStatusBadge>
+                                </div>
+                              </TableCell>
+                              <TableCell data-label="内容预览">
+                                <p className="ai-generation-preview ai-generation-preview--child" data-preview-label="正文预览">
+                                  {chapter.result || '—'}
+                                </p>
+                              </TableCell>
+                              <TableCell data-label="模型与时间">
+                                <div className="ai-generation-child-stats">
+                                  <span className="ai-generation-child-words tabular-nums">约 {wordCount.toLocaleString()} 字</span>
+                                  <AdminModelTime model={chapter.model} timestamp={chapter.createdAt} />
+                                </div>
+                              </TableCell>
+                              <TableCell data-actions="">
+                                <div className="admin-cell-actions justify-end">
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    className="content-ratings-edit-button"
+                                    onClick={() => {
+                                      setViewing(chapter)
+                                      setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
+                                      setTitleCandidates([])
+                                    }}
+                                  >
+                                    {chapter.status === 'draft' ? '审阅' : '查看'}
+                                  </Button>
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    className="h-7 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                                    onClick={() => setExpandedBatchId(null)}
-                                    title="收起批次明细"
+                                    className="ai-generation-delete"
+                                    disabled={deletingId === chapter.id}
+                                    onClick={() => void remove(chapter)}
                                   >
-                                    <ChevronUp className="size-3.5 mr-1" aria-hidden="true" />
-                                    收起
+                                    {deletingId === chapter.id ? '删除中…' : '删除'}
                                   </Button>
                                 </div>
-                              </div>
-                              <div className="ai-generation-chapters" role="list">
-                                {item.groupItems.map((chapter) => {
-                                  const wordCount = chapter.result ? Array.from(chapter.result).length : 0
-                                  return (
-                                    <div className="ai-generation-chapter" key={chapter.id} role="listitem">
-                                      <div className="ai-generation-chapter__header">
-                                        <div className="ai-generation-chapter__identity">
-                                          <span className="ai-generation-chapter__index">第 {chapter.batchIndex} 章</span>
-                                          <span className="ai-generation-chapter__title" title={chapter.draftTitle || chapter.chapterTitle || '待命名章节'}>
-                                            {chapter.draftTitle || chapter.chapterTitle || '待命名章节'}
-                                          </span>
-                                        </div>
-                                        <AdminStatusBadge
-                                          tone={chapter.status === 'draft' ? 'accent' : chapter.status === 'published' ? 'success' : 'muted'}
-                                        >
-                                          {generationStatusLabel(chapter.status)}
-                                        </AdminStatusBadge>
-                                      </div>
-                                      <div className="ai-generation-chapter__footer">
-                                        <span className="ai-generation-chapter__words tabular-nums">
-                                          约 {wordCount.toLocaleString()} 字
-                                        </span>
-                                        <div className="admin-cell-actions ai-generation-chapter__actions justify-end">
-                                          <Button
-                                            type="button"
-                                            variant="secondary"
-                                            size="sm"
-                                            className="content-ratings-edit-button h-6 px-2.5 text-xs"
-                                            onClick={() => {
-                                              setViewing(chapter)
-                                              setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
-                                              setTitleCandidates([])
-                                            }}
-                                          >
-                                            {chapter.status === 'draft' ? '审阅' : '查看'}
-                                          </Button>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="ai-generation-delete h-6 px-2 text-xs"
-                                            disabled={deletingId === chapter.id}
-                                            onClick={() => void remove(chapter)}
-                                          >
-                                            {deletingId === chapter.id ? '删除中…' : '删除'}
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
                     </Fragment>
                   ))}
                 </TableBody>
