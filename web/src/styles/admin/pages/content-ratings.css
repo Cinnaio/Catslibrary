@@ -182,10 +182,9 @@
   color: var(--admin-accent, #d97757);
 }
 
-/* 分级与审核口径折叠条 */
+/* 分级与审核口径（固定悬浮浮层，避免点击展开时跳动换行） */
 .content-ratings-policy {
   position: relative;
-  max-width: none;
   font-size: 0.8125rem;
 }
 
@@ -204,6 +203,7 @@
   transition: all 0.15s ease;
   list-style: none;
   box-shadow: none;
+  user-select: none;
 }
 
 :root[data-theme='dark'] .content-ratings-policy summary,
@@ -226,21 +226,25 @@
   transition: color 0.15s ease;
 }
 
-.content-ratings-policy summary:hover {
+.content-ratings-policy summary:hover,
+.content-ratings-policy[open] summary {
   border-color: rgba(217, 119, 87, 0.2);
   color: var(--admin-accent, #d97757);
-  background: rgba(217, 119, 87, 0.05);
+  background: rgba(217, 119, 87, 0.06);
 }
 
-.content-ratings-policy summary:hover svg {
+.content-ratings-policy summary:hover svg,
+.content-ratings-policy[open] summary svg {
   color: var(--admin-accent, #d97757);
 }
 
 :root[data-theme='dark'] .content-ratings-policy summary:hover,
-[data-theme='dark'] .content-ratings-policy summary:hover {
+:root[data-theme='dark'] .content-ratings-policy[open] summary,
+[data-theme='dark'] .content-ratings-policy summary:hover,
+[data-theme='dark'] .content-ratings-policy[open] summary {
   border-color: rgba(217, 119, 87, 0.3);
   color: var(--admin-accent, #d97757);
-  background: rgba(217, 119, 87, 0.1);
+  background: rgba(217, 119, 87, 0.12);
 }
 
 .content-ratings-policy summary:focus-visible {
@@ -248,22 +252,31 @@
   box-shadow: 0 0 0 3px var(--admin-accent-light, rgba(217, 119, 87, 0.16));
 }
 
+/* 浮层气泡：绝对定位右对齐，零布局抖动 (Zero Layout Shift) */
 .content-ratings-policy p {
-  margin: 0.625rem 0 0;
-  padding: 0.75rem 1.125rem;
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: 24rem;
+  max-width: calc(100vw - 2.5rem);
+  margin: 0;
+  padding: 0.875rem 1.125rem;
   border-radius: var(--radius-md, 10px);
   border: 1px solid var(--admin-border, #e6e4dc);
-  background: var(--admin-panel-muted, #f6f4ed);
+  background: var(--admin-panel, #ffffff);
   color: var(--text-secondary, #5b554e);
   font-size: 0.785rem;
   line-height: 1.6;
+  box-shadow: 0 4px 20px -2px rgba(35, 30, 24, 0.12), 0 2px 6px -1px rgba(35, 30, 24, 0.08);
+  z-index: 50;
 }
 
 :root[data-theme='dark'] .content-ratings-policy p,
 [data-theme='dark'] .content-ratings-policy p {
   border-color: var(--admin-border, #2c2b28);
-  background: var(--admin-panel-muted, #242320);
+  background: var(--admin-panel, #1d1d1b);
   color: #a8a39b;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5);
 }
 
 /* --------------------------------------------------------------------------
