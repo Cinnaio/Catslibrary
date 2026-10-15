@@ -1657,7 +1657,7 @@ export default function ContentRatingsTab() {
             onCancel={() => void cancelAiTask()}
             onResume={() => void resumeAiTask()}
             status={aiStatus}
-            onStatus={status => { setAiStatus(status); setAiPage(1); setAiData(null) }}
+            onStatus={status => { setAiStatus(status); setAiPage(1) }}
             page={aiPage}
             pageSize={aiPageSize}
             onPage={setAiPage}

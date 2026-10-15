@@ -242,8 +242,6 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     const current = () => revision === requestRevision.current
     setLoading(true)
     setError('')
-    setRows([])
-    setTotal(null)
     try {
       if (mode === 'thoughts') {
         const d = await thoughtsApi.adminList({ status, userId: userQuery, search: searchQuery, limit: String(pageSize), offset: String((page - 1) * pageSize) })

@@ -69,6 +69,7 @@ export default function CustomSelect({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const serverSearched = useRef(new Set<string>())
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const selected = options.find((o) => o.value === value)
 
@@ -114,6 +115,7 @@ export default function CustomSelect({
     >
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           type="button"
           variant="outline"
           role="combobox"
@@ -150,6 +152,12 @@ export default function CustomSelect({
       <PopoverContent
         align="start"
         side={dropdownSide}
+        onCloseAutoFocus={(event) => {
+          if (!event.defaultPrevented) {
+            event.preventDefault()
+            triggerRef.current?.focus({ preventScroll: true })
+          }
+        }}
         className={cn(
           'admin-custom-select-popover shared-select-content w-(--radix-popover-trigger-width) min-w-[200px] p-0',
           searchable && 'pt-1', // 顶部留白，避免搜索框聚焦环向上溢出到触发器
