@@ -23,10 +23,13 @@ const Bookshelf = lazy(() => import('./pages/Bookshelf'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Auth = lazy(() => import('./pages/Auth'))
 
+import { TooltipProvider } from './components/ui/tooltip'
+
 export default function App() {
   return (
     <Suspense fallback={<RouteLoading />}>
-      <ReauthenticationDialog />
+      <TooltipProvider delayDuration={150}>
+        <ReauthenticationDialog />
       <SiteBrandingSync />
       <VisitTracker />
       <PageSeo />
@@ -44,6 +47,7 @@ export default function App() {
         <Route path="/admin/:tab?" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </TooltipProvider>
     </Suspense>
   )
 }
