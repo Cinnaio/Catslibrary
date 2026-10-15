@@ -80,13 +80,15 @@
   width: min(calc(100% - 2rem), 47.5rem);
 }
 
-/* 页头居中。DialogHeader 自带的 text-center / sm:text-left 中，sm:text-left 实际
+/* 页头居中且无底边分割线：遵循 Claude 连续温暖纸面设计，
+   严禁在页头下方插入水平 border 分割线切碎视线。
+   DialogHeader 自带的 text-center / sm:text-left 中，sm:text-left 实际
    被 Tailwind 输出顺序压掉（.text-center 在 utilities 层出现两次且晚于 sm 变体），
    故居中才是页头的既有事实；此处与之对齐，不再单独把后台弹窗拉成左对齐。 */
 .admin-dialog [data-slot='dialog-header'] {
   gap: 0.375rem;
-  border-bottom: 0;
-  padding: 1.625rem 1.75rem 0;
+  border-bottom: 0 !important;
+  padding: 1.625rem 1.75rem 0.25rem;
   text-align: center;
 }
 
@@ -149,15 +151,16 @@
   display: none;
 }
 
-/* 页脚与页头、正文同底色：三段式只是一条栅格，不再用色块区分末段。
-   分隔完全交给间距与按钮视觉，不加边框也不加深底色。 */
+/* 页脚与页头、正文同底色：三段式只是一条栅格，不再用色块或水平分割线区分末段。
+   遵循 Claude 极简纸白设计，严禁添加 border-top 分割线切碎视线。
+   末段边界完全交给垂直留白与按钮交互，不加边框也不加深底色。 */
 .admin-dialog [data-slot='dialog-footer'] {
   align-items: center;
   justify-content: flex-end;
   gap: 1rem;
-  border-top: 0;
+  border-top: 0 !important;
   background: transparent;
-  padding: 0 1.75rem 1.625rem;
+  padding: 0.25rem 1.75rem 1.625rem;
 }
 
 .admin-dialog [data-slot='dialog-footer'] [data-slot='button'] {
