@@ -507,19 +507,19 @@
 }
 
 .content-ratings-panel-description {
-  margin: 0;
-  padding: 0.875rem 1.5rem;
+  margin: 0 0 0.875rem 0;
+  padding: 0;
   font-size: 0.8125rem;
   line-height: 1.6;
   color: var(--text-muted, #736d65);
-  border-bottom: 1px solid var(--admin-border, #e6e4dc);
-  background: var(--admin-panel-muted, #fbfbf9);
+  border: 0 !important;
+  background: transparent !important;
 }
 
 :root[data-theme='dark'] .content-ratings-panel-description,
 [data-theme='dark'] .content-ratings-panel-description {
-  border-bottom-color: var(--admin-border, #2c2b28);
-  background: #181715;
+  border: 0 !important;
+  background: transparent !important;
   color: #a8a39b;
 }
 
@@ -531,8 +531,7 @@
   overflow: hidden;
 }
 
-.content-ratings-meta-rail,
-.content-ratings-ai-rail {
+.content-ratings-meta-rail {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -543,11 +542,27 @@
 }
 
 :root[data-theme='dark'] .content-ratings-meta-rail,
-:root[data-theme='dark'] .content-ratings-ai-rail,
-[data-theme='dark'] .content-ratings-meta-rail,
-[data-theme='dark'] .content-ratings-ai-rail {
+[data-theme='dark'] .content-ratings-meta-rail {
   border-bottom-color: var(--admin-border, #2c2b28);
   background: #191816;
+}
+
+/* AI 建议控制行：独立外置于表格之外，保持透明无边框单层控制流 */
+.content-ratings-ai-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  margin-bottom: 0.625rem;
+  gap: 1rem;
+}
+
+:root[data-theme='dark'] .content-ratings-ai-rail,
+[data-theme='dark'] .content-ratings-ai-rail {
+  border: 0 !important;
+  background: transparent !important;
 }
 
 .content-ratings-panel-description-inline {
@@ -1017,19 +1032,21 @@
   color: var(--dark-text, #e7e0d6) !important;
 }
 
-/* 进度控制条卡片 */
+/* 独立外置任务进度与恢复卡片：处于表格外部画布层，遵循 Claude 温暖圆角纸白卡片 */
 .content-ratings-task-progress {
-  margin: 1rem 1.5rem 1.25rem;
+  margin: 0 0 1rem;
   padding: 1rem 1.25rem;
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-xl, 16px);
   border: 1px solid var(--admin-border, #e6e4dc);
-  background: var(--admin-panel-muted, #f8f7f3);
+  background: var(--admin-panel, #ffffff);
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.04);
 }
 
 :root[data-theme='dark'] .content-ratings-task-progress,
 [data-theme='dark'] .content-ratings-task-progress {
   border-color: var(--admin-border, #2c2b28);
-  background: var(--admin-panel-muted, #23221f);
+  background: var(--admin-panel, #1d1d1b);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .content-ratings-task-progress [role='progressbar'] {
@@ -1084,23 +1101,26 @@
   color: var(--dark-text, #e7e0d6) !important;
 }
 
-/* 批量操作条 */
+/* 批量操作浮现条：有选中项时轻量浮现于表格上方，与表格形成呼吸留白 */
 .content-ratings-ai-selection {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.875rem;
-  padding: 0.75rem 1.5rem;
-  background: var(--admin-panel-muted, #fbfbf9);
-  border-bottom: 1px solid var(--admin-border, #e6e4dc);
-  margin: 0;
+  padding: 0.625rem 1.125rem;
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  border-radius: var(--radius-xl, 16px);
+  margin: 0 0 0.875rem;
   font-size: 0.8125rem;
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.03);
 }
 
 :root[data-theme='dark'] .content-ratings-ai-selection,
 [data-theme='dark'] .content-ratings-ai-selection {
-  border-bottom-color: var(--admin-border, #2c2b28);
-  background: #181715;
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-panel, #1d1d1b);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .content-ratings-ai-selection > label {
@@ -1124,40 +1144,6 @@
   font-size: 0.775rem;
   font-weight: 550;
   transition: all 0.15s ease;
-}
-
-.content-ratings-ai .content-ratings-queue-item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 1.25rem;
-}
-
-.content-ratings-ai .content-ratings-queue-item > [data-slot='checkbox'] {
-  flex-shrink: 0;
-  margin-top: 0.25rem;
-}
-
-.content-ratings-ai .content-ratings-queue-item--stale {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.content-ratings-stale-reason {
-  margin: 0.375rem 0 0;
-  color: var(--text-muted, #736d65);
-  font-size: 0.775rem;
-}
-
-.content-ratings-ai .admin-pagination--detached {
-  margin: 0;
-  padding: var(--admin-pagination-padding-block, 0.875rem) var(--admin-pagination-padding-inline, 1.5rem);
-  border-top: 1px solid var(--admin-border, #e6e4dc);
-  background: var(--admin-panel, #ffffff);
-}
-
-:root[data-theme='dark'] .content-ratings-ai .admin-pagination--detached,
-[data-theme='dark'] .content-ratings-ai .admin-pagination--detached {
-  border-top-color: var(--admin-border, #2c2b28);
-  background: var(--admin-panel, #1d1d1b);
 }
 
 /* --------------------------------------------------------------------------
