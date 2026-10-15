@@ -1335,40 +1335,18 @@
   align-items: center;
   gap: 0.5rem;
 }
-/* 展开行容器：内缩嵌套纸面卡片，消除粗糙满格色块 */
-.ai-service .ai-generation-batch-detail > td {
-  width: auto;
-  padding: 0.625rem 1.25rem 1.25rem;
-  background: transparent;
-  border-bottom: 1px solid var(--admin-border, #e5e3dc);
-  text-align: left;
-  height: auto;
-}
-:root[data-theme='dark'] .ai-service .ai-generation-batch-detail > td,
-[data-theme='dark'] .ai-service .ai-generation-batch-detail > td {
-  background: transparent;
-  border-bottom-color: var(--admin-border, #2a2825);
-}
-.ai-service .ai-generation-batch-detail:hover > td,
-.content-ratings-ledger .admin-data-table tbody tr.ai-generation-batch-detail:hover td {
-  background: transparent !important;
-}
-
-/* 批次内嵌抽屉工作区：Claude 陶土左脊柱与轻量纸面白底 */
-.ai-service .ai-generation-batch-sheet {
-  border: 1px solid var(--admin-border, #e5e3dc);
-  border-left: 3px solid var(--admin-accent, #d97757);
-  border-radius: 0.75rem;
+/* -------------------------------------------------------------
+   批次内联树状子行（Claude Tree Table）：消灭盒子嵌套，原生对齐 5 列
+   ------------------------------------------------------------- */
+.ai-service .ai-generation-row--child {
   background: color-mix(in srgb, var(--admin-panel-muted, #faf9f6) 65%, var(--admin-panel, #ffffff));
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.03);
-  overflow: hidden;
-  animation: batchSheetEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: childRowEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes batchSheetEnter {
+@keyframes childRowEnter {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-2px);
   }
   to {
     opacity: 1;
@@ -1376,150 +1354,83 @@
   }
 }
 
-:root[data-theme='dark'] .ai-service .ai-generation-batch-sheet,
-[data-theme='dark'] .ai-service .ai-generation-batch-sheet {
-  border-color: #2c2a26;
-  border-left-color: var(--admin-accent, #d97757);
-  background: #171614;
-  box-shadow: none;
+:root[data-theme='dark'] .ai-service .ai-generation-row--child,
+[data-theme='dark'] .ai-service .ai-generation-row--child {
+  background: rgba(255, 255, 255, 0.015);
 }
 
-/* 批次卡片顶部引导栏 */
-.ai-service .ai-generation-batch-sheet__header {
+.ai-service .ai-generation-row--child td {
+  padding-block: 0.625rem;
+  border-bottom: 1px dashed color-mix(in srgb, var(--admin-border, #e5e3dc) 65%, transparent);
+}
+
+:root[data-theme='dark'] .ai-service .ai-generation-row--child td,
+[data-theme='dark'] .ai-service .ai-generation-row--child td {
+  border-bottom-color: rgba(255, 255, 255, 0.04);
+}
+
+.ai-service .ai-generation-row--child:hover td {
+  background: color-mix(in srgb, var(--admin-panel-muted, #faf9f6) 90%, var(--admin-accent, #d97757) 2.5%);
+}
+
+:root[data-theme='dark'] .ai-service .ai-generation-row--child:hover td,
+[data-theme='dark'] .ai-service .ai-generation-row--child:hover td {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+/* 子行第 1 列：层级缩进 + 树状折线分支 + 选择框 + 章节编号胶囊 + 章节名 */
+.ai-service .ai-generation-child-identity {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 0.625rem 1rem;
-  background: color-mix(in srgb, var(--admin-panel-muted, #f8f7f3) 85%, var(--admin-panel, #ffffff));
-  border-bottom: 1px solid var(--admin-border, #e5e3dc);
-  font-size: 0.75rem;
-}
-:root[data-theme='dark'] .ai-service .ai-generation-batch-sheet__header,
-[data-theme='dark'] .ai-service .ai-generation-batch-sheet__header {
-  background: #1d1c19;
-  border-bottom-color: #2a2825;
-}
-.ai-service .ai-generation-batch-sheet__lead {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.625rem;
-  color: var(--text-secondary, #5b554e);
-}
-.ai-service .ai-generation-batch-sheet__title {
-  font-weight: 600;
-  color: var(--text-primary, #211e1a);
-}
-:root[data-theme='dark'] .ai-service .ai-generation-batch-sheet__title,
-[data-theme='dark'] .ai-service .ai-generation-batch-sheet__title {
-  color: var(--dark-text, #e7e0d6);
-}
-.ai-service .ai-generation-batch-sheet__badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.1rem 0.5rem;
-  border-radius: 9999px;
-  background: var(--admin-panel, #ffffff);
-  border: 1px solid var(--admin-border, #e5e3dc);
-  color: var(--text-muted, #736d65);
-  font-size: 0.7rem;
-  font-weight: 550;
-}
-:root[data-theme='dark'] .ai-service .ai-generation-batch-sheet__badge,
-[data-theme='dark'] .ai-service .ai-generation-batch-sheet__badge {
-  background: #23221f;
-  border-color: #2e2c28;
-  color: #9a938a;
-}
-.ai-service .ai-generation-batch-sheet__count {
-  color: var(--text-muted, #736d65);
-  font-size: 0.725rem;
-}
-:root[data-theme='dark'] .ai-service .ai-generation-batch-sheet__count,
-[data-theme='dark'] .ai-service .ai-generation-batch-sheet__count {
-  color: #8c877e;
-}
-.ai-service .ai-generation-batch-sheet__actions {
-  display: inline-flex;
-  align-items: center;
   gap: 0.5rem;
-}
-
-/* 章节多列网格排版：消灭 800px 荒漠空间，双列紧凑自适应 */
-.ai-service .ai-generation-chapters {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 0.625rem;
-  padding: 0.75rem 1rem;
-}
-
-/* 单个章节卡片 */
-.ai-service .ai-generation-chapter {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.625rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid var(--admin-border, #e5e3dc);
-  background: var(--admin-panel, #ffffff);
-  box-shadow: 0 1px 2px rgba(35, 30, 24, 0.02);
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-}
-:root[data-theme='dark'] .ai-service .ai-generation-chapter,
-[data-theme='dark'] .ai-service .ai-generation-chapter {
-  background: #1c1b18;
-  border-color: #2a2825;
-  box-shadow: none;
-}
-.ai-service .ai-generation-chapter:hover {
-  border-color: color-mix(in srgb, var(--admin-accent, #d97757) 45%, var(--admin-border, #e5e3dc));
-  box-shadow: 0 2px 6px rgba(35, 30, 24, 0.04);
-  transform: translateY(-1px);
-}
-:root[data-theme='dark'] .ai-service .ai-generation-chapter:hover,
-[data-theme='dark'] .ai-service .ai-generation-chapter:hover {
-  border-color: color-mix(in srgb, var(--admin-accent, #d97757) 50%, #2a2825);
-  background: #201f1c;
-}
-
-/* 章节卡片首行：序号 + 标题 + 状态徽章 */
-.ai-service .ai-generation-chapter__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  padding-left: 0.75rem;
   min-width: 0;
 }
-.ai-service .ai-generation-chapter__identity {
+
+.ai-service .ai-generation-child-tree {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  color: var(--text-muted, #8c877e);
+  opacity: 0.7;
+}
+
+:root[data-theme='dark'] .ai-service .ai-generation-child-tree,
+[data-theme='dark'] .ai-service .ai-generation-child-tree {
+  color: #7d776f;
+}
+
+.ai-service .ai-generation-child-meta {
   display: flex;
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
-  flex: 1;
 }
-.ai-service .ai-generation-chapter__index {
+
+.ai-service .ai-generation-child-index {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.08rem 0.4rem;
+  padding: 0.08rem 0.45rem;
   border-radius: 4px;
-  background: var(--admin-panel-muted, #f8f7f3);
+  background: var(--admin-panel, #ffffff);
   border: 1px solid var(--admin-border, #e5e3dc);
   color: var(--text-muted, #736d65);
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   white-space: nowrap;
+  flex-shrink: 0;
 }
-:root[data-theme='dark'] .ai-service .ai-generation-chapter__index,
-[data-theme='dark'] .ai-service .ai-generation-chapter__index {
-  background: #252420;
+
+:root[data-theme='dark'] .ai-service .ai-generation-child-index,
+[data-theme='dark'] .ai-service .ai-generation-child-index {
+  background: #23221f;
   border-color: #2e2c28;
   color: #9a938a;
 }
-.ai-service .ai-generation-chapter__title {
+
+.ai-service .ai-generation-child-title {
   font-weight: 550;
   font-size: 0.8125rem;
   color: var(--text-primary, #211e1a);
@@ -1527,50 +1438,49 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:root[data-theme='dark'] .ai-service .ai-generation-chapter__title,
-[data-theme='dark'] .ai-service .ai-generation-chapter__title {
+
+:root[data-theme='dark'] .ai-service .ai-generation-child-title,
+[data-theme='dark'] .ai-service .ai-generation-child-title {
   color: var(--dark-text, #e7e0d6);
 }
 
-/* 章节卡片底行：字数 + 药丸操作组 */
-.ai-service .ai-generation-chapter__footer {
+/* 子行第 3 列：单行紧凑摘要 */
+.ai-service .ai-generation-preview--child {
+  -webkit-line-clamp: 1 !important;
+  color: var(--text-secondary, #5b554e);
+}
+
+:root[data-theme='dark'] .ai-service .ai-generation-preview--child,
+[data-theme='dark'] .ai-service .ai-generation-preview--child {
+  color: #a8a39b;
+}
+
+/* 子行第 4 列：字数指示 + 模型时间 */
+.ai-service .ai-generation-child-stats {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding-top: 0.35rem;
-  border-top: 1px solid color-mix(in srgb, var(--admin-border, #e5e3dc) 50%, transparent);
+  flex-direction: column;
+  gap: 0.2rem;
 }
-:root[data-theme='dark'] .ai-service .ai-generation-chapter__footer,
-[data-theme='dark'] .ai-service .ai-generation-chapter__footer {
-  border-top-color: rgba(255, 255, 255, 0.05);
-}
-.ai-service .ai-generation-chapter__words {
-  font-size: 0.72rem;
+
+.ai-service .ai-generation-child-words {
+  font-size: 0.725rem;
+  font-weight: 550;
   color: var(--text-muted, #736d65);
 }
-:root[data-theme='dark'] .ai-service .ai-generation-chapter__words,
-[data-theme='dark'] .ai-service .ai-generation-chapter__words {
+
+:root[data-theme='dark'] .ai-service .ai-generation-child-stats .ai-generation-child-words,
+[data-theme='dark'] .ai-service .ai-generation-child-stats .ai-generation-child-words {
   color: #8c877e;
 }
-.ai-service .ai-generation-chapter__actions {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-shrink: 0;
-}
-.ai-service .ai-generation-chapter__actions [data-slot='button'] {
-  height: 1.625rem;
-  min-height: 1.625rem;
+
+/* 子行第 5 列：微型药丸操作组 */
+.ai-service .ai-generation-row--child [data-slot='button'] {
+  height: 1.75rem;
+  min-height: 1.75rem;
   font-size: 0.725rem;
   padding-inline: 0.625rem;
 }
-.ai-service .ai-generation-chapter__actions .ai-generation-delete {
-  height: 1.625rem;
-  min-height: 1.625rem;
-  padding-inline: 0.5rem;
-  font-size: 0.725rem;
-}
+
 .ai-service .ai-generation-help {
   margin: 0;
   color: var(--text-muted);
