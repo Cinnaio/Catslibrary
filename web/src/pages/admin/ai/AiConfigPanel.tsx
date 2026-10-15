@@ -1,6 +1,7 @@
 /** 配置面板：供应商信息、开关、配额（分组确认后保存）。 */
 import AdminFormField from '@/components/admin/AdminFormField'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
 import { useEffect, useState } from 'react'
 import { aiApi, type AiSettings, type AiUsageSummary, type AiProviderConfig } from '@/lib/api'
 import { useToast } from '@/components/feedback'
@@ -177,25 +178,25 @@ export default function AiConfigPanel(props: {
   const settings = props.settings
   const provider = props.provider
   const imageConfigured = props.imageProvider?.configured ?? !!imageProviderConfig?.hasApiKey
+  const dirty = providerDirty || imageProviderDirty || readerDirty
 
   return (
-    <div className="ai-config-panel">
-      {/* 供应商连接参数：可在后台直接修改，无需重启。 */}
-      <Card className="admin-panel-card ai-config-providers-card min-w-0">
-        <AdminPanelHeading title="模型供应商" />
-        <CardContent className="ai-config-providers">
-          <section className="ai-provider-section grid gap-3">
-            <div className="ai-config-provider-heading">
-              <div className="min-w-0">
-                <h3 className="flex items-center gap-2 text-sm font-medium text-foreground">文本供应商</h3>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">用于创作、小说分析、摘要与回顾。</p>
-              </div>
-              <AdminStatusBadge tone={provider?.configured ? 'success' : 'muted'}>
-                <span className="ai-config-status-dot" aria-hidden="true" />
-                {provider?.configured ? '已配置' : '未配置'}
-              </AdminStatusBadge>
+    <div className="ai-config-panel-wrap">
+      <div className="ai-config-panel">
+        {/* 1. 文本供应商 */}
+        <Card className="admin-panel-card ai-config-card">
+          <div className="ai-config-card__header">
+            <div className="min-w-0 pr-2">
+              <h3 className="ai-config-card__title">文本供应商</h3>
+              <p className="ai-config-card__desc">用于创作、小说分析、章节摘要与回顾生成。</p>
             </div>
-            <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
+            <AdminStatusBadge tone={provider?.configured ? 'success' : 'muted'}>
+              <span className="ai-config-status-dot" aria-hidden="true" />
+              {provider?.configured ? '已配置' : '未配置'}
+            </AdminStatusBadge>
+          </div>
+          <CardContent className="ai-config-card__content">
+            <div className="grid gap-3 sm:grid-cols-2">
               <AdminFormField label="Base URL" htmlFor="ai-base-url" hint="OpenAI 兼容端点。">
                 <Input
                   id="ai-base-url"
@@ -225,35 +226,42 @@ export default function AiConfigPanel(props: {
                 disabled={savingProvider || props.loading}
                 onChange={(e) => setProviderDraft((p) => ({ ...p, apiKey: e.target.value }))}
                 onFocus={(e) => {
-                  // 密钥占位符在聚焦时清空，方便覆盖输入
                   if (providerDraft.apiKey === '••••••••') setProviderDraft((p) => ({ ...p, apiKey: '' }))
                   e.target.select()
                 }}
               />
             </AdminFormField>
-            <div className="ai-provider-actions ai-provider-test">
-              <span className="text-xs text-muted-foreground" aria-live="polite">
+            <div className="ai-config-card__footer">
+              <span className="truncate text-xs text-muted-foreground" aria-live="polite">
                 {testResult || '尚未进行本次检查 · 使用已保存配置'}
               </span>
-              <Button variant="secondary" disabled={testing || !provider?.configured || saving} onClick={() => void runTest()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0 rounded-full"
+                disabled={testing || !provider?.configured || saving}
+                onClick={() => void runTest()}
+              >
                 {testing ? '测试中…' : '测试连接'}
               </Button>
             </div>
-          </section>
+          </CardContent>
+        </Card>
 
-          {/* 图像供应商连接参数：用于 AI 封面生成。 */}
-          <section className="ai-provider-section grid gap-3">
-            <div className="ai-config-provider-heading">
-              <div className="min-w-0">
-                <h3 className="flex items-center gap-2 text-sm font-medium text-foreground">图像供应商</h3>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">用于封面候选图与阅读器划选插画生成。</p>
-              </div>
-              <AdminStatusBadge tone={imageConfigured ? 'success' : 'muted'}>
-                <span className="ai-config-status-dot" aria-hidden="true" />
-                {imageConfigured ? '已配置' : '未配置'}
-              </AdminStatusBadge>
+        {/* 2. 图像供应商 */}
+        <Card className="admin-panel-card ai-config-card">
+          <div className="ai-config-card__header">
+            <div className="min-w-0 pr-2">
+              <h3 className="ai-config-card__title">图像供应商</h3>
+              <p className="ai-config-card__desc">用于封面候选图与阅读器划选插画生成。</p>
             </div>
-            <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
+            <AdminStatusBadge tone={imageConfigured ? 'success' : 'muted'}>
+              <span className="ai-config-status-dot" aria-hidden="true" />
+              {imageConfigured ? '已配置' : '未配置'}
+            </AdminStatusBadge>
+          </div>
+          <CardContent className="ai-config-card__content">
+            <div className="grid gap-3 sm:grid-cols-2">
               <AdminFormField label="图像 Base URL" htmlFor="ai-image-base-url" hint="OpenAI 兼容图像接口。">
                 <Input
                   id="ai-image-base-url"
@@ -288,125 +296,185 @@ export default function AiConfigPanel(props: {
                 }}
               />
             </AdminFormField>
-            <div className="ai-provider-actions ai-provider-test">
-              <span className="text-xs text-muted-foreground">图像连接由封面生成任务验证</span>
-              <Button variant="secondary" asChild>
+            <div className="ai-config-card__footer">
+              <span className="truncate text-xs text-muted-foreground">图像连接由封面生成任务验证</span>
+              <Button variant="secondary" size="sm" className="shrink-0 rounded-full" asChild>
                 <a href="/admin/ai?sub=cover">封面生成</a>
               </Button>
-            </div>
-          </section>
-        </CardContent>
-      </Card>
-
-      <div className="ai-config-secondary">
-        <Card className="admin-panel-card ai-config-card">
-          <div className="admin-panel-heading ai-config-section-heading">
-            <div className="admin-panel-heading__copy">
-              <h3>读者生成策略</h3>
-              <p>管理前情提要、回顾与划选插画的使用范围。</p>
-            </div>
-          </div>
-          <CardContent className="grid gap-4">
-            <fieldset className="grid gap-3" disabled={!settings || saving || props.loading}>
-              <legend className="text-sm font-medium">划选生成图片：允许使用的角色</legend>
-              <p className="ai-config-help">在阅读器划选文字后生成插画，并自动发布为该段落的想法。取消所有角色可关闭功能。</p>
-              <div className="flex flex-wrap gap-4">
-                {([['admin', '管理员'], ['reader', '读者']] as const).map(([role, label]) => <label className="flex items-center gap-2 text-sm" key={role}>
-                  <input type="checkbox" checked={imageRolesDraft.includes(role)} onChange={(event) => setImageRolesDraft((roles) => event.target.checked ? [...roles, role] : roles.filter((item) => item !== role))} />
-                  {label}
-                </label>)}
-              </div>
-              <AdminFormField label="每人每日图片生成上限" htmlFor="ai-selection-image-quota" hint="独立于文本配额；管理员和读者均受此限制，失败任务也计入。0 表示关闭。">
-                <Input id="ai-selection-image-quota" type="number" min={0} max={100} value={imageQuotaDraft} onChange={(event) => setImageQuotaDraft(event.target.value)} />
-              </AdminFormField>
-            </fieldset>
-            <div className="ai-config-policy-grid">
-              <div className="ai-config-recap">
-                <label className="ai-config-checkrow">
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-foreground">允许读者生成前情提要</span>
-                  </span>
-                  <Switch checked={recapEnabledDraft} disabled={!settings || saving || props.loading} onCheckedChange={setRecapEnabledDraft} />
-                </label>
-                <p className="ai-config-help">已有缓存优先复用，管理员不受读者配额限制。</p>
-              </div>
-
-              <div className="ai-form-grid ai-config-limits grid gap-3 sm:grid-cols-2">
-                <AdminFormField label="每人每日生成上限" htmlFor="ai-daily-quota" hint="命中缓存不计数；0 表示禁止读者触发。">
-                  <Input
-                    id="ai-daily-quota"
-                    type="number"
-                    min={0}
-                    max={1000}
-                    value={dailyQuotaDraft}
-                    disabled={!settings || props.loading || saving}
-                    onChange={(e) => {
-                      setDailyQuotaDraft(e.target.value)
-                    }}
-                  />
-                </AdminFormField>
-                <AdminFormField label="送入模型的正文字数" htmlFor="ai-max-chars" hint="超出部分截断，影响单次调用成本。">
-                  <Input
-                    id="ai-max-chars"
-                    type="number"
-                    min={500}
-                    max={20000}
-                    value={maxCharsDraft}
-                    disabled={!settings || props.loading || saving}
-                    onChange={(e) => {
-                      setMaxCharsDraft(e.target.value)
-                    }}
-                  />
-                </AdminFormField>
-              </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* 3. 读者生成策略 */}
         <Card className="admin-panel-card ai-config-card">
-          <AdminPanelHeading title="服务检查与用量" />
-          <CardContent className="grid gap-4">
-            <div className="ai-config-service-actions">
+          <div className="ai-config-card__header">
+            <div className="min-w-0">
+              <h3 className="ai-config-card__title">读者生成策略</h3>
+              <p className="ai-config-card__desc">管理前情提要、回顾与划选插画的使用范围与配额。</p>
+            </div>
+          </div>
+          <CardContent className="ai-config-card__content">
+            <fieldset className="grid gap-2.5" disabled={!settings || saving || props.loading}>
+              <legend className="text-xs font-medium text-foreground">划选生成图片：允许使用的角色</legend>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                在阅读器划选文字后生成插画，并自动发布为该段落的想法。取消所有角色可关闭功能。
+              </p>
+              <div className="flex flex-wrap gap-2.5 pt-0.5">
+                {([['admin', '管理员'], ['reader', '读者']] as const).map(([role, label]) => {
+                  const checked = imageRolesDraft.includes(role)
+                  return (
+                    <label key={role} className="ai-role-pill" data-active={checked || undefined}>
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={checked}
+                        disabled={!settings || saving || props.loading}
+                        onChange={(event) =>
+                          setImageRolesDraft((roles) =>
+                            event.target.checked ? [...roles, role] : roles.filter((item) => item !== role)
+                          )
+                        }
+                      />
+                      <span className="ai-role-pill__dot" aria-hidden="true" />
+                      <span>{label}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              <div className="pt-1">
+                <AdminFormField
+                  label="每人每日图片生成上限"
+                  htmlFor="ai-selection-image-quota"
+                  hint="独立于文本配额；管理员和读者均受此限制，失败任务也计入。0 表示关闭。"
+                >
+                  <Input
+                    id="ai-selection-image-quota"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={imageQuotaDraft}
+                    disabled={!settings || saving || props.loading}
+                    onChange={(event) => setImageQuotaDraft(event.target.value)}
+                  />
+                </AdminFormField>
+              </div>
+            </fieldset>
+
+            <div className="ai-config-checkrow">
+              <div className="min-w-0 pr-2">
+                <span className="block text-sm font-medium text-foreground">允许读者生成前情提要</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">已有缓存优先复用，管理员不受读者配额限制。</span>
+              </div>
+              <Switch
+                checked={recapEnabledDraft}
+                disabled={!settings || saving || props.loading}
+                onCheckedChange={setRecapEnabledDraft}
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AdminFormField label="每人每日生成上限" htmlFor="ai-daily-quota" hint="命中缓存不计数；0 表示禁止读者触发。">
+                <Input
+                  id="ai-daily-quota"
+                  type="number"
+                  min={0}
+                  max={1000}
+                  value={dailyQuotaDraft}
+                  disabled={!settings || props.loading || saving}
+                  onChange={(e) => setDailyQuotaDraft(e.target.value)}
+                />
+              </AdminFormField>
+              <AdminFormField label="送入模型的正文字数" htmlFor="ai-max-chars" hint="超出部分截断，影响单次调用成本。">
+                <Input
+                  id="ai-max-chars"
+                  type="number"
+                  min={500}
+                  max={20000}
+                  value={maxCharsDraft}
+                  disabled={!settings || props.loading || saving}
+                  onChange={(e) => setMaxCharsDraft(e.target.value)}
+                />
+              </AdminFormField>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 4. 服务检查与用量 */}
+        <Card className="admin-panel-card ai-config-card">
+          <div className="ai-config-card__header">
+            <div className="min-w-0 pr-2">
+              <h3 className="ai-config-card__title">服务检查与用量</h3>
+              <p className="ai-config-card__desc">监控模型服务连通状态，统计近期 Token 与调用成本。</p>
+            </div>
+            <Button variant="ghost" size="sm" asChild className="shrink-0 h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground">
+              <a href="/admin/calls">查看调用明细 →</a>
+            </Button>
+          </div>
+          <CardContent className="ai-config-card__content">
+            <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-muted/30 border border-border/60">
               <AdminStatusBadge tone={provider?.configured && imageConfigured ? 'success' : 'muted'}>
                 <span className="ai-config-status-dot" aria-hidden="true" />
                 {provider?.configured && imageConfigured
-                  ? '文本与图像服务已配置'
+                  ? '文本与图像服务就绪'
                   : provider?.configured
-                    ? '文本服务已配置'
+                    ? '仅文本服务就绪'
                     : imageConfigured
-                      ? '图像服务已配置'
+                      ? '仅图像服务就绪'
                       : '服务尚未配置'}
               </AdminStatusBadge>
-              <Button variant="ghost" asChild>
-                <a href="/admin/calls">查看调用明细</a>
-              </Button>
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                {provider?.configured && imageConfigured ? '各功能模块正常可用' : '请完善上方供应商连接'}
+              </span>
             </div>
+
+            {usage ? (
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="ai-config-metric-tile">
+                  <span className="ai-config-metric-tile__label">今日调用</span>
+                  <span className="ai-config-metric-tile__value">
+                    {usage.today.calls.toLocaleString()}
+                    <small>次</small>
+                  </span>
+                </div>
+                <div className="ai-config-metric-tile">
+                  <span className="ai-config-metric-tile__label">今日 Token</span>
+                  <span className="ai-config-metric-tile__value">
+                    {(usage.today.promptTokens + usage.today.completionTokens).toLocaleString()}
+                  </span>
+                </div>
+                <div className="ai-config-metric-tile">
+                  <span className="ai-config-metric-tile__label">今日成本</span>
+                  <span className="ai-config-metric-tile__value ai-config-metric-tile__value--cost">
+                    {formatCost(usage.today.costMillicents)}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="py-6 text-center text-xs text-muted-foreground">暂无用量统计数据</div>
+            )}
+
             {usage && (
-              <div className="ai-config-usage-line">
+              <div className="ai-config-usage-period">
+                <span className="font-medium">近 30 天消耗</span>
                 <span>
-                  今日 <b>{usage.today.calls.toLocaleString()}</b> 次调用
-                </span>
-                <span>
-                  <b>{(usage.today.promptTokens + usage.today.completionTokens).toLocaleString()}</b> Token
-                </span>
-                <span>
-                  成本 <b>{formatCost(usage.today.costMillicents)}</b>
-                </span>
-                <span className="text-muted-foreground">
-                  近 30 天 · {usage.last30d.calls.toLocaleString()} 次调用 · 成本 {formatCost(usage.last30d.costMillicents)}
+                  {usage.last30d.calls.toLocaleString()} 次调用 · 成本 {formatCost(usage.last30d.costMillicents)}
                 </span>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
-      <div className="ai-config-save p-4 rounded-2xl bg-muted/30 border border-border/80 flex items-center justify-between">
-        <span role="status" className="text-xs text-muted-foreground">{providerDirty || imageProviderDirty || readerDirty ? '有未保存的修改' : '配置与当前生效值一致'}</span>
-        <div className="flex gap-2.5">
+
+      {/* Claude 标准悬浮保存操作坞 */}
+      <AdminFloatingDock reserveSpace role="region" aria-label="AI 配置保存" data-state="open">
+        <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
+          {dirty ? '有未保存的修改' : '配置与当前生效值一致'}
+        </span>
+        <div className="admin-floating-dock__actions">
           <Button
+            type="button"
             variant="outline"
-            className="rounded-full h-9 px-4 text-xs font-medium border-border"
-            disabled={saving || props.loading || !(providerDirty || imageProviderDirty || readerDirty)}
+            disabled={saving || props.loading || !dirty}
             onClick={() => {
               setProviderDraft(providerValues(props.providerConfig))
               setImageProviderDraft(providerValues(imageProviderConfig))
@@ -416,14 +484,15 @@ export default function AiConfigPanel(props: {
             撤销修改
           </Button>
           <Button
-            className="rounded-full h-9 px-5 text-xs font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-xs transition-all"
-            disabled={saving || props.loading || !(providerDirty || imageProviderDirty || readerDirty)}
+            type="button"
+            disabled={saving || props.loading || !dirty}
             onClick={() => void saveAll()}
           >
             {saving ? '保存中…' : '保存配置'}
           </Button>
         </div>
-      </div>
+      </AdminFloatingDock>
     </div>
   )
 }
+
