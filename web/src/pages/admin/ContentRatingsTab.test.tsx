@@ -207,7 +207,7 @@ describe('ContentRatingsTab', () => {
     expect(screen.getByText(/待标注 2 · 限制级 1/)).toBeInTheDocument()
   })
 
-  it('页头收在一行：标题单独显示，搜索与页面操作在右', async () => {
+  it('页头收在一行：标题单独显示，页面操作在右；账本搜索收在控制行内', async () => {
     renderView()
     await screen.findByText('潮汐之后')
 
@@ -215,9 +215,9 @@ describe('ContentRatingsTab', () => {
     expect(header).not.toBeNull()
     expect(screen.getByRole('heading', { level: 2, name: /分级管理/ })).toBeInTheDocument()
     expect(header?.querySelector('.admin-tab-header__meta')).toBeNull()
-    // 搜索框属于页头动作区，不再是面板工具条里的一段
-    expect(header?.querySelector('.admin-search')).not.toBeNull()
     expect(screen.getByRole('button', { name: /刷新账本/ })).toBeInTheDocument()
+    // 搜索框收纳在统一胶囊筛选轨道（Filter Rail）内
+    expect(document.querySelector('.content-ratings-filter-rail .admin-search')).not.toBeNull()
   })
 
   it('工作视图写入 URL 并保留其他参数、账本搜索和当前视图刷新', async () => {

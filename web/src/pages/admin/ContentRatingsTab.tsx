@@ -2,7 +2,7 @@ import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, CheckCircle2, Eye, History, Info, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, CirclePlus, Eye, History, Info, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import {
   adminApi,
@@ -294,16 +294,15 @@ function RuleCandidatePanel({
   onPreview: (candidate: AdminContentRatingRuleCandidate) => void
 }) {
   return (
-    <AdminDataPanel ariaLabel="内容分级规则候选" className="content-ratings-panel">
-      <AdminPanelHeading
-        title="规则候选"
-        status={
-          <span className="text-xs text-muted-foreground">
-            待审核 {data ? formatNumber(data.counts.pending) : '—'} 条 · 当前规则 {data?.activeRuleVersion || '—'}
-          </span>
-        }
-      />
-      <p className="content-ratings-panel-description">从人工判定中沉淀规则，先核对命中作品，再决定是否启用。批准仅影响未标注作品，保留已人工确认的分级。</p>
+    <AdminDataPanel ariaLabel="内容分级规则候选" className="content-ratings-panel content-ratings-rules-panel">
+      <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-meta-rail">
+        <p className="content-ratings-panel-description-inline">
+          从人工判定中沉淀规则，先核对命中作品，再决定是否启用。批准仅影响未标注作品，保留已人工确认的分级。
+        </p>
+        <span className="text-xs tabular-nums text-muted-foreground ml-auto shrink-0">
+          待审核 {data ? formatNumber(data.counts.pending) : '—'} 条 · 当前规则 {data?.activeRuleVersion || '—'}
+        </span>
+      </AdminToolbar>
       {error ? (
         <ErrorState message={`规则候选加载失败：${error}`} onRetry={onRetry} />
       ) : loading ? (
@@ -503,32 +502,37 @@ function AiSuggestionPanel({
   }
   const active = !!task && ['queued', 'running'].includes(task.status)
   return (
-    <AdminDataPanel ariaLabel="LLM 内容分级建议" className="content-ratings-panel content-ratings-ai">
-      <AdminPanelHeading
-        title="LLM 分级建议"
-        status={<span className="text-xs text-muted-foreground">待审核 {data ? formatNumber(data.counts.pending) : '—'} 条</span>}
-        actions={
-          <div className="content-ratings-ai-actions">
-            <Label id="content-rating-batch-label">单批</Label>
-            <CustomSelect
-              options={AI_BATCH_LIMIT_OPTIONS}
-              value={String(batchLimit)}
-              onChange={(value) => onBatchLimit(Math.min(AI_BATCH_LIMIT_MAX, Math.max(1, Number(value) || DEFAULT_AI_BATCH_LIMIT)))}
-              aria-label="单批分析数量"
-              className="content-ratings-batch-select"
-            />
-            <Button type="button" size="sm" onClick={onScan} disabled={scanning || active}>
-              <Bot className={scanning ? 'size-3.5 animate-pulse' : 'size-3.5'} aria-hidden="true" />
-              {scanning ? '创建任务…' : '分析未标注'}
-            </Button>
-          </div>
-        }
-      />
-      <p className="content-ratings-panel-description">只分析未标注作品。判级依据是元数据加正文采样片段，正文成人词命中只用于定位采样章节，不直接决定分级。模型建议经人工审核才可修改分级；批准“继续未标注”不会标为一般。</p>
+    <AdminDataPanel ariaLabel="LLM 内容分级建议" className="content-ratings-panel content-ratings-ai-panel">
+      <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-ai-rail">
+        <CustomSelect
+          aria-label="LLM 建议状态"
+          value={status}
+          options={[{ value: 'pending', label: '待审核建议' }, { value: 'stale', label: '已过期建议' }]}
+          onChange={value => { setSelected(new Map()); onStatus(value as 'pending' | 'stale') }}
+          disabled={bulkBusy || loading}
+          compact
+          chip
+        />
+        <div className="content-ratings-ai-actions ml-auto">
+          <Label id="content-rating-batch-label">单批</Label>
+          <CustomSelect
+            options={AI_BATCH_LIMIT_OPTIONS}
+            value={String(batchLimit)}
+            onChange={(value) => onBatchLimit(Math.min(AI_BATCH_LIMIT_MAX, Math.max(1, Number(value) || DEFAULT_AI_BATCH_LIMIT)))}
+            aria-label="单批分析数量"
+            className="content-ratings-batch-select"
+            compact
+          />
+          <Button type="button" size="sm" onClick={onScan} disabled={scanning || active}>
+            <Bot className={scanning ? 'size-3.5 animate-pulse' : 'size-3.5'} aria-hidden="true" />
+            {scanning ? '创建任务…' : '分析未标注'}
+          </Button>
+        </div>
+      </AdminToolbar>
+      <p className="content-ratings-panel-description">
+        只分析未标注作品。判级依据是元数据加正文采样片段，正文成人词命中只用于定位采样章节，不直接决定分级。模型建议经人工审核才可修改分级；批准“继续未标注”不会标为一般。
+      </p>
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
-      <div className="content-ratings-ai-selection">
-        <CustomSelect aria-label="LLM 建议状态" value={status} options={[{ value: 'pending', label: '待审核建议' }, { value: 'stale', label: '已过期建议' }]} onChange={value => { setSelected(new Map()); onStatus(value as 'pending' | 'stale') }} disabled={bulkBusy || loading} />
-      </div>
       {!history && <div className="content-ratings-ai-selection" role="group" aria-label="LLM 建议批量操作">
         <Label><Checkbox aria-label="全选本页 LLM 建议" checked={allSelected ? true : someSelected ? 'indeterminate' : false} disabled={locked || !rows.length} onCheckedChange={checked => {
           setSelected(previous => {
@@ -1135,22 +1139,10 @@ export default function ContentRatingsTab() {
       title="分级管理"
       description="维护作品分级与判定依据，让每一次修改都有据可查。"
       actions={
-        <>
-          {view === 'ledger' && (
-            <AdminSearch
-              id="content-rating-search"
-              type="search"
-              label="搜索作品分级记录"
-              placeholder="搜索标题、作者或修改理由…"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-            />
-          )}
-          <Button variant="secondary" size="sm" onClick={refreshCurrentView} disabled={viewRefreshing}>
-            <RefreshCw className={viewRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
-            {viewRefreshing ? '同步中…' : refreshLabel}
-          </Button>
-        </>
+        <Button variant="secondary" size="sm" onClick={refreshCurrentView} disabled={viewRefreshing}>
+          <RefreshCw className={viewRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
+          {viewRefreshing ? '同步中…' : refreshLabel}
+        </Button>
       }
     >
       <Tabs
@@ -1192,52 +1184,23 @@ export default function ContentRatingsTab() {
             )
           ) : (
             <>
-              <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS} className="content-ratings-panel content-ratings-ledger">
-                <AdminPanelHeading
-                  title="作品分级账本"
-                  status={
-                    <div className="content-ratings-header-spectrum">
-                      <span className="content-ratings-header-spectrum__count">
-                        {loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}
-                      </span>
-                      {(() => {
-                        const total = (counts.general || 0) + (counts.restricted || 0) + (counts.unknown || 0)
-                        if (!total) return null
-                        const gPct = ((counts.general || 0) / total) * 100
-                        const rPct = ((counts.restricted || 0) / total) * 100
-                        const uPct = 100 - gPct - rPct
-                        return (
-                          <div
-                            className="content-ratings-header-spectrum__strip"
-                            title={`全库分级比例：一般 ${gPct.toFixed(1)}% · 限制级 ${rPct.toFixed(1)}% · 待标注 ${uPct.toFixed(1)}%`}
-                            aria-label="全库分级比例光谱"
-                          >
-                            <span className="content-ratings-mini-bar" role="img" aria-label="分级比例条">
-                              <span className="spectrum-segment spectrum-segment--general" style={{ width: `${gPct}%` }} />
-                              <span className="spectrum-segment spectrum-segment--restricted" style={{ width: `${rPct}%` }} />
-                              <span className="spectrum-segment spectrum-segment--unknown" style={{ width: `${uPct}%` }} />
-                            </span>
-                            <span className="content-ratings-header-spectrum__rates">
-                              <span className="content-ratings-dot-legend content-ratings-dot--restricted" />
-                              {Math.round(rPct)}% 限制级
-                              <span className="content-ratings-dot-legend content-ratings-dot--unknown" />
-                              {Math.round(uPct)}% 缺口
-                            </span>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  }
+              {/* 统一全要素胶囊筛选轨道（Filter Rail） */}
+              <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-toolbar content-ratings-filter-rail" ariaLive="polite">
+                <AdminSearch
+                  id="content-rating-search"
+                  type="search"
+                  label="搜索作品分级记录"
+                  placeholder="搜索标题、作者或修改理由…"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
                 />
-
-              {loadError && <InlineError message={`分级账本同步失败：${loadError}`} onRetry={() => void load(true)} className="mx-5 my-4" />}
-
-              <AdminToolbar className="content-ratings-toolbar" ariaLive="polite">
-                <div className="admin-toolbar__filters">
-                  <Label id="content-rating-filter-label">分级</Label>
+                <div className="admin-filter-chips">
                   <CustomSelect
                     compact
-                    aria-labelledby="content-rating-filter-label"
+                    chip
+                    filterChip
+                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    aria-label="分级"
                     options={RATING_OPTIONS}
                     value={ratingFilter}
                     onChange={(value) => {
@@ -1245,40 +1208,77 @@ export default function ContentRatingsTab() {
                       setPage(1)
                     }}
                   />
-                  {/* 判定缺口的读数与能筛出它的控件同处一个筛选器组：这是数字唯一的去处，
-                  也是它存在的理由。与之并列的「限制级 / 一般」计数不再单独成块——
-                  把下拉切到对应档位，计数就在页脚。 */}
-                  <span className="content-ratings-filter-counts text-xs tabular-nums text-muted-foreground" data-testid="rating-progress">
-                    待标注 {formatNumber(counts.unknown)} · 限制级 {formatNumber(counts.restricted)}
-                  </span>
-                </div>
-                <CustomSelect
-                  options={sourceOptions}
-                  value={sourceFilter}
-                  onChange={(value) => {
-                    setSourceFilter(value as AdminContentRatingSource | '')
-                    setPage(1)
-                  }}
-                  compact
-                  aria-label="按来源筛选"
-                />
-                {(searchInput || ratingFilter || sourceFilter) && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="content-ratings-clear"
-                    onClick={() => {
-                      setSearchInput('')
-                      setRatingFilter('')
-                      setSourceFilter('')
+                  <CustomSelect
+                    compact
+                    chip
+                    filterChip
+                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    aria-label="按来源筛选"
+                    options={sourceOptions}
+                    value={sourceFilter}
+                    onChange={(value) => {
+                      setSourceFilter(value as AdminContentRatingSource | '')
                       setPage(1)
                     }}
-                  >
-                    清除筛选
-                  </Button>
-                )}
+                  />
+                  {(searchInput || ratingFilter || sourceFilter) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="content-ratings-clear"
+                      onClick={() => {
+                        setSearchInput('')
+                        setRatingFilter('')
+                        setSourceFilter('')
+                        setPage(1)
+                      }}
+                    >
+                      清除筛选
+                    </Button>
+                  )}
+
+                  {/* 判定缺口与微型健康度光谱 */}
+                  <div className="content-ratings-header-spectrum">
+                    <span className="content-ratings-filter-counts text-xs tabular-nums text-muted-foreground" data-testid="rating-progress">
+                      待标注 {formatNumber(counts.unknown)} · 限制级 {formatNumber(counts.restricted)}
+                    </span>
+                    <span className="content-ratings-header-spectrum__count">
+                      {loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}
+                    </span>
+                    {(() => {
+                      const total = (counts.general || 0) + (counts.restricted || 0) + (counts.unknown || 0)
+                      if (!total) return null
+                      const gPct = ((counts.general || 0) / total) * 100
+                      const rPct = ((counts.restricted || 0) / total) * 100
+                      const uPct = 100 - gPct - rPct
+                      return (
+                        <div
+                          className="content-ratings-header-spectrum__strip"
+                          title={`全库分级比例：一般 ${gPct.toFixed(1)}% · 限制级 ${rPct.toFixed(1)}% · 待标注 ${uPct.toFixed(1)}%`}
+                          aria-label="全库分级比例光谱"
+                        >
+                          <span className="content-ratings-mini-bar" role="img" aria-label="分级比例条">
+                            <span className="spectrum-segment spectrum-segment--general" style={{ width: `${gPct}%` }} />
+                            <span className="spectrum-segment spectrum-segment--restricted" style={{ width: `${rPct}%` }} />
+                            <span className="spectrum-segment spectrum-segment--unknown" style={{ width: `${uPct}%` }} />
+                          </span>
+                          <span className="content-ratings-header-spectrum__rates">
+                            <span className="content-ratings-dot-legend content-ratings-dot--restricted" />
+                            {Math.round(rPct)}% 限制级
+                            <span className="content-ratings-dot-legend content-ratings-dot--unknown" />
+                            {Math.round(uPct)}% 缺口
+                          </span>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </div>
               </AdminToolbar>
+
+              {loadError && <InlineError message={`分级账本同步失败：${loadError}`} onRetry={() => void load(true)} className="mx-5 my-4" />}
+
+              <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS} className="content-ratings-panel content-ratings-ledger" density="comfortable">
 
               {data.items.length === 0 ? (
                 <AdminEmptyState message={query || ratingFilter || sourceFilter ? '当前筛选条件下没有作品' : '暂无内容分级记录'} />
@@ -1383,6 +1383,7 @@ export default function ContentRatingsTab() {
                   </TableBody>
                 </Table>
               )}
+            </AdminDataPanel>
 
               <Pagination
                 variant="detached"
@@ -1393,8 +1394,7 @@ export default function ContentRatingsTab() {
                 pageSize={{ value: pageSize, options: ADMIN_PAGE_SIZE_OPTIONS, onChange: setPageSize }}
                 busy={loading || refreshing}
               />
-            </AdminDataPanel>
-          </>
+            </>
           )}
         </TabsContent>
         <TabsContent value="rules">

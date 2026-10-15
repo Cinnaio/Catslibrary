@@ -1,4 +1,5 @@
-/* 小说管理的搜索与多维度筛选共享一条轻量胶囊轨道（Filter Rail） */
+/* 通用后台工作台：搜索与多维度筛选胶囊轨道（Filter Rail） */
+.admin-filter-rail,
 .novels-filter-rail,
 .novels-rating-toolbar {
   display: flex;
@@ -13,6 +14,7 @@
   background: transparent;
 }
 
+.admin-filter-rail > .admin-search,
 .novels-filter-rail > .admin-search,
 .novels-rating-toolbar > .admin-search {
   width: min(22rem, 100%);
@@ -20,6 +22,7 @@
   flex: 1 1 18rem;
 }
 
+.admin-filter-chips,
 .novels-filter-chips,
 .novels-rating-toolbar__filter {
   display: flex;
@@ -27,6 +30,19 @@
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
+}
+
+.admin-filter-rail__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted, #736d65);
+}
+
+:root[data-theme='dark'] .admin-filter-rail__status,
+[data-theme='dark'] .admin-filter-rail__status {
+  color: #8c877e;
 }
 
 /* 分页移到表格外但仍属于列表的连续操作区；在默认区块间距基础上再收紧一档。 */
