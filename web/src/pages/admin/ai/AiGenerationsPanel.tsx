@@ -1,5 +1,5 @@
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
-import { AdminDialogContent } from '@/components/admin/AdminDialog'
+import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminFormField from '@/components/admin/AdminFormField'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -839,7 +839,7 @@ export default function AiGenerationsPanel(props: {
           {viewing && (
             <>
               {/* 中间区是唯一的滚动所有者，发布区常驻可见 */}
-              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto pr-0.5">
+              <AdminDialogBody className="ai-generation-modal__body flex min-h-0 flex-1 flex-col gap-3.5 pr-0.5">
                 {viewing.prompt && (
                   <details className="ai-generation-prompt-card group shrink-0">
                     <summary className="ai-generation-prompt-card__summary">
@@ -929,7 +929,7 @@ export default function AiGenerationsPanel(props: {
                     onStale={() => void refreshViewing()}
                   />
                 )}
-              </div>
+              </AdminDialogBody>
 
               {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
                 <div className="ai-generation-publish shrink-0">

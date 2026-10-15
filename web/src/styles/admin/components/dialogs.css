@@ -136,19 +136,104 @@
   padding: 1.25rem 1.75rem 1.5rem;
 }
 
-/* 弹窗内滚动条一律不显示：base.css 的全局 ::-webkit-scrollbar 会在正文右缘
-   露出 8px 灰色轨道，把弹窗切出一道与纸面不同色的竖条。滚动能力保留，仅隐藏
-   进度条；用通配后代覆盖正文与各类内嵌滚动区（章节列表、日志、JSON 预览等），
-   避免每个滚动容器各写一次。 */
-.admin-dialog,
-.admin-dialog * {
+/* 弹窗外层主体默认隐藏垂直滚动条：
+   base.css 的全局 ::-webkit-scrollbar 会在弹窗右缘露出 8px 灰色轨道，把纸面切出一道与背景不同色的竖条。
+   外层滚动能力照常保留（滚轮、触摸、键盘照常）；
+   内层独立滚动区（如 pre、textarea、阅读纸面、代码块、日志等）
+   则严格保留精致内层微型滚动条，以便用户直观感知与拖动进度。 */
+:is(.admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-modal),
+:is(.admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-modal) > .admin-dialog__body,
+:is(.admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-modal) > .ai-generation-modal__body,
+.admin-dialog__body {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.admin-dialog::-webkit-scrollbar,
-.admin-dialog *::-webkit-scrollbar {
+:is(.admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-modal)::-webkit-scrollbar,
+:is(.admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-modal) > .admin-dialog__body::-webkit-scrollbar,
+:is(.admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-modal) > .ai-generation-modal__body::-webkit-scrollbar,
+.admin-dialog__body::-webkit-scrollbar {
   display: none;
+}
+
+/* 内层独立滚动区严格保留滚动条，杜绝通配隐藏 */
+:is(.admin-dialog, .admin-dialog-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+) {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--admin-border, #e5e3dc) 85%, transparent) transparent;
+}
+
+:is(.admin-dialog, .admin-dialog-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+)::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+  height: 6px;
+}
+
+:is(.admin-dialog, .admin-dialog-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:is(.admin-dialog, .admin-dialog-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+)::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--admin-border, #e5e3dc) 85%, transparent);
+  border-radius: 9999px;
+}
+
+:is(.admin-dialog, .admin-dialog-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+)::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 /* 页脚与页头、正文同底色：三段式只是一条栅格，不再用色块或水平分割线区分末段。
