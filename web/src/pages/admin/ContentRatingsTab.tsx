@@ -33,6 +33,7 @@ import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncS
 import CustomSelect, { type SelectOption } from '@/components/admin/CustomSelect'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
+import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import AiSuggestionBulkReview from './AiSuggestionBulkReview'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -179,8 +180,8 @@ function EvidenceCell({ item, onInspect }: { item: AdminContentRatingItem; onIns
   let secondaryLabel = ''
   if (item.ruleVersion?.startsWith('llm:')) {
     const modelMatch = item.ruleVersion.match(/llm:([^:]+)/)
-    const rawModel = modelMatch ? modelMatch[1] : ''
-    const modelName = rawModel.includes('deepseek') ? 'DeepSeek' : rawModel ? rawModel.split('-')[0] : 'AI'
+    const rawModel = modelMatch?.[1] ?? ''
+    const modelName = rawModel.includes('deepseek') ? 'DeepSeek' : rawModel ? (rawModel.split('-')[0] ?? 'AI') : 'AI'
     const note = item.reason && !isGenericSystemReason(item.reason)
       ? item.reason.replace(/^管理员批准\s*AI\s*分级建议[：:]\s*/, '')
       : ''
@@ -636,39 +637,29 @@ function AiSuggestionPanel({
       {/* 任务进度条独立卡片 */}
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
 
-      {/* 批量操作条（当有选中项时浮现） */}
-      {!history && selected.size > 0 && (
-        <div
-          className="content-ratings-ai-selection flex items-center gap-3 px-4 py-2.5 rounded-xl bg-muted/40 border border-border/60 text-xs text-foreground mb-3 animate-in fade-in slide-in-from-top-1 duration-150"
-          role="group"
-          aria-label="LLM 建议批量操作"
+      {/* 底部悬浮胶囊岛（批量操作） */}
+      {!history && (
+        <AdminSelectionBar
+          count={selected.size}
+          label={`已选 ${selected.size} 条`}
+          onClear={() => setSelected(new Map())}
+          clearLabel="清空选择"
+          clearPlacement="actions"
         >
-          <span className="font-medium text-foreground">已选 {selected.size} 条</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-muted-foreground hover:text-foreground"
-            disabled={bulkBusy || !selected.size}
-            onClick={() => setSelected(new Map())}
-          >
-            清空选择
-          </Button>
-          <div className="ml-auto flex items-center gap-2">
-            <AiSuggestionBulkReview
-              items={[...selected.values()]}
-              disabled={locked}
-              onBusy={setBulkBusy}
-              onCompleted={async (ids) => {
-                setSelected((previous) => {
-                  const next = new Map(previous)
-                  ids.forEach((id) => next.delete(id))
-                  return next
-                })
-                await onBulkCompleted()
-              }}
-            />
-          </div>
-        </div>
+          <AiSuggestionBulkReview
+            items={[...selected.values()]}
+            disabled={locked || bulkBusy}
+            onBusy={setBulkBusy}
+            onCompleted={async (ids) => {
+              setSelected((previous) => {
+                const next = new Map(previous)
+                ids.forEach((id) => next.delete(id))
+                return next
+              })
+              await onBulkCompleted()
+            }}
+          />
+        </AdminSelectionBar>
       )}
 
       {/* 复用表格设计规范的主数据面板 */}

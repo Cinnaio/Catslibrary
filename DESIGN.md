@@ -217,9 +217,9 @@ components:
    - **退出动效（Exit）**：当勾选清空或取消选择（`count` 归零）时，组件内部通过退出状态机保留当前渲染镜像，执行平滑下沉与消散动效。时长 `0.22s`，运动曲线为减速缓冲 `cubic-bezier(0.4, 0, 0.2, 1)`（`translate(-50%, 0) scale(1) -> translate(-50%, 24px) scale(0.94)`），并在退出期间通过 `pointer-events: none` 锁闭事件防止误触；
    - **动态偏好减弱适配**：`@media (prefers-reduced-motion: reduce)` 下位移与形变关闭，组件仅保留最多0.15s的透明度变化；全站 `base.css` 的减弱动态守卫会进一步收敛到0.001ms，实际页面近乎即时切换。
 4. **组件生命周期与消费契约：**
-   - 页面消费端（如 `NovelsTab`, `ChaptersTab`）直接常驻渲染 `<AdminSelectionBar count={selected.size} ... />`，禁止在外层使用 `{count > 0 && <AdminSelectionBar />}` 短路包裹，进退场动效完全由组件内置缓冲状态机与定时器驱动闭环。
+   - 页面消费端（如 `NovelsTab`, `ChaptersTab`, `ContentRatingsTab` 的 LLM 建议审查）直接常驻渲染 `<AdminSelectionBar count={selected.size} ... />`，禁止在外层使用 `{count > 0 && <AdminSelectionBar />}` 短路包裹，进退场动效完全由组件内置缓冲状态机与定时器驱动闭环。
 5. **岛内按钮统一契约（2026-10-14）：**
-   - **单一来源**：共享 `--admin-dock-*` token 位于 `admin/tokens.css`，外壳、按钮、动作分组和状态规则位于 `admin/components/floating-dock.css`；`selection.css` 仅保留批量选择的计数与清空分组。小说管理、章节管理、抓取发现和 AI 参数调优共同消费；既有 `--admin-selection-*` 几何和主操作颜色保留为兼容别名。`clearPlacement="actions"` 和 `"selection"` 的取消入口使用完全相同的尺寸规则。页面只传 `Button` 的 variant、事件和禁用态，不重复写 `h-*`、`px-*`、`text-*`、圆角、十六进制颜色或阴影。
+   - **单一来源**：共享 `--admin-dock-*` token 位于 `admin/tokens.css`，外壳、按钮、动作分组和状态规则位于 `admin/components/floating-dock.css`；`selection.css` 仅保留批量选择的计数与清空分组。小说管理、章节管理、抓取发现、分级审核（LLM建议批量审查）和 AI 参数调优共同消费；既有 `--admin-selection-*` 几何和主操作颜色保留为兼容别名。`clearPlacement="actions"` 和 `"selection"` 的取消入口使用完全相同的尺寸规则。页面只传 `Button` 的 variant、事件和禁用态，不重复写 `h-*`、`px-*`、`text-*`、圆角、十六进制颜色或阴影。
    - **尺寸**：桌面按钮和计数高度为 `--admin-selection-control-height`（36px）；900px 及以下或粗指针设备提升为 `--admin-selection-touch-height`（44px）。按钮的 `height` 与 `min-height` 同时设置，覆盖通用后台 40px 下限；图标按钮宽高同档。水平内边距14px，按钮间距与图文间距8px，图标16px，外框内缩8px。分别使用 `--admin-selection-padding-inline` / `gap` / `icon-size` / `inset`，禁止靠字号或按钮内容反推高度。
    - **字阶与层级**：保留后台共享字阶和550字重：主要/危险操作14px，次要/描边/取消13px。主操作用陶土实底，次操作用中性微描边，取消用 Ghost，删除保留危险语义描边；同一岛内只突出当前主要动作。主操作颜色使用 `--admin-selection-primary-background/foreground`，亮色加深陶土底、暗色用陶土底配炭黑字，以满足小字号对比度；按钮不叠加阴影或悬停抬升。
    - **响应式与状态**：窄屏最大宽度为视口减24px，操作组自然换行，不依赖水平滚动藏住取消或删除。禁用/处理中保留控件尺寸，统一弱化；键盘焦点使用2px陶土轮廓和2px偏移，不能被裁切。reduced motion 下关闭按钮位移和过渡，保留既有岛屿淡入淡出。
