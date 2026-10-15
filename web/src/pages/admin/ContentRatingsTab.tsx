@@ -1985,60 +1985,71 @@ export default function ContentRatingsTab() {
           <AdminDialogBody className="space-y-4 pt-1">
             {evidenceNovel && (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-muted/40 border border-border/60">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-muted/35 text-xs">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">当前分级：</span>
+                    <span className="text-muted-foreground">当前分级</span>
                     <AdminContentRatingBadge rating={evidenceNovel.contentRating} />
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <span>来源：{sourceLabel(evidenceNovel.source)}</span>
-                    <span>·</span>
+                    <span className="text-border">·</span>
                     <span>修订 {evidenceNovel.revision}</span>
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <h4 className="text-xs font-semibold text-foreground">命中特征证据</h4>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-medium text-muted-foreground">命中特征证据</h4>
                   {evidenceNovel.evidence.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-muted/20 border border-border/40">
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
                       {evidenceNovel.evidence.map((ev, i) => (
-                        <Badge key={i} variant="outline" className="font-normal text-xs bg-background">
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-normal bg-muted/50 text-foreground border border-border/60"
+                        >
+                          <span className="size-1.5 rounded-full bg-primary/70 shrink-0" aria-hidden="true" />
                           {evidenceLabel(ev)}
-                        </Badge>
+                        </span>
                       ))}
                     </div>
                   ) : (
-                    <div className="p-3 text-xs text-muted-foreground rounded-xl bg-muted/20 border border-border/40">
+                    <p className="text-xs text-muted-foreground/80 italic py-0.5">
                       全库规则巡检完成，未检出限制级敏感特征。
-                    </div>
+                    </p>
                   )}
                 </div>
 
                 {evidenceNovel.reason && (
-                  <div className="space-y-1.5">
-                    <h4 className="text-xs font-semibold text-foreground">执行说明 / 理由</h4>
-                    <div className="p-3 text-xs text-foreground/90 leading-relaxed rounded-xl bg-muted/20 border border-border/40 break-words">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-medium text-muted-foreground">执行说明 / 理由</h4>
+                    <div className="text-xs text-foreground/90 leading-relaxed rounded-r-lg rounded-l-xs bg-muted/25 px-3.5 py-2.5 border-l-2 border-primary/50 break-words font-normal">
                       {evidenceNovel.reason}
                     </div>
                   </div>
                 )}
 
-                {evidenceNovel.ruleVersion && (
-                  <div className="flex items-center justify-between text-xs text-muted-foreground p-3 rounded-xl bg-muted/20 border border-border/40 font-mono">
-                    <span className="font-sans text-xs">生效规则链</span>
-                    <span className="text-[11px]">{evidenceNovel.ruleVersion}</span>
+                <div className="pt-2 text-xs text-muted-foreground space-y-2 border-t border-border/40">
+                  {evidenceNovel.ruleVersion && (
+                    <div className="flex items-center justify-between">
+                      <span>生效规则链</span>
+                      <code className="text-[11px] font-mono px-2 py-0.5 rounded bg-muted/40 text-foreground/80 border border-border/50">
+                        {evidenceNovel.ruleVersion}
+                      </code>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span>最近操作人</span>
+                    <span className="text-foreground/90 font-medium">{evidenceNovel.updatedByName || '系统'}</span>
                   </div>
-                )}
-
-                <div className="flex items-center justify-between text-xs text-muted-foreground px-1 pt-1">
-                  <span>最近操作人：{evidenceNovel.updatedByName || '系统'}</span>
-                  <span>{formatDateTime(evidenceNovel.contentRatingUpdatedAt)}</span>
+                  <div className="flex items-center justify-between">
+                    <span>更新时间</span>
+                    <time className="text-foreground/80">{formatDateTime(evidenceNovel.contentRatingUpdatedAt)}</time>
+                  </div>
                 </div>
               </>
             )}
           </AdminDialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEvidenceNovel(null)}>
+            <Button variant="outline" onClick={() => setEvidenceNovel(null)} className="rounded-full px-5 h-8 text-xs font-medium border-border/80 hover:bg-muted/50">
               关闭
             </Button>
           </DialogFooter>

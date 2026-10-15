@@ -469,7 +469,8 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Header Alignment:** 页头一律居中，与 `DialogHeader` 的实际渲染一致（其 `text-center` 与 `sm:text-left` 中后者被 Tailwind 输出顺序压掉，居中才是既有事实）。标题避让右上角关闭按钮时用左右对称留白（`padding-inline`）而非只留右侧，否则居中标题会视觉偏左；描述块用 `margin-inline: auto` 跟随居中。
 - **Scroll Ownership:** 一个弹窗只设一个滚动所有者。`.admin-dialog` 由 `.admin-dialog__body` 承担；自建三行栅格（如 `.ai-generation-dialog`）必须显式指定中间滚动区，且**不得**依赖外层 `overflow: hidden` 裁切——超出内容会被静默截断且无法滚动恢复。长正文（数千字）用固定高度或视口相关上限 + 框内滚动，不随内容长高。
 - **Hidden Scrollbar:** 弹窗内不显示滚动进度条。`.admin-dialog` 及其全部后代读 `scrollbar-width: none` + `-ms-overflow-style: none`，并配 `::-webkit-scrollbar { display: none }`——base.css 的全局 8px 滚动条会在正文右缘切出一条与纸面异色的竖轨。滚动能力保留（滚轮、触摸、键盘照常），只隐藏进度条；正文与内嵌滚动区（章节列表、抓取日志、Prompt 预览）由一条通配后代规则统一覆盖，不逐个容器重复声明。
-- **Segmented Surface:** 三段式栅格只区分结构，不区分颜色。页头、正文、页脚共用同一表面色 `--admin-panel`，页脚不得用 `--admin-panel-muted` 或任何加深底色，也不靠 `border-top` 分隔；末段与内容的界限只由间距（`--admin-space-*`）和按钮自身视觉承担。
+- **Segmented Surface & Seamless Flow:** 三段式栅格只区分结构，不区分颜色，**严禁在页头下方或页脚上方插入水平分割线**（`border-bottom: 0` 与 `border-top: 0`）。页头、正文、页脚共用同一纸面表面色 `--admin-panel`，三者处于同一张完整无缝的温暖纸面上，彻底消灭把弹窗横向切碎的生硬发丝线。页头、正文与页脚的层级过渡完全由呼吸间距（`--admin-space-*`）和控件自身视觉自然承担。
+- **Anti-Box-in-Box Rule (杜绝套娃卡片):** 弹窗正文内部严禁多层嵌套灰底描边矩形盒子（Box-in-box syndrome）。元信息优先以轻量通栏或纯净键值对表达；特征标签统一使用带微圆点的极简圆角药丸胶囊（Pill tags）；说明文字使用带左侧微弱强调条的编辑引文块（Callout），保持 Claude 纸质沉浸感与通透呼吸感。
 - **Field Labels:** 弹窗内的小标题（`标题`/`作者`/`正文`…）统一为 12px / 500 / `--text-muted`，读 `--admin-dialog-label-size`·`-weight`·`-color`·`-line-height`·`-letter-spacing`。不再出现 0.8rem/650/次级色、0.6875rem/600/大写等分叉写法，也不用 `text-transform: uppercase`（大写只对拉丁字母可见，会让中英标签风格分叉）。覆盖范围含 `.admin-dialog` 与自建三段式的 `.ai-generation-dialog`；无 `Label` 元素可挂的裸 `div` 用 `.admin-dialog-section-label` 表达同一语义。
 - **Helper Copy:** 控件下方的辅助说明与标签同尺寸同色，只降一档字重至 400（`--admin-dialog-hint-*`，或裸元素用 `.admin-dialog-hint`）。辅助说明不得比它说明的标签更粗或更大，否则主次颠倒。
 - **Mobile Editor:** 窄屏小说编辑窗口使用 `--admin-dialog-mobile-max-height` 收紧高度；底部操作区通过 `--admin-dialog-mobile-footer-*` 保持保存/取消同一行、不换行，并用 `--admin-dialog-mobile-action-min-*` 保留触控尺寸。
@@ -742,6 +743,7 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Don't** 把同一个动作同时放进页头和面板工具条（见 The Single-Door Rule）
 - **Don't** 让 `w-full` 的元素在 flex 容器里失去 `max-width`——`max-w-none` + `w-full` 会让筛选器独占整行，把工具条撑成多行
 - **Don't** 依赖 flex 布局替控件决定宽度：`flex: 0 0 auto` 配合 `w-full` 的宽高组合在 `flex-wrap` 下没有稳定结果
+- **Don't** 在弹窗内部的页头下方或页脚上方添加水平分割线（`border-bottom` / `border-top`），或在弹窗正文内滥用多层带边框的嵌套灰底矩形卡片（杜绝盒中盒反模式）
 
 ### Directory Row Density and Dates
 
