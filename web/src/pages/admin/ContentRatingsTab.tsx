@@ -1127,6 +1127,33 @@ export default function ContentRatingsTab() {
   const viewRefreshing = view === 'ledger' ? loading || refreshing : view === 'rules' ? candidateLoading : aiLoading
   const refreshLabel = view === 'ledger' ? '刷新账本' : view === 'rules' ? '刷新候选' : '刷新建议'
 
+  const policyRef = useRef<HTMLDetailsElement>(null)
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent | TouchEvent) {
+      const el = policyRef.current
+      if (el && el.open && !el.contains(event.target as Node)) {
+        el.open = false
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && policyRef.current?.open) {
+        policyRef.current.open = false
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('touchstart', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
   function refreshCurrentView() {
     if (view === 'rules') void loadCandidates()
     else if (view === 'ai') void loadAiSuggestions()
@@ -1164,7 +1191,7 @@ export default function ContentRatingsTab() {
               LLM 建议 <span className="content-ratings-tab-count">{aiData ? formatNumber(aiData.counts.pending) : '—'}</span>
             </TabsTrigger>
           </TabsList>
-          <details className="content-ratings-policy">
+          <details ref={policyRef} className="content-ratings-policy">
             <summary>
               <Info aria-hidden="true" />
               分级与审核口径
