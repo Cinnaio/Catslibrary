@@ -740,8 +740,10 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Do** 把规模与状态读数放在所属面板、筛选器或分页区，不放在页名旁
 - **Do** 把筛选读数贴在能筛出它的控件旁边（「待标注 67 · 限制级 340」紧邻分级下拉），而不是另起指标条
 - **Do** 用 `data-slot` 属性匹配 shadcn 组件（`table.tsx` / `dialog.tsx` 都带契约），而不是依赖 Tailwind 生成的类名
-- **Do** 给放进 flex 工具条的紧凑控件一个显式宽度（控件自身 `max-w-*` 或容器 `flex: 0 0 <宽度>`）；短选项筛选器直接用 `CustomSelect compact`
-- **Do** 将 AI 建议与异步任务控制流（状态筛选、批次控制、进度恢复卡片）作为独立层外置于数据面板之前，下方队列严格复用 `AdminDataPanel` 表格规范
+- **Do** 将控制层（面板标题 `AdminPanelHeading`、工具条 `AdminToolbar`、筛选器 `CustomSelect compact chip`）独立平铺于数据面板之外，形成单层控制流（Flat Control Flow），下方 `AdminDataPanel` 回归纯粹纸白作业台
+- **Do** 在支持批量操作的数据列表中全面复用全局底部悬浮胶囊岛 `AdminSelectionBar`，将「已选 N 条」与批量动作收敛于视口底部浮动条，彻底移除卡片标题内的行内挤压按钮
+- **Do** 下拉选择与筛选操作（如 `CustomSelect`）生效后必须保持原视口位置（焦点恢复配置 `preventScroll: true`，且异步重载保留旧列表高度防页面瞬塌），禁止页面滚回顶部
+- **Do** 表格分页统一使用外置独立形态 `<Pagination variant="detached">`，平铺在数据面板之后
 
 ### Don't:
 - **Don't** 使用纯黑（#000000）或纯白作为大面积背景——永远带暖调

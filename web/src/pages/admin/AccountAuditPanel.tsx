@@ -10,6 +10,8 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import CustomSelect from '@/components/admin/CustomSelect'
+import { cn } from '@/lib/utils'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 
@@ -198,37 +200,38 @@ export default function AccountAuditPanel({
           ]
     setDetail({ title: `${title}详情`, fields })
   }
+  const statusSelectOptions = [
+    { value: 'all', label: '全部结果' },
+    ...options.map((value) => ({ value, label: statusLabel(value) })),
+  ]
   return (
     <>
+      <AdminPanelHeading
+        title={title}
+        status={<span className="admin-panel-status">{loading && !records.length ? '读取中' : `${total} 条`}</span>}
+        actions={
+          <Button variant="secondary" size="sm" onClick={onRefresh} disabled={loading}>
+            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+            {loading ? '刷新中…' : '刷新'}
+          </Button>
+        }
+      />
+      <AdminToolbar layout="inline" className="account-record-filters" ariaLive="polite">
+        <div className="admin-filter-chips">
+          <CustomSelect
+            compact
+            chip
+            filterChip
+            aria-label={kind === 'login' ? '登录结果' : '操作结果'}
+            value={status}
+            onChange={onStatus}
+            options={statusSelectOptions}
+          />
+        </div>
+        <span className="account-record-filters__hint">按最新{kind === 'login' ? '登录' : '操作'}时间排序</span>
+      </AdminToolbar>
       <AdminDataPanel className="account-records-panel overflow-hidden" ariaLabel={`${title}列表`} columns={columns} density="comfortable">
-        <AdminPanelHeading
-          title={title}
-          status={<span className="admin-panel-status">{loading && !records.length ? '读取中' : `${total} 条`}</span>}
-          actions={
-            <Button variant="secondary" size="sm" onClick={onRefresh} disabled={loading}>
-              <RefreshCw aria-hidden="true" />
-              刷新
-            </Button>
-          }
-        />
-        <AdminToolbar className="account-record-filters">
-          <span className="account-record-secondary">结果</span>
-          <Select value={status} onValueChange={onStatus}>
-            <SelectTrigger aria-label={kind === 'login' ? '登录结果' : '操作结果'}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              <SelectItem value="all">全部结果</SelectItem>
-              {options.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {statusLabel(value)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="account-record-filters__hint">按最新{kind === 'login' ? '登录' : '操作'}时间排序</span>
-        </AdminToolbar>
-        <Table>
+        <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
           <TableCaption className="sr-only">{title}列表，完整信息可在详情查看。</TableCaption>
           <TableHeader>
             <TableRow>

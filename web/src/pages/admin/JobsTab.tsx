@@ -24,6 +24,7 @@ import AdminPage from '@/components/admin/AdminPage'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 
 // ---------- Types ----------
 
@@ -467,6 +468,7 @@ export default function JobsTab({
       />
       {view !== 'downloads' && (
         <>
+          <AdminPanelHeading title="抓取任务" status={<span className={`admin-panel-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
           <AdminToolbar className="task-workspace-toolbar" ariaLive="polite">
             <div className="task-workspace-filters bg-muted/60 p-1 rounded-full gap-1 flex items-center" role="group" aria-label="任务状态筛选">
               {FILTERS.map((item) => (
@@ -490,9 +492,8 @@ export default function JobsTab({
             </Button>
           </AdminToolbar>
           <AdminDataPanel className="task-workspace-panel overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS} density="comfortable">
-            <AdminPanelHeading title="抓取任务" status={<span className={`admin-panel-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
             {hasJobs ? (
-              <Table>
+              <Table className={cn('admin-data-table admin-data-table--animated', jobsLoading && 'admin-data-table--transitioning')}>
                 <TableCaption className="sr-only">抓取任务列表，包含任务 ID、小说、状态、进度与行内操作</TableCaption>
                 <TableHeader>
                   <TableRow>
@@ -559,19 +560,20 @@ export default function JobsTab({
         </>
       )}
       {view !== 'scrape' && (
-        <AdminDataPanel className="task-workspace-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
+        <>
           <AdminPanelHeading title="下载日志" status={<span className={`admin-panel-status${logsError ? ' is-error' : ''}`}>{logsStatusLabel}</span>} />
-          {logsLoading ? (
-            <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
-          ) : logsError ? (
-            <ErrorState message={`下载日志加载失败：${logsError}`} />
-          ) : downloadLogs.length === 0 ? (
-            <AdminEmptyState className="jobs-empty" icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />} message="暂无下载日志" />
-          ) : (
-            <Table>
-              <TableCaption className="sr-only">下载日志列表，包含类型、对象、数量与时间</TableCaption>
-              <TableHeader>
-                <TableRow>
+          <AdminDataPanel className="task-workspace-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
+            {logsLoading ? (
+              <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
+            ) : logsError ? (
+              <ErrorState message={`下载日志加载失败：${logsError}`} />
+            ) : downloadLogs.length === 0 ? (
+              <AdminEmptyState className="jobs-empty" icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />} message="暂无下载日志" />
+            ) : (
+              <Table className={cn('admin-data-table admin-data-table--animated', logsLoading && 'admin-data-table--transitioning')}>
+                <TableCaption className="sr-only">下载日志列表，包含类型、对象、数量与时间</TableCaption>
+                <TableHeader>
+                  <TableRow>
                   <TableHead scope="col">类型</TableHead>
                   <TableHead scope="col">对象</TableHead>
                   <TableHead scope="col">数量</TableHead>
@@ -595,6 +597,7 @@ export default function JobsTab({
             </Table>
           )}
         </AdminDataPanel>
+        </>
       )}
       <TaskDetails
         open={detailsId != null}

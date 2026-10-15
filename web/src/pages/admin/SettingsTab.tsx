@@ -27,6 +27,8 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import AdminPage from '@/components/admin/AdminPage'
 import UserManagementPanel from './UserManagementPanel'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import CustomSelect from '@/components/admin/CustomSelect'
+import { cn } from '@/lib/utils'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -639,56 +641,57 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
 
       {currentAccountTab === 'registration' && (
         <>
-          <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS} density="comfortable">
-            <AdminPanelHeading
-              title="邀请码目录"
-              status={<span className="admin-panel-status">{filteredInvites.length} 个</span>}
-              actions={
-                <>
-                  <Button variant="secondary" size="sm" disabled={loading || inviteBusy} onClick={() => void load()}>
-                    <RefreshCw aria-hidden="true" />
-                    刷新
-                  </Button>
-                  <span className="account-record-secondary">数量</span>
-                  <Input
-                    disabled={inviteBusy}
-                    type="number"
-                    className="admin-input--invite-count"
-                    min={1}
-                    max={50}
-                    value={inviteCount}
-                    aria-label="生成邀请码数量"
-                    onChange={(e) => setInviteCount(e.target.value)}
-                  />
-                  <Button size="sm" disabled={loading || inviteBusy} onClick={() => void createInvite()}>
-                    生成邀请码
-                  </Button>
-                </>
-              }
-            />
-            <AdminToolbar className="account-record-filters">
-              <span className="account-record-secondary">状态</span>
-              <Select
+          <AdminPanelHeading
+            title="邀请码目录"
+            status={<span className="admin-panel-status">{filteredInvites.length} 个</span>}
+            actions={
+              <>
+                <Button variant="secondary" size="sm" disabled={loading || inviteBusy} onClick={() => void load()}>
+                  <RefreshCw className={loading || inviteBusy ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+                  刷新
+                </Button>
+                <span className="account-record-secondary">数量</span>
+                <Input
+                  disabled={inviteBusy}
+                  type="number"
+                  className="admin-input--invite-count"
+                  min={1}
+                  max={50}
+                  value={inviteCount}
+                  aria-label="生成邀请码数量"
+                  onChange={(e) => setInviteCount(e.target.value)}
+                />
+                <Button size="sm" disabled={loading || inviteBusy} onClick={() => void createInvite()}>
+                  生成邀请码
+                </Button>
+              </>
+            }
+          />
+          <AdminToolbar layout="inline" className="account-record-filters" ariaLive="polite">
+            <div className="admin-filter-chips">
+              <CustomSelect
+                compact
+                chip
+                filterChip
+                aria-label="邀请码状态"
                 value={inviteStatus}
-                onValueChange={(value) => {
+                onChange={(value) => {
                   setInviteStatus(value)
                   setInvitePage(1)
                 }}
-              >
-                <SelectTrigger aria-label="邀请码状态">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent position="popper" align="start">
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="available">可用</SelectItem>
-                  <SelectItem value="used">已使用</SelectItem>
-                  <SelectItem value="disabled">已停用</SelectItem>
-                </SelectContent>
-              </Select>
-              <span className="account-record-filters__hint">
-                可用 {available} · 已使用 {invites.filter((i) => i.usedAt > 0).length} · 已停用 {invites.filter((i) => !i.usedAt && i.disabledAt > 0).length}
-              </span>
-            </AdminToolbar>
+                options={[
+                  { value: 'all', label: '全部状态' },
+                  { value: 'available', label: '可用' },
+                  { value: 'used', label: '已使用' },
+                  { value: 'disabled', label: '已停用' },
+                ]}
+              />
+            </div>
+            <span className="account-record-filters__hint">
+              可用 {available} · 已使用 {invites.filter((i) => i.usedAt > 0).length} · 已停用 {invites.filter((i) => !i.usedAt && i.disabledAt > 0).length}
+            </span>
+          </AdminToolbar>
+          <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS} density="comfortable">
             {generatedCodes && generatedCodes.length > 0 && (
               <div id="tokenStatus" className="account-invites-generated" role="status">
                 <div className="account-invites-generated__content">
@@ -704,7 +707,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                 </Button>
               </div>
             )}
-            <Table>
+            <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
               <TableCaption className="sr-only">邀请码列表，含状态、使用者与创建时间</TableCaption>
               <TableHeader>
                 <TableRow>

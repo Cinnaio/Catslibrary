@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Check, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type ModerationMode = 'thoughts' | 'comments' | 'reports'
 
@@ -599,6 +600,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         </Button>
       }
     >
+      <AdminPanelHeading title="审核列表" status={<span className={`admin-panel-status${error ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
       <AdminToolbar className="moderation-toolbar" ariaLive="polite">
         <div className="moderation-toolbar__filters">
           <span className="moderation-toolbar__label">审核类型</span>
@@ -667,10 +669,9 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           </div>
         </div>
       </AdminToolbar>
-      <AdminDataPanel className="overflow-hidden" ariaLabel="审核列表" columns={cfg.columns}>
-        <AdminPanelHeading title="审核列表" status={<span className={`admin-panel-status${error ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
+      <AdminDataPanel className="overflow-hidden" ariaLabel="审核列表" columns={cfg.columns} density="comfortable">
         {hasRows ? (
-          <Table>
+          <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
             <TableCaption className="sr-only">{`${cfg.label}审核列表，含时间、来源、内容、用户与处理状态`}</TableCaption>
             <TableHeader>
               <TableRow>
@@ -691,8 +692,8 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
             <p>{listStateDescription}</p>
           </div>
         )}
-        <Pagination page={page} totalPages={Math.max(1, Math.ceil((total || 0) / pageSize))} onPage={setPage} busy={loading} summary={total === null ? '读取中' : `共 ${total} 条`} />
       </AdminDataPanel>
+      <Pagination variant="detached" page={page} totalPages={Math.max(1, Math.ceil((total || 0) / pageSize))} onPage={setPage} busy={loading} summary={total === null ? '读取中' : `共 ${total} 条`} />
     </AdminPage>
   )
 }

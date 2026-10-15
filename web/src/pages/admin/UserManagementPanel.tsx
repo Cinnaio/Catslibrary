@@ -16,6 +16,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import CustomSelect from '@/components/admin/CustomSelect'
+import { cn } from '@/lib/utils'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE } from '@/lib/admin-pagination'
 
@@ -138,65 +140,68 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
   }
   const users = result?.users || []
   const total = result?.total || 0
+  const roleOptions = [
+    { value: 'all', label: '全部角色' },
+    { value: 'admin', label: '管理员' },
+    { value: 'reader', label: '读者' },
+  ]
+  const userStatusOptions = [
+    { value: 'all', label: '全部状态' },
+    { value: 'active', label: '正常' },
+    { value: 'disabled', label: '已禁用' },
+  ]
   return (
     <>
-      <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={COLUMNS} density="comfortable">
-        <AdminPanelHeading
-          title="用户目录"
-          status={<span className="admin-panel-status">{!result && loading ? '读取中' : `${total} 人`}</span>}
-          actions={
-            <Button variant="secondary" size="sm" disabled={loading} onClick={() => setRevision((value) => value + 1)}>
-              <RefreshCw aria-hidden="true" />
-              刷新
-            </Button>
-          }
-        />
-        <AdminToolbar className="account-users-filters">
-          <span className="account-users-filters__label">筛选</span>
-          <Select
+      <AdminPanelHeading
+        title="用户目录"
+        status={<span className="admin-panel-status">{!result && loading ? '读取中' : `${total} 人`}</span>}
+        actions={
+          <Button variant="secondary" size="sm" disabled={loading} onClick={() => setRevision((value) => value + 1)}>
+            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+            刷新
+          </Button>
+        }
+      />
+      <AdminToolbar layout="inline" className="account-users-filters" ariaLive="polite">
+        <div className="admin-filter-chips">
+          <CustomSelect
+            compact
+            chip
+            filterChip
+            aria-label="用户角色"
             value={role}
-            onValueChange={(value) => {
+            onChange={(value) => {
               setRole(value)
               setPage(1)
             }}
-          >
-            <SelectTrigger aria-label="用户角色">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部角色</SelectItem>
-              <SelectItem value="admin">管理员</SelectItem>
-              <SelectItem value="reader">读者</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
+            options={roleOptions}
+          />
+          <CustomSelect
+            compact
+            chip
+            filterChip
+            aria-label="用户状态"
             value={status}
-            onValueChange={(value) => {
+            onChange={(value) => {
               setStatus(value)
               setPage(1)
             }}
-          >
-            <SelectTrigger aria-label="用户状态">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部状态</SelectItem>
-              <SelectItem value="active">正常</SelectItem>
-              <SelectItem value="disabled">已禁用</SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="account-users-filters__hint">密码、权限与账号状态集中管理</span>
-        </AdminToolbar>
-        {loadError && (
-          <div className="account-users-error" role="alert">
-            {loadError}
-            {result ? '，当前保留上次读取的数据。' : ''}
-            <Button variant="ghost" size="sm" onClick={() => setRevision((value) => value + 1)} disabled={loading}>
-              重试
-            </Button>
-          </div>
-        )}
-        <Table aria-busy={loading}>
+            options={userStatusOptions}
+          />
+        </div>
+        <span className="account-users-filters__hint">密码、权限与账号状态集中管理</span>
+      </AdminToolbar>
+      {loadError && (
+        <div className="account-users-error" role="alert">
+          {loadError}
+          {result ? '，当前保留上次读取的数据。' : ''}
+          <Button variant="ghost" size="sm" onClick={() => setRevision((value) => value + 1)} disabled={loading}>
+            重试
+          </Button>
+        </div>
+      )}
+      <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={COLUMNS} density="comfortable">
+        <Table aria-busy={loading} className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
           <TableCaption className="sr-only">站点用户目录，含权限、状态、注册与登录时间、想法及账号操作</TableCaption>
           <TableHeader>
             <TableRow>
