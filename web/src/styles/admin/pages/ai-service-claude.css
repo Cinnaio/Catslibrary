@@ -1534,67 +1534,86 @@
   }
 }
 
-/* AI 配置面板：Claude 极简纸白双栏作业台 */
+/* AI 配置面板：Claude 纯粹单层纸白工作台 (Flat Editorial Workbench) */
 .ai-service .ai-config-panel-wrap {
   width: 100%;
 }
-.ai-service .ai-config-panel {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.5rem;
-  align-items: stretch;
-  width: 100%;
-}
-@media (max-width: 1024px) {
-  .ai-service .ai-config-panel {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1.25rem;
-  }
-}
-.ai-service .ai-config-panel .ai-config-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+.ai-service .ai-config-desk {
+  background: var(--admin-panel, #ffffff);
   border: 1px solid var(--admin-border, #e5e3dc);
   border-radius: var(--radius-2xl, 1.25rem);
-  background: var(--admin-panel, #ffffff);
   box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
-  padding: 0;
   overflow: hidden;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  padding: 0;
 }
-:root[data-theme='dark'] .ai-service .ai-config-panel .ai-config-card,
-[data-theme='dark'] .ai-service .ai-config-panel .ai-config-card {
+:root[data-theme='dark'] .ai-service .ai-config-desk,
+[data-theme='dark'] .ai-service .ai-config-desk {
   border-color: var(--admin-border, #2a2825);
   background: var(--admin-panel, #1c1b18);
   box-shadow: none;
 }
-.ai-service .ai-config-card__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.375rem 1.5rem 1rem;
+.ai-service .ai-config-section {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+  padding: 2.25rem 2.5rem;
   border-bottom: 1px solid var(--admin-border-subtle, rgba(229, 227, 220, 0.6));
 }
-:root[data-theme='dark'] .ai-service .ai-config-card__header,
-[data-theme='dark'] .ai-service .ai-config-card__header {
+.ai-service .ai-config-section:last-child {
+  border-bottom: none;
+}
+:root[data-theme='dark'] .ai-service .ai-config-section,
+[data-theme='dark'] .ai-service .ai-config-section {
   border-bottom-color: rgba(42, 40, 37, 0.6);
 }
-.ai-service .ai-config-card__title {
+@media (max-width: 960px) {
+  .ai-service .ai-config-section {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+    padding: 1.5rem;
+  }
+}
+.ai-service .ai-config-section__lead {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
+}
+.ai-service .ai-config-section__title {
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.01em;
 }
-.ai-service .ai-config-card__desc {
-  margin-top: 0.25rem;
+.ai-service .ai-config-section__desc {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.ai-service .ai-config-section__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.ai-service .ai-config-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.875rem;
+  border-top: 1px dashed var(--admin-border, #e5e3dc);
+}
+:root[data-theme='dark'] .ai-service .ai-config-action-row,
+[data-theme='dark'] .ai-service .ai-config-action-row {
+  border-top-color: var(--admin-border, #2a2825);
+}
+.ai-service .ai-config-action-status {
   font-size: 0.75rem;
   color: var(--text-muted);
-  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ai-service .ai-config-status-dot {
   width: 0.375rem;
@@ -1602,26 +1621,6 @@
   border-radius: 50%;
   background: currentColor;
   flex-shrink: 0;
-}
-.ai-service .ai-config-card__content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1.125rem;
-  padding: 1.25rem 1.5rem 1.5rem;
-}
-.ai-service .ai-config-card__footer {
-  margin-top: auto;
-  padding-top: 0.875rem;
-  border-top: 1px dashed var(--admin-border, #e5e3dc);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-:root[data-theme='dark'] .ai-service .ai-config-card__footer,
-[data-theme='dark'] .ai-service .ai-config-card__footer {
-  border-top-color: var(--admin-border, #2a2825);
 }
 .ai-service .ai-config-panel .admin-form-field {
   gap: 0.375rem;

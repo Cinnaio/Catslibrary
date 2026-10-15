@@ -182,20 +182,22 @@ export default function AiConfigPanel(props: {
 
   return (
     <div className="ai-config-panel-wrap">
-      <div className="ai-config-panel">
-        {/* 1. 文本供应商 */}
-        <Card className="admin-panel-card ai-config-card">
-          <div className="ai-config-card__header">
-            <div className="min-w-0 pr-2">
-              <h3 className="ai-config-card__title">文本供应商</h3>
-              <p className="ai-config-card__desc">用于创作、小说分析、章节摘要与回顾生成。</p>
+      <div className="admin-panel-card ai-config-desk">
+        {/* 1. 文本模型服务 */}
+        <section className="ai-config-section">
+          <div className="ai-config-section__lead">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="ai-config-section__title">文本供应商</h3>
+              <AdminStatusBadge tone={provider?.configured ? 'success' : 'muted'}>
+                <span className="ai-config-status-dot" aria-hidden="true" />
+                {provider?.configured ? '已配置' : '未配置'}
+              </AdminStatusBadge>
             </div>
-            <AdminStatusBadge tone={provider?.configured ? 'success' : 'muted'}>
-              <span className="ai-config-status-dot" aria-hidden="true" />
-              {provider?.configured ? '已配置' : '未配置'}
-            </AdminStatusBadge>
+            <p className="ai-config-section__desc">
+              用于全站创作、小说深度分析、章节摘要与剧情回顾生成。支持标准 OpenAI 兼容协议。
+            </p>
           </div>
-          <CardContent className="ai-config-card__content">
+          <div className="ai-config-section__content">
             <div className="grid gap-3 sm:grid-cols-2">
               <AdminFormField label="Base URL" htmlFor="ai-base-url" hint="OpenAI 兼容端点。">
                 <Input
@@ -206,7 +208,7 @@ export default function AiConfigPanel(props: {
                   onChange={(e) => setProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
                 />
               </AdminFormField>
-              <AdminFormField label="模型" htmlFor="ai-model">
+              <AdminFormField label="模型" htmlFor="ai-model" hint="用于创作与推理的模型标识。">
                 <Input
                   id="ai-model"
                   placeholder="deepseek-v4-flash"
@@ -231,8 +233,8 @@ export default function AiConfigPanel(props: {
                 }}
               />
             </AdminFormField>
-            <div className="ai-config-card__footer">
-              <span className="truncate text-xs text-muted-foreground" aria-live="polite">
+            <div className="ai-config-action-row">
+              <span className="ai-config-action-status" aria-live="polite">
                 {testResult || '尚未进行本次检查 · 使用已保存配置'}
               </span>
               <Button
@@ -245,22 +247,24 @@ export default function AiConfigPanel(props: {
                 {testing ? '测试中…' : '测试连接'}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* 2. 图像供应商 */}
-        <Card className="admin-panel-card ai-config-card">
-          <div className="ai-config-card__header">
-            <div className="min-w-0 pr-2">
-              <h3 className="ai-config-card__title">图像供应商</h3>
-              <p className="ai-config-card__desc">用于封面候选图与阅读器划选插画生成。</p>
-            </div>
-            <AdminStatusBadge tone={imageConfigured ? 'success' : 'muted'}>
-              <span className="ai-config-status-dot" aria-hidden="true" />
-              {imageConfigured ? '已配置' : '未配置'}
-            </AdminStatusBadge>
           </div>
-          <CardContent className="ai-config-card__content">
+        </section>
+
+        {/* 2. 图像模型服务 */}
+        <section className="ai-config-section">
+          <div className="ai-config-section__lead">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="ai-config-section__title">图像供应商</h3>
+              <AdminStatusBadge tone={imageConfigured ? 'success' : 'muted'}>
+                <span className="ai-config-status-dot" aria-hidden="true" />
+                {imageConfigured ? '已配置' : '未配置'}
+              </AdminStatusBadge>
+            </div>
+            <p className="ai-config-section__desc">
+              用于封面候选图多画风绘制以及阅读器内划选插画生成。
+            </p>
+          </div>
+          <div className="ai-config-section__content">
             <div className="grid gap-3 sm:grid-cols-2">
               <AdminFormField label="图像 Base URL" htmlFor="ai-image-base-url" hint="OpenAI 兼容图像接口。">
                 <Input
@@ -271,7 +275,7 @@ export default function AiConfigPanel(props: {
                   onChange={(e) => setImageProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
                 />
               </AdminFormField>
-              <AdminFormField label="图像模型" htmlFor="ai-image-model">
+              <AdminFormField label="图像模型" htmlFor="ai-image-model" hint="用于绘制图像的模型标识。">
                 <Input
                   id="ai-image-model"
                   placeholder="mimo-v2.5"
@@ -296,24 +300,24 @@ export default function AiConfigPanel(props: {
                 }}
               />
             </AdminFormField>
-            <div className="ai-config-card__footer">
-              <span className="truncate text-xs text-muted-foreground">图像连接由封面生成任务验证</span>
+            <div className="ai-config-action-row">
+              <span className="ai-config-action-status">图像连接由封面生成任务进行端到端验证</span>
               <Button variant="secondary" size="sm" className="shrink-0 rounded-full" asChild>
-                <a href="/admin/ai?sub=cover">封面生成</a>
+                <a href="/admin/ai?sub=cover">前往封面生成</a>
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
         {/* 3. 读者生成策略 */}
-        <Card className="admin-panel-card ai-config-card">
-          <div className="ai-config-card__header">
-            <div className="min-w-0">
-              <h3 className="ai-config-card__title">读者生成策略</h3>
-              <p className="ai-config-card__desc">管理前情提要、回顾与划选插画的使用范围与配额。</p>
-            </div>
+        <section className="ai-config-section">
+          <div className="ai-config-section__lead">
+            <h3 className="ai-config-section__title">读者生成策略</h3>
+            <p className="ai-config-section__desc">
+              管理读者在前台阅读小说时触发前情提要、回顾与划选插画的权限与消耗限额。
+            </p>
           </div>
-          <CardContent className="ai-config-card__content">
+          <div className="ai-config-section__content">
             <fieldset className="grid gap-2.5" disabled={!settings || saving || props.loading}>
               <legend className="text-xs font-medium text-foreground">划选生成图片：允许使用的角色</legend>
               <p className="text-xs text-muted-foreground leading-relaxed">
@@ -396,39 +400,42 @@ export default function AiConfigPanel(props: {
                 />
               </AdminFormField>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
         {/* 4. 服务检查与用量 */}
-        <Card className="admin-panel-card ai-config-card">
-          <div className="ai-config-card__header">
-            <div className="min-w-0 pr-2">
-              <h3 className="ai-config-card__title">服务检查与用量</h3>
-              <p className="ai-config-card__desc">监控模型服务连通状态，统计近期 Token 与调用成本。</p>
-            </div>
-            <Button variant="ghost" size="sm" asChild className="shrink-0 h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground">
-              <a href="/admin/calls">查看调用明细 →</a>
-            </Button>
-          </div>
-          <CardContent className="ai-config-card__content">
-            <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-muted/30 border border-border/60">
+        <section className="ai-config-section">
+          <div className="ai-config-section__lead">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="ai-config-section__title">服务检查与用量</h3>
               <AdminStatusBadge tone={provider?.configured && imageConfigured ? 'success' : 'muted'}>
                 <span className="ai-config-status-dot" aria-hidden="true" />
                 {provider?.configured && imageConfigured
-                  ? '文本与图像服务就绪'
+                  ? '服务就绪'
                   : provider?.configured
-                    ? '仅文本服务就绪'
+                    ? '仅文本就绪'
                     : imageConfigured
-                      ? '仅图像服务就绪'
-                      : '服务尚未配置'}
+                      ? '仅图像就绪'
+                      : '未配置'}
               </AdminStatusBadge>
-              <span className="text-xs text-muted-foreground hidden sm:inline">
-                {provider?.configured && imageConfigured ? '各功能模块正常可用' : '请完善上方供应商连接'}
-              </span>
             </div>
-
+            <p className="ai-config-section__desc">
+              监控模型后台连接就绪状态，统计今日与近 30 天实际 Token 消耗与成本。
+            </p>
+            <div className="pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+                className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <a href="/admin/calls">查看调用明细 →</a>
+              </Button>
+            </div>
+          </div>
+          <div className="ai-config-section__content">
             {usage ? (
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="ai-config-metric-tile">
                   <span className="ai-config-metric-tile__label">今日调用</span>
                   <span className="ai-config-metric-tile__value">
@@ -455,14 +462,14 @@ export default function AiConfigPanel(props: {
 
             {usage && (
               <div className="ai-config-usage-period">
-                <span className="font-medium">近 30 天消耗</span>
+                <span className="font-medium">近 30 天消耗汇总</span>
                 <span>
-                  {usage.last30d.calls.toLocaleString()} 次调用 · 成本 {formatCost(usage.last30d.costMillicents)}
+                  {usage.last30d.calls.toLocaleString()} 次调用 · 累计成本 {formatCost(usage.last30d.costMillicents)}
                 </span>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
 
       {/* Claude 标准悬浮保存操作坞 */}
