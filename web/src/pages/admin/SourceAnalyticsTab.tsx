@@ -16,6 +16,7 @@ import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDia
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import '@/styles/admin/pages/source-analytics.css'
 const MergeDialog = lazy(() => import('./ChaptersTab'))
 const followupKeys = Object.keys(FOLLOWUP_LABELS) as FollowupCategory[]
@@ -335,20 +336,23 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
             </AdminDataPanel>
           </div>
           <div ref={listRef} className="source-analytics-list">
-            <AdminDataPanel ariaLabel="小说明细" columns={columns}>
-              <AdminPanelHeading
-                title="小说明细"
-                status={<span className="source-analytics-meta">{matches ? `匹配 ${n(data.filteredTotal)} 本` : '正在更新筛选结果'}</span>}
+            <AdminPanelHeading
+              title="小说明细"
+              status={<span className="source-analytics-meta">{matches ? `匹配 ${n(data.filteredTotal)} 本` : '正在更新筛选结果'}</span>}
+            />
+            <AdminToolbar layout="inline" className="source-analytics-filters" ariaLive="polite">
+              <AdminSearch
+                id="source-analytics-search"
+                label="搜索小说"
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="搜索书名或作者"
               />
-              <AdminToolbar className="source-analytics-filters">
-                <AdminSearch
-                  id="source-analytics-search"
-                  label="搜索小说"
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder="搜索书名或作者"
-                />
+              <div className="admin-filter-chips">
                 <CustomSelect
+                  compact
+                  chip
+                  filterChip
                   aria-label="源站筛选"
                   value={filters.site}
                   onChange={(v) => setFilter('site', v)}
@@ -356,12 +360,18 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                   options={[{ value: '', label: '全部源站' }, ...data.groups.map((g) => ({ value: g.site, label: siteLabel(g.site) }))]}
                 />
                 <CustomSelect
+                  compact
+                  chip
+                  filterChip
                   aria-label="来源配置筛选"
                   value={filters.source}
                   onChange={(v) => setFilter('source', v)}
                   options={[{ value: '', label: '全部来源配置' }, ...Object.entries(SOURCE_LABELS).map(([value, label]) => ({ value, label }))]}
                 />
                 <CustomSelect
+                  compact
+                  chip
+                  filterChip
                   aria-label="追更状态筛选"
                   value={filters.followup}
                   onChange={(v) => setFilter('followup', v)}
@@ -372,6 +382,9 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                   ]}
                 />
                 <CustomSelect
+                  compact
+                  chip
+                  filterChip
                   aria-label="连载状态筛选"
                   value={filters.status}
                   onChange={(v) => setFilter('status', v)}
@@ -382,12 +395,18 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                   ]}
                 />
                 <CustomSelect
+                  compact
+                  chip
+                  filterChip
                   aria-label="检查结果筛选"
                   value={filters.result}
                   onChange={(v) => setFilter('result', v)}
                   options={[{ value: '', label: '全部检查结果' }, ...Object.entries(results).map(([value, label]) => ({ value, label }))]}
                 />
                 <CustomSelect
+                  compact
+                  chip
+                  filterChip
                   aria-label="明细排序"
                   value={filters.sort}
                   onChange={(v) => setFilter('sort', v)}
@@ -399,17 +418,19 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                     { value: 'title', label: '按书名排序' },
                   ]}
                 />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setInput('')
-                    setFilters((f) => ({ ...f, site: '', source: '', followup: '', status: '', result: '', search: '', page: '1' }))
-                  }}
-                >
-                  清除筛选
-                </Button>
-              </AdminToolbar>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setInput('')
+                  setFilters((f) => ({ ...f, site: '', source: '', followup: '', status: '', result: '', search: '', page: '1' }))
+                }}
+              >
+                清除筛选
+              </Button>
+            </AdminToolbar>
+            <AdminDataPanel ariaLabel="小说明细" columns={columns} density="comfortable">
               {!matches ? (
                 error ? (
                   <AdminEmptyState message="筛选结果尚未读取成功" />
@@ -417,7 +438,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                   <LoadingState label="正在更新小说明细" />
                 )
               ) : (
-                <Table>
+                <Table className={cn('admin-data-table admin-data-table--animated', !matches && 'admin-data-table--transitioning')}>
                   <TableHeader>
                     <TableRow>
                       {columns.map((column) => (

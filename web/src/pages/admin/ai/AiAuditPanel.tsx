@@ -9,6 +9,7 @@ import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pa
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import CustomSelect from '@/components/admin/CustomSelect'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -85,53 +86,54 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
     void loadCalls()
   }, [loadCalls])
 
+  const callTypeOptions = [
+    { value: 'all', label: '全部类型' },
+    { value: 'summary', label: '前情提要' },
+    { value: 'catchup', label: '回顾总结' },
+    { value: 'continue', label: '续写' },
+    { value: 'write_outline', label: '创作大纲' },
+    { value: 'write_chapter', label: '创作章节' },
+    { value: 'writing_title', label: '标题生成' },
+    { value: 'cover', label: '封面生成' },
+    { value: 'cover_prompt', label: '封面描述词' },
+    { value: 'test', label: '连通性测试' },
+  ]
+
   return (
     <div className="ai-service-stack">
-      <AdminDataPanel className="ai-audit-panel overflow-hidden" ariaLabel="AI 调用记录列表">
-        <AdminPanelHeading
-          title="调用记录"
-          status={
-            <span className={`admin-panel-status${error && calls.length === 0 ? ' is-error' : ''}`}>
-              {loading && calls.length === 0 ? '读取中' : error && calls.length === 0 ? '读取失败' : calls.length ? `共 ${total} 条` : '暂无内容'}
-            </span>
-          }
-          actions={
-            <Button variant="ghost" size="icon" onClick={() => void loadCalls()} disabled={loading} aria-label="刷新调用记录" title="刷新调用记录">
-              <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-            </Button>
-          }
-        />
-        {/* 类型筛选只作用于本面板的调用记录，与标题、表格同属一个面板。 */}
-        <AdminToolbar className="ai-audit-toolbar" ariaLive="polite">
-          <Label htmlFor="audit-filter-type" className="text-xs text-muted-foreground">
-            类型
-          </Label>
-          <Select
+      <AdminPanelHeading
+        title="调用记录"
+        status={
+          <span className={`admin-panel-status${error && calls.length === 0 ? ' is-error' : ''}`}>
+            {loading && calls.length === 0 ? '读取中' : error && calls.length === 0 ? '读取失败' : calls.length ? `共 ${total} 条` : '暂无内容'}
+          </span>
+        }
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => void loadCalls()} disabled={loading} aria-label="刷新调用记录">
+            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+            {loading ? '刷新中…' : '刷新'}
+          </Button>
+        }
+      />
+      <AdminToolbar layout="inline" className="ai-audit-toolbar" ariaLive="polite">
+        <div className="admin-filter-chips">
+          <CustomSelect
+            compact
+            chip
+            filterChip
+            aria-label="类型"
             value={filterType}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setFilterType(v)
               setOffset(0)
             }}
-          >
-            <SelectTrigger size="sm" id="audit-filter-type" className="min-w-[8.75rem]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" align="end" sideOffset={4}>
-              <SelectItem value="all">全部类型</SelectItem>
-              <SelectItem value="summary">前情提要</SelectItem>
-              <SelectItem value="catchup">回顾总结</SelectItem>
-              <SelectItem value="continue">续写</SelectItem>
-              <SelectItem value="write_outline">创作大纲</SelectItem>
-              <SelectItem value="write_chapter">创作章节</SelectItem>
-              <SelectItem value="writing_title">标题生成</SelectItem>
-              <SelectItem value="cover">封面生成</SelectItem>
-              <SelectItem value="cover_prompt">封面描述词</SelectItem>
-              <SelectItem value="test">连通性测试</SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="calls-audit-scope">类型筛选仅作用于调用记录</span>
-        </AdminToolbar>
-        {calls.length > 0 && <p className="calls-audit-scroll-hint">左右滑动查看全部字段，点击记录展开详情。</p>}
+            options={callTypeOptions}
+          />
+        </div>
+        <span className="calls-audit-scope">类型筛选仅作用于调用记录</span>
+      </AdminToolbar>
+      {calls.length > 0 && <p className="calls-audit-scroll-hint">左右滑动查看全部字段，点击记录展开详情。</p>}
+      <AdminDataPanel className="ai-audit-panel overflow-hidden" ariaLabel="AI 调用记录列表">
         <div className="ai-list-body">
           {loading && calls.length === 0 ? (
             <LoadingState label="正在加载调用记录" />

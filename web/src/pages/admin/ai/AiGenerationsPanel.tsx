@@ -12,7 +12,10 @@ import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pa
 import AiPanelEmptyState from './AiPanelEmptyState'
 import DraftRewrite from './DraftRewrite'
 import { useAiConfigured } from './useAiConfigured'
-import { AdminDataPanel, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
+import CustomSelect from '@/components/admin/CustomSelect'
+import { cn } from '@/lib/utils'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminModelTime from '@/components/admin/AdminModelTime'
 import { Badge } from '@/components/ui/badge'
@@ -366,102 +369,106 @@ export default function AiGenerationsPanel(props: {
     }
   }
 
+  const kindOptions = [
+    { value: 'all', label: '全部类型' },
+    ...(props.scope !== 'writing'
+      ? [
+          { value: 'summary', label: '前情提要' },
+          { value: 'catchup', label: '回顾总结' },
+        ]
+      : []),
+    ...(props.scope !== 'reader'
+      ? [
+          { value: 'write_outline', label: '创作大纲' },
+          { value: 'write_chapter', label: '创作章节' },
+          { value: 'continue', label: '续写' },
+        ]
+      : []),
+  ]
+
+  const statusOptions = [
+    { value: 'all', label: '全部状态' },
+    { value: 'draft', label: '待审草稿' },
+    { value: 'published', label: '已发布' },
+    { value: 'rejected', label: '已拒绝' },
+  ]
+
   return (
     <div className="ai-service-stack">
-      <AdminDataPanel className="ai-generations-card overflow-hidden" ariaLabel="已生成内容列表" columns={AI_GENERATION_COLUMNS} density="comfortable">
-        <div className="admin-panel-heading ai-generation-heading">
-          <div className="ai-generation-heading__title">
-            <h3>生成内容目录</h3>
-            <span className={`admin-panel-status${error && !items.length ? ' is-error' : ''}`}>
-              {loading && !items.length ? '读取中' : error && !items.length ? '读取失败' : `${total} 项`}
-            </span>
-          </div>
-          <div className="admin-panel-heading__actions">
-            {selectedCount > 0 && <span className="text-xs text-muted-foreground">已选 {selectedCount} 条</span>}
-            <Button variant="ghost" size="sm" className="ai-generation-delete" disabled={!selectedCount || batchDeleting} onClick={() => void removeSelected()}>
-              {batchDeleting ? '正在删除…' : '删除所选'}
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-              <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
-              {loading ? '刷新中…' : '刷新'}
-            </Button>
-          </div>
-        </div>
-        {/* 类型筛选与批量删除都只作用于下方列表，同属这个面板：筛选带放在标题
-            之下、数据之上，与章节范本的目录面板同构。外置会让同一件事出现两个
-            等权表面（筛选卡 + 数据卡）。 */}
-        <AdminToolbar className="ai-generations-toolbar" ariaLive="polite">
-          {props.search === undefined && (
-            <AdminSearch
-              id="ai-generation-search"
-              label="搜索生成内容"
-              placeholder="搜索作品、章节或正文"
-              maxLength={100}
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value)
+      <AdminPanelHeading
+        title="生成内容目录"
+        status={
+          <span className={`admin-panel-status${error && !items.length ? ' is-error' : ''}`}>
+            {loading && !items.length ? '读取中' : error && !items.length ? '读取失败' : `${total} 项`}
+          </span>
+        }
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+            {loading ? '刷新中…' : '刷新'}
+          </Button>
+        }
+      />
+
+      <AdminToolbar layout="inline" className="ai-generations-toolbar" ariaLive="polite">
+        {props.search === undefined && (
+          <AdminSearch
+            id="ai-generation-search"
+            label="搜索生成内容"
+            placeholder="搜索作品、章节或正文"
+            maxLength={100}
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setOffset(0)
+            }}
+          />
+        )}
+        <div className="admin-filter-chips">
+          {props.status === 'all' && (
+            <CustomSelect
+              compact
+              chip
+              filterChip
+              aria-label="状态"
+              value={filterStatus}
+              onChange={(value) => {
+                setFilterStatus(value as typeof filterStatus)
                 setOffset(0)
               }}
+              options={statusOptions}
             />
           )}
-          {props.status === 'all' && (
-            <div className="ai-directory-filter">
-              <Label htmlFor="gen-filter-status" className="text-xs text-muted-foreground">
-                状态
-              </Label>
-              <Select
-                value={filterStatus}
-                onValueChange={(value) => {
-                  setFilterStatus(value as typeof filterStatus)
-                  setOffset(0)
-                }}
-              >
-                <SelectTrigger id="gen-filter-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="draft">待审草稿</SelectItem>
-                  <SelectItem value="published">已发布</SelectItem>
-                  <SelectItem value="rejected">已拒绝</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <div className="ai-directory-filter">
-            <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">
-              类型
-            </Label>
-            <Select
-              value={filterKind}
-              onValueChange={(v) => {
-                setFilterKind(v as 'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue')
-                setOffset(0)
-              }}
-            >
-              <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-auto sm:min-w-[8.75rem]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" align="end" sideOffset={4}>
-                <SelectItem value="all">全部类型</SelectItem>
-                {props.scope !== 'writing' && (
-                  <>
-                    <SelectItem value="summary">前情提要</SelectItem>
-                    <SelectItem value="catchup">回顾总结</SelectItem>
-                  </>
-                )}
-                {props.scope !== 'reader' && (
-                  <>
-                    <SelectItem value="write_outline">创作大纲</SelectItem>
-                    <SelectItem value="write_chapter">创作章节</SelectItem>
-                    <SelectItem value="continue">续写</SelectItem>
-                  </>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <span className="ai-generation-sort-hint">按最新生成时间排序 · 批次可展开章节</span>
-        </AdminToolbar>
+          <CustomSelect
+            compact
+            chip
+            filterChip
+            aria-label="类型"
+            value={filterKind}
+            onChange={(v) => {
+              setFilterKind(v as 'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue')
+              setOffset(0)
+            }}
+            options={kindOptions}
+          />
+        </div>
+        <span className="ai-generation-sort-hint">按最新生成时间排序 · 批次可展开章节</span>
+      </AdminToolbar>
+
+      {/* 悬浮胶囊岛批量操作栏 */}
+      <AdminSelectionBar
+        count={selectedCount}
+        label={`已选择 ${selectedCount} 条生成记录`}
+        onClear={() => setSelectedIds(new Set())}
+        clearLabel="取消选择"
+        clearPlacement="actions"
+      >
+        <Button variant="destructive" size="sm" className="ai-generation-delete" disabled={!selectedCount || batchDeleting} onClick={() => void removeSelected()}>
+          {batchDeleting ? '正在删除…' : '删除所选'}
+        </Button>
+      </AdminSelectionBar>
+
+      <AdminDataPanel className="ai-generations-card overflow-hidden" ariaLabel="已生成内容列表" columns={AI_GENERATION_COLUMNS} density="comfortable">
         <div className="ai-list-body">
           {loading && items.length === 0 ? (
             <LoadingState label="正在加载已生成内容" />
@@ -482,7 +489,7 @@ export default function AiGenerationsPanel(props: {
           ) : (
             <>
               {error && <InlineError message={error} className="mb-3" />}
-              <Table>
+              <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
                 {/* caption 只给表格名称与交互提示。列名由 <th scope="col"> 完整提供，
                     在此复述会让读屏用户先听一遍列名、再听一遍表头。 */}
                 <TableCaption className="sr-only">已生成内容，批次行可展开章节</TableCaption>

@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ListFilter, RefreshCw } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { adminTabPath } from '../admin-registry'
 
 // 有运行中任务时的轮询间隔
@@ -238,6 +239,14 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           </Button>
         }
       />
+      <AdminPanelHeading
+        title="AI 任务"
+        status={
+          <span className={`admin-panel-status${error && tasks.length === 0 ? ' is-error' : ''}`}>
+            {loading && !tasks.length ? '读取中' : error && !tasks.length ? '读取失败' : total ? `共 ${total} 条` : '暂无内容'}
+          </span>
+        }
+      />
       <AdminToolbar className="task-workspace-toolbar" ariaLive="polite">
         <div className="task-workspace-filters" role="group" aria-label="AI 任务状态筛选">
           {(['all', 'queued', 'running', 'completed', 'failed', 'cancelled'] as const).map((status) => (
@@ -259,15 +268,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           ))}
         </div>
       </AdminToolbar>
-      <AdminDataPanel className="ai-tasks-panel task-workspace-panel overflow-hidden" ariaLabel="AI 任务列表" columns={AI_TASK_COLUMNS}>
-        <AdminPanelHeading
-          title="AI 任务"
-          status={
-            <span className={`admin-panel-status${error && tasks.length === 0 ? ' is-error' : ''}`}>
-              {loading && !tasks.length ? '读取中' : error && !tasks.length ? '读取失败' : total ? `共 ${total} 条` : '暂无内容'}
-            </span>
-          }
-        />
+      <AdminDataPanel className="ai-tasks-panel task-workspace-panel overflow-hidden" ariaLabel="AI 任务列表" columns={AI_TASK_COLUMNS} density="comfortable">
         <div className="ai-tasks-content">
           {loading && tasks.length === 0 ? (
             <LoadingState label="正在加载 AI 任务" />
@@ -302,7 +303,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
-              <Table>
+              <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
                 <TableCaption className="sr-only">AI 任务列表，含类型、小说、状态、进度、结果与输入 Prompt</TableCaption>
                 <TableHeader>
                   <TableRow>
