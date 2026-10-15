@@ -44,7 +44,6 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type RatingView = 'ledger' | 'rules' | 'ai'
 
@@ -144,7 +143,7 @@ function EvidenceList({ evidence, compact = false }: { evidence: AdminContentRat
   )
 }
 
-function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
+function EvidenceCell({ item, onInspect }: { item: AdminContentRatingItem; onInspect?: () => void }) {
   const categories = item.evidence
     .filter((e) => e.type === 'category' && e.value)
     .map((e) => e.value as string)
@@ -170,7 +169,6 @@ function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
   }
 
   let secondaryLabel = ''
-  let ruleDisplayTag = ''
   if (item.ruleVersion?.startsWith('llm:')) {
     const modelMatch = item.ruleVersion.match(/llm:([^:]+)/)
     const rawModel = modelMatch ? modelMatch[1] : ''
@@ -178,11 +176,10 @@ function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
     const note = item.reason && !isGenericSystemReason(item.reason)
       ? item.reason.replace(/^管理员批准\s*AI\s*分级建议[：:]\s*/, '')
       : ''
-    ruleDisplayTag = modelName
     secondaryLabel = note ? `${modelName} 模型 · ${note}` : `${modelName} 模型建议判定`
   } else if (item.ruleVersion) {
     const vTag = item.ruleVersion.replace(/^restricted-rules-/, '')
-    ruleDisplayTag = vTag ? `规则 ${vTag}` : item.ruleVersion
+    const ruleDisplayTag = vTag ? `规则 ${vTag}` : item.ruleVersion
     if (item.source === 'source_import') secondaryLabel = `${ruleDisplayTag} · 导入时执行`
     else if (item.source === 'prefill') secondaryLabel = `${ruleDisplayTag} · 规则预填`
     else if (item.source === 'system') secondaryLabel = `${ruleDisplayTag} · 系统扫描`
@@ -196,67 +193,19 @@ function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="content-ratings-evidence-cell min-w-0 cursor-default group">
-          <div className={cn('truncate text-sm font-medium transition-colors group-hover:text-primary', isClean ? 'text-muted-foreground/75' : 'text-foreground')}>
-            {primaryLabel}
-          </div>
-          <div className="mt-1 truncate text-xs text-muted-foreground">
-            {secondaryLabel}
-          </div>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="top" align="start" className="w-80 space-y-2.5 p-3.5 text-xs leading-normal">
-        <div className="flex items-center justify-between border-b border-border/80 pb-2 font-medium text-foreground">
-          <span className="font-semibold text-xs tracking-tight">判定依据画像</span>
-          {ruleDisplayTag && (
-            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-              {ruleDisplayTag}
-            </span>
-          )}
-        </div>
-
-        {item.evidence.length > 0 ? (
-          <div className="space-y-1.5">
-            <span className="text-[11px] font-medium text-muted-foreground">命中特征</span>
-            <div className="flex flex-wrap gap-1.5">
-              {item.evidence.map((ev, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center rounded bg-muted/70 px-2 py-0.5 text-[11px] text-foreground border border-border/70"
-                >
-                  {evidenceLabel(ev)}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="text-[11px] text-muted-foreground">
-            全库规则巡检完成，未检出限制级敏感特征。
-          </div>
-        )}
-
-        {item.reason && (
-          <div className="space-y-1">
-            <span className="text-[11px] font-medium text-muted-foreground">执行说明</span>
-            <p className="text-foreground/90 leading-relaxed bg-muted/40 p-2 rounded-md border border-border/40">
-              {item.reason}
-            </p>
-          </div>
-        )}
-
-        {item.ruleVersion && (
-          <div className="truncate text-[10px] text-muted-foreground/80">
-            规则链：{item.ruleVersion}
-          </div>
-        )}
-
-        <div className="text-[10px] text-muted-foreground/75 pt-1.5 border-t border-border/60">
-          来源渠道：{sourceLabel(item.source)} · 修订 {item.revision}
-        </div>
-      </TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      onClick={onInspect}
+      className="content-ratings-evidence-cell text-left min-w-0 w-full group rounded-md py-1 px-1.5 -mx-1.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary cursor-pointer"
+      title="点击查看完整判定证据链"
+    >
+      <div className={cn('truncate text-sm font-medium transition-colors group-hover:text-primary', isClean ? 'text-muted-foreground/75' : 'text-foreground')}>
+        {primaryLabel}
+      </div>
+      <div className="mt-0.5 truncate text-xs text-muted-foreground group-hover:text-foreground/70">
+        {secondaryLabel}
+      </div>
+    </button>
   )
 }
 
@@ -747,6 +696,8 @@ export default function ContentRatingsTab() {
   const [draftReason, setDraftReason] = useState('')
   const [editError, setEditError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const [evidenceNovel, setEvidenceNovel] = useState<AdminContentRatingItem | null>(null)
 
   const [historyNovel, setHistoryNovel] = useState<AdminContentRatingItem | null>(null)
   const [history, setHistory] = useState<AdminContentRatingHistoryItem[]>([])
@@ -1487,7 +1438,7 @@ export default function ContentRatingsTab() {
                           </div>
                         </TableCell>
                         <TableCell data-label="判定证据">
-                          <EvidenceCell item={item} />
+                          <EvidenceCell item={item} onInspect={() => setEvidenceNovel(item)} />
                         </TableCell>
                         <TableCell data-label="最近操作">
                           <div className="min-w-0">
@@ -2020,6 +1971,77 @@ export default function ContentRatingsTab() {
               </div>
             )}
           </AdminDialogBody>
+        </AdminDialogContent>
+      </Dialog>
+
+      <Dialog open={!!evidenceNovel} onOpenChange={(open) => !open && setEvidenceNovel(null)}>
+        <AdminDialogContent className="content-ratings-dialog sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>判定证据链 · {evidenceNovel?.title || '作品'}</DialogTitle>
+            <DialogDescription>
+              {evidenceNovel?.author ? `${evidenceNovel.author} · ` : ''}{formatNumber(evidenceNovel?.chapterCount || 0)} 章
+            </DialogDescription>
+          </DialogHeader>
+          <AdminDialogBody className="space-y-4 pt-1">
+            {evidenceNovel && (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-muted/40 border border-border/60">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">当前分级：</span>
+                    <AdminContentRatingBadge rating={evidenceNovel.contentRating} />
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>来源：{sourceLabel(evidenceNovel.source)}</span>
+                    <span>·</span>
+                    <span>修订 {evidenceNovel.revision}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-semibold text-foreground">命中特征证据</h4>
+                  {evidenceNovel.evidence.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-muted/20 border border-border/40">
+                      {evidenceNovel.evidence.map((ev, i) => (
+                        <Badge key={i} variant="outline" className="font-normal text-xs bg-background">
+                          {evidenceLabel(ev)}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 text-xs text-muted-foreground rounded-xl bg-muted/20 border border-border/40">
+                      全库规则巡检完成，未检出限制级敏感特征。
+                    </div>
+                  )}
+                </div>
+
+                {evidenceNovel.reason && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-semibold text-foreground">执行说明 / 理由</h4>
+                    <div className="p-3 text-xs text-foreground/90 leading-relaxed rounded-xl bg-muted/20 border border-border/40 break-words">
+                      {evidenceNovel.reason}
+                    </div>
+                  </div>
+                )}
+
+                {evidenceNovel.ruleVersion && (
+                  <div className="flex items-center justify-between text-xs text-muted-foreground p-3 rounded-xl bg-muted/20 border border-border/40 font-mono">
+                    <span className="font-sans text-xs">生效规则链</span>
+                    <span className="text-[11px]">{evidenceNovel.ruleVersion}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground px-1 pt-1">
+                  <span>最近操作人：{evidenceNovel.updatedByName || '系统'}</span>
+                  <span>{formatDateTime(evidenceNovel.contentRatingUpdatedAt)}</span>
+                </div>
+              </>
+            )}
+          </AdminDialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEvidenceNovel(null)}>
+              关闭
+            </Button>
+          </DialogFooter>
         </AdminDialogContent>
       </Dialog>
     </AdminPage>
