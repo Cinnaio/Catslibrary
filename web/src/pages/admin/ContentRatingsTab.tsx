@@ -126,7 +126,7 @@ function evidenceLabel(item: AdminContentRatingEvidence): string {
 }
 
 function EvidenceList({ evidence, compact = false }: { evidence: AdminContentRatingEvidence[]; compact?: boolean }) {
-  if (!evidence.length) return <span className="content-ratings-evidence-empty text-xs text-muted-foreground/60">—</span>
+  if (!evidence.length) return <span className="text-xs text-muted-foreground">暂无证据</span>
 
   const visible = compact ? evidence.slice(0, 2) : evidence
   const overflow = compact ? evidence.length - visible.length : 0
@@ -139,6 +139,74 @@ function EvidenceList({ evidence, compact = false }: { evidence: AdminContentRat
         </Badge>
       ))}
       {overflow > 0 && <span className="admin-cell-tags__overflow">+{overflow}</span>}
+    </div>
+  )
+}
+
+function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
+  const categories = item.evidence
+    .filter((e) => e.type === 'category' && e.value)
+    .map((e) => e.value as string)
+  const textMatches = item.evidence.filter((e) => e.type === 'text')
+
+  let primaryLabel = ''
+  let isClean = false
+
+  if (categories.length > 0 && textMatches.length > 0) {
+    primaryLabel = `分类：${categories.slice(0, 2).join('、')} · 简介命中`
+  } else if (categories.length > 0) {
+    primaryLabel = `分类：${categories.slice(0, 3).join('、')}${categories.length > 3 ? ' 等' : ''}`
+  } else if (textMatches.length > 0) {
+    const fields = new Set(textMatches.map((t) => t.field))
+    if (fields.has('title')) primaryLabel = '标题命中敏感词'
+    else if (fields.has('body')) primaryLabel = '正文采样命中敏感词'
+    else primaryLabel = '简介命中敏感词'
+  } else if (item.evidence.length > 0) {
+    primaryLabel = item.evidence.map(evidenceLabel).slice(0, 2).join('、')
+  } else {
+    isClean = true
+    primaryLabel = item.source === 'manual' ? '人工指定分级' : '未检出敏感特征'
+  }
+
+  let secondaryLabel = ''
+  if (item.ruleVersion?.startsWith('llm:')) {
+    const modelMatch = item.ruleVersion.match(/llm:([^:]+)/)
+    const rawModel = modelMatch ? modelMatch[1] : ''
+    const modelName = rawModel.includes('deepseek') ? 'DeepSeek' : rawModel ? rawModel.split('-')[0] : 'AI'
+    const note = item.reason && !isGenericSystemReason(item.reason)
+      ? item.reason.replace(/^管理员批准\s*AI\s*分级建议[：:]\s*/, '')
+      : ''
+    secondaryLabel = note ? `${modelName} 模型 · ${note}` : `${modelName} 模型建议判定`
+  } else if (item.ruleVersion) {
+    const vTag = item.ruleVersion.replace(/^restricted-rules-/, '')
+    const ruleText = vTag ? `规则 ${vTag}` : item.ruleVersion
+    if (item.source === 'source_import') secondaryLabel = `${ruleText} · 导入时执行`
+    else if (item.source === 'prefill') secondaryLabel = `${ruleText} · 规则预填`
+    else if (item.source === 'system') secondaryLabel = `${ruleText} · 系统扫描`
+    else secondaryLabel = ruleText
+  } else if (item.reason && !isGenericSystemReason(item.reason)) {
+    secondaryLabel = item.reason
+  } else if (item.source === 'manual') {
+    secondaryLabel = '小说编辑手动修改'
+  } else {
+    secondaryLabel = '系统巡检'
+  }
+
+  const tooltipParts = [
+    item.evidence.length ? `判定证据：${item.evidence.map(evidenceLabel).join('、')}` : null,
+    item.ruleVersion ? `规则依据：${item.ruleVersion}` : null,
+    item.reason ? `执行理由：${item.reason}` : null,
+  ].filter(Boolean)
+  const fullTooltip = tooltipParts.join('\n') || undefined
+
+  return (
+    <div className="content-ratings-evidence-cell min-w-0" title={fullTooltip}>
+      <div className={cn('truncate text-sm font-medium', isClean ? 'text-muted-foreground/75' : 'text-foreground')}>
+        {primaryLabel}
+      </div>
+      <div className="mt-1 truncate text-xs text-muted-foreground">
+        {secondaryLabel}
+      </div>
     </div>
   )
 }
@@ -1370,24 +1438,7 @@ export default function ContentRatingsTab() {
                           </div>
                         </TableCell>
                         <TableCell data-label="判定证据">
-                          <div className="content-ratings-evidence-cell min-w-0">
-                            <div className="content-ratings-evidence-tags">
-                              <EvidenceList evidence={item.evidence} compact />
-                              {item.ruleVersion && (
-                                <span
-                                  className="content-ratings-rule-pill"
-                                  title={`生效规则版本：${item.ruleVersion}${item.reason ? ` · ${item.reason}` : ''}`}
-                                >
-                                  {item.ruleVersion}
-                                </span>
-                              )}
-                            </div>
-                            {item.reason && !isGenericSystemReason(item.reason) && (
-                              <p className="content-ratings-evidence-note" title={item.reason}>
-                                {item.reason}
-                              </p>
-                            )}
-                          </div>
+                          <EvidenceCell item={item} />
                         </TableCell>
                         <TableCell data-label="最近操作">
                           <div className="min-w-0">

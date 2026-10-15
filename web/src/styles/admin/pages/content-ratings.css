@@ -775,61 +775,7 @@
 }
 
 .content-ratings-evidence-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.content-ratings-evidence-tags {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  flex-wrap: wrap;
-}
-
-.content-ratings-evidence-empty {
-  color: var(--text-muted, #736d65);
-  opacity: 0.5;
-  font-size: 0.8125rem;
-}
-
-.content-ratings-rule-pill {
-  display: inline-flex;
-  align-items: center;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.6875rem;
-  line-height: 1;
-  padding: 0.2rem 0.45rem;
-  border-radius: var(--radius-sm, 6px);
-  background: var(--admin-panel-muted, #f8f7f3);
-  border: 1px solid var(--admin-border, #e6e4dc);
-  color: var(--text-muted, #736d65);
-  white-space: nowrap;
-  letter-spacing: -0.02em;
-}
-
-:root[data-theme='dark'] .content-ratings-rule-pill,
-[data-theme='dark'] .content-ratings-rule-pill {
-  background: #23221f;
-  border-color: var(--admin-border, #2c2b28);
-  color: #8c877e;
-}
-
-.content-ratings-evidence-note {
-  margin: 0;
-  color: var(--text-secondary, #5b554e);
-  font-size: 0.725rem;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-
-:root[data-theme='dark'] .content-ratings-evidence-note,
-[data-theme='dark'] .content-ratings-evidence-note {
-  color: #a8a39b;
+  min-width: 0;
 }
 
 /* 表格内修改按钮：Claude 药丸微型控件 */
