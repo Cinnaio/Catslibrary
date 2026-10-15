@@ -15,11 +15,9 @@ export function AdminDialogContent({ variant = 'form', size = 'default', fixedHe
   return (
     <DialogContent
       className={cn(
-        variant === 'form' || variant === 'editor'
-          ? 'admin-dialog'
-          : variant === 'reading'
-            ? 'ai-generation-dialog admin-dialog-reading'
-            : 'admin-dialog-preview',
+        'admin-dialog',
+        variant === 'reading' && 'admin-dialog-reading ai-generation-dialog',
+        variant === 'preview' && 'admin-dialog-preview',
         variant === 'editor' && 'admin-dialog--editor',
         variant === 'reading' && size === 'wide' && 'admin-dialog-reading--wide',
         variant === 'reading' && fixedHeight && 'admin-dialog-reading--fixed',

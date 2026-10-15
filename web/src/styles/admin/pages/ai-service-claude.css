@@ -2004,6 +2004,51 @@
   box-shadow: 0 14px 56px -12px rgba(0, 0, 0, 0.6) !important;
 }
 
+/* 弹窗主体容器：默认去除外层竖向滚动条，纸面白底无缝贯通 */
+.ai-generation-modal,
+.ai-generation-modal .ai-generation-modal__body {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  padding: 0 !important;
+}
+
+.ai-generation-modal::-webkit-scrollbar,
+.ai-generation-modal .ai-generation-modal__body::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* 内层独立滚动区（Prompt 预览、阅读纸面、编辑多行框）严格保留精致微型滚动条 */
+.ai-generation-modal :is(.ai-generation-prompt-card__pre, .ai-generation-reading-paper, .ai-generation-reading-textarea) {
+  scrollbar-width: thin !important;
+  scrollbar-color: color-mix(in srgb, var(--admin-border, #e5e3dc) 85%, transparent) transparent !important;
+}
+
+.ai-generation-modal :is(.ai-generation-prompt-card__pre, .ai-generation-reading-paper, .ai-generation-reading-textarea)::-webkit-scrollbar {
+  display: block !important;
+  width: 6px !important;
+  height: 6px !important;
+}
+
+.ai-generation-modal :is(.ai-generation-prompt-card__pre, .ai-generation-reading-paper, .ai-generation-reading-textarea)::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.ai-generation-modal :is(.ai-generation-prompt-card__pre, .ai-generation-reading-paper, .ai-generation-reading-textarea)::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--admin-border, #e5e3dc) 85%, transparent) !important;
+  border-radius: 9999px !important;
+}
+
+.ai-generation-modal :is(.ai-generation-prompt-card__pre, .ai-generation-reading-paper, .ai-generation-reading-textarea)::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted) !important;
+}
+
+:root[data-theme='dark'] .ai-generation-modal :is(.ai-generation-prompt-card__pre, .ai-generation-reading-paper, .ai-generation-reading-textarea)::-webkit-scrollbar-thumb,
+[data-theme='dark'] .ai-generation-modal :is(.ai-generation-prompt-card__pre, .ai-generation-reading-paper, .ai-generation-reading-textarea)::-webkit-scrollbar-thumb {
+  background: #3a3834 !important;
+}
+
 /* 弹窗头部：居中经典衬线体与温润副标 */
 .ai-generation-modal [data-slot='dialog-header'] {
   text-align: center;
