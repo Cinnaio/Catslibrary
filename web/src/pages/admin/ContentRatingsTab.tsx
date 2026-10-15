@@ -126,7 +126,7 @@ function evidenceLabel(item: AdminContentRatingEvidence): string {
 }
 
 function EvidenceList({ evidence, compact = false }: { evidence: AdminContentRatingEvidence[]; compact?: boolean }) {
-  if (!evidence.length) return <span className="text-xs text-muted-foreground">暂无证据</span>
+  if (!evidence.length) return <span className="content-ratings-evidence-empty text-xs text-muted-foreground/60">—</span>
 
   const visible = compact ? evidence.slice(0, 2) : evidence
   const overflow = compact ? evidence.length - visible.length : 0
@@ -230,6 +230,20 @@ function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
 
 function sourceLabel(source: AdminContentRatingSource): string {
   return SOURCE_LABEL[source] || source
+}
+
+function isGenericSystemReason(reason?: string | null): boolean {
+  if (!reason) return true
+  const trimmed = reason.trim()
+  return (
+    trimmed === '书籍导入时执行内容分级规则' ||
+    trimmed === '创建作品时执行分级规则' ||
+    trimmed === '执行全量内容分级规则扫描' ||
+    trimmed === '系统自动执行分级规则' ||
+    trimmed === '批量执行内容分级规则' ||
+    trimmed === '规则版本批量重算' ||
+    trimmed.startsWith('执行内容分级规则')
+  )
 }
 
 function isConflictError(error: unknown): boolean {
@@ -1356,14 +1370,23 @@ export default function ContentRatingsTab() {
                           </div>
                         </TableCell>
                         <TableCell data-label="判定证据">
-                          <div className="min-w-0">
-                            <EvidenceList evidence={item.evidence} compact />
-                            {item.reason && (
+                          <div className="content-ratings-evidence-cell min-w-0">
+                            <div className="content-ratings-evidence-tags">
+                              <EvidenceList evidence={item.evidence} compact />
+                              {item.ruleVersion && (
+                                <span
+                                  className="content-ratings-rule-pill"
+                                  title={`生效规则版本：${item.ruleVersion}${item.reason ? ` · ${item.reason}` : ''}`}
+                                >
+                                  {item.ruleVersion}
+                                </span>
+                              )}
+                            </div>
+                            {item.reason && !isGenericSystemReason(item.reason) && (
                               <p className="content-ratings-evidence-note" title={item.reason}>
                                 {item.reason}
                               </p>
                             )}
-                            {item.ruleVersion && <div className="mt-1 truncate text-xs text-muted-foreground">规则：{item.ruleVersion}</div>}
                           </div>
                         </TableCell>
                         <TableCell data-label="最近操作">
