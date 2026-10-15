@@ -1,7 +1,8 @@
 /* 通用后台工作台：搜索与多维度筛选胶囊轨道（Filter Rail） */
 .admin-filter-rail,
 .novels-filter-rail,
-.novels-rating-toolbar {
+.novels-rating-toolbar,
+.ai-generations-filter-rail {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -16,7 +17,8 @@
 
 .admin-filter-rail > .admin-search,
 .novels-filter-rail > .admin-search,
-.novels-rating-toolbar > .admin-search {
+.novels-rating-toolbar > .admin-search,
+.ai-generations-filter-rail > .admin-search {
   width: min(22rem, 100%);
   max-width: 22rem;
   flex: 1 1 18rem;
@@ -40,9 +42,32 @@
   color: var(--text-muted, #736d65);
 }
 
+.admin-filter-rail__status .ai-generation-sort-hint {
+  margin-left: 0;
+}
+
 :root[data-theme='dark'] .admin-filter-rail__status,
 [data-theme='dark'] .admin-filter-rail__status {
   color: #8c877e;
+}
+
+@media (max-width: 767px) {
+  .admin-filter-rail > .admin-search,
+  .novels-filter-rail > .admin-search,
+  .novels-rating-toolbar > .admin-search,
+  .ai-generations-filter-rail > .admin-search {
+    width: 100%;
+    max-width: none;
+    flex-basis: 100%;
+  }
+
+  .admin-filter-chips,
+  .novels-filter-chips,
+  .novels-rating-toolbar__filter {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 /* 分页移到表格外但仍属于列表的连续操作区；在默认区块间距基础上再收紧一档。 */

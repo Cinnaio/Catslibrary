@@ -5,7 +5,9 @@
 }
 
 .ai-service-tabs {
-  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-page-section-gap, 1.25rem);
 }
 
 .ai-service-tabs__content {
@@ -1043,14 +1045,15 @@
   display: block;
   overflow: hidden;
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.15s ease;
 }
 
 .ai-generations-card .ai-generation-related__title:hover {
-  color: var(--accent);
-  text-decoration: underline;
+  color: var(--admin-accent, #d97757);
+  text-decoration: none;
 }
 
 .ai-generations-card .ai-generation-related__sub {
@@ -1060,11 +1063,12 @@
   font-size: 0.75rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.15s ease;
 }
 
 .ai-generations-card .ai-generation-related__sub:hover {
-  color: var(--accent);
-  text-decoration: underline;
+  color: var(--admin-accent, #d97757);
+  text-decoration: none;
 }
 
 /* 内容预览是长文本：桌面端截两行，完整内容经「查看」弹窗获得。
