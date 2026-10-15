@@ -656,7 +656,11 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 2. **阶梯式行入场（Staggered Row Enter）**：新切片渲染时，首屏前 8 行使用 `@keyframes admin-tab-row-enter` 依次阶梯式轻微上浮淡入（`translateY(var(--admin-table-row-enter-offset, 0.375rem)) -> 0` + `opacity: 0 -> 1`，时长 180ms，曲线 `var(--ease-out)`，步长 30ms），提供如纸面墨迹浮现的连贯质感；
 3. **状态重绘联动（Key Invalidation）**：`<TableBody>` 挂载以关键筛选因子（`query`, `filter`, `page`）组合的 `key`，精确触发 React 生命周期重绘并激发进场动画；
 4. **卡片队列同步（Queue Motion）**：非表格形式的数据队列（如 `.content-ratings-queue`）同样应用统一的阶梯式入场动效；
-5. **无障碍保护（Reduced Motion）**：强制在 `@media (prefers-reduced-motion: reduce)` 下降级为平滑纯淡入或关闭位移动画。
+5. **无障碍保护（Reduced Motion）**：强制在 `@media (prefers-reduced-motion: reduce)` 下降级为平滑纯淡入或关闭位移动画；
+6. **保全视口滚动高度原则（No Layout Collapse on Data Mutation）**：
+   - 在筛选维度切换（如 LLM 建议状态、分级、来源）、每页条数调整或分页流转时，**严禁在请求发起阶段清空已有数据集（如调用 `setData(null)` 或 `setRows([])`）**；
+   - 严禁使数据表面卸载并替换为超低高度的独立 Loading 占位块，否则会导致滚动容器（`AdminShell` 的 `.admin-layout__content`）内容高度瞬间塌缩，被浏览器原生规则强行将 `scrollTop` 钳制归零（造成视角跳回最顶层）；
+   - 正确做法：必须保持原有数据行平稳驻留，配合 `.admin-data-table--transitioning` 提供轻量半透明过渡态，新数据返回后原地原子更新，完整保全操作员当前的视口滚动深度与上下文。
 
 ### Admin Tab Header (AdminTabHeader)
 - **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题独占标题行、描述位于其下，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。
@@ -681,6 +685,7 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Trigger:** 使用基础 Input 的共享字段外观，右对齐 ChevronsUpDown 图标；不要把触发器按 outline 操作按钮单独着色。
 - **Dropdown:** 使用上述 `.shared-select-content` 纸面浮层，支持键盘导航和搜索过滤。
 - **Width:** 触发器基础宽度为 `w-full` + `max-w-[400px]`（表单内单列使用）。放入 flex 容器（尤其 `AdminToolbar`）时必须给出明确宽度，见下条。
+- **防滚动跳跃与焦点保全 (`Scroll & Focus Stability`)：** 下拉选择/弹层关闭时恢复触发器焦点，必须在 `PopoverContent` 的 `onCloseAutoFocus` 中调用 `triggerRef.current?.focus({ preventScroll: true })`，防止浏览器原生焦点回填强行将视口或外层滚动容器（`AdminShell` 的 `.admin-layout__content`）拉扯滚动到顶层或产生视口位移。
 - **`compact` 保留宽度约束并服从所在区域尺寸：** 保留 `max-w-[var(--admin-filter-width)]`（11rem），公开环境默认32px，后台仍与相邻 Input 对齐为40px；分页及悬浮岛继承各自区域高度，不再硬编码 `h-8`。调用方可用 `className` 覆盖用途决定的宽度上限。
 - **在 `AdminToolbar` 中的宽度契约：** 筛选器要么由 `CustomSelect` 自身的 `compact` 提供上限（11rem，适合「全部分级 / 全部来源」这类短选项），要么由外层容器用 `flex: 0 0 <宽度>` 固定（如 `.moderation-toolbar__status { flex: 0 0 9rem }`）。两者取其一即可，不必同时写。
 - **`.admin-toolbar__filters` 提供横向分组：** 子项不收缩、下拉触发器按内容宽度，窄屏允许换行；它不替代 `compact` 自带的11rem上限或业务容器的显式宽度。
