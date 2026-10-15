@@ -1978,3 +1978,328 @@
     gap: 16px;
   }
 }
+
+/* ==========================================================================
+   AI 生成内容完整查看弹窗（Claude Dialog & Paper Reading Modal）
+   ========================================================================== */
+[data-slot='dialog-content'].ai-generation-modal {
+  border-radius: 1.25rem !important;
+  border: 1px solid var(--admin-border, #e6e4dc) !important;
+  background: var(--admin-panel, #ffffff) !important;
+  box-shadow: 0 12px 48px -12px rgba(35, 30, 24, 0.12) !important;
+  padding: 1.75rem 2rem 1.5rem !important;
+  width: min(calc(100vw - 2rem), 52rem) !important;
+  max-width: 52rem !important;
+  max-height: min(90vh, 56rem) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1.25rem !important;
+  overflow: hidden !important;
+}
+
+:root[data-theme='dark'] [data-slot='dialog-content'].ai-generation-modal,
+[data-theme='dark'] [data-slot='dialog-content'].ai-generation-modal {
+  border-color: #2c2a26 !important;
+  background: #1c1b18 !important;
+  box-shadow: 0 14px 56px -12px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* 弹窗头部：居中经典衬线体与温润副标 */
+.ai-generation-modal [data-slot='dialog-header'] {
+  text-align: center;
+  padding-bottom: 0.25rem;
+  border-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ai-generation-modal [data-slot='dialog-title'] {
+  font-family: var(--admin-font-serif, Georgia, serif) !important;
+  font-size: 1.25rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--text-primary, #211e1a) !important;
+}
+
+:root[data-theme='dark'] .ai-generation-modal [data-slot='dialog-title'],
+[data-theme='dark'] .ai-generation-modal [data-slot='dialog-title'] {
+  color: var(--dark-text, #ede8e1) !important;
+}
+
+.ai-generation-modal [data-slot='dialog-description'] {
+  font-size: 0.8125rem !important;
+  color: var(--text-muted, #736d65) !important;
+  line-height: 1.5 !important;
+}
+
+:root[data-theme='dark'] .ai-generation-modal [data-slot='dialog-description'],
+[data-theme='dark'] .ai-generation-modal [data-slot='dialog-description'] {
+  color: #9a938a !important;
+}
+
+/* Prompt 折叠胶囊：Claude 极简折叠卡片 */
+.ai-generation-modal .ai-generation-prompt-card {
+  border-radius: 0.75rem;
+  border: 1px solid var(--admin-border, #e5e3dc);
+  background: var(--admin-panel-muted, #f8f7f3);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card,
+[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card {
+  border-color: #2c2a26;
+  background: #23221f;
+}
+
+.ai-generation-modal .ai-generation-prompt-card[open] {
+  border-color: color-mix(in srgb, var(--admin-accent, #d97757) 35%, var(--admin-border, #e5e3dc));
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card[open] {
+  border-color: color-mix(in srgb, var(--admin-accent, #d97757) 40%, #2c2a26);
+}
+
+.ai-generation-modal .ai-generation-prompt-card__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  color: var(--text-primary, #211e1a);
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.ai-generation-modal .ai-generation-prompt-card__summary::-webkit-details-marker {
+  display: none;
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__summary,
+[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__summary {
+  color: var(--dark-text, #e7e0d6);
+}
+
+.ai-generation-modal .ai-generation-prompt-card__summary:hover {
+  background: color-mix(in srgb, var(--admin-accent, #d97757) 4%, transparent);
+}
+
+.ai-generation-modal .ai-generation-prompt-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-generation-modal .ai-generation-prompt-card__content {
+  padding: 0 0.875rem 0.75rem;
+  border-top: 1px dashed color-mix(in srgb, var(--admin-border, #e5e3dc) 70%, transparent);
+  margin-top: 0.125rem;
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__content,
+[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__content {
+  border-top-color: #2c2a26;
+}
+
+.ai-generation-modal .ai-generation-prompt-card__pre {
+  margin-top: 0.625rem;
+  max-height: 12rem;
+  overflow: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary, #5b554e);
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__pre,
+[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__pre {
+  color: #a8a39b;
+}
+
+/* 正文工作台工具栏：章节标签 + 字数胶囊 + 操作药丸 */
+.ai-generation-modal .ai-generation-body-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.125rem;
+}
+
+.ai-generation-modal .ai-generation-body-toolbar__lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-generation-modal .ai-generation-body-toolbar__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary, #211e1a);
+  letter-spacing: -0.01em;
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-body-toolbar__title,
+[data-theme='dark'] .ai-generation-modal .ai-generation-body-toolbar__title {
+  color: var(--dark-text, #ede8e1);
+}
+
+.ai-generation-modal .ai-generation-body-toolbar__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, #f8f7f3);
+  border: 1px solid var(--admin-border, #e5e3dc);
+  color: var(--text-muted, #736d65);
+  font-size: 0.7rem;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-body-toolbar__badge,
+[data-theme='dark'] .ai-generation-modal .ai-generation-body-toolbar__badge {
+  background: #23221f;
+  border-color: #2e2c28;
+  color: #9a938a;
+}
+
+.ai-generation-modal .ai-generation-body-toolbar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* 正文纸面展示区：Claude 舒适阅读质感 */
+.ai-generation-modal .ai-generation-reading-paper {
+  flex: 1 1 auto;
+  min-height: 14rem;
+  max-height: min(46vh, 30rem);
+  overflow-y: auto;
+  border-radius: 0.875rem;
+  border: 1px solid var(--admin-border, #e5e3dc);
+  background: color-mix(in srgb, var(--admin-panel-muted, #faf9f6) 65%, var(--admin-panel, #ffffff));
+  padding: 1.25rem 1.5rem;
+  font-size: 0.875rem;
+  line-height: 1.85;
+  letter-spacing: 0.01em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary, #211e1a);
+  box-shadow: inset 0 1px 2px rgba(35, 30, 24, 0.02);
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-reading-paper,
+[data-theme='dark'] .ai-generation-modal .ai-generation-reading-paper {
+  border-color: #2a2825;
+  background: #171614;
+  color: #dfd8ce;
+  box-shadow: none;
+}
+
+.ai-generation-modal .ai-generation-reading-textarea {
+  flex: 1 1 auto;
+  min-height: 18rem;
+  max-height: min(48vh, 32rem);
+  border-radius: 0.875rem !important;
+  border: 1px solid var(--admin-border, #e5e3dc) !important;
+  background: color-mix(in srgb, var(--admin-panel-muted, #faf9f6) 50%, var(--admin-panel, #ffffff)) !important;
+  padding: 1.25rem 1.5rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.85 !important;
+  color: var(--text-primary, #211e1a) !important;
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-reading-textarea,
+[data-theme='dark'] .ai-generation-modal .ai-generation-reading-textarea {
+  border-color: #2a2825 !important;
+  background: #171614 !important;
+  color: #dfd8ce !important;
+}
+
+/* 选段改写卡片协调 */
+.ai-generation-modal .ai-rewrite {
+  border-radius: 0.875rem;
+  border: 1px solid var(--admin-border, #e5e3dc);
+  background: var(--admin-panel-muted, #f8f7f3);
+  padding: 1rem;
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-rewrite,
+[data-theme='dark'] .ai-generation-modal .ai-rewrite {
+  border-color: #2c2a26;
+  background: #23221f;
+}
+
+/* 底部发布工作区：Claude 药丸单行对齐 */
+.ai-generation-modal .ai-generation-publish {
+  border-top: 1px solid var(--admin-border, #e5e3dc);
+  padding-top: 1rem;
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-publish,
+[data-theme='dark'] .ai-generation-modal .ai-generation-publish {
+  border-top-color: #2a2825;
+}
+
+.ai-generation-modal .ai-generation-publish input {
+  height: 2.375rem !important;
+  border-radius: 9999px !important;
+  border: 1px solid var(--admin-border, #e5e3dc) !important;
+  background: var(--admin-panel-muted, #f8f7f3) !important;
+  padding-inline: 1.125rem !important;
+  font-size: 0.8125rem !important;
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-publish input,
+[data-theme='dark'] .ai-generation-modal .ai-generation-publish input {
+  border-color: #2c2a26 !important;
+  background: #23221f !important;
+  color: var(--dark-text, #ede8e1) !important;
+}
+
+.ai-generation-modal .ai-generation-title-candidate {
+  height: 1.75rem;
+  border-radius: 9999px !important;
+  border: 1px solid var(--admin-border, #e5e3dc);
+  background: var(--admin-panel, #ffffff);
+  font-size: 0.725rem;
+  padding-inline: 0.75rem;
+  color: var(--text-secondary, #5b554e);
+}
+
+:root[data-theme='dark'] .ai-generation-modal .ai-generation-title-candidate,
+[data-theme='dark'] .ai-generation-modal .ai-generation-title-candidate {
+  background: #23221f;
+  border-color: #2e2c28;
+  color: #9a938a;
+}
+
+.ai-generation-modal .ai-generation-title-candidate:hover {
+  border-color: var(--admin-accent, #d97757);
+  color: var(--admin-accent, #d97757);
+}
+
+.ai-generation-modal .ai-generation-publish__submit {
+  height: 2.375rem !important;
+  border-radius: 9999px !important;
+  padding-inline: 1.5rem !important;
+  background: var(--admin-accent, #d97757) !important;
+  color: #ffffff !important;
+  font-size: 0.8125rem !important;
+  font-weight: 550 !important;
+  border: 0 !important;
+  box-shadow: 0 1px 3px rgba(217, 119, 87, 0.25) !important;
+  transition: all 0.15s ease !important;
+}
+
+.ai-generation-modal .ai-generation-publish__submit:hover:not(:disabled) {
+  background: var(--admin-accent-hover, #c56344) !important;
+  box-shadow: 0 2px 8px rgba(217, 119, 87, 0.4) !important;
+}

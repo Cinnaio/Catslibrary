@@ -3,7 +3,7 @@ import { AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminFormField from '@/components/admin/AdminFormField'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, CirclePlus, CornerDownRight, RefreshCw } from 'lucide-react'
+import { ChevronDown, CirclePlus, CornerDownRight, RefreshCw, Sparkles } from 'lucide-react'
 import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
@@ -826,60 +826,97 @@ export default function AiGenerationsPanel(props: {
           }
         }}
       >
-        <AdminDialogContent variant="reading" size="wide" fixedHeight>
+        <AdminDialogContent
+          variant="reading"
+          size="wide"
+          fixedHeight
+          className="content-ratings-dialog ai-generation-modal sm:max-w-3xl"
+        >
           <DialogHeader>
             <DialogTitle>{viewing ? `${kindLabel(viewing.kind)} · 完整内容` : '完整内容'}</DialogTitle>
             <DialogDescription>仅管理员可查看 AI 生成的完整内容。</DialogDescription>
           </DialogHeader>
           {viewing && (
             <>
-              {/* 中间区是唯一的滚动所有者。此前 DialogContent 用 overflow-hidden 直接
-                  裁掉底部发布区（1600×1000 下 25px、1280×900 下 110px），且只读正文
-                  与改写文本框互相争夺弹性空间，把 4000 余字正文压成一行。现由本区接管
-                  滚动，发布区常驻可见。 */}
-              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-                <details className="shrink-0 rounded-md border bg-muted/10 p-3">
-                  <summary className="cursor-pointer text-sm font-medium">本次生成 Prompt</summary>
-                  <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
-                    {viewing.prompt || '未记录 Prompt'}
-                  </pre>
-                </details>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs text-muted-foreground">约 {(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length} 字</span>
+              {/* 中间区是唯一的滚动所有者，发布区常驻可见 */}
+              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto pr-0.5">
+                {viewing.prompt && (
+                  <details className="ai-generation-prompt-card group shrink-0">
+                    <summary className="ai-generation-prompt-card__summary">
+                      <div className="ai-generation-prompt-card__title">
+                        <Sparkles className="size-3.5 text-accent" aria-hidden="true" />
+                        <span>本次生成 Prompt</span>
+                      </div>
+                      <ChevronDown
+                        className="size-3.5 text-muted-foreground transition-transform duration-200 group-open:rotate-180"
+                        aria-hidden="true"
+                      />
+                    </summary>
+                    <div className="ai-generation-prompt-card__content">
+                      <pre className="ai-generation-prompt-card__pre">
+                        {viewing.prompt}
+                      </pre>
+                    </div>
+                  </details>
+                )}
+
+                <div className="ai-generation-body-toolbar shrink-0">
+                  <div className="ai-generation-body-toolbar__lead">
+                    <span className="ai-generation-body-toolbar__title">生成正文</span>
+                    <span className="ai-generation-body-toolbar__badge">
+                      约 {(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length.toLocaleString()} 字
+                    </span>
+                  </div>
                   {viewing.status === 'draft' &&
                     EDITABLE_KINDS.has(viewing.kind) &&
                     (editingText === null ? (
-                      <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditingText(viewing.result)}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-full px-3 text-xs border-admin-border text-muted-foreground hover:border-accent hover:text-accent"
+                        onClick={() => setEditingText(viewing.result)}
+                      >
                         编辑正文
                       </Button>
                     ) : (
-                      <div className="ml-auto flex gap-2">
-                        <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditingText(null)}>
+                      <div className="ai-generation-body-toolbar__actions">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                          disabled={savingEdit}
+                          onClick={() => setEditingText(null)}
+                        >
                           取消
                         </Button>
-                        <Button size="sm" disabled={savingEdit || !editingText.trim()} onClick={() => void saveEdit(viewing)}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="content-ratings-edit-button h-7 rounded-full px-3 text-xs"
+                          disabled={savingEdit || !editingText.trim()}
+                          onClick={() => void saveEdit(viewing)}
+                        >
                           {savingEdit ? '保存中…' : '保存草稿'}
                         </Button>
                       </div>
                     ))}
                 </div>
-                <div className="admin-dialog-section-label shrink-0">生成正文</div>
-                {/* 编辑态沿用改写区的既有做法：固定高度 + 框内滚动（field-sizing-fixed）。
-                   field-sizing-content 会随全文长高，把中间的滚动行程翻倍。 */}
+
                 {editingText === null ? (
-                  /* 预览区给出视口相关的上限：不设上限时四千余字会把中间区撑出两千余
-                     像素的滚动行程。超出部分在框内滚动，中间区只负责其余区块。 */
-                  <div className="min-h-[12rem] max-h-[min(45svh,28rem)] flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">
+                  <div className="ai-generation-reading-paper">
                     {viewing.result || '暂无内容'}
                   </div>
                 ) : (
                   <Textarea
-                    className="field-sizing-fixed min-h-[20rem] max-h-[50svh] resize-y shadow-none p-4 text-sm leading-7 sm:p-5"
+                    className="ai-generation-reading-textarea field-sizing-fixed resize-y shadow-none"
                     value={editingText}
                     onChange={(event) => setEditingText(event.target.value)}
                     disabled={savingEdit}
                   />
                 )}
+
                 {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
                   <DraftRewrite
                     draftId={viewing.id}
@@ -893,20 +930,29 @@ export default function AiGenerationsPanel(props: {
                   />
                 )}
               </div>
+
               {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
-                <div className="ai-generation-publish shrink-0 border-t pt-4">
+                <div className="ai-generation-publish shrink-0">
                   <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                     <AdminFormField label="发布章节标题" htmlFor="generation-publish-title" className="ai-generation-publish__field min-w-0 flex-1">
                       <Input
                         id="generation-publish-title"
-                        className="h-11 focus-visible:border-ring focus-visible:ring-ring/50"
+                        className="h-10 rounded-full"
                         value={publishTitle}
                         onChange={(event) => setPublishTitle(event.target.value)}
                         placeholder="例如：第十二章 暴雨前夜"
                       />
-                      <div className="ai-generation-title-options flex items-center gap-2">
-                        <Button type="button" variant="outline" size="sm" disabled={generatingTitles} onClick={() => void generateTitles(viewing)}>
-                          {generatingTitles ? '生成标题中…' : 'AI 生成标题'}
+                      <div className="ai-generation-title-options flex flex-wrap items-center gap-1.5 pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 rounded-full px-2.5 text-xs border-admin-border text-muted-foreground hover:border-accent hover:text-accent"
+                          disabled={generatingTitles}
+                          onClick={() => void generateTitles(viewing)}
+                        >
+                          <Sparkles className="size-3 mr-1 text-accent" aria-hidden="true" />
+                          {generatingTitles ? '生成中…' : 'AI 生成标题'}
                         </Button>
                         {titleCandidates.map((candidate) => (
                           <Button
@@ -923,8 +969,12 @@ export default function AiGenerationsPanel(props: {
                         ))}
                       </div>
                     </AdminFormField>
-                    <Button className="h-11 w-full shrink-0 md:w-auto" disabled={publishing || !publishTitle.trim()} onClick={() => void publish(viewing)}>
-                      {publishing ? '发布中…' : '发布为章节'}
+                    <Button
+                      className="ai-generation-publish__submit h-10 w-full shrink-0 md:w-auto"
+                      disabled={publishing || !publishTitle.trim()}
+                      onClick={() => void publish(viewing)}
+                    >
+                      {publishing ? '发布中…' : '发布为正式章节'}
                     </Button>
                   </div>
                 </div>
