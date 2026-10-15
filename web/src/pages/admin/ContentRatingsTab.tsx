@@ -1195,85 +1195,40 @@ export default function ContentRatingsTab() {
               <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS} className="content-ratings-panel content-ratings-ledger">
                 <AdminPanelHeading
                   title="作品分级账本"
-                  status={<span className="text-xs text-muted-foreground">{loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}</span>}
-                />
-
-                {/* Claude 风格全库分级健康光谱状态条 */}
-                <div className="content-ratings-distribution-card">
-                  <div className="content-ratings-distribution-header">
-                    <div className="content-ratings-distribution-title">
-                      全库分级治理光谱
-                      <span className="content-ratings-distribution-subtitle">
-                        共 {formatNumber((counts.general || 0) + (counts.restricted || 0) + (counts.unknown || 0))} 部作品
+                  status={
+                    <div className="content-ratings-header-spectrum">
+                      <span className="content-ratings-header-spectrum__count">
+                        {loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}
                       </span>
-                    </div>
-                  </div>
-                  <div className="content-ratings-spectrum-bar-wrap">
-                    <div className="content-ratings-spectrum-bar" role="progressbar" aria-label="分级比例光谱">
                       {(() => {
                         const total = (counts.general || 0) + (counts.restricted || 0) + (counts.unknown || 0)
-                        if (!total) return <div className="spectrum-segment spectrum-segment--unknown" style={{ width: '100%' }} />
+                        if (!total) return null
                         const gPct = ((counts.general || 0) / total) * 100
                         const rPct = ((counts.restricted || 0) / total) * 100
                         const uPct = 100 - gPct - rPct
                         return (
-                          <>
-                            <div className="spectrum-segment spectrum-segment--general" style={{ width: `${gPct}%` }} title={`一般：${formatNumber(counts.general)} (${gPct.toFixed(1)}%)`} />
-                            <div className="spectrum-segment spectrum-segment--restricted" style={{ width: `${rPct}%` }} title={`限制级：${formatNumber(counts.restricted)} (${rPct.toFixed(1)}%)`} />
-                            <div className="spectrum-segment spectrum-segment--unknown" style={{ width: `${uPct}%` }} title={`未标注：${formatNumber(counts.unknown)} (${uPct.toFixed(1)}%)`} />
-                          </>
+                          <div
+                            className="content-ratings-header-spectrum__strip"
+                            title={`全库分级比例：一般 ${gPct.toFixed(1)}% · 限制级 ${rPct.toFixed(1)}% · 待标注 ${uPct.toFixed(1)}%`}
+                            aria-label="全库分级比例光谱"
+                          >
+                            <span className="content-ratings-mini-bar" role="img" aria-label="分级比例条">
+                              <span className="spectrum-segment spectrum-segment--general" style={{ width: `${gPct}%` }} />
+                              <span className="spectrum-segment spectrum-segment--restricted" style={{ width: `${rPct}%` }} />
+                              <span className="spectrum-segment spectrum-segment--unknown" style={{ width: `${uPct}%` }} />
+                            </span>
+                            <span className="content-ratings-header-spectrum__rates">
+                              <span className="content-ratings-dot-legend content-ratings-dot--restricted" />
+                              {Math.round(rPct)}% 限制级
+                              <span className="content-ratings-dot-legend content-ratings-dot--unknown" />
+                              {Math.round(uPct)}% 缺口
+                            </span>
+                          </div>
                         )
                       })()}
                     </div>
-                  </div>
-                  <div className="content-ratings-stats-grid">
-                    <div className="content-ratings-stat-pill">
-                      <div className="content-ratings-stat-pill-label">
-                        <span className="content-ratings-dot-legend content-ratings-dot--general" />
-                        全年龄 / 一般向
-                      </div>
-                      <div className="content-ratings-stat-pill-value">
-                        {formatNumber(counts.general)}
-                        <span className="content-ratings-stat-pill-pct">
-                          {(() => {
-                            const total = (counts.general || 0) + (counts.restricted || 0) + (counts.unknown || 0)
-                            return total ? `(${Math.round(((counts.general || 0) / total) * 100)}%)` : ''
-                          })()}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="content-ratings-stat-pill">
-                      <div className="content-ratings-stat-pill-label">
-                        <span className="content-ratings-dot-legend content-ratings-dot--restricted" />
-                        限制级 (R18)
-                      </div>
-                      <div className="content-ratings-stat-pill-value">
-                        {formatNumber(counts.restricted)}
-                        <span className="content-ratings-stat-pill-pct">
-                          {(() => {
-                            const total = (counts.general || 0) + (counts.restricted || 0) + (counts.unknown || 0)
-                            return total ? `(${Math.round(((counts.restricted || 0) / total) * 100)}%)` : ''
-                          })()}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="content-ratings-stat-pill">
-                      <div className="content-ratings-stat-pill-label">
-                        <span className="content-ratings-dot-legend content-ratings-dot--unknown" />
-                        待标注 (缺口)
-                      </div>
-                      <div className="content-ratings-stat-pill-value">
-                        {formatNumber(counts.unknown)}
-                        <span className="content-ratings-stat-pill-pct">
-                          {(() => {
-                            const total = (counts.general || 0) + (counts.restricted || 0) + (counts.unknown || 0)
-                            return total ? `(${Math.round(((counts.unknown || 0) / total) * 100)}%)` : ''
-                          })()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  }
+                />
 
               {loadError && <InlineError message={`分级账本同步失败：${loadError}`} onRetry={() => void load(true)} className="mx-5 my-4" />}
 
