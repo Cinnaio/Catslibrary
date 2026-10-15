@@ -207,24 +207,24 @@ function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
           </div>
         </div>
       </TooltipTrigger>
-      <TooltipContent side="top" align="start" className="w-72 space-y-2 p-3 text-xs leading-normal">
-        <div className="flex items-center justify-between border-b border-white/10 pb-1.5 font-medium text-[#f6f4ee]">
-          <span>判定依据画像</span>
+      <TooltipContent side="top" align="start" className="w-80 space-y-2.5 p-3.5 text-xs leading-normal">
+        <div className="flex items-center justify-between border-b border-border/80 pb-2 font-medium text-foreground">
+          <span className="font-semibold text-xs tracking-tight">判定依据画像</span>
           {ruleDisplayTag && (
-            <span className="font-mono text-[10px] text-white/60">
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
               {ruleDisplayTag}
             </span>
           )}
         </div>
 
         {item.evidence.length > 0 ? (
-          <div className="space-y-1">
-            <span className="text-[11px] text-white/50">命中特征</span>
-            <div className="flex flex-wrap gap-1">
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">命中特征</span>
+            <div className="flex flex-wrap gap-1.5">
               {item.evidence.map((ev, i) => (
                 <span
                   key={i}
-                  className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 text-[11px] text-white/90"
+                  className="inline-flex items-center rounded bg-muted/70 px-2 py-0.5 text-[11px] text-foreground border border-border/70"
                 >
                   {evidenceLabel(ev)}
                 </span>
@@ -232,25 +232,27 @@ function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
             </div>
           </div>
         ) : (
-          <div className="text-[11px] text-white/50">
+          <div className="text-[11px] text-muted-foreground">
             全库规则巡检完成，未检出限制级敏感特征。
           </div>
         )}
 
         {item.reason && (
-          <div className="space-y-0.5">
-            <span className="text-[11px] text-white/50">执行说明</span>
-            <p className="text-white/85 leading-relaxed">{item.reason}</p>
+          <div className="space-y-1">
+            <span className="text-[11px] font-medium text-muted-foreground">执行说明</span>
+            <p className="text-foreground/90 leading-relaxed bg-muted/40 p-2 rounded-md border border-border/40">
+              {item.reason}
+            </p>
           </div>
         )}
 
         {item.ruleVersion && (
-          <div className="truncate text-[10px] text-white/40">
+          <div className="truncate text-[10px] text-muted-foreground/80">
             规则链：{item.ruleVersion}
           </div>
         )}
 
-        <div className="text-[10px] text-white/40 pt-0.5 border-t border-white/5">
+        <div className="text-[10px] text-muted-foreground/75 pt-1.5 border-t border-border/60">
           来源渠道：{sourceLabel(item.source)} · 修订 {item.revision}
         </div>
       </TooltipContent>
