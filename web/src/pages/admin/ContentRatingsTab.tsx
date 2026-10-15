@@ -1169,10 +1169,57 @@ export default function ContentRatingsTab() {
               <Info aria-hidden="true" />
               分级与审核口径
             </summary>
-            <p>
-              未标注不等于一般。R18 对应限制级；规则与 LLM
-              只提出限制级或继续未标注的判断，不自动标为一般。规则批准前预览影响范围，模型建议经人工审核才可修改分级；人工修改必须填写理由并保留审计记录。
-            </p>
+            <div className="content-ratings-policy-popover">
+              <div className="content-ratings-policy-spectrum">
+                <div className="content-ratings-policy-spectrum__head">
+                  <span className="font-medium text-foreground">全库治理健康度</span>
+                  <span className="content-ratings-filter-counts text-xs tabular-nums text-muted-foreground" data-testid="rating-progress">
+                    待标注 {formatNumber(counts.unknown)} · 限制级 {formatNumber(counts.restricted)}
+                  </span>
+                </div>
+                {(() => {
+                  const total = (counts.general || 0) + (counts.restricted || 0) + (counts.unknown || 0)
+                  if (!total) return null
+                  const gPct = ((counts.general || 0) / total) * 100
+                  const rPct = ((counts.restricted || 0) / total) * 100
+                  const uPct = 100 - gPct - rPct
+                  return (
+                    <div className="content-ratings-policy-spectrum__body">
+                      <div
+                        className="content-ratings-mini-bar content-ratings-mini-bar--wide"
+                        role="img"
+                        aria-label="分级比例条"
+                      >
+                        <span className="spectrum-segment spectrum-segment--general" style={{ width: `${gPct}%` }} />
+                        <span className="spectrum-segment spectrum-segment--restricted" style={{ width: `${rPct}%` }} />
+                        <span className="spectrum-segment spectrum-segment--unknown" style={{ width: `${uPct}%` }} />
+                      </div>
+                      <div className="content-ratings-policy-spectrum__legend">
+                        <span className="content-ratings-policy-spectrum__item">
+                          <span className="content-ratings-dot-legend content-ratings-dot--general" />
+                          一般 {Math.round(gPct)}%
+                        </span>
+                        <span className="content-ratings-policy-spectrum__item">
+                          <span className="content-ratings-dot-legend content-ratings-dot--restricted" />
+                          限制级 {Math.round(rPct)}%
+                        </span>
+                        <span className="content-ratings-policy-spectrum__item">
+                          <span className="content-ratings-dot-legend content-ratings-dot--unknown" />
+                          待标注 {Math.round(uPct)}%
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+
+              <hr className="content-ratings-policy-divider" />
+
+              <p>
+                未标注不等于一般。R18 对应限制级；规则与 LLM
+                只提出限制级或继续未标注的判断，不自动标为一般。规则批准前预览影响范围，模型建议经人工审核才可修改分级；人工修改必须填写理由并保留审计记录。
+              </p>
+            </div>
           </details>
         </div>
         <TabsContent value="ledger">
@@ -1237,42 +1284,6 @@ export default function ContentRatingsTab() {
                       清除筛选
                     </Button>
                   )}
-
-                  {/* 判定缺口与微型健康度光谱 */}
-                  <div className="content-ratings-header-spectrum">
-                    <span className="content-ratings-filter-counts text-xs tabular-nums text-muted-foreground" data-testid="rating-progress">
-                      待标注 {formatNumber(counts.unknown)} · 限制级 {formatNumber(counts.restricted)}
-                    </span>
-                    <span className="content-ratings-header-spectrum__count">
-                      {loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}
-                    </span>
-                    {(() => {
-                      const total = (counts.general || 0) + (counts.restricted || 0) + (counts.unknown || 0)
-                      if (!total) return null
-                      const gPct = ((counts.general || 0) / total) * 100
-                      const rPct = ((counts.restricted || 0) / total) * 100
-                      const uPct = 100 - gPct - rPct
-                      return (
-                        <div
-                          className="content-ratings-header-spectrum__strip"
-                          title={`全库分级比例：一般 ${gPct.toFixed(1)}% · 限制级 ${rPct.toFixed(1)}% · 待标注 ${uPct.toFixed(1)}%`}
-                          aria-label="全库分级比例光谱"
-                        >
-                          <span className="content-ratings-mini-bar" role="img" aria-label="分级比例条">
-                            <span className="spectrum-segment spectrum-segment--general" style={{ width: `${gPct}%` }} />
-                            <span className="spectrum-segment spectrum-segment--restricted" style={{ width: `${rPct}%` }} />
-                            <span className="spectrum-segment spectrum-segment--unknown" style={{ width: `${uPct}%` }} />
-                          </span>
-                          <span className="content-ratings-header-spectrum__rates">
-                            <span className="content-ratings-dot-legend content-ratings-dot--restricted" />
-                            {Math.round(rPct)}% 限制级
-                            <span className="content-ratings-dot-legend content-ratings-dot--unknown" />
-                            {Math.round(uPct)}% 缺口
-                          </span>
-                        </div>
-                      )
-                    })()}
-                  </div>
                 </div>
               </AdminToolbar>
 
