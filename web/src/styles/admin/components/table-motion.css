@@ -41,7 +41,9 @@
 .admin-redesign-page--novels > .admin-data-panel,
 .admin-redesign-page--chapters .chapter-directory-panel,
 .admin-redesign-page--moderation > .moderation-toolbar,
-.admin-redesign-page--moderation > .admin-data-panel {
+.admin-redesign-page--moderation > .admin-data-panel,
+.admin-redesign-page--content-ratings .content-ratings-ledger,
+.admin-redesign-page--content-ratings .content-ratings-filter-rail {
   animation: admin-tab-surface-enter var(--admin-table-surface-enter) both;
 }
 
@@ -50,6 +52,10 @@
 }
 
 .admin-redesign-page--chapters .chapter-directory-panel {
+  animation-delay: 40ms;
+}
+
+.admin-redesign-page--content-ratings .content-ratings-ledger {
   animation-delay: 40ms;
 }
 
@@ -73,59 +79,134 @@
   animation: admin-tab-surface-enter var(--admin-table-row-enter) both;
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+/* 通用与页面级表格行阶梯式入场（Staggered Row Enter） */
+:is(
+  .admin-redesign-page--novels,
+  .admin-redesign-page--chapters,
+  .admin-redesign-page--moderation,
+  .admin-redesign-page--content-ratings,
+  .admin-data-table--animated
+)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(-n + 8) {
   animation: admin-tab-row-enter var(--admin-table-row-enter) both;
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+:is(
+  .admin-redesign-page--novels,
+  .admin-redesign-page--chapters,
+  .admin-redesign-page--moderation,
+  .admin-redesign-page--content-ratings,
+  .admin-data-table--animated
+)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(1) {
   animation-delay: calc(var(--admin-table-row-stagger-step) * 1);
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+:is(
+  .admin-redesign-page--novels,
+  .admin-redesign-page--chapters,
+  .admin-redesign-page--moderation,
+  .admin-redesign-page--content-ratings,
+  .admin-data-table--animated
+)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(2) {
   animation-delay: calc(var(--admin-table-row-stagger-step) * 2);
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+:is(
+  .admin-redesign-page--novels,
+  .admin-redesign-page--chapters,
+  .admin-redesign-page--moderation,
+  .admin-redesign-page--content-ratings,
+  .admin-data-table--animated
+)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(3) {
   animation-delay: calc(var(--admin-table-row-stagger-step) * 3);
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+:is(
+  .admin-redesign-page--novels,
+  .admin-redesign-page--chapters,
+  .admin-redesign-page--moderation,
+  .admin-redesign-page--content-ratings,
+  .admin-data-table--animated
+)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(4) {
   animation-delay: calc(var(--admin-table-row-stagger-step) * 4);
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+:is(
+  .admin-redesign-page--novels,
+  .admin-redesign-page--chapters,
+  .admin-redesign-page--moderation,
+  .admin-redesign-page--content-ratings,
+  .admin-data-table--animated
+)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(5) {
   animation-delay: calc(var(--admin-table-row-stagger-step) * 5);
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+:is(
+  .admin-redesign-page--novels,
+  .admin-redesign-page--chapters,
+  .admin-redesign-page--moderation,
+  .admin-redesign-page--content-ratings,
+  .admin-data-table--animated
+)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(6) {
   animation-delay: calc(var(--admin-table-row-stagger-step) * 6);
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+:is(
+  .admin-redesign-page--novels,
+  .admin-redesign-page--chapters,
+  .admin-redesign-page--moderation,
+  .admin-redesign-page--content-ratings,
+  .admin-data-table--animated
+)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(7) {
   animation-delay: calc(var(--admin-table-row-stagger-step) * 7);
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+:is(
+  .admin-redesign-page--novels,
+  .admin-redesign-page--chapters,
+  .admin-redesign-page--moderation,
+  .admin-redesign-page--content-ratings,
+  .admin-data-table--animated
+)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(8) {
   animation-delay: calc(var(--admin-table-row-stagger-step) * 8);
 }
+
+/* 筛选、搜索及翻页数据流转态（Transitioning Feedback） */
+.admin-data-table--transitioning [data-slot='table-body'],
+.content-ratings-ledger--transitioning [data-slot='table-body'] {
+  opacity: 0.58;
+  filter: blur(0.4px);
+  transition: opacity 150ms var(--ease), filter 150ms var(--ease);
+  pointer-events: none;
+}
+
+/* 队列卡片列表阶梯式入场 */
+.content-ratings-queue > .content-ratings-queue-item {
+  animation: admin-tab-row-enter var(--admin-table-row-enter) both;
+}
+
+.content-ratings-queue > .content-ratings-queue-item:nth-child(1) { animation-delay: calc(var(--admin-table-row-stagger-step) * 1); }
+.content-ratings-queue > .content-ratings-queue-item:nth-child(2) { animation-delay: calc(var(--admin-table-row-stagger-step) * 2); }
+.content-ratings-queue > .content-ratings-queue-item:nth-child(3) { animation-delay: calc(var(--admin-table-row-stagger-step) * 3); }
+.content-ratings-queue > .content-ratings-queue-item:nth-child(4) { animation-delay: calc(var(--admin-table-row-stagger-step) * 4); }
+.content-ratings-queue > .content-ratings-queue-item:nth-child(5) { animation-delay: calc(var(--admin-table-row-stagger-step) * 5); }
 
 /* 小说与章节页按当前渲染的行数统一入场；行数和延迟由页面数据共同计算。 */
 .admin-redesign-page--novels > .novels-data-panel [data-slot='table-body'] > [data-slot='table-row'] {
@@ -163,14 +244,25 @@
   .admin-redesign-page--chapters .chapter-directory-panel,
   .admin-redesign-page--moderation > .admin-toolbar,
   .admin-redesign-page--moderation > .admin-data-panel,
+  .admin-redesign-page--content-ratings .content-ratings-ledger,
   .task-workspace-panel,
   .admin-redesign-page--novels .admin-toolbar__batch {
     animation: admin-tab-fade var(--admin-table-reduced-fade) both;
   }
 
-  :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  :is(
+    .admin-redesign-page--novels,
+    .admin-redesign-page--chapters,
+    .admin-redesign-page--moderation,
+    .admin-redesign-page--content-ratings,
+    .admin-data-table--animated
+  )
     [data-slot='table-body']
     > [data-slot='table-row']:nth-child(-n + 8) {
+    animation: none;
+  }
+
+  .content-ratings-queue > .content-ratings-queue-item {
     animation: none;
   }
 
