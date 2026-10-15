@@ -25,6 +25,7 @@ import {
 import { formatDateTime, timeAgo } from '@/lib/format'
 import type { ContentRating } from '@shared/types'
 import { RESTRICTED_BODY_KEYWORDS } from '@shared/restricted-patterns'
+import { cn } from '@/lib/utils'
 import { useToast } from '@/components/feedback'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import AdminPage from '@/components/admin/AdminPage'
@@ -555,7 +556,7 @@ function AiSuggestionPanel({
       ) : !data || data.items.length === 0 ? (
         <AdminEmptyState message={history ? '没有已过期的 LLM 分级建议。' : '还没有待审核的 LLM 分级建议；分析任务只会读取未标注作品。'} />
       ) : (
-        <div className="content-ratings-queue">
+        <div className="content-ratings-queue" key={`${status}-${page}`}>
           {data.items.map((suggestion) => (
             <article className={`content-ratings-queue-item${history ? ' content-ratings-queue-item--stale' : ''}`} key={suggestion.id}>
               {!history && <Checkbox aria-label={`选择 LLM 建议：${suggestion.title || suggestion.id}`} checked={selected.has(suggestion.id)} disabled={locked} onCheckedChange={checked => select(suggestion, checked === true)} />}
@@ -1321,7 +1322,7 @@ export default function ContentRatingsTab() {
               {data.items.length === 0 ? (
                 <AdminEmptyState message={query || ratingFilter || sourceFilter ? '当前筛选条件下没有作品' : '暂无内容分级记录'} />
               ) : (
-                <Table className="admin-data-table">
+                <Table className={cn('admin-data-table admin-data-table--animated', (loading || refreshing) && 'admin-data-table--transitioning')}>
                   <TableHeader>
                     <TableRow>
                       <TableHead>作品</TableHead>
@@ -1332,7 +1333,7 @@ export default function ContentRatingsTab() {
                       <TableHead className="text-right">操作</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <TableBody key={`${query}-${ratingFilter}-${sourceFilter}-${page}`}>
                     {data.items.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell data-primary="" data-label="作品">

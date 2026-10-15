@@ -646,6 +646,14 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 在具有明确业务语境（页面标题或 Tabs）的数据列表页中，严禁在 `AdminDataPanel` 内部再包裹带有二级对象名的 `AdminPanelHeading` 或内嵌二级工具条（Card-in-Card 俄罗斯套娃）。
 数据面板直接从 `<thead>` 开始，以数据实体本身作为卡片。外置控制行使用透明背景、无描边、无圆角（`.admin-filter-rail`），只靠自然流式排版与极细 Hairline 分隔表达层级。分页默认作为同级元素外置（`Pagination variant="detached"`）。
 
+**The Claude Table Motion & Transition Standard (数据流转与列表微动效规范).**
+后台数据列表在筛选维度切换（分级、来源、状态）、搜索实时过滤及翻页流转时，必须具备轻量、克制、符合感知即时性（Perceived Speed）的微动效反馈：
+1. **数据请求流转态（Transitioning Feedback）**：加载/刷新中表格内容进入轻度半透明态（`.admin-data-table--transitioning`，`opacity: 0.58` + `filter: blur(0.4px)`，时长 150ms），明确告知用户正在请求最新数据切片并锁定操作指针；
+2. **阶梯式行入场（Staggered Row Enter）**：新切片渲染时，首屏前 8 行使用 `@keyframes admin-tab-row-enter` 依次阶梯式轻微上浮淡入（`translateY(var(--admin-table-row-enter-offset, 0.375rem)) -> 0` + `opacity: 0 -> 1`，时长 180ms，曲线 `var(--ease-out)`，步长 30ms），提供如纸面墨迹浮现的连贯质感；
+3. **状态重绘联动（Key Invalidation）**：`<TableBody>` 挂载以关键筛选因子（`query`, `filter`, `page`）组合的 `key`，精确触发 React 生命周期重绘并激发进场动画；
+4. **卡片队列同步（Queue Motion）**：非表格形式的数据队列（如 `.content-ratings-queue`）同样应用统一的阶梯式入场动效；
+5. **无障碍保护（Reduced Motion）**：强制在 `@media (prefers-reduced-motion: reduce)` 下降级为平滑纯淡入或关闭位移动画。
+
 ### Admin Tab Header (AdminTabHeader)
 - **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题独占标题行、描述位于其下，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。
 - **Anatomy:** 只有一套。历史 `kicker` 眉题与 `hero` 变体已退役——标题上方不再出现小字，页面之间也不再有标题字号膨胀。
