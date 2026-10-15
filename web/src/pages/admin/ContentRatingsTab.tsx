@@ -44,6 +44,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type RatingView = 'ledger' | 'rules' | 'ai'
 
@@ -169,6 +170,7 @@ function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
   }
 
   let secondaryLabel = ''
+  let ruleDisplayTag = ''
   if (item.ruleVersion?.startsWith('llm:')) {
     const modelMatch = item.ruleVersion.match(/llm:([^:]+)/)
     const rawModel = modelMatch ? modelMatch[1] : ''
@@ -176,14 +178,15 @@ function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
     const note = item.reason && !isGenericSystemReason(item.reason)
       ? item.reason.replace(/^管理员批准\s*AI\s*分级建议[：:]\s*/, '')
       : ''
+    ruleDisplayTag = modelName
     secondaryLabel = note ? `${modelName} 模型 · ${note}` : `${modelName} 模型建议判定`
   } else if (item.ruleVersion) {
     const vTag = item.ruleVersion.replace(/^restricted-rules-/, '')
-    const ruleText = vTag ? `规则 ${vTag}` : item.ruleVersion
-    if (item.source === 'source_import') secondaryLabel = `${ruleText} · 导入时执行`
-    else if (item.source === 'prefill') secondaryLabel = `${ruleText} · 规则预填`
-    else if (item.source === 'system') secondaryLabel = `${ruleText} · 系统扫描`
-    else secondaryLabel = ruleText
+    ruleDisplayTag = vTag ? `规则 ${vTag}` : item.ruleVersion
+    if (item.source === 'source_import') secondaryLabel = `${ruleDisplayTag} · 导入时执行`
+    else if (item.source === 'prefill') secondaryLabel = `${ruleDisplayTag} · 规则预填`
+    else if (item.source === 'system') secondaryLabel = `${ruleDisplayTag} · 系统扫描`
+    else secondaryLabel = ruleDisplayTag
   } else if (item.reason && !isGenericSystemReason(item.reason)) {
     secondaryLabel = item.reason
   } else if (item.source === 'manual') {
@@ -192,22 +195,66 @@ function EvidenceCell({ item }: { item: AdminContentRatingItem }) {
     secondaryLabel = '系统巡检'
   }
 
-  const tooltipParts = [
-    item.evidence.length ? `判定证据：${item.evidence.map(evidenceLabel).join('、')}` : null,
-    item.ruleVersion ? `规则依据：${item.ruleVersion}` : null,
-    item.reason ? `执行理由：${item.reason}` : null,
-  ].filter(Boolean)
-  const fullTooltip = tooltipParts.join('\n') || undefined
-
   return (
-    <div className="content-ratings-evidence-cell min-w-0" title={fullTooltip}>
-      <div className={cn('truncate text-sm font-medium', isClean ? 'text-muted-foreground/75' : 'text-foreground')}>
-        {primaryLabel}
-      </div>
-      <div className="mt-1 truncate text-xs text-muted-foreground">
-        {secondaryLabel}
-      </div>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="content-ratings-evidence-cell min-w-0 cursor-default group">
+          <div className={cn('truncate text-sm font-medium transition-colors group-hover:text-primary', isClean ? 'text-muted-foreground/75' : 'text-foreground')}>
+            {primaryLabel}
+          </div>
+          <div className="mt-1 truncate text-xs text-muted-foreground">
+            {secondaryLabel}
+          </div>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="start" className="w-72 space-y-2 p-3 text-xs leading-normal">
+        <div className="flex items-center justify-between border-b border-white/10 pb-1.5 font-medium text-[#f6f4ee]">
+          <span>判定依据画像</span>
+          {ruleDisplayTag && (
+            <span className="font-mono text-[10px] text-white/60">
+              {ruleDisplayTag}
+            </span>
+          )}
+        </div>
+
+        {item.evidence.length > 0 ? (
+          <div className="space-y-1">
+            <span className="text-[11px] text-white/50">命中特征</span>
+            <div className="flex flex-wrap gap-1">
+              {item.evidence.map((ev, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center rounded bg-white/10 px-1.5 py-0.5 text-[11px] text-white/90"
+                >
+                  {evidenceLabel(ev)}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-[11px] text-white/50">
+            全库规则巡检完成，未检出限制级敏感特征。
+          </div>
+        )}
+
+        {item.reason && (
+          <div className="space-y-0.5">
+            <span className="text-[11px] text-white/50">执行说明</span>
+            <p className="text-white/85 leading-relaxed">{item.reason}</p>
+          </div>
+        )}
+
+        {item.ruleVersion && (
+          <div className="truncate text-[10px] text-white/40">
+            规则链：{item.ruleVersion}
+          </div>
+        )}
+
+        <div className="text-[10px] text-white/40 pt-0.5 border-t border-white/5">
+          来源渠道：{sourceLabel(item.source)} · 修订 {item.revision}
+        </div>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
