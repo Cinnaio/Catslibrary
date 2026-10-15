@@ -1589,32 +1589,6 @@
   width: 100%;
 }
 
-.ai-pill-tabs-track {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem;
-  border-radius: 9999px;
-  background: var(--admin-panel-muted, #faf9f5);
-  border: 1px solid var(--admin-border, #e6e4dc);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.ai-pill-tab {
-  border-radius: 9999px !important;
-  font-size: 0.8rem !important;
-  padding: 0.45rem 1rem !important;
-  color: var(--text-muted) !important;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-.ai-pill-tab:hover {
-  color: var(--text-primary) !important;
-  background: rgba(0, 0, 0, 0.04) !important;
-}
-
 /* 2. AI 用量与指标读数：人文衬线数码字 */
 .calls-trend-grid .ai-usage-totals {
   display: flex;

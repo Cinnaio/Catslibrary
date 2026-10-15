@@ -11,6 +11,7 @@ import { useToast } from '../../components/feedback'
 import { AdminSearch } from '@/components/admin/AdminWorkspace'
 import AdminPage from '@/components/admin/AdminPage'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Provider } from './ai/shared'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import AiConfigPanel from './ai/AiConfigPanel'
@@ -121,65 +122,58 @@ export default function AiTab() {
         )
       }
     >
-      <div className="ai-workbench-nav-track mb-6 flex items-center justify-between">
-        <div className="ai-pill-tabs-track inline-flex items-center gap-1.5 rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-1.5 shadow-inner">
-          {VALID_SUBS.map((subKey) => {
-            const active = currentSubTab === subKey
-            return (
-              <button
-                key={subKey}
-                type="button"
-                onClick={() => {
-                  setActiveSubTab(subKey)
-                  const next = new URLSearchParams(searchParams)
-                  next.set('sub', subKey)
-                  setSearchParams(next, { replace: false })
-                }}
-                className={`ai-pill-tab relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-medium transition-all duration-200 cursor-pointer ${
-                  active
-                    ? 'bg-[var(--admin-panel)] text-[var(--text-primary)] font-semibold shadow-sm ring-1 ring-[var(--admin-border-strong)]'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--admin-panel-hover)]'
-                }`}
-              >
-                {active && <span className="size-1.5 rounded-full bg-[var(--admin-accent,#D97757)] shadow-[0_0_6px_var(--admin-accent,#D97757)]" />}
-                <span>{AI_SUBTAB_META[subKey].title}</span>
-              </button>
-            )
-          })}
+      <Tabs
+        value={currentSubTab}
+        onValueChange={(subKey) => {
+          setActiveSubTab(subKey)
+          const next = new URLSearchParams(searchParams)
+          next.set('sub', subKey)
+          setSearchParams(next, { replace: false })
+        }}
+        className="ai-service-tabs admin-capsule-tabs"
+      >
+        <div className="ai-workbench-nav-track mb-6 flex items-center justify-between">
+          <TabsList aria-label="AI 服务视图">
+            {VALID_SUBS.map((subKey) => (
+              <TabsTrigger key={subKey} value={subKey}>
+                {AI_SUBTAB_META[subKey].title}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </div>
-      </div>
 
-      <div className="ai-service-tabs__content min-w-0">
-        {currentSubTab === 'writing' && <AiWritingPanel model={provider?.model} onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />}
+        <div className="ai-service-tabs__content min-w-0">
+          {currentSubTab === 'writing' && <AiWritingPanel model={provider?.model} onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />}
 
-        {currentSubTab === 'cover' && (
-          <AiCoverPanel
-            initialNovelId={urlNovel || undefined}
-            onNovelChange={(novelId) => {
-              const next = new URLSearchParams(searchParams)
-              if (novelId) next.set('novel', novelId)
-              else next.delete('novel')
-              setSearchParams(next, { replace: false })
-            }}
-          />
-        )}
+          {currentSubTab === 'cover' && (
+            <AiCoverPanel
+              initialNovelId={urlNovel || undefined}
+              onNovelChange={(novelId) => {
+                const next = new URLSearchParams(searchParams)
+                if (novelId) next.set('novel', novelId)
+                else next.delete('novel')
+                setSearchParams(next, { replace: false })
+              }}
+            />
+          )}
 
-        {currentSubTab === 'content' && <AiGenerationsPanel scope="all" status="all" search={generationSearch} focusBatchId={urlBatch} />}
+          {currentSubTab === 'content' && <AiGenerationsPanel scope="all" status="all" search={generationSearch} focusBatchId={urlBatch} />}
 
-        {currentSubTab === 'config' && (
-          <AiConfigPanel
-            settings={settings}
-            provider={provider}
-            providerConfig={providerConfig}
-            imageProviderConfig={imageProviderConfig}
-            imageProvider={imageProvider}
-            loading={loading}
-            onReload={load}
-          />
-        )}
+          {currentSubTab === 'config' && (
+            <AiConfigPanel
+              settings={settings}
+              provider={provider}
+              providerConfig={providerConfig}
+              imageProviderConfig={imageProviderConfig}
+              imageProvider={imageProvider}
+              loading={loading}
+              onReload={load}
+            />
+          )}
 
-        {currentSubTab === 'params' && <AiParamsPanel settings={settings} loading={loading} onReload={load} />}
-      </div>
+          {currentSubTab === 'params' && <AiParamsPanel settings={settings} loading={loading} onReload={load} />}
+        </div>
+      </Tabs>
     </AdminPage>
   )
 }
