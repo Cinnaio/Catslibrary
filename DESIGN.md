@@ -637,10 +637,14 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Geometry:** `display: flex` + `flex-wrap: wrap` + `gap: 0.75rem`，靠换行适配窄屏而不另写断点；`min-height` 与纵向内边距按内容定档（AI 三面板 3.25rem / `0.75rem`，章节目录面板 3.75rem / `0.875rem`），不做强制统一。
 - **Slots:** 组合顺序固定为「批量操作（仅在有选中项时出现）→ 字段标签 → 筛选控件 → 其余动作」；不要为筛选器新建一套卡片外观。
 - **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**。跨多个面板生效或确实需要独立成卡时，才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）；如果只是作用于一个数据集的轻量搜索/筛选组合，则使用透明的“列表控制行”，不能再创建等权卡片。
-- **小说列表控制行:** 小说管理采用 `AdminPage` 页头 → `.novels-rating-toolbar` → `AdminDataPanel` 的结构。搜索框位于左侧并占据剩余空间，分级筛选胶囊位于右侧；控制行使用透明背景、无描边、无圆角，不再把筛选区伪装成第三张卡片。它位于表格面板之外，但表格面板仍从选择条、表格和分页开始。
-- **References:** 章节管理的 `.chapter-toolbar` 与 AI 服务三个列表面板（AI 任务 / 已生成内容 / 调用审计）均已采用面板内形态。几何契约以本节为准：章节范本保留了历史的 `border-radius: 0.5rem 0.5rem 0 0`，实测在 40% 透明底色与 20px 面板圆角下不可见，属未收口的残留值，新面板不要复制。
+- **工作台胶囊控制行与单层控制流（Filter Rail & Single Control Surface）:**
+  通用后台数据工作台（小说管理、分级管理、章节管理等）统一采用 `AdminPage` 页头（含全局动作） → `工作视图 Tabs`（如有） → `.admin-filter-rail`（透明外置控制行） → `AdminDataPanel`（数据表格直接作为实体卡片）的扁平结构。
+  - **搜索与筛选归一：** 搜索框（`AdminSearch`）位于左侧并弹性伸缩（`width: min(22rem, 100%)`），所有多维度筛选胶囊（`CustomSelect chip filterChip`）位于右侧（`.admin-filter-chips`），同处单行，严禁将搜索与过滤拆分至卡片内外两重空间。
+  - **沉静辅助读数：** 匹配数、微型健康度比例条、缺口统计等轻量辅助信息，收敛于控制行尾端（`.admin-filter-rail__status`），杜绝占用首屏的厚重独立横条与信息复读。
 
-**The Panel-Owned Toolbar Rule.** 默认情况下，一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；若说明内容已经由相邻 `AdminContextPanel` 承担，筛选条仍必须留在 `AdminDataPanel` 内，作为数据面板的第一段。只有页面明确没有说明面板、且只保留一个轻量筛选条件，或需要让同一数据集的搜索与该筛选条件保持同一控制行时，才允许使用透明的外置列表控制行；它不得带卡片边框、背景或统计副文案。
+**The Claude Flat Workbench Rule (去容器化与单层控制流准则).**
+在具有明确业务语境（页面标题或 Tabs）的数据列表页中，严禁在 `AdminDataPanel` 内部再包裹带有二级对象名的 `AdminPanelHeading` 或内嵌二级工具条（Card-in-Card 俄罗斯套娃）。
+数据面板直接从 `<thead>` 开始，以数据实体本身作为卡片。外置控制行使用透明背景、无描边、无圆角（`.admin-filter-rail`），只靠自然流式排版与极细 Hairline 分隔表达层级。分页默认作为同级元素外置（`Pagination variant="detached"`）。
 
 ### Admin Tab Header (AdminTabHeader)
 - **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题独占标题行、描述位于其下，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。

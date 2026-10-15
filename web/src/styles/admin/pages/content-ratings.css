@@ -450,6 +450,50 @@
   color: #a8a39b;
 }
 
+.content-ratings-rules-panel,
+.content-ratings-ai-panel {
+  border-radius: var(--admin-table-panel-radius, 1rem);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  background: var(--admin-panel, #ffffff);
+  overflow: hidden;
+}
+
+.content-ratings-meta-rail,
+.content-ratings-ai-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--admin-border, #e6e4dc);
+  background: var(--admin-panel-muted, #fbfbf9);
+  gap: 1rem;
+}
+
+:root[data-theme='dark'] .content-ratings-meta-rail,
+:root[data-theme='dark'] .content-ratings-ai-rail,
+[data-theme='dark'] .content-ratings-meta-rail,
+[data-theme='dark'] .content-ratings-ai-rail {
+  border-bottom-color: var(--admin-border, #2c2b28);
+  background: #191816;
+}
+
+.content-ratings-panel-description-inline {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted, #736d65);
+}
+
+:root[data-theme='dark'] .content-ratings-panel-description-inline,
+[data-theme='dark'] .content-ratings-panel-description-inline {
+  color: #a8a39b;
+}
+
+.content-ratings-ledger[data-slot='table-container'],
+.content-ratings-ledger > [data-slot='table-container'] {
+  border-radius: var(--admin-table-panel-radius, 1rem);
+}
+
 /* --------------------------------------------------------------------------
    工具栏与全圆角药丸下拉 (Toolbar & Filter Controls)
    -------------------------------------------------------------------------- */
@@ -470,6 +514,41 @@
 [data-theme='dark'] .content-ratings-toolbar {
   border-bottom-color: var(--admin-border, #2c2b28);
   background: var(--admin-panel, #1d1d1b);
+}
+
+/* 统一透明胶囊筛选轨道（外置无边框，与小说管理完全对齐） */
+.content-ratings-filter-rail {
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  margin-bottom: 0.875rem;
+}
+
+.content-ratings-filter-rail .admin-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  margin-left: auto;
+}
+
+.content-ratings-filter-rail .content-ratings-filter-counts {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--admin-panel-muted, #f8f7f3);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  color: var(--text-muted, #736d65);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+:root[data-theme='dark'] .content-ratings-filter-rail .content-ratings-filter-counts,
+[data-theme='dark'] .content-ratings-filter-rail .content-ratings-filter-counts {
+  background: #23221f;
+  border-color: var(--admin-border, #2c2b28);
+  color: #a8a39b;
 }
 
 .content-ratings-toolbar .admin-toolbar__filters {
