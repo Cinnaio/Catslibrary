@@ -497,6 +497,12 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Active Surface:** 激活表面 9px（`--tabs-segmented-inner-radius`），使用消费方的 surface 与 `--tabs-segmented-active-shadow`；未选中和选中文字分别使用 `--tabs-segmented-muted-foreground` / `--tabs-segmented-active-foreground`，选中文字重读取 `--tabs-segmented-active-label-weight`。
 - **Motion:** 激活表面只用 `transform` 移动，不触发布局重排；时长、曲线和复合写法统一从 `--tabs-segmented-duration`、`--tabs-segmented-ease`、`--tabs-segmented-transition` 读取。默认是 180ms ease-out，必须在 `prefers-reduced-motion: reduce` 下将时长压到近乎 0。
 - **Consumers:** 抓取入口、抓取预设、书源筛选、任务状态、审核类型、导入来源（含弹窗）以及其他后台分段 Tab 只覆盖消费方表面色值；几何、激活层、文字状态（含选中字重）和动效统一读取 `--tabs-segmented-*`，不再维护页面级圆角、内缩、间距和位移字面量。
+- **Claude Capsule Navigation Tabs（大药丸主子页导航，2026-10-15）：**
+  - **定位与场景**：用于分级审核工作区（分级账本 / 规则候选 / LLM 建议）与 AI 服务主子页（AI 创作 / 封面生成 / 已生成内容 / AI 配置 / 参数调优）等核心业务的主子页胶囊导航；
+  - **轨道（Track）**：全圆角胶囊外框（`border-radius: 9999px`），高度 2.75rem（44px），内缩 4px，背景为柔和浅暖灰 `--admin-panel-muted`（暗色 `#23221f`），边框 1px `--admin-border`，消灭杂乱内阴影；
+  - **激活药丸（Active Surface）**：白色实体独立悬浮药丸（`background: var(--admin-panel)`，暗色 `#2a2926`），带有柔和微阴影（`0 1px 3px rgba(35, 30, 24, 0.05)`），激活文字使用陶土强调色 `--admin-accent`（`#d97757`）与 600 字重；
+  - **降噪契约**：彻底移除激活标签内多余的红点/彩点装饰（如 `size-1.5 bg-accent`）与生硬环形 ring 描边，依靠纯粹的物理纸白胶囊浮起与陶土字色表达层级；
+  - **未激活态（Inactive & Hover）**：次级文字色 `--text-muted`（13px / 500 字重），悬停时平滑渐变为陶土色，保持 Claude 纸面阅读工坊克制呼吸感。
 
 ### Cards
 - **Corner Style:** shadcn `Card` 为 16px（`rounded-xl`）；说明面板使用 `--admin-context-panel-radius`（16px），后台数据面板使用 `--admin-data-panel-radius`（20px）
