@@ -337,9 +337,9 @@
 
 .ai-service .ai-params-panel {
   display: grid;
-  grid-template-columns: 10rem minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: var(--ai-workspace-gap);
+  gap: var(--admin-control-to-card-gap, 1rem);
 }
 .ai-service .ai-params-nav {
   position: sticky;
@@ -1536,6 +1536,10 @@
 
 /* AI 配置面板：Claude 极简子分类胶囊与单卡片工作台（与邻居「参数调优」完全一致） */
 .ai-service .ai-config-panel-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--admin-control-to-card-gap, 1rem);
   width: 100%;
 }
 .ai-service .ai-config-sections {
@@ -1704,6 +1708,7 @@
 /* 参数调优：顶部分类切换，通栏参数面板。 */
 .ai-service .ai-params-panel {
   grid-template-columns: minmax(0, 1fr);
+  gap: var(--admin-control-to-card-gap, 1rem);
 }
 .ai-service .ai-params-sections {
   grid-column: 1;
@@ -1715,15 +1720,23 @@
   display: none;
 }
 .ai-service .ai-parameter-tabs {
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
+  align-items: center;
+  height: var(--admin-control-height, 2.5rem);
+  min-height: var(--admin-control-height, 2.5rem);
+  box-sizing: border-box;
   gap: 4px;
-  padding: 4px;
+  padding: 3px;
   background: var(--admin-panel-muted, #f8f7f3);
   border: 1px solid var(--admin-border, #e5e3dc);
-  border-radius: 9999px;
+  border-radius: var(--radius-full, 9999px);
   width: fit-content;
   max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ai-service .ai-parameter-tabs::-webkit-scrollbar {
+  display: none;
 }
 :root[data-theme='dark'] .ai-service .ai-parameter-tabs,
 [data-theme='dark'] .ai-service .ai-parameter-tabs {
@@ -1736,8 +1749,9 @@
   justify-content: center;
   gap: 6px;
   border: 0;
-  border-radius: 9999px;
-  padding: 6px 16px;
+  border-radius: var(--radius-full, 9999px);
+  height: 100%;
+  padding: 0 1rem;
   background: transparent;
   color: var(--text-muted);
   font: inherit;
@@ -1745,6 +1759,8 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .ai-service .ai-parameter-tabs button[aria-selected='true'] {
   background: var(--admin-panel, #ffffff);
@@ -1785,17 +1801,14 @@
   background: var(--admin-panel, #1c1b18);
   box-shadow: none;
 }
-.ai-service .ai-params-card > .admin-panel-heading {
-  padding: 24px 28px 12px;
+.ai-service .ai-params-card > :is(.admin-panel-heading, .ai-parameter-heading) {
+  padding: 24px 28px 16px;
 }
-.ai-service .ai-params-card > .admin-panel-heading h3 {
+.ai-service .ai-params-card > :is(.admin-panel-heading, .ai-parameter-heading) h3 {
   font-family: var(--font-serif);
   font-size: 1.125rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-}
-.ai-service .ai-params-card > .ai-parameter-heading {
-  padding: 24px 28px 16px;
 }
 .ai-service .ai-parameter-heading p {
   margin-top: 4px;
@@ -1931,11 +1944,15 @@
 @media (max-width: 767px) {
   .ai-service .ai-parameter-tabs {
     width: 100%;
+    height: auto;
+    min-height: var(--admin-control-height, 2.5rem);
     border-radius: 1rem;
+    flex-wrap: wrap;
   }
   .ai-service .ai-parameter-tabs button {
     flex: 1 0 28%;
-    padding: 8px;
+    height: 2rem;
+    padding: 0 8px;
     font-size: 0.75rem;
   }
   .ai-service .ai-params-card > .admin-panel-heading,

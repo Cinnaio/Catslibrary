@@ -125,6 +125,7 @@
   --admin-table-sort-caret-size: 0.875rem;
 
   --admin-page-section-gap: 1.25rem;
+  --admin-control-to-card-gap: 1rem;
   --admin-context-panel-background: var(--admin-panel);
   --admin-context-panel-border: var(--admin-border);
   --admin-context-panel-border-width: 1px;

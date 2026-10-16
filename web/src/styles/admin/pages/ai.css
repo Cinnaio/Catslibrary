@@ -1009,7 +1009,7 @@
 .ai-service-stack {
   display: grid;
   min-width: 0;
-  gap: 1rem;
+  gap: var(--admin-control-to-card-gap, 1rem);
 }
 
 /* 面板内主体（表格与页脚）的内边距，补偿 CardContent 不再存在后的留白。

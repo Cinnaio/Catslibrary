@@ -196,7 +196,7 @@ export default function AiConfigPanel(props: {
   return (
     <div className="ai-config-panel-wrap">
       {/* 顶部 Claude 极简子分类胶囊导航轨道（与邻居「参数调优」完全一致） */}
-      <div className="ai-parameter-tabs mb-4" role="tablist" aria-label="配置分类">
+      <div className="ai-parameter-tabs" role="tablist" aria-label="配置分类">
         {CONFIG_TABS.map((tab, index) => {
           const tabDirty =
             tab.id === 'providers' ? providerDirty || imageProviderDirty : tab.id === 'reader' ? readerDirty : false
