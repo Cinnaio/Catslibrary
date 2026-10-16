@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SourceAnalyticsBook, SourceAnalyticsResponse } from '@shared/source-analytics'
-const mocks = vi.hoisted(() => ({ analytics: vi.fn() }))
-vi.mock('@/lib/api', () => ({ adminApi: { sourceAnalytics: mocks.analytics } }))
+const mocks = vi.hoisted(() => ({ analytics: vi.fn(), fetch: vi.fn(), success: vi.fn(), error: vi.fn() }))
+vi.mock('@/lib/api', () => ({ adminApi: { sourceAnalytics: mocks.analytics }, url: (path: string) => path, authHeaders: (headers: unknown) => headers }))
+vi.mock('sonner', () => ({ toast: { success: mocks.success, error: mocks.error } }))
 vi.mock('@/components/admin/CustomSelect', () => ({
   default: ({ options, value, onChange, ...props }: any) => (
     <select aria-label={props['aria-label']} value={value} onChange={(event) => onChange(event.target.value)}>
@@ -81,9 +82,11 @@ function response(params: Record<string, string> = {}): SourceAnalyticsResponse 
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubGlobal('fetch', mocks.fetch)
   Element.prototype.scrollIntoView = vi.fn()
   mocks.analytics.mockImplementation(async (params) => response(params))
 })
+afterEach(() => vi.unstubAllGlobals())
 const show = () =>
   render(
     <MemoryRouter>
@@ -196,4 +199,41 @@ it('融合更新后刷新统计并保留详情和融合弹窗，支持连续核�
   await waitFor(() => expect(mocks.analytics.mock.calls.length).toBeGreaterThan(previousReads))
   expect(screen.getByRole('heading', { name: '融合详情：连载的作品' })).toBeVisible()
   expect(screen.getByRole('heading', { name: '书源与追更详情', hidden: true })).toBeInTheDocument()
+})
+
+it('切换筛选和分页后清除旧选择，避免操作已隐藏作品', async () => {
+  mocks.analytics.mockImplementation(async (params) => ({ ...response(params), filteredTotal: 31, totalPages: 3 }))
+  show()
+  const selectAll = await screen.findByRole('checkbox', { name: '全选当前页作品' })
+  fireEvent.click(selectAll)
+  expect(screen.getByRole('checkbox', { name: '选择作品 连载的作品' })).toBeChecked()
+  fireEvent.change(screen.getByLabelText('明细排序'), { target: { value: 'next' } })
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: '选择作品 连载的作品' })).not.toBeChecked())
+  fireEvent.click(screen.getByRole('checkbox', { name: '全选当前页作品' }))
+  fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+  await waitFor(() => expect(mocks.analytics).toHaveBeenLastCalledWith(expect.objectContaining({ page: '2' })))
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: '选择作品 连载的作品' })).not.toBeChecked())
+})
+
+it('批量更新按真实结果反馈，HTTP 失败保留选择以便重试', async () => {
+  mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ jobId: 'job-1' }), { status: 202 }))
+  mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: '缺少来源' }), { status: 400 }))
+  show()
+  fireEvent.click(await screen.findByRole('checkbox', { name: '全选当前页作品' }))
+  fireEvent.click(screen.getByRole('button', { name: '检查更新' }))
+  await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('已受理 1 本，1 本请求失败，可重试失败作品'))
+  expect(mocks.success).not.toHaveBeenCalled()
+  expect(screen.getByRole('checkbox', { name: '选择作品 连载的作品' })).not.toBeChecked()
+  expect(screen.getByRole('checkbox', { name: '选择作品 暂停的作品' })).toBeChecked()
+})
+
+it('批量更新网络全部失败时不提示成功，保留失败作品', async () => {
+  mocks.fetch.mockRejectedValue(new Error('offline'))
+  show()
+  fireEvent.click(await screen.findByRole('checkbox', { name: '全选当前页作品' }))
+  fireEvent.click(screen.getByRole('button', { name: '检查更新' }))
+  await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('2 本更新检查请求失败，请重试'))
+  expect(mocks.success).not.toHaveBeenCalled()
+  expect(screen.getByRole('checkbox', { name: '选择作品 连载的作品' })).toBeChecked()
+  expect(screen.getByRole('checkbox', { name: '选择作品 暂停的作品' })).toBeChecked()
 })
