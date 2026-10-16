@@ -3,20 +3,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 
-export function TaskSummary({ title, hint, counts, actions }: { title: string; hint: string; counts: ReactNode; actions?: ReactNode }) {
-  return (
-    <div className="task-workspace-summary">
-      <div className="task-workspace-summary__content">
-        <h2>{title}</h2>
-        <p>{hint}</p>
-      </div>
-      <div className="task-workspace-summary__aside">
-        <span className="task-workspace-summary-count">{counts}</span>
-        {actions}
-      </div>
-    </div>
-  )
-}
 
 export function TaskDetails({ open, onClose, children, actions }: { open: boolean; onClose: () => void; children: ReactNode; actions?: ReactNode }) {
   return (

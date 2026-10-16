@@ -293,7 +293,7 @@
 
 .ai-writing-suggest__item:focus-visible {
   outline: none;
-  border-color: #D97757;
+  border-color: #d97757;
   box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.25);
 }
 
@@ -301,9 +301,11 @@
    故用 aria-pressed 表达「它当前是否就是框里的那一份」，读屏可播报该状态。
    选中态是唯一使用暖底的位置：此刻这条正文确实就是创作要求框里的内容。 */
 .ai-writing-suggest__item[aria-pressed='true'] {
-  border-color: #D97757;
-  background: color-mix(in srgb, #D97757 6%, var(--admin-panel, #ffffff));
-  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.18), 0 4px 12px rgba(217, 119, 87, 0.06);
+  border-color: #d97757;
+  background: color-mix(in srgb, #d97757 6%, var(--admin-panel, #ffffff));
+  box-shadow:
+    0 0 0 2px rgba(217, 119, 87, 0.18),
+    0 4px 12px rgba(217, 119, 87, 0.06);
 }
 
 .ai-writing-suggest__direction {
@@ -1022,16 +1024,6 @@
   padding: 0 1.25rem 1.25rem;
 }
 
-/* 调用审计表含跨列展开行，保留原生 table 并给横向滚动边界。
-   不套用 AdminDataPanel 的卡片化（不加 .admin-data-panel--grid），避免 900px 以下
-   td 被折成字段后跨列详情行错配。已生成内容表已改用范本契约（见下方说明），
-   这里只补滚动边界。 */
-.ai-audit-table {
-  min-width: 0;
-  max-width: 100%;
-  overflow-x: auto;
-}
-
 /* 已生成内容表已收敛到 AdminDataPanel 契约（columns + shadcn Table + data-*），
    与小说管理同源。原先这里有一条 @container (max-width: 48rem) 块，为该表
    自带 min-w-[760px] 造成的 901–1100px 破版带打补丁；改用 fixed 布局与百分比
@@ -1117,54 +1109,26 @@
   background: color-mix(in srgb, var(--admin-panel) 92%, var(--accent-subtle));
 }
 
-.ai-audit-table {
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-xl);
+/* 调用记录表的几何、表头与交互颜色由共享数据面板维护。 */
+.ai-audit-panel .ai-list-body {
+  padding: 0;
 }
-
-.ai-audit-table__table {
-  width: 100%;
-  min-width: 48rem;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-
-.ai-audit-table__table thead {
-  border-bottom: 1px solid var(--admin-border);
-  background: var(--admin-panel-muted);
-}
-
-.ai-audit-table__table th {
-  padding: 0.75rem 1rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 650;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.ai-audit-table__table td {
-  padding: 0.75rem 1rem;
-  vertical-align: top;
-}
-
-.ai-audit-table__table th.is-numeric,
-.ai-audit-table__table td.is-numeric {
+.ai-audit-panel .is-numeric {
   text-align: right;
 }
-
 .ai-audit-row {
-  border-bottom: 1px solid var(--admin-border);
   cursor: pointer;
 }
-
-.ai-audit-row:hover {
-  background: var(--admin-panel-muted);
-}
-
-.ai-audit-row--detail {
+.ai-audit-panel .ai-audit-row--detail {
   background: var(--admin-panel-muted);
   cursor: default;
+}
+.ai-audit-panel .ai-audit-row--detail td {
+  height: auto;
+  white-space: normal;
+}
+.ai-service .ai-audit-toolbar {
+  padding: 0;
 }
 
 /* 身份列内含展开按钮，与文本并排；文本块需要能收缩，否则长用户名撑破列宽。 */
@@ -1282,13 +1246,8 @@
   }
 
   .ai-service .ai-tasks-toolbar,
-  .ai-service .ai-audit-toolbar,
   .ai-service .ai-generations-toolbar {
     padding-inline: 1rem;
-  }
-
-  .ai-audit-table {
-    border-radius: var(--radius-lg);
   }
 }
 
@@ -1620,13 +1579,17 @@
 
 .cover-style-choice:hover {
   transform: translateY(-4px) !important;
-  box-shadow: 0 12px 24px -4px rgba(217, 119, 87, 0.15), 0 4px 12px rgba(20, 20, 19, 0.06) !important;
+  box-shadow:
+    0 12px 24px -4px rgba(217, 119, 87, 0.15),
+    0 4px 12px rgba(20, 20, 19, 0.06) !important;
   border-color: rgba(217, 119, 87, 0.6) !important;
 }
 
 .cover-style-choice[aria-pressed='true'] {
-  box-shadow: 0 0 0 2px #D97757, 0 8px 20px -2px rgba(217, 119, 87, 0.25) !important;
-  border-color: #D97757 !important;
+  box-shadow:
+    0 0 0 2px #d97757,
+    0 8px 20px -2px rgba(217, 119, 87, 0.25) !important;
+  border-color: #d97757 !important;
 }
 
 /* 4. AI 创作工坊与提示词调试书案 (Editorial Literary Desk) */
@@ -1654,4 +1617,3 @@
   border: 1px solid var(--admin-border, #e6e4dc);
   box-shadow: 0 8px 30px rgba(35, 30, 24, 0.08);
 }
-

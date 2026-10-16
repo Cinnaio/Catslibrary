@@ -1,5 +1,5 @@
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
-import { TaskDetails, TaskSummary } from '../TaskWorkspace'
+import { TaskDetails } from '../TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'
 import { AdminDialogContent } from '@/components/admin/AdminDialog'
@@ -15,12 +15,13 @@ import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { kindLabel as taskKindLabel, retryMode, taskStatusLabel, taskStepText } from './labels'
+import CustomSelect, { type SelectOption } from '@/components/admin/CustomSelect'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ListFilter, RefreshCw } from 'lucide-react'
+import { AlertCircle, CirclePlus, ListFilter, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { adminTabPath } from '../admin-registry'
 
@@ -31,8 +32,8 @@ const AI_TASK_COLUMNS: readonly AdminColumn[] = [
   { key: 'novel', label: '作品 / 类型', width: '27%', primary: true },
   { key: 'status', label: '状态', width: '13%' },
   { key: 'result', label: '进度 / 结果', width: '21%' },
-  { key: 'prompt', label: '输入 Prompt', width: '17%' },
-  { key: 'actions', label: '操作', actions: true, width: '22%' },
+  { key: 'prompt', label: '输入 Prompt', width: '21%' },
+  { key: 'actions', label: '操作', actions: true, width: '18%' },
 ]
 
 /** 状态标签沿用后台其它任务列表的柔和填充胶囊，不再使用描边徽章。 */
@@ -62,6 +63,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filterStatus, setFilterStatus] = useState<TaskStatusFilter>('all')
+  const [search, setSearch] = useState('')
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [viewingPrompt, setViewingPrompt] = useState<AiTask | null>(null)
@@ -210,21 +212,77 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       </Button>
     )
   }
+  const displayTasks = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return tasks
+    return tasks.filter((task) => {
+      const title = (task.novelTitle || '').toLowerCase()
+      const kind = taskKindLabel(task.kind).toLowerCase()
+      const id = (task.id || '').toLowerCase()
+      const prompt = (task.prompt || '').toLowerCase()
+      return title.includes(q) || kind.includes(q) || id.includes(q) || prompt.includes(q)
+    })
+  }, [tasks, search])
+
+  const statusOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: 'all', label: `全部状态 (${statusCounts.all ?? total})` },
+      { value: 'queued', label: `排队中 (${statusCounts.queued ?? 0})` },
+      { value: 'running', label: `生成中 (${statusCounts.running ?? 0})` },
+      { value: 'completed', label: `已完成 (${statusCounts.completed ?? 0})` },
+      { value: 'failed', label: `失败 (${statusCounts.failed ?? 0})` },
+      { value: 'cancelled', label: `已取消 (${statusCounts.cancelled ?? 0})` },
+    ],
+    [statusCounts, total],
+  )
+
   return (
     <>
-      <TaskSummary
-        title={
-          loading && !tasks.length
-            ? '正在读取 AI 任务'
-            : error && !tasks.length
-              ? 'AI 任务读取失败'
-              : activeCount
-                ? `${activeCount} 个任务正在处理`
-                : '当前没有进行中的任务'
-        }
-        hint={error && !tasks.length ? error : failedCount ? `${failedCount} 个任务需要处理，可在列表中查看原因。` : '查看生成进度、输入 Prompt 与任务产出。'}
-        counts={`全部 ${statusCounts.all ?? total} · 进行中 ${activeCount} · 已完成 ${statusCounts.completed ?? 0}`}
-        actions={
+      <AdminToolbar layout="inline" className="task-workspace-toolbar admin-filter-rail" ariaLive="polite">
+        <AdminSearch
+          id="ai-tasks-search"
+          label="搜索 AI 任务"
+          type="search"
+          data-admin-search
+          placeholder="搜索作品标题、任务类型或 Prompt…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <div className="admin-filter-chips">
+          <CustomSelect
+            compact
+            chip
+            filterChip
+            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size,1rem)]" />}
+            aria-label="按 AI 任务状态筛选"
+            options={statusOptions}
+            value={filterStatus}
+            onChange={(v) => {
+              if (filterStatus === v) return
+              setLoading(true)
+              setOffset(0)
+              setFilterStatus(v as TaskStatusFilter)
+            }}
+          />
+          {failedCount > 0 && (
+            <button
+              type="button"
+              className={cn(
+                'task-workspace-alert-badge cursor-pointer transition-colors',
+                filterStatus === 'failed' && 'ring-1 ring-[#d97757] font-semibold',
+              )}
+              onClick={() => {
+                setLoading(true)
+                setOffset(0)
+                setFilterStatus(filterStatus === 'failed' ? 'all' : 'failed')
+              }}
+              title={filterStatus === 'failed' ? '点击查看全部任务' : '点击快速筛选需处理任务'}
+            >
+              <AlertCircle className="size-3.5" aria-hidden="true" />
+              {failedCount} 个任务需处理
+              {filterStatus === 'failed' && <span className="ml-1 text-[11px] opacity-75">✕</span>}
+            </button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -234,158 +292,152 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
               void load()
             }}
           >
-            <RefreshCw className="size-3.5" aria-hidden="true" />
+            <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} aria-hidden="true" />
             刷新
           </Button>
-        }
-      />
-      <AdminPanelHeading
-        title="AI 任务"
-        status={
-          <span className={`admin-panel-status${error && tasks.length === 0 ? ' is-error' : ''}`}>
-            {loading && !tasks.length ? '读取中' : error && !tasks.length ? '读取失败' : total ? `共 ${total} 条` : '暂无内容'}
-          </span>
-        }
-      />
-      <AdminToolbar className="task-workspace-toolbar" ariaLive="polite">
-        <div className="task-workspace-filters" role="group" aria-label="AI 任务状态筛选">
-          {(['all', 'queued', 'running', 'completed', 'failed', 'cancelled'] as const).map((status) => (
-            <Button
-              key={status}
-              variant={filterStatus === status ? 'secondary' : 'ghost'}
-              size="sm"
-              className="rounded-full h-7 px-3 text-xs font-medium"
-              aria-pressed={filterStatus === status}
-              onClick={() => {
-                if (filterStatus === status) return
-                setLoading(true)
-                setOffset(0)
-                setFilterStatus(status)
-              }}
-            >
-              {status === 'all' ? '全部' : taskStatusLabel(status)}
-              {statusCounts[status] != null && <span>{statusCounts[status]}</span>}
-            </Button>
-          ))}
         </div>
       </AdminToolbar>
-      <AdminDataPanel className="ai-tasks-panel task-workspace-panel overflow-hidden" ariaLabel="AI 任务列表" columns={AI_TASK_COLUMNS} density="comfortable">
-        <div className="ai-tasks-content">
-          {loading && tasks.length === 0 ? (
-            <LoadingState label="正在加载 AI 任务" />
-          ) : error && tasks.length === 0 ? (
-            <ErrorState message={`AI 任务加载失败：${error}`} />
-          ) : tasks.length === 0 && filterStatus !== 'all' ? (
-            <AdminEmptyState
-              message={`当前筛选条件下暂无${taskStatusLabel(filterStatus)}任务`}
-              icon={<ListFilter className="size-8 opacity-40" aria-hidden="true" />}
-              action={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setLoading(true)
-                    setOffset(0)
-                    setFilterStatus('all')
-                  }}
-                >
-                  清除状态筛选
-                </Button>
-              }
-            />
-          ) : tasks.length === 0 ? (
-            <AiPanelEmptyState
-              configured={configured}
-              unconfiguredMessage="尚未配置文本 AI 供应商，无法发起生成任务"
-              unconfiguredHint="配置文本供应商后，才能从「AI 创作」发起任务。"
-              emptyMessage="暂无 AI 任务"
-              hint="在「AI 创作」或「封面生成」里发起任务后，这里会显示进度与失败原因。"
-            />
-          ) : (
-            <>
-              {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
-              <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
-                <TableCaption className="sr-only">AI 任务列表，含类型、小说、状态、进度、结果与输入 Prompt</TableCaption>
-                <TableHeader>
-                  <TableRow>
-                    {AI_TASK_COLUMNS.map((column) => (
-                      <TableHead key={column.key} scope="col">
-                        {column.label}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody key={limit}>
-                  {tasks.map((task, index) => (
-                    <TableRow key={task.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, tasks.length)}ms` }}>
-                      <TableCell data-primary="" data-label="作品 / 类型">
-                        <div className="task-workspace-title">{task.novelTitle || '—'}</div>
-                        <div className="task-workspace-meta">
-                          {taskKindLabel(task.kind)} ·{' '}
-                          <span className="task-workspace-id" title={task.id}>
-                            {task.id.slice(0, 12)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell data-label="状态">
-                        <AdminStatusBadge tone={taskStatusTone(task.status)}>{taskStatusLabel(task.status)}</AdminStatusBadge>
-                      </TableCell>
-                      <TableCell data-label="进度 / 结果">
-                        <div className="task-workspace-cell">
-                          <span className="tabular-nums">
-                            {task.current} / {task.total} 个步骤
-                          </span>
-                          <span className="task-workspace-meta">{taskStepText(task)}</span>
-                          {task.error && <span className="task-workspace-error">{task.error}</span>}
-                        </div>
-                      </TableCell>
-                      <TableCell data-label="输入 Prompt">
-                        <button type="button" className="task-workspace-link" onClick={() => setViewingPrompt(task)}>
-                          {task.prompt ? '查看输入' : '未记录 Prompt'}
-                        </button>
-                      </TableCell>
-                      <TableCell data-actions="">
-                        <div className="admin-cell-actions">
-                          {task.batchId && task.current > 0 && props.onViewBatch && (
-                            <Button variant="outline" size="sm" onClick={() => props.onViewBatch?.(task.batchId)}>
-                              查看产出
-                            </Button>
-                          )}
-                          {renderRetry(task)}
-                          <Button variant="ghost" size="sm" onClick={() => setDetailsId(task.id)}>
-                            详情
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Pagination
-                page={Math.floor(offset / limit) + 1}
-                totalPages={Math.max(1, Math.ceil(total / limit))}
-                onPage={(page) => setOffset((page - 1) * limit)}
-                busy={loading}
-                summary={
-                  <>
-                    共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
-                  </>
-                }
-                pageSize={{
-                  value: limit,
-                  // 改变每页条数后由 Pagination 内部回调 onPage(1) 回到首页，
-                  // 这里只需把 offset 一并归零，避免与 limit 变化不同步。
-                  onChange: (size) => {
-                    setLimit(size)
-                    setOffset(0)
-                  },
-                  options: ADMIN_PAGE_SIZE_OPTIONS,
+      <AdminDataPanel className="ai-tasks-panel overflow-hidden" ariaLabel="AI 任务列表" columns={AI_TASK_COLUMNS} density="comfortable">
+        {loading && tasks.length === 0 ? (
+          <LoadingState label="正在加载 AI 任务" />
+        ) : error && tasks.length === 0 ? (
+          <ErrorState message={`AI 任务加载失败：${error}`} />
+        ) : tasks.length === 0 && filterStatus !== 'all' ? (
+          <AdminEmptyState
+            message={`当前筛选条件下暂无${taskStatusLabel(filterStatus)}任务`}
+            icon={<ListFilter className="size-8 opacity-40" aria-hidden="true" />}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setLoading(true)
+                  setOffset(0)
+                  setFilterStatus('all')
                 }}
-              />
-            </>
-          )}
-        </div>
+              >
+                清除状态筛选
+              </Button>
+            }
+          />
+        ) : tasks.length === 0 ? (
+          <AiPanelEmptyState
+            configured={configured}
+            unconfiguredMessage="尚未配置文本 AI 供应商，无法发起生成任务"
+            unconfiguredHint="配置文本供应商后，才能从「AI 创作」发起任务。"
+            emptyMessage="暂无 AI 任务"
+            hint="在「AI 创作」或「封面生成」里发起任务后，这里会显示进度与失败原因。"
+          />
+        ) : displayTasks.length === 0 ? (
+          <AdminEmptyState
+            message={`未找到与「${search.trim()}」相关的 AI 任务`}
+            icon={<ListFilter className="size-8 opacity-40" aria-hidden="true" />}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSearch('')}
+              >
+                清空搜索
+              </Button>
+            }
+          />
+        ) : (
+          <>
+            {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
+            <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
+              <TableCaption className="sr-only">AI 任务列表，含类型、小说、状态、进度、结果与输入 Prompt</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  {AI_TASK_COLUMNS.map((column) => (
+                    <TableHead key={column.key} scope="col">
+                      {column.label}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody key={limit}>
+                {displayTasks.map((task, index) => (
+                  <TableRow key={task.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, tasks.length)}ms` }}>
+                    <TableCell data-primary="" data-label="作品 / 类型">
+                      <strong className="task-workspace-title font-medium">
+                        {task.novelTitle || taskKindLabel(task.kind)}
+                      </strong>
+                      <div className="task-workspace-meta">
+                        {task.novelTitle ? `${taskKindLabel(task.kind)} · ` : ''}
+                        <span className="task-workspace-id" title={task.id}>
+                          {task.id.slice(0, 12)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell data-label="状态">
+                      <AdminStatusBadge tone={taskStatusTone(task.status)}>{taskStatusLabel(task.status)}</AdminStatusBadge>
+                    </TableCell>
+                    <TableCell data-label="进度 / 结果">
+                      <div className="task-workspace-cell">
+                        <span className="tabular-nums">
+                          {task.current} / {task.total} 个步骤
+                        </span>
+                        <span className="task-workspace-meta">{taskStepText(task)}</span>
+                        {task.error && <span className="task-workspace-error">{task.error}</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell data-label="输入 Prompt">
+                      {task.prompt ? (
+                        <button
+                          type="button"
+                          className="ai-task-prompt-button"
+                          onClick={() => setViewingPrompt(task)}
+                          title="点击查看完整 Prompt"
+                        >
+                          <span className="ai-task-prompt text-xs text-muted-foreground">{task.prompt}</span>
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">未记录 Prompt</span>
+                      )}
+                    </TableCell>
+                    <TableCell data-actions="">
+                      <div className="admin-cell-actions">
+                        {task.batchId && task.current > 0 && props.onViewBatch && (
+                          <Button variant="outline" size="sm" onClick={() => props.onViewBatch?.(task.batchId)}>
+                            查看产出
+                          </Button>
+                        )}
+                        {renderRetry(task)}
+                        <Button variant="outline" size="sm" onClick={() => setDetailsId(task.id)}>
+                          详情
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
+        )}
       </AdminDataPanel>
+      {tasks.length > 0 && (
+        <Pagination
+          variant="detached"
+          page={Math.floor(offset / limit) + 1}
+          totalPages={Math.max(1, Math.ceil(total / limit))}
+          onPage={(page) => setOffset((page - 1) * limit)}
+          busy={loading}
+          summary={
+            <>
+              共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
+            </>
+          }
+          pageSize={{
+            value: limit,
+            onChange: (size) => {
+              setLimit(size)
+              setOffset(0)
+            },
+            options: ADMIN_PAGE_SIZE_OPTIONS,
+          }}
+        />
+      )}
       <p className="task-workspace-footnote">重试会再次调用 AI；删除任务记录后，已生成内容与用量审计仍保留。</p>
       <TaskDetails
         open={detailsId != null}

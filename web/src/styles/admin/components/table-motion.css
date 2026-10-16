@@ -43,7 +43,8 @@
 .admin-redesign-page--moderation > .moderation-toolbar,
 .admin-redesign-page--moderation > .admin-data-panel,
 .admin-redesign-page--content-ratings .content-ratings-ledger,
-.admin-redesign-page--content-ratings .content-ratings-filter-rail {
+.admin-redesign-page--content-ratings .content-ratings-filter-rail,
+.task-center-page .admin-data-panel {
   animation: admin-tab-surface-enter var(--admin-table-surface-enter) both;
 }
 
@@ -59,12 +60,8 @@
   animation-delay: 40ms;
 }
 
-.task-workspace-panel {
-  animation: admin-tab-surface-enter var(--admin-table-surface-enter) 40ms both;
-}
-
-.task-workspace-panel [data-slot='table-body'] > [data-slot='table-row'] {
-  animation: admin-tab-row-enter var(--admin-table-row-enter) both;
+.task-center-page .admin-data-panel {
+  animation-delay: 40ms;
 }
 
 .admin-redesign-page--moderation > .admin-toolbar {
@@ -245,7 +242,7 @@
   .admin-redesign-page--moderation > .admin-toolbar,
   .admin-redesign-page--moderation > .admin-data-panel,
   .admin-redesign-page--content-ratings .content-ratings-ledger,
-  .task-workspace-panel,
+  .task-center-page .admin-data-panel,
   .admin-redesign-page--novels .admin-toolbar__batch {
     animation: admin-tab-fade var(--admin-table-reduced-fade) both;
   }
@@ -271,10 +268,6 @@
   }
 
   .admin-redesign-page--chapters .chapter-directory-panel [data-slot='table-body'] > [data-slot='table-row'] {
-    animation: none;
-  }
-
-  .task-workspace-panel [data-slot='table-body'] > [data-slot='table-row'] {
     animation: none;
   }
 }

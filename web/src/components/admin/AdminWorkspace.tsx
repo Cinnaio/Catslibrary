@@ -171,16 +171,23 @@ interface AdminDataPanelProps {
   className?: string
   /** 传入后启用固定列宽 + 移动端卡片化；不传则保持原样（兼容存量用法）。 */
   columns?: readonly AdminColumn[]
+  /** 含跨列详情的表格可保留窄屏横向滚动，仍共享表格外观。 */
+  responsive?: 'cards' | 'scroll'
 }
 
-export function AdminDataPanel({ children, ariaLabel, className, columns, density = 'compact' }: AdminDataPanelProps) {
+export function AdminDataPanel({ children, ariaLabel, className, columns, density = 'compact', responsive = 'cards' }: AdminDataPanelProps) {
   // 列宽走 CSS 变量：colgroup 必须直接位于 <table> 内，而表格由调用方渲染，
   // 故这里只注入变量，由 .admin-data-table 的 table-layout: fixed 消费。
   const style = columns ? (Object.fromEntries(columns.flatMap((col, i) => (col.width ? [[`--col-${i + 1}-w`, col.width]] : []))) as CSSProperties) : undefined
 
   return (
     <section
-      className={cn('admin-data-panel', columns && 'admin-data-panel--grid', `admin-data-panel--${density}`, className)}
+      className={cn(
+        'admin-data-panel',
+        columns && (responsive === 'scroll' ? 'admin-data-panel--scroll' : 'admin-data-panel--grid'),
+        `admin-data-panel--${density}`,
+        className,
+      )}
       aria-label={ariaLabel}
       style={style}
     >

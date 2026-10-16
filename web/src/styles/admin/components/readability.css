@@ -30,21 +30,21 @@
    字号几乎同号，整张表只有一个视觉层级，扫读时找不到锚点。 */
 
 /* 表头：最小档 + 字重撑住，让它明显退到内容之后。 */
-.admin-data-panel--grid table > thead > tr > th {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th {
   font-size: var(--admin-table-head-size);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
 /* 表格正文：统一到 cell 档，避免各页面各写一个 0.75/0.78/0.8rem。 */
-.admin-data-panel--grid table > tbody > tr > td {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td {
   font-size: var(--admin-table-cell-size);
 }
 
 /* 行主字段：比单元格大一档并加粗。主字段是「这一行是什么」的答案，
    必须能在纵向扫读第一列时被立刻抓住。 */
-.admin-data-panel--grid table > tbody > tr > td[data-primary] strong,
-.admin-data-panel--grid table > tbody > tr > td[data-primary] > .admin-cell-text--strong {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td[data-primary] strong,
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td[data-primary] > .admin-cell-text--strong {
   font-size: var(--admin-table-title-size);
 }
 
@@ -180,8 +180,12 @@
 }
 
 @keyframes admin-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

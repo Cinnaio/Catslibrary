@@ -15,57 +15,57 @@
    几十像素（实测 900px 下标题列仅 40px 宽，内容显示为残片），此区间折成
    卡片比保留表格更可读。 */
 @media (min-width: 901px) {
-  .admin-data-panel--grid table {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table {
     table-layout: fixed;
     width: 100%;
   }
 
-  .admin-data-panel--grid table > thead > tr > th:nth-child(1),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(1) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(1),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(1) {
     width: var(--col-1-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(2),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(2) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(2),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(2) {
     width: var(--col-2-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(3),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(3) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(3),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(3) {
     width: var(--col-3-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(4),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(4) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(4),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(4) {
     width: var(--col-4-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(5),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(5) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(5),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(5) {
     width: var(--col-5-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(6),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(6) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(6),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(6) {
     width: var(--col-6-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(7),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(7) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(7),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(7) {
     width: var(--col-7-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(8),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(8) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(8),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(8) {
     width: var(--col-8-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(9),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(9) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(9),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(9) {
     width: var(--col-9-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(10),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(10) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(10),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(10) {
     width: var(--col-10-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(11),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(11) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(11),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(11) {
     width: var(--col-11-w, auto);
   }
-  .admin-data-panel--grid table > thead > tr > th:nth-child(12),
-  .admin-data-panel--grid table > tbody > tr > td:nth-child(12) {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th:nth-child(12),
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td:nth-child(12) {
     width: var(--col-12-w, auto);
   }
 }
@@ -73,7 +73,7 @@
 /* 表格作为面板首段时，由滚动容器裁切表头底色，保持面板顶部圆弧。
    有前置工具条的面板不套用首段规则；小说/章节保留已有独立表格圆角。 */
 @media (min-width: 901px) {
-  .admin-data-panel--grid > [data-slot='table-container']:first-child {
+  :is(.admin-data-panel--grid, .admin-data-panel--scroll) > [data-slot='table-container']:first-child {
     border-radius: var(--admin-data-panel-radius) var(--admin-data-panel-radius) 0 0;
   }
 }
@@ -84,19 +84,19 @@
 }
 
 /* 表格内容区使用独立的纸面色，避免依赖父级面板的继承关系；移动端卡片也沿用同一层。 */
-.admin-data-panel--grid [data-slot='table-container'],
-.admin-data-panel--grid [data-slot='table'] {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) [data-slot='table-container'],
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) [data-slot='table'] {
   background: var(--admin-table-background);
 }
 
-.admin-data-panel--grid table > thead > tr {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr {
   background: var(--admin-table-header-background);
   color: var(--admin-table-header-foreground);
   border-color: var(--admin-table-border);
   height: 2.75rem;
 }
 
-.admin-data-panel--grid table > thead > tr > th {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > thead > tr > th {
   font-size: var(--admin-table-head-size);
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -116,7 +116,7 @@
   color: var(--admin-accent);
 }
 
-.admin-data-panel--grid table > tbody > tr {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr {
   border-color: var(--admin-table-border);
   transition:
     color var(--admin-table-row-interaction),
@@ -124,26 +124,26 @@
     border-color var(--admin-table-row-interaction);
 }
 
-.admin-data-panel--grid table > tbody > tr:hover {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr:hover {
   background: var(--admin-table-row-hover-background);
 }
 
-.admin-data-panel--grid table td[data-primary] strong {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table td[data-primary] strong {
   transition: color 0.15s ease;
 }
-.admin-data-panel--grid table > tbody > tr:hover td[data-primary] strong {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr:hover td[data-primary] strong {
   color: var(--admin-accent);
 }
 
 /* 定长行高：分类标签数量不同会让行高参差，锁定后列表节奏统一。
    标签超出单行时收敛为省略，而不是把行撑高。 */
-.admin-data-panel--grid table td {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table td {
   height: var(--admin-table-row-height);
   vertical-align: middle;
   overflow: hidden;
 }
 
-.admin-data-panel--grid table td > .admin-cell-tags {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table td > .admin-cell-tags {
   display: flex;
   align-items: center;
   gap: var(--admin-table-tag-gap);
@@ -535,13 +535,19 @@
   overflow: hidden;
   background: var(--admin-panel-muted);
   border: 1px solid var(--admin-border);
-  box-shadow: 0 2px 6px rgba(35, 30, 24, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.18s ease;
+  box-shadow:
+    0 2px 6px rgba(35, 30, 24, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+  transition:
+    transform 0.18s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.18s ease;
 }
 
 tr:hover .novel-book-cover {
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 4px 12px rgba(35, 30, 24, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 4px 12px rgba(35, 30, 24, 0.12),
+    0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
 .novel-book-cover__img {
@@ -608,4 +614,23 @@ tr:hover .novel-book-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 跨列详情表共享目录表外观，窄屏保留原生表格与滚动边界。 */
+.admin-data-panel--scroll [data-slot='table-container'] {
+  border-radius: var(--admin-table-panel-radius);
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.admin-data-panel--scroll table {
+  table-layout: fixed;
+  min-width: 48rem;
+}
+@media (max-width: 900px) {
+  .admin-data-panel--scroll.admin-data-panel--comfortable table > tbody > tr > td {
+    padding: var(--admin-table-comfortable-padding-block) var(--admin-table-comfortable-padding-inline);
+  }
+  .admin-data-panel--scroll.admin-data-panel--comfortable table > thead > tr > th {
+    padding-inline: var(--admin-table-comfortable-padding-inline);
+  }
 }
