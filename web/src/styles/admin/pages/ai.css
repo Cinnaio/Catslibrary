@@ -1110,9 +1110,6 @@
 }
 
 /* 调用记录表的几何、表头与交互颜色由共享数据面板维护。 */
-.ai-audit-panel .ai-list-body {
-  padding: 0;
-}
 .ai-audit-panel .is-numeric {
   text-align: right;
 }
@@ -1126,9 +1123,6 @@
 .ai-audit-panel .ai-audit-row--detail td {
   height: auto;
   white-space: normal;
-}
-.ai-service .ai-audit-toolbar {
-  padding: 0;
 }
 
 /* 身份列内含展开按钮，与文本并排；文本块需要能收缩，否则长用户名撑破列宽。 */
@@ -1550,23 +1544,6 @@
   align-items: center;
   justify-content: flex-start;
   width: 100%;
-}
-
-/* 2. AI 用量与指标读数：人文衬线数码字 */
-.calls-trend-grid .ai-usage-totals {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1.5rem;
-  padding: 0.5rem 1.5rem 1rem;
-}
-
-.calls-trend-grid .ai-usage-totals strong {
-  font-family: var(--font-serif), Newsreader, Georgia, Cambria, serif !important;
-  font-size: 1.05rem !important;
-  font-weight: 600 !important;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary) !important;
 }
 
 /* 3. 封面画风展台 3D 书脊微拟真 (Cover Style Gallery) */
