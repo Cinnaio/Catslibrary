@@ -1,223 +1,281 @@
-/* 追更沿用后台三段式纸面；只为这一小型任务收紧宽度与信息层级。 */
+/* ==========================================================================
+   追更设置与详情弹窗 (Novel Followup Dialog) - Claude (Anthropic) Aesthetic
+   ========================================================================== */
+
+/* 弹窗容器尺寸与纸面 */
 [data-slot='dialog-content'].admin-dialog.novel-followup-dialog {
-  width: min(calc(100% - 2rem), 30rem);
-  max-height: min(42rem, calc(100svh - 2rem));
+  width: min(calc(100% - 2rem), 32rem);
+  max-height: min(44rem, calc(100svh - 2rem));
+  border-radius: var(--admin-radius-dialog, 18px);
 }
+
 .novel-followup-dialog [data-slot='dialog-header'] {
-  gap: 0.5rem;
-  padding: 1.5rem 1.5rem 0;
+  gap: 0.375rem;
+  padding: 1.5rem 1.5rem 0.25rem;
 }
+
 .novel-followup-dialog [data-slot='dialog-title'] {
-  line-height: 1.4;
+  font-size: 1.2rem;
+  font-weight: 650;
+  line-height: 1.35;
   outline: none;
   box-shadow: none;
 }
+
 .novel-followup-dialog [data-slot='dialog-description'].novel-followup-dialog__book {
-  padding-inline: 1.75rem;
-  font-size: 0.875rem;
-  line-height: 1.6;
+  padding-inline: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
+
 .novel-followup-dialog [data-slot='dialog-close'] {
-  top: 1rem;
-  right: 1rem;
+  top: 1.125rem;
+  right: 1.125rem;
   border: 0;
   background: transparent;
   box-shadow: none;
+  border-radius: var(--radius-full);
 }
+
 .novel-followup-dialog .novel-followup-dialog__body {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem;
+  gap: 1.125rem;
+  padding: 1.25rem 1.5rem 1.5rem;
 }
+
+/* 自动追更开关卡片 */
 .novel-followup-dialog__setting {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  padding: 0.875rem 1rem;
+  background: var(--admin-panel-muted);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm, 8px);
 }
+
 .novel-followup-dialog__setting > div {
   display: grid;
-  gap: 0.375rem;
+  gap: 0.25rem;
 }
+
 .novel-followup-dialog__setting [data-slot='label'] {
   color: var(--text-primary);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 550;
+  cursor: pointer;
 }
+
 .novel-followup-dialog__setting [data-slot='checkbox'] {
   flex-shrink: 0;
   width: 1.25rem;
   height: 1.25rem;
+  border-radius: 4px;
 }
+
+/* 检查频率控制组 */
 .novel-followup-dialog__frequency {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
+
+.novel-followup-dialog__frequency > [data-slot='label'] {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* 检查结果区域 */
 .novel-followup-dialog__result {
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--admin-border);
+  padding: 1rem 1.125rem;
+  background: var(--admin-panel-muted);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm, 8px);
 }
+
 .novel-followup-dialog__result > p {
-  margin-top: 0.375rem;
+  margin-top: 0.35rem;
   color: var(--text-primary);
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+
 .novel-followup-dialog__result > p:is([data-result='failed'], [data-result='partial']) {
-  color: var(--color-danger);
+  color: var(--color-danger, #be123c);
 }
-.novel-followup-dialog__times {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-}
-.novel-followup-dialog__times dt {
-  color: var(--admin-dialog-label-color);
-  font-size: var(--admin-dialog-label-size);
+
+/* 章节状态胶囊组 */
+.novel-followup-dialog__chapters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.625rem;
+  margin-top: 0.625rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid color-mix(in srgb, var(--admin-border) 60%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.775rem;
   line-height: 1.5;
 }
-.novel-followup-dialog__times dd {
-  margin: 0.375rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.8125rem;
-  line-height: 1.6;
-}
-.novel-followup-dialog__times time {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 0.5rem;
-  font-variant-numeric: tabular-nums;
-}
-.novel-followup-dialog [data-slot='dialog-footer'] {
-  flex-direction: row;
-  flex-wrap: nowrap;
-  gap: 0.75rem;
-  padding: 0 1.5rem 1.5rem;
-}
-.novel-followup-dialog [data-slot='dialog-footer'] [data-slot='button'] {
-  min-height: var(--admin-dialog-mobile-action-min-height);
-  flex: 1;
-  min-width: 0;
-}
-.novel-chapter-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.375rem 0.5rem;
-  min-width: 0;
-}
-.novel-update-tag {
-  display: inline-flex;
-  width: fit-content;
-  flex: 0 0 auto;
-  align-items: center;
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius-full, 9999px);
-  background: var(--accent-subtle);
-  color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.6;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-@media (max-width: 480px) {
-  .novel-followup-dialog [data-slot='dialog-header'] {
-    padding: 1.25rem 1.25rem 0;
-  }
-  .novel-followup-dialog .novel-followup-dialog__body {
-    padding: 1.25rem;
-  }
-  .novel-followup-dialog [data-slot='dialog-footer'] {
-    padding: 0 1.25rem 1.25rem;
-  }
-}
-.novel-update-indicator {
-  display: contents;
-}
-.novel-update-protection,
-.novel-update-unknown {
+
+.novel-followup-dialog__chapters > span {
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  line-height: 1.4;
-  white-space: nowrap;
-  max-width: 100%;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  background: var(--admin-panel);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  font-variant-numeric: tabular-nums;
 }
+
+.novel-update-protection {
+  color: var(--admin-accent) !important;
+  border-color: rgba(217, 119, 87, 0.3) !important;
+  background: var(--admin-accent-light) !important;
+}
+
 .novel-update-protection svg {
   width: 0.75rem;
   height: 0.75rem;
   flex-shrink: 0;
 }
-.novel-followup-dialog__chapters {
+
+/* 检查时间与元信息网格 */
+.novel-followup-dialog__times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid color-mix(in srgb, var(--admin-border) 60%, transparent);
+}
+
+.novel-followup-dialog__times dt {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.novel-followup-dialog__times dd {
+  margin: 0.2rem 0 0;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.novel-followup-dialog__times time {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem 1rem;
-  margin-top: 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  line-height: 1.6;
+  gap: 0 0.4rem;
+  font-variant-numeric: tabular-nums;
 }
-.novel-followup-dialog__result > .admin-dialog-hint {
-  font-size: var(--admin-dialog-hint-size);
-  color: var(--admin-dialog-hint-color);
+
+/* 对话框底部动作条 */
+.novel-followup-dialog [data-slot='dialog-footer'] {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.625rem;
+  padding: 0 1.5rem 1.5rem;
 }
+
+.novel-followup-dialog [data-slot='dialog-footer'] [data-slot='button'] {
+  min-height: 2.375rem;
+  border-radius: var(--radius-full);
+  flex: 1;
+  min-width: 0;
+  font-weight: 550;
+}
+
+/* 批量追更选择作品折叠框 */
 .batch-followup-dialog__selection {
   color: var(--text-secondary);
   font-size: 0.8125rem;
   line-height: 1.6;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm, 8px);
+  padding: 0.5rem 0.875rem;
+  background: var(--admin-panel-muted);
 }
+
 .batch-followup-dialog__selection summary {
   cursor: pointer;
-  min-height: 2.75rem;
+  min-height: 2rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-weight: 550;
+  color: var(--text-primary);
+  user-select: none;
 }
+
 .batch-followup-dialog__selection summary::before {
   content: '＋';
   color: var(--text-muted);
+  font-size: 0.875rem;
 }
+
 .batch-followup-dialog__selection[open] summary::before {
   content: '−';
 }
+
 .batch-followup-dialog__selection ul {
   margin-top: 0.5rem;
   padding-inline-start: 1.25rem;
   list-style: disc;
+  max-height: 8rem;
+  overflow-y: auto;
 }
+
 .batch-followup-dialog__selection li {
-  padding-block: 0.25rem;
+  padding-block: 0.2rem;
   overflow-wrap: anywhere;
 }
+
 .batch-followup-dialog__skipped {
   display: grid;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
   font-size: 0.8125rem;
 }
+
 .batch-followup-dialog__skipped li {
-  display: grid;
-  gap: 0.25rem;
-  overflow-wrap: anywhere;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--admin-border) 40%, transparent);
 }
+
 .novel-followup-dialog--event .novel-followup-dialog__result {
-  border-top: 0;
-  padding-top: 0;
+  border: 1px solid var(--admin-border);
 }
+
 .novel-followup-dialog--event .novel-followup-dialog__times [data-slot='button'] {
   height: auto;
   min-height: 0;
   padding: 0;
   justify-content: flex-start;
-  font-size: var(--admin-dialog-hint-size);
+  font-size: 0.75rem;
+  color: var(--admin-accent);
 }
-.novel-followup-dialog--event .novel-followup-dialog__result > p {
-  white-space: pre-wrap;
+
+/* 移动端紧凑适配 */
+@media (max-width: 480px) {
+  .novel-followup-dialog [data-slot='dialog-header'] {
+    padding: 1.25rem 1.25rem 0.25rem;
+  }
+  .novel-followup-dialog .novel-followup-dialog__body {
+    padding: 1rem 1.25rem 1.25rem;
+  }
+  .novel-followup-dialog [data-slot='dialog-footer'] {
+    padding: 0 1.25rem 1.25rem;
+  }
 }
