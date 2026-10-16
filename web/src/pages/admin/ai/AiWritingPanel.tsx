@@ -1023,16 +1023,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </AdminFormField>
               </div>
               <div className="ai-writing-strategy">
-                {' '}
                 {isContinuationMode && (
-                  <AdminFormField
-                    label="续写策略"
-                    labelId="ai-writing-run-scale-label"
-                    className="ai-writing-run-scale"
-                    hint={
-                      isMultiChapter ? '每章按大纲逐段下发；请在下方确认大纲覆盖全部章节。' : '推荐先围绕一条情节方向精写一章；需要连续推进时再切换为多章规划。'
-                    }
-                  >
+                  <div className="ai-writing-run-scale">
+                    <span id="ai-writing-run-scale-label" className="ai-writing-run-scale-label">
+                      续写策略
+                    </span>
                     <div className="ai-writing-run-scale__choices" role="group" aria-labelledby="ai-writing-run-scale-label">
                       <Button
                         type="button"
@@ -1055,24 +1050,31 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                         多章规划
                       </Button>
                     </div>
-                  </AdminFormField>
+                  </div>
                 )}
                 {mode === 'continue' && isMultiChapter && (
-                  <AdminFormField label="续写章节数" htmlFor="ai-writing-chapter-count">
+                  <div className="ai-writing-chapter-count-inline flex items-center gap-1.5">
+                    <Label htmlFor="ai-writing-chapter-count" className="text-xs font-medium text-foreground whitespace-nowrap">
+                      续写章节数
+                    </Label>
                     <div className="ai-writing-number-input">
                       <Input
                         id="ai-writing-chapter-count"
                         type="number"
                         min={1}
                         max={20}
+                        className="h-8 w-16 text-center"
                         value={chapterCountInput.text}
                         onChange={(event) => chapterCountInput.onChangeText(event.target.value)}
                         onBlur={chapterCountInput.commit}
                       />
-                      <span>章</span>
+                      <span className="text-xs text-muted-foreground">章</span>
                     </div>
-                  </AdminFormField>
+                  </div>
                 )}
+                <span className="ai-writing-strategy-hint">
+                  {isMultiChapter ? '每章按大纲逐段下发；请在下方确认大纲覆盖全部章节。' : '推荐先围绕一条情节方向精写一章；需要连续推进时再切换为多章规划。'}
+                </span>
               </div>
               {continuationContentScale}
               {continuationAnalysis}

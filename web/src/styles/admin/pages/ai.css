@@ -740,13 +740,14 @@
   }
 }
 
-/* R18 展开后的档位选择项：整块内缩并下沉底色，与上方开关形成从属关系，
-   避免展开的档位选择看起来与「成人内容」平级。 */
+/* R18 展开后的档位选择项：Claude 纸白浮起层，杜绝内外同底色与死板描边 */
 .ai-writing-consent {
-  padding: 0.75rem 0.875rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
-  background: var(--admin-panel-muted);
+  padding: 0.875rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--admin-border));
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-lg, 0.75rem);
+  background: var(--admin-panel, #ffffff);
+  box-shadow: 0 1px 3px rgba(40, 32, 24, 0.04);
 }
 
 /* 窄屏下确认项再收一档内边距。它嵌在开关行之下，两层内缩在 400px 视口里要吃掉
