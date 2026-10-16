@@ -9,6 +9,70 @@ vi.mock('./fetch', () => ({
 import { discoverList, extractPo18twTitles, parsePo18twChapterContent, parsePo18twChapterLinks, po18ResponseProblem, searchPo18tw, searchTitleSources } from './enrich'
 import type { FetchHtmlOptions } from './fetch'
 
+describe('PO18 榜单元数据', () => {
+  const rankingHtml = `<div class="ranking_general">
+    <div class="articlegeneral"><p class="p1">[言情]</p><p class="p2"><a href="/book/171348/">蜜糖表妹</a></p><p class="p3"><a href="/author/gaga鸭">gaga鸭</a></p></div>
+    <div class="articlegeneral"><p class="p1">[其他]</p><p class="p2"><a href="/book/164998/">肆虐韩娱</a></p><p class="p3"><a href="/author/姬叉">姬叉</a></p></div>
+    <div class="articlegeneral"><p class="p1">[其他]</p><p class="p2"><a href="/book/71126/">今天你睡了吗[快穿]</a></p><p class="p3"><a href="/author/红烧肉">红烧肉</a></p></div>
+    <div class="articlegeneral"><p class="p1">[其他]</p><p class="p2"><a href="/book/79171/">我靠喂奶稳住病娇(高H 1V1)</a></p><p class="p3"><a href="/author/恶魔饭团">恶魔饭团</a></p></div>
+  </div><div class="page"><a href="/top/dayvisit_2/">下页</a></div>`
+  const db = { query: vi.fn().mockResolvedValue({ rows: [] }) } as never
+  const detailHtml = '<div class="intro"><span>本书简介：</span><p>这是当前作品的简介。<br>第二行 &amp; 后续内容。</p></div>'
+
+  it('紧邻的真实榜单行应各自读取作者与分类，不能串到第一本作品', async () => {
+    const result = await discoverList('https://wap.po18x.vip/top/dayvisit_1/?test=authors', {
+      db,
+      fetchHtml: async (url) => ({ html: url.includes('/top/') ? rankingHtml : detailHtml, encoding: 'gbk' }),
+    })
+    expect(result.novels.map((novel) => novel.author)).toEqual(['gaga鸭', '姬叉', '红烧肉', '恶魔饭团'])
+    expect(result.novels.map((novel) => novel.categories)).toEqual([['言情'], ['其他'], ['其他'], ['其他']])
+    expect(result.totalPages).toBe(2)
+  })
+
+  it('榜单没有简介时应回查详情并缓存，保留换行且不泄露 HTML 标签', async () => {
+    const fetchHtml = vi.fn(async (url: string) => ({
+      html: url.includes('/top/') ? rankingHtml : detailHtml.replace('当前作品', url.match(/\/book\/(\d+)/)![1]!),
+      encoding: 'gbk',
+    }))
+    const url = 'https://wap.po18x.vip/top/dayvisit_1/?test=descriptions'
+    const result = await discoverList(url, { db, fetchHtml })
+    expect(result.novels.map((novel) => novel.description)).toEqual(
+      ['171348', '164998', '71126', '79171'].map((id) => `这是${id}的简介。\n第二行 & 后续内容。`),
+    )
+    expect(fetchHtml).toHaveBeenCalledTimes(5)
+    const cached = await discoverList(url, { db, fetchHtml })
+    expect(cached.novels).toEqual(result.novels)
+    expect(fetchHtml).toHaveBeenCalledTimes(5)
+  })
+
+  it('缺失作者不能借用相邻作者，链接文字应解码并清除标签', async () => {
+    const html = `<div class="articlegeneral"><p>[其他]</p><a href="/book/1/">第一本</a><a href="/author/encoded"><b>甲 &amp; 乙</b></a></div>
+      <div class="articlegeneral"><p>[言情]</p><a href="/book/2/">第二本</a></div>`
+    const result = await discoverList('https://wap.po18x.vip/top/dayvisit_1/?test=missing-author', {
+      db,
+      fetchHtml: async (url) => ({ html: url.includes('/top/') ? html : detailHtml, encoding: 'gbk' }),
+    })
+    expect(result.novels.map((novel) => novel.author)).toEqual(['甲 & 乙', ''])
+  })
+
+  it('单本详情失败仍返回其他作品，重复发现只重试失败项', async () => {
+    const fetchHtml = vi.fn(async (url: string) => {
+      if (url.endsWith('/book/164998/')) throw new Error('HTTP 503')
+      return { html: url.includes('/top/') ? rankingHtml : detailHtml, encoding: 'gbk' }
+    })
+    const url = 'https://wap.po18x.vip/top/dayvisit_1/?test=detail-failure'
+    const result = await discoverList(url, { db, fetchHtml })
+    expect(result.novels).toHaveLength(4)
+    expect(result.novels.map((novel) => !!novel.description)).toEqual([true, false, true, true])
+    fetchHtml.mockClear()
+    fetchHtml.mockResolvedValue({ html: detailHtml, encoding: 'gbk' })
+    const retried = await discoverList(url, { db, fetchHtml })
+    expect(retried.novels.every((novel) => !!novel.description)).toBe(true)
+    expect(fetchHtml).toHaveBeenCalledTimes(1)
+    expect(fetchHtml).toHaveBeenCalledWith('https://wap.po18x.vip/book/164998/', { timeoutMs: 10000 })
+  })
+})
+
 describe('标题源搜索', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -204,6 +268,90 @@ describe('标题源搜索', () => {
 })
 
 describe('POPO 发现', () => {
+  const db = { query: vi.fn().mockResolvedValue({ rows: [] }) } as never
+  const detail = (id: string) => `<div class="book_name">作品 ${id}</div>
+    <div class="book_author"><a>作者 ${id}</a></div>
+    <div class="book_cover"><img src="/covers/${id}.jpg"></div>
+    <div class="B_I_content"><p>作品 ${id} 的<strong>简介</strong>。</p><p>下一行 &amp; 内容。</p><span style="color:#bdc3c7">重复书名</span></div>`
+
+  it('POPO 榜单即使已有首页封面也应回查简介，同次回查补齐封面并缓存', async () => {
+    const landing = `<form id="rank-form1" action="/rank/more"><input type="hidden" name="kind"></form>
+      <li class="R_cover"><a href="/books/111"><img src="/covers/first.jpg"></a></li>`
+    const ranking = `<div class="row"><a class="l_bookname" href="/books/111">第一本</a><a class="l_author">甲</a></div>
+      <div class="row"><a class="l_bookname" href="/books/222">第二本</a><a class="l_author">乙</a></div>`
+    const fetchHtml = vi.fn(async (url: string, options?: FetchHtmlOptions) => ({
+      html: url.includes('/books/') ? detail(url.match(/\/books\/(\d+)/)![1]!) : options?.method === 'POST' ? ranking : landing,
+      encoding: 'utf-8',
+    }))
+    const url = 'https://www.po18.tw/rank/index?test=metadata'
+    const options = { po18Ranking: { kind: 'pearl' as const, type: 'weekly' as const } }
+    const result = await discoverList(url, { db, fetchHtml }, options)
+    expect(result.novels.map((novel) => novel.author)).toEqual(['甲', '乙'])
+    expect(result.novels.map((novel) => novel.description)).toEqual(['111', '222'].map((id) => `作品 ${id} 的简介。\n\n下一行 & 内容。`))
+    expect(result.novels.map((novel) => novel.coverUrl)).toEqual(['https://www.po18.tw/covers/first.jpg', 'https://www.po18.tw/covers/222.jpg'])
+    expect(fetchHtml).toHaveBeenCalledTimes(4)
+    expect((await discoverList(url, { db, fetchHtml }, options)).novels).toEqual(result.novels)
+    expect(fetchHtml).toHaveBeenCalledTimes(4)
+  })
+
+  it('POPO 首页榜单作者应兼容属性顺序并清理标签，末行不能读到榜单外作者', async () => {
+    const html = `<li><a class="book_name" href="/books/111">第一本</a><a href="/users/a" class="book_author"><b>甲 &amp; 乙</b></a></li>
+      <li><a class="book_name" href="/books/222">第二本</a></li><div class="book_author">无关作者</div>`
+    const result = await discoverList('https://www.po18.tw/rank/index?test=homepage-metadata', {
+      db, fetchHtml: async (url) => ({ html: url.includes('/books/') ? detail(url.match(/\/books\/(\d+)/)![1]!) : html, encoding: 'utf-8' }),
+    })
+    expect(result.novels.map((novel) => novel.author)).toEqual(['甲 & 乙', '作者 222'])
+    expect(result.novels.every((novel) => !!novel.description)).toBe(true)
+  })
+
+  it('POPO 搜索简介缺失时应按各自详情补齐，携带合并会话且不串到搜索卡片外作者', async () => {
+    const requests: Array<{ url: string; options?: FetchHtmlOptions }> = []
+    const searchPage = '<form id="header-search-form" action="/search/index"><input name="name"><input type="hidden" name="searchtype" value="all"></form>'
+    const resultPage = `<div id="BOOK"><div class="book"><div class="book_name"><a href="/books/111">第一本</a></div><div class="book_author">甲</div></div>
+      <div class="book"><div class="book_name"><a href="/books/222">第二本</a></div></div><div class="book_author">无关作者</div></div>`
+    const result = await searchPo18tw('作品', 'book', 1, db, 'SESSION=saved', async (url, options) => {
+      requests.push({ url, options })
+      return {
+        html: url.includes('/books/') ? detail(url.match(/\/books\/(\d+)/)![1]!) : options?.method === 'POST' ? resultPage : searchPage,
+        encoding: 'utf-8',
+        setCookies: options?.method === 'POST' ? ['csrf=updated; Path=/'] : ['csrf=initial; Path=/'],
+      }
+    })
+    expect(result.novels.map((novel) => novel.author)).toEqual(['甲', '作者 222'])
+    expect(result.novels.map((novel) => novel.description)).toEqual(['111', '222'].map((id) => `作品 ${id} 的简介。\n\n下一行 & 内容。`))
+    const details = requests.filter(({ url }) => url.includes('/books/'))
+    expect(details).toHaveLength(2)
+    for (const request of details) {
+      expect(new Headers(request.options?.headers).get('Cookie')).toBe('po18Limit=1; SESSION=saved; csrf=updated')
+      expect(request.options?.allowedRedirectHosts).toEqual(['po18.tw'])
+    }
+  })
+
+  it.each(['请求失败', '登录页', '访问拦截页'])('POPO 单本详情返回%s时保留其他结果，重新发现可以重试', async (failure) => {
+    const ranking = `<div class="row"><a class="l_bookname" href="/books/111">第一本</a><a class="l_author">甲</a></div>
+      <div class="row"><a class="l_bookname" href="/books/222">第二本</a></div><a class="l_author">无关作者</a>`
+    const fetchHtml = vi.fn(async (url: string) => {
+      if (url.endsWith('/books/222')) {
+        if (failure === '请求失败') throw new Error('HTTP 503')
+        return {
+          html: '<div class="B_I_content">无关简介</div><form>登入<input type="password"></form>',
+          finalUrl: failure === '登录页' ? 'https://members.po18.tw/apps/login.php' : 'https://www.po18.tw/site/alarm',
+          encoding: 'utf-8',
+        }
+      }
+      return { html: url.endsWith('/books/111') ? detail('111') : ranking, encoding: 'utf-8' }
+    })
+    const url = `https://www.po18.tw/rank/index?test=retry-${failure}`
+    const result = await discoverList(url, { db, fetchHtml })
+    expect(result.novels.map((novel) => novel.author)).toEqual(['甲', ''])
+    expect(result.novels.map((novel) => !!novel.description)).toEqual([true, false])
+    fetchHtml.mockClear()
+    fetchHtml.mockResolvedValue({ html: detail('222'), encoding: 'utf-8' })
+    const retried = await discoverList(url, { db, fetchHtml })
+    expect(retried.novels[1]).toMatchObject({ author: '作者 222', description: '作品 222 的简介。\n\n下一行 & 内容。' })
+    expect(fetchHtml).toHaveBeenCalledTimes(1)
+  })
+
   it('POPO 搜索应使用独立的书名搜索类型并返回来源标识', async () => {
     const requests: Array<{ url: string; method: string; cookie: string; body: string }> = []
     const searchPage = `<form id="header-search-form" action="/search/index" method="post">
@@ -272,7 +420,7 @@ describe('POPO 发现', () => {
     </ol>`
     const result = await discoverList('https://www.po18.tw/rank/index?test=popo', {
       db: { query: vi.fn().mockResolvedValue({ rows: [] }) } as never,
-      fetchHtml: async () => ({ html, encoding: 'utf-8' }),
+      fetchHtml: async (url) => ({ html: url.includes('/books/') ? '<html></html>' : html, encoding: 'utf-8' }),
       getPreset: async () => ({ name: 'PO18.tw' }),
     })
 

@@ -5,7 +5,7 @@
  */
 import iconv from 'iconv-lite'
 import { fetchHtml, decodeBytes, type FetchHtmlOptions, type FetchResult } from './fetch'
-import { cleanText, extractInnerHtml } from './parse'
+import { cleanHtml, cleanText, extractByPattern, extractInnerHtml } from './parse'
 import { resolveUrl } from './utils'
 import { SITE_PRESETS, buildCoverUrl } from './presets'
 import { toSimplifiedForSource } from '../zh-convert'
@@ -20,7 +20,8 @@ interface DiscoverCacheEntry {
   ts: number
   html: string
   coverHtml?: string
-  detailCovers?: Map<string, string | null>
+  detailMetadata?: Map<string, Po18twDetailMetadata>
+  detailDescriptions?: Map<string, string>
 }
 
 const discoverHtmlCache = new Map<string, DiscoverCacheEntry>()
@@ -195,19 +196,25 @@ export async function searchPo18tw(
   if (requestCookie) searchHeaders.set('Cookie', requestCookie)
   searchHeaders.set('Content-Type', 'application/x-www-form-urlencoded')
   searchHeaders.set('Referer', pageUrl)
-  const { html } = await requestHtml(form.action, {
+  const searchResult = await requestHtml(form.action, {
     ...requestOptions,
     method: 'POST',
     headers: searchHeaders,
     body: body.toString(),
     allowedRedirectHosts: requestCookie ? ['po18.tw'] : requestOptions.allowedRedirectHosts,
   })
+  const { html } = searchResult
   if (/<input\b[^>]*(?:type\s*=\s*["']?password|name\s*=\s*["'][^"']*(?:pass|密碼|密码))/i.test(html) && /login|登入|登录/i.test(html)) {
     throw new Error('POPO 搜索需要登录或当前网络不可访问')
   }
 
   const existing = await loadExisting(db)
   const novels = parsePo18twDiscoverCandidates(html, form.action, existing)
+  const detailCookie = mergeCookieHeader(requestCookie, searchResult.setCookies)
+  await enrichPo18twMetadata(novels, (url, options) => requestHtml(url, {
+    ...options,
+    headers: { Cookie: detailCookie },
+  }), new Map())
   const totalMatch = extractInnerHtml(html, '#BOOK').match(/共找到\s*<span[^>]*>\s*(\d+)\s*<\/span>/i)
   const pageLinks = [...html.matchAll(/[?&]page=(\d+)/gi)].map((match) => Number.parseInt(match[1]!, 10)).filter(Number.isFinite)
   const total = totalMatch ? Number.parseInt(totalMatch[1]!, 10) || novels.length : novels.length
@@ -221,9 +228,7 @@ function parsePo18twDiscoverCandidates(html: string, baseUrl: string, existing: 
   const cardStarts = [...bookSection.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook\b[^"']*["'][^>]*>/gi)]
   const seen = new Set<string>()
   for (let index = 0; index < cardStarts.length; index++) {
-    const cardStart = (cardStarts[index]!.index || 0) + cardStarts[index]![0].length
-    const cardEnd = cardStarts[index + 1]?.index ?? bookSection.length
-    const card = bookSection.slice(cardStart, cardEnd)
+    const card = extractInnerHtml(bookSection.slice(cardStarts[index]!.index || 0), '.book')
     const titleBlock = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_name\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
     const titleLink = titleBlock.match(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
     const coverMatch = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_cover\b[^"']*["'][^>]*>[\s\S]*?<img\b[^>]*src\s*=\s*["']([^"']+)["'][^>]*>/i)
@@ -236,9 +241,9 @@ function parsePo18twDiscoverCandidates(html: string, baseUrl: string, existing: 
     const title = cleanText((titleLink?.[2] || coverTitle).replace(/<[^>]*>/g, ''))
     if (!title) continue
     const authorBlock = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
-    const author = cleanText(authorBlock.replace(/<[^>]*>/g, ''))
+    const author = cleanText(cleanHtml(authorBlock))
     const descriptionBlock = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bintro\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || ''
-    const description = cleanText(descriptionBlock)
+    const description = cleanText(cleanHtml(descriptionBlock))
     const coverUrl = coverMatch?.[1] ? resolveUrl(coverMatch[1]!, baseUrl) : ''
     seen.add(bookId)
     results.push({
@@ -267,9 +272,7 @@ function parsePo18twRankingCandidates(html: string, baseUrl: string, existing: {
   // /rank/more 返回表格行（l_bookname / l_author），不是首页的 R_cover 列表。
   const rowStarts = [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\brow\b[^"']*["'][^>]*>/gi)]
   for (let index = 0; index < rowStarts.length; index++) {
-    const rowStart = rowStarts[index]!.index || 0
-    const rowEnd = rowStarts[index + 1]?.index ?? html.length
-    const row = html.slice(rowStart, rowEnd)
+    const row = extractInnerHtml(html.slice(rowStarts[index]!.index || 0), '.row')
     const anchors = [...row.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
     const titleLink = anchors.find((anchor) => /\bl_bookname\b/i.test(htmlAttribute(anchor[1] || '', 'class')))
     const href = htmlAttribute(titleLink?.[1] || '', 'href')
@@ -281,7 +284,7 @@ function parsePo18twRankingCandidates(html: string, baseUrl: string, existing: {
     const authorLink = anchors.find((anchor) => /\bl_author\b/i.test(htmlAttribute(anchor[1] || '', 'class')))
     const title = cleanText((titleLink?.[2] || '').replace(/<[^>]*>/g, ''))
     if (!title) continue
-    const author = cleanText((authorLink?.[2] || '').replace(/<[^>]*>/g, ''))
+    const author = cleanText(cleanHtml(authorLink?.[2] || ''))
     const status = /完結|完本|已完結/i.test(row) ? 'completed' : 'ongoing'
     seen.add(bookId)
     results.push({
@@ -324,14 +327,14 @@ function parsePo18twRankingCandidates(html: string, baseUrl: string, existing: {
     const coverUrl = coverHref ? resolveUrl(coverHref, baseUrl) : ''
     const title = cleanText((titleLink?.[2] || card.match(/<img\b[^>]*alt\s*=\s*["']([^"']+)["']/i)?.[1] || '').replace(/<[^>]*>/g, ''))
     if (!title) continue
-    const author = cleanText(
+    const author = cleanText(cleanHtml(
       card.match(/<a\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/i)?.[1] ||
         card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] ||
         '',
-    )
-    const description = cleanText(
+    ))
+    const description = cleanText(cleanHtml(
       card.match(/<(?:div|p)\b[^>]*class\s*=\s*["'][^"']*\b(?:book_quote|intro)\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|p)>/i)?.[1] || '',
-    )
+    ))
     const status = /完結|完本|已完結/i.test(card) ? 'completed' : 'ongoing'
     seen.add(bookId)
     results.push({
@@ -378,20 +381,32 @@ function parsePo18twDetailCover(html: string, baseUrl: string): string {
   return coverUrl ? resolveUrl(coverUrl, baseUrl) : ''
 }
 
-/** 对榜单表格中没有首页封面的作品回查详情页，补齐源站实际提供的封面。 */
-async function enrichPo18twRankingCovers(
+interface Po18twDetailMetadata {
+  author: string
+  description: string
+  coverUrl: string
+}
+
+/** 榜单和搜索共用一次详情请求，补齐缺失字段；已有封面不能阻止简介回查。 */
+async function enrichPo18twMetadata(
   novels: DiscoverNovel[],
   requestHtml: typeof fetchHtml,
-  detailCovers: Map<string, string | null>,
+  detailMetadata: Map<string, Po18twDetailMetadata>,
 ): Promise<void> {
+  const apply = (novel: DiscoverNovel, metadata: Po18twDetailMetadata) => {
+    if (!novel.coverUrl) novel.coverUrl = metadata.coverUrl
+    if (!novel.author) novel.author = metadata.author
+    if (!novel.description) novel.description = metadata.description
+  }
   for (const novel of novels) {
-    if (!novel.coverUrl) {
-      const cachedCover = detailCovers.get(novel.bookId)
-      if (cachedCover) novel.coverUrl = cachedCover
-    }
+    const cached = detailMetadata.get(novel.bookId)
+    if (cached) apply(novel, cached)
   }
 
-  const pending = novels.filter((novel) => !novel.coverUrl && !detailCovers.has(novel.bookId))
+  const pending = novels.filter((novel) =>
+    (!novel.coverUrl || !novel.author || !novel.description) && !detailMetadata.has(novel.bookId) &&
+    sourceForHost(new URL(novel.url).hostname).id === 'po18tw',
+  )
   if (pending.length === 0) return
 
   let cursor = 0
@@ -399,13 +414,20 @@ async function enrichPo18twRankingCovers(
     while (cursor < pending.length) {
       const novel = pending[cursor++]!
       try {
-        const detail = await requestHtml(novel.url, { timeoutMs: 10000, scope: 'source-auth', allowedRedirectHosts: ['po18.tw'] })
-        const coverUrl = parsePo18twDetailCover(detail.html, novel.url)
-        detailCovers.set(novel.bookId, coverUrl || null)
-        if (coverUrl) novel.coverUrl = coverUrl
+        const detail = await requestHtml(novel.url, { timeoutMs: 10000, scope: 'source-auth', headers: { Cookie: 'po18Limit=1' }, allowedRedirectHosts: ['po18.tw'] })
+        const problem = po18ResponseProblem(detail.finalUrl, detail.html)
+        if (problem) throw new Error(problem)
+        const descriptionHtml = extractInnerHtml(detail.html, '.B_I_content')
+          .replace(/<span\b[^>]*color\s*:\s*#bdc3c7[^>]*>[\s\S]*?<\/span>/gi, '')
+        const metadata = {
+          author: toSimplifiedForSource(cleanText(cleanHtml(extractInnerHtml(detail.html, '.book_author'))).slice(0, 30), novel.url),
+          description: toSimplifiedForSource(cleanText(cleanHtml(descriptionHtml)).slice(0, 120), novel.url),
+          coverUrl: parsePo18twDetailCover(detail.html, novel.url),
+        }
+        detailMetadata.set(novel.bookId, metadata)
+        apply(novel, metadata)
       } catch {
-        // 单本详情页失败不应阻断整个榜单；该项继续使用前端首字占位。
-        detailCovers.set(novel.bookId, null)
+        // 单本失败不阻断列表，也不缓存失败，允许再次发现时重试。
       }
     }
   }
@@ -414,6 +436,35 @@ async function enrichPo18twRankingCovers(
 }
 
 // ---------- 榜单发现 ----------
+
+/** PO18 的排行行只有书名/作者/分类，简介必须按当前作品 URL 回查详情。 */
+async function enrichPo18Descriptions(
+  novels: DiscoverNovel[],
+  requestHtml: typeof fetchHtml,
+  descriptions: Map<string, string>,
+): Promise<void> {
+  for (const novel of novels) {
+    if (!novel.description) novel.description = descriptions.get(novel.bookId) || ''
+  }
+  const pending = novels.slice(0, 50).filter((novel) => !novel.description && !descriptions.has(novel.bookId))
+  let cursor = 0
+  const worker = async () => {
+    while (cursor < pending.length) {
+      const novel = pending[cursor++]!
+      try {
+        const detail = await requestHtml(novel.url, { timeoutMs: 10000 })
+        const preset = SITE_PRESETS[new URL(novel.url).hostname]
+        const raw = extractByPattern(detail.html, preset?.meta?.description || '.intro p')
+        const description = toSimplifiedForSource(cleanText(cleanHtml(raw)).slice(0, 120), novel.url)
+        descriptions.set(novel.bookId, description)
+        novel.description = description
+      } catch {
+        // 单本请求失败保留其他发现结果，且不缓存失败，让再次检索可以重试。
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(6, pending.length) }, () => worker()))
+}
 
 export async function discoverList(
   listUrl: string,
@@ -468,14 +519,14 @@ export async function discoverList(
       html = ranked.html
     }
 
-    cacheEntry = { ts: Date.now(), html, coverHtml, detailCovers: new Map() }
+    cacheEntry = { ts: Date.now(), html, coverHtml, detailMetadata: new Map() }
   }
 
   const novels: DiscoverNovel[] = source.id === 'po18tw' ? parsePo18twRankingCandidates(html, listUrl, existing, coverHtml) : []
-  if (source.id === 'po18tw' && ranking) {
-    const detailCovers = cacheEntry.detailCovers || new Map<string, string | null>()
-    await enrichPo18twRankingCovers(novels, deps.fetchHtml, detailCovers)
-    cacheEntry.detailCovers = detailCovers
+  if (source.id === 'po18tw') {
+    const detailMetadata = cacheEntry.detailMetadata || new Map<string, Po18twDetailMetadata>()
+    await enrichPo18twMetadata(novels, deps.fetchHtml, detailMetadata)
+    cacheEntry.detailMetadata = detailMetadata
   }
   discoverHtmlCache.set(cacheKey, cacheEntry)
   if (discoverHtmlCache.size > DISCOVER_CACHE_MAX) {
@@ -484,11 +535,22 @@ export async function discoverList(
 
   if (source.id !== 'po18tw') {
     const seen = new Set<string>()
+    // PO18 移动榜单的行很短，固定 ±600 字符会同时包含多本书并反复命中前一作者。
+    const po18Rows = source.id === 'po18'
+      ? [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\barticlegeneral\b[^"']*["'][^>]*>/gi)].map((match) => {
+        const start = match.index!
+        const inner = extractInnerHtml(html.slice(start), '.articlegeneral')
+        return { start, end: start + match[0].length + inner.length, html: inner }
+      })
+      : []
     const bookRe = /<a\s[^>]*href\s*=\s*["'](?:\/[^"']*)?\/(?:book|books)\/(\d+)\/?["'][^>]*>([\s\S]*?)<\/a>/gi
     let m: RegExpExecArray | null
     while ((m = bookRe.exec(html)) !== null) {
       const bookId = m[1]!
       if (seen.has(bookId)) continue
+      const linkStart = m.index
+      const row = po18Rows.find((candidate) => linkStart >= candidate.start && linkStart < candidate.end)
+      if (po18Rows.length > 0 && !row) continue
       seen.add(bookId)
       const linkHtml = m[2]!
       let title = linkHtml.replace(/<[^>]*>/g, '').trim()
@@ -498,15 +560,15 @@ export async function discoverList(
       }
       const containerStart = Math.max(0, m.index - 600)
       const containerEnd = Math.min(html.length, m.index + m[0].length + 600)
-      const container = html.slice(containerStart, containerEnd)
+      const container = row?.html ?? html.slice(containerStart, containerEnd)
       const imgMatch = container.match(/<img[^>]*src\s*=\s*["']([^"']+(?:jpg|jpeg|png|webp))["'][^>]*>/i)
       let coverUrl = imgMatch ? imgMatch[1]! : ''
       const authorMatch =
         container.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>[\s\S]*?<a\b[^>]*>([\s\S]*?)<\/a>/i) ||
         container.match(/作者[：:]\s*([^<\n]{2,20})/i) ||
-        container.match(/\/author\/([^"']+)/i) ||
+        container.match(/<a\b[^>]*href\s*=\s*["'][^"']*\/author\/[^"']*["'][^>]*>([\s\S]*?)<\/a>/i) ||
         container.match(/\/users\/[^"']*["'][^>]*>([^<]+)<\/a>/i)
-      const author = authorMatch ? authorMatch[1]!.trim() : ''
+      const author = authorMatch ? cleanText(cleanHtml(authorMatch[1]!)) : ''
 
       if (!coverUrl || /noimg\.jpg/i.test(coverUrl)) {
         const builtCover = buildCoverUrl(`https://${host}/book/${bookId}/`, preset as Parameters<typeof buildCoverUrl>[1])
@@ -552,6 +614,12 @@ export async function discoverList(
         sourceName: sourceForHost(host).name,
       })
     }
+  }
+
+  if (source.id === 'po18') {
+    const descriptions = cacheEntry.detailDescriptions || new Map<string, string>()
+    await enrichPo18Descriptions(novels, deps.fetchHtml, descriptions)
+    cacheEntry.detailDescriptions = descriptions
   }
 
   let totalPages = 1
