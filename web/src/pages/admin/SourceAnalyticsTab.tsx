@@ -301,7 +301,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
     setBatchBusy(true)
     try {
       const results = await Promise.allSettled(list.map((id) => triggerNovelUpdate(id)))
-      const failedIds = new Set(list.filter((_, index) => results[index].status === 'rejected'))
+      const failedIds = new Set(list.filter((_, index) => results[index]?.status === 'rejected'))
       const accepted = list.length - failedIds.size
       if (!failedIds.size) toast.success(`已受理 ${accepted} 本小说的更新检查请求`)
       else if (accepted) toast.error(`已受理 ${accepted} 本，${failedIds.size} 本请求失败，可重试失败作品`)

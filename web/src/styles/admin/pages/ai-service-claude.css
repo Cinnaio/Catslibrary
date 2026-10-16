@@ -490,100 +490,200 @@
 .ai-service .ai-writing-continuation-start {
   max-width: none;
 }
+.ai-service .ai-writing-baseline-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem 1rem;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .ai-service .ai-writing-baseline-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .ai-service .ai-writing-strategy {
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-top: 0.875rem;
+  padding-top: 0.75rem;
 }
 .ai-service .ai-writing-run-scale {
-  flex: 1 1 20rem;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.625rem;
+  width: auto;
 }
-.ai-service .ai-writing-run-scale > label {
-  display: none;
-}
-.ai-service .ai-writing-run-scale > p {
-  margin: 0;
-  max-width: 30rem;
-  font-size: 0.75rem;
+.ai-service .ai-writing-run-scale-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 .ai-service .ai-writing-run-scale__choices {
-  flex: 0 0 auto;
-  background: var(--admin-panel-muted);
-  border: 1px solid var(--admin-border, #e5e3dc);
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  height: 2rem;
+  min-height: 2rem;
+  background: rgba(40, 32, 24, 0.05);
+  border: 0 !important;
   border-radius: 9999px;
-  padding: 0.25rem;
-  gap: 0.25rem;
+  padding: 2.5px;
+  gap: 2px;
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 2px rgba(40, 32, 24, 0.05);
 }
 :root[data-theme='dark'] .ai-service .ai-writing-run-scale__choices,
 [data-theme='dark'] .ai-service .ai-writing-run-scale__choices {
-  border-color: var(--admin-border, #2a2825);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 .ai-service .ai-writing-run-scale__choices [data-slot='button'] {
+  flex: 0 0 auto;
+  width: auto;
   min-width: 0;
-  border: 0;
+  height: 100%;
+  min-height: 0;
+  border: 0 !important;
   border-radius: 9999px !important;
   box-shadow: none;
-  padding: 0.35rem 0.85rem;
+  padding: 0 0.85rem;
   font-size: 0.775rem;
-  font-weight: 550;
-  transition: all 0.15s ease;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .ai-service .ai-writing-run-scale__choices [aria-pressed='true'] {
-  background: var(--admin-panel);
+  background: var(--admin-panel, #ffffff);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(40, 32, 24, 0.08), 0 1px 1px rgba(40, 32, 24, 0.04);
+  font-weight: 600;
+}
+:root[data-theme='dark'] .ai-service .ai-writing-run-scale__choices [aria-pressed='true'],
+[data-theme='dark'] .ai-service .ai-writing-run-scale__choices [aria-pressed='true'] {
+  background: var(--bg-card, #2A2B31);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 .ai-service .ai-writing-run-scale__choices [aria-pressed='false'] {
   background: transparent;
   color: var(--text-muted);
+  box-shadow: none;
 }
 .ai-service .ai-writing-run-scale__choices [aria-pressed='false']:hover {
   color: var(--text-primary);
 }
+.ai-service .ai-writing-chapter-count-inline [data-slot='input'] {
+  height: 2rem;
+  min-height: 2rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+}
+.ai-service .ai-writing-strategy-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+/* 内容尺度：去容器化，直接融入纯白纸面，消灭突兀浅色背景框与违和描边 */
 .ai-service .ai-writing-content-scope {
-  background: var(--admin-panel-muted);
-  border: 1px solid var(--admin-border, #e5e3dc);
-  padding: 1rem;
-  border-radius: 1rem;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
   gap: 1rem;
 }
-:root[data-theme='dark'] .ai-service .ai-writing-content-scope,
-[data-theme='dark'] .ai-service .ai-writing-content-scope {
-  border-color: var(--admin-border, #2a2825);
-}
-.ai-service .ai-writing-baseline > :is(.ai-writing-content-scope, .ai-writing-analysis) {
-  border: 0;
-  padding-top: 1rem;
+.ai-service .ai-writing-baseline > .ai-writing-content-scope {
+  border-top: 1px solid var(--admin-border) !important;
+  padding-top: 1.5rem !important;
+  margin-top: 1.25rem;
 }
 .ai-service .ai-writing-baseline > .ai-writing-analysis {
-  padding-top: 0;
+  border-top: 1px solid var(--admin-border) !important;
+  padding-top: 1.5rem !important;
+  margin-top: 1.25rem;
 }
 .ai-service .ai-writing-content-scope__toggle {
-  padding: 0;
-  background: transparent;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.125rem;
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid var(--admin-border, #e5e3dc);
+  border-radius: var(--radius-lg, 0.75rem);
+  box-shadow: 0 1px 2px rgba(40, 32, 24, 0.02);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+:root[data-theme='dark'] .ai-service .ai-writing-content-scope__toggle,
+[data-theme='dark'] .ai-service .ai-writing-content-scope__toggle {
+  background: var(--bg-card, #2A2B31);
+  border-color: var(--admin-border, #2a2825);
+  box-shadow: none;
+}
+.ai-service .ai-writing-content-scope__toggle:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--admin-border));
 }
 .ai-service .ai-writing-content-scope__toggle .text-xs {
-  display: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+/* Claude 纸白浮起岛：彻底消除同底色死板描边，营造外深内浅的色调反差与陶土红微强调侧线 */
+.ai-service .ai-writing-consent {
+  background: var(--admin-panel, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--accent, #d97757) 16%, var(--admin-border, #e5e3dc));
+  border-left: 3.5px solid var(--accent, #d97757);
+  border-radius: 0.75rem;
+  padding: 1rem 1.125rem;
+  box-shadow: 0 1px 3px rgba(40, 32, 24, 0.04), 0 2px 6px rgba(40, 32, 24, 0.02);
+  transition: all 0.2s ease;
+}
+:root[data-theme='dark'] .ai-service .ai-writing-consent,
+[data-theme='dark'] .ai-service .ai-writing-consent {
+  background: var(--bg-card, #2A2B31);
+  border-color: rgba(255, 255, 255, 0.08);
+  border-left-color: var(--accent, #d97757);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.ai-service .ai-writing-consent label {
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.ai-service .ai-writing-consent p {
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
 }
 .ai-service .ai-writing-profile-list {
   border: 0;
-  gap: 0.625rem;
+  gap: 0.5rem;
 }
 .ai-service .ai-writing-profile-list > .ai-analysis-row {
   border: 1px solid var(--admin-border, #e5e3dc);
-  border-radius: 1rem;
-  background: var(--admin-panel-muted);
+  border-radius: 0.75rem;
+  background: var(--admin-panel, #ffffff);
   padding: 0.75rem 1rem;
-  gap: 0.5rem;
+  gap: 0.625rem;
+  box-shadow: 0 1px 2px rgba(40, 32, 24, 0.02);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 :root[data-theme='dark'] .ai-service .ai-writing-profile-list > .ai-analysis-row,
 [data-theme='dark'] .ai-service .ai-writing-profile-list > .ai-analysis-row {
+  background: var(--bg-card, #2A2B31);
   border-color: var(--admin-border, #2a2825);
+  box-shadow: none;
+}
+.ai-service .ai-writing-profile-list > .ai-analysis-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--admin-border));
 }
 .ai-service .ai-analysis-row > .flex {
   align-items: center;
