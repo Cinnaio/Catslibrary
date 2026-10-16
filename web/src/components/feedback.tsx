@@ -55,7 +55,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <Toaster position="bottom-center" />
+      <Toaster position="top-center" />
     </ToastContext.Provider>
   )
 }

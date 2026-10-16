@@ -547,11 +547,12 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 
 ### Shared Toast Feedback
 
-- **Entry:** 全站反馈栏由 `components/ui/sonner.tsx` 和 `styles/toast-feedback.css` 统一呈现，业务页继续使用 `useToast().toast(message, type, options)`；不在页面复制局部外观。
-- **Surface:** `--toast-background` 使用 92% 面板纸面与 8% 浅强调色派生暖白，文字使用 `--toast-foreground`；12px 圆角、无描边、`--toast-shadow` 轻量悬浮阴影。圆角、阴影、字号、内边距与间距集中使用 `--toast-*` token，随深色和自定义强调色映射。
-- **Content:** 14px 常规字重、1.6 行高、14px × 16px 内边距、10px 图文间距；保留 16px 细线状态图标，成功/普通图标为品牌色，错误/警告图标分别为危险色/警告色，不能只依赖颜色区分状态。长文字自然换行，不截断。
-- **Actions:** 撤销等动作采用浅强调色底与深强调色文字、6px 圆角、13px 字号，桌面最小 32px 高，手机及触屏最小 44px；保留清晰键盘焦点。禁止使用黑底操作按钮或整块高饱和状态背景。
-- **Interaction:** 保留 Sonner 的底部居中、视口边距、堆叠、滑动关闭与可访问播报；普通提示自动消失，带操作默认保留 10 秒。减少动态效果时缩短过渡并停止加载图标旋转，业务行为与展示时长不变。
+- **Entry:** 全站轻反馈与操作通知由 `components/ui/sonner.tsx` 和 `styles/toast-feedback.css` 统一呈现，业务页继续使用 `useToast().toast(message, type, options)`；不在页面复制局部外观。
+- **Positioning & Dock Collision Prevention:** 默认位置锁定为**顶部居中（`position="top-center"`）**，从视口顶部优雅滑入；彻底避免与底部常驻或唤出的「保存配置/撤销修改」悬浮胶囊岛（`AdminFloatingDock`）以及「批量选择操作条」（`AdminSelectionBar`）产生物理重叠与交互打架。
+- **Surface & Capsule Language (Claude Style):** 遵循 Claude 极简纸白药丸规范，采用全圆角胶囊（`--radius-full: 9999px`）、1px 极细微边框（`1px solid var(--border)`）与细腻柔和的环境浮层阴影（`0 4px 18px rgba(35, 30, 24, 0.08)`），消灭粗苯的方块卡片感。暗色模式自动切换为深暖黑低反光表面。
+- **Content & Typography:** 40px 高度（`min-height: 2.5rem`）、`0.5rem 1.125rem` 呼吸内边距、13px 中等字重（`0.8125rem` / 500）、1.5 行高；16px 细线状态图标（成功/提示统一使用 Anthropic 陶土色 `#d97757`，错误危险红，警告暖琥珀），长文字自适应平滑扩展。
+- **Actions:** 撤销等动作采用轻量微缩胶囊按钮（`[data-button]`，高度 26px，浅陶土底与深陶土字，悬停平滑加深）；禁止使用高饱和厚重实色底。
+- **Interaction:** 保留 Sonner 的顶部居中下坠、视口边距避让、多通知顺畅堆叠、滑动关闭与无障碍朗读；普通提示自动消失，带动作提示默认保留 10 秒。减少动态效果时自适应降级。
 
 ### Shared Account and List Primitives
 

@@ -1,67 +1,109 @@
-/* Sonner keeps positioning, stacking and dismissal; this shared layer owns the visual language. */
+/* Sonner keeps positioning, stacking and dismissal; this shared layer owns the Claude visual language. */
 .site-toaster[data-sonner-toaster] {
   font-family: var(--font-body);
 }
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
-  min-height: 3rem;
-  gap: var(--toast-gap);
-  padding: var(--toast-padding-block) var(--toast-padding-inline);
-  border: 0;
-  border-radius: var(--toast-radius);
+  min-height: 2.5rem;
+  gap: var(--toast-gap, 0.625rem);
+  padding: var(--toast-padding-block, 0.5rem) var(--toast-padding-inline, 1.125rem);
+  border: 1px solid var(--toast-border, var(--border, #ece8e2));
+  border-radius: var(--radius-full, 9999px) !important;
   background: var(--toast-background);
   color: var(--toast-foreground);
   box-shadow: var(--toast-shadow);
-  font-size: var(--toast-font-size);
-  line-height: 1.6;
+  font-size: var(--toast-font-size, 0.8125rem);
+  line-height: 1.5;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+:root[data-theme='dark'] .site-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'],
+[data-theme='dark'] .site-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
+  border-color: var(--admin-border, #312f2b);
+  background: var(--admin-panel-muted, #242320);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-title] {
-  font-weight: 400;
-  line-height: 1.6;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+  color: var(--text-primary);
 }
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-description] {
-  color: var(--text-secondary);
-  font-size: 0.8125rem;
-  line-height: 1.6;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-content] {
   min-width: 0;
   flex: 1;
-  gap: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-icon] {
   margin: 0;
-  color: var(--accent);
+  flex-shrink: 0;
+  color: var(--admin-accent, #d97757);
+}
+
+.site-toaster[data-sonner-toaster] [data-sonner-toast][data-type='success'] [data-icon] {
+  color: var(--admin-accent, #d97757);
 }
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast][data-type='error'] [data-icon] {
-  color: var(--color-danger);
+  color: var(--color-danger, #be123c);
 }
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast][data-type='warning'] [data-icon] {
-  color: var(--color-warning);
+  color: var(--color-warning, #b07c2f);
 }
 
+.site-toaster[data-sonner-toaster] [data-sonner-toast][data-type='info'] [data-icon] {
+  color: var(--admin-accent, #d97757);
+}
+
+/* 优雅的 Claude 微型动作胶囊按钮（如「撤销」） */
 .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-button] {
-  min-height: 2rem;
-  height: auto;
-  margin-inline-start: auto;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--accent-subtle);
-  color: var(--accent-hover);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.625rem;
+  min-height: 1.625rem;
+  margin-inline-start: 0.5rem;
+  padding: 0 0.625rem;
+  border-radius: var(--radius-full, 9999px);
+  border: 0;
+  background: rgba(217, 119, 87, 0.1);
+  color: var(--admin-accent, #d97757);
   font-family: inherit;
-  font-size: 0.8125rem;
-  line-height: 1.6;
-  transition: background 150ms var(--ease-out), color 150ms var(--ease-out);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 150ms var(--ease-out);
 }
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-button]:hover {
-  background: var(--accent-light);
+  background: rgba(217, 119, 87, 0.18);
+  color: var(--admin-accent, #d97757);
+}
+
+:root[data-theme='dark'] .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-button],
+[data-theme='dark'] .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-button] {
+  background: rgba(217, 119, 87, 0.18);
+  color: #e88e72;
+}
+
+:root[data-theme='dark'] .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-button]:hover,
+[data-theme='dark'] .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-button]:hover {
+  background: rgba(217, 119, 87, 0.28);
 }
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-cancel] {
@@ -71,14 +113,13 @@
 
 .site-toaster[data-sonner-toaster] [data-sonner-toast]:focus-visible,
 .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-button]:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  box-shadow: var(--toast-shadow);
+  outline: 2px solid var(--admin-accent, #d97757);
+  outline-offset: 2px;
 }
 
 @media (max-width: 600px), (pointer: coarse) {
   .site-toaster[data-sonner-toaster] [data-sonner-toast] [data-button] {
-    min-height: 2.75rem;
+    min-height: 2rem;
   }
 }
 
