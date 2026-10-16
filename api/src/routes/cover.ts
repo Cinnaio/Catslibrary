@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /** /api/cover/:id —— 封面二进制响应（首次读取时懒缓存源图/缺省图）。 */
 import { createHash } from 'node:crypto'
 import { Hono } from 'hono'
@@ -16,7 +17,7 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
   const id = c.req.param('id')
   if (!id || id.includes('/')) return c.json({ error: 'Invalid novel ID' }, 400)
 
-  const novel = await first<{ id: string; content_rating: string; cover_url: string }>(db, 'SELECT id, content_rating, cover_url FROM novels WHERE id = $1', [id])
+  const novel = await first<{ id: string; content_rating: string; cover_url: string; visibility: string }>(db, `SELECT id, content_rating, cover_url, visibility FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [id])
   if (!novel) return c.json({ error: 'Novel not found' }, 404)
   if (novel.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -48,7 +49,7 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
     // Covers use private client caches. Access is checked on every network request,
     // including conditional requests; clients hide restricted covers when mode closes.
     // Rating/cover changes bump novels.updated_at, part of the iOS cover URL.
-    'Cache-Control': retrySource ? 'private, no-store' : 'private, max-age=604800, must-revalidate',
+    'Cache-Control': retrySource || novel.visibility !== 'public' ? 'private, no-store' : 'private, max-age=604800, must-revalidate',
     Vary: 'Cookie, Authorization, X-Content-Access',
     ETag: etag,
   }

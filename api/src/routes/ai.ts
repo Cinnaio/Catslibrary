@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/ai —— AI 能力入口。
  * 读者侧：GET /status（能力探测）、POST /recap（章节前情提要，先查缓存再计配额）。
@@ -102,7 +103,7 @@ async function chapterContentAccessError(c: Context<AuthEnv>, db: ReturnType<typ
     `SELECT n.content_rating
      FROM chapters c
      JOIN novels n ON n.id = c.novel_id
-     WHERE c.id = $1`,
+     WHERE c.id = $1 AND ${visibleNovelSql(c)}`,
     [chapterId],
   )
   if (!chapter) return c.json({ error: '章节不存在' }, 404)
@@ -112,7 +113,7 @@ async function chapterContentAccessError(c: Context<AuthEnv>, db: ReturnType<typ
 }
 
 async function novelContentAccessError(c: Context<AuthEnv>, db: ReturnType<typeof getDb>, novelId: string): Promise<Response | undefined> {
-  const novel = await first<{ content_rating: string }>(db, 'SELECT content_rating FROM novels WHERE id = $1', [novelId])
+  const novel = await first<{ content_rating: string }>(db, `SELECT content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
   if (!novel) return c.json({ error: '小说不存在' }, 404)
   if (novel.content_rating !== 'restricted') return undefined
   const access = await resolveContentAccess(c)

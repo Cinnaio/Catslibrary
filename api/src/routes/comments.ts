@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/comments —— 评论/回复/点赞/举报（由 Novel-KV comments.js + like.js + report.js 合并）。
  */
@@ -31,7 +32,7 @@ async function commentContentAccessError(c: Context<AuthEnv>, db: ReturnType<typ
     `SELECT c.id, n.content_rating
      FROM novel_comments c
      JOIN novels n ON n.id = c.novel_id
-     WHERE c.id = $1`,
+     WHERE c.id = $1 AND ${visibleNovelSql(c)}`,
     [commentId],
   )
   if (!comment) return c.json({ error: 'Comment not found' }, 404)
@@ -46,7 +47,7 @@ commentsRoutes.get('/', optionalUser(), async (c) => {
   const db = getDb()
   const novelId = cleanText(c.req.query('novelId'), 80)
   if (!novelId) return c.json({ error: 'novelId query parameter is required' }, 400)
-  const novel = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  const novel = await first<{ id: string; content_rating: string }>(db, `SELECT id, content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
   if (!novel) return c.json({ error: 'Novel not found' }, 404)
   if (novel.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -122,7 +123,7 @@ commentsRoutes.post('/', requireUser(), async (c) => {
   if (text.length < 2) return c.json({ error: '评论内容至少需要 2 个字符' }, 400)
   if (looksLikeSpam(text, MAX_COMMENT_LINKS)) return c.json({ error: '评论内容看起来像垃圾信息' }, 400)
 
-  const novel = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  const novel = await first<{ id: string; content_rating: string }>(db, `SELECT id, content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
   if (!novel) return c.json({ error: 'Novel not found' }, 404)
   if (novel.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -132,7 +133,7 @@ commentsRoutes.post('/', requireUser(), async (c) => {
   if (parentId) {
     const parent = await first<{ id: string; novel_id: string; parent_id: string | null; status: string }>(
       db,
-      'SELECT id, novel_id, parent_id, status FROM novel_comments WHERE id = $1',
+      `SELECT parent.id, parent.novel_id, parent.parent_id, parent.status FROM novel_comments parent JOIN novels n ON n.id=parent.novel_id WHERE parent.id = $1 AND ${visibleNovelSql(c)}`,
       [parentId],
     )
     if (!parent || parent.status !== 'visible') return c.json({ error: '父评论不存在' }, 404)
@@ -161,7 +162,7 @@ commentsRoutes.post('/', requireUser(), async (c) => {
   const row = await first<Record<string, unknown>>(
     db,
     `SELECT c.*, u.updated_at AS user_updated_at, 0 AS user_liked, 1 AS can_edit
-     FROM novel_comments c LEFT JOIN users u ON u.id = c.user_id WHERE c.id = $1`,
+     FROM novel_comments c JOIN novels n ON n.id=c.novel_id LEFT JOIN users u ON u.id = c.user_id WHERE c.id = $1 AND ${visibleNovelSql(c)}`,
     [id],
   )
   return c.json({ comment: rowToComment(row) }, 201)
@@ -181,7 +182,7 @@ commentsRoutes.put('/', requireUser(), async (c) => {
     `SELECT c.*, n.content_rating
      FROM novel_comments c
      JOIN novels n ON n.id = c.novel_id
-     WHERE c.id = $1`,
+     WHERE c.id = $1 AND ${visibleNovelSql(c)}`,
     [id],
   )
   if (!row) return c.json({ error: 'Comment not found' }, 404)
@@ -241,7 +242,7 @@ commentsRoutes.post('/:id/like', requireUser(), async (c) => {
     `SELECT c.id, c.status, n.content_rating
      FROM novel_comments c
      JOIN novels n ON n.id = c.novel_id
-     WHERE c.id = $1`,
+     WHERE c.id = $1 AND ${visibleNovelSql(c)}`,
     [commentId],
   )
   if (!comment || comment.status !== 'visible') return c.json({ error: 'Comment not found' }, 404)
@@ -294,7 +295,7 @@ commentsRoutes.post('/:id/report', requireUser(), async (c) => {
     `SELECT c.id, c.status, n.content_rating
      FROM novel_comments c
      JOIN novels n ON n.id = c.novel_id
-     WHERE c.id = $1`,
+     WHERE c.id = $1 AND ${visibleNovelSql(c)}`,
     [commentId],
   )
   if (!comment) return c.json({ error: 'Comment not found' }, 404)

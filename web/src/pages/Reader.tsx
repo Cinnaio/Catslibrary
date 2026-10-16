@@ -1,3 +1,4 @@
+import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 /**
  * Reader 阅读器 —— 沉浸式阅读（由 Novel-KV js/read.js 2723 行平移为 React）。
  * 覆盖：章节加载/缓存/预取、滚动+分页双模式、进度保存/恢复（本地+服务端节流）、
@@ -82,7 +83,7 @@ export default function Reader() {
     setAllChapters([])
     setChapterThoughts([])
     setLoading(true)
-  }, [mode, user?.id, sessionLoading])
+  }, [mode, user?.id, sessionLoading, novelId])
 
   // 标签页标题跟随当前章节（读者停留最久的页面）
   useDocumentTitle(chapter ? [chapter.title, novel?.title].filter(Boolean).join(' · ') : novel?.title)
@@ -127,6 +128,22 @@ export default function Reader() {
       && !settingsPanelOpen && !mobileSettingsOpen && !mobileLibraryOpen && !thoughtPanelOpen,
     contentMode: mode, ready: statsReady,
   })
+
+  const checkAccess = useCallback(async () => {
+    const generation = contentGenerationRef.current
+    try { await novelsApi.get(novelId) } catch (error) {
+      if (generation !== contentGenerationRef.current) return
+      const status = (error as ApiError).status
+      if (status !== 404 && !isRestrictedContentError(error)) return
+      contentGenerationRef.current++
+      cacheRef.current.clear()
+      setChapter(null); setNovel(null); setAllChapters([]); setChapterThoughts([])
+      setPendingSelection(null); setPopoverPos(null); setThoughtPanelOpen(false)
+      setLoading(false); setLoadError('')
+      setNotFound(status === 404); setBlocked(isRestrictedContentError(error))
+    }
+  }, [novelId])
+  useVisibleRefresh(checkAccess, !loading && !!chapter && !notFound)
 
   // 自动滚动
   const autoScrollRef = useRef({ running: false, frame: 0, lastTs: 0, remainder: 0 })

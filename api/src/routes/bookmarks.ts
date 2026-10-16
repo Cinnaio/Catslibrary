@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /** /api/bookmarks —— 用户书签同步（全量替换模式，由 Novel-KV bookmarks.js 平移）。 */
 import { Hono } from 'hono'
 import { getDb } from '../db/pool'
@@ -11,7 +12,7 @@ bookmarksRoutes.get('/', requireUser(), async (c) => {
   const db = getDb()
   const userId = c.get('user').id
   const access = await resolveContentAccess(c)
-  const ratingFilter = access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'general') <> 'restricted'"
+  const ratingFilter = ` AND ${visibleNovelSql(c)}` + (access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'general') <> 'restricted'")
   const rows = await all<Record<string, unknown>>(
     db,
     `SELECT b.*, n.title AS novel_title, ch.title AS chapter_title, ch.sort_order AS chapter_order
@@ -63,7 +64,7 @@ bookmarksRoutes.put('/', requireUser(), async (c) => {
   const access = await resolveContentAccess(c)
   for (const b of deduped) {
     const { rows } = await db.query<{ title: string; chapter_title: string; sort_order: number; content_rating: string }>(
-      'SELECT n.title, ch.title AS chapter_title, ch.sort_order, n.content_rating FROM chapters ch JOIN novels n ON n.id = ch.novel_id WHERE n.id = $1 AND ch.id = $2',
+      `SELECT n.title, ch.title AS chapter_title, ch.sort_order, n.content_rating FROM chapters ch JOIN novels n ON n.id = ch.novel_id WHERE n.id = $1 AND ch.id = $2 AND ${visibleNovelSql(c)}`,
       [b.novelId, b.chapterId],
     )
     const row = rows[0]
@@ -87,7 +88,7 @@ bookmarksRoutes.put('/', requireUser(), async (c) => {
 
   await withTx(db, async (q) => {
     // 安全模式的完整列表不包含隐藏作品，不能误删原有 R18 书签。
-    await q(`DELETE FROM user_bookmarks b WHERE b.user_id = $1 AND ($2 OR NOT EXISTS (SELECT 1 FROM novels n WHERE n.id = b.novel_id AND n.content_rating = 'restricted'))`, [userId, access.canViewRestricted])
+    await q(`DELETE FROM user_bookmarks b WHERE b.user_id = $1 AND EXISTS (SELECT 1 FROM novels n WHERE n.id=b.novel_id AND ${visibleNovelSql(c)}) AND ($2 OR NOT EXISTS (SELECT 1 FROM novels n WHERE n.id = b.novel_id AND n.content_rating = 'restricted'))`, [userId, access.canViewRestricted])
     for (const [sql, p] of inserts) await q(sql, p)
   })
   return c.json({ success: true, count: inserts.length })
@@ -104,21 +105,21 @@ bookmarksRoutes.post('/', requireUser(), async (c) => {
     `INSERT INTO user_bookmarks (id, user_id, novel_id, novel_title, chapter_id, chapter_title, chapter_order, note, created_at, updated_at)
      SELECT $1, $2, n.id, n.title, ch.id, ch.title, ch.sort_order, $5, $6, $6
      FROM chapters ch JOIN novels n ON n.id = ch.novel_id
-     WHERE n.id = $3 AND ch.id = $4 AND ($7 OR COALESCE(n.content_rating, 'general') <> 'restricted')
+     WHERE ${visibleNovelSql(c)} AND n.id = $3 AND ch.id = $4 AND ($7 OR COALESCE(n.content_rating, 'general') <> 'restricted')
      ON CONFLICT (user_id, novel_id, chapter_id) DO UPDATE SET
        note = EXCLUDED.note, updated_at = EXCLUDED.updated_at,
        novel_title = EXCLUDED.novel_title, chapter_title = EXCLUDED.chapter_title, chapter_order = EXCLUDED.chapter_order
      RETURNING *`,
     [bookmarkId(userId, body.id, 'bm_' + crypto.randomUUID()), userId, body.novelId, body.chapterId, clean(body.note, 300), Date.now(), access.canViewRestricted],
   )
-  if (!result.rows.length) return c.json({ error: '章节不存在或无权访问' }, 404)
+  if (!result.rows.length) return c.json({ error: '章节不存在' }, 404)
   return c.json({ bookmark: rowToBookmark(result.rows[0] as Record<string, unknown>) })
 })
 
 bookmarksRoutes.delete('/', requireUser(), async (c) => {
   const body = await c.req.json().catch(() => null)
   if (!validBookmark(body)) return c.json({ error: '书签参数无效' }, 400)
-  await getDb().query('DELETE FROM user_bookmarks WHERE user_id = $1 AND novel_id = $2 AND chapter_id = $3', [c.get('user').id, body.novelId, body.chapterId])
+  await getDb().query(`DELETE FROM user_bookmarks b WHERE user_id = $1 AND novel_id = $2 AND chapter_id = $3 AND EXISTS (SELECT 1 FROM novels n WHERE n.id=b.novel_id AND ${visibleNovelSql(c)})`, [c.get('user').id, body.novelId, body.chapterId])
   return c.json({ success: true })
 })
 

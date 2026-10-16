@@ -1,7 +1,7 @@
 /**
  * 行映射 —— snake_case DB 列 ↔ camelCase API 字段（由 Novel-KV _db.js 平移）。
  */
-import type { ContentRating } from '@shared/types'
+import type { ContentRating, NovelVisibility } from '@shared/types'
 
 export interface NovelRow {
   id: string
@@ -11,6 +11,8 @@ export interface NovelRow {
   cover_url: string
   categories: string
   status: string
+  visibility?: NovelVisibility
+  visibility_revision?: number
   content_rating: string
   content_rating_revision: number
   content_rating_source: string
@@ -38,6 +40,8 @@ export interface Novel {
   status: string
   contentRating: ContentRating
   contentRatingRevision?: number
+  visibility?: NovelVisibility
+  visibilityRevision?: number
   sourceUrl: string
   chapterCount: number
   remoteChapterCount: number
@@ -125,6 +129,7 @@ export function rowToNovel(row: NovelRow | undefined | null): Novel | null {
     categories: safeJsonParse(row.categories, []),
     status: row.status,
     contentRating: toContentRating(row.content_rating),
+    visibility: row.visibility || 'public',
     contentRatingRevision: Number(row.content_rating_revision) || 0,
     sourceUrl: row.source_url,
     chapterCount: row.chapter_count,

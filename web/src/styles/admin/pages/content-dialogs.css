@@ -562,3 +562,26 @@
     height: 126px;
   }
 }
+
+/* Novel access controls share the editor's paper surfaces and form rhythm. */
+.novel-visibility-users {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  min-width: 0;
+}
+.novel-visibility-selected { display: grid; gap: 0.25rem; max-block-size: 12rem; overflow-y: auto; overscroll-behavior: contain; }
+.novel-visibility-selected > span,
+.novel-visibility-account,
+.novel-visibility-pagination,
+.novel-visibility-audit { color: var(--text-secondary); font-size: 0.8rem; }
+.novel-visibility-user { display: flex; align-items: center; gap: 0.5rem; min-width: 0; padding-block: 0.25rem; }
+.novel-visibility-user > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.novel-visibility-results { display: grid; gap: 0.25rem; max-block-size: 12rem; overflow-y: auto; overscroll-behavior: contain; }
+.novel-visibility-pagination { display: flex; justify-content: space-between; align-items: center; }
+.novel-visibility-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; color: var(--color-danger); }
+.novel-visibility-audit summary { cursor: pointer; }
+.novel-visibility-audit ol { padding-inline-start: 1rem; margin-block: 0.5rem; }

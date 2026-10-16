@@ -1,3 +1,4 @@
+import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 /**
  * 书架页 —— 收藏、最近阅读、书签、想法、手动同步（由 Novel-KV js/bookshelf.js 平移）。
  */
@@ -167,6 +168,8 @@ export default function Bookshelf() {
       if (current()) setSyncing(false)
     }
   }, [safeMode])
+  useVisibleRefresh(loadAll, !!user && !loading)
+
 
   async function manualSync() {
     setSyncing(true)

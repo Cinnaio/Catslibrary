@@ -1,3 +1,5 @@
+import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
+import { useSession } from '../context/SessionContext'
 /**
  * Home 页 —— 小说网格、搜索（含拼音）、分类/状态筛选、排序、分页。
  * 由 Novel-KV js/home.js 平移为 React。
@@ -36,6 +38,7 @@ async function novelMatches(n: Novel, q: string, usePinyin: boolean): Promise<bo
 
 export default function Home() {
   const branding = useSiteBranding()
+  const { user, loading: sessionLoading } = useSession()
   useDocumentTitle(null)
   const { query, setQuery } = useSearch()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -213,11 +216,17 @@ export default function Home() {
       if (seq !== loadSeq.current) return
       setLoading(false)
     }
-  }, [currentPage, debouncedQuery, activeCategories, activeStatus, sort, loadDemo, safeMode, isAllowed, retryCount])
+  }, [currentPage, debouncedQuery, activeCategories, activeStatus, sort, loadDemo, safeMode, isAllowed])
+  useVisibleRefresh(loadNovels, !sessionLoading)
+  useLayoutEffect(() => {
+    loadSeq.current++
+    setNovels([]); setCategories([]); setCurrentPage(1)
+  }, [user?.id, sessionLoading])
+
 
   useEffect(() => {
-    void loadNovels()
-  }, [loadNovels])
+    if (!sessionLoading) void loadNovels()
+  }, [loadNovels, retryCount, user?.id, sessionLoading])
 
   // 搜索防抖：query 落定 300ms 后写入 debouncedQuery（由其触发 loadNovels），并回到第一页
   useEffect(() => {

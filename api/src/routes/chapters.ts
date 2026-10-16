@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/chapters —— 章节列表/内容/创建/更新/删除（由 Novel-KV 平移）。
  */
@@ -22,7 +23,7 @@ chaptersRoutes.get('/', optionalUser(), async (c) => {
   const db = getDb()
   const novelId = c.req.query('novelId')
   if (!novelId) return c.json({ error: 'novelId query parameter is required' }, 400)
-  const novel = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  const novel = await first<{ id: string; content_rating: string }>(db, `SELECT id, content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
   if (!novel) return c.json({ error: 'Novel not found' }, 404)
   if (novel.content_rating === 'restricted') {
     if (c.req.query('contentMode') === 'safe') return restrictedContentResponse(c, 'safe_mode')
@@ -72,7 +73,7 @@ chaptersRoutes.get('/:id', optionalUser(), async (c) => {
     `SELECT c.*, n.content_rating
      FROM chapters c
      JOIN novels n ON n.id = c.novel_id
-     WHERE c.id = $1`,
+     WHERE c.id = $1 AND ${visibleNovelSql(c)}`,
     [id],
   )
   if (!row) return c.json({ error: 'Chapter not found' }, 404)

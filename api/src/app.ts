@@ -42,6 +42,8 @@ app.use('/api/*', cors())
 app.use('/api/*', csrfProtection())
 app.use('/api/*', async (c, next) => {
   c.header('X-Robots-Tag', 'noindex, follow')
+  c.header('Cache-Control', 'private, no-store')
+  c.header('Vary', 'Cookie, Authorization, X-Content-Access', { append: true })
   await next()
 })
 

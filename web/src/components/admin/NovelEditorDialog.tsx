@@ -1,6 +1,7 @@
+import NovelVisibilityField, { type NovelVisibilityDraft } from './NovelVisibilityField'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles, Image as ImageIcon } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import type { Novel } from '@shared/types'
 import { novelsApi } from '@/lib/api'
 import { useConfirm, useToast } from '@/components/feedback'
@@ -73,6 +74,7 @@ export default function NovelEditorDialog({
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const [saving, setSaving] = useState(false)
+  const [visibilityDraft, setVisibilityDraft] = useState<NovelVisibilityDraft | null>(null)
 
   const [draft, setDraft] = useState<NovelDraft>(() =>
     editing
@@ -109,7 +111,11 @@ export default function NovelEditorDialog({
   }, [open, editing])
 
   async function handleSave() {
-    if (saving) return
+    if (saving || !visibilityDraft) return
+    if (visibilityDraft.visibility === 'selected' && !visibilityDraft.allowedUserIds.length) {
+      toast('请至少选择一位授权用户', 'error')
+      return
+    }
     const title = draft.title.trim()
     const author = draft.author.trim()
     const sourceUrl = draft.sourceUrl.trim()
@@ -133,6 +139,7 @@ export default function NovelEditorDialog({
     }
 
     const data = {
+      ...visibilityDraft,
       title,
       author,
       description: draft.description.trim(),
@@ -255,6 +262,8 @@ export default function NovelEditorDialog({
                 />
               </div>
 
+              <NovelVisibilityField key={editing?.id || 'new'} novelId={editing?.id} onChange={setVisibilityDraft} disabled={saving} />
+
               <div className="form-group novel-editor__field novel-editor__field--wide">
                 <Label htmlFor="novel-cover-url">来源封面 URL</Label>
                 <Input
@@ -295,7 +304,7 @@ export default function NovelEditorDialog({
           <Button variant="secondary" onClick={onClose} disabled={saving}>
             取消
           </Button>
-          <Button onClick={() => void handleSave()} disabled={saving}>
+          <Button onClick={() => void handleSave()} disabled={saving || !visibilityDraft}>
             {saving ? '保存中…' : '保存'}
           </Button>
         </DialogFooter>

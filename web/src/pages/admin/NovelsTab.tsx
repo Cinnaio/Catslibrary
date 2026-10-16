@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, CirclePlus, FileUp, GitMerge, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import type { Novel } from '@shared/types'
-import { newOperationId, novelsApi, url, authHeaders } from '../../lib/api'
+import { novelsApi, url, authHeaders } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
@@ -119,6 +119,7 @@ export default function NovelsTab({
   const [query, setQuery] = useState('')
   const [ratingFilter, setRatingFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [visibilityFilter, setVisibilityFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -160,6 +161,7 @@ export default function NovelsTab({
       if (query) params.search = query
       if (ratingFilter) params.contentRating = ratingFilter
       if (statusFilter) params.status = statusFilter
+      if (visibilityFilter) params.visibility = visibilityFilter
       if (locateId) params.locateNovelId = locateId
       const data = await novelsApi.list(params)
       if (seq !== seqRef.current) return
@@ -192,7 +194,7 @@ export default function NovelsTab({
     } finally {
       if (seq === seqRef.current) setLoading(false)
     }
-  }, [page, pageSize, sortField, sortOrder, query, ratingFilter, statusFilter, toast, locateId])
+  }, [page, pageSize, sortField, sortOrder, query, ratingFilter, statusFilter, visibilityFilter, toast, locateId])
 
   useEffect(() => {
     void load()
@@ -375,6 +377,10 @@ export default function NovelsTab({
           onChange={(e) => setSearchInput(e.target.value)}
         />
         <div className="novels-filter-chips">
+          <CustomSelect compact chip filterChip leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            aria-label="按可见范围筛选小说" value={visibilityFilter}
+            options={[{ value: '', label: '全部可见范围' }, { value: 'public', label: '公开' }, { value: 'admin', label: '仅管理员' }, { value: 'selected', label: '指定用户' }]}
+            onChange={(value) => { setVisibilityFilter(value); setPage(1) }} />
           <CustomSelect
             compact
             chip
@@ -535,6 +541,7 @@ export default function NovelsTab({
                       </div>
                       <div className="novel-book-info">
                         <span className="novel-book-title">{n.title}</span>
+                        {n.visibility && n.visibility !== 'public' && <span className="novel-book-sub">私密 · {n.visibility === 'admin' ? '仅管理员' : '指定用户'}</span>}
                         {n.sourceUrl && (
                           <span className="novel-book-sub">
                             {(() => {

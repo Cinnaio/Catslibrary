@@ -1,3 +1,4 @@
+import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 /**
  * Novel 详情页 —— hero 信息、章节目录、本地书签、评分与评论。
  * 由 Novel-KV js/novel.js 平移为 React。
@@ -132,10 +133,29 @@ export default function Novel() {
   useDocumentTitle(novel?.title)
   useEffect(() => {
     if (loading) return
-    const indexable = !blocked && !notFound && novel?.id === id && novel.contentRating === 'general' && !routeSearch
-    setPageSeo(Boolean(indexable), novel?.contentRating === 'general'
+    const indexable = !blocked && !notFound && novel?.id === id && novel.contentRating === 'general' && (novel.visibility || 'public') === 'public' && !routeSearch
+    setPageSeo(Boolean(indexable), novel?.contentRating === 'general' && (novel.visibility || 'public') === 'public'
       ? `${novel.author}著。${novel.description || ''}`.slice(0, 180) : branding.description, `/novel/${encodeURIComponent(id)}`)
   }, [novel, loading, blocked, notFound, id, routeSearch, branding.description])
+
+  const checkAccess = useCallback(async () => {
+    const generation = loadGeneration.current
+    const scope = getStorageScope()
+    try {
+      const fresh = (await novelsApi.get(id)).novel
+      if (generation !== loadGeneration.current || activeIdRef.current !== id || scope !== getStorageScope()) return
+      setNovel((current) => current?.id === id ? { ...current, visibility: fresh.visibility, contentRating: fresh.contentRating } : current)
+    } catch (error) {
+      if (generation !== loadGeneration.current || activeIdRef.current !== id || scope !== getStorageScope()) return
+      const status = (error as { status?: number }).status
+      if (status !== 404 && !isRestrictedContentError(error)) return
+      loadGeneration.current++
+      setNovel(null); setChapters([]); setComments([]); setRating(null); setServerProgress(null)
+      setLoading(false); setLoadError('')
+      setNotFound(status === 404); setBlocked(isRestrictedContentError(error))
+    }
+  }, [id])
+  useVisibleRefresh(checkAccess, !loading && !!novel && !notFound)
 
   // 描述溢出检测（>3 行显示"展开全部"）
   // 只在折叠态判定（展开态按钮文案切换为"收起"，状态沿用）。
