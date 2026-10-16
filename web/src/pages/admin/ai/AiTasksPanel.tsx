@@ -252,8 +252,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           {(['all', 'queued', 'running', 'completed', 'failed', 'cancelled'] as const).map((status) => (
             <Button
               key={status}
-              variant="ghost"
+              variant={filterStatus === status ? 'secondary' : 'ghost'}
               size="sm"
+              className="rounded-full h-7 px-3 text-xs font-medium"
               aria-pressed={filterStatus === status}
               onClick={() => {
                 if (filterStatus === status) return
