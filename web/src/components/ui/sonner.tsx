@@ -8,12 +8,13 @@ import {
 import { useTheme } from "@/context/ThemeContext"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
-const Toaster = ({ ...props }: ToasterProps) => {
+const Toaster = ({ position = "top-center", ...props }: ToasterProps) => {
   const { theme } = useTheme()
 
   return (
     <Sonner
       theme={theme}
+      position={position}
       className="toaster site-toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

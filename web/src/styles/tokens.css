@@ -43,14 +43,15 @@
   --shadow-md: 0 6px 16px rgba(40, 32, 24, 0.08);
   --shadow-lg: 0 16px 40px rgba(40, 32, 24, 0.12);
   --shadow-popover: 0 8px 28px rgba(40, 32, 24, 0.12);
-  /* Shared transient feedback — neutral paper, restrained floating depth. */
-  --toast-background: color-mix(in srgb, var(--bg-card) 92%, var(--accent-subtle) 8%);
+  /* Shared transient feedback — Claude paper capsule, restrained elevation and hairline border. */
+  --toast-background: color-mix(in srgb, var(--bg-card) 95%, var(--accent-subtle) 5%);
   --toast-foreground: var(--text-primary);
-  --toast-radius: var(--radius-lg);
-  --toast-shadow: var(--shadow-md);
-  --toast-font-size: 0.875rem;
-  --toast-padding-block: 0.875rem;
-  --toast-padding-inline: 1rem;
+  --toast-radius: var(--radius-full);
+  --toast-shadow: 0 4px 18px rgba(35, 30, 24, 0.08), 0 1px 3px rgba(35, 30, 24, 0.04);
+  --toast-border: var(--border);
+  --toast-font-size: 0.8125rem;
+  --toast-padding-block: 0.5rem;
+  --toast-padding-inline: 1.125rem;
   --toast-gap: 0.625rem;
   --radius: 8px;
   --radius-sm: 6px;
