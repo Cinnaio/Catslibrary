@@ -9,10 +9,11 @@
  * - 原版的重试在成功后切换到「爬虫」tab 并创建任务卡；本 tab 无 tab 切换能力，
  *   故仅 toast + 重载列表（偏离点）。
  */
-import { TaskDetails, TaskSummary } from './TaskWorkspace'
+import { TaskDetails } from './TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import CustomSelect, { type SelectOption } from '@/components/admin/CustomSelect'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CircleMinus, Check, AlertCircle, RefreshCw } from 'lucide-react'
+import { CircleMinus, Check, AlertCircle, RefreshCw, CirclePlus } from 'lucide-react'
 import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
@@ -21,9 +22,8 @@ import { useConfirm, useToast } from '../../components/feedback'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import { ErrorState } from '@/components/admin/AsyncStates'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
@@ -84,13 +84,6 @@ const FILTERS: Array<{ value: JobFilter; label: string }> = [
   { value: 'failed', label: '失败/终止' },
 ]
 
-const FILTER_INDEX: Record<JobFilter, number> = {
-  all: 0,
-  running: 1,
-  completed: 2,
-  failed: 3,
-}
-
 const FILTER_EMPTY_LABEL: Record<JobFilter, string> = {
   all: '暂无任务',
   running: '当前没有运行中的任务',
@@ -150,6 +143,8 @@ export default function JobsTab({
   const [logsLoading, setLogsLoading] = useState(true)
   const [logsError, setLogsError] = useState<string | null>(null)
   const [filter, setFilter] = useState<JobFilter>('all')
+  const [downloadType, setDownloadType] = useState<string>('all')
+  const [search, setSearch] = useState('')
   const [novelTitles, setNovelTitles] = useState<Map<string, string>>(new Map())
 
   const mountedRef = useRef(true)
@@ -264,11 +259,59 @@ export default function JobsTab({
   }, [])
 
   const filtered = useMemo(() => {
-    if (filter === 'running') return jobs.filter((j) => isJobRunning(j.status))
-    if (filter === 'completed') return jobs.filter((j) => j.status === 'completed')
-    if (filter === 'failed') return jobs.filter((j) => j.status === 'failed' || j.status === 'cancelled' || j.status === 'partial')
-    return jobs
-  }, [jobs, filter])
+    let list = jobs
+    if (filter === 'running') list = jobs.filter((j) => isJobRunning(j.status))
+    else if (filter === 'completed') list = jobs.filter((j) => j.status === 'completed')
+    else if (filter === 'failed') list = jobs.filter((j) => j.status === 'failed' || j.status === 'cancelled' || j.status === 'partial')
+    const q = search.trim().toLowerCase()
+    if (q) {
+      list = list.filter((j) => {
+        const id = (j.id || '').toLowerCase()
+        const title = (j.novelId ? novelTitles.get(j.novelId) || '' : '').toLowerCase()
+        const nid = (j.novelId || '').toLowerCase()
+        return id.includes(q) || title.includes(q) || nid.includes(q)
+      })
+    }
+    return list
+  }, [jobs, filter, search, novelTitles])
+
+  const downloadTypeCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      novel_txt: 0,
+      novel_txt_batch: 0,
+      scrape_configs: 0,
+    }
+    for (const log of downloadLogs) {
+      if (log.type in counts) {
+        counts[log.type] = (counts[log.type] ?? 0) + 1
+      }
+    }
+    return counts
+  }, [downloadLogs])
+
+  const downloadTypeOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: 'all', label: `全部类型 (${downloadLogs.length})` },
+      { value: 'novel_txt', label: `单本 TXT (${downloadTypeCounts.novel_txt || 0})` },
+      { value: 'novel_txt_batch', label: `批量 TXT (${downloadTypeCounts.novel_txt_batch || 0})` },
+      { value: 'scrape_configs', label: `书源配置 (${downloadTypeCounts.scrape_configs || 0})` },
+    ],
+    [downloadLogs.length, downloadTypeCounts],
+  )
+
+  const filteredDownloads = useMemo(() => {
+    let list = downloadLogs
+    if (downloadType !== 'all') {
+      list = list.filter((log) => log.type === downloadType)
+    }
+    const q = search.trim().toLowerCase()
+    if (!q) return list
+    return list.filter((log) => {
+      const target = (log.targetTitle || log.targetId || '').toLowerCase()
+      const type = (DOWNLOAD_TYPE_LABELS[log.type] || log.type || '').toLowerCase()
+      return target.includes(q) || type.includes(q)
+    })
+  }, [downloadLogs, downloadType, search])
 
   const runningCount = jobs.filter((j) => isJobRunning(j.status)).length
   const completedCount = jobs.filter((j) => j.status === 'completed').length
@@ -403,18 +446,18 @@ export default function JobsTab({
   function renderActions(j: Job): ReactNode {
     const retryable = ['failed', 'cancelled', 'partial'].includes(j.status)
     return (
-      <div className="flex items-center gap-1.5 justify-end">
+      <div className="admin-cell-actions">
         {retryable &&
           ((j.failedCount ?? j.summary?.failedCount ?? 0) > 0 ? (
-            <Button variant="outline" size="sm" className="rounded-full h-7 px-2.5 text-xs font-medium border-border hover:border-[#D97757]/40 hover:text-[#D97757]" onClick={() => void retryFailedJob(j)}>
+            <Button variant="outline" size="sm" onClick={() => void retryFailedJob(j)}>
               重试失败章节
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="rounded-full h-7 px-2.5 text-xs font-medium border-border hover:border-[#D97757]/40 hover:text-[#D97757]" onClick={() => void retryJob(j)}>
+            <Button variant="outline" size="sm" onClick={() => void retryJob(j)}>
               重试
             </Button>
           ))}
-        <Button variant="ghost" size="sm" className="rounded-full h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setDetailsId(j.id)}>
+        <Button variant="ghost" size="sm" onClick={() => setDetailsId(j.id)}>
           详情
         </Button>
       </div>
@@ -423,73 +466,72 @@ export default function JobsTab({
 
   // ---------- 渲染 ----------
 
-  const listStatusLabel = jobsLoading ? '读取中' : jobsError ? '读取失败' : '队列正常'
-  const logsStatusLabel = logsLoading ? '读取中' : logsError ? '读取失败' : '日志正常'
   const detailJob = jobs.find((job) => job.id === detailsId)
   const attentionCount = jobs.filter((job) => job.status === 'failed' || job.status === 'partial').length
-  const filterCounts = { all: jobs.length, running: runningCount, completed: completedCount, failed: failedCount }
+  const statusOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: 'all', label: `全部状态 (${jobs.length})` },
+      { value: 'running', label: `运行中 (${runningCount})` },
+      { value: 'completed', label: `已完成 (${completedCount})` },
+      { value: 'failed', label: `失败/终止 (${failedCount})` },
+    ],
+    [jobs.length, runningCount, completedCount, failedCount],
+  )
   const hasJobs = !jobsLoading && !jobsError && filtered.length > 0
 
   const content = (
     <>
-      <TaskSummary
-        title={
-          view === 'downloads'
-            ? logsLoading
-              ? '正在读取下载日志'
-              : logsError
-                ? '下载日志读取失败'
-                : '最近的下载记录'
-            : jobsLoading
-              ? '正在读取任务队列'
-              : jobsError
-                ? '任务队列读取失败'
-                : runningCount
-                  ? `${runningCount} 个任务正在处理`
-                  : '当前没有运行中的任务'
-        }
-        hint={
-          view === 'downloads'
-            ? logsError || '查看内容导出与书源配置下载记录。'
-            : jobsError
-              ? jobsError
-              : attentionCount
-                ? `${attentionCount} 个任务需要处理，可在列表中查看原因。`
-                : '在这里查看进度、执行结果与可用操作。'
-        }
-        counts={view === 'downloads' ? `共 ${downloadLogs.length} 条记录` : `全部 ${jobs.length} · 运行中 ${runningCount} · 已完成 ${completedCount}`}
-        actions={
-          <Button variant="outline" size="sm" aria-label="刷新任务记录" onClick={handleRefresh} disabled={view === 'downloads' ? logsLoading : jobsLoading}>
-            <RefreshCw className="size-3.5" aria-hidden="true" />
-            刷新
-          </Button>
-        }
-      />
       {view !== 'downloads' && (
         <>
-          <AdminPanelHeading title="抓取任务" status={<span className={`admin-panel-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
-          <AdminToolbar className="jobs-toolbar" ariaLive="polite">
-            <div className="jobs-toolbar__filters">
-              <span className="jobs-toolbar__label">任务状态</span>
-              <Tabs
-                className="jobs-toolbar__modes"
+          <AdminToolbar layout="inline" className="admin-filter-rail task-workspace-toolbar" ariaLive="polite">
+            <AdminSearch
+              id="scrape-jobs-search"
+              label="搜索抓取任务"
+              type="search"
+              data-admin-search
+              placeholder="搜索作品标题、任务 ID 或类型…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <div className="admin-filter-chips">
+              <CustomSelect
+                compact
+                chip
+                filterChip
+                leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size,1rem)]" />}
+                aria-label="按抓取任务状态筛选"
+                options={statusOptions}
                 value={filter}
-                onValueChange={(val) => setFilter(val as JobFilter)}
-                aria-label="任务状态筛选"
-              >
-                <TabsList data-active-index={FILTER_INDEX[filter]}>
-                  {FILTERS.map((item) => (
-                    <TabsTrigger key={item.value} value={item.value}>
-                      {item.label}
-                      <span className="jobs-toolbar__count tabular-nums">{filterCounts[item.value]}</span>
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
+                onChange={(v) => setFilter(v as JobFilter)}
+              />
+              {attentionCount > 0 && (
+                <button
+                  type="button"
+                  className={cn(
+                    'task-workspace-alert-badge cursor-pointer transition-colors',
+                    filter === 'failed' && 'ring-1 ring-[#d97757] font-semibold',
+                  )}
+                  onClick={() => setFilter(filter === 'failed' ? 'all' : 'failed')}
+                  title={filter === 'failed' ? '点击查看全部任务' : '点击快速筛选需处理任务'}
+                >
+                  <AlertCircle className="size-3.5" aria-hidden="true" />
+                  {attentionCount} 个任务需处理
+                  {filter === 'failed' && <span className="ml-1 text-[11px] opacity-75">✕</span>}
+                </button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full h-8 px-3 text-xs font-medium border-border hover:border-accent/40 hover:text-accent ml-auto"
+                aria-label="刷新任务记录"
+                onClick={handleRefresh}
+                disabled={jobsLoading}
+              >
+                <RefreshCw className={cn('size-3.5', jobsLoading && 'animate-spin')} aria-hidden="true" />
+                刷新
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={!hasCompleted || jobsLoading}
                 onClick={() => void clearCompleted()}
               >
@@ -514,7 +556,7 @@ export default function JobsTab({
                   {filtered.map((j, index) => (
                     <TableRow key={j.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, filtered.length)}ms` }}>
                       <TableCell data-primary="" data-label="作品 / 类型">
-                        <div className="task-workspace-title font-medium">{renderNovelTitle(j)}</div>
+                        <strong className="task-workspace-title font-medium">{renderNovelTitle(j)}</strong>
                         <div className="task-workspace-meta">
                           {j.updateMode ? '更新' : '抓取'} ·{' '}
                           <span className="task-workspace-id" title={j.id}>
@@ -545,7 +587,7 @@ export default function JobsTab({
                         </div>
                       </TableCell>
                       <TableCell data-actions="">
-                        <div className="admin-cell-actions">{renderActions(j)}</div>
+                        {renderActions(j)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -559,7 +601,14 @@ export default function JobsTab({
               <AdminEmptyState
                 className="jobs-empty"
                 icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
-                message={FILTER_EMPTY_LABEL[filter]}
+                message={search.trim() ? `未找到与「${search.trim()}」相关的抓取任务` : FILTER_EMPTY_LABEL[filter]}
+                action={
+                  search.trim() || filter !== 'all' ? (
+                    <Button variant="outline" size="sm" onClick={() => { setSearch(''); setFilter('all') }}>
+                      清除筛选
+                    </Button>
+                  ) : undefined
+                }
               />
             )}
           </AdminDataPanel>
@@ -567,43 +616,99 @@ export default function JobsTab({
       )}
       {view !== 'scrape' && (
         <>
-          <AdminPanelHeading title="下载日志" status={<span className={`admin-panel-status${logsError ? ' is-error' : ''}`}>{logsStatusLabel}</span>} />
-          <AdminDataPanel className="jobs-data-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
-            {logsLoading ? (
-              <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
-            ) : logsError ? (
-              <ErrorState message={`下载日志加载失败：${logsError}`} />
-            ) : downloadLogs.length === 0 ? (
-              <AdminEmptyState className="jobs-empty" icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />} message="暂无下载日志" />
-            ) : (
-              <Table className={cn('admin-data-table admin-data-table--animated', logsLoading && 'admin-data-table--transitioning')}>
-                <TableCaption className="sr-only">下载日志列表，包含类型、对象、数量与时间</TableCaption>
-                <TableHeader>
-                  <TableRow>
-                    {DOWNLOAD_COLUMNS.map((column) => (
-                      <TableHead key={column.key} scope="col">
-                        {column.label}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {downloadLogs.map((log, index) => (
-                    <TableRow key={log.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, downloadLogs.length)}ms` }}>
-                      <TableCell data-label="类型">{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
-                      <TableCell data-primary="" data-label="对象" className="text-sm">
-                        {log.targetTitle || log.targetId || '—'}
-                      </TableCell>
-                      <TableCell data-label="数量">{log.itemCount || 0}</TableCell>
-                      <TableCell data-label="时间" className="text-sm text-muted-foreground">
-                        {formatDateTime(log.createdAt)}
-                      </TableCell>
-                    </TableRow>
+          <AdminToolbar layout="inline" className="task-workspace-toolbar admin-filter-rail" ariaLive="polite">
+            <AdminSearch
+              id="download-logs-search"
+              label="搜索下载记录"
+              type="search"
+              data-admin-search
+              placeholder="搜索下载对象或类型…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <div className="admin-filter-chips">
+              <CustomSelect
+                compact
+                chip
+                filterChip
+                leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size,1rem)]" />}
+                aria-label="按下载类型筛选"
+                options={downloadTypeOptions}
+                value={downloadType}
+                onChange={(v) => setDownloadType(v)}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="刷新下载日志"
+                onClick={handleRefresh}
+                disabled={logsLoading}
+              >
+                <RefreshCw className={cn('size-3.5', logsLoading && 'animate-spin')} aria-hidden="true" />
+                刷新
+              </Button>
+            </div>
+          </AdminToolbar>
+          <AdminDataPanel className="jobs-data-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS} density="comfortable">
+          {logsLoading ? (
+            <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
+          ) : logsError ? (
+            <ErrorState message={`下载日志加载失败：${logsError}`} />
+          ) : filteredDownloads.length === 0 ? (
+            <AdminEmptyState
+              className="jobs-empty"
+              icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
+              message={
+                search.trim() || downloadType !== 'all'
+                  ? '未找到符合条件的下载记录'
+                  : '暂无下载记录'
+              }
+              action={
+                search.trim() || downloadType !== 'all' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearch('')
+                      setDownloadType('all')
+                    }}
+                  >
+                    清除筛选
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <Table className={cn('admin-data-table admin-data-table--animated', logsLoading && 'admin-data-table--transitioning')}>
+              <TableCaption className="sr-only">下载日志列表，包含类型、对象、数量与时间</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  {DOWNLOAD_COLUMNS.map((column) => (
+                    <TableHead key={column.key} scope="col">
+                      {column.label}
+                    </TableHead>
                   ))}
-                </TableBody>
-              </Table>
-            )}
-          </AdminDataPanel>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredDownloads.map((log, index) => (
+                  <TableRow key={log.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, filteredDownloads.length)}ms` }}>
+                    <TableCell data-label="类型">{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
+                    <TableCell data-primary="" data-label="对象">
+                      <strong className="task-workspace-title font-medium">{log.targetTitle || log.targetId || '—'}</strong>
+                    </TableCell>
+                    <TableCell data-label="数量">
+                      <span className="tabular-nums">{log.itemCount || 0}</span>
+                    </TableCell>
+                    <TableCell data-label="时间" className="text-sm text-muted-foreground">
+                      {formatDateTime(log.createdAt)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </AdminDataPanel>
         </>
       )}
       <TaskDetails
@@ -669,11 +774,16 @@ export default function JobsTab({
           。清除已结束仅处理已完成、部分完成和已终止记录。
         </p>
       )}
+      {view === 'downloads' && (
+        <p className="task-workspace-footnote">
+          共 {downloadLogs.length} 条下载记录。记录内容导出与书源配置下载，仅用于查看历史。
+        </p>
+      )}
     </>
   )
 
   if (embedded) {
-    return <div className="admin-redesign-page admin-redesign-page--jobs">{content}</div>
+    return <>{content}</>
   }
 
   return (
