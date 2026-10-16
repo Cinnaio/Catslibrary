@@ -656,6 +656,19 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **AI 建议与异步任务控制流（AI Suggestion & Task Control Flatness）:**
   在 AI 分级建议或异步模型生成等任务工作台视图中，工具筛选条（状态切换、单批上限选择、分析未标注按钮）、说明性指引以及任务执行进度条/断点恢复卡片（`AiTaskProgressBar`），必须作为独立的控制表面平铺渲染在数据面板外部画布上，严禁打包揉塞进 `AdminDataPanel`。下方建议记录直接复用统一的数据表格设计规范（`AdminDataPanel columns={...} density="comfortable"` + `Table`），使用标准列宽契约、表头批量复选框与 `Pagination variant="detached"`，消灭非标队列卡片堆叠，实现纯粹的 Claude 纸白单层控制流。
 
+**The Claude Admin Vertical Rhythm & Baseline Alignment Standard (后台垂直律动、基准对齐与间距统一规范).**
+后台各工作台、子页面与主-子视图（如 `/admin/ai` 各子视图、分级账本、小说管理等）在垂直律动与控件层级上必须严格遵循统一的间距与基线高度规范，消灭切换视图时控件和卡片顶边上下跳跃的视觉残差：
+1. **宏观垂直律动阶梯（Macro Hierarchy Rhythm）**：
+   - **大段落与主视图间隙**：页面主标题/全局动作行到主工作视图 Tabs、以及主工作视图 Tabs 到下方内容区的步长，统一锁定为 `--admin-page-section-gap: 1.25rem` (20px)；
+   - **控制行到实体表面间隙**：外置筛选轨道（Filter Rail）或二级子分类胶囊轨道（Sub-tabs Capsule Track）到下方主体数据面板（`AdminDataPanel`）或配置卡片（`AdminPanelCard`）的步长，统一收敛为共享令牌 `--admin-control-to-card-gap: 1rem` (16px)；
+   - **严禁手写外边距破坏全局节奏**：绝对禁止在二级控制栏（如 `.ai-parameter-tabs`）上手写 `mb-4` 等非标 Tailwind 工具类或手写 `gap: 1.5rem` / `margin-bottom: 0.875rem`，所有二级控制流到卡片间的距离必须且只能走 `--admin-control-to-card-gap`。
+2. **二级控制轨道基线高度契约（Secondary Control Baseline Height Contract）**：
+   - 无论是检索过滤轨（`.admin-filter-rail`）还是二级子分类药丸轨道（`.ai-parameter-tabs`），高度与最小高度统一锁定为 `--admin-control-height: 2.5rem` (40px)；
+   - 药丸内部触发项（`button`）高度填满父容器（`height: 100%`），垂直居中，水平内边距规范为 `0 1rem`；
+3. **跨面板绝对基准对齐原则（Cross-Tab Baseline Equality Rule）**：
+   - 在同级各视图切换（如 AI 服务导航下的「已生成内容」、「AI 配置」、「参数调优」）时，二级控制轨的顶部 Y 轴起点、控件本身高度（40px）、以及距离下方卡片顶边的间距（16px）必须严格一致（卡片顶边绝对 Y 偏移量保持在容器内同一 56px 绝对基线），杜绝切页时页面内容和卡片顶边产生像素级跳跃；
+   - 主体卡片内部的 `AdminPanelHeading` 标题栏垂直内边距统一收敛为 `24px 28px 16px`，确保视觉重心与文本基线一致。
+
 **The Claude Table Motion & Transition Standard (数据流转与列表微动效规范).**
 后台数据列表在筛选维度切换（分级、来源、状态）、搜索实时过滤及翻页流转时，必须具备轻量、克制、符合感知即时性（Perceived Speed）的微动效反馈：
 1. **数据请求流转态（Transitioning Feedback）**：加载/刷新中表格内容进入轻度半透明态（`.admin-data-table--transitioning`，`opacity: 0.58` + `filter: blur(0.4px)`，时长 150ms），明确告知用户正在请求最新数据切片并锁定操作指针；

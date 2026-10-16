@@ -609,7 +609,7 @@
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
-  margin-bottom: 0.875rem;
+  margin-bottom: var(--admin-control-to-card-gap, 1rem);
 }
 
 .content-ratings-filter-rail .admin-filter-chips {
