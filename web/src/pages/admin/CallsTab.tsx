@@ -34,12 +34,12 @@ export default function CallsTab() {
             <TabsTrigger value="outbound">出站请求</TabsTrigger>
           </TabsList>
           {view === 'ai' && (
-            <div className="calls-range-control" role="group" aria-label="调用时间范围">
+            <div className="flex items-center gap-1.5" role="group" aria-label="调用时间范围">
               {[7, 30, 90].map((value) => (
                 <Button
                   key={value}
                   size="sm"
-                  variant="ghost"
+                  variant={days === value ? 'secondary' : 'ghost'}
                   aria-pressed={days === value}
                   onClick={() => update('days', String(value))}
                 >
@@ -52,10 +52,10 @@ export default function CallsTab() {
 
         <TabsContent value="ai" className="ai-service ai-admin-page calls-view flex flex-col gap-5">
           {/* Claude 暖纸用量总账卡：包含大盘指标聚合微徽章、折叠状态与双列趋势图表 */}
-          <AiUsagePanel key={days} days={days} />
+          <AiUsagePanel days={days} />
 
           {/* 单层控制纸白作业台：包含内置标题、类型微筛选器与明细表格 */}
-          <AiAuditPanel key={days} from={from} />
+          <AiAuditPanel from={from} />
         </TabsContent>
 
         <TabsContent value="outbound">

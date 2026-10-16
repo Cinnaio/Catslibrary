@@ -23,6 +23,22 @@ interface TrendPoint {
   cacheWriteReportedCalls?: number
 }
 
+/** 紧凑格式化 Token 数量（K / M / B），千以内保留完整数值。 */
+export function formatTokenCount(n: number): string {
+  if (n == null || isNaN(n)) return '0'
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000_000) {
+    return `${(n / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '')}B`
+  }
+  if (abs >= 1_000_000) {
+    return `${(n / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}M`
+  }
+  if (abs >= 1_000) {
+    return `${(n / 1_000).toFixed(1).replace(/\.?0+$/, '')}K`
+  }
+  return n.toLocaleString()
+}
+
 /** 补齐缺失日期，让趋势曲线连续；按 days 范围生成完整日期序列。 */
 function buildChartSeries(trend: TrendPoint[], days: number): TrendPoint[] {
   const map = new Map(trend.map((d) => [d.date, d]))
@@ -111,12 +127,23 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
         <div className="calls-summary-card__title-group">
           <ChevronRight className={cn('calls-summary-card__chevron', isOpen && 'is-open')} aria-hidden="true" />
           <div>
-            <h3 className="calls-summary-card__title">用量趋势与消耗</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="calls-summary-card__title">用量趋势与消耗</h3>
+              <span className="text-[11px] text-muted-foreground">
+                {isOpen ? '点击收起' : '点击展开'}
+              </span>
+            </div>
             <p className="calls-summary-card__subtitle">最近 {days} 天大盘消耗分析与支出总账</p>
           </div>
         </div>
 
-        <div className="calls-summary-badges">
+        <div
+          className="calls-summary-badges"
+          onClick={(e) => {
+            // 点击读数与操作区域阻止冒泡，避免误触卡片折叠
+            e.stopPropagation()
+          }}
+        >
           {hasData && (
             <>
               <span className="calls-summary-badge">
@@ -125,15 +152,8 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
               <span className="calls-summary-badge">
                 成本 <strong>{totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(totalCost)}</strong>
               </span>
-              <span className="calls-summary-badge">
-                Token{' '}
-                <strong>
-                  {totalTokens >= 1_000_000
-                    ? `${(totalTokens / 1_000_000).toFixed(2)}M`
-                    : totalTokens >= 10_000
-                      ? `${(totalTokens / 1000).toFixed(1)}k`
-                      : totalTokens.toLocaleString()}
-                </strong>
+              <span className="calls-summary-badge" title={`${totalTokens.toLocaleString()} Token`}>
+                Token <strong>{formatTokenCount(totalTokens)}</strong>
               </span>
             </>
           )}
@@ -231,13 +251,19 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
                   </div>
                   <div className="ai-usage-totals">
                     <span>
-                      总 Token <strong>{totalTokens.toLocaleString()}</strong>
+                      总 Token <strong title={`${totalTokens.toLocaleString()} Token`}>{formatTokenCount(totalTokens)}</strong>
                     </span>
                     <span>
-                      缓存读取 <strong>{cacheReadReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheRead.toLocaleString()}</strong>
+                      缓存读取{' '}
+                      <strong title={totalCacheRead > 0 ? `${totalCacheRead.toLocaleString()} Token` : undefined}>
+                        {cacheReadReportedCalls === 0 && totalCalls > 0 ? '未回传' : formatTokenCount(totalCacheRead)}
+                      </strong>
                     </span>
                     <span>
-                      缓存写入 <strong>{cacheWriteReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheWrite.toLocaleString()}</strong>
+                      缓存写入{' '}
+                      <strong title={totalCacheWrite > 0 ? `${totalCacheWrite.toLocaleString()} Token` : undefined}>
+                        {cacheWriteReportedCalls === 0 && totalCalls > 0 ? '未回传' : formatTokenCount(totalCacheWrite)}
+                      </strong>
                     </span>
                     {totalCalls > 0 && (
                       <span className="ai-usage-totals__note" title="仅汇总已回传字段的调用，缓存计数已包含在输入 Token 中">
@@ -273,7 +299,7 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
                             tickLine={false}
                             axisLine={false}
                             width={50}
-                            tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
+                            tickFormatter={formatTokenCount}
                           />
                           <Tooltip
                             contentStyle={chartTooltipStyle}

@@ -93,6 +93,10 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
   }, [limit, offset, filterType, from])
 
   useEffect(() => {
+    setOffset(0)
+  }, [from])
+
+  useEffect(() => {
     void loadCalls()
   }, [loadCalls])
 

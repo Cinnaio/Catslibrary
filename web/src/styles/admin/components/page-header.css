@@ -82,6 +82,7 @@
 .admin-redesign-page--site-settings > .admin-tab-header,
 .admin-redesign-page--ai > .admin-tab-header,
 .task-center-page > .admin-tab-header,
+.calls-page > .admin-tab-header,
 .admin-redesign-page--jobs > .admin-tab-header {
   border-bottom: 0;
   margin-bottom: 0;
