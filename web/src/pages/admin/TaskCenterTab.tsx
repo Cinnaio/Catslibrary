@@ -17,12 +17,15 @@ export default function TaskCenterTab() {
           query.set('view', next)
           setParams(query)
         }}
+        className="admin-capsule-tabs task-center-tabs"
       >
-        <TabsList aria-label="任务类型">
-          <TabsTrigger value="scrape">抓取任务</TabsTrigger>
-          <TabsTrigger value="ai">AI 任务</TabsTrigger>
-          <TabsTrigger value="downloads">下载记录</TabsTrigger>
-        </TabsList>
+        <div className="task-center-nav-track flex items-center justify-between mb-4">
+          <TabsList aria-label="任务类型">
+            <TabsTrigger value="scrape">抓取任务</TabsTrigger>
+            <TabsTrigger value="ai">AI 任务</TabsTrigger>
+            <TabsTrigger value="downloads">下载记录</TabsTrigger>
+          </TabsList>
+        </div>
         <TabsContent value="scrape">
           <JobsTab key="scrape" view="scrape" embedded />
         </TabsContent>

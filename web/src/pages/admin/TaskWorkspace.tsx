@@ -6,12 +6,12 @@ import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDia
 export function TaskSummary({ title, hint, counts, actions }: { title: string; hint: string; counts: ReactNode; actions?: ReactNode }) {
   return (
     <div className="task-workspace-summary">
-      <div>
+      <div className="task-workspace-summary__content">
         <h2>{title}</h2>
         <p>{hint}</p>
       </div>
       <div className="task-workspace-summary__aside">
-        <span>{counts}</span>
+        <span className="task-workspace-summary-count">{counts}</span>
         {actions}
       </div>
     </div>
@@ -26,7 +26,7 @@ export function TaskDetails({ open, onClose, children, actions }: { open: boolea
         if (!next) onClose()
       }}
     >
-      <AdminDialogContent variant="form">
+      <AdminDialogContent variant="form" className="admin-dialog task-details-dialog">
         <DialogHeader>
           <DialogTitle>任务详情</DialogTitle>
           <DialogDescription>查看任务记录、执行结果与可用操作。</DialogDescription>
