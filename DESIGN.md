@@ -464,6 +464,17 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **Admin variants:** 上述实色为公开页语义。后台以 `admin/components/controls.css` 为准：主要操作陶土底，次要/描边中性微描边，Ghost透明底，危险操作使用危险文字与柔和描边；悬浮岛的主要操作使用专属对比度 token，不在调用点复制品牌颜色。
 - **Hover / Focus:** 背景色加深一档；键盘焦点是 3px 半透明暖色光晕（`--focus-ring: rgba(139,96,69,0.24)`，经 `--sh-ring` 桥接），并伴随边框变色。焦点态必须同时有颜色变化和光晕，不要只留光晕。
 
+### Switch Toggles (开关控件几何与微动效规范，2026-10-16)
+- **Claude Minimalist Aesthetics & Symmetry (几何严格对称与温润纸感):** 后台开关统一遵循 Claude 极简圆角药丸与几何严格对称：
+  - **默认规格 (Default):** 轨道尺寸固定为 36px × 20px（`width: 2.25rem; height: 1.25rem; box-sizing: border-box`），内边距 2px，1px 暖灰微边框 `--admin-border-strong`；白色圆形滑块（Thumb）直径严格为 14px（`0.875rem`），投射 0 1px 3px 柔和微投影。
+  - **行程计算与边距对称:** 轨道内盒可用宽度为 36px - 2px (左右边框) - 4px (左右内边距) = 30px；滑块位移量严格为 16px（`translateX(1rem)`，即 30px - 14px）。未勾选时滑块距轨道左右边界为 3px / 19px，勾选时为 19px / 3px，垂直方向居中且与上下外边界恒保持 3px 间隙（20px - 2px - 4px = 14px，滑块高 14px）。彻底消灭旧样式因尺寸失衡（38px 轨宽配 18px 滑块和 16px 位移导致右侧溢出 2px、纵向被挤压溢出 1px）造成的滑块右边缘被裁切、刺穿轨道描边的顽疾。
+  - **紧凑规格 (data-size="sm"):** 轨道尺寸 28px × 16px（`1.75rem × 1rem`），滑块 10px（`0.625rem`），勾选行程严格设为 12px（`translateX(0.75rem)`，即 28 - 6 - 10 = 12px），同享 3px 边距无溢出。
+- **Color & Micro-interactions (状态色彩与微交互边界):**
+  - 未勾选时轨道底色为 `--admin-panel-muted`（带内凹微阴影），勾选后平滑过渡至陶土红 `--admin-accent` 并附带暖色微光晕；
+  - 聚焦时拥有 3px 半透明陶土红外发光环（`rgba(217, 119, 87, 0.22)`）；
+  - 杜绝 `:active` 下强行拉伸滑块宽度（禁止将圆形拉伸成椭圆变形），保持纯粹圆润形态与稳定位移；
+  - 尊重减弱动效（`prefers-reduced-motion: reduce`）：仅取消过渡补间（`transition: none !important; animation: none !important;`），**严禁将滑块的 `transform` 设为 `none`**，避免因重置位移导致勾选状态下错误回弹到左侧的视觉故障。
+
 ### Dialogs
 - **Admin Dialog:** 后台弹窗统一 `.admin-dialog`：三行栅格（页头 / 可滚动正文 `.admin-dialog__body` / 页脚），最大高度 `calc(100dvh - 2rem)`，外框 16px（--admin-radius-dialog）。宽度按任务定——小说编辑 540px、章节编辑 620px、章节融合 760px——不把弹窗拉成同一个宽度。页头/页脚/关闭按钮由 `data-slot='dialog-*'` 契约配合 Radix 实现。
 - **Header Alignment:** 页头一律居中，与 `DialogHeader` 的实际渲染一致（其 `text-center` 与 `sm:text-left` 中后者被 Tailwind 输出顺序压掉，居中才是既有事实）。标题避让右上角关闭按钮时用左右对称留白（`padding-inline`）而非只留右侧，否则居中标题会视觉偏左；描述块用 `margin-inline: auto` 跟随居中。
