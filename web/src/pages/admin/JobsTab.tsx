@@ -23,6 +23,7 @@ import { ErrorState } from '@/components/admin/AsyncStates'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
@@ -82,6 +83,13 @@ const FILTERS: Array<{ value: JobFilter; label: string }> = [
   { value: 'completed', label: '已完成' },
   { value: 'failed', label: '失败/终止' },
 ]
+
+const FILTER_INDEX: Record<JobFilter, number> = {
+  all: 0,
+  running: 1,
+  completed: 2,
+  failed: 3,
+}
 
 const FILTER_EMPTY_LABEL: Record<JobFilter, string> = {
   all: '暂无任务',
@@ -422,17 +430,8 @@ export default function JobsTab({
   const filterCounts = { all: jobs.length, running: runningCount, completed: completedCount, failed: failedCount }
   const hasJobs = !jobsLoading && !jobsError && filtered.length > 0
 
-  return (
-    <AdminPage
-      className="admin-redesign-page admin-redesign-page--jobs"
-      title={embedded ? undefined : '任务管理'}
-      description="跟踪抓取与更新任务的执行情况，并对失败任务执行重试或终止。"
-      actions={
-        <Button variant="secondary" onClick={handleRefresh} disabled={jobsLoading || logsLoading}>
-          {jobsLoading || logsLoading ? '刷新中…' : '刷新'}
-        </Button>
-      }
-    >
+  const content = (
+    <>
       <TaskSummary
         title={
           view === 'downloads'
@@ -469,33 +468,36 @@ export default function JobsTab({
       {view !== 'downloads' && (
         <>
           <AdminPanelHeading title="抓取任务" status={<span className={`admin-panel-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
-          <AdminToolbar className="task-workspace-toolbar" ariaLive="polite">
-            <div className="task-workspace-filters" role="group" aria-label="任务状态筛选">
-              {FILTERS.map((item) => (
-                <Button
-                  key={item.value}
-                  variant={filter === item.value ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="rounded-full h-7 px-3 text-xs font-medium"
-                  aria-pressed={filter === item.value}
-                  onClick={() => setFilter(item.value)}
-                >
-                  {item.label}
-                  <span>{filterCounts[item.value]}</span>
-                </Button>
-              ))}
+          <AdminToolbar className="jobs-toolbar" ariaLive="polite">
+            <div className="jobs-toolbar__filters">
+              <span className="jobs-toolbar__label">任务状态</span>
+              <Tabs
+                className="jobs-toolbar__modes"
+                value={filter}
+                onValueChange={(val) => setFilter(val as JobFilter)}
+                aria-label="任务状态筛选"
+              >
+                <TabsList data-active-index={FILTER_INDEX[filter]}>
+                  {FILTERS.map((item) => (
+                    <TabsTrigger key={item.value} value={item.value}>
+                      {item.label}
+                      <span className="jobs-toolbar__count tabular-nums">{filterCounts[item.value]}</span>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full h-8 px-3 text-xs font-medium border-border hover:border-accent/40 hover:text-accent ml-auto"
+                disabled={!hasCompleted || jobsLoading}
+                onClick={() => void clearCompleted()}
+              >
+                清除已结束
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full h-7 px-3 text-xs font-medium border-border hover:border-accent/40 hover:text-accent"
-              disabled={!hasCompleted || jobsLoading}
-              onClick={() => void clearCompleted()}
-            >
-              清除已结束
-            </Button>
           </AdminToolbar>
-          <AdminDataPanel className="task-workspace-panel overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS} density="comfortable">
+          <AdminDataPanel className="jobs-data-panel overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS} density="comfortable">
             {hasJobs ? (
               <Table className={cn('admin-data-table admin-data-table--animated', jobsLoading && 'admin-data-table--transitioning')}>
                 <TableCaption className="sr-only">抓取任务列表，包含任务 ID、小说、状态、进度与行内操作</TableCaption>
@@ -566,7 +568,7 @@ export default function JobsTab({
       {view !== 'scrape' && (
         <>
           <AdminPanelHeading title="下载日志" status={<span className={`admin-panel-status${logsError ? ' is-error' : ''}`}>{logsStatusLabel}</span>} />
-          <AdminDataPanel className="task-workspace-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
+          <AdminDataPanel className="jobs-data-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
             {logsLoading ? (
               <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
             ) : logsError ? (
@@ -578,29 +580,30 @@ export default function JobsTab({
                 <TableCaption className="sr-only">下载日志列表，包含类型、对象、数量与时间</TableCaption>
                 <TableHeader>
                   <TableRow>
-                  <TableHead scope="col">类型</TableHead>
-                  <TableHead scope="col">对象</TableHead>
-                  <TableHead scope="col">数量</TableHead>
-                  <TableHead scope="col">时间</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {downloadLogs.map((log, index) => (
-                  <TableRow key={log.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, downloadLogs.length)}ms` }}>
-                    <TableCell data-label="类型">{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
-                    <TableCell data-primary="" data-label="对象" className="text-sm">
-                      {log.targetTitle || log.targetId || '—'}
-                    </TableCell>
-                    <TableCell data-label="数量">{log.itemCount || 0}</TableCell>
-                    <TableCell data-label="时间" className="text-sm text-muted-foreground">
-                      {formatDateTime(log.createdAt)}
-                    </TableCell>
+                    {DOWNLOAD_COLUMNS.map((column) => (
+                      <TableHead key={column.key} scope="col">
+                        {column.label}
+                      </TableHead>
+                    ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </AdminDataPanel>
+                </TableHeader>
+                <TableBody>
+                  {downloadLogs.map((log, index) => (
+                    <TableRow key={log.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, downloadLogs.length)}ms` }}>
+                      <TableCell data-label="类型">{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
+                      <TableCell data-primary="" data-label="对象" className="text-sm">
+                        {log.targetTitle || log.targetId || '—'}
+                      </TableCell>
+                      <TableCell data-label="数量">{log.itemCount || 0}</TableCell>
+                      <TableCell data-label="时间" className="text-sm text-muted-foreground">
+                        {formatDateTime(log.createdAt)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </AdminDataPanel>
         </>
       )}
       <TaskDetails
@@ -666,6 +669,25 @@ export default function JobsTab({
           。清除已结束仅处理已完成、部分完成和已终止记录。
         </p>
       )}
+    </>
+  )
+
+  if (embedded) {
+    return <div className="admin-redesign-page admin-redesign-page--jobs">{content}</div>
+  }
+
+  return (
+    <AdminPage
+      className="admin-redesign-page admin-redesign-page--jobs"
+      title="任务管理"
+      description="跟踪抓取与更新任务的执行情况，并对失败任务执行重试或终止。"
+      actions={
+        <Button variant="secondary" onClick={handleRefresh} disabled={jobsLoading || logsLoading}>
+          {jobsLoading || logsLoading ? '刷新中…' : '刷新'}
+        </Button>
+      }
+    >
+      {content}
     </AdminPage>
   )
 }

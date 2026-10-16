@@ -80,7 +80,9 @@
 .admin-redesign-page--content-policy > .admin-tab-header,
 .admin-redesign-page--site-operations > .admin-tab-header,
 .admin-redesign-page--site-settings > .admin-tab-header,
-.admin-redesign-page--ai > .admin-tab-header {
+.admin-redesign-page--ai > .admin-tab-header,
+.task-center-page > .admin-tab-header,
+.admin-redesign-page--jobs > .admin-tab-header {
   border-bottom: 0;
   margin-bottom: 0;
   padding-bottom: 0;

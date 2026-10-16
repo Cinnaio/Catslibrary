@@ -19,7 +19,7 @@ export default function TaskCenterTab() {
         }}
         className="admin-capsule-tabs task-center-tabs"
       >
-        <div className="task-center-nav-track flex items-center justify-between mb-4">
+        <div className="task-center-nav-track flex items-center justify-between">
           <TabsList aria-label="任务类型">
             <TabsTrigger value="scrape">抓取任务</TabsTrigger>
             <TabsTrigger value="ai">AI 任务</TabsTrigger>
