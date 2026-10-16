@@ -1,3 +1,5 @@
+import { optionalUser, type AuthEnv } from '../middlewares/auth'
+import { visibleNovelSql } from '../services/novel-visibility'
 import { Hono } from 'hono'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
@@ -29,7 +31,7 @@ export function createWebRoutes(
     configured?: () => boolean
   } = {},
 ) {
-  const routes = new Hono()
+  const routes = new Hono<AuthEnv>()
   const root = options.root || process.env.WEB_DIST_DIR || resolve(PROJECT_ROOT, 'web/dist')
   const origin = () => seoOrigin(options.origin?.() ?? process.env.SITE_URL ?? '')
   const db = options.db || getDb
@@ -42,7 +44,7 @@ export function createWebRoutes(
 
   routes.get('/sitemap.xml', async (c) => {
     if (!origin() || !configured()) return c.text('SEO is not configured', 503)
-    const { rows } = await db().query<{ count: number }>("SELECT COUNT(*)::int AS count FROM novels WHERE content_rating = 'general'")
+    const { rows } = await db().query<{ count: number }>("SELECT COUNT(*)::int AS count FROM novels WHERE visibility = 'public' AND content_rating = 'general'")
     const pages = Math.max(1, Math.ceil(Number(rows[0]?.count || 0) / PAGE_SIZE))
     const entries = Array.from({ length: pages }, (_, i) => `<sitemap><loc>${escHtml(origin())}/sitemaps/novels-${i + 1}.xml</loc></sitemap>`).join('')
     c.header('Content-Type', 'application/xml; charset=utf-8')
@@ -55,7 +57,7 @@ export function createWebRoutes(
     const page = Number(match?.[1])
     if (!match || !Number.isSafeInteger(page) || page > 1000000) return c.notFound()
     if (!origin() || !configured()) return c.text('SEO is not configured', 503)
-    const { rows } = await db().query<PublicNovel>("SELECT id, updated_at FROM novels WHERE content_rating = 'general' ORDER BY id LIMIT $1 OFFSET $2", [
+    const { rows } = await db().query<PublicNovel>("SELECT id, updated_at FROM novels WHERE visibility = 'public' AND content_rating = 'general' ORDER BY id LIMIT $1 OFFSET $2", [
       PAGE_SIZE,
       (page - 1) * PAGE_SIZE,
     ])
@@ -78,7 +80,7 @@ export function createWebRoutes(
   routes.get('/api/*', (c) => c.notFound())
   routes.get('/assets/*', serveStatic({ root }))
   routes.get('/images/*', serveStatic({ root }))
-  routes.get('*', async (c) => {
+  routes.get('*', optionalUser(), async (c) => {
     c.header('X-Robots-Tag', 'noindex, follow')
     c.header('Cache-Control', 'no-store')
     if (c.req.path.startsWith('/assets/') || c.req.path.startsWith('/images/')) return c.notFound()
@@ -107,11 +109,24 @@ export function createWebRoutes(
       }
       if (novelId.includes('/')) return c.notFound()
     }
-    if (origin() && configured() && (c.req.path === '/' || novelMatch)) {
+    // Access must also hold on initial HTML, with or without a configured SEO origin.
+    const readerMatch = /^\/read\/([^/]+)\/([^/]+)$/.exec(c.req.path)
+    if (configured() && (novelMatch || readerMatch)) {
+      try {
+        const targetId = novelMatch ? novelId : decodeURIComponent(readerMatch![1]!)
+        const found = await db().query(`SELECT id FROM novels WHERE id=$1 AND ${visibleNovelSql(c, 'novels')}`, [targetId])
+        if (!found.rows.length) status = 404
+        if (readerMatch && status === 200) {
+          const chapter = await db().query('SELECT id FROM chapters WHERE id=$1 AND novel_id=$2', [decodeURIComponent(readerMatch[2]!), targetId])
+          if (!chapter.rows.length) status = 404
+        }
+      } catch { status = 503 }
+    }
+    if (status === 200 && origin() && configured() && (c.req.path === '/' || novelMatch)) {
       try {
         if (novelMatch) {
           const { rows } = await db().query<PublicNovel>(
-            "SELECT id, title, author, description, updated_at FROM novels WHERE id = $1 AND content_rating = 'general'",
+            "SELECT id, title, author, description, updated_at FROM novels WHERE id = $1 AND visibility = 'public' AND content_rating = 'general'",
             [novelId],
           )
           const novel = rows[0]
@@ -127,7 +142,7 @@ export function createWebRoutes(
           // Non-general pages retain the application shell without exposing metadata.
         } else {
           const { rows } = await db().query<PublicNovel>(
-            "SELECT id, title, author, description FROM novels WHERE content_rating = 'general' ORDER BY updated_at DESC, id LIMIT 24",
+            "SELECT id, title, author, description FROM novels WHERE visibility = 'public' AND content_rating = 'general' ORDER BY updated_at DESC, id LIMIT 24",
           )
           content = `<main><h1>${escHtml(branding.homeTitle)}</h1><p>${escHtml(description)}</p><ul>${rows.map((row) => `<li><a href="/novel/${encodeURIComponent(row.id)}">${escHtml(row.title)}</a> — ${escHtml(row.author)}</li>`).join('')}</ul></main>`
           indexable = true
@@ -146,7 +161,8 @@ export function createWebRoutes(
     const brandingHead = `<link rel="icon" type="image/png" href="${escHtml(branding.faviconUrl)}"><script id="site-branding" type="application/json">${JSON.stringify(branding).replace(/</g, '\\u003c')}</script>`
     const head = `<title>${escHtml(title)}</title><meta name="robots" content="${robots}"><meta name="description" content="${escHtml(description)}">${canonical ? `<link rel="canonical" href="${escHtml(canonical)}">` : ''}${origin() && configured() && status === 200 ? `<meta name="zhizhou-seo-origin" content="${escHtml(origin())}">` : ''}`
     c.header('X-Robots-Tag', robots)
-    c.header('Cache-Control', 'no-store')
+    c.header('Cache-Control', 'private, no-store')
+    c.header('Vary', 'Cookie, Authorization')
     return c.html(template.replace('</head>', () => `${head}${brandingHead}</head>`).replace('<div id="root"></div>', () => `<div id="root">${content}</div>`), status)
   })
   return routes

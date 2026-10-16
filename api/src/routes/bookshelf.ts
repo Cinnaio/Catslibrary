@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/bookshelf —— 书架/最近阅读/我的段评 汇总（由 Novel-KV bookshelf.js 平移）。
  */
@@ -14,7 +15,7 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
   const db = getDb()
   const userId = c.get('user').id
   const access = await resolveContentAccess(c)
-  const ratingFilter = access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'"
+  const ratingFilter = ` AND ${visibleNovelSql(c)}` + (access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'")
   const limit = Math.min(50, Math.max(1, Math.floor(Number(c.req.query('limit')) || 50)))
   const offset = Math.max(0, Math.min(100000, Math.floor(Number(c.req.query('offset')) || 0)))
   const novelId = cleanId(c.req.query('novelId'))
@@ -96,7 +97,7 @@ bookshelfRoutes.post('/', requireUser(), async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const novelId = cleanId(body.novelId)
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
-  const novel = await all<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  const novel = await all<{ id: string; content_rating: string }>(db, `SELECT id, content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
   if (!novel.length) return c.json({ error: '小说不存在' }, 404)
   if (novel[0]!.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -117,7 +118,7 @@ bookshelfRoutes.delete('/', requireUser(), async (c) => {
   const userId = c.get('user').id
   const novelId = cleanId(c.req.query('novelId'))
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
-  await run(db, 'DELETE FROM user_bookshelf WHERE user_id = $1 AND novel_id = $2', [userId, novelId])
+  await run(db, `DELETE FROM user_bookshelf b WHERE user_id = $1 AND novel_id = $2 AND EXISTS (SELECT 1 FROM novels n WHERE n.id=b.novel_id AND ${visibleNovelSql(c)})`, [userId, novelId])
   return c.json({ success: true, novelId })
 })
 

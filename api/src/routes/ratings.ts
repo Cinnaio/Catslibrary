@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/ratings —— 小说星级评分（由 Novel-KV ratings.js 平移）。
  */
@@ -15,7 +16,7 @@ ratingsRoutes.get('/', optionalUser(), async (c) => {
   const db = getDb()
   const novelId = cleanText(c.req.query('novelId'), 80)
   if (!novelId) return c.json({ error: 'novelId query parameter is required' }, 400)
-  const exists = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  const exists = await first<{ id: string; content_rating: string }>(db, `SELECT id, content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
   if (!exists) return c.json({ error: 'Novel not found' }, 404)
   if (exists.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -33,7 +34,7 @@ ratingsRoutes.post('/', requireUser(), async (c) => {
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) return c.json({ error: '评分必须是 1 到 5 星' }, 400)
 
-  const exists = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  const exists = await first<{ id: string; content_rating: string }>(db, `SELECT id, content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
   if (!exists) return c.json({ error: 'Novel not found' }, 404)
   if (exists.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -59,7 +60,7 @@ ratingsRoutes.delete('/', requireUser(), async (c) => {
   const user = c.get('user')
   const novelId = cleanText(c.req.query('novelId'), 80)
   if (!novelId) return c.json({ error: 'novelId query parameter is required' }, 400)
-  const exists = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  const exists = await first<{ id: string; content_rating: string }>(db, `SELECT id, content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
   if (!exists) return c.json({ error: 'Novel not found' }, 404)
   if (exists.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)

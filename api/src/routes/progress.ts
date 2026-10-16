@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/progress —— 阅读进度同步（由 Novel-KV progress.js 平移）。
  * 匿名用户 POST/DELETE 返回 success:true 但不落库；登录用户按 userId 记录。
@@ -64,7 +65,7 @@ progressRoutes.post('/', optionalUser(), async (c) => {
   const userId = c.get('user')?.id
   if (!userId) return c.json({ success: true })
 
-  const chapter = await first<{ content_rating: string }>(db, 'SELECT n.content_rating FROM chapters ch JOIN novels n ON n.id = ch.novel_id WHERE ch.id=$1 AND ch.novel_id=$2', [chapterId, novelId])
+  const chapter = await first<{ content_rating: string }>(db, `SELECT n.content_rating FROM chapters ch JOIN novels n ON n.id = ch.novel_id WHERE ch.id=$1 AND ch.novel_id=$2 AND ${visibleNovelSql(c)}`, [chapterId, novelId])
   if (!chapter) return c.json({ error: 'Chapter not found in this novel' }, 404)
   if (chapter.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -106,12 +107,13 @@ progressRoutes.get('/', optionalUser(), async (c) => {
   const userId = c.get('user')?.id
   if (!userId) return c.json({ progress: null, tombstone: null })
 
-  const novel = await first<{ content_rating: string }>(db, 'SELECT content_rating FROM novels WHERE id = $1', [novelId])
+  const novel = await first<{ content_rating: string }>(db, `SELECT content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
   if (novel?.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
     if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
   }
 
+  if (!novel) return c.json({ progress: null, tombstone: null }, 200, contentPolicyHeaders())
   const row = await first<ProgressRow>(
     db,
     `SELECT ${PROGRESS_COLUMNS} FROM reading_progress p WHERE user_id = $1 AND novel_id = $2
@@ -126,7 +128,7 @@ async function listRecent(c: Context<AuthEnv>) {
   const userId = c.get('user')?.id
   if (!userId) return c.json({ progress: [], tombstones: [] })
   const access = await resolveContentAccess(c)
-  const ratingFilter = access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'"
+  const ratingFilter = ` AND ${visibleNovelSql(c)}` + (access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'")
 
   let limit = Number.parseInt(c.req.query('limit') || '5', 10)
   if (!Number.isFinite(limit) || limit < 1) limit = 5
@@ -155,8 +157,8 @@ async function listRecent(c: Context<AuthEnv>) {
   }))
 
   const { rows: tombRows } = await db.query<{ novel_id: string; deleted_at: number; updated_at: number }>(
-    `SELECT novel_id, deleted_at, updated_at FROM reading_progress
-     WHERE user_id = $1 AND COALESCE(deleted_at, 0) > 0
+    `SELECT rp.novel_id, rp.deleted_at, rp.updated_at FROM reading_progress rp JOIN novels n ON n.id=rp.novel_id
+     WHERE ${visibleNovelSql(c)} AND user_id = $1 AND COALESCE(deleted_at, 0) > 0
      ORDER BY deleted_at DESC LIMIT 50`,
     [userId],
   )
@@ -175,6 +177,8 @@ progressRoutes.delete('/', optionalUser(), async (c) => {
   const userId = c.get('user')?.id
   if (!userId) return c.json({ success: true })
 
+  const visible = await first(db, `SELECT id FROM novels WHERE id=$1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
+  if (!visible) return c.json({ success: true, progress: null, tombstone: null }, 200, contentPolicyHeaders())
   const deletedAt = normalizeTimestamp(c.req.query('clientUpdatedAt'))
   let saved: ProgressRow | undefined
   let applied = false

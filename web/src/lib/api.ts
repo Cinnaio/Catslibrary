@@ -324,7 +324,21 @@ export const illustrationsApi = {
 
 // ---------- Novels ----------
 
+export interface NovelAccessUser { id: string; username: string; displayName: string; status: string }
+export interface NovelVisibilitySettings {
+  visibility: import('@shared/types').NovelVisibility
+  revision: number
+  users: NovelAccessUser[]
+  audit: Array<{ revision: number; actorName: string; visibility: import('@shared/types').NovelVisibility; createdAt: number }>
+}
+
 export const novelsApi = {
+  visibility(id: string): Promise<NovelVisibilitySettings> {
+    return request('GET', `/novels/${encodeURIComponent(id)}/visibility`, null, true)
+  },
+  accessUsers(search: string, offset = 0): Promise<{ users: NovelAccessUser[]; total: number }> {
+    return request('GET', `/admin-users/users?role=reader&status=active&limit=15&offset=${offset}&search=${encodeURIComponent(search)}`, null, true)
+  },
   list(params: Record<string, string | number> = {}): Promise<NovelListResponse> {
     const qs = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()
     return request('GET', `/novels${qs ? '?' + qs : ''}`, null, true)

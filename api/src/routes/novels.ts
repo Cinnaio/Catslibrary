@@ -1,3 +1,5 @@
+import { HTTPException } from 'hono/http-exception'
+import { applyNovelVisibility, parseVisibilityInput, visibleNovelSql } from '../services/novel-visibility'
 import { getPendingChapterCounts } from '../services/novel-update-summary'
 /**
  * /api/novels —— 小说列表/创建/详情/更新/删除 + 管理维护动作（由 Novel-KV 平移）。
@@ -25,6 +27,14 @@ import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempote
 import { categoryAliases, canonicalCategory } from '@shared/category-aliases'
 
 export const novelsRoutes = new Hono<AuthEnv>()
+novelsRoutes.onError((error, c) => {
+  if (error instanceof HTTPException) return c.json({ error: error.message }, error.status, contentPolicyHeaders())
+  console.error('[novels]', error)
+  return c.json({ error: '服务器内部错误' }, 500)
+})
+function presentNovel(c: Context<AuthEnv>, row: NovelRow) {
+  return { ...rowToNovel(row)!, ...(c.get('user')?.role === 'admin' ? { visibilityRevision: row.visibility_revision || 0 } : {}) }
+}
 
 const SORT_FIELDS: Record<string, boolean> = {
   updated_at: true,
@@ -76,7 +86,7 @@ novelsRoutes.get('/', optionalUser(), async (c) => {
   const sort = SORT_FIELDS[c.req.query('sort') || ''] ? c.req.query('sort')! : 'updated_at'
   const order = SORT_ORDERS[c.req.query('order') || ''] || 'DESC'
 
-  const conditions: string[] = []
+  const conditions: string[] = [visibleNovelSql(c, 'novels')]
   const params: unknown[] = []
   if (search) {
     // 用户输入的 % / _ 按字面匹配；trigram 索引（011 迁移）加速三列 %LIKE%
@@ -90,6 +100,11 @@ novelsRoutes.get('/', optionalUser(), async (c) => {
       return `categories LIKE $${params.length}`
     })
     conditions.push(`(${matches.join(' OR ')})`)
+  }
+  const visibility = c.req.query('visibility')
+  if (visibility && ['public', 'admin', 'selected'].includes(visibility)) {
+    params.push(visibility)
+    conditions.push(`visibility = $${params.length}`)
   }
   if (status) {
     params.push(status)
@@ -132,23 +147,23 @@ novelsRoutes.get('/', optionalUser(), async (c) => {
     [...params, limit, offset],
   )
   const pendingCounts = await getPendingChapterCounts(db, rows.map(row => row.id))
-  const novels = rows.map(row => ({ ...rowToNovel(row)!, ...pendingCounts.get(row.id) }))
+  const novels = rows.map(row => ({ ...presentNovel(c, row), ...pendingCounts.get(row.id) }))
 
   // 分类筛选 UI 用的全量分类集合（管理列表用 includeCategories=0 走 /api/categories）
   let availableCategories: string[] = []
   if (c.req.query('includeCategories') !== '0') {
-    availableCategories = await loadAvailableCategories(db, canViewRestricted)
+    availableCategories = await loadAvailableCategories(db, canViewRestricted, visibleNovelSql(c, 'novels'))
   }
 
   // 标注进度：让「还剩多少没判」成为可见数字，否则几百本书里挑未标注的无法作业。
   const progressRows = await all<{ content_rating: string; count: number }>(
     db,
     canViewRestricted
-      ? 'SELECT content_rating, COUNT(*)::int AS count FROM novels GROUP BY content_rating'
-      : "SELECT content_rating, COUNT(*)::int AS count FROM novels WHERE COALESCE(content_rating, 'unknown') <> 'restricted' GROUP BY content_rating",
+      ? `SELECT content_rating, COUNT(*)::int AS count FROM novels WHERE ${visibleNovelSql(c, 'novels')} GROUP BY content_rating`
+      : `SELECT content_rating, COUNT(*)::int AS count FROM novels WHERE COALESCE(content_rating, 'unknown') <> 'restricted' AND ${visibleNovelSql(c, 'novels')} GROUP BY content_rating`,
   )
   const hiddenRestricted =
-    !canViewRestricted && !!(await first<{ exists: boolean }>(db, "SELECT EXISTS (SELECT 1 FROM novels WHERE content_rating = 'restricted') AS exists"))?.exists
+    !canViewRestricted && !!(await first<{ exists: boolean }>(db, `SELECT EXISTS (SELECT 1 FROM novels WHERE content_rating = 'restricted' AND ${visibleNovelSql(c, 'novels')}) AS exists`))?.exists
   const ratingCounts = { general: 0, restricted: 0, unknown: 0 }
   for (const r of progressRows) {
     ratingCounts[toContentRating(r.content_rating)] += Number(r.count) || 0
@@ -185,25 +200,40 @@ novelsRoutes.post('/', requireAdmin(), async (c) => {
   return createNovel(c, db, body)
 })
 
+// Grants and their history are administrator-only; ordinary readers never receive the recipient list.
+novelsRoutes.get('/:id/visibility', requireAdmin(), async (c) => {
+  const db = getDb(), id = c.req.param('id')
+  const row = await first<NovelRow>(db, 'SELECT * FROM novels WHERE id=$1', [id])
+  if (!row) return c.json({ error: 'Novel not found' }, 404, contentPolicyHeaders())
+  const users = await all<{ id: string; username: string; displayName: string; status: string }>(db,
+    `SELECT u.id,u.username,u.display_name AS "displayName",u.status FROM novel_access_grants g JOIN users u ON u.id=g.user_id WHERE g.novel_id=$1 ORDER BY u.username,u.id`, [id])
+  const audit = await all<Record<string, unknown>>(db,
+    `SELECT a.previous_visibility AS "previousVisibility",a.visibility,a.previous_user_ids AS "previousUserIds",a.user_ids AS "userIds",
+      a.revision,a.created_at AS "createdAt",a.actor_user_id AS "actorUserId",COALESCE(u.display_name,u.username,'') AS "actorName"
+      FROM novel_visibility_audit a LEFT JOIN users u ON u.id=a.actor_user_id WHERE a.novel_id=$1 ORDER BY a.revision DESC LIMIT 30`, [id])
+  return c.json({ visibility: row.visibility, revision: row.visibility_revision, users, audit }, 200, contentPolicyHeaders())
+})
+
 // ---------- 详情 / 更新 / 删除 ----------
 
 novelsRoutes.get('/:id', optionalUser(), async (c) => {
   const db = getDb()
   const id = c.req.param('id')
   if (!id || id.includes('/')) return c.json({ error: 'Invalid novel ID' }, 400)
-  const row = await first<NovelRow>(db, 'SELECT * FROM novels WHERE id = $1', [id])
+  const row = await first<NovelRow>(db, `SELECT * FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [id])
   if (!row) return c.json({ error: 'Novel not found' }, 404)
   if (row.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
     if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
   }
-  return c.json({ novel: { ...rowToNovel(row)!, ...(await getPendingChapterCounts(db, [id])).get(id) } }, 200, contentPolicyHeaders())
+  return c.json({ novel: { ...presentNovel(c, row), ...(await getPendingChapterCounts(db, [id])).get(id) } }, 200, contentPolicyHeaders())
 })
 
 novelsRoutes.put('/:id', requireAdmin(), async (c) => {
   const db = getDb()
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
+  const visibilityInput = parseVisibilityInput(body)
   if (body.contentRating !== undefined && (!Number.isInteger(body.contentRatingRevision) || body.contentRatingRevision < 0)) {
     return c.json({ error: '修改分级必须携带有效的 contentRatingRevision，请刷新后重试' }, 400)
   }
@@ -265,8 +295,9 @@ novelsRoutes.put('/:id', requireAdmin(), async (c) => {
         })
       }
 
+      if (visibilityInput) await applyNovelVisibility(q, id, c.get('user').id, visibilityInput)
       const finalResult = await q<NovelRow>('SELECT * FROM novels WHERE id = $1', [id])
-      const finalNovel = rowToNovel(finalResult.rows[0])
+      const finalNovel = finalResult.rows[0] ? presentNovel(c, finalResult.rows[0]) : null
       if (!finalNovel) return null
       return { novel: finalNovel, coverChanged: coverUrl !== existing.coverUrl }
     })
@@ -299,6 +330,7 @@ novelsRoutes.delete('/:id', requireAdmin(), async (c) => {
 async function createNovel(c: Context, db: ReturnType<typeof getDb>, body: any) {
   if (!body.title || !body.author) return c.json({ error: 'Title and author are required' }, 400)
 
+  const visibilityInput = parseVisibilityInput(body, true)
   const id = newId('novel')
   const now = Date.now()
   const sourceUrl = body.sourceUrl || ''
@@ -361,7 +393,9 @@ async function createNovel(c: Context, db: ReturnType<typeof getDb>, body: any) 
       ruleVersion: explicitManualRating ? '' : ruleDecision.ruleVersion || CONTENT_RATING_RULE_VERSION,
       operationId: newId('rating-create'),
     })
-    return created
+    if (visibilityInput) await applyNovelVisibility(q, id, c.get('user').id, visibilityInput)
+    const saved = (await q<NovelRow>('SELECT * FROM novels WHERE id=$1', [id])).rows[0]!
+    return presentNovel(c, saved)
   })
 
   // 封面后台缓存；创建响应不等外部图片下载
@@ -559,11 +593,11 @@ async function undoPrefillContentRating(c: Context, db: ReturnType<typeof getDb>
   return c.json({ ok: true, ...result })
 }
 
-async function loadAvailableCategories(db: ReturnType<typeof getDb>, includeRestricted = true): Promise<string[]> {
+async function loadAvailableCategories(db: ReturnType<typeof getDb>, includeRestricted = true, visibilityFilter = "novels.visibility = 'public'"): Promise<string[]> {
   try {
     const rows = await all<{ categories: string }>(
       db,
-      `SELECT DISTINCT categories FROM novels WHERE categories IS NOT NULL AND categories != '[]'${includeRestricted ? '' : " AND COALESCE(content_rating, 'unknown') <> 'restricted'"}`,
+      `SELECT DISTINCT categories FROM novels WHERE ${visibilityFilter} AND categories IS NOT NULL AND categories != '[]'${includeRestricted ? '' : " AND COALESCE(content_rating, 'unknown') <> 'restricted'"}`,
     )
     const set = new Set<string>()
     for (const row of rows) {

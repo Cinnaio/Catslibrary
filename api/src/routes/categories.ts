@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /** /api/categories —— 全量分类集合（供筛选 UI，独立于小说列表避免每次全表 DISTINCT）。 */
 import { Hono } from 'hono'
 import { getDb } from '../db/pool'
@@ -15,7 +16,7 @@ categoriesRoutes.get('/', optionalUser(), async (c) => {
     db,
     `SELECT DISTINCT categories
      FROM novels
-     WHERE categories IS NOT NULL
+     WHERE ${visibleNovelSql(c, 'novels')} AND categories IS NOT NULL
        AND categories != '[]'
        ${access.canViewRestricted ? '' : "AND COALESCE(content_rating, 'unknown') <> 'restricted'"}`,
   )

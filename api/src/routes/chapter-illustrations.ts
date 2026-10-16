@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import sharp from 'sharp'
@@ -52,7 +53,7 @@ chapterIllustrationsRoutes.onError((error, c) => {
 chapterIllustrationsRoutes.get('/:chapterId/illustrations', optionalUser(), async (c) => {
   const chapter = await first<{ content: string; content_rating: string }>(
     getDb(),
-    'SELECT c.content, n.content_rating FROM chapters c JOIN novels n ON n.id=c.novel_id WHERE c.id=$1',
+    `SELECT c.content, n.content_rating FROM chapters c JOIN novels n ON n.id=c.novel_id WHERE c.id=$1 AND ${visibleNovelSql(c)}`,
     [c.req.param('chapterId')],
   )
   if (!chapter) return c.json({ error: '章节不存在' }, 404)
@@ -71,7 +72,7 @@ chapterIllustrationsRoutes.get('/:chapterId/illustrations/:id/image', optionalUs
   const row = await first<{ data: Uint8Array; content_rating: string }>(
     getDb(),
     `SELECT a.data, n.content_rating FROM ${join} JOIN chapters c ON c.id=i.chapter_id JOIN novels n ON n.id=c.novel_id
-     WHERE i.id=$1 AND i.chapter_id=$2 AND (i.deleted=FALSE OR $3)`,
+     WHERE i.id=$1 AND i.chapter_id=$2 AND (i.deleted=FALSE OR $3) AND ${visibleNovelSql(c)}`,
     [c.req.param('id'), c.req.param('chapterId'), c.get('user')?.role === 'admin'],
   )
   if (!row) return c.json({ error: '插图不存在' }, 404)

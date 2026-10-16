@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/thoughts —— 段评（公开列表 + 创建 + 管理员/本人隐藏 + 审核），由 Novel-KV thoughts.js 平移。
  */
@@ -64,7 +65,7 @@ thoughtsRoutes.post('/image', requireUser(), async (c) => {
   if (!input.selectedText || input.selectedText.length > MAX_SELECTED_LEN) return c.json({ error: '划选文字需为 1–200 字' }, 400)
   if (looksLikeSpam(input.thoughtText)) return c.json({ error: '想法内容看起来像垃圾信息' }, 400)
   const chapter = await first<{ novel_id: string; content: string; content_rating: string }>(db,
-    'SELECT c.novel_id, c.content, n.content_rating FROM chapters c JOIN novels n ON n.id = c.novel_id WHERE c.id = $1', [input.chapterId])
+    `SELECT c.novel_id, c.content, n.content_rating FROM chapters c JOIN novels n ON n.id = c.novel_id WHERE c.id = $1 AND ${visibleNovelSql(c)}`, [input.chapterId])
   if (!chapter) return c.json({ error: '章节不存在' }, 404)
   if (chapter.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -108,7 +109,7 @@ thoughtsRoutes.get('/image-task', requireUser(), async (c) => {
   const task = await getAiTask(db, taskId || row?.id || '')
   if (!task || task.userId !== user.id || task.kind !== 'selection_image') return c.json({ task: null }, 200, contentPolicyHeaders())
   const params = JSON.parse(task.params)
-  const chapter = await first<{ content_rating: string }>(db, 'SELECT n.content_rating FROM chapters c JOIN novels n ON n.id = c.novel_id WHERE c.id = $1', [params.chapterId])
+  const chapter = await first<{ content_rating: string }>(db, `SELECT n.content_rating FROM chapters c JOIN novels n ON n.id = c.novel_id WHERE c.id = $1 AND ${visibleNovelSql(c)}`, [params.chapterId])
   if (!chapter) return c.json({ task: null }, 200, contentPolicyHeaders())
   if (chapter.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -122,7 +123,7 @@ thoughtsRoutes.get('/image-task', requireUser(), async (c) => {
 
 thoughtsRoutes.get('/image/:id', optionalUser(), async (c) => {
   const row = await first<{ data: Uint8Array; content_type: string; content_rating: string; status: string }>(getDb(),
-    'SELECT i.data, i.content_type, t.status, n.content_rating FROM thought_images i JOIN thoughts t ON t.id = i.thought_id JOIN novels n ON n.id = t.novel_id WHERE t.id = $1', [c.req.param('id')])
+    `SELECT i.data, i.content_type, t.status, n.content_rating FROM thought_images i JOIN thoughts t ON t.id = i.thought_id JOIN novels n ON n.id = t.novel_id WHERE t.id = $1 AND ${visibleNovelSql(c)}`, [c.req.param('id')])
   if (!row || (row.status !== 'visible' && c.get('user')?.role !== 'admin')) return c.json({ error: '图片不存在' }, 404)
   if (row.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -175,6 +176,8 @@ thoughtsRoutes.delete('/', optionalUser(), async (c) => {
   const user = c.get('user')
   if (!user) return c.json({ error: '需要登录' }, 401)
   const isAdmin = user.role === 'admin'
+  const visible = await first(db, `SELECT t.id FROM thoughts t JOIN novels n ON n.id=t.novel_id WHERE t.id=$1 AND ${visibleNovelSql(c)}`, [id])
+  if (!visible) return c.json({ error: 'Thought not found' }, 404)
   const changed = isAdmin
     ? await run(db, 'UPDATE thoughts SET status = $1, updated_at = $2 WHERE id = $3', ['hidden', Date.now(), id])
     : await run(db, "UPDATE thoughts SET status = 'hidden', updated_at = $1 WHERE id = $2 AND user_id = $3 AND user_id <> ''", [Date.now(), id, user.id])
@@ -192,7 +195,7 @@ async function listThoughtsPublic(c: Context<AuthEnv>, db: ReturnType<typeof get
     `SELECT c.id, c.novel_id, n.content_rating
      FROM chapters c
      JOIN novels n ON n.id = c.novel_id
-     WHERE c.id = $1`,
+     WHERE c.id = $1 AND ${visibleNovelSql(c)}`,
     [chapterId],
   )
   if (!chapter) return c.json({ error: 'Chapter not found' }, 404)
@@ -223,7 +226,7 @@ async function listMyThoughts(c: Context<AuthEnv>, db: ReturnType<typeof getDb>)
   const user = c.get('user')
   if (!user) return c.json({ error: '需要登录' }, 401)
   const access = await resolveContentAccess(c)
-  const ratingFilter = access.canViewRestricted ? '' : " AND COALESCE(n.content_rating, 'general') <> 'restricted'"
+  const ratingFilter = ` AND ${visibleNovelSql(c)}` + (access.canViewRestricted ? '' : " AND COALESCE(n.content_rating, 'general') <> 'restricted'")
   const limit = clampInt(c.req.query('limit'), 1, 100, 50)
   const rows = await all<Record<string, unknown>>(
     db,
@@ -316,7 +319,7 @@ async function createThought(c: Context<AuthEnv>, body: any, image?: { data: Uin
     `SELECT c.id, c.novel_id, c.content, n.content_rating
      FROM chapters c
      JOIN novels n ON n.id = c.novel_id
-     WHERE c.id = $1`,
+     WHERE c.id = $1 AND ${visibleNovelSql(c)}`,
     [chapterId],
   )
   if (!chapter) return c.json({ error: 'Chapter not found' }, 404)

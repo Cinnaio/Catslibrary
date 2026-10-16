@@ -11,6 +11,8 @@ import type { PendingChapterCounts } from './novel-updates'
  */
 export type ContentRating = 'general' | 'restricted' | 'unknown'
 
+export type NovelVisibility = 'public' | 'admin' | 'selected'
+
 export interface Novel extends PendingChapterCounts {
   id: string
   title: string
@@ -21,6 +23,9 @@ export interface Novel extends PendingChapterCounts {
   status: string
   contentRating: ContentRating
   contentRatingRevision?: number
+  visibility?: NovelVisibility
+  /** Returned only to administrators. */
+  visibilityRevision?: number
   sourceUrl: string
   chapterCount: number
   remoteChapterCount: number

@@ -1,3 +1,4 @@
+import { visibleNovelSql } from '../services/novel-visibility'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { requireUser, type AuthEnv } from '../middlewares/auth'
@@ -43,7 +44,7 @@ readingStatsRoutes.post('/events', async (c) => {
   const chapterIds = [...new Set(events.map((e) => e.chapterId))]
   const { rows } = await db.query<{ id: string; novel_id: string; content_rating: string }>(
     `SELECT ch.id,ch.novel_id,n.content_rating FROM chapters ch JOIN novels n ON n.id=ch.novel_id
-     WHERE ch.id=ANY($1::text[]) AND ($2 OR COALESCE(n.content_rating,'unknown')<>'restricted')`,
+     WHERE ${visibleNovelSql(c)} AND ch.id=ANY($1::text[]) AND ($2 OR COALESCE(n.content_rating,'unknown')<>'restricted')`,
     [chapterIds, allowRestricted],
   )
   const valid = new Map(rows.map((r) => [r.id, r]))
@@ -74,7 +75,7 @@ readingStatsRoutes.get('/', async (c) => {
     userId = c.get('user').id
   const first = await db.query<{ first: string | null }>(
     `SELECT MIN(e.started_at) AS first FROM reading_stat_events e LEFT JOIN novels n ON n.id=e.novel_id
-     WHERE e.user_id=$1 AND ($2 OR COALESCE(n.content_rating,e.content_rating,'unknown')<>'restricted')`,
+     WHERE (n.id IS NULL OR ${visibleNovelSql(c)}) AND e.user_id=$1 AND ($2 OR COALESCE(n.content_rating,e.content_rating,'unknown')<>'restricted')`,
     [userId, allowed],
   )
   const recordedSince = first.rows[0]?.first == null ? null : Number(first.rows[0].first)
@@ -82,7 +83,7 @@ readingStatsRoutes.get('/', async (c) => {
   const { rows } = await db.query<StatEvent>(
     `SELECT e.id,e.session_id AS "sessionId",e.novel_id AS "novelId",e.chapter_id AS "chapterId",
       e.started_at AS start,e.ended_at AS end,COALESCE(n.title,'已删除作品') AS title,(n.id IS NOT NULL) AS available FROM reading_stat_events e LEFT JOIN novels n ON n.id=e.novel_id
-     WHERE e.user_id=$1 AND ($4 OR COALESCE(n.content_rating,e.content_rating,'unknown')<>'restricted')
+     WHERE (n.id IS NULL OR ${visibleNovelSql(c)}) AND e.user_id=$1 AND ($4 OR COALESCE(n.content_rating,e.content_rating,'unknown')<>'restricted')
        AND e.session_id IN (SELECT session_id FROM reading_stat_events WHERE user_id=$1 AND ended_at>$2 AND started_at<$3)
      ORDER BY e.started_at`,
     [userId, start, end, allowed],

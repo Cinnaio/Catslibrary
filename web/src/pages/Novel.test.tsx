@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
 import Layout from '../components/Layout'
@@ -50,4 +50,17 @@ it('成人模式后台验证失败独立显示状态页，恢复后还原详情�
   expect(screen.getByRole('navigation')).toBeInTheDocument()
   expect(screen.getByText('站点公告')).toBeInTheDocument()
   expect(mocks.novel.mock.calls.length).toBe(requests)
+})
+
+it('后台撤销私密授权后，返回页面清除书名和目录并显示普通 404', async () => {
+  mocks.policy.checking = false
+  mocks.policy.policyError = ''
+  mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '私密书名', author: '作者', description: '', categories: [], contentRating: 'general', visibility: 'selected' } })
+  render(tree())
+  await screen.findByRole('heading', { name: '私密书名' })
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow')
+  mocks.novel.mockRejectedValueOnce(Object.assign(new Error('Novel not found'), { status: 404 }))
+  fireEvent.focus(window)
+  await waitFor(() => expect(screen.queryByRole('heading', { name: '私密书名' })).not.toBeInTheDocument())
+  expect(screen.getByText('小说未找到')).toBeInTheDocument()
 })

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 const mocks = vi.hoisted(() => ({ list: vi.fn(), update: vi.fn(), toast: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn() }))
-vi.mock('../../lib/api', () => ({ adminApi: {}, novelsApi: { list: mocks.list, update: mocks.update }, scrapeApi: { sourceBindings: async () => ({ bindings: [] }), sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply }, authHeaders: () => ({}), url: (x: string) => x, newOperationId: () => 'test' }))
+vi.mock('../../lib/api', () => ({ adminApi: {}, novelsApi: { list: mocks.list, update: mocks.update, visibility: vi.fn().mockResolvedValue({ visibility: 'public', revision: 0, users: [], audit: [] }) }, scrapeApi: { sourceBindings: async () => ({ bindings: [] }), sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply }, authHeaders: () => ({}), url: (x: string) => x, newOperationId: () => 'test' }))
 vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }) }))
 vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, value, onChange, ...props }: any) => <select aria-labelledby={props['aria-labelledby']} value={value} onChange={e => onChange(e.target.value)}>{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 vi.mock('../../components/admin/BookImportDialog', () => ({ default: () => null }))
@@ -15,6 +15,7 @@ beforeEach(() => {
 async function open() {
   render(<MemoryRouter><NovelsTab /></MemoryRouter>)
   fireEvent.click(await screen.findByRole('button', { name: '编辑：测试书' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: /^保存$/ })).toBeEnabled())
 }
 it('只修改作者不发送旧分级，不覆盖并发审核结果', async () => {
   await open()

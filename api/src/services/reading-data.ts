@@ -1,3 +1,4 @@
+import { novelVisibilitySql } from './novel-visibility'
 import { createHash, randomUUID } from 'node:crypto'
 import { HTTPException } from 'hono/http-exception'
 import type { Db, DbClient } from '../db/pool'
@@ -24,7 +25,7 @@ async function repairPlan(query: Query, userId: string, allowed: boolean): Promi
       CASE WHEN n.id IS NULL OR ch.id IS NULL THEN 'remove' ELSE 'refresh' END AS action
      FROM user_bookmarks b LEFT JOIN novels n ON n.id=b.novel_id
      LEFT JOIN chapters ch ON ch.id=b.chapter_id AND ch.novel_id=b.novel_id
-     WHERE b.user_id=$1 AND ($2 OR COALESCE(n.content_rating,'unknown')<>'restricted')
+     WHERE (n.id IS NULL OR ${novelVisibilitySql('$1')}) AND b.user_id=$1 AND ($2 OR COALESCE(n.content_rating,'unknown')<>'restricted')
        AND (n.id IS NULL OR ch.id IS NULL OR b.novel_title<>n.title OR b.chapter_title<>ch.title OR b.chapter_order<>ch.sort_order)
      ORDER BY b.id LIMIT 101`,
     [userId, allowed],
@@ -49,7 +50,7 @@ async function repairPlan(query: Query, userId: string, allowed: boolean): Promi
       CASE WHEN ch.id IS NULL THEN 'clear' ELSE 'normalize' END AS action
      FROM reading_progress p JOIN novels n ON n.id=p.novel_id
      LEFT JOIN chapters ch ON ch.id=p.chapter_id AND ch.novel_id=p.novel_id
-     WHERE p.user_id=$1 AND p.deleted_at=0 AND ($2 OR n.content_rating<>'restricted')
+     WHERE ${novelVisibilitySql('$1')} AND p.user_id=$1 AND p.deleted_at=0 AND ($2 OR n.content_rating<>'restricted')
        AND (ch.id IS NULL OR p.scroll_percent<0 OR p.scroll_percent>1 OR p.scroll_percent='NaN'::real)
      ORDER BY p.id LIMIT 101`,
     [userId, allowed],
@@ -79,7 +80,7 @@ async function restorePlan(query: Query, userId: string, allowed: boolean, data:
   const chapterIds = [...new Set(all.flatMap((entry) => (entry.chapterId ? [entry.chapterId] : [])))]
   const novels = new Map(
     (
-      await query<{ id: string; title: string; content_rating: string }>('SELECT id,title,content_rating FROM novels WHERE id=ANY($1::text[])', [novelIds])
+      await query<{ id: string; title: string; content_rating: string }>(`SELECT id,title,content_rating FROM novels WHERE id=ANY($1::text[]) AND ${novelVisibilitySql('$2', 'novels')}`, [novelIds, userId])
     ).rows.map((row) => [row.id, row]),
   )
   const chapters = new Map(
@@ -224,7 +225,7 @@ export async function applyReadingData(
             (
               await query(
                 `UPDATE user_bookmarks b SET novel_title=n.title,chapter_title=ch.title,chapter_order=ch.sort_order
-             FROM novels n,chapters ch WHERE b.user_id=$1 AND b.id=$2 AND to_jsonb(b)=$3::jsonb
+             FROM novels n,chapters ch WHERE ${novelVisibilitySql('$1')} AND b.user_id=$1 AND b.id=$2 AND to_jsonb(b)=$3::jsonb
                AND n.id=b.novel_id AND ch.id=b.chapter_id AND ch.novel_id=n.id RETURNING b.id`,
                 [userId, previous!.id, JSON.stringify(previous)],
               )
