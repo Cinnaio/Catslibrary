@@ -14,15 +14,18 @@ import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminWorksp
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import type { AdminStatusTone } from '@/lib/admin-status'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import { DetailItem, formatCost } from './shared'
 
 const AUDIT_COLUMNS: readonly AdminColumn[] = [
-  { key: 'user', width: '17%' },
-  { key: 'type', width: '13%' },
-  { key: 'content', width: '26%' },
-  { key: 'usage', width: '16%' },
-  { key: 'cost', width: '12%' },
-  { key: 'time', width: '16%' },
+  { key: 'user', width: '20%' },
+  { key: 'type', width: '12%' },
+  { key: 'content', width: '24%' },
+  { key: 'usage', width: '20%' },
+  { key: 'cost', width: '11%' },
+  { key: 'time', width: '13%' },
 ]
 
 const aiCallTypeLabels: Record<string, string> = {
@@ -39,6 +42,26 @@ const aiCallTypeLabels: Record<string, string> = {
 
 function aiCallTypeLabel(type: string): string {
   return aiCallTypeLabels[type] || '其他'
+}
+
+function aiCallTone(type: string): AdminStatusTone {
+  switch (type) {
+    case 'test':
+      return 'warning'
+    case 'cover':
+    case 'cover_prompt':
+      return 'accent'
+    case 'continue':
+    case 'write_chapter':
+    case 'write_outline':
+    case 'writing_title':
+      return 'info'
+    case 'summary':
+    case 'catchup':
+      return 'subtle'
+    default:
+      return 'neutral'
+  }
 }
 
 export default function AiAuditPanel({ from }: { from?: number } = {}) {
@@ -170,10 +193,10 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                   <TableHead scope="col">用户</TableHead>
                   <TableHead scope="col">类型</TableHead>
                   <TableHead scope="col">关联内容</TableHead>
-                  <TableHead scope="col" className="is-numeric">
+                  <TableHead scope="col" className="text-right">
                     消耗
                   </TableHead>
-                  <TableHead scope="col" className="is-numeric">
+                  <TableHead scope="col" className="text-right">
                     成本
                   </TableHead>
                   <TableHead scope="col">时间</TableHead>
@@ -191,21 +214,18 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                   return (
                     <Fragment key={call.id}>
                       <TableRow
-                        className="ai-audit-row"
+                        className={cn(
+                          'ai-audit-row transition-colors cursor-pointer',
+                          expanded ? 'ai-audit-row--expanded bg-muted/30' : 'hover:bg-muted/20'
+                        )}
                         style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, calls.length)}ms` }}
                         onClick={() => setExpandedId(expanded ? null : call.id)}
                       >
                         <TableCell>
-                          <div className="ai-audit-cell__identity">
-                            {/* 整行 onClick 只服务鼠标；键盘与读屏需要一个真实控件。
-                                  aria-expanded 放在 <TableRow> 上无效（role=row 不接受该属性），
-                                  故把展开状态与 aria-controls 交给身份列内这个 button。
-                                  stopPropagation 必须保留：Enter 触发的 click 会冒泡到
-                                  行上，不拦截就会连开两次而净效果为零。
-                                  aria-controls 仅在展开时给出，避免指向尚未渲染的行。 */}
+                          <div className="flex items-center gap-2.5 min-w-0">
                             <button
                               type="button"
-                              className="ai-audit-row__toggle"
+                              className="size-6 -ml-1 rounded flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-muted/60 transition-transform duration-200 shrink-0"
                               aria-expanded={expanded}
                               aria-controls={expanded ? detailId : undefined}
                               aria-label={`${recordLabel} 的调用详情`}
@@ -214,121 +234,168 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                                 setExpandedId(expanded ? null : call.id)
                               }}
                             >
-                              <ChevronRight className="ai-audit-row__caret" aria-hidden="true" />
+                              <ChevronRight className={cn('size-3.5 transition-transform duration-200', expanded && 'rotate-90 text-foreground')} aria-hidden="true" />
                             </button>
-                            <div className="ai-audit-cell__identity-text">
-                              <div className="ai-audit-cell__name">{call.displayName || call.username || '—'}</div>
-                              {call.username && call.displayName && <div className="ai-audit-cell__sub">@{call.username}</div>}
+                            <UserAvatar name={recordName} className="size-6 text-[10px] rounded-full shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-[13px] font-medium text-foreground truncate">{call.displayName || call.username || '—'}</div>
+                              {call.username && call.displayName && <div className="text-[11px] text-muted-foreground font-mono truncate">@{call.username}</div>}
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{aiCallTypeLabel(call.type)}</Badge>
+                          <AdminStatusBadge tone={aiCallTone(call.type)} className="text-[11px] font-normal">
+                            {aiCallTypeLabel(call.type)}
+                          </AdminStatusBadge>
                         </TableCell>
                         <TableCell>
-                          <div className="ai-audit-cell__content">
-                            <div className="ai-audit-cell__name" title={call.novelTitle}>
-                              {call.novelTitle || <span className="ai-audit-cell__muted">—</span>}
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-medium text-foreground truncate" title={call.novelTitle}>
+                              {call.novelTitle || <span className="text-muted-foreground/40 text-xs">—</span>}
                             </div>
-                            {call.chapterTitle && <div className="ai-audit-cell__sub">{call.chapterTitle}</div>}
+                            {call.chapterTitle && <div className="text-[11px] text-muted-foreground truncate" title={call.chapterTitle}>{call.chapterTitle}</div>}
                           </div>
                         </TableCell>
-                        <TableCell className="is-numeric">
+                        <TableCell className="text-right">
                           {call.imageCount > 0 ? (
-                            <div className="ai-audit-cell__sub">
-                              <span className="ai-audit-cell__muted">图片</span>{' '}
-                              <span className="ai-audit-cell__strong">{call.imageCount.toLocaleString()}</span>
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className="font-mono text-[13px] font-semibold text-foreground">
+                                {call.imageCount.toLocaleString()} <span className="text-[11px] text-muted-foreground font-normal">张图片</span>
+                              </span>
+                              <span className="text-[11px] text-muted-foreground font-mono">生图调用</span>
                             </div>
                           ) : (
-                            <>
-                              <div className="ai-audit-cell__sub">
-                                <span className="ai-audit-cell__muted">入</span>{' '}
-                                <span className="ai-audit-cell__strong">{call.promptTokens.toLocaleString()}</span>
+                            <div className="flex flex-col items-end gap-0.5">
+                              <div className="font-mono text-[13px] font-semibold text-foreground">
+                                <span className="text-[11px] font-normal text-muted-foreground mr-1">入</span>
+                                <span>{call.promptTokens.toLocaleString()}</span>
+                                <span className="mx-1 text-muted-foreground/40 font-normal">/</span>
+                                <span className="text-[11px] font-normal text-muted-foreground mr-1">出</span>
+                                <span>{call.completionTokens.toLocaleString()}</span>
                               </div>
-                              <div className="ai-audit-cell__sub">
-                                <span className="ai-audit-cell__muted">出</span>{' '}
-                                <span className="ai-audit-cell__strong">{call.completionTokens.toLocaleString()}</span>
+                              <div
+                                className={cn(
+                                  'text-[11px] font-mono',
+                                  call.cacheReadTokens && call.cacheReadTokens > 0
+                                    ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                                    : 'text-muted-foreground/75'
+                                )}
+                                title="上游输入缓存读取量，已包含在输入 Token 中"
+                              >
+                                {call.cacheReadTokens == null
+                                  ? '缓存未回传'
+                                  : call.cacheReadTokens > 0
+                                    ? `缓存命中 ${call.cacheReadTokens.toLocaleString()}`
+                                    : '缓存未命中'}
                               </div>
-                            </>
+                            </div>
                           )}
-                          <div className="ai-audit-cell__sub" title="上游输入缓存读取量，已包含在输入 Token 中">
-                            {call.cacheReadTokens == null
-                              ? '缓存未回传'
-                              : call.cacheReadTokens > 0
-                                ? `缓存命中 ${call.cacheReadTokens.toLocaleString()}`
-                                : '缓存未命中'}
-                          </div>
                         </TableCell>
-                        <TableCell className="is-numeric ai-audit-cell__strong">
-                          {call.costReported === false ? '未回传' : formatCost(call.costMillicents)}
+                        <TableCell className="text-right">
+                          <span className="font-mono text-[13px] font-semibold text-foreground">
+                            {call.costReported === false ? <span className="font-normal text-muted-foreground text-xs">未回传</span> : formatCost(call.costMillicents)}
+                          </span>
                         </TableCell>
-                        <TableCell className="ai-audit-cell__muted">
-                          <div>{new Date(call.createdAt).toLocaleDateString('zh-CN')}</div>
-                          <div className="ai-audit-cell__sub">{new Date(call.createdAt).toLocaleTimeString('zh-CN')}</div>
+                        <TableCell className="whitespace-nowrap">
+                          <div className="font-mono text-xs text-foreground/85">{new Date(call.createdAt).toLocaleDateString('zh-CN')}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground">{new Date(call.createdAt).toLocaleTimeString('zh-CN')}</div>
                         </TableCell>
                       </TableRow>
                       {expanded && (
                         <TableRow className="ai-audit-row ai-audit-row--detail" id={detailId}>
-                          <TableCell colSpan={AUDIT_COLUMNS.length}>
-                            <div className="ai-audit-detail">
-                              <DetailItem label="调用 ID" value={<code className="text-xs">{call.id}</code>} />
-                              <DetailItem label="模型" value={<code className="text-xs">{call.model || '—'}</code>} />
-                              <DetailItem label="上游请求 ID" value={<code className="text-xs">{call.upstreamRequestId || '未记录'}</code>} />
-                              <DetailItem
-                                label="成本来源"
-                                value={call.costSource === 'newapi-log' ? '中转站账单' : call.costSource === 'response' ? '生成响应' : '未记录'}
-                              />
-                              <DetailItem label="成本币种" value={call.costCurrency || '上游未声明'} />
-                              <DetailItem label="小说 ID" value={<code className="text-xs">{call.novelId || '—'}</code>} />
-                              <DetailItem label="章节 ID" value={<code className="text-xs">{call.chapterId || '—'}</code>} />
-                              <DetailItem label="IP 地址" value={<code className="text-xs">{call.ipAddress || '未记录'}</code>} />
-                              <DetailItem
-                                label="User-Agent"
-                                value={
-                                  <code className="block max-w-full truncate text-xs" title={call.userAgent}>
+                          <TableCell colSpan={AUDIT_COLUMNS.length} className="pt-1 pb-4">
+                            <div className="ai-audit-detail-sheet">
+                              {/* 1. 消耗与成本核算指标行 (Flat Metrics Row) */}
+                              <div className="ai-audit-detail-metrics">
+                                <div className="ai-audit-detail-metric">
+                                  <span className="ai-audit-detail-metric__label">输入 Token</span>
+                                  <span className="ai-audit-detail-metric__value">{call.promptTokens.toLocaleString()}</span>
+                                </div>
+                                <div className="ai-audit-detail-metric">
+                                  <span className="ai-audit-detail-metric__label">输出 Token</span>
+                                  <span className="ai-audit-detail-metric__value">{call.completionTokens.toLocaleString()}</span>
+                                </div>
+                                <div className="ai-audit-detail-metric">
+                                  <span className="ai-audit-detail-metric__label">合计 Token</span>
+                                  <span className="ai-audit-detail-metric__value font-semibold">{(call.promptTokens + call.completionTokens).toLocaleString()}</span>
+                                </div>
+                                <div className="ai-audit-detail-metric">
+                                  <span className="ai-audit-detail-metric__label">缓存读取</span>
+                                  <span className="ai-audit-detail-metric__value">{call.cacheReadTokens == null ? '未回传' : `${call.cacheReadTokens.toLocaleString()} Token`}</span>
+                                </div>
+                                <div className="ai-audit-detail-metric">
+                                  <span className="ai-audit-detail-metric__label">缓存写入</span>
+                                  <span className="ai-audit-detail-metric__value">{call.cacheWriteTokens == null ? '未回传' : `${call.cacheWriteTokens.toLocaleString()} Token`}</span>
+                                </div>
+                                <div className="ai-audit-detail-metric">
+                                  <span className="ai-audit-detail-metric__label">推理 Token</span>
+                                  <span className="ai-audit-detail-metric__value">{call.reasoningTokens == null ? '未回传' : call.reasoningTokens.toLocaleString()}</span>
+                                </div>
+                                {call.imageCount > 0 && (
+                                  <div className="ai-audit-detail-metric">
+                                    <span className="ai-audit-detail-metric__label">图片生成</span>
+                                    <span className="ai-audit-detail-metric__value">{call.imageCount.toLocaleString()} 张</span>
+                                  </div>
+                                )}
+                                <div className="ai-audit-detail-metric is-cost">
+                                  <span className="ai-audit-detail-metric__label">最终成本</span>
+                                  <span className="ai-audit-detail-metric__value is-accent">
+                                    {call.costReported === false ? '上游未回传' : formatCost(call.costMillicents)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 2. 详细元数据属性网格 (Flat Metadata Grid) */}
+                              <div className="ai-audit-detail-grid">
+                                <div className="ai-audit-detail-field">
+                                  <span className="ai-audit-detail-field__label">调用 ID</span>
+                                  <span className="ai-audit-detail-field__value font-mono select-all">{call.id}</span>
+                                </div>
+                                <div className="ai-audit-detail-field">
+                                  <span className="ai-audit-detail-field__label">模型</span>
+                                  <span className="ai-audit-detail-field__value font-mono">{call.model || '—'}</span>
+                                </div>
+                                <div className="ai-audit-detail-field">
+                                  <span className="ai-audit-detail-field__label">上游请求 ID</span>
+                                  <span className="ai-audit-detail-field__value font-mono select-all truncate block" title={call.upstreamRequestId || '未记录'}>
+                                    {call.upstreamRequestId || '未记录'}
+                                  </span>
+                                </div>
+                                <div className="ai-audit-detail-field">
+                                  <span className="ai-audit-detail-field__label">成本来源</span>
+                                  <span className="ai-audit-detail-field__value">
+                                    {call.costSource === 'newapi-log' ? '中转站账单' : call.costSource === 'response' ? '生成响应' : '未记录'}
+                                  </span>
+                                </div>
+                                <div className="ai-audit-detail-field">
+                                  <span className="ai-audit-detail-field__label">成本币种</span>
+                                  <span className="ai-audit-detail-field__value font-mono">{call.costCurrency || '上游未声明'}</span>
+                                </div>
+                                <div className="ai-audit-detail-field">
+                                  <span className="ai-audit-detail-field__label">小说 ID</span>
+                                  <span className="ai-audit-detail-field__value font-mono">{call.novelId || '—'}</span>
+                                </div>
+                                <div className="ai-audit-detail-field">
+                                  <span className="ai-audit-detail-field__label">章节 ID</span>
+                                  <span className="ai-audit-detail-field__value font-mono">{call.chapterId || '—'}</span>
+                                </div>
+                                <div className="ai-audit-detail-field">
+                                  <span className="ai-audit-detail-field__label">客户端 IP</span>
+                                  <span className="ai-audit-detail-field__value font-mono">{call.ipAddress || '未记录'}</span>
+                                </div>
+                                <div className="ai-audit-detail-field col-span-full">
+                                  <span className="ai-audit-detail-field__label">User-Agent</span>
+                                  <span className="ai-audit-detail-field__value font-mono text-[11px] text-muted-foreground break-all" title={call.userAgent}>
                                     {call.userAgent || '未记录'}
-                                  </code>
-                                }
-                              />
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 3. 审计合规附注说明 */}
+                              <p className="ai-audit-detail-note">
+                                缓存读取与写入属于输入 Token；推理 Token 属于输出 Token，均不重复计入合计。此处统计上游缓存，不包含站内已生成内容的复用。
+                              </p>
                             </div>
-                            <div className="ai-audit-detail__usage">
-                              <span>
-                                缓存读取：<strong>{call.cacheReadTokens == null ? '未回传' : `${call.cacheReadTokens.toLocaleString()} Token`}</strong>
-                              </span>
-                              <span>
-                                缓存写入：<strong>{call.cacheWriteTokens == null ? '未回传' : `${call.cacheWriteTokens.toLocaleString()} Token`}</strong>
-                              </span>
-                              <span>
-                                推理 Token：<strong>{call.reasoningTokens == null ? '未回传' : call.reasoningTokens.toLocaleString()}</strong>
-                              </span>
-                              {call.imageCount > 0 ? (
-                                <span>
-                                  图片生成：
-                                  <strong>{call.imageCount.toLocaleString()} 张</strong>
-                                </span>
-                              ) : (
-                                <>
-                                  <span>
-                                    输入 Token：
-                                    <strong>{call.promptTokens.toLocaleString()}</strong>
-                                  </span>
-                                  <span>
-                                    输出 Token：
-                                    <strong>{call.completionTokens.toLocaleString()}</strong>
-                                  </span>
-                                  <span>
-                                    合计：
-                                    <strong>{(call.promptTokens + call.completionTokens).toLocaleString()}</strong>
-                                  </span>
-                                </>
-                              )}
-                              <span>
-                                成本：<strong>{call.costReported === false ? '上游未回传' : formatCost(call.costMillicents)}</strong>
-                              </span>
-                            </div>
-                            <p className="ai-audit-cell__sub mt-2">
-                              缓存读取与写入属于输入 Token；推理 Token 属于输出 Token，均不重复计入合计。此处统计上游缓存，不包含站内已生成内容的复用。
-                            </p>
                           </TableCell>
                         </TableRow>
                       )}
