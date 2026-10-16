@@ -14,6 +14,7 @@ export interface SourceAnalyticsBook {
   author: string
   status: string
   chapterCount: number
+  coverUrl?: string | null
   sourceUrl: string
   sources: Array<{ url: string; host: string; kind: string }>
   site: string
