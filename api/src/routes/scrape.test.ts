@@ -348,7 +348,7 @@ describe('scrape 路由（免网络动作）', () => {
     }
   })
 
-  it('POPO 抓取中心回查详情封面应携带已保存会话', async () => {
+  it('POPO 抓取中心应携带已保存会话同时回查详情封面和简介', async () => {
     const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
     process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
     const landingPage = `<form id="rank-form1" action="/rank/more" method="post">
@@ -363,7 +363,8 @@ describe('scrape 路由（免网络动作）', () => {
         <div class="r4"><a class="l_author" href="/users/author-five">小甜包</a></div>
       </div><!--row-->
     </div>`
-    const detailPage = `<div class="book_cover R-rated"><img src="https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg"></div>`
+    const detailPage = `<div class="book_cover R-rated"><img src="https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg"></div>
+      <div class="B_I_content"><p>作品简介。</p><p>第二段。</p><span style="color:#bdc3c7">重复书名</span></div>`
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.endsWith('/rank/more')) return new Response(rankingPage, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
@@ -387,6 +388,7 @@ describe('scrape 路由（免网络动作）', () => {
       const result = await jsonOf<{ novels: Array<{ bookId: string; coverUrl: string }> }>(discovered)
       expect(result.novels.find((novel) => novel.bookId === '891916')).toMatchObject({
         coverUrl: 'https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg',
+        description: '作品简介。\n\n第二段。',
       })
 
       const detailCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/books/891916'))
@@ -398,6 +400,67 @@ describe('scrape 路由（免网络动作）', () => {
       await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
       if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
       else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
+    }
+  })
+
+  it('POPO 搜索接口回查简介应延续账号及搜索响应中的 Cookie', async () => {
+    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
+    const searchPage = '<form id="header-search-form" action="/search/index"><input name="name"><input type="hidden" name="searchtype" value="all"></form>'
+    const resultPage = `<div id="BOOK"><div class="book"><div class="book_name"><a href="/books/123456">搜索作品</a></div><div class="book_author">搜索作者</div></div></div>`
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      return new Response(url.includes('/books/') ? '<div class="B_I_content"><p>详情提供的作品简介。</p></div>' : url.endsWith('/search/index') ? resultPage : searchPage, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': 'csrf=refreshed; Path=/' },
+      })
+    })
+    try {
+      await req('/api/scrape', json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken))
+      const response = await req('/api/scrape', json('POST', { action: 'popo-search', query: '搜索作品', searchType: 'book' }, adminToken))
+      expect(response.status, await response.clone().text()).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        novels: [{ title: '搜索作品', author: '搜索作者', description: '详情提供的作品简介。' }],
+      })
+      const detailCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/books/123456'))
+      expect(detailCall).toBeDefined()
+      const cookie = new Headers(detailCall?.[1]?.headers).get('Cookie') || ''
+      expect(cookie).toContain('po18Limit=1')
+      expect(cookie).toContain('PHPSESSID=authenticated')
+      expect(cookie).toContain('csrf=refreshed')
+    } finally {
+      fetchMock.mockRestore()
+      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
+      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
+    }
+  })
+
+  it('PO18 榜单发现接口应返回每本书自己的作者及详情简介', async () => {
+    const rankingPage = `<div class="articlegeneral"><p>[言情]</p><a href="/book/171348/">蜜糖表妹</a><a href="/author/gaga鸭">gaga鸭</a></div>
+      <div class="articlegeneral"><p>[其他]</p><a href="/book/164998/">肆虐韩娱</a><a href="/author/姬叉">姬叉</a></div>`
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      const id = url.match(/\/book\/(\d+)/)?.[1]
+      return new Response(id ? `<div class="intro"><span>本书简介：</span><p>作品 ${id} 的独立简介。</p></div>` : rankingPage, {
+        status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    })
+    try {
+      const response = await req('/api/scrape', json('POST', {
+        action: 'discover', listUrl: 'https://wap.po18x.vip/top/dayvisit_1/?test=route-metadata',
+      }, adminToken))
+      expect(response.status, await response.clone().text()).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        site: 'PO18', total: 2,
+        novels: [
+          { title: '蜜糖表妹', author: 'gaga鸭', description: '作品 171348 的独立简介。' },
+          { title: '肆虐韩娱', author: '姬叉', description: '作品 164998 的独立简介。' },
+        ],
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    } finally {
+      fetchMock.mockRestore()
     }
   })
 
