@@ -35,6 +35,15 @@ const aiCallTypeLabels: Record<string, string> = {
   write_outline: '创作大纲',
   write_chapter: '创作章节',
   writing_title: '标题生成',
+  plot_suggestion: '情节建议',
+  plot_outline: '情节大纲',
+  rewrite_selection: '选段改写',
+  style_profile: '文风分析',
+  relationship_profile: '人物关系分析',
+  plot_state: '剧情状态分析',
+  import_review: '导入审校',
+  'content-rating-llm': '内容分级',
+  selection_image: '选段配图',
   cover: '封面生成',
   cover_prompt: '封面描述词',
   test: '连通性测试',
@@ -50,14 +59,23 @@ function aiCallTone(type: string): AdminStatusTone {
       return 'warning'
     case 'cover':
     case 'cover_prompt':
+    case 'selection_image':
       return 'accent'
     case 'continue':
     case 'write_chapter':
     case 'write_outline':
     case 'writing_title':
+    case 'plot_suggestion':
+    case 'plot_outline':
+    case 'rewrite_selection':
       return 'info'
     case 'summary':
     case 'catchup':
+    case 'style_profile':
+    case 'relationship_profile':
+    case 'plot_state':
+    case 'import_review':
+    case 'content-rating-llm':
       return 'subtle'
     default:
       return 'neutral'
@@ -72,6 +90,7 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
       model: string
       username: string
       displayName: string
+      avatarUrl?: string
       novelTitle: string
       chapterTitle: string
       novelId: string
@@ -125,15 +144,7 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
 
   const callTypeOptions = [
     { value: 'all', label: '全部类型' },
-    { value: 'summary', label: '前情提要' },
-    { value: 'catchup', label: '回顾总结' },
-    { value: 'continue', label: '续写' },
-    { value: 'write_outline', label: '创作大纲' },
-    { value: 'write_chapter', label: '创作章节' },
-    { value: 'writing_title', label: '标题生成' },
-    { value: 'cover', label: '封面生成' },
-    { value: 'cover_prompt', label: '封面描述词' },
-    { value: 'test', label: '连通性测试' },
+    ...Object.entries(aiCallTypeLabels).map(([value, label]) => ({ value, label })),
   ]
 
   return (
@@ -236,7 +247,7 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                             >
                               <ChevronRight className={cn('size-3.5 transition-transform duration-200', expanded && 'rotate-90 text-foreground')} aria-hidden="true" />
                             </button>
-                            <UserAvatar name={recordName} className="size-6 text-[10px] rounded-full shrink-0" />
+                            <UserAvatar name={recordName} src={call.avatarUrl} className="size-6 text-[10px] rounded-full shrink-0" />
                             <div className="min-w-0">
                               <div className="text-[13px] font-medium text-foreground truncate">{call.displayName || call.username || '—'}</div>
                               {call.username && call.displayName && <div className="text-[11px] text-muted-foreground font-mono truncate">@{call.username}</div>}

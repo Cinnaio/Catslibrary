@@ -504,6 +504,22 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(trend.reduce((sum, point) => sum + point.cacheReadReportedCalls, 0)).toBeGreaterThanOrEqual(1)
   })
 
+  it('审计返回用户现有头像地址，并可分别筛选辅助生成类型', async () => {
+    const readerId = await userIdByUsername(t, 'reader')
+    const types = ['import_review', 'style_profile', 'relationship_profile', 'plot_state', 'plot_suggestion', 'plot_outline', 'rewrite_selection', 'content-rating-llm', 'selection_image']
+    for (const generationType of types) {
+      await recordUsage(t.db, { userId: readerId, model: 'audit-types', provider: 'ai.test', promptTokens: 10, completionTokens: 2, costMillicents: 0, generationType })
+    }
+    for (const type of types) {
+      const response = await req(`/api/ai/audit/calls?type=${type}&userId=${readerId}`, json('GET', undefined, adminToken))
+      expect(response.status).toBe(200)
+      const result = await jsonOf<{ calls: Array<{ type: string; userId: string; avatarUrl: string }>; total: number }>(response)
+      expect(result.total).toBeGreaterThan(0)
+      expect(result.calls.every((call) => call.type === type)).toBe(true)
+      expect(result.calls[0]).toMatchObject({ userId: readerId, avatarUrl: expect.stringMatching(new RegExp(`^/api/avatar/${readerId}\\?v=\\d+$`)) })
+    }
+  })
+
   it('审计与趋势保留小数金额及上游账单追溯字段', async () => {
     const before = await jsonOf<{ trend: Array<{ costMillicents: number }> }>(await req('/api/ai/audit/trend?days=7', json('GET', undefined, adminToken)))
     const readerId = await userIdByUsername(t, 'reader')

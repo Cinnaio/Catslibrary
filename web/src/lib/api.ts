@@ -2490,6 +2490,7 @@ export const aiApi = {
         userId: string
         username: string
         displayName: string
+        avatarUrl?: string
         novelId: string
         novelTitle: string
         chapterId: string
