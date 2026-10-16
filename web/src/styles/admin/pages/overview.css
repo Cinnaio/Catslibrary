@@ -5,26 +5,6 @@
   flex: 0 1 18rem;
 }
 
-/* 用量统计面板标题栏里的合计读数：贴着它汇总的那张图，是次级文字而非大数字。 */
-.ai-usage-totals {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.875rem;
-  color: var(--text-muted);
-  font-size: var(--admin-table-head-size);
-  font-variant-numeric: tabular-nums;
-}
-
-.ai-usage-totals > span {
-  white-space: nowrap;
-}
-
-.ai-usage-totals strong {
-  color: var(--text-primary);
-  font-weight: 750;
-}
-
 /* 总览：暖纸面工作区，追更与运营事项优先，规模读数贴近书库。 */
 .dashboard-workspace {
   display: grid;

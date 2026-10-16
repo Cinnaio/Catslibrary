@@ -8,17 +8,6 @@ export interface Provider {
   hasKey: boolean
 }
 
-export function UsageCell({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="bg-card px-4 py-3">
-      <div className="truncate text-xs font-medium text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">
-        {typeof value === 'string' ? value : value.toLocaleString()}
-      </div>
-    </div>
-  )
-}
-
 export function DetailItem({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="grid gap-0.5">
