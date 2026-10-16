@@ -10,9 +10,9 @@
 }
 
 .admin-redesign-page--jobs > .admin-data-panel {
-  border: 0;
-  border-radius: var(--admin-table-panel-radius);
-  background: var(--admin-panel);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-data-panel-radius);
+  background: var(--admin-table-background);
   box-shadow: none;
 }
 

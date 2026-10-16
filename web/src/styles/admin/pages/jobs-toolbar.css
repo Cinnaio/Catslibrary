@@ -3,9 +3,13 @@
    工具栏沿用章节目录工具栏的内边距与分隔线，面板标题已负责上边界，
    故不再叠加 border-top。 */
 .admin-redesign-page--jobs .jobs-toolbar {
-  padding: var(--admin-space-2) var(--admin-space-3);
-  border-top: 0;
-  border-bottom: 1px solid var(--admin-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--admin-space-3);
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
 .admin-redesign-page--jobs .jobs-toolbar__filters {
@@ -13,11 +17,12 @@
   align-items: center;
   gap: var(--admin-space-3);
   min-width: 0;
+  width: 100%;
 }
 
 .admin-redesign-page--jobs .jobs-toolbar__label {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -30,7 +35,12 @@
   position: relative;
   isolation: isolate;
   height: var(--admin-control-height);
-  width: 21rem;
+  width: 23.5rem;
+  padding: var(--tabs-segmented-inset);
+  gap: var(--tabs-segmented-gap);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  background: var(--tabs-segmented-track-background);
 }
 
 /* 激活背景只位移、不重排：四段等宽，位移量按段宽 + 间隙递推。 */
@@ -38,7 +48,7 @@
   position: absolute;
   z-index: 0;
   inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
-  width: calc((100% - (var(--tabs-segmented-gap) * 6)) / 4);
+  width: calc((100% - (var(--tabs-segmented-gap) * 5)) / 4);
   border-radius: var(--tabs-segmented-inner-radius);
   background: var(--tabs-segmented-active-background);
   box-shadow: var(--tabs-segmented-active-shadow);
@@ -53,22 +63,48 @@
 }
 
 .admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'][data-active-index='2']::before {
-  transform: translateX(calc(200% + var(--tabs-segmented-gap) + var(--tabs-segmented-gap)));
+  transform: translateX(calc(200% + (var(--tabs-segmented-gap) * 2)));
 }
 
 .admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'][data-active-index='3']::before {
-  transform: translateX(calc(300% + var(--tabs-segmented-gap) + var(--tabs-segmented-gap) + var(--tabs-segmented-gap)));
+  transform: translateX(calc(300% + (var(--tabs-segmented-gap) * 3)));
 }
 
 .admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-trigger'] {
   z-index: 1;
   background: transparent;
   box-shadow: none;
+  min-width: 0;
+  flex: 1 1 0;
+  padding-inline: 0.5rem;
+  border-radius: var(--tabs-segmented-inner-radius);
+  color: var(--tabs-segmented-muted-foreground);
+  font-size: var(--tabs-segmented-label-size);
+  font-weight: var(--tabs-segmented-label-weight);
+  line-height: var(--tabs-segmented-label-line-height);
+  transition: color var(--tabs-segmented-transition);
 }
 
 .admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-trigger'][data-state='active'] {
   background: transparent;
   box-shadow: none;
+  color: var(--tabs-segmented-active-foreground);
+  font-weight: var(--tabs-segmented-active-label-weight);
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.6875rem;
+  padding: 0.0625rem 0.375rem;
+  border-radius: var(--radius-full, 9999px);
+  background: rgba(0, 0, 0, 0.06);
+  font-weight: 500;
+  margin-left: 0.25rem;
+}
+
+:root[data-theme='dark'] .admin-redesign-page--jobs .jobs-toolbar__count,
+[data-theme='dark'] .admin-redesign-page--jobs .jobs-toolbar__count {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* 列表状态胶囊：与审核列表同构，任务与日志两个面板各有一枚。 */
