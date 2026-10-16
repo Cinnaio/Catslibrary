@@ -56,6 +56,7 @@ import { extractRelationshipProfile } from '../services/ai/relationship-profile'
 import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, saveProfileOverride } from '../services/ai/profile-overrides'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { usageAuditFields } from '../services/ai/upstream-usage'
+import { userAvatarUrl } from '../services/auth'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
 import {
@@ -2279,7 +2280,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
     `SELECT
       u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens, u.image_count, u.ip_address, u.user_agent,
       u.cost_millicents, u.cost_reported, u.upstream_request_id, u.cost_source, u.cost_currency, u.cache_read_tokens, u.cache_write_tokens, u.reasoning_tokens, u.created_at, u.user_id, u.novel_id, u.chapter_id,
-      usr.username, usr.display_name,
+      usr.id AS current_user_id, usr.username, usr.display_name, usr.updated_at AS user_updated_at,
       n.title AS novel_title,
       c.title AS chapter_title
     FROM ai_usage u
@@ -2315,6 +2316,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
         userId: String(r.user_id || ''),
         username: String(r.username || ''),
         displayName: String(r.display_name || ''),
+        avatarUrl: userAvatarUrl(String(r.current_user_id || ''), Number(r.user_updated_at) || 0),
         novelId: String(r.novel_id || ''),
         novelTitle: String(r.novel_title || ''),
         chapterId: String(r.chapter_id || ''),
