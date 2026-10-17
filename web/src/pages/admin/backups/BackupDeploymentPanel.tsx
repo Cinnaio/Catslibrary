@@ -24,10 +24,12 @@ const pathsOf = (runtime?: BackupDeployment) =>
 export default function BackupDeploymentPanel({
   deployment,
   disabled,
+  embedded = false,
   onSaved,
 }: {
   deployment: BackupSettingsPage['deployment']
   disabled: boolean
+  embedded?: boolean
   onSaved: (value: BackupDeployment) => void
 }) {
   const { toast } = useToast()
@@ -110,15 +112,28 @@ export default function BackupDeploymentPanel({
       setBusy(false)
     }
   }
+  const Panel = embedded ? 'div' : Card
+  const Header = embedded ? 'div' : CardHeader
+  const Body = embedded ? 'div' : CardContent
+
   return (
-    <Card className="admin-panel-card">
-      <CardHeader className="backup-panel-header">
+    <Panel className={embedded ? 'backup-deployment-embedded' : 'admin-panel-card'}>
+      <Header className={embedded ? 'backup-section-header' : 'backup-panel-header'}>
         <div>
-          <CardTitle>底层运行环境与工具链</CardTitle>
-          <p className="backup-panel-subtitle">检测本地加密主密钥与数据库原生命令行工具配置就绪状态</p>
+          {embedded ? (
+            <>
+              <h4 className="backup-section-title">工具链与加密主密钥</h4>
+              <p className="backup-section-subtitle">检测本地备份归档目录与数据库原生命令行工具配置就绪状态</p>
+            </>
+          ) : (
+            <>
+              <CardTitle>底层运行环境与工具链</CardTitle>
+              <p className="backup-panel-subtitle">检测本地加密主密钥与数据库原生命令行工具配置就绪状态</p>
+            </>
+          )}
         </div>
-      </CardHeader>
-      <CardContent className="backup-fields">
+      </Header>
+      <Body className="backup-fields">
         <dl className="backup-environment-list">
           <div>
             <dt>本地备份目录</dt>
@@ -277,7 +292,7 @@ export default function BackupDeploymentPanel({
             </DialogFooter>
           </AdminDialogContent>
         </Dialog>
-      </CardContent>
-    </Card>
+      </Body>
+    </Panel>
   )
 }
