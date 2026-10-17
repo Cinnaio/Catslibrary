@@ -573,10 +573,12 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                               </div>
                             </TableCell>
                             <TableCell data-label="待入库">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-semibold tabular-nums">{book.pending == null ? '未核对' : `${n(book.pending)} 章`}</span>
+                              <div className="source-pending-cell flex flex-col items-start gap-1 justify-center">
+                                <span className="text-sm font-semibold tabular-nums text-foreground">
+                                  {book.pending == null ? '未核对' : `${n(book.pending)} 章`}
+                                </span>
                                 {!!book.protected && (
-                                  <span className="novel-update-protection">
+                                  <span className="source-protected-badge" title={`该作品有 ${n(book.protected)} 章受保护内容`}>
                                     <LockKeyhole aria-hidden="true" />
                                     受保护 {n(book.protected)} 章
                                   </span>

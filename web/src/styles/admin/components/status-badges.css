@@ -87,3 +87,91 @@
   --admin-status-bg: rgba(229, 139, 112, 0.15);
   --admin-status-border: rgba(229, 139, 112, 0.28);
 }
+
+/* ============================================================
+   Novel Update & Chapter Protection Badges (Claude Humanist Pills)
+   ============================================================ */
+.novel-update-indicator {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  line-height: 1.25;
+}
+
+.novel-update-protection,
+.source-protected-badge,
+.source-protected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.45rem;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--admin-accent-light);
+  border: 1px solid rgba(217, 119, 87, 0.28);
+  color: var(--admin-accent, #d97757);
+  font-size: 0.7rem;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(217, 119, 87, 0.04);
+}
+
+.novel-update-protection svg,
+.source-protected-badge svg,
+.source-protected-tag svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+
+.novel-update-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.45rem;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--admin-panel-muted);
+  border: 1px solid var(--admin-border);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.novel-update-unknown {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.45rem;
+  border-radius: var(--radius-full, 9999px);
+  background: rgba(160, 100, 40, 0.08);
+  border: 1px dashed rgba(160, 100, 40, 0.28);
+  color: #a06428;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+[data-theme='dark'] .novel-update-protection,
+[data-theme='dark'] .source-protected-badge,
+[data-theme='dark'] .source-protected-tag {
+  background: rgba(217, 119, 87, 0.16);
+  border-color: rgba(217, 119, 87, 0.35);
+  color: #e08264;
+}
+
+[data-theme='dark'] .novel-update-tag {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--admin-border);
+  color: var(--text-secondary);
+}
+
+[data-theme='dark'] .novel-update-unknown {
+  background: rgba(214, 151, 82, 0.12);
+  border-color: rgba(214, 151, 82, 0.3);
+  color: #d69752;
+}
+
