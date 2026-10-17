@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { LockKeyhole, RefreshCw, Settings2 } from 'lucide-react'
+import { CirclePlus, LockKeyhole, RefreshCw, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { FOLLOWUP_LABELS, SOURCE_LABELS, type FollowupCategory, type SourceAnalyticsBook, type SourceAnalyticsResponse } from '@shared/source-analytics'
 import { adminApi, url, authHeaders } from '@/lib/api'
@@ -215,6 +215,17 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchBusy, setBatchBusy] = useState(false)
 
+  const hasActiveFilters = Boolean(
+    input.trim() ||
+    filters.search ||
+    filters.site ||
+    filters.source ||
+    filters.followup ||
+    filters.status ||
+    filters.result ||
+    filters.sort !== 'checked'
+  )
+
   const revision = useRef(0)
   const key = useMemo(() => JSON.stringify(filters), [filters])
 
@@ -365,6 +376,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                     compact
                     chip
                     filterChip
+                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
                     aria-label="源站筛选"
                     value={filters.site}
                     onChange={(v) => setFilter('site', v)}
@@ -375,6 +387,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                     compact
                     chip
                     filterChip
+                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
                     aria-label="来源配置筛选"
                     value={filters.source}
                     onChange={(v) => setFilter('source', v)}
@@ -384,6 +397,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                     compact
                     chip
                     filterChip
+                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
                     aria-label="追更状态筛选"
                     value={filters.followup}
                     onChange={(v) => setFilter('followup', v)}
@@ -397,6 +411,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                     compact
                     chip
                     filterChip
+                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
                     aria-label="连载状态筛选"
                     value={filters.status}
                     onChange={(v) => setFilter('status', v)}
@@ -410,6 +425,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                     compact
                     chip
                     filterChip
+                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
                     aria-label="检查结果筛选"
                     value={filters.result}
                     onChange={(v) => setFilter('result', v)}
@@ -419,6 +435,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                     compact
                     chip
                     filterChip
+                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
                     aria-label="明细排序"
                     value={filters.sort}
                     onChange={(v) => setFilter('sort', v)}
@@ -431,25 +448,28 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                     ]}
                   />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setInput('')
-                    setFilters((f) => ({
-                      ...f,
-                      site: '',
-                      source: '',
-                      followup: '',
-                      status: '',
-                      result: '',
-                      search: '',
-                      page: '1',
-                    }))
-                  }}
-                >
-                  清除筛选
-                </Button>
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setInput('')
+                      setFilters((f) => ({
+                        ...f,
+                        site: '',
+                        source: '',
+                        followup: '',
+                        status: '',
+                        result: '',
+                        search: '',
+                        sort: 'checked',
+                        page: '1',
+                      }))
+                    }}
+                  >
+                    清除筛选
+                  </Button>
+                )}
               </AdminToolbar>
 
               {/* 批量操作浮动胶囊岛 */}
