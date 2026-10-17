@@ -15,7 +15,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { cn } from '@/lib/utils'
 import Pagination from '@/components/admin/Pagination'
@@ -30,6 +30,7 @@ const COLUMNS: readonly AdminColumn[] = [
 ]
 interface Props {
   search: string
+  onSearchChange?: (value: string) => void
   selfId?: string
   onRole: (user: AdminDirectoryUser) => Promise<void>
   onStatus: (user: AdminDirectoryUser) => Promise<void>
@@ -37,7 +38,7 @@ interface Props {
   onDelete: (user: AdminDirectoryUser) => Promise<void>
 }
 
-export default function UserManagementPanel({ search, selfId, onRole, onStatus, onReset, onDelete }: Props) {
+export default function UserManagementPanel({ search, onSearchChange, selfId, onRole, onStatus, onReset, onDelete }: Props) {
   const { toast } = useToast()
   const [role, setRole] = useState('all')
   const [status, setStatus] = useState('all')
@@ -152,17 +153,16 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
   ]
   return (
     <>
-      <AdminPanelHeading
-        title="用户目录"
-        status={<span className="admin-panel-status">{!result && loading ? '读取中' : `${total} 人`}</span>}
-        actions={
-          <Button variant="secondary" size="sm" disabled={loading} onClick={() => setRevision((value) => value + 1)}>
-            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
-            刷新
-          </Button>
-        }
-      />
-      <AdminToolbar layout="inline" className="account-users-filters" ariaLive="polite">
+      <AdminToolbar layout="inline" className="admin-filter-rail account-users-filters" ariaLive="polite">
+        {onSearchChange !== undefined && (
+          <AdminSearch
+            id="account-user-search"
+            label="搜索用户"
+            placeholder="搜索昵称或用户名"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
+        )}
         <div className="admin-filter-chips">
           <CustomSelect
             compact
@@ -189,7 +189,15 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
             options={userStatusOptions}
           />
         </div>
-        <span className="account-users-filters__hint">密码、权限与账号状态集中管理</span>
+        <div className="account-users-filters__actions">
+          <span className="account-users-filters__count">
+            {!result && loading ? '读取中…' : `共 ${total} 人`}
+          </span>
+          <Button variant="secondary" size="sm" disabled={loading} onClick={() => setRevision((value) => value + 1)}>
+            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+            刷新
+          </Button>
+        </div>
       </AdminToolbar>
       {loadError && (
         <div className="account-users-error" role="alert">

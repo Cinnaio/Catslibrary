@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { adminApi, authApi, newOperationId } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
-import { RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import AccountAuditPanel, {
   AccountRecordDate,
   AccountRecordDetails,
@@ -488,46 +488,25 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       description={currentAccountMeta.description}
       actions={
         currentAccountTab === 'users' ? (
-          <AdminSearch
-            id="account-user-search"
-            label="搜索用户"
-            placeholder="搜索昵称或用户名"
-            value={userSearch}
-            onChange={(e) => setUserSearch(e.target.value)}
-          />
+          <Button onClick={() => setAccountTab('registration')}>
+            <Plus size={16} />
+            生成邀请码
+          </Button>
         ) : currentAccountTab === 'registration' ? (
-          <AdminSearch
-            id="account-invite-search"
-            label="搜索邀请码"
-            placeholder="搜索邀请码"
-            value={inviteSearch}
-            onChange={(e) => {
-              setInviteSearch(e.target.value)
-              setInvitePage(1)
-            }}
-          />
+          <Button disabled={loading || inviteBusy} onClick={() => void createInvite()}>
+            <Plus size={16} />
+            生成邀请码
+          </Button>
         ) : currentAccountTab === 'audit' ? (
-          <AdminSearch
-            id="account-login-search"
-            label="搜索登录用户名"
-            placeholder="搜索用户名"
-            value={loginAuditUsername}
-            onChange={(e) => {
-              setLoginAuditUsername(e.target.value)
-              setLoginAuditOffset(0)
-            }}
-          />
+          <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
+            <RefreshCw className={loginAuditLoading ? 'size-3.5 animate-spin' : 'size-3.5'} />
+            刷新
+          </Button>
         ) : (
-          <AdminSearch
-            id="account-operation-search"
-            label="搜索操作用户名"
-            placeholder="搜索用户名"
-            value={operationAuditUsername}
-            onChange={(e) => {
-              setOperationAuditUsername(e.target.value)
-              setOperationAuditOffset(0)
-            }}
-          />
+          <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
+            <RefreshCw className={operationAuditLoading ? 'size-3.5 animate-spin' : 'size-3.5'} />
+            刷新
+          </Button>
         )
       }
     >
@@ -584,6 +563,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       {currentAccountTab === 'users' && (
         <UserManagementPanel
           search={userSearch}
+          onSearchChange={setUserSearch}
           selfId={meUser?.id}
           onRole={updateUserRole}
           onStatus={updateUserStatus}
@@ -601,6 +581,11 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           status={loginAuditStatus}
           onStatus={(value) => {
             setLoginAuditStatus(value)
+            setLoginAuditOffset(0)
+          }}
+          search={loginAuditUsername}
+          onSearch={(value) => {
+            setLoginAuditUsername(value)
             setLoginAuditOffset(0)
           }}
           onRefresh={() => void loadLoginAudit()}
@@ -624,6 +609,11 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           status={operationAuditStatus}
           onStatus={(value) => {
             setOperationAuditStatus(value)
+            setOperationAuditOffset(0)
+          }}
+          search={operationAuditUsername}
+          onSearch={(value) => {
+            setOperationAuditUsername(value)
             setOperationAuditOffset(0)
           }}
           onRefresh={() => void loadOperationAudit()}
@@ -662,12 +652,23 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                   onChange={(e) => setInviteCount(e.target.value)}
                 />
                 <Button size="sm" disabled={loading || inviteBusy} onClick={() => void createInvite()}>
+                  <Plus size={16} />
                   生成邀请码
                 </Button>
               </>
             }
           />
-          <AdminToolbar layout="inline" className="account-record-filters" ariaLive="polite">
+          <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters" ariaLive="polite">
+            <AdminSearch
+              id="account-invite-search"
+              label="搜索邀请码"
+              placeholder="搜索邀请码"
+              value={inviteSearch}
+              onChange={(e) => {
+                setInviteSearch(e.target.value)
+                setInvitePage(1)
+              }}
+            />
             <div className="admin-filter-chips">
               <CustomSelect
                 compact
