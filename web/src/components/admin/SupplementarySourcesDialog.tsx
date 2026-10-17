@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BookImportPreview } from '@shared/types'
-import type { SupplementaryBinding, SupplementaryFile, SupplementaryOverview, SupplementarySource } from '@shared/supplementary-source'
+import type { SupplementaryBinding, SupplementaryFile, SupplementaryOverview, SupplementarySource, SupplementaryCatalog } from '@shared/supplementary-source'
 import { adminApi, supplementarySourceApi as api } from '@/lib/api'
 import { AdminDialogContent } from './AdminDialog'
 import BookImportDialog from './BookImportDialog'
@@ -18,6 +18,9 @@ function time(value: number) {
   return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '尚未检查'
 }
 const newDraft = () => ({ id: '', name: '', url: '', password: '', enabled: false, intervalHours: 6 })
+function versionState(file: SupplementaryFile) {
+  return file.stale ? '旧清单' : file.incomplete ? '目录后续分页未完成' : '所在目录已完整读取'
+}
 
 export default function SupplementarySourcesDialog({ onClose, onCompleted }: { onClose: () => void; onCompleted: () => void }) {
   const [overview, setOverview] = useState<SupplementaryOverview | null>(null)
@@ -30,7 +33,7 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
   const [notice, setNotice] = useState('')
   const [search, setSearch] = useState('')
   const [offset, setOffset] = useState(0)
-  const [catalog, setCatalog] = useState<{ items: SupplementaryFile[]; total: number } | null>(null)
+  const [catalog, setCatalog] = useState<SupplementaryCatalog | null>(null)
   const [catalogError, setCatalogError] = useState('')
   const [fileToBind, setFileToBind] = useState<SupplementaryFile | null>(null)
   const [novelSearch, setNovelSearch] = useState('')
@@ -137,6 +140,11 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
   }
   function selectedFile(b: SupplementaryBinding) {
     return b.candidates.find((f) => f.key === versions[b.id]) || b.candidates[0]
+  }
+  function chooseBinding(file: SupplementaryFile) {
+    setFileToBind(file)
+    setNovelSearch(file.title)
+    setNovelId('')
   }
 
   if (preview)
@@ -398,17 +406,17 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                                     >
                                       {b.candidates.map((f) => (
                                         <option key={f.key} value={f.key}>
-                                          {f.stale ? '旧清单 · ' : ''}
+                                          {f.stale ? '旧清单 · ' : f.incomplete ? '目录未读全 · ' : ''}
                                           {f.folder} · {f.name}
                                         </option>
                                       ))}
                                     </select>
                                     <p>
-                                      {file.size} · {file.stale ? '旧清单，所在目录本次未完整读取' : '文件名进度仅供参考'}
+                                      {file.size} · {versionState(file)} · 文件名进度仅供参考
                                     </p>
                                   </>
                                 ) : (
-                                  <p>当前目录未找到同书名、同作者的文件。可检查目录，或在文件列表中绑定新的来源别名。</p>
+                                  <p>已读取的清单中未找到同书名、同作者的文件。目录未读全时不能判断有无更新；可重新检查，或在文件列表绑定新的来源别名。</p>
                                 )}
                               </div>
                               <div className="supplementary-actions">
@@ -473,28 +481,77 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                         </Alert>
                       )}
                       {!catalog && !catalogError && <p role="status">正在读取文件清单…</p>}
-                      {catalog && !catalog.total && <p className="supplementary-empty">没有匹配文件。尚未检查目录时，请先点击「检查目录」。</p>}
-                      {catalog?.items.map((f) => (
-                        <article key={f.key} className="supplementary-row">
-                          <div className="supplementary-copy">
-                            <h3>{f.title}</h3>
-                            <p>
-                              {f.author || '作者未标注'} · {f.folder} · {f.size}
-                              {f.stale ? ' · 旧清单' : ''}
-                            </p>
-                            <p>{f.name}</p>
+                      {catalog && (
+                        <p className="supplementary-note">
+                          已发现 {catalog.total} 本书籍、{catalog.fileCount} 个文件。最高进度来自已读文件名，不代表目录已检查完整。
+                        </p>
+                      )}
+                      {!!catalog?.folders.length && (
+                        <details className="supplementary-coverage">
+                          <summary>查看目录读取情况</summary>
+                          <ul>
+                            {catalog.folders.map((folder) => (
+                              <li key={folder.name}>
+                                <strong>{folder.name}</strong>
+                                <span>
+                                  已索引 {folder.fileCount} 个文件{folder.staleCount ? `（含 ${folder.staleCount} 个旧记录）` : ''} ·{' '}
+                                  {folder.incomplete ? '未读全' : '已读完'}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                      {catalog && !catalog.total && (
+                        <p className="supplementary-empty">已读取的清单中没有匹配书籍。尚未检查时请先检查目录；目录未读全时不能据此判断没有文件。</p>
+                      )}
+                      {catalog?.items.map((book) => (
+                        <article key={book.key} className="supplementary-book">
+                          <div className="supplementary-row">
+                            <div className="supplementary-copy">
+                              <h3>{book.title}</h3>
+                              <p>
+                                {book.author || '作者未标注'} · 已发现 {book.versions.length} 个版本
+                              </p>
+                              <p>
+                                已发现最高进度：{book.highestRevision === null ? '文件名未标注' : `更${book.highestRevision}`} · 最近目录{' '}
+                                {book.versions[0]?.folder}
+                              </p>
+                            </div>
+                            <Button variant="secondary" disabled={busy} onClick={() => chooseBinding(book.versions[0]!)}>
+                              绑定已有书籍
+                            </Button>
                           </div>
-                          <Button
-                            variant="secondary"
-                            disabled={busy}
-                            onClick={() => {
-                              setFileToBind(f)
-                              setNovelSearch(f.title)
-                              setNovelId('')
-                            }}
-                          >
-                            绑定已有书籍
-                          </Button>
+                          <details className="supplementary-versions">
+                            <summary>查看 {book.versions.length} 个已发现版本</summary>
+                            <div>
+                              {book.versions.map((file) => (
+                                <div key={file.key} className="supplementary-version-row">
+                                  <div className="supplementary-copy">
+                                    <p>{file.name}</p>
+                                    <p>
+                                      {file.folder} · {file.size} · {versionState(file)}
+                                    </p>
+                                  </div>
+                                  <div className="supplementary-actions">
+                                    <a className="supplementary-link" href={file.url} target="_blank" rel="noreferrer">
+                                      原文件
+                                      <ExternalLink aria-hidden="true" />
+                                    </a>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={busy}
+                                      aria-label={`绑定此版本：${file.folder} ${file.name}`}
+                                      onClick={() => chooseBinding(file)}
+                                    >
+                                      绑定此版本
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
                         </article>
                       ))}
                       {catalog && catalog.total > 30 && (
@@ -503,7 +560,7 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                             上一页
                           </Button>
                           <span>
-                            {offset + 1}–{Math.min(offset + 30, catalog.total)} / {catalog.total}
+                            第 {offset + 1}–{Math.min(offset + 30, catalog.total)} 本 / 共 {catalog.total} 本
                           </span>
                           <Button variant="secondary" disabled={busy || offset + 30 >= catalog.total} onClick={() => setOffset(offset + 30)}>
                             下一页
@@ -537,7 +594,15 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                           disabled={busy || !novelId}
                           onClick={() =>
                             void action(async () => {
-                              setOverview(await api.bind(sourceId, novelId, fileToBind.key))
+                              const updated = await api.bind(sourceId, novelId, fileToBind.key)
+                              setOverview(updated)
+                              const saved = updated.bindings.find(
+                                (binding) =>
+                                  binding.sourceId === sourceId &&
+                                  binding.novelId === novelId &&
+                                  binding.candidates.some((file) => file.key === fileToBind.key),
+                              )
+                              if (saved) setVersions((previous) => ({ ...previous, [saved.id]: fileToBind.key }))
                               setFileToBind(null)
                               setTab('bindings')
                               setNotice('已绑定。生成预览可以核对实际章节差异。')
