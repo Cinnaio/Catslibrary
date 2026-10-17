@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CirclePlus, LockKeyhole, RefreshCw, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -645,7 +645,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
               />
             </TabsContent>
 
-            {/* 视图二：书源分布与追更覆盖透视卡片 */}
+            {/* 视图二：统一书源与追更透视账本 (Claude Unified Site Ledger) */}
             <TabsContent value="distribution" forceMount className={cn('flex flex-col gap-4', activeTab !== 'distribution' && 'hidden')}>
               {/* 大盘口径与快照指示栏 */}
               <div className="source-analytics-scope-bar">
@@ -653,6 +653,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                   aria-label="来源统计口径"
                   compact
                   chip
+                  className="source-scope-select"
                   value={filters.view}
                   onChange={(value) => setFilters((f) => ({ ...f, view: value, site: '', page: '1' }))}
                   options={[
@@ -663,78 +664,35 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                 <span className="source-analytics-snapshot-tag">统计于 {formatDateTime(data.snapshotAt)}</span>
               </div>
 
-              {/* 双子数据透视卡片 */}
-              <div className="source-analytics-charts" aria-busy={loading}>
-                {/* 书源分布 */}
-                <AdminDataPanel ariaLabel="书源分布">
-                  <AdminPanelHeading
-                    title="书源分布"
-                    status={
-                      <span className="source-analytics-meta">
-                        {n(data.withSource)} / {n(data.total)} 本有来源
-                      </span>
-                    }
-                  />
-                  <div className="source-chart-legend">
-                    {Object.entries(SOURCE_LABELS).map(([category, label]) => (
-                      <button key={category} type="button" onClick={() => chartFilter('', undefined, category)}>
-                        <i className={`source-chart-color source-color-${category}`} />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="source-chart-rows">
-                    {!data.groups.length ? (
-                      <AdminEmptyState message="书库还是空的" />
-                    ) : (
-                      data.groups.map((group) => (
-                        <div className="source-chart-row" key={group.site}>
-                          <button className="source-chart-site" onClick={() => chartFilter(group.site)}>
-                            <span>{siteLabel(group.site)}</span>
-                            <span>{n(group.total)} 本</span>
-                          </button>
-                          <div
-                            className="source-chart-track"
-                            style={{
-                              width: `${Math.max(8, (group.total / Math.max(...data.groups.map((g) => g.total), 1)) * 100)}%`,
-                            }}
-                          >
-                            {(['configured', 'link', 'none'] as const)
-                              .filter((category) => group[category])
-                              .map((category) => (
-                                <button
-                                  key={category}
-                                  className={`source-color-${category}`}
-                                  style={{ flexGrow: group[category] }}
-                                  title={`${SOURCE_LABELS[category]} ${group[category]} 本`}
-                                  aria-label={`${siteLabel(group.site)}：${SOURCE_LABELS[category]} ${group[category]} 本`}
-                                  onClick={() => chartFilter(group.site, undefined, category)}
-                                />
-                              ))}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <p className="source-chart-note">
-                    {data.view === 'primary'
-                      ? '优先采用抓取配置中的来源，其次采用作品来源和主要绑定来源。'
-                      : '包含抓取、作品及绑定来源；同一本书在不同站点分别计入，站点数量之和可能超过书籍总数。配置状态属于作品，不表示该绑定来源可用于抓取。'}
-                  </p>
-                </AdminDataPanel>
-
-                {/* 追更覆盖 */}
-                <AdminDataPanel ariaLabel="追更覆盖">
-                  <AdminPanelHeading title="追更覆盖" status={<span className="source-analytics-meta">{n(data.followups.enabled)} 本已开启</span>} />
-                  <div className="source-chart-legend">
-                    {followupKeys.map((category) => (
-                      <button key={category} type="button" onClick={() => chartFilter('', category)}>
-                        <i className={`source-chart-color followup-color-${category}`} />
-                        {FOLLOWUP_LABELS[category]} {n(data.followups[category])}
-                      </button>
-                    ))}
+              {/* 大盘宏观概览横条 */}
+              <div className="source-insight-macro-strip">
+                <div className="source-insight-macro-item">
+                  <span className="source-insight-macro-label">全库作品规模</span>
+                  <span className="source-insight-macro-value tabular-nums">
+                    {n(data.total)} <span className="source-insight-macro-unit">本</span>
+                  </span>
+                </div>
+                <div className="source-insight-macro-divider" aria-hidden="true" />
+                <div className="source-insight-macro-item">
+                  <span className="source-insight-macro-label">有效书源覆盖</span>
+                  <span className="source-insight-macro-value tabular-nums">
+                    {n(data.withSource)} <span className="source-insight-macro-sub">({((data.withSource / Math.max(data.total, 1)) * 100).toFixed(1)}%)</span>
+                  </span>
+                </div>
+                <div className="source-insight-macro-divider" aria-hidden="true" />
+                <div className="source-insight-macro-item">
+                  <span className="source-insight-macro-label">已开启追更</span>
+                  <span className="source-insight-macro-value tabular-nums">
+                    {n(data.followups.enabled)} <span className="source-insight-macro-sub">({((data.followups.enabled / Math.max(data.total, 1)) * 100).toFixed(1)}%)</span>
+                  </span>
+                </div>
+                <div className="source-insight-macro-divider" aria-hidden="true" />
+                <div className="source-insight-macro-item">
+                  <span className="source-insight-macro-label">健康状态</span>
+                  {data.attention > 0 ? (
                     <button
-                      className="source-chart-legend-attention"
+                      type="button"
+                      className="source-insight-attention-pill"
                       onClick={() => {
                         setInput('')
                         setFilters((f) => ({
@@ -749,42 +707,148 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                         }))
                         setActiveTab('list')
                       }}
+                      title="点击快筛需要处理的异常作品"
                     >
-                      检查异常 {n(data.attention)}
+                      <span className="source-attention-dot" aria-hidden="true" />
+                      {n(data.attention)} 部异常需处理
                     </button>
-                  </div>
-                  <div className="source-chart-rows">
-                    {!data.groups.length ? (
-                      <AdminEmptyState message="暂无追更统计" />
-                    ) : (
-                      data.groups.map((group) => (
-                        <div className="source-chart-row" key={group.site}>
-                          <button className="source-chart-site" onClick={() => chartFilter(group.site)}>
-                            <span>{siteLabel(group.site)}</span>
-                            <span>{n(group.total)} 本</span>
+                  ) : (
+                    <span className="source-insight-healthy-badge">全库运行健康</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 各源站透视微卡网格 */}
+              <div className="source-insight-cards-grid" aria-busy={loading}>
+                {!data.groups.length ? (
+                  <AdminEmptyState message="暂无站点统计数据" />
+                ) : (
+                  data.groups.map((group) => {
+                    const sharePercent = ((group.total / Math.max(data.total, 1)) * 100).toFixed(1)
+                    return (
+                      <div className="source-insight-card" key={group.site}>
+                        {/* 卡片头部 */}
+                        <div className="source-insight-card-header">
+                          <button
+                            type="button"
+                            className="source-insight-card-site"
+                            onClick={() => chartFilter(group.site)}
+                            title={`点击查看 ${siteLabel(group.site)} 下的全部作品`}
+                          >
+                            {siteLabel(group.site)}
                           </button>
-                          <div className="source-chart-track">
-                            {followupKeys
-                              .filter((category) => group.followups[category])
-                              .map((category) => (
-                                <button
-                                  key={category}
-                                  className={`followup-color-${category}`}
-                                  style={{ flexGrow: group.followups[category] }}
-                                  title={`${FOLLOWUP_LABELS[category]} ${group.followups[category]} 本`}
-                                  aria-label={`${siteLabel(group.site)}：${FOLLOWUP_LABELS[category]} ${group.followups[category]} 本`}
-                                  onClick={() => chartFilter(group.site, category)}
-                                />
-                              ))}
+                          <div className="flex items-center gap-2">
+                            <span className="source-insight-card-share-pill tabular-nums">
+                              {n(group.total)} 本 · {sharePercent}%
+                            </span>
+                            {group.attention > 0 && (
+                              <button
+                                type="button"
+                                className="source-ledger-attention-pill"
+                                onClick={() => {
+                                  setInput('')
+                                  setFilters((f) => ({
+                                    ...f,
+                                    site: group.site,
+                                    followup: 'attention',
+                                    source: '',
+                                    status: '',
+                                    result: '',
+                                    search: '',
+                                    page: '1',
+                                  }))
+                                  setActiveTab('list')
+                                }}
+                                title={`该站点有 ${group.attention} 部作品检查异常，点击快筛`}
+                              >
+                                <span className="source-attention-dot" aria-hidden="true" />
+                                {group.attention} 异常
+                              </button>
+                            )}
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
-                  <p className="source-chart-note">
-                    异常是已开启作品中的额外状态，包含失败、待补、受保护章节和配置缺失；运行中任务不重复计入。点击色块或图例筛选明细。
-                  </p>
-                </AdminDataPanel>
+
+                        {/* 卡片主体：核心指标 2x2 象限 */}
+                        <div className="source-insight-card-metrics">
+                          {/* 书源配置 */}
+                          <div className="source-insight-metric-box">
+                            <span className="source-insight-metric-label">配置完整</span>
+                            <button
+                              type="button"
+                              className="source-insight-metric-btn"
+                              title={`配置完整 ${group.configured} 本`}
+                              aria-label={`${siteLabel(group.site)}：配置完整 ${group.configured} 本`}
+                              onClick={() => chartFilter(group.site, undefined, 'configured')}
+                            >
+                              <span className="tabular-nums font-semibold text-base text-foreground">{n(group.configured)}</span>
+                              <span className="text-xs text-muted-foreground ml-1">本</span>
+                            </button>
+                          </div>
+
+                          <div className="source-insight-metric-box">
+                            <span className="source-insight-metric-label">仅链接 / 未配置</span>
+                            <button
+                              type="button"
+                              className="source-insight-metric-btn"
+                              title={`仅有来源链接 ${group.link} 本，无有效来源 ${group.none} 本`}
+                              aria-label={`${siteLabel(group.site)}：仅有来源链接 ${group.link} 本`}
+                              onClick={() => chartFilter(group.site, undefined, group.link ? 'link' : 'none')}
+                            >
+                              <span className="tabular-nums font-semibold text-base text-foreground">{n(group.link + group.none)}</span>
+                              <span className="text-xs text-muted-foreground ml-1">本</span>
+                            </button>
+                          </div>
+
+                          {/* 追更状态 */}
+                          <div className="source-insight-metric-box">
+                            <span className="source-insight-metric-label">已开启追更</span>
+                            <button
+                              type="button"
+                              className="source-insight-metric-btn"
+                              title={`已开启 ${group.followups.enabled} 本`}
+                              aria-label={`${siteLabel(group.site)}：已开启 ${group.followups.enabled} 本`}
+                              onClick={() => chartFilter(group.site, 'enabled')}
+                            >
+                              <span className="tabular-nums font-semibold text-base text-foreground">{n(group.followups.enabled)}</span>
+                              <span className="text-xs text-muted-foreground ml-1">本</span>
+                            </button>
+                          </div>
+
+                          <div className="source-insight-metric-box">
+                            <span className="source-insight-metric-label">暂停 / 完结关闭</span>
+                            <button
+                              type="button"
+                              className="source-insight-metric-btn"
+                              title={`手动暂停 ${group.followups.paused} 本，完结默认关闭 ${group.followups.completed} 本`}
+                              aria-label={`${siteLabel(group.site)}：手动暂停 ${group.followups.paused} 本`}
+                              onClick={() => chartFilter(group.site, group.followups.paused ? 'paused' : 'completed')}
+                            >
+                              <span className="tabular-nums font-semibold text-base text-foreground">
+                                {n(group.followups.paused + group.followups.completed)}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-1">本</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 卡片底部操作栏 */}
+                        <div className="source-insight-card-footer">
+                          <span className="text-xs text-muted-foreground">
+                            {group.attention > 0 ? `存在 ${group.attention} 部作品需要处理` : '运行良好，同步正常'}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="source-site-view-btn text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => chartFilter(group.site)}
+                          >
+                            查看作品明细 →
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </TabsContent>
           </Tabs>
