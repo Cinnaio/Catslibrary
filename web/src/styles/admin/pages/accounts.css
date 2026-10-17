@@ -77,6 +77,57 @@
   background: var(--admin-panel);
 }
 
+.account-invite-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-2, 0.5rem);
+}
+
+.account-invite-count-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: var(--admin-control-height, 2.5rem);
+  padding: 0 0.875rem;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--admin-border);
+  background: var(--admin-panel, #ffffff);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s ease;
+}
+
+.account-invite-count-group:focus-within {
+  border-color: var(--admin-terracotta, #D97757);
+}
+
+.account-invite-count-group span {
+  color: var(--text-muted);
+  user-select: none;
+  font-size: 0.75rem;
+}
+
+.account-invite-count-group input {
+  width: 2.25rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.account-invite-count-group input::-webkit-outer-spin-button,
+.account-invite-count-group input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .admin-redesign-page--settings .admin-input--invite-count {
   width: 5.75rem;
   flex: 0 0 auto;
@@ -111,13 +162,15 @@
 
 /* 账户目录和审计：搜索与筛选紧邻靠左，自动余量仅由末尾统计/刷新承担。 */
 .admin-filter-rail.account-users-filters,
-.admin-filter-rail.account-audit-filters {
+.admin-filter-rail.account-audit-filters,
+.admin-filter-rail.account-invite-filters {
   flex-direction: row;
   justify-content: flex-start;
 }
 
 .account-users-filters .admin-filter-chips,
-.account-audit-filters .admin-filter-chips {
+.account-audit-filters .admin-filter-chips,
+.account-invite-filters .admin-filter-chips {
   margin-left: 0;
 }
 
@@ -280,62 +333,158 @@
   }
 }
 
-/* Account registration and audit views consume shared geometry; only information layout lives here. */
-.account-registration-panel {
-  margin-bottom: 1.25rem;
-}
-.account-registration-body {
-  padding: 0 1.25rem 1.5rem;
-}
-.account-register-modes {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-.account-register-mode {
+/* Account registration policy card (Claude Warm Paper Summary Card) */
+.account-registration-card {
   display: flex;
-  align-items: flex-start;
-  gap: 0.875rem;
-  padding: 1.125rem 1.25rem;
-  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
-  border-radius: 14px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--admin-space-4, 1rem);
+  padding: 1rem 1.375rem;
+  border-radius: var(--admin-radius-card, 16px);
+  border: 1px solid var(--admin-border);
   background: var(--admin-panel, #ffffff);
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  margin-bottom: var(--admin-page-section-gap, 1.25rem);
 }
-.account-register-mode:hover {
-  border-color: var(--admin-terracotta, #D97757);
-  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.025));
+
+.account-registration-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1 1 18rem;
 }
-.account-register-mode:has([data-state='checked']) {
-  background: rgba(217, 119, 87, 0.05);
-  border-color: var(--admin-terracotta, #D97757);
-  box-shadow: 0 0 0 1px var(--admin-terracotta, #D97757);
+
+.account-registration-card__header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
 }
-.account-register-mode [role='radio'] {
-  margin-top: 0.25rem;
-  flex-shrink: 0;
-}
-.account-register-mode strong {
-  display: block;
+
+.account-registration-card__title {
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
 }
-.account-register-mode small {
-  display: block;
-  margin-top: 0.25rem;
+
+.account-registration-card__hint {
+  margin: 0;
   font-size: 0.75rem;
   color: var(--text-muted);
+  line-height: 1.5;
 }
-.account-register-footer {
+
+.account-registration-card__mode-hint {
+  color: var(--text-secondary);
+  margin-left: 0.375rem;
+}
+
+.account-registration-card__controls {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  margin-top: 1.25rem;
-  color: var(--text-muted);
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  flex: 0 0 auto;
+}
+
+/* Claude 极简胶囊分段单选组 (Segmented Control) */
+.account-register-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--admin-border-subtle, rgba(0, 0, 0, 0.05));
+}
+
+.account-register-segment {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2rem;
+  padding: 0 0.875rem;
+  border-radius: var(--radius-full, 9999px);
   font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.account-register-segment:hover {
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.account-register-segment--active {
+  background: var(--admin-panel, #ffffff);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--admin-border-subtle, rgba(0, 0, 0, 0.04));
+}
+
+.account-register-segment__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--text-muted);
+  opacity: 0.35;
+  transition: all 0.16s ease;
+}
+
+.account-register-segment--active .account-register-segment__dot {
+  background: var(--admin-terracotta, #D97757);
+  opacity: 1;
+  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.2);
+}
+
+.account-register-segment__label {
+  line-height: 1;
+}
+
+.account-register-save-btn {
+  border-radius: var(--radius-full, 9999px);
+  height: 2.25rem;
+  padding: 0 1rem;
+  font-size: 0.75rem;
+  font-weight: 550;
+  transition: all 0.18s ease;
+}
+
+.account-register-save-btn--active:not(:disabled) {
+  background: var(--admin-terracotta, #D97757) !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 4px rgba(217, 119, 87, 0.25);
+}
+
+.account-register-save-btn--active:not(:disabled):hover {
+  background: var(--admin-terracotta-hover, #c56344) !important;
+}
+
+@media (max-width: 860px) {
+  .account-registration-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem 1.125rem;
+  }
+  .account-registration-card__controls {
+    justify-content: space-between;
+    width: 100%;
+  }
+  .account-register-segmented {
+    flex: 1 1 auto;
+  }
+  .account-register-segment {
+    flex: 1 1 0;
+    justify-content: center;
+    padding: 0 0.5rem;
+  }
 }
 .account-record-secondary {
   display: block;

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { adminApi, authApi, newOperationId } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
-import { Plus, RefreshCw } from 'lucide-react'
+import { CirclePlus, Plus, RefreshCw } from 'lucide-react'
 import AccountAuditPanel, {
   AccountRecordDate,
   AccountRecordDetails,
@@ -493,10 +493,24 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             生成邀请码
           </Button>
         ) : currentAccountTab === 'registration' ? (
-          <Button disabled={loading || inviteBusy} onClick={() => void createInvite()}>
-            <Plus size={16} />
-            生成邀请码
-          </Button>
+          <div className="account-invite-header-actions flex items-center gap-2">
+            <div className="account-invite-count-group">
+              <span>数量</span>
+              <input
+                disabled={loading || inviteBusy}
+                type="number"
+                min={1}
+                max={50}
+                value={inviteCount}
+                aria-label="生成邀请码数量"
+                onChange={(e) => setInviteCount(e.target.value)}
+              />
+            </div>
+            <Button disabled={loading || inviteBusy} onClick={() => void createInvite()}>
+              <Plus size={16} />
+              生成邀请码
+            </Button>
+          </div>
         ) : currentAccountTab === 'audit' ? (
           <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
             <RefreshCw className={loginAuditLoading ? 'size-3.5 animate-spin' : 'size-3.5'} />
@@ -517,47 +531,65 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         </div>
       )}
       {currentAccountTab === 'registration' && (
-        <AdminDataPanel className="account-registration-panel" ariaLabel="注册设置">
-          <AdminPanelHeading
-            title="注册设置"
-            status={
+        <section className="account-registration-card" aria-label="注册设置">
+          <div className="account-registration-card__info">
+            <div className="account-registration-card__header">
+              <span className="account-registration-card__title">注册设置</span>
               <AdminStatusBadge tone="info">
                 当前：{REGISTER_MODES.find((mode) => mode.value === data?.settings.registerMode)?.label || '读取中'}
               </AdminStatusBadge>
-            }
-          />
-          <div className="account-registration-body">
+              {data && registerMode !== data.settings.registerMode && (
+                <AdminStatusBadge tone="warning">未保存修改</AdminStatusBadge>
+              )}
+            </div>
+            <p className="account-registration-card__hint">
+              控制新用户如何加入本站。已有用户登录不受影响。
+              <span className="account-registration-card__mode-hint">
+                （当前选中：{REGISTER_MODES.find((mode) => mode.value === registerMode)?.hint}）
+              </span>
+            </p>
+          </div>
+
+          <div className="account-registration-card__controls">
             <RadioGroup
               value={registerMode}
               onValueChange={(value) => setRegisterMode(value as typeof registerMode)}
-              className="account-register-modes"
+              className="account-register-segmented"
               aria-label="注册方式"
               disabled={loading || registerSaving}
             >
               {REGISTER_MODES.map((mode) => (
-                <label className="account-register-mode" key={mode.value}>
-                  <RadioGroupItem value={mode.value} aria-label={`${mode.label} ${mode.hint}`} />
-                  <span>
-                    <strong>{mode.label}</strong>
-                    <small>{mode.hint}</small>
-                  </span>
+                <label
+                  key={mode.value}
+                  className={cn(
+                    'account-register-segment',
+                    registerMode === mode.value && 'account-register-segment--active'
+                  )}
+                >
+                  <RadioGroupItem
+                    value={mode.value}
+                    aria-label={`${mode.label} ${mode.hint}`}
+                    className="sr-only"
+                  />
+                  <span className="account-register-segment__dot" aria-hidden="true" />
+                  <span className="account-register-segment__label">{mode.label}</span>
                 </label>
               ))}
             </RadioGroup>
-            <div className="account-register-footer">
-              <span>
-                {data && registerMode !== data.settings.registerMode ? '有未保存的修改。已有用户登录不受影响。' : '修改注册方式后，已有用户仍可正常登录。'}
-              </span>
-              <Button
-                size="sm"
-                disabled={!data || loading || registerSaving || registerMode === data.settings.registerMode}
-                onClick={() => void saveRegisterSettings()}
-              >
-                {registerSaving ? '保存中…' : '保存设置'}
-              </Button>
-            </div>
+
+            <Button
+              size="sm"
+              disabled={!data || loading || registerSaving || registerMode === data.settings.registerMode}
+              onClick={() => void saveRegisterSettings()}
+              className={cn(
+                'account-register-save-btn',
+                data && registerMode !== data.settings.registerMode && 'account-register-save-btn--active'
+              )}
+            >
+              {registerSaving ? '保存中…' : '保存设置'}
+            </Button>
           </div>
-        </AdminDataPanel>
+        </section>
       )}
 
       {currentAccountTab === 'users' && (
@@ -631,34 +663,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
 
       {currentAccountTab === 'registration' && (
         <>
-          <AdminPanelHeading
-            title="邀请码目录"
-            status={<span className="admin-panel-status">{filteredInvites.length} 个</span>}
-            actions={
-              <>
-                <Button variant="secondary" size="sm" disabled={loading || inviteBusy} onClick={() => void load()}>
-                  <RefreshCw className={loading || inviteBusy ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
-                  刷新
-                </Button>
-                <span className="account-record-secondary">数量</span>
-                <Input
-                  disabled={inviteBusy}
-                  type="number"
-                  className="admin-input--invite-count"
-                  min={1}
-                  max={50}
-                  value={inviteCount}
-                  aria-label="生成邀请码数量"
-                  onChange={(e) => setInviteCount(e.target.value)}
-                />
-                <Button size="sm" disabled={loading || inviteBusy} onClick={() => void createInvite()}>
-                  <Plus size={16} />
-                  生成邀请码
-                </Button>
-              </>
-            }
-          />
-          <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters" ariaLive="polite">
+          <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters account-invite-filters" ariaLive="polite">
             <AdminSearch
               id="account-invite-search"
               label="搜索邀请码"
@@ -674,6 +679,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                 compact
                 chip
                 filterChip
+                leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
                 aria-label="邀请码状态"
                 value={inviteStatus}
                 onChange={(value) => {
@@ -688,9 +694,15 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                 ]}
               />
             </div>
-            <span className="account-record-filters__hint">
-              可用 {available} · 已使用 {invites.filter((i) => i.usedAt > 0).length} · 已停用 {invites.filter((i) => !i.usedAt && i.disabledAt > 0).length}
-            </span>
+            <div className="account-record-filters__actions">
+              <span className="account-record-filters__hint">
+                可用 {available} · 已使用 {invites.filter((i) => i.usedAt > 0).length} · 已停用 {invites.filter((i) => !i.usedAt && i.disabledAt > 0).length}
+              </span>
+              <Button variant="secondary" size="sm" disabled={loading || inviteBusy} onClick={() => void load()}>
+                <RefreshCw className={loading || inviteBusy ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+                刷新
+              </Button>
+            </div>
           </AdminToolbar>
           <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS} density="comfortable">
             {generatedCodes && generatedCodes.length > 0 && (

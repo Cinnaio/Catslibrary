@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { SiteBranding, TurnstileSettings } from '@shared/site-settings'
 import { siteSettingsApi } from '@/lib/api'
 import { brandingAssetUrl, setSiteBranding } from '@/lib/site-branding'
@@ -8,6 +8,7 @@ import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminFormField from '@/components/admin/AdminFormField'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -22,6 +23,7 @@ function announceBranding(value: SiteBranding) {
 const sourceLabel = { environment: '环境变量', database: '后台配置', default: '未设置 / 默认' }
 
 export default function SiteSettingsTab() {
+  const navigate = useNavigate()
   const [params] = useSearchParams()
   const security = params.get('view') === 'security'
   const { toast } = useToast()
@@ -97,27 +99,21 @@ export default function SiteSettingsTab() {
     finally { setTestToken(''); setWidgetRound(v => v + 1); setBusy(false) }
   }
 
-  return <AdminPage title={security ? '安全验证' : '站点信息'} description={security ? '配置 Cloudflare Turnstile，当前用于开启 R18 成人内容模式。' : '统一主站的名称、介绍、浏览器标题与品牌图片。'} className="admin-redesign-page--site-settings site-settings">
-    <div className="site-settings-pill-nav" role="tablist" aria-label="站点设置视图切换">
-      <Link
-        to="/admin/site-settings?view=branding"
-        className={`site-settings-pill-link ${!security ? 'active' : ''}`}
-        role="tab"
-        aria-selected={!security}
-      >
-        <span className={`site-settings-pill-dot ${!security ? 'active' : ''}`} />
-        站点信息
-      </Link>
-      <Link
-        to="/admin/site-settings?view=security"
-        className={`site-settings-pill-link ${security ? 'active' : ''}`}
-        role="tab"
-        aria-selected={security}
-      >
-        <span className={`site-settings-pill-dot ${security ? 'active' : ''}`} />
-        安全验证
-      </Link>
-    </div>
+  return <AdminPage title={security ? '安全验证' : '站点信息'} description={security ? '配置 Cloudflare Turnstile，当前用于开启 R18 成人内容模式。' : '统一主站的名称、介绍、浏览器标题与品牌图片。'} className="admin-redesign-page admin-redesign-page--site-settings site-settings">
+    <Tabs
+      value={security ? 'security' : 'branding'}
+      className="admin-capsule-tabs site-settings-tabs"
+      onValueChange={(val) => navigate(`/admin/site-settings?view=${val}`)}
+    >
+      <TabsList aria-label="站点设置视图切换">
+        <TabsTrigger value="branding">
+          站点信息
+        </TabsTrigger>
+        <TabsTrigger value="security">
+          安全验证
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
     {loading && <LoadingState label="正在读取站点设置…" rows={4} className="py-8" />}
     {error && <div role="alert" className="site-settings__error"><p>{error}</p>{!branding && <Button variant="secondary" onClick={() => setReload(v => v + 1)}>重新加载</Button>}</div>}
     {!loading && branding && challenge && <form onSubmit={event => void save(event)} className="site-settings__layout">
