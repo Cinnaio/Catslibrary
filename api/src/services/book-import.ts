@@ -125,7 +125,7 @@ const LIST_MARKER_BODY = /^[:：]/
  * 剥掉编号后紧跟数量单位：`1万点积分？…`、`99%了，只差临门一脚…`。
  * 这些是正文里的数量（万/亿/%/‰），不是章节号。
  */
-const QUANTITY_BODY = /^(?:万|亿|%|‰)/u
+const QUANTITY_BODY = /^(?:万|亿|%|‰|珠(?:的|加更|到|了|，|,|$))/u
 
 /**
  * 首个章节标题之前、短于此长度的残留块视为站点前置信息（宣传位、避雷说明），不是章节。
@@ -191,6 +191,12 @@ export function probeChapterHeadingLine(line: string): HeadingProbe {
   // 行首零宽字符（U+200B-U+200F、U+2060-U+206F、U+FEFF）是站点导出的常见污染，
   // 不剥离会让整行识别失败。
   const raw = String(line || '').replace(LEADING_INVISIBLE, '')
+  if (/^\s*\d+\s*[vV]\s*\d+(?:\b|[，,、])/u.test(raw)) {
+    return { title: null, rule: PROSE_RULE, confidence: 'high', rejectedBy: 'relationship-tag', uncertain: false }
+  }
+  if (/^\s*第\s*[0-9０-９零〇一二三四五六七八九十百千万两]+\s*(?:回合|节课)/u.test(raw)) {
+    return { title: null, rule: PROSE_RULE, confidence: 'medium', rejectedBy: 'prose-number-expression', uncertain: true }
+  }
   const match = raw.match(CHAPTER_HEADING)
   if (match) {
     const title = match[1]!.trim()
@@ -340,6 +346,8 @@ export interface ImportPreviewOptions {
   runId?: string
   /** 解析诊断；URL 复核与旧快照可能没有。 */
   diagnostics?: BookImportDiagnostics
+  /** 附加源确认流程：保留融合序号、只追加尾章，并禁选作品元数据。 */
+  preserveLocalOrder?: boolean
 }
 
 interface ChapterRow {
@@ -374,22 +382,21 @@ export function normalizeImportTitle(value: unknown): string {
 }
 
 export function normalizeImportChapterTitle(value: unknown): string {
-  return text(value)
+  let title = text(value)
     .normalize('NFKC')
     .toLocaleLowerCase()
-    // 中文数字编号（第一章、第九章）此前不参与剥号，导致「第0009章 谢俞」与正文首行
-    // 的「第九章」算成两个不同章节，正文被挂到后者、前者成为空章。两种写法都要剥。
-    .replace(/^第\s*[0-9０-９]+\s*[章节回卷集部篇]?\s*/i, '')
-    .replace(/^第\s*[零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回卷集部篇]?\s*/i, '')
-    .replace(/^chapter\s*\d+\s*/i, '')
-    // 裸数字标题的编号前缀同样要剥，两种分隔写法都要覆盖：
-    // - 「32 她才不想要呢」→「她才不想要呢」（编号 + 空白）
-    // - 「1.霸凌高冷学霸…」→「霸凌高冷学霸…」（编号 + 点，站点导出的双编号内层）
-    // 库里存的是不带编号的章节名，不剥这一层，导入侧每个裸数字章节都会被误判成新增。
-    // 用 `+` 支持「19 18.标题」这种外层与内层编号叠加的写法；
-    // 点后排除数字，避免把「12.5公里的路」这类含小数的标题削掉半截。
-    .replace(/^(?:[0-9０-９]{1,4}(?:\s+|[.、．](?![0-9０-９])\s*))+/, '')
-    .replace(/[^\p{L}\p{N}]+/gu, '')
+  for (let round = 0; round < 4; round++) {
+    const next = title
+      // 逐层剥离导出编号与作者编号，包含「64 第六十一章 标题」这样的混排。
+      .replace(/^第\s*[0-9０-９]+\s*[章节回卷集部篇]?\s*/i, '')
+      .replace(/^第\s*[零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回卷集部篇]?\s*/i, '')
+      .replace(/^chapter\s*\d+\s*/i, '')
+      // 点后排除数字，保留「12.5公里的路」等标题中的小数。
+      .replace(/^(?:[0-9０-９]{1,4}(?:\s+|[.、．](?![0-9０-９])\s*))+/, '')
+    if (next === title) break
+    title = next
+  }
+  return title.replace(/[^\p{L}\p{N}]+/gu, '')
 }
 
 export function normalizeImportContent(value: unknown): string {
@@ -429,6 +436,7 @@ export function normalizeImportPayload(raw: Partial<BookImportPayload>): BookImp
           order: Number(chapter?.order) || index + 1,
           content: String(chapter?.content ?? ''),
           sourceUrl: safeSourceUrl(chapter?.sourceUrl),
+          ...(chapter?.volumeTitle ? { volumeTitle: text(chapter.volumeTitle) } : {}),
         }))
         .filter((chapter) => chapter.content.trim() || chapter.title.trim())
         .slice(0, MAX_IMPORT_CHAPTERS)
@@ -514,6 +522,9 @@ export function importChapterKey(title: unknown): string {
   // 裸数字标题（`0073 我们做夫妻也是可以的`）同样以编号为键，
   // 否则它与「第0073章」写法会被当成两章。
   const bare = normalized.match(BARE_NUMBER_HEADING)
+    || normalized.match(/^([0-9]{1,4})[.、](?![0-9])\s*\S/u)
+    || normalized.match(/^chapter\s*(\d+)\b/i)
+    || normalized.match(/^([0-9]{1,4})(?=[^\s0-9.、:：])/u)
   if (bare) return `#${normalizeImportChapterNumber(bare[1]!)}`
   return normalizeImportChapterTitle(raw)
 }
@@ -528,6 +539,13 @@ export function chapterNumberFromTitle(title: unknown): number | null {
   if (!key.startsWith('#')) return null
   const value = Number(key.slice(1))
   return Number.isFinite(value) && value >= 1 ? value : null
+}
+
+/** 导出编号之外还有明确作者编号时，用内层编号辨认版本，保留原始标题用于展示和诊断。 */
+function chapterVersionKey(title: string): string {
+  const raw = title.normalize('NFKC').trim()
+  const inner = raw.replace(NUMBERED_HEADING_PREFIX, '').replace(/^\d+\s+(?=(?:第|\d+[.、]))/u, '')
+  return inner !== raw && CHAPTER_HEADING.test(inner) ? importChapterKey(inner) : importChapterKey(raw)
 }
 
 const CHINESE_DIGITS: Record<string, number> = {
@@ -574,8 +592,10 @@ const MAX_DIAGNOSTIC_CONTEXT = 120
  * 当前启发式版本。AI 复核结果与标注样本据此判断基线是否已变——
  * 拿旧模型结论对照新规则，会把规则修复误读成模型失误。
  * 版本 3：增加编号缺口回填，长章名不再需要人工或 AI 复核。
+ * 版本 4：独立简介段落、完整编号统计、原文位置约束及数量/正文形态排除。
+ * 版本 5：前置说明列表与分段简介、确定重复合并、不同正文版本互斥确认。
  */
-export const IMPORT_HEURISTIC_VERSION = 3
+export const IMPORT_HEURISTIC_VERSION = 5
 
 /**
  * 行号覆盖。AI 边界复核只回答「哪几行是章节边界」，切分与幂等键生成仍由
@@ -667,7 +687,7 @@ export function detectImportAnomalies(stats: BookImportSplitStats, uncertainCoun
     anomalies.push({
       code: 'empty-chapters-dropped',
       severity: 'warning',
-      message: `有 ${stats.droppedEmptyChapters} 个编号章节正文为空已丢弃，通常是标题误判导致的切分异常`,
+      message: `有 ${stats.droppedEmptyChapters} 个仅有编号、没有有效章名和正文的条目未纳入，请核对原文件；有明确章名的空正文条目会保留`,
     })
   }
   // 切碎：章节数不少但中位字数极低——论坛楼层、编号列表被当成了章节。
@@ -687,17 +707,17 @@ export function detectImportAnomalies(stats: BookImportSplitStats, uncertainCoun
       message: `识别到的最大章节编号为 ${numbering.max}，但只切出 ${numbering.detected} 章，疑似有章节未识别`,
     })
   }
-  if (!numberingRatioOutlier && numbering.missing > Math.max(3, numbering.detected * 0.15)) {
+  if (!numberingRatioOutlier && numbering.missing > 0) {
     anomalies.push({
       code: 'numbering-gaps',
       severity: 'info',
-      message: `章节编号在 ${numbering.min}-${numbering.max} 之间缺 ${numbering.missing} 个编号，可能有章节未识别`,
+      message: `章节编号在 ${numbering.min}-${numbering.max} 之间缺 ${numbering.missing} 个编号，请核对原文件跳号、空白条目或未识别边界；不会自动补章`,
     })
   }
-  if (numbering.duplicated > Math.max(2, numbering.detected * 0.1)) {
+  if (numbering.duplicated > 0) {
     anomalies.push({
       code: 'numbering-duplicated',
-      severity: 'warning',
+      severity: numbering.duplicated > Math.max(2, numbering.detected * 0.1) ? 'warning' : 'info',
       message: `有 ${numbering.duplicated} 个章节编号重复，可能存在伪章节或编号错位`,
     })
   }
@@ -787,18 +807,41 @@ export function parseTextImportDetailed(
 ): TextImportResult {
   const lines = String(input || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n')
   /** 切分期的内部章节：额外记住它是否由权威标题（第NNN章 / NNN）开出，用于识别重抄标题。 */
-  type WorkingChapter = BookImportChapterInput & { fromAuthoritative?: boolean; startLine?: number }
+  type WorkingChapter = BookImportChapterInput & { fromAuthoritative?: boolean; startLine?: number; endLine?: number }
   const chapters: WorkingChapter[] = []
   const boundaryLines: number[] = []
   let current: WorkingChapter | null = null
+  let currentVolume = ''
   const byKey = new Map<string, WorkingChapter>()
   /** 首个章节标题之前的所有行：站点前置信息（元数据、宣传位、避雷说明）。 */
   const frontMatter: string[] = []
 
   const forceSet = new Set(overrides.forceHeadings || [])
+  const explicitForceSet = new Set(forceSet)
   const denySet = new Set(overrides.denyHeadings || [])
   const reviewedSet = new Set(overrides.reviewedLines || [])
   let reviewedCount = 0
+
+  // 仅在明确元信息之后、首个可靠的第 1 章之前识别连续编号列表。
+  // 已有正文段落夹在两项之间、或文件直接以点分章节开篇时，不把章节当书前说明。
+  const prefaceListLines = new Set<number>()
+  const firstChapterIndex = lines.findIndex(line => {
+    const probe = probeChapterHeadingLine(line)
+    return probe.title && chapterNumberFromTitle(probe.title) === 1 &&
+      /^(?:第\s*[0-9０-９零〇一壹]+\s*[章节回]|[0０]{1,3}[1１]\s)/u.test(probe.title)
+  })
+  if (firstChapterIndex > 0 && lines.slice(0, firstChapterIndex).some(line => /^\s*(?:简介|内容简介|文案|食用须知|阅读须知|排雷|避雷)\s*[:：]/u.test(line))) {
+    let run: number[] = []
+    const finish = () => { if (run.length >= 2) run.forEach(index => prefaceListLines.add(index + 1)); run = [] }
+    for (let index = 0; index < firstChapterIndex; index++) {
+      const raw = lines[index]!.trim()
+      if (!raw) continue
+      const match = raw.match(/^([1-9]\d?)[.、．](?!\d)\s*\S/u)
+      if (!match || Number(match[1]) !== run.length + 1) { finish(); if (match?.[1] === '1') run.push(index) }
+      else run.push(index)
+    }
+    finish()
+  }
 
   // ---- 编号缺口回填 ----
   /**
@@ -816,10 +859,12 @@ export function parseTextImportDetailed(
   const rescuedHeadings = new Set<number>()
   {
     const acceptedNumbers = new Set<number>()
+    const acceptedLines = new Map<number, number[]>()
     const rejectedByNumber = new Map<number, Array<{ line: number; title: string }>>()
     for (const [index, line] of lines.entries()) {
       const lineNumber = index + 1
       if (denySet.has(lineNumber)) continue
+      if (prefaceListLines.has(lineNumber) && !forceSet.has(lineNumber)) continue
       const forcedRaw = forceSet.has(lineNumber) ? text(String(line || '').replace(LEADING_INVISIBLE, '')) : ''
       const probe: HeadingProbe = forcedRaw
         ? { title: probeChapterHeadingLine(forcedRaw).title || forcedRaw, rule: 'forced-heading', confidence: 'high', uncertain: false }
@@ -828,7 +873,12 @@ export function parseTextImportDetailed(
         // 卷标题并进正文，不参与章节编号序列。
         if (VOLUME_HEADING.test(probe.title)) continue
         const number = chapterNumberFromTitle(probe.title)
-        if (number !== null) acceptedNumbers.add(number)
+        if (number !== null) {
+          acceptedNumbers.add(number)
+          const positions = acceptedLines.get(number) || []
+          positions.push(lineNumber)
+          acceptedLines.set(number, positions)
+        }
         continue
       }
       if (!probe.rejectedBy || !WEAK_REJECTION_REASONS.has(probe.rejectedBy)) continue
@@ -842,6 +892,7 @@ export function parseTextImportDetailed(
 
     const accepted = [...acceptedNumbers].sort((a, b) => a - b)
     for (const number of [...rejectedByNumber.keys()].sort((a, b) => a - b)) {
+      if (acceptedNumbers.has(number)) continue
       let prev: number | undefined
       let next: number | undefined
       for (const value of accepted) {
@@ -855,6 +906,11 @@ export function parseTextImportDetailed(
       for (let value = prev + 1; value < next; value++) expected.push(value)
       // 每个编号必须恰好一个候选；多一个候选就说明有正文长句混进来了，整段放弃。
       if (!expected.every((value) => rejectedByNumber.get(value)?.length === 1)) continue
+      const positions = expected.map(value => rejectedByNumber.get(value)![0]!.line)
+      // 数值连续还不够：候选必须按顺序位于原文件的前后锚点之间。
+      if (positions.some((line, index) => index > 0 && line <= positions[index - 1]!)) continue
+      if (!acceptedLines.get(prev)!.some(line => line < positions[0]!) ||
+        !acceptedLines.get(next)!.some(line => line > positions.at(-1)!)) continue
       for (const value of expected) rescuedHeadings.add(rejectedByNumber.get(value)![0]!.line)
     }
   }
@@ -895,7 +951,7 @@ export function parseTextImportDetailed(
   const stripHeading = (title: string) => title.replace(/\s+/g, ' ').trim()
 
   const beginChapter = (title: string, keys: string[], fromAuthoritative = false): WorkingChapter => {
-    const chapter: WorkingChapter = { title, order: chapters.length + 1, content: '', fromAuthoritative }
+    const chapter: WorkingChapter = { title, order: chapters.length + 1, content: '', fromAuthoritative, ...(currentVolume ? { volumeTitle: currentVolume } : {}) }
     chapters.push(chapter)
     for (const key of keys) if (key && !byKey.has(key)) byKey.set(key, chapter)
     return chapter
@@ -910,13 +966,14 @@ export function parseTextImportDetailed(
     const probe: HeadingProbe = forcedTitle
       ? { title: forcedTitle, rule: 'forced-heading', confidence: 'high', uncertain: false }
       : probeChapterHeadingLine(line)
-    const headingTitle = denied ? null : probe.title
+    const headingTitle = denied || (prefaceListLines.has(lineNumber) && !forced) ? null : probe.title
     // 强制覆盖过的行已是确定结论，不再作为待复核证据留档。
     if (!forcedTitle && !denied && probe.uncertain) recordUncertain(lineNumber, line, probe)
 
     if (headingTitle && !forced && VOLUME_HEADING.test(headingTitle)) {
       // 卷标题并进正文：既保住卷名，也防止它把上一章的正文截走。
       volumeHeadingLines++
+      currentVolume = headingTitle.match(/^第.*?[卷部篇]/u)?.[0] || headingTitle
       if (current) current.content += `${text(headingTitle)}\n`
       continue
     }
@@ -961,8 +1018,25 @@ export function parseTextImportDetailed(
     }
   }
 
-  // 空正文的编号章节是章节切分炸掉的信号，宁可丢弃也不要写入空章。
-  const kept = chapters.filter((chapter) => chapter.content.trim() || !importChapterKey(chapter.title))
+  chapters.forEach((chapter, index) => { chapter.endLine = (chapters[index + 1]?.startLine || lines.length + 1) - 1 })
+  // 打赏/公告等已识别且有明确章名的条目即使无正文也保留，避免后续章节序号前移。
+  // 仅有编号或被强制标成标题的数量正文不因此变成有效空章；不按「打赏」关键词特判。
+  let kept = chapters.filter((chapter) => chapter.content.trim() || !importChapterKey(chapter.title) ||
+    (normalizeImportChapterTitle(chapter.title) && (probeChapterHeadingLine(chapter.title).title || CHAPTER_HEADING.test(chapter.title) || UNNUMBERED_HEADING_SHAPE.test(chapter.title))))
+  const droppedEmptyChapters = chapters.length - kept.length
+  // 不比较相似度，也不选「更新」版本：只有非空正文除空白外逐字相同且有效章名相同才去重。
+  const duplicates = new Map<string, WorkingChapter>()
+  const duplicateLines: Array<{ line: number; keptLine: number }> = []
+  kept = kept.filter(chapter => {
+    const title = normalizeImportChapterTitle(chapter.title)
+    const body = chapter.content.replace(/\s/gu, '')
+    if (!title || !body || explicitForceSet.has(chapter.startLine || 0)) return true
+    const key = `${normalizeImportTitle(chapter.volumeTitle)}:${chapterVersionKey(chapter.title)}:${title}:${createHash('sha256').update(body).digest('hex')}`
+    const existing = duplicates.get(key)
+    if (!existing) { duplicates.set(key, chapter); return true }
+    duplicateLines.push({ line: chapter.startLine!, keptLine: existing.startLine! })
+    return false
+  })
   const payloadChapters = kept.length ? kept : chapters
 
   // 首个章节标题之前的区域是站点前置信息：书名/作者/分类/简介等元数据，以及宣传位
@@ -996,7 +1070,7 @@ export function parseTextImportDetailed(
     mergedHeadingLines,
     frontMatterLines: frontMatter.length,
     frontMatterChars: leftover.join('').replace(/\s/g, '').length,
-    droppedEmptyChapters: chapters.length - kept.length,
+    droppedEmptyChapters,
     chapters: payload.chapters,
     uncertain: uncertainBuckets.flat(),
     uncertainTotal,
@@ -1004,6 +1078,8 @@ export function parseTextImportDetailed(
   })
 
   diagnostics.reviewedCount = reviewedCount
+  if (prefaceListLines.size) diagnostics.anomalies.push({ code: 'front-matter-list', severity: 'info', message: `已将书前连续编号说明 ${prefaceListLines.size} 行归入前置信息，不作为章节` })
+  if (duplicateLines.length) diagnostics.anomalies.push({ code: 'duplicate-chapters-merged', severity: 'info', message: `已合并 ${duplicateLines.length} 个章名和正文一致的重复条目（忽略空白排版）；原文行号 ${duplicateLines.slice(0, 12).map(c => `${c.line}→${c.keptLine}`).join('、')}${duplicateLines.length > 12 ? '等' : ''}，原始文件快照保留` })
   diagnostics.pendingCount = uncertainTotal - reviewedCount
   if (reviewedCount > 0) {
     diagnostics.anomalies = diagnostics.anomalies.filter((item) => item.code !== 'uncertain-lines')
@@ -1012,7 +1088,7 @@ export function parseTextImportDetailed(
   diagnostics.truncatedCount = Math.max(0, uncertainTotal - reviewedCount - diagnostics.uncertain.length)
   const chapterRanges = payload.chapters.map((_, index) => ({
     startLine: (finalChapters[index] as WorkingChapter)?.startLine || 1,
-    endLine: index + 1 < payload.chapters.length ? ((finalChapters[index + 1] as WorkingChapter)?.startLine || lines.length + 1) - 1 : lines.length,
+    endLine: (finalChapters[index] as WorkingChapter)?.endLine || (index + 1 < payload.chapters.length ? ((finalChapters[index + 1] as WorkingChapter)?.startLine || lines.length + 1) - 1 : lines.length),
   }))
   return { payload, diagnostics, chapterRanges, boundaryLines, frontMatterContent: leftover.join('\n').trim() }
 }
@@ -1023,7 +1099,7 @@ export function parseTextImport(input: string, fileName = '未命名.txt', overr
 }
 
 /** 头部元信息块允许出现的字段前缀；命中即是元信息而非正文。 */
-const TEXT_META_LINE = /^\s*(书名|作品名|标题|作者|作\s*者|简介|内容简介|文案|分类|标签|状态|字数|来源|出处|更新)\s*[:：]\s*(.*)$/
+const TEXT_META_LINE = /^\s*(书名|作品名|标题|题名|作者|作\s*者|简介|内容简介|文案|分类|标签|Tag列表|状态|字数|来源|出处|更新)\s*[:：]\s*(.*)$/i
 
 interface TextImportMeta {
   title?: string
@@ -1053,26 +1129,48 @@ function parseTextImportMeta(frontMatter: string[]): TextImportMeta {
   const consumed = new Set<number>()
   let sawMeta = false
   let descriptionOpen = false
+  let standaloneDescription = false
+  const hasDescriptionSections = frontMatter.some(line => /^(?:食用须知|阅读须知|剧情简介|排雷|避雷|作者说明|作者有话说|ps|p\.s\.)\s*[:：]/i.test(line.trim()))
 
   for (let i = 0; i < frontMatter.length; i++) {
     const trimmed = frontMatter[i]!.trim()
     if (!trimmed) {
+      if (standaloneDescription) {
+        consumed.add(i)
+        if (meta.description) meta.description += '\n'
+        continue
+      }
       // 空行结束简介续行；但整块尚未开始时只是普通前导空行。
       descriptionOpen = false
       continue
     }
+    // 独立「内容简介」是整个前置信息块的段落标题；站点导出常在每段之间插空行。
+    if (/^(?:内容简介|简介|文案)\s*[:：]?$/.test(trimmed)) {
+      consumed.add(i)
+      sawMeta = true
+      descriptionOpen = true
+      standaloneDescription = true
+      continue
+    }
+    if (!sawMeta && !meta.title && /^《[^》]+》$/.test(trimmed)) {
+      meta.title = trimmed.slice(1, -1).trim()
+      consumed.add(i)
+      continue
+    }
     const field = trimmed.match(TEXT_META_LINE)
     if (field) {
+      standaloneDescription = false
       sawMeta = true
       consumed.add(i)
       const key = field[1]!.replace(/\s/g, '')
       const value = field[2]!.trim()
-      if (key === '书名' || key === '作品名' || key === '标题') {
+      if (key === '书名' || key === '作品名' || key === '标题' || key === '题名') {
         if (value && !meta.title) meta.title = value
       } else if (key === '作者') {
         if (value && !meta.author) meta.author = value
       } else if (key === '简介' || key === '内容简介' || key === '文案') {
         descriptionOpen = true
+        standaloneDescription = hasDescriptionSections
         if (value) meta.description = value
       }
       continue
@@ -1090,6 +1188,7 @@ function parseTextImportMeta(frontMatter: string[]): TextImportMeta {
   for (let i = 0; i < frontMatter.length; i++) {
     if (!consumed.has(i)) meta.leftover.push(frontMatter[i]!)
   }
+  meta.description = meta.description?.trim()
   return meta
 }
 
@@ -1369,16 +1468,50 @@ export function buildMetadataDiff(book: BookImportPayload, novel: Novel | null):
   })
 }
 
-export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): BookImportChapterDiff[] {
-  const bySourceUrl = new Map<string, ChapterRow>()
-  const byOrderAndTitle = new Map<string, ChapterRow>()
+function importVariantGroups(chapters: BookImportChapterInput[]): Map<number, string> {
+  const groups = new Map<string, number[]>()
+  const byNumber = new Map<string, number[]>()
+  chapters.forEach((chapter, index) => {
+    const title = normalizeImportChapterTitle(chapter.title)
+    if (!title) return
+    const volume = normalizeImportTitle(chapter.volumeTitle)
+    const key = `${volume}:${chapterVersionKey(chapter.title)}:${title}`
+    groups.set(key, [...(groups.get(key) || []), index])
+    const number = chapterNumberFromTitle(chapter.title)
+    const numberKey = `${volume}:${number}`
+    if (number !== null) byNumber.set(numberKey, [...(byNumber.get(numberKey) || []), index])
+  })
+  // 「错章／修订」与同号正文即使改过章名，也属于需要人工选择的一组。
+  byNumber.forEach((indexes, number) => {
+    if (indexes.length > 1 && indexes.some(index => /错章|錯章|误章|誤章|修订|修訂|修正版|重发|重發|重贴|重貼/.test(chapters[index]!.title))) groups.set(`correction:${number}`, indexes)
+  })
+  const result = new Map<number, string>()
+  groups.forEach((indexes, key) => {
+    if (indexes.length < 2 || new Set(indexes.map(index => chapters[index]!.content.replace(/\s/gu, ''))).size < 2) return
+    const id = createHash('sha256').update(key).digest('hex')
+    indexes.forEach(index => result.set(index, id))
+  })
+  return result
+}
+
+export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[], options: { preserveLocalOrder?: boolean } = {}): BookImportChapterDiff[] {
+  const variantGroups = importVariantGroups(book.chapters)
+  const bySourceUrl = new Map<string, ChapterRow[]>()
+  const byOrderAndTitle = new Map<string, ChapterRow[]>()
   const byOrder = new Map<number, ChapterRow[]>()
   const byTitle = new Map<string, ChapterRow[]>()
+  const byContent = new Map<string, ChapterRow[]>()
+  const add = (map: Map<string, ChapterRow[]>, key: string, chapter: ChapterRow) => {
+    const values = map.get(key) || []
+    values.push(chapter)
+    map.set(key, values)
+  }
   for (const chapter of local) {
     const sourceUrl = safeSourceUrl(chapter.source_url)
-    if (sourceUrl) bySourceUrl.set(sourceUrl, chapter)
+    if (sourceUrl) add(bySourceUrl, sourceUrl, chapter)
     const key = `${chapter.sort_order}:${normalizeImportChapterTitle(chapter.title)}`
-    byOrderAndTitle.set(key, chapter)
+    add(byOrderAndTitle, key, chapter)
+    if (normalizeImportContent(chapter.content)) add(byContent, importContentHash(chapter.content), chapter)
     const orderValues = byOrder.get(chapter.sort_order) || []
     orderValues.push(chapter)
     byOrder.set(chapter.sort_order, orderValues)
@@ -1391,17 +1524,31 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): 
   }
 
   const used = new Set<string>()
-  return book.chapters.map((incoming, index) => {
+  const usedVariants = new Map<string, string>()
+  const diffs: BookImportChapterDiff[] = book.chapters.map((incoming, index) => {
     const sourceUrl = safeSourceUrl(incoming.sourceUrl)
     const titleKey = normalizeImportChapterTitle(incoming.title)
-    const strong = sourceUrl ? bySourceUrl.get(sourceUrl) : undefined
-    const exact = strong || byOrderAndTitle.get(`${incoming.order}:${titleKey}`)
+    const sourceMatches = sourceUrl ? bySourceUrl.get(sourceUrl) || [] : []
+    const sourceCandidate = sourceMatches.length === 1 ? sourceMatches[0] : undefined
+    // 附加文件的片段只记录当时的切分位置。修正首页/边界后位置会改变，不能覆盖内容与标题证据。
+    const positionalSource = /#chapter=\d+$/.test(sourceUrl)
+    const strong = sourceCandidate && (!positionalSource ||
+      (titleKey && normalizeImportChapterTitle(sourceCandidate.title) === titleKey) ||
+      (normalizeImportContent(incoming.content) && importContentHash(sourceCandidate.content) === importContentHash(incoming.content)))
+      ? sourceCandidate : undefined
+    const exactMatches = byOrderAndTitle.get(`${incoming.order}:${titleKey}`) || []
+    const exact = strong || (exactMatches.length === 1 ? exactMatches[0] : undefined)
     // 只有编号没有标题时按序号对齐：序号唯一才认，避免不同写法互相抢。
     const sameOrder = !titleKey ? byOrder.get(incoming.order) || [] : []
     const sameTitle = titleKey ? byTitle.get(titleKey) || [] : []
+    const sameContent = normalizeImportContent(incoming.content) ? byContent.get(importContentHash(incoming.content)) || [] : []
     const candidate = exact || (sameOrder.length === 1 ? sameOrder[0] : undefined) || (sameTitle.length === 1 ? sameTitle[0] : undefined)
-    const conflict = !exact && (sameTitle.length > 1 || (!titleKey && sameOrder.length > 1))
-    if (candidate) used.add(candidate.id)
+      || (sameContent.length === 1 ? sameContent[0] : undefined)
+    const variantGroup = variantGroups.get(index)
+    const reused = candidate ? used.has(candidate.id) && !(variantGroup && usedVariants.get(candidate.id) === variantGroup) : false
+    const conflict = reused || (!candidate && (exactMatches.length > 1 || sameTitle.length > 1 || sameContent.length > 1 || (!titleKey && sameOrder.length > 1)))
+    if (candidate && !conflict) used.add(candidate.id)
+    if (candidate && !conflict && variantGroup) usedVariants.set(candidate.id, variantGroup)
     const contentChanged = candidate ? importContentHash(candidate.content) !== importContentHash(incoming.content) : false
     const titleChanged = candidate ? normalizeImportChapterTitle(candidate.title) !== titleKey || candidate.title !== incoming.title : false
     let status: BookImportChapterDiff['status'] = 'new'
@@ -1410,11 +1557,11 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): 
     if (conflict) {
       status = 'conflict'
       confidence = 'low'
-      reason = '发现多个同名章节，无法自动判断对应关系'
+      reason = reused ? '多个导入章节对应同一本地章节，需核对边界与重复内容' : '发现多个可能对应的章节，无法自动判断对应关系'
     } else if (candidate) {
       status = contentChanged || titleChanged ? 'changed' : 'unchanged'
       confidence = exact ? 'high' : 'medium'
-      reason = exact ? (sourceUrl ? '来源地址一致' : '序号与标题一致') : '标题一致，序号不同或来源地址缺失'
+      reason = strong ? '来源地址一致' : exact ? '序号与标题一致' : sameTitle.length === 1 ? '标题一致，序号不同或来源地址缺失' : sameOrder.length === 1 ? '纯编号章节按唯一序号对应' : '正文唯一一致，标题或序号已变化，请核对融合结果'
     } else if (!titleKey) {
       confidence = 'low'
       reason = '章节只有编号没有标题，按序号未能唯一对应'
@@ -1429,6 +1576,7 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): 
       incomingTitle: incoming.title,
       localContent: candidate?.content,
       incomingContent: incoming.content,
+      variantGroup,
       localSourceUrl: candidate?.source_url,
       incomingSourceUrl: sourceUrl,
       confidence,
@@ -1436,6 +1584,36 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): 
       selected: status === 'new',
     }
   })
+  if (options.preserveLocalOrder) {
+    let lastMatched = -1
+    diffs.forEach((c, index) => { if (c.localChapterId && c.status !== 'conflict') lastMatched = index })
+    let nextOrder = Math.max(0, ...local.map(c => c.sort_order))
+    diffs.forEach((diff, index) => {
+      if (diff.localOrder !== undefined) diff.incomingOrder = diff.localOrder
+      if (diff.status !== 'new') return
+      if (index < lastMatched || (local.length > 0 && lastMatched < 0)) {
+        diff.status = 'conflict'
+        diff.confidence = 'low'
+        diff.reason = '新增条目位于已有章节之间，或没有可靠的本地对应关系，请先核对边界与融合映射'
+        diff.selected = false
+      } else {
+        diff.incomingOrder = ++nextOrder
+        diff.reason = '附加源新增尾章，按本地末尾序号追加，保留融合后的已有序号'
+      }
+    })
+  }
+  const versionOrders = new Map<string, number>()
+  diffs.forEach(diff => { if (diff.variantGroup && !versionOrders.has(diff.variantGroup)) versionOrders.set(diff.variantGroup, diff.incomingOrder) })
+  diffs.forEach(diff => {
+    if (!diff.variantGroup) return
+    diff.selected = false
+    diff.incomingOrder = diff.localOrder ?? versionOrders.get(diff.variantGroup)!
+    if (diff.status !== 'conflict' && diff.status !== 'unchanged') {
+      diff.confidence = 'low'
+      diff.reason = '同一章节存在不同正文版本，默认不选；请展开核对并只选择一个版本'
+    }
+  })
+  return diffs
 }
 
 async function findCandidates(db: Db, book: BookImportPayload): Promise<BookImportNovelCandidate[]> {
@@ -1481,7 +1659,7 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
     if (!targetNovel) throw new Error('导入目标作品不存在，请重新预览')
   }
   const local = targetNovel ? await loadLocalChapters(db, targetNovel.id) : []
-  const chapters = buildChapterDiff(payload, local)
+  const chapters = buildChapterDiff(payload, local, { preserveLocalOrder: opts.preserveLocalOrder })
   const summary = {
     newCount: chapters.filter((chapter) => chapter.status === 'new').length,
     changedCount: chapters.filter((chapter) => chapter.status === 'changed').length,
@@ -1491,7 +1669,9 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
   const warnings: string[] = []
   if (opts.targetNovelId === undefined && candidates.length > 1 && !targetNovel) warnings.push('发现多个同名作品，请选择已有作品或新建作品。')
   if (authorConflict && unique?.matchReason !== 'source-url') warnings.push('同名候选的作者与导入作品不同，请核对后选择已有作品或新建作品。')
-  if (summary.conflictCount) warnings.push(`有 ${summary.conflictCount} 个章节存在同名冲突，默认不会导入。`)
+  if (summary.conflictCount) warnings.push(`有 ${summary.conflictCount} 个章节存在对应关系冲突，默认不会导入。`)
+  const versionCount = new Set(chapters.map(chapter => chapter.variantGroup).filter(Boolean)).size
+  if (versionCount) warnings.push(`有 ${versionCount} 组同章不同版本，默认均不选择；请展开比较，每组只选一个版本。选择后保留该章首次出现的位置。`)
   if (payload.chapters.length >= MAX_IMPORT_CHAPTERS) warnings.push(`最多展示前 ${MAX_IMPORT_CHAPTERS} 章，超出部分未进入预览。`)
 
   return {
@@ -1503,7 +1683,7 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
     candidates,
     targetNovelId,
     targetNovel,
-    metadataDiff: buildMetadataDiff(payload, targetNovel),
+    metadataDiff: buildMetadataDiff(payload, targetNovel).map(field => opts.preserveLocalOrder ? { ...field, selected: false } : field),
     chapters,
     summary,
     warnings,
@@ -1604,6 +1784,13 @@ export async function applyImport(
     if (Number(lockedRun.rows[0]!.revision || 0) !== Number(opts.run.revision || 0)) throw new Error('预览版本已变化，请重新预览后提交')
     preview = safeJsonParse<BookImportPreview>(lockedRun.rows[0]!.preview_json, preview)
     payload = normalizeImportPayload(safeJsonParse<BookImportPayload>(lockedRun.rows[0]!.payload_json, payload))
+    const chosenVariants = new Set<string>()
+    for (const [index, group] of importVariantGroups(payload.chapters)) {
+      if (!selectedChapters.has(`chapter-${index + 1}`)) continue
+      if (chosenVariants.has(group)) throw new Error('同一章节存在多个正文版本，请只选择其中一个版本后提交')
+      if (preview.chapters[index]?.variantGroup !== group) throw new Error('旧预览缺少版本选择信息，请重新生成预览后核对')
+      chosenVariants.add(group)
+    }
     const supplementary = !!lockedRun.rows[0]!.supplementary_binding_id
     if (supplementary) {
       if (!novelId || novelId !== lockedRun.rows[0]!.target_novel_id || opts.metadataFields.length) throw new Error('附加源只能更新绑定作品的章节，不能修改作品信息或导入目标')
@@ -1672,9 +1859,10 @@ export async function applyImport(
         skipped++
         continue
       }
-      const incoming = payload.chapters.find((chapter, index) => `chapter-${index + 1}` === diff.id)
-      if (!incoming) continue
-      if (supplementary) {
+      const sourceChapter = payload.chapters.find((chapter, index) => `chapter-${index + 1}` === diff.id)
+      if (!sourceChapter) continue
+      const incoming = supplementary || diff.variantGroup ? { ...sourceChapter, order: diff.incomingOrder } : sourceChapter
+      if (supplementary || diff.variantGroup) {
         const occupied = localRows.rows.find(c=>c.sort_order===incoming.order && c.id!==diff.localChapterId)
         if (occupied) { conflicts.push({id:diff.id,title:diff.incomingTitle,reason:'目标序号已被其他章节占用，请核对章节对应关系'}); continue }
         if (diff.status === 'new') {
@@ -1684,6 +1872,10 @@ export async function applyImport(
         }
       }
       const current = diff.localChapterId ? localById.get(diff.localChapterId) : undefined
+      if (supplementary && current && incoming.order !== current.sort_order) {
+        conflicts.push({ id: diff.id, title: diff.incomingTitle, reason: '附加源旧预览会改变融合后的序号，请重新生成预览' })
+        continue
+      }
       if (diff.status === 'changed') {
         if (!current || importContentHash(current.content) !== importContentHash(diff.localContent) || current.title !== diff.localTitle || current.sort_order !== diff.localOrder) {
           conflicts.push({ id: diff.id, title: diff.incomingTitle, reason: '预览后本地章节已发生变化' })

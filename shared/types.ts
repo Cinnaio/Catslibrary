@@ -79,6 +79,8 @@ export interface BookImportChapterInput {
   order: number
   content: string
   sourceUrl?: string
+  /** 可选的原文卷标题，用于区分各卷重新编号的章节。 */
+  volumeTitle?: string
 }
 
 export interface BookImportPayload {
@@ -119,6 +121,8 @@ export interface BookImportChapterDiff {
   incomingTitle: string
   localContent?: string
   incomingContent: string
+  /** 同一章节候选的不同正文版本，只能选择其中一项。 */
+  variantGroup?: string
   localSourceUrl?: string
   incomingSourceUrl?: string
   confidence: 'high' | 'medium' | 'low'
@@ -195,6 +199,8 @@ export interface BookImportAnomaly {
     | 'chapter-length-outlier'
     | 'front-matter-oversized'
     | 'uncertain-lines'
+    | 'front-matter-list'
+    | 'duplicate-chapters-merged'
   severity: 'info' | 'warning'
   message: string
 }

@@ -46,6 +46,24 @@ beforeEach(() => {
   Element.prototype.scrollTo = vi.fn()
   api.previewFile.mockResolvedValue(structuredClone(original))
 })
+it('同章不同正文版本互斥选择，提交只携带最后确认的版本', async () => {
+  const chapters = [
+    { ...original.chapters[0]!, id: 'version-a', incomingTitle: '第1章 初见（版本一）', selected: false, variantGroup: 'same-chapter' },
+    { ...original.chapters[0]!, id: 'version-b', incomingTitle: '第1章 初见（版本二）', selected: false, variantGroup: 'same-chapter' },
+  ]
+  api.commit.mockRejectedValue(new Error('测试停止提交'))
+  render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={{ ...original, chapters, summary: { ...original.summary, newCount: 2 } }} />)
+  fireEvent.mouseDown(screen.getByRole('tab', { name: /章节差异/ }), { button: 0, ctrlKey: false })
+  const first = screen.getByRole('checkbox', { name: '新增章节：第1章 初见（版本一）' })
+  const second = screen.getByRole('checkbox', { name: '新增章节：第1章 初见（版本二）' })
+  fireEvent.click(first)
+  expect(first).toBeChecked()
+  fireEvent.click(second)
+  expect(first).not.toBeChecked()
+  expect(second).toBeChecked()
+  fireEvent.click(screen.getByRole('button', { name: /确认导入/ }))
+  await waitFor(() => expect(api.commit).toHaveBeenCalledWith('run', expect.objectContaining({ selectedChapterIds: ['version-b'] })))
+})
 it('附加源直接核对章节，作品信息禁用且提交不携带元数据修改', async () => {
   api.commit.mockRejectedValue(new Error('测试停止提交'))
   render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={{...original,targetNovelId:'bound-book',supplementary:{bindingId:'binding',fileKey:'file'}}}/>)

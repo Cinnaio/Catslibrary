@@ -200,7 +200,12 @@ export default function BookImportDialog({
     if (isDisabledChapter(chapter)) return
     setSelectedChapterIds((previous) => {
       const next = new Set(previous)
-      if (checked === true) next.add(chapter.id)
+      if (checked === true) {
+        if (chapter.variantGroup) preview?.chapters.forEach(other => {
+          if (other.variantGroup === chapter.variantGroup) next.delete(other.id)
+        })
+        next.add(chapter.id)
+      }
       else next.delete(chapter.id)
       return next
     })
@@ -727,7 +732,7 @@ export default function BookImportDialog({
                     <div className="book-import__section-heading">
                       <div>
                         <h3 id="book-import-chapters-title">章节差异</h3>
-                        <p>新增章节默认选中；有变化的章节需要你展开比较后再选择。</p>
+                        <p>新增章节默认选中；有变化的章节需展开比较。同章不同版本默认不选，每组只选一个。</p>
                       </div>
                       <Badge variant="secondary">已选 {selectedChapterCount} 章</Badge>
                     </div>
