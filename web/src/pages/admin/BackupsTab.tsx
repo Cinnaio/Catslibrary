@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import BackupImpactDialog, { BackupImpactSummaryView } from './backups/BackupImpactDialog'
 import BackupSettingsForm from './backups/BackupSettingsForm'
 import { TargetForm, PolicyForm } from './backups/BackupForms'
@@ -61,8 +62,8 @@ function Status({ state }: { state: string }) {
 }
 
 export default function BackupsTab() {
-  const [params] = useSearchParams(),
-    view = Object.hasOwn(titles, params.get('view') || '') ? params.get('view')! : 'versions'
+  const [params, setParams] = useSearchParams()
+  const view = Object.hasOwn(titles, params.get('view') || '') ? params.get('view')! : 'versions'
   const { toast } = useToast(),
     { confirm } = useConfirm()
   const [overview, setOverview] = useState<BackupOverview | null>(null),
@@ -278,23 +279,24 @@ export default function BackupsTab() {
         </>
       }
     >
-      <div className="backup-pill-tabs-track" role="tablist" aria-label="备份视图切换">
-        {(Object.keys(titles) as Array<keyof typeof titles>).map((key) => {
-          const isActive = view === key
-          return (
-            <Link
-              key={key}
-              to={`/admin/backups?view=${key}`}
-              className={`backup-pill-tab ${isActive ? 'active' : ''}`}
-              role="tab"
-              aria-selected={isActive}
-            >
-              <span className={`backup-pill-dot ${isActive ? 'active' : ''}`} />
+      {/* Claude 共享工作视图胶囊 Tabs */}
+      <Tabs
+        value={view}
+        className="admin-capsule-tabs backup-tabs"
+        onValueChange={(next) => {
+          const nextParams = new URLSearchParams(params)
+          nextParams.set('view', next)
+          setParams(nextParams)
+        }}
+      >
+        <TabsList aria-label="备份视图切换">
+          {(Object.keys(titles) as Array<keyof typeof titles>).map((key) => (
+            <TabsTrigger key={key} value={key}>
               {titles[key]}
-            </Link>
-          )
-        })}
-      </div>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
       {error && (
         <div role="alert" className="backup-error">
           <span>{error}</span>
@@ -424,55 +426,93 @@ export default function BackupsTab() {
           )}
           {view === 'targets' && (
             <div className="backup-targets">
-              <Card className="admin-panel-card">
-                <CardHeader>
-                  <CardTitle>本地存储</CardTitle>
+              <Card className="admin-panel-card backup-target-card backup-target-card--local">
+                <CardHeader className="backup-target-card__header">
+                  <div>
+                    <CardTitle className="backup-target-card__title">本地存储</CardTitle>
+                    <p className="backup-target-card__subtitle">内部加密归档 · 离线可用</p>
+                  </div>
+                  <AdminStatusBadge tone="success">始终启用</AdminStatusBadge>
                 </CardHeader>
-                <CardContent className="backup-fields">
+                <CardContent className="backup-target-card__content">
                   <p className="backup-hint">每次备份先在服务器生成加密归档。本地目录由部署配置管理，与网站静态文件隔离。</p>
-                  <div className="backup-copy">
-                    <span>保留最近 {overview.policy.localRetention} 个版本</span>
-                    <AdminStatusBadge tone="success">始终启用</AdminStatusBadge>
+                  <div className="backup-target-card__meta-grid">
+                    <div className="backup-target-card__meta-item">
+                      <span className="backup-target-card__meta-label">保留策略</span>
+                      <span className="backup-target-card__meta-value">最近 {overview.policy.localRetention} 个版本</span>
+                    </div>
+                    <div className="backup-target-card__meta-item">
+                      <span className="backup-target-card__meta-label">副本级别</span>
+                      <span className="backup-target-card__meta-value">核心首份副本</span>
+                    </div>
+                  </div>
+                  <div className="backup-target-card__footer">
+                    <span className="backup-target-card__tip">由部署环境持久化管理</span>
                   </div>
                 </CardContent>
               </Card>
+
               {overview.targets.map((target) => (
-                <Card key={target.id} className="admin-panel-card">
-                  <CardHeader>
-                    <CardTitle>{target.name}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="backup-fields">
-                    <div className="backup-copy">
-                      <span>
+                <Card key={target.id} className="admin-panel-card backup-target-card">
+                  <CardHeader className="backup-target-card__header">
+                    <div>
+                      <CardTitle className="backup-target-card__title">{target.name}</CardTitle>
+                      <p className="backup-target-card__subtitle">
                         SFTP · {target.host}:{target.port}
-                      </span>
-                      <AdminStatusBadge tone={target.enabled ? 'success' : 'neutral'}>{target.enabled ? '已启用' : '已停用'}</AdminStatusBadge>
+                      </p>
                     </div>
-                    <p className="backup-hint">
-                      {target.path}
-                      <br />
-                      保留 {target.retention} 个版本 · {target.required ? '必需副本' : '可选副本'} ·{' '}
-                      {target.credentialSet ? '认证材料已设置' : '尚未设置认证材料'}
-                    </p>
-                    <div className="backup-actions">
-                      <Button variant="secondary" onClick={() => setTargetEditor(target)}>
-                        编辑
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        disabled={busy || !overview.capabilities.transfer || !target.credentialSet}
-                        onClick={() => void queued(() => backupsApi.test(target.id))}
-                      >
-                        测试连接
-                      </Button>
-                      <Button variant="ghost" disabled={busy} onClick={() => void archive(target)}>
-                        移除
-                      </Button>
+                    <AdminStatusBadge tone={target.enabled ? 'success' : 'neutral'}>
+                      {target.enabled ? '已启用' : '已停用'}
+                    </AdminStatusBadge>
+                  </CardHeader>
+                  <CardContent className="backup-target-card__content">
+                    <div className="backup-target-card__meta-grid">
+                      <div className="backup-target-card__meta-item backup-target-card__meta-item--full">
+                        <span className="backup-target-card__meta-label">远程目录</span>
+                        <code className="backup-target-card__path">{target.path}</code>
+                      </div>
+                      <div className="backup-target-card__meta-item">
+                        <span className="backup-target-card__meta-label">保留策略</span>
+                        <span className="backup-target-card__meta-value">{target.retention} 个版本</span>
+                      </div>
+                      <div className="backup-target-card__meta-item">
+                        <span className="backup-target-card__meta-label">副本性质</span>
+                        <span className="backup-target-card__meta-value">{target.required ? '必需副本' : '可选副本'}</span>
+                      </div>
+                      <div className="backup-target-card__meta-item backup-target-card__meta-item--full">
+                        <span className="backup-target-card__meta-label">认证状态</span>
+                        <span className={`backup-target-card__meta-value ${target.credentialSet ? '' : 'text-muted'}`}>
+                          {target.credentialSet ? '已设置认证材料' : '尚未设置认证材料'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="backup-target-card__footer">
+                      <div className="backup-actions">
+                        <Button variant="secondary" size="sm" onClick={() => setTargetEditor(target)}>
+                          编辑
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={busy || !overview.capabilities.transfer || !target.credentialSet}
+                          onClick={() => void queued(() => backupsApi.test(target.id))}
+                        >
+                          测试连接
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="backup-btn-danger"
+                          disabled={busy}
+                          onClick={() => void archive(target)}
+                        >
+                          移除
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
-              {!overview.targets.length && <p className="backup-hint">尚未添加服务器。本地备份可独立使用，远程备份需要 rclone 与专用 SSH 账号。</p>}
             </div>
           )}
           {view === 'schedule' && (

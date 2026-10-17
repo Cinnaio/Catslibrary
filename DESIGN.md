@@ -390,6 +390,10 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 
 **The Tonal-Admin Rule.** 后台一个像素的阴影都不要加。面板靠表面色 + 1px 描边区分层次；一旦给数据面板加投影，它就会在密集列表里看起来像浮起的卡片，破坏扫描。
 
+**The Serif-Card-Title & No-Icon Rule.** 后台所有卡片与面板标题（`CardTitle` / `.admin-panel-card` / `AdminPanelHeading`）统一遵循 Claude (Anthropic) 极简人文书卷规范：
+- **人文衬线字栈**: 标题统一采用 `--admin-font-serif`（Newsreader, Georgia, Source Han Serif SC, Noto Serif SC 等），字重统一为 600，字距微收 `-0.015em`，展现温润优雅的纸卷阅读质感；
+- **严禁卡片内装饰图标**: 卡片标题行与卡片内部严禁随意添加装饰性 Icon，彻底消除视觉杂噪，仅靠纯粹的纸白表面、精致衬线字阶与右侧功能性状态胶囊/操作按钮构建单层控制流。
+
 ## Shapes
 
 圆角按公开页与后台作用域区分：公共按钮6px（--radius-sm），公开单行输入框12px（--input-radius），全局基础圆角8px（--radius），紧凑控件与卡片10px（--radius-md）。后台按钮、单行输入与分段 tabs 使用全圆角胶囊（--admin-button-radius / --admin-input-radius / --radius-full），textarea 保留12px；嵌套表面与对话框使用各自组件圆角，不能把胶囊规则扩散到大面板。悬浮岛窄屏外框为24px，内部按钮仍为胶囊。
@@ -406,6 +410,12 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - **阅读纸面圆角**: `--reader-radius-paper` 复用通用 xl，桌面与手机同档。阅读器不再保留超大圆角例外；正文纸面为平面，不带外描边、投影、渐变或水印。浮层仍使用既有阴影表达交互层次。
 
 ## Components
+
+### Admin CustomTimePicker（时间选择器）
+
+- **触发器**: 统一遵循 Claude 单行输入框全圆角药丸几何（`--radius-full`，40px 高），右侧显示轻量次级灰时钟图标，彻底杜绝粗暴突兀的浏览器原生 `<input type="time">` 蓝底尖角弹窗；
+- **浮层面板**: 16px 圆角（`--radius-xl`）温润纸白浮层，顶部提供常用低峰时段快捷预设胶囊（`00:00`, `02:00`, `03:00`, `04:00`, `12:00`），中间提供时（00-23）与分（00-59）双列平滑滚动联动选择，选中项以陶土红强调色高亮与微光阴影表达；
+- **暗黑模式**: 完整适配 `:root[data-theme='dark']` 纸墨低眩光调色与极细微边框。
 
 ### Reader Auth（登录／注册，2026-10-03）
 

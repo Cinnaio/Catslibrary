@@ -3,7 +3,9 @@ import type { BackupPolicy, BackupTarget, BackupTargetInput } from '@shared/back
 import { useToast } from '@/components/feedback'
 import { backupsApi } from '@/lib/backups-api'
 import AdminFormField from '@/components/admin/AdminFormField'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import CustomSelect from '@/components/admin/CustomSelect'
+import CustomTimePicker from '@/components/admin/CustomTimePicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -201,15 +203,32 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
   }
   return (
     <form onSubmit={(event) => void save(event)} className="backup-settings-layout">
-      <Card className="admin-panel-card">
-        <CardHeader>
-          <CardTitle>备份计划</CardTitle>
+      <Card className="admin-panel-card backup-schedule-card">
+        <CardHeader className="backup-panel-header">
+          <div>
+            <CardTitle>备份执行策略</CardTitle>
+            <p className="backup-panel-subtitle">设置自动执行频次、触发时点与本地安全保留数量</p>
+          </div>
         </CardHeader>
         <CardContent className="backup-fields">
-          <label className="backup-check">
-            <input type="checkbox" checked={draft.enabled} disabled={busy} onChange={(e) => change('enabled', e.target.checked)} />
-            启用自动备份
+          <label className={`backup-schedule-toggle ${draft.enabled ? 'backup-schedule-toggle--active' : ''}`}>
+            <input
+              type="checkbox"
+              checked={draft.enabled}
+              disabled={busy}
+              onChange={(e) => change('enabled', e.target.checked)}
+            />
+            <div className="backup-schedule-toggle__info">
+              <span className="backup-schedule-toggle__title">自动执行备份</span>
+              <span className="backup-schedule-toggle__desc">
+                {draft.enabled ? '后台按预定周期自动执行备份并完成多副本同步' : '已暂停自动备份，仅支持手动备份'}
+              </span>
+            </div>
+            <AdminStatusBadge tone={draft.enabled ? 'success' : 'neutral'}>
+              {draft.enabled ? '已激活' : '已暂停'}
+            </AdminStatusBadge>
           </label>
+
           <AdminFormField label="执行频率">
             {({ labelId }) => (
               <CustomSelect
@@ -225,6 +244,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
               />
             )}
           </AdminFormField>
+
           {draft.schedule === 'interval' ? (
             <AdminFormField label="间隔小时">
               {({ id }) => (
@@ -244,7 +264,15 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
             <>
               <div className="backup-field-pair">
                 <AdminFormField label="执行时间">
-                  {({ id }) => <Input id={id} required type="time" value={draft.time} disabled={busy} onChange={(e) => change('time', e.target.value)} />}
+                  {({ id, labelId }) => (
+                    <CustomTimePicker
+                      id={id}
+                      aria-labelledby={labelId}
+                      value={draft.time}
+                      disabled={busy}
+                      onChange={(value) => change('time', value)}
+                    />
+                  )}
                 </AdminFormField>
                 <AdminFormField label="时区">
                   {({ id }) => (
@@ -266,7 +294,10 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                       aria-labelledby={labelId}
                       value={String(draft.weekday)}
                       disabled={busy}
-                      options={['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'].map((label, value) => ({ label, value: String(value) }))}
+                      options={['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'].map((label, value) => ({
+                        label,
+                        value: String(value),
+                      }))}
                       onChange={(value) => change('weekday', Number(value))}
                     />
                   )}
@@ -274,6 +305,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
               )}
             </>
           )}
+
           <AdminFormField label="本地保留版本数量" hint="固定版本和回滚前保护版本不会自动清理。">
             {({ id }) => (
               <Input
@@ -288,52 +320,103 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
               />
             )}
           </AdminFormField>
-          {error && (
-            <p role="alert" className="backup-error">
-              {error}
-            </p>
-          )}
-          <div className="backup-save">
-            <span className="backup-hint">{dirty ? '有未保存的修改' : '已与当前配置同步'}</span>
-            <Button type="button" variant="secondary" disabled={!dirty || busy} onClick={() => setDraft(policy)}>
-              撤销
-            </Button>
-            <Button type="submit" disabled={!dirty || busy}>
-              {busy ? '保存中…' : '保存计划'}
-            </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="admin-panel-card backup-locations-card">
+        <CardHeader className="backup-panel-header">
+          <div>
+            <CardTitle>多副本分发位置</CardTitle>
+            <p className="backup-panel-subtitle">每次备份优先生成加密本地归档，并分发至所选远程目标</p>
+          </div>
+        </CardHeader>
+        <CardContent className="backup-fields">
+          <div className="backup-location-list">
+            <div className="backup-location-item backup-location-item--locked">
+              <div className="backup-location-item__main">
+                <div className="backup-location-item__check">
+                  <input type="checkbox" checked disabled />
+                </div>
+                <div className="backup-location-item__info">
+                  <span className="backup-location-item__name">本地存储</span>
+                  <span className="backup-location-item__desc">服务器内部加密目录 · 核心基准</span>
+                </div>
+              </div>
+              <AdminStatusBadge tone="success">始终保留</AdminStatusBadge>
+            </div>
+
+            {targets
+              .filter((target) => target.enabled)
+              .map((target) => {
+                const isChecked = draft.targetIds.includes(target.id)
+                return (
+                  <label
+                    key={target.id}
+                    className={`backup-location-item ${isChecked ? 'backup-location-item--selected' : ''}`}
+                  >
+                    <div className="backup-location-item__main">
+                      <div className="backup-location-item__check">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          disabled={busy}
+                          onChange={(e) =>
+                            change(
+                              'targetIds',
+                              e.target.checked
+                                ? [...draft.targetIds, target.id]
+                                : draft.targetIds.filter((id) => id !== target.id),
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="backup-location-item__info">
+                        <span className="backup-location-item__name">{target.name}</span>
+                        <span className="backup-location-item__desc">
+                          SFTP · {target.host}:{target.port}
+                        </span>
+                      </div>
+                    </div>
+                    {target.required ? (
+                      <AdminStatusBadge tone="warning">必需副本</AdminStatusBadge>
+                    ) : (
+                      <AdminStatusBadge tone="neutral">可选副本</AdminStatusBadge>
+                    )}
+                  </label>
+                )
+              })}
+
+            {!targets.some((target) => target.enabled) && (
+              <p className="backup-hint">当前尚无启用的服务器目标，系统将自动使用本地加密备份。</p>
+            )}
+          </div>
+
+          <div className="backup-schedule-status">
+            <span className="backup-schedule-status__label">计划运行概况</span>
+            <span className="backup-schedule-status__value">
+              {policy.enabled ? '已激活' : '已停用'} · 下次运行：
+              {policy.nextRunAt ? new Date(policy.nextRunAt).toLocaleString('zh-CN') : '未设定'}
+            </span>
           </div>
         </CardContent>
       </Card>
-      <Card className="admin-panel-card">
-        <CardHeader>
-          <CardTitle>备份位置</CardTitle>
-        </CardHeader>
-        <CardContent className="backup-fields">
-          <p className="backup-hint">每次先生成本地加密版本，再发送到选定服务器。远程副本失败会保留重试记录。</p>
-          <label className="backup-check">
-            <input type="checkbox" checked disabled />
-            本地存储 · 始终保留
-          </label>
-          {targets
-            .filter((target) => target.enabled)
-            .map((target) => (
-              <label key={target.id} className="backup-check">
-                <input
-                  type="checkbox"
-                  checked={draft.targetIds.includes(target.id)}
-                  disabled={busy}
-                  onChange={(e) => change('targetIds', e.target.checked ? [...draft.targetIds, target.id] : draft.targetIds.filter((id) => id !== target.id))}
-                />
-                {target.name}
-                {target.required ? ' · 必需副本' : ''}
-              </label>
-            ))}
-          {!targets.some((target) => target.enabled) && <p className="backup-hint">尚无启用的服务器目标，可先使用本地备份。</p>}
-          <p className="backup-hint">
-            当前计划：{policy.enabled ? '已启用' : '已关闭'}。下次运行：{policy.nextRunAt ? new Date(policy.nextRunAt).toLocaleString('zh-CN') : '—'}。
+
+      <div className="backup-settings-footer">
+        {error && (
+          <p role="alert" className="backup-error">
+            {error}
           </p>
-        </CardContent>
-      </Card>
+        )}
+        <div className="backup-save">
+          <span className="backup-hint">{dirty ? '有未保存的计划修改' : '已与当前配置同步'}</span>
+          <Button type="button" variant="secondary" disabled={!dirty || busy} onClick={() => setDraft(policy)}>
+            撤销
+          </Button>
+          <Button type="submit" disabled={!dirty || busy}>
+            {busy ? '保存中…' : '保存计划'}
+          </Button>
+        </div>
+      </div>
     </form>
   )
 }

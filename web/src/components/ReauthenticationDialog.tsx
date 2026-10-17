@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from './ui/dialog'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import AdminFormField from './admin/AdminFormField'
 import { request, getToken } from '../lib/api'
 import type { ReauthenticationRequest } from '../lib/reauthentication'
 
@@ -9,13 +12,16 @@ export function ReauthenticationDialog() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
   function close(value = false) {
     active.current?.finish(value)
     active.current = null
     setTask(null)
     setPassword('')
+    setError('')
     setBusy(false)
   }
+
   useEffect(() => {
     function show(event: Event) {
       active.current?.finish(false)
@@ -29,6 +35,7 @@ export function ReauthenticationDialog() {
       active.current = null
       setTask(null)
       setPassword('')
+      setError('')
       setBusy(false)
     }
     function changed(event: StorageEvent) {
@@ -44,6 +51,7 @@ export function ReauthenticationDialog() {
       active.current?.finish(false)
     }
   }, [])
+
   async function submit() {
     if (busy || !password) return
     const current = active.current,
@@ -60,6 +68,7 @@ export function ReauthenticationDialog() {
       if (active.current === current) setBusy(false)
     }
   }
+
   return (
     <Dialog
       open={!!task}
@@ -67,36 +76,62 @@ export function ReauthenticationDialog() {
         if (!open) close()
       }}
     >
-      <DialogContent>
-        <DialogTitle>确认管理员身份</DialogTitle>
-        <DialogDescription>此操作需要近期身份验证，请输入当前账号的密码。</DialogDescription>
+      <DialogContent className="admin-reauth-dialog sm:max-w-[420px] rounded-2xl p-6 gap-5 border border-border bg-card shadow-xl">
+        <DialogHeader className="gap-1.5 text-left sm:text-left p-0">
+          <DialogTitle className="font-serif text-lg font-semibold tracking-tight text-foreground">
+            确认管理员身份
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+            此操作需要近期身份验证，请输入当前账号的密码以继续。
+          </DialogDescription>
+        </DialogHeader>
+
         <form
           onSubmit={(event) => {
             event.preventDefault()
             void submit()
           }}
+          className="space-y-4"
         >
-          <label>
-            当前密码
-            <input
-              className="input"
+          <AdminFormField label="当前密码" htmlFor="reauth-password">
+            <Input
+              id="reauth-password"
               type="password"
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              placeholder="请输入当前密码"
               autoFocus
               required
+              disabled={busy}
+              className="w-full rounded-full"
             />
-          </label>
-          {error && <p role="alert">{error}</p>}
-          <div className="dialog-actions">
-            <button type="button" className="btn btn--secondary" onClick={() => close()}>
+          </AdminFormField>
+
+          {error && (
+            <p role="alert" className="text-xs text-destructive font-medium -mt-1">
+              {error}
+            </p>
+          )}
+
+          <DialogFooter className="flex items-center justify-end gap-2.5 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="rounded-full px-5"
+              onClick={() => close()}
+              disabled={busy}
+            >
               取消
-            </button>
-            <button className="btn btn--primary" disabled={busy || !password}>
+            </Button>
+            <Button
+              type="submit"
+              disabled={busy || !password.trim()}
+              className="rounded-full px-5 bg-[var(--admin-accent,#D97757)] hover:bg-[#c86646] text-white shadow-sm"
+            >
               {busy ? '验证中…' : '验证并继续'}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

@@ -24,12 +24,14 @@
   gap: 0;
 }
 
-.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] [data-slot='card-title'] {
+.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] [data-slot='card-title'],
+.admin-panel-card [data-slot='card-title'] {
+  font-family: var(--admin-font-serif), "Newsreader", "Georgia", "Source Han Serif SC", "Noto Serif SC", serif;
   color: var(--text-primary);
   font-size: var(--admin-section-title-size);
-  font-weight: 750;
-  letter-spacing: -0.03em;
-  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
 }
 
 .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-content'] {

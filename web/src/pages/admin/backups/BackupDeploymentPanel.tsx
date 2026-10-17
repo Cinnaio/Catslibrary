@@ -112,8 +112,11 @@ export default function BackupDeploymentPanel({
   }
   return (
     <Card className="admin-panel-card">
-      <CardHeader>
-        <CardTitle>本地与运行环境</CardTitle>
+      <CardHeader className="backup-panel-header">
+        <div>
+          <CardTitle>底层运行环境与工具链</CardTitle>
+          <p className="backup-panel-subtitle">检测本地加密主密钥与数据库原生命令行工具配置就绪状态</p>
+        </div>
       </CardHeader>
       <CardContent className="backup-fields">
         <dl className="backup-environment-list">
