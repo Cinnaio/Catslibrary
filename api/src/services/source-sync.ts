@@ -289,6 +289,7 @@ function chapterNumber(title: string): number | null {
   const text = cleanTitle(title).normalize('NFKC')
   // 导入器可能添加「第0011章」，作者原题却以「10.」开头；优先使用内层作者编号。
   const withoutImportPrefix = text.replace(/^第\s*\d+\s*[章节回卷集部篇]\s*/, '')
+    .replace(/^\d+\s+(?=\d+[.、:：](?!\d))/, '')
   const innerNumber = withoutImportPrefix.match(/^(\d+(?:\.\d+)?)(?:[.、:：]|\s)/)
   if (innerNumber) return Number(innerNumber[1])
   const english = text.match(/^chapter\s*(\d+)\b/i)
@@ -330,7 +331,7 @@ function normalizedTitle(title: string): string {
     .replace(SPLIT_MARKER, '')
     .replace(/[【】「」『』《》]/g, '')
     .toLocaleLowerCase()
-    .replace(/[\s.,，。:：!！?？、]/g, '')
+    .replace(/[\s.,，。:：!！?？、—–－-]/g, '')
 }
 
 function isWeakTitle(title: string, order: number): boolean {

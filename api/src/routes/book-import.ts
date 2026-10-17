@@ -201,6 +201,7 @@ bookImportRoutes.post('/preview', async (c) => {
       payload,
       targetNovelId: targetNovelId || undefined,
       diagnostics,
+      preserveLocalOrder: !!supplementary,
     })
     preview.warnings = Array.from(new Set([...warnings, ...preview.warnings]))
     const now = Date.now()
@@ -268,6 +269,7 @@ bookImportRoutes.post('/:runId/target', async (c) => {
       targetNovelId,
       runId,
       diagnostics: previous.diagnostics,
+      preserveLocalOrder: !!run.supplementary_binding_id,
     })
     const next = { ...previous, ...preview, revision: Number(run.revision || 0) + 1, aiReview: previous.aiReview || null }
     if (next.aiReview) next.aiReview = { ...next.aiReview, revision: next.revision }
@@ -512,6 +514,7 @@ async function editBoundaries(c: Context<AuthEnv>, aiOnly = false) {
       targetNovelId: run.target_novel_id || null,
       runId,
       diagnostics: result.diagnostics,
+      preserveLocalOrder: !!run.supplementary_binding_id,
     })
     Object.assign(next, {
       revision: Number(run.revision || 0) + 1,

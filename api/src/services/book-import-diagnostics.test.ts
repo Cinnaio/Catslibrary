@@ -38,7 +38,7 @@ describe('import diagnostics', () => {
     const lines: string[] = []
     for (let index = 1; index <= 12; index++) lines.push(`第${index}章 标题`, '正文内容。')
     // 追加 4 个与既有编号重复的标题：章节数虚高，编号却不连续增长。
-    for (let index = 1; index <= 4; index++) lines.push(`第${index}章 重抄`, '正文内容。')
+    for (let index = 1; index <= 4; index++) lines.push(`第${index}章 重抄`, '不同版本的正文内容。')
     const { diagnostics } = helpers.parseTextImportDetailed(lines.join('\n'), '重号.txt')
 
     expect(diagnostics.stats.numbering.duplicated).toBe(4)
