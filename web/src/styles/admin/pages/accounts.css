@@ -81,15 +81,19 @@
   width: 5.75rem;
   flex: 0 0 auto;
 }
-/* 用户目录与记录采用共享 Filter Rail、控件和移动端表格 */
+/* 用户目录与记录采用共享 Filter Rail、控件和移动端表格。
+   间距归共享轨道（pages/catalog-toolbars.css 的 .admin-filter-rail），此处不再
+   复写 gap / padding / margin-bottom：此前三者各写一份，rail 的 0.75rem 与
+   margin-bottom 的 0.875rem 互相叠加，且控件被压到 0.75rem 间距。 */
 .account-users-filters,
 .account-record-filters {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 0.875rem;
-  padding: 0;
+  gap: var(--admin-space-3);
+  /* 控件自身已是 40px 胶囊；容器再占 rail 的 40px min-height，只会在其下方
+     留下看不见的空白，把"轨道 → 面板"的真实视觉间距吃掉。 */
+  min-height: 0;
 }
 
 .account-users-filters .admin-search,
@@ -103,6 +107,13 @@
 .account-record-filters [data-slot='select-trigger'] {
   width: auto;
   min-width: 8rem;
+}
+
+/* 筛选胶囊的前置图标由 filterChip 承担；本轨道的胶囊无图标时，级联会留下
+   图标位空档（文字左缩进 1.5rem），与搜索框的 0.75rem 文字起点错开。 */
+.account-users-filters .admin-filter-chip,
+.account-record-filters .admin-filter-chip {
+  gap: 0;
 }
 
 .account-users-filters__actions,
@@ -244,9 +255,6 @@
   .account-users-filters__hint {
     display: none;
   }
-  .account-users-filters {
-    padding: 0.75rem 1rem;
-  }
 }
 @media (max-width: 480px) {
   .account-users-panel .account-users-filters {
@@ -333,7 +341,7 @@
 .account-record-filters {
   padding: 0;
   margin: 0;
-  gap: 0.75rem;
+  gap: var(--admin-space-3);
 }
 .account-record-filters [role='combobox'] {
   width: 9rem;
