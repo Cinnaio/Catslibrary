@@ -18,6 +18,8 @@ import {
 } from '../services/book-import'
 import { reviewImportHeadings } from '../services/ai/import-assist'
 import { AiError } from '../services/ai/client'
+import { boundSupplementaryFile } from '../services/supplementary-source'
+import { assertBookBytes, downloadLanzouFile, identityKey, LanzouError } from '../services/lanzou'
 import { getAiSettings } from '../services/ai/settings'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
@@ -132,6 +134,7 @@ bookImportRoutes.post('/preview', async (c) => {
      * 都依赖原始行序，而 payload 只保留切分结果。仅 TXT 有行序概念。
      */
     let sourceText = ''
+    let supplementary: BookImportPreview['supplementary']
 
     if (contentType.includes('multipart/form-data')) {
       const form = await c.req.formData()
@@ -139,6 +142,7 @@ bookImportRoutes.post('/preview', async (c) => {
       if (!file || typeof (file as File).arrayBuffer !== 'function') return c.json({ error: '请选择 TXT、JSON 或 EPUB 文件' }, 400)
       const fileName = String((file as File).name || '导入文件.txt')
       const data = new Uint8Array(await (file as File).arrayBuffer())
+      if (form.get('supplementaryBindingId')) assertBookBytes(data,fileName)
       const detail = await parseUploadedBookDetailed(fileName, data)
       payload = detail.payload
       diagnostics = detail.diagnostics
@@ -146,19 +150,49 @@ bookImportRoutes.post('/preview', async (c) => {
       sourceType = 'file'
       sourceLabel = fileName
       sourceUrl = String(form.get('sourceUrl') || payload.sourceUrl || '').trim()
+      const bindingId = String(form.get('supplementaryBindingId') || '').trim()
+      if (bindingId) {
+        const context = await boundSupplementaryFile(db,bindingId,String(form.get('fileKey') || ''))
+        // 手动接续必须上传所选文件，允许浏览器追加的「 (1)」重名后缀。
+        if (identityKey(fileName.replace(/\s*\(\d+\)(?=\.[^.]+$)/,'')) !== identityKey(context.file.name)) throw new LanzouError('上传文件名与所选网盘版本不一致，请上传对应文件','invalid')
+        assertBookBytes(data,fileName)
+        if (payload.author && context.file.author && identityKey(payload.author) !== identityKey(context.file.author)) throw new LanzouError('正文作者与绑定来源不一致，请核对文件','invalid')
+        targetNovelId = context.binding.novelId
+        sourceUrl = context.file.url
+        sourceLabel = context.file.name
+        supplementary = {bindingId,fileKey:context.file.key}
+      }
     } else {
       const body = await c.req.json<Record<string, unknown>>()
       sourceType = 'url'
       sourceUrl = String(body.sourceUrl || body.url || '').trim()
       sourceLabel = String(body.sourceLabel || sourceUrl).trim()
       targetNovelId = body.targetNovelId ? String(body.targetNovelId).trim() : null
+      const bindingId = String(body.supplementaryBindingId || '').trim()
+      if (bindingId) {
+        const context = await boundSupplementaryFile(db,bindingId,String(body.fileKey || ''))
+        const data = await downloadLanzouFile(context.file)
+        const detail = await parseUploadedBookDetailed(context.file.name,data)
+        payload = detail.payload
+        diagnostics = detail.diagnostics
+        if (payload.author && context.file.author && identityKey(payload.author) !== identityKey(context.file.author)) throw new LanzouError('正文作者与绑定来源不一致，请核对文件','invalid')
+        sourceText = detail.diagnostics.stats.parser === 'text' ? new TextDecoder('utf-8').decode(data) : ''
+        sourceType = 'file'
+        sourceUrl = context.file.url
+        sourceLabel = context.file.name
+        targetNovelId = context.binding.novelId
+        supplementary = {bindingId,fileKey:context.file.key}
+      } else {
       if (!sourceUrl) return c.json({ error: 'sourceUrl 必填' }, 400)
       const store = new PgScrapeStore(db)
       const result = await parseBookUrl(sourceUrl, { store, fetchHtml: withPo18Session(db, fetchHtmlImpl) })
       payload = result.payload
       warnings = result.warnings
       diagnostics = result.diagnostics
+      }
     }
+
+    if (supplementary) payload.chapters = payload.chapters.map(chapter=>({...chapter,sourceUrl:`${sourceUrl}#chapter=${chapter.order}`}))
 
     const preview = await createPreview(db, {
       sourceType,
@@ -176,10 +210,15 @@ bookImportRoutes.post('/preview', async (c) => {
     preview.sourceHash = sourceText ? createHash('sha256').update(sourceText).digest('hex') : ''
     preview.sourceExpiresAt = now + IMPORT_PREVIEW_RETENTION_MS
     preview.canResplit = !!sourceText
+    if (supplementary) {
+      preview.supplementary = supplementary
+      preview.metadataDiff = preview.metadataDiff.map(field=>({...field,selected:false}))
+      preview.warnings.push('附加源只更新你确认的章节，不修改作品信息；已有正文变化默认不勾选。')
+    }
     await db.query(
       `INSERT INTO book_import_runs
-        (id, actor_user_id, source_type, source_label, source_url, target_novel_id, status, payload_json, preview_json, changes_json, source_text, created_at, applied_at, rolled_back_at, source_hash, source_expires_at, history_summary)
-       VALUES ($1,$2,$3,$4,$5,$6,'preview',$7,$8,'[]',$9,$10,0,0,$11,$12,$13)`,
+        (id, actor_user_id, source_type, source_label, source_url, target_novel_id, status, payload_json, preview_json, changes_json, source_text, created_at, applied_at, rolled_back_at, source_hash, source_expires_at, history_summary, supplementary_binding_id, supplementary_file_key)
+       VALUES ($1,$2,$3,$4,$5,$6,'preview',$7,$8,'[]',$9,$10,0,0,$11,$12,$13,$14,$15)`,
       [
         preview.runId,
         c.get('user').id,
@@ -194,10 +233,13 @@ bookImportRoutes.post('/preview', async (c) => {
         preview.sourceHash,
         preview.sourceExpiresAt,
         importHistorySummary(preview),
+        supplementary?.bindingId || '',
+        supplementary?.fileKey || '',
       ],
     )
     return c.json(preview, 200, { 'Cache-Control': 'no-store' })
   } catch (err) {
+    if (err instanceof LanzouError) return c.json({error:err.message,code:err.code},err.code==='invalid'?400:502)
     const message = (err as Error).message || '书籍导入预览失败'
     return c.json({ error: message }, errorStatus(message) as 400 | 409 | 502 | 500)
   }
@@ -214,6 +256,7 @@ bookImportRoutes.post('/:runId/target', async (c) => {
     const body = await c.req.json<Record<string, unknown>>()
     checkImportRevision(run, body.revision)
     const targetNovelId = body.targetNovelId ? String(body.targetNovelId).trim() : null
+    if (run.supplementary_binding_id && targetNovelId !== run.target_novel_id) return c.json({error:'附加源预览已绑定作品，不能切换导入目标'},409)
     // 重建预览时必须带上既有诊断与复核结果：切换目标只改变比对基准，
     // 不改变原文的行级判定。丢掉它们会让诊断面板与复核入口在选完目标后消失。
     const previous = previewPayload(run)

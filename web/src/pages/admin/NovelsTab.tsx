@@ -24,6 +24,7 @@ import BatchNovelFollowupDialog from '@/components/admin/BatchNovelFollowupDialo
 import NovelFollowupDialog from '@/components/admin/NovelFollowupDialog'
 import NovelUpdateTag from '@/components/admin/NovelUpdateTag'
 import BookImportDialog from '@/components/admin/BookImportDialog'
+import SupplementarySourcesDialog from '@/components/admin/SupplementarySourcesDialog'
 import BookImportHistoryDialog from '@/components/admin/BookImportHistoryDialog'
 import NovelEditorDialog from '@/components/admin/NovelEditorDialog'
 import NovelDeleteDialog from '@/components/admin/NovelDeleteDialog'
@@ -128,6 +129,7 @@ export default function NovelsTab({
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Novel | null>(null)
   const [bookImportOpen, setBookImportOpen] = useState(false)
+  const [supplementaryOpen, setSupplementaryOpen] = useState(false)
   const [importHistoryOpen, setImportHistoryOpen] = useState(false)
   const [deletingNovels, setDeletingNovels] = useState<Novel[] | null>(null)
 
@@ -358,6 +360,7 @@ export default function NovelsTab({
           <Button variant="secondary" onClick={() => setImportHistoryOpen(true)}>
             导入历史
           </Button>
+          <Button variant="secondary" onClick={() => setSupplementaryOpen(true)}>附加更新源</Button>
           <Button variant="secondary" onClick={() => openModal(null)}>
             <span aria-hidden="true">＋</span>
             添加小说
@@ -691,6 +694,7 @@ export default function NovelsTab({
       />
 
       <BookImportDialog key={bookImportOpen ? 'open' : 'closed'} open={bookImportOpen} onOpenChange={setBookImportOpen} onCompleted={() => void load()} />
+      {supplementaryOpen && <SupplementarySourcesDialog onClose={() => setSupplementaryOpen(false)} onCompleted={() => void load()} />}
       <BookImportHistoryDialog open={importHistoryOpen} onOpenChange={setImportHistoryOpen} onCompleted={() => void load()} />
 
       {/* 独立的编辑弹窗与删除确认弹窗 */}

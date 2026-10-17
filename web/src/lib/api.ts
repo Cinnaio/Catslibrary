@@ -397,6 +397,23 @@ async function parseUploadResponse<T>(response: Response): Promise<T> {
   return data as T
 }
 
+export const supplementarySourceApi = {
+  overview: (): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('GET','/supplementary-sources',null,true),
+  save: (data: {id?:string;name:string;url:string;password?:string;enabled:boolean;intervalHours:number}): Promise<{id:string}> => request('POST','/supplementary-sources',data,true),
+  check: (id:string): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('POST',`/supplementary-sources/${encodeURIComponent(id)}/check`,{},true,{},150000),
+  files: (id:string,q='',offset=0): Promise<{items:import('@shared/supplementary-source').SupplementaryFile[];total:number}> => request('GET',`/supplementary-sources/${encodeURIComponent(id)}/files?q=${encodeURIComponent(q)}&offset=${offset}`,null,true),
+  bind: (sourceId:string,novelId:string,fileKey:string): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('POST','/supplementary-sources/bindings',{sourceId,novelId,fileKey},true),
+  unbind: (id:string): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('DELETE',`/supplementary-sources/bindings/${encodeURIComponent(id)}`,null,true),
+  preview: (bindingId:string,fileKey:string): Promise<BookImportPreview> => request('POST','/book-import/preview',{supplementaryBindingId:bindingId,fileKey},true,{},120000),
+  upload: (bindingId:string,fileKey:string,file:File): Promise<BookImportPreview> => {
+    const form=new FormData()
+    form.append('file',file)
+    form.append('supplementaryBindingId',bindingId)
+    form.append('fileKey',fileKey)
+    return authFetch('/book-import/preview',{method:'POST',body:form}).then(response=>parseUploadResponse<BookImportPreview>(response))
+  },
+}
+
 export const bookImportApi = {
   previewFile(file: File, sourceUrl = ''): Promise<BookImportPreview> {
     const form = new FormData()

@@ -58,6 +58,7 @@ function formatNumber(value: number): string {
 }
 
 function sourceTypeLabel(preview: BookImportPreview): string {
+  if (preview.supplementary) return '蓝奏附加源'
   return preview.sourceType === 'url' ? '网页来源' : '本地文件'
 }
 
@@ -80,14 +81,16 @@ export default function BookImportDialog({
   open,
   onOpenChange,
   onCompleted,
+  initialPreview,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCompleted?: () => void
+  initialPreview?: BookImportPreview
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
-  const [step, setStep] = useState<ImportStep>('source')
+  const [step, setStep] = useState<ImportStep>(initialPreview ? 'diff' : 'source')
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: 0, behavior: 'instant' })
   }, [step])
@@ -95,10 +98,10 @@ export default function BookImportDialog({
   const [reviewTab, setReviewTab] = useState('chapters')
   const [file, setFile] = useState<File | null>(null)
   const [sourceUrl, setSourceUrl] = useState('')
-  const [preview, setPreview] = useState<BookImportPreview | null>(null)
-  const [targetNovelId, setTargetNovelId] = useState<string | null>(null)
+  const [preview, setPreview] = useState<BookImportPreview | null>(initialPreview || null)
+  const [targetNovelId, setTargetNovelId] = useState<string | null>(initialPreview?.targetNovelId || null)
   const [createNewSelected, setCreateNewSelected] = useState(false)
-  const [selectedChapterIds, setSelectedChapterIds] = useState<Set<string>>(new Set())
+  const [selectedChapterIds, setSelectedChapterIds] = useState<Set<string>>(new Set(initialPreview?.chapters.filter(c=>c.selected).map(c=>c.id)))
   const [metadataFields, setMetadataFields] = useState<Set<string>>(new Set())
   const [metadataMode, setMetadataMode] = useState<'missing' | 'replace'>('missing')
   const [expandedChapterId, setExpandedChapterId] = useState<string | null>(null)
@@ -125,7 +128,7 @@ export default function BookImportDialog({
     setTargetNovelId(next.targetNovelId)
     setCreateNewSelected(false)
     setSelectedChapterIds(new Set(next.chapters.filter((chapter) => chapter.selected).map((chapter) => chapter.id)))
-    setMetadataFields(new Set(next.metadataDiff.filter((field) => field.selected).map((field) => field.field)))
+    setMetadataFields(new Set(next.supplementary ? [] : next.metadataDiff.filter((field) => field.selected).map((field) => field.field)))
     setMetadataMode('missing')
     setExpandedChapterId(null)
   }
@@ -641,7 +644,7 @@ export default function BookImportDialog({
                   <TabsTrigger value="chapters" disabled={operationBusy}>
                     章节差异<span>{preview.chapters.length}</span>
                   </TabsTrigger>
-                  <TabsTrigger value="metadata" disabled={operationBusy}>
+                  <TabsTrigger value="metadata" disabled={operationBusy || !!preview.supplementary}>
                     作品信息<span>{changedMetadata.length}</span>
                   </TabsTrigger>
                   <TabsTrigger value="diagnostics" disabled={operationBusy}>
@@ -843,7 +846,7 @@ export default function BookImportDialog({
             )}
             {step === 'diff' && (
               <>
-                <Button variant="ghost" onClick={() => setStep('match')} disabled={operationBusy}>
+                <Button variant="ghost" onClick={() => preview?.supplementary ? onOpenChange(false) : setStep('match')} disabled={operationBusy}>
                   <ArrowLeft aria-hidden="true" />
                   返回
                 </Button>
@@ -855,7 +858,7 @@ export default function BookImportDialog({
             )}
             {step === 'result' && (
               <>
-                <Button variant="ghost" onClick={startOver} disabled={operationBusy}>
+                <Button variant="ghost" onClick={startOver} disabled={operationBusy || !!preview?.supplementary}>
                   <RotateCcw aria-hidden="true" />
                   再导入一本
                 </Button>

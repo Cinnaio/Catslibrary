@@ -307,6 +307,8 @@ const EMBEDDED_VOLUME_CHAPTER = /第\s*[0-9０-９零〇一二三四五六七八
 const NUMBERED_HEADING_PREFIX = /^第\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回卷集部篇]?\s*/u
 
 export interface StoredImportRun {
+  supplementary_binding_id?: string
+  supplementary_file_key?: string
   id: string
   source_type: 'file' | 'url'
   source_label: string
@@ -1471,7 +1473,13 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
     ? opts.targetNovelId
     : unique && (unique.matchReason === 'source-url' || !authorConflict) ? unique.novel.id : null
   const targetCandidate = candidates.find((candidate) => candidate.novel.id === targetNovelId)
-  const targetNovel = targetCandidate?.novel || null
+  let targetNovel = targetCandidate?.novel || null
+  // 附加源已由管理员确认别名，目标作品不必再次满足自动书名匹配。
+  if (targetNovelId && !targetNovel && opts.targetNovelId !== undefined) {
+    const rows = await all<NovelRow>(db,'SELECT * FROM novels WHERE id=$1',[targetNovelId])
+    targetNovel = rowToNovel(rows[0])
+    if (!targetNovel) throw new Error('导入目标作品不存在，请重新预览')
+  }
   const local = targetNovel ? await loadLocalChapters(db, targetNovel.id) : []
   const chapters = buildChapterDiff(payload, local)
   const summary = {
@@ -1596,6 +1604,13 @@ export async function applyImport(
     if (Number(lockedRun.rows[0]!.revision || 0) !== Number(opts.run.revision || 0)) throw new Error('预览版本已变化，请重新预览后提交')
     preview = safeJsonParse<BookImportPreview>(lockedRun.rows[0]!.preview_json, preview)
     payload = normalizeImportPayload(safeJsonParse<BookImportPayload>(lockedRun.rows[0]!.payload_json, payload))
+    const supplementary = !!lockedRun.rows[0]!.supplementary_binding_id
+    if (supplementary) {
+      if (!novelId || novelId !== lockedRun.rows[0]!.target_novel_id || opts.metadataFields.length) throw new Error('附加源只能更新绑定作品的章节，不能修改作品信息或导入目标')
+      const mapped=preview.chapters.filter(c=>selectedChapters.has(c.id)&&c.localChapterId).map(c=>c.localChapterId)
+      if(new Set(mapped).size!==mapped.length)throw new Error('所选章节重复对应同一本地章节，请重新核对预览')
+      payload.chapters = payload.chapters.map(chapter=>({...chapter,sourceUrl:`${lockedRun.rows[0]!.source_url}#chapter=${chapter.order}`}))
+    }
     let currentNovel: Novel | null = null
     if (novelId) {
       const row = await q<NovelRow>('SELECT * FROM novels WHERE id = $1 FOR UPDATE', [novelId])
@@ -1659,6 +1674,15 @@ export async function applyImport(
       }
       const incoming = payload.chapters.find((chapter, index) => `chapter-${index + 1}` === diff.id)
       if (!incoming) continue
+      if (supplementary) {
+        const occupied = localRows.rows.find(c=>c.sort_order===incoming.order && c.id!==diff.localChapterId)
+        if (occupied) { conflicts.push({id:diff.id,title:diff.incomingTitle,reason:'目标序号已被其他章节占用，请核对章节对应关系'}); continue }
+        if (diff.status === 'new') {
+          const fresh = buildChapterDiff({...payload,chapters:[incoming]},localRows.rows)[0]
+          if (fresh?.status === 'unchanged') { skipped++; continue }
+          if (fresh?.status !== 'new') { conflicts.push({id:diff.id,title:diff.incomingTitle,reason:'预览后已有对应章节，请重新生成预览'}); continue }
+        }
+      }
       const current = diff.localChapterId ? localById.get(diff.localChapterId) : undefined
       if (diff.status === 'changed') {
         if (!current || importContentHash(current.content) !== importContentHash(diff.localContent) || current.title !== diff.localTitle || current.sort_order !== diff.localOrder) {
@@ -1681,6 +1705,7 @@ export async function applyImport(
         )
         applied.push({ id: diff.id, kind: 'create-chapter', title: incoming.title, novelId, chapterId: id, before: null, after: next })
         created++
+        if (supplementary) localRows.rows.push({id,title:next.title,sort_order:next.order,content:next.content,source_url:next.sourceUrl})
       }
     }
 
@@ -1703,7 +1728,7 @@ export async function applyImport(
         [next.title, next.author, next.description, next.coverUrl, JSON.stringify(next.categories), next.status, next.sourceUrl, novelId, next.updatedAt],
       )
       for (const field of Object.keys(patch)) metadataUpdated.push(field)
-      if (currentNovel.contentRating === 'unknown') {
+      if (!supplementary && currentNovel.contentRating === 'unknown') {
         const ruleSet = await loadContentRatingRuleSet(q)
         const decision = evaluateContentRatingRules({ title: next.title, description: next.description, categories: next.categories }, ruleSet)
         await applyContentRatingChange(q, { novelId, rating: decision.rating, source: 'source_import', actorUserId: opts.actorUserId,

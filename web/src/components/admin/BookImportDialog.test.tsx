@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { BookImportAiReview, BookImportPreview } from '@shared/types'
 const api = vi.hoisted(() => ({ previewFile: vi.fn(), selectTarget: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn() }))
@@ -45,6 +45,13 @@ beforeEach(() => {
   vi.clearAllMocks()
   Element.prototype.scrollTo = vi.fn()
   api.previewFile.mockResolvedValue(structuredClone(original))
+})
+it('附加源直接核对章节，作品信息禁用且提交不携带元数据修改', async () => {
+  api.commit.mockRejectedValue(new Error('测试停止提交'))
+  render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={{...original,targetNovelId:'bound-book',supplementary:{bindingId:'binding',fileKey:'file'}}}/>)
+  expect(screen.getByRole('tab',{name:/作品信息/})).toBeDisabled()
+  fireEvent.click(screen.getByRole('button',{name:/确认导入/}))
+  await waitFor(()=>expect(api.commit).toHaveBeenCalledWith('run',expect.objectContaining({targetNovelId:'bound-book',metadataFields:[]})))
 })
 async function openDiff() {
   render(<BookImportDialog open onOpenChange={vi.fn()} />)
