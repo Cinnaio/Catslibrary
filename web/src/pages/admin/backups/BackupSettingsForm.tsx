@@ -109,7 +109,6 @@ export default function BackupSettingsForm({
     }
   }
   return (
-  return (
     <form className="backup-settings-flow" onSubmit={(event) => void save(event)}>
       {/* 面板 1：访问控制与任务保留策略 */}
       <Card className="admin-panel-card backup-settings-panel">
