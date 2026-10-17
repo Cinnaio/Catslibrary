@@ -54,10 +54,10 @@
   grid-template-columns: 48px minmax(0, 1fr);
   gap: 16px;
   align-items: center;
-  padding: 1rem 1.25rem;
-  background: var(--admin-surface, #ffffff);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-card);
+  padding: 0.25rem 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .site-settings__asset > button {
@@ -70,6 +70,7 @@
 .site-settings__login-preview img {
   object-fit: contain;
   border-radius: 6px;
+  border: none;
 }
 
 .site-settings__asset input {
@@ -80,19 +81,21 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 1rem 1.25rem;
-  background: var(--admin-surface, #ffffff);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-card);
+  padding-bottom: 1rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--admin-border-subtle, rgba(0, 0, 0, 0.06));
+  border-radius: 0;
   overflow-wrap: anywhere;
 }
 
 .site-settings__login-preview {
-  padding: 1.5rem;
+  padding: 1.5rem 0;
   text-align: center;
-  background: var(--admin-surface, #ffffff);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-card);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--admin-border-subtle, rgba(0, 0, 0, 0.06));
+  border-radius: 0;
   overflow-wrap: anywhere;
 }
 
@@ -117,10 +120,10 @@
   text-align: center;
   font-size: 0.75rem;
   overflow-wrap: anywhere;
-  padding: 0.75rem;
-  background: var(--admin-surface, #ffffff);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-card);
+  padding-top: 0.5rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 
 .site-settings__error {
@@ -179,11 +182,6 @@
   box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.35);
 }
 
-.site-settings__brand-preview,
-.site-settings__login-preview {
-  border-radius: 1rem !important;
-  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.05);
-}
 
 .site-settings__save button[type='submit'] {
   border-radius: var(--radius-full, 9999px);
