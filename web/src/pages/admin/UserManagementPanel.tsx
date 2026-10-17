@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MoreHorizontal, RefreshCw } from 'lucide-react'
+import { CirclePlus, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { adminApi, authApi, type AdminDirectoryUser } from '@/lib/api'
 import { formatDate, formatDateTime, timeAgo } from '@/lib/format'
 import { useDebouncedValue } from '@/hooks/useDebounce'
@@ -168,6 +168,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
             compact
             chip
             filterChip
+            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
             aria-label="用户角色"
             value={role}
             onChange={(value) => {
@@ -180,6 +181,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
             compact
             chip
             filterChip
+            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
             aria-label="用户状态"
             value={status}
             onChange={(value) => {
