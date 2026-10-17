@@ -675,32 +675,39 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
   在 AI 分级建议或异步模型生成等任务工作台视图中，工具筛选条（状态切换、单批上限选择、分析未标注按钮）、说明性指引以及任务执行进度条/断点恢复卡片（`AiTaskProgressBar`），必须作为独立的控制表面平铺渲染在数据面板外部画布上，严禁打包揉塞进 `AdminDataPanel`。下方建议记录直接复用统一的数据表格设计规范（`AdminDataPanel columns={...} density="comfortable"` + `Table`），使用标准列宽契约、表头批量复选框与 `Pagination variant="detached"`，消灭非标队列卡片堆叠，实现纯粹的 Claude 纸白单层控制流。
 
 **The Claude Admin Vertical Rhythm & Baseline Alignment Standard (后台垂直律动、基准对齐与间距统一规范).**
-后台各工作台、子页面与主-子视图（如 `/admin/ai` 各子视图、分级账本、小说管理等）在垂直律动与控件层级上必须严格遵循统一的间距与基线高度规范，消灭切换视图时控件和卡片顶边上下跳跃的视觉残差：
-1. **宏观垂直律动阶梯（Macro Hierarchy Rhythm）**：
-   - **大段落与主视图间隙**：页面主标题/全局动作行到主工作视图 Tabs、以及主工作视图 Tabs 到下方内容区的步长，统一锁定为 `--admin-page-section-gap: 1.25rem` (20px)；
-   - **控制行到实体表面间隙**：外置筛选轨道（Filter Rail）或二级子分类胶囊轨道（Sub-tabs Capsule Track）到下方主体数据面板（`AdminDataPanel`）或配置卡片（`AdminPanelCard`）的步长，统一收敛为共享令牌 `--admin-control-to-card-gap: 1rem` (16px)；
-   - **严禁手写外边距破坏全局节奏**：绝对禁止在二级控制栏（如 `.ai-parameter-tabs`）上手写 `mb-4` 等非标 Tailwind 工具类或手写 `gap: 1.5rem` / `margin-bottom: 0.875rem`，所有二级控制流到卡片间的距离必须且只能走 `--admin-control-to-card-gap`。
-2. **二级控制轨道基线高度契约（Secondary Control Baseline Height Contract）**：
-   - 无论是检索过滤轨（`.admin-filter-rail`）还是二级子分类药丸轨道（`.ai-parameter-tabs`），高度与最小高度统一锁定为 `--admin-control-height: 2.5rem` (40px)；
-   - 药丸内部触发项（`button`）高度填满父容器（`height: 100%`），垂直居中，水平内边距规范为 `0 1rem`；
-3. **跨面板绝对基准对齐原则（Cross-Tab Baseline Equality Rule）**：
-   - 在同级各视图切换（如 AI 服务导航下的「已生成内容」、「AI 配置」、「参数调优」）时，二级控制轨的顶部 Y 轴起点、控件本身高度（40px）、以及距离下方卡片顶边的间距（16px）必须严格一致（卡片顶边绝对 Y 偏移量保持在容器内同一 56px 绝对基线），杜绝切页时页面内容和卡片顶边产生像素级跳跃；
-   - 主体卡片内部的 `AdminPanelHeading` 标题栏垂直内边距统一收敛为 `24px 28px 16px`，确保视觉重心与文本基线一致。
+所有后台工作台、数据子页面与主-子视图（小说管理、内容审核、章节管理、分级账本、任务管理等）在垂直律动与控件层级上**以「小说管理 (NovelsTab)」为全站绝对基准与唯一真相 (The NovelsTab Benchmark as the Ground Truth)**。消灭子页面之间各写各的 margin、padding 与重复叠加导致的视觉残差：
 
-**The Claude Table Motion & Transition Standard (数据流转与列表微动效规范).**
-后台数据列表在筛选维度切换（分级、来源、状态）、搜索实时过滤及翻页流转时，必须具备轻量、克制、符合感知即时性（Perceived Speed）的微动效反馈：
-1. **数据请求流转态（Transitioning Feedback）**：加载/刷新中表格内容进入轻度半透明态（`.admin-data-table--transitioning`，`opacity: 0.58` + `filter: blur(0.4px)`，时长 150ms），明确告知用户正在请求最新数据切片并锁定操作指针；
-2. **阶梯式行入场（Staggered Row Enter）**：新切片渲染时，首屏前 8 行使用 `@keyframes admin-tab-row-enter` 依次阶梯式轻微上浮淡入（`translateY(var(--admin-table-row-enter-offset, 0.375rem)) -> 0` + `opacity: 0 -> 1`，时长 180ms，曲线 `var(--ease-out)`，步长 30ms），提供如纸面墨迹浮现的连贯质感；
-3. **状态重绘联动（Key Invalidation）**：`<TableBody>` 挂载以关键筛选因子（`query`, `filter`, `page`）组合的 `key`，精确触发 React 生命周期重绘并激发进场动画；
-4. **卡片队列同步（Queue Motion）**：非表格形式的数据队列（如 `.content-ratings-queue`）同样应用统一的阶梯式入场动效；
-5. **无障碍保护（Reduced Motion）**：强制在 `@media (prefers-reduced-motion: reduce)` 下降级为平滑纯淡入或关闭位移动画；
-6. **保全视口滚动高度原则（No Layout Collapse on Data Mutation）**：
-   - 在筛选维度切换（如 LLM 建议状态、分级、来源）、每页条数调整或分页流转时，**严禁在请求发起阶段清空已有数据集（如调用 `setData(null)` 或 `setRows([])`）**；
-   - 严禁使数据表面卸载并替换为超低高度的独立 Loading 占位块，否则会导致滚动容器（`AdminShell` 的 `.admin-layout__content`）内容高度瞬间塌缩，被浏览器原生规则强行将 `scrollTop` 钳制归零（造成视角跳回最顶层）；
-   - 正确做法：必须保持原有数据行平稳驻留，配合 `.admin-data-table--transitioning` 提供轻量半透明过渡态，新数据返回后原地原子更新，完整保全操作员当前的视口滚动深度与上下文。
+1. **宏观垂直律动 4 档基准阶梯（The 4-Tier Vertical Hierarchy Rhythm）**：
+   - **Tier 1 · 页头呼吸留白层 (Header Breathing Rhythm - 40px)**：
+     - `AdminTabHeader` 在全后台统一取消底部分隔线（`border-bottom: 0`），使作业台回归沉静纯粹的 Claude 纸白平面；
+     - 保持内下边距 `padding-bottom: 1rem` (16px) 与极细微外下边距 `margin-bottom: 0.25rem` (4px)；
+     - 配合主页面网格容器（`.admin-redesign-page` 自带 `display: grid; gap: var(--admin-page-section-gap, 1.25rem);` 即 20px 步长），
+       **页头描述/操作区基线到底部首道交互控制层（工作视图 Tabs 或直接到筛选轨道 Filter Rail）的视觉净距离严格固化为 40px (2.5rem)**；
+     - 绝对禁止在子页面手写 `padding-bottom: 0` 或 `margin-bottom: 1.25rem`，杜绝首屏过紧拥挤或过度膨胀。
+   - **Tier 2 · 工作视图 Tabs 间距 (Workspace Tabs Rhythm - 20px)**：
+     - 当页面含有二级视图胶囊切换（如内容审核的「想法 / 评论 / 举报」Tabs、分级管理的「分级账本 / 规则候选 / LLM 建议」）：
+     - 胶囊轨道高度统一为 `--admin-control-height: 2.5rem` (40px)；
+     - **Tabs 底部到下方筛选轨道（Filter Rail）的净距离严格保持为 20px (`var(--admin-page-section-gap, 1.25rem)`)**；
+     - Tabs 容器外边距严格设为 `margin-bottom: 0`，距离完全由父级 Grid 的 `gap` 自然释放，严禁手写额外 margin 导致与 Grid gap 二次叠加。
+   - **Tier 3 · 筛选控制轨到实体卡片间隙 (Filter Rail to Data Panel Gap - 20px)**：
+     - 外置筛选轨道（`AdminToolbar layout="inline"` / `.admin-filter-rail`）高度与最小高度统一锁定为 `--admin-control-height: 2.5rem` (40px)；
+     - **筛选轨到底部主体数据面板（`AdminDataPanel` / Table 卡片）的净距离严格保持与小说管理完全一致的 20px (`var(--admin-page-section-gap, 1.25rem)`)**；
+     - 当 Filter Rail 为 Grid 直接子级时，外边距设为 `margin-bottom: 0`；若处于非 Grid 容器（如 `<TabsContent>`）内，则显式指定 `margin-bottom: var(--admin-page-section-gap, 1.25rem)` 补足 20px 规范间距；
+     - 控制轨内部严格贯彻单层扁平流：左侧搜索框弹性伸缩（`width: min(22rem, 100%)`），多维筛选胶囊靠右对齐（`margin-left: auto`）。
+   - **Tier 4 · 数据面板到分离式分页 (Data Panel to Detached Pagination - 12px)**：
+     - 数据面板采用 `AdminDataPanel density="comfortable"`，圆角 `var(--admin-data-panel-radius)` (16px) 与柔和纸面阴影；
+     - 底部 `Pagination variant="detached"` 统一设置 `margin-top: calc(-1 * var(--admin-space-2))`（-8px），使表格卡片底边到分页栏净间距收紧为 **12px**，在视觉上形成呼吸均匀、紧密依附的整体；
+     - 杜绝分页栏在各子页面忽上忽下或贴边拥挤。
+
+2. **严禁在子页面手写外边距破坏全局节奏（Zero-Ad-hoc-Margin Rule）**：
+   绝对禁止在任何工作台子页面或控件类（如 `.moderation-tabs`, `.moderation-filter-rail`, `.ai-parameter-tabs`）上手写 `mb-4`, `mb-6`, `margin-bottom: 1rem !important` 等非标属性。所有层级跳跃与节律控制必须由上述 4 档基准阶梯与设计令牌（`--admin-page-section-gap`, `--admin-control-height`）统一收敛驱动。
+
+3. **跨面板绝对基准对齐原则（Cross-Tab Baseline Equality Rule）**：
+   在同级各视图切换（如内容审核「想法/评论/举报」、小说管理、章节管理、分级账本、任务管理等）时，页头基线、二级控制轨顶部 Y 轴起点、控件高度（40px）与卡片顶边绝对 Y 偏移量保持严格一致，杜绝切页时页面内容和卡片顶边产生像素级跳跃；
+   主体卡片内部的 `AdminPanelHeading` 标题栏垂直内边距统一收敛为 `24px 28px 16px`，确保视觉重心与文本基线一致。
 
 ### Admin Tab Header (AdminTabHeader)
-- **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题独占标题行、描述位于其下，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。
+- **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题独占标题行、描述位于其下，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，全后台统一以小说管理为范本关闭底部分隔线（`border-bottom: 0`）。
 - **Anatomy:** 只有一套。历史 `kicker` 眉题与 `hero` 变体已退役——标题上方不再出现小字，页面之间也不再有标题字号膨胀。
 - **Title:** 共享字号 token `--admin-page-title-size`（20px）；保持 700 字重与 `letter-spacing: -0.04em`。
 - **Title Line:** 标题后不附加规模摘要、状态小字或竖向分隔线；页名保持清楚、独立。

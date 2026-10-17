@@ -71,11 +71,9 @@
   }
 }
 
-/* 分页移到表格外但仍属于列表的连续操作区；在默认区块间距基础上再收紧一档。 */
-.admin-redesign-page--novels > .novels-pagination {
-  margin-top: calc(-1 * var(--admin-space-2));
-}
-
+/* 分页移到表格外但仍属于列表的连续操作区；在默认区块间距基础上再收紧一档（以小说管理为基准）。 */
+.admin-redesign-page > :is(.pagination, .novels-pagination, .chapters-pagination, .moderation-pagination, .admin-pagination, [data-slot='pagination']),
+.admin-redesign-page--novels > .novels-pagination,
 .admin-redesign-page--chapters > .chapters-pagination {
   margin-top: calc(-1 * var(--admin-space-2));
 }

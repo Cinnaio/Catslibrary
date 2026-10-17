@@ -200,9 +200,9 @@ adminRoutes.get('/comments', async (c) => {
   }
   if (search) {
     const like = `%${escapeLike(search)}%`
-    params.push(like, like, like, like, like)
+    params.push(like, like, like, like, like, like)
     conditions.push(
-      `(c.comment_text LIKE $${params.length - 4} OR c.display_name LIKE $${params.length - 3} OR n.title LIKE $${params.length - 2} OR u.username LIKE $${params.length - 1} OR u.display_name LIKE $${params.length})`,
+      `(c.comment_text LIKE $${params.length - 5} OR c.display_name LIKE $${params.length - 4} OR n.title LIKE $${params.length - 3} OR u.username LIKE $${params.length - 2} OR u.display_name LIKE $${params.length - 1} OR c.user_id LIKE $${params.length})`,
     )
   }
   if (novelId) {

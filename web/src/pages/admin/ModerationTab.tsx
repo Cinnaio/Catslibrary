@@ -15,13 +15,14 @@ import { ErrorState } from '@/components/admin/AsyncStates'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
-import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Check, X } from 'lucide-react'
+import { Check, CircleMinus, CirclePlus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type ModerationMode = 'thoughts' | 'comments' | 'reports'
@@ -99,7 +100,6 @@ interface ModeConfig {
   columns: readonly AdminColumn[]
   statusOptions: Array<[string, string]>
   defaultStatus: string
-  showUser: boolean
   showReason: boolean
   searchPlaceholder: string
 }
@@ -146,9 +146,8 @@ const MODERATION_TYPES: Record<ModerationMode, ModeConfig> = {
       ['hidden', '已隐藏'],
     ],
     defaultStatus: 'all',
-    showUser: true,
     showReason: false,
-    searchPlaceholder: '搜索小说/章节/想法…',
+    searchPlaceholder: '搜索小说/章节/想法/用户…',
   },
   comments: {
     label: '评论',
@@ -160,9 +159,8 @@ const MODERATION_TYPES: Record<ModerationMode, ModeConfig> = {
       ['hidden', '已隐藏'],
     ],
     defaultStatus: 'all',
-    showUser: true,
     showReason: false,
-    searchPlaceholder: '搜索小说/用户/评论…',
+    searchPlaceholder: '搜索小说/评论/用户…',
   },
   reports: {
     label: '举报',
@@ -175,7 +173,6 @@ const MODERATION_TYPES: Record<ModerationMode, ModeConfig> = {
       ['all', '全部'],
     ],
     defaultStatus: 'open',
-    showUser: false,
     showReason: true,
     searchPlaceholder: '搜索小说/评论…',
   },
@@ -204,8 +201,6 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   const [mode, setMode] = useState<ModerationMode>(() => (isModerationMode(urlMode) ? urlMode : 'thoughts'))
   const [status, setStatus] = useState<string>('all')
   const [reason, setReason] = useState<string>('all')
-  const [userInput, setUserInput] = useState('')
-  const [userQuery, setUserQuery] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -218,7 +213,6 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   const [page, setPage] = useState(1)
   const pageSize = 80
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const userTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const cfg = MODERATION_TYPES[mode]
 
@@ -227,13 +221,10 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     const nextMode = isModerationMode(urlMode) ? urlMode : urlMode === null ? 'thoughts' : null
     if (!nextMode || nextMode === mode) return
     if (searchTimer.current) clearTimeout(searchTimer.current)
-    if (userTimer.current) clearTimeout(userTimer.current)
     setMode(nextMode)
     setPage(1)
     setStatus(MODERATION_TYPES[nextMode].defaultStatus)
     setReason('all')
-    setUserInput('')
-    setUserQuery('')
     setSearchInput('')
     setSearchQuery('')
   }, [mode, urlMode])
@@ -245,12 +236,12 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     setError('')
     try {
       if (mode === 'thoughts') {
-        const d = await thoughtsApi.adminList({ status, userId: userQuery, search: searchQuery, limit: String(pageSize), offset: String((page - 1) * pageSize) })
+        const d = await thoughtsApi.adminList({ status, search: searchQuery, limit: String(pageSize), offset: String((page - 1) * pageSize) })
         if (!current()) return
         setRows((d.thoughts || []) as ThoughtRow[])
         setTotal(d.total || 0)
       } else if (mode === 'comments') {
-        const d = await adminApi.comments.list({ status, userId: userQuery, search: searchQuery, limit: String(pageSize), offset: String((page - 1) * pageSize) })
+        const d = await adminApi.comments.list({ status, search: searchQuery, limit: String(pageSize), offset: String((page - 1) * pageSize) })
         if (!current()) return
         setRows((d.comments || []) as CommentRow[])
         setTotal(d.total || 0)
@@ -267,13 +258,13 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     } finally {
       if (current()) setLoading(false)
     }
-  }, [mode, status, reason, userQuery, searchQuery, toast, page])
+  }, [mode, status, reason, searchQuery, toast, page])
 
   useEffect(() => {
     void load()
     return () => { requestRevision.current++ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, status, reason, userQuery, searchQuery, page])
+  }, [mode, status, reason, searchQuery, page])
 
   useEffect(() => {
     if (total !== null && page > Math.max(1, Math.ceil(total / pageSize))) setPage(Math.max(1, Math.ceil(total / pageSize)))
@@ -282,7 +273,6 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   useEffect(() => {
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current)
-      if (userTimer.current) clearTimeout(userTimer.current)
     }
   }, [])
 
@@ -301,13 +291,6 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     const nextParams = new URLSearchParams(searchParams)
     nextParams.set('mode', nextMode)
     setSearchParams(nextParams, { replace: true })
-  }
-
-  function handleUserChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const v = e.target.value
-    setUserInput(v)
-    if (userTimer.current) clearTimeout(userTimer.current)
-    userTimer.current = setTimeout(() => { setPage(1); setUserQuery(v.trim()) }, 250)
   }
 
   function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -391,37 +374,49 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
 
   // --- Row renderers -----------------------------------------------------
 
-  function renderThoughtRow(t: ThoughtRow) {
+  function renderThoughtRow(t: ThoughtRow, idx: number) {
     const visible = (t.status || 'visible') === 'visible'
     const readable = t.novelId && t.chapterId
-    const link = readable ? (
-      <Link to={`/read/${encodeURIComponent(t.novelId)}/${encodeURIComponent(t.chapterId)}`}>
-        <strong>{t.novelTitle || t.novelId}</strong>
-        <br />
-        <span className="text-sm text-muted-foreground">{t.chapterTitle || t.chapterId}</span>
-      </Link>
-    ) : (
-      <>
-        <strong>{t.novelTitle || t.novelId}</strong>
-        <br />
-        <span className="text-sm text-muted-foreground">{t.chapterTitle || t.chapterId}</span>
-      </>
-    )
+    const delay = getAdminTableRowStaggerDelay(idx, rows.length)
     return (
-      <TableRow key={t.id}>
-        <TableCell data-label="时间" className="text-sm text-muted-foreground">
+      <TableRow key={t.id} style={{ animationDelay: `${delay}ms` }}>
+        <TableCell data-label="时间" className="text-xs text-muted-foreground whitespace-nowrap">
           {timeAgo(t.createdAt)}
         </TableCell>
         <TableCell data-label="小说 / 章节" className="moderation-source-cell">
-          {link}
+          <div className="flex flex-col gap-0.5">
+            {readable ? (
+              <Link
+                to={`/read/${encodeURIComponent(t.novelId)}/${encodeURIComponent(t.chapterId)}`}
+                className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1"
+              >
+                {t.novelTitle || t.novelId}
+              </Link>
+            ) : (
+              <span className="font-medium text-foreground line-clamp-1">{t.novelTitle || t.novelId}</span>
+            )}
+            <span className="text-xs text-muted-foreground line-clamp-1">{t.chapterTitle || t.chapterId}</span>
+          </div>
         </TableCell>
-        <TableCell data-label="段落">{String((t.paragraphIndex || 0) + 1)}</TableCell>
-        <TableCell data-label="划选文字" className="thought-admin-cell">
-          {t.selectedText || '—'}
+        <TableCell data-label="段落" className="text-xs text-muted-foreground tabular-nums">
+          {String((t.paragraphIndex || 0) + 1)}
+        </TableCell>
+        <TableCell data-label="划选文字" className="thought-admin-cell text-xs text-muted-foreground">
+          {t.selectedText ? (
+            <span className="line-clamp-2 italic text-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded">
+              “{t.selectedText}”
+            </span>
+          ) : (
+            '—'
+          )}
         </TableCell>
         <TableCell data-primary="" data-label="想法" className="thought-admin-cell">
-          <strong>{t.thoughtText || '—'}</strong>
-          {t.imageUrl && <ThoughtImage id={t.id} />}
+          <div className="font-medium text-foreground leading-snug">{t.thoughtText || '—'}</div>
+          {t.imageUrl && (
+            <div className="mt-1.5">
+              <ThoughtImage id={t.id} />
+            </div>
+          )}
         </TableCell>
         <TableCell data-label="昵称">
           <ThoughtUser t={t} />
@@ -430,17 +425,35 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           <AdminStatusBadge tone={visible ? 'success' : 'danger'}>{visible ? '可见' : '已隐藏'}</AdminStatusBadge>
         </TableCell>
         <TableCell data-actions="">
-          <div className="admin-cell-actions">
+          <div className="admin-cell-actions flex items-center gap-1">
             {visible ? (
-              <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs" title="隐藏" onClick={() => void updateThoughtStatus(t.id, 'hidden')}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full h-7 px-3 text-xs text-muted-foreground hover:text-foreground"
+                title="隐藏"
+                onClick={() => void updateThoughtStatus(t.id, 'hidden')}
+              >
                 隐藏
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs text-[#D97757] hover:bg-[#D97757]/10" title="恢复" onClick={() => void updateThoughtStatus(t.id, 'visible')}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full h-7 px-3 text-xs text-primary hover:bg-primary/10"
+                title="恢复"
+                onClick={() => void updateThoughtStatus(t.id, 'visible')}
+              >
                 恢复
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs text-destructive hover:bg-destructive/10" title="永久删除" onClick={() => void deleteThought(t)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full h-7 px-3 text-xs text-destructive hover:bg-destructive/10"
+              title="永久删除"
+              onClick={() => void deleteThought(t)}
+            >
               删除
             </Button>
           </div>
@@ -449,58 +462,78 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     )
   }
 
-  function renderCommentRow(c: CommentRow) {
+  function renderCommentRow(c: CommentRow, idx: number) {
     const visible = (c.status || 'visible') === 'visible'
+    const delay = getAdminTableRowStaggerDelay(idx, rows.length)
     return (
-      <TableRow key={c.id}>
-        <TableCell data-label="时间" className="text-sm text-muted-foreground">
+      <TableRow key={c.id} style={{ animationDelay: `${delay}ms` }}>
+        <TableCell data-label="时间" className="text-xs text-muted-foreground whitespace-nowrap">
           {timeAgo(c.createdAt)}
         </TableCell>
         <TableCell data-label="小说" className="moderation-source-cell">
-          {c.novelId ? (
-            <Link to={`/novel/${encodeURIComponent(c.novelId)}`}>
-              <strong>{c.novelTitle || c.novelId}</strong>
-            </Link>
-          ) : (
-            <strong>{c.novelTitle || c.novelId}</strong>
-          )}
-          {c.parentId ? (
-            <>
-              <br />
-              <span className="text-sm text-muted-foreground">回复</span>
-            </>
-          ) : null}
+          <div className="flex flex-col gap-0.5">
+            {c.novelId ? (
+              <Link
+                to={`/novel/${encodeURIComponent(c.novelId)}`}
+                className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1"
+              >
+                {c.novelTitle || c.novelId}
+              </Link>
+            ) : (
+              <span className="font-medium text-foreground line-clamp-1">{c.novelTitle || c.novelId}</span>
+            )}
+            {c.parentId && <span className="text-xs text-muted-foreground">回复评论</span>}
+          </div>
         </TableCell>
-        <TableCell data-label="用户">{c.userDisplayName || c.userUsername || c.displayName || c.userId || '—'}</TableCell>
+        <TableCell data-label="用户" className="text-xs font-medium text-foreground/90">
+          {c.userDisplayName || c.userUsername || c.displayName || c.userId || '—'}
+        </TableCell>
         <TableCell data-primary="" data-label="评论" className="thought-admin-cell">
-          <strong>{c.commentText || '—'}</strong>
-          {c.hasSpoiler ? (
-            <>
-              <br />
-              <Badge className="mt-1 bg-accent/10 text-accent">剧透</Badge>
-            </>
-          ) : null}
+          <div className="font-medium text-foreground leading-snug">{c.commentText || '—'}</div>
+          {c.hasSpoiler && (
+            <Badge variant="outline" className="mt-1 text-[11px] font-normal border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10">
+              剧透
+            </Badge>
+          )}
         </TableCell>
-        <TableCell data-label="互动" className="text-sm text-muted-foreground">
-          赞 {c.likeCount || 0}
-          <br />
-          举报 {c.reportCount || 0}
+        <TableCell data-label="互动" className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+          <span>赞 {c.likeCount || 0}</span>
+          <span className="mx-1 text-muted-foreground/40">·</span>
+          <span>举报 {c.reportCount || 0}</span>
         </TableCell>
         <TableCell data-label="状态">
           <AdminStatusBadge tone={visible ? 'success' : 'danger'}>{visible ? '可见' : '已隐藏'}</AdminStatusBadge>
         </TableCell>
         <TableCell data-actions="">
-          <div className="admin-cell-actions">
+          <div className="admin-cell-actions flex items-center gap-1">
             {visible ? (
-              <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs" title="隐藏" onClick={() => void updateCommentStatus(c.id, 'hidden')}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full h-7 px-3 text-xs text-muted-foreground hover:text-foreground"
+                title="隐藏"
+                onClick={() => void updateCommentStatus(c.id, 'hidden')}
+              >
                 隐藏
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs text-[#D97757] hover:bg-[#D97757]/10" title="恢复" onClick={() => void updateCommentStatus(c.id, 'visible')}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full h-7 px-3 text-xs text-primary hover:bg-primary/10"
+                title="恢复"
+                onClick={() => void updateCommentStatus(c.id, 'visible')}
+              >
                 恢复
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs text-destructive hover:bg-destructive/10" title="永久删除" onClick={() => void deleteComment(c)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full h-7 px-3 text-xs text-destructive hover:bg-destructive/10"
+              title="永久删除"
+              onClick={() => void deleteComment(c)}
+            >
               删除
             </Button>
           </div>
@@ -509,55 +542,72 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     )
   }
 
-  function renderReportRow(r: ReportRow) {
+  function renderReportRow(r: ReportRow, idx: number) {
     const pending = (r.status || 'open') === 'open'
+    const delay = getAdminTableRowStaggerDelay(idx, rows.length)
     return (
-      <TableRow key={r.id}>
-        <TableCell data-label="时间" className="text-sm text-muted-foreground">
+      <TableRow key={r.id} style={{ animationDelay: `${delay}ms` }}>
+        <TableCell data-label="时间" className="text-xs text-muted-foreground whitespace-nowrap">
           {timeAgo(r.createdAt)}
         </TableCell>
         <TableCell data-label="小说" className="moderation-source-cell">
           {r.commentNovelId ? (
-            <Link to={`/novel/${encodeURIComponent(r.commentNovelId)}`} className="moderation-table-novel-link">
+            <Link
+              to={`/novel/${encodeURIComponent(r.commentNovelId)}`}
+              className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1"
+            >
               {r.novelTitle || r.commentNovelId || '—'}
             </Link>
           ) : (
-            r.novelTitle || '—'
+            <span className="font-medium text-foreground line-clamp-1">{r.novelTitle || '—'}</span>
           )}
         </TableCell>
         <TableCell data-primary="" data-label="评论" className="thought-admin-cell">
-          <div className="moderation-quote-bubble">{r.commentText || '评论已删除'}</div>
+          <div className="rounded-lg bg-muted/40 p-2 text-xs text-foreground/90 leading-relaxed border border-border/40">
+            {r.commentText || '评论已删除'}
+          </div>
         </TableCell>
-        <TableCell data-label="举报人">{r.reporterDisplayName || r.reporterUsername || r.reportedBy || '—'}</TableCell>
+        <TableCell data-label="举报人" className="text-xs font-medium text-foreground/90">
+          {r.reporterDisplayName || r.reporterUsername || r.reportedBy || '—'}
+        </TableCell>
         <TableCell data-label="原因">
-          <span className="moderation-report-reason-badge">{MODERATION_REASON_LABELS[r.reason || ''] || r.reason}</span>
-          {r.note ? (
-            <>
-              <br />
-              <span className="text-sm text-muted-foreground">{r.note}</span>
-            </>
-          ) : null}
+          <div className="flex flex-col gap-0.5">
+            <span className="inline-flex items-center text-xs font-medium text-foreground">
+              {MODERATION_REASON_LABELS[r.reason || ''] || r.reason}
+            </span>
+            {r.note && <span className="text-xs text-muted-foreground line-clamp-2">{r.note}</span>}
+          </div>
         </TableCell>
         <TableCell data-label="状态">
-          <AdminStatusBadge tone={r.status === 'resolved' ? 'success' : r.status === 'dismissed' ? 'subtle' : 'warning'}>{r.status}</AdminStatusBadge>
+          <AdminStatusBadge tone={r.status === 'resolved' ? 'success' : r.status === 'dismissed' ? 'subtle' : 'warning'}>
+            {r.status === 'open' ? '待处理' : r.status === 'resolved' ? '已解决' : r.status === 'dismissed' ? '已驳回' : r.status}
+          </AdminStatusBadge>
         </TableCell>
         <TableCell data-actions="">
           {pending ? (
-            <AdminRowActions
-              label={`举报 ${r.id.slice(0, 8)}`}
-              items={[
-                // 「隐藏并解决」是这条举报的主处置，常驻；
-                // 「解决」（保留内容）与「驳回」是判断性结论，收进菜单减少误点。
-                { label: '解决（保留内容）', icon: Check, onSelect: () => void resolveReport(r.id, 'resolved', 'none') },
-                { label: '驳回举报', icon: X, onSelect: () => void resolveReport(r.id, 'dismissed', 'none') },
-              ]}
-            >
-              <Button variant="default" size="sm" className="rounded-full bg-[#D97757] hover:bg-[#c86646] text-white" title="隐藏并解决" onClick={() => void resolveReport(r.id, 'resolved', 'hide')}>
-                隐藏并解决
-              </Button>
-            </AdminRowActions>
+            <div className="flex items-center gap-1.5">
+              <AdminRowActions
+                label={`举报 ${r.id.slice(0, 8)}`}
+                items={[
+                  // 「隐藏并解决」是这条举报的主处置，常驻；
+                  // 「解决」（保留内容）与「驳回」是判断性结论，收进菜单减少误点。
+                  { label: '解决（保留内容）', icon: Check, onSelect: () => void resolveReport(r.id, 'resolved', 'none') },
+                  { label: '驳回举报', icon: X, onSelect: () => void resolveReport(r.id, 'dismissed', 'none') },
+                ]}
+              >
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="rounded-full h-7 px-3 text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-none font-medium"
+                  title="隐藏并解决"
+                  onClick={() => void resolveReport(r.id, 'resolved', 'hide')}
+                >
+                  隐藏并解决
+                </Button>
+              </AdminRowActions>
+            </div>
           ) : (
-            '—'
+            <span className="text-xs text-muted-foreground/60">—</span>
           )}
         </TableCell>
       </TableRow>
@@ -565,10 +615,10 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   }
 
   function renderRows() {
-    return rows.map((r) => {
-      if (mode === 'thoughts') return renderThoughtRow(r as ThoughtRow)
-      if (mode === 'comments') return renderCommentRow(r as CommentRow)
-      return renderReportRow(r as ReportRow)
+    return rows.map((r, idx) => {
+      if (mode === 'thoughts') return renderThoughtRow(r as ThoughtRow, idx)
+      if (mode === 'comments') return renderCommentRow(r as CommentRow, idx)
+      return renderReportRow(r as ReportRow, idx)
     })
   }
 
@@ -589,6 +639,21 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           : `显示 ${rows.length} 条`
         : '暂无内容'
 
+  const hasActiveFilters = Boolean(
+    status !== cfg.defaultStatus ||
+    (cfg.showReason && reason !== 'all') ||
+    searchInput.trim() !== '' ||
+    searchQuery.trim() !== ''
+  )
+
+  function handleClearFilters() {
+    setStatus(cfg.defaultStatus)
+    setReason('all')
+    setSearchInput('')
+    setSearchQuery('')
+    setPage(1)
+  }
+
   return (
     <AdminPage
       className="admin-redesign-page admin-redesign-page--moderation"
@@ -600,77 +665,81 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         </Button>
       }
     >
-      <AdminPanelHeading title="审核列表" status={<span className={`admin-panel-status${error ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
-      <AdminToolbar className="moderation-toolbar" ariaLive="polite">
-        <div className="moderation-toolbar__filters">
-          <span className="moderation-toolbar__label">审核类型</span>
-          <Tabs className="moderation-toolbar__modes" value={mode} onValueChange={(value) => switchMode(value as ModerationMode)} aria-label="审核类型">
-            <TabsList data-active-index={MODERATION_MODE_INDEX[mode]}>
-              {(Object.keys(MODERATION_TYPES) as ModerationMode[]).map((m) => (
-                <TabsTrigger key={m} value={m}>
-                  {MODERATION_TYPES[m].label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <span className="moderation-toolbar__field-label">状态</span>
+      {/* Claude 胶囊工作视图 Tabs */}
+      <Tabs value={mode} onValueChange={(value) => switchMode(value as ModerationMode)} className="admin-capsule-tabs moderation-tabs">
+        <TabsList aria-label="审核类型">
+          {(Object.keys(MODERATION_TYPES) as ModerationMode[]).map((m) => (
+            <TabsTrigger key={m} value={m}>
+              {MODERATION_TYPES[m].label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      {/* Claude 全要素胶囊筛选轨道（以小说管理为基准，严格单行、紧凑对齐） */}
+      <AdminToolbar layout="inline" className="admin-filter-rail moderation-filter-rail" ariaLive="polite">
+        <AdminSearch
+          id="moderation-search"
+          label="搜索审核内容"
+          type="search"
+          data-admin-search
+          placeholder={cfg.searchPlaceholder}
+          value={searchInput}
+          onChange={handleSearchChange}
+        />
+        <div className="admin-filter-chips">
           <CustomSelect
-            className="moderation-toolbar__status admin-input--select-sm"
             compact
+            chip
+            filterChip
+            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            aria-label="按状态筛选"
             options={cfg.statusOptions.map(([value, label]) => ({ value, label }))}
             value={status}
-            aria-label="状态筛选"
             onChange={handleStatusChange}
           />
-          <span
-            className={`moderation-toolbar__field-label${cfg.showReason ? '' : ' moderation-toolbar__field-label--placeholder'}`}
-            aria-hidden={!cfg.showReason}
-          >
-            原因
-          </span>
-          {cfg.showReason ? (
+          {cfg.showReason && (
             <CustomSelect
-              className="moderation-toolbar__reason admin-input--select-sm"
               compact
+              chip
+              filterChip
+              leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+              aria-label="按举报原因筛选"
               options={REASON_OPTIONS.map(([value, label]) => ({ value, label }))}
               value={reason}
-              aria-label="举报原因筛选"
               onChange={handleReasonChange}
             />
-          ) : (
-            <span className="moderation-toolbar__reason moderation-toolbar__reason-placeholder" aria-hidden="true" />
+          )}
+          {hasActiveFilters && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+              onClick={handleClearFilters}
+            >
+              清除筛选
+            </Button>
           )}
         </div>
-        <div className={`moderation-toolbar__query${cfg.showUser ? '' : ' moderation-toolbar__query--without-user'}`}>
-          <span className="moderation-toolbar__label">查找内容</span>
-          {cfg.showUser ? (
-            <Input
-              type="text"
-              className="moderation-toolbar__user admin-input--compact"
-              aria-label="用户 ID"
-              placeholder="用户ID"
-              value={userInput}
-              onChange={handleUserChange}
-            />
-          ) : (
-            <span className="moderation-toolbar__user moderation-toolbar__user-placeholder" aria-hidden="true" />
-          )}
-          <div className="moderation-toolbar__search-field">
-            <AdminSearch
-              id="moderation-search"
-              label="搜索审核内容"
-              type="search"
-              className="moderation-toolbar__search-input admin-input--compact"
-              data-admin-search
-              placeholder={cfg.searchPlaceholder}
-              value={searchInput}
-              onChange={handleSearchChange}
-            />
-          </div>
+        <div className="admin-filter-rail__status ml-auto shrink-0" aria-live="polite">
+          <span className={cn('admin-panel-status tabular-nums text-xs', error && 'is-error')}>
+            {listStatusLabel}
+          </span>
         </div>
       </AdminToolbar>
-      <AdminDataPanel className="overflow-hidden" ariaLabel="审核列表" columns={cfg.columns} density="comfortable">
-        {hasRows ? (
+
+      {/* 数据实体直接作为卡片 */}
+      <AdminDataPanel className="overflow-hidden moderation-data-panel" ariaLabel={`${cfg.label}列表`} columns={cfg.columns} density="comfortable">
+        {loading && rows.length === 0 ? (
+          <AdminEmptyState
+            icon={<span className="job-spinner" aria-hidden="true" />}
+            message="正在读取审核内容…"
+            description="正在同步当前筛选结果，请稍候。"
+          />
+        ) : error && !loading ? (
+          <ErrorState message={`审核队列加载失败：${error}`} />
+        ) : hasRows ? (
           <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
             <TableCaption className="sr-only">{`${cfg.label}审核列表，含时间、来源、内容、用户与处理状态`}</TableCaption>
             <TableHeader>
@@ -684,16 +753,29 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
             </TableHeader>
             <TableBody>{renderRows()}</TableBody>
           </Table>
-        ) : error && !loading ? (
-          <ErrorState message={`审核队列加载失败：${error}`} />
         ) : (
-          <div className="moderation-empty" role="status">
-            <strong>{listStateTitle}</strong>
-            <p>{listStateDescription}</p>
-          </div>
+          <AdminEmptyState
+            icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
+            message={listStateTitle}
+            description={listStateDescription}
+            action={
+              hasActiveFilters ? (
+                <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                  清除筛选
+                </Button>
+              ) : undefined
+            }
+          />
         )}
       </AdminDataPanel>
-      <Pagination variant="detached" page={page} totalPages={Math.max(1, Math.ceil((total || 0) / pageSize))} onPage={setPage} busy={loading} summary={total === null ? '读取中' : `共 ${total} 条`} />
+      <Pagination
+        variant="detached"
+        page={page}
+        totalPages={Math.max(1, Math.ceil((total || 0) / pageSize))}
+        onPage={setPage}
+        busy={loading}
+        summary={total === null ? '读取中' : `共 ${total} 条`}
+      />
     </AdminPage>
   )
 }

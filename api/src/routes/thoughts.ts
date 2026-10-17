@@ -260,7 +260,7 @@ async function listThoughtsAdmin(c: Context<AuthEnv>, db: ReturnType<typeof getD
     params.push(status === 'hidden' ? 'hidden' : 'visible')
   }
   if (search) {
-    conditions.push(`(t.thought_text LIKE $${params.length + 1} OR t.selected_text LIKE $${params.length + 1} OR t.display_name LIKE $${params.length + 1} OR n.title LIKE $${params.length + 1} OR c.title LIKE $${params.length + 1})`)
+    conditions.push(`(t.thought_text LIKE $${params.length + 1} OR t.selected_text LIKE $${params.length + 1} OR t.display_name LIKE $${params.length + 1} OR n.title LIKE $${params.length + 1} OR c.title LIKE $${params.length + 1} OR t.user_id LIKE $${params.length + 1})`)
     params.push(`%${escapeLike(search)}%`)
   }
   if (userId) {
