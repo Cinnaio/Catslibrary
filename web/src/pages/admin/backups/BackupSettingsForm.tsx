@@ -111,8 +111,11 @@ export default function BackupSettingsForm({
   return (
     <form className="backup-settings-layout" onSubmit={(event) => void save(event)}>
       <Card className="admin-panel-card">
-        <CardHeader>
-          <CardTitle>服务器访问</CardTitle>
+        <CardHeader className="backup-panel-header">
+          <div>
+            <CardTitle>服务器访问白名单</CardTitle>
+            <p className="backup-panel-subtitle">限制允许发起 SFTP 传输与数据取回的外部服务器</p>
+          </div>
         </CardHeader>
         <CardContent className="backup-fields">
           <AdminFormField label="允许列表来源">
@@ -147,8 +150,11 @@ export default function BackupSettingsForm({
         </CardContent>
       </Card>
       <Card className="admin-panel-card">
-        <CardHeader>
-          <CardTitle>恢复演练</CardTitle>
+        <CardHeader className="backup-panel-header">
+          <div>
+            <CardTitle>恢复演练沙箱</CardTitle>
+            <p className="backup-panel-subtitle">配置用于恢复预检与回滚验证的独立临时 PostgreSQL 数据库</p>
+          </div>
         </CardHeader>
         <CardContent className="backup-fields">
           <BackupRehearsalPanel
@@ -225,8 +231,11 @@ export default function BackupSettingsForm({
         </CardContent>
       </Card>
       <Card className="admin-panel-card">
-        <CardHeader>
-          <CardTitle>任务与日志</CardTitle>
+        <CardHeader className="backup-panel-header">
+          <div>
+            <CardTitle>任务重试与日志生命周期</CardTitle>
+            <p className="backup-panel-subtitle">设定远程传输异常重试策略与系统备份审计日志的保留天数</p>
+          </div>
         </CardHeader>
         <CardContent className="backup-fields">
           <AdminFormField
