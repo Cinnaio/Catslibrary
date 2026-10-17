@@ -109,11 +109,16 @@
   min-width: 8rem;
 }
 
-/* 筛选胶囊的前置图标由 filterChip 承担；本轨道的胶囊无图标时，级联会留下
-   图标位空档（文字左缩进 1.5rem），与搜索框的 0.75rem 文字起点错开。 */
-.account-users-filters .admin-filter-chip,
-.account-record-filters .admin-filter-chip {
-  gap: 0;
+/* 账户目录和审计：搜索与筛选紧邻靠左，自动余量仅由末尾统计/刷新承担。 */
+.admin-filter-rail.account-users-filters,
+.admin-filter-rail.account-audit-filters {
+  flex-direction: row;
+  justify-content: flex-start;
+}
+
+.account-users-filters .admin-filter-chips,
+.account-audit-filters .admin-filter-chips {
+  margin-left: 0;
 }
 
 .account-users-filters__actions,

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: () => {}, configurable: true })
@@ -84,10 +84,10 @@ describe('账户审计目录', () => {
     const { rerender } = render(<AccountAuditPanel {...base} kind="login" records={[login]} onPage={onPage} onStatus={onStatus} />)
     await userEvent.click(screen.getByRole('button', { name: '下一页' }))
     expect(onPage).toHaveBeenCalledWith(2)
-    fireEvent.keyDown(screen.getByRole('combobox', { name: '登录结果' }), { key: 'ArrowDown' })
+    await userEvent.click(screen.getByRole('combobox', { name: '登录结果' }))
     await userEvent.click(screen.getByRole('option', { name: '限流' }))
     expect(onStatus).toHaveBeenCalledWith('limited')
     rerender(<AccountAuditPanel {...base} kind="login" records={[login]} loading />)
-    expect(screen.getByRole('button', { name: '刷新' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '刷新中…' })).toBeDisabled()
   })
 })

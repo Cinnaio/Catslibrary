@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { isZhiZhouIosApp } from '@shared/device'
-import { RefreshCw } from 'lucide-react'
+import { CirclePlus, RefreshCw } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { Button } from '@/components/ui/button'
@@ -210,7 +210,7 @@ export default function AccountAuditPanel({
   ]
   return (
     <>
-      <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters" ariaLive="polite">
+      <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters account-audit-filters" ariaLive="polite">
         {onSearch !== undefined && (
           <AdminSearch
             id={`account-${kind}-search`}
@@ -225,6 +225,7 @@ export default function AccountAuditPanel({
             compact
             chip
             filterChip
+            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
             aria-label={kind === 'login' ? '登录结果' : '操作结果'}
             value={status}
             onChange={onStatus}
