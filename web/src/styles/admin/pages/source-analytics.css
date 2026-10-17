@@ -343,6 +343,12 @@
   overflow: hidden;
 }
 
+.source-analytics-table-panel table td {
+  height: auto;
+  min-height: var(--admin-table-row-height, 4rem);
+  padding-block: 0.75rem;
+}
+
 /* 数据表格与单元格 */
 .source-book-name {
   color: var(--text-primary);
@@ -370,20 +376,15 @@
   overflow-wrap: anywhere;
 }
 
-.source-protected-tag {
-  display: inline-flex;
-  align-items: center;
+/* 待入库与受保护章节单元格 (Claude Refined Pending & Protection Cell) */
+.source-pending-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
   gap: 0.25rem;
-  color: var(--admin-accent);
-  font-size: 0.735rem;
-  font-weight: 500;
-  margin-top: 0.2rem;
-}
-
-.source-protected-tag svg {
-  width: 0.75rem;
-  height: 0.75rem;
-  flex-shrink: 0;
+  min-width: 0;
+  line-height: 1.25;
 }
 
 /* 行内操作按钮 */
