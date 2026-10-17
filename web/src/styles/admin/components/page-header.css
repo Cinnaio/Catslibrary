@@ -29,64 +29,17 @@
 }
 
 
-/* 小说管理的搜索与新增操作属于同一组，放在页面标题右侧；标题区不再使用底部分隔线。 */
-.admin-redesign-page--novels > .admin-tab-header {
-  border-bottom: 0;
-}
-
-.admin-redesign-page--chapters > .admin-tab-header {
-  margin-bottom: 0.25rem;
-  border-bottom: 0;
-}
-
-.admin-redesign-page--moderation > .admin-tab-header {
-  margin-bottom: 0.25rem;
-  border-bottom: 0;
-}
-
-.account-schema-warning {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--admin-space-1) var(--admin-space-2);
-  border: 1px solid color-mix(in srgb, var(--color-warning) 38%, var(--admin-border));
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-warning) 8%, var(--admin-panel));
-  padding: var(--admin-space-3) var(--admin-space-4);
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.account-schema-warning strong {
-  color: var(--color-warning);
-  font-weight: 650;
-}
-
-.admin-redesign-page--novels .admin-tab-header__actions .admin-search {
-  width: min(20rem, 100%);
-  max-width: 20rem;
-  flex: 0 1 20rem;
-}
-
-/* ——— 单行账本式页头的通用几何（DESIGN.md · Admin Page Anatomy） ———
-   页头是一行：左侧标题与描述，右侧该页的看家动作。
-   下列页面各自只覆盖两处与范本不同的地方（是否留底线、搜索框多宽），
-   动作区的排布、换行与不压缩规则统一由下面这组基础选择器提供——
-   此前只有小说管理页有这套规则，其余页面各写各的，收口在 2026-09-25。 */
-.admin-redesign-page--source-analytics > .admin-tab-header,
-.admin-redesign-page--dashboard > .admin-tab-header,
-.admin-redesign-page--content-ratings > .admin-tab-header,
-.admin-redesign-page--content-policy > .admin-tab-header,
-.admin-redesign-page--site-operations > .admin-tab-header,
-.admin-redesign-page--site-settings > .admin-tab-header,
-.admin-redesign-page--ai > .admin-tab-header,
+/* ——— 后台单行账本式页头（以小说管理为绝对基准）：
+   全后台统一取消底部分隔线，保持 1rem 内下边距与 0.25rem 微外边距，
+   配合页面网格容器（gap: 1.25rem），使标题/动作区到下方首道控制层（Tabs 或 Filter Rail）
+   的净留白严格保持为 40px (2.5rem)。 ——— */
+.admin-redesign-page > .admin-tab-header,
 .task-center-page > .admin-tab-header,
 .calls-page > .admin-tab-header,
-.admin-redesign-page--jobs > .admin-tab-header {
+.backup-page > .admin-tab-header {
   border-bottom: 0;
-  margin-bottom: 0;
-  padding-bottom: 0;
+  padding-bottom: 1rem;
+  margin-bottom: 0.25rem;
 }
 
 /* 动作区：桌面端贴合内容宽度、不换行；窄屏占满并把剩余宽度给搜索框。 */

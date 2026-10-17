@@ -20,7 +20,7 @@
 
 .admin-redesign-page--content-ratings > .admin-tab-header {
   border-bottom: 0;
-  padding-bottom: 0;
+  padding-bottom: 1rem;
   margin-bottom: 0.25rem;
 }
 
@@ -609,7 +609,7 @@
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
-  margin-bottom: var(--admin-control-to-card-gap, 1rem);
+  margin-bottom: var(--admin-page-section-gap, 1.25rem);
 }
 
 .content-ratings-filter-rail .admin-filter-chips {
