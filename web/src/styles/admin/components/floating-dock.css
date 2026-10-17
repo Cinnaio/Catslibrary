@@ -188,10 +188,30 @@
   font-size: var(--admin-button-secondary-label-size);
   line-height: 1.6;
   overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-floating-dock__status::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--admin-border-strong, #8e8c85);
+  flex-shrink: 0;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .admin-floating-dock__status[data-dirty] {
   color: var(--admin-dock-status-foreground);
+  font-weight: 500;
+}
+
+.admin-floating-dock__status[data-dirty]::before {
+  background: var(--admin-accent, #d97757);
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--admin-accent) 25%, transparent);
 }
 
 @media (max-width: 900px) {

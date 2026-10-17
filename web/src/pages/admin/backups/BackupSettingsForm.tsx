@@ -6,6 +6,7 @@ import AdminFormField from '@/components/admin/AdminFormField'
 import BackupRehearsalPanel from './BackupRehearsalPanel'
 import BackupDeploymentPanel from './BackupDeploymentPanel'
 import CustomSelect from '@/components/admin/CustomSelect'
+import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -300,27 +301,31 @@ export default function BackupSettingsForm({
         </CardContent>
       </Card>
 
-      <div className="backup-settings-footer">
-        {notice && (
-          <p role="status" className="backup-hint">
-            {notice}
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="backup-error">
-            {error}
-          </p>
-        )}
-        <div className="backup-save">
-          <span className="backup-hint">{disabled ? '恢复期间暂时不能修改设置' : dirty ? '有未保存的修改' : '设置已保存；新任务使用当前配置'}</span>
-          <Button type="button" variant="secondary" disabled={locked || !dirty} onClick={reset}>
+      {notice && (
+        <p role="status" className="backup-hint">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="backup-error">
+          {error}
+        </p>
+      )}
+
+      {/* Claude 标准悬浮胶囊保存操作岛 */}
+      <AdminFloatingDock reserveSpace role="region" aria-label="备份设置保存" data-state="open">
+        <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
+          {disabled ? '恢复期间暂时不能修改设置' : dirty ? '有未保存的修改' : '设置已保存；新任务使用当前配置'}
+        </span>
+        <div className="admin-floating-dock__actions">
+          <Button type="button" variant="outline" disabled={locked || !dirty} onClick={reset}>
             撤销修改
           </Button>
           <Button type="submit" disabled={locked || !dirty}>
             {busy ? '验证并保存中…' : '保存设置'}
           </Button>
         </div>
-      </div>
+      </AdminFloatingDock>
     </form>
   )
 }

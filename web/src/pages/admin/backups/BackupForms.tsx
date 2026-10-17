@@ -6,6 +6,7 @@ import AdminFormField from '@/components/admin/AdminFormField'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import CustomSelect from '@/components/admin/CustomSelect'
 import CustomTimePicker from '@/components/admin/CustomTimePicker'
+import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -401,22 +402,26 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
         </CardContent>
       </Card>
 
-      <div className="backup-settings-footer">
-        {error && (
-          <p role="alert" className="backup-error">
-            {error}
-          </p>
-        )}
-        <div className="backup-save">
-          <span className="backup-hint">{dirty ? '有未保存的计划修改' : '已与当前配置同步'}</span>
-          <Button type="button" variant="secondary" disabled={!dirty || busy} onClick={() => setDraft(policy)}>
+      {error && (
+        <p role="alert" className="backup-error">
+          {error}
+        </p>
+      )}
+
+      {/* Claude 标准悬浮胶囊保存操作岛 */}
+      <AdminFloatingDock reserveSpace role="region" aria-label="自动备份计划保存" data-state="open">
+        <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
+          {dirty ? '有未保存的计划修改' : '已与当前配置同步'}
+        </span>
+        <div className="admin-floating-dock__actions">
+          <Button type="button" variant="outline" disabled={!dirty || busy} onClick={() => setDraft(policy)}>
             撤销
           </Button>
           <Button type="submit" disabled={!dirty || busy}>
             {busy ? '保存中…' : '保存计划'}
           </Button>
         </div>
-      </div>
+      </AdminFloatingDock>
     </form>
   )
 }
