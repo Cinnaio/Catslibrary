@@ -9,7 +9,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { cn } from '@/lib/utils'
 import Pagination from '@/components/admin/Pagination'
@@ -141,6 +141,8 @@ interface Props {
   status: string
   onStatus: (status: string) => void
   onRefresh: () => void
+  search?: string
+  onSearch?: (search: string) => void
   page: number
   limit: number
   onPage: (page: number) => void
@@ -157,6 +159,8 @@ export default function AccountAuditPanel({
   status,
   onStatus,
   onRefresh,
+  search,
+  onSearch,
   page,
   limit,
   onPage,
@@ -206,17 +210,16 @@ export default function AccountAuditPanel({
   ]
   return (
     <>
-      <AdminPanelHeading
-        title={title}
-        status={<span className="admin-panel-status">{loading && !records.length ? '读取中' : `${total} 条`}</span>}
-        actions={
-          <Button variant="secondary" size="sm" onClick={onRefresh} disabled={loading}>
-            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
-            {loading ? '刷新中…' : '刷新'}
-          </Button>
-        }
-      />
-      <AdminToolbar layout="inline" className="account-record-filters" ariaLive="polite">
+      <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters" ariaLive="polite">
+        {onSearch !== undefined && (
+          <AdminSearch
+            id={`account-${kind}-search`}
+            label={`搜索${kind === 'login' ? '登录' : '操作'}用户名`}
+            placeholder="搜索用户名"
+            value={search || ''}
+            onChange={(e) => onSearch(e.target.value)}
+          />
+        )}
         <div className="admin-filter-chips">
           <CustomSelect
             compact
@@ -228,7 +231,15 @@ export default function AccountAuditPanel({
             options={statusSelectOptions}
           />
         </div>
-        <span className="account-record-filters__hint">按最新{kind === 'login' ? '登录' : '操作'}时间排序</span>
+        <div className="account-record-filters__actions">
+          <span className="account-record-filters__count">
+            {loading && !records.length ? '读取中…' : `共 ${total} 条`}
+          </span>
+          <Button variant="secondary" size="sm" onClick={onRefresh} disabled={loading}>
+            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+            {loading ? '刷新中…' : '刷新'}
+          </Button>
+        </div>
       </AdminToolbar>
       <AdminDataPanel className="account-records-panel overflow-hidden" ariaLabel={`${title}列表`} columns={columns} density="comfortable">
         <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>

@@ -81,22 +81,51 @@
   width: 5.75rem;
   flex: 0 0 auto;
 }
-/* 用户目录采用共享面板、控件和移动端表格，只补充本页信息层级。 */
-.account-users-filters {
-  padding: 0;
-  margin: 0;
+/* 用户目录与记录采用共享 Filter Rail、控件和移动端表格 */
+.account-users-filters,
+.account-record-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.75rem;
+  margin-bottom: 0.875rem;
+  padding: 0;
 }
-.account-users-filters [data-slot='select-trigger'] {
-  width: 9rem;
+
+.account-users-filters .admin-search,
+.account-record-filters .admin-search {
+  width: min(22rem, 100%);
+  max-width: 22rem;
+  flex: 1 1 16rem;
 }
-.account-users-filters__label,
-.account-users-filters__hint {
+
+.account-users-filters [data-slot='select-trigger'],
+.account-record-filters [data-slot='select-trigger'] {
+  width: auto;
+  min-width: 8rem;
+}
+
+.account-users-filters__actions,
+.account-record-filters__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.account-users-filters__count,
+.account-record-filters__count {
   color: var(--text-muted);
   font-size: 0.8125rem;
+  white-space: nowrap;
 }
-.account-users-filters__hint {
-  margin-left: auto;
+
+.account-users-filters__label,
+.account-users-filters__hint,
+.account-record-filters__hint {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }
 .account-user-identity {
   display: flex;
