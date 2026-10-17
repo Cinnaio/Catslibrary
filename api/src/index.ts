@@ -1,5 +1,6 @@
 import { pruneImportSnapshots } from './services/book-import-state'
 import { runFollowupTick } from './services/novel-followup'
+import { runSupplementaryTick } from './services/supplementary-source'
 import { makeDeps, fireJob } from './services/scraper/runtime'
 import { serve } from '@hono/node-server'
 import { app } from './app'
@@ -124,6 +125,15 @@ async function start() {
   }, 60000)
   followupTimer.unref()
   void checkFollowups()
+  let supplementaryRunning = false
+  const supplementaryTimer = setInterval(() => {
+    if (supplementaryRunning || !loadConfig().configured) return
+    supplementaryRunning = true
+    void withBusinessActivity(getDb(), async () => { await runSupplementaryTick(getDb()) })
+      .catch(() => console.error('[supplementary-source] scheduling failed'))
+      .finally(() => { supplementaryRunning = false })
+  }, 60000)
+  supplementaryTimer.unref()
   let importPruneRunning = false
   const importPruneTimer = setInterval(() => {
     if (importPruneRunning || !loadConfig().configured) return
@@ -156,6 +166,7 @@ async function start() {
     stopBackupCommands()
     clearInterval(importPruneTimer)
     clearInterval(followupTimer)
+    clearInterval(supplementaryTimer)
     clearInterval(backupTimer)
     if (aiTaskReclaimTimer) clearInterval(aiTaskReclaimTimer)
     server.close(() => process.exit(0))

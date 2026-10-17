@@ -275,6 +275,7 @@ export interface BookImportAiReview {
 }
 
 export interface BookImportPreview {
+  supplementary?: { bindingId: string; fileKey: string }
   /** 每次快照变更递增，所有写操作验证这个版本。 */
   revision?: number
   boundaryOverrides?: BookImportBoundaryOverride[]

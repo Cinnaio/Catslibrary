@@ -27,6 +27,7 @@ import { contentRatingRoutes } from './routes/content-ratings'
 import { contentRatingRuleCandidateRoutes } from './routes/content-rating-rule-candidates'
 import { contentRatingAiRoutes } from './routes/content-rating-ai'
 import { bookImportRoutes } from './routes/book-import'
+import { supplementarySourceRoutes } from './routes/supplementary-source'
 import { adminSiteSettingsRoutes, publicSiteSettingsRoutes } from './routes/site-settings'
 import { backupRoutes } from './routes/backups'
 import { backupMaintenance } from './middlewares/backup-maintenance'
@@ -96,6 +97,7 @@ app.route('/api/admin/content-ratings', contentRatingRoutes)
 app.route('/api/admin/content-rating-rule-candidates', contentRatingRuleCandidateRoutes)
 app.route('/api/admin/content-rating-ai', contentRatingAiRoutes)
 app.route('/api/book-import', bookImportRoutes)
+app.route('/api/supplementary-sources', supplementarySourceRoutes)
 app.route('/api/site-settings', publicSiteSettingsRoutes)
 app.route('/api/admin/site-settings', adminSiteSettingsRoutes)
 app.route('/api/admin/backups', backupRoutes)
