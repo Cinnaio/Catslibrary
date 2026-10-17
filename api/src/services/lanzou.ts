@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { SupplementaryFile } from '@shared/supplementary-source'
+import { supplementaryIdentityKey } from '@shared/supplementary-source'
 import { outboundFetch } from './outbound-fetch'
 
 const SHARE_DOMAINS = [
@@ -73,10 +74,7 @@ export function fileIdentity(name: string): { title: string; author: string; rev
   }
 }
 export function identityKey(s: string) {
-  return s
-    .normalize('NFKC')
-    .replace(/[\s《》「」]/g, '')
-    .toLocaleLowerCase()
+  return supplementaryIdentityKey(s)
 }
 
 export type LanzouRequest = (url: string, init?: RequestInit, maxBytes?: number) => Promise<Uint8Array>
@@ -195,8 +193,10 @@ export async function scanLanzouFolder(rawUrl: string, password = '', request = 
     if (visited.has(current.url)) continue
     visited.add(current.url)
     const folderFiles = new Map<string, SupplementaryFile>()
+    let folderName = current.folder
     try {
       const html = new TextDecoder().decode(await request(current.url))
+      folderName ||= decodeHtml(html.match(/<title>([^<]*)/)?.[1] || '根目录')
       if (/arg1=|验证码|访问频繁/.test(html)) throw new LanzouError('蓝奏需要浏览器验证，请稍后重新检查', 'manual')
       const links = [...html.matchAll(/<a\b[^>]*href=["'](\/b[a-zA-Z0-9]+)["'][^>]*>[\s\S]*?<div\s+class=["']filename["']>([^<]+)/g)]
       if (links.length && current.depth >= 2) throw new LanzouError('目录层级超过限制，请绑定更具体的目录')
@@ -236,7 +236,7 @@ export async function scanLanzouFolder(rawUrl: string, password = '', request = 
             key,
             url,
             name,
-            folder: current.folder || decodeHtml(html.match(/<title>([^<]*)/)?.[1] || ''),
+            folder: folderName,
             size: String(item.size || ''),
             ...fileIdentity(name),
           })
@@ -250,8 +250,10 @@ export async function scanLanzouFolder(rawUrl: string, password = '', request = 
       if (!finished) throw new LanzouError('目录分页超过限制，本次结果未保存')
       for (const [key, file] of folderFiles) files.set(key, file)
     } catch (error) {
-      if (!failedFolders || current.depth === 0) throw error
-      failedFolders.push(current.folder)
+      if (!failedFolders || (current.depth === 0 && folderFiles.size === 0) || files.size + folderFiles.size > 5000) throw error
+      failedFolders.push(folderName)
+      // 保留合法文件记录，但明确它们不能证明目录已经完整检查。
+      for (const [key, file] of folderFiles) files.set(key, { ...file, incomplete: true })
     }
   }
   return [...files.values()]

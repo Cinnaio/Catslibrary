@@ -16,6 +16,17 @@ const file = {
   revision: 255,
 }
 const novel = { id: 'fixture-novel', title: '圈宠（女上-虐男）', author: '尘星末位', chapterCount: 254, status: 'ongoing', categories: [] }
+const oldFile = { ...file, key: 'older-file', folder: '1015', name: '[更254] 圈宠（上-虐） 作者：尘星末位.txt', revision: 254, incomplete: true }
+const catalog = {
+  grouped: true,
+  items: [{ key: 'fixture-book', title: file.title, author: file.author, highestRevision: 255, versions: [file, oldFile] }],
+  total: 1,
+  fileCount: 2,
+  folders: [
+    { name: '1016', fileCount: 1, incomplete: false, staleCount: 0 },
+    { name: '1015', fileCount: 1, incomplete: true, staleCount: 0 },
+  ],
+}
 const source = {
   id: 'source',
   name: '微博书单 · 10月',
@@ -27,7 +38,7 @@ const source = {
   nextCheckAt: 0,
   status: 'partial',
   error: '1015 等部分日期目录翻页受限，尚不能确认这些目录有无更新',
-  fileCount: 38,
+  fileCount: 2,
 }
 const binding = {
   id: 'binding',
@@ -79,7 +90,8 @@ try {
       localStorage.setItem('user_session_token', 'isolated-supplementary-fixture')
       localStorage.setItem('theme', theme)
     }, theme)
-    let empty = true,
+    let boundVersion,
+      empty = true,
       downloadFails = true,
       committed
     await context.route('**/api/**', async (route) => {
@@ -92,8 +104,11 @@ try {
         data = { id: 'source' }
       } else if (path === '/api/supplementary-sources') data = { sources: empty ? [] : [source], bindings: empty ? [] : [binding] }
       else if (path.endsWith('/check')) data = { sources: [source], bindings: [binding] }
-      else if (path.endsWith('/files')) data = { items: [file], total: 1 }
-      else if (path === '/api/book-import/preview') {
+      else if (path.endsWith('/files')) data = catalog
+      else if (path === '/api/supplementary-sources/bindings') {
+        boundVersion = route.request().postDataJSON().fileKey
+        data = { sources: [source], bindings: [binding] }
+      } else if (path === '/api/book-import/preview') {
         if (downloadFails && !route.request().headers()['content-type']?.includes('multipart'))
           return route.fulfill({ status: 502, json: { error: '蓝奏返回了浏览器验证页，请在原文件页面下载后上传' } })
         data = preview
@@ -128,17 +143,23 @@ try {
     await page.screenshot({ path: `${out}/${width}-${theme}-bindings.png` })
     const box = await dialog.boundingBox()
     assert.ok(box.x >= 0 && box.x + box.width <= width + 1)
-    if(width>=1000)assert.ok(box.width>=900,'desktop dialog should use the requested wide layout')
+    if (width >= 1000) assert.ok(box.width >= 900, 'desktop dialog should use the requested wide layout')
     assert.ok(box.y >= 0 && box.y + box.height <= height + 1)
     const noOverflow = await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)
     assert.ok(noOverflow, 'dialog horizontal overflow')
     await page.getByRole('tab', { name: '目录文件与绑定', exact: true }).click()
-    await page.getByRole('button', { name: '绑定已有书籍', exact: true }).click()
+    await page.getByText('查看 2 个已发现版本', { exact: true }).click()
+    await page.getByText('查看目录读取情况', { exact: true }).click()
+    await page.getByText(/目录后续分页未完成/).waitFor()
+    await page.locator('.supplementary-versions').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: `${out}/${width}-${theme}-grouped-versions.png` })
+    await page.getByRole('button', { name: `绑定此版本：${oldFile.folder} ${oldFile.name}`, exact: true }).click()
     await page.getByLabel('搜索站内作品').fill('圈宠')
     await page.getByLabel('选择对应作品').selectOption(novel.id)
     await page.screenshot({ path: `${out}/${width}-${theme}-confirm-binding.png` })
-    await page.getByRole('button', { name: '取消', exact: true }).click()
-    await page.getByRole('tab', { name: '已绑定书籍（1）', exact: true }).click()
+    await page.getByRole('button', { name: '确认绑定', exact: true }).click()
+    await page.getByRole('button', { name: '下载并预览', exact: true }).waitFor()
+    assert.equal(boundVersion, oldFile.key)
     await page.getByRole('button', { name: '下载并预览', exact: true }).click()
     await page.getByText('蓝奏返回了浏览器验证页，请在原文件页面下载后上传', { exact: true }).waitFor()
     const chooser = page.waitForEvent('filechooser')

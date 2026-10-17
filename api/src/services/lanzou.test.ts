@@ -62,7 +62,7 @@ describe('蓝奏目录与下载', () => {
     expect(() => assertBookBytes(bytes('不是压缩包'), '山雨.epub')).toThrow()
     expect(() => assertBookBytes(bytes('第1章 山雨\n正文'), '山雨.txt')).not.toThrow()
   })
-  it('子目录翻页失败时只返回完整目录，明确记录缺口', async () => {
+  it('子目录翻页失败保留已读取文件，并逐项标明目录不完整', async () => {
     const warnings: string[] = []
     const request = vi.fn(async (url: string, init?: RequestInit) => {
       if (!init) {
@@ -79,7 +79,9 @@ describe('蓝奏目录与下载', () => {
       return bytes({ zt: 4, info: '请刷新' })
     })
     const files = await scanLanzouFolder(root, '', request, warnings)
-    expect(files.map((f) => f.title)).toEqual(['山雨'])
+    expect(files).toHaveLength(51)
+    expect(files.find((f) => f.title === '山雨')).not.toHaveProperty('incomplete')
+    expect(files.filter((f) => f.folder === '1015').every((f) => f.incomplete === true)).toBe(true)
     expect(warnings).toEqual(['1015'])
   })
   it('解析分享页、iframe 与下载响应，验证页明确要求手动接续', async () => {

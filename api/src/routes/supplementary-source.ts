@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { supplementaryCatalog } from '@shared/supplementary-source'
 import { getDb } from '../db/pool'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { LanzouError } from '../services/lanzou'
@@ -36,6 +37,7 @@ supplementarySourceRoutes.get('/:id/files', async (c) => {
   if (!row) return c.json({ error: '附加源不存在' }, 404)
   const query = (c.req.query('q') || '').trim().toLocaleLowerCase()
   const offset = Math.max(0, Number.parseInt(c.req.query('offset') || '0', 10) || 0)
+  if (c.req.query('grouped') === '1') return c.json(supplementaryCatalog(sourceFiles(row), query, offset))
   const files = sourceFiles(row)
     .filter((f) => !query || `${f.title} ${f.author} ${f.name}`.toLocaleLowerCase().includes(query))
     .sort((a, b) => b.folder.localeCompare(a.folder, 'zh-CN', { numeric: true }) || (b.revision ?? -1) - (a.revision ?? -1))

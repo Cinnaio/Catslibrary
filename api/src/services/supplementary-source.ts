@@ -71,7 +71,7 @@ export async function supplementaryOverview(db: Db): Promise<SupplementaryOvervi
       novelTitle: b.novel_title,
       aliasTitle: b.alias_title,
       aliasAuthor: b.alias_author,
-      candidates: bindingCandidates(files.get(b.source_id) || [], b.alias_title, b.alias_author).slice(0, 10),
+      candidates: bindingCandidates(files.get(b.source_id) || [], b.alias_title, b.alias_author),
     })),
   }
 }
@@ -136,10 +136,10 @@ export async function checkSupplementarySource(db: Db, id: string, scan = scanLa
     const files = await scan(row.url, row.password, undefined, failedFolders)
     const retained = sourceFiles(row)
       .filter((f) => failedFolders.some((folder) => f.folder === folder || f.folder.startsWith(folder + '/')))
-      .map((f) => ({ ...f, stale: true }))
+      .map((f) => ({ ...f, stale: true, incomplete: true }))
     const merged = [...new Map([...retained, ...files].map((f) => [f.key, f])).values()]
     if (merged.length > 5000) throw new LanzouError('累计文件过多，请绑定更具体的目录')
-    const error = failedFolders.length ? `以下目录未完整读取：${failedFolders.join('、')}。这些目录保留上次清单，尚不能确认有无更新` : ''
+    const error = failedFolders.length ? `以下目录未完整读取：${failedFolders.join('、')}。已读文件已保留，未读部分沿用旧清单，尚不能确认有无更新` : ''
     await db.query('UPDATE supplementary_sources SET files_json=$2,status=$5,error=$6,checked_at=$3,checking_until=0 WHERE id=$1 AND revision=$4', [
       id,
       JSON.stringify(merged),

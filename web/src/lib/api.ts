@@ -401,7 +401,11 @@ export const supplementarySourceApi = {
   overview: (): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('GET','/supplementary-sources',null,true),
   save: (data: {id?:string;name:string;url:string;password?:string;enabled:boolean;intervalHours:number}): Promise<{id:string}> => request('POST','/supplementary-sources',data,true),
   check: (id:string): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('POST',`/supplementary-sources/${encodeURIComponent(id)}/check`,{},true,{},150000),
-  files: (id:string,q='',offset=0): Promise<{items:import('@shared/supplementary-source').SupplementaryFile[];total:number}> => request('GET',`/supplementary-sources/${encodeURIComponent(id)}/files?q=${encodeURIComponent(q)}&offset=${offset}`,null,true),
+  files: async (id:string,q='',offset=0): Promise<import('@shared/supplementary-source').SupplementaryCatalog> => {
+    const data=await request<import('@shared/supplementary-source').SupplementaryCatalog>('GET',`/supplementary-sources/${encodeURIComponent(id)}/files?grouped=1&q=${encodeURIComponent(q)}&offset=${offset}`,null,true)
+    if(data.grouped!==true)throw new Error('附加源接口需要更新，请更新并重启 API 后重试')
+    return data
+  },
   bind: (sourceId:string,novelId:string,fileKey:string): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('POST','/supplementary-sources/bindings',{sourceId,novelId,fileKey},true),
   unbind: (id:string): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('DELETE',`/supplementary-sources/bindings/${encodeURIComponent(id)}`,null,true),
   preview: (bindingId:string,fileKey:string): Promise<BookImportPreview> => request('POST','/book-import/preview',{supplementaryBindingId:bindingId,fileKey},true,{},120000),

@@ -144,13 +144,22 @@ it('扫描失败保留旧索引并显示失败，定时检查不写章节', asyn
   expect(((await (await call('/api/supplementary-sources')).json()) as SupplementaryOverview).sources[0]!.status).toBe('ok')
   expect((await t.db.query<{ count: number }>("SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id='supp-book'")).rows[0]!.count).toBe(1)
 })
-it('部分目录受限时保留旧文件并逐项标注，成功目录仍可更新',async()=>{
-  await checkSupplementarySource(t.db,sourceId,async(_url,_password,_request,failed)=>{failed?.push('1016');return [{...file,key:'fresh-file',folder:'1017',revision:3}]})
-  const data=await (await call('/api/supplementary-sources')).json() as SupplementaryOverview
-  expect(data.sources[0]).toMatchObject({status:'partial',fileCount:2})
+it('部分目录受限时保留旧文件并逐项标注，成功目录仍可更新', async () => {
+  await checkSupplementarySource(t.db, sourceId, async (_url, _password, _request, failed) => {
+    failed?.push('1016')
+    return [{ ...file, key: 'fresh-file', folder: '1017', revision: 3 }]
+  })
+  const data = (await (await call('/api/supplementary-sources')).json()) as SupplementaryOverview
+  expect(data.sources[0]).toMatchObject({ status: 'partial', fileCount: 2 })
   expect(data.sources[0]!.error).toContain('1016')
-  expect(data.bindings[0]!.candidates.find(f=>f.key===file.key)).toMatchObject({stale:true})
-  expect(data.bindings[0]!.candidates[0]).toMatchObject({key:'fresh-file',folder:'1017'})
+  expect(data.bindings[0]!.candidates.find((f) => f.key === file.key)).toMatchObject({ stale: true })
+  expect(data.bindings[0]!.candidates[0]).toMatchObject({ key: 'fresh-file', folder: '1017' })
+  const grouped = (await (
+    await call(`/api/supplementary-sources/${sourceId}/files?grouped=1`)
+  ).json()) as import('@shared/supplementary-source').SupplementaryCatalog
+  expect(grouped).toMatchObject({ grouped: true, total: 1, fileCount: 2 })
+  expect(grouped.items[0]!.versions).toHaveLength(2)
+  expect(grouped.folders.find((f) => f.name === '1016')).toMatchObject({ incomplete: true, staleCount: 1 })
 })
 it('更换月份保留书籍绑定，清空旧目录；解除绑定保留书籍', async () => {
   const res = await call('/api/supplementary-sources', {
