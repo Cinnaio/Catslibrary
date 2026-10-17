@@ -30,7 +30,7 @@
 
 ## 部署与验证
 
-API、Web 与迁移 `059_supplementary_sources.sql` 需一起更新；现有启动迁移流程自动创建来源、绑定表和导入来源字段。本次开发未对实际书库执行迁移或导入。
+API、Web 与迁移 `059_supplementary_sources.sql`、`060_supplementary_source_partial_status.sql` 需一起更新；现有启动迁移流程自动创建来源、绑定表和导入来源字段。060 单独扩充状态约束，兼容已经执行早期 059 的数据库；不能依靠修改已记账的 059 升级，否则保存部分目录结果时会被旧约束拒绝，并显示「目录检查失败」。
 
 接口位于 `/api/supplementary-sources`，仅管理员可使用。自动下载和手动上传都进入 `/api/book-import/preview`，附带 `supplementaryBindingId` 与 `fileKey`，复用既有解析诊断、边界复核、应用审计、幂等及撤回流程。应用事务锁定目标作品后，再检查新章节对应关系及序号占位，防止多个来源或旧预览重复追加。
 
