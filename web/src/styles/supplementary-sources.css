@@ -54,25 +54,44 @@
   flex-wrap: wrap;
 }
 
-.supplementary-toolbar__source {
-  flex: 1 1 16rem;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
+/* 选源行：标签独占一行，下拉吃掉可分配宽度且不超过 26rem，动作组靠右；窄屏自动换行。 */
+.supplementary-source-picker {
+  display: grid;
   gap: 0.375rem;
+  min-width: 0;
 }
 
-.supplementary-toolbar__label {
-  font-size: 0.75rem;
-  font-weight: 550;
-  color: var(--text-secondary);
+.supplementary-source-picker__label {
+  color: var(--admin-dialog-label-color, var(--text-secondary));
+  font-size: 0.785rem;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
-.supplementary-toolbar__actions {
+.supplementary-source-picker__select {
+  min-width: 0;
+  max-width: 26rem;
+}
+
+.supplementary-source-picker__actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+@media (min-width: 760px) {
+  .supplementary-source-picker {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    column-gap: 1rem;
+  }
+  .supplementary-source-picker__label {
+    grid-column: 1 / -1;
+  }
+  .supplementary-source-picker__actions {
+    justify-self: end;
+  }
 }
 
 .supplementary-field {
@@ -499,6 +518,15 @@
   border-radius: var(--admin-radius, 12px);
 }
 
+/* 编辑面板标题行：衬线标题在左，一句边界说明在右，取代铺在正文里的解释段。 */
+.supplementary-editor__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .supplementary-editor h3 {
   margin: 0;
   color: var(--text-primary);
@@ -507,6 +535,33 @@
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.4;
+}
+
+.supplementary-editor__hint {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.supplementary-editor__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.125rem;
+}
+
+.supplementary-bind-target {
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  background: var(--admin-panel);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm, 8px);
+  overflow-wrap: anywhere;
 }
 
 .supplementary-form-grid {
