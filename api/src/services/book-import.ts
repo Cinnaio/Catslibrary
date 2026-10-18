@@ -1661,7 +1661,6 @@ export function resolvedChapterDiffs(base: BookImportChapterDiff[], local: Chapt
         incomingOrder: row.sort_order, status: importContentHash(row.content) === importContentHash(diff.incomingContent) && row.title === diff.incomingTitle ? 'unchanged' : 'changed',
         confidence: 'high', selected: false, reason: '已人工确认对应关系；请展开比较正文后选择是否更新' })
     } else {
-      if (resolution.afterChapterId !== null && !local.some(row => row.id === resolution.afterChapterId)) throw new Error('插入位置对应的本地章节不存在，请重新预览')
       Object.assign(diff, { localChapterId: undefined, localOrder: undefined, localTitle: undefined, localContent: undefined, localSourceUrl: undefined,
         status: 'new', confidence: 'high', selected: true, reason: '已人工确认是新章节；按指定位置插入，必要时顺延后续序号' })
     }
@@ -1674,7 +1673,7 @@ export function resolvedChapterDiffs(base: BookImportChapterDiff[], local: Chapt
     if (previous) previous.selected = false
     chosenGroups.set(diff.variantGroup, diff)
   }
-  const plan = planImportInsertions(headers, sorted.filter(r => diffs.find(c => c.id === r.chapterId)?.selected))
+  const plan = planImportInsertions(headers, sorted, new Set(diffs.filter(c => c.selected).map(c => c.id)))
   let tail = plan.maxOrder
   if (resolutions.some(r => r.action === 'insert')) for (const diff of diffs) {
     if (plan.insertOrders.has(diff.id)) diff.incomingOrder = plan.insertOrders.get(diff.id)!
@@ -1899,9 +1898,8 @@ export async function applyImport(
     if (resolutions.length) {
       if (!preview.resolutionSnapshot || preview.resolutionSnapshot !== importResolutionSnapshot(localRows.rows)) throw new Error('本地章节已变化，请重新生成预览并确认对应关系')
       preview.chapters = resolvedChapterDiffs(buildChapterDiff(payload, localRows.rows, { preserveLocalOrder: supplementary }), localRows.rows, resolutions)
-      const chosen = resolutions.filter(r => selectedChapters.has(r.chapterId))
       if (resolutions.some(r => r.action === 'insert')) {
-        const plan = planImportInsertions(localRows.rows.map(c => ({ id: c.id, title: c.title, order: c.sort_order })), [...chosen].sort((a,b) => preview.chapters.findIndex(c => c.id===a.chapterId)-preview.chapters.findIndex(c => c.id===b.chapterId)))
+        const plan = planImportInsertions(localRows.rows.map(c => ({ id: c.id, title: c.title, order: c.sort_order })), [...resolutions].sort((a,b) => preview.chapters.findIndex(c => c.id===a.chapterId)-preview.chapters.findIndex(c => c.id===b.chapterId)), selectedChapters)
         for (const change of [...plan.changes].sort((a,b) => b.before-a.before)) {
           await q('UPDATE chapters SET sort_order=$1 WHERE id=$2 AND novel_id=$3', [change.after, change.chapterId, novelId])
           applied.push({ id: `order:${change.chapterId}`, kind: 'reorder-chapter', title: change.title, novelId, chapterId: change.chapterId, before: { order: change.before }, after: { order: change.after } })

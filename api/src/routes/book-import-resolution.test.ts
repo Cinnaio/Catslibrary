@@ -25,7 +25,7 @@ const rows = async (id: string) =>
       [id],
     )
   ).rows
-async function fixture(extra = false) {
+async function fixture(extra = false, multiple = false) {
   const id = `resolve-${++counter}`
   await t.db.query("INSERT INTO novels(id,title,author,created_at,updated_at) VALUES($1,$1,'作者',1,1)", [id])
   await t.db.query(
@@ -46,6 +46,10 @@ async function fixture(extra = false) {
       { title: '第三章 终点', order: 3, content: '终点正文' },
       { title: '第四章 尾章', order: 4, content: '尾章正文' },
     ],
+  }
+  if (multiple) {
+    payload.chapters.splice(2, 0, { title: '补章 过渡', order: 3, content: '过渡正文' })
+    payload.chapters.forEach((chapter, index) => { chapter.order = index + 1 })
   }
   const preview = await createPreview(t.db, {
     sourceType: 'file',
@@ -222,4 +226,86 @@ it('过期预览与进行中的 AI 复核不能被人工确认绕过', async () 
   expect((await resolve(p, { action: 'insert', afterChapterId: `${id}-a` })).status).toBe(409)
   expect(await rows(id)).toEqual(before)
   expect((await t.db.query<{ revision: number }>('SELECT revision FROM book_import_runs WHERE id=$1', [p.runId])).rows[0]?.revision).toBe(0)
+})
+
+async function confirmedChain(extra = false) {
+  const result = await fixture(extra, true)
+  const first = await resolve(result.preview, { action: 'insert', afterChapterId: `${result.id}-a` })
+  expect(first.status).toBe(200)
+  const second = await resolve(await first.json() as BookImportPreview, { chapterId: 'chapter-3', action: 'insert', afterIncomingChapterId: 'chapter-2' })
+  expect(second.status).toBe(200)
+  return { ...result, preview: await second.json() as BookImportPreview }
+}
+it('连续补章以本轮新增章为锚点，预览和实际顺序一致并可撤回', async () => {
+  const { id, preview, before } = await confirmedChain()
+  expect(preview.chapters.slice(1, 3).map(c => c.incomingOrder)).toEqual([2, 3])
+  expect(preview.chapterResolutions?.[1]).toMatchObject({ afterIncomingChapterId: 'chapter-2', afterChapterId: null })
+  expect(await rows(id)).toEqual(before)
+  const result = await request(`${preview.runId}/commit`, { revision: 2, selectedChapterIds: ['chapter-2', 'chapter-3', 'chapter-5'], metadataFields: [] })
+  expect(result.status).toBe(200)
+  expect(await result.json()).toMatchObject({ created: 3, conflicts: [] })
+  expect((await rows(id)).map(c => [c.sort_order, c.content])).toEqual([[1, '起点正文'], [2, '插章正文'], [3, '过渡正文'], [4, '终点正文'], [5, '尾章正文']])
+  expect((await request(`${preview.runId}/rollback`, {})).status).toBe(200)
+  expect(await rows(id)).toEqual(before)
+})
+it('连续补章取消勾选前章，后章仍接在原位置且不自动导入前章', async () => {
+  const { id, preview, before } = await confirmedChain()
+  const result = await request(`${preview.runId}/commit`, { revision: 2, selectedChapterIds: ['chapter-3', 'chapter-5'], metadataFields: [] })
+  expect(result.status).toBe(200)
+  expect(await result.json()).toMatchObject({ created: 2, conflicts: [] })
+  expect((await rows(id)).map(c => [c.sort_order, c.content])).toEqual([[1, '起点正文'], [2, '过渡正文'], [3, '终点正文'], [4, '尾章正文']])
+  expect((await request(`${preview.runId}/rollback`, {})).status).toBe(200)
+  expect(await rows(id)).toEqual(before)
+})
+it('撤销前章确认会把后章接回原锚点，剩余确认仍可导入', async () => {
+  const { id, preview, before } = await confirmedChain()
+  const result = await resolve(preview, { action: 'clear' })
+  expect(result.status).toBe(200)
+  const cleared = await result.json() as BookImportPreview
+  expect(cleared.chapters[1]).toMatchObject({ status: 'conflict', selected: false })
+  expect(cleared.chapterResolutions).toEqual([{ chapterId: 'chapter-3', action: 'insert', afterChapterId: `${id}-a` }])
+  expect(cleared.chapters[2]?.incomingOrder).toBe(2)
+  expect(await rows(id)).toEqual(before)
+  expect((await request(`${preview.runId}/commit`, { revision: 3, selectedChapterIds: ['chapter-3'], metadataFields: [] })).status).toBe(200)
+  expect((await rows(id)).map(c => c.content)).toEqual(['起点正文', '过渡正文', '终点正文'])
+})
+it('调整前章插入位置时后章跟随移动，不能选择自身、后继、无效或歧义锚点', async () => {
+  const { id, preview, before } = await confirmedChain()
+  for (const data of [
+    { afterChapterId: null, afterIncomingChapterId: 'chapter-2' },
+    { afterChapterId: null, afterIncomingChapterId: 'chapter-3' },
+    { afterChapterId: null, afterIncomingChapterId: 'chapter-4' },
+    { afterChapterId: null, afterIncomingChapterId: 'another-run-chapter' },
+    { afterChapterId: `${id}-a`, afterIncomingChapterId: 'chapter-3' },
+    { afterChapterId: null, afterIncomingChapterId: 123 },
+  ]) expect((await resolve(preview, { action: 'insert', ...data })).ok).toBe(false)
+  const result = await resolve(preview, { action: 'insert', afterChapterId: `${id}-c` })
+  expect(result.status).toBe(200)
+  const moved = await result.json() as BookImportPreview
+  expect(moved.revision).toBe(3)
+  expect(moved.chapters.slice(1, 3).map(c => c.incomingOrder)).toEqual([3, 4])
+  expect(await rows(id)).toEqual(before)
+  expect((await request(`${preview.runId}/commit`, { revision: 3, selectedChapterIds: ['chapter-2', 'chapter-3'], metadataFields: [] })).status).toBe(200)
+  expect((await rows(id)).map(c => c.content)).toEqual(['起点正文', '终点正文', '插章正文', '过渡正文'])
+})
+it('前章改为对应已有章节后，后章接回旧位置，原标题和正文按勾选保留', async () => {
+  const { id, preview } = await confirmedChain(true)
+  const result = await resolve(preview, { action: 'match', localChapterId: `${id}-extra` })
+  expect(result.status).toBe(200)
+  const next = await result.json() as BookImportPreview
+  expect(next.chapters[1]).toMatchObject({ status: 'changed', selected: false, incomingOrder: 5 })
+  expect(next.chapterResolutions?.find(r => r.chapterId === 'chapter-3')).toEqual({ chapterId: 'chapter-3', action: 'insert', afterChapterId: `${id}-a` })
+  expect((await request(`${preview.runId}/commit`, { revision: 3, selectedChapterIds: ['chapter-3'], metadataFields: [] })).status).toBe(200)
+  expect((await rows(id)).map(c => [c.sort_order, c.content])).toEqual([[1, '起点正文'], [2, '过渡正文'], [3, '终点正文'], [5, '旧版正文']])
+})
+it('显式调换两段补章顺序后，实际写入遵循指定位置而不是文件顺序', async () => {
+  const { id, preview, before } = await confirmedChain()
+  const detached = await resolve(preview, { chapterId: 'chapter-3', action: 'insert', afterChapterId: `${id}-a` })
+  expect(detached.status).toBe(200)
+  const reordered = await resolve(await detached.json() as BookImportPreview, { action: 'insert', afterChapterId: null, afterIncomingChapterId: 'chapter-3' })
+  expect(reordered.status).toBe(200)
+  expect((await request(`${preview.runId}/commit`, { revision: 4, selectedChapterIds: ['chapter-2', 'chapter-3'], metadataFields: [] })).status).toBe(200)
+  expect((await rows(id)).map(c => c.content)).toEqual(['起点正文', '过渡正文', '插章正文', '终点正文'])
+  expect((await request(`${preview.runId}/rollback`, {})).status).toBe(200)
+  expect(await rows(id)).toEqual(before)
 })
