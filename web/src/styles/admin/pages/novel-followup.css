@@ -4,9 +4,80 @@
 
 /* 弹窗容器尺寸与纸面 */
 [data-slot='dialog-content'].admin-dialog.novel-followup-dialog {
-  width: min(calc(100% - 2rem), 32rem);
+  width: min(calc(100% - 2rem), 40rem);
   max-height: min(44rem, calc(100svh - 2rem));
   border-radius: var(--admin-radius-dialog, 18px);
+}
+
+.novel-followup-dialog__origin {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.novel-followup-dialog__source-section {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--admin-border);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  min-width: 0;
+}
+
+.novel-followup-dialog__source-section h3 {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.novel-followup-dialog__origin,
+.novel-followup-dialog__source-section p {
+  margin: 0;
+}
+
+.novel-followup-dialog__source-editor [role='alert'] {
+  color: var(--color-danger);
+}
+
+.novel-followup-dialog__source-row,
+.novel-followup-dialog__source-editor {
+  display: grid;
+  gap: 0.625rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.novel-followup-dialog__source-row + .novel-followup-dialog__source-row {
+  border-top: 1px solid var(--admin-border);
+  padding-top: 0.75rem;
+}
+
+.novel-followup-dialog__source-url {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.novel-followup-dialog__source-row > button {
+  justify-self: start;
+}
+
+.novel-followup-dialog__source-editor details {
+  display: grid;
+  min-width: 0;
+}
+
+.novel-followup-dialog__source-editor summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+
+.novel-followup-dialog__source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .novel-followup-dialog [data-slot='dialog-header'] {
@@ -269,6 +340,13 @@
 
 /* 移动端紧凑适配 */
 @media (max-width: 480px) {
+  .novel-followup-dialog--sources [data-slot='dialog-footer'] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .novel-followup-dialog--sources [data-slot='dialog-footer'] > button:last-child {
+    grid-column: 1 / -1;
+  }
   .novel-followup-dialog [data-slot='dialog-header'] {
     padding: 1.25rem 1.25rem 0.25rem;
   }

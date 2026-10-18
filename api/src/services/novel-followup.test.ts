@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDb, type TestDb } from '../test/db'
-import { enqueueFollowup, finishFollowup, followupDelay, getFollowup, runFollowupTick, saveFollowup } from './novel-followup'
+import { enqueueFollowup, finishFollowup, followupDelay, getFollowup, runFollowupTick, saveFollowup, bindFollowupSource } from './novel-followup'
 import { PgScrapeStore } from './scraper/store'
 import { runScrapeJob } from './scraper/engine'
 
@@ -36,6 +36,38 @@ describe('连载追更', () => {
     await expect(saveFollowup(t.db, 'unconfigured', true, 6)).rejects.toThrow('已配置')
     await expect(saveFollowup(t.db, 'done', true, 6)).rejects.toThrow('已配置')
     await expect(saveFollowup(t.db, 'follow', true, 2)).rejects.toThrow('频率')
+  })
+  it('TXT 绑定网页来源保持暂停和自定义频率，不改作品元数据或章节', async () => {
+    await t.db.query(
+      "INSERT INTO novels(id,title,author,source_url,created_at,updated_at) VALUES('txt-source','原书名','作者','https://original.example/book',1,1)",
+    )
+    await t.db.query("INSERT INTO novel_followups(novel_id,enabled,interval_hours,user_configured) VALUES('txt-source',FALSE,12,TRUE)")
+    await t.db.query("UPDATE novels SET remote_chapter_count=99,source_chapter_snapshot='[]' WHERE id='txt-source'")
+    await t.db.query("UPDATE novel_followups SET checked_at=1,result='failed',message='旧来源失败',failures=2 WHERE novel_id='txt-source'")
+    await t.db.query(
+      "INSERT INTO book_import_runs(id,target_novel_id,source_type,source_label,status,created_at,applied_at) VALUES('txt-run','txt-source','file','原书名.txt','applied',1,1)",
+    )
+    await bindFollowupSource(t.db, 'txt-source', 'https://www.po18.tw/books/123')
+    expect(await getFollowup(t.db, 'txt-source')).toMatchObject({ enabled: false, intervalHours: 12, hasConfig: true, importSourceLabel: '原书名.txt', remoteChapterCount: 0, checkedAt: 0, result: 'idle', failures: 0, pendingChapterCount: null })
+    const novel = await t.db.query("SELECT title,author,source_url FROM novels WHERE id='txt-source'")
+    expect(novel.rows[0]).toEqual({ title: '原书名', author: '作者', source_url: 'https://original.example/book' })
+    expect((await t.db.query("SELECT * FROM chapters WHERE novel_id='txt-source'")).rows).toHaveLength(0)
+    await saveFollowup(t.db, 'txt-source', true, 12)
+    expect((await getFollowup(t.db, 'txt-source'))?.enabled).toBe(true)
+  })
+  it('未知站点要求明确规则，拒绝伪装域名与无效配置，并保留自定义编码', async () => {
+    await expect(bindFollowupSource(t.db, 'unconfigured', 'https://po18.tw.evil.example/books/123')).rejects.toThrow('暂无内置规则')
+    await expect(bindFollowupSource(t.db, 'unconfigured', 'file:///secret')).rejects.toThrow('HTTP')
+    await expect(bindFollowupSource(t.db, 'unconfigured', 'https://example.com/book', { chapterList: 'a' })).rejects.toThrow('选择器')
+    await bindFollowupSource(t.db, 'unconfigured', 'https://example.com/book', { chapterList: 'a', chapterContent: '.body' }, 'gbk')
+    expect(await getFollowup(t.db, 'unconfigured')).toMatchObject({ enabled: false, hasConfig: true, encoding: 'gbk' })
+  })
+  it('活动任务阻止改绑来源，原配置保持不变', async () => {
+    await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('binding-busy','执行中',1,1)")
+    await t.db.query("INSERT INTO scrape_jobs(id,novel_id,status,started_at,updated_at) VALUES('binding-job','binding-busy','starting',1,1)")
+    await expect(bindFollowupSource(t.db, 'binding-busy', 'https://www.po18.tw/books/123')).rejects.toThrow('正在执行')
+    expect((await t.db.query("SELECT * FROM scrape_configs WHERE novel_id='binding-busy'")).rows).toHaveLength(0)
+    await t.db.query("UPDATE scrape_jobs SET status='cancelled' WHERE id='binding-job'")
   })
   it('保存频率，到期创建任务；再次手动更新复用活动任务', async () => {
     await saveFollowup(t.db, 'follow', true, 6)

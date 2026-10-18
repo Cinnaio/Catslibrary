@@ -3,6 +3,7 @@ import type { Db } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { newId } from './auth'
 import { applyFollowupDefaults, hasFollowupSource } from './novel-followup-defaults'
+import { SITE_PRESETS } from './scraper/presets'
 
 interface FollowupRow {
   novel_id: string
@@ -22,14 +23,24 @@ const terminal = ['completed', 'partial', 'failed', 'cancelled']
 
 export async function getFollowup(db: Db, novelId: string) {
   await applyFollowupDefaults(db, novelId)
-  const novel = await first<{ status: string; chapter_count: number; remote_chapter_count: number }>(
+  const novel = await first<{ status: string; chapter_count: number; remote_chapter_count: number; author: string }>(
     db,
-    'SELECT status,chapter_count,remote_chapter_count FROM novels WHERE id=$1',
+    'SELECT status,chapter_count,remote_chapter_count,author FROM novels WHERE id=$1',
     [novelId],
   )
   if (!novel) return null
   const row = await first<FollowupRow>(db, 'SELECT * FROM novel_followups WHERE novel_id=$1', [novelId])
-  const config = await first<{ source_url: string; selectors: string }>(db, 'SELECT source_url,selectors FROM scrape_configs WHERE novel_id=$1', [novelId])
+  const config = await first<{ source_url: string; selectors: string; encoding: string }>(
+    db,
+    'SELECT source_url,selectors,encoding FROM scrape_configs WHERE novel_id=$1',
+    [novelId],
+  )
+  const imported = await first<{ source_label: string }>(
+    db,
+    `SELECT source_label FROM book_import_runs WHERE target_novel_id=$1 AND source_type='file'
+     AND status IN ('applied','partial') ORDER BY applied_at DESC LIMIT 1`,
+    [novelId],
+  )
   const active = await first<{ id: string; step: string }>(
     db,
     `SELECT id,step FROM scrape_jobs WHERE novel_id=$1
@@ -38,6 +49,7 @@ export async function getFollowup(db: Db, novelId: string) {
   )
   return {
     chapterCount: novel.chapter_count,
+    author: novel.author,
     remoteChapterCount: novel.remote_chapter_count,
     enabled: row?.enabled || false,
     intervalHours: row?.interval_hours || 6,
@@ -48,11 +60,59 @@ export async function getFollowup(db: Db, novelId: string) {
     addedCount: row?.added_count || 0,
     failures: row?.failures || 0,
     sourceUrl: config?.source_url || '',
+    selectors: config?.selectors || '{}',
+    encoding: config?.encoding || 'utf-8',
+    importSourceLabel: imported?.source_label || '',
     jobId: active?.id || row?.last_job_id || '',
     hasConfig: hasFollowupSource(config?.source_url ?? null, config?.selectors ?? null),
     ...(await getPendingChapterCounts(db, [novelId])).get(novelId),
     ongoing: novel.status === 'ongoing',
   }
+}
+
+/** 只绑定正文抓取配置；开启追更由用户另行保存，不修改作品信息或参考目录。 */
+export async function bindFollowupSource(db: Db, novelId: string, rawUrl: string, customSelectors?: unknown, customEncoding?: unknown) {
+  let url: URL
+  try {
+    url = new URL(rawUrl.trim())
+  } catch {
+    throw new Error('请填写有效的网页来源地址')
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.href.length > 2048)
+    throw new Error('请填写有效的 HTTP 或 HTTPS 网页来源地址')
+  if (customEncoding !== undefined && (typeof customEncoding !== 'string' || !/^[a-zA-Z0-9_-]{1,32}$/.test(customEncoding)))
+    throw new Error('请填写有效的网页编码')
+  const preset = SITE_PRESETS[url.hostname.replace(/^www\./, '')]
+  const selectors = customSelectors ?? preset?.selectors
+  if (
+    !selectors ||
+    typeof selectors !== 'object' ||
+    Array.isArray(selectors) ||
+    Object.values(selectors).some((value) => typeof value !== 'string' || value.length > 4000) ||
+    JSON.stringify(selectors).length > 16000 ||
+    !hasFollowupSource(url.href, JSON.stringify(selectors))
+  ) {
+    throw new Error('此站点暂无内置规则，请在高级配置中填写目录和正文选择器')
+  }
+  const sourceUrl = preset?.urlTransform ? preset.urlTransform(url.href) : url.href
+  await withTx(db, async (q) => {
+    if (!(await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [novelId])).rows.length) throw new Error('小说不存在')
+    if ((await q(`SELECT id FROM scrape_jobs WHERE novel_id=$1 AND status NOT IN ('completed','partial','failed','cancelled') LIMIT 1`, [novelId])).rows.length)
+      throw new Error('网页更新正在执行，请完成后再调整来源')
+    await q(
+      `INSERT INTO scrape_configs(novel_id,source_url,selectors,encoding,updated_at) VALUES($1,$2,$3,$4,$5)
+      ON CONFLICT(novel_id) DO UPDATE SET source_url=$2,selectors=$3,encoding=$4,updated_at=$5`,
+      [novelId, sourceUrl, JSON.stringify(selectors), customEncoding || preset?.encoding || 'utf-8', Date.now()],
+    )
+    await q(
+      `INSERT INTO novel_followups(novel_id,enabled,next_check_at,user_configured) VALUES($1,FALSE,0,TRUE)
+      ON CONFLICT(novel_id) DO UPDATE SET enabled=FALSE,next_check_at=0,user_configured=TRUE,
+        checked_at=0,last_job_id='',result='idle',message='',added_count=0,empty_checks=0,failures=0`,
+      [novelId],
+    )
+    // 原来源的目录快照不能作为新配置的待入库数量或权限检查结果。
+    await q('UPDATE novels SET source_chapter_snapshot=NULL,remote_chapter_count=0 WHERE id=$1', [novelId])
+  })
 }
 
 export async function saveFollowup(db: Db, novelId: string, enabled: boolean, hours: number) {

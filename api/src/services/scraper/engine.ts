@@ -392,6 +392,13 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         return true
       })
       job.skippedCount = links.length - newLinks.length
+      if (job.updateMode && !job.retryLinks?.length && newLinks.length && (existing.urls.size || existing.titles.size) && await store.hasFileImport?.(job.novelId)) {
+        if (!job.skippedCount) throw new Error('网页目录与已导入文件尚无可靠章节对应关系，请先在「更新与来源」中读取参考目录并确认融合')
+        const lastMatched = links.reduce((last, link, index) => existing.urls.has(link.href) || existing.titles.has(link.text.trim()) ? index : last, -1)
+        if (links.slice(0, lastMatched).some(link => !existing.urls.has(link.href) && !existing.titles.has(link.text.trim()))) {
+          throw new Error('网页目录存在中间未匹配章节，请先核对参考目录和本地章节映射，再检查更新')
+        }
+      }
     }
 
     let baseOrder = 0

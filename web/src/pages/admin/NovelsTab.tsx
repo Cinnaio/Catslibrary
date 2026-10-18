@@ -632,8 +632,8 @@ export default function NovelsTab({
                         variant="ghost"
                         size="icon"
                         className="admin-icon-button"
-                        aria-label={`追更设置：${n.title}`}
-                        title="追更设置"
+                        aria-label={`更新与来源：${n.title}`}
+                        title="更新与来源"
                         onClick={() => setFollowupNovel(n)}
                       >
                         <RefreshCw className="size-4" />
@@ -669,7 +669,7 @@ export default function NovelsTab({
           />
         </Suspense>
       )}
-      {followupNovel && <NovelFollowupDialog key={followupNovel.id} novel={followupNovel} onClose={() => setFollowupNovel(null)} />}
+      {followupNovel && <NovelFollowupDialog key={followupNovel.id} novel={followupNovel} onCompleted={() => void load()} onClose={() => setFollowupNovel(null)} />}
 
       <Pagination
         variant="detached"

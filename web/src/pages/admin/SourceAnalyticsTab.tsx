@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CirclePlus, LockKeyhole, RefreshCw, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -7,7 +7,7 @@ import { adminApi, url, authHeaders } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
@@ -26,7 +26,6 @@ import { cn } from '@/lib/utils'
 import '@/styles/admin/pages/source-analytics.css'
 
 const MergeDialog = lazy(() => import('./ChaptersTab'))
-const followupKeys = Object.keys(FOLLOWUP_LABELS) as FollowupCategory[]
 const siteLabel = (site: string) => (site === '__none__' ? '无有效来源' : site)
 const n = (value: number) => value.toLocaleString('zh-CN')
 
@@ -610,8 +609,8 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                                 <button
                                   type="button"
                                   className="admin-icon-button"
-                                  title="调整追更设置"
-                                  aria-label={`调整《${book.title}》追更设置`}
+                                  title="更新与来源"
+                                  aria-label={`《${book.title}》更新与来源`}
                                   onClick={() => setQuickFollowupNovel({ id: book.id, title: book.title })}
                                 >
                                   <Settings2 className="size-4" />

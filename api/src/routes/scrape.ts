@@ -48,7 +48,7 @@ import { readRuntimeConfig, syncRuntimeConfigToEnv, writeRuntimeConfig } from '.
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
 import { makeDeps, withPo18Session, fireJob } from '../services/scraper/runtime'
-import { getFollowup, saveFollowup, enqueueFollowup } from '../services/novel-followup'
+import { getFollowup, saveFollowup, enqueueFollowup, bindFollowupSource } from '../services/novel-followup'
 
 export const scrapeRoutes = new Hono<AuthEnv>()
 
@@ -299,6 +299,15 @@ scrapeRoutes.post('/', async (c) => {
     case 'followup-batch-save': {
       try {
         return c.json(await saveBatchFollowups(db, body.novelIds, body.mode, body.intervalHours))
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 400)
+      }
+    }
+    case 'followup-source-save': {
+      if (typeof body.novelId !== 'string' || !body.novelId || typeof body.sourceUrl !== 'string') return c.json({ error: '请提供小说和网页来源地址' }, 400)
+      try {
+        await bindFollowupSource(db, body.novelId, body.sourceUrl, body.selectors, body.encoding)
+        return c.json(await getFollowup(db, body.novelId))
       } catch (err) {
         return c.json({ error: (err as Error).message }, 400)
       }
