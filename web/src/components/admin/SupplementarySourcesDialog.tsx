@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
+import CustomSelect from './CustomSelect'
 import { LoaderCircle, Plus, RefreshCw, ExternalLink, Upload } from 'lucide-react'
 import '@/styles/supplementary-sources.css'
 
@@ -236,31 +237,26 @@ export default function SupplementarySourcesDialog({
           {overview && (
             <>
               <div className="supplementary-source-picker">
-                <Label htmlFor="supp-source" className="supplementary-source-picker__label">
+                <Label id="supp-source-label" className="supplementary-source-picker__label">
                   共享目录
                 </Label>
-                <select
-                  id="supp-source"
-                  className="supplementary-select supplementary-source-picker__select"
+                <CustomSelect
+                  aria-labelledby="supp-source-label"
+                  className="supplementary-source-picker__select"
                   value={sourceId}
                   disabled={busy}
-                  onChange={(e) => {
-                    setSourceId(e.target.value)
+                  onChange={(value) => {
+                    setSourceId(value)
                     setOffset(0)
                     setSearch(novel?.title || '')
                     setFileToBind(null)
                     setDraft(null)
                   }}
-                >
-                  <option value="" disabled>
-                    选择一个来源
-                  </option>
-                  {overview.sources.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    ...(sourceId ? [] : [{ value: '', label: '选择一个来源', disabled: true }]),
+                    ...overview.sources.map((s) => ({ value: s.id, label: s.name })),
+                  ]}
+                />
                 <div className="supplementary-source-picker__actions">
                   <Button variant="outline" size="sm" disabled={busy} onClick={() => setDraft(newDraft())}>
                     <Plus className="size-3.5" aria-hidden="true" />
@@ -455,24 +451,24 @@ export default function SupplementarySourcesDialog({
                                 </div>
                                 {file && (
                                   <>
-                                    <div>
-                                      <dt>候选版本</dt>
-                                      <dd>
-                                        <select
-                                          id={`supp-version-${b.id}`}
-                                          aria-label="候选版本"
-                                          className="supplementary-select"
+                                    <div className="supplementary-fact--control">
+                                      <dt id={`supp-version-label-${b.id}`}>候选版本</dt>
+                                      <dd className="supplementary-control">
+                                        <CustomSelect
+                                          aria-labelledby={`supp-version-label-${b.id}`}
+                                          className="supplementary-version-picker"
                                           value={file.key}
                                           disabled={busy}
-                                          onChange={(e) => setVersions({ ...versions, [b.id]: e.target.value })}
-                                        >
-                                          {b.candidates.map((f) => (
-                                            <option key={f.key} value={f.key}>
-                                              {f.stale ? '旧清单 · ' : f.incomplete ? '目录未读全 · ' : ''}
-                                              {f.folder} · {f.name}
-                                            </option>
-                                          ))}
-                                        </select>
+                                          dropdownSide="top"
+                                          searchable
+                                          searchPlaceholder="按目录或文件名筛选"
+                                          onChange={(value) => setVersions({ ...versions, [b.id]: value })}
+                                          options={b.candidates.map((f) => ({
+                                            value: f.key,
+                                            label: `${f.stale ? '旧清单 · ' : f.incomplete ? '目录未读全 · ' : ''}${f.folder} · ${f.name}`,
+                                            sub: `${f.size} · ${versionState(f)}`,
+                                          }))}
+                                        />
                                       </dd>
                                     </div>
                                     <div>
@@ -675,21 +671,20 @@ export default function SupplementarySourcesDialog({
                           </div>
                           {novelError && <p role="alert">{novelError}</p>}
                           <div className="supplementary-field">
-                            <Label htmlFor="supp-novel">选择对应作品</Label>
-                            <select
-                              id="supp-novel"
-                              className="supplementary-select"
+                            <Label id="supp-novel-label">选择对应作品</Label>
+                            <CustomSelect
+                              aria-labelledby="supp-novel-label"
+                              className="supplementary-novel-picker"
                               value={novelId}
                               disabled={busy}
-                              onChange={(e) => setNovelId(e.target.value)}
-                            >
-                              <option value="">请选择并核对作者</option>
-                              {novels.map((n) => (
-                                <option key={n.id} value={n.id}>
-                                  {n.title} · {n.author || '未知作者'} · {n.chapterCount} 章
-                                </option>
-                              ))}
-                            </select>
+                              placeholder="请选择并核对作者"
+                              onChange={setNovelId}
+                              options={novels.map((n) => ({
+                                value: n.id,
+                                label: n.title,
+                                sub: `${n.author || '未知作者'} · ${n.chapterCount} 章`,
+                              }))}
+                            />
                           </div>
                         </>
                       )}

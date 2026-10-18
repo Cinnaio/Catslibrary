@@ -13,6 +13,23 @@ const mocks = vi.hoisted(() => ({
   novelIndex: vi.fn(),
 }))
 vi.mock('@/lib/api', () => ({ supplementarySourceApi: mocks, adminApi: { novelIndex: mocks.novelIndex } }))
+// 共享下拉（CustomSelect）是 Popover + Command，jsdom 下弹层渲染不稳定；
+// 用原生 select 承接同一套 props，验证调用方的取值与无障碍标签。
+vi.mock('./CustomSelect', () => ({
+  default: ({ options, value, onChange, ...props }: { options: Array<{ value: string; label: string }>; value: string; onChange: (value: string) => void; [key: string]: unknown }) => (
+    <select
+      aria-labelledby={props['aria-labelledby'] as string}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
+}))
 vi.mock('./BookImportDialog', () => ({
   default: ({ initialPreview, onOpenChange }: { initialPreview: { runId: string }; onOpenChange: (open: boolean) => void }) => (
     <div role="dialog" aria-label="章节预览">
@@ -111,8 +128,20 @@ it('同书不同日期归并显示，展开后可以绑定旧版本并提示目�
   expect(await screen.findByLabelText('候选版本')).toHaveValue('older')
 })
 
-it('单书入口只展示当前作品，绑定新别名固定目标且保留共享目录设置', async () => {
-  const other = { ...binding, id: 'other-binding', novelId: 'other', novelTitle: '其他作品' }
+it('候选版本使用共享下拉，按标签行事实顶对齐并撑满控件列', async () => {
+  mocks.overview.mockResolvedValue({ sources: [source], bindings: [binding] })
+  render(<SupplementarySourcesDialog onClose={vi.fn()} onCompleted={vi.fn()} />)
+  const version = await screen.findByLabelText('候选版本')
+  expect(version).toHaveValue('file')
+  // 控件所在的事实行换到顶部对齐，标签跟着控件走，不再被基线整体下坠
+  expect(version.closest('div')).toHaveClass('supplementary-fact--control')
+  expect(version.closest('dd')).toHaveClass('supplementary-control')
+  // 共享目录与绑定作品同走共享下拉，不再出现原生 select
+  expect(screen.getByLabelText('共享目录').tagName).toBe('SELECT')
+  expect(screen.getByLabelText('共享目录').closest('[class*="supplementary-source-picker"]')).not.toBeNull()
+})
+
+it('单书入口只展示当前作品，绑定新别名固定目标且保留共享目录设置', async () => {  const other = { ...binding, id: 'other-binding', novelId: 'other', novelTitle: '其他作品' }
   mocks.overview.mockResolvedValue({ sources: [source], bindings: [other, binding] })
   mocks.bind.mockResolvedValue({ sources: [source], bindings: [other, binding] })
   render(<SupplementarySourcesDialog novel={{ id: 'novel', title: '站内书名', author: '甲' }} onClose={vi.fn()} onCompleted={vi.fn()} />)

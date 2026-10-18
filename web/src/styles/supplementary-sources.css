@@ -68,9 +68,19 @@
   line-height: 1.5;
 }
 
+/* 下拉触发器自带 400px 宽度上限，这里只钉住不被网格挤扁、也不超过 26rem。 */
 .supplementary-source-picker__select {
+  width: 100%;
   min-width: 0;
   max-width: 26rem;
+}
+
+/* 绑定作品：搜索框与候选项逐条带出作者与章节数，下拉按表单列拉满。 */
+.supplementary-novel-picker,
+.supplementary-version-picker {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
 }
 
 .supplementary-source-picker__actions {
@@ -100,30 +110,24 @@
   min-width: 0;
 }
 
-.supplementary-select {
-  width: 100%;
+/* 事实行只放文本时按基线对齐；放表单控件时改为顶部对齐，否则控件高度会把
+   行的基线一起推下去，标签和左侧文字看起来整体下坠。 */
+.supplementary-card__facts > div.supplementary-fact--control,
+.supplementary-summary__facts > div.supplementary-fact--control {
+  align-items: start;
+}
+
+/* 控件列：下拉吃满这一列，不再越过卡片内边距向右溢出。 */
+.supplementary-card__facts dd.supplementary-control,
+.supplementary-summary__facts dd.supplementary-control {
   min-width: 0;
-  height: 2.5rem;
-  padding: 0 1rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full, 9999px);
-  background: var(--admin-panel, #ffffff);
-  color: var(--text-primary);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
-  outline: none;
 }
 
-.supplementary-select:focus-visible {
-  border-color: var(--admin-terracotta, #d97757);
-  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.15);
-}
-
-.supplementary-select:disabled {
-  opacity: 0.65;
+.supplementary-card__facts dd.supplementary-control > *,
+.supplementary-summary__facts dd.supplementary-control > * {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
 }
 
 /* Claude 暖纸目录状态总账卡：来源名与状态胶囊同排，三项事实对齐成网格 */
@@ -389,8 +393,9 @@
   overflow-wrap: anywhere;
 }
 
-.supplementary-card__facts dd .supplementary-select {
-  margin-top: 0.125rem;
+/* 候选版本下拉与上一行事实留一点呼吸，避免控件贴着网格线。 */
+.supplementary-card__facts dd.supplementary-control {
+  padding-top: 0.125rem;
 }
 
 .supplementary-card__note {
