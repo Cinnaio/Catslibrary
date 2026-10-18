@@ -130,6 +130,16 @@ export interface BookImportChapterDiff {
   selected: boolean
 }
 
+export interface BookImportLocalChapter {
+  id: string
+  title: string
+  order: number
+}
+
+export type BookImportChapterResolution =
+  | { chapterId: string; action: 'match'; localChapterId: string }
+  | { chapterId: string; action: 'insert'; afterChapterId: string | null }
+
 /**
  * 导入解析诊断 —— 把「这一行为什么被当成 / 没当成章节标题」从正则里的隐式判据
  * 变成可读数据。零 AI 依赖：先有诊断，AI 复核才有对照基准，
@@ -281,6 +291,10 @@ export interface BookImportAiReview {
 }
 
 export interface BookImportPreview {
+  chapterResolutions?: BookImportChapterResolution[]
+  localChapters?: BookImportLocalChapter[]
+  /** 人工对应关系基于的本地快照，提交时重新校验。 */
+  resolutionSnapshot?: string
   supplementary?: { bindingId: string; fileKey: string }
   /** 每次快照变更递增，所有写操作验证这个版本。 */
   revision?: number
