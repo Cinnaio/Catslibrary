@@ -195,9 +195,14 @@ export default function SupplementarySourcesDialog({
         <DialogHeader>
           <DialogTitle>{novel ? '附加文件更新' : '附加更新源'}</DialogTitle>
           <DialogDescription>
-            {novel
-              ? `当前作品：${novel.title}。绑定和预览固定到这本书；来源设置由所有绑定书籍共用。`
-              : '从共享网盘目录寻找书籍新版，核对章节差异后再更新。作品原书源和信息保持不变。'}
+            {novel ? (
+              <>
+                <span className="supplementary-dialog__book">{novel.title}</span>
+                绑定和预览固定到这本书；来源设置由所有绑定书籍共用。
+              </>
+            ) : (
+              '从共享网盘目录寻找书籍新版，核对章节差异后再更新。作品原书源和信息保持不变。'
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="admin-dialog__body supplementary-body" aria-busy={busy}>
@@ -256,15 +261,17 @@ export default function SupplementarySourcesDialog({
                     ))}
                   </select>
                 </div>
-                <Button variant="secondary" size="sm" className="rounded-full" disabled={busy} onClick={() => setDraft(newDraft())}>
-                  <Plus className="size-3.5" aria-hidden="true" />
-                  添加目录
-                </Button>
-                {source && (
-                  <Button variant="secondary" size="sm" className="rounded-full" disabled={busy} onClick={() => edit(source)}>
-                    编辑来源
+                <div className="supplementary-toolbar__actions">
+                  <Button variant="outline" size="sm" disabled={busy} onClick={() => setDraft(newDraft())}>
+                    <Plus className="size-3.5" aria-hidden="true" />
+                    添加目录
                   </Button>
-                )}
+                  {source && (
+                    <Button variant="outline" size="sm" disabled={busy} onClick={() => edit(source)}>
+                      编辑来源
+                    </Button>
+                  )}
+                </div>
               </div>
               {draft && (
                 <section className="supplementary-editor" aria-labelledby="supp-editor-title">
@@ -325,10 +332,10 @@ export default function SupplementarySourcesDialog({
                   {novel && <p className="supplementary-note">此处修改的是共享目录设置，检查频率和开关对所有绑定书籍生效。</p>}
                   {draft.id && <p className="supplementary-note">换月时可更换目录链接，已有书籍绑定会保留；更换后需重新检查目录。</p>}
                   <div className="supplementary-actions">
-                    <Button size="sm" className="rounded-full" disabled={busy || !draft.name.trim() || !draft.url.trim()} onClick={() => void save()}>
+                    <Button size="sm" disabled={busy || !draft.name.trim() || !draft.url.trim()} onClick={() => void save()}>
                       保存来源
                     </Button>
-                    <Button variant="ghost" size="sm" className="rounded-full" disabled={busy} onClick={() => setDraft(null)}>
+                    <Button variant="ghost" size="sm" disabled={busy} onClick={() => setDraft(null)}>
                       取消
                     </Button>
                   </div>
@@ -339,10 +346,7 @@ export default function SupplementarySourcesDialog({
                   <section className="supplementary-summary">
                     <div className="supplementary-summary__info">
                       <div className="supplementary-summary__header">
-                        <a href={source.url} target="_blank" rel="noreferrer" className="supplementary-link">
-                          打开原目录
-                          <ExternalLink aria-hidden="true" />
-                        </a>
+                        <strong className="supplementary-summary__name">{source.name}</strong>
                         <span className={`supplementary-status-pill supplementary-status-pill--${source.status}`}>
                           {source.status === 'error'
                             ? '上次检查失败'
@@ -353,27 +357,41 @@ export default function SupplementarySourcesDialog({
                                 : '尚未检查'}
                         </span>
                       </div>
-                      <p className="supplementary-summary__files">
-                        <strong>{source.fileCount}</strong> 个已索引文件 · {time(source.checkedAt)}
-                      </p>
-                      <p className="supplementary-summary__schedule">
-                        {source.enabled ? `每 ${source.intervalHours} 小时检查，下次 ${time(source.nextCheckAt)}` : '定时检查未开启'}
-                      </p>
+                      <dl className="supplementary-summary__facts">
+                        <div>
+                          <dt>已索引</dt>
+                          <dd>{source.fileCount} 个文件</dd>
+                        </div>
+                        <div>
+                          <dt>上次检查</dt>
+                          <dd>{time(source.checkedAt)}</dd>
+                        </div>
+                        <div>
+                          <dt>定时检查</dt>
+                          <dd>{source.enabled ? `每 ${source.intervalHours} 小时 · 下次 ${time(source.nextCheckAt)}` : '未开启'}</dd>
+                        </div>
+                      </dl>
                     </div>
-                    <Button
-                      size="sm"
-                      className="rounded-full supplementary-check-btn"
-                      disabled={busy}
-                      onClick={() =>
-                        void action(async () => {
-                          setOverview(await api.check(source.id))
-                          setNotice('目录检查完成。文件名进度仅作参考，请生成预览核对正文。')
-                        })
-                      }
-                    >
-                      {busy ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="size-3.5" aria-hidden="true" />}
-                      检查目录
-                    </Button>
+                    <div className="supplementary-summary__actions">
+                      <a href={source.url} target="_blank" rel="noreferrer" className="supplementary-link">
+                        打开原目录
+                        <ExternalLink aria-hidden="true" />
+                      </a>
+                      <Button
+                        size="sm"
+                        className="supplementary-check-btn"
+                        disabled={busy}
+                        onClick={() =>
+                          void action(async () => {
+                            setOverview(await api.check(source.id))
+                            setNotice('目录检查完成。文件名进度仅作参考，请生成预览核对正文。')
+                          })
+                        }
+                      >
+                        {busy ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="size-3.5" aria-hidden="true" />}
+                        检查目录
+                      </Button>
+                    </div>
                   </section>
                   {source.status === 'error' && (
                     <Alert variant="destructive" className="supplementary-alert">
@@ -406,7 +424,7 @@ export default function SupplementarySourcesDialog({
                         <div className="supplementary-empty">
                           <p className="supplementary-empty__title">还没有绑定书籍</p>
                           <p className="supplementary-empty__desc">先检查目录，再从「目录文件与绑定」选择文件，确认它对应的站内作品。</p>
-                          <Button variant="secondary" size="sm" className="rounded-full" disabled={busy} onClick={() => setTab('files')}>
+                          <Button variant="outline" size="sm" disabled={busy} onClick={() => setTab('files')}>
                             选择文件并绑定
                           </Button>
                         </div>
@@ -416,56 +434,67 @@ export default function SupplementarySourcesDialog({
                         .map((b) => {
                           const file = selectedFile(b)
                           return (
-                            <article key={b.id} className="supplementary-row">
-                              <div className="supplementary-copy">
+                            <article key={b.id} className="supplementary-card">
+                              <div className="supplementary-card__head">
                                 <h3>{b.novelTitle}</h3>
-                                <p>
-                                  来源书名：{b.aliasTitle} · {b.aliasAuthor || '作者未标注'}
-                                </p>
-                                {file ? (
-                                  <>
-                                    <Label htmlFor={`supp-version-${b.id}`}>候选版本</Label>
-                                    <select
-                                      id={`supp-version-${b.id}`}
-                                      className="supplementary-select"
-                                      value={file.key}
-                                      disabled={busy}
-                                      onChange={(e) => setVersions({ ...versions, [b.id]: e.target.value })}
-                                    >
-                                      {b.candidates.map((f) => (
-                                        <option key={f.key} value={f.key}>
-                                          {f.stale ? '旧清单 · ' : f.incomplete ? '目录未读全 · ' : ''}
-                                          {f.folder} · {f.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <p>
-                                      {file.size} · {versionState(file)} · 文件名进度仅供参考
-                                    </p>
-                                  </>
-                                ) : (
-                                  <p>已读取的清单中未找到同书名、同作者的文件。目录未读全时不能判断有无更新；可重新检查，或在文件列表绑定新的来源别名。</p>
+                                {file && (
+                                  <span className="supplementary-chip" data-tone={file.stale ? 'idle' : file.incomplete ? 'partial' : 'primary'}>
+                                    {file.stale ? '旧清单' : file.incomplete ? '目录未读全' : '目录已读完'}
+                                  </span>
                                 )}
                               </div>
-                              <div className="supplementary-actions">
+                              <dl className="supplementary-card__facts">
+                                <div>
+                                  <dt>来源书名</dt>
+                                  <dd>
+                                    {b.aliasTitle} · {b.aliasAuthor || '作者未标注'}
+                                  </dd>
+                                </div>
                                 {file && (
                                   <>
-                                    <Button
-                                      size="sm"
-                                      className="rounded-full"
-                                      disabled={busy}
-                                      onClick={() => void action(async () => setPreview(await api.preview(b.id, file.key)))}
-                                    >
+                                    <div>
+                                      <dt>候选版本</dt>
+                                      <dd>
+                                        <select
+                                          id={`supp-version-${b.id}`}
+                                          aria-label="候选版本"
+                                          className="supplementary-select"
+                                          value={file.key}
+                                          disabled={busy}
+                                          onChange={(e) => setVersions({ ...versions, [b.id]: e.target.value })}
+                                        >
+                                          {b.candidates.map((f) => (
+                                            <option key={f.key} value={f.key}>
+                                              {f.stale ? '旧清单 · ' : f.incomplete ? '目录未读全 · ' : ''}
+                                              {f.folder} · {f.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt>版本线索</dt>
+                                      <dd>
+                                        {file.size} · {versionState(file)} · 文件名进度仅供参考
+                                      </dd>
+                                    </div>
+                                  </>
+                                )}
+                              </dl>
+                              {!file && (
+                                <p className="supplementary-card__note">
+                                  已读取的清单中未找到同书名、同作者的文件。目录未读全时不能判断有无更新；可重新检查，或在文件列表绑定新的来源别名。
+                                </p>
+                              )}
+                              <div className="supplementary-card__actions">
+                                {file && (
+                                  <>
+                                    <Button size="sm" disabled={busy} onClick={() => void action(async () => setPreview(await api.preview(b.id, file.key)))}>
                                       下载并预览
                                     </Button>
-                                    <a className="supplementary-link" href={file.url} target="_blank" rel="noreferrer">
-                                      原文件
-                                      <ExternalLink aria-hidden="true" />
-                                    </a>
                                     <Button
-                                      variant="secondary"
+                                      variant="outline"
                                       size="sm"
-                                      className="rounded-full"
                                       disabled={busy}
                                       onClick={() => {
                                         setUploadContext({ bindingId: b.id, fileKey: file.key })
@@ -475,12 +504,16 @@ export default function SupplementarySourcesDialog({
                                       <Upload className="size-3.5" aria-hidden="true" />
                                       上传对应文件
                                     </Button>
+                                    <a className="supplementary-link" href={file.url} target="_blank" rel="noreferrer">
+                                      原文件
+                                      <ExternalLink aria-hidden="true" />
+                                    </a>
                                   </>
                                 )}
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="rounded-full text-muted-foreground hover:text-destructive"
+                                  className="supplementary-unbind"
                                   disabled={busy}
                                   onClick={() =>
                                     void action(async () => {
@@ -543,22 +576,25 @@ export default function SupplementarySourcesDialog({
                         <p className="supplementary-empty">已读取的清单中没有匹配书籍。尚未检查时请先检查目录；目录未读全时不能据此判断没有文件。</p>
                       )}
                       {catalog?.items.map((book) => (
-                        <article key={book.key} className="supplementary-book">
-                          <div className="supplementary-row">
-                            <div className="supplementary-copy">
-                              <h3>{book.title}</h3>
-                              <p>
-                                {book.author || '作者未标注'} · 已发现 {book.versions.length} 个版本
-                              </p>
-                              <p>
-                                已发现最高进度：{book.highestRevision === null ? '文件名未标注' : `更${book.highestRevision}`} · 最近目录{' '}
-                                {book.versions[0]?.folder}
-                              </p>
-                            </div>
-                            <Button variant="secondary" size="sm" className="rounded-full" disabled={busy} onClick={() => chooseBinding(book.versions[0]!)}>
-                              绑定已有书籍
-                            </Button>
+                        <article key={book.key} className="supplementary-card">
+                          <div className="supplementary-card__head">
+                            <h3>{book.title}</h3>
+                            <span className="supplementary-chip" data-tone="partial">
+                              {book.highestRevision === null ? '进度未标注' : `最高 更${book.highestRevision}`}
+                            </span>
                           </div>
+                          <dl className="supplementary-card__facts">
+                            <div>
+                              <dt>作者</dt>
+                              <dd>{book.author || '作者未标注'}</dd>
+                            </div>
+                            <div>
+                              <dt>版本</dt>
+                              <dd>
+                                已发现 {book.versions.length} 个版本 · 最近目录 {book.versions[0]?.folder}
+                              </dd>
+                            </div>
+                          </dl>
                           <details className="supplementary-versions">
                             <summary>查看 {book.versions.length} 个已发现版本</summary>
                             <div>
@@ -578,7 +614,6 @@ export default function SupplementarySourcesDialog({
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="rounded-full"
                                       disabled={busy}
                                       aria-label={`绑定此版本：${file.folder} ${file.name}`}
                                       onClick={() => chooseBinding(file)}
@@ -590,29 +625,22 @@ export default function SupplementarySourcesDialog({
                               ))}
                             </div>
                           </details>
+                          <div className="supplementary-card__actions">
+                            <Button variant="outline" size="sm" disabled={busy} onClick={() => chooseBinding(book.versions[0]!)}>
+                              绑定已有书籍
+                            </Button>
+                          </div>
                         </article>
                       ))}
                       {catalog && catalog.total > 30 && (
                         <div className="supplementary-pagination">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="rounded-full"
-                            disabled={busy || !offset}
-                            onClick={() => setOffset(Math.max(0, offset - 30))}
-                          >
+                          <Button variant="outline" size="sm" disabled={busy || !offset} onClick={() => setOffset(Math.max(0, offset - 30))}>
                             上一页
                           </Button>
                           <span className="supplementary-pagination__info">
                             第 {offset + 1}–{Math.min(offset + 30, catalog.total)} 本 / 共 {catalog.total} 本
                           </span>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="rounded-full"
-                            disabled={busy || offset + 30 >= catalog.total}
-                            onClick={() => setOffset(offset + 30)}
-                          >
+                          <Button variant="outline" size="sm" disabled={busy || offset + 30 >= catalog.total} onClick={() => setOffset(offset + 30)}>
                             下一页
                           </Button>
                         </div>
@@ -656,7 +684,6 @@ export default function SupplementarySourcesDialog({
                       <div className="supplementary-actions">
                         <Button
                           size="sm"
-                          className="rounded-full"
                           disabled={busy || !novelId}
                           onClick={() =>
                             void action(async () => {
@@ -677,7 +704,7 @@ export default function SupplementarySourcesDialog({
                         >
                           确认绑定
                         </Button>
-                        <Button variant="ghost" size="sm" className="rounded-full" disabled={busy} onClick={() => setFileToBind(null)}>
+                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => setFileToBind(null)}>
                           取消
                         </Button>
                       </div>
@@ -702,7 +729,7 @@ export default function SupplementarySourcesDialog({
         </div>
         <DialogFooter className="supplementary-dialog-footer">
           <p className="supplementary-note">先预览再更新；新版缺少的章节不会自动删除。</p>
-          <Button variant="secondary" size="sm" className="rounded-full px-5" disabled={busy} onClick={onClose}>
+          <Button size="sm" disabled={busy} onClick={onClose}>
             关闭
           </Button>
         </DialogFooter>
