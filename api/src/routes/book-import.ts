@@ -290,7 +290,7 @@ bookImportRoutes.post('/:runId/resolve-chapter', async c => {
   try {
     const body = await c.req.json<Record<string, unknown>>()
     const preview = await resolveImportChapter(getDb(), { runId: c.req.param('runId'), actorUserId: c.get('user').id,
-      revision: body.revision, chapterId: body.chapterId, action: body.action, localChapterId: body.localChapterId, afterChapterId: body.afterChapterId })
+      revision: body.revision, chapterId: body.chapterId, action: body.action, localChapterId: body.localChapterId, afterChapterId: body.afterChapterId, afterIncomingChapterId: body.afterIncomingChapterId })
     return c.json(preview, 200, { 'Cache-Control': 'no-store' })
   } catch (error) {
     const message = (error as Error).message || '章节确认失败'

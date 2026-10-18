@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { BookImportAiReview, BookImportPreview } from '@shared/types'
 const api = vi.hoisted(() => ({ previewFile: vi.fn(), selectTarget: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn(), resolveChapter: vi.fn() }))
@@ -159,7 +159,7 @@ it('人工确认新章位置后更新预览并解锁勾选，最终确认前不�
   render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={preview} />)
   fireEvent.click(screen.getByRole('button', { name: '核对章节对应关系' }))
   fireEvent.click(screen.getByRole('radio', { name: '这是新增章节' }))
-  fireEvent.change(screen.getByLabelText('插入位置'), { target: { value: 'before' } })
+  fireEvent.change(screen.getByLabelText('插入位置'), { target: { value: 'local:before' } })
   expect(screen.getByText(/预计新增序号：58/)).toBeVisible()
   expect(screen.getByText('预计顺延 1 个已有章节的序号')).toBeVisible()
   expect(api.commit).not.toHaveBeenCalled()
@@ -198,4 +198,27 @@ it('旧预览先重新读取本地章节，再打开确认入口', async () => {
   await screen.findByRole('radio', { name: '这是新增章节' })
   expect(api.selectTarget).toHaveBeenCalledWith('run', 'bound', 0)
   expect(screen.getByText(/已重新读取本地章节，尚未导入/)).toBeVisible()
+})
+
+it('连续确认第二章可选择第一章，保留取消勾选并按实际选择提交', async () => {
+  const first = { ...original.chapters[0]!, id: 'first', incomingTitle: '补章一', incomingOrder: 58, status: 'new' as const }
+  const second = { ...first, id: 'second', incomingTitle: '补章二', incomingOrder: 59, status: 'conflict' as const, selected: false }
+  const preview: BookImportPreview = { ...original, revision: 1, targetNovelId: 'book', supplementary: { bindingId: 'binding', fileKey: 'file' }, chapters: [first, second], chapterResolutions: [{ chapterId: 'first', action: 'insert', afterChapterId: 'local' }], localChapters: [{ id: 'local', title: '本地前文', order: 57 }, { id: 'end', title: '本地后文', order: 58 }] }
+  api.resolveChapter.mockResolvedValue({ ...preview, revision: 2, chapters: [first, { ...second, status: 'new', selected: true }], chapterResolutions: [...preview.chapterResolutions!, { chapterId: 'second', action: 'insert', afterChapterId: null, afterIncomingChapterId: 'first' }] })
+  api.commit.mockRejectedValue(new Error('停止实际写入'))
+  render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={preview} />)
+  fireEvent.click(screen.getByRole('checkbox', { name: '新增章节：补章一' }))
+  const row = screen.getByRole('checkbox', { name: '需确认章节：补章二' }).closest('.book-import__chapter-row') as HTMLElement
+  fireEvent.click(within(row).getByRole('button', { name: '核对章节对应关系' }))
+  fireEvent.click(screen.getByRole('radio', { name: '这是新增章节' }))
+  const option = screen.getByRole('option', { name: /补章一.*本轮新增，未勾选/ }) as HTMLOptionElement
+  fireEvent.change(screen.getByLabelText('插入位置'), { target: { value: option.value } })
+  expect(screen.getByText(/预计新增序号：58/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '保存确认并更新预览' }))
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: '新增章节：补章二' })).toBeChecked())
+  expect(screen.getByRole('checkbox', { name: '新增章节：补章一' })).not.toBeChecked()
+  expect(api.resolveChapter).toHaveBeenCalledWith('run', { chapterId: 'second', revision: 1, action: 'insert', afterChapterId: null, afterIncomingChapterId: 'first' })
+  expect(screen.getByText('预计导入序号：58')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /确认导入/ }))
+  await waitFor(() => expect(api.commit).toHaveBeenCalledWith('run', expect.objectContaining({ selectedChapterIds: ['second'], revision: 2 })))
 })

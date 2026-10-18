@@ -138,7 +138,8 @@ export interface BookImportLocalChapter {
 
 export type BookImportChapterResolution =
   | { chapterId: string; action: 'match'; localChapterId: string }
-  | { chapterId: string; action: 'insert'; afterChapterId: string | null }
+  /** 本轮锚点使用独立 ID 空间；指定后 afterChapterId 必须为 null。 */
+  | { chapterId: string; action: 'insert'; afterChapterId: string | null; afterIncomingChapterId?: string }
 
 /**
  * 导入解析诊断 —— 把「这一行为什么被当成 / 没当成章节标题」从正则里的隐式判据

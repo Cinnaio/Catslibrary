@@ -431,8 +431,9 @@ export const bookImportApi = {
   selectTarget(runId: string, targetNovelId: string | null, revision: number): Promise<BookImportPreview> {
     return request('POST', `/book-import/${encodeURIComponent(runId)}/target`, { targetNovelId, revision }, true)
   },
-  resolveChapter(runId: string, data: { chapterId: string; action: 'match' | 'insert' | 'clear'; localChapterId?: string; afterChapterId?: string | null; revision: number }): Promise<BookImportPreview> {
-    return request('POST', `/book-import/${encodeURIComponent(runId)}/resolve-chapter`, data, true)
+  resolveChapter(runId: string, data: { chapterId: string; action: 'match' | 'insert' | 'clear'; localChapterId?: string; afterChapterId?: string | null; afterIncomingChapterId?: string; revision: number }): Promise<BookImportPreview> {
+    // 本轮锚点不发送书首 null，旧 API 会拒绝该请求，避免误当成插到书首。
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/resolve-chapter`, data.afterIncomingChapterId !== undefined ? { ...data, afterChapterId: undefined } : data, true)
   },
   commit(
     runId: string,

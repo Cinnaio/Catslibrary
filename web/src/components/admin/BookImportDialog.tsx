@@ -247,9 +247,18 @@ export default function BookImportDialog({
     try {
       const next = await bookImportApi.resolveChapter(preview.runId, { chapterId: chapter.id, ...choice, revision: preview.revision || 0 })
       if (generation !== requestGeneration.current) return
+      const selected = new Set(next.chapters.filter(item => item.id !== chapter.id && selectedChapterIds.has(item.id) && !isDisabledChapter(item)).map(item => item.id))
+      const resolved = next.chapters.find(item => item.id === chapter.id)
+      if (resolved?.selected && !isDisabledChapter(resolved)) {
+        if (resolved.variantGroup) for (const item of next.chapters) if (item.variantGroup === resolved.variantGroup) selected.delete(item.id)
+        selected.add(chapter.id)
+      }
       applyPreview(next)
+      setSelectedChapterIds(selected)
+      setMetadataFields(metadataFields)
+      setMetadataMode(metadataMode)
       setExpandedChapterId(chapter.id)
-      setNotice('人工确认已保存到预览，尚未写入书库。勾选已重新计算，请核对后再确认导入。')
+      setNotice('人工确认已保存到预览，尚未写入书库。已保留其他章节的勾选，请核对后再确认导入。')
     } catch (error) {
       if (generation === requestGeneration.current) { setResolvingChapterId(chapter.id); setResolutionError((error as Error).message) }
     } finally {
@@ -395,8 +404,8 @@ export default function BookImportDialog({
   const selectedChapterCount = selectedChapterIds.size
   const selectedMetadataCount = metadataFields.size
   const hasImportableChanges = selectedChapterCount > 0 || selectedMetadataCount > 0
-  const selectedResolutions = preview?.chapters.flatMap(chapter => selectedChapterIds.has(chapter.id) ? (preview.chapterResolutions || []).filter(item => item.chapterId === chapter.id) : []) || []
-  const insertionPlan = planImportInsertions(preview?.localChapters || [], selectedResolutions)
+  const allResolutions = preview?.chapters.flatMap(chapter => (preview.chapterResolutions || []).filter(item => item.chapterId === chapter.id)) || []
+  const insertionPlan = planImportInsertions(preview?.localChapters || [], allResolutions, selectedChapterIds)
   const plannedOrders = new Map(insertionPlan.insertOrders)
   if (preview?.chapterResolutions?.some(item => item.action === 'insert')) {
     let tail = insertionPlan.maxOrder
@@ -848,7 +857,7 @@ export default function BookImportDialog({
                               </div>
                             </div>}
                             {resolvingChapterId === chapter.id && <>
-                              <BookImportChapterResolver key={`${preview.runId}:${preview.revision}:${chapter.id}`} chapter={chapter} local={preview.localChapters || []} resolutions={preview.chapterResolutions || []} chapters={preview.chapters} busy={operationBusy} onSave={choice => void resolveChapter(chapter, choice)} onCancel={() => setResolvingChapterId(null)} />
+                              <BookImportChapterResolver key={`${preview.runId}:${preview.revision}:${chapter.id}`} chapter={chapter} local={preview.localChapters || []} resolutions={preview.chapterResolutions || []} chapters={preview.chapters} selectedIds={selectedChapterIds} busy={operationBusy} onSave={choice => void resolveChapter(chapter, choice)} onCancel={() => setResolvingChapterId(null)} />
                               {resolutionError && <div className="book-import__resolution-error" role="alert"><p>{resolutionError}</p><Button variant="outline" size="sm" disabled={operationBusy} onClick={() => void reloadResolutionBase()}>重新读取本地章节</Button><p>重新读取会清除本次人工确认及勾选，请重新核对。</p></div>}
                             </>}
                             {expanded && (

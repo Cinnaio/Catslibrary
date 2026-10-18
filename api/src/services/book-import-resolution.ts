@@ -7,7 +7,7 @@ import { checkImportRevision, importHistorySummary, IMPORT_REVIEW_LEASE_MS } fro
 /** 人工确认只改预览，所有章节写入仍走提交事务。 */
 export async function resolveImportChapter(
   db: Db,
-  opts: { runId: string; actorUserId: string; revision: unknown; chapterId: unknown; action: unknown; localChapterId?: unknown; afterChapterId?: unknown },
+  opts: { runId: string; actorUserId: string; revision: unknown; chapterId: unknown; action: unknown; localChapterId?: unknown; afterChapterId?: unknown; afterIncomingChapterId?: unknown },
 ): Promise<BookImportPreview> {
   return withTx(db, async (q) => {
     const run = (
@@ -37,13 +37,24 @@ export async function resolveImportChapter(
       !base.some((c) => c.id === opts.chapterId && (c.status === 'conflict' || previous.chapterResolutions?.some((r) => r.chapterId === c.id)))
     )
       throw new Error('请选择有效的需确认章节')
+    const prior = previous.chapterResolutions?.find(item => item.chapterId === opts.chapterId)
     const resolutions = (previous.chapterResolutions || []).filter((item) => item.chapterId !== opts.chapterId)
     let resolution: BookImportChapterResolution | undefined
     if (opts.action === 'match' && typeof opts.localChapterId === 'string')
       resolution = { chapterId: opts.chapterId, action: 'match', localChapterId: opts.localChapterId }
-    else if (opts.action === 'insert' && (opts.afterChapterId === null || typeof opts.afterChapterId === 'string'))
-      resolution = { chapterId: opts.chapterId, action: 'insert', afterChapterId: opts.afterChapterId }
+    else if (opts.action === 'insert' && (opts.afterChapterId === null || typeof opts.afterChapterId === 'string' || (opts.afterChapterId === undefined && typeof opts.afterIncomingChapterId === 'string'))) {
+      if (opts.afterIncomingChapterId !== undefined && (typeof opts.afterIncomingChapterId !== 'string' || !opts.afterIncomingChapterId || opts.afterChapterId != null)) throw new Error('请选择有效的本轮新增章节位置')
+      resolution = { chapterId: opts.chapterId, action: 'insert', afterChapterId: opts.afterChapterId ?? null, ...(opts.afterIncomingChapterId !== undefined ? { afterIncomingChapterId: opts.afterIncomingChapterId as string } : {}) }
+    }
     else if (opts.action !== 'clear') throw new Error('请选择有效的章节处理方式及位置')
+    // 撤销或改为对应本地章节时，把直接后继接回旧位置，避免剩余确认成为悬空引用。
+    if (prior?.action === 'insert' && resolution?.action !== 'insert') {
+      for (const item of resolutions) if (item.action === 'insert' && item.afterIncomingChapterId === prior.chapterId) {
+        item.afterChapterId = prior.afterChapterId
+        delete item.afterIncomingChapterId
+        if (prior.afterIncomingChapterId !== undefined) item.afterIncomingChapterId = prior.afterIncomingChapterId
+      }
+    }
     if (resolution) resolutions.push(resolution)
     const chapters = resolvedChapterDiffs(base, local, resolutions)
     const next: BookImportPreview = {
