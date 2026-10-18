@@ -1,6 +1,16 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { BookImportAiReview, BookImportPreview } from '@shared/types'
+
+// 章节核对里的共享下拉走 Popover + cmdk，jsdom 缺这两个浏览器 API。
+if (!globalThis.ResizeObserver) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as typeof ResizeObserver
+}
+Element.prototype.scrollIntoView = () => undefined
 const api = vi.hoisted(() => ({ previewFile: vi.fn(), selectTarget: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn(), resolveChapter: vi.fn() }))
 vi.mock('@/lib/api', () => ({ bookImportApi: api }))
 import BookImportDialog from './BookImportDialog'
@@ -159,7 +169,9 @@ it('人工确认新章位置后更新预览并解锁勾选，最终确认前不�
   render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={preview} />)
   fireEvent.click(screen.getByRole('button', { name: '核对章节对应关系' }))
   fireEvent.click(screen.getByRole('radio', { name: '这是新增章节' }))
-  fireEvent.change(screen.getByLabelText('插入位置'), { target: { value: 'local:before' } })
+  fireEvent.click(screen.getByRole('combobox', { name: '插入位置' }))
+  fireEvent.click(screen.getByRole('option', { name: /放在后面：57 · 前一章/ }))
+  expect(screen.getByRole('combobox', { name: '插入位置' })).toHaveTextContent(/放在后面：57 · 前一章/)
   expect(screen.getByText(/预计新增序号：58/)).toBeVisible()
   expect(screen.getByText('预计顺延 1 个已有章节的序号')).toBeVisible()
   expect(api.commit).not.toHaveBeenCalled()
@@ -181,10 +193,11 @@ it('人工确认请求失败保留处理选择，并提供重新读取本地章�
   render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={{ ...original, targetNovelId: 'bound', localChapters: [{ id: 'local', title: '本地第一章', order: 1 }], chapters: [chapter] }} />)
   fireEvent.click(screen.getByRole('button', { name: '核对章节对应关系' }))
   fireEvent.click(screen.getByRole('radio', { name: '对应已有章节' }))
-  fireEvent.change(screen.getByLabelText('对应的本地章节'), { target: { value: 'local' } })
+  fireEvent.click(screen.getByRole('combobox', { name: '对应的本地章节' }))
+  fireEvent.click(screen.getByRole('option', { name: /1 · 本地第一章/ }))
   fireEvent.click(screen.getByRole('button', { name: '保存确认并更新预览' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('本地章节已变化')
-  expect(screen.getByLabelText('对应的本地章节')).toHaveValue('local')
+  expect(screen.getByRole('combobox', { name: '对应的本地章节' })).toHaveTextContent('1 · 本地第一章')
   expect(screen.getByRole('button', { name: '重新读取本地章节' })).toBeEnabled()
   expect(screen.getByRole('checkbox', { name: '需确认章节：第一章' })).toBeDisabled()
 })
@@ -211,8 +224,9 @@ it('连续确认第二章可选择第一章，保留取消勾选并按实际选�
   const row = screen.getByRole('checkbox', { name: '需确认章节：补章二' }).closest('.book-import__chapter-row') as HTMLElement
   fireEvent.click(within(row).getByRole('button', { name: '核对章节对应关系' }))
   fireEvent.click(screen.getByRole('radio', { name: '这是新增章节' }))
-  const option = screen.getByRole('option', { name: /补章一.*本轮新增，未勾选/ }) as HTMLOptionElement
-  fireEvent.change(screen.getByLabelText('插入位置'), { target: { value: option.value } })
+  fireEvent.click(screen.getByRole('combobox', { name: '插入位置' }))
+  fireEvent.click(screen.getByRole('option', { name: /补章一.*本轮新增，未勾选/ }))
+  expect(screen.getByRole('combobox', { name: '插入位置' })).toHaveTextContent(/补章一.*本轮新增，未勾选/)
   expect(screen.getByText(/预计新增序号：58/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '保存确认并更新预览' }))
   await waitFor(() => expect(screen.getByRole('checkbox', { name: '新增章节：补章二' })).toBeChecked())

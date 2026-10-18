@@ -120,6 +120,48 @@
   margin: 0.25rem;
 }
 
+/* 行尾注记（如「本轮新增」）与触发器上的同款注记共用一套排版，
+   保证“浮层里看到的说明”和“选完后触发器上显示的状态”字号字重一致。 */
+.custom-select__note {
+  color: var(--text-muted);
+  font-size: var(--menu-item-font-size);
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* 折叠列表底部的“展开全部”行：与菜单项同高、同内边距，读起来仍是列表的一部分，
+   但用强调色区分它是动作而非候选项。 */
+.shared-select-content .custom-select__more {
+  display: flex;
+  width: 100%;
+  min-height: var(--menu-item-height);
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border: 0;
+  border-radius: var(--menu-item-radius);
+  padding-block: 0.5rem;
+  padding-inline: var(--menu-item-padding-inline);
+  background: transparent;
+  color: var(--admin-accent, var(--accent));
+  font-size: var(--menu-item-font-size);
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: background-color 160ms var(--ease-out);
+}
+
+.shared-select-content .custom-select__more:hover {
+  background: var(--bg-hover);
+}
+
+.shared-select-content .custom-select__more:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+  box-shadow: var(--input-focus-shadow);
+}
+
 @media (max-width: 767px) {
   :where(.admin-dialog, .ai-generation-dialog) {
     --field-control-font-size: 1rem;
@@ -134,9 +176,14 @@
   .shared-select-content :is([data-slot='select-item'], [data-slot='command-item']) {
     min-height: 2.75rem;
   }
+
+  .shared-select-content .custom-select__more {
+    min-height: 2.75rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root :is(select, [data-field='select'][role='combobox']) { transition: none; }
   .shared-select-content { animation: none; }
+  .shared-select-content .custom-select__more { transition: none; }
 }
