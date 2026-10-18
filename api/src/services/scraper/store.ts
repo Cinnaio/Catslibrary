@@ -119,6 +119,7 @@ export interface ScrapeStore {
   findSourceByHost(host: string): Promise<Record<string, unknown> | null>
   // 章节/小说
   getExistingChapterKeys(novelId: string): Promise<{ urls: Set<string>; titles: Set<string> }>
+  hasFileImport?(novelId: string): Promise<boolean>
   getMaxChapterOrder(novelId: string): Promise<number>
   batchInsertChapters(novelId: string, chapters: ScrapeChapter[], jobId?: string): Promise<ScrapeBatchResult>
   getNovelSourceUrl(novelId: string): Promise<string>
@@ -559,6 +560,10 @@ export class PgScrapeStore implements ScrapeStore {
     return (await first<Record<string, unknown>>(this.db, 'SELECT * FROM scrape_sources WHERE host = $1 AND enabled = 1', [host])) || null
   }
 
+  async hasFileImport(novelId: string): Promise<boolean> {
+    return Boolean(await first(this.db, `SELECT id FROM book_import_runs WHERE target_novel_id=$1 AND source_type='file' AND status IN ('applied','partial') LIMIT 1`, [novelId]))
+  }
+
   async getExistingChapterKeys(novelId: string): Promise<{ urls: Set<string>; titles: Set<string> }> {
     const urls = new Set<string>()
     const titles = new Set<string>()
@@ -567,6 +572,15 @@ export class PgScrapeStore implements ScrapeStore {
       if (row.source_url) urls.add(row.source_url)
       else titles.add(row.title.trim())
     }
+    // TXT 的原文件地址不能识别网页章节；已确认的融合映射提供稳定身份。
+    // 分章对应关系只有所有本地部分仍存在时，才代表该网页章节已经入库。
+    const mappings = await all<{ source_url: string }>(this.db, `
+      SELECT m.source_url FROM source_chapter_mappings m
+      JOIN source_sync_runs r ON r.id=m.sync_run_id AND r.novel_id=$1 AND r.status='applied'
+      JOIN chapters c ON c.id=m.local_chapter_id AND c.novel_id=$1
+      WHERE m.source_url<>'' GROUP BY m.sync_run_id,m.source_chapter_key,m.source_url
+      HAVING COUNT(DISTINCT m.local_chapter_id)>=MAX(m.part_count)`, [novelId])
+    for (const mapping of mappings) urls.add(mapping.source_url)
     return { urls, titles }
   }
 

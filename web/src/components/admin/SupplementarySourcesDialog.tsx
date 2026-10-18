@@ -22,7 +22,18 @@ function versionState(file: SupplementaryFile) {
   return file.stale ? '旧清单' : file.incomplete ? '目录后续分页未完成' : '所在目录已完整读取'
 }
 
-export default function SupplementarySourcesDialog({ onClose, onCompleted }: { onClose: () => void; onCompleted: () => void }) {
+export default function SupplementarySourcesDialog({
+  onClose,
+  onCompleted,
+  novel,
+  initialSourceId,
+}: {
+  onClose: () => void
+  onCompleted: () => void
+  novel?: { id: string; title: string; author?: string }
+  initialSourceId?: string
+}) {
+  const scopedNovelId = novel?.id
   const [overview, setOverview] = useState<SupplementaryOverview | null>(null)
   const [sourceId, setSourceId] = useState('')
   const [tab, setTab] = useState('bindings')
@@ -31,14 +42,14 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
   const lock = useRef(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(novel?.title || '')
   const [offset, setOffset] = useState(0)
   const [catalog, setCatalog] = useState<SupplementaryCatalog | null>(null)
   const [catalogError, setCatalogError] = useState('')
   const [fileToBind, setFileToBind] = useState<SupplementaryFile | null>(null)
   const [novelSearch, setNovelSearch] = useState('')
   const [novels, setNovels] = useState<Array<{ id: string; title: string; author: string; chapterCount: number }>>([])
-  const [novelId, setNovelId] = useState('')
+  const [novelId, setNovelId] = useState(novel?.id || '')
   const [novelError, setNovelError] = useState('')
   const [versions, setVersions] = useState<Record<string, string>>({})
   const [preview, setPreview] = useState<BookImportPreview | null>(null)
@@ -54,7 +65,8 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
       .then((data) => {
         if (active) {
           setOverview(data)
-          setSourceId(data.sources[0]?.id || '')
+          setSourceId(initialSourceId || data.bindings.find((b) => b.novelId === scopedNovelId)?.sourceId || data.sources[0]?.id || '')
+          if (scopedNovelId && !data.bindings.some((b) => b.novelId === scopedNovelId)) setTab('files')
           if (!data.sources.length) setDraft(newDraft())
         }
       })
@@ -64,7 +76,7 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
     return () => {
       active = false
     }
-  }, [])
+  }, [scopedNovelId, initialSourceId])
   useEffect(() => {
     let active = true
     setCatalog(null)
@@ -89,8 +101,8 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
     let active = true
     setNovels([])
     setNovelError('')
-    setNovelId('')
-    if (!fileToBind) return
+    setNovelId(novel?.id || '')
+    if (!fileToBind || novel?.id) return
     const timer = setTimeout(() => {
       adminApi
         .novelIndex({ search: novelSearch, limit: '30' })
@@ -105,7 +117,7 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
       active = false
       clearTimeout(timer)
     }
-  }, [fileToBind, novelSearch])
+  }, [fileToBind, novelSearch, novel?.id])
   useEffect(() => {
     if (fileToBind) bindRef.current?.scrollIntoView({ block: 'nearest' })
   }, [fileToBind])
@@ -144,7 +156,7 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
   function chooseBinding(file: SupplementaryFile) {
     setFileToBind(file)
     setNovelSearch(file.title)
-    setNovelId('')
+    setNovelId(novel?.id || '')
   }
 
   if (preview)
@@ -181,8 +193,12 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
         }}
       >
         <DialogHeader>
-          <DialogTitle>附加更新源</DialogTitle>
-          <DialogDescription>从共享网盘目录寻找书籍新版，核对章节差异后再更新。作品原书源和信息保持不变。</DialogDescription>
+          <DialogTitle>{novel ? '附加文件更新' : '附加更新源'}</DialogTitle>
+          <DialogDescription>
+            {novel
+              ? `当前作品：${novel.title}。绑定和预览固定到这本书；来源设置由所有绑定书籍共用。`
+              : '从共享网盘目录寻找书籍新版，核对章节差异后再更新。作品原书源和信息保持不变。'}
+          </DialogDescription>
         </DialogHeader>
         <div className="admin-dialog__body supplementary-body" aria-busy={busy}>
           {error && (
@@ -225,7 +241,7 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                     onChange={(e) => {
                       setSourceId(e.target.value)
                       setOffset(0)
-                      setSearch('')
+                      setSearch(novel?.title || '')
                       setFileToBind(null)
                       setDraft(null)
                     }}
@@ -306,6 +322,7 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                     <Checkbox checked={draft.enabled} disabled={busy} onCheckedChange={(value) => setDraft({ ...draft, enabled: value === true })} />
                     定时检查目录（只发现文件，不自动写入章节）
                   </label>
+                  {novel && <p className="supplementary-note">此处修改的是共享目录设置，检查频率和开关对所有绑定书籍生效。</p>}
                   {draft.id && <p className="supplementary-note">换月时可更换目录链接，已有书籍绑定会保留；更换后需重新检查目录。</p>}
                   <div className="supplementary-actions">
                     <Button size="sm" className="rounded-full" disabled={busy || !draft.name.trim() || !draft.url.trim()} onClick={() => void save()}>
@@ -339,7 +356,9 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                       <p className="supplementary-summary__files">
                         <strong>{source.fileCount}</strong> 个已索引文件 · {time(source.checkedAt)}
                       </p>
-                      <p className="supplementary-summary__schedule">{source.enabled ? `每 ${source.intervalHours} 小时检查，下次 ${time(source.nextCheckAt)}` : '定时检查未开启'}</p>
+                      <p className="supplementary-summary__schedule">
+                        {source.enabled ? `每 ${source.intervalHours} 小时检查，下次 ${time(source.nextCheckAt)}` : '定时检查未开启'}
+                      </p>
                     </div>
                     <Button
                       size="sm"
@@ -375,13 +394,15 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                     }}
                   >
                     <TabsList aria-label="附加源内容">
-                      <TabsTrigger value="bindings">已绑定书籍（{overview.bindings.filter((b) => b.sourceId === sourceId).length}）</TabsTrigger>
+                      <TabsTrigger value="bindings">
+                        已绑定书籍（{overview.bindings.filter((b) => b.sourceId === sourceId && (!novel || b.novelId === novel.id)).length}）
+                      </TabsTrigger>
                       <TabsTrigger value="files">目录文件与绑定</TabsTrigger>
                     </TabsList>
                   </Tabs>
                   {tab === 'bindings' && (
                     <div className="supplementary-list">
-                      {!overview.bindings.some((b) => b.sourceId === sourceId) && (
+                      {!overview.bindings.some((b) => b.sourceId === sourceId && (!novel || b.novelId === novel.id)) && (
                         <div className="supplementary-empty">
                           <p className="supplementary-empty__title">还没有绑定书籍</p>
                           <p className="supplementary-empty__desc">先检查目录，再从「目录文件与绑定」选择文件，确认它对应的站内作品。</p>
@@ -391,7 +412,7 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                         </div>
                       )}
                       {overview.bindings
-                        .filter((b) => b.sourceId === sourceId)
+                        .filter((b) => b.sourceId === sourceId && (!novel || b.novelId === novel.id))
                         .map((b) => {
                           const file = selectedFile(b)
                           return (
@@ -429,7 +450,12 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                               <div className="supplementary-actions">
                                 {file && (
                                   <>
-                                    <Button size="sm" className="rounded-full" disabled={busy} onClick={() => void action(async () => setPreview(await api.preview(b.id, file.key)))}>
+                                    <Button
+                                      size="sm"
+                                      className="rounded-full"
+                                      disabled={busy}
+                                      onClick={() => void action(async () => setPreview(await api.preview(b.id, file.key)))}
+                                    >
                                       下载并预览
                                     </Button>
                                     <a className="supplementary-link" href={file.url} target="_blank" rel="noreferrer">
@@ -568,13 +594,25 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                       ))}
                       {catalog && catalog.total > 30 && (
                         <div className="supplementary-pagination">
-                          <Button variant="secondary" size="sm" className="rounded-full" disabled={busy || !offset} onClick={() => setOffset(Math.max(0, offset - 30))}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="rounded-full"
+                            disabled={busy || !offset}
+                            onClick={() => setOffset(Math.max(0, offset - 30))}
+                          >
                             上一页
                           </Button>
                           <span className="supplementary-pagination__info">
                             第 {offset + 1}–{Math.min(offset + 30, catalog.total)} 本 / 共 {catalog.total} 本
                           </span>
-                          <Button variant="secondary" size="sm" className="rounded-full" disabled={busy || offset + 30 >= catalog.total} onClick={() => setOffset(offset + 30)}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="rounded-full"
+                            disabled={busy || offset + 30 >= catalog.total}
+                            onClick={() => setOffset(offset + 30)}
+                          >
                             下一页
                           </Button>
                         </div>
@@ -585,22 +623,36 @@ export default function SupplementarySourcesDialog({ onClose, onCompleted }: { o
                     <section ref={bindRef} className="supplementary-editor" aria-labelledby="supp-bind-title">
                       <h3 id="supp-bind-title">确认「{fileToBind.title}」对应的作品</h3>
                       <p className="supplementary-note">核对书名与作者。确认后会记住这个来源别名，不修改站内书名。</p>
-                      <div className="supplementary-field">
-                        <Label htmlFor="supp-novel-search">搜索站内作品</Label>
-                        <Input id="supp-novel-search" value={novelSearch} disabled={busy} onChange={(e) => setNovelSearch(e.target.value)} />
-                      </div>
-                      {novelError && <p role="alert">{novelError}</p>}
-                      <div className="supplementary-field">
-                        <Label htmlFor="supp-novel">选择对应作品</Label>
-                        <select id="supp-novel" className="supplementary-select" value={novelId} disabled={busy} onChange={(e) => setNovelId(e.target.value)}>
-                          <option value="">请选择并核对作者</option>
-                          {novels.map((n) => (
-                            <option key={n.id} value={n.id}>
-                              {n.title} · {n.author || '未知作者'} · {n.chapterCount} 章
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {novel ? (
+                        <p>
+                          将绑定到：{novel.title} · {novel.author || '作者未标注'}。请核对来源书名与作者。
+                        </p>
+                      ) : (
+                        <>
+                          <div className="supplementary-field">
+                            <Label htmlFor="supp-novel-search">搜索站内作品</Label>
+                            <Input id="supp-novel-search" value={novelSearch} disabled={busy} onChange={(e) => setNovelSearch(e.target.value)} />
+                          </div>
+                          {novelError && <p role="alert">{novelError}</p>}
+                          <div className="supplementary-field">
+                            <Label htmlFor="supp-novel">选择对应作品</Label>
+                            <select
+                              id="supp-novel"
+                              className="supplementary-select"
+                              value={novelId}
+                              disabled={busy}
+                              onChange={(e) => setNovelId(e.target.value)}
+                            >
+                              <option value="">请选择并核对作者</option>
+                              {novels.map((n) => (
+                                <option key={n.id} value={n.id}>
+                                  {n.title} · {n.author || '未知作者'} · {n.chapterCount} 章
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </>
+                      )}
                       <div className="supplementary-actions">
                         <Button
                           size="sm"

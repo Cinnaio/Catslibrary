@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createTestDb, type TestDb } from '../../test/db'
 import { PgScrapeStore } from './store'
+import { getPendingChapterCounts } from '../novel-update-summary'
 
 describe('PgScrapeStore（pglite）', () => {
   let tdb: TestDb
@@ -75,5 +76,28 @@ describe('PgScrapeStore（pglite）', () => {
     const summary = await store.getJobSummary('job_access_counts')
     expect(summary.publicChapterCount).toBe(2)
     expect(summary.protectedChapterCount).toBe(1)
+  })
+})
+
+describe('TXT 融合映射与网页更新联动', () => {
+  it('已确认映射用于去重及待入库计数，拆分章节缺少任一部分时不判为已入库', async () => {
+    const t = await createTestDb()
+    try {
+      await t.applyMigrations()
+      const url = 'https://example.com/chapter/1'
+      await t.db.query("INSERT INTO novels(id,title,created_at,updated_at,source_chapter_snapshot) VALUES('mapped','TXT 书',1,1,$1)", [JSON.stringify([{ url, title: '网页标题', order: 1, access: 'public' }])])
+      await t.db.query("INSERT INTO chapters(id,novel_id,title,source_url,sort_order,created_at) VALUES('part-a','mapped','本地上篇','file:///book.txt#1',1,1),('part-b','mapped','本地下篇','file:///book.txt#2',2,1)")
+      await t.db.query("INSERT INTO novel_source_bindings(id,novel_id,source_url,created_at,updated_at) VALUES('mapped-binding','mapped','https://example.com/book',1,1)")
+      await t.db.query("INSERT INTO source_sync_runs(id,binding_id,novel_id,status,created_at) VALUES('mapped-run','mapped-binding','mapped','preview',1)")
+      await t.db.query("INSERT INTO source_chapter_mappings(id,binding_id,sync_run_id,source_chapter_key,source_order,source_url,local_chapter_id,part_count,created_at) VALUES('map-a','mapped-binding','mapped-run','key',1,$1,'part-a',2,1),('map-b','mapped-binding','mapped-run','key',1,$1,'part-b',2,1)", [url])
+      const store = new PgScrapeStore(t.db)
+      expect((await store.getExistingChapterKeys('mapped')).urls.has(url)).toBe(false)
+      await t.db.query("UPDATE source_sync_runs SET status='applied' WHERE id='mapped-run'")
+      expect((await store.getExistingChapterKeys('mapped')).urls.has(url)).toBe(true)
+      expect((await getPendingChapterCounts(t.db, ['mapped'])).get('mapped')?.pendingChapterCount).toBe(0)
+      await t.db.query("DELETE FROM chapters WHERE id='part-b'")
+      expect((await store.getExistingChapterKeys('mapped')).urls.has(url)).toBe(false)
+      expect((await getPendingChapterCounts(t.db, ['mapped'])).get('mapped')?.pendingChapterCount).toBe(1)
+    } finally { await t.close() }
   })
 })

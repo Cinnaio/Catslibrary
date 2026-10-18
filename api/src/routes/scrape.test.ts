@@ -55,6 +55,17 @@ describe('scrape 路由（免网络动作）', () => {
     expect(invalid.status).toBe(400)
   })
 
+  it('单书绑定来源要求管理员，保存后不创建任务或隐式开启追更', async () => {
+    await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('bind-route','绑定测试',1,1)")
+    const body = { action: 'followup-source-save', novelId: 'bind-route', sourceUrl: 'https://www.po18.tw/books/123' }
+    expect((await req('/api/scrape', json('POST', body))).status).toBe(401)
+    const invalid = await req('/api/scrape', json('POST', { ...body, sourceUrl: 'https://unknown.example/book' }, adminToken))
+    expect(invalid.status).toBe(400)
+    const saved = await req('/api/scrape', json('POST', body, adminToken))
+    expect(saved.status).toBe(200)
+    expect(await saved.json()).toMatchObject({ hasConfig: true, enabled: false })
+    expect((await t.db.query("SELECT id FROM scrape_jobs WHERE novel_id='bind-route'")).rows).toHaveLength(0)
+  })
   it('复用目录重新匹配要求管理员及当前版本，应用后可生成新预览', async () => {
     const novelId = 'refresh-route', bindingId = 'refresh-binding', runId = 'refresh-run'
     const metadata = { title: '', author: '', description: '', coverUrl: '', category: '', categories: [], status: '', sourceUrl: 'https://www.po18.tw/books/1' }

@@ -108,6 +108,31 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
     expect(novel.rows[0]!.chapter_count).toBe(2)
   })
 
+  it('TXT 接入网页追更先要求可靠映射，确认后只追加尾章，重复检查不新增', async () => {
+    const id = 'txt-linkage'
+    await t.db.query('INSERT INTO novels(id,title,created_at,updated_at) VALUES($1,$1,1,1)', [id])
+    await t.db.query("INSERT INTO chapters(id,novel_id,title,source_url,sort_order,created_at) VALUES('txt-first',$1,'TXT 原始标题','file:///book.txt#1',1,1)", [id])
+    await t.db.query("INSERT INTO book_import_runs(id,target_novel_id,status,source_label,created_at,applied_at) VALUES('txt-link-import',$1,'applied','原书.txt',1,1)", [id])
+    await store.upsertScrapeConfig({ novelId: id, sourceUrl: 'https://site.com/book/1/', selectors: { chapterList: '#chapter-list li a', chapterTitle: '.chapter-title', chapterContent: '.content' } })
+    async function update(jobId: string) {
+      await store.saveJob({ id: jobId, novelId: id, updateMode: true, status: 'starting', startedAt: Date.now(), updatedAt: Date.now() })
+      await runScrapeJob(jobId, makeDeps())
+      return store.loadJob(jobId)
+    }
+    expect(await update('txt-no-mapping')).toMatchObject({ status: 'failed', error: expect.stringContaining('尚无可靠章节对应关系') })
+    expect((await t.db.query('SELECT id FROM chapters WHERE novel_id=$1', [id])).rows).toHaveLength(1)
+    await t.db.query("INSERT INTO novel_source_bindings(id,novel_id,source_url,created_at,updated_at) VALUES('txt-link-binding',$1,'https://site.com/book/1/',1,1)", [id])
+    await t.db.query("INSERT INTO source_sync_runs(id,binding_id,novel_id,status,created_at) VALUES('txt-link-run','txt-link-binding',$1,'applied',1)", [id])
+    await t.db.query("INSERT INTO source_chapter_mappings(id,binding_id,sync_run_id,source_chapter_key,source_order,source_url,local_chapter_id,created_at) VALUES('txt-map','txt-link-binding','txt-link-run','key',1,'https://site.com/n/1/1?chapterNumber=1','txt-first',1)")
+    expect(await update('txt-tail')).toMatchObject({ status: 'completed', chapterCount: 1 })
+    expect((await t.db.query('SELECT id FROM chapters WHERE novel_id=$1', [id])).rows).toHaveLength(2)
+    expect(await update('txt-repeat')).toMatchObject({ status: 'completed', chapterCount: 0 })
+    // 参考目录中间出现新条目时，禁止当作尾章追加。
+    await t.db.query("UPDATE source_chapter_mappings SET source_url='https://site.com/n/1/2?chapterNumber=2',source_order=2 WHERE id='txt-map'")
+    expect(await update('txt-middle')).toMatchObject({ status: 'failed', error: expect.stringContaining('中间未匹配章节') })
+    expect((await t.db.query('SELECT id FROM chapters WHERE novel_id=$1', [id])).rows).toHaveLength(2)
+  })
+
   it('目录无链接 → 任务 failed', async () => {
     const badDeps: ScrapeDeps = {
       store,

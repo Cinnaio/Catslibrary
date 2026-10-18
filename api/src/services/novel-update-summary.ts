@@ -29,6 +29,14 @@ export async function getPendingChapterCounts(db: DbClient, novelIds: string[]):
           OR (item->>'url' LIKE '%#chapter-%' AND TRIM(c.title)=item->>'title' AND c.sort_order=(item->>'order')::integer)
         )
       )
+      AND NOT EXISTS (
+        SELECT 1 FROM source_chapter_mappings m
+        JOIN source_sync_runs r ON r.id=m.sync_run_id AND r.novel_id=n.id AND r.status='applied'
+        JOIN chapters c ON c.id=m.local_chapter_id AND c.novel_id=n.id
+        WHERE m.source_url<>'' AND m.source_url=item->>'url'
+        GROUP BY m.sync_run_id,m.source_chapter_key
+        HAVING COUNT(DISTINCT m.local_chapter_id)>=MAX(m.part_count)
+      )
     ) counts WHERE n.id=ANY($1::text[])`,
     [novelIds],
   )
