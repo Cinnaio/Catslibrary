@@ -235,33 +235,33 @@ export default function SupplementarySourcesDialog({
           )}
           {overview && (
             <>
-              <div className="supplementary-toolbar">
-                <div className="supplementary-field supplementary-grow">
-                  <Label htmlFor="supp-source">共享目录</Label>
-                  <select
-                    id="supp-source"
-                    className="supplementary-select"
-                    value={sourceId}
-                    disabled={busy}
-                    onChange={(e) => {
-                      setSourceId(e.target.value)
-                      setOffset(0)
-                      setSearch(novel?.title || '')
-                      setFileToBind(null)
-                      setDraft(null)
-                    }}
-                  >
-                    <option value="" disabled>
-                      选择一个来源
+              <div className="supplementary-source-picker">
+                <Label htmlFor="supp-source" className="supplementary-source-picker__label">
+                  共享目录
+                </Label>
+                <select
+                  id="supp-source"
+                  className="supplementary-select supplementary-source-picker__select"
+                  value={sourceId}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setSourceId(e.target.value)
+                    setOffset(0)
+                    setSearch(novel?.title || '')
+                    setFileToBind(null)
+                    setDraft(null)
+                  }}
+                >
+                  <option value="" disabled>
+                    选择一个来源
+                  </option>
+                  {overview.sources.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
                     </option>
-                    {overview.sources.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="supplementary-toolbar__actions">
+                  ))}
+                </select>
+                <div className="supplementary-source-picker__actions">
                   <Button variant="outline" size="sm" disabled={busy} onClick={() => setDraft(newDraft())}>
                     <Plus className="size-3.5" aria-hidden="true" />
                     添加目录
@@ -275,7 +275,10 @@ export default function SupplementarySourcesDialog({
               </div>
               {draft && (
                 <section className="supplementary-editor" aria-labelledby="supp-editor-title">
-                  <h3 id="supp-editor-title">{draft.id ? '编辑来源' : '添加共享目录'}</h3>
+                  <div className="supplementary-editor__head">
+                    <h3 id="supp-editor-title">{draft.id ? '编辑来源' : '添加共享目录'}</h3>
+                    <span className="supplementary-editor__hint">{draft.id ? '修改后需重新检查目录' : '保存后再检查目录'}</span>
+                  </div>
                   <div className="supplementary-form-grid">
                     <div className="supplementary-field">
                       <Label htmlFor="supp-name">来源名称</Label>
@@ -331,7 +334,7 @@ export default function SupplementarySourcesDialog({
                   </label>
                   {novel && <p className="supplementary-note">此处修改的是共享目录设置，检查频率和开关对所有绑定书籍生效。</p>}
                   {draft.id && <p className="supplementary-note">换月时可更换目录链接，已有书籍绑定会保留；更换后需重新检查目录。</p>}
-                  <div className="supplementary-actions">
+                  <div className="supplementary-editor__actions">
                     <Button size="sm" disabled={busy || !draft.name.trim() || !draft.url.trim()} onClick={() => void save()}>
                       保存来源
                     </Button>
@@ -558,7 +561,7 @@ export default function SupplementarySourcesDialog({
                       )}
                       {!!catalog?.folders.length && (
                         <details className="supplementary-coverage">
-                          <summary>查看目录读取情况</summary>
+                          <summary>查看目录读取情况（{catalog.folders.length} 个目录）</summary>
                           <ul>
                             {catalog.folders.map((folder) => (
                               <li key={folder.name}>
@@ -573,7 +576,13 @@ export default function SupplementarySourcesDialog({
                         </details>
                       )}
                       {catalog && !catalog.total && (
-                        <p className="supplementary-empty">已读取的清单中没有匹配书籍。尚未检查时请先检查目录；目录未读全时不能据此判断没有文件。</p>
+                        <div className="supplementary-empty">
+                          <p className="supplementary-empty__title">已读取的清单中没有匹配书籍</p>
+                          <p className="supplementary-empty__desc">尚未检查时请先检查目录；目录未读全时不能据此判断没有文件。</p>
+                          <Button variant="outline" size="sm" disabled={busy || !search} onClick={() => setSearch('')}>
+                            清空搜索条件
+                          </Button>
+                        </div>
                       )}
                       {catalog?.items.map((book) => (
                         <article key={book.key} className="supplementary-card">
@@ -649,10 +658,13 @@ export default function SupplementarySourcesDialog({
                   )}
                   {fileToBind && (
                     <section ref={bindRef} className="supplementary-editor" aria-labelledby="supp-bind-title">
-                      <h3 id="supp-bind-title">确认「{fileToBind.title}」对应的作品</h3>
+                      <div className="supplementary-editor__head">
+                        <h3 id="supp-bind-title">确认「{fileToBind.title}」对应的作品</h3>
+                        <span className="supplementary-editor__hint">只记来源别名，不改站内书名</span>
+                      </div>
                       <p className="supplementary-note">核对书名与作者。确认后会记住这个来源别名，不修改站内书名。</p>
                       {novel ? (
-                        <p>
+                        <p className="supplementary-bind-target">
                           将绑定到：{novel.title} · {novel.author || '作者未标注'}。请核对来源书名与作者。
                         </p>
                       ) : (
@@ -681,7 +693,7 @@ export default function SupplementarySourcesDialog({
                           </div>
                         </>
                       )}
-                      <div className="supplementary-actions">
+                      <div className="supplementary-editor__actions">
                         <Button
                           size="sm"
                           disabled={busy || !novelId}
