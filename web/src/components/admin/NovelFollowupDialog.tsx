@@ -197,30 +197,52 @@ export default function NovelFollowupDialog({
           {!state && !error && <p role="status">正在读取追更设置…</p>}
           {state && (
             <>
+              <p className="novel-followup-dialog__origin">
+                本地已入库 {state.chapterCount ?? novel.chapterCount ?? 0} 章{state.importSourceLabel ? ` · 文件导入：${state.importSourceLabel}` : ''}
+              </p>
               {variant === 'settings' && (
                 <>
-                  <p className="novel-followup-dialog__origin">
-                    本地已入库 {state.chapterCount ?? novel.chapterCount ?? 0} 章{state.importSourceLabel ? ` · 文件导入：${state.importSourceLabel}` : ''}
-                  </p>
-                  <section className="novel-followup-dialog__source-section" aria-labelledby="novel-web-source-title">
-                    <h3 id="novel-web-source-title">网页追更</h3>
+                  <section className="novel-followup-dialog__section" aria-labelledby="novel-web-source-title">
+                    <div className="novel-followup-dialog__section-head">
+                      <h3 id="novel-web-source-title">网页追更</h3>
+                      <span className="novel-followup-dialog__badge" data-tone={state.hasConfig ? (state.enabled ? 'partial' : 'idle') : undefined}>
+                        {state.hasConfig ? (state.enabled ? `每 ${state.intervalHours} 小时` : '已暂停') : '未配置来源'}
+                      </span>
+                    </div>
                     <p className="admin-dialog-hint">从网页目录检查新章，并通过正文抓取任务入库。</p>
                     {state.importSourceLabel && state.hasConfig && (
                       <p className="admin-dialog-hint">文件导入的书籍首次接入网页追更时，请先用下方参考目录核对章节对应关系。</p>
                     )}
-                    {state.sourceUrl && <p className="novel-followup-dialog__source-url">{state.sourceUrl}</p>}
-                    {!state.hasConfig && (
-                      <p>
-                        {state.importSourceLabel
-                          ? '当前书籍已有文件导入内容，尚未配置可抓取正文的网页来源。可绑定网页来源自动追更，或使用下方附加源检查文件版本。'
-                          : '尚未配置可抓取正文的网页来源。可绑定网页来源，或使用下方附加文件更新。'}
-                      </p>
+                    {state.sourceUrl ? (
+                      <div className="novel-followup-dialog__entry">
+                        <div className="novel-followup-dialog__facts">
+                          <div>
+                            <dt>作品目录</dt>
+                            <dd>{state.sourceUrl}</dd>
+                          </div>
+                        </div>
+                        <div className="novel-followup-dialog__entry-actions">
+                          <Button variant="outline" size="sm" disabled={busy || sourceEditing || state.result === 'running'} onClick={editSource}>
+                            {state.hasConfig ? '调整网页来源' : '绑定网页来源'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="novel-followup-dialog__muted">
+                          {state.importSourceLabel
+                            ? '当前书籍已有文件导入内容，尚未配置可抓取正文的网页来源。可绑定网页来源自动追更，或使用下方附加源检查文件版本。'
+                            : '尚未配置可抓取正文的网页来源。可绑定网页来源，或使用下方附加文件更新。'}
+                        </p>
+                        <div className="novel-followup-dialog__entry-actions">
+                          <Button variant="secondary" size="sm" disabled={busy || sourceEditing || state.result === 'running'} onClick={editSource}>
+                            {state.hasConfig ? '调整网页来源' : '绑定网页来源'}
+                          </Button>
+                        </div>
+                      </>
                     )}
-                    <Button variant="secondary" size="sm" disabled={busy || sourceEditing || state.result === 'running'} onClick={editSource}>
-                      {state.hasConfig ? '调整网页来源' : '绑定网页来源'}
-                    </Button>
                     {sourceEditing && (
-                      <div className="novel-followup-dialog__source-editor">
+                      <div className="novel-followup-dialog__entry novel-followup-dialog__source-editor">
                         <Label htmlFor="novel-web-source-url">作品目录链接</Label>
                         <Input
                           id="novel-web-source-url"
@@ -299,7 +321,12 @@ export default function NovelFollowupDialog({
                     </>
                   )}
                   <section className="novel-followup-dialog__result" aria-label="最近检查">
-                    <span className="admin-dialog-section-label">{variant === 'event' ? '最新检查结果' : '最近检查'}</span>
+                    <div className="novel-followup-dialog__section-head">
+                      <span className="admin-dialog-section-label">{variant === 'event' ? '最新检查结果' : '最近检查'}</span>
+                      <span className="novel-followup-dialog__badge" data-tone={state.result === 'failed' || state.result === 'partial' ? 'failed' : state.result === 'running' ? 'partial' : undefined}>
+                        {state.result === 'running' ? '更新中' : state.result === 'failed' ? '检查失败' : state.result === 'partial' ? '部分完成' : '已就绪'}
+                      </span>
+                    </div>
                     <p role="status" data-result={state.result}>
                       {state.message || '尚未检查'}
                     </p>

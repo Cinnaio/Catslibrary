@@ -41,7 +41,7 @@ it('附加源和参考目录独立显示，候选文件不计为已确认新增�
   render(<NovelRelatedSources novel={novel} onUpdated={mocks.updated} />)
   expect(await screen.findByText('共享书单')).toBeVisible()
   expect(screen.getByText('部分目录未完整读取', { exact: false })).toBeVisible()
-  expect(screen.getByText('已发现 1 个候选文件版本，实际差异以预览为准')).toBeVisible()
+  expect(screen.getByText('1 个版本 · 以预览为准')).toBeVisible()
   expect(screen.getByText(/跟随来源设置 · 每 6 小时/)).toBeVisible()
   expect(await screen.findByText('https://www.po18.tw/books/123')).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: '查看候选版本' }))
