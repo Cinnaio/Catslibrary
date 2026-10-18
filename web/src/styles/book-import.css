@@ -965,6 +965,85 @@
   padding: 0.25rem 0.25rem 1.25rem 2.125rem;
 }
 
+.book-import__resolution-entry,
+.book-import__resolution,
+.book-import__resolution-error {
+  margin: 0 0.25rem 1rem 2.125rem;
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  font-size: var(--admin-table-cell-size);
+  line-height: 1.65;
+}
+
+.book-import__resolution {
+  padding-block: 1rem;
+  border-block: 1px solid var(--admin-border);
+}
+
+.book-import__resolution h4 {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.book-import__resolution p,
+.book-import__resolution-entry p,
+.book-import__resolution-error p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.book-import__resolution fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+
+.book-import__resolution legend {
+  margin-bottom: 0.5rem;
+}
+
+.book-import__resolution label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.book-import__resolution input[type='radio'] {
+  accent-color: var(--accent);
+}
+
+.book-import__resolution-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.book-import__resolution-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  color: var(--text-primary);
+  background: var(--admin-panel);
+}
+
+.book-import__resolution details ul {
+  max-height: 10rem;
+  overflow: auto;
+  padding-block: 0.5rem;
+}
+
+.book-import__resolution summary {
+  cursor: pointer;
+}
+
+.book-import__resolution-error {
+  color: var(--color-danger);
+}
+
 .book-import__content-preview {
   min-width: 0;
 }

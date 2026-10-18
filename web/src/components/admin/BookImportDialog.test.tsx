@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { BookImportAiReview, BookImportPreview } from '@shared/types'
-const api = vi.hoisted(() => ({ previewFile: vi.fn(), selectTarget: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn() }))
+const api = vi.hoisted(() => ({ previewFile: vi.fn(), selectTarget: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn(), resolveChapter: vi.fn() }))
 vi.mock('@/lib/api', () => ({ bookImportApi: api }))
 import BookImportDialog from './BookImportDialog'
 const original: BookImportPreview = {
@@ -140,4 +140,62 @@ it('预览版本冲突提供刷新入口，刷新后重新核对', async () => {
   fireEvent.click(await screen.findByRole('button', { name: '加载最新预览' }))
   await screen.findByText('已加载最新预览，请重新核对勾选。')
   expect(api.getPreview).toHaveBeenCalledWith('run')
+})
+
+it('需确认章节保持保护，并提供可见的核对处理入口', async () => {
+  const chapter = { ...original.chapters[0]!, id: 'blocked-middle', status: 'conflict' as const, selected: false, incomingTitle: '第0058章 56、总是发情', reason: '新增条目位于已有章节之间，或没有可靠的本地对应关系，请先核对边界与融合映射' }
+  render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={{ ...original, targetNovelId: 'bound-book', supplementary: { bindingId: 'binding', fileKey: 'file' }, chapters: [chapter], summary: { newCount: 0, changedCount: 0, unchangedCount: 0, conflictCount: 1 } }} />)
+  expect(screen.getByRole('checkbox', { name: `需确认章节：${chapter.incomingTitle}` })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: /第0058章/ }))
+  expect(screen.getByRole('button', { name: '核对章节对应关系' })).toBeEnabled()
+})
+
+it('人工确认新章位置后更新预览并解锁勾选，最终确认前不写入章节', async () => {
+  const conflict = { ...original.chapters[0]!, id: 'chapter-2', status: 'conflict' as const, selected: false, incomingTitle: '第0058章 56、总是发情', reason: '中间未匹配章节' }
+  const localChapters = [{ id: 'before', title: '前一章', order: 57 }, { id: 'after', title: '后一章', order: 58 }]
+  const preview = { ...original, targetNovelId: 'bound', supplementary: { bindingId: 'binding', fileKey: 'file' }, chapters: [conflict], localChapters, summary: { newCount: 0, changedCount: 0, unchangedCount: 0, conflictCount: 1 } }
+  api.resolveChapter.mockResolvedValue({ ...preview, revision: 1, chapterResolutions: [{ chapterId: 'chapter-2', action: 'insert', afterChapterId: 'before' }], chapters: [{ ...conflict, status: 'new', selected: true, incomingOrder: 58 }], summary: original.summary })
+  api.commit.mockRejectedValue(new Error('测试停止写入'))
+  render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={preview} />)
+  fireEvent.click(screen.getByRole('button', { name: '核对章节对应关系' }))
+  fireEvent.click(screen.getByRole('radio', { name: '这是新增章节' }))
+  fireEvent.change(screen.getByLabelText('插入位置'), { target: { value: 'before' } })
+  expect(screen.getByText(/预计新增序号：58/)).toBeVisible()
+  expect(screen.getByText('预计顺延 1 个已有章节的序号')).toBeVisible()
+  expect(api.commit).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '保存确认并更新预览' }))
+  const checkbox = await screen.findByRole('checkbox', { name: '新增章节：第0058章 56、总是发情' })
+  expect(checkbox).toBeEnabled()
+  expect(checkbox).toBeChecked()
+  expect(api.resolveChapter).toHaveBeenCalledWith('run', { chapterId: 'chapter-2', action: 'insert', afterChapterId: 'before', revision: 0 })
+  expect(api.commit).not.toHaveBeenCalled()
+  fireEvent.click(checkbox)
+  expect(screen.getByRole('button', { name: /确认导入/ })).toBeDisabled()
+  fireEvent.click(checkbox)
+  fireEvent.click(screen.getByRole('button', { name: /确认导入/ }))
+  await waitFor(() => expect(api.commit).toHaveBeenCalledWith('run', expect.objectContaining({ revision: 1, selectedChapterIds: ['chapter-2'], metadataFields: [], targetNovelId: 'bound' })))
+})
+it('人工确认请求失败保留处理选择，并提供重新读取本地章节入口', async () => {
+  const chapter = { ...original.chapters[0]!, status: 'conflict' as const, selected: false }
+  api.resolveChapter.mockRejectedValue(new Error('本地章节已变化，请重新生成预览'))
+  render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={{ ...original, targetNovelId: 'bound', localChapters: [{ id: 'local', title: '本地第一章', order: 1 }], chapters: [chapter] }} />)
+  fireEvent.click(screen.getByRole('button', { name: '核对章节对应关系' }))
+  fireEvent.click(screen.getByRole('radio', { name: '对应已有章节' }))
+  fireEvent.change(screen.getByLabelText('对应的本地章节'), { target: { value: 'local' } })
+  fireEvent.click(screen.getByRole('button', { name: '保存确认并更新预览' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('本地章节已变化')
+  expect(screen.getByLabelText('对应的本地章节')).toHaveValue('local')
+  expect(screen.getByRole('button', { name: '重新读取本地章节' })).toBeEnabled()
+  expect(screen.getByRole('checkbox', { name: '需确认章节：第一章' })).toBeDisabled()
+})
+
+it('旧预览先重新读取本地章节，再打开确认入口', async () => {
+  const chapter = { ...original.chapters[0]!, status: 'conflict' as const, selected: false }
+  const next = { ...original, revision: 2, targetNovelId: 'bound', localChapters: [{ id: 'local', title: '本地第一章', order: 1 }], chapters: [chapter] }
+  api.selectTarget.mockResolvedValue(next)
+  render(<BookImportDialog open onOpenChange={vi.fn()} initialPreview={{ ...original, targetNovelId: 'bound', chapters: [chapter] }} />)
+  fireEvent.click(screen.getByRole('button', { name: '核对章节对应关系' }))
+  await screen.findByRole('radio', { name: '这是新增章节' })
+  expect(api.selectTarget).toHaveBeenCalledWith('run', 'bound', 0)
+  expect(screen.getByText(/已重新读取本地章节，尚未导入/)).toBeVisible()
 })

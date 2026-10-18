@@ -4,6 +4,7 @@ import { strFromU8, unzipSync } from 'fflate'
 import type {
   BookImportAnomaly,
   BookImportChapterDiff,
+  BookImportChapterResolution,
   BookImportChapterInput,
   BookImportCommitResult,
   BookImportDiagnostics,
@@ -18,6 +19,7 @@ import type {
   Novel,
 } from '@shared/types'
 import { all, withTx } from '../db/query'
+import { planImportInsertions } from '@shared/book-import-resolution'
 import type { Db } from '../db/pool'
 import { newId } from './auth'
 import { normalizeCategories } from './categories'
@@ -350,7 +352,7 @@ export interface ImportPreviewOptions {
   preserveLocalOrder?: boolean
 }
 
-interface ChapterRow {
+export interface ChapterRow {
   id: string
   title: string
   sort_order: number
@@ -360,7 +362,7 @@ interface ChapterRow {
 
 interface AppliedChange {
   id: string
-  kind: 'create-chapter' | 'update-chapter' | 'metadata' | 'create-novel'
+  kind: 'create-chapter' | 'update-chapter' | 'reorder-chapter' | 'metadata' | 'create-novel'
   title: string
   novelId: string
   chapterId?: string
@@ -1640,6 +1642,47 @@ async function loadLocalChapters(db: Db, novelId: string): Promise<ChapterRow[]>
   return all<ChapterRow>(db, 'SELECT id, title, sort_order, content, source_url FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC', [novelId])
 }
 
+export function importResolutionSnapshot(local: ChapterRow[]): string {
+  return createHash('sha256').update(JSON.stringify([...local].sort((a, b) => a.id.localeCompare(b.id)).map(row => [row.id, row.title, row.sort_order, row.content, row.source_url]))).digest('hex')
+}
+
+export function resolvedChapterDiffs(base: BookImportChapterDiff[], local: ChapterRow[], resolutions: BookImportChapterResolution[]): BookImportChapterDiff[] {
+  const diffs = base.map(item => ({ ...item }))
+  const headers = local.map(row => ({ id: row.id, title: row.title, order: row.sort_order }))
+  const sorted = [...resolutions].sort((a, b) => diffs.findIndex(c => c.id === a.chapterId) - diffs.findIndex(c => c.id === b.chapterId))
+  for (const resolution of sorted) {
+    const diff = diffs.find(item => item.id === resolution.chapterId)
+    if (!diff) throw new Error('人工确认章节不存在，请重新预览')
+    if (resolution.action === 'match') {
+      const row = local.find(item => item.id === resolution.localChapterId)
+      if (!row) throw new Error('本地对应章节不存在，请重新预览')
+      if (diffs.some(other => other.id !== diff.id && other.localChapterId === row.id && other.status !== 'conflict' && !(diff.variantGroup && other.variantGroup === diff.variantGroup))) throw new Error('该本地章节已对应其他导入章节，请先核对重复内容或章节边界')
+      Object.assign(diff, { localChapterId: row.id, localOrder: row.sort_order, localTitle: row.title, localContent: row.content, localSourceUrl: row.source_url,
+        incomingOrder: row.sort_order, status: importContentHash(row.content) === importContentHash(diff.incomingContent) && row.title === diff.incomingTitle ? 'unchanged' : 'changed',
+        confidence: 'high', selected: false, reason: '已人工确认对应关系；请展开比较正文后选择是否更新' })
+    } else {
+      if (resolution.afterChapterId !== null && !local.some(row => row.id === resolution.afterChapterId)) throw new Error('插入位置对应的本地章节不存在，请重新预览')
+      Object.assign(diff, { localChapterId: undefined, localOrder: undefined, localTitle: undefined, localContent: undefined, localSourceUrl: undefined,
+        status: 'new', confidence: 'high', selected: true, reason: '已人工确认是新章节；按指定位置插入，必要时顺延后续序号' })
+    }
+  }
+  const chosenGroups = new Map<string, BookImportChapterDiff>()
+  for (const resolution of resolutions) {
+    const diff = diffs.find(c => c.id === resolution.chapterId)!
+    if (resolution.action !== 'insert' || !diff.variantGroup) continue
+    const previous = chosenGroups.get(diff.variantGroup)
+    if (previous) previous.selected = false
+    chosenGroups.set(diff.variantGroup, diff)
+  }
+  const plan = planImportInsertions(headers, sorted.filter(r => diffs.find(c => c.id === r.chapterId)?.selected))
+  let tail = plan.maxOrder
+  if (resolutions.some(r => r.action === 'insert')) for (const diff of diffs) {
+    if (plan.insertOrders.has(diff.id)) diff.incomingOrder = plan.insertOrders.get(diff.id)!
+    else if (diff.status === 'new' && diff.selected) diff.incomingOrder = ++tail
+  }
+  return diffs
+}
+
 export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise<BookImportPreview> {
   const payload = normalizeImportPayload(opts.payload)
   const candidates = await findCandidates(db, payload)
@@ -1685,6 +1728,9 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
     targetNovel,
     metadataDiff: buildMetadataDiff(payload, targetNovel).map(field => opts.preserveLocalOrder ? { ...field, selected: false } : field),
     chapters,
+    chapterResolutions: [],
+    resolutionSnapshot: undefined,
+    localChapters: local.map(row => ({ id: row.id, title: row.title, order: row.sort_order })),
     summary,
     warnings,
     diagnostics: opts.diagnostics,
@@ -1848,7 +1894,27 @@ export async function applyImport(
       applied.push({ id: `novel:${novelId}`, kind: 'create-novel', title: createdNovel.title, novelId, before: null, after: snapshotNovel(currentNovel) })
     }
 
-    const localRows = await q<ChapterRow>('SELECT id, title, sort_order, content, source_url FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC', [novelId])
+    const localRows = await q<ChapterRow>('SELECT id, title, sort_order, content, source_url FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC FOR UPDATE', [novelId])
+    const resolutions = preview.chapterResolutions || []
+    if (resolutions.length) {
+      if (!preview.resolutionSnapshot || preview.resolutionSnapshot !== importResolutionSnapshot(localRows.rows)) throw new Error('本地章节已变化，请重新生成预览并确认对应关系')
+      preview.chapters = resolvedChapterDiffs(buildChapterDiff(payload, localRows.rows, { preserveLocalOrder: supplementary }), localRows.rows, resolutions)
+      const chosen = resolutions.filter(r => selectedChapters.has(r.chapterId))
+      if (resolutions.some(r => r.action === 'insert')) {
+        const plan = planImportInsertions(localRows.rows.map(c => ({ id: c.id, title: c.title, order: c.sort_order })), [...chosen].sort((a,b) => preview.chapters.findIndex(c => c.id===a.chapterId)-preview.chapters.findIndex(c => c.id===b.chapterId)))
+        for (const change of [...plan.changes].sort((a,b) => b.before-a.before)) {
+          await q('UPDATE chapters SET sort_order=$1 WHERE id=$2 AND novel_id=$3', [change.after, change.chapterId, novelId])
+          applied.push({ id: `order:${change.chapterId}`, kind: 'reorder-chapter', title: change.title, novelId, chapterId: change.chapterId, before: { order: change.before }, after: { order: change.after } })
+        }
+        for (const row of localRows.rows) row.sort_order = plan.orders.get(row.id)!
+        let tail = plan.maxOrder
+        for (const diff of preview.chapters) {
+          if (diff.localChapterId) { diff.localOrder = plan.orders.get(diff.localChapterId); diff.incomingOrder = diff.localOrder! }
+          else if (plan.insertOrders.has(diff.id)) diff.incomingOrder = plan.insertOrders.get(diff.id)!
+          else if (diff.status === 'new' && selectedChapters.has(diff.id)) diff.incomingOrder = ++tail
+        }
+      }
+    }
     const localById = new Map(localRows.rows.map((row) => [row.id, row]))
     for (const diff of preview.chapters) {
       if (!selectedChapters.has(diff.id)) {
@@ -1861,11 +1927,11 @@ export async function applyImport(
       }
       const sourceChapter = payload.chapters.find((chapter, index) => `chapter-${index + 1}` === diff.id)
       if (!sourceChapter) continue
-      const incoming = supplementary || diff.variantGroup ? { ...sourceChapter, order: diff.incomingOrder } : sourceChapter
-      if (supplementary || diff.variantGroup) {
+      const incoming = supplementary || diff.variantGroup || resolutions.length ? { ...sourceChapter, order: diff.incomingOrder } : sourceChapter
+      if (supplementary || diff.variantGroup || resolutions.length) {
         const occupied = localRows.rows.find(c=>c.sort_order===incoming.order && c.id!==diff.localChapterId)
         if (occupied) { conflicts.push({id:diff.id,title:diff.incomingTitle,reason:'目标序号已被其他章节占用，请核对章节对应关系'}); continue }
-        if (diff.status === 'new') {
+        if (diff.status === 'new' && !resolutions.some(r => r.chapterId === diff.id && r.action === 'insert')) {
           const fresh = buildChapterDiff({...payload,chapters:[incoming]},localRows.rows)[0]
           if (fresh?.status === 'unchanged') { skipped++; continue }
           if (fresh?.status !== 'new') { conflicts.push({id:diff.id,title:diff.incomingTitle,reason:'预览后已有对应章节，请重新生成预览'}); continue }
@@ -1948,6 +2014,21 @@ export async function rollbackImport(db: Db, run: StoredImportRun): Promise<Book
     if (!['applied', 'partial'].includes(lockedRun.rows[0]!.status)) throw new Error('这次导入当前不可撤回')
     // 先保护整本新作品，再处理子项；不能删完章节才发现作品已经被人工审核。
     const protectedNovels = new Set<string>()
+    const orderChanges = changes.filter(change => change.kind === 'reorder-chapter')
+    if (orderChanges.length && run.target_novel_id) {
+      await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [run.target_novel_id])
+      const rows = (await q<Record<string, unknown>>('SELECT id,title,sort_order,content,source_url FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.target_novel_id])).rows
+      const affected = new Set(changes.filter(c => c.kind === 'reorder-chapter' || c.kind === 'create-chapter').map(c => c.chapterId))
+      const changed = changes.some(change => {
+        const row = rows.find(c => c.id === change.chapterId)
+        if (change.kind === 'reorder-chapter') return !row || Number(row.sort_order) !== Number(change.after.order) || rows.some(c => c.sort_order === change.before?.order && !affected.has(String(c.id)))
+        return (change.kind === 'create-chapter' || change.kind === 'update-chapter') && !sameSnapshotChapter(row, change.after)
+      })
+      if (changed) {
+        protectedNovels.add(run.target_novel_id)
+        conflicts.push({ id: run.id, title: '人工确认插章', reason: '插章关联章节已变化，本次新增与序号调整整体保留，请人工核对后再撤回' })
+      }
+    }
     for (const change of changes.filter(item => item.kind === 'create-novel')) {
       const row = await q<Record<string, unknown>>('SELECT * FROM novels WHERE id=$1 FOR UPDATE', [change.novelId])
       if (row.rows[0] && !sameSnapshotNovel(row.rows[0], change.after)) {
@@ -1979,6 +2060,11 @@ export async function rollbackImport(db: Db, run: StoredImportRun): Promise<Book
           continue
         }
         await q('DELETE FROM chapters WHERE id = $1', [change.chapterId])
+        rolledBack++
+        continue
+      }
+      if (change.kind === 'reorder-chapter' && change.chapterId && change.before) {
+        await q('UPDATE chapters SET sort_order=$1 WHERE id=$2 AND novel_id=$3', [change.before.order, change.chapterId, change.novelId])
         rolledBack++
         continue
       }

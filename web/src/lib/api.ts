@@ -431,6 +431,9 @@ export const bookImportApi = {
   selectTarget(runId: string, targetNovelId: string | null, revision: number): Promise<BookImportPreview> {
     return request('POST', `/book-import/${encodeURIComponent(runId)}/target`, { targetNovelId, revision }, true)
   },
+  resolveChapter(runId: string, data: { chapterId: string; action: 'match' | 'insert' | 'clear'; localChapterId?: string; afterChapterId?: string | null; revision: number }): Promise<BookImportPreview> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/resolve-chapter`, data, true)
+  },
   commit(
     runId: string,
     data: {

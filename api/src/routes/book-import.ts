@@ -21,6 +21,7 @@ import { AiError } from '../services/ai/client'
 import { boundSupplementaryFile } from '../services/supplementary-source'
 import { assertBookBytes, downloadLanzouFile, identityKey, LanzouError } from '../services/lanzou'
 import { getAiSettings } from '../services/ai/settings'
+import { resolveImportChapter } from '../services/book-import-resolution'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 import {
@@ -282,6 +283,18 @@ bookImportRoutes.post('/:runId/target', async (c) => {
   } catch (err) {
     const message = (err as Error).message || '导入目标更新失败'
     return c.json({ error: message }, errorStatus(message) as 400 | 409 | 502 | 500)
+  }
+})
+
+bookImportRoutes.post('/:runId/resolve-chapter', async c => {
+  try {
+    const body = await c.req.json<Record<string, unknown>>()
+    const preview = await resolveImportChapter(getDb(), { runId: c.req.param('runId'), actorUserId: c.get('user').id,
+      revision: body.revision, chapterId: body.chapterId, action: body.action, localChapterId: body.localChapterId, afterChapterId: body.afterChapterId })
+    return c.json(preview, 200, { 'Cache-Control': 'no-store' })
+  } catch (error) {
+    const message = (error as Error).message || '章节确认失败'
+    return c.json({ error: message }, errorStatus(message))
   }
 })
 
