@@ -4,6 +4,7 @@ import { planImportInsertions } from '@shared/book-import-resolution'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import CustomSelect, { type SelectOption } from './CustomSelect'
 
 export type ChapterResolutionChoice = { action: 'match'; localChapterId: string } | { action: 'insert'; afterChapterId: string | null; afterIncomingChapterId?: string }
 
@@ -73,7 +74,7 @@ export default function BookImportChapterResolver({
   const sortedResolutions = [...resolutions].sort((a, b) => chapters.findIndex(c => c.id === a.chapterId) - chapters.findIndex(c => c.id === b.chapterId))
   const currentPlan = planImportInsertions(local, sortedResolutions, selected)
   const referencePlan = planImportInsertions(local, sortedResolutions)
-  const candidates = action === 'match'
+  const candidates: { id: string; title: string; order: number; value: string; incoming: boolean }[] = action === 'match'
     ? local.map(item => ({ ...item, value: item.id, incoming: false }))
     : [
         ...local.map(item => ({ ...item, order: currentPlan.orders.get(item.id) ?? item.order, value: `local:${item.id}`, incoming: false })),
@@ -85,6 +86,16 @@ export default function BookImportChapterResolver({
         }),
       ].sort((a, b) => a.order - b.order)
   const filtered = candidates.filter(item => `${item.order} ${item.title}`.includes(search.trim()) || item.value === target)
+  // 共享下拉的候选：插入模式必须保留「放在本书第一章之前」，否则排在首位的前章无处可选。
+  const targetOptions: SelectOption[] = [
+    ...(action === 'insert' ? [{ value: '__start__', label: '放在本书第一章之前' }] : []),
+    ...filtered.map((item) => ({
+      value: item.value,
+      label: `${action === 'insert' ? '放在后面：' : ''}${item.order} · ${item.title}`,
+      note: item.incoming ? (selected.has(item.id) ? '本轮新增' : '本轮新增，未勾选') : undefined,
+    })),
+  ]
+  const targetTriggerId = `resolution-target-${chapter.id}`
   return (
     <section className="book-import__resolution" aria-label={`处理需确认章节：${chapter.incomingTitle}`}>
       <h4>核对章节对应关系</h4>
@@ -126,24 +137,22 @@ export default function BookImportChapterResolver({
             placeholder="按标题或序号筛选"
             onChange={(event) => setSearch(event.target.value)}
           />
-          <Label htmlFor={`resolution-target-${chapter.id}`}>{action === 'match' ? '对应的本地章节' : '插入位置'}</Label>
-          <select
-            id={`resolution-target-${chapter.id}`}
-            className="book-import__resolution-select"
+          <Label id={`${targetTriggerId}-label`} htmlFor={targetTriggerId}>{action === 'match' ? '对应的本地章节' : '插入位置'}</Label>
+          <CustomSelect
+            id={targetTriggerId}
+            className="w-full min-w-0"
+            options={targetOptions}
             value={target}
+            onChange={setTarget}
+            placeholder={action === 'match' ? '请选择并核对本地章节' : '请选择插入在哪一章之后'}
+            searchable={false}
+            onSearchChange={setSearch}
+            matchTriggerWidth
+            compactThreshold={12}
+            expandAllLabel="展开全部 {count} 项"
             disabled={busy}
-            onChange={(event) => setTarget(event.target.value)}
-          >
-            <option value="">{action === 'match' ? '请选择并核对本地章节' : '请选择插入在哪一章之后'}</option>
-            {action === 'insert' && <option value="__start__">放在本书第一章之前</option>}
-            {filtered.map((item) => (
-              <option value={item.value} key={item.value}>
-                {action === 'insert' ? '放在后面：' : ''}
-                {item.order} · {item.title}
-                {item.incoming ? (selected.has(item.id) ? '（本轮新增）' : '（本轮新增，未勾选）') : ''}
-              </option>
-            ))}
-          </select>
+            aria-labelledby={`${targetTriggerId}-label`}
+          />
           {action === 'match' && <p>保存对应关系后可展开比较该章正文，再勾选是否更新；本地序号保留。</p>}
           {action === 'insert' && <p>可接在已有章节或本轮已确认新增的章节之后，无需先导入上一章。取消勾选前章时，后章仍保留在该位置。</p>}
           {action === 'insert' && target && (

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import CustomSelect from '@/components/admin/CustomSelect'
 import { MATCH_REASON_LABELS } from './source-sync-labels'
 
 const CONFIDENCE_LABELS = { high: '高', medium: '中', low: '低' }
@@ -347,17 +347,31 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
               </div>
               <div className="chapter-dialog-field">
                 <Label htmlFor="chapter-mapping-target">对应的源站章节</Label>
-                <Select value={targetKey} onValueChange={setTargetKey} disabled={disabled}>
-                  <SelectTrigger id="chapter-mapping-target" className="w-full min-w-0"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unmatched">解除匹配，保持本地章节原样</SelectItem>
-                    {shownSources.map(source => {
+                <CustomSelect
+                  options={[
+                    { value: 'unmatched', label: '解除匹配，保持本地章节原样' },
+                    ...shownSources.map(source => {
                       const occupiedBy = locals.filter(local => local.id !== editingId && effectiveMappings.get(local.id) === source.key)
                       const blocked = occupiedBy.some(local => byLocal.get(local.id)?.relation === 'split' || /[（(]\s*\d+\s*[/／]\s*\d+\s*[)）]$/.test(local.title))
-                      return <SelectItem key={source.key} value={source.key} disabled={blocked}>{source.order} · {source.title}{blocked ? '（拆分组已占用）' : occupiedBy.length ? '（选择后交换）' : ''}</SelectItem>
-                    })}
-                  </SelectContent>
-                </Select>
+                      return { value: source.key, label: `${source.order} · ${source.title}`, disabled: blocked, note: blocked ? '拆分组已占用' : occupiedBy.length ? '选择后交换' : undefined }
+                    }),
+                  ]}
+                  value={targetKey}
+                  onChange={setTargetKey}
+                  // 页面上已有「查找源站章节」输入并负责过滤 shownSources，
+                  // 交给 CustomSelect 受控搜索，浮层里不再出现第二个搜索框。
+                  search={sourceQuery}
+                  onSearchChange={setSourceQuery}
+                  emptyText="没有匹配的源站章节"
+                  // 源站可达上百章，浮层只渲染选中项附近一窗，其余按需展开。
+                  compactThreshold={12}
+                  expandAllLabel="展开全部 {count} 个源站章节"
+                  matchTriggerWidth
+                  className="w-full min-w-0"
+                  disabled={disabled}
+                  // Label 用 htmlFor 指过来；只给 id，不再叠加 aria-labelledby，避免标签被念两遍。
+                  id="chapter-mapping-target"
+                />
               </div>
             </div>
             {sourceMatches.length > 100 && <p className="admin-dialog-hint">找到 {sourceMatches.length} 章，展示前 100 章；输入标题或序号缩小范围。</p>}

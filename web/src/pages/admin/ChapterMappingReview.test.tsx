@@ -64,7 +64,8 @@ it('展示匹配依据与相邻章节，保存未匹配章的人工对应关系'
   expect(screen.getByRole('button', { name: '调整映射：本地 2' })).toHaveAttribute('aria-expanded', 'true')
   expect(screen.getByText(/本地前章：本地第一章/)).toBeInTheDocument()
   await user.click(screen.getByRole('combobox'))
-  expect(screen.getByRole('option', { name: /源站第一章（选择后交换）/ })).not.toHaveAttribute('aria-disabled', 'true')
+  // CustomSelect 把“选择后交换”渲染成行尾 note，与选项正文同属可访问名（无分隔空格）。
+  expect(screen.getByRole('option', { name: '1 · 源站第一章选择后交换' })).not.toHaveAttribute('aria-disabled', 'true')
   await user.click(screen.getByRole('option', { name: '2 · 源站第二章' }))
   expect(screen.getByText(/源站前章：源站第一章/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '暂存映射调整' }))
@@ -82,7 +83,7 @@ it('选择占用目标暂存双方交换，保存失败保留草稿可重试', a
   fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByRole('button', { name: '调整映射：本地 2' }))
   await user.click(screen.getByRole('combobox'))
-  await user.click(screen.getByRole('option', { name: /源站第一章（选择后交换）/ }))
+  await user.click(screen.getByRole('option', { name: '1 · 源站第一章选择后交换' }))
   expect(screen.getByText(/将与本地 1/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '暂存映射调整' }))
   expect(onPendingMappingsChange).toHaveBeenLastCalledWith(2)
@@ -341,8 +342,13 @@ it('源站选择器支持序号与标题子串搜索，超过 100 章给出引�
   fireEvent.click(screen.getByRole('button', { name: /^全部 / }))
   fireEvent.click(screen.getByRole('button', { name: '调整映射：本地 2' }))
   await user.click(screen.getByRole('combobox'))
-  // 未搜索时给出上限引导，且只展示前 100 章。
+  // 未搜索时给出上限引导；浮层按 compactThreshold={12} 只挂选中项附近的窗口
+  // （解除匹配 + 前后各 4 章 = 9 项），而不是把上百章一次全渲染进浮层。
   expect(screen.getByText('找到 120 章，展示前 100 章；输入标题或序号缩小范围。')).toBeInTheDocument()
+  expect(screen.getAllByRole('option')).toHaveLength(9)
+  expect(screen.queryByRole('option', { name: '100 · 源站章节100' })).not.toBeInTheDocument()
+  // 折叠只是渲染窗口，100 条上限仍是真实边界：展开后到第 100 章为止。
+  fireEvent.click(screen.getByRole('button', { name: '展开全部 101 个源站章节' }))
   expect(screen.getByRole('option', { name: '100 · 源站章节100' })).toBeInTheDocument()
   expect(screen.queryByRole('option', { name: '101 · 源站章节101' })).not.toBeInTheDocument()
   // 标题子串可定位到 100 条之外的章节。

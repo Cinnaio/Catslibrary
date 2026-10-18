@@ -1,7 +1,15 @@
 /**
- * 管理后台自定义下拉 —— shadcn Popover + Command Combobox。
- * 接口与类名语义和旧 CustomSelect 完全一致（SelectOption 接口 + 全部 props 不变），
- * 内部改为 shadcn 组件：键盘导航/焦点管理由 cmdk 接管。
+ * 共享下拉 —— shadcn Popover + Command Combobox，全站唯一的可搜索选择控件。
+ * 表单控件、工具条筛选、弹窗内长列表（章节锚点、映射目标）都用它，
+ * 不再各自维护原生 <select> 的外观与键盘行为。
+ *
+ * 三种形态：
+ * - 默认：触发器展示选中项，内部提供搜索框（searchable）。
+ * - 受控搜索（search + onSearchChange）：搜索框由调用方持有，列表按调用方给的结果渲染，
+ *   适合「页面上已有搜索输入、下拉只负责选一项」的双栏布局。
+ * - 折叠（collapsed）：候选超过 compactThreshold 时，浮层只渲染当前选中项附近的一个窗口，
+ *   列表底部提供「展开全部 N 项」，避免几百个章节把浮层撑成整屏。
+ *
  * onServerSearch 的「本地空结果才补搜」副作用原样保留。
  */
 import { useEffect, useMemo, useRef, useState, type AriaAttributes, type ReactNode } from 'react'
@@ -12,12 +20,15 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 
 const MAX_RENDERED_SEARCH_OPTIONS = 100
+const COMPACT_NEIGHBOURS = 4
 
 export interface SelectOption {
   value: string
   label: string
   /** 次行元信息（如「作者 · N章」），可选 */
   sub?: string
+  /** 行尾状态注记（如「本轮新增」「不可选」），与选中对勾同区 */
+  note?: string
   /** 禁用单个选项，但保留其在列表中的说明 */
   disabled?: boolean
 }
@@ -33,6 +44,18 @@ interface CustomSelectProps {
   filterChip?: boolean
   leadingIcon?: ReactNode
   searchable?: boolean
+  /** 受控搜索词；与 onSearchChange 一起使用时搜索框由调用方持有，浮层内不再渲染搜索框。 */
+  search?: string
+  onSearchChange?: (query: string) => void
+  /** 受控模式下无结果时的提示；默认按本地筛选结果决定。 */
+  emptyText?: string
+  /** 浮层宽度锁定到触发器宽度；长标题下拉用它避免浮层被内容撑爆或塌缩。 */
+  matchTriggerWidth?: boolean
+  /** 全部展开提示的文案（collapsed 折叠时生效），支持 {count} 占位 */
+  expandAllLabel?: string
+  /** 折叠开关：候选数超过该值只渲染选中项附近的窗口，列表底部给「展开全部」。
+   *  不传则不折叠；搜索型下拉（小说全库索引）靠输入收敛，不要传。 */
+  compactThreshold?: number
   searchPlaceholder?: string
   /** 搜索过滤（title/author/拼音），默认大小写不敏感子串 */
   filter?: (option: SelectOption, q: string) => boolean
@@ -40,6 +63,8 @@ interface CustomSelectProps {
   onServerSearch?: (query: string) => void
   className?: string
   disabled?: boolean
+  /** 触发器 id：让 <Label htmlFor> 指向按钮本身，而不是包一层 div。 */
+  id?: string
   dropdownSide?: 'top' | 'right' | 'bottom' | 'left'
   'aria-label'?: string
   'aria-labelledby'?: string
@@ -56,11 +81,18 @@ export default function CustomSelect({
   filterChip,
   leadingIcon,
   searchable,
+  search,
+  onSearchChange,
+  emptyText,
+  matchTriggerWidth,
+  expandAllLabel = '展开全部',
+  compactThreshold,
   searchPlaceholder = '搜索…',
   filter,
   onServerSearch,
   className,
   disabled,
+  id,
   dropdownSide = 'bottom',
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledBy,
@@ -68,17 +100,25 @@ export default function CustomSelect({
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [expanded, setExpanded] = useState(false)
   const serverSearched = useRef(new Set<string>())
   const triggerRef = useRef<HTMLButtonElement>(null)
+
+  const controlled = search !== undefined && onSearchChange !== undefined
+  const activeQuery = controlled ? search : query
 
   const selected = options.find((o) => o.value === value)
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return options
-    const q = query.trim().toLowerCase()
+    // 受控搜索由调用方决定结果集，这里只保留选中的那一项，避免它被搜索结果挤掉。
+    // 受控时调用方已按自己的字段（序号、作者、拼音）过滤，不能再叠一层 label 子串过滤，
+    // 否则「按序号搜到、但标题不含关键词」的候选会被二次过滤掉。
+    if (controlled) return options
+    if (!activeQuery.trim()) return options
+    const q = activeQuery.trim().toLowerCase()
     const fn = filter || ((o: SelectOption, qq: string) => o.label.toLowerCase().includes(qq))
     return options.filter((o) => fn(o, q))
-  }, [options, query, filter])
+  }, [options, activeQuery, controlled, filter])
 
   // 搜索下拉可能承载全库索引；只挂载首屏所需的候选，搜索仍基于完整 filtered 结果。
   // 保留当前选项，避免已选小说不在前 100 项时打开下拉看不到选中态。
@@ -90,14 +130,25 @@ export default function CustomSelect({
     return selectedOption ? [...initial.slice(0, MAX_RENDERED_SEARCH_OPTIONS - 1), selectedOption] : initial
   }, [filtered, searchable, value])
 
+  // 折叠：只渲染选中项前后各 N 项。没有选中项时从头部开始，保证长列表打开即可见。
+  // 阈值必须由调用方显式声明：小说全库索引这类「靠输入收敛」的搜索下拉一旦被折叠，
+  // 用户看不到全部候选，也读不到底部的「请输入关键词」提示，属于功能退化。
+  const collapsed = compactThreshold !== undefined && !expanded && filtered.length > compactThreshold
+  const foldedOptions = useMemo(() => {
+    if (!collapsed) return visibleOptions
+    const anchor = visibleOptions.findIndex((option) => option.value === value)
+    const start = anchor < 0 ? 0 : Math.max(0, Math.min(anchor - COMPACT_NEIGHBOURS, visibleOptions.length - (COMPACT_NEIGHBOURS * 2 + 1)))
+    return visibleOptions.slice(start, start + COMPACT_NEIGHBOURS * 2 + 1)
+  }, [collapsed, visibleOptions, value])
+
   // 本地无命中且未补搜过 → 触发服务端补搜
   useEffect(() => {
-    const q = query.trim()
+    const q = activeQuery.trim()
     if (q && filtered.length === 0 && onServerSearch && !serverSearched.current.has(q)) {
       serverSearched.current.add(q)
       onServerSearch(q)
     }
-  }, [filtered.length, query, onServerSearch])
+  }, [filtered.length, activeQuery, onServerSearch])
 
   function pick(o: SelectOption) {
     if (o.disabled) return
@@ -108,14 +159,18 @@ export default function CustomSelect({
   return (
     <Popover
       open={open}
-      onOpenChange={(o) => {
-        setOpen(o)
-        if (o && searchable) setQuery('')
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setExpanded(false)
+          if (searchable && !controlled) setQuery('')
+        }
       }}
     >
       <PopoverTrigger asChild>
         <Button
           ref={triggerRef}
+          id={id}
           type="button"
           variant="outline"
           role="combobox"
@@ -145,6 +200,7 @@ export default function CustomSelect({
               </span>
             )}
             <span className={cn('truncate', !selected && 'custom-select__placeholder text-muted-foreground')}>{selected?.label || placeholder}</span>
+            {selected?.note && <span className="custom-select__note shrink-0">{selected.note}</span>}
           </span>
           {!filterChip && <ChevronsUpDown className="size-4 shrink-0 opacity-50" />}
         </Button>
@@ -160,19 +216,21 @@ export default function CustomSelect({
         }}
         className={cn(
           'admin-custom-select-popover shared-select-content w-(--radix-popover-trigger-width) min-w-[200px] p-0',
-          searchable && 'pt-1', // 顶部留白，避免搜索框聚焦环向上溢出到触发器
+          // 搜索框聚焦环会向上溢出触发器，折叠提示同理，顶部各留一点余量。
+          ((searchable && !controlled) || collapsed) && 'pt-1',
           compact && 'w-auto',
+          matchTriggerWidth && 'w-(--radix-popover-trigger-width)',
         )}
       >
         <Command shouldFilter={false}>
-          {searchable && <CommandInput placeholder={searchPlaceholder} value={query} onValueChange={setQuery} autoFocus />}
+          {searchable && !controlled && <CommandInput placeholder={searchPlaceholder} value={query} onValueChange={setQuery} autoFocus />}
           <CommandList>
             {filtered.length === 0 ? (
-              <CommandEmpty>{!query.trim() && options.length === 0 ? '暂无选项' : '没有匹配的选项'}</CommandEmpty>
+              <CommandEmpty>{emptyText || (!activeQuery.trim() && options.length === 0 ? '暂无选项' : '没有匹配的选项')}</CommandEmpty>
             ) : (
               <>
                 <CommandGroup>
-                  {visibleOptions.map((o) => (
+                  {foldedOptions.map((o) => (
                     <CommandItem
                       key={o.value}
                       value={o.value}
@@ -184,13 +242,21 @@ export default function CustomSelect({
                         <span className="truncate">{o.label}</span>
                         {o.sub && <span className="truncate text-xs text-muted-foreground">{o.sub}</span>}
                       </span>
-                      {o.value === value && <Check className="size-4 shrink-0" />}
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {o.note && <span className="custom-select__note text-xs text-muted-foreground">{o.note}</span>}
+                        {o.value === value && <Check className="size-4 shrink-0" />}
+                      </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>
+                {collapsed && (
+                  <button type="button" className="custom-select__more" onClick={() => setExpanded(true)}>
+                    {expandAllLabel.replace('{count}', String(visibleOptions.length))}
+                  </button>
+                )}
                 {visibleOptions.length < filtered.length && (
                   <p className="px-3 pb-2 text-xs text-muted-foreground" role="status">
-                    {query.trim()
+                    {activeQuery.trim()
                       ? `显示前 ${visibleOptions.length} 项，共 ${filtered.length} 项，请继续输入关键词`
                       : `共 ${filtered.length} 项，请输入关键词继续筛选`}
                   </p>
