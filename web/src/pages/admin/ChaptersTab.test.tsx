@@ -1,11 +1,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), novelGet: vi.fn(), history: vi.fn(), rollback: vi.fn(), update: vi.fn(), batchDelete: vi.fn(), toast: vi.fn(), illustrations: vi.fn(), saveIllustration: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn(), sourceRefresh: vi.fn(), sourceRemap: vi.fn(), confirm: vi.fn() }))
 vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, novelsApi: { get: mocks.novelGet }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update, batchDelete: mocks.batchDelete }, illustrationsApi: { list: mocks.illustrations, save: mocks.saveIllustration, imageBlob: async () => new Blob() }, scrapeApi: { sourceSyncHistory: mocks.history, sourceSyncRollback: mocks.rollback, sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply, sourceSyncRefresh: mocks.sourceRefresh, sourceSyncRemap: mocks.sourceRemap }, newOperationId: () => 'test' }))
 vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: mocks.confirm }) }))
-vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, onChange }: any) => <select aria-label="选择小说" onChange={e => onChange(e.target.value)}><option value="" />{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
+vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, value, onChange }: any) => <select aria-label="选择小说" value={value} onChange={e => onChange(e.target.value)}><option value="" />{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 import ChaptersTab from './ChaptersTab'
 import { hashParagraphText } from '@shared/thought-anchor'
+
+function renderChapters(element = <ChaptersTab />, initialEntries = ['/admin/chapters']) {
+  return render(<MemoryRouter initialEntries={initialEntries}>{element}</MemoryRouter>)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.index.mockResolvedValue({ novels: [{ id: 'n', title: '测试书', author: '', chapterCount: 1 }] })
@@ -15,13 +21,20 @@ beforeEach(() => {
   mocks.illustrations.mockResolvedValue({ illustrations: [], chapterRevision: 'revision', contentHash: hashParagraphText('原正文') })
 })
 
+it('从小说操作进入章节列表时自动选中并加载当前作品', async () => {
+  renderChapters(undefined, ['/admin/chapters?novelId=n'])
+  await waitFor(() => expect(screen.getByLabelText('选择小说')).toHaveValue('n'))
+  await waitFor(() => expect(mocks.list).toHaveBeenCalledWith('n'))
+  expect((await screen.findAllByText('原章')).length).toBeGreaterThan(0)
+})
+
 it('融合撤回后刷新作品信息，重新打开弹窗显示恢复后的书名和作者', async () => {
   mocks.index.mockResolvedValue({novels:[{id:'n',title:'同步后书名',author:'同步后作者',chapterCount:1}]})
   const item = {runId:'history',status:'applied',appliedAt:1,canRollback:true,summary:{novelTitle:'同步后书名',metadataUpdated:2}}
   mocks.history.mockResolvedValueOnce({total:1,items:[item]}).mockResolvedValue({total:1,items:[{...item,status:'rolled_back',canRollback:false}]})
   mocks.rollback.mockResolvedValue({runId:'history',restored:1,conflicts:[]})
   mocks.novelGet.mockResolvedValue({novel:{id:'n',title:'原书名',author:'原作者',chapterCount:1}})
-  render(<ChaptersTab />)
+  renderChapters()
   await screen.findByRole('option',{name:'同步后书名'})
   fireEvent.change(screen.getByLabelText('选择小说'),{target:{value:'n'}})
   fireEvent.click(await screen.findByRole('button',{name:'融合历史'}))
@@ -42,7 +55,7 @@ it('融合标题没有变化时仍可单独修复序号，默认不勾选且提�
     orderChanges: [{ localChapterId: 'notice', title: '不行了，累累', oldOrder: 46, newOrder: 45 }],
   })
   mocks.sourceApply.mockResolvedValue({ updated: 0, orderUpdated: 1, metadataUpdated: [], mappings: 46 })
-  render(<ChaptersTab />)
+  renderChapters()
   await screen.findByRole('option', { name: '测试书' })
   fireEvent.change(screen.getByLabelText('选择小说'), { target: { value: 'n' } })
   fireEvent.click(await screen.findByRole('button', { name: '融合章节名' }))
@@ -65,7 +78,7 @@ it('融合标题没有变化时仍可单独修复序号，默认不勾选且提�
   await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('修复 1 个章节序号'), 'success'))
 })
 async function open() {
-  render(<ChaptersTab />)
+  renderChapters()
   await screen.findByRole('option', { name: '测试书' })
   fireEvent.change(screen.getByLabelText('选择小说'), { target: { value: 'n' } })
   fireEvent.click(await screen.findByRole('button', { name: '编辑：第1章 原章' }))
@@ -132,7 +145,7 @@ it('全选映射直接加入标题及序号同步，小说信息默认不选且�
     orderChanges: [{ localChapterId: 'a', title: '相同标题', oldOrder: 3, newOrder: 1 }],
   })
   mocks.sourceApply.mockResolvedValue({ updated: 1, orderUpdated: 1, metadataUpdated: [] })
-  render(<ChaptersTab />)
+  renderChapters()
   await screen.findByRole('option', { name: '测试书' })
   fireEvent.change(screen.getByLabelText('选择小说'), { target: { value: 'n' } })
   fireEvent.click(await screen.findByRole('button', { name: '融合章节名' }))
@@ -189,7 +202,7 @@ it('102章含未匹配项时全选35项差异，可以提交30个可修复序号
     orderChanges, orderRepairSkipped: localChapters.filter(row => skippedOrders.includes(row.order)).map(row => ({localChapterId: row.id, reason: '未匹配或目标序号占用'})),
   })
   mocks.sourceApply.mockResolvedValue({ updated: 0, orderUpdated: 30, metadataUpdated: [] })
-  render(<ChaptersTab />)
+  renderChapters()
   await screen.findByRole('option', { name: '测试书' })
   fireEvent.change(screen.getByLabelText('选择小说'), { target: { value: 'n' } })
   fireEvent.click(await screen.findByRole('button', { name: '融合章节名' }))
@@ -208,7 +221,7 @@ it('102章含未匹配项时全选35项差异，可以提交30个可修复序号
 
 it('小说管理嵌入入口无需加载全库索引，直接使用当前作品并可关闭', async () => {
   const close = vi.fn()
-  render(<ChaptersTab mergeNovel={{ id: 'outside-index', title: '索引外的作品', author: '原作者', chapterCount: 88 }} onMergeClose={close} />)
+  renderChapters(<ChaptersTab mergeNovel={{ id: 'outside-index', title: '索引外的作品', author: '原作者', chapterCount: 88 }} onMergeClose={close} />)
   expect(await screen.findByRole('heading', { name: '融合章节名' })).toBeInTheDocument()
   expect(screen.getByRole('dialog')).toHaveTextContent('索引外的作品')
   expect(screen.getByRole('dialog')).toHaveTextContent('原作者 · 88 章')
@@ -223,7 +236,7 @@ it('嵌入融合应用成功通知小说列表刷新并关闭，不加载章节�
     metadata: { title: '', author: '', description: '', coverUrl: '', categories: [], status: '' }, changes: [{ localChapterId: 'c', oldTitle: '原章', newTitle: '新章', eligible: true }],
     mappings: [], unmatchedSource: [], unmatchedLocal: [], warnings: [], localChapters: [], sourceChapters: [], orderChanges: [] })
   mocks.sourceApply.mockResolvedValue({ updated: 1, orderUpdated: 0, metadataUpdated: [], mappings: 1 })
-  render(<ChaptersTab mergeNovel={{ id: 'n', title: '测试书', author: '', chapterCount: 1 }} onMergeClose={close} onMergeApplied={applied} />)
+  renderChapters(<ChaptersTab mergeNovel={{ id: 'n', title: '测试书', author: '', chapterCount: 1 }} onMergeClose={close} onMergeApplied={applied} />)
   await screen.findByRole('heading', { name: '融合章节名' })
   fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
@@ -248,7 +261,7 @@ function workflowPreview(runId = 'workflow') {
 async function openWorkflow(preview = workflowPreview()) {
   const close = vi.fn(), applied = vi.fn()
   mocks.sourcePreview.mockResolvedValue(preview)
-  render(<ChaptersTab mergeNovel={{ id: 'n', title: '测试书', author: '', chapterCount: 2 }} onMergeClose={close} onMergeApplied={applied} />)
+  renderChapters(<ChaptersTab mergeNovel={{ id: 'n', title: '测试书', author: '', chapterCount: 2 }} onMergeClose={close} onMergeApplied={applied} />)
   await screen.findByRole('heading', { name: '融合章节名' })
   fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
@@ -367,7 +380,7 @@ it('暂存映射未保存时禁止应用，放弃暂存后恢复原有更新', a
 })
 
 it('未选择小说时呈现统一的空状态，不渲染章节表格与冗余虚线卡片', async () => {
-  render(<ChaptersTab />)
+  renderChapters()
   expect(screen.getByText('请选择需要维护的小说')).toBeInTheDocument()
   expect(screen.getByText(/在右上方下拉菜单选择或搜索一部小说/)).toBeInTheDocument()
   expect(screen.queryByRole('table')).not.toBeInTheDocument()

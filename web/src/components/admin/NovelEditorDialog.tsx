@@ -199,7 +199,7 @@ export default function NovelEditorDialog({
               <div className="novel-editor-cover-actions">
                 <span className="novel-editor-cover-badge">书影展示</span>
                 {editing && (
-                  <Link to={`/admin/ai?tab=illustrations&novelId=${encodeURIComponent(editing.id)}`} className="novel-editor-ai-link">
+                  <Link to={`/admin/ai?sub=cover&novel=${encodeURIComponent(editing.id)}`} className="novel-editor-ai-link">
                     <Sparkles className="size-3.5" />
                     AI 绘制新封面
                   </Link>

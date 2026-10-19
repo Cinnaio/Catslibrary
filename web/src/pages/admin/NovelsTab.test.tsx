@@ -1,12 +1,18 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 const mocks = vi.hoisted(() => ({ list: vi.fn(), update: vi.fn(), toast: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn() }))
 vi.mock('../../lib/api', () => ({ adminApi: {}, novelsApi: { list: mocks.list, update: mocks.update, visibility: vi.fn().mockResolvedValue({ visibility: 'public', revision: 0, users: [], audit: [] }) }, scrapeApi: { sourceBindings: async () => ({ bindings: [] }), sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply }, authHeaders: () => ({}), url: (x: string) => x, newOperationId: () => 'test' }))
 vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }) }))
 vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, value, onChange, ...props }: any) => <select aria-labelledby={props['aria-labelledby']} value={value} onChange={e => onChange(e.target.value)}>{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 vi.mock('../../components/admin/BookImportDialog', () => ({ default: () => null }))
 import NovelsTab from './NovelsTab'
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location">{location.pathname}{location.search}</output>
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.list.mockResolvedValue({ novels: [{ id: 'n', title: '测试书', author: '原作者', contentRating: 'general', contentRatingRevision: 7, categories: [] }], total: 1, totalPages: 1 })
@@ -68,6 +74,23 @@ it('更多操作中的融合章节名直接打开当前作品弹窗，取消后�
   fireEvent.click(screen.getByRole('button', { name: '取消' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.getByText('测试书')).toBeVisible()
+})
+
+it('更多操作中的生成 AI 封面进入封面子页并携带当前作品', async () => {
+  render(
+    <MemoryRouter initialEntries={['/admin/novels']}>
+      <NovelsTab />
+      <LocationProbe />
+    </MemoryRouter>,
+  )
+  fireEvent.keyDown(await screen.findByRole('button', { name: '测试书：更多操作' }), { key: 'ArrowDown' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: '生成 AI 封面' }))
+  expect(await screen.findByTestId('location')).toHaveTextContent('/admin/ai?sub=cover&novel=n')
+})
+
+it('编辑小说弹窗中的 AI 封面入口也进入封面子页并携带当前作品', async () => {
+  await open()
+  expect(screen.getByRole('link', { name: 'AI 绘制新封面' })).toHaveAttribute('href', '/admin/ai?sub=cover&novel=n')
 })
 
 async function openMetadataSync() {
