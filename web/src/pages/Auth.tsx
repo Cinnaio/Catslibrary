@@ -6,7 +6,7 @@
  */
 import { useEffect, useState, type FormEvent, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Eye, EyeOff, KeyRound, LoaderCircle } from 'lucide-react'
 import { authApi, getToken } from '../lib/api'
 import { useSession } from '../context/SessionContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -35,7 +35,9 @@ export default function Auth() {
   const [msg, setMsg] = useState('')
   const [registerMode, setRegisterMode] = useState<'invite' | 'open' | 'closed'>('invite')
   const [busy, setBusy] = useState(false)
+  const [passkeyBusy, setPasskeyBusy] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
   useDocumentTitle(mode === 'login' ? '登录' : '注册')
 
   const isLogin = mode === 'login'
@@ -80,6 +82,11 @@ export default function Auth() {
       })
   }, [user, navigate, from])
 
+  useEffect(() => {
+    if (!isLogin) { setPasskeyAvailable(false); return }
+    void authApi.passkeyConfig().then(value => setPasskeyAvailable(value.enabled && value.configured)).catch(() => setPasskeyAvailable(false))
+  }, [isLogin])
+
   // 注册模式仅在切到注册 Tab 时需要，与 bootstrap 探测分离，避免切换 Tab 重复请求
   useEffect(() => {
     if (mode !== 'register') return
@@ -116,6 +123,23 @@ export default function Auth() {
     }
   }
 
+  async function doPasskeyLogin() {
+    setBusy(true)
+    setPasskeyBusy(true)
+    setMsg('')
+    try {
+      await authApi.passkeyLogin(username.trim(), remember)
+      await refresh()
+      finish()
+    } catch (err) {
+      const error = err as Error & { name?: string }
+      setMsg(error.name === 'NotAllowedError' ? '已取消 Passkey 验证，请改用密码登录。' : error.message || 'Passkey 登录失败，请改用密码登录。')
+    } finally {
+      setPasskeyBusy(false)
+      setBusy(false)
+    }
+  }
+
   function switchMode(event: MouseEvent<HTMLButtonElement>) {
     prepareModeMotion(event)
     setMsg('')
@@ -146,7 +170,7 @@ export default function Auth() {
                   <Label htmlFor="auth-username">账号</Label>
                   <Input
                     id="auth-username"
-                    autoComplete="username"
+                    autoComplete={isLogin ? 'username webauthn' : 'username'}
                     required
                     disabled={fieldsDisabled}
                     value={username}
@@ -232,6 +256,13 @@ export default function Auth() {
                   {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
                   {busy ? '处理中…' : isLogin ? '登录' : '创建账号'}
                 </Button>
+
+                {isLogin && passkeyAvailable && (
+                  <Button type="button" variant="secondary" disabled={fieldsDisabled} onClick={() => void doPasskeyLogin()}>
+                    <KeyRound className="size-4" aria-hidden="true" />
+                    {passkeyBusy ? '等待设备验证…' : '使用 Passkey 登录'}
+                  </Button>
+                )}
 
                 <p className="auth-switch">
                   <span>{isLogin ? '没有账号？' : '已有账号？'}</span>

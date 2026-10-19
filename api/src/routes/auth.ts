@@ -33,6 +33,7 @@ import {
   parseSettingsDocument,
 } from '../services/reader-settings'
 import { clientIpFromContext } from '../services/ai/audit-context'
+import { recordLoginAudit } from '../services/login-audit'
 import { clearAdultAccessCookie, contentPolicyHeaders, setAccountContentMode } from '../services/content-access'
 
 const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, created_at, updated_at, last_login_at'
@@ -442,18 +443,4 @@ async function recordLoginFailure(db: ReturnType<typeof getDb>, keyHash: string)
 
 async function clearLoginFailures(db: ReturnType<typeof getDb>, keyHash: string): Promise<void> {
   await run(db, 'DELETE FROM login_failures WHERE key_hash = $1 OR created_at <= $2', [keyHash, Date.now() - 86400000])
-}
-
-async function recordLoginAudit(
-  db: ReturnType<typeof getDb>,
-  c: Context<AuthEnv>,
-  input: { userId?: string; username: string; status: 'success' | 'failure' | 'limited'; reason: string },
-): Promise<void> {
-  const ipAddress = clientIpFromContext(c)
-  await run(
-    db,
-    `INSERT INTO login_audit (id, user_id, username, status, reason, ip_address, user_agent, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [newId('login'), input.userId || '', input.username, input.status, input.reason, ipAddress, c.req.header('User-Agent') || '', Date.now()],
-  )
 }

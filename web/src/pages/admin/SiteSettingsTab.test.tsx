@@ -2,10 +2,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SITE_BRANDING } from '@shared/site-settings'
-import type { TurnstileSettings } from '@shared/site-settings'
+import type { PasskeyAdminSettings, TurnstileSettings } from '@shared/site-settings'
 
 const mock = vi.hoisted(() => ({
-  branding: vi.fn(), turnstile: vi.fn(), saveBranding: vi.fn(), saveTurnstile: vi.fn(),
+  branding: vi.fn(), turnstile: vi.fn(), passkey: vi.fn(), saveBranding: vi.fn(), saveTurnstile: vi.fn(), savePasskey: vi.fn(),
   upload: vi.fn(), resetAsset: vi.fn(), testTurnstile: vi.fn(), refreshPolicy: vi.fn(), toast: vi.fn(), confirm: vi.fn(),
 }))
 vi.mock('@/lib/api', () => ({ siteSettingsApi: mock, url: (path: string) => `/api${path}` }))
@@ -15,6 +15,7 @@ vi.mock('@/components/TurnstileTestWidget', () => ({ default: ({ onToken }: { on
 import SiteSettingsTab from './SiteSettingsTab'
 
 const settings: TurnstileSettings = { siteKey: 'public-key', hostnames: ['read.example.com'], secretSet: true, configured: true, encryptionReady: true, secretReadable: true, sources: { siteKey: 'database', secret: 'database', hostnames: 'database' } }
+const passkeySettings: PasskeyAdminSettings = { enabled: false, registrationEnabled: true, rpName: '知舟', rpId: 'localhost', origins: ['http://localhost:5173'], configured: true, userVerification: 'required', sources: { rpId: 'default', origins: 'default' } }
 async function show(security = false) {
   render(<MemoryRouter initialEntries={[`/admin/site-settings?view=${security ? 'security' : 'branding'}`]}><SiteSettingsTab /></MemoryRouter>)
   await screen.findByRole('button', { name: '保存设置' })
@@ -23,6 +24,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   mock.branding.mockResolvedValue({ ...DEFAULT_SITE_BRANDING })
   mock.turnstile.mockResolvedValue({ ...settings })
+  mock.passkey.mockResolvedValue({ ...passkeySettings })
   mock.refreshPolicy.mockResolvedValue(undefined)
 })
 describe('SiteSettingsTab', () => {
@@ -78,6 +80,17 @@ describe('SiteSettingsTab', () => {
     expect(await screen.findByText('通过，不授予访问权')).toBeInTheDocument()
     expect(mock.testTurnstile).toHaveBeenCalledWith('test-token')
     expect(screen.getByRole('button', { name: '检查服务端验证' })).toBeDisabled()
+  })
+  it('Passkey 页面编辑开关与显示名称并保存，运行时边界只读', async () => {
+    mock.passkey.mockResolvedValue({ ...passkeySettings, enabled: true })
+    mock.savePasskey.mockResolvedValue({ ...passkeySettings, enabled: true, rpName: '书灯' })
+    render(<MemoryRouter initialEntries={['/admin/site-settings?view=passkey']}><SiteSettingsTab /></MemoryRouter>)
+    await screen.findByLabelText('Passkey 显示名称')
+    expect(screen.getByText('localhost')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Passkey 显示名称'), { target: { value: '书灯' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: '启用 Passkey 登录' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+    await waitFor(() => expect(mock.savePasskey).toHaveBeenCalledWith({ enabled: false, registrationEnabled: true, rpName: '书灯' }))
   })
   it('加载失败提供重试', async () => {
     mock.branding.mockRejectedValueOnce(new Error('读取失败'))

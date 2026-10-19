@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { adminTabPath, getTabLabel, isAdminTab, NAV_GROUPS } from './admin-registry'
 
 describe('admin registry routes', () => {
-  it('站点设置提供品牌与安全验证两个稳定入口', () => {
+  it('站点设置提供品牌、安全验证与 Passkey 三个稳定入口', () => {
     expect(isAdminTab('site-settings')).toBe(true)
     const settings = NAV_GROUPS.flatMap(group => group.items).find(item => item.id === 'site-settings')
-    expect(settings?.children?.map(child => child.to)).toEqual(['/admin/site-settings?view=branding', '/admin/site-settings?view=security'])
+    expect(settings?.children?.map(child => child.to)).toEqual(['/admin/site-settings?view=branding', '/admin/site-settings?view=security', '/admin/site-settings?view=passkey'])
   })
   it('站点运营导航只保留流量分析', () => {
     const operations = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === 'site-operations')

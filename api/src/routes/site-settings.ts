@@ -9,6 +9,11 @@ import { BRANDING_KEY, TURNSTILE_KEY, encryptSiteSecret, getSiteBranding, readSe
 import { parseHostnames, publicTurnstileSettings, verifyAdultChallenge, type StoredTurnstile } from '../services/turnstile'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { checkContentRate } from '../services/content-rate-limit'
+import { getPasskeyAdminSettings, getPasskeyPublicSettings, savePasskeySettings, validatePasskeySettings } from '../services/passkey-settings'
+import { startAdminOperationAudit, finishAdminOperationAudit } from '../services/admin-operation-audit'
+import { requestHash } from '../services/idempotency'
+import { newId } from '../services/auth'
+import { getDb } from '../db/pool'
 
 const MAX_IMAGE_BYTES = 1024 * 1024
 const assetKey = (kind: string) => `site_asset_${kind}`
@@ -17,6 +22,7 @@ interface Asset { data: string; hash: string }
 
 export const publicSiteSettingsRoutes = new Hono()
 publicSiteSettingsRoutes.get('/', async c => c.json(await getSiteBranding(), 200, { 'Cache-Control': 'no-store' }))
+publicSiteSettingsRoutes.get('/passkey', async c => c.json(await getPasskeyPublicSettings(), 200, { 'Cache-Control': 'no-store' }))
 publicSiteSettingsRoutes.get('/assets/:kind', async c => {
   const kind = c.req.param('kind')
   if (!validKind(kind)) return c.notFound()
@@ -85,6 +91,29 @@ adminSiteSettingsRoutes.delete('/assets/:kind', async c => {
   return c.json(branding)
 })
 adminSiteSettingsRoutes.get('/turnstile', async c => c.json(await publicTurnstileSettings()))
+adminSiteSettingsRoutes.get('/passkey', async c => c.json(await getPasskeyAdminSettings()))
+adminSiteSettingsRoutes.put('/passkey', async c => {
+  const body = await c.req.json().catch(() => null)
+  let auditId = ''
+  try {
+    const value = validatePasskeySettings(body || {})
+    const operationId = newId('site-passkey')
+    auditId = await startAdminOperationAudit(getDb(), {
+      operationId,
+      scope: 'site-settings.passkey',
+      actorUserId: c.get('user').id,
+      action: 'site-settings-passkey-save',
+      targetCount: 1,
+      requestHash: requestHash({ enabled: value.enabled, registrationEnabled: value.registrationEnabled, rpName: value.rpName }),
+    })
+    await updateSiteSettings(async db => { await savePasskeySettings(value, db) })
+    await finishAdminOperationAudit(getDb(), auditId, { status: 'completed', responseStatus: 200 })
+    return c.json(await getPasskeyAdminSettings())
+  } catch (error) {
+    if (auditId) await finishAdminOperationAudit(getDb(), auditId, { status: 'failed', responseStatus: 400, error: (error as Error).message }).catch(() => {})
+    return c.json({ error: (error as Error).message }, 400)
+  }
+})
 adminSiteSettingsRoutes.put('/turnstile', async c => {
   const body = await c.req.json().catch(() => null)
   if (!body || typeof body.siteKey !== 'string' || body.siteKey.trim().length > 200 || (body.siteKey && !/^[a-zA-Z0-9_-]+$/.test(body.siteKey.trim()))) return c.json({ error: 'Site Key 格式无效' }, 400)

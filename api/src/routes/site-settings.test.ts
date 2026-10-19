@@ -33,6 +33,17 @@ describe('站点设置管理与公开边界', () => {
     }
     expect([401, 403]).toContain((await request(settings + '/turnstile/test', 'POST', { token: 'x' }, reader)).status)
   })
+  it('Passkey 配置只开放最小公开信息，RP ID 与 Origin 由运行环境提供', async () => {
+    const publicBefore = await (await request('/api/site-settings/passkey', 'GET', undefined, '')).json()
+    expect(publicBefore).toMatchObject({ enabled: false, registrationEnabled: true, rpName: '知舟' })
+    const adminBefore = await (await request(settings + '/passkey')).json()
+    expect(adminBefore).toMatchObject({ rpId: 'localhost', origins: ['http://localhost:5173'], configured: true, userVerification: 'required' })
+    expect((await request(settings + '/passkey', 'PUT', { enabled: true, registrationEnabled: true, rpName: 'x'.repeat(65) })).status).toBe(400)
+    const saved = await (await request(settings + '/passkey', 'PUT', { enabled: true, registrationEnabled: false, rpName: '书灯' })).json()
+    expect(saved).toMatchObject({ enabled: true, registrationEnabled: false, rpName: '书灯', rpId: 'localhost' })
+    expect(JSON.stringify(saved)).not.toContain('PASSKEY_')
+    expect(await (await request('/api/site-settings/passkey', 'GET', undefined, '')).json()).toMatchObject({ enabled: true, registrationEnabled: false, rpName: '书灯' })
+  })
   it('品牌文字校验、保存与公开响应，不允许客户端设置任意图片地址', async () => {
     expect((await request(settings + '/branding', 'PUT', { ...brand, name: '' })).status).toBe(400)
     expect((await request(settings + '/branding', 'PUT', { ...brand, name: 'x'.repeat(33) })).status).toBe(400)

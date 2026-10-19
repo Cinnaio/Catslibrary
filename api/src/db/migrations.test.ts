@@ -24,6 +24,8 @@ describe('数据库迁移', () => {
     const expected = [
       'users',
       'user_sessions',
+      'user_passkeys',
+      'webauthn_challenges',
       'user_avatars',
       'login_failures',
       'login_audit',

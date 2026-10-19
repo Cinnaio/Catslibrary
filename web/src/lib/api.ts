@@ -1,4 +1,5 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
+import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { requestReauthentication } from './reauthentication'
 /**
  * API 客户端 —— 类型化 fetch 封装（由 Novel-KV js/api.js 平移）。
@@ -257,6 +258,7 @@ export async function request<T = unknown>(
 /** Branding is public; configuration writes and verification credentials are admin-only. */
 export const siteSettingsApi = {
   publicBranding: () => request<import('@shared/site-settings').SiteBranding>('GET', '/site-settings'),
+  publicPasskey: () => request<import('@shared/site-settings').PasskeyPublicSettings>('GET', '/site-settings/passkey'),
   branding: () => request<import('@shared/site-settings').SiteBranding>('GET', '/admin/site-settings/branding', null, true),
   saveBranding: (value: import('@shared/site-settings').SiteBranding) =>
     request<import('@shared/site-settings').SiteBranding>('PUT', '/admin/site-settings/branding', value, true),
@@ -273,6 +275,9 @@ export const siteSettingsApi = {
   saveTurnstile: (value: { siteKey: string; hostnames: string[]; secretKey?: string; clearSecret?: boolean }) =>
     request<import('@shared/site-settings').TurnstileSettings>('PUT', '/admin/site-settings/turnstile', value, true),
   testTurnstile: (token: string) => request<{ ok: boolean; message: string }>('POST', '/admin/site-settings/turnstile/test', { token }, true),
+  passkey: () => request<import('@shared/site-settings').PasskeyAdminSettings>('GET', '/admin/site-settings/passkey', null, true),
+  savePasskey: (value: import('@shared/site-settings').PasskeySettings) =>
+    request<import('@shared/site-settings').PasskeyAdminSettings>('PUT', '/admin/site-settings/passkey', value, true),
 }
 
 /** 非 JSON 直接 fetch（上传表单/keepalive 等），自动携带 Cookie 与写入保护头。 */
@@ -857,6 +862,17 @@ export interface SetupDatabaseFields {
   ssl: boolean
 }
 
+export interface PasskeyItem {
+  id: string
+  name: string
+  createdAt: number
+  lastUsedAt: number
+  deviceName: string
+  transports: string[]
+  backupEligible: boolean
+  backupState: boolean
+}
+
 export const setupApi = {
   status(): Promise<SetupStatus> {
     return request('GET', '/setup/status')
@@ -920,6 +936,48 @@ export const authApi = {
         return r as { user: User }
       }),
     )
+  },
+  passkeyConfig(): Promise<{ enabled: boolean; registrationEnabled: boolean; configured: boolean; rpName: string }> {
+    return request('GET', '/auth/passkeys/config')
+  },
+  passkeyLogin(username = '', persist = false): Promise<{ user: User }> {
+    return accountMutation(() =>
+      request<import('@simplewebauthn/browser').PublicKeyCredentialRequestOptionsJSON>(
+        'POST',
+        '/auth/passkeys/login/options',
+        username.trim() ? { username: username.trim() } : {},
+        false,
+        authHeaders(),
+      )
+        .then(async options => ({ options, response: await startAuthentication({ optionsJSON: options }) }))
+        .then(({ options, response }) =>
+          request<{ user: User }>('POST', '/auth/passkeys/login/verify', { challenge: options.challenge, response, remember: persist }, false, authHeaders()),
+        )
+        .then(r => {
+          setToken('', persist)
+          setStorageUser(r.user.id)
+          return r
+        }),
+    )
+  },
+  async registerPasskey(currentPassword: string, name = ''): Promise<{ passkey: PasskeyItem | null }> {
+    const options = await request<import('@simplewebauthn/browser').PublicKeyCredentialCreationOptionsJSON>(
+      'POST',
+      '/auth/passkeys/register/options',
+      { currentPassword },
+      true,
+    )
+    const response = await startRegistration({ optionsJSON: options })
+    return request<{ passkey: PasskeyItem | null }>('POST', '/auth/passkeys/register/verify', { challenge: options.challenge, response, name }, true)
+  },
+  passkeys(): Promise<{ passkeys: PasskeyItem[] }> {
+    return request('GET', '/auth/passkeys', null, true)
+  },
+  renamePasskey(id: string, name: string): Promise<{ passkey: PasskeyItem | null }> {
+    return request('PATCH', `/auth/passkeys/${encodeURIComponent(id)}`, { name }, true)
+  },
+  deletePasskey(id: string): Promise<{ success: boolean }> {
+    return request('DELETE', `/auth/passkeys/${encodeURIComponent(id)}`, null, true)
   },
   registerStatus(): Promise<{ mode: 'invite' | 'open' | 'closed' }> {
     return request('GET', '/auth/register-status')
@@ -1553,6 +1611,7 @@ export const adminApi = {
         reason: string
         ipAddress: string
         userAgent: string
+        authMethod: string
         createdAt: number
       }>
       total: number
