@@ -70,7 +70,7 @@ describe('AiCoverPanel', () => {
     render(<AiCoverPanel />)
 
     const image = await waitFor(() => {
-      const value = document.querySelector('img[alt=""]')
+      const value = Array.from(document.querySelectorAll('img')).find((item) => item.getAttribute('src') === '/api/cover/novel_1?v=42&cover=4')
       if (!value) throw new Error('最近更新封面尚未渲染')
       return value as HTMLImageElement
     })
