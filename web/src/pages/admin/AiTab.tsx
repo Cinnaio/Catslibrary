@@ -120,7 +120,7 @@ export default function AiTab() {
         className="ai-service-tabs admin-capsule-tabs"
       >
         <div className="ai-workbench-nav-track flex items-center justify-between">
-          <TabsList aria-label="AI 服务视图">
+          <TabsList className="ai-service-tabs__list" aria-label="AI 服务视图">
             {VALID_SUBS.map((subKey) => (
               <TabsTrigger key={subKey} value={subKey}>
                 {AI_SUBTAB_META[subKey].title}
