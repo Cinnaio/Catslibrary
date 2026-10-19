@@ -620,7 +620,7 @@ export default function NovelsTab({
                         {
                           label: '生成 AI 封面',
                           icon: Palette,
-                          onSelect: () => navigate(`/admin/ai?tab=illustrations&novelId=${encodeURIComponent(n.id)}`),
+                          onSelect: () => navigate(`/admin/ai?sub=cover&novel=${encodeURIComponent(n.id)}`),
                         },
                         {
                           label: '删除小说',

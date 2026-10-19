@@ -4,6 +4,7 @@
  */
 import { AdminDialogContent, AdminDialogBody } from '@/components/admin/AdminDialog'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useToast, useConfirm } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
@@ -66,6 +67,10 @@ function extractVolumeTag(title: string): string | null {
 export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }: { highlightNovelId?: string; onHighlightConsumed?: () => void; mergeNovel?: IndexNovel; onMergeClose?: () => void; onMergeApplied?: () => void | Promise<void> }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
+  const [searchParams] = useSearchParams()
+  // 小说管理的「章节列表」入口通过查询参数传递目标作品；只在首次进入时消费，
+  // 避免用户之后手动切书时被旧的 URL 目标重新切回去。
+  const deepLinkNovelIdRef = useRef(searchParams.get('novelId') || '')
 
   const [novelOptions, setNovelOptions] = useState<IndexNovel[]>(mergeNovel ? [mergeNovel] : [])
   const [selectedNovel, setSelectedNovel] = useState(mergeNovel?.id || '')
@@ -197,6 +202,21 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     },
     [toast],
   )
+
+  useEffect(() => {
+    const novelId = deepLinkNovelIdRef.current
+    if (mergeNovel || !novelId || selectedNovel || !novelOptions.length) return
+    if (!novelOptions.some((novel) => novel.id === novelId)) {
+      // 目标不存在时不要反复尝试，也保留普通的手动选书空状态。
+      deepLinkNovelIdRef.current = ''
+      return
+    }
+    deepLinkNovelIdRef.current = ''
+    setSelectedNovel(novelId)
+    setPage(1)
+    setSearch('')
+    void loadChapters(novelId)
+  }, [loadChapters, mergeNovel, novelOptions, selectedNovel])
 
   async function refreshAfterRollback() {
     const novelId = selectedNovel

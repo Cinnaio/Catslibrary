@@ -78,4 +78,13 @@ describe('AiCoverPanel', () => {
     expect(image.getAttribute('src')).toBe('/api/cover/novel_1?v=42&cover=4')
     expect(image.src).not.toBe('https://source.example/original-cover.jpg')
   })
+
+  it('从小说操作进入时保留深链传入的目标小说', async () => {
+    render(<AiCoverPanel initialNovelId="novel_1" />)
+
+    await waitFor(() => {
+      const target = screen.getAllByLabelText('目标小说').some((element) => (element as HTMLSelectElement).value === 'novel_1')
+      expect(target).toBe(true)
+    })
+  })
 })
