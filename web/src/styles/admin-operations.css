@@ -49,3 +49,7 @@
 
 /* AI 服务布局在共享组件之后声明，尺寸仍取共享 token。 */
 @import './admin/pages/ai-service-claude.css';
+
+/* 内容库（小说管理 / 章节管理）移动端记录卡：必须晚于共享表格规则，
+   以页级作用域覆盖 900px 以下的通用卡片排布。 */
+@import './admin/pages/content-library-mobile.css';

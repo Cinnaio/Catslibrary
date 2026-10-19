@@ -706,7 +706,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       title="章节管理"
       description="按作品维护目录与正文，搜索和批量操作只作用于当前作品。"
       actions={
-        <div className="flex items-center gap-2">
+        <div className="chapter-page-actions flex items-center gap-2">
           <CustomSelect
             className="chapter-novel-select"
             searchable

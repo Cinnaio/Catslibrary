@@ -529,7 +529,7 @@ export default function NovelsTab({
                       onCheckedChange={() => toggleRow(n.id)}
                     />
                   </TableCell>
-                  <TableCell className="font-medium novel-title-cell">
+                  <TableCell data-primary="" className="font-medium novel-title-cell">
                     {/* 微型立体书影实体 + 书名 */}
                     <div className="novel-book-entity">
                       <div className="novel-book-cover">
@@ -559,10 +559,10 @@ export default function NovelsTab({
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-col="author">
                     <AdminCellText>{n.author || '未知作者'}</AdminCellText>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-col="categories">
                     <div className="flex flex-wrap gap-1">
                       {(n.categories || []).length === 0 ? (
                         <span className="text-xs text-muted-foreground">未分类</span>
@@ -582,21 +582,22 @@ export default function NovelsTab({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-col="status">
                     <AdminStatusBadge tone={n.status === 'completed' ? 'neutral' : 'info'}>
                       {STATUS_LABELS[n.status || 'ongoing'] || n.status}
                     </AdminStatusBadge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-col="rating">
                     <AdminContentRatingBadge rating={n.contentRating} />
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-0.5">
+                  <TableCell data-col="chapters">
+                    {/* 桌面纵向两行（章节数 / 更新标签）；手机上转为同一读数行的胶囊组。 */}
+                    <div className="novel-chapter-summary flex flex-col gap-0.5">
                       <span className="tabular-nums font-semibold">{n.chapterCount || 0} 章</span>
                       <NovelUpdateTag novel={n} />
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-col="updated">
                     <span className="text-xs text-muted-foreground" title={n.updatedAt ? new Date(n.updatedAt).toLocaleString() : ''}>
                       {timeAgo(n.updatedAt)}
                     </span>

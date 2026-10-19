@@ -273,6 +273,8 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
 
 .admin-redesign-page--chapters {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: var(--admin-page-section-gap);
 }
 

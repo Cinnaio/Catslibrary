@@ -769,6 +769,25 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - 该类名曾被当作「有类名、无规则」的占位容器使用，`display` 落到 `block`，标签、下拉、计数各自成块。它不是占位类，布局必须显式声明。
 
 
+### Content Library Mobile（内容库移动端，2026-10-19）
+
+小说管理与章节管理在 ≤900px 不再沿用「桌面表格转通用卡片」，而是各自重排为**记录卡**。样式归属 `web/src/styles/admin/pages/content-library-mobile.css`，在 `admin-operations.css` 末尾导入以晚于共享表格规则；901px 以上的固定列宽表格与 `components/tables.css` 完全不变。
+
+- **断点：** 与全站 900/901 卡片断点一致，不新增断点。390/430/900/901/768/601/320 逐档截图验收，`document.scrollWidth === clientWidth`（无横向溢出）。
+- **页头：** 标题收到 1.375rem（≤420px 为 1.25rem），描述退次级色；页头与首道控制层的净留白保持 20px 页网格 gap，不手写 margin。
+- **动作区：** 小说页 ≤640px 为「导入书籍占整行 + 其余三枚等宽一行」网格；601–900px 为单行 flex，不加空行。
+- **筛选轨：** 搜索独占一行，筛选胶囊组单行**横滑**（`overflow-x: auto` + 隐藏滚动条）。三枚胶囊按内容取宽共约 382px，390px 下必然溢出；换行会把轨道撑到 144px 且第三枚孤立成行。横滑后轨道高 94px。
+
+- **右缘内缩：** 胶囊组 padding-inline: 1px 1rem 且内层渐隐 1.5rem —— 430px 视口下第三枚胶囊原本正好顶到容器边界（右缘 0 呼吸位），加内边距后可继续右滑；渐隐落内层、不落轨道，避免遮罩边缘成为包含块而错开搜索框与胶囊的左起点。- **小说记录卡：** `grid-template-areas` 五行 —— 标题（书影 + 书名 + 私密/来源副行）／作者·状态·分级／分类胶囊／章节计数·更新时间／卡底操作。标题在手机上允许折两行（`-webkit-line-clamp: 2`）：触屏无悬停，截断等于丢信息。
+- **章节记录卡：** 两行 —— 序号贯穿左列作锚点，首行标题、次行「字数 · 创建时间 · 操作」，卡高由 128px 压到 86px。
+- **字段标签：** 记录卡内 `data-label` 的 `::before` 全部隐藏。状态、分级、字数自身可自解释；逐行 label:value 会把卡片撑到两屏高。
+- **控件几何：** 卡底图标键 36px（列表内次级图标），页头主操作与筛选胶囊 44px 触控档；分页控件沿用共享 `--admin-pagination-control-size`。
+- **分页：** ≤767px 收起首末页与跳转框（读数与上下页已覆盖），单行排布 `每页条数 · 上一页 · 读数 · 下一页`，高度 85px。
+- **选择岛：** 直接复用 `AdminSelectionBar` 与 `--admin-dock-*`，无页面级覆盖。
+- **数据属性契约：** 卡片排布只读 `data-primary` / `data-col` / `data-label` / `data-actions` / `data-check`，不依赖 td 序号；调整列顺序不会错位。新增列须带 `data-col`。
+
+- **验收截图：** docs/previews/content-library-mobile/（novels-390/430/320/900、chapters-390/396/900、暗色各一份、pagination-390、novels-rail-390）。
+
 ## Do's and Don'ts
 
 后台样式的维护入口为 `web/src/styles/admin-operations.css` 的导入清单：后台语义变量集中在 `web/src/styles/admin/tokens.css`，共用外观在 `admin/components/`，业务布局在 `admin/pages/`，框架在 `admin/shell.css`。字段、状态与弹窗分别使用 `AdminFormField`、`AdminStatusBadge` / `AdminContentRatingBadge`、`AdminDialogContent`，具体归属与用法见 [后台共用样式与组件](docs/admin-style-system.md)。保留现有视觉与响应式契约，不在入口末尾继续堆叠覆盖规则。
