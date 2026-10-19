@@ -1,0 +1,569 @@
+/* ==========================================================================
+   内容库移动端（小说管理 / 章节管理）
+   ---------------------------------------------------------------------------
+   设计基准：后台 PC 端「Claude 纸面工作台」语言在手机上的重排，而不是把它
+   压窄。桌面用表格列对齐表达「同一字段纵向可比」；手机屏幕无法横向比较，
+   于是把每一行重排为一张**记录卡**：
+
+       收件人/作品  →  标题行（主字段 + 触控勾选）
+       属性         →  语义胶囊行（状态 / 分级），不再逐字段label:value
+       计数与时间   →  一行弱化读数
+       操作         →  卡底单行，主操作左起、更多靠右
+
+   契约边界：
+   - 只在 ≤900px 生效，与全站 900/901 卡片断点一致；901px 以上的固定列宽
+     表格、列宽 token、tokens.css 与 components/tables.css 全部不动。
+   - 行内字段的排布由数据属性（data-primary / data-col / data-label /
+     data-actions / data-check）驱动，不依赖第几个 td，列顺序变化不会错位。
+   - 复用既有 token：--admin-table-* 几何、--admin-space-*、--admin-accent。
+     不新增颜色，不叠加第二套圆角或阴影。
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  /* ——— 页头：单行账本式的桌面节奏在手机上收成两段 ———
+     标题一档收紧，描述退到次级色；动作区独立成层，不再挤在标题右侧。 */
+  .admin-redesign-page--novels .admin-tab-header,
+  .admin-redesign-page--chapters .admin-tab-header {
+    gap: 0.5rem;
+    margin-bottom: 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 0;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header h2,
+  .admin-redesign-page--chapters .admin-tab-header h2 {
+    font-size: 1.375rem !important;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header p,
+  .admin-redesign-page--chapters .admin-tab-header p {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+
+  /* 小说页头：手机上主操作独占整行、其余三枚等宽成行；
+     平板（601–900px）横向空间足够，四枚操作留在同一行，不白占一行高度。 */
+  .admin-redesign-page--novels .admin-tab-header__actions {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button'] {
+    min-width: 0;
+    flex: 0 0 auto;
+    min-height: var(--admin-table-action-size-mobile);
+    justify-content: center;
+    font-size: 0.8125rem;
+  }
+
+  /* 章节页头：选书控件吃掉剩余宽度，主操作保持自身尺寸，不再各自占半屏。 */
+  .admin-redesign-page--chapters .admin-tab-header__actions {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+
+  /* 页头 actions 里还有一层页面调用方包装；若它按内容取宽，
+     选书下拉与主按钮的固有宽度会把按钮推出右缘。让这层包装参与
+     外层的可用宽度分配，真正把收缩空间交给下拉触发器。 */
+  .admin-redesign-page--chapters .admin-tab-header__actions > .chapter-page-actions {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .admin-redesign-page--chapters .admin-tab-header__actions .chapter-novel-select {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+    height: var(--admin-table-action-size-mobile);
+  }
+
+  .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button'] {
+    width: auto;
+    min-width: 0;
+    flex: 0 0 auto;
+    min-height: var(--admin-table-action-size-mobile);
+  }
+
+  /* ——— 筛选轨：搜索一行、胶囊一行横向滑动 ———
+     三枚胶囊按内容取宽（各 110~136px），在 390px 内必然溢出；换行会让轨道
+     长到 144px、第三枚孤零零占一行。改为单行横滑并给出右缘渐隐与内缩：
+     首屏只占 94px，被裁的那一枚仍有「还能往右滑」的视觉线索，与控制流
+     「筛选是同一层的一条」保持一致。
+
+     渐隐必须落在内层（.novels-filter-chips）而不是轨道上：轨道若被遮罩裁切，
+     遮罩边缘会成为新的包含块，搜索框与胶囊的左右起点就对不齐了。
+     胶囊组再补 1rem 右内边距 —— 实测 430px 视口下第三枚恰好顶到容器边界，
+     右缘没有呼吸位，看起来像被裁掉的控件而不是「还能滑」。 */
+  .admin-redesign-page--novels .novels-filter-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .admin-redesign-page--novels .novels-filter-rail > .admin-search {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .admin-redesign-page--novels .novels-filter-chips {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    margin-left: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding-block: 0.125rem;
+    padding-inline: 1px 1rem;
+    /* 右缘渐隐：内容仍可继续滑动时给方向线索（与侧栏 footer-fade 同一手法），
+       滑到底后遮罩区域的空白不再有内容，视觉上是「到头了」。 */
+    mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+  }
+
+  .admin-redesign-page--novels .novels-filter-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-redesign-page--novels .novels-filter-chips > * {
+    flex: 0 0 auto;
+  }
+
+  /* 胶囊内部文字给足宽度，短标签不再被 8rem 下限撑成一整行。 */
+  .admin-redesign-page--novels .novels-filter-chips [data-slot='popover-trigger'].admin-filter-chip {
+    min-width: 0;
+    width: auto;
+    height: var(--admin-table-action-size-mobile);
+    font-size: 0.8125rem;
+  }
+
+  /* 章节工具条：搜索独占一行，操作行允许横滑，不再与搜索抢同一行。 */
+  .admin-redesign-page--chapters .chapter-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .admin-redesign-page--chapters .chapter-toolbar__actions {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding-bottom: 0.125rem;
+  }
+
+  .admin-redesign-page--chapters .chapter-toolbar__actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-redesign-page--chapters .chapter-toolbar__actions > button {
+    flex: 0 0 auto;
+    min-height: var(--admin-table-action-size-mobile);
+  }
+
+  /* ——— 记录卡共同骨格 ———
+     卡片之间保留一条 hairline 分隔，末张收底部圆角；与桌面表格的
+     「一行记录」语义连续，不做成一堆独立悬浮卡片。 */
+  .admin-redesign-page--novels .novels-data-panel tbody tr,
+  .admin-redesign-page--chapters .chapter-directory-panel tbody tr {
+    position: relative;
+    display: grid;
+    align-items: center;
+    width: 100%;
+    height: auto;
+    padding: 0.875rem 1rem 0.75rem;
+    border-radius: 0;
+    background: var(--admin-table-background);
+  }
+
+  /* 字段标签在记录卡里全部收起：状态、分级、字数本身即可自解释，
+     逐行 label:value 会把卡片撑到两屏高（实测 390px 下 9 行字段 400px+）。 */
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-label]::before,
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-label]::before {
+    display: none;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td,
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td {
+    display: flex;
+    min-width: 0;
+    width: auto;
+    height: auto;
+    align-items: center;
+    gap: 0.35rem;
+    grid-column: auto;
+    padding: 0;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  /* 卡底操作行：主操作左起成簇，溢出菜单推到最右，形成固定右基线。 */
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-actions],
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] {
+    grid-column: 1 / -1;
+    margin-top: 0.125rem;
+    padding-top: 0.375rem;
+    border-top: 1px solid var(--admin-table-mobile-stack-divider);
+  }
+
+  /* 卡底图标键统一收到 36px（与分页控件同档）：44px 触控档留给真正需要
+     盲按的主操作，列表卡里的次级图标仍保证 36px 的可点面积。 */
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-actions] > .admin-cell-actions > *,
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] > .admin-cell-actions > * {
+    flex: 0 0 auto;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-actions] > .admin-cell-actions svg,
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] > .admin-cell-actions svg {
+    width: 1.0625rem;
+    height: 1.0625rem;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-actions] > .admin-cell-actions,
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] > .admin-cell-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.5rem;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-actions] > .admin-cell-actions > :last-child,
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] > .admin-cell-actions > :last-child {
+    margin-inline-start: auto;
+  }
+
+  /* 勾选框贴卡首行右上角；标题行让出触控宽度。 */
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-check],
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-check] {
+    position: absolute;
+    top: 0.875rem;
+    right: 1rem;
+    display: flex;
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  /* ——— 小说记录卡 ———
+     title 行：书影 + 书名（+ 私密/来源副行）
+     author | status | rating：一行身份与状态
+     cats：分类胶囊整行流式
+     count | time：计数与更新读数
+     actions：卡底操作 */
+  .admin-redesign-page--novels .novels-data-panel tbody tr {
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    grid-template-areas:
+      'title  title  title'
+      'author status rating'
+      'cats   cats   cats'
+      'count  count  time'
+      'actions actions actions';
+    gap: 0.4rem 0.5rem;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-primary] {
+    grid-area: title;
+    padding-right: 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-col='author'] {
+    grid-area: author;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-col='status'] {
+    grid-area: status;
+    justify-self: start;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-col='rating'] {
+    grid-area: rating;
+    justify-self: end;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-col='categories'] {
+    grid-area: cats;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-col='chapters'] {
+    grid-area: count;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 章节数 + 更新标签在桌面是纵向两行；手机改为同一读数行的横排胶囊组。 */
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-col='chapters'] > .novel-chapter-summary {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody td[data-col='updated'] {
+    grid-area: time;
+    justify-self: end;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  /* 书影在手机上略微放大，作为卡片的视觉锚点。 */
+  .admin-redesign-page--novels .novels-data-panel .novel-book-cover {
+    width: 2.5rem;
+    height: 3.5rem;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel .novel-book-entity {
+    width: 100%;
+    gap: 0.75rem;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel .novel-book-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 0.2rem;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel .novel-book-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    /* 手机上标题允许折到两行：桌面靠列宽 + 悬停 title 兜底，触屏没有悬停，
+       截断就等于丢信息。两行以上再省略，卡片高度不至于被长标题撑爆。 */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: ellipsis;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel .novel-book-sub {
+    font-size: 0.75rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  /* ——— 章节记录卡 ———
+     两行收敛：序号贯穿左列作为锚点；首行标题，次行把「字数 / 创建」读数
+     与操作区并排，卡高从桌面卡片范本的 128px 压到约 92px。 */
+  .admin-redesign-page--chapters .chapter-directory-panel tbody tr {
+    grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+    grid-template-areas:
+      'order title title   title'
+      'order words time    actions';
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    padding-block: 0.75rem;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-label='序号'] {
+    grid-area: order;
+    align-self: start;
+    margin-top: 0.1rem;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-primary] {
+    grid-area: title;
+    padding-right: 2rem;
+    margin-bottom: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-label='字数'] {
+    grid-area: words;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-label='创建时间'] {
+    grid-area: time;
+    justify-self: end;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  /* 章节卡的操作并进第二行右端：三个图标按钮收成 36px 方键（与分页控件
+     同档），避免第三行为三枚 44px 触控键单独占掉 53px 高。 */
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] {
+    grid-area: actions;
+    justify-self: end;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] > .admin-cell-actions {
+    width: auto;
+    justify-content: flex-end;
+    gap: 0.125rem;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] > .admin-cell-actions > * {
+    flex: 0 0 auto;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] > .admin-cell-actions svg {
+    width: 1.0625rem;
+    height: 1.0625rem;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel tbody td[data-actions] > .admin-cell-actions > :last-child {
+    margin-inline-start: 0;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel .chapter-order-pill {
+    min-width: 2rem;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.75rem;
+  }
+
+  /* ——— 分页：计数一行、控件一行挤进单排 ———
+     桌面 detached 分页在 390px 下会摆成两行四列（实测高 150px）。手机只保留
+     「每页条数 / 上一页 / 读数 / 下一页」，跳转与首末页收进更宽视口。 */
+  .admin-redesign-page--novels > .novels-pagination,
+  .admin-redesign-page--chapters > .chapters-pagination {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding-inline: 0.5rem;
+    margin-top: -0.25rem;
+  }
+
+  .admin-redesign-page--novels > .novels-pagination .admin-pagination__summary,
+  .admin-redesign-page--chapters > .chapters-pagination .admin-pagination__summary {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .admin-redesign-page--novels > .novels-pagination .admin-pagination__controls,
+  .admin-redesign-page--chapters > .chapters-pagination .admin-pagination__controls {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+
+  .admin-redesign-page--novels > .novels-pagination .admin-pagination__page-size,
+  .admin-redesign-page--chapters > .chapters-pagination .admin-pagination__page-size {
+    order: 1;
+  }
+
+  .admin-redesign-page--novels > .novels-pagination .admin-pagination__info,
+  .admin-redesign-page--chapters > .chapters-pagination .admin-pagination__info {
+    order: 3;
+  }
+
+  .admin-redesign-page--novels > .novels-pagination [aria-label='上一页'],
+  .admin-redesign-page--chapters > .chapters-pagination [aria-label='上一页'] {
+    order: 2;
+  }
+
+  .admin-redesign-page--novels > .novels-pagination [aria-label='下一页'],
+  .admin-redesign-page--chapters > .chapters-pagination [aria-label='下一页'] {
+    order: 4;
+    margin-inline-start: auto;
+  }
+
+  /* 极窄屏收起「首页 / 末页 / 跳转」：它们都由数字读数与上下页覆盖，
+     保留只会把控件挤成第二行。 */
+  @media (max-width: 767px) {
+    .admin-redesign-page--novels > .novels-pagination :is([aria-label='第一页'], [aria-label='最后一页'], .admin-pagination__jump),
+    .admin-redesign-page--chapters > .chapters-pagination :is([aria-label='第一页'], [aria-label='最后一页'], .admin-pagination__jump) {
+      display: none;
+    }
+  }
+
+  /* ——— 章节空态：手机上不留 400px 的纸面留白 ——— */
+  .admin-redesign-page--chapters .chapter-empty-container {
+    min-height: 0;
+    padding: 2.5rem 1.25rem;
+    border-radius: var(--admin-data-panel-radius);
+  }
+
+  .admin-redesign-page--chapters .chapter-empty-container__icon-wrap {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--admin-radius);
+  }
+
+  .admin-redesign-page--chapters .chapter-empty-container .admin-empty-state__message {
+    font-size: 1.05rem;
+  }
+}
+
+/* 手机档（≤640px，与全站手机断点一致）：主操作独占首行，其余三枚等宽一行。
+   601–900px 由上面的 flex 行承接，四枚按钮横排，不白吃一行高度。 */
+@media (max-width: 640px) {
+  .admin-redesign-page--novels .admin-tab-header__actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button'] {
+    width: 100%;
+    padding-inline: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button']:first-child {
+    grid-column: 1 / -1;
+    font-size: 0.8125rem;
+  }
+}
+
+/* 更窄的一档：标题与卡片内边距再收一档，动作区仍是
+   「主操作整行 + 三枚次级一行」——320px 实测三枚 96px 宽可容纳。 */
+@media (max-width: 420px) {
+  .admin-redesign-page--novels .admin-tab-header h2,
+  .admin-redesign-page--chapters .admin-tab-header h2 {
+    font-size: 1.25rem !important;
+  }
+
+  .admin-redesign-page--novels .novels-data-panel tbody tr {
+    padding-inline: 0.875rem;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel tbody tr {
+    padding-inline: 0.875rem;
+  }
+}
