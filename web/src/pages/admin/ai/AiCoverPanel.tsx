@@ -101,23 +101,23 @@ const PLATFORM_OPTIONS = [
 
 const STYLE_OPTIONS = [
   { value: 'auto', label: '自动推荐', sub: '结合题材和变体，自动挑选匹配的视觉方向' },
-  { value: 'doodle_journal', label: '萌系涂鸦手账', sub: '奶黄格纹、贴纸涂鸦与圆润描边字，书名居中' },
-  { value: 'dreamy_cloud', label: '梦幻云染', sub: '蓝粉紫云团与透明晕染，蓝色手写书名和轻盈留白' },
+  { value: 'doodle_journal', label: '萌系涂鸦手账', sub: '粉色渐变、贴纸涂鸦与泡泡描边字，书名居中' },
+  { value: 'dreamy_cloud', label: '梦幻云染', sub: '蓝紫云团与透明晕染，白色或浅蓝手写书名和轻盈留白' },
   { value: 'warm_apricot', label: '暖橘花染', sub: '桃橙水彩与花瓣肌理，橙金书法标题' },
-  { value: 'ancient_blossom', label: '古言花间插画', sub: '精致人物、浅粉花枝与青玉点缀，墨色竖排题字' },
+  { value: 'ancient_blossom', label: '古言花间插画', sub: '古风双人物、浅粉花枝与青玉点缀，墨色题字' },
   { value: 'pink_collage', label: '粉色情绪拼贴', sub: '满版粉色纸片与透明叠层，深玫瑰色错落大字' },
   { value: 'floral_handwriting', label: '花笺甜系手写', sub: '浅粉花笺、花瓣肌理与俏皮莓粉手写字' },
-  { value: 'soft_watercolor', label: '清透水彩', sub: '浅桃、奶油、薄荷或雾蓝的透明水彩与轻盈留白' },
-  { value: 'moonlit_dream', label: '月色梦境', sub: '蓝紫月色、云雾和远景剪影，柔光低对比' },
+  { value: 'soft_watercolor', label: '清透水彩', sub: '浅桃、奶油、雾蓝的透明水彩、花枝肌理与轻盈留白' },
+  { value: 'moonlit_dream', label: '月色梦境', sub: '蓝紫抽象肌理、月色留白和远景剪影，柔光低对比' },
   { value: 'ancient_guochao', label: '古风国色', sub: '朱砂、青玉、墨色与克制金色的国风画册质感' },
-  { value: 'romance_illustration', label: '人物言情插画', sub: '精致商业言情插画，突出人物关系与细节' },
+  { value: 'romance_illustration', label: '人物言情插画', sub: '粉紫高明度商业言情插画，突出双人物关系与细节' },
   { value: 'dark_cinematic', label: '暗夜电影感', sub: '深紫、藏蓝与黑色高反差，局部轮廓光与情绪拉扯' },
-  { value: 'pastel_romance', label: '粉彩轻甜', sub: '暖白、浅杏与淡紫的柔和粉彩，轻甜但不喧闹' },
+  { value: 'pastel_romance', label: '粉彩轻甜', sub: '暖白、浅杏、淡紫与花影的柔和粉彩，轻甜但不喧闹' },
   { value: 'botanical_literary', label: '草木文学', sub: '鼠尾草、橄榄绿和旧纸色的安静草木纹理' },
-  { value: 'minimal_typographic', label: '极简水彩题字', sub: '白底与局部淡彩，细长题字和克制作者署名' },
+  { value: 'minimal_typographic', label: '极简水彩题字', sub: '白底留白、红黑编辑感竖排题字与克制作者署名' },
   { value: 'cinematic', label: '电影概念设计', sub: '明确焦点、景深层次和电影海报完成度' },
   { value: 'illustration', label: '编辑插画', sub: '强调叙事、笔触和轮廓的编辑插画' },
-  { value: 'ink', label: '东方水墨', sub: '水墨纸张肌理、克制细节和自然留白' },
+  { value: 'ink', label: '东方水墨', sub: '深红或靛蓝水墨纸张肌理、白色书法与自然留白' },
   { value: 'minimal', label: '极简海报', sub: '单一视觉隐喻、纪律感几何和大面积留白' },
   { value: 'noir', label: '黑色电影', sub: '硬朗方向光、深阴影和颗粒感' },
   { value: 'graphic', label: '现代平面设计', sub: '大胆色块、清晰层级和印刷肌理' },
@@ -756,7 +756,15 @@ export default function AiCoverPanel({
                     <p className="text-xs leading-relaxed text-muted-foreground">结合作品内容设定画面，再生成封面候选。</p>
                   </div>
 
-                  <CoverStyleGallery value={stylePreset} onChange={setStylePreset} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} />
+                  <CoverStyleGallery
+                    value={stylePreset}
+                    composition={composition}
+                    onChange={(nextStyle, nextComposition) => {
+                      setStylePreset(nextStyle)
+                      setComposition(nextComposition)
+                    }}
+                    disabled={busy || generatingPrompt || taskActive || usesExactPrompt}
+                  />
                   {!renderTitle &&
                     ['doodle_journal', 'dreamy_cloud', 'warm_apricot', 'minimal_typographic', 'pink_collage', 'floral_handwriting'].includes(stylePreset) && (
                       <p className="text-xs leading-relaxed text-muted-foreground">当前仅生成背景；开启「渲染书名与作者」后可生成示意中的题字效果。</p>

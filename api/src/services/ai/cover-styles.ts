@@ -244,32 +244,32 @@ const STYLE_PROMPTS: Record<ResolvedCoverStylePreset, string> = {
     'cinematic concept art with a strong focal point, atmospheric depth, controlled lens perspective, layered foreground and background, premium film-poster finish',
   illustration:
     'editorial digital illustration with expressive shapes, intentional brushwork, elegant visual storytelling, refined silhouette design, contemporary book-jacket finish',
-  ink: 'East Asian ink and color-wash illustration with expressive brush texture, restrained detail, organic negative space, paper grain, and poetic visual rhythm',
+  ink: 'East Asian ink and color-wash illustration with expressive brush texture, restrained detail, organic negative space, paper grain, and poetic visual rhythm; crimson or indigo abstract ink washes and readable white brush calligraphy when title rendering is enabled',
   minimal:
     'minimalist graphic poster with one memorable visual metaphor, disciplined geometry, generous negative space, restrained palette, and strong thumbnail readability',
   noir: 'noir photographic artwork with hard directional light, deep shadow, atmospheric grain, partial concealment, and a tense independent-film-poster mood',
   graphic:
     'modern graphic design with bold color blocking, layered typography-safe shapes, crisp editorial composition, tactile print texture, and a distinctive visual identity',
   doodle_journal:
-    'playful hand-drawn journal cover, butter-yellow gingham border, ivory paper, lavender and pink accents, small sticker-like doodles and hearts around a clear center, rounded outlined Chinese title as the focal point; no interface badges or mockup shadows',
+    'playful pink hand-drawn journal or comic cover, blush and peach paper or a soft gradient, sticker-like doodles, crowns, hearts, tiny stars and simple character marks, bright bubblegum Chinese title with a clean cream outline, cheerful flat graphic rhythm; no interface badges or mockup shadows',
   dreamy_cloud:
-    'airy pastel cloud-wash cover, powder blue, pale pink and lavender translucent clouds, low contrast paper texture, ample open space, expressive blue handwritten Chinese title as the focal point',
+    'airy pastel cloud-wash cover, powder blue, pale pink and lavender translucent clouds, low contrast paper texture, ample open space, expressive white or pale-blue handwritten Chinese title as the focal point',
   warm_apricot:
     'warm peach and apricot watercolor cover, translucent coral and cream washes with soft bleeding edges, subtle petal-like texture, open space, orange-gold Chinese brush title as the focal point',
   ancient_blossom:
-    'delicate Chinese romance character illustration, fine ink contours, painterly hair and fabric, ivory paper with pale pink blossom branches and muted jade accents; preserve premise-supported identity and period, no invented costume or props',
+    'delicate Chinese romance character illustration, fine ink contours, painterly hair and fabric, ivory paper with pale pink blossom branches and muted jade accents, intimate two-character relationship framing when the composition requests duo; preserve premise-supported identity and period, no invented costume or props',
   pink_collage:
     'full-bleed rose-pink emotional collage, translucent paper fragments, layered petal textures, angular light streaks, deep dusty-rose title as staggered readable blocks, high contrast behind the title, no extra decorative words',
   floral_handwriting:
     'light floral stationery cover, ivory and blush paper with scattered translucent petals and mottled watercolor grain, a clear central area, playful raspberry-pink handwritten title with small restrained decorative accents',
   soft_watercolor:
-    'airy Chinese book-jacket watercolor with translucent peach, ivory, powder-blue, mint, or apricot washes, soft bleeding edges, paper grain, botanical or cloud-like textures, gentle atmosphere, and generous breathing room',
+    'airy Chinese book-jacket watercolor with translucent peach, ivory, powder-blue, mint, or apricot washes, soft bleeding edges, paper grain, botanical or cloud-like textures, gentle atmosphere, and generous breathing room; use translucent blossom branches and soft vermilion or rose-pink title ink when the story supports a floral mood',
   moonlit_dream:
-    'poetic moonlit watercolor with layered cobalt, powder blue, icy white, and muted lavender, misty clouds or distant silhouettes, soft luminous bloom, quiet night atmosphere, and an open area reserved for elegant title lettering',
+    'poetic moonlit watercolor with layered cobalt, powder blue, icy white, and muted lavender, blue-lavender abstract wash, paper grain, distant white highlights, misty clouds or distant silhouettes, soft luminous bloom, quiet night atmosphere, and an open area reserved for elegant title lettering',
   ancient_guochao:
     'refined Chinese guochao ancient-romance illustration with expressive hanfu costume and period architecture, controlled vermilion, jade, ink, and muted gold accents, decorative brush-calligraphy energy, layered ornamental detail, and a clear readable silhouette',
   romance_illustration:
-    'polished commercial Chinese web-novel romance illustration with expressive character close-ups, story-specific relationship gestures, clean linework blended with painterly rendering, carefully designed hair and costume details, and a balanced contemporary palette',
+    'polished commercial Chinese web-novel romance illustration with expressive character close-ups, story-specific relationship gestures, clean linework blended with painterly rendering, carefully designed hair and costume details, and a balanced contemporary palette; for duo compositions, favor a high-key pink and lilac palette with a clear romantic silhouette',
   dark_cinematic:
     'dark cinematic romance or fantasy artwork with deep plum, navy, charcoal, and black, one controlled crimson or violet accent, dramatic rim light, partial silhouette, intimate tension, atmospheric grain, and premium film-poster restraint',
   pastel_romance:
@@ -277,7 +277,7 @@ const STYLE_PROMPTS: Record<ResolvedCoverStylePreset, string> = {
   botanical_literary:
     'quiet botanical literary cover with sage, olive, moss, faded blue, and warm paper tones, layered leaves or translucent plant textures, organic brushwork, low visual noise, natural light, and a calm understated mood',
   minimal_typographic:
-    'quiet minimalist literary cover with an ivory, white, or single pale-tint field, one subtle watercolor wash or symbolic texture, extremely generous negative space, a large elegant Chinese title as the primary graphic, and a small restrained author line',
+    'quiet minimalist literary cover with an ivory, white, or single pale-tint field, one subtle watercolor wash or symbolic texture, extremely generous negative space, a large elegant Chinese title as the primary graphic, and a small restrained author line; a red-and-black editorial brush-calligraphy treatment with plum-blossom accents is welcome',
 }
 
 const COMPOSITION_PROMPTS: Record<ResolvedCoverComposition, string> = {
@@ -323,12 +323,12 @@ export function isTitleComposition(composition: ResolvedCoverComposition): boole
 export function resolveCoverTypography(stylePreset: ResolvedCoverStylePreset, composition: ResolvedCoverComposition, fallback: GenreStyle) {
   const treatments: Partial<Record<ResolvedCoverStylePreset, { titleFont: string; authorFont: string }>> = {
     doodle_journal: {
-      titleFont: 'rounded lavender bubble handwriting with a thin dark outline and cream fill',
-      authorFont: 'small simple muted lavender handwriting without ornaments',
+      titleFont: 'rounded bubblegum-pink Chinese handwriting with a clean cream outline and playful readable spacing',
+      authorFont: 'small simple muted rose handwriting without ornaments',
     },
     dreamy_cloud: {
-      titleFont: 'expressive blue handwritten strokes with clean readable spacing',
-      authorFont: 'small understated blue lettering without ornaments',
+      titleFont: 'expressive white or pale-blue handwritten strokes with clean readable spacing',
+      authorFont: 'small understated pale-blue lettering without ornaments',
     },
     warm_apricot: {
       titleFont: 'flowing orange-gold brush calligraphy with clear readable strokes',
@@ -346,8 +346,24 @@ export function resolveCoverTypography(stylePreset: ResolvedCoverStylePreset, co
       titleFont: 'playful raspberry-pink handwriting with lively brush strokes and readable spacing',
       authorFont: 'small restrained muted rose handwriting without ornaments',
     },
+    ink: {
+      titleFont: 'luminous white Chinese brush calligraphy with crisp readable strokes and no metallic glow',
+      authorFont: 'small restrained pale-rose or white lettering without ornaments',
+    },
+    soft_watercolor: {
+      titleFont: 'delicate vermilion or rose-pink Chinese brush lettering with airy readable spacing',
+      authorFont: 'small restrained muted rose lettering without ornaments',
+    },
+    moonlit_dream: {
+      titleFont: 'elegant white or icy-blue Chinese handwritten lettering with soft luminous edges',
+      authorFont: 'small understated icy-blue lettering without ornaments',
+    },
+    pastel_romance: {
+      titleFont: 'soft rose-pink Chinese brush lettering with graceful readable strokes',
+      authorFont: 'small restrained muted rose lettering without ornaments',
+    },
     minimal_typographic: {
-      titleFont: 'slender elegant Chinese brush lettering in pale apricot with sufficient contrast against white',
+      titleFont: 'charcoal-black or vermilion Chinese brush lettering with crisp editorial strokes',
       authorFont: 'small clean charcoal lettering without ornaments',
     },
   }

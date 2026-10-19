@@ -1,54 +1,131 @@
 import './cover-style-gallery.css'
 
-const REFERENCE_STYLES = [
-  { value: 'doodle_journal', label: '萌系涂鸦手账', hint: '格纹 · 贴纸 · 描边字', sample: '心动手册' },
-  { value: 'dreamy_cloud', label: '梦幻云染', hint: '蓝粉云团 · 手写字', sample: '云间来信' },
-  { value: 'warm_apricot', label: '暖橘花染', hint: '桃橙晕染 · 书法字', sample: '花开时分' },
-  { value: 'minimal_typographic', label: '极简水彩题字', hint: '白底淡彩 · 留白题字', sample: '春意' },
-  { value: 'ancient_blossom', label: '古言花间插画', hint: '花枝人物 · 墨色题字', sample: '花间' },
-  { value: 'pink_collage', label: '粉色情绪拼贴', hint: '透明叠层 · 错落字章', sample: '心动失序' },
-  { value: 'floral_handwriting', label: '花笺甜系手写', hint: '花瓣纸纹 · 俏皮手写', sample: '悄悄喜欢' },
-]
+export const COVER_STYLE_REFERENCES = [
+  {
+    id: 'blue-watercolor-title',
+    stylePreset: 'dreamy_cloud',
+    composition: 'title_center',
+    label: '蓝紫云染',
+    hint: '雾蓝水彩 · 白色题字',
+    image: '/images/cover-style-references/blue-watercolor-title.jpg',
+  },
+  {
+    id: 'pink-blossom-calligraphy',
+    stylePreset: 'soft_watercolor',
+    composition: 'title_vertical',
+    label: '粉白花笺',
+    hint: '樱花水彩 · 朱红题字',
+    image: '/images/cover-style-references/pink-blossom-calligraphy.jpg',
+  },
+  {
+    id: 'pastel-floral-romance',
+    stylePreset: 'pastel_romance',
+    composition: 'title_center',
+    label: '粉彩花影',
+    hint: '粉紫花影 · 轻柔题字',
+    image: '/images/cover-style-references/pastel-floral-romance.jpg',
+  },
+  {
+    id: 'red-ink-editorial',
+    stylePreset: 'minimal_typographic',
+    composition: 'title_vertical',
+    label: '红墨竖题',
+    hint: '留白纸面 · 红黑书法',
+    image: '/images/cover-style-references/red-ink-editorial.jpg',
+  },
+  {
+    id: 'anime-pink-romance',
+    stylePreset: 'romance_illustration',
+    composition: 'duo',
+    label: '粉色人物言情',
+    hint: '双人物 · 商业插画',
+    image: '/images/cover-style-references/anime-pink-romance.jpg',
+  },
+  {
+    id: 'pink-bubble-typography',
+    stylePreset: 'doodle_journal',
+    composition: 'title_center',
+    label: '粉色泡泡字',
+    hint: '柔粉底 · 手账字卡',
+    image: '/images/cover-style-references/pink-bubble-typography.jpg',
+  },
+  {
+    id: 'floral-handwriting',
+    stylePreset: 'floral_handwriting',
+    composition: 'title_center',
+    label: '花笺手写',
+    hint: '白底花瓣 · 轻盈手写',
+    image: '/images/cover-style-references/floral-handwriting.jpg',
+  },
+  {
+    id: 'pink-doodle-comic',
+    stylePreset: 'doodle_journal',
+    composition: 'title_collage',
+    label: '粉色涂鸦字卡',
+    hint: '漫画贴纸 · 错落大字',
+    image: '/images/cover-style-references/pink-doodle-comic.jpg',
+  },
+  {
+    id: 'soft-pink-watercolor',
+    stylePreset: 'soft_watercolor',
+    composition: 'title_center',
+    label: '清透粉水彩',
+    hint: '低对比晕染 · 中央题字',
+    image: '/images/cover-style-references/soft-pink-watercolor.jpg',
+  },
+  {
+    id: 'crimson-ink',
+    stylePreset: 'ink',
+    composition: 'title_center',
+    label: '赤色水墨',
+    hint: '深红墨纹 · 白色书法',
+    image: '/images/cover-style-references/crimson-ink.jpg',
+  },
+  {
+    id: 'ancient-romance-pastel',
+    stylePreset: 'ancient_blossom',
+    composition: 'duo',
+    label: '古言花间人物',
+    hint: '古风双人 · 花枝氛围',
+    image: '/images/cover-style-references/ancient-romance-pastel.jpg',
+  },
+  {
+    id: 'blue-lavender-abstract',
+    stylePreset: 'moonlit_dream',
+    composition: 'title_center',
+    label: '蓝紫抽象梦境',
+    hint: '靛蓝肌理 · 月色留白',
+    image: '/images/cover-style-references/blue-lavender-abstract.jpg',
+  },
+] as const
 
-/** 用配色与排版示意风格，实际封面由作品内容和生成模型决定。 */
-export default function CoverStyleGallery({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled: boolean }) {
+/** 展示用户选定的实际封面缩略图作为风格参考，选择时同步写入匹配的构图方向。 */
+export default function CoverStyleGallery({
+  value,
+  composition,
+  onChange,
+  disabled,
+}: {
+  value: string
+  composition: string
+  onChange: (stylePreset: string, composition: string) => void
+  disabled: boolean
+}) {
   return (
     <div className="grid gap-2">
-      <p className="text-xs text-muted-foreground">参考风格 · 下方为配色与排版示意</p>
+      <p className="text-xs text-muted-foreground">参考风格 · 选择样本会同时设定匹配的构图方向</p>
       <div className="cover-style-gallery" role="group" aria-label="参考封面风格">
-        {REFERENCE_STYLES.map((style) => (
+        {COVER_STYLE_REFERENCES.map((style) => (
           <button
-            key={style.value}
+            key={style.id}
             type="button"
             className="cover-style-choice"
-            aria-pressed={value === style.value}
+            aria-pressed={value === style.stylePreset && composition === style.composition}
             disabled={disabled}
-            onClick={() => onChange(style.value)}
+            onClick={() => onChange(style.stylePreset, style.composition)}
           >
-            <span className={`cover-style-sample cover-style-sample--${style.value}`} aria-hidden="true">
-              {style.value === 'ancient_blossom' && (
-                <svg className="cover-style-character" viewBox="0 0 100 150" aria-hidden="true">
-                  <path d="M30 55 Q20 16 54 14 Q84 18 76 62 L80 104 L30 110Z" fill="#443b39" />
-                  <ellipse cx="56" cy="45" rx="18" ry="25" fill="#f5dcd0" />
-                  <path d="M35 40 Q38 10 58 18 Q78 20 75 44 Q55 28 35 40" fill="#443b39" />
-                  <path d="M41 67 L56 79 L72 64 Q90 83 97 148 L17 148 Q20 96 41 67Z" fill="#c0d7cc" />
-                  <path d="M41 67 L58 89 L50 130 L31 146 L19 147 Q21 94 41 67Z" fill="#f9eee8" />
-                  <path d="M73 65 L58 89 L75 147 L97 148 Q91 84 73 65Z" fill="#efe2dc" />
-                  <path d="M77 29 L93 4 M78 28 L97 32 M22 133 L5 94" stroke="#9c8078" strokeWidth="1.5" />
-                  <g fill="#dfa7b5">
-                    <circle cx="88" cy="14" r="5" />
-                    <circle cx="93" cy="31" r="5" />
-                    <circle cx="11" cy="109" r="5" />
-                    <circle cx="77" cy="28" r="4" />
-                  </g>
-                </svg>
-              )}
-              <span className="cover-style-sample-title">
-                {Array.from(style.sample).map((character, index) => (
-                  <span key={index}>{character}</span>
-                ))}
-              </span>
-              <span className="cover-style-sample-author">作者</span>
+            <span className="cover-style-sample cover-style-sample--reference" aria-hidden="true">
+              <img src={style.image} alt="" loading="lazy" decoding="async" />
             </span>
             <span className="cover-style-name">{style.label}</span>
             <span className="cover-style-hint">{style.hint}</span>

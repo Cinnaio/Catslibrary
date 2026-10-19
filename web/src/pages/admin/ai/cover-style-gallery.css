@@ -25,13 +25,15 @@
 }
 
 .cover-style-choice[aria-pressed='true'] {
-  border-color: #D97757;
-  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.2), 0 4px 12px rgba(217, 119, 87, 0.1);
-  background: color-mix(in srgb, #D97757 4%, var(--admin-panel));
+  border-color: #d97757;
+  box-shadow:
+    0 0 0 2px rgba(217, 119, 87, 0.2),
+    0 4px 12px rgba(217, 119, 87, 0.1);
+  background: color-mix(in srgb, #d97757 4%, var(--admin-panel));
 }
 
 .cover-style-choice:focus-visible {
-  outline: 2px solid #D97757;
+  outline: 2px solid #d97757;
   outline-offset: 3px;
 }
 
@@ -52,7 +54,20 @@
   border-radius: 10px;
   color: #6960ad;
   background: #fffdf8;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06), 0 4px 10px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.cover-style-sample--reference {
+  background: var(--admin-inset, #f6f4ee);
+}
+
+.cover-style-sample--reference img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .cover-style-sample-title {
