@@ -31,6 +31,7 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 16
         INFOPLIST_FILE: ZhiZhou/Support/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ZhiZhou/Support/ZhiZhou.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic

@@ -37,6 +37,12 @@ struct ProfileAccountView: View {
                 } label: {
                     AppIconLabel("修改密码", systemImage: "lock")
                 }
+                NavigationLink {
+                    PasskeySettingsView()
+                } label: {
+                    AppIconLabel("Passkey", systemImage: "person.badge.key")
+                }
+                .accessibilityIdentifier("account.passkey")
             }
 
             Section {

@@ -118,6 +118,15 @@ final class AppState {
         }
     }
 
+    func loginWithPasskey(username: String) async throws {
+        let response = try await PasskeyService.shared.login(username: username, remember: true)
+        guard !response.token.isEmpty else { throw APIError.invalidResponse }
+        APIClient.shared.token = response.token
+        await activateAccount(response.user)
+        sessionRestoreFailed = false
+        syncAccountStateInBackground()
+    }
+
     func register(username: String, password: String, invite: String) async throws {
         do {
             var payload: [String: String] = ["username": username, "password": password]

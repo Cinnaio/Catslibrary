@@ -16,6 +16,8 @@ struct LoginView: View {
     @State private var registerMode: RegisterMode = .loading
     @State private var registerStatusError: String?
     @State private var busy = false
+    @State private var passkeyBusy = false
+    @State private var passkeyConfig: PasskeyConfigResponse?
     @State private var isRestoringSession = false
     @State private var errorMessage: String?
     @State private var interactionFeedback = 0
@@ -45,6 +47,11 @@ struct LoginView: View {
                         if mode != .register || registerMode == .open || registerMode == .invite {
                             submitButton
                                 .padding(.top, 20)
+                        }
+
+                        if mode == .login, passkeyAvailable {
+                            passkeyButton
+                                .padding(.top, 12)
                         }
 
                         if mode == .register && registerMode == .closed {
@@ -79,7 +86,14 @@ struct LoginView: View {
                 .scrollIndicators(.hidden)
             }
         }
-        .task { await fetchRegisterStatus() }
+        .task(id: mode) {
+            await fetchRegisterStatus()
+            if mode == .login {
+                await fetchPasskeyConfiguration()
+            } else {
+                passkeyConfig = nil
+            }
+        }
         .sheet(isPresented: $showOfflineReading) {
             NavigationStack {
                 OfflineReadingView()
@@ -298,6 +312,36 @@ struct LoginView: View {
         .accessibilityLabel(mode == .login ? "登录" : "注册")
     }
 
+    private var passkeyAvailable: Bool {
+        passkeyConfig?.enabled == true && passkeyConfig?.configured == true
+    }
+
+    private var passkeyButton: some View {
+        Button {
+            Task { await submitPasskey() }
+        } label: {
+            HStack(spacing: 10) {
+                if passkeyBusy {
+                    ProgressView()
+                } else {
+                    Image(systemName: "person.badge.key")
+                }
+                Text(passkeyBusy ? "等待设备验证…" : "使用 Passkey 登录")
+                    .font(.headline)
+            }
+            .foregroundStyle(AppTheme.primary)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 32)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .buttonBorderShape(.roundedRectangle(radius: AppTheme.fieldCornerRadius))
+        .tint(AppTheme.primary)
+        .disabled(busy || passkeyBusy || isRestoringSession)
+        .accessibilityLabel("使用 Passkey 登录")
+        .accessibilityIdentifier("login.passkey")
+    }
+
     private var registerClosedNote: some View {
         Label("当前站点注册已关闭", systemImage: "lock.fill")
             .font(.footnote)
@@ -419,6 +463,37 @@ struct LoginView: View {
         } catch {
             registerMode = .unavailable
             registerStatusError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func fetchPasskeyConfiguration() async {
+        do {
+            passkeyConfig = try await PasskeyService.shared.configuration()
+        } catch {
+            // Passkey is an optional login path; a config/network failure must
+            // not hide the password form or make the login page unusable.
+            passkeyConfig = nil
+        }
+    }
+
+    private func submitPasskey() async {
+        guard !busy, !passkeyBusy, !isRestoringSession, mode == .login else { return }
+        busy = true
+        passkeyBusy = true
+        focusedField = nil
+        errorMessage = nil
+        defer {
+            passkeyBusy = false
+            busy = false
+        }
+        do {
+            try await appState.loginWithPasskey(username: username)
+            AppFeedback.success()
+        } catch let error as NativePasskeyError where error == .cancelled {
+            errorMessage = "已取消 Passkey 验证，请改用密码登录。"
+        } catch {
+            AppFeedback.error()
+            errorMessage = AppCopy.friendlyError(error)
         }
     }
 

@@ -129,6 +129,8 @@ private final class VisualAuditProtocol: URLProtocol {
             image = VisualAudit.imageData(avatar: true)
         case ("GET", "/api/auth/register-status"):
             body = ["mode": "open"]
+        case ("GET", "/api/auth/passkeys/config"):
+            body = ["enabled": false, "registrationEnabled": true, "configured": false, "rpName": "知舟"]
         case ("GET", "/api/auth/me"):
             Self.restoreRequests += 1
             if VisualAudit.scenario == "restore-error", Self.restoreRequests == 1 {
