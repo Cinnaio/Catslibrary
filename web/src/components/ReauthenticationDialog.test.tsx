@@ -2,12 +2,29 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { ReauthenticationDialog } from './ReauthenticationDialog'
 import { requestReauthentication } from '../lib/reauthentication'
-const mocks = vi.hoisted(() => ({ request: vi.fn(), marker: 'a' }))
-vi.mock('../lib/api', () => ({ request: mocks.request, getToken: () => mocks.marker }))
+const mocks = vi.hoisted(() => ({
+  request: vi.fn(),
+  marker: 'a',
+  passkeyConfig: vi.fn(),
+  passkeys: vi.fn(),
+  reauthenticateWithPasskey: vi.fn(),
+}))
+vi.mock('../lib/api', () => ({
+  request: mocks.request,
+  getToken: () => mocks.marker,
+  authApi: {
+    passkeyConfig: mocks.passkeyConfig,
+    passkeys: mocks.passkeys,
+    reauthenticateWithPasskey: mocks.reauthenticateWithPasskey,
+  },
+}))
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.marker = 'a'
   mocks.request.mockResolvedValue({ success: true })
+  mocks.passkeyConfig.mockResolvedValue({ enabled: false, configured: false })
+  mocks.passkeys.mockResolvedValue({ passkeys: [] })
+  mocks.reauthenticateWithPasskey.mockResolvedValue({ success: true, expiresIn: 600 })
 })
 it('确认密码后继续，取消时不提交验证，密码不写入浏览器存储', async () => {
   render(<ReauthenticationDialog />)
@@ -47,4 +64,18 @@ it('密码验证期间换账号，旧验证结果不能授权新账号继续操�
     finish({ success: true })
     expect(await pending).toBe(false)
   })
+})
+
+it('有可用 Passkey 时提供设备验证入口，并与密码验证共用近期认证结果', async () => {
+  mocks.passkeyConfig.mockResolvedValue({ enabled: true, configured: true })
+  mocks.passkeys.mockResolvedValue({ passkeys: [{ id: 'passkey-1' }] })
+  render(<ReauthenticationDialog />)
+  let pending!: Promise<boolean>
+  act(() => {
+    pending = requestReauthentication()
+  })
+  fireEvent.click(await screen.findByRole('button', { name: '使用 Passkey 验证' }))
+  expect(await pending).toBe(true)
+  expect(mocks.reauthenticateWithPasskey).toHaveBeenCalledOnce()
+  expect(mocks.request).not.toHaveBeenCalled()
 })

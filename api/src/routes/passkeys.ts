@@ -3,11 +3,12 @@ import type { AuthenticationResponseJSON, RegistrationResponseJSON, WebAuthnCred
 import { Hono } from 'hono'
 import { getDb, type Db, type DbClient } from '../db/pool'
 import { first, run, withTx } from '../db/query'
-import { requireUser, type AuthEnv } from '../middlewares/auth'
+import { requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { requestSession, sessionResponse } from '../services/browser-session'
 import {
   ADMIN_SESSION_TTL,
   REMEMBER_TTL,
+  REAUTH_TTL,
   SESSION_TTL,
   cleanUsername,
   deviceName,
@@ -21,6 +22,7 @@ import { createSession } from '../services/sessions'
 import { getPasskeyRuntimeConfig, getPasskeySettings } from '../services/passkey-settings'
 import { loadConfig } from '../config'
 import { recordLoginAudit } from '../services/login-audit'
+import { markSessionReauthenticated } from '../services/reauthentication'
 
 const CHALLENGE_TTL = 5 * 60_000
 const MAX_PASSKEYS_PER_USER = 10
@@ -47,7 +49,7 @@ interface ChallengeRow {
   id: string
   user_id: string
   session_hash: string
-  purpose: 'login' | 'register'
+  purpose: 'login' | 'register' | 'reauth'
   challenge: string
   expires_at: number
   created_at: number
@@ -60,13 +62,13 @@ passkeyRoutes.use('*', async (c, next) => {
 })
 
 /** 登录页只拿到是否开放，不暴露 RP ID / Origin。 */
-passkeyRoutes.get('/config', async c => {
+passkeyRoutes.get('/config', async (c) => {
   const settings = await getPasskeySettings()
   const runtime = getPasskeyRuntimeConfig()
   return c.json({ enabled: settings.enabled, registrationEnabled: settings.registrationEnabled, configured: runtime.configured, rpName: settings.rpName })
 })
 
-passkeyRoutes.post('/login/options', async c => {
+passkeyRoutes.post('/login/options', async (c) => {
   const settings = await getPasskeySettings()
   const runtime = getPasskeyRuntimeConfig()
   if (!settings.enabled) return c.json({ error: 'Passkey 登录未启用', code: 'passkey_disabled' }, 403)
@@ -74,14 +76,14 @@ passkeyRoutes.post('/login/options', async c => {
 
   const body = asRecord(await c.req.json().catch(() => ({})))
   const username = cleanUsername(body.username)
-  const user = username ? await first<UserRow>(getDb(), `SELECT ${PUBLIC_USER_COLUMNS} FROM users WHERE username = $1 AND status = 'active'`, [username]) : undefined
+  const user = username
+    ? await first<UserRow>(getDb(), `SELECT ${PUBLIC_USER_COLUMNS} FROM users WHERE username = $1 AND status = 'active'`, [username])
+    : undefined
   const credentials = user ? await listPasskeyRows(getDb(), user.id) : []
   const options = await generateAuthenticationOptions({
     rpID: runtime.rpId,
     userVerification: 'required',
-    ...(credentials.length
-      ? { allowCredentials: credentials.map(row => ({ id: row.credential_id, transports: parseTransports(row.transports) })) }
-      : {}),
+    ...(credentials.length ? { allowCredentials: credentials.map((row) => ({ id: row.credential_id, transports: parseTransports(row.transports) })) } : {}),
   })
 
   const now = Date.now()
@@ -96,7 +98,7 @@ passkeyRoutes.post('/login/options', async c => {
   return c.json(options)
 })
 
-passkeyRoutes.post('/login/verify', async c => {
+passkeyRoutes.post('/login/verify', async (c) => {
   const settings = await getPasskeySettings()
   const runtime = getPasskeyRuntimeConfig()
   if (!settings.enabled) return c.json({ error: 'Passkey 登录未启用', code: 'passkey_disabled' }, 403)
@@ -108,14 +110,16 @@ passkeyRoutes.post('/login/verify', async c => {
   if (!challenge || !response.id || !response.response) return c.json({ error: 'Passkey 登录请求无效' }, 400)
 
   const db = getDb()
-  const challengeRow = await first<ChallengeRow>(db, `SELECT * FROM webauthn_challenges WHERE challenge = $1 AND purpose = 'login' AND expires_at > $2`, [challenge, Date.now()])
+  const challengeRow = await first<ChallengeRow>(db, `SELECT * FROM webauthn_challenges WHERE challenge = $1 AND purpose = 'login' AND expires_at > $2`, [
+    challenge,
+    Date.now(),
+  ])
   if (!challengeRow) return c.json({ error: '登录请求已过期，请重试' }, 401)
   const credentialId = String(response.id || response.rawId || '')
-  const credential = await first<PasskeyRow>(
-    db,
-    `SELECT * FROM user_passkeys WHERE credential_id = $1 AND revoked_at = 0 AND ($2 = '' OR user_id = $2)`,
-    [credentialId, challengeRow.user_id],
-  )
+  const credential = await first<PasskeyRow>(db, `SELECT * FROM user_passkeys WHERE credential_id = $1 AND revoked_at = 0 AND ($2 = '' OR user_id = $2)`, [
+    credentialId,
+    challengeRow.user_id,
+  ])
   if (!credential) {
     await consumeChallenge(db, challengeRow.id)
     return c.json({ error: '无法识别此 Passkey' }, 401)
@@ -155,15 +159,17 @@ passkeyRoutes.post('/login/verify', async c => {
   const remember = body.remember === true
   const userAgent = c.req.header('User-Agent') || ''
   try {
-    const result = await withTx(db, async query => {
-      const deleted = await query('DELETE FROM webauthn_challenges WHERE id = $1 AND purpose = \'login\' AND expires_at > $2', [challengeRow.id, Date.now()])
+    const result = await withTx(db, async (query) => {
+      const deleted = await query("DELETE FROM webauthn_challenges WHERE id = $1 AND purpose = 'login' AND expires_at > $2", [challengeRow.id, Date.now()])
       if (!deleted.rowCount) throw new Error('challenge_consumed')
       const tx = { query } as Db
       const now = Date.now()
-      await query(
-        `UPDATE user_passkeys SET sign_count = GREATEST(sign_count, $1), last_used_at = $2, last_user_agent = $3 WHERE id = $4`,
-        [nextCounter, now, userAgent, credential.id],
-      )
+      await query(`UPDATE user_passkeys SET sign_count = GREATEST(sign_count, $1), last_used_at = $2, last_user_agent = $3 WHERE credential_id = $4`, [
+        nextCounter,
+        now,
+        userAgent,
+        credential.id,
+      ])
       await query('UPDATE users SET last_login_at = $1, updated_at = $1 WHERE id = $2', [now, credential.user_id])
       const user = await first<UserRow>(tx, `SELECT ${PUBLIC_USER_COLUMNS} FROM users WHERE id = $1 AND status = 'active'`, [credential.user_id])
       if (!user) throw new Error('user_missing')
@@ -184,17 +190,127 @@ passkeyRoutes.post('/login/verify', async c => {
       ...sessionResponse(c, result.token, result.user.role === 'admin' ? ADMIN_SESSION_TTL : remember ? REMEMBER_TTL : SESSION_TTL, remember),
     })
   } catch (error) {
-    if (error instanceof Error && (error.message === 'challenge_consumed' || error.message === 'user_missing')) return c.json({ error: '登录请求已失效，请重试' }, 401)
+    if (error instanceof Error && (error.message === 'challenge_consumed' || error.message === 'user_missing'))
+      return c.json({ error: '登录请求已失效，请重试' }, 401)
     throw error
   }
 })
 
-passkeyRoutes.get('/', requireUser(), async c => {
+passkeyRoutes.post('/reauth/options', requireAdmin(), async (c) => {
+  const settings = await getPasskeySettings()
+  const runtime = getPasskeyRuntimeConfig()
+  if (!settings.enabled) return c.json({ error: 'Passkey 登录未启用', code: 'passkey_disabled' }, 403)
+  if (!runtime.configured) return c.json({ error: 'Passkey 尚未完成部署配置', code: 'passkey_not_configured' }, 503)
+
+  const user = c.get('user')
+  const db = getDb()
+  const credentials = await listPasskeyRows(db, user.id)
+  if (!credentials.length) return c.json({ error: '当前账号没有可用 Passkey', code: 'passkey_unavailable' }, 409)
+
+  const options = await generateAuthenticationOptions({
+    rpID: runtime.rpId,
+    userVerification: 'required',
+    allowCredentials: credentials.map((row) => ({ id: row.credential_id, transports: parseTransports(row.transports) })),
+  })
+  const sessionHash = await hashToken(requestSession(c), loadConfig().sessionHashSalt)
+  const now = Date.now()
+  await run(db, 'DELETE FROM webauthn_challenges WHERE purpose = $1 AND (user_id = $2 OR session_hash = $3)', ['reauth', user.id, sessionHash])
+  await run(
+    db,
+    `INSERT INTO webauthn_challenges (id, user_id, session_hash, purpose, challenge, expires_at, created_at)
+     VALUES ($1, $2, $3, 'reauth', $4, $5, $6)`,
+    [newId('challenge'), user.id, sessionHash, options.challenge, now + CHALLENGE_TTL, now],
+  )
+  return c.json(options)
+})
+
+passkeyRoutes.post('/reauth/verify', requireAdmin(), async (c) => {
+  const settings = await getPasskeySettings()
+  const runtime = getPasskeyRuntimeConfig()
+  if (!settings.enabled) return c.json({ error: 'Passkey 登录未启用', code: 'passkey_disabled' }, 403)
+  if (!runtime.configured) return c.json({ error: 'Passkey 尚未完成部署配置', code: 'passkey_not_configured' }, 503)
+
+  const body = asRecord(await c.req.json().catch(() => ({})))
+  const challenge = typeof body.challenge === 'string' ? body.challenge : ''
+  const response = asRecord(body.response) as unknown as AuthenticationResponseJSON
+  if (!challenge || !response.id || !response.response) return c.json({ error: 'Passkey 重新验证请求无效' }, 400)
+
+  const user = c.get('user')
+  const sessionHash = await hashToken(requestSession(c), loadConfig().sessionHashSalt)
+  const db = getDb()
+  const challengeRow = await first<ChallengeRow>(
+    db,
+    `SELECT * FROM webauthn_challenges
+     WHERE challenge = $1 AND purpose = 'reauth' AND user_id = $2 AND session_hash = $3 AND expires_at > $4`,
+    [challenge, user.id, sessionHash, Date.now()],
+  )
+  if (!challengeRow) return c.json({ error: '验证请求已过期，请重试' }, 401)
+
+  const credentialId = String(response.id || response.rawId || '')
+  const credential = await first<PasskeyRow>(db, 'SELECT * FROM user_passkeys WHERE credential_id = $1 AND user_id = $2 AND revoked_at = 0', [
+    credentialId,
+    user.id,
+  ])
+  if (!credential) {
+    await consumeChallenge(db, challengeRow.id)
+    return c.json({ error: '无法识别此 Passkey' }, 401)
+  }
+  if (response.response.userHandle && response.response.userHandle !== credential.user_handle) {
+    await consumeChallenge(db, challengeRow.id)
+    return c.json({ error: 'Passkey 账户不匹配' }, 401)
+  }
+
+  let verification
+  try {
+    verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge: challengeRow.challenge,
+      expectedOrigin: runtime.origins,
+      expectedRPID: runtime.rpId,
+      credential: toWebAuthnCredential(credential),
+      requireUserVerification: true,
+    })
+  } catch {
+    await consumeChallenge(db, challengeRow.id)
+    return c.json({ error: 'Passkey 验证失败，请重试' }, 401)
+  }
+  if (!verification.verified || !verification.authenticationInfo.userVerified) {
+    await consumeChallenge(db, challengeRow.id)
+    return c.json({ error: 'Passkey 验证失败，请使用设备验证后重试' }, 401)
+  }
+
+  const nextCounter = verification.authenticationInfo.newCounter
+  const previousCounter = Number(credential.sign_count || 0)
+  if (previousCounter > 0 && nextCounter > 0 && nextCounter <= previousCounter) {
+    await consumeChallenge(db, challengeRow.id)
+    return c.json({ error: 'Passkey 状态异常，请重新注册设备' }, 401)
+  }
+
+  try {
+    await withTx(db, async (query) => {
+      const deleted = await query("DELETE FROM webauthn_challenges WHERE id = $1 AND purpose = 'reauth' AND expires_at > $2", [challengeRow.id, Date.now()])
+      if (!deleted.rowCount) throw new Error('challenge_consumed')
+      const now = Date.now()
+      await query(
+        'UPDATE user_passkeys SET sign_count = GREATEST(sign_count, $1), last_used_at = $2, last_user_agent = $3 WHERE credential_id = $4 AND user_id = $5',
+        [nextCounter, now, c.req.header('User-Agent') || '', credential.credential_id, user.id],
+      )
+      if (!(await markSessionReauthenticated({ query } as Db, sessionHash, user.id))) throw new Error('session_missing')
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'challenge_consumed') return c.json({ error: '验证请求已失效，请重试' }, 401)
+    if (error instanceof Error && error.message === 'session_missing') return c.json({ error: '会话已失效，请重新登录' }, 401)
+    throw error
+  }
+  return c.json({ success: true, expiresIn: REAUTH_TTL / 1000 })
+})
+
+passkeyRoutes.get('/', requireUser(), async (c) => {
   const rows = await listPasskeyRows(getDb(), c.get('user').id)
   return c.json({ passkeys: rows.map(serializePasskey) })
 })
 
-passkeyRoutes.post('/register/options', requireUser(), async c => {
+passkeyRoutes.post('/register/options', requireUser(), async (c) => {
   const user = c.get('user')
   const settings = await getPasskeySettings()
   const runtime = getPasskeyRuntimeConfig()
@@ -213,7 +329,7 @@ passkeyRoutes.post('/register/options', requireUser(), async c => {
     userDisplayName: user.display_name || user.username,
     attestationType: 'none',
     authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
-    excludeCredentials: rows.map(row => ({ id: row.credential_id, transports: parseTransports(row.transports) })),
+    excludeCredentials: rows.map((row) => ({ id: row.credential_id, transports: parseTransports(row.transports) })),
   })
   const session = requestSession(c)
   const sessionHash = await hashToken(session, loadConfig().sessionHashSalt)
@@ -229,7 +345,7 @@ passkeyRoutes.post('/register/options', requireUser(), async c => {
   return c.json(options)
 })
 
-passkeyRoutes.post('/register/verify', requireUser(), async c => {
+passkeyRoutes.post('/register/verify', requireUser(), async (c) => {
   const user = c.get('user')
   const settings = await getPasskeySettings()
   const runtime = getPasskeyRuntimeConfig()
@@ -272,8 +388,8 @@ passkeyRoutes.post('/register/verify', requireUser(), async c => {
   const now = Date.now()
   const name = cleanPasskeyName(body.name) || `设备 ${new Date(now).toLocaleDateString('zh-CN')}`
   try {
-    const row = await withTx(db, async query => {
-      const deleted = await query('DELETE FROM webauthn_challenges WHERE id = $1 AND purpose = \'register\' AND expires_at > $2', [challengeRow.id, Date.now()])
+    const row = await withTx(db, async (query) => {
+      const deleted = await query("DELETE FROM webauthn_challenges WHERE id = $1 AND purpose = 'register' AND expires_at > $2", [challengeRow.id, Date.now()])
       if (!deleted.rowCount) throw new Error('challenge_consumed')
       await query(
         `INSERT INTO user_passkeys (id, user_id, credential_id, public_key, user_handle, name, sign_count, transports, backup_eligible, backup_state, created_at, last_user_agent)
@@ -304,19 +420,30 @@ passkeyRoutes.post('/register/verify', requireUser(), async c => {
   }
 })
 
-passkeyRoutes.patch('/:id', requireUser(), async c => {
+passkeyRoutes.patch('/:id', requireUser(), async (c) => {
   const body = asRecord(await c.req.json().catch(() => ({})))
   const name = cleanPasskeyName(body.name)
   if (!name) return c.json({ error: '名称不能为空' }, 400)
   if (name.length > 80) return c.json({ error: '名称不能超过 80 个字符' }, 400)
-  const result = await run(getDb(), 'UPDATE user_passkeys SET name = $1 WHERE id = $2 AND user_id = $3 AND revoked_at = 0', [name, c.req.param('id'), c.get('user').id])
+  const result = await run(getDb(), 'UPDATE user_passkeys SET name = $1 WHERE id = $2 AND user_id = $3 AND revoked_at = 0', [
+    name,
+    c.req.param('id'),
+    c.get('user').id,
+  ])
   if (!result) return c.json({ error: 'Passkey 不存在' }, 404)
-  const row = await first<PasskeyRow>(getDb(), 'SELECT * FROM user_passkeys WHERE id = $1 AND user_id = $2 AND revoked_at = 0', [c.req.param('id'), c.get('user').id])
+  const row = await first<PasskeyRow>(getDb(), 'SELECT * FROM user_passkeys WHERE id = $1 AND user_id = $2 AND revoked_at = 0', [
+    c.req.param('id'),
+    c.get('user').id,
+  ])
   return c.json({ passkey: row ? serializePasskey(row) : null })
 })
 
-passkeyRoutes.delete('/:id', requireUser(), async c => {
-  const result = await run(getDb(), 'UPDATE user_passkeys SET revoked_at = $1 WHERE id = $2 AND user_id = $3 AND revoked_at = 0', [Date.now(), c.req.param('id'), c.get('user').id])
+passkeyRoutes.delete('/:id', requireUser(), async (c) => {
+  const result = await run(getDb(), 'UPDATE user_passkeys SET revoked_at = $1 WHERE id = $2 AND user_id = $3 AND revoked_at = 0', [
+    Date.now(),
+    c.req.param('id'),
+    c.get('user').id,
+  ])
   if (!result) return c.json({ error: 'Passkey 不存在' }, 404)
   return c.json({ success: true })
 })
@@ -342,7 +469,7 @@ function toWebAuthnCredential(row: PasskeyRow): WebAuthnCredential {
 function parseTransports(value: string): string[] {
   try {
     const parsed = JSON.parse(value || '[]')
-    return Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string') : []
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : []
   } catch {
     return []
   }
@@ -362,9 +489,12 @@ function serializePasskey(row: PasskeyRow) {
 }
 
 function cleanPasskeyName(value: unknown): string {
-  return String(value || '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim()
+  return String(value || '')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function asRecord(value: unknown): Record<string, any> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {}
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, any>) : {}
 }

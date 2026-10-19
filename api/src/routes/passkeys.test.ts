@@ -1,4 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+const webAuthnMocks = vi.hoisted(() => ({ verifyAuthenticationResponse: vi.fn() }))
+vi.mock('@simplewebauthn/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@simplewebauthn/server')>()
+  return { ...actual, verifyAuthenticationResponse: webAuthnMocks.verifyAuthenticationResponse }
+})
 import { app } from '../app'
 import { runMigrations } from '../db/migrate'
 import { setDbForTests } from '../db/pool'
@@ -22,14 +27,21 @@ beforeAll(async () => {
   t = await createTestDb()
   await t.applyMigrations()
   setDbForTests(t.db)
-  for (const name of ['DATABASE_URL', 'PASSKEY_RP_ID', 'PASSKEY_ORIGINS', 'SITE_URL', 'CORS_ORIGIN', 'CORS_ORIGINS']) vi.stubEnv(name, name === 'DATABASE_URL' ? 'postgres://fixture/test' : '')
-  admin = (await (await request('/api/auth/bootstrap-admin', 'POST', { username: 'passkey-admin', password: 'fixturepass123' }, '')).json() as { token: string }).token
+  for (const name of ['DATABASE_URL', 'PASSKEY_RP_ID', 'PASSKEY_ORIGINS', 'SITE_URL', 'CORS_ORIGIN', 'CORS_ORIGINS'])
+    vi.stubEnv(name, name === 'DATABASE_URL' ? 'postgres://fixture/test' : '')
+  admin = (
+    (await (await request('/api/auth/bootstrap-admin', 'POST', { username: 'passkey-admin', password: 'fixturepass123' }, '')).json()) as { token: string }
+  ).token
 })
 
 afterAll(async () => {
   vi.unstubAllEnvs()
   setDbForTests(null)
   await t.close()
+})
+
+beforeEach(() => {
+  webAuthnMocks.verifyAuthenticationResponse.mockReset()
 })
 
 describe('Passkey WebAuthn endpoints', () => {
@@ -47,13 +59,16 @@ describe('Passkey WebAuthn endpoints', () => {
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
       [JSON.stringify({ enabled: true, registrationEnabled: true, rpName: '书灯' }), Date.now()],
     )
-    const loginOptions = await (await request('/api/auth/passkeys/login/options', 'POST', {}, '')).json() as Record<string, any>
+    const loginOptions = (await (await request('/api/auth/passkeys/login/options', 'POST', {}, '')).json()) as Record<string, any>
     expect(loginOptions).toMatchObject({ rpId: 'localhost', userVerification: 'required' })
     expect(typeof loginOptions.challenge).toBe('string')
 
     const registration = await request('/api/auth/passkeys/register/options', 'POST', { currentPassword: 'fixturepass123' })
     expect(registration.status).toBe(200)
-    expect(await registration.json()).toMatchObject({ rp: { id: 'localhost', name: '书灯' }, authenticatorSelection: { residentKey: 'required', userVerification: 'required' } })
+    expect(await registration.json()).toMatchObject({
+      rp: { id: 'localhost', name: '书灯' },
+      authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+    })
     expect(((await (await request('/api/auth/passkeys', 'GET')).json()) as { passkeys: unknown[] }).passkeys).toEqual([])
   })
 
@@ -61,6 +76,103 @@ describe('Passkey WebAuthn endpoints', () => {
     const response = await request('/api/auth/passkeys/register/options', 'POST', { currentPassword: 'wrong-password' })
     expect(response.status).toBe(401)
     expect(await response.json()).toMatchObject({ error: '当前密码不正确' })
+  })
+
+  it('管理员可以用强制 User Verification 的 Passkey 重新验证当前会话，且 challenge 不能重放', async () => {
+    await t.db.query(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('site_passkey', $1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
+      [JSON.stringify({ enabled: true, registrationEnabled: true, rpName: '书灯' }), Date.now()],
+    )
+    const user = (await t.db.query<{ id: string }>('SELECT id FROM users WHERE username = $1', ['passkey-admin'])).rows[0]!
+    const credentialId = 'fixture-reauth-credential'
+    const now = Date.now()
+    await t.db.query(
+      `INSERT INTO user_passkeys (id, user_id, credential_id, public_key, user_handle, name, sign_count, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        'fixture-reauth-passkey',
+        user.id,
+        credentialId,
+        Buffer.from('fixture-public-key').toString('base64url'),
+        Buffer.from(user.id).toString('base64url'),
+        '测试设备',
+        4,
+        now,
+      ],
+    )
+
+    const optionsResponse = await request('/api/auth/passkeys/reauth/options', 'POST')
+    expect(optionsResponse.status).toBe(200)
+    const options = (await optionsResponse.json()) as Record<string, any>
+    expect(options).toMatchObject({ rpId: 'localhost', userVerification: 'required' })
+    expect(options.allowCredentials).toEqual([{ id: credentialId, transports: [], type: 'public-key' }])
+
+    webAuthnMocks.verifyAuthenticationResponse.mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: { userVerified: true, newCounter: 5 },
+    })
+    const response = {
+      id: credentialId,
+      rawId: credentialId,
+      type: 'public-key',
+      response: {
+        clientDataJSON: 'fixture-client-data',
+        authenticatorData: 'fixture-authenticator-data',
+        signature: 'fixture-signature',
+        userHandle: Buffer.from(user.id).toString('base64url'),
+      },
+    }
+    const verified = await request('/api/auth/passkeys/reauth/verify', 'POST', { challenge: options.challenge, response })
+    expect(verified.status).toBe(200)
+    expect(await verified.json()).toMatchObject({ success: true, expiresIn: 600 })
+    expect(webAuthnMocks.verifyAuthenticationResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedChallenge: options.challenge,
+        expectedRPID: 'localhost',
+        expectedOrigin: ['http://localhost:5173'],
+        requireUserVerification: true,
+      }),
+    )
+
+    const stored = (
+      await t.db.query<{ sign_count: number; last_used_at: number }>('SELECT sign_count,last_used_at FROM user_passkeys WHERE credential_id=$1', [credentialId])
+    ).rows[0]!
+    expect(Number(stored.sign_count)).toBe(5)
+    expect(Number(stored.last_used_at)).toBeGreaterThan(0)
+    const session = (await t.db.query<{ reauthenticated_at: number }>('SELECT reauthenticated_at FROM user_sessions WHERE user_id=$1', [user.id])).rows[0]!
+    expect(Number(session.reauthenticated_at)).toBeGreaterThan(now)
+    const settingWrite = await request('/api/admin/site-settings/passkey', 'PUT', { enabled: true, registrationEnabled: true, rpName: '书灯' })
+    expect(settingWrite.status).toBe(200)
+
+    const replay = await request('/api/auth/passkeys/reauth/verify', 'POST', { challenge: options.challenge, response })
+    expect(replay.status).toBe(401)
+    expect(webAuthnMocks.verifyAuthenticationResponse).toHaveBeenCalledOnce()
+  })
+
+  it('Passkey 重新验证即使签名通过也拒绝未完成 User Verification 的响应', async () => {
+    const user = (await t.db.query<{ id: string }>('SELECT id FROM users WHERE username = $1', ['passkey-admin'])).rows[0]!
+    await t.db.query('UPDATE user_sessions SET reauthenticated_at = 0 WHERE user_id = $1', [user.id])
+    const options = (await (await request('/api/auth/passkeys/reauth/options', 'POST')).json()) as Record<string, any>
+    webAuthnMocks.verifyAuthenticationResponse.mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: { userVerified: false, newCounter: 6 },
+    })
+    const credentialId = 'fixture-reauth-credential'
+    const response = {
+      id: credentialId,
+      rawId: credentialId,
+      type: 'public-key',
+      response: { clientDataJSON: 'fixture', authenticatorData: 'fixture', signature: 'fixture' },
+    }
+    const rejected = await request('/api/auth/passkeys/reauth/verify', 'POST', { challenge: options.challenge, response })
+    expect(rejected.status).toBe(401)
+    expect(await rejected.json()).toMatchObject({ error: 'Passkey 验证失败，请使用设备验证后重试' })
+    const session = (await t.db.query<{ reauthenticated_at: number }>('SELECT reauthenticated_at FROM user_sessions WHERE user_id=$1', [user.id])).rows[0]!
+    expect(Number(session.reauthenticated_at)).toBe(0)
+    const blocked = await request('/api/admin/site-settings/passkey', 'PUT', { enabled: true, registrationEnabled: true, rpName: '书灯' })
+    expect(blocked.status).toBe(403)
+    expect(await blocked.json()).toMatchObject({ code: 'reauth_required' })
   })
 
   it('repairs a previously-created user_passkeys table before listing credentials', async () => {
@@ -72,12 +184,17 @@ describe('Passkey WebAuthn endpoints', () => {
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`)
     for (let version = 1; version <= 61; version += 1) {
-      await t.db.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING', [version, `${String(version).padStart(3, '0')}_legacy.sql`])
+      await t.db.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING', [
+        version,
+        `${String(version).padStart(3, '0')}_legacy.sql`,
+      ])
     }
     await runMigrations(t.db)
 
     const response = await request('/api/auth/passkeys', 'GET')
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ passkeys: [] })
+    const listed = (await response.json()) as { passkeys: { id: string }[] }
+    expect(listed.passkeys).toHaveLength(1)
+    expect(listed.passkeys[0]).toMatchObject({ id: 'fixture-reauth-passkey' })
   })
 })

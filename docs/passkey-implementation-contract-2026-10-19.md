@@ -218,6 +218,9 @@ POST /api/auth/passkeys/register/verify
 POST /api/auth/passkeys/login/options
 POST /api/auth/passkeys/login/verify
 
+POST /api/auth/passkeys/reauth/options
+POST /api/auth/passkeys/reauth/verify
+
 GET    /api/auth/passkeys
 PATCH  /api/auth/passkeys/:id
 DELETE /api/auth/passkeys/:id
@@ -324,6 +327,19 @@ PUT /api/admin/site-settings/passkey
 ```
 
 `PUT` 只能修改 `enabled`、`registrationEnabled` 和 `rpName`。服务端应拒绝未知字段、非法长度、控制字符和空名称。
+
+### 6.6 管理员重新验证接口
+
+管理员重新验证复用现有会话的 `reauthenticated_at`，不创建新登录会话：
+
+```text
+POST /api/auth/passkeys/reauth/options
+POST /api/auth/passkeys/reauth/verify
+```
+
+两条接口都要求当前会话属于管理员。`options` 只为当前账号的未撤销凭证生成允许列表，并把 challenge 绑定到当前用户、当前会话摘要和 `reauth` purpose；没有可用凭证时返回 `passkey_unavailable`。`verify` 必须再次匹配这些绑定，校验 origin、RP ID、签名、user handle 和 `User Verification`，成功后只更新当前 `user_sessions.reauthenticated_at`，同时更新该凭证的计数和最近使用信息。
+
+密码重新验证接口 `/api/auth/reauthenticate` 保持不变，继续作为 Passkey 不可用、浏览器不支持或用户取消设备验证时的回退。两种方式最终都由现有管理员敏感写入中间件按十分钟有效期判断，不绕过原有权限检查。
 
 ## 7. 安全规则
 
