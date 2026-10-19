@@ -25,6 +25,7 @@ export interface LoginAudit {
   reason: string
   ipAddress: string
   userAgent: string
+  authMethod?: string
   createdAt: number
 }
 export interface AdminOperationAudit {
@@ -118,6 +119,9 @@ export function accountDeviceSummary(agent: string): string {
             : '其他设备'
   return `${browser} · ${system}`
 }
+function authMethodLabel(method?: string): string {
+  return method === 'passkey' ? 'Passkey' : '密码'
+}
 const LOGIN_COLUMNS: readonly AdminColumn[] = [
   { key: 'user', label: '用户', width: '23%', primary: true },
   { key: 'result', label: '结果与原因', width: '24%' },
@@ -195,6 +199,7 @@ export default function AccountAuditPanel({
             ['用户', record.displayName || record.username || '未知用户'],
             ['用户名', record.username],
             ['结果', statusLabel(record.status)],
+            ['认证方式', authMethodLabel(record.authMethod)],
             ['原因', reasonLabel(record.reason)],
             ['IP 地址', record.ipAddress],
             ['设备摘要', accountDeviceSummary(record.userAgent)],
@@ -309,12 +314,14 @@ export default function AccountAuditPanel({
                               {statusLabel(record.status)}
                             </AdminStatusBadge>
                             <span className="account-record-secondary">{reasonLabel(record.reason)}</span>
+                            {record.authMethod === 'passkey' && <span className="account-record-secondary">认证：Passkey</span>}
                           </div>
                         </TableCell>
                         <TableCell data-label="访问来源">
                           <div>
                             <code className="account-record-code">{record.ipAddress || '未记录'}</code>
                             <span className="account-record-secondary">{accountDeviceSummary(record.userAgent)}</span>
+                            {record.authMethod === 'passkey' && <span className="account-record-secondary">认证：Passkey</span>}
                           </div>
                         </TableCell>
                       </>

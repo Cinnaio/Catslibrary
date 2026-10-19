@@ -55,7 +55,8 @@ export function requireAdmin(): MiddlewareHandler<AuthEnv> {
       !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) &&
       (/^\/api\/admin-users(?:\/|$)/.test(c.req.path) ||
         /^\/api\/admin\/backups\/(settings|targets|deployment|policy)(?:\/|$)/.test(c.req.path) ||
-        c.req.path === '/api/admin/site-settings/turnstile')
+        c.req.path === '/api/admin/site-settings/turnstile' ||
+        c.req.path === '/api/admin/site-settings/passkey')
     if (sensitive) {
       const session = (
         await db.query<{ reauthenticated_at: number }>('SELECT reauthenticated_at FROM user_sessions WHERE token_hash=$1', [

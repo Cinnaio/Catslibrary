@@ -20,3 +20,22 @@ export interface TurnstileSettings {
   secretReadable: boolean
   sources: Record<'siteKey' | 'secret' | 'hostnames', 'environment' | 'database' | 'default'>
 }
+
+export interface PasskeySettings {
+  enabled: boolean
+  registrationEnabled: boolean
+  rpName: string
+}
+
+export interface PasskeyPublicSettings extends PasskeySettings {}
+
+export interface PasskeyAdminSettings extends PasskeySettings {
+  rpId: string
+  origins: string[]
+  configured: boolean
+  userVerification: 'required'
+  sources: {
+    rpId: 'environment' | 'default'
+    origins: 'environment' | 'default'
+  }
+}

@@ -3,13 +3,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { authApi } from '../lib/api'
+import { authApi, type PasskeyItem } from '../lib/api'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { useSession } from '../context/SessionContext'
 import { useConfirm } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate, timeAgo } from '../lib/format'
-import { Monitor, Smartphone } from 'lucide-react'
+import { KeyRound, Monitor, Smartphone } from 'lucide-react'
 import { ReadingDataPanel } from '../components/ReadingDataPanel'
 import { ReadingStatsPanel } from '../components/ReadingStatsPanel'
 import { useContentPolicy } from '../context/ContentPolicyContext'
@@ -38,6 +38,14 @@ export default function Profile() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [sessions, setSessions] = useState<SessionItem[]>([])
+  const [passkeys, setPasskeys] = useState<PasskeyItem[]>([])
+  const [passkeyEnabled, setPasskeyEnabled] = useState(false)
+  const [passkeyRegistrationEnabled, setPasskeyRegistrationEnabled] = useState(false)
+  const [passkeyPassword, setPasskeyPassword] = useState('')
+  const [passkeyName, setPasskeyName] = useState('')
+  const [passkeyBusy, setPasskeyBusy] = useState(false)
+  const [editingPasskeyId, setEditingPasskeyId] = useState('')
+  const [editingPasskeyName, setEditingPasskeyName] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState('')
   const [avatarUploading, setAvatarUploading] = useState(false)
@@ -65,6 +73,29 @@ export default function Profile() {
     }
   }, [])
 
+  const loadPasskeys = useCallback(async () => {
+    try {
+      const data = await authApi.passkeys()
+      setPasskeys(data.passkeys || [])
+    } catch {
+      setPasskeys([])
+    }
+  }, [])
+
+  const loadPasskeySettings = useCallback(async () => {
+    try {
+      const settings = await authApi.passkeyConfig()
+      setPasskeyEnabled(settings.enabled)
+      setPasskeyRegistrationEnabled(settings.registrationEnabled)
+      if (settings.enabled) await loadPasskeys()
+      else setPasskeys([])
+    } catch {
+      setPasskeyEnabled(false)
+      setPasskeyRegistrationEnabled(false)
+      setPasskeys([])
+    }
+  }, [loadPasskeys])
+
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth', { replace: true, state: { from: '/profile' } })
@@ -74,8 +105,9 @@ export default function Profile() {
       setDisplayName(user.displayName || '')
       setBio(user.bio || '')
       void loadSessions()
+      void loadPasskeySettings()
     }
-  }, [user, loading, navigate, loadSessions])
+  }, [user, loading, navigate, loadSessions, loadPasskeySettings])
 
   useEffect(() => {
     return () => {
@@ -115,6 +147,57 @@ export default function Profile() {
       message('密码已修改')
     } catch (err) {
       message((err as Error).message || '修改失败')
+    }
+  }
+
+  async function registerPasskey() {
+    if (!passkeyPassword.trim()) { message('请先输入当前密码'); return }
+    setPasskeyBusy(true)
+    try {
+      await authApi.registerPasskey(passkeyPassword, passkeyName.trim())
+      setPasskeyPassword('')
+      setPasskeyName('')
+      await loadPasskeys()
+      message('Passkey 已注册')
+    } catch (err) {
+      message((err as Error).message || 'Passkey 注册失败')
+    } finally {
+      setPasskeyBusy(false)
+    }
+  }
+
+  function beginRenamePasskey(item: PasskeyItem) {
+    setEditingPasskeyId(item.id)
+    setEditingPasskeyName(item.name)
+  }
+
+  async function savePasskeyName(id: string) {
+    if (!editingPasskeyName.trim()) { message('名称不能为空'); return }
+    setPasskeyBusy(true)
+    try {
+      await authApi.renamePasskey(id, editingPasskeyName.trim())
+      await loadPasskeys()
+      setEditingPasskeyId('')
+      message('Passkey 名称已更新')
+    } catch (err) {
+      message((err as Error).message || '名称更新失败')
+    } finally {
+      setPasskeyBusy(false)
+    }
+  }
+
+  async function deletePasskey(id: string) {
+    const ok = await confirm({ title: '移除 Passkey', message: '移除后，这个设备将不能再用该 Passkey 登录当前账户。确定继续？', okText: '移除', danger: true })
+    if (!ok) return
+    setPasskeyBusy(true)
+    try {
+      await authApi.deletePasskey(id)
+      await loadPasskeys()
+      message('Passkey 已移除')
+    } catch (err) {
+      message((err as Error).message || 'Passkey 移除失败')
+    } finally {
+      setPasskeyBusy(false)
     }
   }
 
@@ -316,6 +399,43 @@ export default function Profile() {
                     保存资料
                   </button>
                 </div>
+              </div>
+            </section>
+
+            {/* 密码 */}
+            <section className="profile-section profile-security-section" hidden={activeSettings !== 'security' || !passkeyEnabled}>
+              <div className="profile-edit-panel profile-passkey-panel">
+                <div className="profile-edit-panel__head">
+                  <div>
+                    <h2 className="profile-section-heading">Passkey</h2>
+                    <p className="profile-section-note">使用设备解锁、指纹或面容快速登录；私钥只保留在你的设备或密码管理器中。</p>
+                  </div>
+                </div>
+                <div className="profile-passkey-list">
+                  {passkeys.length === 0 ? <p className="profile-empty-note">还没有注册 Passkey</p> : passkeys.map(item => (
+                    <div className="profile-passkey-item" key={item.id}>
+                      <div className="profile-session-icon" aria-hidden="true"><KeyRound size={17} /></div>
+                      <div className="profile-session-meta">
+                        {editingPasskeyId === item.id ? <input className="form-input profile-passkey-name-input" aria-label="Passkey 名称" value={editingPasskeyName} maxLength={80} onChange={e => setEditingPasskeyName(e.target.value)} /> : <strong className="profile-session-title">{item.name}</strong>}
+                        <span className="profile-session-detail">注册于 {formatDate(item.createdAt)}{item.lastUsedAt ? ` · 最近使用 ${timeAgo(item.lastUsedAt)}` : ''}{item.deviceName ? ` · ${item.deviceName}` : ''}</span>
+                      </div>
+                      {editingPasskeyId === item.id ? <div className="profile-passkey-actions"><button className="btn btn--secondary btn--sm" disabled={passkeyBusy} onClick={() => void savePasskeyName(item.id)}>保存</button><button className="btn btn--ghost btn--sm" disabled={passkeyBusy} onClick={() => setEditingPasskeyId('')}>取消</button></div> : <div className="profile-passkey-actions"><button className="btn btn--ghost btn--sm" disabled={passkeyBusy} onClick={() => beginRenamePasskey(item)}>改名</button><button className="btn btn--ghost btn--sm profile-passkey-remove" disabled={passkeyBusy} onClick={() => void deletePasskey(item.id)}>移除</button></div>}
+                    </div>
+                  ))}
+                </div>
+                {passkeyRegistrationEnabled ? <>
+                  <div className="profile-settings profile-passkey-form">
+                    <label className="profile-field">
+                      <span>当前密码</span>
+                      <input type="password" className="form-input" id="passkeyPasswordInput" autoComplete="current-password" value={passkeyPassword} disabled={passkeyBusy} onChange={e => setPasskeyPassword(e.target.value)} />
+                    </label>
+                    <label className="profile-field">
+                      <span>设备名称</span>
+                      <input type="text" className="form-input" id="passkeyNameInput" maxLength={80} placeholder="例如：我的 MacBook" value={passkeyName} disabled={passkeyBusy} onChange={e => setPasskeyName(e.target.value)} />
+                    </label>
+                  </div>
+                  <div className="profile-edit-panel__actions"><button className="btn btn--primary" disabled={passkeyBusy || !passkeyPassword.trim()} onClick={() => void registerPasskey()}>{passkeyBusy ? '处理中…' : '注册 Passkey'}</button></div>
+                </> : <p className="profile-section-note">管理员暂时关闭了新的 Passkey 注册；已有凭据仍按站点策略处理。</p>}
               </div>
             </section>
 

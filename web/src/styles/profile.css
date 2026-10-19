@@ -371,6 +371,55 @@
 .profile-session-actions .btn {
   color: var(--color-danger);
 }
+.profile-section-note {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+.profile-passkey-list {
+  display: grid;
+  margin-bottom: 24px;
+}
+.profile-passkey-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+.profile-passkey-item:first-child {
+  border-top: 0;
+}
+.profile-passkey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.profile-passkey-name-input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+  font-size: 0.8125rem;
+}
+.profile-page .btn--ghost {
+  padding-inline: 8px;
+  background: transparent;
+  color: var(--text-muted);
+}
+.profile-page .btn--ghost:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.profile-passkey-remove:hover {
+  color: var(--color-danger) !important;
+}
+.profile-passkey-form {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
 .account-page-heading .profile-message {
   margin: 12px 0 0;
   font-size: 0.8125rem;

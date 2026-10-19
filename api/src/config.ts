@@ -24,6 +24,10 @@ export interface AppConfig {
   httpProxy: string
   httpsProxy: string
   noProxy: string
+  /** WebAuthn relying-party ID; deliberately not editable from the admin UI. */
+  passkeyRpId: string
+  /** Exact browser origins accepted by WebAuthn verification. */
+  passkeyOrigins: string[]
   aiText: AiProviderConfig
   aiImage: AiProviderConfig
 }
@@ -49,6 +53,13 @@ export function loadConfig(): AppConfig {
     .split(',')
     .map((s) => s.trim().replace(/\/+$/, ''))
     .filter(Boolean)
+  const production = process.env.NODE_ENV?.trim().toLowerCase() === 'production'
+  const passkeyRpId = process.env.PASSKEY_RP_ID?.trim() || (production ? '' : 'localhost')
+  const passkeyOrigins = (process.env.PASSKEY_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+  if (!passkeyOrigins.length && !production) passkeyOrigins.push('http://localhost:5173')
 
   return {
     port: Number.parseInt(process.env.PORT || '8787', 10),
@@ -62,6 +73,8 @@ export function loadConfig(): AppConfig {
     httpProxy: process.env.HTTP_PROXY?.trim() || process.env.http_proxy?.trim() || '',
     httpsProxy: process.env.HTTPS_PROXY?.trim() || process.env.https_proxy?.trim() || '',
     noProxy: process.env.NO_PROXY?.trim() || process.env.no_proxy?.trim() || '',
+    passkeyRpId,
+    passkeyOrigins,
     aiText: {
       baseUrl: process.env.AI_TEXT_BASE_URL?.trim() || '',
       apiKey: process.env.AI_TEXT_API_KEY?.trim() || '',

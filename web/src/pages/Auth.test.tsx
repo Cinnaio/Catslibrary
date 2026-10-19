@@ -7,6 +7,7 @@ import Auth from './Auth'
 const mocks = vi.hoisted(() => ({
   bootstrapStatus: vi.fn(),
   registerStatus: vi.fn(),
+  passkeyConfig: vi.fn(),
   register: vi.fn(),
   login: vi.fn(),
   refresh: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('../lib/api', () => ({
   authApi: {
     bootstrapStatus: mocks.bootstrapStatus,
     registerStatus: mocks.registerStatus,
+    passkeyConfig: mocks.passkeyConfig,
     register: mocks.register,
   },
   getToken: () => '',
@@ -34,6 +36,7 @@ describe('Auth', () => {
     vi.clearAllMocks()
     mocks.bootstrapStatus.mockResolvedValue({ needsBootstrap: false })
     mocks.registerStatus.mockResolvedValue({ mode: 'open' })
+    mocks.passkeyConfig.mockResolvedValue({ enabled: false, registrationEnabled: true, configured: true, rpName: '知舟' })
     mocks.register.mockResolvedValue({})
     mocks.refresh.mockResolvedValue(undefined)
     mocks.login.mockReset().mockResolvedValue(undefined)

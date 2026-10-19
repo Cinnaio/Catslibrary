@@ -155,6 +155,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         children: [
           { id: 'site-settings-branding', label: '站点信息', to: `${adminTabPath('site-settings')}?view=branding` },
           { id: 'site-settings-security', label: '安全验证', to: `${adminTabPath('site-settings')}?view=security` },
+          { id: 'site-settings-passkey', label: 'Passkey', to: `${adminTabPath('site-settings')}?view=passkey` },
         ],
       },
     ],

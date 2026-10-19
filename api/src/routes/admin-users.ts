@@ -38,7 +38,7 @@ adminUsersRoutes.get('/login-audit', async (c) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
   const rows = await all<Record<string, unknown>>(
     db,
-    `SELECT a.id, a.user_id, a.username, a.status, a.reason, a.ip_address, a.user_agent, a.created_at,
+    `SELECT a.id, a.user_id, a.username, a.status, a.reason, a.ip_address, a.user_agent, a.created_at, a.auth_method,
             u.display_name, u.id AS current_user_id, u.updated_at AS user_updated_at
      FROM login_audit a
      LEFT JOIN users u ON u.id = a.user_id
@@ -60,6 +60,7 @@ adminUsersRoutes.get('/login-audit', async (c) => {
       reason: String(row.reason || ''),
       ipAddress: String(row.ip_address || ''),
       userAgent: String(row.user_agent || ''),
+      authMethod: String(row.auth_method || 'password'),
       createdAt: Number(row.created_at) || 0,
     })),
     total: Number(total?.total) || 0,
