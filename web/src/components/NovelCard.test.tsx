@@ -3,7 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { Novel } from '@shared/types'
 import { addToBookshelf, saveHistory } from '../lib/storage'
-import NovelCard, { coverUrl } from './NovelCard'
+import { coverUrl } from '../lib/cover-url'
+import NovelCard from './NovelCard'
 
 const novel: Novel = {
   id: 'novel_1',

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, CirclePlus, FileUp, GitMerge, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import type { Novel } from '@shared/types'
 import { novelsApi, url, authHeaders } from '../../lib/api'
+import { coverUrl as novelCoverUrl } from '@/lib/cover-url'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
@@ -533,8 +534,8 @@ export default function NovelsTab({
                     {/* 微型立体书影实体 + 书名 */}
                     <div className="novel-book-entity">
                       <div className="novel-book-cover">
-                        {n.coverUrl && !/noimg\.jpg/i.test(n.coverUrl) ? (
-                          <img src={n.coverUrl} alt={n.title} className="novel-book-cover__img" loading="lazy" />
+                        {novelCoverUrl(n) ? (
+                          <img src={novelCoverUrl(n)} alt={n.title} className="novel-book-cover__img" loading="lazy" />
                         ) : (
                           <div className="novel-book-cover__placeholder">
                             <span>{n.title.charAt(0)}</span>

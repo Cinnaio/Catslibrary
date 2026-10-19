@@ -43,6 +43,19 @@ it('勾选作品后可以打开批量追更设置，范围是已选作品', asyn
   expect(screen.getByText('将设置应用到选中的 1 本作品。')).toBeInTheDocument()
 })
 
+it('小说列表使用当前封面端点，而不是原始入库封面 URL', async () => {
+  mocks.list.mockResolvedValueOnce({
+    novels: [{ id: 'n', title: '测试书', author: '原作者', coverUrl: 'https://source.example/original-cover.jpg', updatedAt: 42, contentRating: 'general', categories: [] }],
+    total: 1,
+    totalPages: 1,
+  })
+  render(<MemoryRouter><NovelsTab /></MemoryRouter>)
+
+  const image = await screen.findByAltText('测试书')
+  expect(image.getAttribute('src')).toBe('/cover/n?v=42&cover=4')
+  expect(image.getAttribute('src')).not.toBe('https://source.example/original-cover.jpg')
+})
+
 it('更多操作中的融合章节名直接打开当前作品弹窗，取消后仍保留小说列表', async () => {
   render(<MemoryRouter><NovelsTab /></MemoryRouter>)
   fireEvent.keyDown(await screen.findByRole('button', { name: '测试书：更多操作' }), { key: 'ArrowDown' })

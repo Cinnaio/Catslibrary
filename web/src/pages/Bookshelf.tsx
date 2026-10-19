@@ -25,7 +25,7 @@ import { useToast } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { timeAgo } from '../lib/format'
 import NovelCoverStatus from '../components/NovelCoverStatus'
-import { coverUrl } from '../components/NovelCard'
+import { coverUrl } from '../lib/cover-url'
 
 interface Favorite {
   novelId: string

@@ -4,6 +4,7 @@ import { CirclePlus, LockKeyhole, RefreshCw, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { FOLLOWUP_LABELS, SOURCE_LABELS, type FollowupCategory, type SourceAnalyticsBook, type SourceAnalyticsResponse } from '@shared/source-analytics'
 import { adminApi, url, authHeaders } from '@/lib/api'
+import { coverUrl as novelCoverUrl } from '@/lib/cover-url'
 import { formatDateTime } from '@/lib/format'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import AdminPage from '@/components/admin/AdminPage'
@@ -538,8 +539,8 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                             <TableCell data-primary="" data-label="作品" className="font-medium novel-title-cell">
                               <div className="novel-book-entity">
                                 <div className="novel-book-cover">
-                                  {book.coverUrl && !/noimg\.jpg/i.test(book.coverUrl) ? (
-                                    <img src={book.coverUrl} alt={book.title} className="novel-book-cover__img" loading="lazy" />
+                                  {novelCoverUrl(book) ? (
+                                    <img src={novelCoverUrl(book)} alt={book.title} className="novel-book-cover__img" loading="lazy" />
                                   ) : (
                                     <div className="novel-book-cover__placeholder">
                                       <span>{book.title.charAt(0)}</span>
