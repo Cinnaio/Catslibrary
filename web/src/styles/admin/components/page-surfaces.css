@@ -1,6 +1,8 @@
 /* 其余后台 tab 沿用章节页的“先说明，再操作”节奏。 */
 .admin-redesign-page:not(.admin-redesign-page--chapters) {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: var(--admin-page-section-gap);
 }
 

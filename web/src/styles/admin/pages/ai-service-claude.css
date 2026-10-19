@@ -433,6 +433,20 @@
   .ai-service .ai-params-panel {
     grid-template-columns: minmax(0, 1fr);
   }
+  .ai-service .ai-generations-filter-rail {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+  .ai-service .ai-generations-filter-rail > .admin-search,
+  .ai-service .ai-generations-filter-rail > .admin-filter-chips {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+  .ai-service .ai-generations-filter-rail > .admin-filter-chips {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
   .ai-service .ai-params-nav {
     position: static;
     display: flex;
