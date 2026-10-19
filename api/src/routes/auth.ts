@@ -35,6 +35,7 @@ import {
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { recordLoginAudit } from '../services/login-audit'
 import { clearAdultAccessCookie, contentPolicyHeaders, setAccountContentMode } from '../services/content-access'
+import { markSessionReauthenticated } from '../services/reauthentication'
 
 const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, created_at, updated_at, last_login_at'
 const LOGIN_USER_COLUMNS = PUBLIC_USER_COLUMNS + ', password_hash, password_salt, password_iterations'
@@ -189,10 +190,7 @@ authRoutes.post('/reauthenticate', requireAdmin(), async (c) => {
     return c.json({ error: '密码不正确' }, 401)
   }
   await clearLoginFailures(getDb(), key)
-  await getDb().query('UPDATE user_sessions SET reauthenticated_at=$2 WHERE token_hash=$1', [
-    await hashToken(requestSession(c), loadConfig().sessionHashSalt),
-    Date.now(),
-  ])
+  await markSessionReauthenticated(getDb(), await hashToken(requestSession(c), loadConfig().sessionHashSalt))
   return c.json({ success: true, expiresIn: REAUTH_TTL / 1000 })
 })
 

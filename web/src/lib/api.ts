@@ -329,7 +329,12 @@ export const illustrationsApi = {
 
 // ---------- Novels ----------
 
-export interface NovelAccessUser { id: string; username: string; displayName: string; status: string }
+export interface NovelAccessUser {
+  id: string
+  username: string
+  displayName: string
+  status: string
+}
 export interface NovelVisibilitySettings {
   visibility: import('@shared/types').NovelVisibility
   revision: number
@@ -403,23 +408,33 @@ async function parseUploadResponse<T>(response: Response): Promise<T> {
 }
 
 export const supplementarySourceApi = {
-  overview: (): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('GET','/supplementary-sources',null,true),
-  save: (data: {id?:string;name:string;url:string;password?:string;enabled:boolean;intervalHours:number}): Promise<{id:string}> => request('POST','/supplementary-sources',data,true),
-  check: (id:string): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('POST',`/supplementary-sources/${encodeURIComponent(id)}/check`,{},true,{},150000),
-  files: async (id:string,q='',offset=0): Promise<import('@shared/supplementary-source').SupplementaryCatalog> => {
-    const data=await request<import('@shared/supplementary-source').SupplementaryCatalog>('GET',`/supplementary-sources/${encodeURIComponent(id)}/files?grouped=1&q=${encodeURIComponent(q)}&offset=${offset}`,null,true)
-    if(data.grouped!==true)throw new Error('附加源接口需要更新，请更新并重启 API 后重试')
+  overview: (): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('GET', '/supplementary-sources', null, true),
+  save: (data: { id?: string; name: string; url: string; password?: string; enabled: boolean; intervalHours: number }): Promise<{ id: string }> =>
+    request('POST', '/supplementary-sources', data, true),
+  check: (id: string): Promise<import('@shared/supplementary-source').SupplementaryOverview> =>
+    request('POST', `/supplementary-sources/${encodeURIComponent(id)}/check`, {}, true, {}, 150000),
+  files: async (id: string, q = '', offset = 0): Promise<import('@shared/supplementary-source').SupplementaryCatalog> => {
+    const data = await request<import('@shared/supplementary-source').SupplementaryCatalog>(
+      'GET',
+      `/supplementary-sources/${encodeURIComponent(id)}/files?grouped=1&q=${encodeURIComponent(q)}&offset=${offset}`,
+      null,
+      true,
+    )
+    if (data.grouped !== true) throw new Error('附加源接口需要更新，请更新并重启 API 后重试')
     return data
   },
-  bind: (sourceId:string,novelId:string,fileKey:string): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('POST','/supplementary-sources/bindings',{sourceId,novelId,fileKey},true),
-  unbind: (id:string): Promise<import('@shared/supplementary-source').SupplementaryOverview> => request('DELETE',`/supplementary-sources/bindings/${encodeURIComponent(id)}`,null,true),
-  preview: (bindingId:string,fileKey:string): Promise<BookImportPreview> => request('POST','/book-import/preview',{supplementaryBindingId:bindingId,fileKey},true,{},120000),
-  upload: (bindingId:string,fileKey:string,file:File): Promise<BookImportPreview> => {
-    const form=new FormData()
-    form.append('file',file)
-    form.append('supplementaryBindingId',bindingId)
-    form.append('fileKey',fileKey)
-    return authFetch('/book-import/preview',{method:'POST',body:form}).then(response=>parseUploadResponse<BookImportPreview>(response))
+  bind: (sourceId: string, novelId: string, fileKey: string): Promise<import('@shared/supplementary-source').SupplementaryOverview> =>
+    request('POST', '/supplementary-sources/bindings', { sourceId, novelId, fileKey }, true),
+  unbind: (id: string): Promise<import('@shared/supplementary-source').SupplementaryOverview> =>
+    request('DELETE', `/supplementary-sources/bindings/${encodeURIComponent(id)}`, null, true),
+  preview: (bindingId: string, fileKey: string): Promise<BookImportPreview> =>
+    request('POST', '/book-import/preview', { supplementaryBindingId: bindingId, fileKey }, true, {}, 120000),
+  upload: (bindingId: string, fileKey: string, file: File): Promise<BookImportPreview> => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('supplementaryBindingId', bindingId)
+    form.append('fileKey', fileKey)
+    return authFetch('/book-import/preview', { method: 'POST', body: form }).then((response) => parseUploadResponse<BookImportPreview>(response))
   },
 }
 
@@ -436,9 +451,24 @@ export const bookImportApi = {
   selectTarget(runId: string, targetNovelId: string | null, revision: number): Promise<BookImportPreview> {
     return request('POST', `/book-import/${encodeURIComponent(runId)}/target`, { targetNovelId, revision }, true)
   },
-  resolveChapter(runId: string, data: { chapterId: string; action: 'match' | 'insert' | 'clear'; localChapterId?: string; afterChapterId?: string | null; afterIncomingChapterId?: string; revision: number }): Promise<BookImportPreview> {
+  resolveChapter(
+    runId: string,
+    data: {
+      chapterId: string
+      action: 'match' | 'insert' | 'clear'
+      localChapterId?: string
+      afterChapterId?: string | null
+      afterIncomingChapterId?: string
+      revision: number
+    },
+  ): Promise<BookImportPreview> {
     // 本轮锚点不发送书首 null，旧 API 会拒绝该请求，避免误当成插到书首。
-    return request('POST', `/book-import/${encodeURIComponent(runId)}/resolve-chapter`, data.afterIncomingChapterId !== undefined ? { ...data, afterChapterId: undefined } : data, true)
+    return request(
+      'POST',
+      `/book-import/${encodeURIComponent(runId)}/resolve-chapter`,
+      data.afterIncomingChapterId !== undefined ? { ...data, afterChapterId: undefined } : data,
+      true,
+    )
   },
   commit(
     runId: string,
@@ -467,10 +497,17 @@ export const bookImportApi = {
   applyAiReview(runId: string, revision: number, lines: number[]): Promise<BookImportPreview> {
     return request('POST', `/book-import/${encodeURIComponent(runId)}/ai-review/apply`, { revision, lines }, true, {}, 120000)
   },
-  editBoundaries(runId: string, data: { revision: number; changes?: Pick<BookImportBoundaryOverride, 'line' | 'verdict'>[]; removeLines?: number[]; reset?: boolean }): Promise<BookImportPreview> {
+  editBoundaries(
+    runId: string,
+    data: { revision: number; changes?: Pick<BookImportBoundaryOverride, 'line' | 'verdict'>[]; removeLines?: number[]; reset?: boolean },
+  ): Promise<BookImportPreview> {
     return request('POST', `/book-import/${encodeURIComponent(runId)}/boundaries`, data, true)
   },
-  previewBoundaries(runId: string, revision: number, changes: Pick<BookImportBoundaryOverride, 'line' | 'verdict'>[]): Promise<{ chapterCount: number; impacts: BookImportBoundaryImpact[]; revision: number }> {
+  previewBoundaries(
+    runId: string,
+    revision: number,
+    changes: Pick<BookImportBoundaryOverride, 'line' | 'verdict'>[],
+  ): Promise<{ chapterCount: number; impacts: BookImportBoundaryImpact[]; revision: number }> {
     return request('POST', `/book-import/${encodeURIComponent(runId)}/boundaries`, { revision, changes, dryRun: true }, true)
   },
   lines(runId: string, line: number): Promise<{ revision: number; lines: Array<{ line: number; raw: string }> }> {
@@ -504,11 +541,23 @@ export interface SourceSyncChange {
 }
 
 export type SourceSyncMatchReason = 'exact-title' | 'chapter-number' | 'title-overlap' | 'sequence' | 'manual'
-export interface SourceSyncManualMapping { localChapterId: string; sourceChapterKey: string | null }
-export interface SourceSyncRollbackResult { runId: string; restored: number; conflicts: Array<{ id: string; title: string; reason: string }> }
-export type SourceSyncAppliedChange = { kind: 'chapter'; id: string; before: { title: string; order: number }; after: { title: string; order: number } } | { kind: 'metadata'; before: Record<string, unknown>; after: Record<string, unknown> }
+export interface SourceSyncManualMapping {
+  localChapterId: string
+  sourceChapterKey: string | null
+}
+export interface SourceSyncRollbackResult {
+  runId: string
+  restored: number
+  conflicts: Array<{ id: string; title: string; reason: string }>
+}
+export type SourceSyncAppliedChange =
+  | { kind: 'chapter'; id: string; before: { title: string; order: number }; after: { title: string; order: number } }
+  | { kind: 'metadata'; before: Record<string, unknown>; after: Record<string, unknown> }
 export interface SourceSyncHistoryItem {
-  runId: string; status: string; appliedAt: number; canRollback: boolean
+  runId: string
+  status: string
+  appliedAt: number
+  canRollback: boolean
   summary: { novelTitle?: string; titleUpdated?: number; orderUpdated?: number; metadataUpdated?: number; sourceUrl?: string }
   rollback: SourceSyncRollbackResult | null
 }
@@ -949,16 +998,21 @@ export const authApi = {
         false,
         authHeaders(),
       )
-        .then(async options => ({ options, response: await startAuthentication({ optionsJSON: options }) }))
+        .then(async (options) => ({ options, response: await startAuthentication({ optionsJSON: options }) }))
         .then(({ options, response }) =>
           request<{ user: User }>('POST', '/auth/passkeys/login/verify', { challenge: options.challenge, response, remember: persist }, false, authHeaders()),
         )
-        .then(r => {
+        .then((r) => {
           setToken('', persist)
           setStorageUser(r.user.id)
           return r
         }),
     )
+  },
+  async reauthenticateWithPasskey(): Promise<{ success: boolean; expiresIn: number }> {
+    const options = await request<import('@simplewebauthn/browser').PublicKeyCredentialRequestOptionsJSON>('POST', '/auth/passkeys/reauth/options', {}, true)
+    const response = await startAuthentication({ optionsJSON: options })
+    return request<{ success: boolean; expiresIn: number }>('POST', '/auth/passkeys/reauth/verify', { challenge: options.challenge, response }, true)
   },
   async registerPasskey(currentPassword: string, name = ''): Promise<{ passkey: PasskeyItem | null }> {
     const options = await request<import('@simplewebauthn/browser').PublicKeyCredentialCreationOptionsJSON>(
