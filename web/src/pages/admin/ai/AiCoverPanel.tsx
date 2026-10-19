@@ -3,6 +3,7 @@ import { ErrorState } from '@/components/admin/AsyncStates'
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import { AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminFormField from '@/components/admin/AdminFormField'
+import { coverUrl as novelCoverUrl } from '@/lib/cover-url'
 import { useEffect, useRef, useState } from 'react'
 import { aiApi, newOperationId, novelsApi, url, type AiCoverCandidate, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
@@ -635,8 +636,8 @@ export default function AiCoverPanel({
                         disabled={busy || generatingPrompt || taskActive || !!candidateBusy}
                       >
                         <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-[var(--admin-inset)]">
-                          {novel.coverUrl ? (
-                            <img src={novel.coverUrl} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" />
+                          {novelCoverUrl(novel) ? (
+                            <img src={novelCoverUrl(novel)} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" />
                           ) : (
                             <BookOpen className="absolute inset-0 m-auto size-4 text-[var(--accent)]/50" aria-hidden="true" />
                           )}
