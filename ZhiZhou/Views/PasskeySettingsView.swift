@@ -76,7 +76,7 @@ struct PasskeySettingsView: View {
     }
 
     private var registeredPasskeysSection: some View {
-        Section("已注册的 Passkey") {
+        Section {
             if passkeys.isEmpty {
                 Label("还没有注册 Passkey", systemImage: "person.badge.key")
                     .foregroundStyle(AppTheme.textSecondary)
@@ -100,6 +100,8 @@ struct PasskeySettingsView: View {
                         .accessibilityIdentifier("passkey.item.\(passkey.id)")
                 }
             }
+        } header: {
+            Text("已注册的 Passkey")
         } footer: {
             Text("Passkey 由设备或密码管理器保护，知舟不会接触你的生物识别信息。")
         }
@@ -108,7 +110,7 @@ struct PasskeySettingsView: View {
     private var registrationSection: some View {
         Group {
             if configuration?.registrationEnabled == true {
-                Section("注册此设备") {
+                Section {
                     SecureField("当前密码", text: $currentPassword)
                         .textContentType(.password)
                     TextField("设备名称（可选）", text: $deviceName)
@@ -121,6 +123,8 @@ struct PasskeySettingsView: View {
                     }
                     .disabled(currentPassword.isEmpty || isBusy)
                     .accessibilityIdentifier("passkey.register")
+                } header: {
+                    Text("注册此设备")
                 } footer: {
                     Text("注册前需要再次输入当前密码，随后由系统弹出 Face ID、Touch ID 或设备密码验证。")
                 }
