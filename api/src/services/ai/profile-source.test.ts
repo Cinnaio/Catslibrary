@@ -25,4 +25,13 @@ describe('profile source extraction version compatibility', () => {
     expect(parseProfileSource({ ...base, extractionPromptVersion: '2' })).toEqual({ ...base, extractionPromptVersion: 2 })
     expect(parseProfileSource({ ...base, extractionPromptVersion: 2.5 })).toEqual(base)
   })
+
+  it('preserves full historical coverage beyond the recent-sample limit', () => {
+    expect(parseProfileSource({ ...base, sampleCount: 135, coverage: 'full', extractionPromptVersion: 3 })).toEqual({
+      ...base,
+      sampleCount: 135,
+      coverage: 'full',
+      extractionPromptVersion: 3,
+    })
+  })
 })

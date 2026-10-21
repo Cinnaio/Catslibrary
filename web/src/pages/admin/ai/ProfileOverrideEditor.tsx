@@ -31,7 +31,7 @@ const EXCLUSION_REASONS: Record<string, string> = {
   automatic_missing: '当前没有可用的自动画像，校正无处挂靠。',
   automatic_stale: '自动画像已落后于最新章节，校正暂不生效。',
   automatic_beyond_anchor: '自动画像取自起点之后的章节，不适用于当前起点。',
-  automatic_legacy_unknown: '自动画像来源不明（旧数据），校正暂不生效。',
+  automatic_legacy_unknown: '自动画像来源不明或尚未覆盖完整历史，请先更新档案；校正暂不生效。',
   automatic_source_changed: '自动画像的取样来源已变化，校正暂不生效。',
 }
 
@@ -141,9 +141,7 @@ export default function ProfileOverrideEditor(props: {
               </span>
             )
           ) : (
-            <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
-              未校正 · 使用自动画像
-            </span>
+            <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">未校正 · 使用自动画像</span>
           )}
         </span>
       </div>
@@ -169,9 +167,7 @@ export default function ProfileOverrideEditor(props: {
             disabled={busy}
           />
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[0.7rem] text-muted-foreground">
-              自动画像更新后，本校正会自动停用（可重新读取后再保存）
-            </span>
+            <span className="text-[0.7rem] text-muted-foreground">自动画像更新后，本校正会自动停用（可重新读取后再保存）</span>
             <span className="flex gap-1.5">
               <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing(false)}>
                 取消
@@ -222,9 +218,7 @@ export default function ProfileOverrideEditor(props: {
       )}
 
       {!canBind && !editing && (
-        <p className="text-[0.72rem] leading-relaxed text-muted-foreground">
-          当前自动画像不可用，人工校正无处挂靠：请先提取或重新提取该画像。
-        </p>
+        <p className="text-[0.72rem] leading-relaxed text-muted-foreground">当前自动画像不可用，人工校正无处挂靠：请先提取或重新提取该画像。</p>
       )}
     </div>
   )

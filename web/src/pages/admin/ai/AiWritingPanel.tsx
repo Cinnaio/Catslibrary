@@ -141,6 +141,7 @@ function ProfileText({ text }: { text: string }) {
 function ProfileSection(props: {
   label: string
   extracted: boolean
+  statusText?: string
   busy: boolean
   disabled: boolean
   actionText: string
@@ -148,6 +149,7 @@ function ProfileSection(props: {
   emptyHint: string
   /** 取样章数输入框的可访问名称；同一页有多个实例，故由调用方给出唯一名称 */
   sampleLabel?: string
+  sampleCaption?: string
   sample?: { value: number; min: number; max: number; onChange: (value: number) => void }
   content?: ReactNode
   footnote?: ReactNode
@@ -168,8 +170,8 @@ function ProfileSection(props: {
         aria-hidden={collapsible || undefined}
         className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground"
       >
-        <span className={`size-1.5 rounded-full ${props.extracted ? 'bg-[var(--color-success)]' : 'bg-muted-foreground/40'}`} />
-        {props.extracted ? '已提取' : '未提取'}
+        <span className={`size-1.5 rounded-full ${props.extracted && !props.statusText ? 'bg-[var(--color-success)]' : 'bg-muted-foreground/40'}`} />
+        {props.statusText || (props.extracted ? '已提取' : '未提取')}
       </span>
     </>
   )
@@ -192,7 +194,7 @@ function ProfileSection(props: {
         <div className="flex basis-full items-center justify-between border-t border-border/70 pt-2.5 sm:ml-auto sm:basis-auto sm:border-t-0 sm:pt-0">
           {sample && (
             <div className="flex shrink-0 items-center gap-2">
-              <span className="whitespace-nowrap text-xs text-muted-foreground">取样</span>
+              <span className="whitespace-nowrap text-xs text-muted-foreground">{props.sampleCaption || '取样'}</span>
               <Input
                 type="number"
                 min={sample.min}
@@ -275,6 +277,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [plotChapterCount, setPlotChapterCount] = useState(0)
   const [plotBusy, setPlotBusy] = useState(false)
   const [plotSample, setPlotSample] = useState(8)
+  const [plotProgress, setPlotProgress] = useState('')
+  const [relationshipProgress, setRelationshipProgress] = useState('')
   /** 选中小说的关系画像（已提取则展示，续写时自动注入 system prompt） */
   const [relationshipProfile, setRelationshipProfile] = useState('')
   const [relationshipEffective, setRelationshipEffective] = useState<AiEffectiveProfile | null>(null)
@@ -320,10 +324,17 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const selectedNovel = novels.find((novel) => novel.id === novelId)
   const selectedNovelTitle = selectedNovel?.title || ''
   const activeProfileLabels = [
-    styleProfile ? '文风画像' : null,
-    mode === 'continue' && relationshipProfile ? '关系画像' : null,
-    mode === 'continue' && plotState ? '情节状态' : null,
+    styleEffective?.effectiveContent ? '文风画像' : null,
+    mode === 'continue' && relationshipEffective?.effectiveContent ? '关系画像' : null,
+    mode === 'continue' && plotEffective?.effectiveContent ? '情节状态' : null,
   ].filter((value): value is string => Boolean(value))
+  const memoryStatus = (effective: AiEffectiveProfile | null) => {
+    if (effective?.eligibility === 'legacy_unknown') return '待初始化'
+    if (effective?.eligibility === 'stale') return '待更新'
+    if (effective?.eligibility === 'source_changed') return '正文已变化'
+    if (effective?.eligibility === 'beyond_anchor') return '晚于当前起点'
+    return undefined
+  }
 
   useEffect(() => {
     void novelsApi
@@ -438,6 +449,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     // setSuggestBusy(false)（序号已对不上），不重置的话按钮会永久停在「推荐中…」。
     // 新书此时并没有在途的候选请求，归零是安全的。
     setSuggestBusy(false)
+    setPlotBusy(false)
+    setRelationshipBusy(false)
+    setPlotProgress('')
+    setRelationshipProgress('')
     if (!novelId) {
       setChapterOptions([])
       setStyleProfile('')
@@ -699,18 +714,27 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     const version = ++plotRequestVersion.current
     setPlotBusy(true)
     try {
-      const res = await aiApi.writing.refreshPlotState(novelId, plotSample)
+      setPlotProgress('正在校验历史来源…')
+      let res = await aiApi.writing.refreshPlotState(novelId, plotSample, afterChapterId || undefined)
+      const target = res.targetChapterId
+      while (res.complete === false) {
+        if (version !== plotRequestVersion.current) return
+        setPlotProgress(`已覆盖 ${res.processedChapters} / ${res.totalChapters} 章`)
+        res = await aiApi.writing.refreshPlotState(novelId, plotSample, target)
+      }
+      if (version !== plotRequestVersion.current) return
       // 与 refreshStyleProfile 同理：正文立即用 POST 回包，再补元数据
       if (version === plotRequestVersion.current) {
         setPlotState(res.state)
         setPlotChaptersThrough(res.chaptersThrough)
       }
       toast('情节状态已更新，后续续写将自动套用', 'success')
+      setPlotBusy(false)
       await syncEffective('plot', novelId)
     } catch (err) {
       toast((err as Error).message, 'error')
     } finally {
-      setPlotBusy(false)
+      if (version === plotRequestVersion.current) setPlotBusy(false)
     }
   }
 
@@ -719,14 +743,23 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     const version = ++relationshipRequestVersion.current
     setRelationshipBusy(true)
     try {
-      const res = await aiApi.writing.refreshRelationshipProfile(novelId, relationshipSample)
+      setRelationshipProgress('正在校验历史来源…')
+      let res = await aiApi.writing.refreshRelationshipProfile(novelId, relationshipSample, afterChapterId || undefined)
+      const target = res.targetChapterId
+      while (res.complete === false) {
+        if (version !== relationshipRequestVersion.current) return
+        setRelationshipProgress(`已覆盖 ${res.processedChapters} / ${res.totalChapters} 章`)
+        res = await aiApi.writing.refreshRelationshipProfile(novelId, relationshipSample, target)
+      }
+      if (version !== relationshipRequestVersion.current) return
       if (version === relationshipRequestVersion.current) setRelationshipProfile(res.profile)
       toast('关系画像已更新，后续续写将自动套用', 'success')
+      setRelationshipBusy(false)
       await syncEffective('relationship', novelId)
     } catch (err) {
       toast((err as Error).message, 'error')
     } finally {
-      setRelationshipBusy(false)
+      if (version === relationshipRequestVersion.current) setRelationshipBusy(false)
     }
   }
 
@@ -810,7 +843,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           <div>
             <h3 id="ai-writing-analysis-title">小说分析</h3>
           </div>
-          <span className="ai-writing-analysis__count" aria-label={`已提取 ${activeProfileLabels.length} 项小说分析`}>
+          <span className="ai-writing-analysis__count" aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}>
             已就绪 {activeProfileLabels.length} / 3
           </span>
         </div>
@@ -843,12 +876,17 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           <ProfileSection
             label="关系画像"
             extracted={!!relationshipProfile}
+            statusText={memoryStatus(relationshipEffective)}
             busy={relationshipBusy}
             disabled={busy || relationshipBusy || taskActive || !novelId}
-            actionText={relationshipBusy ? '提取中…' : relationshipProfile ? '重新提取' : '提取关系画像'}
+            actionText={relationshipBusy ? relationshipProgress || '更新中…' : '更新关系档案'}
             onAction={() => void refreshRelationshipProfile()}
-            emptyHint="提取角色关系、权力结构和互动尺度，避免续写时把人物关系写偏。"
-            sampleLabel="关系画像取样章数"
+            emptyHint="首次覆盖全部正文建立关系档案，之后只处理新增章节；中断后可继续。"
+            footnote={
+              <p className="text-xs leading-5 text-muted-foreground">首次覆盖全部正文，后续增量更新；正文修改后会重新校验来源。中断后再次点击可继续。</p>
+            }
+            sampleCaption="每批最多"
+            sampleLabel="关系画像每批章数"
             sample={{ value: relationshipSample, min: 1, max: 30, onChange: (value) => setRelationshipSample(Math.max(1, Math.min(30, value || 10))) }}
             content={
               relationshipProfile ? (
@@ -870,12 +908,14 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           <ProfileSection
             label="情节状态"
             extracted={!!plotState}
+            statusText={memoryStatus(plotEffective)}
             busy={plotBusy}
             disabled={busy || plotBusy || taskActive || !novelId}
-            actionText={plotBusy ? '提取中…' : plotState ? '重新提取' : '提取情节状态'}
+            actionText={plotBusy ? plotProgress || '更新中…' : '更新情节档案'}
             onAction={() => void refreshPlotState()}
-            emptyHint="提取角色处境、伏笔和待解决冲突；建议每次关键更新后重新提取。"
-            sampleLabel="情节状态取样章数"
+            emptyHint="首次覆盖全部正文建立情节档案，之后保留历史并增量更新；中断后可继续。"
+            sampleCaption="每批最多"
+            sampleLabel="情节状态每批章数"
             sample={{ value: plotSample, min: 1, max: 30, onChange: (value) => setPlotSample(Math.max(1, Math.min(30, value || 8))) }}
             content={
               plotState ? (
@@ -896,9 +936,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             footnote={
               plotState ? (
                 <p className="text-xs leading-5 text-muted-foreground">
-                  基于最近 {plotChaptersThrough} 章提取{plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}；情节状态反映当前进展，取最近章节即可。
+                  {plotEffective?.source?.coverage === 'full'
+                    ? `档案截至第 ${plotChaptersThrough} 章${plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}；覆盖该起点前全部正文，未解决的伏笔随增量更新保留。`
+                    : '当前为旧版取样结果，请更新档案以完成全部历史初始化。'}
                 </p>
-              ) : undefined
+              ) : (
+                <p className="text-xs leading-5 text-muted-foreground">首次覆盖全部正文，后续只处理新增章节。中断后再次点击可继续。</p>
+              )
             }
           />
         </div>
@@ -1356,7 +1400,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     <>
                       将续写《{selectedNovelTitle || '当前小说'}》{afterChapterId ? '指定章节之后' : '最新已发布章节之后'} ·{' '}
                       {isMultiChapter ? `${chapterCount} 章规划` : '单章精写'} · {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
-                      {activeProfileLabels.length > 0 ? ` · 已注入：${activeProfileLabels.join('、')}` : ' · 尚未提取小说分析'}
+                      {activeProfileLabels.length > 0 ? ` · 已注入：${activeProfileLabels.join('、')}` : ' · 尚无可用小说分析'}
                     </>
                   ) : (
                     '先选择小说；续写基线会随所选作品加载。'
