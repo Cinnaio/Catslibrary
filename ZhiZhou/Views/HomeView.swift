@@ -308,6 +308,7 @@ struct HomeView: View {
                             Text("本章进度")
                             if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                             Text("已读 \(Int((progress * 100).rounded()))%")
+                                .contentTransition(.numericText())
                                 .monospacedDigit()
                         }
                         .font(.footnote)
@@ -395,6 +396,7 @@ struct HomeView: View {
             Image(systemName: selectedCategory == nil && selectedStatus.isEmpty && selectedSort == "updated_at"
                 ? "line.3.horizontal.decrease.circle"
                 : "line.3.horizontal.decrease.circle.fill")
+                .contentTransition(.symbolEffect(.replace))
         }
         .accessibilityLabel("筛选与排序")
     }

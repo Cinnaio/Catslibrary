@@ -289,6 +289,7 @@ struct NovelDetailView: View {
                     .controlSize(.small)
                 Text("正在下载 · \(offlineStore.batchCompleted)/\(offlineStore.batchTotal)")
                     .font(.footnote)
+                    .contentTransition(.numericText())
                     .monospacedDigit()
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
@@ -712,6 +713,8 @@ struct NovelDetailView: View {
                     Image(systemName: inBookshelf ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(AppTheme.primary)
+                        .symbolEffect(.bounce, value: inBookshelf)
+                        .contentTransition(.symbolEffect(.replace.downUp))
                 }
             }
             .frame(width: 52, height: 52)
@@ -755,6 +758,7 @@ struct NovelDetailView: View {
             } label: {
                 Image(systemName: isAllDownloadableSelected ? "checkmark.circle.fill" : "checkmark.circle")
                     .font(.system(size: 22, weight: .medium))
+                    .contentTransition(.symbolEffect(.replace))
                     .frame(width: 52, height: 52)
             }
             .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glass))
@@ -896,12 +900,14 @@ struct NovelDetailView: View {
                         "/api/bookshelf?novelId=\(novel.id)", auth: true
                     )
                     inBookshelf = false
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } else {
                     let body = try APIClient.shared.jsonBody(["novelId": novel.id])
                     let _: OkEnvelope = try await APIClient.shared.post(
                         "/api/bookshelf", body: body, auth: true
                     )
                     inBookshelf = true
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 }
                 interactionFeedback += 1
                 AppFeedback.success(addingToBookshelf ? "已加入书架" : "已移出书架")

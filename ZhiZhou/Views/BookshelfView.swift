@@ -329,6 +329,7 @@ struct BookshelfView: View {
                     .appTextLineLimit(1)
                 Text(Self.percentText(item.scrollPercent))
                     .font(.caption.monospacedDigit())
+                    .contentTransition(.numericText())
                     .foregroundStyle(AppTheme.textSecondary)
                     .accessibilityLabel("阅读进度")
                     .accessibilityValue("百分之 \(Self.percentValue(item.scrollPercent))")

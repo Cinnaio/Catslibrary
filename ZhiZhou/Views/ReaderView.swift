@@ -220,6 +220,7 @@ struct ReaderView: View {
                 readerChromeRevealButton
                     .padding(.trailing, 16)
                     .padding(.bottom, 14)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.8).combined(with: .opacity))
             }
         }
         .background(paper.ignoresSafeArea())
@@ -931,6 +932,8 @@ struct ReaderView: View {
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity)
         .frame(height: readerChromeHeight, alignment: .bottom)
+        .offset(y: (reduceMotion || showChrome) ? 0 : 20)
+        .scaleEffect((reduceMotion || showChrome) ? 1 : 0.96)
         .opacity(showChrome ? 1 : 0)
         .allowsHitTesting(showChrome)
         .accessibilityHidden(!showChrome)
@@ -946,11 +949,14 @@ struct ReaderView: View {
             Text("第 \(chapterOrder)/\(totalOrderCount) 章")
                 .font(.footnote.weight(.semibold))
                 .monospacedDigit()
+                .contentTransition(.numericText())
                 .foregroundStyle(AppTheme.primary.opacity(0.92))
             HStack(spacing: 4) {
                 Text(percentText)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
                 Image(systemName: chapterIsSaved ? "arrow.down.circle.fill" : "icloud.slash")
+                    .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
                 Text(chapterAvailabilityLabel)
             }

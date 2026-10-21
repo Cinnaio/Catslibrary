@@ -143,6 +143,7 @@ struct StorageManagerView: View {
     private func storageRow(_ title: String, bytes: Int64) -> some View {
         LabeledContent(title) {
             Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
+                .contentTransition(.numericText())
                 .foregroundStyle(AppTheme.textSecondary)
         }
     }

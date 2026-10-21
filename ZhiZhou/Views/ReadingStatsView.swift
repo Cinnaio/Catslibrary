@@ -408,6 +408,7 @@ private struct TrendSummaryHeader: View {
     let showSessions: Bool
     let period: ReadingStatPeriod
     let onClearSelection: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -416,6 +417,7 @@ private struct TrendSummaryHeader: View {
                     Text(showSessions ? "\(item.sessions) 次" : ReadingStats.duration(item.milliseconds))
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.primary)
+                        .contentTransition(.numericText())
                         .monospacedDigit()
                     Spacer()
                     Button(action: onClearSelection) {
@@ -427,6 +429,7 @@ private struct TrendSummaryHeader: View {
                         .foregroundStyle(AppTheme.textSecondary)
                     }
                     .buttonStyle(.plain)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.85).combined(with: .opacity))
                 }
                 Text(selectedSubtitle(item))
                     .font(.footnote)
@@ -436,6 +439,7 @@ private struct TrendSummaryHeader: View {
                     Text(primaryText)
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(AppTheme.textPrimary)
+                        .contentTransition(.numericText())
                         .monospacedDigit()
                 }
                 Text(subtitleText)
@@ -538,6 +542,11 @@ private struct ReadingTrendChart: View {
             }
         }
         .chartXSelection(value: $selectedDate)
+        .onChange(of: selectedDate) { oldVal, newVal in
+            if newVal != nil && newVal != oldVal {
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
+        }
         .chartXAxis {
             AxisMarks(values: axisValues) { value in
                 AxisTick()
