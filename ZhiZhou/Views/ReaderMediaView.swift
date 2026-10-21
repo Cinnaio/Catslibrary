@@ -38,7 +38,7 @@ struct ReaderMediaView: View {
                                 .scaledToFit()
                                 .frame(width: geometry.size.width, height: height)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(ReaderImageTapButtonStyle())
                         .accessibilityLabel(caption.isEmpty ? "放大查看插图" : "放大查看插图：\(caption)")
                     } else if let errorMessage {
                         VStack(spacing: 8) {
@@ -97,9 +97,13 @@ struct ReaderMediaView: View {
         .fullScreenCover(isPresented: $previewOpen) {
             if let image = currentImage {
                 ReaderImagePreview(image: image, caption: caption, byteCount: loadedDataSize)
-                    .presentationBackground(Color.black)
-                    .preferredColorScheme(.dark)
             }
+        }
+    }
+
+    private struct ReaderImageTapButtonStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
         }
     }
 
@@ -327,26 +331,20 @@ private struct ReaderImagePreview: View {
                     .accessibilityLabel("完成")
                     .accessibilityIdentifier("完成")
                     .accessibilityHint("关闭图片预览")
+                    .opacity(showChrome ? 1 : 0)
                 }
 
                 ToolbarItem(placement: .principal) {
                     Text("1 / 1")
                         .font(.subheadline.weight(.medium).monospacedDigit())
                         .foregroundStyle(Color.white)
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Color.clear
-                        .frame(width: 32, height: 32)
-                        .accessibilityHidden(true)
+                        .opacity(showChrome ? 1 : 0)
                 }
             }
-            .toolbar(showChrome ? .visible : .hidden, for: .navigationBar)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
         .background(Color.black.ignoresSafeArea())
-        .presentationBackground(Color.black)
         .preferredColorScheme(.dark)
     }
 
