@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { createTestDb, type TestDb } from '../../test/db'
 import { chat } from './client'
 import { recordUsage } from './usage'
-import { getMemoryAttempt } from './story-memory'
+import { getMemoryAttempt, getStoryMemoryProgress, pauseStoryMemory } from './story-memory'
 import { extractPlotState, getPlotStateForAnchor } from './plot-state'
 import { extractRelationshipProfile, getRelationshipProfileForAnchor } from './relationship-profile'
 
@@ -52,6 +52,74 @@ describe.each([
   { kind: 'plot', extract: extractPlotState, read: getPlotStateForAnchor, table: 'novel_plot_states' },
   { kind: 'relationship', extract: extractRelationshipProfile, read: getRelationshipProfileForAnchor, table: 'novel_relationship_profiles' },
 ])('$kind full story memory', ({ kind, extract, read, table }) => {
+  it('pauses an in-flight batch without releasing its lease and resumes the persisted target', async () => {
+    await chapter(1)
+    await chapter(2)
+    let entered!: () => void
+    const started = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    let finish!: (value: typeof response) => void
+    vi.mocked(chat).mockImplementationOnce(() => {
+      entered()
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    })
+    const pending = extract(t.db, opts)
+    await started
+    await pauseStoryMemory(t.db, 'book', kind as 'plot' | 'relationship')
+    await expect(extract(t.db, opts)).rejects.toThrow('正在更新')
+    finish(response)
+    await expect(pending).resolves.toMatchObject({ paused: true, complete: false, processedChapters: 1 })
+    expect(recordUsage).toHaveBeenCalledTimes(1)
+    expect((await t.db.query(`SELECT * FROM ${table}`)).rows).toHaveLength(0)
+    const progress = await getStoryMemoryProgress(t.db, 'book', kind as 'plot' | 'relationship')
+    expect(progress).toMatchObject({ paused: true, running: false, processedChapters: 1, totalChapters: 2, targetChapterId: 'c2' })
+    await chapter(3)
+    await expect(extract(t.db, { ...opts, afterChapterId: progress!.targetChapterId })).resolves.toMatchObject({
+      complete: true,
+      paused: false,
+      processedChapters: 2,
+    })
+    expect(input(1)).toContain('正文2。')
+    expect(input(1)).not.toContain('正文1。')
+    expect(input(1)).not.toContain('正文3。')
+  })
+
+  it('stops before retries and long-chapter pieces while preserving only whole-chapter checkpoints', async () => {
+    await chapter(1, '长'.repeat(28_000))
+    vi.mocked(chat).mockImplementationOnce(async () => {
+      await pauseStoryMemory(t.db, 'book', kind as 'plot' | 'relationship')
+      return response
+    })
+    await expect(extract(t.db, opts)).resolves.toMatchObject({ complete: false, paused: true, processedChapters: 0 })
+    expect(chat).toHaveBeenCalledTimes(1)
+    expect(recordUsage).toHaveBeenCalledTimes(1)
+    expect((await t.db.query(`SELECT * FROM ${table}`)).rows).toHaveLength(0)
+    expect(await getStoryMemoryProgress(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ processedChapters: 0, paused: true })
+    vi.mocked(chat).mockImplementationOnce(async () => {
+      await pauseStoryMemory(t.db, 'book', kind as 'plot' | 'relationship')
+      return { ...response, finishReason: 'content_filter', truncated: true }
+    })
+    await expect(extract(t.db, opts)).resolves.toMatchObject({ paused: true, processedChapters: 0 })
+    expect(chat).toHaveBeenCalledTimes(2)
+    await expect(extract(t.db, opts)).resolves.toMatchObject({ complete: true })
+    expect(input(2)).toContain('上一版档案（空表示首次建立）：\n无')
+  })
+
+  it('invalidates a paused checkpoint when the covered chapter is edited', async () => {
+    await chapter(1)
+    await chapter(2)
+    await extract(t.db, opts)
+    await pauseStoryMemory(t.db, 'book', kind as 'plot' | 'relationship')
+    await t.db.query("UPDATE chapters SET content = '修改后的正文' WHERE id = 'c1'")
+    expect(await getStoryMemoryProgress(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ processedChapters: 0, totalChapters: 2 })
+    await extract(t.db, opts)
+    expect(input(1)).toContain('修改后的正文')
+    expect(input(1)).toContain('上一版档案（空表示首次建立）：\n无')
+  })
+
   it.each([
     { text: '', finishReason: 'stop', expected: '返回空内容' },
     { text: '部分档案', finishReason: 'length', expected: '输出被截断' },
@@ -60,7 +128,11 @@ describe.each([
     await chapter(1)
     vi.mocked(chat).mockResolvedValueOnce({ ...response, ...reply })
     await expect(extract(t.db, opts)).rejects.toThrow(expected)
-    expect(await getMemoryAttempt(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ maxTokens: 4000, completionTokens: 8, finishReason: reply.finishReason })
+    expect(await getMemoryAttempt(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({
+      maxTokens: 4000,
+      completionTokens: 8,
+      finishReason: reply.finishReason,
+    })
     expect(recordUsage).toHaveBeenCalledTimes(1)
     expect((await t.db.query(`SELECT * FROM ${table}`)).rows).toHaveLength(0)
   })

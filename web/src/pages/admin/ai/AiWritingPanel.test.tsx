@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   getRelationshipProfile: vi.fn(),
   refreshPlotState: vi.fn(),
   refreshRelationshipProfile: vi.fn(),
+  pauseMemory: vi.fn(),
   plotSuggestions: vi.fn(),
   continueNovel: vi.fn(),
   chapterNovel: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@/lib/api', () => ({
       getRelationshipProfile: api.getRelationshipProfile,
       refreshPlotState: api.refreshPlotState,
       refreshRelationshipProfile: api.refreshRelationshipProfile,
+      pauseMemory: api.pauseMemory,
       plotSuggestions: api.plotSuggestions,
       continue: api.continueNovel,
       chapter: api.chapterNovel,
@@ -104,6 +106,7 @@ describe('AiWritingPanel', () => {
     api.getStyleProfile.mockResolvedValue({ profile: '' })
     api.refreshPlotState.mockReset()
     api.refreshRelationshipProfile.mockReset()
+    api.pauseMemory.mockReset().mockResolvedValue({ ok: true })
     api.plotSuggestions.mockResolvedValue({
       suggestions: [
         { direction: '苏越以斗宗身份现身朝堂，当众治愈加刑天。', effect: '绑定皇室' },
@@ -113,6 +116,73 @@ describe('AiWritingPanel', () => {
     })
     api.continueNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
     api.chapterNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
+  })
+
+  it.each([
+    { kind: 'plot', label: '情节', method: api.refreshPlotState, get: api.getPlotState, initial: { state: '', chaptersThrough: 0, chapterCount: 18 } },
+    { kind: 'relationship', label: '关系', method: api.refreshRelationshipProfile, get: api.getRelationshipProfile, initial: { profile: '' } },
+  ])('$kind 可以暂停当前响应，保留正式档案并从重读的检查点继续', async ({ kind, label, method, get, initial }) => {
+    const pending = deferred<object>()
+    method.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ complete: true, state: '完整', profile: '完整', chaptersThrough: 18 })
+    await selectNovel()
+    switchToContinue()
+    fireEvent.click(await screen.findByRole('button', { name: `更新${label}档案` }))
+    fireEvent.click(await screen.findByRole('button', { name: '暂停更新' }))
+    expect(api.pauseMemory).toHaveBeenCalledWith('novel_1', kind)
+    expect(await screen.findByRole('button', { name: '正在暂停…' })).toBeDisabled()
+    get.mockResolvedValue({ ...initial, progress: { complete: false, paused: true, processedChapters: 8, totalChapters: 18, targetChapterId: 'chapter-18' } })
+    await act(async () =>
+      pending.resolve({
+        complete: false,
+        paused: true,
+        state: '半截档案',
+        profile: '半截档案',
+        processedChapters: 8,
+        totalChapters: 18,
+        targetChapterId: 'chapter-18',
+      }),
+    )
+    expect(method).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('半截档案')).not.toBeInTheDocument()
+    expect(await screen.findByText(/已暂停 · 已保存 8 \/ 18 章/)).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: `继续更新${label}档案` }))
+    await waitFor(() => expect(method).toHaveBeenCalledTimes(2))
+    expect(method.mock.calls[1]?.[2]).toBe('chapter-18')
+  })
+
+  it('重新打开页面显示可恢复进度，并沿用原目标而不是新增章节', async () => {
+    api.getPlotState.mockResolvedValue({ state: '', progress: { complete: false, processedChapters: 3, totalChapters: 12, targetChapterId: 'saved-target' } })
+    api.refreshPlotState.mockResolvedValue({ complete: true, state: '完成', chaptersThrough: 12 })
+    await selectNovel()
+    switchToContinue()
+    expect(await screen.findByText(/可继续 · 已保存 3 \/ 12 章/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '继续更新情节档案' }))
+    await waitFor(() => expect(api.refreshPlotState).toHaveBeenCalledWith('novel_1', 8, 'saved-target'))
+  })
+
+  it('离开页面后不会继续发起下一批付费请求', async () => {
+    const pending = deferred<object>()
+    api.refreshPlotState.mockReturnValueOnce(pending.promise)
+    const view = render(<AiWritingPanel initialNovelId="novel_1" />)
+    await waitFor(() => expect(screen.getByRole('button', { name: '更新情节档案' })).toBeEnabled())
+    fireEvent.click(await screen.findByRole('button', { name: '更新情节档案' }))
+    await waitFor(() => expect(api.refreshPlotState).toHaveBeenCalledTimes(1))
+    view.unmount()
+    await act(async () => pending.resolve({ complete: false, processedChapters: 1, totalChapters: 8, targetChapterId: 'c8' }))
+    expect(api.refreshPlotState).toHaveBeenCalledTimes(1)
+  })
+
+  it('恢复页面中的运行批次可暂停，暂停失败后按钮允许重试', async () => {
+    api.getPlotState.mockResolvedValue({ state: '', progress: { running: true, complete: false, processedChapters: 1, totalChapters: 8, targetChapterId: 'c8' } })
+    api.pauseMemory.mockRejectedValueOnce(new Error('网络断开')).mockResolvedValueOnce({ ok: true })
+    await selectNovel()
+    switchToContinue()
+    expect(await screen.findByRole('button', { name: '继续更新情节档案' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '暂停更新' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '暂停更新' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '暂停更新' }))
+    await waitFor(() => expect(api.pauseMemory).toHaveBeenCalledTimes(2))
+    expect(api.refreshPlotState).not.toHaveBeenCalled()
   })
 
   it('情节档案分批推进，固定初始目标并仅在全部完成后展示正式结果', async () => {

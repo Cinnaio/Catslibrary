@@ -53,6 +53,7 @@ export interface StoryMemoryOptions {
 }
 
 export interface StoryMemoryResult {
+  paused: boolean
   content: string
   model: string
   source?: ProfileSource
@@ -63,6 +64,51 @@ export interface StoryMemoryResult {
   targetChapterId?: string
   usage: { promptTokens: number; completionTokens: number }
 }
+
+export async function pauseStoryMemory(db: Db, novelId: string, kind: 'plot' | 'relationship'): Promise<void> {
+  await run(db, 'UPDATE novel_story_memory_builds SET pause_requested = TRUE WHERE novel_id = $1 AND kind = $2', [novelId, kind])
+}
+
+/** Validated, persisted progress survives page reloads; no partial archive is exposed. */
+export async function getStoryMemoryProgress(db: Db, novelId: string, kind: 'plot' | 'relationship') {
+  const row = await first<{ content: string; source_json: string; target_chapter_id: string; pause_requested: boolean; lease_until: number }>(
+    db,
+    'SELECT content, source_json, target_chapter_id, pause_requested, lease_until FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2',
+    [novelId, kind],
+  )
+  if (!row?.target_chapter_id) return undefined
+  const sample = await loadProfileSample(db, {
+    novelId,
+    afterChapterId: row.target_chapter_id,
+    sampleCount: 1,
+    fullHistory: true,
+    clean: cleanStoryText,
+  }).catch((err) => {
+    if (err instanceof AiError && (err.code === 'invalid' || err.status === 404)) return undefined
+    throw err
+  })
+  if (!sample) return undefined
+  const table = kind === 'plot' ? 'novel_plot_states' : 'novel_relationship_profiles'
+  const column = kind === 'plot' ? 'state' : 'profile'
+  const saved = await first<{ content: string; source_json: string }>(db, `SELECT ${column} AS content, source_json FROM ${table} WHERE novel_id = $1`, [
+    novelId,
+  ])
+  const processedChapters = Math.max(
+    reusablePrefix(sample.rows, row.content, parseProfileSource(row.source_json)),
+    saved ? reusablePrefix(sample.rows, saved.content, parseProfileSource(saved.source_json)) : 0,
+  )
+  const totalChapters = sample.rows.length
+  return {
+    processedChapters,
+    totalChapters,
+    targetChapterId: sample.anchor.id,
+    complete: processedChapters === totalChapters,
+    paused: row.pause_requested,
+    running: Number(row.lease_until) > Date.now(),
+  }
+}
+
+class MemoryPaused extends Error {}
 
 export interface MemoryAttempt {
   status: 'complete' | 'truncated' | 'refused' | 'empty'
@@ -109,7 +155,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
     db,
     `INSERT INTO novel_story_memory_builds (novel_id, kind, lease_token, lease_until)
     VALUES ($1, $2, $3, $4) ON CONFLICT (novel_id, kind) DO UPDATE
-    SET lease_token = EXCLUDED.lease_token, lease_until = EXCLUDED.lease_until
+    SET lease_token = EXCLUDED.lease_token, lease_until = EXCLUDED.lease_until, pause_requested = FALSE
     WHERE novel_story_memory_builds.lease_until < $5 RETURNING novel_id`,
     [opts.novelId, kind, token, Date.now() + LEASE_MS, Date.now()],
   )
@@ -119,6 +165,21 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
   try {
     const sample = await loadProfileSample(db, { ...opts, sampleCount: 1, fullHistory: true, clean: cleanStoryText })
     const rows = sample?.rows || []
+    await run(db, 'UPDATE novel_story_memory_builds SET target_chapter_id = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [
+      sample?.anchor.id || '',
+      opts.novelId,
+      kind,
+      token,
+    ])
+    const pauseRequested = async () => {
+      const state = await first<{ pause_requested: boolean }>(
+        db,
+        'SELECT pause_requested FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2 AND lease_token = $3',
+        [opts.novelId, kind, token],
+      )
+      if (!state) throw new AiError('conflict', '档案更新锁已失效，请重新继续', 409)
+      return state.pause_requested
+    }
     const total = rows.length
     const saved = await first<{ content: string; source_json: string; model: string }>(
       db,
@@ -143,6 +204,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
       }
     }
     const usage = { promptTokens: 0, completionTokens: 0 }
+    let paused = false
     const settings = await getAiSettings(db)
     const requested = Math.trunc(Number(opts.sampleChapters))
     const batchChapters = Number.isFinite(requested) && requested > 0 ? Math.min(30, requested) : kind === 'plot' ? 8 : 10
@@ -150,6 +212,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
       // Send one chunk at a time so a filtered chunk can be split and retried
       // without throwing away the chapters that already succeeded.
       const callOnce = async (chunk: ProfileSampleRow[], part: number, pieces: number, chunkText: string): Promise<void> => {
+        if (await pauseRequested()) throw new MemoryPaused()
         const refreshed = await run(db, 'UPDATE novel_story_memory_builds SET lease_until = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [
           Date.now() + LEASE_MS,
           opts.novelId,
@@ -232,11 +295,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
               422,
             )
           // Content-policy cancellation with a usable body: caller may split.
-          throw new AiError(
-            'truncated',
-            `${label}本批被上游内容策略截断（已生成 ${res.text.length} 字符后被截停），已保留检查点。`,
-            422,
-          )
+          throw new AiError('truncated', `${label}本批被上游内容策略截断（已生成 ${res.text.length} 字符后被截停），已保留检查点。`, 422)
         }
         if (status === 'refused') {
           const label = kind === 'plot' ? '情节档案' : '关系档案'
@@ -268,6 +327,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
             }
             return
           } catch (err) {
+            if (await pauseRequested()) throw new MemoryPaused()
             const retriable = err instanceof AiError && err.code === 'truncated' && attempt < TRUNCATION_RETRIES
             if (!retriable) throw err
             await sleep(RETRY_BASE_DELAY_MS * (attempt + 1))
@@ -288,15 +348,27 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
         text += `${chapter}\n\n`
         if (text.length >= SAFE_BATCH_CHARS) break
       }
-      await sendChunk(batch)
-      processed += batch.length
-      const source = { ...profileSourceForRows(rows.slice(0, processed), cleanStoryText, true), extractionPromptVersion: STORY_MEMORY_PROMPT_VERSION }
-      await run(
-        db,
-        `UPDATE novel_story_memory_builds SET content = $1, source_json = $2, model = $3, updated_at = $4
+      const previousContent = content
+      const previousModel = model
+      try {
+        await sendChunk(batch)
+        processed += batch.length
+      } catch (err) {
+        if (!(err instanceof MemoryPaused)) throw err
+        content = previousContent
+        model = previousModel
+        paused = true
+      }
+      const source = processed
+        ? { ...profileSourceForRows(rows.slice(0, processed), cleanStoryText, true), extractionPromptVersion: STORY_MEMORY_PROMPT_VERSION }
+        : undefined
+      if (!paused)
+        await run(
+          db,
+          `UPDATE novel_story_memory_builds SET content = $1, source_json = $2, model = $3, updated_at = $4
         WHERE novel_id = $5 AND kind = $6 AND lease_token = $7`,
-        [content, JSON.stringify(source), model, Date.now(), opts.novelId, kind, token],
-      )
+          [content, JSON.stringify(source), model, Date.now(), opts.novelId, kind, token],
+        )
     }
     // Re-read the same target: editing/deleting/reordering while the model runs
     // invalidates the build rather than publishing a mixed revision.
@@ -325,7 +397,19 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
         )
       })
     }
-    return { content, model, source, updatedAt, complete, processedChapters: processed, totalChapters: total, targetChapterId: sample?.anchor.id, usage }
+    paused = !complete && (paused || (await pauseRequested()))
+    return {
+      content,
+      model,
+      source,
+      updatedAt,
+      complete,
+      paused,
+      processedChapters: processed,
+      totalChapters: total,
+      targetChapterId: sample?.anchor.id,
+      usage,
+    }
   } finally {
     await run(db, 'UPDATE novel_story_memory_builds SET lease_until = 0, lease_token = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [
       '',

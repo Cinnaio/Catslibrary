@@ -55,7 +55,7 @@ import { reviewWritingDraft, reviewSourcesCurrent, type WritingReview } from '..
 import { retrieveWritingHistory, writingMaterialRevision } from '../services/ai/writing-history'
 import { compileWritingPrompt } from '../services/ai/writing-prompt'
 import type { WritingBriefV1 } from '../services/ai/writing'
-import { getMemoryAttempt } from '../services/ai/story-memory'
+import { getMemoryAttempt, getStoryMemoryProgress, pauseStoryMemory } from '../services/ai/story-memory'
 import { extractPlotState } from '../services/ai/plot-state'
 import { extractRelationshipProfile } from '../services/ai/relationship-profile'
 import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, saveProfileOverride } from '../services/ai/profile-overrides'
@@ -1324,6 +1324,16 @@ aiRoutes.post('/writing/materials', requireAdmin(), async (c) => {
 
 // ---------- 情节状态：从小说已发布章节提取结构化角色处境/伏笔/冲突，续写时拼进 user 消息 ----------
 
+aiRoutes.post('/writing/memory/:kind/:novelId/pause', requireAdmin(), async (c) => {
+  const kind = c.req.param('kind')
+  if (kind !== 'plot' && kind !== 'relationship') return c.json({ error: '档案类型无效' }, 422)
+  const db = getDb()
+  const novelId = c.req.param('novelId')
+  if (!(await first(db, 'SELECT id FROM novels WHERE id = $1', [novelId]))) return c.json({ error: '小说不存在' }, 404)
+  await pauseStoryMemory(db, novelId, kind)
+  return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+})
+
 /**
  * 提取/刷新某部小说的情节状态。全历史分批建立或增量更新；sampleChapters 控制批次大小，complete=false 时继续。
  * 多章续写时防止人设漂移、伏笔遗忘。无章节时写空状态，不报错。
@@ -1366,6 +1376,7 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
     return c.json({
       state: plotState.profile,
       lastAttempt: await getMemoryAttempt(db, novelId, 'plot'),
+      progress: await getStoryMemoryProgress(db, novelId, 'plot'),
       chaptersThrough: Number(plotState.source?.chapterOrdinal) || 0,
       chapterCount: Number(novel?.chapter_count) || 0,
       source: plotState.source,
@@ -1421,6 +1432,7 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
     return c.json({
       profile: result.profile,
       lastAttempt: await getMemoryAttempt(db, novelId, 'relationship'),
+      progress: await getStoryMemoryProgress(db, novelId, 'relationship'),
       source: result.source,
       updatedAt: result.updatedAt,
       eligibility: result.eligibility,
