@@ -12,6 +12,7 @@ import { getStyleProfile } from './style-profile'
 import { getPlotState } from './plot-state'
 import { getRelationshipProfile } from './relationship-profile'
 import { compileWritingPrompt, WRITING_PROMPT_PIPELINE_VERSION } from './writing-prompt'
+import type { OperatorPromptHit } from './writing-prompt-patches'
 import { DEFAULT_WRITING_CONTENT_PREFERENCES, formatWritingContentPreferences, validateWritingContentPreferences, type WritingContentPreferencesV1 } from './writing-preferences'
 
 const MAX_CONTEXT_CHARS = 12000
@@ -647,6 +648,8 @@ export async function generateWriting(db: Db, opts: {
   const usePipeline = promptPipelineVersion === WRITING_PROMPT_PIPELINE_VERSION
   let system = ''
   let user = ''
+  /** 运营提示词被编译期改写删掉的条款；只有露骨档 + 虚构题材分级可能非空。 */
+  let operatorPromptRemoved: OperatorPromptHit[] = []
   if (usePipeline) {
     const compiled = compileWritingPrompt({
       kind: opts.kind,
@@ -670,6 +673,7 @@ export async function generateWriting(db: Db, opts: {
     })
     system = compiled.system
     user = compiled.user
+    operatorPromptRemoved = compiled.operatorPromptRemoved || []
   } else {
     const baseSystem = opts.kind === 'write_outline'
       ? '你是中文网络小说策划编辑。请输出可执行的章节大纲，包含主线冲突、人物目标、关键转折和章节安排。只输出内容，不要解释。'
@@ -724,7 +728,23 @@ export async function generateWriting(db: Db, opts: {
       chapterId: '',
       kind: opts.kind,
       model: res.model,
-      paramsJson: JSON.stringify({ version: 6, ...(opts.kind === 'continue' ? { plotDirection: (opts.plotDirection ?? opts.instruction).trim() } : {}), ...(usePipeline ? { promptPipelineVersion: WRITING_PROMPT_PIPELINE_VERSION } : {}), temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, contentPreferences, ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}), ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}) }),
+      paramsJson: JSON.stringify({
+        version: 6,
+        ...(opts.kind === 'continue' ? { plotDirection: (opts.plotDirection ?? opts.instruction).trim() } : {}),
+        ...(usePipeline ? { promptPipelineVersion: WRITING_PROMPT_PIPELINE_VERSION } : {}),
+        temperature,
+        maxTokens,
+        targetWords: opts.targetWords || 0,
+        chapterCount: opts.chapterCount || 1,
+        contentPreferences,
+        // 编译期改写过的运营提示词条款必须留痕：管理员改了后台提示词却不知道
+        // 它被削过，是这类改写最危险的失败模式。
+        ...(operatorPromptRemoved.length ? { systemPromptPatch: operatorPromptRemoved } : {}),
+        ...(opts.taskId ? { taskId: opts.taskId } : {}),
+        ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}),
+        ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}),
+        ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}),
+      }),
       prompt: user,
       result: resultText,
       status: 'draft',
