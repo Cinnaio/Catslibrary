@@ -52,14 +52,6 @@ struct BookshelfView: View {
 
     private var bookshelfList: some View {
             List(selection: $selection) {
-                Section("阅读记录") {
-                    NavigationLink { ReaderBookmarksView() } label: {
-                        Label("我的书签", systemImage: "bookmark")
-                    }
-                    NavigationLink { MyThoughtsView() } label: {
-                        Label("我的想法", systemImage: "text.bubble")
-                    }
-                }
                 if isLoading && response == nil {
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 160)

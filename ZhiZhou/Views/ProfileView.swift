@@ -19,13 +19,28 @@ struct ProfileView: View {
                 }
             }
 
-            Section("阅读") {
+            Section("阅读积累") {
                 NavigationLink {
                     ReadingStatsView()
                 } label: {
                     AppIconLabel("阅读统计", systemImage: "chart.bar.xaxis")
                 }
                 .accessibilityIdentifier("profile.reading-stats")
+                NavigationLink {
+                    ReaderBookmarksView()
+                } label: {
+                    AppIconLabel("我的书签", systemImage: "bookmark")
+                }
+                .accessibilityIdentifier("profile.bookmarks")
+                NavigationLink {
+                    MyThoughtsView()
+                } label: {
+                    AppIconLabel("我的想法", systemImage: "text.bubble")
+                }
+                .accessibilityIdentifier("profile.thoughts")
+            }
+
+            Section("阅读偏好") {
                 NavigationLink {
                     ContentModeView()
                 } label: {

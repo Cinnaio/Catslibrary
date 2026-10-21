@@ -177,8 +177,8 @@ final class FrontendAuditTests: XCTestCase {
     @MainActor
     func testMyThoughtsCanLoadBeyondFirstFifty() {
         let app = launch("parity")
-        selectTab("书架", app: app)
-        tap(app.buttons["我的想法"])
+        selectTab("我的", app: app)
+        tap(app.buttons["profile.thoughts"])
         let more = app.buttons["加载更多"]
         for _ in 0..<35 {
             if more.isHittable { break }
