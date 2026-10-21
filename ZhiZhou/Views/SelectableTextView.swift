@@ -93,6 +93,13 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
     let thoughtMarkerButton = UIButton(type: .system)
     private(set) var thoughtMarkerRange: NSRange?
     private var sourceTextLength: Int?
+    // A nil attachment image draws UIKit's document placeholder behind the
+    // button. Reserve inline space with a transparent image instead.
+    private static let markerPlaceholderImage: UIImage = {
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1), format: format).image { _ in }
+    }()
     var isApplyingTextUpdate = false
     /// The incoming attributed text is intentionally tracked separately from
     /// `attributedText`: the rendered UIKit value also contains the bridge's
@@ -162,16 +169,21 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
         if thoughtCount > 0, body.length > 0 {
             let font = body.attribute(.font, at: body.length - 1, effectiveRange: nil) as? UIFont
                 ?? UIFont.preferredFont(forTextStyle: .body)
-            var configuration = UIButton.Configuration.plain()
+            var configuration = UIButton.Configuration.filled()
             configuration.image = UIImage(systemName: "text.bubble")
             configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .caption2)
-            configuration.title = String(thoughtCount)
-            configuration.imagePadding = 4
-            configuration.contentInsets = .zero
+            configuration.title = "\(thoughtCount) 条段评"
+            configuration.imagePadding = 6
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 9, bottom: 0, trailing: 9)
             configuration.baseForegroundColor = markerColor
+            configuration.baseBackgroundColor = UIColor(AppTheme.primaryLight)
+            configuration.cornerStyle = .capsule
             configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
                 var attributes = attributes
-                attributes.font = UIFont.preferredFont(forTextStyle: .caption2)
+                attributes.font = UIFont.systemFont(
+                    ofSize: UIFont.preferredFont(forTextStyle: .caption2).pointSize,
+                    weight: .semibold
+                )
                 return attributes
             }
             thoughtMarkerButton.configuration = configuration
@@ -179,6 +191,7 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
             thoughtMarkerButton.accessibilityHint = "查看此段落的想法"
             let markerWidth = max(44, thoughtMarkerButton.intrinsicContentSize.width)
             let attachment = NSTextAttachment()
+            attachment.image = Self.markerPlaceholderImage
             attachment.bounds = CGRect(x: 0, y: font.descender, width: markerWidth, height: font.lineHeight)
             var attributes: [NSAttributedString.Key: Any] = [.font: font]
             if let style = body.attribute(.paragraphStyle, at: body.length - 1, effectiveRange: nil) {

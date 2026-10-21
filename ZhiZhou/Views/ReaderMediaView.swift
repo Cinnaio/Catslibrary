@@ -56,10 +56,17 @@ struct ReaderMediaView: View {
             .frame(maxHeight: maximumHeight)
             if !caption.isEmpty {
                 Text(caption)
-                    .font(captionStyle == .trailingFootnote ? .caption2.italic() : .caption)
+                    .font(captionStyle == .trailingFootnote ? .caption2 : .caption)
                     .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(captionStyle == .trailingFootnote ? .trailing : .center)
                     .fixedSize(horizontal: false, vertical: true)
+                    // CJK fallback fonts may have no italic face. Slant the
+                    // entire caption uniformly instead of only Latin glyphs.
+                    .transformEffect(CGAffineTransform(
+                        a: 1, b: 0,
+                        c: captionStyle == .trailingFootnote ? -0.18 : 0,
+                        d: 1, tx: 0, ty: 0
+                    ))
                     .frame(maxWidth: .infinity, alignment: captionStyle == .trailingFootnote ? .trailing : .center)
             }
         }

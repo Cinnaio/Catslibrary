@@ -78,7 +78,10 @@ final class ReaderTextSystemTests: XCTestCase {
                 XCTAssertLessThanOrEqual(view.thoughtMarkerButton.frame.maxY, fitting.height + 1)
                 XCTAssertGreaterThanOrEqual(view.thoughtMarkerButton.bounds.width, 44)
                 XCTAssertEqual(view.thoughtMarkerButton.bounds.height, 44)
-                XCTAssertEqual(view.thoughtMarkerButton.configuration?.title, "12")
+                XCTAssertEqual(view.thoughtMarkerButton.configuration?.title, "12 条段评")
+                XCTAssertEqual(view.thoughtMarkerButton.configuration?.baseBackgroundColor, UIColor(AppTheme.primaryLight))
+                let attachment = view.attributedText.attribute(.attachment, at: markerRange.location, effectiveRange: nil) as? NSTextAttachment
+                XCTAssertNotNil(attachment?.image)
                 XCTAssertEqual(view.thoughtMarkerButton.accessibilityLabel, "12 条段评")
             }
         }
