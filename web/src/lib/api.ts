@@ -2100,6 +2100,8 @@ export interface AiWritingReview {
 }
 
 export interface AiStoryMemoryProgress {
+  paused?: boolean
+  running?: boolean
   complete?: boolean
   processedChapters?: number
   totalChapters?: number
@@ -2125,6 +2127,7 @@ export interface AiProfileSource {
  * （有人工层且仍然有效时是人工层，否则是自动层）。
  */
 export interface AiEffectiveProfile {
+  progress?: AiStoryMemoryProgress
   lastAttempt?: {
     status: 'complete' | 'truncated' | 'refused' | 'empty'
     finishReason: string
@@ -2397,6 +2400,9 @@ export const aiApi = {
       return request('POST', '/ai/writing/plot-state', data, true, {}, 300_000)
     },
     /** 读取已存的情节状态（未提取过返回空串）与已发布章节数（用于判断是否过期）。 */
+    pauseMemory(novelId: string, kind: 'plot' | 'relationship'): Promise<{ ok: boolean }> {
+      return request('POST', `/ai/writing/memory/${kind}/${encodeURIComponent(novelId)}/pause`, {}, true)
+    },
     getPlotState(novelId: string): Promise<AiPlotStateResponse> {
       return request('GET', `/ai/writing/plot-state/${encodeURIComponent(novelId)}`, null, true)
     },

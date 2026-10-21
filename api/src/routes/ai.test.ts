@@ -1159,6 +1159,36 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(styleAtFirst.eligibility).toBe('beyond_anchor')
   })
 
+  it('故事档案暂停要求管理员权限，读取持久进度并从原目标恢复', async () => {
+    const created = await req('/api/novels', json('POST', { title: '暂停恢复验证', author: '测试作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(created)).novel.id
+    for (let i = 0; i < 2; i++) {
+      await req('/api/chapters', json('POST', { novelId, title: `第${i + 1}章`, content: LONG_CONTENT }, adminToken))
+    }
+    for (const [kind, endpoint] of [
+      ['plot', 'plot-state'],
+      ['relationship', 'relationship-profile'],
+    ]) {
+      const pauseUrl = `/api/ai/writing/memory/${kind}/${novelId}/pause`
+      expect((await req(pauseUrl, json('POST', {}))).status).toBe(401)
+      expect((await req(pauseUrl, json('POST', {}, readerToken))).status).toBe(403)
+      expect((await req(`/api/ai/writing/${endpoint}`, json('POST', { novelId, sampleChapters: 1 }, adminToken))).status).toBe(200)
+      const calls = fetchMock.mock.calls.length
+      expect((await req(pauseUrl, json('POST', {}, adminToken))).status).toBe(200)
+      const status = await jsonOf<{ progress: { paused: boolean; running: boolean; processedChapters: number; targetChapterId: string } }>(
+        await req(`/api/ai/writing/${endpoint}/${novelId}`, json('GET', undefined, adminToken)),
+      )
+      expect(status.progress).toMatchObject({ paused: true, running: false, processedChapters: 1 })
+      expect(fetchMock).toHaveBeenCalledTimes(calls)
+      const resumed = await req(
+        `/api/ai/writing/${endpoint}`,
+        json('POST', { novelId, sampleChapters: 1, afterChapterId: status.progress.targetChapterId }, adminToken),
+      )
+      expect(await jsonOf(resumed)).toMatchObject({ complete: true, paused: false, processedChapters: 2 })
+    }
+    expect((await req(`/api/ai/writing/memory/style/${novelId}/pause`, json('POST', {}, adminToken))).status).toBe(422)
+  })
+
   it('创作材料预览检索历史、保护权限并冻结已预览版本', async () => {
     const novel = await req('/api/novels', json('POST', { title: '创作材料验证', author: '作者' }, adminToken))
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id

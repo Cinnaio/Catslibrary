@@ -166,6 +166,10 @@ function ProfileSection(props: {
   disabled: boolean
   actionText: string
   onAction: () => void
+  onPause?: () => void
+  pausing?: boolean
+  running?: boolean
+  progressNote?: string
   emptyHint: string
   /** 取样章数输入框的可访问名称；同一页有多个实例，故由调用方给出唯一名称 */
   sampleLabel?: string
@@ -211,7 +215,7 @@ function ProfileSection(props: {
             </span>
           )}
         </div>
-        <div className="flex basis-full items-center justify-between border-t border-border/70 pt-2.5 sm:ml-auto sm:basis-auto sm:border-t-0 sm:pt-0">
+        <div className="flex basis-full flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-2.5 sm:ml-auto sm:basis-auto sm:border-t-0 sm:pt-0">
           {sample && (
             <div className="flex shrink-0 items-center gap-2">
               <span className="whitespace-nowrap text-xs text-muted-foreground">{props.sampleCaption || '取样'}</span>
@@ -224,6 +228,7 @@ function ProfileSection(props: {
                 aria-label={props.sampleLabel || '取样章数'}
                 className="h-10 w-13 px-1 text-center sm:h-8 sm:w-[4.5rem]"
                 value={sample.value}
+                disabled={props.busy}
                 onChange={(event) => sample.onChange(Number(event.target.value))}
               />
               <span className="whitespace-nowrap text-xs text-muted-foreground">章</span>
@@ -238,8 +243,18 @@ function ProfileSection(props: {
           >
             {props.actionText}
           </Button>
+          {props.onPause && (props.busy || props.running) && (
+            <Button variant="outline" size="sm" className="min-h-10 sm:min-h-0" disabled={props.pausing} onClick={props.onPause}>
+              {props.pausing ? '正在暂停…' : '暂停更新'}
+            </Button>
+          )}
         </div>
       </div>
+      {props.progressNote && (
+        <p role="status" className="text-xs leading-5 text-muted-foreground">
+          {props.progressNote}
+        </p>
+      )}
       {props.content ? (
         <Collapsible open={open} onOpenChange={setOpen}>
           <CollapsibleContent id={contentId}>
@@ -301,6 +316,12 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [plotSample, setPlotSample] = useState(8)
   const [plotProgress, setPlotProgress] = useState('')
   const [relationshipProgress, setRelationshipProgress] = useState('')
+  const [plotPausing, setPlotPausing] = useState(false)
+  const [relationshipPausing, setRelationshipPausing] = useState(false)
+  const memoryControls = useRef<Record<'plot' | 'relationship', { requested: boolean; pending: Promise<void> | null }>>({
+    plot: { requested: false, pending: null },
+    relationship: { requested: false, pending: null },
+  })
   /** 选中小说的关系画像（已提取则展示，续写时自动注入 system prompt） */
   const [relationshipProfile, setRelationshipProfile] = useState('')
   const [relationshipEffective, setRelationshipEffective] = useState<AiEffectiveProfile | null>(null)
@@ -412,6 +433,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       if (!res || cancelled() || version !== plotRequestVersion.current) return
       setPlotState(res.state || '')
       setPlotEffective(res)
+      if (!res.progress?.running) setPlotPausing(false)
       setPlotChaptersThrough(res.chaptersThrough || 0)
       setPlotChapterCount(res.chapterCount || 0)
       return
@@ -421,6 +443,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     if (!res || cancelled() || version !== relationshipRequestVersion.current) return
     setRelationshipProfile(res.profile || '')
     setRelationshipEffective(res)
+    if (!res.progress?.running) setRelationshipPausing(false)
   }, [])
 
   /**
@@ -435,16 +458,18 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       return
     }
     if (kind === 'plot') {
+      const version = plotRequestVersion.current
       const res = await aiApi.writing.getPlotState(id).catch(() => null)
-      if (res) {
+      if (res && version === plotRequestVersion.current) {
         setPlotEffective(res)
         setPlotChaptersThrough(res.chaptersThrough || 0)
         setPlotChapterCount(res.chapterCount || 0)
       }
       return
     }
+    const version = relationshipRequestVersion.current
     const res = await aiApi.writing.getRelationshipProfile(id).catch(() => null)
-    if (res) setRelationshipEffective(res)
+    if (res && version === relationshipRequestVersion.current) setRelationshipEffective(res)
   }, [])
 
   /** 切书时把三份画像一次读全。 */
@@ -454,6 +479,20 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     },
     [loadProfile],
   )
+
+  // A reloaded page can observe a still-running batch without starting another one.
+  useEffect(() => {
+    if (!novelId) return
+    let cancelled = false
+    const timer = window.setInterval(() => {
+      if (!plotBusy && plotEffective?.progress?.running) void loadProfile('plot', novelId, () => cancelled)
+      if (!relationshipBusy && relationshipEffective?.progress?.running) void loadProfile('relationship', novelId, () => cancelled)
+    }, 2000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [novelId, plotBusy, relationshipBusy, plotEffective?.progress?.running, relationshipEffective?.progress?.running, loadProfile])
 
   // 选中小说后加载章节列表（倒序），用于选择续写起点
   useEffect(() => {
@@ -475,6 +514,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     setRelationshipBusy(false)
     setPlotProgress('')
     setRelationshipProgress('')
+    setPlotPausing(false)
+    setRelationshipPausing(false)
     if (!novelId) {
       setChapterOptions([])
       setStyleProfile('')
@@ -502,8 +543,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       })
       .catch(() => setChapterOptions([]))
     void loadAllProfiles(novelId, () => cancelled)
+    const memoryRequestVersions = [plotRequestVersion, relationshipRequestVersion]
     return () => {
       cancelled = true
+      for (const version of memoryRequestVersions) version.current++
     }
   }, [novelId, loadAllProfiles])
 
@@ -734,59 +777,116 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     }
   }
 
+  async function pauseMemory(kind: 'plot' | 'relationship') {
+    const control = memoryControls.current[kind]
+    if (kind === 'plot' ? plotPausing : relationshipPausing) return
+    control.requested = true
+    const versionRef = kind === 'plot' ? plotRequestVersion : relationshipRequestVersion
+    const version = versionRef.current
+    const setPausing = kind === 'plot' ? setPlotPausing : setRelationshipPausing
+    setPausing(true)
+    control.pending = aiApi.writing
+      .pauseMemory(novelId, kind)
+      .then(() => undefined)
+      .catch((err: Error) => {
+        control.requested = false
+        if (version === versionRef.current) {
+          setPausing(false)
+          toast(`暂停请求失败：${err.message}，请重试`, 'error')
+        }
+      })
+    await control.pending
+  }
+
+  function memoryProgressNote(profile: AiEffectiveProfile | null, pausing: boolean) {
+    if (pausing) return '已请求暂停，当前响应结束后保存检查点；不会继续发起模型调用。'
+    const progress = profile?.progress
+    if (!progress || progress.complete !== false) return undefined
+    return `${progress.running ? '更新中' : progress.paused ? '已暂停' : '可继续'} · 已保存 ${progress.processedChapters} / ${progress.totalChapters} 章。${progress.running ? '可请求暂停当前更新。' : '继续时会校验正文，并从有效检查点恢复。'}`
+  }
+
   async function refreshPlotState() {
     if (!novelId) return toast('请选择小说', 'error')
     const version = ++plotRequestVersion.current
+    const control = { requested: false, pending: null as Promise<void> | null }
+    memoryControls.current.plot = control
+    setPlotPausing(false)
     setPlotBusy(true)
     try {
       setPlotProgress('正在校验历史来源…')
-      let res = await aiApi.writing.refreshPlotState(novelId, plotSample, afterChapterId || undefined)
+      const saved = plotEffective?.progress
+      let res = await aiApi.writing.refreshPlotState(novelId, plotSample, afterChapterId || (saved?.complete === false ? saved.targetChapterId : undefined))
       const target = res.targetChapterId
-      while (res.complete === false) {
+      while (res.complete === false && !res.paused) {
         if (version !== plotRequestVersion.current) return
+        await control.pending
+        if (control.requested) break
         setPlotProgress(`已覆盖 ${res.processedChapters} / ${res.totalChapters} 章`)
         res = await aiApi.writing.refreshPlotState(novelId, plotSample, target)
       }
+      await control.pending
       if (version !== plotRequestVersion.current) return
-      // 与 refreshStyleProfile 同理：正文立即用 POST 回包，再补元数据
-      if (version === plotRequestVersion.current) {
+      if (res.complete !== false) {
         setPlotState(res.state)
         setPlotChaptersThrough(res.chaptersThrough)
+        toast('情节状态已更新，后续续写将自动套用', 'success')
+      } else {
+        toast('情节状态已暂停，已完成进度已保存', 'success')
       }
-      toast('情节状态已更新，后续续写将自动套用', 'success')
-      setPlotBusy(false)
       await syncEffective('plot', novelId)
     } catch (err) {
+      if (version !== plotRequestVersion.current) return
       toast((err as Error).message, 'error')
-      if (version === plotRequestVersion.current) await syncEffective('plot', novelId)
+      await syncEffective('plot', novelId)
     } finally {
-      if (version === plotRequestVersion.current) setPlotBusy(false)
+      if (version === plotRequestVersion.current) {
+        setPlotBusy(false)
+        setPlotPausing(false)
+      }
     }
   }
 
   async function refreshRelationshipProfile() {
     if (!novelId) return toast('请选择小说', 'error')
     const version = ++relationshipRequestVersion.current
+    const control = { requested: false, pending: null as Promise<void> | null }
+    memoryControls.current.relationship = control
+    setRelationshipPausing(false)
     setRelationshipBusy(true)
     try {
       setRelationshipProgress('正在校验历史来源…')
-      let res = await aiApi.writing.refreshRelationshipProfile(novelId, relationshipSample, afterChapterId || undefined)
+      const saved = relationshipEffective?.progress
+      let res = await aiApi.writing.refreshRelationshipProfile(
+        novelId,
+        relationshipSample,
+        afterChapterId || (saved?.complete === false ? saved.targetChapterId : undefined),
+      )
       const target = res.targetChapterId
-      while (res.complete === false) {
+      while (res.complete === false && !res.paused) {
         if (version !== relationshipRequestVersion.current) return
+        await control.pending
+        if (control.requested) break
         setRelationshipProgress(`已覆盖 ${res.processedChapters} / ${res.totalChapters} 章`)
         res = await aiApi.writing.refreshRelationshipProfile(novelId, relationshipSample, target)
       }
+      await control.pending
       if (version !== relationshipRequestVersion.current) return
-      if (version === relationshipRequestVersion.current) setRelationshipProfile(res.profile)
-      toast('关系画像已更新，后续续写将自动套用', 'success')
-      setRelationshipBusy(false)
+      if (res.complete !== false) {
+        setRelationshipProfile(res.profile)
+        toast('关系画像已更新，后续续写将自动套用', 'success')
+      } else {
+        toast('关系画像已暂停，已完成进度已保存', 'success')
+      }
       await syncEffective('relationship', novelId)
     } catch (err) {
+      if (version !== relationshipRequestVersion.current) return
       toast((err as Error).message, 'error')
-      if (version === relationshipRequestVersion.current) await syncEffective('relationship', novelId)
+      await syncEffective('relationship', novelId)
     } finally {
-      if (version === relationshipRequestVersion.current) setRelationshipBusy(false)
+      if (version === relationshipRequestVersion.current) {
+        setRelationshipBusy(false)
+        setRelationshipPausing(false)
+      }
     }
   }
 
@@ -905,9 +1005,15 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             extracted={!!relationshipProfile}
             statusText={memoryStatus(relationshipEffective)}
             busy={relationshipBusy}
-            disabled={busy || relationshipBusy || taskActive || !novelId}
-            actionText={relationshipBusy ? relationshipProgress || '更新中…' : '更新关系档案'}
+            disabled={busy || relationshipBusy || relationshipEffective?.progress?.running || taskActive || !novelId}
+            actionText={
+              relationshipBusy ? relationshipProgress || '更新中…' : relationshipEffective?.progress?.complete === false ? '继续更新关系档案' : '更新关系档案'
+            }
             onAction={() => void refreshRelationshipProfile()}
+            onPause={() => void pauseMemory('relationship')}
+            pausing={relationshipPausing}
+            running={relationshipEffective?.progress?.running}
+            progressNote={memoryProgressNote(relationshipEffective, relationshipPausing)}
             emptyHint="首次覆盖全部正文建立关系档案，之后只处理新增章节；中断后可继续。"
             footnote={
               <p className="text-xs leading-5 text-muted-foreground">
@@ -940,9 +1046,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             extracted={!!plotState}
             statusText={memoryStatus(plotEffective)}
             busy={plotBusy}
-            disabled={busy || plotBusy || taskActive || !novelId}
-            actionText={plotBusy ? plotProgress || '更新中…' : '更新情节档案'}
+            disabled={busy || plotBusy || plotEffective?.progress?.running || taskActive || !novelId}
+            actionText={plotBusy ? plotProgress || '更新中…' : plotEffective?.progress?.complete === false ? '继续更新情节档案' : '更新情节档案'}
             onAction={() => void refreshPlotState()}
+            onPause={() => void pauseMemory('plot')}
+            pausing={plotPausing}
+            running={plotEffective?.progress?.running}
+            progressNote={memoryProgressNote(plotEffective, plotPausing)}
             emptyHint="首次覆盖全部正文建立情节档案，之后保留历史并增量更新；中断后可继续。"
             sampleCaption="每批最多"
             sampleLabel="情节状态每批章数"
