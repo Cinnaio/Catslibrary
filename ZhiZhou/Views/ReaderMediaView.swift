@@ -8,6 +8,12 @@ struct ReaderMediaView: View {
     let caption: String
     let aspectRatio: CGFloat
     var maximumHeight: CGFloat? = nil
+    var captionStyle: CaptionStyle = .standard
+
+    enum CaptionStyle: Equatable {
+        case standard
+        case trailingFootnote
+    }
     @State private var loadedImage: UIImage?
     @State private var loadedKey = ""
     @State private var errorMessage: String?
@@ -50,9 +56,11 @@ struct ReaderMediaView: View {
             .frame(maxHeight: maximumHeight)
             if !caption.isEmpty {
                 Text(caption)
-                    .font(.caption)
+                    .font(captionStyle == .trailingFootnote ? .caption2.italic() : .caption)
                     .foregroundStyle(AppTheme.textSecondary)
+                    .multilineTextAlignment(captionStyle == .trailingFootnote ? .trailing : .center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: captionStyle == .trailingFootnote ? .trailing : .center)
             }
         }
         .task(id: "\(identity):\(retry)") {

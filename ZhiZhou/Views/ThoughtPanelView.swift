@@ -21,17 +21,11 @@ struct ThoughtPanelView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var draft = ""
-    @State private var displayName = ""
     @State private var isSubmitting = false
     @State private var submitError: String?
     @State private var pendingDelete: Thought?
     @State private var deletingIDs: Set<String> = []
-    @FocusState private var focusedField: ComposerField?
-
-    private enum ComposerField: Hashable {
-        case displayName
-        case thought
-    }
+    @FocusState private var composerFocused: Bool
 
     init(
         chapterTitle: String,
@@ -61,7 +55,6 @@ struct ThoughtPanelView: View {
         self.onSubmit = onSubmit
         self.onDelete = onDelete
         self.panelTitle = panelTitle
-        _displayName = State(initialValue: String(defaultDisplayName.prefix(20)))
     }
 
     var body: some View {
@@ -130,18 +123,10 @@ struct ThoughtPanelView: View {
                     .appTextLineLimit(1)
             }
 
-            if !selectedText.isEmpty {
-                Text("「\(selectedText)」")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(AppTheme.primaryDeep)
-                    .appTextLineLimit(4)
-                    .multilineTextAlignment(.leading)
-            }
-
-            Text(paragraphExcerpt)
-                .font(selectedText.isEmpty ? .callout : .caption)
+            Text(selectedText.isEmpty ? paragraphExcerpt : selectedText)
+                .font(.callout)
                 .foregroundStyle(AppTheme.textSecondary)
-                .appTextLineLimit(selectedText.isEmpty ? 5 : 3)
+                .appTextLineLimit(3)
                 .multilineTextAlignment(.leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -154,7 +139,7 @@ struct ThoughtPanelView: View {
         .accessibilityLabel(
             selectedText.isEmpty
                 ? "段落摘录：\(paragraphExcerpt)"
-                : "选中文字：\(selectedText)，所在段落：\(paragraphExcerpt)"
+                : "选中文字：\(selectedText)"
         )
     }
 
@@ -238,153 +223,120 @@ struct ThoughtPanelView: View {
     }
 
     private func thoughtRow(_ thought: Thought) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 10) {
-                ThoughtAvatar(
-                    name: authorName(for: thought),
-                    url: avatarURL(for: thought)
-                )
+        HStack(alignment: .top, spacing: 10) {
+            ThoughtAvatar(name: authorName(for: thought), url: avatarURL(for: thought))
 
-                VStack(alignment: .leading, spacing: 3) {
-                    metadataLayout {
-                        Text(authorName(for: thought))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .appTextLineLimit(1)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(authorName(for: thought))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                        if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-
-                        Text(Self.relativeTime(for: thought.createdAt))
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .appTextLineLimit(1)
-                    }
-
-                    if !thought.selectedText.isEmpty {
-                        Text("「\(thought.selectedText)」")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .appTextLineLimit(2)
-                    }
+                if !isGeneratedImagePlaceholder(thought) {
+                    Text(thought.thoughtText)
+                        .font(.callout)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
                 }
-            }
 
-            Text(thought.thoughtText)
-                .font(.callout)
-                .foregroundStyle(AppTheme.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+                if thought.imageUrl?.isEmpty == false {
+                    ReaderMediaView(
+                        path: "/api/thoughts/image/\(ReaderMediaAPI.pathSegment(thought.id))",
+                        caption: "AI 生成插画",
+                        aspectRatio: 1,
+                        captionStyle: .trailingFootnote
+                    )
+                    .frame(width: 144, alignment: .leading)
+                }
 
-            if thought.imageUrl?.isEmpty == false {
-                ReaderMediaView(
-                    path: "/api/thoughts/image/\(ReaderMediaAPI.pathSegment(thought.id))",
-                    caption: "AI 生成插画",
-                    aspectRatio: 1
-                )
-            }
-
-            if currentUserID == thought.userId {
-                HStack {
-                    Spacer()
-                    Button(role: .destructive) {
-                        pendingDelete = thought
-                    } label: {
-                        Group {
-                            if deletingIDs.contains(thought.id) {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Label("删除", systemImage: "trash")
+                HStack(spacing: 8) {
+                    Text(Self.relativeTime(for: thought.createdAt))
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textMuted)
+                    Spacer(minLength: 0)
+                    if currentUserID == thought.userId {
+                        Button(role: .destructive) {
+                            pendingDelete = thought
+                        } label: {
+                            Group {
+                                if deletingIDs.contains(thought.id) {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: "trash")
+                                }
                             }
+                            .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
                         }
-                        .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
+                        .font(.caption)
+                        .disabled(deletingIDs.contains(thought.id))
+                        .accessibilityLabel("删除段评")
                     }
-                    .font(.caption.weight(.medium))
-                    .disabled(deletingIDs.contains(thought.id))
                 }
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func isGeneratedImagePlaceholder(_ thought: Thought) -> Bool {
+        guard thought.imageUrl?.isEmpty == false else { return false }
+        return ["根据这段文字生成的插画", "根据这段文字生成的插图"]
+            .contains(thought.thoughtText.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     @ViewBuilder
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
             if canCompose {
-                metadataLayout {
-                    Label("署名", systemImage: "person.crop.circle")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(AppTheme.textSecondary)
-
-                    TextField("匿名读者", text: $displayName)
-                        .font(.subheadline)
-                        .textFieldStyle(.plain)
-                        .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
-                        .focused($focusedField, equals: .displayName)
-                        .accessibilityLabel("段评署名")
-                }
-                .padding(.horizontal, AppLayout.fieldHorizontalInset)
-                .padding(.vertical, AppLayout.fieldVerticalInset)
-                .frame(minHeight: AppLayout.fieldMinHeight)
-                .appFieldSurface(
-                    isFocused: focusedField == .displayName
-                )
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: focusedField)
-                .onChange(of: displayName) { _, value in
-                    if value.count > 20 {
-                        displayName = String(value.prefix(20))
-                    }
-                }
-
-                TextField("写下你对这段文字的想法…", text: $draft, axis: .vertical)
-                    .focused($focusedField, equals: .thought)
-                    .font(.body)
-                    .lineLimit(2...5)
-                    .padding(.horizontal, AppLayout.fieldHorizontalInset)
-                    .padding(.vertical, 12)
-                    .frame(minHeight: 62, alignment: .topLeading)
-                    .appFieldSurface(
-                        isFocused: focusedField == .thought
-                    )
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: focusedField)
-                    .onChange(of: draft) { _, value in
-                        if value.count > 300 {
-                            draft = String(value.prefix(300))
+                HStack(alignment: .bottom, spacing: 8) {
+                    TextField("写下你的想法…", text: $draft, axis: .vertical)
+                        .focused($composerFocused)
+                        .font(.body)
+                        .lineLimit(1...4)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                        .appFieldSurface(isFocused: composerFocused)
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: composerFocused)
+                        .disabled(isSubmitting)
+                        .onChange(of: draft) { _, value in
+                            if value.count > 300 { draft = String(value.prefix(300)) }
                         }
-                    }
-                    .accessibilityLabel("段评内容")
+                        .accessibilityLabel("段评内容")
 
+                    Button {
+                        Task { await submit() }
+                    } label: {
+                        Group {
+                            if isSubmitting {
+                                ProgressView()
+                                    .tint(AppTheme.textMuted)
+                            } else {
+                                Image(systemName: "arrow.up")
+                            }
+                        }
+                        .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
+                        .foregroundStyle(canSubmit ? AppTheme.onPrimary : AppTheme.textMuted)
+                        .background(canSubmit ? AppTheme.primary : AppTheme.controlFill, in: Circle())
+                    }
+                    .font(.title3.weight(.semibold))
+                    .buttonStyle(.plain)
+                    .disabled(!canSubmit)
+                    .accessibilityLabel(isSubmitting ? "正在发布段评" : "发布段评")
+                }
+
+                if draft.count >= 240 {
+                    Text("\(draft.count)/300")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(AppTheme.textMuted)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
                 if let submitError {
                     Text(submitError)
                         .font(.caption)
                         .foregroundStyle(AppTheme.danger)
                         .appTextLineLimit(2)
-                }
-
-                HStack(alignment: .center, spacing: 12) {
-                    Text("\(draft.count)/300")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(AppTheme.textMuted)
-
-                    Spacer()
-
-                    Button {
-                        Task { await submit() }
-                    } label: {
-                        if isSubmitting {
-                            ProgressView()
-                                .tint(AppTheme.onPrimary)
-                        } else {
-                            Label("发布", systemImage: "arrow.up")
-                        }
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .tint(AppTheme.primary)
-                    .disabled(!canSubmit)
-                    .accessibilityLabel(isSubmitting ? "正在发布段评" : "发布段评")
                 }
             } else {
                 Label(currentUserID == nil ? "登录后才能发布段评" : "此处仅供查看已有段评", systemImage: "person.crop.circle")
@@ -417,8 +369,14 @@ struct ThoughtPanelView: View {
     }
 
     private func authorName(for thought: Thought) -> String {
+        if thought.userId == currentUserID, !resolvedDisplayName.isEmpty { return resolvedDisplayName }
         let value = thought.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? "匿名读者" : value
+        return value.isEmpty ? (thought.userId.isEmpty ? "匿名读者" : thought.userId) : value
+    }
+
+    private var resolvedDisplayName: String {
+        let name = defaultDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? (currentUserID ?? "") : name
     }
 
     private func avatarURL(for thought: Thought) -> URL? {
@@ -451,10 +409,10 @@ struct ThoughtPanelView: View {
         do {
             try await onSubmit(
                 text,
-                displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                resolvedDisplayName
             )
             draft = ""
-            focusedField = nil
+            composerFocused = false
         } catch is CancellationError {
             // 用户离开页面或请求被取消时，不展示干扰性的错误提示。
         } catch {

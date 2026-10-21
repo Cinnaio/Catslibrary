@@ -180,7 +180,8 @@ struct ReaderView: View {
 
     private var currentDisplayName: String {
         guard let user = appState.user else { return "" }
-        return user.displayName.isEmpty ? user.username : user.displayName
+        let name = user.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? user.id : name
     }
 
     private var percentText: String {
