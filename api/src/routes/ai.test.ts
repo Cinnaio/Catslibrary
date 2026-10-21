@@ -1128,8 +1128,22 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     }
 
     for (const endpoint of ['style-profile', 'plot-state', 'relationship-profile']) {
-      const refreshed = await req(`/api/ai/writing/${endpoint}`, json('POST', { novelId, afterChapterId: ids[2] }, adminToken))
+      const refreshed = await req(`/api/ai/writing/${endpoint}`, json('POST', { novelId, afterChapterId: ids[2], sampleChapters: 1 }, adminToken))
       expect(refreshed.status).toBe(200)
+      if (endpoint !== 'style-profile') {
+        let progress = await jsonOf<{ complete: boolean; processedChapters: number; targetChapterId: string; source: { coverage: string } }>(refreshed)
+        expect(progress.complete).toBe(false)
+        expect(progress.processedChapters).toBe(1)
+        expect(progress.targetChapterId).toBe(ids[2])
+        for (let batch = 0; batch < 2; batch++) {
+          const next = await req(`/api/ai/writing/${endpoint}`, json('POST', { novelId, afterChapterId: progress.targetChapterId, sampleChapters: 1 }, adminToken))
+          expect(next.status).toBe(200)
+          progress = await jsonOf<typeof progress>(next)
+        }
+        expect(progress.complete).toBe(true)
+        expect(progress.processedChapters).toBe(3)
+        expect(progress.source.coverage).toBe('full')
+      }
     }
     const styleAtFirst = await jsonOf<{
       profile: string

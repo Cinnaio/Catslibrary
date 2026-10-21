@@ -2059,6 +2059,13 @@ export interface AiManualProfileOverride {
   updatedAt: number
 }
 
+export interface AiStoryMemoryProgress {
+  complete?: boolean
+  processedChapters?: number
+  totalChapters?: number
+  targetChapterId?: string
+}
+
 export interface AiProfileSource {
   version?: number
   chapterId?: string
@@ -2067,6 +2074,8 @@ export interface AiProfileSource {
   chapterOrdinal?: number
   sampleCount?: number
   samplePolicyVersion?: number
+  coverage?: 'full'
+  extractionPromptVersion?: number
   fingerprint?: string
 }
 
@@ -2317,27 +2326,33 @@ export const aiApi = {
     getStyleProfile(novelId: string): Promise<AiStyleProfileResponse> {
       return request('GET', `/ai/writing/style-profile/${encodeURIComponent(novelId)}`, null, true)
     },
-    /** 提取/刷新某部小说的情节状态：取样最近 N 章正文 → 文本模型结构化分析 → 落库，续写时复用。 */
+    /** 提取/刷新某部小说的情节状态：全历史分批初始化 / 增量更新，complete=false 时继续下一批，续写时复用。 */
     refreshPlotState(
       novelId: string,
       sampleChapters?: number,
-    ): Promise<{ ok: boolean; state: string; chaptersThrough: number; model: string; usage: { promptTokens: number; completionTokens: number } }> {
+      afterChapterId?: string,
+    ): Promise<
+      AiStoryMemoryProgress & { ok: boolean; state: string; chaptersThrough: number; model: string; usage: { promptTokens: number; completionTokens: number } }
+    > {
       const data: Record<string, unknown> = { novelId }
       if (sampleChapters) data.sampleChapters = sampleChapters
-      return request('POST', '/ai/writing/plot-state', data, true)
+      if (afterChapterId) data.afterChapterId = afterChapterId
+      return request('POST', '/ai/writing/plot-state', data, true, {}, 300_000)
     },
     /** 读取已存的情节状态（未提取过返回空串）与已发布章节数（用于判断是否过期）。 */
     getPlotState(novelId: string): Promise<AiPlotStateResponse> {
       return request('GET', `/ai/writing/plot-state/${encodeURIComponent(novelId)}`, null, true)
     },
-    /** 提取/刷新某部小说的关系画像：取样最近 N 章正文 → 文本模型提炼角色关系动态/权力结构/心理边界 → 落库。 */
+    /** 提取/刷新某部小说的关系画像：全历史分批初始化 / 增量更新，complete=false 时继续下一批。 */
     refreshRelationshipProfile(
       novelId: string,
       sampleChapters?: number,
-    ): Promise<{ ok: boolean; profile: string; model: string; usage: { promptTokens: number; completionTokens: number } }> {
+      afterChapterId?: string,
+    ): Promise<AiStoryMemoryProgress & { ok: boolean; profile: string; model: string; usage: { promptTokens: number; completionTokens: number } }> {
       const data: Record<string, unknown> = { novelId }
       if (sampleChapters) data.sampleChapters = sampleChapters
-      return request('POST', '/ai/writing/relationship-profile', data, true)
+      if (afterChapterId) data.afterChapterId = afterChapterId
+      return request('POST', '/ai/writing/relationship-profile', data, true, {}, 300_000)
     },
     /** 读取已存的关系画像（未提取过返回空串）。 */
     getRelationshipProfile(novelId: string): Promise<AiRelationshipProfileResponse> {

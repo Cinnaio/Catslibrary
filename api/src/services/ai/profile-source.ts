@@ -15,6 +15,8 @@ export interface ProfileSource {
   sampleCount: number
   samplePolicyVersion: 1
   fingerprint: string
+  /** Complete chapter prefix, rather than a recent sample. */
+  coverage?: 'full'
 }
 
 export type ProfileKind = 'style' | 'plot' | 'relationship'
@@ -39,7 +41,7 @@ const MAX_SAMPLE_CHAPTERS = 30
 /** 统一取得不晚于起点的章节样本。afterChapterId 为空时明确落到最新章节。 */
 export async function loadProfileSample(
   db: Db,
-  opts: { novelId: string; afterChapterId?: string; sampleCount: number; clean: (text: string) => string },
+  opts: { novelId: string; afterChapterId?: string; sampleCount: number; clean: (text: string) => string; fullHistory?: boolean },
 ): Promise<ProfileSample | undefined> {
   const novelId = String(opts.novelId || '').trim()
   if (!novelId) return undefined
@@ -71,7 +73,7 @@ export async function loadProfileSample(
      WHERE sort_order < $2 OR (sort_order = $2 AND id <= $3)
      ORDER BY sort_order DESC, id DESC
      LIMIT $4`,
-    [novelId, Number(anchor.sort_order) || 0, String(anchor.id), sampleCount],
+    [novelId, Number(anchor.sort_order) || 0, String(anchor.id), opts.fullHistory ? null : sampleCount],
   )
   const ordered = rows
     .map((row) => ({
@@ -98,20 +100,25 @@ export async function loadProfileSample(
     )
     actualAnchor.chapterOrdinal = Number(ordinal?.chapter_ordinal) || 0
   }
-  const fingerprintInput = ordered
-    .map((row) => `${row.id}\u0000${row.sortOrder}\u0000${row.title}\u0000${opts.clean(row.content)}`)
-    .join('\u0001')
-  const source: ProfileSource = {
+  const source = profileSourceForRows(ordered, opts.clean, opts.fullHistory)
+  return { rows: ordered, anchor: actualAnchor, source }
+}
+
+export function profileSourceForRows(rows: ProfileSampleRow[], clean: (text: string) => string, fullHistory = false): ProfileSource {
+  const actualAnchor = rows[rows.length - 1]
+  if (!actualAnchor) throw new AiError('invalid', '没有可用于档案的章节', 422)
+  const fingerprintInput = rows.map((row) => `${row.id}\u0000${row.sortOrder}\u0000${row.title}\u0000${clean(row.content)}`).join('\u0001')
+  return {
     version: 1,
     chapterId: actualAnchor.id,
     chapterTitle: actualAnchor.title,
     sortOrder: actualAnchor.sortOrder,
     chapterOrdinal: actualAnchor.chapterOrdinal,
-    sampleCount: ordered.length,
+    sampleCount: rows.length,
     samplePolicyVersion: 1,
     fingerprint: createHash('sha256').update(fingerprintInput, 'utf8').digest('hex'),
+    ...(fullHistory ? { coverage: 'full' as const } : {}),
   }
-  return { rows: ordered, anchor: actualAnchor, source }
 }
 
 export function parseProfileSource(raw: unknown): ProfileSource | undefined {
@@ -137,6 +144,7 @@ export function parseProfileSource(raw: unknown): ProfileSource | undefined {
       sampleCount,
       samplePolicyVersion: 1,
       fingerprint: source.fingerprint,
+      ...(source.coverage === 'full' ? { coverage: 'full' as const } : {}),
     }
   } catch {
     return undefined
@@ -176,13 +184,18 @@ export async function evaluateProfileSource(
   const profile = String(row.profile || '')
   const source = parseProfileSource(row.source_json)
   if (!source) return { profile, updatedAt: Number(row.updated_at) || 0, eligibility: 'legacy_unknown', isOlderThanAnchor: false }
+  // Recent-window profiles have never covered the full story. Keep them visible
+  // for review, but require initialization before using them as story memory.
+  if (opts.kind !== 'style' && source.coverage !== 'full') {
+    return { profile, source, updatedAt: Number(row.updated_at) || 0, eligibility: 'legacy_unknown', isOlderThanAnchor: false }
+  }
 
   const anchor = await loadProfileSample(db, { novelId: opts.novelId, afterChapterId: opts.afterChapterId, sampleCount: 1, clean: (value) => value })
   if (!anchor) return { profile, source, updatedAt: Number(row.updated_at) || 0, eligibility: 'missing', isOlderThanAnchor: false }
-  const sourceAfterAnchor = source.sortOrder > anchor.source.sortOrder
-    || (source.sortOrder === anchor.source.sortOrder && source.chapterId.localeCompare(anchor.source.chapterId) > 0)
-  const sourceBeforeAnchor = source.sortOrder < anchor.source.sortOrder
-    || (source.sortOrder === anchor.source.sortOrder && source.chapterId.localeCompare(anchor.source.chapterId) < 0)
+  const sourceAfterAnchor =
+    source.sortOrder > anchor.source.sortOrder || (source.sortOrder === anchor.source.sortOrder && source.chapterId.localeCompare(anchor.source.chapterId) > 0)
+  const sourceBeforeAnchor =
+    source.sortOrder < anchor.source.sortOrder || (source.sortOrder === anchor.source.sortOrder && source.chapterId.localeCompare(anchor.source.chapterId) < 0)
   if (sourceAfterAnchor) {
     return { profile, source, updatedAt: Number(row.updated_at) || 0, eligibility: 'beyond_anchor', isOlderThanAnchor: false }
   }
@@ -193,6 +206,7 @@ export async function evaluateProfileSource(
       novelId: opts.novelId,
       afterChapterId: source.chapterId,
       sampleCount: source.sampleCount || 1,
+      fullHistory: source.coverage === 'full',
       // The fingerprint must use the same cleaner as extraction. Stored sources from
       // this version use the normalized chapter text; callers may supply a no-op when
       // only ordering needs to be checked.
@@ -210,7 +224,7 @@ export async function evaluateProfileSource(
     return { profile, source, updatedAt: Number(row.updated_at) || 0, eligibility: 'source_changed', isOlderThanAnchor: sourceBeforeAnchor }
   }
   const older = sourceBeforeAnchor
-  const eligibility: ProfileEligibility = older && opts.kind === 'plot' ? 'stale' : 'usable'
+  const eligibility: ProfileEligibility = older && (opts.kind === 'plot' || source.coverage === 'full') ? 'stale' : 'usable'
   return { profile, source, updatedAt: Number(row.updated_at) || 0, eligibility, isOlderThanAnchor: older }
 }
 

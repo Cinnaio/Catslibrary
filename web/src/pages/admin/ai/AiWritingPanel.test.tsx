@@ -6,6 +6,8 @@ const api = vi.hoisted(() => ({
   refreshStyleProfile: vi.fn(),
   getPlotState: vi.fn(),
   getRelationshipProfile: vi.fn(),
+  refreshPlotState: vi.fn(),
+  refreshRelationshipProfile: vi.fn(),
   plotSuggestions: vi.fn(),
   continueNovel: vi.fn(),
   chapterNovel: vi.fn(),
@@ -22,6 +24,8 @@ vi.mock('@/lib/api', () => ({
       refreshStyleProfile: api.refreshStyleProfile,
       getPlotState: api.getPlotState,
       getRelationshipProfile: api.getRelationshipProfile,
+      refreshPlotState: api.refreshPlotState,
+      refreshRelationshipProfile: api.refreshRelationshipProfile,
       plotSuggestions: api.plotSuggestions,
       continue: api.continueNovel,
       chapter: api.chapterNovel,
@@ -98,6 +102,8 @@ describe('AiWritingPanel', () => {
     api.getPlotState.mockResolvedValue({ state: '', chaptersThrough: 0, chapterCount: 0 })
     api.getRelationshipProfile.mockResolvedValue({ profile: '' })
     api.getStyleProfile.mockResolvedValue({ profile: '' })
+    api.refreshPlotState.mockReset()
+    api.refreshRelationshipProfile.mockReset()
     api.plotSuggestions.mockResolvedValue({
       suggestions: [
         { direction: '苏越以斗宗身份现身朝堂，当众治愈加刑天。', effect: '绑定皇室' },
@@ -107,6 +113,58 @@ describe('AiWritingPanel', () => {
     })
     api.continueNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
     api.chapterNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
+  })
+
+  it('情节档案分批推进，固定初始目标并仅在全部完成后展示正式结果', async () => {
+    const pending = deferred<{ complete: boolean; state: string; chaptersThrough: number }>()
+    api.refreshPlotState
+      .mockResolvedValueOnce({ complete: false, state: '中间草稿', processedChapters: 8, totalChapters: 18, targetChapterId: 'chapter-18' })
+      .mockReturnValueOnce(pending.promise)
+    api.getPlotState.mockResolvedValue({ state: '', chaptersThrough: 0, chapterCount: 18 })
+    await selectNovel()
+    switchToContinue()
+    fireEvent.click(await screen.findByRole('button', { name: '更新情节档案' }))
+    expect(await screen.findByRole('button', { name: '已覆盖 8 / 18 章' })).toBeDisabled()
+    expect(api.refreshPlotState).toHaveBeenNthCalledWith(2, 'novel_1', 8, 'chapter-18')
+    expect(screen.queryByText('中间草稿')).not.toBeInTheDocument()
+    api.getPlotState.mockResolvedValue({
+      state: '完整情节档案',
+      chaptersThrough: 18,
+      chapterCount: 18,
+      source: { coverage: 'full' },
+      effectiveContent: '完整情节档案',
+    })
+    await act(async () => pending.resolve({ complete: true, state: '完整情节档案', chaptersThrough: 18 }))
+    expect(await screen.findByRole('button', { name: '更新情节档案' })).toBeEnabled()
+    expect(screen.getByText(/档案截至第 18 章/)).toBeInTheDocument()
+    expect(screen.queryByText(/取最近章节即可/)).not.toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: '情节状态每批章数' })).toBeInTheDocument()
+  })
+
+  it('关系档案中断后保留正式内容，重试可继续后端检查点', async () => {
+    api.getRelationshipProfile.mockResolvedValue({ profile: '已有关系档案' })
+    api.refreshRelationshipProfile
+      .mockResolvedValueOnce({ complete: false, profile: '中间关系', processedChapters: 10, totalChapters: 15, targetChapterId: 'chapter-15' })
+      .mockRejectedValueOnce(new Error('网络中断'))
+      .mockResolvedValueOnce({ complete: true, profile: '更新关系档案', processedChapters: 15, totalChapters: 15 })
+    await selectNovel()
+    switchToContinue()
+    fireEvent.click(await screen.findByRole('button', { name: '更新关系档案' }))
+    await waitFor(() => expect(api.refreshRelationshipProfile).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('button', { name: '更新关系档案' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: '更新关系档案' }))
+    await waitFor(() => expect(api.refreshRelationshipProfile).toHaveBeenCalledTimes(3))
+    expect(screen.queryByText('中间关系')).not.toBeInTheDocument()
+  })
+
+  it('旧抽样档案显示待初始化，不计入可用记忆', async () => {
+    api.getPlotState.mockResolvedValue({ state: '旧抽样情节', chaptersThrough: 8, chapterCount: 80, eligibility: 'legacy_unknown', effectiveContent: '' })
+    api.getRelationshipProfile.mockResolvedValue({ profile: '旧抽样关系', eligibility: 'legacy_unknown', effectiveContent: '' })
+    await selectNovel()
+    switchToContinue()
+    expect(await screen.findAllByText('待初始化')).toHaveLength(2)
+    expect(screen.getByLabelText('可用 0 项小说分析')).toBeInTheDocument()
+    expect(screen.getByText('当前为旧版取样结果，请更新档案以完成全部历史初始化。')).toBeInTheDocument()
   })
 
   it('默认进入续写，并把内容尺度和小说分析放在创作要求之前', () => {

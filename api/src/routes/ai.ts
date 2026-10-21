@@ -1259,7 +1259,7 @@ aiRoutes.get('/writing/style-profile/:novelId', requireAdmin(), async (c) => {
 // ---------- 情节状态：从小说已发布章节提取结构化角色处境/伏笔/冲突，续写时拼进 user 消息 ----------
 
 /**
- * 提取/刷新某部小说的情节状态。取样最近 N 章（可配，默认 8）→ 文本模型结构化分析 → 落库。
+ * 提取/刷新某部小说的情节状态。全历史分批建立或增量更新；sampleChapters 控制批次大小，complete=false 时继续。
  * 多章续写时防止人设漂移、伏笔遗忘。无章节时写空状态，不报错。
  */
 aiRoutes.post('/writing/plot-state', requireAdmin(), async (c) => {
@@ -1319,7 +1319,7 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
 // ---------- 关系画像：从小说已发布章节提取角色关系动态/权力结构/心理边界，续写时拼进 system prompt ----------
 
 /**
- * 提取/刷新某部小说的关系画像。取样最近 N 章（可配，默认 10）→ 文本模型结构化分析 → 落库。
+ * 提取/刷新某部小说的关系画像。全历史分批建立或增量更新；sampleChapters 控制批次大小，complete=false 时继续。
  * 防 skill 踩坑：主从写成平等恋人、奖赏手段当真心、从属试探写成主导。无章节时写空画像，不报错。
  */
 aiRoutes.post('/writing/relationship-profile', requireAdmin(), async (c) => {
