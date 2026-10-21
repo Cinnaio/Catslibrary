@@ -1,6 +1,7 @@
 import SwiftUI
 import ImageIO
 import UIKit
+import Photos
 
 /// 只在当前阅读会话内持有图片；由资源尺寸预留空间，加载和重试不会改变正文高度。
 struct ReaderMediaView: View {
@@ -16,6 +17,7 @@ struct ReaderMediaView: View {
     }
     @State private var loadedImage: UIImage?
     @State private var loadedKey = ""
+    @State private var loadedDataSize: Int = 0
     @State private var errorMessage: String?
     @State private var retry = 0
     @State private var previewOpen = false
@@ -83,6 +85,7 @@ struct ReaderMediaView: View {
                 guard key == identity else { return }
                 loadedImage = image
                 loadedKey = key
+                loadedDataSize = data.count
             } catch is CancellationError {
             } catch {
                 guard key == identity, !Task.isCancelled else { return }
@@ -93,7 +96,7 @@ struct ReaderMediaView: View {
         .accessibilityIdentifier("reader.media.\(path)")
         .fullScreenCover(isPresented: $previewOpen) {
             if let image = currentImage {
-                ReaderImagePreview(image: image, caption: caption)
+                ReaderImagePreview(image: image, caption: caption, byteCount: loadedDataSize)
             }
         }
     }
@@ -113,6 +116,7 @@ struct ReaderMediaView: View {
 private struct ReaderImagePreview: View {
     let image: UIImage
     let caption: String
+    var byteCount: Int? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -121,6 +125,8 @@ private struct ReaderImagePreview: View {
     @State private var lastPanOffset: CGSize = .zero
     @State private var dragOffset: CGSize = .zero
     @State private var showChrome = true
+    @State private var isSaving = false
+    @State private var isSavedSuccess = false
     @GestureState private var magnification: CGFloat = 1.0
 
     private var currentZoom: CGFloat {
@@ -142,6 +148,28 @@ private struct ReaderImagePreview: View {
     private var dismissCornerRadius: CGFloat {
         guard dragOffset.height > 0 else { return 0 }
         return min(20, dragOffset.height / 8)
+    }
+
+    private var resolutionText: String {
+        let width = image.cgImage?.width ?? Int(image.size.width * image.scale)
+        let height = image.cgImage?.height ?? Int(image.size.height * image.scale)
+        return "\(width)×\(height)"
+    }
+
+    private var fileSizeText: String {
+        if let byteCount, byteCount > 0 {
+            return ByteCountFormatter.string(fromByteCount: Int64(byteCount), countStyle: .file)
+        }
+        return ""
+    }
+
+    private var metadataText: String {
+        let res = resolutionText
+        let size = fileSizeText
+        if !size.isEmpty {
+            return "\(res)  \(size)"
+        }
+        return res
     }
 
     var body: some View {
@@ -178,22 +206,68 @@ private struct ReaderImagePreview: View {
                             }
                         }
 
-                    // 底部插图说明浮层
-                    if !caption.isEmpty && showChrome && dragOffset.height == 0 {
-                        VStack {
+                    // 底部元信息与操作栏浮层
+                    if showChrome && dragOffset.height == 0 {
+                        VStack(spacing: 12) {
                             Spacer()
-                            Text(caption)
-                                .font(.footnote)
-                                .foregroundStyle(Color.white.opacity(0.92))
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                .environment(\.colorScheme, .dark)
-                                .padding(.bottom, 24)
-                                .padding(.horizontal, 20)
-                                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+
+                            if !caption.isEmpty {
+                                Text(caption)
+                                    .font(.footnote)
+                                    .foregroundStyle(Color.white.opacity(0.92))
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .environment(\.colorScheme, .dark)
+                                    .padding(.horizontal, 20)
+                            }
+
+                            Text(metadataText)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(Color.white.opacity(0.72))
+
+                            HStack(spacing: 16) {
+                                ShareLink(
+                                    item: Image(uiImage: image),
+                                    preview: SharePreview(caption.isEmpty ? "小说插图" : caption, image: Image(uiImage: image))
+                                ) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "square.and.arrow.up")
+                                        Text("分享")
+                                    }
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Color.white)
+                                    .frame(minWidth: 110, minHeight: 38)
+                                    .background(Color.white.opacity(0.14), in: Capsule())
+                                }
+
+                                Button {
+                                    saveImageToAlbum()
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        if isSaving {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                                .tint(.white)
+                                        } else {
+                                            Image(systemName: isSavedSuccess ? "checkmark" : "arrow.down.to.line")
+                                        }
+                                        Text(isSaving ? "正在保存…" : (isSavedSuccess ? "已保存" : "保存到相册"))
+                                    }
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(isSavedSuccess ? AppTheme.primary : Color.white)
+                                    .frame(minWidth: 130, minHeight: 38)
+                                    .background(
+                                        isSavedSuccess ? AppTheme.primaryLight.opacity(0.28) : Color.white.opacity(0.14),
+                                        in: Capsule()
+                                    )
+                                }
+                                .disabled(isSaving || isSavedSuccess)
+                            }
+                            .padding(.bottom, 22)
                         }
+                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -238,12 +312,34 @@ private struct ReaderImagePreview: View {
             .navigationTitle("图片预览")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.white)
+                            .frame(width: 32, height: 32)
+                            .background(Color.white.opacity(0.16), in: Circle())
+                    }
+                    .accessibilityLabel("关闭预览")
+                }
+
+                ToolbarItem(placement: .principal) {
+                    Text("1 / 1")
+                        .font(.subheadline.weight(.medium).monospacedDigit())
+                        .foregroundStyle(Color.white)
+                }
+
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") {
                         dismiss()
                     }
-                    .fontWeight(.medium)
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(AppTheme.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Color.white.opacity(0.14), in: Capsule())
                 }
             }
             .toolbar(showChrome ? .visible : .hidden, for: .navigationBar)
@@ -297,6 +393,38 @@ private struct ReaderImagePreview: View {
             } else {
                 withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) {
                     dragOffset = .zero
+                }
+            }
+        }
+    }
+
+    private func saveImageToAlbum() {
+        guard !isSaving else { return }
+        isSaving = true
+
+        Task {
+            let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            guard status == .authorized || status == .limited else {
+                await MainActor.run {
+                    isSaving = false
+                    AppFeedback.error("未获得相册权限，请在系统设置中允许知舟写入照片")
+                }
+                return
+            }
+
+            do {
+                try await PHPhotoLibrary.shared().performChanges {
+                    PHAssetChangeRequest.creationRequestForAsset(from: image)
+                }
+                await MainActor.run {
+                    isSaving = false
+                    isSavedSuccess = true
+                    AppFeedback.success("已保存到相册")
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    AppFeedback.error("保存失败，请稍后重试")
                 }
             }
         }
