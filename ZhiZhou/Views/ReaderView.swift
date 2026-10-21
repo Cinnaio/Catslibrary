@@ -118,6 +118,7 @@ struct ReaderView: View {
     @State private var activeThoughtSelection = ""
     @State private var showThoughtPanel = false
     @State private var chapterSwipeProgress: CGFloat = 0
+    @State private var hasFiredSwipeHaptic = false
     @State private var isSelectingBodyText = false
     @State private var showBookmark = false
     @State private var showRecap = false
@@ -668,13 +669,19 @@ struct ReaderView: View {
             .scrollPosition(id: $scrolledParagraph)
             .overlay(alignment: chapterSwipeProgress < 0 ? .trailing : .leading) {
                 if chapterSwipeProgress != 0 {
+                    let isReady = abs(chapterSwipeProgress) >= 1.0
                     Image(systemName: chapterSwipeProgress < 0 ? "chevron.left" : "chevron.right")
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(ink.opacity(0.36 + abs(chapterSwipeProgress) * 0.38))
+                        .foregroundStyle(isReady ? AppTheme.primary : ink.opacity(0.36 + abs(chapterSwipeProgress) * 0.38))
                         .frame(width: 44, height: 52)
-                        .background(AppTheme.surface.opacity(0.82), in: Capsule())
+                        .background(
+                            (isReady ? AppTheme.primaryLight.opacity(0.95) : AppTheme.surface.opacity(0.82)),
+                            in: Capsule()
+                        )
+                        .scaleEffect(isReady ? 1.12 : 1.0)
                         .offset(x: (chapterSwipeProgress < 0 ? 1 : -1) * (12 - abs(chapterSwipeProgress) * 12))
                         .padding(.horizontal, 8)
+                        .animation(reduceMotion ? nil : AppMotion.state, value: isReady)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
@@ -868,14 +875,24 @@ struct ReaderView: View {
               (horizontal < 0 ? hasNextChapter : hasPreviousChapter)
         else {
             chapterSwipeProgress = 0
+            hasFiredSwipeHaptic = false
             return
         }
 
-        // 直接把手势位移映射到提示位置，给用户一个可逆的跟手反馈。
-        chapterSwipeProgress = (horizontal < 0 ? -1 : 1) * min(1, abs(horizontal) / 60)
+        let ratio = min(1, abs(horizontal) / 60)
+        chapterSwipeProgress = (horizontal < 0 ? -1 : 1) * ratio
+        if ratio >= 1.0 {
+            if !hasFiredSwipeHaptic {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                hasFiredSwipeHaptic = true
+            }
+        } else {
+            hasFiredSwipeHaptic = false
+        }
     }
 
     private func handleChapterSwipe(_ value: DragGesture.Value) {
+        hasFiredSwipeHaptic = false
         let horizontal = value.translation.width
         let vertical = value.translation.height
 

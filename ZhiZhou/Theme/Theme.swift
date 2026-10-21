@@ -444,3 +444,43 @@ enum AppCopy {
         return raw.isEmpty ? "操作未完成，请稍后重试。" : raw
     }
 }
+
+/// 暖纸微光扫光效果，用于封面及列表骨架占位
+struct PaperShimmerModifier: ViewModifier {
+    @State private var phase: CGFloat = -1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content.opacity(0.8)
+        } else {
+            content
+                .overlay {
+                    GeometryReader { geo in
+                        LinearGradient(
+                            colors: [
+                                Color.clear,
+                                AppTheme.primaryLight.opacity(0.55),
+                                Color.clear
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .offset(x: phase * geo.size.width * 2)
+                    }
+                    .mask(content)
+                }
+                .onAppear {
+                    withAnimation(.linear(duration: 1.8).repeatForever(autoreverses: false)) {
+                        phase = 1
+                    }
+                }
+        }
+    }
+}
+
+extension View {
+    func paperShimmer() -> some View {
+        modifier(PaperShimmerModifier())
+    }
+}

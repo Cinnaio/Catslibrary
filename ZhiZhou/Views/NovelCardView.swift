@@ -73,8 +73,9 @@ struct NovelCoverView: View {
             ZStack {
                 AppTheme.primaryLight
                 Image(systemName: "book.closed")
-                    .foregroundStyle(AppTheme.primary)
+                    .foregroundStyle(AppTheme.primary.opacity(0.6))
             }
+            .paperShimmer()
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))

@@ -34,7 +34,7 @@ struct BootView: View {
             AppTheme.canvas.ignoresSafeArea()
             VStack(spacing: 32) {
                 VStack(spacing: 16) {
-                    BrandFlower(width: 192)
+                    BrandFlower(width: 192, breathing: true)
                     Text("知舟")
                         .font(serifFont(.largeTitle, .regular))
                         .foregroundStyle(AppTheme.textPrimary)
@@ -65,7 +65,10 @@ struct BootView: View {
 /// 复用 Web 登录页的原始花枝资源，仅用于安静的品牌装饰。
 struct BrandFlower: View {
     var width: CGFloat = 112
+    var breathing: Bool = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isBreathing = false
 
     var body: some View {
         Image("AuthFlower")
@@ -73,9 +76,16 @@ struct BrandFlower: View {
             .scaledToFit()
             .frame(width: width, height: width / 2)
             .brightness(colorScheme == .dark ? 0.12 : 0)
-            .opacity(colorScheme == .dark ? 0.85 : 0.7)
+            .opacity((colorScheme == .dark ? 0.85 : 0.7) * (breathing && !reduceMotion && isBreathing ? 0.82 : 1.0))
+            .scaleEffect((breathing && !reduceMotion && isBreathing) ? 0.985 : 1.0)
             .accessibilityHidden(true)
             .allowsHitTesting(false)
+            .onAppear {
+                guard breathing, !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
+                    isBreathing = true
+                }
+            }
     }
 }
 

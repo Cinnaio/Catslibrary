@@ -26,6 +26,7 @@ struct HomeView: View {
     @State private var reloadTask: Task<Void, Never>?
     @State private var requests = ListRequestGuard<[String]>()
     @State private var interactionFeedback = 0
+    @Namespace private var categoryNamespace
 
     private enum HomeRoute: Hashable {
         case novel(Novel)
@@ -110,6 +111,11 @@ struct HomeView: View {
                     trailing: totalNovelCount > 0 ? "\(totalNovelCount) 本" : nil
                 )
                 .padding(.bottom, 12)
+
+                if !categories.isEmpty {
+                    categoryChipsBar
+                        .padding(.bottom, 12)
+                }
 
                 catalogContent
             }
@@ -353,6 +359,47 @@ struct HomeView: View {
             .font(.subheadline)
             .foregroundStyle(AppTheme.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var categoryChipsBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                categoryChip(title: "全部", category: nil)
+                ForEach(categories, id: \.self) { cat in
+                    categoryChip(title: cat, category: cat)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+        }
+        .padding(.horizontal, -16)
+    }
+
+    private func categoryChip(title: String, category: String?) -> some View {
+        let isSelected = (selectedCategory == category)
+        return Button {
+            withAnimation(reduceMotion ? nil : AppMotion.structural) {
+                setCategory(category)
+            }
+            UISelectionFeedbackGenerator().selectionChanged()
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textSecondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background {
+                    if isSelected {
+                        Capsule()
+                            .fill(AppTheme.primary.opacity(0.12))
+                            .matchedGeometryEffect(id: "activeCategoryPill", in: categoryNamespace)
+                    } else {
+                        Capsule()
+                            .fill(Color.clear)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
     }
 
     private var categoryMenu: some View {
