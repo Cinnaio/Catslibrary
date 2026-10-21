@@ -52,6 +52,56 @@ describe.each([
   { kind: 'plot', extract: extractPlotState, read: getPlotStateForAnchor, table: 'novel_plot_states' },
   { kind: 'relationship', extract: extractRelationshipProfile, read: getRelationshipProfileForAnchor, table: 'novel_relationship_profiles' },
 ])('$kind full story memory', ({ kind, extract, read, table }) => {
+  it('cancels a stalled model call promptly and resumes the last complete checkpoint', async () => {
+    await chapter(1)
+    await chapter(2)
+    await extract(t.db, opts)
+    let entered!: () => void
+    const started = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    let signal: AbortSignal | undefined
+    vi.mocked(chat).mockImplementationOnce((options) => {
+      signal = options.signal
+      entered()
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('paused', 'AbortError')), { once: true })
+      })
+    })
+    const pending = extract(t.db, opts)
+    await started
+    const verdict = expect(pending).resolves.toMatchObject({ paused: true, complete: false, processedChapters: 1 })
+    await pauseStoryMemory(t.db, 'book', kind as 'plot' | 'relationship')
+    expect(signal?.aborted).toBe(true)
+    await verdict
+    expect(recordUsage).toHaveBeenCalledTimes(1)
+    expect((await t.db.query(`SELECT * FROM ${table}`)).rows).toHaveLength(0)
+    expect(await getStoryMemoryProgress(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ running: false, paused: true, processedChapters: 1 })
+    await expect(extract(t.db, opts)).resolves.toMatchObject({ complete: true, processedChapters: 2 })
+    expect(input(2)).toContain('正文2。')
+    expect(input(2)).not.toContain('正文1。')
+  })
+
+  it('detects a pause written by another process and cancels its pending request', async () => {
+    await chapter(1)
+    let entered!: () => void
+    const started = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    vi.mocked(chat).mockImplementationOnce(({ signal }) => {
+      entered()
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('paused', 'AbortError')), { once: true })
+      })
+    })
+    const pending = extract(t.db, opts)
+    await started
+    await t.db.query('UPDATE novel_story_memory_builds SET pause_requested = TRUE WHERE novel_id = $1 AND kind = $2', ['book', kind])
+    await expect(pending).resolves.toMatchObject({ paused: true, processedChapters: 0 })
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(await getStoryMemoryProgress(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ running: false, paused: true })
+  }, 3000)
+
   it('pauses an in-flight batch without releasing its lease and resumes the persisted target', async () => {
     await chapter(1)
     await chapter(2)

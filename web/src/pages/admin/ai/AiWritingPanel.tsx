@@ -799,7 +799,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   }
 
   function memoryProgressNote(profile: AiEffectiveProfile | null, pausing: boolean) {
-    if (pausing) return '已请求暂停，当前响应结束后保存检查点；不会继续发起模型调用。'
+    if (pausing) return '正在取消当前请求，已完成的检查点会保留；继续时重新处理未完成批次。'
     const progress = profile?.progress
     if (!progress || progress.complete !== false) return undefined
     return `${progress.running ? '更新中' : progress.paused ? '已暂停' : '可继续'} · 已保存 ${progress.processedChapters} / ${progress.totalChapters} 章。${progress.running ? '可请求暂停当前更新。' : '继续时会校验正文，并从有效检查点恢复。'}`

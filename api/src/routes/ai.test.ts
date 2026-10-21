@@ -1180,6 +1180,23 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       )
       expect(status.progress).toMatchObject({ paused: true, running: false, processedChapters: 1 })
       expect(fetchMock).toHaveBeenCalledTimes(calls)
+      let entered!: () => void
+      const started = new Promise<void>((resolve) => { entered = resolve })
+      fetchMock.mockImplementationOnce((_input, init) => {
+        entered()
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('paused', 'AbortError')), { once: true })
+        })
+      })
+      const pending = req(`/api/ai/writing/${endpoint}`, json('POST', { novelId, sampleChapters: 1 }, adminToken))
+      await started
+      const beforePause = performance.now()
+      expect((await req(pauseUrl, json('POST', {}, adminToken))).status).toBe(200)
+      expect(await jsonOf(await pending)).toMatchObject({ paused: true, complete: false, processedChapters: 1 })
+      const elapsed = Math.round(performance.now() - beforePause)
+      expect(elapsed).toBeLessThan(2000)
+      console.info('[story-memory-pause] %s cancelled in %d ms', kind, elapsed)
+      expect(fetchMock).toHaveBeenCalledTimes(calls + 1)
       const resumed = await req(
         `/api/ai/writing/${endpoint}`,
         json('POST', { novelId, sampleChapters: 1, afterChapterId: status.progress.targetChapterId }, adminToken),
