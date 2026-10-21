@@ -878,6 +878,36 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(taskResults.items.map((item) => item.batchIndex)).toEqual(Array.from({ length: 20 }, (_, index) => index + 1))
   })
 
+  it.each([undefined, 2])('推荐与大纲均向模型传递创作约束（章数 %s）', async (chapterCount) => {
+    const novel = await req('/api/novels', json('POST', { title: '约束联动书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    await req('/api/chapters', json('POST', { novelId, title: '已有章节', content: LONG_CONTENT }, adminToken))
+    let observed = ''
+    const previousFetch = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String(init?.body || '{}'))
+      observed = (body.messages || []).map((message: { content: string }) => message.content).join('\n')
+      return new Response(JSON.stringify({
+        model: 'test-model',
+        choices: [{ message: { content: chapterCount ? '第1章 信任\n初识。\n第2章 试探\n同行。' : '[{"direction":"两人在客栈交谈，逐渐建立信任。","effect":"关系推进"}]' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 20 },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    try {
+      const writingBrief = { version: 1, objective: '建立初步信任', viewpoint: '第三人称', pace: '舒缓', characters: ['沈砚'], requiredFacts: '沈砚尚未暴露身份', forbiddenEvents: '不得揭露真实身份', chapterGoals: [{ index: 1, goal: '交换线索' }, { index: 2, goal: '约定同行' }] }
+      const res = await req('/api/ai/writing/plot-suggestions', json('POST', { novelId, chapterCount, writingBrief }, adminToken))
+      expect(res.status).toBe(200)
+      for (const text of ['建立初步信任', '第三人称', '舒缓', '沈砚', '沈砚尚未暴露身份', '不得揭露真实身份', '交换线索', '约定同行', '不要推荐或安排被禁止的事件']) expect(observed).toContain(text)
+    } finally {
+      if (previousFetch) fetchMock.mockImplementation(previousFetch)
+    }
+  })
+
+  it('推荐接口拒绝非法创作约束', async () => {
+    const res = await req('/api/ai/writing/plot-suggestions', json('POST', { novelId: 'any', writingBrief: { version: 2 } }, adminToken))
+    expect(res.status).toBe(422)
+  })
+
   it('大纲生成把作者选定的情节方向作为主线下发', async () => {
     const novel = await req('/api/novels', json('POST', { title: '大纲方向书', author: '某作者' }, adminToken))
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
