@@ -97,6 +97,8 @@ struct ReaderMediaView: View {
         .fullScreenCover(isPresented: $previewOpen) {
             if let image = currentImage {
                 ReaderImagePreview(image: image, caption: caption, byteCount: loadedDataSize)
+                    .presentationBackground(Color.black)
+                    .preferredColorScheme(.dark)
             }
         }
     }
@@ -186,7 +188,7 @@ private struct ReaderImagePreview: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: size.width, height: size.height)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: dismissCornerRadius, style: .continuous))
                         .scaleEffect(currentZoom * dismissScale)
                         .offset(
@@ -317,12 +319,14 @@ private struct ReaderImagePreview: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.white)
                             .frame(width: 32, height: 32)
-                            .background(Color.white.opacity(0.16), in: Circle())
+                            .background(Color.white.opacity(0.18), in: Circle())
                     }
-                    .accessibilityLabel("关闭预览")
+                    .accessibilityLabel("完成")
+                    .accessibilityIdentifier("完成")
+                    .accessibilityHint("关闭图片预览")
                 }
 
                 ToolbarItem(placement: .principal) {
@@ -331,21 +335,18 @@ private struct ReaderImagePreview: View {
                         .foregroundStyle(Color.white)
                 }
 
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") {
-                        dismiss()
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppTheme.primary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.14), in: Capsule())
+                ToolbarItem(placement: .topBarTrailing) {
+                    Color.clear
+                        .frame(width: 32, height: 32)
+                        .accessibilityHidden(true)
                 }
             }
             .toolbar(showChrome ? .visible : .hidden, for: .navigationBar)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
+        .background(Color.black.ignoresSafeArea())
+        .presentationBackground(Color.black)
         .preferredColorScheme(.dark)
     }
 
