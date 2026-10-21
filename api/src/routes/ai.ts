@@ -1630,8 +1630,9 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
       const title = requestedTitle || storedTitle || parsed.title
       const content = parsed.title ? parsed.body : row.result
       if (!title || !content.trim()) throw new PublishError(400, 'novelId、title 和内容必填')
-      // 必须在小说行锁内读取当前分级；显式 R18 草稿不得静默进入 general/unknown。
-      const policy = evaluateWritingPublishPolicy(row, novel.rows[0]!.content_rating)
+      // 必须在小说行锁内读取当前分级；显式 R18 草稿不得静默进入 general/unknown，
+      // 正文命中成人信号同样不得进入（参数记录的是意图，正文才是实际要落库的内容）。
+      const policy = evaluateWritingPublishPolicy(row, novel.rows[0]!.content_rating, content)
       if (!policy.ok) throw new PublishError(policy.httpStatus, policy.message, policy.code)
       // 带条件更新原子占用草稿：同一草稿并发发布时只有一个请求能成功
       const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, id])
@@ -1721,13 +1722,17 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
         if (batch.batchId !== batchId || !row.result.trim()) continue
 
         // 与单章发布完全相同的冻结参数和当前作品分级校验。
-        const policy = evaluateWritingPublishPolicy(row, novel.rows[0]!.content_rating)
-        if (!policy.ok) throw new PublishError(policy.httpStatus, policy.message, policy.code)
-
-        // 兼容修复前的旧草稿：标题可能还在正文首行。
+        // 先解析出真正要落库的正文，再交策略判定——正文检测需要的是剥掉标题后的那段。
         const parsed = parseContinuationTitle(row.result)
         const content = parsed.title ? parsed.body : row.result
         if (!content.trim()) throw new PublishError(400, 'novelId、title 和内容必填')
+        const policy = evaluateWritingPublishPolicy(row, novel.rows[0]!.content_rating, content)
+        if (!policy.ok) {
+          // 整批发布会一次性校验全部草稿，错误信息必须指出是哪一章卡住，
+          // 否则管理员只看到一条 409 却不知道要改哪一章。
+          throw new PublishError(policy.httpStatus, `第 ${batch.batchIndex} 章：${policy.message}`, policy.code)
+        }
+
         prepared.push({
           row,
           draftTitle: batch.draftTitle,

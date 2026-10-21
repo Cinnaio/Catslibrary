@@ -1850,6 +1850,106 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(Number(afterChapters.rows[0]?.count)).toBe(Number(before.rows[0]?.count))
   })
 
+  /**
+   * 参数说 off、正文却露骨 —— 这是发布闸门原来的缺口。
+   * 创作要求走指令层下发，作者完全可以在开关关闭时写下露骨要求并拿到露骨正文；
+   * 只按 contentPreferences 判定等于检查一份意图声明，而不是即将落库的那段正文。
+   */
+  it('参数为 off 但正文含成人信号时，发布闸门按正文拒绝', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '正文闸门书', author: '某作者', contentRating: 'general' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string; contentRating: string } }>(novel)).novel.id
+    const prevImpl = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '夜谈\n\n他把她按在榻上，手指探进那片湿热的秘处，她发出细碎的呻吟。' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 20 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+    try {
+      const started = await req('/api/ai/writing/chapter', json('POST', { novelId, title: '正文闸门书', instruction: '写一章夜谈' }, adminToken))
+      expect(started.status).toBe(202)
+      const { taskId } = await jsonOf<{ taskId: string }>(started)
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+
+      const { rows } = await t.db.query<{ id: string; params_json: string }>(
+        "SELECT id, params_json FROM ai_generations WHERE novel_id = $1 AND kind = 'write_chapter' ORDER BY created_at DESC LIMIT 1",
+        [novelId],
+      )
+      const draft = rows[0]!
+      // 冻结参数确实是 off：闸门不能因为参数干净就放行。
+      expect((JSON.parse(draft.params_json) as { contentPreferences: { adultContentMode: string } }).contentPreferences.adultContentMode).toBe('off')
+
+      const blocked = await req(`/api/ai/writing/drafts/${draft.id}/publish`, json('POST', { novelId }, adminToken))
+      expect(blocked.status).toBe(409)
+      const blockedBody = await jsonOf<{ code: string; error: string }>(blocked)
+      expect(blockedBody.code).toBe('adult_body_requires_restricted')
+      expect(blockedBody.error).toContain('restricted')
+
+      // 拒绝后草稿保持可发布状态，章节表也没多出记录。
+      const after = await t.db.query<{ status: string }>('SELECT status FROM ai_generations WHERE id = $1', [draft.id])
+      expect(after.rows[0]?.status).toBe('draft')
+      const chapterCount = await t.db.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id = $1', [novelId])
+      expect(Number(chapterCount.rows[0]?.count)).toBe(0)
+
+      // 改为 restricted 后同一份草稿可以正常发布。
+      const revision = (await jsonOf<{ novel: { contentRatingRevision: number } }>(await req(`/api/novels/${novelId}`, json('GET', undefined, adminToken)))).novel.contentRatingRevision
+      expect((await req(`/api/novels/${novelId}`, json('PUT', { contentRating: 'restricted', contentRatingRevision: revision }, adminToken))).status).toBe(200)
+      expect((await req(`/api/ai/writing/drafts/${draft.id}/publish`, json('POST', { novelId }, adminToken))).status).toBe(200)
+    } finally {
+      if (prevImpl) fetchMock.mockImplementation(prevImpl)
+      else fetchMock.mockReset()
+    }
+  })
+
+  it('整批发布时正文闸门指出具体是哪一章，且不产生部分发布', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '批量正文闸门书', author: '某作者', contentRating: 'general' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    await req('/api/chapters', json('POST', { novelId, title: '批量起点', content: LONG_CONTENT }, adminToken))
+    const prevImpl = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '夜谈\n\n他把她按在榻上，手指探进那片湿热的秘处，她发出细碎的呻吟。' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 20 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+    try {
+      const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 2 }, adminToken))
+      expect(started.status).toBe(202)
+      const { taskId, batchId } = await jsonOf<{ taskId: string; batchId: string }>(started)
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+
+      const before = await t.db.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id = $1', [novelId])
+      const blocked = await req(`/api/ai/writing/batches/${batchId}/publish`, json('POST', { novelId }, adminToken))
+      expect(blocked.status).toBe(409)
+      const blockedBody = await jsonOf<{ code: string; error: string }>(blocked)
+      expect(blockedBody.code).toBe('adult_body_requires_restricted')
+      // 整批校验一次跑完，报错必须能定位到具体章号。
+      expect(blockedBody.error).toMatch(/^第 \d+ 章：/)
+
+      const after = await t.db.query<{ status: string; chapter_id: string }>(
+        "SELECT status, chapter_id FROM ai_generations WHERE novel_id = $1 AND kind = 'continue' AND params_json LIKE $2",
+        [novelId, `%${batchId}%`],
+      )
+      expect(after.rows).toHaveLength(2)
+      expect(after.rows.every((row) => row.status === 'draft' && row.chapter_id === '')).toBe(true)
+      const afterChapters = await t.db.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id = $1', [novelId])
+      expect(Number(afterChapters.rows[0]?.count)).toBe(Number(before.rows[0]?.count))
+    } finally {
+      if (prevImpl) fetchMock.mockImplementation(prevImpl)
+      else fetchMock.mockReset()
+    }
+  })
+
   // ---------- 可配置阈值 / 并发上限 / 运维清理 / 审计截断 ----------
 
   it('catchupStaleDays 可配且通过 /status 下发：阈值放宽后 8 天前的进度变为 not_stale', async () => {
