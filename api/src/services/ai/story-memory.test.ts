@@ -100,6 +100,38 @@ describe.each([
     expect(input(3)).toContain('改写结尾')
   })
 
+  it('retries the same batch when the gateway cancels a reply mid-stream', async () => {
+    await chapter(1, '正文一。')
+    await chapter(2, '正文二。')
+    // First reply is cancelled after partial output; the retry succeeds on the same
+    // batch (filtering is probabilistic, so splitting would only cost more calls).
+    vi.mocked(chat)
+      .mockResolvedValueOnce({ ...response, text: '半截档案内容', finishReason: 'content_filter', truncated: true })
+      .mockResolvedValueOnce({ ...response, text: '完整档案', finishReason: 'stop' })
+    const result = await extract(t.db, { ...opts, sampleChapters: 2 })
+    expect(chat).toHaveBeenCalledTimes(2)
+    expect(recordUsage).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({ complete: true, processedChapters: 2 })
+    // The retry re-sends the same two chapters, not a split batch.
+    expect(input(1)).toContain('正文一。')
+    expect(input(1)).toContain('正文二。')
+    expect((await read(t.db, 'book')).eligibility).toBe('usable')
+  })
+
+  it('keeps the checkpoint and reports truncation when every retry is cancelled', async () => {
+    await chapter(1, '正文一。')
+    vi.mocked(chat).mockResolvedValue({ ...response, text: '半截档案', finishReason: 'content_filter', truncated: true })
+    await expect(extract(t.db, opts)).rejects.toThrow('内容策略截断')
+    // All retries were billed, nothing was published, checkpoint untouched.
+    expect(recordUsage).toHaveBeenCalledTimes(5)
+    expect((await t.db.query(`SELECT * FROM ${table}`)).rows).toHaveLength(0)
+    expect(await getMemoryAttempt(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ status: 'truncated', finishReason: 'content_filter' })
+    // A later retry resumes from the same chapter rather than losing history.
+    vi.mocked(chat).mockResolvedValue(response)
+    await expect(extract(t.db, opts)).resolves.toMatchObject({ complete: true, processedChapters: 1 })
+    expect(input(5)).toContain('上一版档案（空表示首次建立）：\n无')
+  })
+
   it('does not carry future memory into an earlier anchor and detects reorder/delete/insert', async () => {
     await chapter(1)
     await chapter(2)
