@@ -84,10 +84,22 @@ describe('writing content preferences', () => {
   it('adds the relaxation block only for the explicit fictional tier', () => {
     const relaxed = formatWritingContentPreferences({ version: 1, adultContentMode: 'explicit', intimacyWeight: 'high', adultCharactersConfirmed: true, consentRuleTier: 'fictional_nonconsent' })
     expect(relaxed).toContain('本档位附加规则')
-    expect(relaxed).toContain('可以对这类场景作直接、具体的描写')
-    // 篇幅约束与同意规则并列，两处都要解除，否则量化要求会被系统层抵消。
-    expect(relaxed).toContain('篇幅约束以本任务参数的量化要求为准')
+    expect(relaxed).toContain('对这类场景作直接、具体的描写')
+    // 篇幅以正向量化基准下发；不再声明「与系统提示词冲突时以本参数为准」——
+    // 冲突条款改由编译期改写删除，倒置式声明反而会让模型觉得存在争议。
+    expect(relaxed).toContain('成人场景占据本章主体篇幅')
+    expect(relaxed).not.toContain('以本任务参数的量化要求为准')
+    expect(relaxed).not.toContain('以任务参数中的题材分级规则为准')
     // 放宽档只解除写法与篇幅限制，成年前提不变。
     expect(relaxed).toContain('角色均为成年人')
+  })
+
+  it('keeps the strict tier as the only place that spells out the harm boundary', () => {
+    const strict = formatWritingContentPreferences({ version: 1, adultContentMode: 'explicit', intimacyWeight: 'high', adultCharactersConfirmed: true, consentRuleTier: 'default' })
+    const relaxed = formatWritingContentPreferences({ version: 1, adultContentMode: 'explicit', intimacyWeight: 'high', adultCharactersConfirmed: true, consentRuleTier: 'fictional_nonconsent' })
+    expect(strict).toContain('仍不得把拒绝、恐惧或伤害写成情趣')
+    // 放宽档第 2 条要求如实呈现抗拒，第 4 条给出边界；两处若同时出现会互相消解。
+    expect(relaxed).not.toContain('仍不得把拒绝、恐惧或伤害写成情趣')
+    expect(relaxed).toContain('不等于把拒绝、恐惧或伤害本身写成情趣卖点')
   })
 })
