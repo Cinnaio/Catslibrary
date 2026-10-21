@@ -53,13 +53,20 @@ export default function Admin() {
       return ''
     }
   })
-  const highlightNovelId = requestedNovelId || legacyHighlightNovelId
+  // novelId belongs to the active module: chapters uses it to select a book.
+  // Only the legacy sessionStorage entry is a command to open novel management.
+  if (requestedNovelId && legacyHighlightNovelId) setLegacyHighlightNovelId('')
+  const highlightNovelId = active === 'novels' ? requestedNovelId || legacyHighlightNovelId : ''
   useEffect(() => {
-    if (highlightNovelId) {
+    if (requestedNovelId) {
+      sessionStorage.removeItem('adminEditNovel')
+      return
+    }
+    if (legacyHighlightNovelId) {
       sessionStorage.removeItem('adminEditNovel')
       if (active !== 'novels') navigate({ pathname: adminTabPath('novels'), search: location.search }, { replace: true })
     }
-  }, [active, highlightNovelId, navigate, location.search])
+  }, [active, requestedNovelId, legacyHighlightNovelId, navigate, location.search])
 
   if (!isAdminTab(tab)) {
     return <Navigate to={adminTabPath(fallbackTab)} replace />
