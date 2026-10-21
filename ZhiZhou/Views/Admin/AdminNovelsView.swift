@@ -12,9 +12,8 @@ struct AdminNovelsView: View {
     @State private var page = 1
     @State private var hasMore = false
     @State private var loadedTotal = 0
-    @State private var showEditor = false
+    @State private var editorDestination: NovelEditorDestination?
     @State private var followupNovel: Novel?
-    @State private var editingNovel: Novel?
     @State private var deleteTarget: Novel?
     @State private var actionError: String?
     @State private var busyNovelId: String?
@@ -107,8 +106,7 @@ struct AdminNovelsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    editingNovel = nil
-                    showEditor = true
+                    editorDestination = NovelEditorDestination(novel: nil)
                 } label: {
                     Label("新建小说", systemImage: "plus")
                 }
@@ -122,9 +120,9 @@ struct AdminNovelsView: View {
                     } }
             }
         }
-        .sheet(isPresented: $showEditor) {
-            NovelEditSheet(novel: editingNovel) { saved in
-                if editingNovel == nil {
+        .sheet(item: $editorDestination) { destination in
+            NovelEditSheet(novel: destination.novel) { saved in
+                if destination.novel == nil {
                     novels.insert(saved, at: 0)
                     loadedTotal += 1
                 } else if let idx = novels.firstIndex(where: { $0.id == saved.id }) {
@@ -220,8 +218,7 @@ struct AdminNovelsView: View {
             } else {
                 Menu {
                     Button("编辑", systemImage: "pencil") {
-                        editingNovel = novel
-                        showEditor = true
+                        editorDestination = NovelEditorDestination(novel: novel)
                     }
                     Button("追更设置", systemImage: "clock.arrow.circlepath") { followupNovel = novel }
                     Button("增量更新", systemImage: "arrow.triangle.2.circlepath") {
@@ -241,8 +238,7 @@ struct AdminNovelsView: View {
         }
         .contextMenu {
             Button("编辑", systemImage: "pencil") {
-                editingNovel = novel
-                showEditor = true
+                editorDestination = NovelEditorDestination(novel: novel)
             }
             Button("追更设置", systemImage: "clock.arrow.circlepath") { followupNovel = novel }
             Button("增量更新", systemImage: "arrow.triangle.2.circlepath") {
@@ -341,6 +337,13 @@ struct AdminNovelsView: View {
 
 // MARK: - 编辑 / 新建 Sheet
 
+/// Presentation and target travel together, including an explicit create
+/// destination. Each opening owns a fresh form and an immutable novel snapshot.
+private struct NovelEditorDestination: Identifiable {
+    let id = UUID()
+    let novel: Novel?
+}
+
 private struct NovelEditSheet: View {
     let novel: Novel?
     @Environment(\.dismiss) private var dismiss
@@ -354,6 +357,18 @@ private struct NovelEditSheet: View {
     @State private var saving = false
     @State private var errorMessage: String?
     let onSaved: (Novel) -> Void
+
+    init(novel: Novel?, onSaved: @escaping (Novel) -> Void) {
+        self.novel = novel
+        self.onSaved = onSaved
+        _title = State(initialValue: novel?.title ?? "")
+        _author = State(initialValue: novel?.author ?? "")
+        _status = State(initialValue: novel?.status ?? "ongoing")
+        _descriptionText = State(initialValue: novel?.description ?? "")
+        _coverUrl = State(initialValue: novel?.coverUrl ?? "")
+        _categories = State(initialValue: novel?.categories.joined(separator: "，") ?? "")
+        _sourceUrl = State(initialValue: novel?.sourceUrl ?? "")
+    }
 
     private var isEditing: Bool { novel != nil }
 
@@ -407,19 +422,7 @@ private struct NovelEditSheet: View {
                         .disabled(saving)
                 }
             }
-            .onAppear(perform: seed)
         }
-    }
-
-    private func seed() {
-        guard let novel, title.isEmpty else { return }
-        title = novel.title
-        author = novel.author
-        status = novel.status
-        descriptionText = novel.description
-        coverUrl = novel.coverUrl
-        categories = novel.categories.joined(separator: "，")
-        sourceUrl = novel.sourceUrl
     }
 
     private func save() {
