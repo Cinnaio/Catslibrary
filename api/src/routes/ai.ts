@@ -51,6 +51,11 @@ import {
 import { WRITING_PROMPT_PIPELINE_VERSION } from '../services/ai/writing-prompt'
 import { COVER_PROMPT_PIPELINE_VERSION } from '../services/ai/cover-brief'
 import { extractStyleProfile } from '../services/ai/style-profile'
+import { reviewWritingDraft, reviewSourcesCurrent, type WritingReview } from '../services/ai/writing-review'
+import { retrieveWritingHistory, writingMaterialRevision } from '../services/ai/writing-history'
+import { compileWritingPrompt } from '../services/ai/writing-prompt'
+import type { WritingBriefV1 } from '../services/ai/writing'
+import { getMemoryAttempt } from '../services/ai/story-memory'
 import { extractPlotState } from '../services/ai/plot-state'
 import { extractRelationshipProfile } from '../services/ai/relationship-profile'
 import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, saveProfileOverride } from '../services/ai/profile-overrides'
@@ -541,6 +546,8 @@ async function buildContinuationSnapshot(
   novelId: string,
   afterChapterId: string | undefined,
   contentPreferences: WritingContentPreferencesV1 = DEFAULT_WRITING_CONTENT_PREFERENCES,
+  brief?: WritingBriefV1,
+  instruction = '',
 ): Promise<ContinuationSnapshotV1 | undefined> {
   const loaded = await loadContinuationContext(db, novelId, afterChapterId)
   if (!loaded) return undefined
@@ -575,7 +582,7 @@ async function buildContinuationSnapshot(
     if (value.effectiveOrigin === 'manual') profileOrigins[kind] = 'manual'
     else if (value.effectiveOrigin === 'automatic') {
       const sourceVersion = value.source && typeof value.source === 'object' ? Number((value.source as Record<string, unknown>).extractionPromptVersion) : 0
-      profileOrigins[kind] = sourceVersion === 2 ? 'automatic' : 'legacy'
+      profileOrigins[kind] = sourceVersion >= 2 ? 'automatic' : 'legacy'
     }
     const allowed = value.effectiveOrigin !== 'none' && profile.trim().length > 0
     if (allowed) {
@@ -600,6 +607,7 @@ async function buildContinuationSnapshot(
     profileOrigins,
     contentPreferences,
     excludedProfiles,
+    historicalPassages: await retrieveWritingHistory(db, novelId, loaded.anchor, brief, instruction),
   }
 }
 
@@ -708,7 +716,7 @@ async function startWritingJob(
   let snapshot = internalSnapshot
   if (!snapshot) {
     try {
-      snapshot = await buildContinuationSnapshot(db, novelId, String(body.afterChapterId || '').trim() || undefined, contentPreferences)
+      snapshot = await buildContinuationSnapshot(db, novelId, String(body.afterChapterId || '').trim() || undefined, contentPreferences, writingBrief, finalInstruction)
     } catch (err) {
       if (err instanceof AiError && (err.status === 404 || err.code === 'invalid')) {
         return { ok: false, status: err.status === 404 ? 404 : 422, error: err.message }
@@ -717,6 +725,7 @@ async function startWritingJob(
     }
   }
   if (!snapshot) return { ok: false, status: 422, error: '此书暂无已发布章节，请先使用新写' }
+  if (!internalSnapshot && body.materialRevision && String(body.materialRevision) !== writingMaterialRevision(snapshot, writingBrief, instruction, String(body.outline || '').trim())) return { ok: false, status: 409, error: '创作材料或要求已变化，请重新预览上下文' }
   const effectiveContentPreferences = snapshot.contentPreferences || contentPreferences
 
   const existing = resume?.drafts || []
@@ -1256,6 +1265,63 @@ aiRoutes.get('/writing/style-profile/:novelId', requireAdmin(), async (c) => {
   }
 })
 
+/** Preview uses the exact same trusted snapshot builder as task submission. */
+aiRoutes.get('/writing/drafts/:id/review', requireAdmin(), async (c) => {
+  const db = getDb()
+  const draft = await first<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE id = $1 AND deleted_at = 0', [c.req.param('id')])
+  if (!draft || !['continue', 'write_chapter'].includes(draft.kind)) return c.json({ error: '草稿不存在' }, 404)
+  const latest = await first<{ report_json: string }>(db, "SELECT report_json FROM ai_writing_reviews WHERE draft_id = $1 AND status = 'completed' ORDER BY created_at DESC LIMIT 1", [draft.id])
+  if (!latest) return c.json({ report: null }, 200, { 'Cache-Control': 'no-store' })
+  const report = JSON.parse(latest.report_json) as WritingReview
+  let sourcesCurrent = false
+  try { sourcesCurrent = await reviewSourcesCurrent(db, draft.novel_id, report.sources, report.anchorId) } catch { sourcesCurrent = false }
+  return c.json({ report: { ...report, stale: draft.status !== 'draft' || report.draftRevision !== generationContentRevision(draft.result) || !sourcesCurrent } }, 200, { 'Cache-Control': 'no-store' })
+})
+
+aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), async (c) => {
+  const db = getDb()
+  const draft = await first<GenerationRow>(db, "SELECT * FROM ai_generations WHERE id = $1 AND status = 'draft' AND deleted_at = 0", [c.req.param('id')])
+  if (!draft || !['continue', 'write_chapter'].includes(draft.kind)) return c.json({ error: '可检查的草稿不存在' }, 404)
+  const body = await c.req.json().catch(() => ({}))
+  try {
+    let params: Record<string, any> = {}
+    try { params = JSON.parse(draft.params_json || '{}') } catch { /* legacy draft */ }
+    const task = params.taskId ? await getAiTask(db, String(params.taskId)) : undefined
+    let taskParams: Record<string, any> = {}
+    try { taskParams = JSON.parse(task?.params || '{}') } catch { /* legacy task */ }
+    const frozen = parseContinuationSnapshot(taskParams.continuationSnapshot)
+    const brief = validateWritingBrief(taskParams.writingBrief, Number(taskParams.chapterCount) || 1).brief
+    const snapshot = await buildContinuationSnapshot(db, draft.novel_id, frozen?.anchor.chapterId || String(taskParams.afterChapterId || '').trim() || undefined, frozen?.contentPreferences, brief, String(taskParams.instruction || ''))
+    const report = await reviewWritingDraft(db, draft, snapshot, { userId: c.get('user').id, expectedRevision: String(body.expectedRevision || ''), ...(await auditRequestContext(c, db)) })
+    return c.json({ report }, 200, { 'Cache-Control': 'no-store' })
+  } catch (err) { return aiErrorResponse(c, err) }
+})
+
+aiRoutes.post('/writing/materials', requireAdmin(), async (c) => {
+  const db = getDb()
+  const body = await c.req.json().catch(() => ({}))
+  const novelId = String(body.novelId || '').trim()
+  const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  const brief = validateWritingBrief(body.writingBrief, Math.max(1, Math.min(20, Math.trunc(Number(body.chapterCount) || 1))))
+  if (brief.error) return c.json({ error: brief.error }, 422)
+  const preferences = validateWritingContentPreferences(body.contentPreferences)
+  if (preferences.error) return c.json({ error: preferences.error }, 422)
+  try {
+    const instruction = String(body.instruction || '').trim()
+    const outline = String(body.outline || '').trim()
+    const snapshot = await buildContinuationSnapshot(db, novelId, String(body.afterChapterId || '').trim() || undefined, preferences.preferences, brief.brief, instruction || String(body.title || '').trim() || '自然推进剧情，完成一个有悬念的章节段落')
+    if (!snapshot) return c.json({ error: '此书暂无已发布章节' }, 422)
+    const settings = await getAiSettings(db)
+    const compiled = compileWritingPrompt({ kind: 'continue', title: novel.title, instruction: instruction || String(body.title || '').trim() || '自然推进剧情，完成一个有悬念的章节段落', outline, context: snapshot.context, writingBrief: brief.brief, targetWords: Number(body.targetWords) || undefined, chapterCount: Number(body.chapterCount) || 1,
+      plotState: { state: snapshot.profiles.plot }, styleProfile: snapshot.profiles.style, relationshipProfile: snapshot.profiles.relationship,
+      continuationSnapshot: snapshot, profileOrigins: snapshot.profileOrigins, contentPreferences: snapshot.contentPreferences, writingSystemPrompt: settings.writingSystemPrompt })
+    return c.json({ revision: writingMaterialRevision(snapshot, brief.brief, instruction, outline), anchor: snapshot.anchor, plan: compiled.plan,
+      historicalPassages: snapshot.historicalPassages || [], excludedProfiles: snapshot.excludedProfiles,
+      characterCount: compiled.system.length + compiled.user.length, recentContextPolicy: '最近三章尾部，总上限 12000 字符；历史原文按匹配片段补充，情节和关系档案完整保留。' }, 200, { 'Cache-Control': 'no-store' })
+  } catch (err) { return aiErrorResponse(c, err) }
+})
+
 // ---------- 情节状态：从小说已发布章节提取结构化角色处境/伏笔/冲突，续写时拼进 user 消息 ----------
 
 /**
@@ -1299,6 +1365,7 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
     ])
     return c.json({
       state: plotState.profile,
+      lastAttempt: await getMemoryAttempt(db, novelId, 'plot'),
       chaptersThrough: Number(plotState.source?.chapterOrdinal) || 0,
       chapterCount: Number(novel?.chapter_count) || 0,
       source: plotState.source,
@@ -1353,6 +1420,7 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
     const result = await getEffectiveProfileForAnchor(db, { kind: 'relationship', novelId, afterChapterId })
     return c.json({
       profile: result.profile,
+      lastAttempt: await getMemoryAttempt(db, novelId, 'relationship'),
       source: result.source,
       updatedAt: result.updatedAt,
       eligibility: result.eligibility,

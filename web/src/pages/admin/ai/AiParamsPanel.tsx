@@ -25,6 +25,7 @@ const PARAM_GROUPS = [
       'plotStateMaxTokens',
       'relationshipProfileMaxTokens',
       'titleMaxTokens',
+      'reviewMaxTokens',
       'writingSystemPrompt',
     ],
   },
@@ -306,7 +307,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <h3>AI 创作参数</h3>
               <p>控制大纲、章节与续写的生成长度和变化程度。</p>
             </div>
-            <span className="ai-parameter-count">6 项参数</span>
+            <span className="ai-parameter-count">7 项参数</span>
           </div>
           <CardContent className="grid gap-4">
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
@@ -354,7 +355,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   onChange={(e) => setLocalSettings({ ...localSettings, styleProfileMaxTokens: Number(e.target.value) })}
                 />
               </AdminFormField>
-              <AdminFormField label="情节状态 Token" htmlFor="plot-tokens" hint="情节状态提取的最大输出，结构化四块天然较长，推荐 3000">
+              <AdminFormField label="情节状态 Token" htmlFor="plot-tokens" hint="每批更新后完整情节档案的输出预算；出现 length 截断时提高此项。">
                 <Input
                   id="plot-tokens"
                   required
@@ -366,7 +367,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   onChange={(e) => setLocalSettings({ ...localSettings, plotStateMaxTokens: Number(e.target.value) })}
                 />
               </AdminFormField>
-              <AdminFormField label="关系画像 Token" htmlFor="relationship-tokens" hint="关系画像提取的最大输出，角色关系动态/心理边界，推荐 1200">
+              <AdminFormField label="关系画像 Token" htmlFor="relationship-tokens" hint="每批更新后完整关系档案的输出预算，包含历史关系和本批变化。">
                 <Input
                   id="relationship-tokens"
                   required
@@ -376,6 +377,18 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   value={localSettings.relationshipProfileMaxTokens}
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, relationshipProfileMaxTokens: Number(e.target.value) })}
+                />
+              </AdminFormField>
+              <AdminFormField label="质量检查 Token" htmlFor="review-tokens" hint="单次草稿质量检查的输出预算；被截断时可提高后重试。">
+                <Input
+                  id="review-tokens"
+                  required
+                  type="number"
+                  min={300}
+                  max={1000000}
+                  value={localSettings.reviewMaxTokens ?? 8000}
+                  disabled={props.loading || saving}
+                  onChange={(e) => setLocalSettings({ ...localSettings, reviewMaxTokens: Number(e.target.value) })}
                 />
               </AdminFormField>
               <AdminFormField label="章节标题 Token" htmlFor="title-tokens" hint="章节标题生成的最大输出，推荐 200">
@@ -659,18 +672,10 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           {changeCount ? `${changeCount} 项参数待保存 · 切换分类保留修改` : '参数与当前生效值一致'}
         </span>
         <div className="admin-floating-dock__actions">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={props.loading || saving || !dirty}
-            onClick={() => setLocalSettings(props.settings)}
-          >
+          <Button type="button" variant="outline" disabled={props.loading || saving || !dirty} onClick={() => setLocalSettings(props.settings)}>
             撤销修改
           </Button>
-          <Button
-            type="submit"
-            disabled={props.loading || saving || !dirty}
-          >
+          <Button type="submit" disabled={props.loading || saving || !dirty}>
             {saving ? '保存中…' : '保存所有参数'}
           </Button>
         </div>

@@ -13,6 +13,7 @@ import { getPlotState } from './plot-state'
 import { getRelationshipProfile } from './relationship-profile'
 import { compileWritingPrompt, WRITING_PROMPT_PIPELINE_VERSION } from './writing-prompt'
 import type { OperatorPromptHit } from './writing-prompt-patches'
+import type { HistoryPassage } from './writing-history'
 import { DEFAULT_WRITING_CONTENT_PREFERENCES, formatWritingContentPreferences, validateWritingContentPreferences, type WritingContentPreferencesV1 } from './writing-preferences'
 
 const MAX_CONTEXT_CHARS = 12000
@@ -45,6 +46,7 @@ export interface WritingBriefV1 {
   requiredFacts: string
   forbiddenEvents: string
   chapterGoals: WritingBriefGoalV1[]
+  characters?: string[]
 }
 
 const WRITING_BRIEF_LIMITS = {
@@ -78,6 +80,7 @@ export function validateWritingBrief(value: unknown, chapterCount = 1): { brief?
       return { error: `writingBrief.${field} 超过 ${WRITING_BRIEF_LIMITS[field]} 个 Unicode 标量` }
     }
   }
+  if (raw.characters !== undefined && (!Array.isArray(raw.characters) || raw.characters.length > 20 || raw.characters.some((name) => typeof name !== 'string' || !name.trim() || scalarLength(name) > 80))) return { error: '出场人物须为至多 20 个姓名，每个姓名不超过 80 字符' }
   const rawGoals = raw.chapterGoals
   if (rawGoals !== undefined && !Array.isArray(rawGoals)) return { error: 'writingBrief.chapterGoals 必须是数组' }
   const goals: WritingBriefGoalV1[] = []
@@ -104,6 +107,7 @@ export function validateWritingBrief(value: unknown, chapterCount = 1): { brief?
       version: 1,
       ...values,
       chapterGoals: goals,
+      ...(raw.characters === undefined ? {} : { characters: [...new Set((raw.characters as string[]).map((name) => name.trim()))] }),
     },
   }
 }
@@ -116,6 +120,7 @@ export function formatWritingBrief(brief: WritingBriefV1 | undefined, chapterInd
     `叙事视角：${brief.viewpoint || '未指定'}`,
     `节奏：${brief.pace || '未指定'}`,
     `本章目标：${brief.objective || '未指定'}`,
+    `出场人物：${brief.characters?.join('、') || '未指定'}`,
     `必须保留的事实：${brief.requiredFacts || '未指定'}`,
     `禁止发生的事件：${brief.forbiddenEvents || '未指定'}`,
   ].join('\n')
@@ -146,6 +151,7 @@ export interface ContinuationSnapshotV1 {
   /** 任务创建时冻结的成人内容参数；旧快照缺失时按关闭兼容。 */
   contentPreferences?: WritingContentPreferencesV1
   excludedProfiles: Array<{ kind: 'style' | 'relationship' | 'plot'; reason: string }>
+  historicalPassages?: HistoryPassage[]
 }
 
 export function cleanWritingText(raw: string, maxChars = MAX_CONTEXT_CHARS): string {

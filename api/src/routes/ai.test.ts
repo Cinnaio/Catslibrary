@@ -6,6 +6,7 @@ import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { failInterruptedAiTasks, pruneFinishedAiTasks, reclaimStaleAiTasks, updateAiTask } from '../services/ai/tasks'
 import { recordUsage } from '../services/ai/usage'
+import { generationContentRevision } from '../services/ai/generations'
 import { PHASE2_COVER_FIXTURES } from '../services/ai/phase2-fixtures'
 import { createTestDb, type TestDb } from '../test/db'
 
@@ -1156,6 +1157,54 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(styleAtFirst.source.sampleCount).toBe(3)
     expect(styleAtFirst.source.extractionPromptVersion).toBe(2)
     expect(styleAtFirst.eligibility).toBe('beyond_anchor')
+  })
+
+  it('创作材料预览检索历史、保护权限并冻结已预览版本', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '创作材料验证', author: '作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    const ids: string[] = []
+    for (let i = 0; i < 5; i++) {
+      const chapter = await req('/api/chapters', json('POST', { novelId, title: `第${i + 1}章`, content: i === 0 ? `${LONG_CONTENT}林舟曾答应沈月归还钥匙。` : `${LONG_CONTENT}最近正文${i}。` }, adminToken))
+      ids.push((await jsonOf<{ chapter: { id: string } }>(chapter)).chapter.id)
+    }
+    const body = { novelId, afterChapterId: ids[4], instruction: '林舟与沈月重逢', writingBrief: { version: 1, characters: ['林舟', '沈月'], objective: '履行承诺', chapterGoals: [] } }
+    expect((await req('/api/ai/writing/materials', json('POST', body))).status).toBe(401)
+    expect((await req('/api/ai/writing/materials', json('POST', body, readerToken))).status).toBe(403)
+    const beforeCalls = fetchMock.mock.calls.length
+    const preview = await req('/api/ai/writing/materials', json('POST', body, adminToken))
+    expect(preview.status).toBe(200)
+    const materials = await jsonOf<{ revision: string; historicalPassages: Array<{ chapterId: string }>; plan: { facts: Array<{ text: string }> } }>(preview)
+    expect(materials.historicalPassages.map((p) => p.chapterId)).toContain(ids[0])
+    expect(materials.plan.facts.some((block) => block.text.includes('归还钥匙'))).toBe(true)
+    expect(fetchMock.mock.calls.length).toBe(beforeCalls)
+    await t.db.query("UPDATE chapters SET content = content || '修改承诺' WHERE id = $1", [ids[0]])
+    const stale = await req('/api/ai/writing/continue', json('POST', { ...body, materialRevision: materials.revision }, adminToken))
+    expect(stale.status).toBe(409)
+    expect(fetchMock.mock.calls.length).toBe(beforeCalls)
+  })
+
+  it('草稿质量检查仅管理员可执行，缓存真实版本并在正文修改后标记过期', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '质量检查验证', author: '作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    await req('/api/chapters', json('POST', { novelId, title: '来源章节', content: LONG_CONTENT }, adminToken))
+    await t.db.query("INSERT INTO ai_generations (id, novel_id, kind, result, status, created_at) VALUES ('review-route-draft', $1, 'continue', '可检查的正文', 'draft', 1)", [novelId])
+    const path = '/api/ai/writing/drafts/review-route-draft/review'
+    const body = { expectedRevision: generationContentRevision('可检查的正文') }
+    expect((await req(path, json('GET', undefined, readerToken))).status).toBe(403)
+    expect((await req(path, json('POST', body, readerToken))).status).toBe(403)
+    const original = fetchMock.getMockImplementation()
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ model: 'test', choices: [{ message: { content: '{"findings":[]}' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 5 } }), { headers: { 'Content-Type': 'application/json' } }))
+    try {
+      const count = fetchMock.mock.calls.length
+      expect((await req(path, json('POST', body, adminToken))).status).toBe(200)
+      expect((await req(path, json('POST', body, adminToken))).status).toBe(200)
+      expect(fetchMock.mock.calls.length).toBe(count + 1)
+      await t.db.query("UPDATE ai_generations SET result = '修改后的正文' WHERE id = 'review-route-draft'")
+      const result = await jsonOf<{ report: { stale: boolean } }>(await req(path, json('GET', undefined, adminToken)))
+      expect(result.report.stale).toBe(true)
+      expect((await req(path, json('POST', body, adminToken))).status).toBe(409)
+      expect(fetchMock.mock.calls.length).toBe(count + 1)
+    } finally { if (original) fetchMock.mockImplementation(original) }
   })
 
   it('人工画像：绑定自动来源、按 revision 冲突保护，刷新自动层不覆盖人工层', async () => {
