@@ -29,7 +29,13 @@ struct ProfileView: View {
                 NavigationLink {
                     ContentModeView()
                 } label: {
-                    LabeledContent("内容模式", value: ContentAccessStore.shared.mode == "adult" ? "R18 · 在线" : "安全模式")
+                    LabeledContent {
+                        Text(ContentAccessStore.shared.mode == "adult" ? "R18 · 在线" : "安全模式")
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.textSecondary)
+                    } label: {
+                        AppIconLabel("内容模式", systemImage: "eye")
+                    }
                 }
                 .accessibilityIdentifier("profile.content-mode")
                 Button {
