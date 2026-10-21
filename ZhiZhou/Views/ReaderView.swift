@@ -514,46 +514,24 @@ struct ReaderView: View {
         renderKey: String,
         width: CGFloat
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            SelectableTextView(
-                attributedText: paragraphAttributedText(
-                    index: index,
-                    text: text,
-                    thoughts: thoughts,
-                    renderKey: renderKey
-                ),
-                textColor: inkUIColor,
-                menuTitle: thoughts.isEmpty ? "写段评" : "查看段评",
-                isThoughtActionEnabled: !offlineOnly,
-                accessibilityID: "reader.paragraph.\(index)",
-                onSelectionChange: { isSelectingBodyText = $0 }
-            ) { selectedText, _ in
-                openThoughtPanel(for: index, selectedText: selectedText)
-            }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // 点击正文才处理阅读热区，段评和文末按钮保留自己的点击路径。
-                .simultaneousGesture(SpatialTapGesture().onEnded { value in
-                    handleScrollTap(x: value.location.x, width: width)
-                })
-
-            if !thoughts.isEmpty {
-                HStack {
-                    Spacer(minLength: 0)
-                    Button {
-                        openThoughtPanel(for: index)
-                    } label: {
-                        Label("\(thoughts.count) 条段评", systemImage: "text.bubble")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.primary)
-                            .padding(.horizontal, 9)
-                            .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
-                            .background(AppTheme.primaryLight, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(thoughts.count) 条段评")
-                }
-                .padding(.top, 2)
-            }
+        SelectableTextView(
+            attributedText: paragraphAttributedText(
+                index: index,
+                text: text,
+                thoughts: thoughts,
+                renderKey: renderKey
+            ),
+            textColor: inkUIColor,
+            menuTitle: thoughts.isEmpty ? "写段评" : "查看段评",
+            isThoughtActionEnabled: !offlineOnly,
+            accessibilityID: "reader.paragraph.\(index)",
+            thoughtCount: thoughts.count,
+            thoughtMarkerColor: UIColor(AppTheme.primary),
+            onThoughtMarkerTap: { openThoughtPanel(for: index) },
+            onBodyTap: { handleScrollTap(x: $0.x, width: width) },
+            onSelectionChange: { isSelectingBodyText = $0 }
+        ) { selectedText, _ in
+            openThoughtPanel(for: index, selectedText: selectedText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -621,7 +599,6 @@ struct ReaderView: View {
 
     private var thoughtHighlightAttributes: [NSAttributedString.Key: Any] {
         [
-            .backgroundColor: UIColor(AppTheme.primary).withAlphaComponent(0.13),
             .underlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78),
             .underlineStyle: NSUnderlineStyle.single.rawValue,
             .readerThoughtWave: true,
@@ -1150,7 +1127,6 @@ struct ReaderView: View {
             thoughtSelectionsByParagraph: thoughtsByParagraph.mapValues {
                 $0.map(\.selectedText)
             },
-            thoughtHighlightColor: UIColor(AppTheme.primary).withAlphaComponent(0.13),
             thoughtUnderlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78),
             illustrations: placements
         )

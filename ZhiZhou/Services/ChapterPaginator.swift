@@ -13,7 +13,6 @@ enum ChapterPaginator {
         let title: String
         let paragraphs: [String]
         let thoughtSelectionsByParagraph: [Int: [String]]
-        let thoughtHighlightColor: UIColor
         let thoughtUnderlineColor: UIColor
         var illustrations: [IllustrationPlacement] = []
     }
@@ -69,7 +68,6 @@ enum ChapterPaginator {
             ) {
                 renderedParagraph.addAttributes(
                     [
-                        .backgroundColor: spec.thoughtHighlightColor,
                         .underlineColor: spec.thoughtUnderlineColor,
                         .underlineStyle: NSUnderlineStyle.single.rawValue,
                         .readerThoughtWave: true,

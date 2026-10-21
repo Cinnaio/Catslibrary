@@ -120,7 +120,8 @@ final class FrontendAuditTests: XCTestCase {
         XCTAssertTrue(quote.waitForExistence(timeout: 10))
         let marker = app.buttons["1 条段评"]
         XCTAssertTrue(marker.waitForExistence(timeout: 10))
-        XCTAssertGreaterThanOrEqual(marker.frame.minY, quote.frame.maxY)
+        XCTAssertGreaterThanOrEqual(marker.frame.minY, quote.frame.minY)
+        XCTAssertLessThanOrEqual(marker.frame.maxY, quote.frame.maxY + 1)
         capture("thought-moved-quote-wave", app: app)
         tap(marker)
         XCTAssertTrue(app.staticTexts["挂在原引用上的想法"].waitForExistence(timeout: 10))

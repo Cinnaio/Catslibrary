@@ -52,6 +52,79 @@ final class ReaderTextSystemTests: XCTestCase {
     }
 
     @MainActor
+    func testInlineThoughtMarkerFollowsTextAndWrapsInsideTheParagraph() throws {
+        for width: CGFloat in [160, 320, 600] {
+            for fontSize: CGFloat in [22, 34] {
+                let view = ThoughtSelectableTextView()
+                let body = NSAttributedString(
+                    string: "她把信纸展开，字迹仍然清晰，仿佛写信的人刚刚离开。",
+                    attributes: [.font: UIFont.systemFont(ofSize: fontSize)]
+                )
+                view.setBodyText(body, thoughtCount: 12, markerColor: .systemOrange)
+                let fitting = view.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+                view.frame = CGRect(x: 0, y: 0, width: width, height: fitting.height)
+                view.layoutIfNeeded()
+                let markerRange = try XCTUnwrap(view.thoughtMarkerRange)
+                let markerGlyphs = view.layoutManager.glyphRange(forCharacterRange: markerRange, actualCharacterRange: nil)
+                let markerRect = view.layoutManager.boundingRect(forGlyphRange: markerGlyphs, in: view.textContainer)
+                let bodyGlyphs = view.layoutManager.glyphRange(forCharacterRange: NSRange(location: body.length - 1, length: 1), actualCharacterRange: nil)
+                let bodyEnd = view.layoutManager.boundingRect(forGlyphRange: bodyGlyphs, in: view.textContainer)
+                XCTAssertEqual(view.thoughtMarkerButton.frame.minX, markerRect.minX, accuracy: 1)
+                XCTAssertGreaterThanOrEqual(markerRect.minY, bodyEnd.minY - 1)
+                if abs(markerRect.minY - bodyEnd.minY) < 1 {
+                    XCTAssertGreaterThanOrEqual(markerRect.minX, bodyEnd.maxX)
+                }
+                XCTAssertLessThanOrEqual(view.thoughtMarkerButton.frame.maxX, width + 1)
+                XCTAssertLessThanOrEqual(view.thoughtMarkerButton.frame.maxY, fitting.height + 1)
+                XCTAssertGreaterThanOrEqual(view.thoughtMarkerButton.bounds.width, 44)
+                XCTAssertEqual(view.thoughtMarkerButton.bounds.height, 44)
+                XCTAssertEqual(view.thoughtMarkerButton.configuration?.title, "12")
+                XCTAssertEqual(view.thoughtMarkerButton.accessibilityLabel, "12 条段评")
+            }
+        }
+    }
+
+    @MainActor
+    func testInlineMarkerNeverEntersQuotedTextAndCanBeRemoved() {
+        let view = ThoughtSelectableTextView()
+        let body = NSAttributedString(string: "引用文字🌊", attributes: [.font: UIFont.systemFont(ofSize: 22)])
+        view.setBodyText(body, thoughtCount: 1, markerColor: .systemOrange)
+        var quote: String?
+        var quoteRange: NSRange?
+        view.onThought = { quote = $0; quoteRange = $1 }
+        view.selectedRange = NSRange(location: 0, length: view.textStorage.length)
+        view.addThoughtFromSelection(nil)
+        XCTAssertEqual(quote, body.string)
+        XCTAssertEqual(quoteRange, NSRange(location: 0, length: body.length))
+
+        var opened = false
+        view.onThoughtMarkerTap = { opened = true }
+        view.thoughtMarkerButton.sendActions(for: .touchUpInside)
+        XCTAssertTrue(opened)
+
+        view.setBodyText(body, thoughtCount: 0, markerColor: .systemOrange)
+        XCTAssertNil(view.thoughtMarkerRange)
+        XCTAssertTrue(view.thoughtMarkerButton.isHidden)
+        XCTAssertEqual(view.attributedText.string, body.string)
+        XCTAssertEqual(view.textContainerInset, .zero)
+    }
+
+    @MainActor
+    func testPagedThoughtQuoteHasWaveWithoutBackgroundFill() {
+        let spec = ChapterPaginator.Spec(
+            bodyFont: .systemFont(ofSize: 22), titleFont: .systemFont(ofSize: 28),
+            lineSpacing: 12, paragraphSpacing: 20, title: "章节",
+            paragraphs: ["她把信纸展开。"], thoughtSelectionsByParagraph: [0: ["信纸"]],
+            thoughtUnderlineColor: .systemOrange
+        )
+        let text = ChapterPaginator.attributedString(for: spec)
+        let quoteRange = (text.string as NSString).range(of: "信纸")
+        XCTAssertNotEqual(quoteRange.location, NSNotFound)
+        XCTAssertEqual(text.attribute(.readerThoughtWave, at: quoteRange.location, effectiveRange: nil) as? Bool, true)
+        XCTAssertNil(text.attribute(.backgroundColor, at: quoteRange.location, effectiveRange: nil))
+    }
+
+    @MainActor
     func testCallerSuppliedTextSystemIsPreserved() {
         let storage = NSTextStorage(string: "外部文本系统")
         let manager = NSLayoutManager()
