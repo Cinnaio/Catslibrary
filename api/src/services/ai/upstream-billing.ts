@@ -21,11 +21,13 @@ export async function resolveUpstreamBilling(
   apiKey: string,
   headers: Headers,
   reportedCost: number | null,
+  callerSignal?: AbortSignal,
 ): Promise<BillingFields & { cost: number; costReported: boolean }> {
   const gatewayRequestId = headers.get('x-oneapi-request-id')?.trim() || null
   const requestId = gatewayRequestId || headers.get('x-request-id')?.trim() || null
   const unknown = { upstreamRequestId: requestId, cost: 0, costReported: false, costSource: null, costCurrency: null }
   if (reportedCost !== null) return { ...unknown, cost: reportedCost, costReported: true, costSource: 'response' }
+  if (callerSignal?.aborted) return unknown
   // Only probe a gateway that identifies itself; official APIs incur no extra requests.
   if (!gatewayRequestId || !requestId || requestId.length > 200) return unknown
   try {
@@ -33,7 +35,8 @@ export async function resolveUpstreamBilling(
     const prefix = url.pathname.replace(/\/(?:v\d+\/)?(?:chat\/completions|images\/generations)\/?$/, '')
     if (prefix === url.pathname) return unknown
     const root = url.origin + prefix
-    const signal = AbortSignal.timeout(5000)
+    const timeout = AbortSignal.timeout(5000)
+    const signal = callerSignal ? AbortSignal.any([timeout, callerSignal]) : timeout
     const get = async (path: string, authenticated = false): Promise<Record<string, unknown> | null> => {
       const response = await outboundFetch(
         root + path,

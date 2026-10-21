@@ -23,7 +23,78 @@ afterEach(() => {
 
 const messages = [{ role: 'user' as const, content: '测试' }]
 
+describe('caller cancellation', () => {
+  it.each([false, true])('does not send an already-cancelled request or retry it (stream=%s)', async (stream) => {
+    const controller = new AbortController()
+    controller.abort()
+    const fetchMock = vi.fn(async () => Response.json({ choices: [{ message: { content: 'unexpected' } }] }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(stream ? chatStream({ messages, signal: controller.signal }, () => {}) : chat({ messages, signal: controller.signal })).rejects.toMatchObject({
+      code: 'cancelled',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('cancels a pending upstream request without converting cancellation into timeout retries (stream=%s)', async (stream) => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn(
+      (_input: unknown, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true })
+          controller.abort()
+        }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(stream ? chatStream({ messages, signal: controller.signal }, () => {}) : chat({ messages, signal: controller.signal })).rejects.toMatchObject({
+      code: 'cancelled',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([false, true])('interrupts retry backoff as soon as the caller cancels (stream=%s)', async (stream) => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const fetchMock = vi.fn(async () => new Response('unavailable', { status: 502 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const result = stream ? chatStream({ messages, signal: controller.signal }, () => {}) : chat({ messages, signal: controller.signal })
+      const verdict = expect(result).rejects.toMatchObject({ code: 'cancelled' })
+      await vi.advanceTimersByTimeAsync(1)
+      controller.abort()
+      await vi.advanceTimersByTimeAsync(0)
+      await verdict
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('upstream cost accounting', () => {
+  it.each([false, true])('cancels a stalled billing lookup while retaining completed output and real usage (stream=%s)', async (stream) => {
+    const controller = new AbortController()
+    const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
+      if (String(input).includes('/chat/completions'))
+        return Promise.resolve(
+          Response.json(
+            {
+              choices: [{ message: { content: '已完成的正文' }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 10, completion_tokens: 20 },
+            },
+            { headers: { 'x-oneapi-request-id': 'cancel-billing-request' } },
+          ),
+        )
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true })
+        controller.abort()
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const result = stream ? chatStream({ messages, signal: controller.signal }, () => {}) : chat({ messages, signal: controller.signal })
+    await expect(result).resolves.toMatchObject({ text: '已完成的正文', promptTokens: 10, completionTokens: 20, costReported: false })
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/chat/completions'))).toHaveLength(1)
+  })
+
   it('resolves SSE billing after final usage and preserves successful output on billing failure', async () => {
     const fetchMock = vi.fn(async (input: unknown) => {
       if (String(input).endsWith('/api/log/token')) return new Response('unavailable', { status: 403 })

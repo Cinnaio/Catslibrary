@@ -130,6 +130,7 @@ describe('AiWritingPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: '暂停更新' }))
     expect(api.pauseMemory).toHaveBeenCalledWith('novel_1', kind)
     expect(await screen.findByRole('button', { name: '正在暂停…' })).toBeDisabled()
+    expect(screen.getByText('正在取消当前请求，已完成的检查点会保留；继续时重新处理未完成批次。')).toBeInTheDocument()
     get.mockResolvedValue({ ...initial, progress: { complete: false, paused: true, processedChapters: 8, totalChapters: 18, targetChapterId: 'chapter-18' } })
     await act(async () =>
       pending.resolve({

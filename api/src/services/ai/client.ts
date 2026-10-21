@@ -16,7 +16,7 @@ import {
   stripCancellationTail,
 } from './prompt-policy'
 
-export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid' | 'conflict' | 'truncated'
+export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid' | 'conflict' | 'truncated' | 'cancelled'
 
 export class AiError extends Error {
   code: AiErrorCode
@@ -101,6 +101,7 @@ export function providerLabel(baseUrl: string): string {
 
 /** 单轮对话补全。失败按 AiError 语义化抛出，上层只需分辨 code。 */
 export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
+  throwIfCancelled(opts.signal)
   const provider = textProvider()
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
 
@@ -116,13 +117,15 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
 
   let lastError: AiError | null = null
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    throwIfCancelled(opts.signal)
     try {
       return await once(endpoint, provider.apiKey, body, model, opts)
     } catch (err) {
+      throwIfCancelled(opts.signal)
       const aiErr = err instanceof AiError ? err : new AiError('upstream', (err as Error)?.message || '未知错误')
       lastError = aiErr
       if (attempt >= MAX_ATTEMPTS || !isRetriable(aiErr)) break
-      await sleep(attempt * 700)
+      await sleep(attempt * 700, opts.signal)
     }
   }
   throw lastError || new AiError('upstream', 'AI 请求失败')
@@ -135,6 +138,7 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
  * 则退回一次性解析，保证不同网关的兼容性。已经收到部分内容后不再自动重试，避免重复拼接。
  */
 export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandler): Promise<AiChatResult> {
+  throwIfCancelled(opts.signal)
   const provider = textProvider()
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
 
@@ -152,16 +156,18 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
   let lastError: AiError | null = null
   let emitted = false
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    throwIfCancelled(opts.signal)
     try {
       return await onceStream(endpoint, provider.apiKey, body, model, opts, async (delta) => {
         emitted = true
         await onDelta(delta)
       })
     } catch (err) {
+      throwIfCancelled(opts.signal)
       const aiErr = err instanceof AiError ? err : new AiError('upstream', (err as Error)?.message || '未知错误')
       lastError = aiErr
       if (emitted || attempt >= MAX_ATTEMPTS || !isRetriable(aiErr)) break
-      await sleep(attempt * 700)
+      await sleep(attempt * 700, opts.signal)
     }
   }
   throw lastError || new AiError('upstream', 'AI 请求失败')
@@ -230,7 +236,7 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
     completionTokens: usage.completionTokens ?? 0,
     finishReason,
     ...(cancellation ? { truncated: true } : {}),
-    ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, cost),
+    ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, cost, opts.signal),
   }
 }
 
@@ -279,7 +285,7 @@ async function onceStream(
     const parsed = parseChatCompletion(data, model)
     if (!parsed.text) throw emptyChatResponseError(parsed.finishReason, data)
     await onDelta(parsed.text)
-    return { ...parsed, ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, parsed.costReported ? parsed.cost : null) }
+    return { ...parsed, ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, parsed.costReported ? parsed.cost : null, opts.signal) }
   }
 
   if (!res.body) throw new AiError('upstream', 'AI 服务未返回流式内容')
@@ -357,7 +363,7 @@ async function onceStream(
     promptTokens,
     completionTokens,
     finishReason,
-    ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, costReported ? cost : null),
+    ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, costReported ? cost : null, opts.signal),
     cacheReadTokens,
     cacheWriteTokens,
     reasoningTokens,
@@ -466,8 +472,24 @@ function describeUpstreamError(status: number, detail: string): string {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function throwIfCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new AiError('cancelled', 'AI 请求已取消', 499)
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfCancelled(signal)
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+      reject(new AiError('cancelled', 'AI 请求已取消', 499))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 /** AbortSignal.any 的兜底实现（Node 20 起原生支持）。 */

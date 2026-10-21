@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { setTimeout as delay } from 'node:timers/promises'
 import type { Db } from '../../db/pool'
 import { first, run, withTx } from '../../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from './client'
@@ -28,7 +29,8 @@ const PIECE_CHARS = BATCH_CHARS
 const TRUNCATION_RETRIES = 4
 const RETRY_BASE_DELAY_MS = 400
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const activeBuilds = new WeakMap<Db, Map<string, AbortController>>()
+const PAUSE_POLL_MS = 250
 
 /** No chapter truncation: fingerprints and extraction share this normalization. */
 export function cleanStoryText(raw: string): string {
@@ -67,6 +69,7 @@ export interface StoryMemoryResult {
 
 export async function pauseStoryMemory(db: Db, novelId: string, kind: 'plot' | 'relationship'): Promise<void> {
   await run(db, 'UPDATE novel_story_memory_builds SET pause_requested = TRUE WHERE novel_id = $1 AND kind = $2', [novelId, kind])
+  activeBuilds.get(db)?.get(`${kind}:${novelId}`)?.abort(new MemoryPaused())
 }
 
 /** Validated, persisted progress survives page reloads; no partial archive is exposed. */
@@ -160,6 +163,15 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
     [opts.novelId, kind, token, Date.now() + LEASE_MS, Date.now()],
   )
   if (!lock) throw new AiError('conflict', '该故事档案正在更新，请稍后继续', 409)
+  const controller = new AbortController()
+  const buildKey = `${kind}:${opts.novelId}`
+  let builds = activeBuilds.get(db)
+  if (!builds) {
+    builds = new Map()
+    activeBuilds.set(db, builds)
+  }
+  builds.set(buildKey, controller)
+  let stopWatching: (() => void) | undefined
   const table = kind === 'plot' ? 'novel_plot_states' : 'novel_relationship_profiles'
   const column = kind === 'plot' ? 'state' : 'profile'
   try {
@@ -180,6 +192,32 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
       if (!state) throw new AiError('conflict', '档案更新锁已失效，请重新继续', 409)
       return state.pause_requested
     }
+    // Other processes can receive the pause request. Poll serially and keep the
+    // lease until the cancelled call has unwound and checkpoint handling is done.
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout>
+    const poll = () => {
+      timer = setTimeout(() => {
+        void pauseRequested()
+          .then(
+            (paused) => {
+              if (!stopped && paused) controller.abort(new MemoryPaused())
+            },
+            (err: unknown) => {
+              if (!stopped) controller.abort(err)
+            },
+          )
+          .finally(() => {
+            if (!stopped && !controller.signal.aborted) poll()
+          })
+      }, PAUSE_POLL_MS)
+      timer.unref()
+    }
+    stopWatching = () => {
+      stopped = true
+      clearTimeout(timer)
+    }
+    poll()
     const total = rows.length
     const saved = await first<{ content: string; source_json: string; model: string }>(
       db,
@@ -212,6 +250,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
       // Send one chunk at a time so a filtered chunk can be split and retried
       // without throwing away the chapters that already succeeded.
       const callOnce = async (chunk: ProfileSampleRow[], part: number, pieces: number, chunkText: string): Promise<void> => {
+        if (controller.signal.aborted) throw controller.signal.reason
         if (await pauseRequested()) throw new MemoryPaused()
         const refreshed = await run(db, 'UPDATE novel_story_memory_builds SET lease_until = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [
           Date.now() + LEASE_MS,
@@ -232,6 +271,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
           temperature: 0.3,
           maxTokens,
           timeoutMs: 120_000,
+          signal: controller.signal,
           returnIncompleteResult: true,
         })
         // Account for every billed response, including truncated/empty replies.
@@ -327,10 +367,13 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
             }
             return
           } catch (err) {
+            if (controller.signal.aborted) throw controller.signal.reason
             if (await pauseRequested()) throw new MemoryPaused()
             const retriable = err instanceof AiError && err.code === 'truncated' && attempt < TRUNCATION_RETRIES
             if (!retriable) throw err
-            await sleep(RETRY_BASE_DELAY_MS * (attempt + 1))
+            await delay(RETRY_BASE_DELAY_MS * (attempt + 1), undefined, { signal: controller.signal }).catch(() => {
+              throw controller.signal.reason
+            })
           }
         }
       }
@@ -411,6 +454,8 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
       usage,
     }
   } finally {
+    stopWatching?.()
+    if (builds.get(buildKey) === controller) builds.delete(buildKey)
     await run(db, 'UPDATE novel_story_memory_builds SET lease_until = 0, lease_token = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [
       '',
       opts.novelId,
