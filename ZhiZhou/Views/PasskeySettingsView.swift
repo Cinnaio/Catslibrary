@@ -32,7 +32,11 @@ struct PasskeySettingsView: View {
                 unavailableSection("当前站点尚未完成 Passkey 部署配置，请联系管理员。")
             } else if configuration != nil {
                 registeredPasskeysSection
-                registrationSection
+                if let error = PasskeyService.shared.localAvailabilityError {
+                    unavailableSection(error.localizedDescription)
+                } else {
+                    registrationSection
+                }
             }
         }
         .appListStyle(.settings)

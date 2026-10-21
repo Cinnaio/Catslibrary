@@ -1,6 +1,7 @@
 import AuthenticationServices
 import Foundation
 import UIKit
+import ZhiZhouCore
 
 enum NativePasskeyError: LocalizedError, Equatable {
     case unavailable
@@ -10,6 +11,8 @@ enum NativePasskeyError: LocalizedError, Equatable {
     case cancelled
     case authorizationFailed
     case presentationUnavailable
+    case signingNotSupported
+    case deviceNotConfigured
 
     var errorDescription: String? {
         switch self {
@@ -24,9 +27,13 @@ enum NativePasskeyError: LocalizedError, Equatable {
         case .cancelled:
             return "已取消 Passkey 验证。"
         case .authorizationFailed:
-            return "Passkey 验证失败，请重试。"
+            return "无法完成 Passkey 设备验证，请先使用密码登录。若持续失败，请联系管理员检查 App 与站点的关联配置。"
         case .presentationUnavailable:
             return "当前页面暂时无法唤起设备验证，请重试。"
+        case .signingNotSupported:
+            return "当前安装包的签名不支持 Passkey，请使用密码登录。免费 Apple ID 侧载通常无法使用此功能。"
+        case .deviceNotConfigured:
+            return "设备尚未满足创建 Passkey 的条件，请先检查设备锁屏密码及密码管理器设置。"
         }
     }
 }
@@ -70,10 +77,12 @@ private final class PasskeyAuthorizationCoordinator: NSObject,
         controller: ASAuthorizationController,
         didCompleteWithError error: Error
     ) {
-        if let authorizationError = error as? ASAuthorizationError,
-           authorizationError.code == .canceled {
+        switch (error as? ASAuthorizationError)?.code {
+        case .canceled:
             finish(.failure(NativePasskeyError.cancelled))
-        } else {
+        case .deviceNotConfiguredForPasskeyCreation:
+            finish(.failure(NativePasskeyError.deviceNotConfigured))
+        default:
             finish(.failure(NativePasskeyError.authorizationFailed))
         }
     }
@@ -91,6 +100,18 @@ final class PasskeyService {
     static let shared = PasskeyService()
 
     private init() {}
+
+    // Only reject a known missing permission. Store/simulator builds may have
+    // no readable profile; profile authorization alone isn't a success check.
+    private static let signingSupport: PasskeySigningSupport = {
+        let data = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision")
+            .flatMap { try? Data(contentsOf: $0) }
+        return PasskeySigningSupport.inspect(profileData: data)
+    }()
+
+    var localAvailabilityError: NativePasskeyError? {
+        Self.signingSupport == .notAuthorized ? .signingNotSupported : nil
+    }
 
     var relyingPartyIdentifier: String? {
         ServerConfig.shared.baseURL?.host?.lowercased()
@@ -206,6 +227,7 @@ final class PasskeyService {
     }
 
     private func ensureAvailable() async throws -> PasskeyConfigResponse {
+        if let error = localAvailabilityError { throw error }
         let config = try await configuration()
         guard config.enabled else { throw NativePasskeyError.unavailable }
         guard config.configured, relyingPartyIdentifier != nil else {

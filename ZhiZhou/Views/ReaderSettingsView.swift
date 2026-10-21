@@ -53,13 +53,17 @@ struct ReaderSettingsView: View {
 
                 Section("纸面") {
                     LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 120 : 72), spacing: 16)],
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: 16, alignment: .center),
+                            count: dynamicTypeSize.isAccessibilitySize ? 1 : themes.count
+                        ),
                         spacing: 16
                     ) {
                         ForEach(themes, id: \.id) { theme in
                             themeButton(theme)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 8)
                     .listRowBackground(Color.clear)
                 }
@@ -73,6 +77,7 @@ struct ReaderSettingsView: View {
                         Text("左右翻页").tag("page")
                     }
                     .accessibleSegmentedPicker()
+                    .listRowBackground(Color.clear)
                 } header: {
                     Text("翻页方式")
                 } footer: {
@@ -167,6 +172,7 @@ struct ReaderSettingsView: View {
             VStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
                     .fill(theme.swatch)
+                    .frame(maxWidth: 88)
                     .frame(height: 44)
                     .overlay {
                         RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
@@ -185,6 +191,7 @@ struct ReaderSettingsView: View {
                 Text(theme.title)
                     .font(.subheadline)
                     .foregroundStyle(selected ? AppTheme.primary : AppTheme.textSecondary)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)

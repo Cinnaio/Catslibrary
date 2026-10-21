@@ -316,6 +316,7 @@ struct LoginView: View {
         passkeyConfig?.enabled == true && passkeyConfig?.configured == true
     }
 
+    @ViewBuilder
     private var passkeyButton: some View {
         Button {
             Task { await submitPasskey() }
@@ -337,9 +338,17 @@ struct LoginView: View {
         .controlSize(.large)
         .buttonBorderShape(.roundedRectangle(radius: AppTheme.fieldCornerRadius))
         .tint(AppTheme.primary)
-        .disabled(busy || passkeyBusy || isRestoringSession)
+        .disabled(busy || passkeyBusy || isRestoringSession || PasskeyService.shared.localAvailabilityError != nil)
         .accessibilityLabel("使用 Passkey 登录")
         .accessibilityIdentifier("login.passkey")
+
+        if let error = PasskeyService.shared.localAvailabilityError {
+            Text(error.localizedDescription)
+                .font(.footnote)
+                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var registerClosedNote: some View {
