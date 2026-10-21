@@ -8,9 +8,15 @@ import { outboundFetch } from '../outbound-fetch'
 import { upstreamCost } from './upstream-cost'
 import { resolveUpstreamBilling } from './upstream-billing'
 import { upstreamUsage, type UpstreamUsage } from './upstream-usage'
-import { contentRefusalMessage, detectStructuredContentRefusal, detectStructuredContentRefusalFromDetail } from './prompt-policy'
+import {
+  contentRefusalMessage,
+  detectContentCancellation,
+  detectStructuredContentRefusal,
+  detectStructuredContentRefusalFromDetail,
+  stripCancellationTail,
+} from './prompt-policy'
 
-export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid' | 'conflict'
+export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid' | 'conflict' | 'truncated'
 
 export class AiError extends Error {
   code: AiErrorCode
@@ -48,6 +54,13 @@ export interface AiChatResult extends UpstreamUsage {
   finishReason: string
   /** 上游 usage.cost / cost（货币单位），缺失或无效时为 0 */
   cost: number
+  /**
+   * 上游用 finish_reason 标记「已生成的内容被策略截断」，但正文实际回传了。
+   *
+   * 这类响应与「模型拒绝回复」必须区分：拒绝时 content 为空，截断时 content 有值，
+   * 只是尾部被换成一句拒绝语。调用方据此保留正文并按截断处理，而不是整包丢弃。
+   */
+  truncated?: boolean
 }
 
 export type AiChatDeltaHandler = (text: string) => void | Promise<void>
@@ -202,16 +215,21 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
     throw new AiError('invalid', 'AI 服务返回内容为空')
   }
 
+  const cancellation = detectContentCancellation(text, finishReason)
+  // Keep the real analysis the model did produce; drop only the refusal sentence
+  // the gateway appends when it marks the response as filtered.
+  const usableText = cancellation ? stripCancellationTail(text) : text
   const usage = upstreamUsage(data)
   const cost = upstreamCost(data)
   return {
-    text,
+    text: usableText,
     ...(refusal ? { refusal: contentRefusalMessage(refusal) } : {}),
     model: String(data?.model || model),
     ...usage,
     promptTokens: usage.promptTokens ?? 0,
     completionTokens: usage.completionTokens ?? 0,
     finishReason,
+    ...(cancellation ? { truncated: true } : {}),
     ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, cost),
   }
 }
@@ -331,8 +349,10 @@ async function onceStream(
 
   const trimmed = text.trim()
   if (!trimmed) throw emptyChatResponseError(finishReason, null)
+  const cancellation = detectContentCancellation(trimmed, finishReason)
   return {
-    text: trimmed,
+    text: cancellation ? stripCancellationTail(trimmed) : trimmed,
+    ...(cancellation ? { truncated: true } : {}),
     model: responseModel,
     promptTokens,
     completionTokens,
@@ -349,13 +369,15 @@ function parseChatCompletion(data: ChatCompletionResponse | null, model: string)
   const text = extractContent(choice?.message?.content)
   const usage = upstreamUsage(data)
   const cost = upstreamCost(data)
+  const finishReason = String(choice?.finish_reason || '')
   return {
     text,
     model: String(data?.model || model),
     ...usage,
     promptTokens: usage.promptTokens ?? 0,
     completionTokens: usage.completionTokens ?? 0,
-    finishReason: String(choice?.finish_reason || ''),
+    finishReason,
+    ...(detectContentCancellation(text, finishReason) ? { truncated: true } : {}),
     cost: cost ?? 0,
     costReported: cost !== null,
   }

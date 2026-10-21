@@ -103,3 +103,34 @@ export function contentRefusalMessage(refusal: ContentRefusal): string {
     ? `本次生成要求被上游拒绝：${refusal.message}`
     : '本次生成要求被上游内容策略拒绝，请调整为非露骨表达后重新发起'
 }
+
+/** 上游判定「生成中途被策略截断」时常用的 finish_reason 取值。 */
+const CANCELLED_FINISH_REASONS = new Set(['content_filter', 'content-filter', 'safety', 'refusal', 'sensitive'])
+
+/**
+ * 上游把已生成内容标记为被策略截断，但正文仍然回传了。
+ *
+ * 实测某 OpenAI 兼容网关：finish_reason=content_filter 时 message.content 里
+ * 仍有完整的分析正文，只是尾部被替换成一句英文拒绝语。这既不是「模型拒绝回复」
+ * （那种情况 content 为空），也不是正常完成——调用方应保留正文并按截断处理：
+ * 记检查点、提示降批或重试，而不是丢整包结果。
+ */
+export function detectContentCancellation(text: string, finishReason: string): boolean {
+  if (!String(text || '').trim()) return false
+  return CANCELLED_FINISH_REASONS.has(String(finishReason || '').toLowerCase())
+}
+
+/** 截断响应尾部常见的英文/中文拒绝话术，用于清理已回传正文。 */
+const CANCELLATION_TAIL =
+  /(?:\s*(?:sorry|i'm sorry|i am sorry|sorry,)[^\n]{0,120}(?:can't|cannot|can not|won't|will not|unable to)[^\n]{0,120}\.?|\s*(?:抱歉|对不起)[^\n]{0,80}(?:无法|不能)[^\n]{0,80}[。.]?)\s*$/i
+
+/** 去掉截断响应尾部的拒绝语，保留真正生成的分析正文。 */
+export function stripCancellationTail(text: string): string {
+  let value = String(text || '')
+  for (let i = 0; i < 4; i++) {
+    const next = value.replace(CANCELLATION_TAIL, '').trimEnd()
+    if (next === value) break
+    value = next
+  }
+  return value.trim()
+}
