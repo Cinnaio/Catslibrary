@@ -730,6 +730,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         ...(afterChapterId ? { afterChapterId } : {}),
         ...(focus.trim() ? { focus: focus.trim() } : {}),
         contentPreferences: buildContentPreferences(),
+        writingBrief: currentWritingBrief,
       })
       // 期间切了书或又发起了新一轮：这一份已过期，丢弃而不是写进当前页面
       if (seq !== suggestionSeq.current || requestedNovelId !== novelId) return
@@ -762,6 +763,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         // 大纲会绕开这条方向按最近章节自行规划，与用户的选定脱节。
         ...(instruction.trim() ? { plotDirection: instruction.trim() } : {}),
         contentPreferences: buildContentPreferences(),
+        writingBrief: currentWritingBrief,
       })
       if (!res.outline) return toast('未返回可用的大纲', 'error')
       setOutline(res.outline)
@@ -1280,17 +1282,6 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               {continuationAnalysis}
             </section>
           )}
-          <WritingPreparation
-            key={novelId}
-            brief={currentWritingBrief}
-            onChange={(brief) => setBriefs((previous) => ({ ...previous, [novelId]: brief }))}
-            request={materialRequest}
-            requestKey={materialKey}
-            chapterCount={chapterCount}
-            disabled={busy || taskActive}
-            continuation={mode === 'continue'}
-            onPreview={(revision, key) => setMaterialPreview({ revision, key })}
-          />
           <div className="ai-writing-notes grid gap-4 border-t pt-5">
             {/* 创作要求是这一页权重最高的输入：它逐章下发，直接决定写出什么。
                 此前它只是「一个标签 + 一个 textarea」，与下方的侧重点输入框视觉同级，
@@ -1504,6 +1495,17 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 )}
               </div>
             )}
+            <WritingPreparation
+              key={novelId}
+              brief={currentWritingBrief}
+              onChange={(brief) => setBriefs((previous) => ({ ...previous, [novelId]: brief }))}
+              request={materialRequest}
+              requestKey={materialKey}
+              chapterCount={chapterCount}
+              disabled={busy || taskActive}
+              continuation={mode === 'continue'}
+              onPreview={(revision, key) => setMaterialPreview({ revision, key })}
+            />
             <details className="ai-writing-outline-details" open={isMultiChapter || undefined}>
               <summary>
                 大纲与补充要求 <span>可选</span>

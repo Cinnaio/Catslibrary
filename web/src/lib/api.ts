@@ -2487,6 +2487,7 @@ export const aiApi = {
       focus?: string
       chapterCount?: number
       plotDirection?: string
+      writingBrief?: AiWritingBrief
       contentPreferences?: unknown
     }): Promise<{
       suggestions: Array<{ direction: string; effect: string }>

@@ -128,6 +128,16 @@ export function formatWritingBrief(brief: WritingBriefV1 | undefined, chapterInd
   return { structured, goal: selectedGoal ? `本批第 ${chapterIndex} 章目标（用户编辑）：\n${selectedGoal}` : '' }
 }
 
+/** 推荐和大纲共享正文约束；多章规划必须保留全部逐章目标。 */
+export function formatPlanningWritingBrief(brief: WritingBriefV1 | undefined): string {
+  if (!brief) return ''
+  return [
+    formatWritingBrief(brief).structured,
+    ...brief.chapterGoals.filter((item) => item.goal.trim()).map((item) => `本批第 ${item.index} 章目标：${item.goal}`),
+    '以上是作者本次明确的创作约束。推荐的每条方向和生成的大纲都必须遵守必须保留的事实与禁止发生的事件，并结合目标、出场人物、视角和节奏安排内容。若情节方向与事实或禁区矛盾，请在保留主线意图的前提下调整具体事件，不要推荐或安排被禁止的事件。',
+  ].join('\n')
+}
+
 export interface ContinuationAnchor {
   chapterId: string
   title: string
@@ -446,6 +456,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
    * 大纲模式必须围绕它展开分章，否则会绕开用户的选择按最近章节自行规划。
    */
   plotDirection?: string
+  writingBrief?: WritingBriefV1
   /**
    * 传了就产出分章大纲而非一行方向：按指定章数给出「第N章」开头的多段安排，
    * 便于多章续写时逐章下发，避免同一段内容在每章重复。
@@ -535,6 +546,9 @@ export async function generatePlotSuggestions(db: Db, opts: {
       `最近章节：\n${context.slice(0, 12_000)}`,
     ].filter(Boolean).join('\n\n')
   }
+
+  const planningBrief = formatPlanningWritingBrief(opts.writingBrief)
+  if (planningBrief) prompt += `\n\n${planningBrief}`
 
   const res = await chat({
     messages: [

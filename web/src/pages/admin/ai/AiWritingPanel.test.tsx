@@ -151,6 +151,30 @@ describe('AiWritingPanel', () => {
     expect(method.mock.calls[1]?.[2]).toBe('chapter-18')
   })
 
+  it('进阶约束默认收起，折叠后保留并传给推荐和大纲', async () => {
+    await selectNovel()
+    switchToContinue()
+    const details = screen.getByLabelText('进阶约束与材料') as HTMLDetailsElement
+    expect(details.open).toBe(false)
+    fireEvent.click(details.querySelector('summary')!)
+    fireEvent.change(screen.getByLabelText('本次禁止发生的事件'), { target: { value: '不得揭露真实身份' } })
+    fireEvent.change(screen.getByLabelText('本章目标'), { target: { value: '建立初步信任' } })
+    fireEvent.click(details.querySelector('summary')!)
+    expect(details.open).toBe(false)
+    expect(details.querySelector('summary')?.textContent).toContain('已填写')
+    expect((screen.getByLabelText('本次禁止发生的事件') as HTMLTextAreaElement).value).toBe('不得揭露真实身份')
+    fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalledWith(expect.objectContaining({
+      writingBrief: expect.objectContaining({ objective: '建立初步信任', forbiddenEvents: '不得揭露真实身份' }),
+    })))
+    api.plotSuggestions.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: '按情节推荐生成大纲（单章）' }))
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalledWith(expect.objectContaining({
+      chapterCount: 1,
+      writingBrief: expect.objectContaining({ objective: '建立初步信任', forbiddenEvents: '不得揭露真实身份' }),
+    })))
+  })
+
   it('重新打开页面显示可恢复进度，并沿用原目标而不是新增章节', async () => {
     api.getPlotState.mockResolvedValue({ state: '', progress: { complete: false, processedChapters: 3, totalChapters: 12, targetChapterId: 'saved-target' } })
     api.refreshPlotState.mockResolvedValue({ complete: true, state: '完成', chaptersThrough: 12 })

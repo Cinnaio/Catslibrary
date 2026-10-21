@@ -1196,6 +1196,8 @@ aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
     body.chapterCount === undefined || body.chapterCount === null || body.chapterCount === ''
       ? undefined
       : Math.max(1, Math.min(20, Math.trunc(Number(body.chapterCount) || 1)))
+  const briefResult = validateWritingBrief(body.writingBrief, chapterCount || 20)
+  if (briefResult.error) return c.json({ error: briefResult.error }, 422)
   try {
     const result = await generatePlotSuggestions(db, {
       userId: c.get('user').id,
@@ -1205,6 +1207,7 @@ aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
       // 作者选定的情节方向（通常来自推荐候选）。大纲模式据此展开分章，而不是另起一条线。
       plotDirection: String(body.plotDirection || '').trim() || undefined,
       ...(chapterCount === undefined ? {} : { chapterCount }),
+      writingBrief: briefResult.brief,
       contentPreferences: contentPreferencesResult.preferences,
       ...(await auditRequestContext(c, db)),
     })
