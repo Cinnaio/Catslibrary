@@ -13,11 +13,10 @@ import { useAiConfigured } from './useAiConfigured'
 import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'
 import { UserAvatar } from '@/components/ui/user-avatar'
-import { DetailItem, formatCost } from './shared'
+import { formatCost } from './shared'
 
 const AUDIT_COLUMNS: readonly AdminColumn[] = [
   { key: 'user', width: '20%' },
@@ -41,6 +40,7 @@ const aiCallTypeLabels: Record<string, string> = {
   style_profile: '文风分析',
   relationship_profile: '人物关系分析',
   plot_state: '剧情状态分析',
+  writing_review: '草稿质量检查',
   import_review: '导入审校',
   'content-rating-llm': '内容分级',
   selection_image: '选段配图',

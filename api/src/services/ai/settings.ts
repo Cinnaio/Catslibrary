@@ -49,6 +49,7 @@ export interface AiSettings {
   relationshipProfileMaxTokens: number
   /** 章节标题生成的最大输出 token */
   titleMaxTokens: number
+  reviewMaxTokens: number
   /** 同时运行的创作任务上限（大纲/章节/续写共用） */
   maxConcurrentWritingTasks: number
   imageSize: string
@@ -142,6 +143,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   plotStateMaxTokens: 3000,
   relationshipProfileMaxTokens: 1200,
   titleMaxTokens: 200,
+  reviewMaxTokens: 8000,
   maxConcurrentWritingTasks: 3,
   imageSize: '1024x1024',
   imageQuality: 'standard',
@@ -184,6 +186,7 @@ const LIMITS = {
   plotStateMaxTokens: { min: 300, max: 1000000 },
   relationshipProfileMaxTokens: { min: 200, max: 1000000 },
   titleMaxTokens: { min: 50, max: 2000 },
+  reviewMaxTokens: { min: 300, max: 1000000 },
   maxConcurrentWritingTasks: { min: 1, max: 10 },
   imageSize: { maxLength: 20 },
   imageQuality: { maxLength: 20 },
@@ -273,6 +276,7 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     plotStateMaxTokens: clampInt(obj.plotStateMaxTokens, DEFAULT_AI_SETTINGS.plotStateMaxTokens, LIMITS.plotStateMaxTokens),
     relationshipProfileMaxTokens: clampInt(obj.relationshipProfileMaxTokens, DEFAULT_AI_SETTINGS.relationshipProfileMaxTokens, LIMITS.relationshipProfileMaxTokens),
     titleMaxTokens: clampInt(obj.titleMaxTokens, DEFAULT_AI_SETTINGS.titleMaxTokens, LIMITS.titleMaxTokens),
+    reviewMaxTokens: clampInt(obj.reviewMaxTokens, DEFAULT_AI_SETTINGS.reviewMaxTokens, LIMITS.reviewMaxTokens),
     maxConcurrentWritingTasks: clampInt(obj.maxConcurrentWritingTasks, DEFAULT_AI_SETTINGS.maxConcurrentWritingTasks, LIMITS.maxConcurrentWritingTasks),
     imageSize: clampEnum(obj.imageSize, DEFAULT_AI_SETTINGS.imageSize, ['1024x1024', '1792x1024', '1024x1792', '1024x1536', '768x1024', '512x512']),
     imageQuality: clampEnum(obj.imageQuality, DEFAULT_AI_SETTINGS.imageQuality, ['standard', 'hd']),

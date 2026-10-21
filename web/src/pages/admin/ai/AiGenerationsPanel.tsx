@@ -1,3 +1,4 @@
+import DraftReview from './DraftReview'
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminFormField from '@/components/admin/AdminFormField'
@@ -18,12 +19,9 @@ import CustomSelect from '@/components/admin/CustomSelect'
 import { cn } from '@/lib/utils'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminModelTime from '@/components/admin/AdminModelTime'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
@@ -918,16 +916,19 @@ export default function AiGenerationsPanel(props: {
                 )}
 
                 {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
-                  <DraftRewrite
-                    draftId={viewing.id}
-                    content={viewing.result}
-                    contentRevision={viewing.contentRevision || ''}
-                    onApplied={({ result, contentRevision }) => {
-                      setViewing((current) => (current ? { ...current, result, contentRevision } : current))
-                      void load()
-                    }}
-                    onStale={() => void refreshViewing()}
-                  />
+                  <>
+                    <DraftReview draftId={viewing.id} contentRevision={viewing.contentRevision || ''} disabled={publishing} />
+                    <DraftRewrite
+                      draftId={viewing.id}
+                      content={viewing.result}
+                      contentRevision={viewing.contentRevision || ''}
+                      onApplied={({ result, contentRevision }) => {
+                        setViewing((current) => (current ? { ...current, result, contentRevision } : current))
+                        void load()
+                      }}
+                      onStale={() => void refreshViewing()}
+                    />
+                  </>
                 )}
               </AdminDialogBody>
 

@@ -1,3 +1,6 @@
+import WritingPreparation from './WritingPreparation'
+import { emptyWritingBrief } from './writing-brief'
+import type { AiWritingBrief } from '@/lib/api'
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
 import type { Novel } from '@shared/types'
 import AdminFormField from '@/components/admin/AdminFormField'
@@ -132,6 +135,23 @@ function ProfileText({ text }: { text: string }) {
   )
 }
 
+function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) {
+  const attempt = profile?.lastAttempt
+  if (!attempt) return null
+  return (
+    <span className="block">
+      最近提取：
+      {
+        { complete: '完整返回', truncated: '输出被截断，请提高此档案预算', refused: '模型拒答，增加预算不能解决', empty: '返回空内容，未确认截断' }[
+          attempt.status
+        ]
+      }{' '}
+      · 预算 {attempt.maxTokens.toLocaleString()} / 输出 {attempt.completionTokens.toLocaleString()} Token
+      {attempt.reasoningTokens === null ? '' : `（推理 ${attempt.reasoningTokens.toLocaleString()}）`}
+    </span>
+  )
+}
+
 /** 画像提取模块的统一骨架：可展开的标题行（画像名 + 状态徽标 + 操作区）+ 内容面板或空态提示。
  *
  * 已提取时默认折叠：画像正文实测每张 200~290px，三张合计占续写模式整页 43%，
@@ -260,6 +280,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [pendingDrafts, setPendingDrafts] = useState(0)
   /** 续写起点：选中小说的章节列表（倒序）与选定的起点章节 id，空串表示从最新章节续写 */
   const [chapterOptions, setChapterOptions] = useState<Array<{ value: string; label: string }>>([])
+  const [briefs, setBriefs] = useState<Record<string, AiWritingBrief>>({})
+  const [materialPreview, setMaterialPreview] = useState<{ revision: string; key: string } | null>(null)
   const [afterChapterId, setAfterChapterId] = useState('')
   /** 选中小说的风格画像（已提取则展示，续写时自动注入 system prompt） */
   const [styleProfile, setStyleProfile] = useState('')
@@ -594,6 +616,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           targetWords: words,
           chapterCount: count,
           contentPreferences: buildContentPreferences(),
+          writingBrief: currentWritingBrief,
           operationId: newOperationId('ai-writing-chapter'),
         }),
       '章节生成已开始，完成后到“已生成内容”查看',
@@ -623,6 +646,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           targetWords: words,
           chapterCount: count,
           contentPreferences: buildContentPreferences(),
+          writingBrief: currentWritingBrief,
+          ...(materialPreview?.key === materialKey ? { materialRevision: materialPreview.revision } : {}),
           ...(outline.trim() ? { outline } : {}),
           ...(afterChapterId ? { afterChapterId } : {}),
           operationId: newOperationId('ai-writing-continue'),
@@ -733,6 +758,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       await syncEffective('plot', novelId)
     } catch (err) {
       toast((err as Error).message, 'error')
+      if (version === plotRequestVersion.current) await syncEffective('plot', novelId)
     } finally {
       if (version === plotRequestVersion.current) setPlotBusy(false)
     }
@@ -758,6 +784,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       await syncEffective('relationship', novelId)
     } catch (err) {
       toast((err as Error).message, 'error')
+      if (version === relationshipRequestVersion.current) await syncEffective('relationship', novelId)
     } finally {
       if (version === relationshipRequestVersion.current) setRelationshipBusy(false)
     }
@@ -883,7 +910,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             onAction={() => void refreshRelationshipProfile()}
             emptyHint="首次覆盖全部正文建立关系档案，之后只处理新增章节；中断后可继续。"
             footnote={
-              <p className="text-xs leading-5 text-muted-foreground">首次覆盖全部正文，后续增量更新；正文修改后会重新校验来源。中断后再次点击可继续。</p>
+              <p className="text-xs leading-5 text-muted-foreground">
+                首次覆盖全部正文，后续增量更新；正文修改后会重新校验来源。中断后再次点击可继续。
+                <MemoryAttemptNote profile={relationshipEffective} />
+              </p>
             }
             sampleCaption="每批最多"
             sampleLabel="关系画像每批章数"
@@ -936,6 +966,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             footnote={
               plotState ? (
                 <p className="text-xs leading-5 text-muted-foreground">
+                  <MemoryAttemptNote profile={plotEffective} />
                   {plotEffective?.source?.coverage === 'full'
                     ? `档案截至第 ${plotChaptersThrough} 章${plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}；覆盖该起点前全部正文，未解决的伏笔随增量更新保留。`
                     : '当前为旧版取样结果，请更新档案以完成全部历史初始化。'}
@@ -948,6 +979,21 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         </div>
       </section>
     ) : null
+
+  const rawBrief = briefs[novelId] || emptyWritingBrief()
+  const currentWritingBrief = { ...rawBrief, chapterGoals: rawBrief.chapterGoals.filter((goal) => goal.index <= chapterCount) }
+  const materialRequest = {
+    novelId,
+    title: chapterTitle,
+    instruction,
+    outline,
+    afterChapterId,
+    chapterCount,
+    targetWords: Number(targetWordsInput.text) || 2000,
+    writingBrief: currentWritingBrief,
+    contentPreferences: buildContentPreferences(),
+  }
+  const materialKey = JSON.stringify(materialRequest)
 
   return (
     <div className="ai-writing-panel">
@@ -1124,6 +1170,17 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               {continuationAnalysis}
             </section>
           )}
+          <WritingPreparation
+            key={novelId}
+            brief={currentWritingBrief}
+            onChange={(brief) => setBriefs((previous) => ({ ...previous, [novelId]: brief }))}
+            request={materialRequest}
+            requestKey={materialKey}
+            chapterCount={chapterCount}
+            disabled={busy || taskActive}
+            continuation={mode === 'continue'}
+            onPreview={(revision, key) => setMaterialPreview({ revision, key })}
+          />
           <div className="ai-writing-notes grid gap-4 border-t pt-5">
             {/* 创作要求是这一页权重最高的输入：它逐章下发，直接决定写出什么。
                 此前它只是「一个标签 + 一个 textarea」，与下方的侧重点输入框视觉同级，

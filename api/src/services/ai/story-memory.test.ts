@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { createTestDb, type TestDb } from '../../test/db'
 import { chat } from './client'
 import { recordUsage } from './usage'
+import { getMemoryAttempt } from './story-memory'
 import { extractPlotState, getPlotStateForAnchor } from './plot-state'
 import { extractRelationshipProfile, getRelationshipProfileForAnchor } from './relationship-profile'
 
@@ -51,6 +52,18 @@ describe.each([
   { kind: 'plot', extract: extractPlotState, read: getPlotStateForAnchor, table: 'novel_plot_states' },
   { kind: 'relationship', extract: extractRelationshipProfile, read: getRelationshipProfileForAnchor, table: 'novel_relationship_profiles' },
 ])('$kind full story memory', ({ kind, extract, read, table }) => {
+  it.each([
+    { text: '', finishReason: 'stop', expected: '返回空内容' },
+    { text: '部分档案', finishReason: 'length', expected: '输出被截断' },
+    { text: '', finishReason: 'stop', refusal: '拒绝原因', expected: '拒绝生成' },
+  ])('distinguishes extraction failure: $expected', async ({ expected, ...reply }) => {
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce({ ...response, ...reply })
+    await expect(extract(t.db, opts)).rejects.toThrow(expected)
+    expect(await getMemoryAttempt(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ maxTokens: 4000, completionTokens: 8, finishReason: reply.finishReason })
+    expect(recordUsage).toHaveBeenCalledTimes(1)
+    expect((await t.db.query(`SELECT * FROM ${table}`)).rows).toHaveLength(0)
+  })
   it('initializes from chapter one, checkpoints separately, carries memory and appends only new chapters', async () => {
     await chapter(1)
     await chapter(2)

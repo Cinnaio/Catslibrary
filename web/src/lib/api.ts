@@ -1910,6 +1910,7 @@ export interface AiSettings {
   plotStateMaxTokens: number
   relationshipProfileMaxTokens: number
   titleMaxTokens: number
+  reviewMaxTokens?: number
   maxConcurrentWritingTasks: number
   imageSize: string
   imageQuality: string
@@ -2059,6 +2060,45 @@ export interface AiManualProfileOverride {
   updatedAt: number
 }
 
+export interface AiWritingBrief {
+  version: 1
+  viewpoint: string
+  pace: string
+  objective: string
+  requiredFacts: string
+  forbiddenEvents: string
+  characters?: string[]
+  chapterGoals: Array<{ index: number; goal: string }>
+}
+export interface AiWritingMaterials {
+  revision: string
+  anchor: { chapterId: string; title: string; sortOrder: number }
+  plan: {
+    facts: Array<{ id: string; text: string }>
+    currentState: Array<{ id: string; text: string }>
+    style: Array<{ id: string; text: string }>
+    chapterTask: Array<{ id: string; text: string }>
+  }
+  historicalPassages: Array<{ chapterId: string; title: string; text: string; start: number; end: number; matchedTerms: string[] }>
+  excludedProfiles: Array<{ kind: string; reason: string }>
+  characterCount: number
+  recentContextPolicy: string
+}
+export interface AiWritingReview {
+  draftRevision: string
+  inputHash: string
+  updatedAt: number
+  stale?: boolean
+  sources: Array<{ id: string; title: string; text: string }>
+  findings: Array<{
+    category: 'consistency' | 'foreshadow' | 'relationship'
+    severity: 'warning' | 'info'
+    description: string
+    draftQuote: string
+    evidence: Array<{ sourceId: string; quote: string }>
+  }>
+}
+
 export interface AiStoryMemoryProgress {
   complete?: boolean
   processedChapters?: number
@@ -2085,6 +2125,14 @@ export interface AiProfileSource {
  * （有人工层且仍然有效时是人工层，否则是自动层）。
  */
 export interface AiEffectiveProfile {
+  lastAttempt?: {
+    status: 'complete' | 'truncated' | 'refused' | 'empty'
+    finishReason: string
+    maxTokens: number
+    completionTokens: number
+    reasoningTokens: number | null
+    updatedAt: number
+  }
   eligibility: AiProfileEligibility
   isOlderThanAnchor: boolean
   manualOverride?: AiManualProfileOverride
@@ -2305,6 +2353,15 @@ export const aiApi = {
     )
   },
   writing: {
+    materials(data: Record<string, unknown>): Promise<AiWritingMaterials> {
+      return request('POST', '/ai/writing/materials', data, true)
+    },
+    reviewDraft(id: string, expectedRevision: string): Promise<{ report: AiWritingReview }> {
+      return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/review`, { expectedRevision }, true, {}, 300_000)
+    },
+    getDraftReview(id: string): Promise<{ report: AiWritingReview | null }> {
+      return request('GET', `/ai/writing/drafts/${encodeURIComponent(id)}/review`, null, true)
+    },
     /** 创作类接口统一为后台任务模式：立即返回任务 id，用 aiApi.task 轮询进度，产物在「已生成内容」。 */
     outline(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
       const operationId = typeof data.operationId === 'string' && data.operationId ? data.operationId : newOperationId('ai-writing-outline')

@@ -45,6 +45,30 @@ export interface StoryMemoryResult {
   usage: { promptTokens: number; completionTokens: number }
 }
 
+export interface MemoryAttempt {
+  status: 'complete' | 'truncated' | 'refused' | 'empty'
+  finishReason: string
+  model: string
+  maxTokens: number
+  promptTokens: number
+  completionTokens: number
+  reasoningTokens: number | null
+  chapterIds: string[]
+  updatedAt: number
+}
+
+export async function getMemoryAttempt(db: Db, novelId: string, kind: 'plot' | 'relationship'): Promise<MemoryAttempt | undefined> {
+  const row = await first<{ last_attempt_json: string }>(db, 'SELECT last_attempt_json FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2', [
+    novelId,
+    kind,
+  ])
+  try {
+    return row?.last_attempt_json ? (JSON.parse(row.last_attempt_json) as MemoryAttempt) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function reusablePrefix(rows: ProfileSampleRow[], content: string, source?: ProfileSource): number {
   if (!content.trim() || source?.coverage !== 'full' || source.extractionPromptVersion !== STORY_MEMORY_PROMPT_VERSION) return 0
   const index = rows.findIndex((row) => row.id === source.chapterId)
@@ -154,8 +178,47 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
         })
         usage.promptTokens += res.promptTokens
         usage.completionTokens += res.completionTokens
-        if (!res.text.trim() || res.refusal || res.finishReason === 'length' || res.finishReason === 'content_filter') {
-          throw new AiError('upstream', '档案回复为空、被拒绝或被截断；已保留完成章节的检查点，请调整输出预算后继续', 502)
+        const maxTokens = kind === 'plot' ? settings.plotStateMaxTokens : settings.relationshipProfileMaxTokens
+        const status: MemoryAttempt['status'] =
+          res.refusal || res.finishReason === 'content_filter'
+            ? 'refused'
+            : res.finishReason === 'length'
+              ? 'truncated'
+              : !res.text.trim()
+                ? 'empty'
+                : 'complete'
+        const attempt: MemoryAttempt = {
+          status,
+          finishReason: res.finishReason,
+          model: res.model,
+          maxTokens,
+          promptTokens: res.promptTokens,
+          completionTokens: res.completionTokens,
+          reasoningTokens: res.reasoningTokens ?? null,
+          chapterIds: batch.map((row) => row.id),
+          updatedAt: Date.now(),
+        }
+        await run(db, 'UPDATE novel_story_memory_builds SET last_attempt_json = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [
+          JSON.stringify(attempt),
+          opts.novelId,
+          kind,
+          token,
+        ])
+        if (status !== 'complete') {
+          const label = kind === 'plot' ? '情节档案' : '关系档案'
+          const suffix = '；已保留检查点，再次更新可继续。'
+          if (status === 'truncated')
+            throw new AiError(
+              'invalid',
+              `${label}输出被截断（finish_reason=length，预算 ${maxTokens}，输出 ${res.completionTokens} Token${res.reasoningTokens == null ? '' : `，推理 ${res.reasoningTokens} Token`}），请提高该档案的输出预算${suffix}`,
+              422,
+            )
+          if (status === 'refused') throw new AiError('invalid', `${label}被模型拒绝生成，请核对模型限制和输入内容；增加 Token 不能解决拒答${suffix}`, 422)
+          throw new AiError(
+            'upstream',
+            `${label}返回空内容（finish_reason=${res.finishReason || '未回传'}，预算 ${maxTokens}，输出 ${res.completionTokens} Token），未确认发生截断，请检查上游响应${suffix}`,
+            502,
+          )
         }
         content = res.text.trim()
         model = res.model

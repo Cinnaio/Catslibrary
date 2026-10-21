@@ -1,13 +1,7 @@
 import { createMaterialBlock, materialSection, MATERIAL_PIPELINE_VERSION, type MaterialBlock } from './prompt-material'
 import type { ContinuationSnapshotV1, WritingBriefV1 } from './writing'
 import { DEFAULT_WRITING_CONTENT_PREFERENCES, formatWritingContentPreferences, type WritingContentPreferencesV1 } from './writing-preferences'
-import {
-  AUTHORIZATION_ORDER,
-  CONTENT_RULES_CORE,
-  CONTENT_RULES_ORDER,
-  FALLBACK_OPERATOR_PROMPT,
-  writingAuthorizationCore,
-} from './content-authorization'
+import { AUTHORIZATION_ORDER, CONTENT_RULES_CORE, CONTENT_RULES_ORDER, FALLBACK_OPERATOR_PROMPT, writingAuthorizationCore } from './content-authorization'
 import { patchOperatorPrompt, type OperatorPromptHit } from './writing-prompt-patches'
 
 /** 创作提示词编译器版本；旧任务没有此字段时继续由调用方走旧编译器。 */
@@ -78,13 +72,18 @@ export function buildWritingPromptPlan(opts: WritingPromptCompilerOptions): Writ
   const chapterTask: MaterialBlock[] = []
   const title = createMaterialBlock({ id: 'novel-title', kind: 'metadata', text: opts.title, source: { field: 'title' }, required: true })
   if (title) facts.push(title)
-  const outline = createMaterialBlock({ id: 'outline', kind: 'user_context', text: opts.outline, source: { field: 'outline' }, maxChars: 12_000, required: false })
+  const outline = createMaterialBlock({
+    id: 'outline',
+    kind: 'user_context',
+    text: opts.outline,
+    source: { field: 'outline' },
+    maxChars: 12_000,
+    required: false,
+  })
   if (outline) facts.push(outline)
 
   const contextKind = opts.kind === 'continue' ? 'published_context' : 'user_context'
-  const profileAsOf = opts.continuationSnapshot?.anchor.chapterId
-    ? { chapterId: opts.continuationSnapshot.anchor.chapterId }
-    : undefined
+  const profileAsOf = opts.continuationSnapshot?.anchor.chapterId ? { chapterId: opts.continuationSnapshot.anchor.chapterId } : undefined
   const context = createMaterialBlock({
     id: opts.kind === 'continue' ? 'continuation-context' : 'request-context',
     kind: contextKind,
@@ -97,6 +96,16 @@ export function buildWritingPromptPlan(opts: WritingPromptCompilerOptions): Writ
     required: opts.kind === 'continue',
   })
   if (context) currentState.push(context)
+  for (const passage of opts.continuationSnapshot?.historicalPassages || []) {
+    const block = createMaterialBlock({
+      id: `history-${passage.chapterId}`,
+      kind: 'published_context',
+      text: passage.text,
+      source: { chapterId: passage.chapterId, field: 'historical_passage', revision: passage.fingerprint },
+      priority: 65,
+    })
+    if (block) facts.push(block)
+  }
   const plotOrigin = profileOrigin(opts, 'plot')
   const plotState = createMaterialBlock({
     id: 'plot-state',
@@ -105,12 +114,14 @@ export function buildWritingPromptPlan(opts: WritingPromptCompilerOptions): Writ
     source: { field: 'plot_state', ...(profileAsOf || {}), ...(plotOrigin ? { origin: plotOrigin } : {}) },
     asOf: opts.plotState?.chaptersThrough ? { chaptersThrough: opts.plotState.chaptersThrough } : profileAsOf,
     priority: 50,
-    maxChars: 8_000,
-    mode: 'tail',
+    // Archives already have an explicit extraction budget. Silent clipping here
+    // loses early evidence and defeats full-history initialization.
   })
   if (plotState) currentState.push(plotState)
 
-  for (const draft of (opts.batchDrafts || []).filter((item) => Number.isInteger(item.index) && item.index > 0 && item.text).sort((a, b) => a.index - b.index)) {
+  for (const draft of (opts.batchDrafts || [])
+    .filter((item) => Number.isInteger(item.index) && item.index > 0 && item.text)
+    .sort((a, b) => a.index - b.index)) {
     const batchDraft = createMaterialBlock({
       id: `batch-draft-${draft.index}`,
       kind: 'batch_draft',
@@ -126,13 +137,36 @@ export function buildWritingPromptPlan(opts: WritingPromptCompilerOptions): Writ
   }
 
   const styleOrigin = profileOrigin(opts, 'style')
-  const styleProfile = createMaterialBlock({ id: 'style-profile', kind: styleOrigin === 'manual' ? 'manual_profile' : 'automatic_profile', text: opts.styleProfile, source: { field: 'style_profile', ...(profileAsOf || {}), ...(styleOrigin ? { origin: styleOrigin } : {}) }, asOf: profileAsOf, priority: 40, maxChars: 4_000 })
+  const styleProfile = createMaterialBlock({
+    id: 'style-profile',
+    kind: styleOrigin === 'manual' ? 'manual_profile' : 'automatic_profile',
+    text: opts.styleProfile,
+    source: { field: 'style_profile', ...(profileAsOf || {}), ...(styleOrigin ? { origin: styleOrigin } : {}) },
+    asOf: profileAsOf,
+    priority: 40,
+    maxChars: 4_000,
+  })
   if (styleProfile) style.push(styleProfile)
   const relationshipOrigin = profileOrigin(opts, 'relationship')
-  const relationshipProfile = createMaterialBlock({ id: 'relationship-profile', kind: relationshipOrigin === 'manual' ? 'manual_profile' : 'automatic_profile', text: opts.relationshipProfile, source: { field: 'relationship_profile', ...(profileAsOf || {}), ...(relationshipOrigin ? { origin: relationshipOrigin } : {}) }, asOf: profileAsOf, priority: 40, maxChars: 5_000 })
+  const relationshipProfile = createMaterialBlock({
+    id: 'relationship-profile',
+    kind: relationshipOrigin === 'manual' ? 'manual_profile' : 'automatic_profile',
+    text: opts.relationshipProfile,
+    source: { field: 'relationship_profile', ...(profileAsOf || {}), ...(relationshipOrigin ? { origin: relationshipOrigin } : {}) },
+    asOf: profileAsOf,
+    priority: 40,
+  })
   if (relationshipProfile) style.push(relationshipProfile)
 
-  const instruction = createMaterialBlock({ id: 'author-instruction', kind: 'author_request', text: opts.instruction, source: { field: 'instruction' }, priority: 110, maxChars: 4_000, required: true })
+  const instruction = createMaterialBlock({
+    id: 'author-instruction',
+    kind: 'author_request',
+    text: opts.instruction,
+    source: { field: 'instruction' },
+    priority: 110,
+    maxChars: 4_000,
+    required: true,
+  })
   if (instruction) chapterTask.push(instruction)
   if (opts.writingBrief) {
     const brief = createMaterialBlock({
@@ -202,9 +236,7 @@ export function ensureAuthorizationSection(sections: readonly WritingSystemSecti
 export function compileWritingPrompt(opts: WritingPromptCompilerOptions): WritingPromptCompilation {
   const plan = buildWritingPromptPlan(opts)
   const outlineKind = opts.kind === 'write_outline'
-  const patched = outlineKind
-    ? { text: '', removed: [], applied: false }
-    : patchOperatorPrompt(opts.writingSystemPrompt, opts.contentPreferences)
+  const patched = outlineKind ? { text: '', removed: [], applied: false } : patchOperatorPrompt(opts.writingSystemPrompt, opts.contentPreferences)
   const operatorPrompt = outlineKind
     ? '你是中文网络小说策划编辑。请输出可执行的章节大纲，包含主线冲突、人物目标、关键转折和章节安排。只输出内容，不要解释。'
     : patched.text || FALLBACK_OPERATOR_PROMPT
@@ -223,7 +255,13 @@ export function compileWritingPrompt(opts: WritingPromptCompilerOptions): Writin
     },
     { name: 'purge:content-rules', order: SYSTEM_SECTION_ORDERS.contentRules, text: CONTENT_RULES_CORE },
     ...(plan.output.singleChapter
-      ? [{ name: 'pipeline:single-chapter', order: SYSTEM_SECTION_ORDERS.singleChapter, text: '本次只能生成一章。开头只输出一次章节标题，正文不得出现下一章、上一章或额外章节标题；写完当前章节立即停止。' }]
+      ? [
+          {
+            name: 'pipeline:single-chapter',
+            order: SYSTEM_SECTION_ORDERS.singleChapter,
+            text: '本次只能生成一章。开头只输出一次章节标题，正文不得出现下一章、上一章或额外章节标题；写完当前章节立即停止。',
+          },
+        ]
       : []),
   ]
   const ordered = assembleSystemSections(ensureAuthorizationSection(sections, authorization))
@@ -232,7 +270,9 @@ export function compileWritingPrompt(opts: WritingPromptCompilerOptions): Writin
     plan.output.targetWords ? `目标长度约 ${plan.output.targetWords} 个中文字符。` : '',
     plan.output.chapterCount && plan.output.chapterCount > 1 ? `这是 ${plan.output.chapterCount} 章批次；当前材料只服务本次调用。` : '',
     plan.kind === 'write_outline' ? '不要输出章节正文。' : '',
-  ].filter(Boolean).join(' ')
+  ]
+    .filter(Boolean)
+    .join(' ')
   const user = [
     `CREATIVE_TASK_PIPELINE version=${MATERIAL_PIPELINE_VERSION}`,
     materialSection('WORK_FACTS', plan.facts),
@@ -240,7 +280,9 @@ export function compileWritingPrompt(opts: WritingPromptCompilerOptions): Writin
     materialSection('STYLE_AND_RELATIONSHIP', plan.style),
     materialSection('CHAPTER_TASK', plan.chapterTask),
     output,
-  ].filter(Boolean).join('\n\n')
+  ]
+    .filter(Boolean)
+    .join('\n\n')
   return {
     system: ordered.map((section) => section.text).join('\n\n'),
     user,
@@ -259,7 +301,10 @@ function formatBriefForMaterial(brief: WritingBriefV1, chapterIndex: number): st
     'requiredFacts=' + (brief.requiredFacts || 'unspecified'),
     'forbiddenEvents=' + (brief.forbiddenEvents || 'unspecified'),
     selectedGoal ? `chapterGoal[${chapterIndex}]=${selectedGoal}` : '',
-  ].filter(Boolean).join('\n')
+    brief.characters?.length ? `出场人物=${brief.characters.join('、')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 function profileOrigin(opts: WritingPromptCompilerOptions, kind: 'style' | 'relationship' | 'plot'): 'automatic' | 'manual' | 'legacy' | undefined {
@@ -267,5 +312,5 @@ function profileOrigin(opts: WritingPromptCompilerOptions, kind: 'style' | 'rela
   if (explicit) return explicit
   const raw = opts.profileSources?.[kind]
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
-  return Number((raw as Record<string, unknown>).extractionPromptVersion) === 2 ? 'automatic' : 'legacy'
+  return Number((raw as Record<string, unknown>).extractionPromptVersion) >= 2 ? 'automatic' : 'legacy'
 }

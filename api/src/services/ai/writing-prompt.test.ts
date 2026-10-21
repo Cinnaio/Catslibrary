@@ -24,10 +24,28 @@ const brief = {
   objective: '查清门口脚印',
   requiredFacts: '旧画像只到第 3 章',
   forbiddenEvents: '本章不得揭露幕后人',
-  chapterGoals: [{ index: 1, goal: '发现脚印与旧案有关' }, { index: 2, goal: '错误方向被排除' }],
+  chapterGoals: [
+    { index: 1, goal: '发现脚印与旧案有关' },
+    { index: 2, goal: '错误方向被排除' },
+  ],
 }
 
 describe('writing prompt compiler', () => {
+  it('preserves complete story archives beyond the old character clipping limits', () => {
+    const plot = '起初的关键伏笔。' + '情节'.repeat(6000) + '结尾的新进展。'
+    const relationship = '关系形成的旧承诺。' + '关系'.repeat(4000) + '最近的变化。'
+    const compiled = compileWritingPrompt({
+      kind: 'continue',
+      title: '长篇',
+      instruction: '继续',
+      context: '正文',
+      writingSystemPrompt: '写作',
+      plotState: { state: plot },
+      relationshipProfile: relationship,
+    })
+    expect(compiled.plan.currentState.find((block) => block.id === 'plot-state')?.text).toBe(plot)
+    expect(compiled.plan.style.find((block) => block.id === 'relationship-profile')?.text).toBe(relationship)
+  })
   it('builds five labeled layers and keeps source text in data blocks', () => {
     const compiled = compileWritingPrompt({
       kind: 'continue',
@@ -80,7 +98,14 @@ describe('writing prompt compiler', () => {
       batchIndex: 1,
       writingSystemPrompt: '指导',
     })
-    const compiled = compileWritingPrompt({ kind: 'write_outline', title: '空屋', instruction: '列出三章转折', writingBrief: brief, batchIndex: 1, writingSystemPrompt: '指导' })
+    const compiled = compileWritingPrompt({
+      kind: 'write_outline',
+      title: '空屋',
+      instruction: '列出三章转折',
+      writingBrief: brief,
+      batchIndex: 1,
+      writingSystemPrompt: '指导',
+    })
     expect(plan.output.singleChapter).toBe(false)
     expect(compiled.system).not.toContain('本次只能生成一章')
     expect(compiled.user).toContain('章节大纲')
@@ -169,7 +194,13 @@ describe('writing prompt compiler', () => {
       kind: 'continue',
       title: '放宽档',
       instruction: '推进本章',
-      contentPreferences: { version: 1, adultContentMode: 'explicit', intimacyWeight: 'high', adultCharactersConfirmed: true, consentRuleTier: 'fictional_nonconsent' },
+      contentPreferences: {
+        version: 1,
+        adultContentMode: 'explicit',
+        intimacyWeight: 'high',
+        adultCharactersConfirmed: true,
+        consentRuleTier: 'fictional_nonconsent',
+      },
       writingSystemPrompt: SUPPRESSIVE_OPERATOR_PROMPT,
     })
     // 关键区别：不是声明「本条不适用」，而是那几句根本不在提示词里了。
@@ -197,10 +228,7 @@ describe('writing prompt compiler', () => {
     const names = (compiled.systemSections || []).map((section) => section.name)
     expect(names).toEqual(['operator:prompt', 'purge:authorize', 'pipeline:rules', 'purge:content-rules', 'pipeline:single-chapter'])
     expect(assembleSystemSections([]).length).toBe(0)
-    const restored = ensureAuthorizationSection(
-      [{ name: 'operator:prompt', order: 100, text: '指导' }],
-      writingAuthorizationCore(),
-    )
+    const restored = ensureAuthorizationSection([{ name: 'operator:prompt', order: 100, text: '指导' }], writingAuthorizationCore())
     expect(restored[0]?.name).toBe('purge:authorize')
   })
 
