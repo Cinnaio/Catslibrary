@@ -23,6 +23,55 @@ afterEach(() => {
 
 const messages = [{ role: 'user' as const, content: '测试' }]
 
+describe('timeout retry policy', () => {
+  it('keeps timeout retries enabled for existing callers', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchMock = vi.fn(async () => { throw new DOMException('timeout', 'TimeoutError') })
+      vi.stubGlobal('fetch', fetchMock)
+      const verdict = expect(chat({ messages })).rejects.toMatchObject({ code: 'timeout' })
+      await vi.runAllTimersAsync()
+      await verdict
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    } finally { vi.useRealTimers() }
+  })
+
+  it.each([408, 504])('does not replay HTTP %s when timeout retries are disabled', async (status) => {
+    vi.useFakeTimers()
+    try {
+      const fetchMock = vi.fn(async () => new Response('timeout', { status }))
+      vi.stubGlobal('fetch', fetchMock)
+      const verdict = expect(chat({ messages, retryOnTimeout: false })).rejects.toMatchObject({ code: 'upstream', status })
+      await vi.runAllTimersAsync()
+      await verdict
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
+  })
+
+  it.each([false, true])('does not replay a timed-out request when the caller opts out (stream=%s)', async (stream) => {
+    vi.useFakeTimers()
+    try {
+      const fetchMock = vi.fn(async () => { throw new DOMException('timeout', 'TimeoutError') })
+      vi.stubGlobal('fetch', fetchMock)
+      const options = { messages, retryOnTimeout: false } as Parameters<typeof chat>[0]
+      const result = stream ? chatStream(options, () => {}) : chat(options)
+      const verdict = expect(result).rejects.toMatchObject({ code: 'timeout' })
+      await vi.runAllTimersAsync()
+      await verdict
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally { vi.useRealTimers() }
+  })
+
+  it('does not treat a response-body timeout as empty model output', async () => {
+    const response = new Response('{}', { status: 200 })
+    vi.spyOn(response, 'json').mockRejectedValue(new DOMException('timeout', 'TimeoutError'))
+    const fetchMock = vi.fn(async () => response)
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(chat({ messages, retryOnTimeout: false, returnIncompleteResult: true } as Parameters<typeof chat>[0])).rejects.toMatchObject({ code: 'timeout' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('caller cancellation', () => {
   it.each([false, true])('does not send an already-cancelled request or retry it (stream=%s)', async (stream) => {
     const controller = new AbortController()

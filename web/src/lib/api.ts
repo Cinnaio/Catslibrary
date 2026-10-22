@@ -1931,6 +1931,7 @@ export interface AiSettings {
   styleProfileMaxTokens: number
   plotStateMaxTokens: number
   relationshipProfileMaxTokens: number
+  storyMemoryTimeoutSeconds?: number
   titleMaxTokens: number
   reviewMaxTokens?: number
   maxConcurrentWritingTasks: number
@@ -2154,12 +2155,16 @@ export interface AiEffectiveProfile {
   memoryTask?: Pick<AiTaskInfo, 'id' | 'status' | 'current' | 'total' | 'step' | 'error' | 'updatedAt'>
   progress?: AiStoryMemoryProgress
   lastAttempt?: {
-    status: 'complete' | 'truncated' | 'refused' | 'empty'
+    status: 'complete' | 'truncated' | 'refused' | 'empty' | 'timeout'
     finishReason: string
     maxTokens: number
-    completionTokens: number
+    completionTokens: number | null
     reasoningTokens: number | null
     updatedAt: number
+    timeoutMs?: number
+    elapsedMs?: number
+    inputChars?: number
+    error?: string
   }
   eligibility: AiProfileEligibility
   isOlderThanAnchor: boolean

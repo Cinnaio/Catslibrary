@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestDb, type TestDb } from '../../test/db'
-import { chat } from './client'
+import { AiError, chat } from './client'
 import { recordUsage } from './usage'
 import { getMemoryAttempt, getStoryMemoryProgress, pauseStoryMemory } from './story-memory'
 import { extractPlotState, getPlotStateForAnchor } from './plot-state'
@@ -12,7 +12,7 @@ vi.mock('./client', async (original) => ({
   isTextAiConfigured: () => true,
   textProvider: () => ({ baseUrl: 'https://example.test/v1' }),
 }))
-vi.mock('./settings', () => ({ getAiSettings: async () => ({ plotStateMaxTokens: 4000, relationshipProfileMaxTokens: 4000 }) }))
+vi.mock('./settings', () => ({ getAiSettings: async () => ({ plotStateMaxTokens: 4000, relationshipProfileMaxTokens: 4000, storyMemoryTimeoutSeconds: 450 }) }))
 vi.mock('./usage', () => ({ recordUsage: vi.fn() }))
 
 let t: TestDb
@@ -52,6 +52,39 @@ describe.each([
   { kind: 'plot', extract: extractPlotState, read: getPlotStateForAnchor, table: 'novel_plot_states' },
   { kind: 'relationship', extract: extractRelationshipProfile, read: getRelationshipProfileForAnchor, table: 'novel_relationship_profiles' },
 ])('$kind full story memory', ({ kind, extract, read, table }) => {
+  it('renews the build lease while a slow model request is in flight', async () => {
+    await chapter(1)
+    const clock = vi.spyOn(Date, 'now')
+    const startedAt = Date.now()
+    vi.mocked(chat).mockImplementationOnce(async () => {
+      const initial = (await t.db.query<{ lease_until: number }>('SELECT lease_until FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2', ['book', kind])).rows[0]!
+      clock.mockReturnValue(startedAt + 60000)
+      await vi.waitFor(async () => {
+        const next = (await t.db.query<{ lease_until: number }>('SELECT lease_until FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2', ['book', kind])).rows[0]!
+        expect(Number(next.lease_until)).toBeGreaterThan(Number(initial.lease_until))
+      }, { timeout: 1500, interval: 30 })
+      return response
+    })
+    try { await expect(extract(t.db, opts)).resolves.toMatchObject({ complete: true }) }
+    finally { clock.mockRestore() }
+  })
+
+  it.each(['timeout', 'upstream'] as const)('retains the checkpoint and records an unbilled unknown-usage timeout (%s)', async (code) => {
+    await chapter(1)
+    await chapter(2)
+    await extract(t.db, opts)
+    vi.mocked(chat).mockRejectedValueOnce(new AiError(code, 'AI 服务响应超时', 504))
+    await expect(extract(t.db, opts)).rejects.toMatchObject({ code: 'timeout', message: expect.stringContaining('未自动重试') })
+    expect(vi.mocked(chat).mock.calls[1]?.[0]).toMatchObject({ timeoutMs: 450000, retryOnTimeout: false })
+    expect(await getMemoryAttempt(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ status: 'timeout', timeoutMs: 450000, promptTokens: null, completionTokens: null, chapterIds: ['c2'] })
+    expect(await getStoryMemoryProgress(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ processedChapters: 1, complete: false, running: false })
+    expect(recordUsage).toHaveBeenCalledTimes(1)
+    vi.mocked(chat).mockResolvedValue(response)
+    await expect(extract(t.db, opts)).resolves.toMatchObject({ complete: true, processedChapters: 2 })
+    expect(input(2)).toContain('正文2。')
+    expect(input(2)).not.toContain('正文1。')
+  })
+
   it('cancels a stalled model call promptly and resumes the last complete checkpoint', async () => {
     await chapter(1)
     await chapter(2)

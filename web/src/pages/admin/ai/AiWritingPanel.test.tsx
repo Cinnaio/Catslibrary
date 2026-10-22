@@ -167,6 +167,15 @@ describe('AiWritingPanel', () => {
     await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', kind, 7, undefined))
   })
 
+  it('超时诊断显示等待上限与未知用量，不把未收到的响应写成零输出', async () => {
+    api.getRelationshipProfile.mockResolvedValue({ profile: '', lastAttempt: { status: 'timeout', maxTokens: 4000, completionTokens: null, reasoningTokens: null, timeoutMs: 450000, elapsedMs: 450001, finishReason: '', updatedAt: 1 }, memoryTask: { id: 'timeout-task', status: 'failed', error: '关系档案请求超时' } })
+    await selectNovel()
+    switchToContinue()
+    expect(await screen.findByText(/最近提取：请求超时 · 等待上限 450 秒/)).toHaveTextContent('用量未确认')
+    expect(screen.queryByText(/输出 0 Token/)).not.toBeInTheDocument()
+    expect(api.startMemoryTask).not.toHaveBeenCalled()
+  })
+
   it('部分分析显示保存进度与阶段内容，并明确未用于续写', async () => {
     api.getPlotState.mockResolvedValue({
       state: '', effectiveContent: '',
