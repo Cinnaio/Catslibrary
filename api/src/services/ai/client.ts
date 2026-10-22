@@ -4,6 +4,7 @@
  * 默认 deepseek-v4-flash；未配置时一律抛 AiError('disabled')，调用方据此隐藏入口。
  */
 import { loadConfig, type AiProviderConfig } from '../../config'
+import type { AiReasoningMode } from '@shared/ai-text-progress'
 import { outboundFetch } from '../outbound-fetch'
 import { upstreamCost } from './upstream-cost'
 import { resolveUpstreamBilling } from './upstream-billing'
@@ -42,12 +43,20 @@ export interface AiChatOptions {
   timeoutMs?: number
   /** 默认保持既有重试；长耗时分析可关闭本地超时和 HTTP 408/504 的自动重放。 */
   retryOnTimeout?: boolean
+  reasoningMode?: AiReasoningMode
+  onProgress?: (progress: AiChatProgress) => void | Promise<void>
   signal?: AbortSignal
-  /** 审计调用方先记账，再自行拒绝空回复、拒答与截断。仅非流式使用。 */
+  /** 审计调用方先记账，再自行拒绝空回复、拒答与截断。 */
   returnIncompleteResult?: boolean
 }
 
+export interface AiChatProgress {
+  phase: 'thinking' | 'writing'
+  reasoningCharacters: number
+}
+
 export interface AiChatResult extends UpstreamUsage {
+  streamed?: boolean
   refusal?: string
   text: string
   model: string
@@ -115,6 +124,7 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
     temperature: opts.temperature ?? 0.3,
     max_tokens: opts.maxTokens ?? 800,
     stream: false,
+    ...reasoningFields(model, opts.reasoningMode),
   })
 
   let lastError: AiError | null = null
@@ -153,6 +163,7 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
     max_tokens: opts.maxTokens ?? 800,
     stream: true,
     stream_options: { include_usage: true },
+    ...reasoningFields(model, opts.reasoningMode),
   })
 
   let lastError: AiError | null = null
@@ -160,7 +171,10 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     throwIfCancelled(opts.signal)
     try {
-      return await onceStream(endpoint, provider.apiKey, body, model, opts, async (delta) => {
+      return await onceStream(endpoint, provider.apiKey, body, model, { ...opts, onProgress: async (progress) => {
+        if (progress.reasoningCharacters > 0) emitted = true
+        await opts.onProgress?.(progress)
+      } }, async (delta) => {
         emitted = true
         await onDelta(delta)
       })
@@ -283,11 +297,11 @@ async function onceStream(
   if (!contentType.includes('text/event-stream')) {
     const data = await readChatResponseJson(res, opts, timeout)
     const refusal = detectStructuredContentRefusal(data)
-    if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
+    if (refusal && !opts.returnIncompleteResult) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
     const parsed = parseChatCompletion(data, model)
-    if (!parsed.text) throw emptyChatResponseError(parsed.finishReason, data)
-    await onDelta(parsed.text)
-    return { ...parsed, ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, parsed.costReported ? parsed.cost : null, opts.signal) }
+    if (!parsed.text && !opts.returnIncompleteResult) throw emptyChatResponseError(parsed.finishReason, data)
+    if (parsed.text) { await opts.onProgress?.({ phase: 'writing', reasoningCharacters: 0 }); await onDelta(parsed.text) }
+    return { ...parsed, streamed: false, ...(refusal ? { refusal: contentRefusalMessage(refusal) } : {}), ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, parsed.costReported ? parsed.cost : null, opts.signal) }
   }
 
   if (!res.body) throw new AiError('upstream', 'AI 服务未返回流式内容')
@@ -305,12 +319,16 @@ async function onceStream(
   let reasoningTokens: number | null = null
   let costReported = false
   let finishReason = ''
+  let responseRefusal: string | undefined
+  let reasoningCharacters = 0
+  let streamDone = false
 
   const consumeLine = async (line: string): Promise<void> => {
     const normalized = line.endsWith('\r') ? line.slice(0, -1) : line
     if (!normalized.startsWith('data:')) return
     const payload = normalized.slice(5).trim()
-    if (!payload || payload === '[DONE]') return
+    if (payload === '[DONE]') { streamDone = true; return }
+    if (!payload) return
 
     let data: ChatCompletionStreamChunk
     try {
@@ -320,7 +338,10 @@ async function onceStream(
     }
 
     const refusal = detectStructuredContentRefusal(data)
-    if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
+    if (refusal) {
+      if (!opts.returnIncompleteResult) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
+      responseRefusal = contentRefusalMessage(refusal)
+    }
 
     if (data.model) responseModel = String(data.model)
     const usage = upstreamUsage(data)
@@ -333,10 +354,16 @@ async function onceStream(
     cost = upstreamCost(data) ?? cost
 
     const choice = data.choices?.[0]
+    const reasoning = extractContent(choice?.delta?.reasoning_content)
+    if (reasoning) {
+      reasoningCharacters += reasoning.length
+      await opts.onProgress?.({ phase: 'thinking', reasoningCharacters })
+    }
     if (choice?.finish_reason) finishReason = String(choice.finish_reason)
     const delta = extractContent(choice?.delta?.content, false)
     if (!delta) return
     text += delta
+    await opts.onProgress?.({ phase: 'writing', reasoningCharacters })
     await onDelta(delta)
   }
 
@@ -359,9 +386,12 @@ async function onceStream(
   }
 
   const trimmed = text.trim()
-  if (!trimmed) throw emptyChatResponseError(finishReason, null)
+  if (!streamDone && !finishReason) throw new AiError('upstream', 'AI 流式响应在完成标记前中断，未保存未完成内容')
+  if (!trimmed && !opts.returnIncompleteResult) throw emptyChatResponseError(finishReason, null)
   const cancellation = detectContentCancellation(trimmed, finishReason)
   return {
+    streamed: true,
+    ...(responseRefusal ? { refusal: responseRefusal } : {}),
     text: cancellation ? stripCancellationTail(trimmed) : trimmed,
     ...(cancellation ? { truncated: true } : {}),
     model: responseModel,
@@ -428,7 +458,7 @@ interface ChatCompletionResponse {
 interface ChatCompletionStreamChunk {
   model?: string
   refusal?: unknown
-  choices?: Array<{ delta?: { content?: unknown; refusal?: unknown }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
+  choices?: Array<{ delta?: { content?: unknown; reasoning_content?: unknown; refusal?: unknown }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
   usage?: Record<string, unknown> | null
   usageMetadata?: Record<string, unknown>
   cost?: string | number
@@ -459,6 +489,12 @@ function isRetriable(err: AiError, opts: AiChatOptions): boolean {
   if (err.code === 'timeout') return true
   if (err.code === 'upstream') return err.status === 502 || RETRIABLE_STATUS.has(err.status)
   return false
+}
+
+function reasoningFields(model: string, mode: AiReasoningMode = 'inherit'): Record<string, unknown> {
+  if (mode === 'inherit') return {}
+  if (!/(^|\/)deepseek(?:[-_/]|$)/i.test(model)) throw new AiError('invalid', '当前思考模式设置只支持 DeepSeek 兼容模型；请将该任务的思考模式设为跟随供应商', 422)
+  return mode === 'disabled' ? { thinking: { type: 'disabled' } } : { thinking: { type: 'enabled' }, reasoning_effort: mode }
 }
 
 /**

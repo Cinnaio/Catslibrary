@@ -5,15 +5,19 @@ import { extractPlotState } from './plot-state'
 import { extractRelationshipProfile } from './relationship-profile'
 import { pauseStoryMemory, type StoryMemoryOptions } from './story-memory'
 import { cancelAiTask, createAiTask, getAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
+import { parseAiTextProgress } from '@shared/ai-text-progress'
 
 export type MemoryKind = 'plot' | 'relationship'
 export const MEMORY_TASK_KINDS = { plot: 'plot_state', relationship: 'relationship_profile' } as const
 
-/** Admin-only status metadata; excludes prompts, request parameters and archive text. */
+/** Admin-only metadata with bounded, explicitly unfinished previews; excludes raw prompts and parameters. */
 export async function getStoryMemoryTask(db: Db, novelId: string, kind: MemoryKind) {
-  return first<{ id: string; status: string; current: number; total: number; step: string; error: string; updatedAt: number }>(db,
-    `SELECT id, status, current, total, step, error, updated_at AS "updatedAt" FROM ai_tasks
+  const row = await first<{ id: string; status: string; current: number; total: number; step: string; error: string; updatedAt: number; result: string }>(db,
+    `SELECT id, status, current, total, step, error, result, updated_at AS "updatedAt" FROM ai_tasks
      WHERE novel_id = $1 AND kind = $2 ORDER BY created_at DESC, id DESC LIMIT 1`, [novelId, MEMORY_TASK_KINDS[kind]])
+  if (!row) return row
+  const { result, ...task } = row
+  return { ...task, livePreview: row.status === 'running' ? parseAiTextProgress(result) : null }
 }
 
 /** Serialize submissions per novel; a lost response or a second tab reuses the active task. */

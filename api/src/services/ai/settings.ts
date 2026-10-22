@@ -4,6 +4,7 @@
  */
 import type { Db } from '../../db/pool'
 import { first, run } from '../../db/query'
+import type { AiReasoningMode } from '@shared/ai-text-progress'
 
 export interface AiSettings {
   /** 划选出图允许的登录角色；空数组关闭此功能。 */
@@ -49,6 +50,10 @@ export interface AiSettings {
   relationshipProfileMaxTokens: number
   /** 情节/关系档案单次模型调用的等待上限，单位秒。 */
   storyMemoryTimeoutSeconds: number
+  writingReasoningMode: AiReasoningMode
+  storyMemoryReasoningMode: AiReasoningMode
+  writingStreamEnabled: boolean
+  storyMemoryStreamEnabled: boolean
   /** 章节标题生成的最大输出 token */
   titleMaxTokens: number
   reviewMaxTokens: number
@@ -145,6 +150,10 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   plotStateMaxTokens: 3000,
   relationshipProfileMaxTokens: 1200,
   storyMemoryTimeoutSeconds: 300,
+  writingReasoningMode: 'inherit',
+  storyMemoryReasoningMode: 'inherit',
+  writingStreamEnabled: false,
+  storyMemoryStreamEnabled: false,
   titleMaxTokens: 200,
   reviewMaxTokens: 8000,
   maxConcurrentWritingTasks: 3,
@@ -280,6 +289,10 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     plotStateMaxTokens: clampInt(obj.plotStateMaxTokens, DEFAULT_AI_SETTINGS.plotStateMaxTokens, LIMITS.plotStateMaxTokens),
     relationshipProfileMaxTokens: clampInt(obj.relationshipProfileMaxTokens, DEFAULT_AI_SETTINGS.relationshipProfileMaxTokens, LIMITS.relationshipProfileMaxTokens),
     storyMemoryTimeoutSeconds: clampInt(obj.storyMemoryTimeoutSeconds, DEFAULT_AI_SETTINGS.storyMemoryTimeoutSeconds, LIMITS.storyMemoryTimeoutSeconds),
+    writingReasoningMode: clampEnum(obj.writingReasoningMode, 'inherit', ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,
+    storyMemoryReasoningMode: clampEnum(obj.storyMemoryReasoningMode, 'inherit', ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,
+    writingStreamEnabled: obj.writingStreamEnabled === undefined ? false : !!obj.writingStreamEnabled,
+    storyMemoryStreamEnabled: obj.storyMemoryStreamEnabled === undefined ? false : !!obj.storyMemoryStreamEnabled,
     titleMaxTokens: clampInt(obj.titleMaxTokens, DEFAULT_AI_SETTINGS.titleMaxTokens, LIMITS.titleMaxTokens),
     reviewMaxTokens: clampInt(obj.reviewMaxTokens, DEFAULT_AI_SETTINGS.reviewMaxTokens, LIMITS.reviewMaxTokens),
     maxConcurrentWritingTasks: clampInt(obj.maxConcurrentWritingTasks, DEFAULT_AI_SETTINGS.maxConcurrentWritingTasks, LIMITS.maxConcurrentWritingTasks),

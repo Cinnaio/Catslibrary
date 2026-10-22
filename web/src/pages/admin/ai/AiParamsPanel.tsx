@@ -25,6 +25,10 @@ const PARAM_GROUPS = [
       'plotStateMaxTokens',
       'relationshipProfileMaxTokens',
       'storyMemoryTimeoutSeconds',
+      'writingReasoningMode',
+      'storyMemoryReasoningMode',
+      'writingStreamEnabled',
+      'storyMemoryStreamEnabled',
       'titleMaxTokens',
       'reviewMaxTokens',
       'writingSystemPrompt',
@@ -308,7 +312,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <h3>AI 创作参数</h3>
               <p>控制大纲、章节与续写的生成长度和变化程度。</p>
             </div>
-            <span className="ai-parameter-count">9 项参数</span>
+            <span className="ai-parameter-count">13 项参数</span>
           </div>
           <CardContent className="grid gap-4">
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
@@ -341,6 +345,21 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   onChange={(e) => setLocalSettings({ ...localSettings, writingMaxTokens: Number(e.target.value) })}
                 />
               </AdminFormField>
+            </div>
+            <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
+              {([
+                ['writingReasoningMode', '正文与大纲思考模式'],
+                ['storyMemoryReasoningMode', '关系与情节档案思考模式'],
+              ] as const).map(([key, label]) => <AdminFormField key={key} label={label} htmlFor={key} hint="跟随供应商保持原行为。关闭、低强度和高强度适用于 DeepSeek 兼容模型；更换其他模型前请改回跟随供应商。">
+                <Select value={localSettings[key] ?? 'inherit'} onValueChange={(value) => setLocalSettings({ ...localSettings, [key]: value as 'inherit' | 'disabled' | 'low' | 'high' })} disabled={props.loading || saving}>
+                  <SelectTrigger id={key}><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="inherit">跟随供应商</SelectItem><SelectItem value="disabled">关闭思考</SelectItem><SelectItem value="low">低强度思考</SelectItem><SelectItem value="high">高强度思考</SelectItem></SelectContent>
+                </Select>
+              </AdminFormField>)}
+              {([
+                ['writingStreamEnabled', '正文与大纲实时预览'],
+                ['storyMemoryStreamEnabled', '关系与情节档案实时预览'],
+              ] as const).map(([key, label]) => <label key={key} className="flex items-start justify-between gap-3 text-sm"><span>{label}<span className="mt-1 block text-xs leading-5 text-muted-foreground">启用流式请求，显示思考阶段与部分正文。完整返回后才保存；供应商可能仍以非流式返回。</span></span><Switch checked={localSettings[key] ?? false} onCheckedChange={(value) => setLocalSettings({ ...localSettings, [key]: value })} disabled={props.loading || saving} /></label>)}
             </div>
             <h4 className="ai-parameter-subtitle">分析与辅助生成</h4>
             <div className="ai-form-grid ai-parameter-analysis grid gap-3 sm:grid-cols-2">
