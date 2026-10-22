@@ -142,6 +142,7 @@ function memoryRunning(profile: AiEffectiveProfile | null): boolean {
 function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) {
   const attempt = profile?.lastAttempt
   if (!attempt) return null
+  if (attempt.status === 'timeout') return <span className="block">最近提取：请求超时 · 等待上限 {Math.round((attempt.timeoutMs || 0) / 1000)} 秒{attempt.elapsedMs == null ? '' : ` · 本次耗时 ${Math.round(attempt.elapsedMs / 1000)} 秒`} · 本次超时后未自动重试；未收到完整响应，用量未确认。</span>
   return (
     <span className="block">
       最近提取：
@@ -150,7 +151,7 @@ function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) 
           attempt.status
         ]
       }{' '}
-      · 预算 {attempt.maxTokens.toLocaleString()} / 输出 {attempt.completionTokens.toLocaleString()} Token
+      · 预算 {attempt.maxTokens.toLocaleString()} / 输出 {attempt.completionTokens?.toLocaleString() ?? '未知'} Token
       {attempt.reasoningTokens === null ? '' : `（推理 ${attempt.reasoningTokens.toLocaleString()}）`}
     </span>
   )

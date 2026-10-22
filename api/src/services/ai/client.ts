@@ -40,6 +40,8 @@ export interface AiChatOptions {
   temperature?: number
   maxTokens?: number
   timeoutMs?: number
+  /** 默认保持既有重试；长耗时分析可关闭本地超时和 HTTP 408/504 的自动重放。 */
+  retryOnTimeout?: boolean
   signal?: AbortSignal
   /** 审计调用方先记账，再自行拒绝空回复、拒答与截断。仅非流式使用。 */
   returnIncompleteResult?: boolean
@@ -124,7 +126,7 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
       throwIfCancelled(opts.signal)
       const aiErr = err instanceof AiError ? err : new AiError('upstream', (err as Error)?.message || '未知错误')
       lastError = aiErr
-      if (attempt >= MAX_ATTEMPTS || !isRetriable(aiErr)) break
+      if (attempt >= MAX_ATTEMPTS || !isRetriable(aiErr, opts)) break
       await sleep(attempt * 700, opts.signal)
     }
   }
@@ -166,7 +168,7 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
       throwIfCancelled(opts.signal)
       const aiErr = err instanceof AiError ? err : new AiError('upstream', (err as Error)?.message || '未知错误')
       lastError = aiErr
-      if (emitted || attempt >= MAX_ATTEMPTS || !isRetriable(aiErr)) break
+      if (emitted || attempt >= MAX_ATTEMPTS || !isRetriable(aiErr, opts)) break
       await sleep(attempt * 700, opts.signal)
     }
   }
@@ -197,14 +199,14 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
 
   if (!res.ok) {
     // 上游错误：解析出网关返回的 message，连同状态码一并带出，方便定位「模型无可用渠道」等真实原因。
-    const detail = (await res.text().catch(() => '')).slice(0, 500)
+    const detail = (await res.text().catch((err) => { rethrowResponseTimeout(err, opts, timeout); return '' })).slice(0, 500)
     console.error('[ai] upstream %d %s', res.status, detail)
     const refusal = detectStructuredContentRefusalFromDetail(detail)
     if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
     throw new AiError('upstream', describeUpstreamError(res.status, detail), res.status)
   }
 
-  const data = (await res.json().catch(() => null)) as ChatCompletionResponse | null
+  const data = await readChatResponseJson(res, opts, timeout)
   const refusal = detectStructuredContentRefusal(data)
   if (refusal && !opts.returnIncompleteResult) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
   const choice = data?.choices?.[0]
@@ -270,7 +272,7 @@ async function onceStream(
   }
 
   if (!res.ok) {
-    const detail = (await res.text().catch(() => '')).slice(0, 500)
+    const detail = (await res.text().catch((err) => { rethrowResponseTimeout(err, opts, timeout); return '' })).slice(0, 500)
     console.error('[ai] upstream %d %s', res.status, detail)
     const refusal = detectStructuredContentRefusalFromDetail(detail)
     if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
@@ -279,7 +281,7 @@ async function onceStream(
 
   const contentType = (res.headers.get('content-type') || '').toLowerCase()
   if (!contentType.includes('text/event-stream')) {
-    const data = (await res.json().catch(() => null)) as ChatCompletionResponse | null
+    const data = await readChatResponseJson(res, opts, timeout)
     const refusal = detectStructuredContentRefusal(data)
     if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
     const parsed = parseChatCompletion(data, model)
@@ -349,6 +351,9 @@ async function onceStream(
     }
     buffer += decoder.decode()
     if (buffer) await consumeLine(buffer)
+  } catch (err) {
+    rethrowResponseTimeout(err, opts, timeout)
+    throw err
   } finally {
     reader.releaseLock()
   }
@@ -433,7 +438,24 @@ interface ChatCompletionStreamChunk {
   message?: unknown
 }
 
-function isRetriable(err: AiError): boolean {
+async function readChatResponseJson(res: Response, opts: AiChatOptions, timeout: AbortSignal): Promise<ChatCompletionResponse | null> {
+  try {
+    return await res.json() as ChatCompletionResponse
+  } catch (err) {
+    rethrowResponseTimeout(err, opts, timeout)
+    return null
+  }
+}
+
+function rethrowResponseTimeout(err: unknown, opts: AiChatOptions, timeout: AbortSignal): void {
+  throwIfCancelled(opts.signal)
+  if (timeout.aborted || (err as Error)?.name === 'TimeoutError' || (err as Error)?.name === 'AbortError') {
+    throw new AiError('timeout', 'AI 服务响应正文读取超时', 504)
+  }
+}
+
+function isRetriable(err: AiError, opts: AiChatOptions): boolean {
+  if (opts.retryOnTimeout === false && (err.code === 'timeout' || err.code === 'upstream' && (err.status === 408 || err.status === 504))) return false
   if (err.code === 'timeout') return true
   if (err.code === 'upstream') return err.status === 502 || RETRIABLE_STATUS.has(err.status)
   return false

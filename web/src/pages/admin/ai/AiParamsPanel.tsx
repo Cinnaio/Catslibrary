@@ -24,6 +24,7 @@ const PARAM_GROUPS = [
       'styleProfileMaxTokens',
       'plotStateMaxTokens',
       'relationshipProfileMaxTokens',
+      'storyMemoryTimeoutSeconds',
       'titleMaxTokens',
       'reviewMaxTokens',
       'writingSystemPrompt',
@@ -307,7 +308,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <h3>AI 创作参数</h3>
               <p>控制大纲、章节与续写的生成长度和变化程度。</p>
             </div>
-            <span className="ai-parameter-count">7 项参数</span>
+            <span className="ai-parameter-count">9 项参数</span>
           </div>
           <CardContent className="grid gap-4">
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
@@ -377,6 +378,18 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   value={localSettings.relationshipProfileMaxTokens}
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, relationshipProfileMaxTokens: Number(e.target.value) })}
+                />
+              </AdminFormField>
+              <AdminFormField label="档案分析超时（秒）" htmlFor="memory-timeout" hint="关系与情节档案每次模型请求的等待上限，默认 300 秒，范围 30–600 秒；超时后停止自动重试，保留检查点供手动继续。">
+                <Input
+                  id="memory-timeout"
+                  required
+                  type="number"
+                  min={30}
+                  max={600}
+                  value={Number.isFinite(localSettings.storyMemoryTimeoutSeconds ?? 300) ? localSettings.storyMemoryTimeoutSeconds ?? 300 : ''}
+                  disabled={props.loading || saving}
+                  onChange={(e) => setLocalSettings({ ...localSettings, storyMemoryTimeoutSeconds: e.target.value === '' ? Number.NaN : Number(e.target.value) })}
                 />
               </AdminFormField>
               <AdminFormField label="质量检查 Token" htmlFor="review-tokens" hint="单次草稿质量检查的输出预算；被截断时可提高后重试。">

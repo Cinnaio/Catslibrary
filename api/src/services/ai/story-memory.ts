@@ -118,15 +118,19 @@ export async function getStoryMemoryProgress(db: Db, novelId: string, kind: 'plo
 class MemoryPaused extends Error {}
 
 export interface MemoryAttempt {
-  status: 'complete' | 'truncated' | 'refused' | 'empty'
+  status: 'complete' | 'truncated' | 'refused' | 'empty' | 'timeout'
   finishReason: string
   model: string
   maxTokens: number
-  promptTokens: number
-  completionTokens: number
+  promptTokens: number | null
+  completionTokens: number | null
   reasoningTokens: number | null
   chapterIds: string[]
   updatedAt: number
+  timeoutMs?: number
+  elapsedMs?: number
+  inputChars?: number
+  error?: string
 }
 
 export async function getMemoryAttempt(db: Db, novelId: string, kind: 'plot' | 'relationship'): Promise<MemoryAttempt | undefined> {
@@ -187,6 +191,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
       kind,
       token,
     ])
+    let nextLeaseRenewAt = Date.now() + 30_000
     const pauseRequested = async () => {
       if (opts.taskId && !(await isAiTaskActive(db, opts.taskId))) return true
       const state = await first<{ pause_requested: boolean }>(
@@ -195,6 +200,12 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
         [opts.novelId, kind, token],
       )
       if (!state) throw new AiError('conflict', '档案更新锁已失效，请重新继续', 409)
+      // A slow model or transient upstream retries must not outlive the build lease.
+      if (!state.pause_requested && Date.now() >= nextLeaseRenewAt) {
+        const renewed = await run(db, 'UPDATE novel_story_memory_builds SET lease_until = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [Date.now() + LEASE_MS, opts.novelId, kind, token])
+        if (!renewed) throw new AiError('conflict', '档案更新锁已失效，请重新继续', 409)
+        nextLeaseRenewAt = Date.now() + 30_000
+      }
       return state.pause_requested
     }
     // Other processes can receive the pause request. Poll serially and keep the
@@ -249,6 +260,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
     const usage = { promptTokens: 0, completionTokens: 0 }
     let paused = false
     const settings = await getAiSettings(db)
+    const timeoutSeconds = Math.max(30, Math.min(600, Math.trunc(settings.storyMemoryTimeoutSeconds || 300)))
     const requested = Math.trunc(Number(opts.sampleChapters))
     const batchChapters = Number.isFinite(requested) && requested > 0 ? Math.min(30, requested) : kind === 'plot' ? 8 : 10
     if (processed < total) {
@@ -265,20 +277,33 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
         ])
         if (!refreshed) throw new AiError('conflict', '档案更新锁已失效，请重新继续', 409)
         const maxTokens = kind === 'plot' ? settings.plotStateMaxTokens : settings.relationshipProfileMaxTokens
-        const res = await chat({
-          messages: [
-            { role: 'system', content: `${system}\n\n${MEMORY_RULES}` },
-            {
-              role: 'user',
-              content: `上一版档案（空表示首次建立）：\n${content || '无'}\n\n本批来源：${chunk.map((row) => `[章节ID:${row.id}] 第${row.chapterOrdinal}章 ${row.title}`).join('；')}\n新增正文（第${part + 1}/${pieces}段，按章节标记追踪来源）：\n${chunkText}\n\n输出更新后的完整档案。`,
-            },
-          ],
-          temperature: 0.3,
-          maxTokens,
-          timeoutMs: 120_000,
-          signal: controller.signal,
-          returnIncompleteResult: true,
-        })
+        const messages: Parameters<typeof chat>[0]['messages'] = [
+          { role: 'system', content: `${system}\n\n${MEMORY_RULES}` },
+          {
+            role: 'user',
+            content: `上一版档案（空表示首次建立）：\n${content || '无'}\n\n本批来源：${chunk.map((row) => `[章节ID:${row.id}] 第${row.chapterOrdinal}章 ${row.title}`).join('；')}\n新增正文（第${part + 1}/${pieces}段，按章节标记追踪来源）：\n${chunkText}\n\n输出更新后的完整档案。`,
+          },
+        ]
+        const startedAt = Date.now()
+        const timeoutMs = timeoutSeconds * 1000
+        const inputChars = messages.reduce((sum, message) => sum + message.content.length, 0)
+        let res: Awaited<ReturnType<typeof chat>>
+        try {
+          res = await chat({ messages, temperature: 0.3, maxTokens, timeoutMs, retryOnTimeout: false, signal: controller.signal, returnIncompleteResult: true })
+        } catch (err) {
+          if (controller.signal.aborted) throw controller.signal.reason
+          if (!(err instanceof AiError) || !(err.code === 'timeout' || err.code === 'upstream' && (err.status === 408 || err.status === 504))) throw err
+          const label = kind === 'plot' ? '情节档案' : '关系档案'
+          const cause = err.code === 'upstream' ? `上游返回 HTTP ${err.status} 超时` : 'AI 服务响应超时'
+          const message = `${label}${cause}（单次等待上限 ${timeoutSeconds} 秒），本次超时后未自动重试。可在「参数调优 → AI 创作」调整档案分析超时，或核对中转站请求记录后继续。`
+          const attempt: MemoryAttempt = {
+            status: 'timeout', finishReason: '', model: textProvider().model || '', maxTokens,
+            promptTokens: null, completionTokens: null, reasoningTokens: null,
+            chapterIds: chunk.map((row) => row.id), updatedAt: Date.now(), timeoutMs, elapsedMs: Date.now() - startedAt, inputChars, error: message,
+          }
+          await run(db, 'UPDATE novel_story_memory_builds SET last_attempt_json = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [JSON.stringify(attempt), opts.novelId, kind, token])
+          throw new AiError('timeout', message, 504)
+        }
         // Account for every billed response, including truncated/empty replies.
         await recordUsage(db, {
           userId: opts.userId,
@@ -319,6 +344,9 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
           reasoningTokens: res.reasoningTokens ?? null,
           chapterIds: chunk.map((row) => row.id),
           updatedAt: Date.now(),
+          timeoutMs,
+          elapsedMs: Date.now() - startedAt,
+          inputChars,
         }
         await run(db, 'UPDATE novel_story_memory_builds SET last_attempt_json = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [
           JSON.stringify(attempt),
