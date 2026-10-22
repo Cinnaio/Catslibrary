@@ -164,7 +164,7 @@ describe.each([
     await extract(t.db, opts)
     await pauseStoryMemory(t.db, 'book', kind as 'plot' | 'relationship')
     await t.db.query("UPDATE chapters SET content = '修改后的正文' WHERE id = 'c1'")
-    expect(await getStoryMemoryProgress(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ processedChapters: 0, totalChapters: 2 })
+    expect(await getStoryMemoryProgress(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ processedChapters: 0, totalChapters: 2, previewContent: '' })
     await extract(t.db, opts)
     expect(input(1)).toContain('修改后的正文')
     expect(input(1)).toContain('上一版档案（空表示首次建立）：\n无')
@@ -191,6 +191,10 @@ describe.each([
     await chapter(2)
     const first = await extract(t.db, opts)
     expect(first).toMatchObject({ complete: false, processedChapters: 1, totalChapters: 2, targetChapterId: 'c2' })
+    expect(await getStoryMemoryProgress(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({
+      processedChapters: 1, totalChapters: 2, previewContent: response.text,
+    })
+    expect((await read(t.db, 'book')).eligibility).not.toBe('usable')
     expect((await t.db.query(`SELECT * FROM ${table}`)).rows).toHaveLength(0)
     expect(input()).toContain('正文1。')
     const second = await extract(t.db, { ...opts, afterChapterId: 'c2' })
