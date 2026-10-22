@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   refreshPlotState: vi.fn(),
   refreshRelationshipProfile: vi.fn(),
   pauseMemory: vi.fn(),
+  startMemoryTask: vi.fn(),
   plotSuggestions: vi.fn(),
   continueNovel: vi.fn(),
   chapterNovel: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('@/lib/api', () => ({
       refreshPlotState: api.refreshPlotState,
       refreshRelationshipProfile: api.refreshRelationshipProfile,
       pauseMemory: api.pauseMemory,
+      startMemoryTask: api.startMemoryTask,
       plotSuggestions: api.plotSuggestions,
       continue: api.continueNovel,
       chapter: api.chapterNovel,
@@ -107,6 +109,7 @@ describe('AiWritingPanel', () => {
     api.refreshPlotState.mockReset()
     api.refreshRelationshipProfile.mockReset()
     api.pauseMemory.mockReset().mockResolvedValue({ ok: true })
+    api.startMemoryTask.mockReset().mockResolvedValue({ ok: true, task: { id: 'memory-1', status: 'queued', current: 0, total: 47, step: '', error: '', updatedAt: 1 } })
     api.plotSuggestions.mockResolvedValue({
       suggestions: [
         { direction: '苏越以斗宗身份现身朝堂，当众治愈加刑天。', effect: '绑定皇室' },
@@ -133,54 +136,33 @@ describe('AiWritingPanel', () => {
     expect(screen.getByLabelText('可用 0 项小说分析')).toBeInTheDocument()
   })
 
-  it('当前请求未返回时轮询已保存进度，且不打断后续批次', async () => {
-    const pending = deferred<object>()
-    api.refreshPlotState.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ complete: true, state: '完整结果', chaptersThrough: 47 })
+  it('提交后台任务后只读轮询，完整结果返回后恢复操作', async () => {
     await selectNovel()
     switchToContinue()
-    api.getPlotState.mockResolvedValue({
-      state: '', effectiveContent: '',
-      progress: { running: true, complete: false, processedChapters: 18, totalChapters: 47, previewContent: '轮询读到的阶段内容' },
-    })
     fireEvent.click(screen.getByRole('button', { name: '更新情节档案' }))
-    await waitFor(() => expect(screen.getByRole('progressbar', { name: '情节状态章节覆盖进度' })).toHaveAttribute('value', '18'), { timeout: 4000 })
-    expect(api.refreshPlotState).toHaveBeenCalledTimes(1)
-    await act(async () => pending.resolve({ complete: false, state: '第一批已完成', processedChapters: 20, totalChapters: 47, targetChapterId: 'c47' }))
-    await waitFor(() => expect(api.refreshPlotState).toHaveBeenCalledTimes(2))
-    expect(api.refreshPlotState).toHaveBeenLastCalledWith('novel_1', 8, 'c47')
+    await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', 'plot', 8, undefined))
+    expect(await screen.findByRole('button', { name: '暂停更新' })).toBeInTheDocument()
+    api.getPlotState.mockResolvedValue({ state: '完整情节档案', effectiveContent: '完整情节档案', source: { coverage: 'full' }, chaptersThrough: 47, memoryTask: { id: 'memory-1', status: 'completed' }, progress: { complete: true, processedChapters: 47, totalChapters: 47 } })
+    await waitFor(() => expect(screen.getByText(/档案截至第 47 章/)).toBeInTheDocument(), { timeout: 4000 })
+    expect(screen.getByRole('button', { name: '更新情节档案' })).toBeEnabled()
+    expect(api.startMemoryTask).toHaveBeenCalledTimes(1)
+    expect(api.refreshPlotState).not.toHaveBeenCalled()
   })
 
   it.each([
-    { kind: 'plot', label: '情节', method: api.refreshPlotState, get: api.getPlotState, initial: { state: '', chaptersThrough: 0, chapterCount: 18 } },
-    { kind: 'relationship', label: '关系', method: api.refreshRelationshipProfile, get: api.getRelationshipProfile, initial: { profile: '' } },
-  ])('$kind 可以暂停当前响应，保留正式档案并从重读的检查点继续', async ({ kind, label, method, get, initial }) => {
-    const pending = deferred<object>()
-    method.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ complete: true, state: '完整', profile: '完整', chaptersThrough: 18 })
+    { kind: 'plot', label: '情节', get: api.getPlotState, initial: { state: '' } },
+    { kind: 'relationship', label: '关系', get: api.getRelationshipProfile, initial: { profile: '' } },
+  ])('$kind 可以暂停后台任务并从检查点继续', async ({ kind, label, get, initial }) => {
+    get.mockResolvedValue({ ...initial, memoryTask: { id: 'old-task', status: 'running' }, progress: { complete: false, processedChapters: 8, totalChapters: 18, targetChapterId: 'chapter-18' } })
     await selectNovel()
     switchToContinue()
-    fireEvent.click(await screen.findByRole('button', { name: `更新${label}档案` }))
     fireEvent.click(await screen.findByRole('button', { name: '暂停更新' }))
     expect(api.pauseMemory).toHaveBeenCalledWith('novel_1', kind)
     expect(await screen.findByRole('button', { name: '正在暂停…' })).toBeDisabled()
-    expect(screen.getByText('正在取消当前请求，已完成的检查点会保留；继续时重新处理未完成批次。')).toBeInTheDocument()
-    get.mockResolvedValue({ ...initial, progress: { complete: false, paused: true, processedChapters: 8, totalChapters: 18, targetChapterId: 'chapter-18' } })
-    await act(async () =>
-      pending.resolve({
-        complete: false,
-        paused: true,
-        state: '半截档案',
-        profile: '半截档案',
-        processedChapters: 8,
-        totalChapters: 18,
-        targetChapterId: 'chapter-18',
-      }),
-    )
-    expect(method).toHaveBeenCalledTimes(1)
-    expect(screen.queryByText('半截档案')).not.toBeInTheDocument()
-    expect(await screen.findByText(/已暂停 · 已保存 8 \/ 18 章/)).toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('button', { name: `继续更新${label}档案` }))
-    await waitFor(() => expect(method).toHaveBeenCalledTimes(2))
-    expect(method.mock.calls[1]?.[2]).toBe('chapter-18')
+    get.mockResolvedValue({ ...initial, memoryTask: { id: 'old-task', status: 'cancelled' }, progress: { complete: false, paused: true, processedChapters: 8, totalChapters: 18, targetChapterId: 'chapter-18' } })
+    await waitFor(() => expect(screen.getByText(/已暂停 · 已保存 8 \/ 18 章/)).toBeInTheDocument(), { timeout: 4000 })
+    fireEvent.click(screen.getByRole('button', { name: `继续更新${label}档案` }))
+    await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', kind, kind === 'plot' ? 8 : 10, 'chapter-18'))
   })
 
   it('进阶约束默认收起，折叠后保留并传给推荐和大纲', async () => {
@@ -209,24 +191,32 @@ describe('AiWritingPanel', () => {
 
   it('重新打开页面显示可恢复进度，并沿用原目标而不是新增章节', async () => {
     api.getPlotState.mockResolvedValue({ state: '', progress: { complete: false, processedChapters: 3, totalChapters: 12, targetChapterId: 'saved-target' } })
-    api.refreshPlotState.mockResolvedValue({ complete: true, state: '完成', chaptersThrough: 12 })
     await selectNovel()
     switchToContinue()
     expect(await screen.findByText(/可继续 · 已保存 3 \/ 12 章/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '继续更新情节档案' }))
-    await waitFor(() => expect(api.refreshPlotState).toHaveBeenCalledWith('novel_1', 8, 'saved-target'))
+    await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', 'plot', 8, 'saved-target'))
   })
 
-  it('离开页面后不会继续发起下一批付费请求', async () => {
-    const pending = deferred<object>()
-    api.refreshPlotState.mockReturnValueOnce(pending.promise)
+  it('离开页面不自动暂停已提交的后台任务', async () => {
     const view = render(<AiWritingPanel initialNovelId="novel_1" />)
     await waitFor(() => expect(screen.getByRole('button', { name: '更新情节档案' })).toBeEnabled())
-    fireEvent.click(await screen.findByRole('button', { name: '更新情节档案' }))
-    await waitFor(() => expect(api.refreshPlotState).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole('button', { name: '更新情节档案' }))
+    await screen.findByRole('button', { name: '暂停更新' })
     view.unmount()
-    await act(async () => pending.resolve({ complete: false, processedChapters: 1, totalChapters: 8, targetChapterId: 'c8' }))
-    expect(api.refreshPlotState).toHaveBeenCalledTimes(1)
+    expect(api.startMemoryTask).toHaveBeenCalledTimes(1)
+    expect(api.pauseMemory).not.toHaveBeenCalled()
+    expect(api.refreshPlotState).not.toHaveBeenCalled()
+  })
+
+  it('提交响应已完成时立即同步档案，不等待运行中轮询', async () => {
+    await selectNovel()
+    switchToContinue()
+    api.startMemoryTask.mockResolvedValue({ ok: true, task: { id: 'instant-memory', status: 'completed' } })
+    api.getPlotState.mockResolvedValue({ state: '缓存中的完整档案', chaptersThrough: 47, source: { coverage: 'full' }, memoryTask: { id: 'instant-memory', status: 'completed' } })
+    fireEvent.click(screen.getByRole('button', { name: '更新情节档案' }))
+    expect(await screen.findByText(/档案截至第 47 章/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '更新情节档案' })).toBeEnabled()
   })
 
   it('恢复页面中的运行批次可暂停，暂停失败后按钮允许重试', async () => {
@@ -242,47 +232,27 @@ describe('AiWritingPanel', () => {
     expect(api.refreshPlotState).not.toHaveBeenCalled()
   })
 
-  it('情节档案分批推进，固定初始目标并仅在全部完成后展示正式结果', async () => {
-    const pending = deferred<{ complete: boolean; state: string; chaptersThrough: number }>()
-    api.refreshPlotState
-      .mockResolvedValueOnce({ complete: false, state: '中间草稿', processedChapters: 8, totalChapters: 18, targetChapterId: 'chapter-18' })
-      .mockReturnValueOnce(pending.promise)
-    api.getPlotState.mockResolvedValue({ state: '', chaptersThrough: 0, chapterCount: 18 })
+  it('后台任务失败时显示错误和检查点，允许手动继续且不自动付费重试', async () => {
+    api.getPlotState.mockResolvedValue({ state: '', memoryTask: { id: 'failed-memory', status: 'failed', error: '上游超时 HTTP 524' }, progress: { complete: false, processedChapters: 17, totalChapters: 47, targetChapterId: 'c47' } })
     await selectNovel()
     switchToContinue()
-    fireEvent.click(await screen.findByRole('button', { name: '更新情节档案' }))
-    expect(await screen.findByRole('button', { name: '更新中…' })).toBeDisabled()
-    expect(await screen.findByText(/更新中 · 已保存 8 \/ 18 章/)).toBeInTheDocument()
-    expect(api.refreshPlotState).toHaveBeenNthCalledWith(2, 'novel_1', 8, 'chapter-18')
-    expect(screen.getByText('中间草稿')).not.toBeVisible()
-    api.getPlotState.mockResolvedValue({
-      state: '完整情节档案',
-      chaptersThrough: 18,
-      chapterCount: 18,
-      source: { coverage: 'full' },
-      effectiveContent: '完整情节档案',
-    })
-    await act(async () => pending.resolve({ complete: true, state: '完整情节档案', chaptersThrough: 18 }))
-    expect(await screen.findByRole('button', { name: '更新情节档案' })).toBeEnabled()
-    expect(screen.getByText(/档案截至第 18 章/)).toBeInTheDocument()
-    expect(screen.queryByText(/取最近章节即可/)).not.toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: '情节状态每批章数' })).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('上游超时 HTTP 524')
+    expect(screen.getByRole('button', { name: '继续更新情节档案' })).toBeEnabled()
+    expect(api.startMemoryTask).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '继续更新情节档案' }))
+    await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', 'plot', 8, 'c47'))
   })
 
-  it('关系档案中断后保留正式内容，重试可继续后端检查点', async () => {
-    api.getRelationshipProfile.mockResolvedValue({ profile: '已有关系档案' })
-    api.refreshRelationshipProfile
-      .mockResolvedValueOnce({ complete: false, profile: '中间关系', processedChapters: 10, totalChapters: 15, targetChapterId: 'chapter-15' })
-      .mockRejectedValueOnce(new Error('网络中断'))
-      .mockResolvedValueOnce({ complete: true, profile: '更新关系档案', processedChapters: 15, totalChapters: 15 })
+  it('提交期间切换小说，不把旧任务写到新书', async () => {
+    const pending = deferred<object>()
+    api.startMemoryTask.mockReturnValueOnce(pending.promise)
     await selectNovel()
     switchToContinue()
-    fireEvent.click(await screen.findByRole('button', { name: '更新关系档案' }))
-    await waitFor(() => expect(api.refreshRelationshipProfile).toHaveBeenCalledTimes(2))
-    expect(await screen.findByRole('button', { name: '更新关系档案' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: '更新关系档案' }))
-    await waitFor(() => expect(api.refreshRelationshipProfile).toHaveBeenCalledTimes(3))
-    expect(screen.queryByText('中间关系')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '更新情节档案' }))
+    fireEvent.change(screen.getByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_2' } })
+    await waitFor(() => expect(api.getPlotState).toHaveBeenCalledWith('novel_2'))
+    await act(async () => pending.resolve({ ok: true, task: { id: 'old-task', status: 'running' } }))
+    expect(screen.queryByRole('button', { name: '暂停更新' })).not.toBeInTheDocument()
   })
 
   it('旧抽样档案显示待初始化，不计入可用记忆', async () => {

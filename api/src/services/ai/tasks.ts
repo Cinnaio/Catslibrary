@@ -1,4 +1,4 @@
-import type { Db } from '../../db/pool'
+import type { Db, DbClient } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
 
@@ -53,7 +53,7 @@ function mapTask(row: AiTaskRow): AiTask {
   }
 }
 
-export async function createAiTask(db: Db, input: { userId: string; novelId?: string; kind: string; total?: number; batchId?: string; prompt?: string; params?: string }): Promise<AiTask> {
+export async function createAiTask(db: DbClient, input: { userId: string; novelId?: string; kind: string; total?: number; batchId?: string; prompt?: string; params?: string }): Promise<AiTask> {
   const id = newId('aitask')
   const now = Date.now()
   await run(db, `INSERT INTO ai_tasks (id,user_id,novel_id,kind,status,current,total,step,prompt,batch_id,params,error,created_at,updated_at,finished_at)

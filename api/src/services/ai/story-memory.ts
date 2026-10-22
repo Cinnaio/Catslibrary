@@ -6,6 +6,7 @@ import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '
 import { getAiSettings } from './settings'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
+import { isAiTaskActive } from './tasks'
 import { loadProfileSample, parseProfileSource, profileSourceForRows, type ProfileSampleRow, type ProfileSource } from './profile-source'
 
 export const STORY_MEMORY_PROMPT_VERSION = 3
@@ -45,6 +46,8 @@ export function cleanStoryText(raw: string): string {
 }
 
 export interface StoryMemoryOptions {
+  /** Background owner; task cancellation also stops between batches and pieces. */
+  taskId?: string
   userId: string
   novelId: string
   afterChapterId?: string
@@ -185,6 +188,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
       token,
     ])
     const pauseRequested = async () => {
+      if (opts.taskId && !(await isAiTaskActive(db, opts.taskId))) return true
       const state = await first<{ pause_requested: boolean }>(
         db,
         'SELECT pause_requested FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2 AND lease_token = $3',
