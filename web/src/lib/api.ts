@@ -455,6 +455,11 @@ export const supplementarySourceApi = {
 }
 
 export const bookImportApi = {
+  previewZip(file: File): Promise<{ previews: BookImportPreview[] }> {
+    const form = new FormData()
+    form.append('file', file)
+    return authFetch('/book-import/preview-zip', { method: 'POST', body: form, signal: AbortSignal.timeout(120_000) }).then((response) => parseUploadResponse<{ previews: BookImportPreview[] }>(response))
+  },
   previewFile(file: File, sourceUrl = ''): Promise<BookImportPreview> {
     const form = new FormData()
     form.append('file', file)

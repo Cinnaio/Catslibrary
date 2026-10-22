@@ -11,7 +11,7 @@ if (!globalThis.ResizeObserver) {
   } as typeof ResizeObserver
 }
 Element.prototype.scrollIntoView = () => undefined
-const api = vi.hoisted(() => ({ previewFile: vi.fn(), selectTarget: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn(), resolveChapter: vi.fn() }))
+const api = vi.hoisted(() => ({ previewZip: vi.fn(), previewFile: vi.fn(), selectTarget: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn(), resolveChapter: vi.fn() }))
 vi.mock('@/lib/api', () => ({ bookImportApi: api }))
 import BookImportDialog from './BookImportDialog'
 const original: BookImportPreview = {
@@ -235,4 +235,39 @@ it('连续确认第二章可选择第一章，保留取消勾选并按实际选�
   expect(screen.getByText('预计导入序号：58')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: /确认导入/ }))
   await waitFor(() => expect(api.commit).toHaveBeenCalledWith('run', expect.objectContaining({ selectedChapterIds: ['second'], revision: 2 })))
+})
+
+it('ZIP 先展示可选书单，逐本确认并可跳过，不自动提交', async () => {
+  const second = { ...structuredClone(original), runId: 'run-two', book: { ...original.book, title: '第二本' } }
+  api.previewZip.mockResolvedValue({ previews: [structuredClone(original), second] })
+  api.getPreview.mockResolvedValue(second)
+  render(<BookImportDialog open onOpenChange={vi.fn()} />)
+  fireEvent.change(screen.getByLabelText('选择书籍文件'), { target: { files: [new File(['zip'], '批量.zip', { type: 'application/zip' })] } })
+  fireEvent.click(screen.getByRole('button', { name: '生成预览' }))
+  expect(await screen.findByRole('checkbox', { name: '导入书籍：第二本' })).toBeChecked()
+  expect(api.commit).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '开始逐本核对' }))
+  expect(await screen.findByRole('button', { name: '查看差异' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /跳过本书，查看下一本/ }))
+  await waitFor(() => expect(api.getPreview).toHaveBeenCalledWith('run-two'))
+  expect(api.commit).not.toHaveBeenCalled()
+  expect(await screen.findByText(/第 2 \/ 2 本/)).toBeInTheDocument()
+})
+
+it('ZIP 可只选指定一本；提交后再导入清空上一批状态', async () => {
+  const second = { ...structuredClone(original), runId: 'only-two', book: { ...original.book, title: '指定作品' } }
+  api.previewZip.mockResolvedValue({ previews: [structuredClone(original), second] })
+  api.commit.mockResolvedValue({ runId: 'only-two', batchId: 'only-two', novelId: 'new', novelCreated: true, created: 1, updated: 0, skipped: 0, metadataUpdated: [], conflicts: [] })
+  render(<BookImportDialog open onOpenChange={vi.fn()} />)
+  fireEvent.change(screen.getByLabelText('选择书籍文件'), { target: { files: [new File(['zip'], '批量.zip', { type: 'application/zip' })] } })
+  expect(screen.queryByText('补充来源链接')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '生成预览' }))
+  fireEvent.click(await screen.findByRole('checkbox', { name: '导入书籍：样本' }))
+  fireEvent.click(screen.getByRole('button', { name: '开始逐本核对' }))
+  fireEvent.click(await screen.findByRole('button', { name: '查看差异' }))
+  fireEvent.click(await screen.findByRole('button', { name: /确认导入/ }))
+  await waitFor(() => expect(api.commit).toHaveBeenCalledWith('only-two', expect.anything()))
+  fireEvent.click(await screen.findByRole('button', { name: '再导入一本' }))
+  expect(screen.getByRole('button', { name: '生成预览' })).toBeDisabled()
+  expect(screen.queryByLabelText('ZIP 书籍清单')).not.toBeInTheDocument()
 })

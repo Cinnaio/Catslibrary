@@ -1,3 +1,4 @@
+import { normalizeImportCover, coverSnapshot, coverFingerprint } from './book-import-cover'
 import { parseExportText } from './novel-export-text'
 import { createHash } from 'node:crypto'
 import { posix } from 'node:path'
@@ -363,7 +364,7 @@ export interface ChapterRow {
 
 interface AppliedChange {
   id: string
-  kind: 'create-chapter' | 'update-chapter' | 'reorder-chapter' | 'metadata' | 'create-novel'
+  kind: 'create-chapter' | 'update-chapter' | 'reorder-chapter' | 'metadata' | 'create-novel' | 'cover-image'
   title: string
   novelId: string
   chapterId?: string
@@ -451,6 +452,7 @@ export function normalizeImportPayload(raw: Partial<BookImportPayload>): BookImp
 
   return {
     title,
+    ...(raw.coverImage ? { coverImage: normalizeImportCover(raw.coverImage) } : {}),
     author: text(raw.author) || '未知作者',
     description: text(raw.description),
     coverUrl: safeSourceUrl(raw.coverUrl),
@@ -1460,6 +1462,7 @@ function metadataValue(novel: Novel | null, field: BookImportMetadataDiff['field
 }
 
 function incomingMetadataValue(book: BookImportPayload, field: BookImportMetadataDiff['field']): string {
+  if (field === 'coverUrl' && book.coverImage) return '压缩包中的本地封面'
   const value = book[field]
   return Array.isArray(value) ? value.join('、') : text(value)
 }
@@ -1714,6 +1717,15 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
     if (!targetNovel) throw new Error('导入目标作品不存在，请重新预览')
   }
   const local = targetNovel ? await loadLocalChapters(db, targetNovel.id) : []
+  const metadataDiff = buildMetadataDiff(payload, targetNovel).map(field => opts.preserveLocalOrder ? { ...field, selected: false } : field)
+  if (payload.coverImage && targetNovel) {
+    const cover = await all<{source:string}>(db, 'SELECT source FROM novel_covers WHERE novel_id=$1', [targetNovel.id])
+    const field = metadataDiff.find(item => item.field === 'coverUrl')
+    if (field && cover[0] && cover[0].source !== 'default') {
+      field.localValue = field.localValue || '已有本地封面'
+      field.selected = false
+    }
+  }
   const chapters = buildChapterDiff(payload, local, { preserveLocalOrder: opts.preserveLocalOrder })
   const summary = {
     newCount: chapters.filter((chapter) => chapter.status === 'new').length,
@@ -1734,11 +1746,11 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
     sourceType: opts.sourceType,
     sourceLabel: text(opts.sourceLabel) || (opts.sourceType === 'url' ? opts.sourceUrl : '导入文件'),
     sourceUrl: safeSourceUrl(opts.sourceUrl || payload.sourceUrl),
-    book: payload,
+    book: { ...payload, coverImage: undefined },
     candidates,
     targetNovelId,
     targetNovel,
-    metadataDiff: buildMetadataDiff(payload, targetNovel).map(field => opts.preserveLocalOrder ? { ...field, selected: false } : field),
+    metadataDiff,
     chapters,
     chapterResolutions: [],
     resolutionSnapshot: undefined,
@@ -1989,6 +2001,7 @@ export async function applyImport(
       if (fields.has('status')) patch.status = payload.status || 'ongoing'
       if (fields.has('sourceUrl')) patch.sourceUrl = payload.sourceUrl || ''
     }
+    if (payload.coverImage) delete patch.coverUrl
     if (currentNovel && !novelCreated && Object.keys(patch).length) {
       const before = snapshotNovel(currentNovel)
       const next = { ...currentNovel, ...patch, categories: Array.isArray(patch.categories) ? patch.categories : currentNovel.categories, updatedAt: Date.now() } as Novel
@@ -2006,6 +2019,22 @@ export async function applyImport(
       }
       const after = rowToNovel((await q<NovelRow>('SELECT * FROM novels WHERE id=$1', [novelId])).rows[0])!
       applied.push({ id: 'metadata', kind: 'metadata', title: currentNovel.title, novelId, before, after: snapshotNovel(after) })
+    }
+    if (payload.coverImage && fields.has('coverUrl')) {
+      const rows = await q<Record<string, unknown>>('SELECT * FROM novel_covers WHERE novel_id=$1 FOR UPDATE', [novelId])
+      const before = coverSnapshot(rows.rows[0])
+      // Filling missing information never overwrites an adopted cover, including uploads with an empty cover_url.
+      const hasCover = rows.rows[0] && rows.rows[0].source !== 'default'
+      if (novelCreated || opts.metadataMode === 'replace' || (!hasCover && !currentNovel?.coverUrl)) {
+        const now = Date.now()
+        await q(`INSERT INTO novel_covers(novel_id,data,content_type,source,prompt,metadata,updated_at)
+          VALUES($1,$2,$3,'import','','{}',$4) ON CONFLICT(novel_id) DO UPDATE SET
+          data=EXCLUDED.data,content_type=EXCLUDED.content_type,source=EXCLUDED.source,prompt=EXCLUDED.prompt,metadata=EXCLUDED.metadata,updated_at=EXCLUDED.updated_at`,
+          [novelId, Buffer.from(payload.coverImage.dataBase64, 'base64'), payload.coverImage.contentType, now])
+        const after = coverSnapshot((await q<Record<string, unknown>>('SELECT * FROM novel_covers WHERE novel_id=$1', [novelId])).rows[0])!
+        applied.push({ id: 'cover-image', kind: 'cover-image', title: currentNovel?.title || payload.title, novelId, before, after })
+        if (!metadataUpdated.includes('coverUrl')) metadataUpdated.push('coverUrl')
+      }
     }
     await q('UPDATE novels SET chapter_count=(SELECT COUNT(*) FROM chapters WHERE novel_id=$1), updated_at=$2 WHERE id=$1', [novelId, Date.now()])
     const status = conflicts.length ? 'partial' : 'applied'
@@ -2025,6 +2054,13 @@ export async function rollbackImport(db: Db, run: StoredImportRun): Promise<Book
     if (!['applied', 'partial'].includes(lockedRun.rows[0]!.status)) throw new Error('这次导入当前不可撤回')
     // 先保护整本新作品，再处理子项；不能删完章节才发现作品已经被人工审核。
     const protectedNovels = new Set<string>()
+    for (const change of changes.filter(item => item.kind === 'cover-image')) {
+      const current = coverSnapshot((await q<Record<string, unknown>>('SELECT * FROM novel_covers WHERE novel_id=$1 FOR UPDATE', [change.novelId])).rows[0])
+      if (coverFingerprint(current) !== coverFingerprint(change.after)) {
+        protectedNovels.add(change.novelId)
+        conflicts.push({ id: change.id, title: change.title, reason: '封面已在导入后更改，整本保留以免覆盖后续修改' })
+      }
+    }
     const orderChanges = changes.filter(change => change.kind === 'reorder-chapter')
     if (orderChanges.length && run.target_novel_id) {
       await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [run.target_novel_id])
@@ -2049,6 +2085,17 @@ export async function rollbackImport(db: Db, run: StoredImportRun): Promise<Book
     }
     for (const change of [...changes].reverse()) {
       if (protectedNovels.has(change.novelId)) continue
+      if (change.kind === 'cover-image') {
+        if (change.before) {
+          const old = change.before
+          await q(`INSERT INTO novel_covers(novel_id,data,content_type,source,prompt,metadata,updated_at)
+            VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(novel_id) DO UPDATE SET data=EXCLUDED.data,content_type=EXCLUDED.content_type,
+            source=EXCLUDED.source,prompt=EXCLUDED.prompt,metadata=EXCLUDED.metadata,updated_at=EXCLUDED.updated_at`,
+            [change.novelId, Buffer.from(String(old.dataBase64), 'base64'), old.content_type, old.source, old.prompt || '', old.metadata || '{}', old.updated_at])
+        } else await q('DELETE FROM novel_covers WHERE novel_id=$1', [change.novelId])
+        rolledBack++
+        continue
+      }
       if (change.kind === 'create-novel') {
         const novel = await q<Record<string, unknown>>('SELECT * FROM novels WHERE id = $1 FOR UPDATE', [change.novelId])
         const chapters = await q<Record<string, unknown>>('SELECT id, title, sort_order, content, source_url FROM chapters WHERE novel_id = $1', [change.novelId])
