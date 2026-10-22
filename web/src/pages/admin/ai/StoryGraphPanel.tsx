@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ArrowUpRight, Loader2, Network, RefreshCw, Search } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Loader2, Network, RefreshCw } from 'lucide-react'
 import type { StoryCertainty, StoryEvidence, StoryGraphResponse } from '@shared/story-graph'
 import { aiApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -229,10 +229,9 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
           <Link to={writingUrl}>前往小说分析</Link>
         </div>
       ) : (
-        <>
+        <div className="story-graph-workbench">
           <div className="story-graph-toolbar">
             <label className="story-graph-search">
-              <Search className="size-4" />
               <Input data-admin-search aria-label="搜索人物或别名" placeholder="搜索人物或别名…" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
             <label>
@@ -243,125 +242,125 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
               <Checkbox disabled={!person} checked={focusOnly} onCheckedChange={(v) => setFocusOnly(v === true)} />
               只看所选人物周边
             </label>
-            <span>
-              {graph.people.length} 位人物 · {graph.relationships.length} 条关系
-            </span>
           </div>
-          <div className="story-graph-workbench">
-            <div className="story-graph-map">
-              <StoryGraphCanvas
-                key={String(data?.updatedAt)}
-                graph={graph}
-                selected={selected}
-                onSelect={select}
-                showThreads={showThreads}
-                focusOnly={focusOnly}
-              />
-              <div className="story-graph-legend">
-                <span>
-                  <i />
-                  人物关系
-                </span>
-                <span>
-                  <i className="is-dashed" />
-                  推断 / 可选方向
-                </span>
-                {showThreads && <span>方形节点：关联情节</span>}
-              </div>
+          <div className="story-graph-map">
+            <div className="story-graph-map__heading">
+              <h3>人物关系</h3>
+              <span>
+                {graph.people.length} 位人物 · {graph.relationships.length} 条关系
+              </span>
             </div>
-            <aside className="story-graph-detail" aria-label="图谱详情">
-              <div className="story-graph-detail__tabs">
-                <button type="button" aria-pressed={tab === 'detail'} onClick={() => setTab('detail')}>
-                  关系与情节
-                </button>
-                <button type="button" aria-pressed={tab === 'archives'} onClick={() => setTab('archives')}>
-                  文字档案
-                </button>
-              </div>
-              <div className="story-graph-detail__body" aria-live="polite">
-                {tab === 'archives' ? (
-                  data?.archives.map((a) => (
-                    <section key={a.kind}>
-                      <h3>{archiveLabel[a.kind]}</h3>
-                      <p className="story-graph-archive">{a.content || '当前起点暂无可用档案。'}</p>
-                      <Link to={writingUrl}>
-                        在创作工作台更新或人工校正
-                        <ArrowUpRight className="size-3.5" />
-                      </Link>
-                    </section>
-                  ))
-                ) : detail ? (
-                  <>
-                    <div className="story-graph-detail__heading">
-                      <span>
-                        {person
-                          ? '人物'
-                          : relationship
-                            ? certaintyLabel[relationship.certainty]
-                            : thread
-                              ? `${threadLabel[thread.kind]} · ${certaintyLabel[thread.certainty]}`
-                              : ''}
-                      </span>
-                      <h3>{person?.name || relationship?.label || thread?.title}</h3>
-                      {relationship && (
-                        <p>
-                          {personName(relationship.from)} {relationship.directed ? '→' : '↔'} {personName(relationship.to)}
-                        </p>
-                      )}
-                      {person?.aliases.length ? <p>别名：{person.aliases.join('、')}</p> : null}
-                    </div>
-                    <p className="story-graph-detail__summary">{detail.summary}</p>
-                    {person && (
-                      <section>
-                        <h4>人物关系</h4>
-                        {graph.relationships
-                          .filter((r) => r.from === person.id || r.to === person.id)
-                          .map((r) => (
-                            <button className="story-graph-related" key={r.id} onClick={() => select(r.id)}>
-                              {personName(r.from)} {r.directed ? '→' : '↔'} {personName(r.to)}
-                              <span>{r.label}</span>
-                            </button>
-                          ))}
-                      </section>
+            <StoryGraphCanvas
+              key={String(data?.updatedAt)}
+              graph={graph}
+              selected={selected}
+              onSelect={select}
+              showThreads={showThreads}
+              focusOnly={focusOnly}
+            />
+            <div className="story-graph-legend">
+              <span>
+                <i />
+                人物关系
+              </span>
+              <span>
+                <i className="is-dashed" />
+                推断 / 可选方向
+              </span>
+              {showThreads && <span>方形节点：关联情节</span>}
+            </div>
+          </div>
+          <aside className="story-graph-detail" aria-label="图谱详情">
+            <div className="story-graph-detail__tabs">
+              <button type="button" aria-pressed={tab === 'detail'} onClick={() => setTab('detail')}>
+                关系与情节
+              </button>
+              <button type="button" aria-pressed={tab === 'archives'} onClick={() => setTab('archives')}>
+                文字档案
+              </button>
+            </div>
+            <div className="story-graph-detail__body" aria-live="polite">
+              {tab === 'archives' ? (
+                data?.archives.map((a) => (
+                  <section key={a.kind}>
+                    <h3>{archiveLabel[a.kind]}</h3>
+                    <p className="story-graph-archive">{a.content || '当前起点暂无可用档案。'}</p>
+                    <Link to={writingUrl}>
+                      在创作工作台更新或人工校正
+                      <ArrowUpRight className="size-3.5" />
+                    </Link>
+                  </section>
+                ))
+              ) : detail ? (
+                <>
+                  <div className="story-graph-detail__heading">
+                    <span>
+                      {person
+                        ? '人物'
+                        : relationship
+                          ? certaintyLabel[relationship.certainty]
+                          : thread
+                            ? `${threadLabel[thread.kind]} · ${certaintyLabel[thread.certainty]}`
+                            : ''}
+                    </span>
+                    <h3>{person?.name || relationship?.label || thread?.title}</h3>
+                    {relationship && (
+                      <p>
+                        {personName(relationship.from)} {relationship.directed ? '→' : '↔'} {personName(relationship.to)}
+                      </p>
                     )}
-                    {(person || relationship) && (
-                      <section>
-                        <h4>关联情节</h4>
-                        {graph.threads
-                          .filter((t) => t.people.some((id) => (person ? id === person.id : id === relationship?.from || id === relationship?.to)))
-                          .map((t) => (
-                            <button className="story-graph-related" key={t.id} onClick={() => select(t.id)}>
-                              {t.title}
-                              <span>
-                                {threadLabel[t.kind]} · {certaintyLabel[t.certainty]}
-                              </span>
-                            </button>
-                          ))}
-                      </section>
-                    )}
-                    {thread && (
-                      <section>
-                        <h4>涉及人物</h4>
-                        {thread.people.map((id) => (
-                          <button key={id} className="story-graph-person-chip" onClick={() => select(id)}>
-                            {personName(id)}
+                    {person?.aliases.length ? <p>别名：{person.aliases.join('、')}</p> : null}
+                  </div>
+                  <p className="story-graph-detail__summary">{detail.summary}</p>
+                  {person && (
+                    <section>
+                      <h4>人物关系</h4>
+                      {graph.relationships
+                        .filter((r) => r.from === person.id || r.to === person.id)
+                        .map((r) => (
+                          <button className="story-graph-related" key={r.id} onClick={() => select(r.id)}>
+                            {personName(r.from)} {r.directed ? '→' : '↔'} {personName(r.to)}
+                            <span>{r.label}</span>
                           </button>
                         ))}
-                      </section>
-                    )}
-                    {renderEvidence(detail.evidence)}
-                  </>
-                ) : (
-                  <div className="story-graph-detail__intro">
-                    <Network />
-                    <h3>从一个人物开始</h3>
-                    <p>选择人物查看当前处境、关系与伏笔；选择连线查看双方立场及档案依据。</p>
-                    <p>虚线表示分析推断或可选方向，人物认知与未解线索会在详情中标明。</p>
-                  </div>
-                )}
-              </div>
-            </aside>
-          </div>
+                    </section>
+                  )}
+                  {(person || relationship) && (
+                    <section>
+                      <h4>关联情节</h4>
+                      {graph.threads
+                        .filter((t) => t.people.some((id) => (person ? id === person.id : id === relationship?.from || id === relationship?.to)))
+                        .map((t) => (
+                          <button className="story-graph-related" key={t.id} onClick={() => select(t.id)}>
+                            {t.title}
+                            <span>
+                              {threadLabel[t.kind]} · {certaintyLabel[t.certainty]}
+                            </span>
+                          </button>
+                        ))}
+                    </section>
+                  )}
+                  {thread && (
+                    <section>
+                      <h4>涉及人物</h4>
+                      {thread.people.map((id) => (
+                        <button key={id} className="story-graph-person-chip" onClick={() => select(id)}>
+                          {personName(id)}
+                        </button>
+                      ))}
+                    </section>
+                  )}
+                  {renderEvidence(detail.evidence)}
+                </>
+              ) : (
+                <div className="story-graph-detail__intro">
+                  <h3>从一个人物开始</h3>
+                  <p>选择人物查看当前处境、关系与伏笔；选择连线查看双方立场及档案依据。</p>
+                  <p>虚线表示分析推断或可选方向，人物认知与未解线索会在详情中标明。</p>
+                </div>
+              )}
+            </div>
+          </aside>
           <div className="story-graph-people" aria-label="人物列表">
             <span>人物</span>
             {filteredPeople.length ? (
@@ -374,7 +373,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
               <p>没有找到匹配人物，试试其他名字。</p>
             )}
           </div>
-        </>
+        </div>
       )}
     </section>
   )

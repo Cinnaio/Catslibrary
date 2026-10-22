@@ -228,7 +228,8 @@ export default function StoryGraphCanvas({
                 transform={`translate(${pos.x},${pos.y})`}
                 onKeyDown={(e) => selectKey(e, p.id)}
               >
-                <circle r={Math.max(34, 23 / view.scale)} />
+                <circle className="story-graph-person__orbit" r={Math.max(34, 23 / view.scale) + 7} />
+                <circle className="story-graph-person__body" r={Math.max(34, 23 / view.scale)} />
                 <text textAnchor="middle" y="6" style={{ fontSize: Math.max(16, 11 / view.scale) }}>
                   {p.name.length <= 4 ? p.name : p.name.slice(0, 3) + '…'}
                 </text>
