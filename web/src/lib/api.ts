@@ -2150,6 +2150,7 @@ export interface AiProfileSource {
  * （有人工层且仍然有效时是人工层，否则是自动层）。
  */
 export interface AiEffectiveProfile {
+  memoryTask?: Pick<AiTaskInfo, 'id' | 'status' | 'current' | 'total' | 'step' | 'error' | 'updatedAt'>
   progress?: AiStoryMemoryProgress
   lastAttempt?: {
     status: 'complete' | 'truncated' | 'refused' | 'empty'
@@ -2410,6 +2411,9 @@ export const aiApi = {
       return request('GET', `/ai/writing/style-profile/${encodeURIComponent(novelId)}`, null, true)
     },
     /** 提取/刷新某部小说的情节状态：全历史分批初始化 / 增量更新，complete=false 时继续下一批，续写时复用。 */
+    startMemoryTask(novelId: string, kind: 'plot' | 'relationship', sampleChapters: number, afterChapterId?: string): Promise<{ ok: boolean; task: NonNullable<AiEffectiveProfile['memoryTask']> }> {
+      return request('POST', `/ai/writing/memory/${kind}/${encodeURIComponent(novelId)}/start`, { sampleChapters, ...(afterChapterId ? { afterChapterId } : {}) }, true)
+    },
     refreshPlotState(
       novelId: string,
       sampleChapters?: number,

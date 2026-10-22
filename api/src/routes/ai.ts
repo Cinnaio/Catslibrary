@@ -56,6 +56,7 @@ import { retrieveWritingHistory, writingMaterialRevision } from '../services/ai/
 import { compileWritingPrompt } from '../services/ai/writing-prompt'
 import type { WritingBriefV1 } from '../services/ai/writing'
 import { getMemoryAttempt, getStoryMemoryProgress, pauseStoryMemory } from '../services/ai/story-memory'
+import { createStoryMemoryTask, getStoryMemoryTask, pauseStoryMemoryTask, runStoryMemoryTask } from '../services/ai/story-memory-tasks'
 import { extractPlotState } from '../services/ai/plot-state'
 import { extractRelationshipProfile } from '../services/ai/relationship-profile'
 import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, saveProfileOverride } from '../services/ai/profile-overrides'
@@ -1333,8 +1334,30 @@ aiRoutes.post('/writing/memory/:kind/:novelId/pause', requireAdmin(), async (c) 
   const db = getDb()
   const novelId = c.req.param('novelId')
   if (!(await first(db, 'SELECT id FROM novels WHERE id = $1', [novelId]))) return c.json({ error: '小说不存在' }, 404)
-  await pauseStoryMemory(db, novelId, kind)
+  await pauseStoryMemoryTask(db, novelId, kind)
   return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+})
+
+/** Quick submission only: chapter/model processing continues outside the HTTP request. */
+aiRoutes.post('/writing/memory/:kind/:novelId/start', requireAdmin(), async (c) => {
+  const kind = c.req.param('kind')
+  if (kind !== 'plot' && kind !== 'relationship') return c.json({ error: '档案类型无效' }, 422)
+  const db = getDb()
+  const novelId = c.req.param('novelId')
+  const body = await c.req.json().catch(() => ({}))
+  try {
+    const { taskId, created } = await createStoryMemoryTask(db, kind, {
+      userId: c.get('user').id, novelId,
+      ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}),
+      ...(Number(body.sampleChapters) ? { sampleChapters: Number(body.sampleChapters) } : {}),
+      ...(await auditRequestContext(c, db)),
+    })
+    if (created) void runStoryMemoryTask(db, taskId, kind).catch((err) => console.error('[ai] 档案后台任务执行失败', err))
+    return c.json({ ok: true, task: await getStoryMemoryTask(db, novelId, kind) }, 202, { 'Cache-Control': 'no-store' })
+  } catch (err) {
+    if (err instanceof AiError && err.status === 404) return c.json({ error: err.message, code: err.code }, 404)
+    return aiErrorResponse(c, err)
+  }
 })
 
 /**
@@ -1378,6 +1401,7 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
     ])
     return c.json({
       state: plotState.profile,
+      memoryTask: await getStoryMemoryTask(db, novelId, 'plot'),
       lastAttempt: await getMemoryAttempt(db, novelId, 'plot'),
       progress: await getStoryMemoryProgress(db, novelId, 'plot'),
       chaptersThrough: Number(plotState.source?.chapterOrdinal) || 0,
@@ -1391,7 +1415,7 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
       effectiveOrigin: plotState.effectiveOrigin,
       exclusionReason: plotState.exclusionReason,
       baseProfileRevision: plotState.baseProfileRevision,
-    })
+    }, 200, { 'Cache-Control': 'no-store' })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -1434,6 +1458,7 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
     const result = await getEffectiveProfileForAnchor(db, { kind: 'relationship', novelId, afterChapterId })
     return c.json({
       profile: result.profile,
+      memoryTask: await getStoryMemoryTask(db, novelId, 'relationship'),
       lastAttempt: await getMemoryAttempt(db, novelId, 'relationship'),
       progress: await getStoryMemoryProgress(db, novelId, 'relationship'),
       source: result.source,
@@ -1445,7 +1470,7 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
       effectiveOrigin: result.effectiveOrigin,
       exclusionReason: result.exclusionReason,
       baseProfileRevision: result.baseProfileRevision,
-    })
+    }, 200, { 'Cache-Control': 'no-store' })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -1934,7 +1959,7 @@ aiRoutes.get('/usage', requireAdmin(), async (c) => {
 })
 
 const TASK_STATUSES = new Set(['queued', 'running', 'completed', 'failed', 'cancelled'])
-const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter', 'rewrite_selection', 'cover', 'cover_prompt'])
+const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter', 'rewrite_selection', 'cover', 'cover_prompt', 'plot_state', 'relationship_profile'])
 
 aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const limit = Number.parseInt(c.req.query('limit') || '50', 10) || 50
@@ -2070,6 +2095,8 @@ aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {
     async () => {
       const ok = await cancelAiTask(db, id)
       if (!ok) return c.json({ error: '任务不存在或已经结束' }, 404)
+      const task = await getAiTask(db, id)
+      if (task?.kind === 'plot_state' || task?.kind === 'relationship_profile') await pauseStoryMemory(db, task.novelId, task.kind === 'plot_state' ? 'plot' : 'relationship')
       return c.json({ ok: true })
     },
   )
@@ -2118,6 +2145,16 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
       audit: { actorUserId: c.get('user').id, action: 'ai.task.retry', targetCount: 1 },
     },
     async () => {
+      if (source.kind === 'plot_state' || source.kind === 'relationship_profile') {
+        const kind = source.kind === 'plot_state' ? 'plot' : 'relationship'
+        const { taskId, created } = await createStoryMemoryTask(db, kind, {
+          userId: c.get('user').id, novelId: source.novelId,
+          afterChapterId: String(body.afterChapterId || ''), sampleChapters: Number(body.sampleChapters) || undefined,
+          ...(await auditRequestContext(c, db)),
+        })
+        if (created) void runStoryMemoryTask(db, taskId, kind).catch((err) => console.error('[ai] 档案后台重试失败', err))
+        return c.json({ ok: true, taskId, batchId: '', total: 1 }, 202)
+      }
       if (source.kind === 'rewrite_selection') {
         let rewriteParams: ReturnType<typeof parseRewriteTaskParams> = undefined
         try {

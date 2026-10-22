@@ -23,6 +23,8 @@ const KIND_LABELS: Record<string, string> = {
   cover_prompt: '封面描述词',
   selection_image: '划选插画',
   content_rating_review: 'LLM 分级建议',
+  plot_state: '情节状态分析',
+  relationship_profile: '关系画像分析',
 }
 
 /**

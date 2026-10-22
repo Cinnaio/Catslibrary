@@ -3381,6 +3381,89 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
   })
 })
 
+describe('后台故事档案提交', () => {
+  let token = ''
+  it('模型仍未返回时即返回 202，重复提交复用任务且后台固定目标继续完成', async () => {
+    const login = await req('/api/auth/login', json('POST', { username: 'admin', password: 'adminpass123' }))
+    token = (await jsonOf<{ token: string }>(login)).token
+    await t.db.query("INSERT INTO novels (id,title,created_at,updated_at) VALUES ('async-memory','后台档案',1,1)")
+    for (let i = 1; i <= 2; i++) await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,$5,1)', [`async-c${i}`, 'async-memory', `第${i}章`, LONG_CONTENT, i])
+    let resolve!: (value: Response) => void
+    const stalled = new Promise<Response>((next) => { resolve = next })
+    fetchMock.mockImplementationOnce(() => stalled)
+    const submission = await req('/api/ai/writing/memory/plot/async-memory/start', json('POST', { sampleChapters: 1 }, token))
+    expect(submission.status).toBe(202)
+    const { task } = await jsonOf<{ task: { id: string } }>(submission)
+    try {
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+      const duplicate = await req('/api/ai/writing/memory/plot/async-memory/start', json('POST', { sampleChapters: 8 }, token))
+      expect((await jsonOf<{ task: { id: string } }>(duplicate)).task.id).toBe(task.id)
+      await t.db.query("INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ('async-c3','async-memory','新增章',$1,3,1)", [LONG_CONTENT])
+    } finally {
+      resolve(new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '第一章档案' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { 'Content-Type': 'application/json' } }))
+    }
+    expect((await waitForTask(task.id, token)).status).toBe('completed')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const state = await jsonOf<{ chaptersThrough: number; memoryTask: { id: string; status: string } }>(await req('/api/ai/writing/plot-state/async-memory', json('GET', undefined, token)))
+    expect(state.chaptersThrough).toBe(2)
+    expect(state.memoryTask).toMatchObject({ id: task.id, status: 'completed' })
+  })
+
+  it.each(['plot', 'relationship'])('%s 暂停会取消挂起请求、保留检查点，之后可恢复', async (kind) => {
+    const novelId = `paused-${kind}`
+    await t.db.query('INSERT INTO novels (id,title,created_at,updated_at) VALUES ($1,$2,1,1)', [novelId, '暂停档案'])
+    for (let i = 1; i <= 2; i++) await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,$5,1)', [`${novelId}-${i}`, novelId, `第${i}章`, LONG_CONTENT, i])
+    const reply = () => new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '已保存的第一章档案' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { 'Content-Type': 'application/json' } })
+    fetchMock.mockImplementationOnce(async () => reply()).mockImplementationOnce(async (_input, init) => new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal
+      if (signal?.aborted) reject(signal.reason)
+      else signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+    }))
+    const start = await req(`/api/ai/writing/memory/${kind}/${novelId}/start`, json('POST', { sampleChapters: 1 }, token))
+    const { task } = await jsonOf<{ task: { id: string } }>(start)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect((await req(`/api/ai/writing/memory/${kind}/${novelId}/pause`, json('POST', {}, token))).status).toBe(200)
+    await vi.waitFor(async () => {
+      const { rows } = await t.db.query<{ lease_until: number }>('SELECT lease_until FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2', [novelId, kind])
+      expect(Number(rows[0]?.lease_until)).toBe(0)
+    })
+    expect((await waitForTask(task.id, token)).status).toBe('cancelled')
+    const path = kind === 'plot' ? 'plot-state' : 'relationship-profile'
+    const saved = await jsonOf<{ progress: { processedChapters: number; previewContent: string } }>(await req(`/api/ai/writing/${path}/${novelId}`, json('GET', undefined, token)))
+    expect(saved.progress).toMatchObject({ processedChapters: 1, previewContent: '已保存的第一章档案' })
+    const resumed = await jsonOf<{ task: { id: string } }>(await req(`/api/ai/writing/memory/${kind}/${novelId}/start`, json('POST', { sampleChapters: 1 }, token)))
+    expect((await waitForTask(resumed.task.id, token)).status).toBe('completed')
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('后台失败保留用量和错误，不自动重试，可从任务中心手动恢复', async () => {
+    const novelId = 'failed-memory'
+    await t.db.query('INSERT INTO novels (id,title,created_at,updated_at) VALUES ($1,$2,1,1)', [novelId, '失败档案'])
+    await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,1,1)', ['failed-c1', novelId, '第1章', LONG_CONTENT])
+    fetchMock.mockImplementationOnce(async () => new Response(JSON.stringify({ choices: [{ message: { content: '', refusal: 'policy' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { 'Content-Type': 'application/json' } }))
+    const { task } = await jsonOf<{ task: { id: string } }>(await req(`/api/ai/writing/memory/plot/${novelId}/start`, json('POST', { sampleChapters: 1 }, token)))
+    const failed = await waitForTask(task.id, token)
+    expect(failed.status).toBe('failed')
+    expect(failed.error).toContain('拒绝生成')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((await t.db.query('SELECT completion_tokens FROM ai_usage WHERE novel_id = $1', [novelId])).rows).toHaveLength(1)
+    const retry = await req(`/api/ai/tasks/${task.id}/retry`, json('POST', {}, token))
+    expect(retry.status).toBe(202)
+    const { taskId } = await jsonOf<{ taskId: string }>(retry)
+    expect((await waitForTask(taskId, token)).status).toBe('completed')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('提交前校验管理员、类型、小说与起点，不触发模型调用', async () => {
+    const path = '/api/ai/writing/memory/plot/async-memory/start'
+    expect((await req(path, json('POST', {}))).status).toBe(401)
+    expect((await req('/api/ai/writing/memory/invalid/async-memory/start', json('POST', {}, token))).status).toBe(422)
+    expect((await req('/api/ai/writing/memory/plot/missing-book/start', json('POST', {}, token))).status).toBe(404)
+    expect((await req(path, json('POST', { afterChapterId: 'not-this-book' }, token))).status).toBe(422)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
