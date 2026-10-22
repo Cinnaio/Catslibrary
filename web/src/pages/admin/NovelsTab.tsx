@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, CirclePlus, Download, FileUp, GitMerge, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, CirclePlus, Download, FileUp, GitMerge, Network, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import type { Novel } from '@shared/types'
 import { novelsApi, url, authHeaders } from '../../lib/api'
 import { coverUrl as novelCoverUrl } from '@/lib/cover-url'
@@ -662,6 +662,11 @@ export default function NovelsTab({
                           label: '生成 AI 封面',
                           icon: Palette,
                           onSelect: () => navigate(`/admin/ai?sub=cover&novel=${encodeURIComponent(n.id)}`),
+                        },
+                        {
+                          label: '故事图谱',
+                          icon: Network,
+                          onSelect: () => navigate(`/admin/ai?sub=graph&novel=${encodeURIComponent(n.id)}`),
                         },
                         {
                           label: '删除小说',

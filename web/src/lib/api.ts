@@ -1,4 +1,5 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
+import type { StoryGraphResponse } from '@shared/story-graph'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { requestReauthentication } from './reauthentication'
 /**
@@ -2429,6 +2430,13 @@ export const aiApi = {
     /** 读取已存的情节状态（未提取过返回空串）与已发布章节数（用于判断是否过期）。 */
     pauseMemory(novelId: string, kind: 'plot' | 'relationship'): Promise<{ ok: boolean }> {
       return request('POST', `/ai/writing/memory/${kind}/${encodeURIComponent(novelId)}/pause`, {}, true)
+    },
+    getStoryGraph(novelId: string, afterChapterId?: string): Promise<StoryGraphResponse> {
+      const query = afterChapterId ? `?afterChapterId=${encodeURIComponent(afterChapterId)}` : ''
+      return request('GET', `/ai/writing/story-graph/${encodeURIComponent(novelId)}${query}`, null, true)
+    },
+    generateStoryGraph(novelId: string, afterChapterId?: string): Promise<StoryGraphResponse> {
+      return request('POST', `/ai/writing/story-graph/${encodeURIComponent(novelId)}`, { afterChapterId }, true, {}, 180_000)
     },
     getPlotState(novelId: string): Promise<AiPlotStateResponse> {
       return request('GET', `/ai/writing/plot-state/${encodeURIComponent(novelId)}`, null, true)
