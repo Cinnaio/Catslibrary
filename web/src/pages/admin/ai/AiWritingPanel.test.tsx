@@ -121,6 +121,52 @@ describe('AiWritingPanel', () => {
     api.chapterNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
   })
 
+  it.each([
+    { label: '关系画像每批章数', action: '更新关系档案', kind: 'relationship' },
+    { label: '情节状态每批章数', action: '更新情节档案', kind: 'plot' },
+  ])('$label 清空后可重新输入，不回跳默认值且提交最新数字', async ({ label, action, kind }) => {
+    await selectNovel()
+    switchToContinue()
+    const input = screen.getByRole('spinbutton', { name: label })
+    fireEvent.change(input, { target: { value: '' } })
+    expect(input).toHaveValue(null)
+    fireEvent.change(input, { target: { value: '7' } })
+    expect(input).toHaveValue(7)
+    // 直接提交，覆盖没有先手动移开焦点的使用方式。
+    fireEvent.click(screen.getByRole('button', { name: action }))
+    await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', kind, 7, undefined))
+  })
+
+  it.each(['关系画像每批章数', '情节状态每批章数'])('%s 在失焦时校正范围并保留最近有效值', async (label) => {
+    await selectNovel()
+    switchToContinue()
+    const input = screen.getByRole('spinbutton', { name: label })
+    for (const [raw, normalized] of [['0', 1], ['35', 30], ['7.5', 7]] as const) {
+      fireEvent.change(input, { target: { value: raw } })
+      expect(input).toHaveValue(Number(raw))
+      fireEvent.blur(input)
+      expect(input).toHaveValue(normalized)
+    }
+    fireEvent.change(input, { target: { value: '' } })
+    expect(input).toHaveValue(null)
+    fireEvent.blur(input)
+    expect(input).toHaveValue(7)
+    expect(api.startMemoryTask).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { label: '关系画像每批章数', action: '更新关系档案', kind: 'relationship' },
+    { label: '情节状态每批章数', action: '更新情节档案', kind: 'plot' },
+  ])('$label 清空后直接提交沿用最近有效数字', async ({ label, action, kind }) => {
+    await selectNovel()
+    switchToContinue()
+    const input = screen.getByRole('spinbutton', { name: label })
+    fireEvent.change(input, { target: { value: '7' } })
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: action }))
+    await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', kind, 7, undefined))
+  })
+
   it('部分分析显示保存进度与阶段内容，并明确未用于续写', async () => {
     api.getPlotState.mockResolvedValue({
       state: '', effectiveContent: '',
@@ -201,6 +247,8 @@ describe('AiWritingPanel', () => {
   it('离开页面不自动暂停已提交的后台任务', async () => {
     const view = render(<AiWritingPanel initialNovelId="novel_1" />)
     await waitFor(() => expect(screen.getByRole('button', { name: '更新情节档案' })).toBeEnabled())
+    // 初次选书的档案请求发起后再提交，避免把初始化请求的版本切换混进离页测试。
+    await waitFor(() => expect(api.getPlotState).toHaveBeenCalledWith('novel_1'))
     fireEvent.click(screen.getByRole('button', { name: '更新情节档案' }))
     await screen.findByRole('button', { name: '暂停更新' })
     view.unmount()

@@ -179,7 +179,7 @@ export function ProfileSection(props: {
   /** 取样章数输入框的可访问名称；同一页有多个实例，故由调用方给出唯一名称 */
   sampleLabel?: string
   sampleCaption?: string
-  sample?: { value: number; min: number; max: number; onChange: (value: number) => void }
+  sample?: { value: string; min: number; max: number; onChange: (value: string) => void; onBlur: () => void }
   content?: ReactNode
   footnote?: ReactNode
 }) {
@@ -242,7 +242,8 @@ export function ProfileSection(props: {
                 className="h-10 w-13 px-1 text-center sm:h-8 sm:w-[4.5rem]"
                 value={sample.value}
                 disabled={props.busy || props.running}
-                onChange={(event) => sample.onChange(Number(event.target.value))}
+                onChange={(event) => sample.onChange(event.target.value)}
+                onBlur={sample.onBlur}
               />
               <span className="whitespace-nowrap text-xs text-muted-foreground">章</span>
             </div>
@@ -361,14 +362,14 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [plotChaptersThrough, setPlotChaptersThrough] = useState(0)
   const [plotChapterCount, setPlotChapterCount] = useState(0)
   const [plotBusy, setPlotBusy] = useState(false)
-  const [plotSample, setPlotSample] = useState(8)
+  const plotSampleInput = useEditableNumber(8, 1, 30)
   const [plotPausing, setPlotPausing] = useState(false)
   const [relationshipPausing, setRelationshipPausing] = useState(false)
   /** 选中小说的关系画像（已提取则展示，续写时自动注入 system prompt） */
   const [relationshipProfile, setRelationshipProfile] = useState('')
   const [relationshipEffective, setRelationshipEffective] = useState<AiEffectiveProfile | null>(null)
   const [relationshipBusy, setRelationshipBusy] = useState(false)
-  const [relationshipSample, setRelationshipSample] = useState(10)
+  const relationshipSampleInput = useEditableNumber(10, 1, 30)
   /** 情节方向候选：想不出写什么时先取候选，选中一条填入创作要求。 */
   const [suggestions, setSuggestions] = useState<Array<{ direction: string; effect: string }>>([])
   const [suggestBusy, setSuggestBusy] = useState(false)
@@ -878,7 +879,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     setBusy(true)
     setPausing(false)
     try {
-      const res = await aiApi.writing.startMemoryTask(novelId, kind, kind === 'plot' ? plotSample : relationshipSample, target)
+      const sampleChapters = kind === 'plot' ? plotSampleInput.commit() : relationshipSampleInput.commit()
+      const res = await aiApi.writing.startMemoryTask(novelId, kind, sampleChapters, target)
       if (version !== requestVersion.current) return
       setEffective((previous) => ({
         ...(previous || { eligibility: 'missing', isOlderThanAnchor: false, effectiveContent: '', effectiveOrigin: 'none', baseProfileRevision: '' }),
@@ -1046,7 +1048,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             }
             sampleCaption="每批最多"
             sampleLabel="关系画像每批章数"
-            sample={{ value: relationshipSample, min: 1, max: 30, onChange: (value) => setRelationshipSample(Math.max(1, Math.min(30, value || 10))) }}
+            sample={{ value: relationshipSampleInput.text, min: 1, max: 30, onChange: relationshipSampleInput.onChangeText, onBlur: relationshipSampleInput.commit }}
             content={
               relationshipProfile ? (
                 <>
@@ -1081,7 +1083,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             emptyHint="整理角色现状、重要物品与地点、未解伏笔和冲突，帮助续写承接已有情节。"
             sampleCaption="每批最多"
             sampleLabel="情节状态每批章数"
-            sample={{ value: plotSample, min: 1, max: 30, onChange: (value) => setPlotSample(Math.max(1, Math.min(30, value || 8))) }}
+            sample={{ value: plotSampleInput.text, min: 1, max: 30, onChange: plotSampleInput.onChangeText, onBlur: plotSampleInput.commit }}
             content={
               plotState ? (
                 <>
