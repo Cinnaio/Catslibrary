@@ -84,6 +84,8 @@ export interface BookImportChapterInput {
 }
 
 export interface BookImportPayload {
+  /** ZIP 内经过类型和大小校验的本地封面；仅保存在管理员导入快照中。 */
+  coverImage?: { contentType: string; dataBase64: string }
   title: string
   author: string
   description?: string

@@ -1,8 +1,10 @@
+import { bodyLimit } from 'hono/body-limit'
+import { parseBookZip } from '../services/book-import-zip'
 import { createHash, randomUUID } from 'node:crypto'
 import { Hono, type Context } from 'hono'
 import type { BookImportBoundaryOverride, BookImportDiagnostics, BookImportHistoryItem, BookImportPayload, BookImportPreview } from '@shared/types'
 import { getDb } from '../db/pool'
-import { all, first } from '../db/query'
+import { all, first, withTx } from '../db/query'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { fetchHtml as fetchHtmlImpl, type FetchHtmlOptions } from '../services/scraper/fetch'
 import { PgScrapeStore } from '../services/scraper/store'
@@ -117,6 +119,43 @@ function errorStatus(message: string): 400 | 409 | 502 | 500 {
   if (/文件|格式|URL|章节|书名|必须|支持|请选择/i.test(message)) return 400
   return 500
 }
+
+/** ZIP is expanded only into import snapshots; library writes still require each book's commit. */
+bookImportRoutes.post('/preview-zip', bodyLimit({ maxSize: 66 * 1024 * 1024, onError: (c) => c.json({ error: 'ZIP 文件不能超过 64 MB' }, 413) }), async (c) => {
+  try {
+    const form = await c.req.formData()
+    const file = form.get('file')
+    if (!file || typeof (file as File).arrayBuffer !== 'function' || !String((file as File).name).toLowerCase().endsWith('.zip')) return c.json({ error: '请选择 ZIP 文件' }, 400)
+    if ((file as File).size > 64 * 1024 * 1024) return c.json({ error: 'ZIP 文件不能超过 64 MB' }, 413)
+    const books = await parseBookZip(new Uint8Array(await (file as File).arrayBuffer()))
+    const db = getDb()
+    const previews: BookImportPreview[] = []
+    for (const book of books) {
+      const preview = await createPreview(db, { sourceType: 'file', sourceLabel: book.path, sourceUrl: '', payload: book.detail.payload, diagnostics: book.detail.diagnostics })
+      const now = Date.now()
+      preview.revision = 0
+      preview.boundaryOverrides = []
+      preview.reviewedLines = []
+      preview.sourceHash = book.sourceText ? createHash('sha256').update(book.sourceText).digest('hex') : ''
+      preview.sourceExpiresAt = now + IMPORT_PREVIEW_RETENTION_MS
+      preview.canResplit = !!book.sourceText
+      if (book.detail.payload.coverImage) preview.warnings.push('压缩包包含本地封面；勾选作品信息中的封面后导入，已有封面需选择替换模式。')
+      previews.push(preview)
+    }
+    await withTx(db, async (q) => {
+      for (const [index, preview] of previews.entries()) {
+        const book = books[index]!
+        await q(`INSERT INTO book_import_runs
+          (id,actor_user_id,source_type,source_label,source_url,target_novel_id,status,payload_json,preview_json,changes_json,source_text,created_at,source_hash,source_expires_at,history_summary)
+          VALUES($1,$2,'file',$3,'',$4,'preview',$5,$6,'[]',$7,$8,$9,$10,$11)`,
+          [preview.runId,c.get('user').id,preview.sourceLabel,preview.targetNovelId || '',JSON.stringify(book.detail.payload),JSON.stringify(preview),book.sourceText,Date.now(),preview.sourceHash,preview.sourceExpiresAt,importHistorySummary(preview)])
+      }
+    })
+    return c.json({ previews }, 200, { 'Cache-Control': 'no-store' })
+  } catch (error) {
+    return c.json({ error: (error as Error).message || 'ZIP 文件解析失败' }, 400)
+  }
+})
 
 /** 预览：文件在这里解析，URL 在这里抓取，之后所有流程只读数据库中的统一快照。 */
 bookImportRoutes.post('/preview', async (c) => {

@@ -22,11 +22,14 @@ export function resplitImport(run: StoredImportRun, overrides: BookImportBoundar
   if (!run.source_text || (Number(run.source_expires_at) > 0 && Number(run.source_expires_at) <= Date.now())) {
     throw new Error('原文快照已过期或不可用，请重新上传生成预览')
   }
-  return parseTextImportDetailed(run.source_text, run.source_label, {
+  const parsed = parseTextImportDetailed(run.source_text, run.source_label, {
     forceHeadings: overrides.filter((item) => item.verdict === 'heading').map((item) => item.line),
     denyHeadings: overrides.filter((item) => item.verdict === 'prose').map((item) => item.line),
     reviewedLines,
   })
+  const payload = JSON.parse(run.payload_json || '{}')
+  if (payload.coverImage) parsed.payload.coverImage = payload.coverImage
+  return parsed
 }
 
 export function boundaryImpacts(

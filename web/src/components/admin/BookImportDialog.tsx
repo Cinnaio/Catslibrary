@@ -66,7 +66,7 @@ function sourceTypeLabel(preview: BookImportPreview): string {
 
 function metadataValue(diff: BookImportMetadataDiff, value: 'localValue' | 'incomingValue'): string {
   const text = diff[value]
-  if (diff.field === 'coverUrl' && text) return '已提供封面地址'
+  if (diff.field === 'coverUrl' && text) return text === '压缩包中的本地封面' ? text : '已提供封面地址'
   if (diff.field === 'sourceUrl' && text) return text
   return text || '未填写'
 }
@@ -99,6 +99,10 @@ export default function BookImportDialog({
   const [sourceMode, setSourceMode] = useState<SourceMode>('file')
   const [reviewTab, setReviewTab] = useState('chapters')
   const [file, setFile] = useState<File | null>(null)
+  const [archivePreviews, setArchivePreviews] = useState<BookImportPreview[]>([])
+  const [archiveSelected, setArchiveSelected] = useState<Set<string>>(new Set())
+  const [archiveRemaining, setArchiveRemaining] = useState<BookImportPreview[]>([])
+  const [archiveTotal, setArchiveTotal] = useState(0)
   const [sourceUrl, setSourceUrl] = useState('')
   const [preview, setPreview] = useState<BookImportPreview | null>(initialPreview || null)
   const [targetNovelId, setTargetNovelId] = useState<string | null>(initialPreview?.targetNovelId || null)
@@ -143,14 +147,17 @@ export default function BookImportDialog({
     setError('')
     if (!next) return
     const lower = next.name.toLocaleLowerCase()
-    if (!['.txt', '.text', '.json', '.epub'].some((extension) => lower.endsWith(extension))) {
+    setArchivePreviews([])
+    setArchiveRemaining([])
+    setArchiveTotal(0)
+    if (!['.txt', '.text', '.json', '.epub', '.zip'].some((extension) => lower.endsWith(extension))) {
       setFile(null)
-      setError('请选择 TXT、JSON 或 EPUB 文件。')
+      setError('请选择 TXT、JSON、EPUB 或 ZIP 文件。')
       return
     }
-    if (next.size > 25 * 1024 * 1024) {
+    if (next.size > (lower.endsWith('.zip') ? 64 : 25) * 1024 * 1024) {
       setFile(null)
-      setError('文件不能超过 25 MB。')
+      setError(lower.endsWith('.zip') ? 'ZIP 文件不能超过 64 MB。' : '文件不能超过 25 MB。')
       return
     }
     setFile(next)
@@ -167,8 +174,25 @@ export default function BookImportDialog({
       setError('请先填写书籍 URL。')
       return
     }
+    if (sourceMode === 'file' && file?.name.toLowerCase().endsWith('.zip') && archivePreviews.length) {
+      const chosen = archivePreviews.filter(item => archiveSelected.has(item.runId))
+      if (!chosen.length) { setError('请至少选择一本书籍。'); return }
+      setArchiveRemaining(chosen.slice(1))
+      setArchiveTotal(chosen.length)
+      applyPreview(chosen[0]!)
+      setResult(null)
+      setRollbackResult(null)
+      setStep('match')
+      return
+    }
     setBusy(true)
     try {
+      if (sourceMode === 'file' && file?.name.toLowerCase().endsWith('.zip')) {
+        const archive = await bookImportApi.previewZip(file)
+        setArchivePreviews(archive.previews)
+        setArchiveSelected(new Set(archive.previews.map(item => item.runId)))
+        return
+      }
       const next = sourceMode === 'file' ? await bookImportApi.previewFile(file!, sourceUrl) : await bookImportApi.previewUrl(sourceUrl.trim())
       applyPreview(next)
       setStep('match')
@@ -177,6 +201,21 @@ export default function BookImportDialog({
     } finally {
       setBusy(false)
     }
+  }
+
+  async function nextArchiveBook() {
+    if (operationBusy || !archiveRemaining.length) return
+    setBusy(true)
+    setError('')
+    try {
+      const next = await bookImportApi.getPreview(archiveRemaining[0]!.runId)
+      setArchiveRemaining(previous => previous.slice(1))
+      applyPreview(next)
+      setResult(null)
+      setRollbackResult(null)
+      setStep('match')
+    } catch (error) { setError((error as Error).message || '下一本预览读取失败') }
+    finally { setBusy(false) }
   }
 
   async function handleMatchContinue() {
@@ -396,8 +435,19 @@ export default function BookImportDialog({
   }
 
   function startOver() {
-    onOpenChange(false)
-    window.setTimeout(() => onOpenChange(true), 0)
+    setStep('source')
+    setSourceMode('file')
+    setFile(null)
+    setSourceUrl('')
+    setPreview(null)
+    setResult(null)
+    setRollbackResult(null)
+    setArchivePreviews([])
+    setArchiveSelected(new Set())
+    setArchiveRemaining([])
+    setArchiveTotal(0)
+    setError('')
+    setNotice('')
   }
 
   const changedMetadata = preview?.metadataDiff.filter((field) => field.changed) || []
@@ -436,6 +486,7 @@ export default function BookImportDialog({
         </DialogHeader>
 
         <div ref={bodyRef} className="admin-dialog__body book-import__body" aria-busy={operationBusy}>
+          {archiveTotal > 0 && step !== 'source' && <p className="book-import__safe-note" role="status">ZIP 逐本导入 · 第 {archiveTotal - archiveRemaining.length} / {archiveTotal} 本 · 每本单独确认，可在导入历史中撤回。</p>}
           {error && (
             <Alert variant="destructive" className="book-import__alert" role="alert">
               <CircleAlert aria-hidden="true" />
@@ -462,6 +513,19 @@ export default function BookImportDialog({
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="file" className="book-import__source-content">
+                  {archivePreviews.length > 0 && (
+                    <section className="grid gap-3" aria-label="ZIP 书籍清单">
+                      <p>识别到 {archivePreviews.length} 本书，请选择后逐本核对。此时尚未写入书库。</p>
+                      {archivePreviews.map(item => (
+                        <label key={item.runId} className="flex min-w-0 items-start gap-3">
+                          <Checkbox checked={archiveSelected.has(item.runId)} disabled={operationBusy} aria-label={`导入书籍：${item.book.title}`}
+                            onCheckedChange={() => setArchiveSelected(previous => { const next = new Set(previous); if (next.has(item.runId)) next.delete(item.runId); else next.add(item.runId); return next })} />
+                          <span className="min-w-0 break-words">{item.book.title} · {item.chapters.length} 章<span className="block text-xs text-muted-foreground">{item.sourceLabel}</span></span>
+                        </label>
+                      ))}
+                    </section>
+                  )}
+
                   <input
                     ref={fileInputRef}
                     className="book-import__file-input"
@@ -469,7 +533,7 @@ export default function BookImportDialog({
                     tabIndex={-1}
                     aria-label="选择书籍文件"
                     disabled={operationBusy}
-                    accept=".txt,.text,.json,.epub,text/plain,application/json,application/epub+zip"
+                    accept=".txt,.text,.json,.epub,.zip,text/plain,application/json,application/epub+zip,application/zip"
                     onChange={(event) => {
                       chooseFile(event.target.files?.[0] || null)
                       event.target.value = ''
@@ -495,6 +559,9 @@ export default function BookImportDialog({
                           aria-label="移除已选文件"
                           onClick={() => {
                             setFile(null)
+                            setArchivePreviews([])
+                            setArchiveRemaining([])
+                            setArchiveTotal(0)
                             setError('')
                           }}
                         >
@@ -523,7 +590,7 @@ export default function BookImportDialog({
                         <BookOpen aria-hidden="true" />
                       </span>
                       <strong>把书籍文件拖到这里</strong>
-                      <span className="book-import__formats">支持 TXT、JSON、EPUB · 最大 25 MB</span>
+                      <span className="book-import__formats">支持 TXT、JSON、EPUB · 最大 25 MB；ZIP 最大 64 MB</span>
                       <Button
                         variant="outline"
                         className="book-import__choose-file"
@@ -536,7 +603,7 @@ export default function BookImportDialog({
                       </Button>
                     </div>
                   )}
-                  <details className="book-import__optional-source">
+                  {!file?.name.toLowerCase().endsWith('.zip') && <details className="book-import__optional-source">
                     <summary>
                       补充来源链接 <span>可选</span>
                       <ChevronDown aria-hidden="true" />
@@ -562,7 +629,7 @@ export default function BookImportDialog({
                         用于更准确地匹配已有作品和章节；留空也可以导入。
                       </p>
                     </div>
-                  </details>
+                  </details>}
                 </TabsContent>
                 <TabsContent value="url" className="book-import__source-content">
                   <div className="book-import__field">
@@ -925,7 +992,7 @@ export default function BookImportDialog({
                 </Button>
                 <Button onClick={() => void handlePreview()} disabled={operationBusy || (sourceMode === 'file' ? !file : !sourceUrl.trim())}>
                   {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
-                  {busy ? '分析中…' : '生成预览'}
+                  {busy ? '分析中…' : archivePreviews.length > 0 && sourceMode === 'file' ? '开始逐本核对' : '生成预览'}
                 </Button>
               </>
             )}
@@ -952,6 +1019,11 @@ export default function BookImportDialog({
                   {busy ? '导入中…' : `确认导入${hasImportableChanges ? ` · ${selectedChapterCount} 章` : ''}`}
                 </Button>
               </>
+            )}
+            {archiveRemaining.length > 0 && (step === 'match' || step === 'result') && (
+              <Button variant="secondary" disabled={operationBusy} onClick={() => void nextArchiveBook()}>
+                {step === 'match' ? '跳过本书，查看下一本' : '下一本'}（剩余 {archiveRemaining.length} 本）
+              </Button>
             )}
             {step === 'result' && (
               <>
