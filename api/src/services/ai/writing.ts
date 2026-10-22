@@ -2,7 +2,8 @@ import { removeAdPatterns } from '@shared/ad-cleaner'
 import type { Db } from '../../db/pool'
 import { all, first, withTx } from '../../db/query'
 import { newId } from '../auth'
-import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
+import { chat, chatStream, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
+import { createTextProgressReporter } from './text-progress'
 import { saveGeneration, type Generation, type BatchDraft } from './generations'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
@@ -568,6 +569,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
     // 5 条 40-80 字的候选加上 JSON 结构约需 600-900 token；多章大纲更长，
     // 复用 plotState 预算（默认 3000）都够用。
     maxTokens: settings.plotStateMaxTokens,
+    reasoningMode: settings.writingReasoningMode,
     timeoutMs: 180_000,
   })
   const usage = { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens }
@@ -731,8 +733,13 @@ export async function generateWriting(db: Db, opts: {
   if (!started) throw new AiError('invalid', '任务已停止')
   const stopHeartbeat = startAiTaskHeartbeat(db, taskId)
   const usageId = newId('aiuse')
+  const progress = createTextProgressReporter(db, taskId)
   try {
-    const res = await chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000 })
+    if (settings.writingStreamEnabled) await progress.start()
+    const request = { messages: [{ role: 'system' as const, content: system }, { role: 'user' as const, content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000, reasoningMode: settings.writingReasoningMode }
+    const res = settings.writingStreamEnabled
+      ? await chatStream({ ...request, onProgress: progress.onProgress }, progress.onDelta)
+      : await chat(request)
     // 调用事实独立于任务是否接收产物；取消不能抹掉已经发生的上游用量。
     await recordUsage(db, { usageId, userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
@@ -754,6 +761,8 @@ export async function generateWriting(db: Db, opts: {
         ...(usePipeline ? { promptPipelineVersion: WRITING_PROMPT_PIPELINE_VERSION } : {}),
         temperature,
         maxTokens,
+        reasoningMode: settings.writingReasoningMode || 'inherit',
+        performance: { ...progress.metrics(), outputCharacters: res.text.length, reasoningTokens: res.reasoningTokens ?? null, completionTokens: res.completionTokens, streamRequested: !!settings.writingStreamEnabled, streamed: !!res.streamed },
         targetWords: opts.targetWords || 0,
         chapterCount: opts.chapterCount || 1,
         contentPreferences,
@@ -772,6 +781,7 @@ export async function generateWriting(db: Db, opts: {
       })
     })
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
+    if (settings.writingStreamEnabled) await updateAiTask(db, taskId, { result: '' })
     if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' })
     return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
   } finally {

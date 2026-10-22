@@ -1,18 +1,22 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestDb, type TestDb } from '../../test/db'
-import { AiError, chat } from './client'
+import { AiError, chat, chatStream } from './client'
+import { createAiTask, getAiTask } from './tasks'
+import { parseAiTextProgress } from '@shared/ai-text-progress'
 import { recordUsage } from './usage'
 import { getMemoryAttempt, getStoryMemoryProgress, pauseStoryMemory } from './story-memory'
 import { extractPlotState, getPlotStateForAnchor } from './plot-state'
 import { extractRelationshipProfile, getRelationshipProfileForAnchor } from './relationship-profile'
 
+const controls = vi.hoisted(() => ({ stream: false }))
 vi.mock('./client', async (original) => ({
   ...(await original<typeof import('./client')>()),
   chat: vi.fn(),
+  chatStream: vi.fn(),
   isTextAiConfigured: () => true,
   textProvider: () => ({ baseUrl: 'https://example.test/v1' }),
 }))
-vi.mock('./settings', () => ({ getAiSettings: async () => ({ plotStateMaxTokens: 4000, relationshipProfileMaxTokens: 4000, storyMemoryTimeoutSeconds: 450 }) }))
+vi.mock('./settings', () => ({ getAiSettings: async () => ({ plotStateMaxTokens: 4000, relationshipProfileMaxTokens: 4000, storyMemoryTimeoutSeconds: 450, storyMemoryStreamEnabled: controls.stream, storyMemoryReasoningMode: 'low' }) }))
 vi.mock('./usage', () => ({ recordUsage: vi.fn() }))
 
 let t: TestDb
@@ -42,6 +46,8 @@ afterAll(async () => {
   await t.close()
 })
 beforeEach(async () => {
+  controls.stream = false
+  vi.mocked(chatStream).mockReset()
   await t.db.query('DELETE FROM novels')
   await t.db.query("INSERT INTO novels (id, title, created_at, updated_at) VALUES ('book', '隔离测试', 1, 1)")
   vi.mocked(chat).mockReset().mockResolvedValue(response)
@@ -52,6 +58,23 @@ describe.each([
   { kind: 'plot', extract: extractPlotState, read: getPlotStateForAnchor, table: 'novel_plot_states' },
   { kind: 'relationship', extract: extractRelationshipProfile, read: getRelationshipProfileForAnchor, table: 'novel_relationship_profiles' },
 ])('$kind full story memory', ({ kind, extract, read, table }) => {
+  it('keeps live fragments out of the archive and saves only the completed source-checked response', async () => {
+    controls.stream = true
+    await chapter(1)
+    const task = await createAiTask(t.db, { userId: 'test', novelId: 'book', kind: kind === 'plot' ? 'plot_state' : 'relationship_profile' })
+    vi.mocked(chatStream).mockImplementationOnce(async (request, delta) => {
+      expect(request).toMatchObject({ reasoningMode: 'low', retryOnTimeout: false, returnIncompleteResult: true })
+      await delta('尚未完成的档案片段')
+      expect(parseAiTextProgress((await getAiTask(t.db, task.id))?.result)).toMatchObject({ preview: '尚未完成的档案片段' })
+      expect((await t.db.query(`SELECT * FROM ${table} WHERE novel_id='book'`)).rows).toHaveLength(0)
+      return { ...response, streamed: true }
+    })
+    await expect(extract(t.db, { ...opts, taskId: task.id })).resolves.toMatchObject({ complete: true })
+    expect(await read(t.db, 'book')).toMatchObject(kind === 'plot' ? { state: response.text } : { profile: response.text })
+    expect((await getAiTask(t.db, task.id))?.result).toBe('')
+    expect(await getMemoryAttempt(t.db, 'book', kind as 'plot' | 'relationship')).toMatchObject({ streamed: true, reasoningMode: 'low' })
+    expect(chat).not.toHaveBeenCalled()
+  })
   it('renews the build lease while a slow model request is in flight', async () => {
     await chapter(1)
     const clock = vi.spyOn(Date, 'now')

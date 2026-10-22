@@ -101,6 +101,18 @@ function switchToNew() {
 }
 
 describe('AiWritingPanel', () => {
+  it.each(['thinking', 'writing'])('shows an explicitly unfinished archive preview during %s', async (phase) => {
+    api.getRelationshipProfile.mockResolvedValue({ profile: '', memoryTask: { id: 'live', status: 'running', current: 0, total: 1, step: '', livePreview: { kind: 'text-progress', phase, preview: phase === 'writing' ? '部分档案正文' : '', generatedCharacters: 6, reasoningCharacters: 123, startedAt: 1, updatedAt: 2 } } })
+    await selectNovel()
+    switchToContinue()
+    if (phase === 'thinking') {
+      expect(await screen.findByText(/123 个思考字符/)).toBeInTheDocument()
+      expect(screen.queryByText('部分档案正文')).not.toBeInTheDocument()
+    } else {
+      expect(await screen.findByText('部分档案正文')).toBeInTheDocument()
+      expect(screen.getByText(/未完成，尚未保存/)).toBeInTheDocument()
+    }
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     api.getPlotState.mockResolvedValue({ state: '', chaptersThrough: 0, chapterCount: 0 })

@@ -3,6 +3,7 @@ import { emptyWritingBrief } from './writing-brief'
 import type { AiWritingBrief } from '@/lib/api'
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
 import type { Novel } from '@shared/types'
+import { parseAiTextProgress, type AiTextProgress } from '@shared/ai-text-progress'
 import AdminFormField from '@/components/admin/AdminFormField'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
@@ -139,6 +140,12 @@ function memoryRunning(profile: AiEffectiveProfile | null): boolean {
   return !!profile?.progress?.running || profile?.memoryTask?.status === 'queued' || profile?.memoryTask?.status === 'running'
 }
 
+function TextProgressPreview({ progress }: { progress?: AiTextProgress | null }) {
+  if (!progress) return null
+  if (progress.phase === 'thinking') return <p className="text-xs text-muted-foreground" role="status">模型思考中 · 已收到 {progress.reasoningCharacters.toLocaleString()} 个思考字符，尚未输出正文；字符数不等同于 Token 用量。</p>
+  return <details className="text-xs" open><summary>实时正文预览 · 已收到 {progress.generatedCharacters.toLocaleString()} 个字符（未完成，尚未保存）</summary><p className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap leading-6">{progress.preview}</p><p className="mt-1 text-muted-foreground">仅显示最近 4000 个字符；完整返回并校验后才会保存为草稿或档案。</p></details>
+}
+
 function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) {
   const attempt = profile?.lastAttempt
   if (!attempt) return null
@@ -153,6 +160,7 @@ function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) 
       }{' '}
       · 预算 {attempt.maxTokens.toLocaleString()} / 输出 {attempt.completionTokens?.toLocaleString() ?? '未知'} Token
       {attempt.reasoningTokens === null ? '' : `（推理 ${attempt.reasoningTokens.toLocaleString()}）`}
+      {attempt.firstContentMs == null ? '' : ` · 首段正文 ${(attempt.firstContentMs / 1000).toFixed(1)} 秒`}
     </span>
   )
 }
@@ -271,6 +279,7 @@ export function ProfileSection(props: {
           {props.progressNote}
         </p>
       )}
+      {props.effective?.memoryTask?.status === 'running' && <TextProgressPreview progress={props.effective.memoryTask.livePreview} />}
       {props.effective?.memoryTask?.status === 'failed' && (
         <p role="alert" className="text-xs leading-5 text-destructive">后台分析未完成：{props.effective.memoryTask.error} 已保存的检查点会保留，可继续更新。</p>
       )}
@@ -1753,6 +1762,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   )}
                 </div>
                 <p className="mt-1 text-muted-foreground">{task.step || '等待处理'}</p>
+                {taskActive && <TextProgressPreview progress={parseAiTextProgress(task.result)} />}
                 {task.error && <p className="mt-1 text-destructive">{task.error}</p>}
               </div>
             )}

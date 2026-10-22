@@ -23,6 +23,64 @@ afterEach(() => {
 
 const messages = [{ role: 'user' as const, content: '测试' }]
 
+describe('explicit reasoning and stream progress', () => {
+  it('rejects a cleanly closed connection without a completion marker', async () => {
+    const fetchMock = vi.fn(async () => new Response('data: {"choices":[{"delta":{"content":"未完成正文"}}]}\n\n', { headers: { 'content-type': 'text/event-stream' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(chatStream({ messages }, () => {})).rejects.toThrow('完成标记前中断')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it.each([
+    ['inherit', {}], ['disabled', { thinking: { type: 'disabled' } }],
+    ['low', { thinking: { type: 'enabled' }, reasoning_effort: 'low' }],
+    ['high', { thinking: { type: 'enabled' }, reasoning_effort: 'high' }],
+  ] as const)('sends DeepSeek mode %s in JSON and streaming requests', async (reasoningMode, expected) => {
+    process.env.AI_TEXT_MODEL = 'deepseek-flash'
+    const fetchMock = vi.fn(async () => Response.json({ choices: [{ message: { content: '正文' } }] }))
+    vi.stubGlobal('fetch', fetchMock)
+    await chat({ messages, reasoningMode })
+    await chatStream({ messages, reasoningMode }, () => {})
+    for (const call of fetchMock.mock.calls as unknown as [unknown, RequestInit][]) {
+      const payload = JSON.parse(String(call[1].body))
+      expect(payload).toMatchObject(expected)
+      if (reasoningMode === 'inherit') { expect(payload).not.toHaveProperty('thinking'); expect(payload).not.toHaveProperty('reasoning_effort') }
+    }
+  })
+  it('rejects explicit DeepSeek options for unrelated models before sending a paid request', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(chat({ messages, reasoningMode: 'low' })).rejects.toMatchObject({ code: 'invalid' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('reports only reasoning counts, emits prose separately, and retains final usage', async () => {
+    const frames = [
+      { choices: [{ delta: { reasoning_content: '私密思考' } }] },
+      { choices: [{ delta: { content: '正文' }, finish_reason: 'stop' }] },
+      { choices: [], usage: { prompt_tokens: 10, completion_tokens: 20, completion_tokens_details: { reasoning_tokens: 12 } } },
+    ]
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(frames.map(frame => `data: ${JSON.stringify(frame)}\n\n`).join('') + 'data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })))
+    const progress = vi.fn(), delta = vi.fn()
+    expect(await chatStream({ messages, onProgress: progress }, delta)).toMatchObject({ text: '正文', streamed: true, promptTokens: 10, completionTokens: 20, reasoningTokens: 12 })
+    expect(progress.mock.calls).toEqual([[{ phase: 'thinking', reasoningCharacters: 4 }], [{ phase: 'writing', reasoningCharacters: 4 }]])
+    expect(delta).toHaveBeenCalledExactlyOnceWith('正文')
+    expect(JSON.stringify(progress.mock.calls)).not.toContain('私密思考')
+  })
+  it('does not replay a stream that already emitted reasoning before failing', async () => {
+    const encoder = new TextEncoder()
+    const fetchMock = vi.fn(async () => new Response(new ReadableStream({
+      start(controller) { controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"reasoning_content":"思考"}}]}\n\n')) },
+      pull(controller) { controller.error(new Error('connection lost')) },
+    }), { headers: { 'content-type': 'text/event-stream' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(chatStream({ messages }, () => {})).rejects.toThrow('connection lost')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it('retains thought-only truncated usage for archive validation', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('data: {"choices":[{"delta":{"reasoning_content":"思考"},"finish_reason":"length"}],"usage":{"completion_tokens":50,"completion_tokens_details":{"reasoning_tokens":50}}}\n\n', { headers: { 'content-type': 'text/event-stream' } })))
+    expect(await chatStream({ messages, returnIncompleteResult: true }, () => {})).toMatchObject({ text: '', finishReason: 'length', completionTokens: 50, reasoningTokens: 50 })
+  })
+})
+
 describe('timeout retry policy', () => {
   it('keeps timeout retries enabled for existing callers', async () => {
     vi.useFakeTimers()

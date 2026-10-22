@@ -1,5 +1,6 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
 import type { StoryGraphResponse } from '@shared/story-graph'
+import type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { requestReauthentication } from './reauthentication'
 /**
@@ -1932,6 +1933,10 @@ export interface AiSettings {
   plotStateMaxTokens: number
   relationshipProfileMaxTokens: number
   storyMemoryTimeoutSeconds?: number
+  writingReasoningMode?: AiReasoningMode
+  storyMemoryReasoningMode?: AiReasoningMode
+  writingStreamEnabled?: boolean
+  storyMemoryStreamEnabled?: boolean
   titleMaxTokens: number
   reviewMaxTokens?: number
   maxConcurrentWritingTasks: number
@@ -2152,7 +2157,7 @@ export interface AiProfileSource {
  * （有人工层且仍然有效时是人工层，否则是自动层）。
  */
 export interface AiEffectiveProfile {
-  memoryTask?: Pick<AiTaskInfo, 'id' | 'status' | 'current' | 'total' | 'step' | 'error' | 'updatedAt'>
+  memoryTask?: Pick<AiTaskInfo, 'id' | 'status' | 'current' | 'total' | 'step' | 'error' | 'updatedAt'> & { livePreview?: AiTextProgress | null }
   progress?: AiStoryMemoryProgress
   lastAttempt?: {
     status: 'complete' | 'truncated' | 'refused' | 'empty' | 'timeout'
@@ -2165,6 +2170,9 @@ export interface AiEffectiveProfile {
     elapsedMs?: number
     inputChars?: number
     error?: string
+    firstContentMs?: number | null
+    reasoningMode?: AiReasoningMode
+    streamed?: boolean
   }
   eligibility: AiProfileEligibility
   isOlderThanAnchor: boolean
