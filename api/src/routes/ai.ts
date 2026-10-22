@@ -57,6 +57,8 @@ import { compileWritingPrompt } from '../services/ai/writing-prompt'
 import type { WritingBriefV1 } from '../services/ai/writing'
 import { getMemoryAttempt, getStoryMemoryProgress, pauseStoryMemory } from '../services/ai/story-memory'
 import { createStoryMemoryTask, getStoryMemoryTask, pauseStoryMemoryTask, runStoryMemoryTask } from '../services/ai/story-memory-tasks'
+import { planMemoryRebuild, startMemoryRebuild, memoryArchiveHistory } from '../services/ai/story-memory-rebuild'
+import type { MemoryRebuildRequest } from '@shared/story-memory-rebuild'
 import { extractPlotState } from '../services/ai/plot-state'
 import { extractRelationshipProfile } from '../services/ai/relationship-profile'
 import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, saveProfileOverride } from '../services/ai/profile-overrides'
@@ -1353,6 +1355,37 @@ aiRoutes.post('/writing/materials', requireAdmin(), async (c) => {
 })
 
 // ---------- 情节状态：从小说已发布章节提取结构化角色处境/伏笔/冲突，续写时拼进 user 消息 ----------
+
+aiRoutes.post('/writing/memory/:novelId/rebuild/preview', requireAdmin(), async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({})) as MemoryRebuildRequest
+    return c.json(await planMemoryRebuild(getDb(), c.req.param('novelId'), body), 200, { 'Cache-Control': 'no-store' })
+  } catch (err) { return aiErrorResponse(c, err) }
+})
+
+aiRoutes.post('/writing/memory/:novelId/rebuild', requireAdmin(), async (c) => {
+  const db = getDb(), novelId = c.req.param('novelId')
+  const raw = await c.req.json().catch(() => ({}))
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return c.json({ error: '重新分析参数无效' }, 422)
+  const body = raw as MemoryRebuildRequest & { expectedRevision?: string; operationId?: string }
+  const operationKey = idempotencyKeyFromRequest(c, body)
+  return withIdempotency(db, { scope: `ai.memory.rebuild.${novelId}.${c.get('user').id}`, operationKey, payload: body,
+    audit: { actorUserId: c.get('user').id, action: 'ai.memory.rebuild', targetCount: Array.isArray(body.kinds) ? body.kinds.length : 0 } }, async () => {
+    try {
+      // Only the range settings enter the preview fingerprint, never transport/idempotency fields.
+      const request: MemoryRebuildRequest = { kinds: body.kinds, range: body.range, startChapterId: body.startChapterId, endChapterId: body.endChapterId, followThrough: body.followThrough, sampleChapters: body.sampleChapters }
+      const result = await startMemoryRebuild(db, novelId, request, String(body.expectedRevision || ''), c.get('user').id, await auditRequestContext(c, db))
+      for (const task of result.tasks) void runStoryMemoryTask(db, task.taskId, task.kind).catch(err => console.error('[ai] 档案重建任务失败', err))
+      return c.json({ ok: true, plan: result.plan, tasks: result.tasks }, 202, { 'Cache-Control': 'no-store' })
+    } catch (err) { return aiErrorResponse(c, err) }
+  })
+})
+
+aiRoutes.get('/writing/memory/:kind/:novelId/history', requireAdmin(), async (c) => {
+  const kind = c.req.param('kind')
+  if (kind !== 'plot' && kind !== 'relationship') return c.json({ error: '档案类型无效' }, 422)
+  return c.json({ items: await memoryArchiveHistory(getDb(), c.req.param('novelId'), kind) }, 200, { 'Cache-Control': 'no-store' })
+})
 
 aiRoutes.post('/writing/memory/:kind/:novelId/pause', requireAdmin(), async (c) => {
   const kind = c.req.param('kind')

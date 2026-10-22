@@ -33,6 +33,7 @@ const EXCLUSION_REASONS: Record<string, string> = {
   automatic_beyond_anchor: '自动画像取自起点之后的章节，不适用于当前起点。',
   automatic_legacy_unknown: '自动画像来源不明或尚未覆盖完整历史，请先更新档案；校正暂不生效。',
   automatic_source_changed: '自动画像的取样来源已变化，校正暂不生效。',
+  automatic_rebuilding: '自动档案正在重新建立，旧校正已保留但暂不生效；重建完成后请复核并重新保存。',
 }
 
 function exclusionText(reason?: string): string {

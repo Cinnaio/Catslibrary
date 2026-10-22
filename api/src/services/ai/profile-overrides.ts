@@ -48,6 +48,7 @@ function stableProfileRevision(profile: string, source?: ProfileSource): string 
   const sourceValue = source
     ? {
         version: source.version,
+        ...(source.rebuildRevision ? { rebuildRevision: source.rebuildRevision } : {}),
         chapterId: source.chapterId,
         chapterTitle: source.chapterTitle,
         sortOrder: source.sortOrder,

@@ -25,6 +25,7 @@ const eligibilityLabel: Record<string, string> = {
   source_changed: '正文已变化',
   legacy_unknown: '需要完整初始化',
   usable: '可用',
+  rebuilding: '待重建',
 }
 
 export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: string; afterChapterId?: string }) {

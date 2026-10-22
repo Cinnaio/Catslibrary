@@ -144,8 +144,9 @@ async function loadInput(db: Db, novelId: string, afterChapterId?: string): Prom
     chaptersThrough: Number(profile.source?.chapterOrdinal) || 0,
   }))
   const chapters = allChapters.filter((c) => c.ordinal <= (anchor?.ordinal || 0))
+  const rebuildRevisions = [relationship.source?.rebuildRevision, plot.source?.rebuildRevision]
   const revision = createHash('sha256')
-    .update(JSON.stringify({ version: 1, anchor, archives, chapters }))
+    .update(JSON.stringify({ version: 1, anchor, archives, chapters, ...(rebuildRevisions.some(Boolean) ? { rebuildRevisions } : {}) }))
     .digest('hex')
   return { novel, anchor, archives, chapters, revision, graph: null, updatedAt: 0, status: archives.some((a) => a.content) ? 'missing' : 'unavailable' }
 }

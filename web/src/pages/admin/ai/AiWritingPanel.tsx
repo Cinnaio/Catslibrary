@@ -20,6 +20,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { kindLabel as taskKindLabel, taskStatusLabel } from './labels'
 import ProfileOverrideEditor from './ProfileOverrideEditor'
+import MemoryRebuildDialog from './MemoryRebuildDialog'
 import { Textarea } from '@/components/ui/textarea'
 import { url } from '@/lib/api'
 import { Sparkles, ArrowRight, ChevronRight, Network } from 'lucide-react'
@@ -180,6 +181,7 @@ export function ProfileSection(props: {
   actionText: string
   onAction: () => void
   onPause?: () => void
+  extraActions?: ReactNode
   pausing?: boolean
   running?: boolean
   progressNote?: string
@@ -271,6 +273,7 @@ export function ProfileSection(props: {
               {props.pausing ? '正在暂停…' : '暂停更新'}
             </Button>
           )}
+          {props.extraActions}
         </div>
       </div>
       <p className="text-xs leading-5 text-muted-foreground">{props.emptyHint}</p>
@@ -425,6 +428,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     mode === 'continue' && plotEffective?.effectiveContent ? '情节状态' : null,
   ].filter((value): value is string => Boolean(value))
   const memoryStatus = (effective: AiEffectiveProfile | null) => {
+    if (effective?.eligibility === 'rebuilding') return '待重建'
     if (effective?.eligibility === 'legacy_unknown') return '待初始化'
     if (effective?.eligibility === 'stale') return '待更新'
     if (effective?.eligibility === 'source_changed') return '正文已变化'
@@ -1046,6 +1050,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               relationshipBusy ? '更新中…' : relationshipEffective?.progress?.complete === false ? '继续更新关系档案' : '更新关系档案'
             }
             onAction={() => void refreshRelationshipProfile()}
+            extraActions={<MemoryRebuildDialog key={`rebuild-relationship-${novelId}`} novelId={novelId} kind="relationship" chapters={chapterOptions} disabled={busy || relationshipBusy || memoryRunning(relationshipEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
             onPause={() => void pauseMemory('relationship')}
             pausing={relationshipPausing}
             running={memoryRunning(relationshipEffective)}
@@ -1086,6 +1091,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             disabled={busy || plotBusy || memoryRunning(plotEffective) || taskActive || !novelId}
             actionText={plotBusy ? '更新中…' : plotEffective?.progress?.complete === false ? '继续更新情节档案' : '更新情节档案'}
             onAction={() => void refreshPlotState()}
+            extraActions={<MemoryRebuildDialog key={`rebuild-plot-${novelId}`} novelId={novelId} kind="plot" chapters={chapterOptions} disabled={busy || plotBusy || memoryRunning(plotEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
             onPause={() => void pauseMemory('plot')}
             pausing={plotPausing}
             running={memoryRunning(plotEffective)}
