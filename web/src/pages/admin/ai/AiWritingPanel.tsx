@@ -158,7 +158,7 @@ function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) 
  * 但它们是提取一次、长期复用的资产，不该在每次执行任务时都被滚过。
  * 未提取时没有可折叠的内容，标题行退回纯文本（不可点），空态提示保持常显 ——
  * 否则「未提取」会被折叠成一行无信息量的标题，反而看不出该怎么开始。 */
-function ProfileSection(props: {
+export function ProfileSection(props: {
   label: string
   extracted: boolean
   statusText?: string
@@ -170,6 +170,7 @@ function ProfileSection(props: {
   pausing?: boolean
   running?: boolean
   progressNote?: string
+  effective?: AiEffectiveProfile | null
   emptyHint: string
   /** 取样章数输入框的可访问名称；同一页有多个实例，故由调用方给出唯一名称 */
   sampleLabel?: string
@@ -181,6 +182,12 @@ function ProfileSection(props: {
   const sample = props.sample
   const contentId = `ai-profile-${props.label}`
   const collapsible = Boolean(props.content)
+  const progress = props.effective?.progress
+  const incomplete = progress?.complete === false
+  const processed = progress?.processedChapters ?? 0
+  const total = progress?.totalChapters ?? 0
+  const preview = incomplete ? progress?.previewContent : ''
+  const status = props.pausing ? '正在暂停' : props.busy || props.running ? '分析中' : incomplete ? (progress?.paused ? '已暂停' : '部分完成') : props.statusText || (props.extracted ? '已提取' : '未提取')
   // 已提取则默认收起；正文较长，展开态按需触发，与「提取一次、复看少数几次」的使用频率一致
   const [open, setOpen] = useState(false)
 
@@ -194,8 +201,8 @@ function ProfileSection(props: {
         aria-hidden={collapsible || undefined}
         className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground"
       >
-        <span className={`size-1.5 rounded-full ${props.extracted && !props.statusText ? 'bg-[var(--color-success)]' : 'bg-muted-foreground/40'}`} />
-        {props.statusText || (props.extracted ? '已提取' : '未提取')}
+        <span className={`size-1.5 rounded-full ${props.busy || props.running ? 'bg-primary motion-safe:animate-pulse' : props.extracted && !props.statusText ? 'bg-[var(--color-success)]' : 'bg-muted-foreground/40'}`} />
+        {status}
       </span>
     </>
   )
@@ -208,6 +215,7 @@ function ProfileSection(props: {
             <button type="button" className="ai-profile-trigger" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen((value) => !value)}>
               <ChevronRight className="ai-profile-trigger__caret size-3.5" aria-hidden="true" />
               {heading}
+              <span className="ai-profile-trigger__hint">{open ? '收起内容' : '查看内容'}</span>
             </button>
           ) : (
             <span className="inline-flex items-center gap-2.5 text-sm font-medium" title={props.emptyHint}>
@@ -250,21 +258,52 @@ function ProfileSection(props: {
           )}
         </div>
       </div>
+      <p className="text-xs leading-5 text-muted-foreground">{props.emptyHint}</p>
       {props.progressNote && (
         <p role="status" className="text-xs leading-5 text-muted-foreground">
           {props.progressNote}
         </p>
       )}
+      {incomplete && total > 0 && (
+        <div className="ai-analysis-progress">
+          <progress aria-label={`${props.label}章节覆盖进度`} max={total} value={Math.min(processed, total)} />
+          <p className="text-xs leading-5 text-muted-foreground">
+            尚余 {Math.max(0, total - processed)} 章；阶段内容仅供查看，完整覆盖目标后才用于续写。
+          </p>
+        </div>
+      )}
+      {preview && (
+        <details className="ai-analysis-preview">
+          <summary>查看已保存的阶段内容</summary>
+          <p className="text-xs leading-5 text-muted-foreground">截至本次目标中的第 {processed} 章 · 此内容尚未作为本次完整档案生效。</p>
+          <ProfileText text={preview} />
+        </details>
+      )}
+      {props.effective && props.extracted && (
+        <p className="text-xs leading-5 text-muted-foreground">
+          {props.effective.effectiveContent ? `续写将参考：${props.effective.effectiveOrigin === 'manual' ? '人工校正版' : '自动分析版'}` : '已保存档案，当前不可用于续写；请更新或检查续写起点。'}
+          {props.effective.source?.sampleCount ? ` · 来源 ${props.effective.source.sampleCount} 章` : ''}
+          {props.effective.updatedAt ? ` · 更新于 ${new Date(props.effective.updatedAt).toLocaleString('zh-CN', { hour12: false })}` : ''}
+        </p>
+      )}
       {props.content ? (
         <Collapsible open={open} onOpenChange={setOpen}>
           <CollapsibleContent id={contentId}>
-            <div className="rounded-lg border bg-muted/30 px-4 py-3.5 sm:rounded-md sm:px-3.5 sm:py-3">{props.content}</div>
+            <div className="ai-analysis-content">
+              {props.effective?.effectiveOrigin === 'manual' && (
+                <div>
+                  <p className="mb-2 text-xs font-medium">当前用于续写的人工校正版</p>
+                  <ProfileText text={props.effective.effectiveContent} />
+                </div>
+              )}
+              <p className="text-xs font-medium">自动分析原文</p>
+              {props.content}
+            </div>
           </CollapsibleContent>
         </Collapsible>
-      ) : (
-        <p className="sr-only">{props.emptyHint}</p>
-      )}
+      ) : null}
       {props.footnote}
+      {props.effective?.lastAttempt && <p className="text-xs leading-5 text-muted-foreground"><MemoryAttemptNote profile={props.effective} /></p>}
     </div>
   )
 }
@@ -484,15 +523,41 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   useEffect(() => {
     if (!novelId) return
     let cancelled = false
+    let polling = false
     const timer = window.setInterval(() => {
-      if (!plotBusy && plotEffective?.progress?.running) void loadProfile('plot', novelId, () => cancelled)
-      if (!relationshipBusy && relationshipEffective?.progress?.running) void loadProfile('relationship', novelId, () => cancelled)
+      if (polling) return
+      polling = true
+      // Progress reads must not increment the version that owns a paid POST loop.
+      const poll = async (kind: 'plot' | 'relationship') => {
+        const versionRef = kind === 'plot' ? plotRequestVersion : relationshipRequestVersion
+        const version = versionRef.current
+        const res = await (kind === 'plot' ? aiApi.writing.getPlotState(novelId) : aiApi.writing.getRelationshipProfile(novelId)).catch(() => null)
+        if (!res || cancelled || version !== versionRef.current) return
+        const setEffective = kind === 'plot' ? setPlotEffective : setRelationshipEffective
+        const localBusy = kind === 'plot' ? plotBusy : relationshipBusy
+        setEffective((previous) => localBusy && previous ? { ...previous, progress: res.progress, lastAttempt: res.lastAttempt } : res)
+        if (!localBusy) {
+          if ('state' in res) {
+            setPlotState(res.state || '')
+            setPlotChaptersThrough(res.chaptersThrough || 0)
+            setPlotChapterCount(res.chapterCount || 0)
+            if (!res.progress?.running) setPlotPausing(false)
+          } else {
+            setRelationshipProfile(res.profile || '')
+            if (!res.progress?.running) setRelationshipPausing(false)
+          }
+        }
+      }
+      void Promise.all([
+        plotBusy || plotEffective?.progress?.running ? poll('plot') : undefined,
+        relationshipBusy || relationshipEffective?.progress?.running ? poll('relationship') : undefined,
+      ]).finally(() => { polling = false })
     }, 2000)
     return () => {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [novelId, plotBusy, relationshipBusy, plotEffective?.progress?.running, relationshipEffective?.progress?.running, loadProfile])
+  }, [novelId, plotBusy, relationshipBusy, plotEffective?.progress?.running, relationshipEffective?.progress?.running])
 
   // 选中小说后加载章节列表（倒序），用于选择续写起点
   useEffect(() => {
@@ -800,11 +865,12 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     await control.pending
   }
 
-  function memoryProgressNote(profile: AiEffectiveProfile | null, pausing: boolean) {
+  function memoryProgressNote(profile: AiEffectiveProfile | null, pausing: boolean, active = false) {
     if (pausing) return '正在取消当前请求，已完成的检查点会保留；继续时重新处理未完成批次。'
     const progress = profile?.progress
     if (!progress || progress.complete !== false) return undefined
-    return `${progress.running ? '更新中' : progress.paused ? '已暂停' : '可继续'} · 已保存 ${progress.processedChapters} / ${progress.totalChapters} 章。${progress.running ? '可请求暂停当前更新。' : '继续时会校验正文，并从有效检查点恢复。'}`
+    const running = active || progress.running
+    return `${running ? '更新中' : progress.paused ? '已暂停' : '可继续'} · 已保存 ${progress.processedChapters} / ${progress.totalChapters} 章。${running ? '正在分析后续章节，可请求暂停当前更新。' : '继续时会校验正文，并从有效检查点恢复。'}`
   }
 
   async function refreshPlotState() {
@@ -815,7 +881,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     setPlotPausing(false)
     setPlotBusy(true)
     try {
-      setPlotProgress('正在校验历史来源…')
+      setPlotProgress('正在校验正文并分析章节；每完成一章会更新保存进度。')
       const saved = plotEffective?.progress
       let res = await aiApi.writing.refreshPlotState(novelId, plotSample, afterChapterId || (saved?.complete === false ? saved.targetChapterId : undefined))
       const target = res.targetChapterId
@@ -824,6 +890,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         await control.pending
         if (control.requested) break
         setPlotProgress(`已覆盖 ${res.processedChapters} / ${res.totalChapters} 章`)
+        setPlotEffective((previous) => previous ? { ...previous, progress: { ...res, previewContent: res.state } } : previous)
         res = await aiApi.writing.refreshPlotState(novelId, plotSample, target)
       }
       await control.pending
@@ -856,7 +923,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     setRelationshipPausing(false)
     setRelationshipBusy(true)
     try {
-      setRelationshipProgress('正在校验历史来源…')
+      setRelationshipProgress('正在校验正文并分析章节；每完成一章会更新保存进度。')
       const saved = relationshipEffective?.progress
       let res = await aiApi.writing.refreshRelationshipProfile(
         novelId,
@@ -869,6 +936,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         await control.pending
         if (control.requested) break
         setRelationshipProgress(`已覆盖 ${res.processedChapters} / ${res.totalChapters} 章`)
+        setRelationshipEffective((previous) => previous ? { ...previous, progress: { ...res, previewContent: res.profile } } : previous)
         res = await aiApi.writing.refreshRelationshipProfile(novelId, relationshipSample, target)
       }
       await control.pending
@@ -973,18 +1041,22 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             <h3 id="ai-writing-analysis-title">小说分析</h3>
           </div>
           <span className="ai-writing-analysis__count" aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}>
-            已就绪 {activeProfileLabels.length} / 3
+            可用于续写 {activeProfileLabels.length} / 3
           </span>
         </div>
+        <p className="text-xs leading-5 text-muted-foreground">分析结果保存在本书中；只有当前可用的完整档案会被续写参考。展开可查看内容与人工校正。</p>
         <div className="ai-writing-profile-list">
           <ProfileSection
             label="风格画像"
+            key={`style-${novelId}`}
+            effective={styleEffective}
+            statusText={memoryStatus(styleEffective)}
             extracted={!!styleProfile}
             busy={styleBusy}
             disabled={busy || styleBusy || taskActive || !novelId}
             actionText={styleBusy ? '提取中…' : styleProfile ? '重新提取' : '提取风格画像'}
             onAction={() => void refreshStyleProfile()}
-            emptyHint="提取后续写会参考本作原文的句式、节奏、语气和设定；建议有两章以上正文后提取。"
+            emptyHint="分析最近最多 5 章的句式、叙事节奏、对话与表达边界，让续写延续原作文风。"
             content={
               styleProfile ? (
                 <>
@@ -1004,23 +1076,24 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           />
           <ProfileSection
             label="关系画像"
+            key={`relationship-${novelId}`}
+            effective={relationshipEffective}
             extracted={!!relationshipProfile}
             statusText={memoryStatus(relationshipEffective)}
             busy={relationshipBusy}
             disabled={busy || relationshipBusy || relationshipEffective?.progress?.running || taskActive || !novelId}
             actionText={
-              relationshipBusy ? relationshipProgress || '更新中…' : relationshipEffective?.progress?.complete === false ? '继续更新关系档案' : '更新关系档案'
+              relationshipBusy ? '更新中…' : relationshipEffective?.progress?.complete === false ? '继续更新关系档案' : '更新关系档案'
             }
             onAction={() => void refreshRelationshipProfile()}
             onPause={() => void pauseMemory('relationship')}
             pausing={relationshipPausing}
             running={relationshipEffective?.progress?.running}
-            progressNote={memoryProgressNote(relationshipEffective, relationshipPausing)}
-            emptyHint="首次覆盖全部正文建立关系档案，之后只处理新增章节；中断后可继续。"
+            progressNote={memoryProgressNote(relationshipEffective, relationshipPausing, relationshipBusy) || (relationshipBusy ? relationshipProgress : undefined)}
+            emptyHint="梳理人物之间的关系、立场与变化，保留正文依据，供续写承接人物互动。"
             footnote={
               <p className="text-xs leading-5 text-muted-foreground">
                 首次覆盖全部正文，后续增量更新；正文修改后会重新校验来源。中断后再次点击可继续。
-                <MemoryAttemptNote profile={relationshipEffective} />
               </p>
             }
             sampleCaption="每批最多"
@@ -1045,17 +1118,19 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           />
           <ProfileSection
             label="情节状态"
+            key={`plot-${novelId}`}
+            effective={plotEffective}
             extracted={!!plotState}
             statusText={memoryStatus(plotEffective)}
             busy={plotBusy}
             disabled={busy || plotBusy || plotEffective?.progress?.running || taskActive || !novelId}
-            actionText={plotBusy ? plotProgress || '更新中…' : plotEffective?.progress?.complete === false ? '继续更新情节档案' : '更新情节档案'}
+            actionText={plotBusy ? '更新中…' : plotEffective?.progress?.complete === false ? '继续更新情节档案' : '更新情节档案'}
             onAction={() => void refreshPlotState()}
             onPause={() => void pauseMemory('plot')}
             pausing={plotPausing}
             running={plotEffective?.progress?.running}
-            progressNote={memoryProgressNote(plotEffective, plotPausing)}
-            emptyHint="首次覆盖全部正文建立情节档案，之后保留历史并增量更新；中断后可继续。"
+            progressNote={memoryProgressNote(plotEffective, plotPausing, plotBusy) || (plotBusy ? plotProgress : undefined)}
+            emptyHint="整理角色现状、重要物品与地点、未解伏笔和冲突，帮助续写承接已有情节。"
             sampleCaption="每批最多"
             sampleLabel="情节状态每批章数"
             sample={{ value: plotSample, min: 1, max: 30, onChange: (value) => setPlotSample(Math.max(1, Math.min(30, value || 8))) }}
@@ -1078,7 +1153,6 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             footnote={
               plotState ? (
                 <p className="text-xs leading-5 text-muted-foreground">
-                  <MemoryAttemptNote profile={plotEffective} />
                   {plotEffective?.source?.coverage === 'full'
                     ? `档案截至第 ${plotChaptersThrough} 章${plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}；覆盖该起点前全部正文，未解决的伏笔随增量更新保留。`
                     : '当前为旧版取样结果，请更新档案以完成全部历史初始化。'}

@@ -118,6 +118,38 @@ describe('AiWritingPanel', () => {
     api.chapterNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
   })
 
+  it('部分分析显示保存进度与阶段内容，并明确未用于续写', async () => {
+    api.getPlotState.mockResolvedValue({
+      state: '', effectiveContent: '',
+      progress: { complete: false, processedChapters: 17, totalChapters: 47, previewContent: '阶段分析：钥匙来源待确认', targetChapterId: 'c47' },
+    })
+    await selectNovel()
+    switchToContinue()
+    expect(await screen.findByText('部分完成')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '情节状态章节覆盖进度' })).toHaveAttribute('value', '17')
+    expect(screen.getByText('尚余 30 章；阶段内容仅供查看，完整覆盖目标后才用于续写。')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('查看已保存的阶段内容'))
+    expect(screen.getByText('阶段分析：钥匙来源待确认')).toBeVisible()
+    expect(screen.getByLabelText('可用 0 项小说分析')).toBeInTheDocument()
+  })
+
+  it('当前请求未返回时轮询已保存进度，且不打断后续批次', async () => {
+    const pending = deferred<object>()
+    api.refreshPlotState.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ complete: true, state: '完整结果', chaptersThrough: 47 })
+    await selectNovel()
+    switchToContinue()
+    api.getPlotState.mockResolvedValue({
+      state: '', effectiveContent: '',
+      progress: { running: true, complete: false, processedChapters: 18, totalChapters: 47, previewContent: '轮询读到的阶段内容' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '更新情节档案' }))
+    await waitFor(() => expect(screen.getByRole('progressbar', { name: '情节状态章节覆盖进度' })).toHaveAttribute('value', '18'), { timeout: 4000 })
+    expect(api.refreshPlotState).toHaveBeenCalledTimes(1)
+    await act(async () => pending.resolve({ complete: false, state: '第一批已完成', processedChapters: 20, totalChapters: 47, targetChapterId: 'c47' }))
+    await waitFor(() => expect(api.refreshPlotState).toHaveBeenCalledTimes(2))
+    expect(api.refreshPlotState).toHaveBeenLastCalledWith('novel_1', 8, 'c47')
+  })
+
   it.each([
     { kind: 'plot', label: '情节', method: api.refreshPlotState, get: api.getPlotState, initial: { state: '', chaptersThrough: 0, chapterCount: 18 } },
     { kind: 'relationship', label: '关系', method: api.refreshRelationshipProfile, get: api.getRelationshipProfile, initial: { profile: '' } },
@@ -219,9 +251,10 @@ describe('AiWritingPanel', () => {
     await selectNovel()
     switchToContinue()
     fireEvent.click(await screen.findByRole('button', { name: '更新情节档案' }))
-    expect(await screen.findByRole('button', { name: '已覆盖 8 / 18 章' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: '更新中…' })).toBeDisabled()
+    expect(await screen.findByText(/更新中 · 已保存 8 \/ 18 章/)).toBeInTheDocument()
     expect(api.refreshPlotState).toHaveBeenNthCalledWith(2, 'novel_1', 8, 'chapter-18')
-    expect(screen.queryByText('中间草稿')).not.toBeInTheDocument()
+    expect(screen.getByText('中间草稿')).not.toBeVisible()
     api.getPlotState.mockResolvedValue({
       state: '完整情节档案',
       chaptersThrough: 18,

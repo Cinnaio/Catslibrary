@@ -2121,6 +2121,8 @@ export interface AiWritingReview {
 }
 
 export interface AiStoryMemoryProgress {
+  /** 已校验来源的阶段内容，只读预览，不参与续写材料。 */
+  previewContent?: string
   paused?: boolean
   running?: boolean
   complete?: boolean

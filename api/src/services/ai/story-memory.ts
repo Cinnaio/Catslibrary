@@ -72,7 +72,7 @@ export async function pauseStoryMemory(db: Db, novelId: string, kind: 'plot' | '
   activeBuilds.get(db)?.get(`${kind}:${novelId}`)?.abort(new MemoryPaused())
 }
 
-/** Validated, persisted progress survives page reloads; no partial archive is exposed. */
+/** Validated progress and a read-only checkpoint preview; never used as an effective archive. */
 export async function getStoryMemoryProgress(db: Db, novelId: string, kind: 'plot' | 'relationship') {
   const row = await first<{ content: string; source_json: string; target_chapter_id: string; pause_requested: boolean; lease_until: number }>(
     db,
@@ -96,10 +96,9 @@ export async function getStoryMemoryProgress(db: Db, novelId: string, kind: 'plo
   const saved = await first<{ content: string; source_json: string }>(db, `SELECT ${column} AS content, source_json FROM ${table} WHERE novel_id = $1`, [
     novelId,
   ])
-  const processedChapters = Math.max(
-    reusablePrefix(sample.rows, row.content, parseProfileSource(row.source_json)),
-    saved ? reusablePrefix(sample.rows, saved.content, parseProfileSource(saved.source_json)) : 0,
-  )
+  const checkpointCount = reusablePrefix(sample.rows, row.content, parseProfileSource(row.source_json))
+  const savedCount = saved ? reusablePrefix(sample.rows, saved.content, parseProfileSource(saved.source_json)) : 0
+  const processedChapters = Math.max(checkpointCount, savedCount)
   const totalChapters = sample.rows.length
   return {
     processedChapters,
@@ -108,6 +107,8 @@ export async function getStoryMemoryProgress(db: Db, novelId: string, kind: 'plo
     complete: processedChapters === totalChapters,
     paused: row.pause_requested,
     running: Number(row.lease_until) > Date.now(),
+    // Only expose the validated prefix, never a checkpoint invalidated by edits.
+    previewContent: processedChapters > 0 ? (checkpointCount >= savedCount ? row.content : saved!.content) : '',
   }
 }
 
