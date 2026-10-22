@@ -105,6 +105,16 @@ describe('story graph archive boundary and cache', () => {
     await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ code: 'conflict' })
     expect((await t.db.query('SELECT * FROM novel_story_graphs')).rows).toHaveLength(0)
   })
+  it('rejects a graph generated against an older archive revision even when text is identical', async () => {
+    await prepare()
+    vi.mocked(chat).mockImplementationOnce(async () => {
+      const row = (await t.db.query<{ source_json: string }>("SELECT source_json FROM novel_relationship_profiles WHERE novel_id='book'")).rows[0]!
+      await t.db.query("UPDATE novel_relationship_profiles SET source_json=$1 WHERE novel_id='book'", [JSON.stringify({ ...JSON.parse(row.source_json), rebuildRevision: 'new-rebuild' })])
+      return reply(JSON.stringify(graph))
+    })
+    await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ code: 'conflict' })
+    expect((await t.db.query('SELECT * FROM novel_story_graphs')).rows).toHaveLength(0)
+  })
   it('rejects invented evidence, chapter links, dangling endpoints and duplicate people', () => {
     const input = {
       archives: [{ kind: 'relationship' as const, content: archive, chaptersThrough: 1, eligibility: 'usable', origin: 'automatic' }],

@@ -1,6 +1,7 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
 import type { StoryGraphResponse } from '@shared/story-graph'
 import type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
+import type { MemoryRebuildPlan, MemoryRebuildRequest, MemoryKind } from '@shared/story-memory-rebuild'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { requestReauthentication } from './reauthentication'
 /**
@@ -2074,7 +2075,7 @@ export interface AiCoverReplacement extends AiCurrentCoverState {
 export type AiProfileKind = 'style' | 'plot' | 'relationship'
 
 /** 自动画像的可用性；非 usable 时后端不会采用自动层。 */
-export type AiProfileEligibility = 'usable' | 'missing' | 'legacy_unknown' | 'beyond_anchor' | 'stale' | 'source_changed'
+export type AiProfileEligibility = 'usable' | 'missing' | 'legacy_unknown' | 'beyond_anchor' | 'stale' | 'source_changed' | 'rebuilding'
 
 /** 人工画像覆盖层：绑定在某个自动画像版本上，自动画像一变即失效。 */
 export interface AiManualProfileOverride {
@@ -2427,6 +2428,15 @@ export const aiApi = {
     /** 提取/刷新某部小说的情节状态：全历史分批初始化 / 增量更新，complete=false 时继续下一批，续写时复用。 */
     startMemoryTask(novelId: string, kind: 'plot' | 'relationship', sampleChapters: number, afterChapterId?: string): Promise<{ ok: boolean; task: NonNullable<AiEffectiveProfile['memoryTask']> }> {
       return request('POST', `/ai/writing/memory/${kind}/${encodeURIComponent(novelId)}/start`, { sampleChapters, ...(afterChapterId ? { afterChapterId } : {}) }, true)
+    },
+    previewMemoryRebuild(novelId: string, options: MemoryRebuildRequest): Promise<MemoryRebuildPlan> {
+      return request('POST', `/ai/writing/memory/${encodeURIComponent(novelId)}/rebuild/preview`, options, true)
+    },
+    rebuildMemory(novelId: string, options: MemoryRebuildRequest, expectedRevision: string, operationId: string): Promise<{ ok: boolean; tasks: { taskId: string; kind: MemoryKind }[] }> {
+      return request('POST', `/ai/writing/memory/${encodeURIComponent(novelId)}/rebuild`, { ...options, expectedRevision, operationId }, true)
+    },
+    memoryHistory(novelId: string, kind: MemoryKind): Promise<{ items: { id: string; content: string; created_at: number; reusable: boolean }[] }> {
+      return request('GET', `/ai/writing/memory/${kind}/${encodeURIComponent(novelId)}/history`, null, true)
     },
     refreshPlotState(
       novelId: string,

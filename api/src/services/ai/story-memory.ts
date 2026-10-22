@@ -10,6 +10,7 @@ import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 import { isAiTaskActive } from './tasks'
 import { loadProfileSample, parseProfileSource, profileSourceForRows, type ProfileSampleRow, type ProfileSource } from './profile-source'
+import { getMemoryRebuild, saveMemorySnapshot } from './story-memory-history'
 
 export const STORY_MEMORY_PROMPT_VERSION = 3
 const BATCH_CHARS = 24_000
@@ -102,7 +103,8 @@ export async function getStoryMemoryProgress(db: Db, novelId: string, kind: 'plo
     novelId,
   ])
   const checkpointCount = reusablePrefix(sample.rows, row.content, parseProfileSource(row.source_json))
-  const savedCount = saved ? reusablePrefix(sample.rows, saved.content, parseProfileSource(saved.source_json)) : 0
+  const rebuilding = (await getMemoryRebuild(db, novelId, kind))?.pending
+  const savedCount = saved && !rebuilding ? reusablePrefix(sample.rows, saved.content, parseProfileSource(saved.source_json)) : 0
   const processedChapters = Math.max(checkpointCount, savedCount)
   const totalChapters = sample.rows.length
   return {
@@ -150,7 +152,7 @@ export async function getMemoryAttempt(db: Db, novelId: string, kind: 'plot' | '
   }
 }
 
-function reusablePrefix(rows: ProfileSampleRow[], content: string, source?: ProfileSource): number {
+export function reusablePrefix(rows: ProfileSampleRow[], content: string, source?: ProfileSource): number {
   if (!content.trim() || source?.coverage !== 'full' || source.extractionPromptVersion !== STORY_MEMORY_PROMPT_VERSION) return 0
   const index = rows.findIndex((row) => row.id === source.chapterId)
   if (index < 0) return 0
@@ -189,7 +191,8 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
   const table = kind === 'plot' ? 'novel_plot_states' : 'novel_relationship_profiles'
   const column = kind === 'plot' ? 'state' : 'profile'
   try {
-    const sample = await loadProfileSample(db, { ...opts, sampleCount: 1, fullHistory: true, clean: cleanStoryText })
+    const rebuild = await getMemoryRebuild(db, opts.novelId, kind)
+    const sample = await loadProfileSample(db, { ...opts, ...(rebuild?.pending ? { afterChapterId: rebuild.target_chapter_id } : {}), sampleCount: 1, fullHistory: true, clean: cleanStoryText })
     const rows = sample?.rows || []
     await run(db, 'UPDATE novel_story_memory_builds SET target_chapter_id = $1 WHERE novel_id = $2 AND kind = $3 AND lease_token = $4', [
       sample?.anchor.id || '',
@@ -254,7 +257,7 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
     let processed = 0
     let content = ''
     let model = ''
-    for (const candidate of [saved, checkpoint]) {
+    for (const candidate of [rebuild?.pending ? undefined : saved, checkpoint]) {
       if (!candidate) continue
       const count = reusablePrefix(rows, candidate.content, parseProfileSource(candidate.source_json))
       if (count > processed) {
@@ -469,10 +472,16 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
       : undefined
     if (sample && current?.source.fingerprint !== sample.source.fingerprint) throw new AiError('conflict', '正文在提取期间已修改，请重新继续以重建档案', 409)
     const source: ProfileSource | undefined = processed
-      ? { ...profileSourceForRows(rows.slice(0, processed), cleanStoryText, true), extractionPromptVersion: STORY_MEMORY_PROMPT_VERSION }
+      ? { ...profileSourceForRows(rows.slice(0, processed), cleanStoryText, true), extractionPromptVersion: STORY_MEMORY_PROMPT_VERSION, ...(rebuild ? { rebuildRevision: rebuild.revision } : {}) }
       : undefined
     const updatedAt = Date.now()
     const complete = processed === total
+    if (!paused && source && content) await withTx(db, async query => {
+      const tx = { query }
+      const owned = await first(tx, 'SELECT novel_id FROM novel_story_memory_builds WHERE novel_id=$1 AND kind=$2 AND lease_token=$3 FOR UPDATE', [opts.novelId, kind, token])
+      if (!owned) throw new AiError('conflict', '档案更新锁已失效，未保存旧执行器的快照', 409)
+      await saveMemorySnapshot(tx, opts.novelId, kind, 'checkpoint', { content, source_json: JSON.stringify(source), model })
+    })
     if (complete) {
       await withTx(db, async (q) => {
         const owned = await q('SELECT novel_id FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2 AND lease_token = $3 FOR UPDATE', [
@@ -481,12 +490,14 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
           token,
         ])
         if (!owned.rows.length) throw new AiError('conflict', '档案更新锁已失效，请重新继续', 409)
+        if (saved?.content) await saveMemorySnapshot({ query: q }, opts.novelId, kind, 'archive', saved)
         await q(
           `INSERT INTO ${table} (novel_id, ${column}, model, source_json, created_at, updated_at${kind === 'plot' ? ', chapters_through' : ''})
           VALUES ($1, $2, $3, $4, $5, $5${kind === 'plot' ? ', $6' : ''}) ON CONFLICT (novel_id) DO UPDATE SET
           ${column} = EXCLUDED.${column}, model = EXCLUDED.model, source_json = EXCLUDED.source_json, updated_at = EXCLUDED.updated_at${kind === 'plot' ? ', chapters_through = EXCLUDED.chapters_through' : ''}`,
           [opts.novelId, content, model, source ? JSON.stringify(source) : '', updatedAt, ...(kind === 'plot' ? [processed] : [])],
         )
+        if (rebuild?.pending) await q('UPDATE novel_story_memory_rebuilds SET pending=FALSE WHERE novel_id=$1 AND kind=$2 AND revision=$3', [opts.novelId, kind, rebuild.revision])
       })
     }
     paused = !complete && (paused || (await pauseRequested()))

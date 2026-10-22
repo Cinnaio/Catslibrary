@@ -2,12 +2,14 @@ import { createHash } from 'node:crypto'
 import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { AiError } from './client'
+import { getMemoryRebuild } from './story-memory-history'
 
 /** V1 的画像输入来源。来源只描述真正送进模型的有序样本，不代表画像历史版本。 */
 export interface ProfileSource {
   version: 1
   /** 提取提示词版本；旧 source 没有此字段时保持 legacy 兼容。 */
   extractionPromptVersion?: number
+  rebuildRevision?: string
   chapterId: string
   chapterTitle: string
   sortOrder: number
@@ -20,7 +22,7 @@ export interface ProfileSource {
 }
 
 export type ProfileKind = 'style' | 'plot' | 'relationship'
-export type ProfileEligibility = 'usable' | 'missing' | 'legacy_unknown' | 'beyond_anchor' | 'stale' | 'source_changed'
+export type ProfileEligibility = 'usable' | 'missing' | 'legacy_unknown' | 'beyond_anchor' | 'stale' | 'source_changed' | 'rebuilding'
 
 export interface ProfileSampleRow {
   id: string
@@ -136,6 +138,7 @@ export function parseProfileSource(raw: unknown): ProfileSource | undefined {
     if (![sortOrder, chapterOrdinal, sampleCount].every(Number.isFinite) || sampleCount < 0) return undefined
     return {
       version: 1,
+      ...(typeof source.rebuildRevision === 'string' ? { rebuildRevision: source.rebuildRevision } : {}),
       ...(Number.isInteger(Number(source.extractionPromptVersion)) ? { extractionPromptVersion: Number(source.extractionPromptVersion) } : {}),
       chapterId: source.chapterId,
       chapterTitle: source.chapterTitle,
@@ -183,6 +186,9 @@ export async function evaluateProfileSource(
   if (!row) return { profile: '', updatedAt: 0, eligibility: 'missing', isOlderThanAnchor: false }
   const profile = String(row.profile || '')
   const source = parseProfileSource(row.source_json)
+  if (opts.kind !== 'style' && (await getMemoryRebuild(db, opts.novelId, opts.kind))?.pending) {
+    return { profile, source, updatedAt: Number(row.updated_at) || 0, eligibility: 'rebuilding', isOlderThanAnchor: false }
+  }
   if (!source) return { profile, updatedAt: Number(row.updated_at) || 0, eligibility: 'legacy_unknown', isOlderThanAnchor: false }
   // Recent-window profiles have never covered the full story. Keep them visible
   // for review, but require initialization before using them as story memory.
