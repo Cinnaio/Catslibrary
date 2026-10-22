@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, CirclePlus, FileUp, GitMerge, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, CirclePlus, Download, FileUp, GitMerge, Palette, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import type { Novel } from '@shared/types'
 import { novelsApi, url, authHeaders } from '../../lib/api'
 import { coverUrl as novelCoverUrl } from '@/lib/cover-url'
@@ -124,6 +124,8 @@ export default function NovelsTab({
   const [visibilityFilter, setVisibilityFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const exportLock = useRef(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   // 弹窗状态
@@ -249,6 +251,29 @@ export default function NovelsTab({
   }
 
   const allChecked = novels.length > 0 && novels.every((n) => selected.has(n.id))
+
+  async function handleExport(ids: string[], archive = false) {
+    if (exportLock.current) return
+    exportLock.current = true
+    setExporting(true)
+    try {
+      const { blob, filename } = await novelsApi.exportBooks(ids, archive)
+      const href = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = href
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 60_000)
+      toast(`已开始下载 ${ids.length} 本作品，仅含已发布正文`, 'success')
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '导出失败，请重试', 'error')
+    } finally {
+      exportLock.current = false
+      setExporting(false)
+    }
+  }
 
   function toggleRow(id: string) {
     setSelected((prev) => {
@@ -431,6 +456,10 @@ export default function NovelsTab({
         >
           批量追更设置
         </Button>
+        <Button variant="secondary" size="sm" disabled={exporting} onClick={() => void handleExport(Array.from(selected), true)}>
+          <Download aria-hidden="true" />
+          {exporting ? '正在导出…' : '导出所选（ZIP）'}
+        </Button>
         <Button variant="secondary" size="sm" onClick={invertSelection}>
           反选
         </Button>
@@ -611,6 +640,18 @@ export default function NovelsTab({
                           label: '章节列表',
                           icon: BookOpen,
                           onSelect: () => navigate(`/admin/chapters?novelId=${encodeURIComponent(n.id)}`),
+                        },
+                        {
+                          label: exporting ? '正在导出…' : '导出 TXT',
+                          icon: Download,
+                          disabled: exporting,
+                          onSelect: () => void handleExport([n.id]),
+                        },
+                        {
+                          label: '导出书籍包（含封面）',
+                          icon: Download,
+                          disabled: exporting,
+                          onSelect: () => void handleExport([n.id], true),
                         },
                         {
                           label: '融合章节名',

@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-const mocks = vi.hoisted(() => ({ list: vi.fn(), update: vi.fn(), toast: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn() }))
-vi.mock('../../lib/api', () => ({ adminApi: {}, novelsApi: { list: mocks.list, update: mocks.update, visibility: vi.fn().mockResolvedValue({ visibility: 'public', revision: 0, users: [], audit: [] }) }, scrapeApi: { sourceBindings: async () => ({ bindings: [] }), sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply }, authHeaders: () => ({}), url: (x: string) => x, newOperationId: () => 'test' }))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), exportBooks: vi.fn(), update: vi.fn(), toast: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn() }))
+vi.mock('../../lib/api', () => ({ adminApi: {}, novelsApi: { list: mocks.list, exportBooks: mocks.exportBooks, update: mocks.update, visibility: vi.fn().mockResolvedValue({ visibility: 'public', revision: 0, users: [], audit: [] }) }, scrapeApi: { sourceBindings: async () => ({ bindings: [] }), sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply }, authHeaders: () => ({}), url: (x: string) => x, newOperationId: () => 'test' }))
 vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }) }))
 vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, value, onChange, ...props }: any) => <select aria-labelledby={props['aria-labelledby']} value={value} onChange={e => onChange(e.target.value)}>{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 vi.mock('../../components/admin/BookImportDialog', () => ({ default: () => null }))
@@ -134,4 +134,41 @@ it('同步失败保留弹窗和勾选信息，不刷新小说列表', async () =
   expect(mocks.list).toHaveBeenCalledTimes(1)
   expect(screen.getByRole('dialog')).toBeInTheDocument()
   expect(screen.getByRole('checkbox', { name: '作者' })).toBeChecked()
+})
+
+
+it('单本更多操作导出指定作品，下载使用服务端文件名', async () => {
+  const create = vi.fn().mockReturnValue('blob:export')
+  vi.stubGlobal('URL', class extends URL { static createObjectURL = create; static revokeObjectURL = vi.fn() })
+  let downloadedName = ''
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { downloadedName = this.download })
+  mocks.exportBooks.mockResolvedValue({ blob: new Blob(['正文']), filename: '测试书.txt' })
+  render(<MemoryRouter><NovelsTab /></MemoryRouter>)
+  fireEvent.keyDown(await screen.findByRole('button', { name: '测试书：更多操作' }), { key: 'ArrowDown' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: '导出 TXT' }))
+  await waitFor(() => expect(mocks.exportBooks).toHaveBeenCalledWith(['n'], false))
+  await waitFor(() => expect(click).toHaveBeenCalled())
+  expect(downloadedName).toBe('测试书.txt')
+  click.mockRestore()
+  vi.unstubAllGlobals()
+})
+
+it('导出所选按勾选范围请求 ZIP，失败保留选择并提示', async () => {
+  mocks.exportBooks.mockRejectedValueOnce(new Error('所选正文超过 64 MiB'))
+  mocks.list.mockResolvedValue({ novels: [{ id: 'n', title: '测试书', categories: [] }, { id: 'other', title: '未选作品', categories: [] }], total: 2, totalPages: 1 })
+  render(<MemoryRouter><NovelsTab /></MemoryRouter>)
+  fireEvent.click(await screen.findByRole('checkbox', { name: '选择小说：测试书' }))
+  fireEvent.click(screen.getByRole('button', { name: '导出所选（ZIP）' }))
+  await waitFor(() => expect(mocks.exportBooks).toHaveBeenCalledWith(['n'], true))
+  await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith('所选正文超过 64 MiB', 'error'))
+  expect(screen.getByRole('checkbox', { name: '选择小说：测试书' })).toBeChecked()
+})
+
+
+it('单本书籍包入口请求 ZIP，包含封面采用导出接口的默认打包选项', async () => {
+  mocks.exportBooks.mockRejectedValueOnce(new Error('测试中止下载'))
+  render(<MemoryRouter><NovelsTab /></MemoryRouter>)
+  fireEvent.keyDown(await screen.findByRole('button', { name: '测试书：更多操作' }), { key: 'ArrowDown' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: '导出书籍包（含封面）' }))
+  await waitFor(() => expect(mocks.exportBooks).toHaveBeenCalledWith(['n'], true))
 })

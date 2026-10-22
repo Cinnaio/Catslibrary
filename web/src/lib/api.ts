@@ -343,6 +343,22 @@ export interface NovelVisibilitySettings {
 }
 
 export const novelsApi = {
+  async exportBooks(novelIds: string[], archive = false, includeCover = archive): Promise<{ blob: Blob; filename: string }> {
+    const res = await fetch(url('/novels/export'), {
+      method: 'POST', credentials: 'include', cache: 'no-store',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ novelIds, archive, includeCover }),
+      signal: AbortSignal.timeout(120_000),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      throw new Error(data.error || `导出失败（HTTP ${res.status}）`)
+    }
+    const encoded = res.headers.get('Content-Disposition')?.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+    const filename = encoded ? decodeURIComponent(encoded) : includeCover || archive || novelIds.length > 1 ? '知舟书籍导出.zip' : '书籍导出.txt'
+    return { blob: await res.blob(), filename }
+  },
+
   visibility(id: string): Promise<NovelVisibilitySettings> {
     return request('GET', `/novels/${encodeURIComponent(id)}/visibility`, null, true)
   },

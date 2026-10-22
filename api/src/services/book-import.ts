@@ -1,3 +1,4 @@
+import { parseExportText } from './novel-export-text'
 import { createHash } from 'node:crypto'
 import { posix } from 'node:path'
 import { strFromU8, unzipSync } from 'fflate'
@@ -807,6 +808,18 @@ export function parseTextImportDetailed(
   fileName = '未命名.txt',
   overrides: TextImportOverrides = {},
 ): TextImportResult {
+  const exported = parseExportText(String(input || ''))
+  if (exported) {
+    const payload = normalizeImportPayload(exported.payload)
+    const totalLines = String(input).split('\n').length
+    const diagnostics = buildImportDiagnostics({ parser: 'text', totalLines,
+      headingLines: payload.chapters.length, volumeHeadingLines: 0, mergedHeadingLines: 0,
+      frontMatterLines: (exported.boundaries[0] || totalLines + 1) - 1, frontMatterChars: 0,
+      droppedEmptyChapters: 0, chapters: payload.chapters, uncertain: [], uncertainTotal: 0, rescuedHeadings: 0 })
+    diagnostics.pendingCount = 0
+    diagnostics.truncatedCount = 0
+    return { payload, diagnostics, boundaryLines: exported.boundaries, chapterRanges: exported.ranges, frontMatterContent: '' }
+  }
   const lines = String(input || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n')
   /** 切分期的内部章节：额外记住它是否由权威标题（第NNN章 / NNN）开出，用于识别重抄标题。 */
   type WorkingChapter = BookImportChapterInput & { fromAuthoritative?: boolean; startLine?: number; endLine?: number }

@@ -1,3 +1,4 @@
+import { exportNovels, parseExportIds } from '../services/novel-export'
 import { HTTPException } from 'hono/http-exception'
 import { applyNovelVisibility, parseVisibilityInput, visibleNovelSql } from '../services/novel-visibility'
 import { getPendingChapterCounts } from '../services/novel-update-summary'
@@ -47,6 +48,24 @@ const SORT_FIELDS: Record<string, boolean> = {
   chapter_count: true,
 }
 const SORT_ORDERS: Record<string, 'ASC' | 'DESC'> = { asc: 'ASC', desc: 'DESC' }
+
+// 管理员导出：chapters 仅包含正式正文，AI 未发布草稿保存在 ai_generations。
+novelsRoutes.post('/export', requireAdmin(), async (c) => {
+  const body = await c.req.json().catch(() => null)
+  const ids = parseExportIds(body?.novelIds)
+  if (body.archive !== undefined && typeof body.archive !== 'boolean') return c.json({ error: 'archive 必须为布尔值' }, 422)
+  if (body.includeCover !== undefined && typeof body.includeCover !== 'boolean') return c.json({ error: 'includeCover 必须为布尔值' }, 422)
+  const result = await exportNovels(getDb(), ids, ids.length > 1 || body.archive === true, body.includeCover === true)
+  return new Response(Buffer.from(result.data), {
+    headers: {
+      'Content-Type': result.contentType,
+      'Content-Disposition': `attachment; filename="books.${result.contentType === 'application/zip' ? 'zip' : 'txt'}"; filename*=UTF-8''${encodeURIComponent(result.filename)}`,
+      'Cache-Control': 'private, no-store',
+      'Access-Control-Expose-Headers': 'Content-Disposition',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
+})
 
 // ---------- 列表（公开） ----------
 
