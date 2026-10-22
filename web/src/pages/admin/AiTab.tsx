@@ -18,15 +18,17 @@ import AiGenerationsPanel from './ai/AiGenerationsPanel'
 import AiParamsPanel from './ai/AiParamsPanel'
 import AiWritingPanel from './ai/AiWritingPanel'
 import AiCoverPanel from './ai/AiCoverPanel'
+import StoryGraphPanel from './ai/StoryGraphPanel'
 
 // 兼容旧的导入路径（其它页面若直接引用面板，从 ./ai/* 走新路径）
 export { AiWritingPanel, AiGenerationsPanel, AiParamsPanel }
 
 /** 子 tab 合法值：创作 / 审阅 / 设置，避免 URL 或持久化里混入未知值。 */
-const VALID_SUBS = ['writing', 'cover', 'content', 'config', 'params'] as const
+const VALID_SUBS = ['writing', 'cover', 'content', 'config', 'params', 'graph'] as const
 type SubTab = (typeof VALID_SUBS)[number]
 
 const AI_SUBTAB_META: Record<SubTab, { title: string; description: string }> = {
+  graph: { title: '故事图谱', description: '查看本书人物关系、当前处境与未解情节，核对分析档案依据。' },
   writing: { title: 'AI 创作', description: '组织大纲、章节与续写任务，保留现有创作上下文。' },
   cover: { title: '封面生成', description: '生成、比较并应用小说封面候选图。' },
   content: { title: '已生成内容', description: '审阅、编辑和管理 AI 生成的章节与摘要。' },
@@ -121,7 +123,7 @@ export default function AiTab() {
       >
         <div className="ai-workbench-nav-track flex items-center justify-between">
           <TabsList className="ai-service-tabs__list" aria-label="AI 服务视图">
-            {VALID_SUBS.map((subKey) => (
+            {VALID_SUBS.filter((subKey) => subKey !== 'graph').map((subKey) => (
               <TabsTrigger key={subKey} value={subKey}>
                 {AI_SUBTAB_META[subKey].title}
               </TabsTrigger>
@@ -130,7 +132,18 @@ export default function AiTab() {
         </div>
 
         <div className="ai-service-tabs__content min-w-0">
-          {currentSubTab === 'writing' && <AiWritingPanel model={provider?.model} onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />}
+          {(currentSubTab === 'writing' || currentSubTab === 'graph') && <div hidden={currentSubTab !== 'writing'}>
+            <AiWritingPanel model={provider?.model} onViewBatch={openGenerations} initialNovelId={urlNovel || undefined}
+              initialAfterChapterId={searchParams.get('afterChapterId') || undefined}
+              onOpenGraph={(novelId, afterChapterId) => {
+                const next = new URLSearchParams(searchParams)
+                next.set('sub', 'graph'); next.set('novel', novelId)
+                if (afterChapterId) next.set('afterChapterId', afterChapterId)
+                else next.delete('afterChapterId')
+                setSearchParams(next)
+              }} />
+          </div>}
+          {currentSubTab === 'graph' && <StoryGraphPanel key={`${urlNovel}:${searchParams.get('afterChapterId') || ''}`} novelId={urlNovel} afterChapterId={searchParams.get('afterChapterId') || undefined} />}
 
           {currentSubTab === 'cover' && (
             <AiCoverPanel

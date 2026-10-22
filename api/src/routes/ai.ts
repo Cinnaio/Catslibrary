@@ -60,6 +60,7 @@ import { createStoryMemoryTask, getStoryMemoryTask, pauseStoryMemoryTask, runSto
 import { extractPlotState } from '../services/ai/plot-state'
 import { extractRelationshipProfile } from '../services/ai/relationship-profile'
 import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, saveProfileOverride } from '../services/ai/profile-overrides'
+import { generateStoryGraph, getStoryGraph } from '../services/ai/story-graph'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { usageAuditFields } from '../services/ai/upstream-usage'
 import { userAvatarUrl } from '../services/auth'
@@ -91,6 +92,31 @@ import { evaluateWritingPublishPolicy } from '../services/ai/writing-publish-pol
 import { restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 export const aiRoutes = new Hono<AuthEnv>()
+
+aiRoutes.get('/writing/story-graph/:novelId', requireAdmin(), async (c) => {
+  try {
+    const result = await getStoryGraph(getDb(), c.req.param('novelId'), c.req.query('afterChapterId') || undefined)
+    return c.json(result, 200, { 'Cache-Control': 'no-store' })
+  } catch (err) {
+    if (err instanceof AiError && err.status === 404) return c.json({ error: err.message, code: err.code }, 404)
+    return aiErrorResponse(c, err)
+  }
+})
+
+aiRoutes.post('/writing/story-graph/:novelId', requireAdmin(), async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  try {
+    const db = getDb()
+    const result = await generateStoryGraph(db, {
+      novelId: c.req.param('novelId'), afterChapterId: String(body.afterChapterId || '').trim() || undefined,
+      userId: c.get('user').id, ...(await auditRequestContext(c, db)),
+    })
+    return c.json(result, 200, { 'Cache-Control': 'no-store' })
+  } catch (err) {
+    if (err instanceof AiError && err.status === 404) return c.json({ error: err.message, code: err.code }, 404)
+    return aiErrorResponse(c, err)
+  }
+})
 
 async function auditRequestContext(c: Context<AuthEnv>, db: ReturnType<typeof getDb>): Promise<{ ipAddress?: string; userAgent?: string }> {
   const settings = await getAiSettings(db)

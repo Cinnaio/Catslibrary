@@ -21,7 +21,7 @@ import { kindLabel as taskKindLabel, taskStatusLabel } from './labels'
 import ProfileOverrideEditor from './ProfileOverrideEditor'
 import { Textarea } from '@/components/ui/textarea'
 import { url } from '@/lib/api'
-import { Sparkles, ArrowRight, ChevronRight } from 'lucide-react'
+import { Sparkles, ArrowRight, ChevronRight, Network } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000
@@ -316,7 +316,7 @@ export function ProfileSection(props: {
   )
 }
 
-export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string) => void; initialNovelId?: string; model?: string } = {}) {
+export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string) => void; onOpenGraph?: (novelId: string, afterChapterId?: string) => void; initialNovelId?: string; initialAfterChapterId?: string; model?: string } = {}) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   // AI 创作的主要使用场景是给既有小说续写；新写仍保留为并列入口，而非默认落点。
@@ -325,6 +325,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [novels, setNovels] = useState<Novel[]>([])
   const [novelId, setNovelId] = useState('')
   const initialNovelHandled = useRef(false)
+  const initialGraphAnchor = useRef({ novelId: props.initialNovelId, chapterId: props.initialAfterChapterId })
   const [title, setTitle] = useState('')
   const [chapterTitle, setChapterTitle] = useState('')
   const [instruction, setInstruction] = useState('')
@@ -560,7 +561,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   // 选中小说后加载章节列表（倒序），用于选择续写起点
   useEffect(() => {
-    setAfterChapterId('')
+    setAfterChapterId(novelId === initialGraphAnchor.current.novelId ? initialGraphAnchor.current.chapterId || '' : '')
     // 切书（包括清空选择）立即作废上一部小说的所有在途画像请求。
     let cancelled = false
     // 候选属于某一部小说：切到另一部必须清掉，否则 A 书的方向会留在右列，
@@ -986,6 +987,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           <div>
             <h3 id="ai-writing-analysis-title">小说分析</h3>
           </div>
+          {props.onOpenGraph && <Button variant="ghost" size="sm" disabled={!novelId} onClick={() => props.onOpenGraph?.(novelId, afterChapterId || undefined)}><Network className="size-3.5" />查看故事图谱</Button>}
           <span className="ai-writing-analysis__count" aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}>
             可用于续写 {activeProfileLabels.length} / 3
           </span>

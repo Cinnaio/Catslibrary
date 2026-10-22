@@ -25,6 +25,7 @@ const KIND_LABELS: Record<string, string> = {
   content_rating_review: 'LLM 分级建议',
   plot_state: '情节状态分析',
   relationship_profile: '关系画像分析',
+  story_graph: '故事图谱整理',
 }
 
 /**
