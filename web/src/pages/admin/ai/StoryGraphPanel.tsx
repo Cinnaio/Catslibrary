@@ -218,59 +218,71 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
         </div>
       ) : !graph ? (
         <div className="story-graph-empty">
-          <div className="story-graph-empty__icon">
-            <Network className="size-6" />
-          </div>
-          <h3>
-            {data?.status === 'unavailable'
-              ? '先准备本书的分析档案'
-              : data?.status === 'outdated'
-                ? '分析范围或档案已变化'
-                : data
-                  ? '把人物与故事连起来'
-                  : '暂时无法读取图谱'}
-          </h3>
-          <p>
-            {data?.status === 'unavailable'
-              ? '当前起点没有可用的关系或情节档案。返回创作工作台完成分析后，再生成图谱。'
-              : data?.status === 'outdated'
-                ? '请更新图谱，新的结果将使用当前有效档案及人工校正内容。'
-                : '基于有效的关系画像与情节状态整理人物关系、冲突和伏笔。'}
-          </p>
-          {data && data.status !== 'unavailable' && (
-            <div className="story-graph-empty__pillars">
-              <span className="story-graph-empty__pillar">
-                <i className="story-graph-empty__dot story-graph-empty__dot--relation" />
-                人物羁绊网络
-              </span>
-              <span className="story-graph-empty__pillar">
-                <i className="story-graph-empty__dot story-graph-empty__dot--faction" />
-                阵营与立场划分
-              </span>
-              <span className="story-graph-empty__pillar">
-                <i className="story-graph-empty__dot story-graph-empty__dot--plot" />
-                冲突与暗线伏笔
-              </span>
+          <svg className="story-graph-empty__constellation" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <line x1="400" y1="250" x2="260" y2="150" className="story-graph-constellation-line" strokeDasharray="4 4" />
+            <line x1="400" y1="250" x2="560" y2="160" className="story-graph-constellation-line" strokeDasharray="4 4" />
+            <line x1="400" y1="250" x2="240" y2="360" className="story-graph-constellation-line" strokeDasharray="3 3" opacity="0.6" />
+            <line x1="400" y1="250" x2="560" y2="350" className="story-graph-constellation-line" strokeDasharray="3 3" opacity="0.6" />
+            <circle cx="260" cy="150" r="18" className="story-graph-constellation-node" />
+            <circle cx="560" cy="160" r="22" className="story-graph-constellation-node" />
+            <circle cx="240" cy="360" r="15" className="story-graph-constellation-node" opacity="0.7" />
+            <circle cx="560" cy="350" r="15" className="story-graph-constellation-node" opacity="0.7" />
+          </svg>
+          <div className="story-graph-empty__card">
+            <div className="story-graph-empty__icon">
+              <Network className="size-6" />
             </div>
-          )}
-          {data?.status === 'unavailable' && (
-            <Link to={writingUrl}>
-              前往小说分析
-              <ArrowUpRight className="size-3.5" />
-            </Link>
-          )}
-          {data && data.status !== 'ready' && data.status !== 'unavailable' && (
-            <Button
-              size="sm"
-              className="story-graph-empty__action"
-              disabled={busy || loading}
-              onClick={() => void generate()}
-            >
-              {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Network className="size-3.5" />}
-              {busy ? '整理图谱中…' : data.status === 'outdated' ? '立即更新图谱' : '开始构建图谱'}
-            </Button>
-          )}
-          {busy && <p role="status" className="story-graph-empty__busy">正在整理，请稍候。档案与正文会保留。</p>}
+            <h3>
+              {data?.status === 'unavailable'
+                ? '先准备本书的分析档案'
+                : data?.status === 'outdated'
+                  ? '分析范围或档案已变化'
+                  : data
+                    ? '把人物与故事连起来'
+                    : '暂时无法读取图谱'}
+            </h3>
+            <p>
+              {data?.status === 'unavailable'
+                ? '当前起点没有可用的关系或情节档案。返回创作工作台完成分析后，再生成图谱。'
+                : data?.status === 'outdated'
+                  ? '请更新图谱，新的结果将使用当前有效档案及人工校正内容。'
+                  : '基于有效的关系画像与情节状态，自动解构前 47 章中的角色羁绊、门派阵营与未解伏笔。'}
+            </p>
+            {data && data.status !== 'unavailable' && (
+              <div className="story-graph-empty__pillars">
+                <span className="story-graph-empty__pillar">
+                  <i className="story-graph-empty__dot story-graph-empty__dot--relation" />
+                  人物羁绊网络
+                </span>
+                <span className="story-graph-empty__pillar">
+                  <i className="story-graph-empty__dot story-graph-empty__dot--faction" />
+                  阵营与立场划分
+                </span>
+                <span className="story-graph-empty__pillar">
+                  <i className="story-graph-empty__dot story-graph-empty__dot--plot" />
+                  冲突与暗线伏笔
+                </span>
+              </div>
+            )}
+            {data?.status === 'unavailable' && (
+              <Link to={writingUrl}>
+                前往小说分析
+                <ArrowUpRight className="size-3.5" />
+              </Link>
+            )}
+            {data && data.status !== 'ready' && data.status !== 'unavailable' && (
+              <Button
+                size="sm"
+                className="story-graph-empty__action"
+                disabled={busy || loading}
+                onClick={() => void generate()}
+              >
+                {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Network className="size-3.5" />}
+                {busy ? '整理图谱中…' : data.status === 'outdated' ? '立即更新图谱' : '开始构建星图'}
+              </Button>
+            )}
+            {busy && <p role="status" className="story-graph-empty__busy">正在整理，请稍候。档案与正文会保留。</p>}
+          </div>
         </div>
       ) : !graph.people.length ? (
         <div className="story-graph-empty">
