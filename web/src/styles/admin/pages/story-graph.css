@@ -15,10 +15,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: var(--graph-paper);
-  border: 1px solid var(--graph-border);
-  border-radius: var(--admin-context-panel-radius, 16px);
-  padding: 20px 24px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--graph-border);
+  border-radius: 0;
+  padding: 0 0 18px;
 }
 .story-graph-heading__top {
   display: flex;
@@ -192,7 +193,9 @@
 }
 .story-graph-map {
   min-width: 0;
-  background: var(--graph-canvas);
+  background-color: var(--graph-canvas);
+  background-image: radial-gradient(color-mix(in srgb, var(--graph-accent) 15%, transparent) 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
 }
 .story-graph-map__heading {
   display: flex;
@@ -230,13 +233,16 @@
   align-items: center;
   gap: 2px;
   position: absolute;
-  z-index: 1;
-  bottom: 16px;
+  z-index: 10;
+  top: 16px;
   left: 20px;
-  background: var(--graph-paper);
+  background: color-mix(in srgb, var(--graph-paper) 92%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--graph-border);
   border-radius: var(--radius-full);
-  padding: 3px 5px;
+  padding: 3px 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 .story-graph-canvas__tools > button:last-child {
   margin-left: 6px;
@@ -272,13 +278,15 @@
 }
 .story-graph-person__body {
   fill: var(--graph-paper);
-  stroke: color-mix(in srgb, var(--graph-muted) 65%, var(--graph-paper));
-  stroke-width: 1.2;
+  stroke: var(--graph-border);
+  stroke-width: 2px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.04));
 }
 .story-graph-person__orbit {
   fill: none;
-  stroke: transparent;
-  stroke-width: 1;
+  stroke: color-mix(in srgb, var(--graph-accent) 24%, transparent);
+  stroke-width: 1.2px;
+  stroke-dasharray: 4 4;
 }
 .story-graph-person text,
 .story-graph-thread text {
@@ -290,17 +298,22 @@
 .story-graph-person.is-selected .story-graph-person__body {
   fill: var(--graph-accent);
   stroke: var(--graph-accent);
+  stroke-width: 2.5px;
+  filter: drop-shadow(0 4px 18px color-mix(in srgb, var(--graph-accent) 40%, transparent));
 }
 .story-graph-person.is-selected text {
   fill: var(--sh-primary-foreground);
 }
 .story-graph-person.is-selected .story-graph-person__orbit {
-  stroke: color-mix(in srgb, var(--graph-accent) 45%, transparent);
+  stroke: var(--graph-accent);
+  stroke-width: 1.5px;
+  stroke-dasharray: none;
 }
 .story-graph-person:hover .story-graph-person__body,
 .story-graph-person:focus-visible .story-graph-person__body {
   stroke: var(--graph-accent);
-  stroke-width: 2;
+  stroke-width: 2.5px;
+  filter: drop-shadow(0 4px 14px color-mix(in srgb, var(--graph-accent) 28%, transparent));
 }
 .story-graph-person:focus-visible .story-graph-person__orbit {
   stroke: var(--graph-accent);
@@ -545,17 +558,55 @@
   border-color: color-mix(in srgb, var(--graph-accent) 40%, var(--graph-border));
 }
 .story-graph-empty {
-  min-height: 380px;
+  min-height: 480px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   justify-content: center;
-  gap: 12px;
-  padding: 48px 32px;
-  background: var(--admin-panel, var(--sh-background));
+  padding: 48px 24px;
+  background-color: var(--graph-canvas);
+  background-image: radial-gradient(color-mix(in srgb, var(--graph-accent) 15%, transparent) 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
   border: 1px solid var(--admin-border, var(--border));
   border-radius: var(--admin-context-panel-radius, 16px);
+  position: relative;
+  overflow: hidden;
+}
+.story-graph-empty__constellation {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.45;
+}
+.story-graph-constellation-line {
+  stroke: var(--graph-accent);
+  stroke-width: 1.5;
+}
+.story-graph-constellation-node {
+  fill: var(--graph-paper);
+  stroke: color-mix(in srgb, var(--graph-accent) 60%, transparent);
+  stroke-width: 2;
+}
+.story-graph-empty__card {
+  position: relative;
+  z-index: 2;
+  max-width: 460px;
+  width: 100%;
+  background: color-mix(in srgb, var(--graph-paper) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--graph-border);
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.02);
+  padding: 36px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
 }
 .story-graph-empty__icon {
   width: 52px;
