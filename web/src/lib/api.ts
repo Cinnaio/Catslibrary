@@ -1,6 +1,7 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
 import type { StoryGraphResponse } from '@shared/story-graph'
 import type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
+import { normalizePlotTimeoutSeconds, PLOT_TIMEOUT_RESPONSE_GRACE_MS } from '@shared/ai-plot-timeout'
 import type { MemoryRebuildPlan, MemoryRebuildRequest, MemoryKind } from '@shared/story-memory-rebuild'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { requestReauthentication } from './reauthentication'
@@ -2572,6 +2573,7 @@ export const aiApi = {
      */
     plotSuggestions(data: {
       novelId: string
+      timeoutSeconds?: number
       afterChapterId?: string
       focus?: string
       chapterCount?: number
@@ -2583,7 +2585,8 @@ export const aiApi = {
       outline?: string
       usage: { model: string; promptTokens: number; completionTokens: number }
     }> {
-      return request('POST', '/ai/writing/plot-suggestions', data, true)
+      const timeoutSeconds = normalizePlotTimeoutSeconds(data.timeoutSeconds)
+      return request('POST', '/ai/writing/plot-suggestions', { ...data, timeoutSeconds }, true, {}, timeoutSeconds * 1000 + PLOT_TIMEOUT_RESPONSE_GRACE_MS)
     },
     updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string; contentRevision: string }> {
       return request('PUT', `/ai/writing/drafts/${encodeURIComponent(id)}`, { result }, true)

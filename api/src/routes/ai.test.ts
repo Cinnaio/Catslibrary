@@ -943,6 +943,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
   })
 
   it('大纲生成把作者选定的情节方向作为主线下发', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
     const novel = await req('/api/novels', json('POST', { title: '大纲方向书', author: '某作者' }, adminToken))
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
     await req('/api/chapters', json('POST', { novelId, title: '已有章节', content: `${LONG_CONTENT}已有章节哨兵。` }, adminToken))
@@ -967,8 +968,9 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
     try {
       const direction = '夭夜在寝宫与他独处，借双修稳固修为。'
-      const res = await req('/api/ai/writing/plot-suggestions', json('POST', { novelId, chapterCount: 2, plotDirection: direction }, adminToken))
+      const res = await req('/api/ai/writing/plot-suggestions', json('POST', { novelId, chapterCount: 2, plotDirection: direction, timeoutSeconds: 300 }, adminToken))
       expect(res.status).toBe(200)
+      expect(timeoutSpy).toHaveBeenCalledWith(300_000)
       const data = await jsonOf<{ outline?: string }>(res)
       expect(data.outline).toContain('第1章')
       // 选定方向必须落到大纲提示词里，否则模型会按最近章节另起一条线
@@ -976,6 +978,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(combined).toContain(direction)
       expect(combined).toContain('大纲必须围绕它展开')
     } finally {
+      timeoutSpy.mockRestore()
       if (previousFetch) fetchMock.mockImplementation(previousFetch)
     }
   })
