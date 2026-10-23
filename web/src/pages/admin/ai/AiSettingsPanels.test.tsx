@@ -5,7 +5,7 @@ import AiConfigPanel from './AiConfigPanel'
 import AiParamsPanel from './AiParamsPanel'
 
 const api = vi.hoisted(() => ({ saveSettings: vi.fn(), saveProviderConfig: vi.fn(), toast: vi.fn() }))
-vi.mock('@/lib/api', () => ({ aiApi: { saveSettings: api.saveSettings, saveProviderConfig: api.saveProviderConfig, usage: vi.fn().mockResolvedValue(null) } }))
+vi.mock('@/lib/api', () => ({ aiApi: { saveSettings: api.saveSettings, saveProviderConfig: api.saveProviderConfig, providerPresets: vi.fn().mockResolvedValue({ presets: [] }), usage: vi.fn().mockResolvedValue(null) } }))
 vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: api.toast }) }))
 
 const settings: AiSettings = {

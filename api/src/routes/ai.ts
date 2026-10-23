@@ -18,6 +18,8 @@ import {
   normalizeCoverPromptMode,
 } from '../services/ai/cover'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
+import { listProviderPresets, saveProviderPreset, deleteProviderPreset, activateProviderPreset } from '../services/ai/provider-presets'
+import { withProviderSnapshot } from '../services/ai/provider-snapshot'
 import { readRuntimeConfig, writeRuntimeConfig, syncRuntimeConfigToEnv, type RuntimeConfigKey } from '../runtime-config'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
 import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
@@ -94,6 +96,47 @@ import { evaluateWritingPublishPolicy } from '../services/ai/writing-publish-pol
 import { restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 export const aiRoutes = new Hono<AuthEnv>()
+
+aiRoutes.use('*', (c, next) => {
+  const management = /\/ai\/(?:provider(?:-presets)?|settings|test|status|usage)(?:\/|$)/.test(c.req.path)
+  return c.req.method === 'POST' && !management ? withProviderSnapshot(next) : next()
+})
+
+function presetErrorResponse(c: Context, err: unknown) {
+  if (err instanceof SyntaxError) return c.json({ error: '配置格式无效', code: 'invalid' }, 400)
+  if (err instanceof AiError && (err.status === 400 || err.status === 404 || err.status === 409)) {
+    return c.json({ error: err.message, code: err.code }, err.status)
+  }
+  return aiErrorResponse(c, err)
+}
+
+aiRoutes.get('/provider-presets', requireAdmin(), (c) => {
+  try {
+    return c.json({ presets: listProviderPresets() }, 200, { 'Cache-Control': 'no-store' })
+  } catch (err) { return presetErrorResponse(c, err) }
+})
+aiRoutes.post('/provider-presets', requireAdmin(), async (c) => {
+  try {
+    const body = await c.req.json()
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AiError('invalid', '配置格式无效', 400)
+    return c.json({ presets: saveProviderPreset(body) })
+  } catch (err) { return presetErrorResponse(c, err) }
+})
+aiRoutes.put('/provider-presets/:id', requireAdmin(), async (c) => {
+  try {
+    const body = await c.req.json()
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AiError('invalid', '配置格式无效', 400)
+    return c.json({ presets: saveProviderPreset(body, c.req.param('id')) })
+  } catch (err) { return presetErrorResponse(c, err) }
+})
+aiRoutes.delete('/provider-presets/:id', requireAdmin(), (c) => {
+  try { return c.json({ presets: deleteProviderPreset(c.req.param('id')) }) }
+  catch (err) { return presetErrorResponse(c, err) }
+})
+aiRoutes.post('/provider-presets/:id/activate', requireAdmin(), (c) => {
+  try { return c.json({ presets: activateProviderPreset(c.req.param('id')) }) }
+  catch (err) { return presetErrorResponse(c, err) }
+})
 
 aiRoutes.get('/writing/story-graph/:novelId', requireAdmin(), async (c) => {
   try {

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { formatCost, type Provider } from './shared'
 import { cn } from '@/lib/utils'
+import AiProviderPresets from './AiProviderPresets'
 
 const CONFIG_TABS = [
   { id: 'providers', label: '模型供应商' },
@@ -273,6 +274,7 @@ export default function AiConfigPanel(props: {
                   {provider?.configured ? '已配置' : '未配置'}
                 </AdminStatusBadge>
               </div>
+              <AiProviderPresets scope="text" config={props.providerConfig} draft={providerDraft} disabled={saving || props.loading || testing} dirty={providerDirty} onBusy={setSaving} onApplied={() => { setTestResult(''); props.onReload() }} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <AdminFormField label="Base URL" htmlFor="ai-base-url" hint="OpenAI 兼容端点。">
                   <Input
@@ -336,6 +338,7 @@ export default function AiConfigPanel(props: {
                   {imageConfigured ? '已配置' : '未配置'}
                 </AdminStatusBadge>
               </div>
+              <AiProviderPresets scope="image" config={imageProviderConfig} draft={imageProviderDraft} disabled={saving || props.loading || testing} dirty={imageProviderDirty} onBusy={setSaving} onApplied={props.onReload} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <AdminFormField label="图像 Base URL" htmlFor="ai-image-base-url" hint="OpenAI 兼容图像接口。">
                   <Input

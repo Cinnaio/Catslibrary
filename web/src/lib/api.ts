@@ -2211,7 +2211,34 @@ export interface AiProviderConfig {
   hasApiKey: boolean
 }
 
+export interface AiProviderPreset extends AiProviderConfig {
+  id: string
+  name: string
+  scope: 'text' | 'image'
+  active: boolean
+}
+export interface AiProviderPresetDraft {
+  name: string
+  scope: 'text' | 'image'
+  baseUrl: string
+  model: string
+  apiKey?: string
+  copyCurrentKey?: boolean
+}
+
 export const aiApi = {
+  providerPresets(): Promise<{ presets: AiProviderPreset[] }> {
+    return request('GET', '/ai/provider-presets', null, true)
+  },
+  saveProviderPreset(draft: AiProviderPresetDraft, id?: string): Promise<{ presets: AiProviderPreset[] }> {
+    return request(id ? 'PUT' : 'POST', `/ai/provider-presets${id ? `/${encodeURIComponent(id)}` : ''}`, draft, true)
+  },
+  deleteProviderPreset(id: string): Promise<{ presets: AiProviderPreset[] }> {
+    return request('DELETE', `/ai/provider-presets/${encodeURIComponent(id)}`, null, true)
+  },
+  activateProviderPreset(id: string): Promise<{ presets: AiProviderPreset[] }> {
+    return request('POST', `/ai/provider-presets/${encodeURIComponent(id)}/activate`, {}, true)
+  },
   status(): Promise<AiStatus> {
     return request('GET', '/ai/status', null, true)
   },

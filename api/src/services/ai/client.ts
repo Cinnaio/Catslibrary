@@ -3,7 +3,8 @@
  * 供应商由 .env / 安装向导配置（AI_TEXT_BASE_URL / AI_TEXT_API_KEY / AI_TEXT_MODEL），
  * 默认 deepseek-v4-flash；未配置时一律抛 AiError('disabled')，调用方据此隐藏入口。
  */
-import { loadConfig, type AiProviderConfig } from '../../config'
+import type { AiProviderConfig } from '../../config'
+import { providerForScope } from './provider-snapshot'
 import type { AiReasoningMode } from '@shared/ai-text-progress'
 import { outboundFetch } from '../outbound-fetch'
 import { upstreamCost } from './upstream-cost'
@@ -82,7 +83,7 @@ const MAX_ATTEMPTS = 3
 const RETRIABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504])
 
 export function textProvider(): AiProviderConfig {
-  return loadConfig().aiText
+  return providerForScope('text')
 }
 
 /** 文本能力是否可用：baseUrl + apiKey 都配了才算。 */
