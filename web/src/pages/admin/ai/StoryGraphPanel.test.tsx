@@ -37,6 +37,16 @@ function mount() {
 }
 
 describe('story graph workflow', () => {
+  it('explains an opaque gateway failure and does not automatically regenerate', async () => {
+    api.getStoryGraph.mockResolvedValue({ ...fixture, status: 'missing', graph: null })
+    api.generateStoryGraph.mockRejectedValue(new Error('HTTP 502'))
+    mount()
+    await screen.findByText('把人物与故事连起来')
+    fireEvent.click(screen.getByRole('button', { name: '生成故事图谱' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('未收到具体错误原因')
+    expect(screen.getByRole('alert')).toHaveTextContent('请先刷新状态确认结果')
+    expect(api.generateStoryGraph).toHaveBeenCalledTimes(1)
+  })
   it('reads without generating and opens directional relations with archive evidence', async () => {
     mount()
     await screen.findByText('测试作品')

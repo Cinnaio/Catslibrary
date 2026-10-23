@@ -24,6 +24,8 @@ const PARAM_GROUPS = [
       'styleProfileMaxTokens',
       'plotStateMaxTokens',
       'relationshipProfileMaxTokens',
+      'storyGraphMaxTokens',
+      'storyGraphReasoningMode',
       'storyMemoryTimeoutSeconds',
       'writingReasoningMode',
       'storyMemoryReasoningMode',
@@ -312,7 +314,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <h3>AI 创作参数</h3>
               <p>控制大纲、章节与续写的生成长度和变化程度。</p>
             </div>
-            <span className="ai-parameter-count">13 项参数</span>
+            <span className="ai-parameter-count">15 项参数</span>
           </div>
           <CardContent className="grid gap-4">
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
@@ -363,6 +365,24 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             </div>
             <h4 className="ai-parameter-subtitle">分析与辅助生成</h4>
             <div className="ai-form-grid ai-parameter-analysis grid gap-3 sm:grid-cols-2">
+              <AdminFormField label="故事图谱 Token" htmlFor="story-graph-tokens" hint="图谱的独立输出预算，默认 16,000；包含思考与最终结果。截断后可提高，实际用量取决于模型。">
+                <Input
+                  id="story-graph-tokens"
+                  required
+                  type="number"
+                  min={1000}
+                  max={1000000}
+                  value={Number.isFinite(localSettings.storyGraphMaxTokens ?? 16000) ? localSettings.storyGraphMaxTokens ?? 16000 : ''}
+                  disabled={props.loading || saving}
+                  onChange={(e) => setLocalSettings({ ...localSettings, storyGraphMaxTokens: e.target.value === '' ? Number.NaN : Number(e.target.value) })}
+                />
+              </AdminFormField>
+              <AdminFormField label="故事图谱思考模式" htmlFor="storyGraphReasoningMode" hint="默认关闭 DeepSeek 思考，让预算用于完整图谱；其他模型在此选项下跟随供应商。低、高强度仅支持 DeepSeek 兼容模型。">
+                <Select value={localSettings.storyGraphReasoningMode ?? 'disabled'} onValueChange={(value) => setLocalSettings({ ...localSettings, storyGraphReasoningMode: value as 'inherit' | 'disabled' | 'low' | 'high' })} disabled={props.loading || saving}>
+                  <SelectTrigger id="storyGraphReasoningMode"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="inherit">跟随供应商</SelectItem><SelectItem value="disabled">关闭思考</SelectItem><SelectItem value="low">低强度思考</SelectItem><SelectItem value="high">高强度思考</SelectItem></SelectContent>
+                </Select>
+              </AdminFormField>
               <AdminFormField label="风格画像 Token" htmlFor="style-tokens" hint="风格画像提取的最大输出，推理模型需留足思考余量，推荐 1500">
                 <Input
                   id="style-tokens"

@@ -76,7 +76,10 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
         setSelected('')
       }
     } catch (err) {
-      if (mounted.current) setError((err as Error).message || '图谱生成失败，请重试')
+      const message = (err as Error).message || '图谱生成失败，请重试'
+      if (mounted.current) setError(/^HTTP (502|504)$/.test(message)
+        ? `故事图谱生成请求失败（${message}），未收到具体错误原因。请先刷新状态确认结果，再检查服务日志；原档案与正文已保留。`
+        : message)
     } finally {
       if (mounted.current) setBusy(false)
     }

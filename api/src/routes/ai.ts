@@ -2643,7 +2643,7 @@ aiRoutes.post('/generations/restore', requireAdmin(), async (c) => {
 /** AiError → HTTP：客户端只拿到 code 与可展示文案，上游细节留在服务端日志。 */
 function aiErrorResponse(c: Context, err: unknown) {
   if (err instanceof AiError) {
-    const status = err.code === 'disabled' ? 503 : err.code === 'invalid' ? 422 : err.code === 'conflict' ? 409 : err.code === 'timeout' ? 504 : 502
+    const status = err.code === 'disabled' ? 503 : err.code === 'invalid' || err.code === 'truncated' ? 422 : err.code === 'conflict' ? 409 : err.code === 'timeout' ? 504 : 502
     return c.json({ error: err.message, code: err.code }, status)
   }
   console.error('[ai]', err)
