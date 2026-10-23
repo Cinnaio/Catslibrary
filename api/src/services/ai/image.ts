@@ -4,7 +4,8 @@
  * 默认 mimo-v2.5；未配置时一律抛 AiError('disabled')。
  * 与 client.ts 的 chat() 对称：同款 AiError 语义、退避重试、上游错误中文提示。
  */
-import { loadConfig, type AiProviderConfig } from '../../config'
+import type { AiProviderConfig } from '../../config'
+import { providerForScope } from './provider-snapshot'
 import { outboundFetch } from '../outbound-fetch'
 import { AiError } from './client'
 import { upstreamCost } from './upstream-cost'
@@ -38,7 +39,7 @@ const DEFAULT_SIZE = '1024x1024'
 const RETRIABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504])
 
 export function imageProvider(): AiProviderConfig {
-  return loadConfig().aiImage
+  return providerForScope('image')
 }
 
 /** 图像能力是否可用：baseUrl + apiKey 都配了才算。 */

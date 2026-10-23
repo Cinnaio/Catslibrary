@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { app } from '../app'
@@ -215,6 +215,40 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
   it('provider：非管理员 403', async () => {
     expect((await req('/api/ai/provider', json('PUT', { baseUrl: 'x' }, readerToken))).status).toBe(403)
+  })
+
+  it('provider presets: admin-only CRUD never returns keys and blocked switching is reported', async () => {
+    mkdirSync(path.join(process.cwd(), '..', '.tmp'), { recursive: true })
+    const tmp = mkdtempSync(path.join(process.cwd(), '..', '.tmp', 'zz-presets-route-'))
+    const previous = process.env.RUNTIME_CONFIG_DIR
+    process.env.RUNTIME_CONFIG_DIR = tmp
+    try {
+      for (const [method, endpoint] of [['GET', ''], ['POST', ''], ['PUT', '/missing'], ['DELETE', '/missing'], ['POST', '/missing/activate']] as const) {
+        expect((await req(`/api/ai/provider-presets${endpoint}`, json(method, method === 'GET' ? undefined : {}, readerToken))).status).toBe(403)
+      }
+      const body = { scope: 'text', name: 'route-preset', baseUrl: 'https://preset.test/v1', model: 'preset-model', apiKey: 'preset-route-secret' }
+      const created = await req('/api/ai/provider-presets', json('POST', body, adminToken))
+      expect(created.status).toBe(200)
+      const raw = await created.text()
+      expect(raw).not.toContain('preset-route-secret')
+      const saved = JSON.parse(raw).presets.find((p: { name: string }) => p.name === body.name)
+      expect(saved.hasApiKey).toBe(true)
+      const edited = await req(`/api/ai/provider-presets/${saved.id}`, json('PUT', { ...body, apiKey: undefined, model: 'edited-model' }, adminToken))
+      expect(edited.status).toBe(200)
+      const listed = await req('/api/ai/provider-presets', json('GET', undefined, adminToken))
+      expect(listed.headers.get('Cache-Control')).toBe('no-store')
+      expect(await listed.text()).not.toContain('preset-route-secret')
+      const blocked = await req(`/api/ai/provider-presets/${saved.id}/activate`, json('POST', {}, adminToken))
+      expect(blocked.status).toBe(409)
+      expect((await jsonOf<{ error: string }>(blocked)).error).toContain('环境变量')
+      expect((await req('/api/ai/provider-presets', json('POST', [], adminToken))).status).toBe(400)
+      expect((await req(`/api/ai/provider-presets/${saved.id}`, json('DELETE', {}, adminToken))).status).toBe(200)
+      expect((await req(`/api/ai/provider-presets/${saved.id}/activate`, json('POST', {}, adminToken))).status).toBe(404)
+    } finally {
+      if (previous === undefined) delete process.env.RUNTIME_CONFIG_DIR
+      else process.env.RUNTIME_CONFIG_DIR = previous
+      rmSync(tmp, { recursive: true, force: true })
+    }
   })
 
   it('provider：管理员可改 baseUrl/model 并同步 env，密钥空字段不触碰', async () => {

@@ -11,11 +11,11 @@ import { fileURLToPath } from 'node:url'
 const PROJECT_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 // 惰性解析：允许测试在 import 后经 RUNTIME_CONFIG_DIR 重定向到临时目录
-function dataDir(): string {
+export function runtimeConfigDataDir(): string {
   return process.env.RUNTIME_CONFIG_DIR || path.join(PROJECT_ROOT, 'data')
 }
 function configFile(): string {
-  return path.join(dataDir(), 'runtime-config.json')
+  return path.join(runtimeConfigDataDir(), 'runtime-config.json')
 }
 
 /** 允许经向导写入的键；其余一律丢弃。 */
@@ -101,7 +101,7 @@ export function writeRuntimeConfig(patch: Partial<Record<RuntimeConfigKey, strin
     if (v) merged[key] = v
     else delete merged[key]
   }
-  mkdirSync(dataDir(), { recursive: true })
+  mkdirSync(runtimeConfigDataDir(), { recursive: true })
   const file = configFile()
   writeFileSync(file, JSON.stringify(merged, null, 2) + '\n', 'utf8')
   try {
