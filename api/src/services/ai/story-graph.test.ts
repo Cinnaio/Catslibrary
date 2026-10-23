@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestDb, type TestDb } from '../../test/db'
-import { chat, textProvider } from './client'
+import { chat, textProvider, type AiChatOptions } from './client'
 import { recordUsage } from './usage'
 import { extractRelationshipProfile } from './relationship-profile'
 import { getEffectiveProfileForAnchor, saveProfileOverride } from './profile-overrides'
@@ -27,6 +27,15 @@ const graph = {
   threads: [],
 }
 const reply = (text: string) => ({ text, model: 'test', promptTokens: 20, completionTokens: 30, cost: 0.1, finishReason: 'stop' })
+function graphReply(request: AiChatOptions) {
+  const payload = JSON.parse(request.messages[1]!.content)
+  const sourceId = payload.evidenceSources[0].id
+  return reply(JSON.stringify({
+    people: graph.people.map((p) => ({ ...p, evidence: undefined, evidenceIds: [sourceId] })),
+    relationships: graph.relationships.map((r) => ({ ...r, evidence: undefined, evidenceIds: [sourceId] })),
+    threads: [],
+  }))
+}
 const opts = { novelId: 'book', userId: 'admin' }
 let t: TestDb
 beforeAll(async () => {
@@ -46,10 +55,53 @@ beforeEach(async () => {
 })
 async function prepare() {
   await extractRelationshipProfile(t.db, opts)
-  vi.mocked(chat).mockResolvedValue(reply(JSON.stringify(graph)))
+  vi.mocked(chat).mockImplementation(async (request) => graphReply(request))
 }
 
 describe('story graph archive boundary and cache', () => {
+  it('resolves model evidence IDs to exact server excerpts before saving and reuses the saved graph', async () => {
+    await prepare()
+    vi.mocked(chat).mockImplementationOnce(async (request) => {
+      const payload = JSON.parse(request.messages[1]!.content)
+      expect(payload.evidenceSources).toBeDefined()
+      const source = payload.evidenceSources.find((entry: { quote: string }) => entry.quote.includes('林舟'))
+      return reply(JSON.stringify({
+        people: graph.people.map((p) => ({ ...p, evidence: undefined, evidenceIds: [source.id] })),
+        relationships: graph.relationships.map((r) => ({ ...r, evidence: undefined, evidenceIds: [source.id] })),
+        threads: [],
+      }))
+    })
+    const saved = await generateStoryGraph(t.db, opts)
+    expect(saved.graph?.people[0]?.evidence).toEqual(evidence)
+    expect(saved.graph?.relationships[0]?.evidence).toEqual(evidence)
+    expect((await getStoryGraph(t.db, 'book')).status).toBe('ready')
+    expect(JSON.stringify(saved.graph)).not.toContain('evidenceIds')
+  })
+  it('reports the exact node and reference for an unknown evidence ID after recording usage', async () => {
+    await prepare()
+    vi.mocked(chat).mockResolvedValueOnce(reply(JSON.stringify({
+      ...graph,
+      people: [{ ...graph.people[0], evidence: undefined, evidenceIds: ['invented-source'] }],
+    })))
+    await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ code: 'invalid', status: 422, message: expect.stringContaining('人物「林舟」（people[0].evidenceIds[0]）') })
+    expect(recordUsage).toHaveBeenCalledTimes(2)
+    expect((await getStoryGraph(t.db, 'book')).status).toBe('missing')
+  })
+  it('retains the previous saved graph when new evidence references fail after an archive correction', async () => {
+    await prepare()
+    await generateStoryGraph(t.db, opts)
+    const saved = (await t.db.query('SELECT graph_json FROM novel_story_graphs WHERE novel_id=$1', ['book'])).rows
+    const current = await getEffectiveProfileForAnchor(t.db, { novelId: 'book', kind: 'relationship' })
+    await saveProfileOverride(t.db, {
+      ...opts, kind: 'relationship', content: archive + '\n新的人工校正。', updatedBy: 'admin', expectedRevision: 0, baseProfileRevision: current.baseProfileRevision,
+    })
+    vi.mocked(chat).mockResolvedValueOnce(reply(JSON.stringify({
+      ...graph, people: [{ ...graph.people[0], evidence: undefined, evidenceIds: ['stale-source'] }],
+    })))
+    await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ code: 'invalid', status: 422 })
+    expect((await t.db.query('SELECT graph_json FROM novel_story_graphs WHERE novel_id=$1', ['book'])).rows).toEqual(saved)
+    expect((await getStoryGraph(t.db, 'book')).status).toBe('outdated')
+  })
   it.each([
     ['deepseek-flash', 'disabled', 'disabled'],
     ['deepseek-v4.1-flash-tiancai', 'high', 'high'],
@@ -120,19 +172,19 @@ describe('story graph archive boundary and cache', () => {
   })
   it('refuses to save when source changes during generation', async () => {
     await prepare()
-    vi.mocked(chat).mockImplementationOnce(async () => {
+    vi.mocked(chat).mockImplementationOnce(async (request) => {
       await t.db.query("UPDATE chapters SET content = '正文已经被编辑' WHERE id = 'c1'")
-      return reply(JSON.stringify(graph))
+      return graphReply(request)
     })
     await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ code: 'conflict' })
     expect((await t.db.query('SELECT * FROM novel_story_graphs')).rows).toHaveLength(0)
   })
   it('rejects a graph generated against an older archive revision even when text is identical', async () => {
     await prepare()
-    vi.mocked(chat).mockImplementationOnce(async () => {
+    vi.mocked(chat).mockImplementationOnce(async (request) => {
       const row = (await t.db.query<{ source_json: string }>("SELECT source_json FROM novel_relationship_profiles WHERE novel_id='book'")).rows[0]!
       await t.db.query("UPDATE novel_relationship_profiles SET source_json=$1 WHERE novel_id='book'", [JSON.stringify({ ...JSON.parse(row.source_json), rebuildRevision: 'new-rebuild' })])
-      return reply(JSON.stringify(graph))
+      return graphReply(request)
     })
     await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ code: 'conflict' })
     expect((await t.db.query('SELECT * FROM novel_story_graphs')).rows).toHaveLength(0)
