@@ -1,5 +1,6 @@
 import WritingPreparation from './WritingPreparation'
 import { emptyWritingBrief } from './writing-brief'
+import { normalizePlotTimeoutSeconds, PLOT_TIMEOUT_MIN_SECONDS, PLOT_TIMEOUT_MAX_SECONDS } from '@shared/ai-plot-timeout'
 import type { AiWritingBrief } from '@/lib/api'
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
 import type { Novel } from '@shared/types'
@@ -386,6 +387,16 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   /** 情节方向候选：想不出写什么时先取候选，选中一条填入创作要求。 */
   const [suggestions, setSuggestions] = useState<Array<{ direction: string; effect: string }>>([])
   const [suggestBusy, setSuggestBusy] = useState(false)
+  const [savedPlotTimeout] = useState(() => {
+    try { return normalizePlotTimeoutSeconds(JSON.parse(localStorage.getItem('zz-ai-plot-timeout-seconds') || 'null')) }
+    catch { return normalizePlotTimeoutSeconds(undefined) }
+  })
+  const plotTimeoutInput = useEditableNumber(savedPlotTimeout, PLOT_TIMEOUT_MIN_SECONDS, PLOT_TIMEOUT_MAX_SECONDS)
+  function commitPlotTimeout() {
+    const seconds = plotTimeoutInput.commit()
+    try { localStorage.setItem('zz-ai-plot-timeout-seconds', String(seconds)) } catch { /* storage unavailable */ }
+    return seconds
+  }
   /**
    * 最近一次由候选填入的内容，以及被它替换掉的原文。
    * 点一条候选会整段覆盖创作要求，此前没有回退手段——用户手写的草稿点错一下就没了。
@@ -805,6 +816,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     try {
       const res = await aiApi.writing.plotSuggestions({
         novelId,
+        timeoutSeconds: commitPlotTimeout(),
         ...(afterChapterId ? { afterChapterId } : {}),
         ...(focus.trim() ? { focus: focus.trim() } : {}),
         contentPreferences: buildContentPreferences(),
@@ -834,6 +846,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     try {
       const res = await aiApi.writing.plotSuggestions({
         novelId,
+        timeoutSeconds: commitPlotTimeout(),
         chapterCount,
         ...(afterChapterId ? { afterChapterId } : {}),
         ...(focus.trim() ? { focus: focus.trim() } : {}),
@@ -1382,6 +1395,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     placeholder="可留空，例如：感情升温的日常互动"
                   />
                 </div>
+                <AdminFormField label="情节推荐与大纲超时（秒）" htmlFor="ai-plot-timeout" hint="默认 180 秒，可设为 30–600 秒，同时用于推荐情节和按情节生成大纲；在当前浏览器记住。模型超时后不自动重试。">
+                  <Input id="ai-plot-timeout" type="number" min={PLOT_TIMEOUT_MIN_SECONDS} max={PLOT_TIMEOUT_MAX_SECONDS}
+                    value={plotTimeoutInput.text} onChange={(event) => plotTimeoutInput.onChangeText(event.target.value)}
+                    onBlur={commitPlotTimeout} disabled={suggestBusy || outlineBusy} />
+                </AdminFormField>
               </div>
               <div className="ai-writing-brief-layout__aside">
                 {suggestions.length > 0 ? (

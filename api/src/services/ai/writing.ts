@@ -1,4 +1,5 @@
 import { removeAdPatterns } from '@shared/ad-cleaner'
+import { normalizePlotTimeoutSeconds } from '@shared/ai-plot-timeout'
 import type { Db } from '../../db/pool'
 import { all, first, withTx } from '../../db/query'
 import { newId } from '../auth'
@@ -457,6 +458,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
    * 大纲模式必须围绕它展开分章，否则会绕开用户的选择按最近章节自行规划。
    */
   plotDirection?: string
+  timeoutSeconds?: number
   writingBrief?: WritingBriefV1
   /**
    * 传了就产出分章大纲而非一行方向：按指定章数给出「第N章」开头的多段安排，
@@ -570,7 +572,8 @@ export async function generatePlotSuggestions(db: Db, opts: {
     // 复用 plotState 预算（默认 3000）都够用。
     maxTokens: settings.plotStateMaxTokens,
     reasoningMode: settings.writingReasoningMode,
-    timeoutMs: 180_000,
+    timeoutMs: normalizePlotTimeoutSeconds(opts.timeoutSeconds) * 1000,
+    retryOnTimeout: false,
   })
   const usage = { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens }
   const commonUsage = {

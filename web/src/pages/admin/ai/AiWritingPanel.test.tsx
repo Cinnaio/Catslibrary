@@ -244,16 +244,20 @@ describe('AiWritingPanel', () => {
     expect(details.open).toBe(false)
     expect(details.querySelector('summary')?.textContent).toContain('已填写')
     expect((screen.getByLabelText('本次禁止发生的事件') as HTMLTextAreaElement).value).toBe('不得揭露真实身份')
+    fireEvent.change(screen.getByLabelText('情节推荐与大纲超时（秒）'), { target: { value: '300' } })
     fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalledWith(expect.objectContaining({
       writingBrief: expect.objectContaining({ objective: '建立初步信任', forbiddenEvents: '不得揭露真实身份' }),
+      timeoutSeconds: 300,
     })))
     api.plotSuggestions.mockClear()
     fireEvent.click(screen.getByRole('button', { name: '按情节推荐生成大纲（单章）' }))
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalledWith(expect.objectContaining({
       chapterCount: 1,
+      timeoutSeconds: 300,
       writingBrief: expect.objectContaining({ objective: '建立初步信任', forbiddenEvents: '不得揭露真实身份' }),
     })))
+    expect(localStorage.getItem('zz-ai-plot-timeout-seconds')).toBe('300')
   })
 
   it('重新打开页面显示可恢复进度，并沿用原目标而不是新增章节', async () => {
