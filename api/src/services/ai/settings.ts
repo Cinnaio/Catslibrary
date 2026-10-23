@@ -48,6 +48,10 @@ export interface AiSettings {
   plotStateMaxTokens: number
   /** 关系画像提取的最大输出 token（角色关系动态/心理边界，稳定底色） */
   relationshipProfileMaxTokens: number
+  /** 故事图谱的独立输出预算，包含模型思考与最终 JSON。 */
+  storyGraphMaxTokens: number
+  /** 默认关闭 DeepSeek 思考；不支持该参数的模型跟随供应商。 */
+  storyGraphReasoningMode: AiReasoningMode
   /** 情节/关系档案单次模型调用的等待上限，单位秒。 */
   storyMemoryTimeoutSeconds: number
   writingReasoningMode: AiReasoningMode
@@ -149,6 +153,8 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   styleProfileMaxTokens: 1500,
   plotStateMaxTokens: 3000,
   relationshipProfileMaxTokens: 1200,
+  storyGraphMaxTokens: 16000,
+  storyGraphReasoningMode: 'disabled',
   storyMemoryTimeoutSeconds: 300,
   writingReasoningMode: 'inherit',
   storyMemoryReasoningMode: 'inherit',
@@ -197,6 +203,7 @@ const LIMITS = {
   styleProfileMaxTokens: { min: 200, max: 1000000 },
   plotStateMaxTokens: { min: 300, max: 1000000 },
   relationshipProfileMaxTokens: { min: 200, max: 1000000 },
+  storyGraphMaxTokens: { min: 1000, max: 1000000 },
   storyMemoryTimeoutSeconds: { min: 30, max: 600 },
   titleMaxTokens: { min: 50, max: 2000 },
   reviewMaxTokens: { min: 300, max: 1000000 },
@@ -288,6 +295,8 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     styleProfileMaxTokens: clampInt(obj.styleProfileMaxTokens, DEFAULT_AI_SETTINGS.styleProfileMaxTokens, LIMITS.styleProfileMaxTokens),
     plotStateMaxTokens: clampInt(obj.plotStateMaxTokens, DEFAULT_AI_SETTINGS.plotStateMaxTokens, LIMITS.plotStateMaxTokens),
     relationshipProfileMaxTokens: clampInt(obj.relationshipProfileMaxTokens, DEFAULT_AI_SETTINGS.relationshipProfileMaxTokens, LIMITS.relationshipProfileMaxTokens),
+    storyGraphMaxTokens: clampInt(obj.storyGraphMaxTokens, DEFAULT_AI_SETTINGS.storyGraphMaxTokens, LIMITS.storyGraphMaxTokens),
+    storyGraphReasoningMode: clampEnum(obj.storyGraphReasoningMode, DEFAULT_AI_SETTINGS.storyGraphReasoningMode, ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,
     storyMemoryTimeoutSeconds: clampInt(obj.storyMemoryTimeoutSeconds, DEFAULT_AI_SETTINGS.storyMemoryTimeoutSeconds, LIMITS.storyMemoryTimeoutSeconds),
     writingReasoningMode: clampEnum(obj.writingReasoningMode, 'inherit', ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,
     storyMemoryReasoningMode: clampEnum(obj.storyMemoryReasoningMode, 'inherit', ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,

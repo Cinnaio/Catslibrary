@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
+import * as storyGraph from '../services/ai/story-graph'
+import { AiError } from '../services/ai/client'
 
 let t: TestDb
 let adminToken = '',
@@ -30,6 +32,19 @@ afterAll(async () => {
 })
 
 describe('story graph administrator boundary', () => {
+  it.each([
+    ['truncated', 422, '图谱输出被截断，未保存'],
+    ['upstream', 502, 'AI 服务连接失败'],
+  ] as const)('returns an actionable %s error with the correct HTTP status', async (code, status, message) => {
+    const generate = vi.spyOn(storyGraph, 'generateStoryGraph').mockRejectedValueOnce(new AiError(code, message, status))
+    try {
+      const response = await app.request('/api/ai/writing/story-graph/private-book', json('POST', adminToken))
+      expect(response.status).toBe(status)
+      expect(await response.json()).toEqual({ error: message, code })
+    } finally {
+      generate.mockRestore()
+    }
+  })
   it.each(['GET', 'POST'])('%s refuses anonymous and reader access before revealing private novel data', async (method) => {
     expect((await app.request('/api/ai/writing/story-graph/private-book', json(method))).status).toBe(401)
     expect((await app.request('/api/ai/writing/story-graph/private-book', json(method, readerToken))).status).toBe(403)

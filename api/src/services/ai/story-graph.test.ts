@@ -1,18 +1,19 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestDb, type TestDb } from '../../test/db'
-import { chat } from './client'
+import { chat, textProvider } from './client'
 import { recordUsage } from './usage'
 import { extractRelationshipProfile } from './relationship-profile'
 import { getEffectiveProfileForAnchor, saveProfileOverride } from './profile-overrides'
 import { generateStoryGraph, getStoryGraph, validateStoryGraph } from './story-graph'
+import { DEFAULT_AI_SETTINGS, getAiSettings } from './settings'
 
 vi.mock('./client', async (original) => ({
   ...(await original<typeof import('./client')>()),
   chat: vi.fn(),
   isTextAiConfigured: () => true,
-  textProvider: () => ({ baseUrl: 'https://example.test/v1' }),
+  textProvider: vi.fn(() => ({ baseUrl: 'https://example.test/v1', apiKey: 'test', model: 'deepseek-flash' })),
 }))
-vi.mock('./settings', () => ({ getAiSettings: async () => ({ relationshipProfileMaxTokens: 4000 }) }))
+vi.mock('./settings', async (original) => ({ ...(await original<typeof import('./settings')>()), getAiSettings: vi.fn() }))
 vi.mock('./usage', () => ({ recordUsage: vi.fn() }))
 
 const archive = '已确认事实：林舟与沈砚合作查案，彼此仍有隐瞒。[章节ID:c1]'
@@ -41,6 +42,7 @@ beforeEach(async () => {
   await t.db.query("INSERT INTO chapters (id, novel_id, title, content, sort_order, created_at) VALUES ('c1', 'book', '初遇', '林舟与沈砚合作调查。', 1, 1)")
   vi.mocked(chat).mockReset().mockResolvedValue(reply(archive))
   vi.mocked(recordUsage).mockReset().mockResolvedValue(undefined)
+  vi.mocked(getAiSettings).mockReset().mockResolvedValue({ ...DEFAULT_AI_SETTINGS, relationshipProfileMaxTokens: 4000 })
 })
 async function prepare() {
   await extractRelationshipProfile(t.db, opts)
@@ -48,6 +50,24 @@ async function prepare() {
 }
 
 describe('story graph archive boundary and cache', () => {
+  it.each([
+    ['deepseek-flash', 'disabled', 'disabled'],
+    ['deepseek-v4.1-flash-tiancai', 'high', 'high'],
+    ['deepseek-flash', 'inherit', 'inherit'],
+    ['other-model', 'disabled', 'inherit'],
+  ] as const)('uses independent graph controls for %s with %s reasoning', async (model, mode, expected) => {
+    await prepare()
+    vi.mocked(getAiSettings).mockResolvedValue({ ...DEFAULT_AI_SETTINGS, storyGraphMaxTokens: 24000, storyGraphReasoningMode: mode })
+    vi.mocked(textProvider).mockReturnValue({ baseUrl: 'https://example.test/v1', apiKey: 'test', model })
+    await generateStoryGraph(t.db, opts)
+    expect(chat).toHaveBeenLastCalledWith(expect.objectContaining({ maxTokens: 24000, reasoningMode: expected, returnIncompleteResult: true }))
+  })
+  it('defaults to a separate graph budget and disables DeepSeek reasoning', async () => {
+    await prepare()
+    vi.mocked(textProvider).mockReturnValue({ baseUrl: 'https://example.test/v1', apiKey: 'test', model: 'deepseek-flash' })
+    await generateStoryGraph(t.db, opts)
+    expect(chat).toHaveBeenLastCalledWith(expect.objectContaining({ maxTokens: 16000, reasoningMode: 'disabled' }))
+  })
   it('does not call the model on reads and saves a reusable, billed graph', async () => {
     expect((await getStoryGraph(t.db, 'book')).status).toBe('unavailable')
     expect(chat).not.toHaveBeenCalled()
@@ -87,9 +107,11 @@ describe('story graph archive boundary and cache', () => {
   })
   it('records billed malformed/truncated results and preserves the original archive', async () => {
     await prepare()
-    vi.mocked(chat).mockResolvedValueOnce({ ...reply('{'), finishReason: 'length' })
-    await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ code: 'truncated' })
+    // 线上故障：输出预算全部用于思考，最终 JSON 为空，仍须先记录实际用量。
+    vi.mocked(chat).mockResolvedValueOnce({ ...reply(''), completionTokens: 10000, reasoningTokens: 10000, finishReason: 'length' })
+    await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ code: 'truncated', status: 422, message: expect.stringContaining('故事图谱 Token') })
     expect(recordUsage).toHaveBeenCalledTimes(2)
+    expect(recordUsage).toHaveBeenLastCalledWith(t.db, expect.objectContaining({ generationType: 'story_graph', completionTokens: 10000, reasoningTokens: 10000 }))
     expect((await getStoryGraph(t.db, 'book')).status).toBe('missing')
     vi.mocked(chat).mockResolvedValueOnce(reply('not json'))
     await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ code: 'invalid' })

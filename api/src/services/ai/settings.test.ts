@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { normalizeAiSettings } from './settings'
 
 describe('text generation controls', () => {
+  it('defaults and normalizes independent graph settings without changing archive controls', () => {
+    expect(normalizeAiSettings({})).toMatchObject({ storyGraphMaxTokens: 16000, storyGraphReasoningMode: 'disabled', storyMemoryReasoningMode: 'inherit' })
+    expect(normalizeAiSettings({ storyGraphMaxTokens: 24000, storyGraphReasoningMode: 'high' })).toMatchObject({ storyGraphMaxTokens: 24000, storyGraphReasoningMode: 'high' })
+    expect(normalizeAiSettings({ storyGraphMaxTokens: 1, storyGraphReasoningMode: 'bogus' })).toMatchObject({ storyGraphMaxTokens: 1000, storyGraphReasoningMode: 'disabled' })
+    expect(normalizeAiSettings({ storyGraphMaxTokens: 'invalid' })).toHaveProperty('storyGraphMaxTokens', 16000)
+    expect(normalizeAiSettings({ storyGraphMaxTokens: 2000000 })).toHaveProperty('storyGraphMaxTokens', 1000000)
+  })
   it('preserves legacy provider behavior until explicitly enabled', () => {
     expect(normalizeAiSettings({})).toMatchObject({ writingReasoningMode: 'inherit', storyMemoryReasoningMode: 'inherit', writingStreamEnabled: false, storyMemoryStreamEnabled: false })
   })

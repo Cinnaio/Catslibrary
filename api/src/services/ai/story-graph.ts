@@ -6,6 +6,7 @@ import { AiError, chat, providerLabel, textProvider } from './client'
 import { getEffectiveProfileForAnchor } from './profile-overrides'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
+import { getAiSettings } from './settings'
 
 type GraphInput = StoryGraphResponse & { revision: string }
 const CERTAINTIES: StoryCertainty[] = ['fact', 'belief', 'clue', 'possibility', 'inference']
@@ -185,6 +186,13 @@ export async function generateStoryGraph(
   const existing = pending.get(key)
   if (existing) return existing
   const work = (async () => {
+    const settings = await getAiSettings(db)
+    const provider = textProvider()
+    // 图谱只整理已有档案。默认关闭 DeepSeek 思考，给最终 JSON 留足预算；
+    // 其他供应商不发送 DeepSeek 专属参数，仍可显式选择跟随供应商。
+    const reasoningMode = settings.storyGraphReasoningMode === 'disabled' && !/(^|\/)deepseek(?:[-_/]|$)/i.test(provider.model)
+      ? 'inherit'
+      : settings.storyGraphReasoningMode
     const res = await chat({
       messages: [
         { role: 'system', content: PROMPT },
@@ -197,7 +205,8 @@ export async function generateStoryGraph(
         },
       ],
       temperature: 0.1,
-      maxTokens: 10000,
+      maxTokens: settings.storyGraphMaxTokens,
+      reasoningMode,
       timeoutMs: 120000,
       returnIncompleteResult: true,
     })
@@ -206,7 +215,7 @@ export async function generateStoryGraph(
       novelId: opts.novelId,
       generationType: 'story_graph',
       model: res.model,
-      provider: providerLabel(textProvider().baseUrl),
+      provider: providerLabel(provider.baseUrl),
       promptTokens: res.promptTokens,
       completionTokens: res.completionTokens,
       costMillicents: res.cost * 100000,
@@ -214,7 +223,7 @@ export async function generateStoryGraph(
       ipAddress: opts.ipAddress,
       userAgent: opts.userAgent,
     })
-    if (res.truncated || res.finishReason === 'length') throw new AiError('truncated', '图谱输出被截断，未保存；请重试或缩小分析范围', 422)
+    if (res.truncated || res.finishReason === 'length') throw new AiError('truncated', '图谱输出被截断，未保存；请在「参数调优 → AI 创作」提高「故事图谱 Token」或关闭「故事图谱思考模式」后重试，原档案已保留', 422)
     if (res.refusal || !res.text.trim()) throw new AiError('invalid', '模型未返回可用图谱，原档案已保留', 422)
     let raw: unknown
     try {

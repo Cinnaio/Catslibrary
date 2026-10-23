@@ -1933,6 +1933,8 @@ export interface AiSettings {
   styleProfileMaxTokens: number
   plotStateMaxTokens: number
   relationshipProfileMaxTokens: number
+  storyGraphMaxTokens?: number
+  storyGraphReasoningMode?: AiReasoningMode
   storyMemoryTimeoutSeconds?: number
   writingReasoningMode?: AiReasoningMode
   storyMemoryReasoningMode?: AiReasoningMode

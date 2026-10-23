@@ -65,6 +65,25 @@ beforeEach(() => {
 })
 
 describe('AI settings confirmation', () => {
+  it('saves independent graph controls and preserves archive settings', async () => {
+    render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'AI 创作' }))
+    expect(screen.getByLabelText('故事图谱 Token')).toHaveValue(16000)
+    expect(screen.getByRole('combobox', { name: '故事图谱思考模式' })).toHaveTextContent('关闭思考')
+    fireEvent.change(screen.getByLabelText('故事图谱 Token'), { target: { value: '24000' } })
+    fireEvent.click(screen.getByRole('combobox', { name: '故事图谱思考模式' }))
+    fireEvent.click(screen.getByRole('option', { name: '低强度思考' }))
+    expect(api.saveSettings).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ ...settings, storyGraphMaxTokens: 24000, storyGraphReasoningMode: 'low' }))
+  })
+  it('rejects an empty graph budget before saving', () => {
+    render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('故事图谱 Token'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
+    expect(api.saveSettings).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('故事图谱 Token')).toHaveFocus()
+  })
   it('角色和图片配额先编辑后保存，取消全部角色可关闭功能', async () => {
     config()
     expect(screen.getByRole('checkbox', { name: '管理员' })).toBeChecked()
