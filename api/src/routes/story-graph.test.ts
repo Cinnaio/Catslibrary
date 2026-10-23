@@ -34,6 +34,7 @@ afterAll(async () => {
 describe('story graph administrator boundary', () => {
   it.each([
     ['truncated', 422, '图谱输出被截断，未保存'],
+    ['invalid', 422, 'people[0].evidenceIds[0]：证据 ID 不属于本次有效档案，请重新生成'],
     ['upstream', 502, 'AI 服务连接失败'],
   ] as const)('returns an actionable %s error with the correct HTTP status', async (code, status, message) => {
     const generate = vi.spyOn(storyGraph, 'generateStoryGraph').mockRejectedValueOnce(new AiError(code, message, status))

@@ -81,13 +81,13 @@ describe('story graph workflow', () => {
     await screen.findByRole('button', { name: '人物：林舟' })
     expect(api.generateStoryGraph).toHaveBeenCalledWith('book', 'c1')
   })
-  it('shows actionable failures and allows retry', async () => {
+  it.each(['模型回复被截断', 'people[0].evidenceIds[0]：证据 ID 不属于本次有效档案，请重新生成'])('shows actionable failure %s and allows retry', async (message) => {
     api.getStoryGraph.mockResolvedValue({ ...fixture, status: 'missing', graph: null })
-    api.generateStoryGraph.mockRejectedValue(new Error('模型回复被截断'))
+    api.generateStoryGraph.mockRejectedValue(new Error(message))
     mount()
     await screen.findByText('把人物与故事连起来')
     fireEvent.click(screen.getByRole('button', { name: '生成故事图谱' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('模型回复被截断')
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
     await waitFor(() => expect(screen.getByRole('button', { name: '生成故事图谱' })).toBeEnabled())
   })
 })
