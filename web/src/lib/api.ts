@@ -2490,8 +2490,9 @@ export const aiApi = {
     generateStoryGraph(novelId: string, afterChapterId?: string): Promise<StoryGraphResponse> {
       return request('POST', `/ai/writing/story-graph/${encodeURIComponent(novelId)}`, { afterChapterId }, true, {}, 180_000)
     },
-    getPlotState(novelId: string): Promise<AiPlotStateResponse> {
-      return request('GET', `/ai/writing/plot-state/${encodeURIComponent(novelId)}`, null, true)
+    getPlotState(novelId: string, afterChapterId?: string): Promise<AiPlotStateResponse> {
+      const query = afterChapterId ? `?afterChapterId=${encodeURIComponent(afterChapterId)}` : ''
+      return request('GET', `/ai/writing/plot-state/${encodeURIComponent(novelId)}${query}`, null, true)
     },
     /** 提取/刷新某部小说的关系画像：全历史分批初始化 / 增量更新，complete=false 时继续下一批。 */
     refreshRelationshipProfile(
@@ -2505,8 +2506,9 @@ export const aiApi = {
       return request('POST', '/ai/writing/relationship-profile', data, true, {}, 300_000)
     },
     /** 读取已存的关系画像（未提取过返回空串）。 */
-    getRelationshipProfile(novelId: string): Promise<AiRelationshipProfileResponse> {
-      return request('GET', `/ai/writing/relationship-profile/${encodeURIComponent(novelId)}`, null, true)
+    getRelationshipProfile(novelId: string, afterChapterId?: string): Promise<AiRelationshipProfileResponse> {
+      const query = afterChapterId ? `?afterChapterId=${encodeURIComponent(afterChapterId)}` : ''
+      return request('GET', `/ai/writing/relationship-profile/${encodeURIComponent(novelId)}${query}`, null, true)
     },
     /**
      * 保存人工画像校正。人工层绑定当前自动画像版本：自动画像一变，人工层即被跳过
