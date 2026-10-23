@@ -130,64 +130,82 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
   return (
     <section className="story-graph" aria-label="故事图谱工作区">
       <div className="story-graph-heading">
-        <div>
+        <div className="story-graph-heading__top">
           <Link to={writingUrl} className="story-graph-back">
             <ArrowLeft className="size-3.5" />
             返回创作工作台
           </Link>
-          <h2>{data?.novel.title || '故事图谱'}</h2>
-          <p>{data?.anchor ? `查看范围截至第 ${data.anchor.ordinal} 章 · ${data.anchor.title}` : '等待小说章节与分析档案'}</p>
-        </div>
-        <div className="story-graph-heading__actions">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={loading || busy}
-            onClick={() => {
-              setLoading(true)
-              setError('')
-              aiApi.writing
-                .getStoryGraph(novelId, afterChapterId)
-                .then((r) => {
-                  if (mounted.current) setData(r)
-                })
-                .catch((e: Error) => {
-                  if (mounted.current) setError(e.message)
-                })
-                .finally(() => {
-                  if (mounted.current) setLoading(false)
-                })
-            }}
-          >
-            <RefreshCw className="size-3.5" />
-            刷新状态
-          </Button>
-          {data && data.status !== 'ready' && (
-            <Button size="sm" disabled={busy || loading || data.status === 'unavailable'} onClick={() => void generate()}>
-              {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Network className="size-3.5" />}
-              {busy ? '整理图谱中…' : data.status === 'outdated' ? '更新图谱' : '生成故事图谱'}
-            </Button>
+          {data && (
+            <div className="story-graph-status" aria-live="polite">
+              {data.archives.map((a) => (
+                <span key={a.kind} className={`story-graph-status__badge story-graph-status__badge--${a.eligibility}`}>
+                  <span className="story-graph-status__dot" />
+                  {archiveLabel[a.kind]} · {eligibilityLabel[a.eligibility] || '不可用'}
+                  {a.content ? ` · 截至 ${a.chaptersThrough} 章${a.origin === 'manual' ? ' · 人工校正' : ''}` : ''}
+                </span>
+              ))}
+            </div>
           )}
+        </div>
+        <div className="story-graph-heading__main">
+          <div className="story-graph-heading__meta">
+            <h2>{data?.novel.title || '故事图谱'}</h2>
+            <p className="story-graph-heading__anchor">
+              {data?.anchor ? (
+                <>
+                  <span className="story-graph-heading__badge">截至第 {data.anchor.ordinal} 章</span>
+                  <span className="story-graph-heading__anchor-title">{data.anchor.title}</span>
+                </>
+              ) : (
+                '等待小说章节与分析档案'
+              )}
+            </p>
+          </div>
+          <div className="story-graph-heading__actions">
+            <div className="story-graph-heading__buttons">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={loading || busy}
+                onClick={() => {
+                  setLoading(true)
+                  setError('')
+                  aiApi.writing
+                    .getStoryGraph(novelId, afterChapterId)
+                    .then((r) => {
+                      if (mounted.current) setData(r)
+                    })
+                    .catch((e: Error) => {
+                      if (mounted.current) setError(e.message)
+                    })
+                    .finally(() => {
+                      if (mounted.current) setLoading(false)
+                    })
+                }}
+              >
+                <RefreshCw className={busy ? 'size-3.5 animate-spin' : 'size-3.5'} />
+                刷新状态
+              </Button>
+              {data && data.status !== 'ready' && (
+                <Button size="sm" disabled={busy || loading || data.status === 'unavailable'} onClick={() => void generate()}>
+                  {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Network className="size-3.5" />}
+                  {busy ? '整理图谱中…' : data.status === 'outdated' ? '更新图谱' : '生成故事图谱'}
+                </Button>
+              )}
+            </div>
+            {data && (
+              <span className="story-graph-heading__notice">
+                {data.status === 'ready'
+                  ? `图谱已保存 · ${new Date(data.updatedAt).toLocaleString('zh-CN')}`
+                  : '调用文本模型分析 · 结果将永久保存至本书档案'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
       {error && (
         <div role="alert" className="story-graph-message story-graph-message--error">
           {error}
-        </div>
-      )}
-      {data && (
-        <div className="story-graph-status" aria-live="polite">
-          {data.archives.map((a) => (
-            <span key={a.kind}>
-              {archiveLabel[a.kind]} · {eligibilityLabel[a.eligibility] || '不可用'}
-              {a.content ? ` · 截至 ${a.chaptersThrough} 章${a.origin === 'manual' ? ' · 人工校正' : ''}` : ''}
-            </span>
-          ))}
-          {data.status === 'ready' ? (
-            <span>图谱已保存 · {new Date(data.updatedAt).toLocaleString('zh-CN')}</span>
-          ) : (
-            <span>生成会调用文本模型并计入用量；再次打开复用已保存结果。</span>
-          )}
         </div>
       )}
       {loading ? (
@@ -197,7 +215,9 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
         </div>
       ) : !graph ? (
         <div className="story-graph-empty">
-          <Network />
+          <div className="story-graph-empty__icon">
+            <Network className="size-6" />
+          </div>
           <h3>
             {data?.status === 'unavailable'
               ? '先准备本书的分析档案'
@@ -214,13 +234,40 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
                 ? '请更新图谱，新的结果将使用当前有效档案及人工校正内容。'
                 : '基于有效的关系画像与情节状态整理人物关系、冲突和伏笔。'}
           </p>
+          {data && data.status !== 'unavailable' && (
+            <div className="story-graph-empty__pillars">
+              <span className="story-graph-empty__pillar">
+                <i className="story-graph-empty__dot story-graph-empty__dot--relation" />
+                人物羁绊网络
+              </span>
+              <span className="story-graph-empty__pillar">
+                <i className="story-graph-empty__dot story-graph-empty__dot--faction" />
+                阵营与立场划分
+              </span>
+              <span className="story-graph-empty__pillar">
+                <i className="story-graph-empty__dot story-graph-empty__dot--plot" />
+                冲突与暗线伏笔
+              </span>
+            </div>
+          )}
           {data?.status === 'unavailable' && (
             <Link to={writingUrl}>
               前往小说分析
               <ArrowUpRight className="size-3.5" />
             </Link>
           )}
-          {busy && <p role="status">正在整理，请稍候。档案与正文会保留。</p>}
+          {data && data.status !== 'ready' && data.status !== 'unavailable' && (
+            <Button
+              size="sm"
+              className="story-graph-empty__action"
+              disabled={busy || loading}
+              onClick={() => void generate()}
+            >
+              {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Network className="size-3.5" />}
+              {busy ? '整理图谱中…' : data.status === 'outdated' ? '立即更新图谱' : '开始构建图谱'}
+            </Button>
+          )}
+          {busy && <p role="status" className="story-graph-empty__busy">正在整理，请稍候。档案与正文会保留。</p>}
         </div>
       ) : !graph.people.length ? (
         <div className="story-graph-empty">
