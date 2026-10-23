@@ -1,4 +1,5 @@
 import DraftReview from './DraftReview'
+import PublishedMemoryUpdate from './PublishedMemoryUpdate'
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminFormField from '@/components/admin/AdminFormField'
@@ -103,6 +104,11 @@ export default function AiGenerationsPanel(props: {
   const [editingText, setEditingText] = useState<string | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [publishingBatchId, setPublishingBatchId] = useState<string | null>(null)
+  const [memoryUpdate, setMemoryUpdate] = useState<{ novelId: string; novelTitle: string; autoStart: boolean; key: number } | null>(null)
+
+  function showMemoryUpdate(item: AiGenerationListItem, autoStart = true) {
+    setMemoryUpdate({ novelId: item.novelId, novelTitle: item.novelTitle, autoStart, key: Date.now() })
+  }
 
   // 从任务面板 / 创作页跳转过来时，自动展开对应批次并滚动到可见位置
   useEffect(() => {
@@ -195,6 +201,7 @@ export default function AiGenerationsPanel(props: {
   async function undoPublish(draftId: string) {
     try {
       await aiApi.writing.unpublishDraft(draftId)
+      setMemoryUpdate(null)
       toast('已撤销发布，草稿恢复', 'success')
       void load()
     } catch (err) {
@@ -206,6 +213,7 @@ export default function AiGenerationsPanel(props: {
   async function undoBatchPublish(batchId: string) {
     try {
       const res = await aiApi.writing.unpublishBatch(batchId)
+      setMemoryUpdate(null)
       toast('已撤销发布，' + res.restored + ' 章恢复为草稿', 'success')
       void load()
     } catch (err) {
@@ -294,6 +302,7 @@ export default function AiGenerationsPanel(props: {
     setPublishing(true)
     try {
       await aiApi.writing.publishDraft(item.id, { novelId: item.novelId, title })
+      showMemoryUpdate(item, false)
       toast('已发布为正式章节', 'success', { action: { label: '撤销发布', onClick: () => void undoPublish(item.id) } })
       setViewing(null)
       setPublishTitle('')
@@ -318,6 +327,7 @@ export default function AiGenerationsPanel(props: {
     setPublishingBatchId(item.batchId)
     try {
       const result = await aiApi.writing.publishBatch(item.batchId, { novelId: item.novelId })
+      showMemoryUpdate(item, false)
       toast('已发布 ' + result.published.length + ' 章为正式章节', 'success', {
         action: { label: '撤销发布', onClick: () => void undoBatchPublish(item.batchId) },
       })
@@ -405,6 +415,7 @@ export default function AiGenerationsPanel(props: {
 
   return (
     <div className="ai-service-stack">
+      {memoryUpdate && <PublishedMemoryUpdate key={memoryUpdate.key} novelId={memoryUpdate.novelId} novelTitle={memoryUpdate.novelTitle} autoStart={memoryUpdate.autoStart} onClose={() => setMemoryUpdate(null)} />}
       {/* Claude 风格单层控制流：搜索框与多维状态/类型胶囊外置于统一胶囊轨道 */}
       <AdminToolbar layout="inline" className="admin-filter-rail ai-generations-filter-rail" ariaLive="polite">
         <AdminSearch
@@ -635,7 +646,10 @@ export default function AiGenerationsPanel(props: {
                           <AdminModelTime model={item.model} timestamp={item.createdAt} />
                         </TableCell>
                         <TableCell data-actions="">
-                          <div className="admin-cell-actions justify-end">
+                          <div className="admin-cell-actions flex-wrap justify-end">
+                            {REWRITABLE_KINDS.has(item.kind) && item.novelId && (item.groupItems ? item.groupItems.some(chapter => chapter.status === 'published') : item.status === 'published') && (
+                              <Button type="button" variant="secondary" size="sm" className="content-ratings-edit-button max-w-full whitespace-normal" onClick={() => showMemoryUpdate(item)}>一键更新情节与关系</Button>
+                            )}
                             {item.groupItems ? (
                               <>
                                 {item.groupItems.some((chapter) => chapter.status === 'draft') && (
