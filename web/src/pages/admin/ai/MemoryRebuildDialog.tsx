@@ -258,7 +258,7 @@ export default function MemoryRebuildDialog({
                       选择第 {item.selectedStart}–{item.selectedEnd} 章；实际重建第 {item.actualStart}–{item.targetOrdinal} 章。
                     </p>
                     <p className="admin-dialog-hint">
-                      {item.seedSnapshotId ? `从截至第 ${item.actualStart - 1} 章的有效快照恢复。` : '没有可复用的前置快照，需要从第 1 章重建。'}
+                      {item.actualStart > 1 ? `从截至第 ${item.actualStart - 1} 章的有效记录恢复。` : '没有可复用的前置快照或章节记录，需要从第 1 章重建。'}
                       {item.targetOrdinal > item.selectedEnd ? '后续档案依赖所选章节，将一并重建。' : ''}
                     </p>
                     {!followThrough && item.previousThrough > item.targetOrdinal && (
@@ -267,7 +267,7 @@ export default function MemoryRebuildDialog({
                     {item.hasManualOverride && <p className="admin-dialog-hint">人工校正保留，重建后需复核并重新保存才能生效。</p>}
                   </div>
                 ))}
-                <p className="admin-dialog-hint">确认后会调用模型并计入用量；故事图谱需重新生成。已有草稿与发布章节不会被改写。</p>
+                <p className="admin-dialog-hint">确认后会调用模型并计入用量。增量模式的两类档案共用章节记录，会一并更新，星图自动派生；原模式图谱需重新生成。已有草稿与发布章节不会被改写。</p>
               </div>
             )}
             <div>

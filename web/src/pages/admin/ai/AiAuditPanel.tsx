@@ -40,6 +40,7 @@ const aiCallTypeLabels: Record<string, string> = {
   style_profile: '文风分析',
   relationship_profile: '人物关系分析',
   plot_state: '剧情状态分析',
+  story_memory: '章节增量记忆',
   writing_review: '草稿质量检查',
   import_review: '导入审校',
   'content-rating-llm': '内容分级',
@@ -74,6 +75,7 @@ function aiCallTone(type: string): AdminStatusTone {
     case 'style_profile':
     case 'relationship_profile':
     case 'plot_state':
+    case 'story_memory':
     case 'import_review':
     case 'content-rating-llm':
       return 'subtle'

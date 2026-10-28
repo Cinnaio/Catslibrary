@@ -164,6 +164,7 @@ export interface ContinuationSnapshotV1 {
   contentPreferences?: WritingContentPreferencesV1
   excludedProfiles: Array<{ kind: 'style' | 'relationship' | 'plot'; reason: string }>
   historicalPassages?: HistoryPassage[]
+  memorySelection?: { revision: string; retrievedFacts: number; totalFacts: number }
 }
 
 export function cleanWritingText(raw: string, maxChars = MAX_CONTEXT_CHARS): string {

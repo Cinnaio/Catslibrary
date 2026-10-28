@@ -24,6 +24,7 @@ const KIND_LABELS: Record<string, string> = {
   selection_image: '划选插画',
   content_rating_review: 'LLM 分级建议',
   plot_state: '情节状态分析',
+  story_memory: '章节增量记忆',
   relationship_profile: '关系画像分析',
   story_graph: '故事图谱整理',
 }

@@ -1937,6 +1937,9 @@ export interface AiSettings {
   storyGraphMaxTokens?: number
   storyGraphReasoningMode?: AiReasoningMode
   storyMemoryTimeoutSeconds?: number
+  storyMemoryEngine?: 'legacy' | 'incremental'
+  storyMemoryAutoUpdate?: boolean
+  storyMemoryChapterMaxTokens?: number
   writingReasoningMode?: AiReasoningMode
   storyMemoryReasoningMode?: AiReasoningMode
   writingStreamEnabled?: boolean
@@ -2103,6 +2106,7 @@ export interface AiWritingBrief {
   chapterGoals: Array<{ index: number; goal: string }>
 }
 export interface AiWritingMaterials {
+  memorySelection?: { revision: string; retrievedFacts: number; totalFacts: number }
   revision: string
   anchor: { chapterId: string; title: string; sortOrder: number }
   plan: {
@@ -2143,6 +2147,8 @@ export interface AiStoryMemoryProgress {
 }
 
 export interface AiProfileSource {
+  memoryEngine?: 'incremental'
+  ledgerRevision?: string
   version?: number
   chapterId?: string
   chapterTitle?: string
@@ -2161,6 +2167,7 @@ export interface AiProfileSource {
  * （有人工层且仍然有效时是人工层，否则是自动层）。
  */
 export interface AiEffectiveProfile {
+  memoryNeedsInitialization?: boolean
   memoryTask?: Pick<AiTaskInfo, 'id' | 'status' | 'current' | 'total' | 'step' | 'error' | 'updatedAt'> & { livePreview?: AiTextProgress | null }
   progress?: AiStoryMemoryProgress
   lastAttempt?: {

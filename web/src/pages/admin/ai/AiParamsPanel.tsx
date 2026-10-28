@@ -27,6 +27,9 @@ const PARAM_GROUPS = [
       'storyGraphMaxTokens',
       'storyGraphReasoningMode',
       'storyMemoryTimeoutSeconds',
+      'storyMemoryEngine',
+      'storyMemoryAutoUpdate',
+      'storyMemoryChapterMaxTokens',
       'writingReasoningMode',
       'storyMemoryReasoningMode',
       'writingStreamEnabled',
@@ -364,7 +367,19 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               ] as const).map(([key, label]) => <label key={key} className="flex items-start justify-between gap-3 text-sm"><span>{label}<span className="mt-1 block text-xs leading-5 text-muted-foreground">启用流式请求，显示思考阶段与部分正文。完整返回后才保存；供应商可能仍以非流式返回。</span></span><Switch checked={localSettings[key] ?? false} onCheckedChange={(value) => setLocalSettings({ ...localSettings, [key]: value })} disabled={props.loading || saving} /></label>)}
             </div>
             <h4 className="ai-parameter-subtitle">分析与辅助生成</h4>
+            <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
+              <AdminFormField label="故事记忆模式" htmlFor="story-memory-engine" hint="增量模式每章提取一次，关系、情节和星图共用可追溯记录。首次使用须从首章建立记录；原档案保留至新结果完整完成。切回原模式后，下次更新沿用完整档案流程。">
+                <Select value={localSettings.storyMemoryEngine ?? 'legacy'} onValueChange={value => setLocalSettings({ ...localSettings, storyMemoryEngine: value as 'legacy' | 'incremental' })} disabled={props.loading || saving}>
+                  <SelectTrigger id="story-memory-engine"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="legacy">完整档案（原模式）</SelectItem><SelectItem value="incremental">章节增量记忆（试验）</SelectItem></SelectContent>
+                </Select>
+              </AdminFormField>
+              <label className="flex items-start justify-between gap-3 text-sm"><span>发布后后台准备记忆<span className="mt-1 block text-xs leading-5 text-muted-foreground">仅增量模式生效。发布正式章节后自动分析，会产生模型用量；失败保留进度，可手动继续。</span></span><Switch checked={localSettings.storyMemoryAutoUpdate ?? false} onCheckedChange={value => setLocalSettings({ ...localSettings, storyMemoryAutoUpdate: value })} disabled={props.loading || saving} /></label>
+            </div>
             <div className="ai-form-grid ai-parameter-analysis grid gap-3 sm:grid-cols-2">
+              <AdminFormField label="章节增量记忆 Token" htmlFor="chapter-memory-tokens" hint="仅增量模式使用，默认 16,000；用于单章变化、正文依据及模型思考。不会限制检索输入，截断时保留旧档案并提示重试。">
+                <Input id="chapter-memory-tokens" required type="number" min={1000} max={1000000} value={localSettings.storyMemoryChapterMaxTokens ?? 16000} disabled={props.loading || saving} onChange={e => setLocalSettings({ ...localSettings, storyMemoryChapterMaxTokens: Number(e.target.value) })} />
+              </AdminFormField>
               <AdminFormField label="故事图谱 Token" htmlFor="story-graph-tokens" hint="图谱的独立输出预算，默认 16,000；包含思考与最终结果。截断后可提高，实际用量取决于模型。">
                 <Input
                   id="story-graph-tokens"
@@ -395,7 +410,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   onChange={(e) => setLocalSettings({ ...localSettings, styleProfileMaxTokens: Number(e.target.value) })}
                 />
               </AdminFormField>
-              <AdminFormField label="情节状态 Token" htmlFor="plot-tokens" hint="每批更新后完整情节档案的输出预算；出现 length 截断时提高此项。">
+              <AdminFormField label="情节状态 Token" htmlFor="plot-tokens" hint="完整档案模式的情节输出预算；增量模式使用独立的章节增量记忆预算。">
                 <Input
                   id="plot-tokens"
                   required
@@ -407,7 +422,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   onChange={(e) => setLocalSettings({ ...localSettings, plotStateMaxTokens: Number(e.target.value) })}
                 />
               </AdminFormField>
-              <AdminFormField label="关系画像 Token" htmlFor="relationship-tokens" hint="每批更新后完整关系档案的输出预算，包含历史关系和本批变化。">
+              <AdminFormField label="关系画像 Token" htmlFor="relationship-tokens" hint="完整档案模式的关系输出预算；增量模式与情节共用一次章节提取。">
                 <Input
                   id="relationship-tokens"
                   required

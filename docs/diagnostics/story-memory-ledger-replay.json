@@ -1,0 +1,537 @@
+{
+  "createdAt": "2026-10-28T08:26:33.931Z",
+  "ledgerPromptVersion": 3,
+  "resumableReplay": true,
+  "attemptFailures": [
+    {
+      "createdAt": "2026-10-28T08:18:18.178Z",
+      "error": "AI 服务返回 524：bad_response_status_code：openai_error"
+    }
+  ],
+  "baselineMeasuredAt": "2026-10-28T07:28:31.447Z",
+  "comparisonMethod": "原流程未改动，复用同模型同样章的真实基线；增量流程重新运行。两次测量不同时，不是受控延迟实验。",
+  "model": "deepseek-v4.1-flash-uncensored",
+  "fixture": [
+    "林舟将唯一的铜钥匙交给沈砚保管。两人约定共同寻找地下密道，平等合作，没有主从关系。沈砚不知道密道入口在哪里。与此同时，周宁独自在北海修船，与寻找密道无关。",
+    "沈砚听客栈伙计说林舟离开了城，误以为林舟已经远行；实际上林舟一直留在城内查找密道入口。沈砚仍保管着铜钥匙，他没有把钥匙交给别人。周宁在北海买到了修船用的帆布。",
+    "林舟在客栈与沈砚见面，明确告诉他自己从未离城。沈砚承认先前听信伙计的话，消除了林舟已经远行的误会。林舟把密道入口的位置指给沈砚，两人已经找到入口，但还没有开门。沈砚拿出铜钥匙检查后放回自己的衣袋。"
+  ],
+  "runResults": [
+    {
+      "engine": "legacy",
+      "steps": [
+        {
+          "chapter": 1,
+          "elapsedMs": 30979
+        },
+        {
+          "chapter": 2,
+          "elapsedMs": 132528
+        },
+        {
+          "chapter": 3,
+          "elapsedMs": 46210
+        }
+      ],
+      "stats": {
+        "calls": 6,
+        "input_tokens": 7975,
+        "output_tokens": 20036,
+        "reasoning_tokens": 12646,
+        "reported_cost_millicents": "758.00000000"
+      },
+      "archives": {
+        "state": "1. 角色状态\n- 林舟：已与沈砚在客栈见面，当面说明自己从未离城；把密道入口位置指给沈砚；与沈砚仍为平等合作、无主从关系；下一步目标是与沈砚开门进入密道。[章节ID:replay-legacy-1][章节ID:replay-legacy-2][章节ID:replay-legacy-3]【已确认事实】\n- 沈砚：在客栈与林舟会合，承认先前听信伙计的话、误以为林舟远行，误会已当面消除；已由林舟指认看到密道入口；拿出铜钥匙检查后放回自己衣袋，钥匙仍由他保管；下一步目标是与林舟开门。[章节ID:replay-legacy-1][章节ID:replay-legacy-2][章节ID:replay-legacy-3]【已确认事实】\n- 周宁：独自在北海修船，已买到修船用的帆布；与寻找密道一事仍无关，本章未出现。[章节ID:replay-legacy-1][章节ID:replay-legacy-2]【已确认事实】\n\n2. 在场物品/地点\n- 铜钥匙（唯一）：沈砚在客栈拿出检查后放回自己衣袋，仍由沈砚单方保管；与开门直接相关。[章节ID:replay-legacy-1][章节ID:replay-legacy-2][章节ID:replay-legacy-3]【已确认事实】\n- 地下密道入口：已被找到，林舟在客栈把位置指给沈砚；尚未开门，具体位置正文未细述。[章节ID:replay-legacy-1][章节ID:replay-legacy-2][章节ID:replay-legacy-3]【已确认事实】\n- 客栈：林舟与沈砚见面、消除误会、指认入口位置的地点。[章节ID:replay-legacy-2][章节ID:replay-legacy-3]【已确认事实】\n- 城内：林舟实际停留并查找密道入口的地点，入口即在城内被发现。[章节ID:replay-legacy-2][章节ID:replay-legacy-3]【已确认事实】\n- 北海：周宁独自修船的地点，仍与密道线分离。[章节ID:replay-legacy-1][章节ID:replay-legacy-2]【已确认事实】\n- 帆布：周宁在北海买到，用于修船。[章节ID:replay-legacy-2]【已确认事实】\n\n3. 已埋伏笔\n- 密道入口虽已找到并被指认，但尚未开门；门内情况、开启方式正文未交代。[章节ID:replay-legacy-1][章节ID:replay-legacy-2][章节ID:replay-legacy-3]【未解线索】\n- 铜钥匙是“唯一”的一把，仍由沈砚保管；它是否真能开启该入口、能开启什么，正文未说明。[章节ID:replay-legacy-1][章节ID:replay-legacy-2][章节ID:replay-legacy-3]【未解线索】\n- 客栈伙计曾传话使沈砚误以为林舟离城，伙计消息的来源与准确性正文未交代。[章节ID:replay-legacy-2][章节ID:replay-legacy-3]【未解线索】\n- 周宁在北海修船且与密道线无关，日后是否与主线汇合尚未交代。[章节ID:replay-legacy-1][章节ID:replay-legacy-2]【可选方向】\n- 密道内有什么、开门后会遇到什么，正文未提。[章节ID:replay-legacy-1][章节ID:replay-legacy-3]【可选方向】\n- 钥匙由沈砚单方保管，与“平等合作、无主从”的约定之间是否生摩擦，正文未展开。[章节ID:replay-legacy-1][章节ID:replay-legacy-3]【可选方向】\n- 已解决记录：沈砚误以为林舟远行的信息差——林舟当面说明从未离城，沈砚承认听信伙计的话，误会消除。[章节ID:replay-legacy-2][章节ID:replay-legacy-3]【已确认事实】\n- 已解决记录：密道入口位置未知——林舟已找到入口并把位置指给沈砚。[章节ID:replay-legacy-1][章节ID:replay-legacy-2][章节ID:replay-legacy-3]【已确认事实】\n\n4. 待解决冲突\n- 入口已找到但尚未开门，两人能否顺利进入密道尚无结果。[章节ID:replay-legacy-3]【未解线索】\n- 唯一的钥匙由沈砚单方保管，开门时如何使用、是否引发分歧，正文未展开。[章节ID:replay-legacy-1][章节ID:replay-legacy-3]【未解线索】\n- 伙计传话造成误会的来源未查清，是否还有类似错误消息影响两人，正文未交代。[章节ID:replay-legacy-2][章节ID:replay-legacy-3]【可选方向】"
+      },
+      "relationship": {
+        "profile": "1. 关系动态\n- 林舟→沈砚：共同目标推进为“已找到入口但未开门”；林舟当面澄清自己从未离城，并把入口位置指给沈砚；唯一铜钥匙仍由沈砚保管；权力仍对称，来源是约定、共同目标与信息共享；本批有直接互动。[replay-legacy-1][章节ID:replay-legacy-3]\n- 沈砚→林舟：承认先前听信伙计造成误认，接受林舟澄清；已知入口位置；拿出铜钥匙检查后放回自己衣袋，保管延续；平等协作，无主从。[replay-legacy-1][章节ID:replay-legacy-3]\n- 林舟—沈砚：误会消除；协作从查找入口推进到已找到入口未开门；信息差缩小；无正面冲突。[replay-legacy-1][章节ID:replay-legacy-3]\n- 周宁→林舟/沈砚：本批未提及，仍无直接互动；北海修船线独立，帆布为修船材料。[replay-legacy-1][章节ID:replay-legacy-2]\n\n2. 心理边界\n- 正文证据：林舟主动当面告知沈砚自己从未离城，直接澄清而非等第三方传话。[章节ID:replay-legacy-3]\n- 正文证据：沈砚承认先前听信伙计的话，接受澄清；正文未写争辩。[章节ID:replay-legacy-3]\n- 正文证据：林舟把密道入口位置指给沈砚，信息共享边界扩大。[章节ID:replay-legacy-3]\n- 正文证据：沈砚拿出铜钥匙检查后放回自己衣袋，保管边界延续，未转交别人。[章节ID:replay-legacy-3]\n- 分析推断：误会靠直接告知消除，显示沟通恢复；仍不能自动推为爱情。[章节ID:replay-legacy-3]\n- 周宁：自行采购修船材料，边界独立。[章节ID:replay-legacy-2]\n\n3. 互动基调\n- 林舟—沈砚：客栈面对面，氛围务实克制；有直接告知、指位置、检查钥匙等动作；无身体或情感互动描写；节奏由误会消除推进到入口已找到未开门。[章节ID:replay-legacy-3]\n- 沈砚：承认误信，动作是检查钥匙并放回衣袋；正文未强写情绪。[章节ID:replay-legacy-3]\n- 周宁：本批未出场，独立劳作氛围延续。[章节ID:replay-legacy-2]\n\n4. 雷区\n- 不得写林舟已离城远行；第3章当面明确其从未离城。[章节ID:replay-legacy-3]\n- 不得继续把沈砚误认林舟远行当作未解；沈砚已承认听信伙计，误会消除。[章节ID:replay-legacy-3]\n- 不得写入口已开门；正文明确还没开门。[章节ID:replay-legacy-3]\n- 不得写沈砚把钥匙交给别人；她检查后放回自己衣袋。[章节ID:replay-legacy-3]\n- 不得把林舟指位置、沈砚保管钥匙自动解释为爱情或情感依附。[replay-legacy-1][章节ID:replay-legacy-3]\n- 不得把林舟—沈砚写成主从；仍平等合作。[replay-legacy-1]\n- 不得写周宁已并入密道线；是否汇合未确认。[replay-legacy-1][章节ID:replay-legacy-2]\n- 铜钥匙为“唯一”，不能写成多把或可复制。[replay-legacy-1]\n- 不得写档案已知入口具体地点；正文只写林舟把位置指给沈砚，具体地点未给。[章节ID:replay-legacy-3]\n\n【已确认事实】\n- 林舟：持有唯一铜钥匙并交沈砚保管[replay-legacy-1]；与沈砚约定共同寻找地下密道、平等合作无主从[replay-legacy-1]；实际一直留在城内查找密道入口，未离城[章节ID:replay-legacy-2]；第3章当面告诉沈砚自己从未离城[章节ID:replay-legacy-3]；知道密道入口位置并指给沈砚[章节ID:replay-legacy-3]；与沈砚已找到入口但未开门[章节ID:replay-legacy-3]。\n- 沈砚：接受唯一铜钥匙保管[replay-legacy-1]；与林舟约定共同寻找地下密道、平等合作[replay-legacy-1]；先前听客栈伙计说林舟离开城，误以为林舟远行[章节ID:replay-legacy-2]；第3章承认听信伙计，误会消除[章节ID:replay-legacy-3]；由林舟指给入口位置，已知位置[章节ID:replay-legacy-3]；仍保管铜钥匙，检查后放回自己衣袋[章节ID:replay-legacy-3]；与林舟已找到入口但未开门[章节ID:replay-legacy-3]。\n- 林舟—沈砚关系：平等合作，共同目标为寻找地下密道；信任动作是交钥匙/受托；无主从[replay-legacy-1]；第3章直接见面澄清误会、共享入口位置，协作推进到入口已找到未开门[章节ID:replay-legacy-3]。\n- 周宁：独自在北海修船[replay-legacy-1]；在北海买到修船用帆布[章节ID:replay-legacy-2]；与寻找密道无直接关联[replay-legacy-1]；本批未提及[章节ID:replay-legacy-3]。\n- 物品：铜钥匙唯一，由林舟交沈砚保管[replay-legacy-1]；沈砚仍保管，检查后放回衣袋[章节ID:replay-legacy-3]；帆布为周宁修船材料[章节ID:replay-legacy-2]；密道入口已找到但未开门[章节ID:replay-legacy-3]。\n\n【人物认知】\n- 沈砚：先前误以为林舟已离开城/远行，第3章已消除[章节ID:replay-legacy-2][章节ID:replay-legacy-3]；现在知道入口位置（由林舟指给）[章节ID:replay-legacy-3]；是否知道铜钥匙具体用途未确认[replay-legacy-1]。\n- 林舟：知道入口位置[章节ID:replay-legacy-3]；是否知道如何开门未确认；如何找到入口未确认。\n- 林舟与沈砚均知道已找到入口但未开门[章节ID:replay-legacy-3]。\n- 周宁是否知道密道线：未确认[replay-legacy-1]。\n\n【未解线索】\n- 密道入口具体位置、如何开门：未确认；已找到但未开门。[章节ID:replay-legacy-3]\n- 铜钥匙具体用途或可开启对象：未确认。[replay-legacy-1]\n- 林舟如何找到入口：未确认。[章节ID:replay-legacy-3]\n- 沈砚是否参与开门、两人下一步：未确认。[章节ID:replay-legacy-3]\n- 周宁修船线是否与密道线汇合：未确认。[replay-legacy-1][章节ID:replay-legacy-2]\n- 周宁本批未提及，不等于修船线消失。[章节ID:replay-legacy-2][章节ID:replay-legacy-3]\n\n【作者计划/可选方向】\n- 本批未提供明确作者计划。\n\n【变化记录】\n- 首次建立：以上记录均来自 replay-legacy-1；无前版可核对。\n- 林舟动向：上一版未记离城[replay-legacy-1]→第2章确认实际留城查找入口，沈砚误以为远行[章节ID:replay-legacy-2]→第3章当面澄清从未离城，误会消除[章节ID:replay-legacy-3]；原因：新增第3章信息。\n- 铜钥匙保管：林舟交沈砚保管[replay-legacy-1]→第2章沈砚仍保管、未交别人[章节ID:replay-legacy-2]→第3章检查后放回自己衣袋[章节ID:replay-legacy-3]；原因：新增第3章信息。\n- 周宁修船线：独自在北海修船[replay-legacy-1]→第2章买到修船帆布[章节ID:replay-legacy-2]；第3章未提及，保留[章节ID:replay-legacy-3]。\n- 林舟—沈砚互动：约定协作[replay-legacy-1]→第2章无直接互动，靠消息误认与保管延续[章节ID:replay-legacy-2]→第3章客栈直接见面、澄清、指入口、检查钥匙[章节ID:replay-legacy-3]；原因：新增第3章信息。\n- 入口进展：第2章林舟查找入口、沈砚不知道[章节ID:replay-legacy-2]→第3章两人已找到入口未开门，沈砚由林舟指给位置[章节ID:replay-legacy-3]；原因：新增第3章信息。\n- 误会状态：第2章沈砚误认林舟远行[章节ID:replay-legacy-2]→第3章承认听信并消除[章节ID:replay-legacy-3]；原因：新增第3章信息。\n\n【已解决记录】\n- 沈砚误认林舟远行：第2章形成[章节ID:replay-legacy-2]→第3章林舟当面告知从未离城、沈砚承认听信伙计，误会消除[章节ID:replay-legacy-3]。\n- 林舟是否通知沈砚自己留城：第2章未确认[章节ID:replay-legacy-2]→第3章当面告知从未离城[章节ID:replay-legacy-3]。\n- 密道入口是否找到：第2章查找中/未确认[章节ID:replay-legacy-2]→第3章已找到但未开门[章节ID:replay-legacy-3]。\n- 沈砚是否知道入口：第2章不知道[replay-legacy-1][章节ID:replay-legacy-2]→第3章林舟指给位置，已知[章节ID:replay-legacy-3]。"
+      }
+    },
+    {
+      "engine": "incremental",
+      "steps": [
+        {
+          "chapter": 1,
+          "elapsedMs": 23605,
+          "cacheReused": true,
+          "replayElapsedMs": 184
+        },
+        {
+          "chapter": 2,
+          "elapsedMs": 70514,
+          "cacheReused": true,
+          "replayElapsedMs": 110
+        },
+        {
+          "chapter": 3,
+          "elapsedMs": 89940,
+          "cacheReused": true,
+          "replayElapsedMs": 52
+        }
+      ],
+      "stats": {
+        "calls": 3,
+        "input_tokens": 5038,
+        "output_tokens": 11343,
+        "reasoning_tokens": 9170,
+        "reported_cost_millicents": "417.40000000"
+      },
+      "checks": {
+        "complete": true,
+        "retainedVerbatimEvidence": true,
+        "earlierAnchorExcludesFuture": true,
+        "actorBeliefsScoped": true,
+        "originalHistoryRetained": true,
+        "graphReusesMemory": true,
+        "changedStateSupersedesHistory": true
+      },
+      "current": [
+        "【已确认事实】铜钥匙、沈砚｜铜钥匙保管：林舟已将唯一的铜钥匙交给沈砚，当前由沈砚保管。 [章节ID:replay-incremental-1]",
+        "【已确认事实】林舟、沈砚｜合作寻找密道：两人约定共同寻找地下密道，平等合作，没有主从关系。 [章节ID:replay-incremental-1]",
+        "【已确认事实】周宁、北海｜周宁位置：周宁独自在北海修船，与寻找密道无关。 [章节ID:replay-incremental-1]",
+        "【已确认事实】周宁、地下密道｜周宁与密道关联：周宁独自在北海修船，当前与寻找密道无关。 [章节ID:replay-incremental-1]",
+        "【已确认事实】帆布、周宁｜帆布持有：周宁在北海购得修船用帆布，当前帆布由周宁持有。 [章节ID:replay-incremental-2]",
+        "【已确认事实】林舟、客栈｜林舟位置：林舟在客栈与沈砚见面，仍在城内，并未离城。 [章节ID:replay-incremental-3]",
+        "【已确认事实】沈砚、客栈｜沈砚位置：沈砚在客栈与林舟见面。 [章节ID:replay-incremental-3]",
+        "【人物认知】沈砚、林舟（沈砚所知）｜林舟去向认知：沈砚听林舟亲口说从未离城，已消除林舟远行的误会，现相信林舟一直未离城。 [章节ID:replay-incremental-3]",
+        "【人物认知】沈砚、地下密道（沈砚所知）｜密道入口认知：林舟向沈砚指明密道入口位置，沈砚现已知道入口所在。 [章节ID:replay-incremental-3]",
+        "【已确认事实】林舟、沈砚、地下密道｜密道入口状态：两人已经找到密道入口，但尚未开门。 [章节ID:replay-incremental-3]"
+      ],
+      "records": {
+        "entities": [
+          {
+            "id": "e_7530489f3f5ab055bb21c563",
+            "name": "林舟",
+            "aliases": [],
+            "kind": "person"
+          },
+          {
+            "id": "e_336a2deaca29c012d214b759",
+            "name": "沈砚",
+            "aliases": [],
+            "kind": "person"
+          },
+          {
+            "id": "e_b307d169e8af5a8f6f1a4301",
+            "name": "周宁",
+            "aliases": [],
+            "kind": "person"
+          },
+          {
+            "id": "e_0485eebf2ebdb37ae44de362",
+            "name": "铜钥匙",
+            "aliases": [],
+            "kind": "item"
+          },
+          {
+            "id": "e_2cacd66ab7c2d7376703fa90",
+            "name": "地下密道",
+            "aliases": [],
+            "kind": "place"
+          },
+          {
+            "id": "e_0cad57c0be5fc0d8627edd31",
+            "name": "北海",
+            "aliases": [],
+            "kind": "place"
+          },
+          {
+            "id": "e_6b821c87efd2638de6f4a129",
+            "name": "帆布",
+            "aliases": [],
+            "kind": "item"
+          },
+          {
+            "id": "e_9d17d23fcaf070d16ed0a57d",
+            "name": "客栈",
+            "aliases": [],
+            "kind": "place"
+          }
+        ],
+        "facts": [
+          {
+            "id": "f_0f8d629f2b1ce4f76adf9f0f",
+            "memoryType": "event",
+            "kind": "item",
+            "subjects": [
+              "e_7530489f3f5ab055bb21c563",
+              "e_336a2deaca29c012d214b759",
+              "e_0485eebf2ebdb37ae44de362"
+            ],
+            "label": "铜钥匙交接",
+            "summary": "林舟将唯一的铜钥匙交给沈砚保管。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "林舟将唯一的铜钥匙交给沈砚保管。",
+            "chapterId": "replay-incremental-1",
+            "ordinal": 1
+          },
+          {
+            "id": "f_ecc5ef72a3ab9fc78446c726",
+            "memoryType": "state",
+            "kind": "item",
+            "subjects": [
+              "e_0485eebf2ebdb37ae44de362",
+              "e_336a2deaca29c012d214b759"
+            ],
+            "label": "铜钥匙保管",
+            "summary": "林舟已将唯一的铜钥匙交给沈砚，当前由沈砚保管。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "林舟将唯一的铜钥匙交给沈砚保管。",
+            "chapterId": "replay-incremental-1",
+            "ordinal": 1
+          },
+          {
+            "id": "f_5ed2f661e14f4bde596f413f",
+            "memoryType": "state",
+            "kind": "relationship",
+            "subjects": [
+              "e_7530489f3f5ab055bb21c563",
+              "e_336a2deaca29c012d214b759"
+            ],
+            "label": "合作寻找密道",
+            "summary": "两人约定共同寻找地下密道，平等合作，没有主从关系。",
+            "certainty": "fact",
+            "directed": false,
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "两人约定共同寻找地下密道，平等合作，没有主从关系。",
+            "chapterId": "replay-incremental-1",
+            "ordinal": 1
+          },
+          {
+            "id": "f_24d71d7092a8767b19ff8f75",
+            "memoryType": "state",
+            "kind": "clue",
+            "subjects": [
+              "e_336a2deaca29c012d214b759",
+              "e_2cacd66ab7c2d7376703fa90"
+            ],
+            "label": "密道入口认知",
+            "summary": "沈砚不知道密道入口在哪里。",
+            "certainty": "belief",
+            "perspective": "e_336a2deaca29c012d214b759",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "沈砚不知道密道入口在哪里。",
+            "chapterId": "replay-incremental-1",
+            "ordinal": 1
+          },
+          {
+            "id": "f_6227bf357e8bb447cdafa635",
+            "memoryType": "state",
+            "kind": "place",
+            "subjects": [
+              "e_b307d169e8af5a8f6f1a4301",
+              "e_0cad57c0be5fc0d8627edd31"
+            ],
+            "label": "周宁位置",
+            "summary": "周宁独自在北海修船，与寻找密道无关。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "与此同时，周宁独自在北海修船，与寻找密道无关。",
+            "chapterId": "replay-incremental-1",
+            "ordinal": 1
+          },
+          {
+            "id": "f_4642b487a785909cebb719dc",
+            "memoryType": "state",
+            "kind": "boundary",
+            "subjects": [
+              "e_b307d169e8af5a8f6f1a4301",
+              "e_2cacd66ab7c2d7376703fa90"
+            ],
+            "label": "周宁与密道关联",
+            "summary": "周宁独自在北海修船，当前与寻找密道无关。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "与此同时，周宁独自在北海修船，与寻找密道无关。",
+            "chapterId": "replay-incremental-1",
+            "ordinal": 1
+          },
+          {
+            "id": "f_4d1bc696b5d0daa05b9628c5",
+            "memoryType": "state",
+            "kind": "clue",
+            "subjects": [
+              "e_336a2deaca29c012d214b759",
+              "e_7530489f3f5ab055bb21c563"
+            ],
+            "label": "林舟去向认知",
+            "summary": "沈砚听客栈伙计说林舟离开了城，误以为林舟已经远行。",
+            "certainty": "belief",
+            "perspective": "e_336a2deaca29c012d214b759",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "沈砚听客栈伙计说林舟离开了城，误以为林舟已经远行；实际上林舟一直留在城内查找密道入口。",
+            "chapterId": "replay-incremental-2",
+            "ordinal": 2
+          },
+          {
+            "id": "f_8e51db11248e16ae7e3cd4bb",
+            "memoryType": "state",
+            "kind": "place",
+            "subjects": [
+              "e_7530489f3f5ab055bb21c563"
+            ],
+            "label": "林舟位置",
+            "summary": "林舟并未远行，一直留在城内查找密道入口。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "沈砚听客栈伙计说林舟离开了城，误以为林舟已经远行；实际上林舟一直留在城内查找密道入口。",
+            "chapterId": "replay-incremental-2",
+            "ordinal": 2
+          },
+          {
+            "id": "f_182560281d0715fc9152ba25",
+            "memoryType": "event",
+            "kind": "item",
+            "subjects": [
+              "e_b307d169e8af5a8f6f1a4301",
+              "e_6b821c87efd2638de6f4a129",
+              "e_0cad57c0be5fc0d8627edd31"
+            ],
+            "label": "购买修船帆布",
+            "summary": "周宁在北海买到了修船用的帆布。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "周宁在北海买到了修船用的帆布。",
+            "chapterId": "replay-incremental-2",
+            "ordinal": 2
+          },
+          {
+            "id": "f_3c8e281663794a4e3dbd029d",
+            "memoryType": "state",
+            "kind": "item",
+            "subjects": [
+              "e_6b821c87efd2638de6f4a129",
+              "e_b307d169e8af5a8f6f1a4301"
+            ],
+            "label": "帆布持有",
+            "summary": "周宁在北海购得修船用帆布，当前帆布由周宁持有。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "周宁在北海买到了修船用的帆布。",
+            "chapterId": "replay-incremental-2",
+            "ordinal": 2
+          },
+          {
+            "id": "f_fcc468fa918297c168b9e903",
+            "memoryType": "event",
+            "kind": "fact",
+            "subjects": [
+              "e_7530489f3f5ab055bb21c563",
+              "e_336a2deaca29c012d214b759"
+            ],
+            "label": "客栈会面",
+            "summary": "林舟与沈砚在客栈见面。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "林舟在客栈与沈砚见面",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          },
+          {
+            "id": "f_0fea255ed291c07f0e5c3ede",
+            "memoryType": "event",
+            "kind": "fact",
+            "subjects": [
+              "e_7530489f3f5ab055bb21c563",
+              "e_336a2deaca29c012d214b759"
+            ],
+            "label": "林舟澄清未离城",
+            "summary": "林舟当面明确告诉沈砚自己从未离城。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "明确告诉他自己从未离城",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          },
+          {
+            "id": "f_e4ac9db3dd50ae42402bf844",
+            "memoryType": "event",
+            "kind": "fact",
+            "subjects": [
+              "e_336a2deaca29c012d214b759",
+              "e_7530489f3f5ab055bb21c563"
+            ],
+            "label": "沈砚承认误信伙计",
+            "summary": "沈砚向林舟承认先前听信客栈伙计的话，误以为林舟已经远行。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "沈砚承认先前听信伙计的话，消除了林舟已经远行的误会",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          },
+          {
+            "id": "f_b6010164dd0a05bdcaa031ed",
+            "memoryType": "event",
+            "kind": "fact",
+            "subjects": [
+              "e_7530489f3f5ab055bb21c563",
+              "e_336a2deaca29c012d214b759",
+              "e_2cacd66ab7c2d7376703fa90"
+            ],
+            "label": "林舟指明密道入口",
+            "summary": "林舟把密道入口的位置指给沈砚。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "林舟把密道入口的位置指给沈砚",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          },
+          {
+            "id": "f_a1e57b696ff46234082c9e11",
+            "memoryType": "event",
+            "kind": "item",
+            "subjects": [
+              "e_336a2deaca29c012d214b759",
+              "e_0485eebf2ebdb37ae44de362"
+            ],
+            "label": "沈砚检查铜钥匙",
+            "summary": "沈砚拿出铜钥匙检查后放回自己的衣袋，钥匙仍由他保管。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "沈砚拿出铜钥匙检查后放回自己的衣袋",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          },
+          {
+            "id": "f_c1cc2cc032f25b2d1d48141e",
+            "memoryType": "state",
+            "kind": "place",
+            "subjects": [
+              "e_7530489f3f5ab055bb21c563",
+              "e_9d17d23fcaf070d16ed0a57d"
+            ],
+            "label": "林舟位置",
+            "summary": "林舟在客栈与沈砚见面，仍在城内，并未离城。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [
+              "f_8e51db11248e16ae7e3cd4bb"
+            ],
+            "quote": "林舟在客栈与沈砚见面，明确告诉他自己从未离城。",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          },
+          {
+            "id": "f_2ccd82a1e5c7fbcdb41b50be",
+            "memoryType": "state",
+            "kind": "place",
+            "subjects": [
+              "e_336a2deaca29c012d214b759",
+              "e_9d17d23fcaf070d16ed0a57d"
+            ],
+            "label": "沈砚位置",
+            "summary": "沈砚在客栈与林舟见面。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "林舟在客栈与沈砚见面",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          },
+          {
+            "id": "f_a305d17abc8c26ade9a2056b",
+            "memoryType": "state",
+            "kind": "clue",
+            "subjects": [
+              "e_336a2deaca29c012d214b759",
+              "e_7530489f3f5ab055bb21c563"
+            ],
+            "label": "林舟去向认知",
+            "summary": "沈砚听林舟亲口说从未离城，已消除林舟远行的误会，现相信林舟一直未离城。",
+            "certainty": "belief",
+            "perspective": "e_336a2deaca29c012d214b759",
+            "status": "active",
+            "scope": "local",
+            "replaces": [
+              "f_4d1bc696b5d0daa05b9628c5"
+            ],
+            "quote": "林舟在客栈与沈砚见面，明确告诉他自己从未离城。",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          },
+          {
+            "id": "f_d1c3db4485381e604bd53483",
+            "memoryType": "state",
+            "kind": "clue",
+            "subjects": [
+              "e_336a2deaca29c012d214b759",
+              "e_2cacd66ab7c2d7376703fa90"
+            ],
+            "label": "密道入口认知",
+            "summary": "林舟向沈砚指明密道入口位置，沈砚现已知道入口所在。",
+            "certainty": "belief",
+            "perspective": "e_336a2deaca29c012d214b759",
+            "status": "active",
+            "scope": "local",
+            "replaces": [
+              "f_24d71d7092a8767b19ff8f75"
+            ],
+            "quote": "林舟把密道入口的位置指给沈砚",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          },
+          {
+            "id": "f_15a9b2a93d260df68c4a6b64",
+            "memoryType": "state",
+            "kind": "clue",
+            "subjects": [
+              "e_7530489f3f5ab055bb21c563",
+              "e_336a2deaca29c012d214b759",
+              "e_2cacd66ab7c2d7376703fa90"
+            ],
+            "label": "密道入口状态",
+            "summary": "两人已经找到密道入口，但尚未开门。",
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "quote": "两人已经找到入口，但还没有开门",
+            "chapterId": "replay-incremental-3",
+            "ordinal": 3
+          }
+        ]
+      },
+      "archives": {
+        "state": "【章节事件】【已确认事实】林舟、沈砚、铜钥匙｜铜钥匙交接：林舟将唯一的铜钥匙交给沈砚保管。 [章节ID:replay-incremental-1]\n正文依据：林舟将唯一的铜钥匙交给沈砚保管。\n\n【已确认事实】铜钥匙、沈砚｜铜钥匙保管：林舟已将唯一的铜钥匙交给沈砚，当前由沈砚保管。 [章节ID:replay-incremental-1]\n正文依据：林舟将唯一的铜钥匙交给沈砚保管。\n\n【已确认事实】周宁、北海｜周宁位置：周宁独自在北海修船，与寻找密道无关。 [章节ID:replay-incremental-1]\n正文依据：与此同时，周宁独自在北海修船，与寻找密道无关。\n\n【章节事件】【已确认事实】周宁、帆布、北海｜购买修船帆布：周宁在北海买到了修船用的帆布。 [章节ID:replay-incremental-2]\n正文依据：周宁在北海买到了修船用的帆布。\n\n【已确认事实】帆布、周宁｜帆布持有：周宁在北海购得修船用帆布，当前帆布由周宁持有。 [章节ID:replay-incremental-2]\n正文依据：周宁在北海买到了修船用的帆布。\n\n【章节事件】【已确认事实】林舟、沈砚｜客栈会面：林舟与沈砚在客栈见面。 [章节ID:replay-incremental-3]\n正文依据：林舟在客栈与沈砚见面\n\n【章节事件】【已确认事实】林舟、沈砚｜林舟澄清未离城：林舟当面明确告诉沈砚自己从未离城。 [章节ID:replay-incremental-3]\n正文依据：明确告诉他自己从未离城\n\n【章节事件】【已确认事实】沈砚、林舟｜沈砚承认误信伙计：沈砚向林舟承认先前听信客栈伙计的话，误以为林舟已经远行。 [章节ID:replay-incremental-3]\n正文依据：沈砚承认先前听信伙计的话，消除了林舟已经远行的误会\n\n【章节事件】【已确认事实】林舟、沈砚、地下密道｜林舟指明密道入口：林舟把密道入口的位置指给沈砚。 [章节ID:replay-incremental-3]\n正文依据：林舟把密道入口的位置指给沈砚\n\n【章节事件】【已确认事实】沈砚、铜钥匙｜沈砚检查铜钥匙：沈砚拿出铜钥匙检查后放回自己的衣袋，钥匙仍由他保管。 [章节ID:replay-incremental-3]\n正文依据：沈砚拿出铜钥匙检查后放回自己的衣袋\n\n【已确认事实】林舟、客栈｜林舟位置：林舟在客栈与沈砚见面，仍在城内，并未离城。 [章节ID:replay-incremental-3]\n正文依据：林舟在客栈与沈砚见面，明确告诉他自己从未离城。\n\n【已确认事实】沈砚、客栈｜沈砚位置：沈砚在客栈与林舟见面。 [章节ID:replay-incremental-3]\n正文依据：林舟在客栈与沈砚见面\n\n【人物认知】沈砚、林舟（沈砚所知）｜林舟去向认知：沈砚听林舟亲口说从未离城，已消除林舟远行的误会，现相信林舟一直未离城。 [章节ID:replay-incremental-3]\n正文依据：林舟在客栈与沈砚见面，明确告诉他自己从未离城。\n\n【人物认知】沈砚、地下密道（沈砚所知）｜密道入口认知：林舟向沈砚指明密道入口位置，沈砚现已知道入口所在。 [章节ID:replay-incremental-3]\n正文依据：林舟把密道入口的位置指给沈砚\n\n【已确认事实】林舟、沈砚、地下密道｜密道入口状态：两人已经找到密道入口，但尚未开门。 [章节ID:replay-incremental-3]\n正文依据：两人已经找到入口，但还没有开门"
+      },
+      "relationship": {
+        "profile": "【已确认事实】林舟、沈砚｜合作寻找密道：两人约定共同寻找地下密道，平等合作，没有主从关系。 [章节ID:replay-incremental-1]\n正文依据：两人约定共同寻找地下密道，平等合作，没有主从关系。\n\n【已确认事实】周宁、地下密道｜周宁与密道关联：周宁独自在北海修船，当前与寻找密道无关。 [章节ID:replay-incremental-1]\n正文依据：与此同时，周宁独自在北海修船，与寻找密道无关。"
+      }
+    }
+  ],
+  "limitations": "仅三章虚构样章；耗时受中转缓存和网络影响，步骤计时只含成功步骤，失败尝试单列；用量只含收到可计账响应的调用，网络失败可能仍计费；自动检查只覆盖来源、时间和结构，语义质量需人工审阅，不能推断长篇质量或生产加速比例。"
+}

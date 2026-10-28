@@ -66,3 +66,11 @@ it('checks drafts only on request and invalidates reports after the content revi
   rerender(<DraftReview draftId="d1" contentRevision="draft-2" />)
   expect(await screen.findByText(/草稿或来源已变化/)).toBeInTheDocument()
 })
+
+it('shows how many incremental records were selected while retaining source previews', async () => {
+  api.materials.mockResolvedValue({ ...materials, memorySelection: { revision: 'ledger-1', retrievedFacts: 7, totalFacts: 120 } })
+  render(<Preparation />)
+  fireEvent.click(screen.getByRole('button', { name: '预览本次上下文' }))
+  expect(await screen.findByText(/本次关联 7 条 \/ 已存 120 条/)).toBeInTheDocument()
+  expect(screen.getByText('完整档案保留的旧伏笔')).toBeInTheDocument()
+})

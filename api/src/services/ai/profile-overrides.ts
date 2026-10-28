@@ -49,6 +49,7 @@ function stableProfileRevision(profile: string, source?: ProfileSource): string 
     ? {
         version: source.version,
         ...(source.rebuildRevision ? { rebuildRevision: source.rebuildRevision } : {}),
+        ...(source.ledgerRevision ? { memoryEngine: source.memoryEngine, ledgerRevision: source.ledgerRevision } : {}),
         chapterId: source.chapterId,
         chapterTitle: source.chapterTitle,
         sortOrder: source.sortOrder,

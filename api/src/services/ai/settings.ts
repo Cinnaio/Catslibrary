@@ -54,6 +54,10 @@ export interface AiSettings {
   storyGraphReasoningMode: AiReasoningMode
   /** 情节/关系档案单次模型调用的等待上限，单位秒。 */
   storyMemoryTimeoutSeconds: number
+  /** Opt-in trial; legacy archives remain available when switched back. */
+  storyMemoryEngine?: 'legacy' | 'incremental'
+  storyMemoryAutoUpdate?: boolean
+  storyMemoryChapterMaxTokens?: number
   writingReasoningMode: AiReasoningMode
   storyMemoryReasoningMode: AiReasoningMode
   writingStreamEnabled: boolean
@@ -156,6 +160,9 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   storyGraphMaxTokens: 16000,
   storyGraphReasoningMode: 'disabled',
   storyMemoryTimeoutSeconds: 300,
+  storyMemoryEngine: 'legacy',
+  storyMemoryAutoUpdate: false,
+  storyMemoryChapterMaxTokens: 16000,
   writingReasoningMode: 'inherit',
   storyMemoryReasoningMode: 'inherit',
   writingStreamEnabled: false,
@@ -298,6 +305,9 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     storyGraphMaxTokens: clampInt(obj.storyGraphMaxTokens, DEFAULT_AI_SETTINGS.storyGraphMaxTokens, LIMITS.storyGraphMaxTokens),
     storyGraphReasoningMode: clampEnum(obj.storyGraphReasoningMode, DEFAULT_AI_SETTINGS.storyGraphReasoningMode, ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,
     storyMemoryTimeoutSeconds: clampInt(obj.storyMemoryTimeoutSeconds, DEFAULT_AI_SETTINGS.storyMemoryTimeoutSeconds, LIMITS.storyMemoryTimeoutSeconds),
+    storyMemoryEngine: obj.storyMemoryEngine === 'incremental' ? 'incremental' : 'legacy',
+    storyMemoryAutoUpdate: obj.storyMemoryAutoUpdate === true,
+    storyMemoryChapterMaxTokens: clampInt(obj.storyMemoryChapterMaxTokens, 16000, { min: 1000, max: 1000000 }),
     writingReasoningMode: clampEnum(obj.writingReasoningMode, 'inherit', ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,
     storyMemoryReasoningMode: clampEnum(obj.storyMemoryReasoningMode, 'inherit', ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,
     writingStreamEnabled: obj.writingStreamEnabled === undefined ? false : !!obj.writingStreamEnabled,

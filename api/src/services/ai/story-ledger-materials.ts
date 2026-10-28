@@ -1,0 +1,33 @@
+import type { Db } from '../../db/pool'
+import { AiError } from './client'
+import type { EffectiveProfileResult } from './profile-overrides'
+import { ledgerAtAnchor } from './story-ledger-store'
+import { relevantLedger, renderLedger } from './story-ledger'
+
+/** Manual corrections remain whole. Automatic material includes related historical
+ * transitions and their evidence, without a fixed token budget or silent clipping. */
+export async function selectLedgerMaterials(
+  db: Db,
+  novelId: string,
+  anchor: string,
+  query: string,
+  profiles: {
+    plot: EffectiveProfileResult
+    relationship: EffectiveProfileResult
+  },
+) {
+  if (![profiles.plot, profiles.relationship].some((p) => p.source?.memoryEngine === 'incremental' && p.effectiveOrigin === 'automatic')) return undefined
+  const ledger = await ledgerAtAnchor(db, novelId, anchor)
+  if (!ledger?.complete) throw new AiError('conflict', '章节记忆来源在取材期间发生变化，请更新记忆后重新预览', 409)
+  const relevant = relevantLedger(ledger.state, query, [query], 'topics')
+  const selected: Partial<Record<'plot' | 'relationship', string>> = {}
+  for (const kind of ['plot', 'relationship'] as const) {
+    const profile = profiles[kind]
+    if (profile.effectiveOrigin !== 'automatic') continue
+    if (profile.source?.ledgerRevision !== ledger.revision) throw new AiError('conflict', '章节记忆版本已变化，请重新预览', 409)
+    // Do not substitute material if an archive has been changed outside this engine.
+    if (profile.effectiveContent !== renderLedger(ledger.state, kind)) throw new AiError('conflict', '章节记忆与正式档案不一致，请更新后重新预览', 409)
+    selected[kind] = renderLedger(relevant, kind, true)
+  }
+  return { selected, revision: ledger.revision, retrievedFacts: relevant.facts.length, totalFacts: ledger.state.facts.length }
+}

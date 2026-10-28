@@ -8,6 +8,8 @@ import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 import { getAiSettings } from './settings'
 import { buildStoryGraphEvidenceSources, resolveStoryGraphEvidence } from './story-graph-evidence'
+import { ledgerAtAnchor } from './story-ledger-store'
+import { ledgerGraph, renderLedger } from './story-ledger'
 
 type GraphInput = StoryGraphResponse & { revision: string }
 const CERTAINTIES: StoryCertainty[] = ['fact', 'belief', 'clue', 'possibility', 'inference']
@@ -27,7 +29,7 @@ function atGraphNode<T>(path: string, validate: () => T): T {
 }
 
 /** Reject malformed topology and unsupported excerpts instead of inventing evidence. */
-export function validateStoryGraph(value: unknown, input: Pick<StoryGraphResponse, 'archives' | 'chapters'>): StoryGraph {
+export function validateStoryGraph(value: unknown, input: Pick<StoryGraphResponse, 'archives' | 'chapters'>, derived = false): StoryGraph {
   const root = object(value)
   const used = new Set<string>()
   const id = (value: unknown) => {
@@ -67,9 +69,7 @@ export function validateStoryGraph(value: unknown, input: Pick<StoryGraphRespons
     !Array.isArray(root.people) ||
     !Array.isArray(root.relationships) ||
     !Array.isArray(root.threads) ||
-    root.people.length > 60 ||
-    root.relationships.length > 120 ||
-    root.threads.length > 80
+    !derived && (root.people.length > 60 || root.relationships.length > 120 || root.threads.length > 80)
   ) {
     throw new AiError('invalid', '图谱结构无效或超过首版容量，请缩小分析范围后重试', 422)
   }
@@ -83,7 +83,7 @@ export function validateStoryGraph(value: unknown, input: Pick<StoryGraphRespons
     const aliases = list(p.aliases)
       .map((a) => text(a, 60))
       .filter(Boolean)
-      .slice(0, 12)
+      .slice(0, derived ? list(p.aliases).length : 12)
     if (!refs.some((e) => e.quote.includes(name)) || aliases.some((alias) => !input.archives.some((a) => a.content.includes(alias)))) {
       throw new AiError('invalid', '人物名称或别名无法在档案中核对，请重新生成', 422)
     }
@@ -106,7 +106,7 @@ export function validateStoryGraph(value: unknown, input: Pick<StoryGraphRespons
       id: id(r.id),
       from,
       to,
-      label: required(r.label, 40),
+      label: required(r.label, derived ? 80 : 40),
       summary: required(r.summary, 1500),
       directed: r.directed,
       certainty: certainty(r.certainty),
@@ -164,6 +164,13 @@ async function loadInput(db: Db, novelId: string, afterChapterId?: string): Prom
 
 export async function getStoryGraph(db: Db, novelId: string, afterChapterId?: string): Promise<StoryGraphResponse> {
   const { revision, ...input } = await loadInput(db, novelId, afterChapterId)
+  if (input.anchor && input.archives.every(a => a.eligibility === 'usable' && a.origin === 'automatic')) {
+    const ledger = await ledgerAtAnchor(db, novelId, input.anchor.id)
+    if (ledger?.complete && input.archives.every(a => a.content === renderLedger(ledger.state, a.kind))) {
+      const derived = ledgerGraph(ledger.state)
+      if (derived) return { ...input, graph: validateStoryGraph(derived, input, true), updatedAt: ledger.updatedAt, status: 'ready' }
+    }
+  }
   const saved = await first<{ source_revision: string; graph_json: string; updated_at: number }>(
     db,
     'SELECT source_revision, graph_json, updated_at FROM novel_story_graphs WHERE novel_id = $1',

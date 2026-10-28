@@ -19,6 +19,10 @@ describe('text generation controls', () => {
 })
 
 describe('story memory timeout settings', () => {
+  it('keeps incremental extraction and paid background preparation opt-in', () => {
+    expect(normalizeAiSettings({})).toMatchObject({ storyMemoryEngine: 'legacy', storyMemoryAutoUpdate: false, storyMemoryChapterMaxTokens: 16000 })
+    expect(normalizeAiSettings({ storyMemoryEngine: 'incremental', storyMemoryAutoUpdate: true, storyMemoryChapterMaxTokens: 24000 })).toMatchObject({ storyMemoryEngine: 'incremental', storyMemoryAutoUpdate: true, storyMemoryChapterMaxTokens: 24000 })
+  })
   it.each([
     [{}, 300],
     [{ storyMemoryTimeoutSeconds: 450 }, 450],
