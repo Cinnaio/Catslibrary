@@ -49,6 +49,15 @@ it('publishing only displays the prompt; one click submits both kinds to the sam
   expect(await screen.findByText('情节状态：更新中 · 已保存 1 / 2 章')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '一键更新情节与关系' })).toBeDisabled()
 })
+
+it('does not treat an up-to-date legacy archive as an initialized incremental ledger', async () => {
+  api.getPlotState.mockResolvedValue({ ...ready(), memoryNeedsInitialization: true })
+  api.getRelationshipProfile.mockResolvedValue({ ...ready(), memoryNeedsInitialization: true })
+  open()
+  await screen.findByText('更新至第 2 章「刚发布的章节」')
+  fireEvent.click(screen.getByRole('button', { name: '一键更新情节与关系' }))
+  await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledTimes(2))
+})
 it('row action submits once in StrictMode and skips already valid profiles', async () => {
   api.getPlotState.mockResolvedValue(ready())
   open(true)

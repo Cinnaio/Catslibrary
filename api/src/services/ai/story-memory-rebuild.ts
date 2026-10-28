@@ -7,6 +7,8 @@ import { cleanStoryText, reusablePrefix } from './story-memory'
 import { loadProfileSample, parseProfileSource } from './profile-source'
 import { getMemoryRebuild, saveMemorySnapshot, type MemoryKind, type MemorySnapshot } from './story-memory-history'
 import { createAiTask } from './tasks'
+import { getAiSettings } from './settings'
+import { loadLedgerPrefix } from './story-ledger-store'
 
 const taskKinds = { plot: 'plot_state', relationship: 'relationship_profile' }
 const tables = { plot: ['novel_plot_states', 'state'], relationship: ['novel_relationship_profiles', 'profile'] } as const
@@ -32,6 +34,9 @@ export async function planMemoryRebuild(db: DbClient, novelId: string, request: 
   const sample = await loadProfileSample(db as Db, { novelId, sampleCount: 1, fullHistory: true, clean: cleanStoryText })
   if (!sample?.rows.length) throw new AiError('invalid', '小说尚无可分析的正文', 422)
   const rows = sample.rows
+  const incremental = (await getAiSettings(db as Db)).storyMemoryEngine === 'incremental'
+  const kinds: MemoryKind[] = incremental ? ['plot', 'relationship'] : [...request.kinds].sort()
+  const ledger = incremental ? await loadLedgerPrefix(db, novelId, rows) : undefined
   const ordinal = (id: string | undefined) => rows.findIndex((row) => row.id === id) + 1
   const selectedStart = request.range === 'all' ? 1 : ordinal(request.startChapterId)
   const requestedEnd = request.range === 'single' ? selectedStart : request.range === 'all' ? 0 : ordinal(request.endChapterId)
@@ -50,7 +55,8 @@ export async function planMemoryRebuild(db: DbClient, novelId: string, request: 
     },
     sample.source.fingerprint,
   ]
-  for (const kind of [...request.kinds].sort()) {
+  revisionParts.push(incremental, ledger?.revision, ledger?.processed)
+  for (const kind of kinds) {
     const build = await first<{ lease_until: number; source_json: string; target_chapter_id: string; content: string; model: string }>(
       db,
       'SELECT lease_until,source_json,target_chapter_id,content,model FROM novel_story_memory_builds WHERE novel_id=$1 AND kind=$2',
@@ -88,6 +94,7 @@ export async function planMemoryRebuild(db: DbClient, novelId: string, request: 
         seedSnapshotId = candidate.id
       }
     }
+    if (ledger) { seedCount = Math.min(ledger.processed, selectedStart - 1); seedSnapshotId = null }
     const manual = await first<{ revision: number }>(db, 'SELECT revision FROM novel_ai_profile_overrides WHERE novel_id=$1 AND kind=$2', [novelId, kind])
     items.push({
       kind,
@@ -113,6 +120,10 @@ export async function planMemoryRebuild(db: DbClient, novelId: string, request: 
       snapshots.map((s) => [s.id, s.source_json]),
     ])
   }
+  if (incremental) {
+    const target = Math.max(...items.map(i => i.targetOrdinal))
+    for (const item of items) { item.targetOrdinal = target; item.targetChapterId = rows[target - 1]!.id }
+  }
   return { items, revision: createHash('sha256').update(JSON.stringify(revisionParts)).digest('hex') }
 }
 
@@ -131,13 +142,15 @@ export async function startMemoryRebuild(
     const tx = { query }
     if (!(await first(tx, 'SELECT id FROM novels WHERE id=$1 FOR UPDATE', [novelId]))) throw new AiError('invalid', '小说不存在', 404)
     // Serialize against an executor claiming or completing a lease in another process.
-    for (const kind of [...request.kinds].sort()) {
+    const incremental = (await getAiSettings(tx as Db)).storyMemoryEngine === 'incremental'
+    for (const kind of incremental ? ['plot', 'relationship'] : [...request.kinds].sort()) {
       await run(tx, 'INSERT INTO novel_story_memory_builds (novel_id,kind) VALUES ($1,$2) ON CONFLICT DO NOTHING', [novelId, kind])
       await first(tx, 'SELECT novel_id FROM novel_story_memory_builds WHERE novel_id=$1 AND kind=$2 FOR UPDATE', [novelId, kind])
     }
     const plan = await planMemoryRebuild(tx, novelId, request)
     if (!expectedRevision || plan.revision !== expectedRevision) throw new AiError('conflict', '正文或档案已变化，请重新预览重建范围后提交', 409)
     const tasks: { taskId: string; kind: MemoryKind }[] = []
+    if (incremental) await run(tx, 'DELETE FROM novel_story_memory_chapters WHERE novel_id=$1 AND ordinal>=$2', [novelId, Math.min(...plan.items.map(i => i.selectedStart))])
     for (const item of plan.items) {
       const [table, column] = tables[item.kind]
       const saved = await first<{ content: string; source_json: string; model: string }>(
@@ -188,12 +201,13 @@ export async function startMemoryRebuild(
         "UPDATE novel_story_memory_builds SET content=$1,source_json=$2,model=$3,target_chapter_id=$4,pause_requested=FALSE,last_attempt_json='',lease_token='',lease_until=0,updated_at=$5 WHERE novel_id=$6 AND kind=$7",
         [seed?.content || '', seed?.source_json || '', seed?.model || '', item.targetChapterId, Date.now(), novelId, item.kind],
       )
+      if (incremental && tasks.length) continue
       const task = await createAiTask(tx, {
         userId,
         novelId,
         kind: taskKinds[item.kind],
         total: item.targetOrdinal,
-        params: JSON.stringify({ userId, novelId, afterChapterId: item.targetChapterId, sampleChapters: request.sampleChapters, ...audit }),
+        params: JSON.stringify({ userId, novelId, afterChapterId: item.targetChapterId, sampleChapters: request.sampleChapters, memoryEngine: incremental ? 'incremental' : 'legacy', ...audit }),
         prompt: `重新分析第 ${item.selectedStart}–${item.selectedEnd} 章；实际重建第 ${item.actualStart}–${item.targetOrdinal} 章`,
       })
       tasks.push({ taskId: task.id, kind: item.kind })

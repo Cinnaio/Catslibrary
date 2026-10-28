@@ -51,7 +51,8 @@ async function draft() {
 beforeAll(async () => {
   t = await createTestDb()
   await t.applyMigrations()
-}, 30_000)
+  // Full migrations may swap on small hosts; functional test deadlines stay unchanged.
+}, 120_000)
 afterAll(async () => {
   await t.close()
 })

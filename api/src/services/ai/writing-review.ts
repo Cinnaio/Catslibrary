@@ -17,6 +17,7 @@ interface ReviewSource {
   fingerprint: string
   chapterId?: string
   sortOrder?: number
+  profileBaseRevision?: string
 }
 export interface ReviewFinding {
   category: 'consistency' | 'foreshadow' | 'relationship'
@@ -53,7 +54,7 @@ export async function reviewSourcesCurrent(db: Db, novelId: string, sources: Rev
         return false
     } else if (source.id === 'plot' || source.id === 'relationship') {
       const profile = await getEffectiveProfileForAnchor(db, { kind: source.id, novelId, afterChapterId: anchorId })
-      if (hash(profile.effectiveContent) !== source.fingerprint) return false
+      if (source.profileBaseRevision ? profile.baseProfileRevision !== source.profileBaseRevision || profile.effectiveOrigin !== 'automatic' : hash(profile.effectiveContent) !== source.fingerprint) return false
     }
   }
   return true
@@ -148,6 +149,8 @@ export async function reviewWritingDraft(
           title: key === 'plot' ? '情节档案（分析材料）' : '关系档案（分析材料）',
           text: snapshot.profiles[key],
           fingerprint: hash(snapshot.profiles[key]),
+          ...(snapshot.memorySelection && snapshot.profileOrigins?.[key] === 'automatic' && snapshot.profileBaseRevisions[key]
+            ? { profileBaseRevision: snapshot.profileBaseRevisions[key] } : {}),
         })
   }
   if (!sources.length) throw new AiError('invalid', '没有可核对的已发布正文或有效档案，请先准备故事材料', 422)

@@ -14,6 +14,7 @@ const missingTypes = [
   ['style_profile', '文风分析'],
   ['relationship_profile', '人物关系分析'],
   ['plot_state', '剧情状态分析'],
+  ['story_memory', '章节增量记忆'],
   ['plot_suggestion', '情节建议'],
   ['plot_outline', '情节大纲'],
   ['rewrite_selection', '选段改写'],

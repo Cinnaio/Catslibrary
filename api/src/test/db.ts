@@ -18,16 +18,32 @@ export interface TestDb {
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'db', 'migrations')
 
-export async function createTestDb(): Promise<TestDb> {
+export async function createTestDb(dataDir?: string): Promise<TestDb> {
   // pg_trgm：011 迁移的 trigram 索引依赖该扩展，测试库同样装载以覆盖真实路径
-  const pg = new PGlite({ extensions: { pg_trgm } })
+  const pg = new PGlite({ dataDir, extensions: { pg_trgm } })
 
   const applyMigrations = async (): Promise<void> => {
-    const files = (await readdir(MIGRATIONS_DIR))
-      .filter((f) => f.endsWith('.sql'))
-      .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
+    const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith('.sql')).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
+    if (dataDir) await pg.exec('CREATE TABLE IF NOT EXISTS _test_schema_migrations (name TEXT PRIMARY KEY)')
+    const applied = dataDir
+      ? new Set((await pg.query<{ name: string }>('SELECT name FROM _test_schema_migrations')).rows.map((row) => row.name))
+      : new Set<string>()
     for (const f of files) {
-      await pg.exec(await readFile(path.join(MIGRATIONS_DIR, f), 'utf8'))
+      if (applied.has(f)) continue
+      const sql = await readFile(path.join(MIGRATIONS_DIR, f), 'utf8')
+      if (!dataDir) {
+        await pg.exec(sql)
+        continue
+      }
+      await pg.exec('BEGIN')
+      try {
+        await pg.exec(sql)
+        await pg.query('INSERT INTO _test_schema_migrations(name) VALUES($1)', [f])
+        await pg.exec('COMMIT')
+      } catch (error) {
+        await pg.exec('ROLLBACK')
+        throw error
+      }
     }
   }
 

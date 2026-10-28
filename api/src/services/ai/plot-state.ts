@@ -5,6 +5,7 @@ import type { Db } from '../../db/pool'
 import { advanceStoryMemory, cleanStoryText, type StoryMemoryOptions, type StoryMemoryResult } from './story-memory'
 import { first } from '../../db/query'
 import { evaluateProfileSource, type ProfileEligibility, type ProfileSource } from './profile-source'
+import { readLedgerProfile } from './story-ledger-store'
 
 /** 默认每批章节上限；不限制历史覆盖范围。 */
 export const DEFAULT_PLOT_SAMPLE_CHAPTERS = 8
@@ -68,7 +69,7 @@ export async function getPlotStateForAnchor(
   eligibility: ProfileEligibility
   isOlderThanAnchor: boolean
 }> {
-  const result = await evaluateProfileSource(db, { kind: 'plot', novelId, afterChapterId, clean: cleanForSample })
+  const result = await readLedgerProfile(db, 'plot', novelId, afterChapterId) || await evaluateProfileSource(db, { kind: 'plot', novelId, afterChapterId, clean: cleanForSample })
   return {
     state: result.profile,
     source: result.source,

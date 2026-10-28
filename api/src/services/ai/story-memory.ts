@@ -11,6 +11,9 @@ import { usageAuditFields } from './upstream-usage'
 import { isAiTaskActive } from './tasks'
 import { loadProfileSample, parseProfileSource, profileSourceForRows, type ProfileSampleRow, type ProfileSource } from './profile-source'
 import { getMemoryRebuild, saveMemorySnapshot } from './story-memory-history'
+import { advanceLedgerMemory, pauseLedgerMemory } from './story-ledger-engine'
+import { loadLedgerPrefix } from './story-ledger-store'
+import { renderLedger } from './story-ledger'
 
 export const STORY_MEMORY_PROMPT_VERSION = 3
 const BATCH_CHARS = 24_000
@@ -49,6 +52,8 @@ export function cleanStoryText(raw: string): string {
 }
 
 export interface StoryMemoryOptions {
+  /** Frozen when a background task is created. */
+  memoryEngine?: 'legacy' | 'incremental'
   /** Background owner; task cancellation also stops between batches and pieces. */
   taskId?: string
   userId: string
@@ -74,6 +79,7 @@ export interface StoryMemoryResult {
 }
 
 export async function pauseStoryMemory(db: Db, novelId: string, kind: 'plot' | 'relationship'): Promise<void> {
+  pauseLedgerMemory(db, novelId)
   await run(db, 'UPDATE novel_story_memory_builds SET pause_requested = TRUE WHERE novel_id = $1 AND kind = $2', [novelId, kind])
   activeBuilds.get(db)?.get(`${kind}:${novelId}`)?.abort(new MemoryPaused())
 }
@@ -97,6 +103,18 @@ export async function getStoryMemoryProgress(db: Db, novelId: string, kind: 'plo
     throw err
   })
   if (!sample) return undefined
+  if ((await getAiSettings(db)).storyMemoryEngine === 'incremental') {
+    const prefix = await loadLedgerPrefix(db, novelId, sample.rows)
+    return {
+      processedChapters: prefix.processed,
+      totalChapters: sample.rows.length,
+      targetChapterId: sample.anchor.id,
+      complete: prefix.processed === sample.rows.length,
+      paused: row.pause_requested,
+      running: Number(row.lease_until) > Date.now(),
+      previewContent: prefix.processed ? renderLedger(prefix.state, kind) : '',
+    }
+  }
   const table = kind === 'plot' ? 'novel_plot_states' : 'novel_relationship_profiles'
   const column = kind === 'plot' ? 'state' : 'profile'
   const saved = await first<{ content: string; source_json: string }>(db, `SELECT ${column} AS content, source_json FROM ${table} WHERE novel_id = $1`, [
@@ -169,6 +187,7 @@ const MEMORY_RULES = `按正文顺序更新故事档案。上一版是截至已�
 /** One bounded chapter batch per request. The caller repeats until complete. */
 export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', system: string, opts: StoryMemoryOptions): Promise<StoryMemoryResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
+  if ((opts.memoryEngine || (await getAiSettings(db)).storyMemoryEngine) === 'incremental') return advanceLedgerMemory(db, kind, opts)
   const token = randomUUID()
   const lock = await first(
     db,

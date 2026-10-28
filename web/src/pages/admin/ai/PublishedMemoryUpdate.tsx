@@ -8,7 +8,7 @@ const kinds: Kind[] = ['plot', 'relationship']
 const labels = { plot: '情节状态', relationship: '关系画像' }
 type Entry = { profile?: AiEffectiveProfile; error?: string; submitting?: boolean }
 const active = (profile?: AiEffectiveProfile) => profile?.memoryTask?.status === 'queued' || profile?.memoryTask?.status === 'running'
-const complete = (profile?: AiEffectiveProfile) => profile?.eligibility === 'usable' && !profile.isOlderThanAnchor && Boolean(profile.effectiveContent)
+const complete = (profile?: AiEffectiveProfile) => !profile?.memoryNeedsInitialization && profile?.eligibility === 'usable' && !profile.isOlderThanAnchor && Boolean(profile.effectiveContent)
 
 /** Published prose only. The two jobs share a fixed anchor but retain independent recovery. */
 export default function PublishedMemoryUpdate({

@@ -10,6 +10,8 @@ export interface ProfileSource {
   /** 提取提示词版本；旧 source 没有此字段时保持 legacy 兼容。 */
   extractionPromptVersion?: number
   rebuildRevision?: string
+  memoryEngine?: 'incremental'
+  ledgerRevision?: string
   chapterId: string
   chapterTitle: string
   sortOrder: number
@@ -139,6 +141,7 @@ export function parseProfileSource(raw: unknown): ProfileSource | undefined {
     return {
       version: 1,
       ...(typeof source.rebuildRevision === 'string' ? { rebuildRevision: source.rebuildRevision } : {}),
+      ...(source.memoryEngine === 'incremental' && typeof source.ledgerRevision === 'string' ? { memoryEngine: 'incremental' as const, ledgerRevision: source.ledgerRevision } : {}),
       ...(Number.isInteger(Number(source.extractionPromptVersion)) ? { extractionPromptVersion: Number(source.extractionPromptVersion) } : {}),
       chapterId: source.chapterId,
       chapterTitle: source.chapterTitle,

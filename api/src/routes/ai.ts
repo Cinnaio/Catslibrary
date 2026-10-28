@@ -58,7 +58,8 @@ import { retrieveWritingHistory, writingMaterialRevision } from '../services/ai/
 import { compileWritingPrompt } from '../services/ai/writing-prompt'
 import type { WritingBriefV1 } from '../services/ai/writing'
 import { getMemoryAttempt, getStoryMemoryProgress, pauseStoryMemory } from '../services/ai/story-memory'
-import { createStoryMemoryTask, getStoryMemoryTask, pauseStoryMemoryTask, runStoryMemoryTask } from '../services/ai/story-memory-tasks'
+import { createStoryMemoryTask, getStoryMemoryTask, pauseStoryMemoryTask, runStoryMemoryTask, preparePublishedMemory } from '../services/ai/story-memory-tasks'
+import { selectLedgerMaterials } from '../services/ai/story-ledger-materials'
 import { planMemoryRebuild, startMemoryRebuild, memoryArchiveHistory } from '../services/ai/story-memory-rebuild'
 import type { MemoryRebuildRequest } from '@shared/story-memory-rebuild'
 import { extractPlotState } from '../services/ai/plot-state'
@@ -667,6 +668,13 @@ async function buildContinuationSnapshot(
   use('style', style)
   use('relationship', relationship)
   use('plot', plot)
+  const memorySettings = await getAiSettings(db)
+  if (memorySettings.storyMemoryEngine === 'incremental' && [plot, relationship].some(p => p.eligibility !== 'usable' || p.source?.memoryEngine !== 'incremental')) {
+    throw new AiError('invalid', '章节增量记忆尚未完整覆盖此续写起点，请先更新或继续故事记忆后再预览和续写', 422)
+  }
+  const ledgerMaterials = memorySettings.storyMemoryEngine === 'incremental' ? await selectLedgerMaterials(db, novelId, loaded.anchor.chapterId,
+    [loaded.context, instruction, brief?.objective, brief?.requiredFacts, ...(brief?.characters || []), ...(brief?.chapterGoals.map(g => g.goal) || [])].filter(Boolean).join('\n'), { plot, relationship }) : undefined
+  if (ledgerMaterials) Object.assign(profiles, ledgerMaterials.selected)
   return {
     version: 1,
     contextPolicyVersion: 1,
@@ -680,6 +688,7 @@ async function buildContinuationSnapshot(
     contentPreferences,
     excludedProfiles,
     historicalPassages: await retrieveWritingHistory(db, novelId, loaded.anchor, brief, instruction),
+    ...(ledgerMaterials ? { memorySelection: { revision: ledgerMaterials.revision, retrievedFacts: ledgerMaterials.retrievedFacts, totalFacts: ledgerMaterials.totalFacts } } : {}),
   }
 }
 
@@ -1367,7 +1376,7 @@ aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), async (c) => {
     try { taskParams = JSON.parse(task?.params || '{}') } catch { /* legacy task */ }
     const frozen = parseContinuationSnapshot(taskParams.continuationSnapshot)
     const brief = validateWritingBrief(taskParams.writingBrief, Number(taskParams.chapterCount) || 1).brief
-    const snapshot = await buildContinuationSnapshot(db, draft.novel_id, frozen?.anchor.chapterId || String(taskParams.afterChapterId || '').trim() || undefined, frozen?.contentPreferences, brief, String(taskParams.instruction || ''))
+    const snapshot = await buildContinuationSnapshot(db, draft.novel_id, frozen?.anchor.chapterId || String(taskParams.afterChapterId || '').trim() || undefined, frozen?.contentPreferences, brief, [String(taskParams.instruction || ''), draft.result].join('\n'))
     const report = await reviewWritingDraft(db, draft, snapshot, { userId: c.get('user').id, expectedRevision: String(body.expectedRevision || ''), ...(await auditRequestContext(c, db)) })
     return c.json({ report }, 200, { 'Cache-Control': 'no-store' })
   } catch (err) { return aiErrorResponse(c, err) }
@@ -1394,7 +1403,7 @@ aiRoutes.post('/writing/materials', requireAdmin(), async (c) => {
       continuationSnapshot: snapshot, profileOrigins: snapshot.profileOrigins, contentPreferences: snapshot.contentPreferences, writingSystemPrompt: settings.writingSystemPrompt })
     return c.json({ revision: writingMaterialRevision(snapshot, brief.brief, instruction, outline), anchor: snapshot.anchor, plan: compiled.plan,
       historicalPassages: snapshot.historicalPassages || [], excludedProfiles: snapshot.excludedProfiles,
-      characterCount: compiled.system.length + compiled.user.length, recentContextPolicy: '最近三章尾部，总上限 12000 字符；历史原文按匹配片段补充，情节和关系档案完整保留。' }, 200, { 'Cache-Control': 'no-store' })
+      characterCount: compiled.system.length + compiled.user.length, ...(snapshot.memorySelection ? { memorySelection: snapshot.memorySelection } : {}), recentContextPolicy: snapshot.memorySelection ? '最近三章尾部；自动记忆按当前人物、目标及线索关联检索，保留正文依据和相关历史；人工校正完整保留。' : '最近三章尾部，总上限 12000 字符；历史原文按匹配片段补充，情节和关系档案完整保留。' }, 200, { 'Cache-Control': 'no-store' })
   } catch (err) { return aiErrorResponse(c, err) }
 })
 
@@ -1504,6 +1513,7 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
     ])
     return c.json({
       state: plotState.profile,
+      memoryNeedsInitialization: (await getAiSettings(db)).storyMemoryEngine === 'incremental' && plotState.source?.memoryEngine !== 'incremental',
       memoryTask: await getStoryMemoryTask(db, novelId, 'plot'),
       lastAttempt: await getMemoryAttempt(db, novelId, 'plot'),
       progress: await getStoryMemoryProgress(db, novelId, 'plot'),
@@ -1561,6 +1571,7 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
     const result = await getEffectiveProfileForAnchor(db, { kind: 'relationship', novelId, afterChapterId })
     return c.json({
       profile: result.profile,
+      memoryNeedsInitialization: (await getAiSettings(db)).storyMemoryEngine === 'incremental' && result.source?.memoryEngine !== 'incremental',
       memoryTask: await getStoryMemoryTask(db, novelId, 'relationship'),
       lastAttempt: await getMemoryAttempt(db, novelId, 'relationship'),
       progress: await getStoryMemoryProgress(db, novelId, 'relationship'),
@@ -1857,6 +1868,7 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
       await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
       return { order: nextOrder, title }
     })
+    void preparePublishedMemory(db, { userId: c.get('user').id, novelId, afterChapterId: chapterId }).catch(err => console.error('[ai] 发布后记忆准备失败', err))
     return c.json({ ok: true, chapter: { id: chapterId, novelId, title: order.title, order: order.order } })
   } catch (err) {
     if (err instanceof PublishError) return c.json({ error: err.message, ...(err.code ? { code: err.code } : {}) }, err.httpStatus)
@@ -1976,6 +1988,7 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
       await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
       return results
     })
+    void preparePublishedMemory(db, { userId: c.get('user').id, novelId, afterChapterId: published.at(-1)!.id }).catch(err => console.error('[ai] 发布后记忆准备失败', err))
     return c.json({ ok: true, published, novelId })
   } catch (err) {
     if (err instanceof PublishError) return c.json({ error: err.message, ...(err.code ? { code: err.code } : {}) }, err.httpStatus)

@@ -13,6 +13,7 @@ import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess }
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 import { checkContentRate } from '../services/content-rate-limit'
 import { chapterIllustrationsRoutes } from './chapter-illustrations'
+import { preparePublishedMemory } from '../services/ai/story-memory-tasks'
 
 export const chaptersRoutes = new Hono<AuthEnv>()
 chaptersRoutes.route('/', chapterIllustrationsRoutes)
@@ -116,6 +117,7 @@ chaptersRoutes.put('/:id', requireAdmin(), async (c) => {
   })
 
   // 正文变化时由数据库触发器在同一事务内作废提要；标题更新不作废。
+  void preparePublishedMemory(db, { userId: c.get('user').id, novelId, afterChapterId: id }).catch(err => console.error('[memory] 章节更新后准备失败', err))
 
   return c.json({ chapter: { id, novelId, title, content, order, wordCount, sourceUrl, createdAt: existing.createdAt } })
 })
@@ -167,6 +169,7 @@ async function createChapter(c: Context, db: ReturnType<typeof getDb>, body: any
     throw err
   }
 
+  void preparePublishedMemory(db, { userId: c.get('user').id, novelId, afterChapterId: id }).catch(err => console.error('[memory] 发布后准备失败', err))
   return c.json({ chapter: { id, novelId, title: chapter.title, content, order, wordCount, sourceUrl, createdAt: now } }, 201)
 }
 
@@ -202,6 +205,8 @@ async function createChaptersBatch(c: Context, db: ReturnType<typeof getDb>, nov
   })
 
   const total = (await first<{ total: number }>(db, 'SELECT COUNT(*)::int AS total FROM chapters WHERE novel_id = $1', [novelId]))?.total || 0
+  const anchor = await first<{ id: string }>(db, 'SELECT id FROM chapters WHERE novel_id=$1 ORDER BY sort_order DESC,id DESC LIMIT 1', [novelId])
+  if (anchor) void preparePublishedMemory(db, { userId: c.get('user').id, novelId, afterChapterId: anchor.id }).catch(err => console.error('[memory] 批量发布后准备失败', err))
   return c.json({ created: metas.length, chapterIds: metas.map((m) => m.id), totalChapters: total }, 201)
 }
 

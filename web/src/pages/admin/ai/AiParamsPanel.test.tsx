@@ -53,6 +53,16 @@ async function mount() {
   return screen.getByRole('spinbutton', { name: '档案分析超时（秒）' })
 }
 describe('story memory timeout parameter', () => {
+  it('keeps the trial and paid background preparation separate and saves their explicit choices', async () => {
+    await mount()
+    expect(screen.getByRole('combobox', { name: '故事记忆模式' })).toHaveTextContent('完整档案（原模式）')
+    expect(screen.getByRole('spinbutton', { name: '章节增量记忆 Token' })).toHaveValue(16000)
+    fireEvent.click(screen.getByRole('combobox', { name: '故事记忆模式' }))
+    fireEvent.click(await screen.findByRole('option', { name: '章节增量记忆（试验）' }))
+    fireEvent.click(screen.getByRole('switch', { name: /发布后后台准备记忆/ }))
+    fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(expect.objectContaining({ storyMemoryEngine: 'incremental', storyMemoryAutoUpdate: true })))
+  })
   it('shows the legacy default and saves the edited timeout with the writing group', async () => {
     const input = await mount()
     expect(input).toHaveValue(300)
