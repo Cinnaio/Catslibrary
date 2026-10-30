@@ -148,6 +148,31 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect(materials?.selected.plot).toContain('一直留在城中')
   })
 
+  it('automatically binds cognitive subject perspective into subjects when omitted by model', async () => {
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload([
+          fact({
+            kind: 'state',
+            subjects: ['林舟'],
+            label: '性格评价',
+            summary: '沈砚认为林舟为人谨慎。',
+            certainty: 'belief',
+            perspective: '沈砚',
+            quote: prose[0],
+          }),
+        ]),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const ledger = (await ledgerAtAnchor(t.db, 'book'))!
+    const saved = ledger.state.facts.find((f) => f.label === '性格评价')!
+    expect(saved).toBeDefined()
+    expect(saved.perspective).toBe(ledger.state.entities.find((e) => e.name === '沈砚')!.id)
+    expect(saved.subjects).toContain(saved.perspective)
+  })
+
   it('rejects invented quotations, invalid replacement references, alias collisions and unscoped beliefs without advancing', async () => {
     await chapter(1)
     for (const bad of [

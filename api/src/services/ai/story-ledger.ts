@@ -306,9 +306,13 @@ export function parseChapterMemory(
       ['fact', 'belief', 'clue', 'possibility', 'inference'] as const,
       'certainty',
     )
-    const perspective = item.perspective ? nameId(str(item.perspective, 60, 'perspective')) : undefined
-    if (certainty === 'belief' && (!perspective || !subjects.includes(perspective))) return fail('人物认知必须注明认知主体并绑定该实体')
-    if (certainty !== 'belief' && perspective) return fail(`facts[${index}]「${label}」：只有人物认知可设置 perspective（当前 certainty=${certainty}）`)
+    let perspective = item.perspective ? nameId(str(item.perspective, 60, 'perspective')) : undefined
+    if (certainty === 'belief') {
+      if (!perspective) return fail('人物认知必须注明认知主体并绑定该实体')
+      if (!subjects.includes(perspective) && kind !== 'relationship') subjects.push(perspective)
+    } else if (perspective) {
+      perspective = undefined
+    }
     const replaces = strings(item.replaces, 30, 'replaces')
     // 人物认知、线索、冲突、关系、边界是「种一次」的主题：新记录不能顺手改主题，
     // 普通状态（地点、归属、目标）允许模型收敛措辞。
