@@ -219,6 +219,8 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
       ) : !graph ? (
         <div className="story-graph-empty">
           <svg className="story-graph-empty__constellation" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="400" cy="250" r="140" className="story-graph-constellation-ring" />
+            <circle cx="400" cy="250" r="240" className="story-graph-constellation-ring" strokeDasharray="6 6" />
             <line x1="400" y1="250" x2="260" y2="150" className="story-graph-constellation-line" strokeDasharray="4 4" />
             <line x1="400" y1="250" x2="560" y2="160" className="story-graph-constellation-line" strokeDasharray="4 4" />
             <line x1="400" y1="250" x2="240" y2="360" className="story-graph-constellation-line" strokeDasharray="3 3" opacity="0.6" />
@@ -427,8 +429,14 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
           <div className="story-graph-people" aria-label="人物列表">
             <span>人物</span>
             {filteredPeople.length ? (
-              filteredPeople.map((p) => (
-                <button key={p.id} className="story-graph-person-chip" aria-pressed={selected === p.id} onClick={() => select(p.id)}>
+              filteredPeople.map((p, idx) => (
+                <button
+                  key={p.id}
+                  className="story-graph-person-chip"
+                  style={{ '--stagger-i': Math.min(idx, 18) } as React.CSSProperties}
+                  aria-pressed={selected === p.id}
+                  onClick={() => select(p.id)}
+                >
                   {p.name}
                 </button>
               ))

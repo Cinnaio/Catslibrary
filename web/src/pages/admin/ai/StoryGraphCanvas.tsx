@@ -25,6 +25,18 @@ export default function StoryGraphCanvas({
   const positions = { ...original, ...moved }
   const [manualView, setManualView] = useState<{ key: string; x: number; y: number; scale: number } | null>(null)
   const svg = useRef<SVGSVGElement>(null)
+
+  // 计算人物星等 (Magnitude / Degree Centrality)
+  const degrees = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const p of graph.people) counts[p.id] = 0
+    for (const r of graph.relationships) {
+      counts[r.from] = (counts[r.from] || 0) + 1
+      counts[r.to] = (counts[r.to] || 0) + 1
+    }
+    return counts
+  }, [graph])
+  const maxDegree = useMemo(() => Math.max(1, ...Object.values(degrees)), [degrees])
   useEffect(() => {
     const element = svg.current
     if (!element || typeof ResizeObserver === 'undefined') return
@@ -58,6 +70,28 @@ export default function StoryGraphCanvas({
   )
   const layoutKey = `${size.width}:${size.height}:${visiblePeople.map((p) => p.id)}:${threads.map((t) => t.id)}`
   const view = manualView?.key === layoutKey ? manualView : fitted
+
+  // 原生 wheel 监听，支持以光标位置为锚点的无级平滑缩放
+  useEffect(() => {
+    const el = svg.current
+    if (!el) return
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89
+      const nextScale = Math.max(0.15, Math.min(3, view.scale * zoomFactor))
+      if (Math.abs(nextScale - view.scale) < 0.002) return
+
+      const rect = el.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left - size.width / 2
+      const mouseY = e.clientY - rect.top - size.height / 2
+      const ratio = nextScale / view.scale
+      const nextX = mouseX - (mouseX - view.x) * ratio
+      const nextY = mouseY - (mouseY - view.y) * ratio
+      setManualView({ key: layoutKey, scale: nextScale, x: nextX, y: nextY })
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [view, size, layoutKey])
 
   function start(e: PointerEvent<SVGSVGElement>) {
     if (e.button !== 0 || !e.isPrimary) return
@@ -145,6 +179,15 @@ export default function StoryGraphCanvas({
           </marker>
         </defs>
         <g transform={`translate(${size.width / 2 + view.x} ${size.height / 2 + view.y}) scale(${view.scale}) translate(-600 -410)`}>
+          {/* 星图天象经纬底网与同心星轨 */}
+          <g className="story-graph-celestial" aria-hidden="true">
+            <circle cx="600" cy="410" r="180" className="story-graph-celestial__ring" />
+            <circle cx="600" cy="410" r="320" className="story-graph-celestial__ring" />
+            <circle cx="600" cy="410" r="460" className="story-graph-celestial__ring story-graph-celestial__ring--outer" />
+            <line x1="600" y1="120" x2="600" y2="700" className="story-graph-celestial__axis" />
+            <line x1="310" y1="410" x2="890" y2="410" className="story-graph-celestial__axis" />
+          </g>
+
           {graph.relationships
             .filter((r) => ids.has(r.from) && ids.has(r.to))
             .map((r, index) => {
@@ -154,6 +197,9 @@ export default function StoryGraphCanvas({
               const edge = geometry.find((e) => e.id === r.id)
               if (!edge) return null
               const dim = neighborhood && !neighborhood.has(r.from) && !neighborhood.has(r.to)
+              const labelFontSize = Math.max(12, Math.round(9.5 / view.scale))
+              const badgeW = Math.max(36, r.label.length * (labelFontSize * 0.98) + 14)
+              const badgeH = labelFontSize + 8
               return (
                 <g
                   key={r.id}
@@ -173,9 +219,24 @@ export default function StoryGraphCanvas({
                     strokeDasharray={r.certainty === 'inference' || r.certainty === 'possibility' ? '5 5' : undefined}
                   />
                   <line className="story-graph-edge__leader" x1={edge.anchor.x} y1={edge.anchor.y} x2={edge.label.x} y2={edge.label.y} />
-                  <text x={edge.label.x} y={edge.label.y + 4} style={{ fontSize: Math.max(13, 10 / view.scale) }} className="story-graph-edge__label">
-                    {r.label}
-                  </text>
+                  <g className="story-graph-edge__badge-group">
+                    <rect
+                      className="story-graph-edge__badge"
+                      x={edge.label.x - badgeW / 2}
+                      y={edge.label.y - badgeH / 2}
+                      width={badgeW}
+                      height={badgeH}
+                      rx={badgeH / 2}
+                    />
+                    <text
+                      x={edge.label.x}
+                      y={edge.label.y + Math.round(labelFontSize * 0.35)}
+                      style={{ fontSize: labelFontSize }}
+                      className="story-graph-edge__label"
+                    >
+                      {r.label}
+                    </text>
+                  </g>
                   <title>
                     {r.summary} · 关系 {index + 1}
                   </title>
@@ -204,7 +265,7 @@ export default function StoryGraphCanvas({
                   onClick={() => onSelect(t.id)}
                   onKeyDown={(e) => selectKey(e, t.id)}
                 >
-                  <rect x="-85" y="-23" width="170" height="46" rx="8" />
+                  <rect x="-85" y="-23" width="170" height="46" rx="10" />
                   <text textAnchor="middle" y="5" style={{ fontSize: Math.max(13, 10 / view.scale) }}>
                     {t.title.length > maxChars ? `${t.title.slice(0, maxChars - 1)}…` : t.title}
                   </text>
@@ -216,6 +277,16 @@ export default function StoryGraphCanvas({
           {visiblePeople.map((p) => {
             const pos = positions[p.id]
             if (!pos) return null
+            const deg = degrees[p.id] || 0
+            const isPrime = deg >= 3 && deg >= maxDegree * 0.7
+            const isSub = deg <= 1 && graph.people.length > 3
+            const tierClass = isPrime ? 'story-graph-person--prime' : isSub ? 'story-graph-person--sub' : ''
+            const baseR = isPrime ? 42 : isSub ? 28 : 34
+            const r = Math.max(baseR, Math.round((baseR * 0.68) / view.scale))
+            const orbitR = r + (isPrime ? 10 : isSub ? 5 : 7)
+            const fontSize = Math.max(isPrime ? 16 : isSub ? 13 : 15, Math.round((isPrime ? 11.5 : isSub ? 9 : 10.5) / view.scale))
+            const isSelected = selected === p.id
+
             return (
               <g
                 key={p.id}
@@ -224,13 +295,26 @@ export default function StoryGraphCanvas({
                 tabIndex={0}
                 aria-label={`人物：${p.name}`}
                 aria-pressed={selected === p.id}
-                className={`story-graph-person ${selected === p.id ? 'is-selected' : ''} ${neighborhood && !neighborhood.has(p.id) ? 'is-dimmed' : ''}`}
+                className={`story-graph-person ${tierClass} ${isSelected ? 'is-selected' : ''} ${neighborhood && !neighborhood.has(p.id) ? 'is-dimmed' : ''}`}
                 transform={`translate(${pos.x},${pos.y})`}
                 onKeyDown={(e) => selectKey(e, p.id)}
               >
-                <circle className="story-graph-person__orbit" r={Math.max(34, 23 / view.scale) + 7} />
-                <circle className="story-graph-person__body" r={Math.max(34, 23 / view.scale)} />
-                <text textAnchor="middle" y="6" style={{ fontSize: Math.max(16, 11 / view.scale) }}>
+                {/* 主曜专属柔和星晕与内环刻度 */}
+                {isPrime && <circle className="story-graph-person__halo" r={r + 18} />}
+                {isPrime && <circle className="story-graph-person__inner-ring" r={r - 4} />}
+                {/* 轨道与本体 */}
+                <circle className="story-graph-person__orbit" r={orbitR} />
+                <circle className="story-graph-person__body" r={r} />
+                {/* 选中态：星盘四向游标 */}
+                {isSelected && (
+                  <g className="story-graph-person__reticle" aria-hidden="true">
+                    <line x1={-r - 9} y1="0" x2={-r - 3} y2="0" />
+                    <line x1={r + 3} y1="0" x2={r + 9} y2="0" />
+                    <line x1="0" y1={-r - 9} x2="0" y2={-r - 3} />
+                    <line x1="0" y1={r + 3} x2="0" y2={r + 9} />
+                  </g>
+                )}
+                <text textAnchor="middle" y={Math.round(fontSize * 0.35)} style={{ fontSize }}>
                   {p.name.length <= 4 ? p.name : p.name.slice(0, 3) + '…'}
                 </text>
                 <title>
