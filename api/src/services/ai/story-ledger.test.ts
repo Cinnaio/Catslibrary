@@ -865,4 +865,36 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect(fact2.subjects).toContain(yaoEntity.id)
     expect(fact2.perspective).toBe(yaoEntity.id)
   })
+
+  it('tolerates and auto-recovers minor extraction flaws without crashing long-novel builds in tolerant mode', async () => {
+    await chapter(1, '萧鼎的父亲站在大殿上。苏越行礼。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [
+            // 未注册实体「萧鼎父亲」，缺少 perspective 的 belief，非共有主体的 replace
+            fact({
+              subjects: ['萧鼎父亲'],
+              label: '在大殿',
+              summary: '萧鼎父亲站在大殿上。',
+              certainty: 'belief',
+              perspective: undefined,
+              quote: '萧鼎的父亲站在大殿上',
+              replaces: ['non_existent_or_unanchored'],
+            }),
+          ],
+          [], // 模型 entities 漏声明
+        ),
+      ),
+    )
+    // 启用 tolerant 模式，即使模型漏声明实体、漏填认知视角、替换失败，也能自愈平稳推进
+    const res = await extractPlotState(t.db, { ...opts, tolerant: true })
+    expect(res.processedChapters).toBe(1)
+    const ledger = (await ledgerAtAnchor(t.db, 'book'))!
+    expect(ledger.processed).toBe(1)
+    expect(ledger.state.facts.length).toBe(1)
+    expect(ledger.state.facts[0]!.label).toBe('在大殿')
+    // 实体被自动就地补齐注册
+    expect(ledger.state.entities.some((e) => e.name === '萧鼎父亲')).toBe(true)
+  })
 })
