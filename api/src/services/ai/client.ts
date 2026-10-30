@@ -495,7 +495,9 @@ function isRetriable(err: AiError, opts: AiChatOptions): boolean {
 function reasoningFields(model: string, mode: AiReasoningMode = 'inherit'): Record<string, unknown> {
   if (mode === 'inherit') return {}
   if (!/(^|\/)deepseek(?:[-_/]|$)/i.test(model)) throw new AiError('invalid', '当前思考模式设置只支持 DeepSeek 兼容模型；请将该任务的思考模式设为跟随供应商', 422)
-  return mode === 'disabled' ? { thinking: { type: 'disabled' } } : { thinking: { type: 'enabled' }, reasoning_effort: mode }
+  return mode === 'disabled'
+    ? { thinking: { type: 'disabled' }, reasoning_effort: 'none' }
+    : { thinking: { type: 'enabled' }, reasoning_effort: mode }
 }
 
 /**

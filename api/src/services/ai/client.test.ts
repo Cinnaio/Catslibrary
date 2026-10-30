@@ -31,7 +31,7 @@ describe('explicit reasoning and stream progress', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
   it.each([
-    ['inherit', {}], ['disabled', { thinking: { type: 'disabled' } }],
+    ['inherit', {}], ['disabled', { thinking: { type: 'disabled' }, reasoning_effort: 'none' }],
     ['low', { thinking: { type: 'enabled' }, reasoning_effort: 'low' }],
     ['high', { thinking: { type: 'enabled' }, reasoning_effort: 'high' }],
   ] as const)('sends DeepSeek mode %s in JSON and streaming requests', async (reasoningMode, expected) => {
