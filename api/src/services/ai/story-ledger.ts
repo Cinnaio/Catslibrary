@@ -30,6 +30,9 @@ export interface MemoryFact {
   quote: string
   chapterId: string
   ordinal: number
+  /** 落库记录里不存在；仅在「送给模型的参考集」中标注：该记录已被后续状态替换，
+   * 保留只是为了提供历史依据，不能再被 replaces 引用。 */
+  stillActive?: boolean
 }
 export interface ChapterMemory {
   version: 1
@@ -91,6 +94,16 @@ export function normalizeForSourceMatch(value: unknown): string {
 /** 归一化后至少要留下这么多实字，避免空串或单个标点通过校验。 */
 const MIN_QUOTE_MATCH_CHARS = 4
 
+/** 引文比对口径与内容判定口径必须一致：正文里嵌着的 JSON/代码块如果参与比对，
+ * 模型给出的原文片段（已剥掉那些包裹字符）会永远匹配失败。 */
+const minifyFragment = (value: string) =>
+  value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n')
+export const sourceMatchText = (text: string) => normalizeForSourceMatch(text) || normalizeForSourceMatch(minifyFragment(text))
+
 /** 引文是否逐字来自正文（容忍排版噪音，不容忍改写）。 */
 export function quoteMatchesText(text: string, quote: string): boolean {
   return sourceSpan(text, quote) !== ''
@@ -100,6 +113,7 @@ export function quoteMatchesText(text: string, quote: string): boolean {
 export function sourceSpan(text: string, quote: string): string {
   const needle = normalizeForSourceMatch(quote)
   if (needle.length < MIN_QUOTE_MATCH_CHARS) return ''
+  if (!sourceMatchText(text)) return ''
   let from = -1
   let counted = 0
   for (let i = 0; i < text.length; i++) {
@@ -163,7 +177,13 @@ export function workingFacts(state: LedgerState): MemoryFact[] {
 
 /** Match entity aliases and explicit query terms, then include their immediate relations.
  * No token clipping: large relevant sets remain visible, and missing terms can be requested. */
-export function relevantLedger(state: LedgerState, text: string, queries: string[] = [], historyMode: 'explicit' | 'topics' = 'explicit'): LedgerState {
+export function relevantLedger(
+  state: LedgerState,
+  text: string,
+  queries: string[] = [],
+  historyMode: 'explicit' | 'topics' = 'explicit',
+  activeOnly = false,
+): LedgerState {
   const haystack = `${text}\n${queries.join('\n')}`.toLocaleLowerCase()
   const names = new Set(state.entities.flatMap((e) => [e.name, ...e.aliases]).map((n) => n.toLocaleLowerCase()))
   const terms = [
@@ -173,6 +193,8 @@ export function relevantLedger(state: LedgerState, text: string, queries: string
     ]),
   ].filter((term) => historyMode === 'explicit' || !names.has(term.toLocaleLowerCase()))
   const ids = new Set(state.entities.filter((e) => [e.name, ...e.aliases].some((n) => haystack.includes(n.toLocaleLowerCase()))).map((e) => e.id))
+  // 章节抽取（activeOnly）只认当前有效记录：已被替换的旧记录不能再回到替换候选里。
+  const pool = activeOnly ? currentFacts(state).filter((f) => f.status === 'active') : state.facts
   const current = workingFacts(state)
   const direct = current.filter(
     (f) => f.subjects.some((id) => ids.has(id)) || terms.some((q) => `${f.label} ${f.summary}`.toLocaleLowerCase().includes(q.toLocaleLowerCase())),
@@ -180,9 +202,10 @@ export function relevantLedger(state: LedgerState, text: string, queries: string
   const related = new Set([...ids, ...direct.flatMap((f) => f.subjects)])
   const wanted = new Set(direct.map((f) => f.id))
   for (const f of current) if (f.scope === 'global' || f.kind === 'boundary' || f.subjects.some((id) => related.has(id))) wanted.add(f.id)
+  const replaceable = new Set(current.map((f) => f.id))
   // History is expanded only for explicit supplementary queries, never merely
   // because the protagonist occurs in every chapter.
-  const historical = state.facts.filter((f) =>
+  const historical = pool.filter((f) =>
     terms.some((q) =>
       `${f.label} ${f.summary} ${f.subjects.map((id) => state.entities.find((e) => e.id === id)?.name).join(' ')}`
         .toLocaleLowerCase()
@@ -198,7 +221,9 @@ export function relevantLedger(state: LedgerState, text: string, queries: string
     }
   }
   for (const f of historical) f.replaces.forEach(add)
-  const facts = state.facts.filter((f) => wanted.has(f.id))
+  const facts = pool
+    .filter((f) => wanted.has(f.id))
+    .map((fact) => (replaceable.has(fact.id) || fact.status !== 'active' ? fact : { ...fact, stillActive: false }))
   const entities = state.entities.filter((e) => related.has(e.id) || facts.some((f) => f.subjects.includes(e.id)))
   return { entities, facts }
 }
@@ -285,34 +310,36 @@ export function parseChapterMemory(
     if (certainty === 'belief' && (!perspective || !subjects.includes(perspective))) return fail('人物认知必须注明认知主体并绑定该实体')
     if (certainty !== 'belief' && perspective) return fail(`facts[${index}]「${label}」：只有人物认知可设置 perspective（当前 certainty=${certainty}）`)
     const replaces = strings(item.replaces, 30, 'replaces')
+    // 人物认知、线索、冲突、关系、边界是「种一次」的主题：新记录不能顺手改主题，
+    // 普通状态（地点、归属、目标）允许模型收敛措辞。
+    const onceOnly = ['belief', 'clue', 'conflict', 'relationship', 'boundary'].includes(kind) || certainty === 'belief'
     if (kind === 'relationship' && typeof item.directed !== 'boolean') return fail('关系必须明确 directed 方向')
     for (const id of replaces) {
       const before = supplied.get(id)
-      const shared = before?.subjects.filter((subject) => subjects.includes(subject)) || []
-      const sameSubjects = before && [...before.subjects].sort().join() === [...subjects].sort().join()
-      const sameAnchor =
-        kind === 'relationship' || kind === 'boundary'
-          ? sameSubjects
-          : kind === 'item'
-            ? shared.some((subject) => entities.get(subject)?.kind === 'item')
-            : kind === 'place'
-              ? shared.some(
-                  (subject) => entities.get(subject)?.kind === (before?.subjects.some((old) => entities.get(old)?.kind === 'person') ? 'person' : 'place'),
-                )
-              : shared.length > 0
-      if (
-        !before ||
-        alreadyReplaced.has(id) ||
-        before.memoryType !== 'state' ||
-        memoryType !== 'state' ||
-        before.label !== label ||
-        before.kind !== kind ||
-        (before.certainty === 'belief') !== (certainty === 'belief') ||
-        before.perspective !== perspective ||
-        !sameAnchor ||
-        (before.directed && item.directed && before.subjects.join() !== subjects.join())
-      )
+      if (!before) return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态`)
+      const beforeKind = String(before.kind ?? '')
+      const shared = before.subjects.filter((subject) => subjects.includes(subject))
+      const sameSubjects = [...before.subjects].sort().join() === [...subjects].sort().join()
+      // 物品归属认物品、位置认人物，主体集合会随转手/移动而变化，因此物品与地点类只要
+      // 仍有共有主体即可承接；其余主题要求核心主体完全一致。
+      const anchoredByTopic = ['item', 'place'].includes(beforeKind) || ['item', 'place'].includes(kind) ? shared.length > 0 : sameSubjects
+      const sameSide = before.subjects.join() === subjects.join()
+      const stale = (before as MemoryFact & { supplied?: boolean }).supplied === false
+      // 只能替换本轮派发给模型、且仍是当前状态、认知口径一致的记录。
+      if (stale || alreadyReplaced.has(id) || before.memoryType !== 'state' || memoryType !== 'state')
         return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态`)
+      if (!anchoredByTopic) return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（缺少共有核心主体）`)
+      if (before.directed && item.directed === true && !sameSide)
+        return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（单向关系不能改方向）`)
+      if ((before.certainty === 'belief') !== (certainty === 'belief') || before.perspective !== perspective)
+        return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（认知口径不同）`)
+      // 类别只放宽状态类互换：关系与边界仍须严格同类别，避免把关系维度替换成整体关系。
+      const RELAXABLE = ['state', 'clue', 'conflict', 'item', 'place']
+      if (before.kind !== kind && !(RELAXABLE.includes(before.kind) && RELAXABLE.includes(kind)))
+        return fail(`替换记录 ${id} 的类别变化超出放宽范围（原类别 ${before.kind} → ${kind}）`)
+      // label 是持久主题：人物认知、线索、冲突、关系、边界不许顺手改主题，普通状态允许收敛措辞。
+      if (before.label !== label && (certainty === 'inference' || onceOnly))
+        return fail(`替换记录 ${id} 的主题变化过大（原主题「${before.label}」），请沿用旧 label 或另开新记录`)
       alreadyReplaced.add(id)
     }
     return {
