@@ -68,12 +68,14 @@ jobs:
           test -d api/dist/migrations
           node -e "
             const fs = require('fs');
+            const path = require('path');
             const html = fs.readFileSync('web/dist/index.html', 'utf8');
-            const refs = [...html.matchAll(/(?:src|href)=\"(\\/assets\\/[^\"]+)\"/g)].map((m) => m[1]);
+            const refs = [...html.matchAll(/(?:src|href)=\"(\/assets\/[^\"]+)\"/g)].map((m) => m[1]);
             if (!refs.length) throw new Error('index.html 没有引用任何打包资源');
+            const root = path.resolve('web/dist');
             for (const ref of refs) {
-              const file = 'web/dist' + ref.replace(/^\//, '');
-              if (!fs.existsSync(file)) throw new Error('index.html 引用了不存在的资源: ' + ref);
+              const file = path.join(root, ref.replace(/^\//, ''));
+              if (!fs.existsSync(file)) throw new Error('index.html 引用了不存在的资源: ' + ref + ' -> ' + file);
             }
             console.log('引用资源检查通过:', refs.join(', '));
           "
