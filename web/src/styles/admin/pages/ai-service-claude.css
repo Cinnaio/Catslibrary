@@ -787,12 +787,12 @@
   font-size: 0.75rem;
 }
 .ai-service .ai-writing-suggest-placeholder {
-  display: none;
+  display: flex;
 }
-/* 推荐情节：宽屏两列、窄屏单列的柔和纸面，避免长文被挤成四条窄列。 */
+/* 推荐情节与叙事分支：单列优雅纸质卡片，舒朗排布，微观张力与推演连线 */
 .ai-service .ai-writing-suggest {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   gap: 0.75rem;
   max-height: none;
@@ -800,59 +800,72 @@
   padding-right: 0;
 }
 .ai-service .ai-writing-suggest__item {
-  display: grid;
-  grid-template-columns: 1.25rem minmax(0, 1fr);
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-lg);
-  background: var(--bg-secondary);
-  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--admin-border, #e5e3dc);
+  border-radius: var(--radius-lg, 0.75rem);
+  background: var(--admin-panel, #ffffff);
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  text-align: left;
 }
 .ai-service .ai-writing-suggest__item:hover {
-  background: var(--bg-hover);
-  border-color: var(--border);
+  background: var(--bg-hover, rgba(0, 0, 0, 0.02));
+  border-color: rgba(217, 119, 87, 0.4);
 }
 .ai-service .ai-writing-suggest__item[aria-pressed='true'] {
-  background: var(--accent-subtle);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: rgba(217, 119, 87, 0.05);
+  border-color: #d97757;
+  box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.25);
 }
 .ai-service .ai-writing-suggest__item:focus-visible {
-  border-color: var(--accent);
-  box-shadow: var(--input-focus-shadow);
+  border-color: #d97757;
+  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.2);
 }
 .ai-service .ai-writing-suggest__index {
-  display: block;
-  width: auto;
-  height: auto;
-  margin-top: 0.125rem;
-  border: 0;
-  border-radius: 0;
+  display: flex;
+  width: 1.25rem;
+  height: 1.25rem;
   color: var(--text-muted);
   font-size: 0.75rem;
-  line-height: 1.75;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 .ai-service .ai-writing-suggest__body {
-  gap: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 .ai-service .ai-writing-suggest__direction {
   font-size: 0.8125rem;
-  line-height: 1.75;
+  line-height: 1.7;
   overflow-wrap: anywhere;
 }
 .ai-service .ai-writing-suggest__effect {
-  margin-top: auto;
+  margin-top: 0.25rem;
   padding-top: 0;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 .ai-service .ai-writing-suggest-block {
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
 }
-@media (max-width: 640px) {
-  .ai-service .ai-writing-suggest {
-    grid-template-columns: minmax(0, 1fr);
-  }
+
+/* AI 创作推演监视器与大纲时间轴 */
+.ai-service .ai-outline-story-studio {
+  width: 100%;
+}
+.ai-service .ai-continuation-visualizer {
+  width: 100%;
+  animation: fadeIn 0.25s ease-out;
+}
+.ai-service .ai-generations-visual-bar {
+  width: 100%;
 }
 .ai-service .ai-writing-outline-details {
   border: 0;
