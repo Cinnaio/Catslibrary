@@ -234,10 +234,17 @@
   line-height: 1.35;
 }
 
+/* 面板用途说明：弱于标题、独立成行，不参与标题行的 flex 对齐。 */
+.admin-panel-heading__copy .admin-panel-heading__description {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
 .admin-panel-heading__actions {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  align-items: center;  justify-content: flex-end;
   gap: 0.5rem;
   min-width: 0;
   flex: 0 0 auto;

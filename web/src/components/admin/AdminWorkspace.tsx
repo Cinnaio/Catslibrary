@@ -199,6 +199,8 @@ export function AdminDataPanel({ children, ariaLabel, className, columns, densit
 interface AdminPanelHeadingProps {
   title: string
   titleId?: string
+  /** 面板用途说明；属静态文案，视觉上弱于标题并独占一行。 */
+  description?: string
   /** 只呈现实时状态或有归属的数据读数；静态提示移出标题行。 */
   status?: ReactNode
   /** 只放可执行控件，不放快捷键提示等静态标签。 */
@@ -206,11 +208,12 @@ interface AdminPanelHeadingProps {
   className?: string
 }
 
-export function AdminPanelHeading({ title, titleId, status, actions, className }: AdminPanelHeadingProps) {
+export function AdminPanelHeading({ title, titleId, description, status, actions, className }: AdminPanelHeadingProps) {
   return (
     <div className={cn('admin-panel-heading', className)}>
       <div className="admin-panel-heading__copy">
         <h3 id={titleId}>{title}</h3>
+        {description ? <p className="admin-panel-heading__description">{description}</p> : null}
       </div>
       {(status || actions) && (
         <div className="admin-panel-heading__actions">
@@ -223,8 +226,8 @@ export function AdminPanelHeading({ title, titleId, status, actions, className }
 }
 
 interface AdminCellTextProps {
-  /** 完整文本。截断只发生在视觉层，这个值始终是唯一真相。 */
-  children: string
+  /** 完整文本（字符串，用于 title 与无障碍原文），或需要在单元格内嵌入交互的元素。 */
+  children: string | ReactNode
   /** 强化为主字段（书名、章节名）：加粗 + 行标题档字号。 */
   strong?: boolean
   className?: string
@@ -244,10 +247,12 @@ interface AdminCellTextProps {
  * 在这里是更克制也更稳的选择。
  */
 export function AdminCellText({ children, strong = false, className }: AdminCellTextProps) {
+  // 文本模式保留「完整值可达」的无障碍补充；嵌入元素时无法把节点序列化成字符串，只渲染节点本身。
+  const plain = typeof children === 'string'
   return (
-    <span className={cn('admin-cell-text', strong && 'admin-cell-text--strong', className)} title={children}>
+    <span className={cn('admin-cell-text', strong && 'admin-cell-text--strong', className)} title={plain ? (children as string) : undefined}>
       {children}
-      <span className="sr-only">（完整：{children}）</span>
+      {plain ? <span className="sr-only">（完整：{children}）</span> : null}
     </span>
   )
 }

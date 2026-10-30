@@ -27,6 +27,7 @@ export default function NovelDeleteDialog({
 
   const isBatch = novels.length > 1
   const totalChapters = novels.reduce((acc, n) => acc + (n.chapterCount || 0), 0)
+  const single = novels[0]!
 
   async function handleDelete() {
     setBusy(true)
@@ -37,8 +38,8 @@ export default function NovelDeleteDialog({
         deletedIds.push(...novels.map((n) => n.id))
         toast(`已批量删除 ${novels.length} 部小说`, 'success')
       } else {
-        await novelsApi.remove(novels[0].id)
-        deletedIds.push(novels[0].id)
+        await novelsApi.remove(single.id)
+        deletedIds.push(single.id)
         toast('小说已删除', 'success')
       }
       onClose()
@@ -52,7 +53,7 @@ export default function NovelDeleteDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !busy && onClose()}>
-      <AdminDialogContent variant="destructive" className="novel-delete-dialog sm:max-w-[500px]">
+      <AdminDialogContent variant="form" className="novel-delete-dialog sm:max-w-[500px]">
         <DialogHeader>
           <div className="novel-delete-icon-wrap">
             <AlertTriangle className="size-5 text-destructive" />
@@ -61,7 +62,7 @@ export default function NovelDeleteDialog({
           <DialogDescription>
             {isBatch
               ? `你即将彻底移除选中的 ${novels.length} 部小说及其包含的全部 ${totalChapters.toLocaleString('zh-CN')} 章正文。`
-              : `你即将彻底移除《${novels[0].title}》及其包含的全部 ${(novels[0].chapterCount || 0).toLocaleString('zh-CN')} 章正文。`}
+              : `你即将彻底移除《${single.title}》及其包含的全部 ${(single.chapterCount || 0).toLocaleString('zh-CN')} 章正文。`}
           </DialogDescription>
         </DialogHeader>
         <AdminDialogBody>

@@ -234,12 +234,14 @@ export function ReadingStatsPanel() {
       {range && data && (
         <div className="reading-stats__content" key={`${data.start}:${data.end}`}>
           <dl className="reading-stats__metrics">
-            {[
-              [readingDuration(data.milliseconds), '阅读时长'],
-              [`${data.sessions} 次`, '阅读次数'],
-              [`${data.chapters} 章`, '阅读章节'],
-              [`${data.days} 天`, '阅读天数'],
-            ].map(([value, label]) => (
+            {(
+              [
+                [readingDuration(data.milliseconds), '阅读时长'],
+                [`${data.sessions} 次`, '阅读次数'],
+                [`${data.chapters} 章`, '阅读章节'],
+                [`${data.days} 天`, '阅读天数'],
+              ] as const
+            ).map(([value, label]) => (
               <div key={label}>
                 <dt>{label}</dt>
                 <dd className={label === '阅读时长' ? 'reading-stats__duration' : undefined}>
