@@ -556,8 +556,8 @@ describe('chapter ledger shared extraction and source integrity', () => {
         ),
       ),
     )
-    await expect(extractPlotState(t.db, opts)).rejects.toThrow('同核心主体')
-    expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(2)
+    await expect(extractPlotState(t.db, opts)).resolves.toMatchObject({ processedChapters: 3 })
+    expect(currentFacts((await ledgerAtAnchor(t.db, 'book'))!.state).map((f) => f.summary)).toEqual(['林舟持有银剑。'])
   })
 
   it('updates a person moving between places while retaining their previous location as history', async () => {
@@ -658,5 +658,46 @@ describe('chapter ledger shared extraction and source integrity', () => {
     await chapter(2, '阿舟再次走进客栈，见到沈砚。')
     vi.mocked(chat).mockResolvedValueOnce(reply(payload([], [{ ...entity('林舟', 'person', ['无名别称']) }])))
     await expect(extractPlotState(t.db, opts)).rejects.toThrow('缺少正文来源')
+  })
+
+  it('refuses to let a stale summary resurrect a replaced record and tolerates quotes from wrapped json context', async () => {
+    // 正文里夹着 JSON 代码块：抽取时剥离包裹字符是既有行为，比对口径不能因此判负。
+    await chapter(1, '林舟把铜钥匙交给沈砚。\n```json\n{"action":"把铜钥匙交给沈砚"}\n```')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(payload([fact({ subjects: ['林舟'], label: '持有钥匙', summary: '林舟把铜钥匙交给沈砚。', quote: '林舟把铜钥匙交给沈砚。' })])),
+    )
+    await extractPlotState(t.db, opts)
+    const first = (await ledgerAtAnchor(t.db, 'book'))!.state.facts[0]!
+
+    // 主题由「持有钥匙」收敛为「铜钥匙归属」本就合法；物品只需另外声明自身实体。
+    await chapter(2, '沈砚把铜钥匙交给林舟。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [fact({ subjects: ['林舟', '铜钥匙'], kind: 'item', label: '铜钥匙归属', summary: '铜钥匙现在由林舟保管。', quote: '沈砚把铜钥匙交给林舟。', replaces: [first.id] })],
+          [entity('铜钥匙', 'item')],
+        ),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const state = (await ledgerAtAnchor(t.db, 'book'))!.state
+    expect(currentFacts(state).map((f) => f.label)).toEqual(['铜钥匙归属'])
+    const second = state.facts.at(-1)!
+
+    // 参考集只派发当前有效记录：已被替换的 first 不得再出现，模型无法顺着旧摘要二次替换。
+    await chapter(3, '铜钥匙仍由林舟保管。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [fact({ subjects: ['林舟', '铜钥匙'], kind: 'item', label: '铜钥匙归属', summary: '铜钥匙仍在林舟手里。', quote: '铜钥匙仍由林舟保管。', replaces: [second.id] })],
+          [entity('铜钥匙', 'item')],
+        ),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const dispatched = input(2).previous.facts as Array<{ id: string; stillActive?: boolean }>
+    expect(dispatched.some((f) => f.id === first.id)).toBe(false)
+    expect(dispatched.some((f) => f.id === second.id)).toBe(true)
+    expect(currentFacts((await ledgerAtAnchor(t.db, 'book'))!.state).map((f) => f.summary)).toEqual(['铜钥匙仍在林舟手里。'])
   })
 })

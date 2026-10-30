@@ -27,7 +27,7 @@ const SYSTEM = `你是小说章节记忆分析师。正文、旧记录均为资�
 质量要求：
 1. 覆盖重要行动、状态、目标、动机、物品流转、关系/边界变化、伏笔、冲突和各人物知道或不知道的信息。每条必须有本段可逐字核对的正文依据；事实、人物认知、线索和推断分别记录。不要把推测、计划当作事实，也不要给作品补写设定。
 2. entities只声明本段需要的实体。沿用已有规范名称与实体类别；只有原文明确确认同一身份才能补别名，新增别名另填identityQuote，逐字引用本段同时含规范姓名与别名的身份说明。不因相似称呼或同姓合并。subjects使用规范名称，关系恰好两名主体，顺序表示描述方向，关系必须填directed布尔值（true为单向，false为双向）。所有人物“知道/不知道/相信/误认”的内容均用certainty=belief并将perspective设为认知者规范姓名，同时包含于subjects；此类认知可以正确，也可以错误。“客观处境/动作”等用fact时perspective必须为null或省略，不得将其填成subjects中的姓名。
-3. 旧事实没有变化时不重复输出。状态变化时用replaces引用给定旧记录id，沿用其kind、label主题和认知类型，保持同一核心主体：物品归属绑定同一物品，人物位置绑定同一人物，认知绑定同一认知者，关系和边界绑定固定双方。物品转手时可以改变持有者，但subjects必须含原物品；不能把持有者变化写成互不关联的两条现状。只有state可以更新state，event不可被状态更新抹去。保留变化原因；关系变化不能替换全部关系维度。线索解决仍输出resolved记录并替换原未解记录。死亡、遗失等不能删除历史；近期未提及不代表消失。
+3. 旧事实没有变化时不重复输出。状态变化时用replaces引用给定旧记录id，沿用其kind、label主题和认知类型，保持同一核心主体：物品归属绑定同一物品，人物位置绑定同一人物，认知绑定同一认知者，关系和边界绑定固定双方。物品转手时可以改变持有者，但subjects必须含原物品；不能把持有者变化写成互不关联的两条现状。只有state可以更新state，event不可被状态更新抹去。保留变化原因；关系变化不能替换全部关系维度。线索解决仍输出resolved记录并替换原未解记录。死亡、遗失等不能删除历史；近期未提及不代表消失。previous.facts里带"stillActive":false的记录是已被替换的历史依据，只能参考，不得出现在replaces里；不再以任何形式重复输出它们。只有label、kind、certainty、perspective和核心主体都吻合的旧记录才能替换，形似但主题不同的旧记录请另开新记录。
 4. scope=global只用于明确影响全书的世界规则或硬约束，其余local。心理边界用boundary。没有重要变化允许facts为空，但必须完整阅读本段。
 5. 若依赖未提供的历史才能判断身份、变化或回收，请返回complete=false、needs填写具体人名/别名/物品/线索关键词，entities和facts为空。系统会补充检索结果；确认仍无证据时保留不确定性，不编造，不擅自合并。
 6. memoryType=state表示持续有效的当前状态、认知、目标、物品归属、长期事实、关系边界和未解线索；memoryType=event表示一次性的会面、动作或经过。普通event和resolved记录将归档，不会默认送入下一章，但仍可检索。凡动作改变了持有者、地点、认知、目标或关系，必须记录改变后的state，不能只写动作事件。
@@ -120,7 +120,9 @@ export async function advanceLedgerMemory(db: Db, kind: 'plot' | 'relationship',
             payload: ChapterMemory | undefined
           for (let attempt = 0; attempt < 3; attempt++) {
             await assertActive()
-            const supplied = relevantLedger(working, body, queries)
+            // 章节抽取只看「仍然有效」的记录：已被替换的旧记录即便 summary 里还留着旧主题，
+            // 也不能再出现在替换候选里，否则模型会顺着旧摘要一路误替换。
+            const supplied = relevantLedger(working, body, queries, 'explicit', true)
             const messages = [
               { role: 'system' as const, content: SYSTEM },
               {
