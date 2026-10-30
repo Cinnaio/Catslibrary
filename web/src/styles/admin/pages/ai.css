@@ -898,15 +898,6 @@
   line-height: 1.6;
 }
 
-.ai-writing-run-scale__choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.ai-writing-run-scale__choices [data-slot='button'] {
-  min-width: 6.75rem;
-}
 
 .ai-writing-content-scope__toggle {
   display: flex;
@@ -987,15 +978,6 @@
     max-width: 100%;
   }
 
-  .ai-writing-run-scale__choices {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .ai-writing-run-scale__choices [data-slot='button'] {
-    min-width: 0;
-    width: 100%;
-  }
 
   .ai-writing-content-scope__toggle {
     padding: 0.75rem;

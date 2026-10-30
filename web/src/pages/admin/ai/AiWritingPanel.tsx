@@ -200,7 +200,7 @@ function TextProgressPreview({ progress }: { progress?: AiTextProgress | null })
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="font-semibold text-foreground/90">模型推演思考中</span>
           <span className="text-muted-foreground">
-            已接收 <span className="font-mono font-medium">{progress.reasoningCharacters.toLocaleString()}</span> 个思考字符，组织叙事逻辑后将流式输出…
+            已接收 <span className="font-mono font-medium">{progress.reasoningCharacters.toLocaleString()} 个思考字符</span>，组织叙事逻辑后将流式输出…
           </span>
         </div>
       </div>
@@ -224,7 +224,7 @@ function TextProgressPreview({ progress }: { progress?: AiTextProgress | null })
             已接收 {progress.generatedCharacters.toLocaleString()} 字符
           </span>
         </div>
-        <span className="text-[11px] font-normal text-muted-foreground shrink-0">流式传输中 · 未完成</span>
+        <span className="text-[11px] font-normal text-muted-foreground shrink-0">流式传输中 · 未完成，尚未保存</span>
       </summary>
 
       {hasCapturedElements && (
@@ -276,10 +276,11 @@ function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) 
   if (attempt.status === 'timeout') {
     return (
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-        <span className="font-medium text-destructive">最近提取超时</span>
-        <span>· 等待上限 {Math.round((attempt.timeoutMs || 0) / 1000)} 秒</span>
+        <span className="font-medium text-destructive">
+          最近提取：请求超时 · 等待上限 {Math.round((attempt.timeoutMs || 0) / 1000)} 秒 · 用量未确认
+        </span>
         {attempt.elapsedMs != null && <span>· 耗时 {Math.round(attempt.elapsedMs / 1000)} 秒</span>}
-        <span className="text-[11px] text-muted-foreground/80">（未确认用量，已保留已提交内容）</span>
+        <span className="text-[11px] text-muted-foreground/80">（已保留已提交内容）</span>
       </div>
     )
   }
@@ -475,8 +476,14 @@ export function ProfileSection(props: {
         </p>
       )}
 
+      {props.progressNote && (
+        <p role="status" className="text-xs leading-5 text-muted-foreground">
+          {props.progressNote}
+        </p>
+      )}
+
       {/* 宏观分章覆盖进度条（一体化仪表卡） */}
-      {incomplete && total > 0 ? (
+      {incomplete && total > 0 && (
         <div className="ai-analysis-progress-card rounded-xl border border-border/80 bg-muted/20 p-3 grid gap-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 font-medium text-foreground/90">
@@ -499,7 +506,16 @@ export function ProfileSection(props: {
             </div>
           </div>
 
-          <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted/60">
+          <progress
+            className="sr-only"
+            aria-label={`${props.label}章节覆盖进度`}
+            max={total}
+            value={Math.min(processed, total)}
+          />
+
+          <div
+            className="relative h-2 w-full overflow-hidden rounded-full bg-muted/60"
+          >
             <div
               className={`h-full rounded-full bg-primary transition-all duration-500 ease-out ${
                 isRunning ? 'ai-shimmer-active' : ''
@@ -509,15 +525,11 @@ export function ProfileSection(props: {
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>阶段内容供阶段预览，完整覆盖目标后自动用于续写</span>
+            <span>尚余 {Math.max(0, total - processed)} 章；阶段内容仅供查看，完整覆盖目标后才用于续写。</span>
             <span className="hidden sm:inline">离开页面不中断 · 暂停可断点恢复</span>
           </div>
         </div>
-      ) : props.progressNote ? (
-        <p role="status" className="text-xs leading-5 text-muted-foreground">
-          {props.progressNote}
-        </p>
-      ) : null}
+      )}
 
       {/* 实时流式正文预览（微观当前步骤） */}
       {props.effective?.memoryTask?.status === 'running' && (
@@ -527,7 +539,7 @@ export function ProfileSection(props: {
       {/* 已保存阶段内容折叠 */}
       {preview && (
         <details className="ai-analysis-preview">
-          <summary>查看已保存的阶段内容（截至第 {processed} 章）</summary>
+          <summary>查看已保存的阶段内容</summary>
           <p className="text-xs leading-5 text-muted-foreground">
             截至本次目标中的第 {processed} 章 · 此内容尚未作为本次完整档案生效。
           </p>
@@ -1519,7 +1531,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     <div className="ai-writing-run-scale__choices" role="group" aria-labelledby="ai-writing-run-scale-label">
                       <Button
                         type="button"
-                        variant={isMultiChapter ? 'outline' : 'secondary'}
+                        variant="ghost"
                         size="sm"
                         aria-pressed={!isMultiChapter}
                         disabled={busy || taskActive}
@@ -1529,7 +1541,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       </Button>
                       <Button
                         type="button"
-                        variant={isMultiChapter ? 'secondary' : 'outline'}
+                        variant="ghost"
                         size="sm"
                         aria-pressed={isMultiChapter}
                         disabled={busy || taskActive}
