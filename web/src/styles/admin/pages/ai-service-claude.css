@@ -694,6 +694,32 @@
   display: grid;
   gap: 0.5rem;
 }
+@keyframes ai-progress-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.ai-shimmer-active {
+  position: relative;
+  overflow: hidden;
+}
+.ai-shimmer-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: ai-progress-shimmer 2s infinite ease-in-out;
+}
+.ai-progress-preview-details summary::-webkit-details-marker {
+  display: none;
+}
+.ai-progress-preview-details summary {
+  list-style: none;
+}
 .ai-service .ai-analysis-progress progress {
   appearance: none;
   width: 100%;

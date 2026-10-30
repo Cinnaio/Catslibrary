@@ -24,7 +24,7 @@ import ProfileOverrideEditor from './ProfileOverrideEditor'
 import MemoryRebuildDialog from './MemoryRebuildDialog'
 import { Textarea } from '@/components/ui/textarea'
 import { url } from '@/lib/api'
-import { Sparkles, ArrowRight, ChevronRight, Network } from 'lucide-react'
+import { Sparkles, ArrowRight, ChevronRight, Network, Pause } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000
@@ -142,28 +142,174 @@ function memoryRunning(profile: AiEffectiveProfile | null): boolean {
   return !!profile?.progress?.running || profile?.memoryTask?.status === 'queued' || profile?.memoryTask?.status === 'running'
 }
 
+interface ExtractedStreamEntity {
+  name: string
+  kind?: string
+}
+
+function extractStreamEntities(text: string): { entities: ExtractedStreamEntity[]; labels: string[] } {
+  if (!text) return { entities: [], labels: [] }
+  const entityMatches = Array.from(text.matchAll(/"name"\s*:\s*"([^"]+)"(?:[^{}]*?"kind"\s*:\s*"([^"]+)")?/g))
+  const entitiesMap = new Map<string, ExtractedStreamEntity>()
+  for (const m of entityMatches) {
+    const name = m[1]?.trim()
+    if (name && !entitiesMap.has(name)) {
+      entitiesMap.set(name, { name, kind: m[2] })
+    }
+  }
+  const labelMatches = Array.from(new Set(Array.from(text.matchAll(/"label"\s*:\s*"([^"]+)"/g)).map((m) => m[1]?.trim()))).filter(Boolean)
+  return {
+    entities: Array.from(entitiesMap.values()).slice(0, 8),
+    labels: labelMatches.slice(0, 5) as string[],
+  }
+}
+
+function getEntityIcon(kind?: string) {
+  switch (kind) {
+    case 'person':
+      return '👤'
+    case 'place':
+      return '📍'
+    case 'item':
+      return '📦'
+    case 'faction':
+      return '🏛️'
+    default:
+      return '🏷️'
+  }
+}
+
 function TextProgressPreview({ progress }: { progress?: AiTextProgress | null }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [progress?.preview])
+
   if (!progress) return null
-  if (progress.phase === 'thinking') return <p className="text-xs text-muted-foreground" role="status">模型思考中 · 已收到 {progress.reasoningCharacters.toLocaleString()} 个思考字符，尚未输出正文；字符数不等同于 Token 用量。</p>
-  return <details className="text-xs" open><summary>实时正文预览 · 已收到 {progress.generatedCharacters.toLocaleString()} 个字符（未完成，尚未保存）</summary><p className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap leading-6">{progress.preview}</p><p className="mt-1 text-muted-foreground">仅显示最近 4000 个字符；完整返回并校验后才会保存为草稿或档案。</p></details>
+
+  if (progress.phase === 'thinking') {
+    return (
+      <div
+        role="status"
+        className="flex items-center gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3.5 py-3 text-xs text-amber-900 dark:text-amber-200"
+      >
+        <Sparkles className="size-4 shrink-0 text-amber-600 motion-safe:animate-pulse dark:text-amber-400" />
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="font-semibold text-foreground/90">模型推演思考中</span>
+          <span className="text-muted-foreground">
+            已接收 <span className="font-mono font-medium">{progress.reasoningCharacters.toLocaleString()}</span> 个思考字符，组织叙事逻辑后将流式输出…
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  const preview = progress.preview || ''
+  const { entities, labels } = extractStreamEntities(preview)
+  const hasCapturedElements = entities.length > 0 || labels.length > 0
+
+  return (
+    <details className="ai-progress-preview-details group rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs text-xs" open>
+      <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-3.5 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors font-medium">
+        <div className="flex flex-wrap items-center gap-2">
+          <ChevronRight className="size-3.5 text-muted-foreground transition-transform duration-200 group-open:rotate-90" />
+          <span className="flex items-center gap-1.5 font-medium text-foreground">
+            <span className="size-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
+            <span>实时正文流</span>
+          </span>
+          <span className="rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-mono text-muted-foreground border border-border/60">
+            已接收 {progress.generatedCharacters.toLocaleString()} 字符
+          </span>
+        </div>
+        <span className="text-[11px] font-normal text-muted-foreground shrink-0">流式传输中 · 未完成</span>
+      </summary>
+
+      {hasCapturedElements && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/40 bg-muted/15 px-3.5 py-2 text-xs">
+          <span className="text-[11px] font-medium text-muted-foreground">实时捕获要素:</span>
+          {entities.map((item) => (
+            <span
+              key={item.name}
+              className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/90 px-2 py-0.5 text-[11px] text-foreground/80 shadow-2xs"
+            >
+              <span>{getEntityIcon(item.kind)}</span>
+              <span className="font-medium">{item.name}</span>
+            </span>
+          ))}
+          {labels.map((lbl) => (
+            <span
+              key={lbl}
+              className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-800 dark:text-amber-300"
+            >
+              <span>📋</span>
+              <span className="font-medium">{lbl}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div
+        ref={scrollRef}
+        className="max-h-56 overflow-y-auto border-t border-border/40 bg-[#FAF8F5] p-3.5 font-mono text-[11.5px] leading-5 text-foreground/85 whitespace-pre-wrap break-all select-text dark:bg-[#191816] dark:text-foreground/90"
+      >
+        {preview}
+        <span
+          className="inline-block w-1.5 h-3.5 ml-0.5 bg-primary/80 motion-safe:animate-pulse align-middle"
+          aria-hidden="true"
+        />
+      </div>
+
+      <div className="flex items-center justify-between border-t border-border/40 bg-muted/15 px-3.5 py-1.5 text-[11px] text-muted-foreground">
+        <span>仅展示最近 4,000 字符流</span>
+        <span>完整返回并校验后自动归档至检查点</span>
+      </div>
+    </details>
+  )
 }
 
 function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) {
   const attempt = profile?.lastAttempt
   if (!attempt) return null
-  if (attempt.status === 'timeout') return <span className="block">最近提取：请求超时 · 等待上限 {Math.round((attempt.timeoutMs || 0) / 1000)} 秒{attempt.elapsedMs == null ? '' : ` · 本次耗时 ${Math.round(attempt.elapsedMs / 1000)} 秒`} · 本次超时后未自动重试；未收到完整响应，用量未确认。</span>
+  if (attempt.status === 'timeout') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="font-medium text-destructive">最近提取超时</span>
+        <span>· 等待上限 {Math.round((attempt.timeoutMs || 0) / 1000)} 秒</span>
+        {attempt.elapsedMs != null && <span>· 耗时 {Math.round(attempt.elapsedMs / 1000)} 秒</span>}
+        <span className="text-[11px] text-muted-foreground/80">（未确认用量，已保留已提交内容）</span>
+      </div>
+    )
+  }
+
+  const statusMap: Record<string, { label: string; tone: string }> = {
+    complete: { label: '完整返回', tone: 'text-foreground/90 font-medium' },
+    truncated: { label: '输出被截断，请提高此档案预算', tone: 'text-amber-600 dark:text-amber-400 font-medium' },
+    refused: { label: '模型拒答，增加预算不能解决', tone: 'text-destructive font-medium' },
+    empty: { label: '返回空内容，未确认截断', tone: 'text-muted-foreground font-medium' },
+  }
+  const statusInfo = statusMap[attempt.status] || { label: attempt.status, tone: 'text-muted-foreground' }
+
   return (
-    <span className="block">
-      最近提取：
-      {
-        { complete: '完整返回', truncated: '输出被截断，请提高此档案预算', refused: '模型拒答，增加预算不能解决', empty: '返回空内容，未确认截断' }[
-          attempt.status
-        ]
-      }{' '}
-      · 预算 {attempt.maxTokens.toLocaleString()} / 输出 {attempt.completionTokens?.toLocaleString() ?? '未知'} Token
-      {attempt.reasoningTokens === null ? '' : `（推理 ${attempt.reasoningTokens.toLocaleString()}）`}
-      {attempt.firstContentMs == null ? '' : ` · 首段正文 ${(attempt.firstContentMs / 1000).toFixed(1)} 秒`}
-    </span>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 text-foreground/80">
+        最近提取：<span className={statusInfo.tone}>{statusInfo.label}</span>
+      </span>
+      <span>
+        预算 {attempt.maxTokens.toLocaleString()} / 输出{' '}
+        <span className="font-mono text-foreground/80">{attempt.completionTokens?.toLocaleString() ?? '未知'}</span> Token
+      </span>
+      {attempt.reasoningTokens !== null && (
+        <span className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-[11px]">
+          推理 {attempt.reasoningTokens.toLocaleString()}
+        </span>
+      )}
+      {attempt.firstContentMs != null && (
+        <span>首段正文 {(attempt.firstContentMs / 1000).toFixed(1)} 秒</span>
+      )}
+    </div>
   )
 }
 
@@ -204,7 +350,20 @@ export function ProfileSection(props: {
   const total = progress?.totalChapters ?? 0
   const preview = incomplete ? progress?.previewContent : ''
   const taskStatus = props.effective?.memoryTask?.status
-  const status = props.pausing ? '正在暂停' : props.busy || props.running ? '分析中' : taskStatus === 'failed' ? '更新失败' : taskStatus === 'cancelled' ? '已暂停' : incomplete ? (progress?.paused ? '已暂停' : '部分完成') : props.statusText || (props.extracted ? '已提取' : '未提取')
+  const isRunning = props.busy || props.running || taskStatus === 'running'
+  const status = props.pausing
+    ? '正在暂停'
+    : isRunning
+    ? '分析中'
+    : taskStatus === 'failed'
+    ? '更新失败'
+    : taskStatus === 'cancelled'
+    ? '已暂停'
+    : incomplete
+    ? progress?.paused
+      ? '已暂停'
+      : '部分完成'
+    : props.statusText || (props.extracted ? '已提取' : '未提取')
   // 已提取则默认收起；正文较长，展开态按需触发，与「提取一次、复看少数几次」的使用频率一致
   const [open, setOpen] = useState(false)
 
@@ -216,9 +375,23 @@ export function ProfileSection(props: {
           状态改由 aria-expanded 与展开后的内容表达，不再重复播报。 */}
       <span
         aria-hidden={collapsible || undefined}
-        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground"
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+          isRunning
+            ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+            : props.extracted && !props.statusText
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            : 'border-border bg-muted/40 text-muted-foreground'
+        }`}
       >
-        <span className={`size-1.5 rounded-full ${props.busy || props.running ? 'bg-primary motion-safe:animate-pulse' : props.extracted && !props.statusText ? 'bg-[var(--color-success)]' : 'bg-muted-foreground/40'}`} />
+        <span
+          className={`size-1.5 rounded-full ${
+            isRunning
+              ? 'bg-amber-600 motion-safe:animate-pulse dark:bg-amber-400'
+              : props.extracted && !props.statusText
+              ? 'bg-emerald-600 dark:bg-emerald-400'
+              : 'bg-muted-foreground/40'
+          }`}
+        />
         {status}
       </span>
     </>
@@ -270,7 +443,14 @@ export function ProfileSection(props: {
             {props.actionText}
           </Button>
           {props.onPause && props.running && (
-            <Button variant="outline" size="sm" className="min-h-10 sm:min-h-0" disabled={props.pausing} onClick={props.onPause}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-10 border-amber-500/40 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:border-amber-400/40 dark:text-amber-300 dark:hover:bg-amber-400/10 sm:min-h-0 font-medium transition-all"
+              disabled={props.pausing}
+              onClick={props.onPause}
+            >
+              <Pause className="size-3 mr-1" />
               {props.pausing ? '正在暂停…' : '暂停更新'}
             </Button>
           )}
@@ -278,30 +458,74 @@ export function ProfileSection(props: {
         </div>
       </div>
       <p className="text-xs leading-5 text-muted-foreground">{props.emptyHint}</p>
-      {props.progressNote && (
+
+      {/* 错误提示 */}
+      {props.effective?.memoryTask?.status === 'failed' && (
+        <p role="alert" className="text-xs leading-5 text-destructive">
+          后台分析未完成：{props.effective.memoryTask.error} 已保存的检查点会保留，可继续更新。
+        </p>
+      )}
+
+      {/* 宏观分章覆盖进度条（一体化仪表卡） */}
+      {incomplete && total > 0 ? (
+        <div className="ai-analysis-progress-card rounded-xl border border-border/80 bg-muted/20 p-3 grid gap-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 font-medium text-foreground/90">
+              <span>覆盖进度</span>
+              <span className="font-mono text-xs font-semibold text-primary">
+                {processed} / {total} 章
+              </span>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                {Math.min(100, Math.round((processed / total) * 100))}%
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground text-[11.5px]">
+              {isRunning && (
+                <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
+                  <span className="size-1.5 rounded-full bg-amber-500 motion-safe:animate-pulse" />
+                  分析第 {Math.min(processed + 1, total)} 章中
+                </span>
+              )}
+              <span>尚余 {Math.max(0, total - processed)} 章</span>
+            </div>
+          </div>
+
+          <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted/60">
+            <div
+              className={`h-full rounded-full bg-primary transition-all duration-500 ease-out ${
+                isRunning ? 'ai-shimmer-active' : ''
+              }`}
+              style={{ width: `${Math.min(100, Math.max(3, Math.round((processed / total) * 100)))}%` }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>阶段内容供阶段预览，完整覆盖目标后自动用于续写</span>
+            <span className="hidden sm:inline">离开页面不中断 · 暂停可断点恢复</span>
+          </div>
+        </div>
+      ) : props.progressNote ? (
         <p role="status" className="text-xs leading-5 text-muted-foreground">
           {props.progressNote}
         </p>
+      ) : null}
+
+      {/* 实时流式正文预览（微观当前步骤） */}
+      {props.effective?.memoryTask?.status === 'running' && (
+        <TextProgressPreview progress={props.effective.memoryTask.livePreview} />
       )}
-      {props.effective?.memoryTask?.status === 'running' && <TextProgressPreview progress={props.effective.memoryTask.livePreview} />}
-      {props.effective?.memoryTask?.status === 'failed' && (
-        <p role="alert" className="text-xs leading-5 text-destructive">后台分析未完成：{props.effective.memoryTask.error} 已保存的检查点会保留，可继续更新。</p>
-      )}
-      {incomplete && total > 0 && (
-        <div className="ai-analysis-progress">
-          <progress aria-label={`${props.label}章节覆盖进度`} max={total} value={Math.min(processed, total)} />
-          <p className="text-xs leading-5 text-muted-foreground">
-            尚余 {Math.max(0, total - processed)} 章；阶段内容仅供查看，完整覆盖目标后才用于续写。
-          </p>
-        </div>
-      )}
+
+      {/* 已保存阶段内容折叠 */}
       {preview && (
         <details className="ai-analysis-preview">
-          <summary>查看已保存的阶段内容</summary>
-          <p className="text-xs leading-5 text-muted-foreground">截至本次目标中的第 {processed} 章 · 此内容尚未作为本次完整档案生效。</p>
+          <summary>查看已保存的阶段内容（截至第 {processed} 章）</summary>
+          <p className="text-xs leading-5 text-muted-foreground">
+            截至本次目标中的第 {processed} 章 · 此内容尚未作为本次完整档案生效。
+          </p>
           <ProfileText text={preview} />
         </details>
       )}
+
       {props.effective && props.extracted && (
         <p className="text-xs leading-5 text-muted-foreground">
           {props.effective.effectiveContent ? `续写将参考：${props.effective.effectiveOrigin === 'manual' ? '人工校正版' : '自动分析版'}` : '已保存档案，当前不可用于续写；请更新或检查续写起点。'}
@@ -325,8 +549,8 @@ export function ProfileSection(props: {
           </CollapsibleContent>
         </Collapsible>
       ) : null}
-      {props.footnote}
-      {props.effective?.lastAttempt && <p className="text-xs leading-5 text-muted-foreground"><MemoryAttemptNote profile={props.effective} /></p>}
+      {(!incomplete || total === 0 || props.extracted) && props.footnote}
+      {props.effective?.lastAttempt && <MemoryAttemptNote profile={props.effective} />}
     </div>
   )
 }
