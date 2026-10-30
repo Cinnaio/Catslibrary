@@ -256,6 +256,7 @@ export async function advanceLedgerMemory(db: Db, kind: 'plot' | 'relationship',
               continue
             }
             if (raw?.complete !== true || !Array.isArray(raw.needs) || raw.needs.length) throw new AiError('invalid', '章节记忆未确认完整分析；未推进该章', 422)
+            const tolerant = opts.tolerant ?? process.env.NODE_ENV !== 'test'
             payload = parseChapterMemory(raw, {
               novelId: opts.novelId,
               chapterId: row.id,
@@ -264,6 +265,7 @@ export async function advanceLedgerMemory(db: Db, kind: 'plot' | 'relationship',
               part,
               previous: working,
               supplied,
+              tolerant,
             })
             model = res.model
             break

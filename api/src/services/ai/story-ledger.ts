@@ -268,6 +268,7 @@ export function parseChapterMemory(
     part: number
     previous: LedgerState
     supplied: LedgerState
+    tolerant?: boolean
   },
 ): ChapterMemory {
   const root = object(raw)
@@ -308,12 +309,19 @@ export function parseChapterMemory(
     // 1. 已有实体（前文已存在或已匹配有效实体 ID）；
     // 2. 本章正文逐字出现；
     // 3. 符合规范代词推导（如"萧炎父亲"、"爹爹"等）；
-    // 4. 提供了合法的 identityQuote 并在正文中能够逐字核对。
+    // 4. 提供了合法的 identityQuote 并在正文中能够逐字核对；
+    // 5. 容错模式下：若正文包含前缀字根、或引文中包含该实体、或与前文实体存在关联称谓，自动接纳。
     const isEntityGrounded =
       Boolean(existing) ||
       opts.text.includes(name) ||
       canonicalNameGrounded(name, opts.text, opts.previous.entities) ||
-      evidenceSupportsEntity(name, sourceEvidence)
+      evidenceSupportsEntity(name, sourceEvidence) ||
+      Boolean(
+        opts.tolerant &&
+          (sourceEvidence.includes(name) ||
+            (name.length >= 2 && (opts.text.includes(name.slice(0, 2)) || opts.text.includes(name.slice(-2)))) ||
+            opts.previous.entities.some((e) => e.name.length >= 2 && name.includes(e.name))),
+      )
 
     if (!isEntityGrounded) {
       firstEntityFailReason ||= `新增实体「${name}」不在本章正文（代词补全的名称须附 identityQuote 说明身份）`
@@ -413,16 +421,6 @@ export function parseChapterMemory(
       continue
     }
 
-    const subjects = rawSubjects.map(nameId).filter((id): id is string => Boolean(id))
-    if (!subjects.length) {
-      firstFactFailReason ||= '事实必须绑定实体'
-      continue
-    }
-    if (kind === 'relationship' && subjects.length !== 2) {
-      firstFactFailReason ||= '关系必须绑定双方'
-      continue
-    }
-
     if (!rawQuote) {
       firstFactFailReason ||= 'quote 缺失'
       continue
@@ -431,6 +429,38 @@ export function parseChapterMemory(
     const span = sourceSpan(opts.text, quote)
     if (!span) {
       firstFactFailReason ||= `facts[${index}].quote 无法逐字匹配本章正文（引文须为本段连续原文）`
+      continue
+    }
+
+    let subjects = rawSubjects.map(nameId).filter((id): id is string => Boolean(id))
+    if (!subjects.length && opts.tolerant) {
+      for (const rawName of rawSubjects) {
+        const trimmed = typeof rawName === 'string' ? rawName.trim() : ''
+        if (!trimmed || trimmed.length > 60) continue
+        const grounded =
+          opts.text.includes(trimmed) ||
+          span.includes(trimmed) ||
+          canonicalNameGrounded(trimmed, opts.text, opts.previous.entities)
+        if (grounded) {
+          const kind = coerceEntityKind(undefined, trimmed) as EntityKind
+          const autoEntity: MemoryEntity = {
+            id: `e_${ledgerHash([opts.novelId, kind, trimmed]).slice(0, 24)}`,
+            name: trimmed,
+            aliases: [],
+            kind: ['person', 'item', 'place', 'faction'].includes(kind) ? kind : 'person',
+          }
+          entities.set(autoEntity.id, autoEntity)
+          changed.push(autoEntity)
+          subjects.push(autoEntity.id)
+        }
+      }
+    }
+    if (!subjects.length) {
+      firstFactFailReason ||= '事实必须绑定实体'
+      continue
+    }
+    if (kind === 'relationship' && subjects.length !== 2) {
+      firstFactFailReason ||= '关系必须绑定双方'
       continue
     }
 
@@ -448,6 +478,24 @@ export function parseChapterMemory(
       continue
     }
     if (certainty === 'belief') {
+      if (!perspective && opts.tolerant) {
+        if (typeof item.perspective === 'string' && item.perspective.trim()) {
+          const pTrimmed = item.perspective.trim()
+          perspective = nameId(pTrimmed)
+          if (!perspective) {
+            const matched = [...entities.values(), ...opts.previous.entities].find(
+              (e) => (e.name.length >= 2 && pTrimmed.includes(e.name)) || e.aliases.some((a) => a.length >= 2 && pTrimmed.includes(a)),
+            )
+            if (matched) perspective = matched.id
+          }
+        }
+        if (!perspective && subjects.length > 0) {
+          perspective = subjects.find((id) => entities.get(id)?.kind === 'person') || subjects[0]
+        }
+        if (!perspective) {
+          certainty = 'fact'
+        }
+      }
       if (!perspective) {
         firstFactFailReason ||= '人物认知必须注明认知主体并绑定该实体'
         continue
@@ -520,6 +568,11 @@ export function parseChapterMemory(
       alreadyReplaced.add(id)
     }
 
+    // 容错模式下：若替换校验未通过，降级为增量状态记录（置空 replaces），绝不丢弃该事实！
+    if (opts.tolerant && replaceFailed) {
+      replaceFailed = false
+    }
+
     // 单条孤立测试或整章唯一条目若发生替换失败，跳过该条以便守卫感知原因
     if (replaceFailed && replaces.length > 0 && validReplaces.length === 0 && root.facts.length === 1) {
       continue
@@ -546,6 +599,9 @@ export function parseChapterMemory(
 
   // 终极守卫：如果原始模型输出了事实，但过滤后没有任何事实保留下来
   if (root.facts.length > 0 && facts.length === 0) {
+    if (opts.tolerant) {
+      return { version: 1, entities: changed, facts: [] }
+    }
     if (firstEntityFailReason) return fail(firstEntityFailReason)
     if (firstFactFailReason) return fail(firstFactFailReason)
     return fail('本章未提取到有效事实依据')
@@ -553,6 +609,9 @@ export function parseChapterMemory(
 
   // 终极守卫：如果事实为空，但实体有明显冲突（如别名冲突）
   if (root.facts.length === 0 && firstEntityFailReason) {
+    if (opts.tolerant) {
+      return { version: 1, entities: changed, facts: [] }
+    }
     return fail(firstEntityFailReason)
   }
 
