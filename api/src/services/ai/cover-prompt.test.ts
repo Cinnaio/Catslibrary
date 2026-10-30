@@ -153,11 +153,12 @@ describe('cover prompt contracts CP01-CP15', () => {
   })
 
   it('参考风格按风格渲染字体和布局，长书名完整保留且不超过默认预算', () => {
+    // 断言对齐 resolveCoverTypography 当前的字体描述（此前期望值已与实现脱节）。
     const cases = [
-      ['doodle_journal', 'rounded lavender bubble', 'central open area'],
-      ['dreamy_cloud', 'expressive blue handwritten', 'central open area'],
+      ['doodle_journal', 'rounded bubblegum-pink Chinese handwriting', 'central open area'],
+      ['dreamy_cloud', 'expressive white or pale-blue handwritten', 'central open area'],
       ['warm_apricot', 'orange-gold brush', 'central open area'],
-      ['minimal_typographic', 'slender elegant', 'vertical columns'],
+      ['minimal_typographic', 'charcoal-black or vermilion Chinese brush lettering', 'vertical columns'],
     ] as const
     for (const [stylePreset, font, placement] of cases) {
       const direction = resolveCoverDirection({

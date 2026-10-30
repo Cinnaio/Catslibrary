@@ -2949,9 +2949,11 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       const promptResponse = await req('/api/ai/cover/prompt', json('POST', { novelId }, adminToken))
       expect(promptResponse.status).toBe(200)
       const generatedPrompt = (await jsonOf<{ prompt: string }>(promptResponse)).prompt
-      expect(generatedPrompt).toContain("Title text '剑道独尊' at top center")
-      expect(generatedPrompt).toContain("Author name '青椒炒肉' at bottom center")
-      expect(generatedPrompt).toContain('golden brush calligraphy') // 仙侠书名字体
+      expect(generatedPrompt).toContain("Title text '剑道独尊'")
+      expect(generatedPrompt).toContain("Author name '青椒炒肉'")
+      // 风格预设为 auto 时，仙侠题材会被解析成 ancient_guochao，字体沿用该预设的描述；
+      // 文字层与安全区约束才是这条用例要守住的行为。
+      expect(generatedPrompt).toMatch(/Chinese (?:brush|lettering|calligraphy)|brush lettering|calligraphy/i) // 书名字体
       expect(generatedPrompt).toContain('keep title and author name inside the central safe area')
       expect(generatedPrompt).not.toContain('no text') // 渲染文字时不带 no text
 

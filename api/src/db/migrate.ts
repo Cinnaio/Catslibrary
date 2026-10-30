@@ -5,6 +5,14 @@ import { getPool, type Db } from './pool'
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'migrations')
 
+/** 迁移失败的报错要指明是哪个文件，否则只能看到「cannot insert multiple commands」这类底层信息。 */
+function describeFailure(file: string, err: unknown): Error {
+  const detail = err instanceof Error ? err.message : String(err)
+  const wrapped = new Error(`迁移 ${file} 执行失败：${detail}`)
+  ;(wrapped as Error & { cause?: unknown }).cause = err
+  return wrapped
+}
+
 type MigrationDb = Pick<Db, 'query' | 'connect'>
 
 /**
@@ -60,7 +68,7 @@ export async function runMigrations(db: MigrationDb, dir: string = MIGRATIONS_DI
       console.log(`[migrate] applied ${file}`)
     } catch (err) {
       await client.query('ROLLBACK')
-      throw err
+      throw describeFailure(file, err)
     } finally {
       client.release()
     }
