@@ -49,7 +49,7 @@ const fact = (values: Record<string, unknown> = {}) => ({
   quote: prose[0],
   ...values,
 })
-const payload = (facts = [fact()], entities: Array<ReturnType<typeof entity> & { identityQuote?: string }> = [entity('林舟'), entity('沈砚')]) => ({
+const payload = (facts = [fact()], entities: Array<ReturnType<typeof entity> & { identityQuote?: string; id?: string }> = [entity('林舟'), entity('沈砚')]) => ({
   complete: true,
   needs: [],
   entities,
