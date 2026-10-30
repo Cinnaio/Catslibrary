@@ -869,7 +869,9 @@ export async function generateContinuationChapters(db: Db, opts: {
       // 拆不出片段时退回整份大纲（走 outline 材料位），保持原有行为。
       instruction: [
         chapterOutline ? `本章大纲（按此写作本章内容，不要写成其他章节）：\n${chapterOutline}` : '',
-        opts.instruction,
+        !hasPerChapterOutline && index > 0 && opts.instruction
+          ? `创作要求（多章承接）：上一章已推进本方向的开局或前半段。本章必须紧密承接上一章草稿的结尾与最新状态继续向前推进后续剧情，严禁从头重复已经发生过的事件、人物出场或相同对话。\n${opts.instruction}`
+          : opts.instruction,
         `这是续写的第 ${index + 1} 章，共 ${count} 章。目标字数为本章约 ${Math.max(300, Math.min(30000, Math.trunc(Number(opts.targetWords) || 0)))} 字。`,
       ].filter(Boolean).join('\n'),
       outline: hasPerChapterOutline ? '' : opts.outline,

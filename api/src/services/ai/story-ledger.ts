@@ -397,11 +397,22 @@ export function parseChapterMemory(
   for (let index = 0; index < root.facts.length; index++) {
     const value = root.facts[index]
     const item = object(value)
-    const memoryType = enumValue(item.memoryType, ['state', 'event'] as const, 'memoryType')
-    const kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'] as const, '事实类别')
-    let label = str(item.label, 80, 'label')
-    
-    const rawSubjects = strings(item.subjects, 12, 'subjects')
+    let memoryType: 'state' | 'event'
+    let kind: 'fact' | 'state' | 'relationship' | 'boundary' | 'clue' | 'conflict' | 'item' | 'place'
+    let label: string
+    let rawSubjects: string[]
+    let rawQuote: string
+    try {
+      memoryType = enumValue(item.memoryType, ['state', 'event'] as const, 'memoryType')
+      kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'] as const, '事实类别')
+      label = str(item.label, 80, 'label')
+      rawSubjects = strings(item.subjects, 12, 'subjects')
+      rawQuote = typeof item.quote === 'string' ? item.quote.trim() : ''
+    } catch (err) {
+      firstFactFailReason ||= (err as Error)?.message || '事实项格式无效'
+      continue
+    }
+
     const subjects = rawSubjects.map(nameId).filter((id): id is string => Boolean(id))
     if (!subjects.length) {
       firstFactFailReason ||= '事实必须绑定实体'
@@ -412,19 +423,30 @@ export function parseChapterMemory(
       continue
     }
 
-    const quote = str(item.quote, 1000, 'quote')
+    if (!rawQuote) {
+      firstFactFailReason ||= 'quote 缺失'
+      continue
+    }
+    const quote = rawQuote.length > 1000 ? rawQuote.slice(0, 1000) : rawQuote
     const span = sourceSpan(opts.text, quote)
     if (!span) {
       firstFactFailReason ||= `facts[${index}].quote 无法逐字匹配本章正文（引文须为本段连续原文）`
       continue
     }
 
-    const certainty = enumValue(
-      lenientEnum(item.certainty, ['fact', 'belief', 'clue', 'possibility', 'inference'] as const, 'certainty') ?? item.certainty,
-      ['fact', 'belief', 'clue', 'possibility', 'inference'] as const,
-      'certainty',
-    )
-    let perspective = item.perspective ? nameId(str(item.perspective, 60, 'perspective')) : undefined
+    let certainty: 'fact' | 'belief' | 'clue' | 'possibility' | 'inference'
+    let perspective: string | undefined
+    try {
+      certainty = enumValue(
+        lenientEnum(item.certainty, ['fact', 'belief', 'clue', 'possibility', 'inference'] as const, 'certainty') ?? item.certainty,
+        ['fact', 'belief', 'clue', 'possibility', 'inference'] as const,
+        'certainty',
+      )
+      perspective = item.perspective ? nameId(typeof item.perspective === 'string' ? item.perspective.trim().slice(0, 60) : '') : undefined
+    } catch (err) {
+      firstFactFailReason ||= (err as Error)?.message || 'certainty 无效'
+      continue
+    }
     if (certainty === 'belief') {
       if (!perspective) {
         firstFactFailReason ||= '人物认知必须注明认知主体并绑定该实体'
@@ -435,7 +457,12 @@ export function parseChapterMemory(
       perspective = undefined
     }
 
-    const replaces = strings(item.replaces, 30, 'replaces')
+    let replaces: string[] = []
+    try {
+      replaces = Array.isArray(item.replaces) ? strings(item.replaces, 30, 'replaces') : []
+    } catch {
+      replaces = []
+    }
     const onceOnly = ['belief', 'clue', 'conflict', 'relationship', 'boundary'].includes(kind) || certainty === 'belief'
     if (kind === 'relationship' && typeof item.directed !== 'boolean') {
       firstFactFailReason ||= '关系必须明确 directed 方向'
