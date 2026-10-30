@@ -570,10 +570,14 @@ export async function generatePlotSuggestions(db: Db, opts: {
     ],
     temperature: 0.9,
     // 5 条 40-80 字的候选加上 JSON 结构约需 600-900 token；多章大纲更长（最高 20 章）。
-    // 限制单次候选预算（默认最多 2000，大纲最多 6000），避免推理模型在长上下文下无节制消耗数万 Token 思考触发网关 524 超时。
+    // 在开启思考（low/high/inherit）时，推理模型思考阶段会先消耗 1,500-3,000 Token，
+    // 因此在非 disabled 模式下提供充足的 6,000 Token（大纲 8,000 Token），防止思考吃满上限截断正文。
+    // 已全面接入 chatStream 流式保活，充足预算不会触发网关 524 超时。
     maxTokens: outlineMode
-      ? Math.min(settings.writingMaxTokens || 6000, 6000)
-      : Math.min(settings.plotStateMaxTokens, 2000),
+      ? Math.min(settings.writingMaxTokens || 8000, 8000)
+      : settings.writingReasoningMode !== 'disabled'
+        ? Math.min(settings.writingMaxTokens || 6000, 6000)
+        : Math.min(settings.plotStateMaxTokens || 2000, 2000),
     reasoningMode: settings.writingReasoningMode,
     timeoutMs: normalizePlotTimeoutSeconds(opts.timeoutSeconds) * 1000,
     retryOnTimeout: false,
