@@ -54,7 +54,7 @@ web/            React 前端
   src/components/ 组件（reader / admin / ui）
   src/lib/        API 客户端与工具
 shared/         前后端共享的类型与纯函数（广告清洗、工具函数）
-scripts/        开发编排脚本
+scripts/        开发编排脚本与发布辅助脚本（zhizhou-release.sh）
 data/           运行时数据（runtime-config.json 等，已 gitignore）
 ```
 
@@ -76,11 +76,58 @@ data/           运行时数据（runtime-config.json 等，已 gitignore）
 
 ## 部署
 
+生产环境由 GitHub Actions 构建与发布，**不要在服务器上跑 `npm run build`**：生产机内存很小，`vite build` 会撞 V8 堆上限；而且 `vite build` 会先清空 `web/dist` 再打包，构建失败会直接把线上页面删空。
+
+### 自动发布（推荐）
+
+推送 `main` 后 `.github/workflows/deploy.yml` 会依次执行：
+
+1. `verify`：`npm ci` → 类型检查 → 全量测试
+2. `build`：在 GitHub 托管的 runner 上清空旧产物后 `npm run build`，校验 `index.html` 引用的每个 `/assets/*` 都真实存在
+3. 打包 `web/dist` + `api/dist`（排除 sourcemap）为 `release-<sha>.tgz`
+4. 通过 SSH 上传到 `/tmp`，再执行服务器上的 `/usr/local/bin/zhizhou-release <sha>` 完成原子切换
+
+`zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）的行为：
+
+- 解包到 `/tmp` 临时目录，缺失 `web/dist/index.html`、`api/dist/index.js` 或 `api/dist/migrations` 直接拒绝，**不碰线上目录**
+- 先把当前 `web/dist`、`api/dist` 改名保留，再用目录改名完成切换
+- 重启 `zhizhou.service` 后轮询 `/api/health`，连续失败则把两个目录换回旧版并重启
+
+### 发布前的一次性准备
+
+**服务器**：安装发布脚本与最小化 sudo 规则（只允许执行该脚本，不开放通用 root）：
+
+```bash
+sudo install -m 0755 scripts/zhizhou-release.sh /usr/local/bin/zhizhou-release
+echo 'cinnaio ALL=(root) NOPASSWD: /usr/local/bin/zhizhou-release' | sudo tee /etc/sudoers.d/zhizhou-release
+sudo chmod 0440 /etc/sudoers.d/zhizhou-release
+sudo visudo -c
+```
+
+把 Actions 的公钥追加到该账号的 `~/.ssh/authorized_keys`。建议给它加限制（仅允许从 GitHub 出口访问，且不可转发）：
+
+```
+restrict,command="/usr/local/bin/zhizhou-release-gate" ssh-ed25519 AAAA... github-actions-deploy@zhi-zhou
+```
+
+不加上面的 `command=` 限制时，该密钥等同于一个可登录的普通账号（能否提权仍受上面的 sudo 规则约束）。
+
+**GitHub 仓库 Secrets**：
+
+| Secret | 内容 |
+| --- | --- |
+| `DEPLOY_SSH_KEY` | 部署私钥（ed25519，OpenSSH 格式） |
+| `DEPLOY_HOST` | 服务器地址 |
+| `DEPLOY_USER` | 部署账号（需要能 `sudo -n` 执行 `zhizhou-release`） |
+| `DEPLOY_KNOWN_HOSTS` | `ssh-keyscan -t ed25519,rsa <host>` 的输出，用于固定主机指纹 |
+
+### 手动部署
+
 自托管 Node + PostgreSQL：
 
 ```bash
 npm ci
-npm run build
+npm run build          # 建议在内存充足的机器或 CI 上执行
 DATABASE_URL=postgres://... node api/dist/index.js
 ```
 
