@@ -134,13 +134,42 @@ export function sourceSpan(text: string, quote: string): string {
 /** 代词补全名（正文只写「他父亲」，模型给出「萧炎父亲」）的落点判定：
  * 关系后缀本身在正文出现，且后缀前的人名也在正文出现。
  * 命中即保留（低置信），不要求模型额外给出 identityQuote。 */
-const RELATION_SUFFIX = /(父亲大人|母亲大人|父亲|母亲|爹|娘|爷爷|奶奶|外公|外婆|兄长|哥哥|弟弟|姐姐|妹妹|师父|师傅|师尊|弟子|徒弟|师兄|师姐|家主|族长|管家|叔叔|婶婶|舅舅|姑母|表哥|表妹)$/u
-export function canonicalNameGrounded(name: string, text: string): boolean {
+const RELATION_SUFFIX = /(父亲大人|母亲大人|父亲|母亲|爹爹|爹|娘亲|娘|爷爷|奶奶|外公|外婆|兄长|哥哥|弟弟|姐姐|妹妹|师父|师傅|师尊|弟子|徒弟|师兄|师姐|家主|族长|管家|叔叔|婶婶|舅舅|姑母|表哥|表妹)$/u
+
+const RELATION_SYNONYMS: Record<string, string[]> = {
+  父亲: ['父亲', '爹', '爹爹', '生父', '老爹'],
+  母亲: ['母亲', '娘', '娘亲', '生母', '阿娘'],
+  哥哥: ['哥哥', '哥', '兄长', '堂哥', '表哥'],
+  姐姐: ['姐姐', '姐', '堂姐', '表姐'],
+  弟弟: ['弟弟', '弟', '堂弟', '表弟'],
+  妹妹: ['妹妹', '妹', '堂妹', '表妹'],
+  师父: ['师父', '师傅', '师尊', '老师'],
+}
+
+function relationPresentInText(suffix: string, text: string): boolean {
+  if (text.includes(suffix)) return true
+  const list = RELATION_SYNONYMS[suffix]
+  if (list && list.some((syn) => text.includes(syn))) return true
+  return false
+}
+
+function evidenceSupportsEntity(name: string, evidence: string): boolean {
+  if (!evidence) return false
+  const suffix = name.match(RELATION_SUFFIX)?.[1]
+  if (suffix && relationPresentInText(suffix, evidence)) return true
+  const head = suffix ? name.slice(0, name.length - suffix.length) : name
+  if (head.length >= 2 && evidence.includes(head)) return true
+  return false
+}
+
+export function canonicalNameGrounded(name: string, text: string, previousEntities: MemoryEntity[] = []): boolean {
   const suffix = name.match(RELATION_SUFFIX)?.[1]
   if (!suffix) return false
   const head = name.slice(0, name.length - suffix.length)
-  if (head.length < 2 || !text.includes(head)) return false
-  return text.includes(suffix)
+  if (head.length < 2) return false
+  const headGrounded = text.includes(head) || previousEntities.some((e) => e.name === head || e.aliases.includes(head))
+  if (!headGrounded) return false
+  return relationPresentInText(suffix, text)
 }
 
 /** 模型常把认知/事件类值写进事实类别：entities 没有其他可落点，按名字推断；
@@ -246,6 +275,9 @@ export function parseChapterMemory(
   const entities = new Map(opts.previous.entities.map((e) => [e.id, { ...e, aliases: [...e.aliases] }]))
   const changed: MemoryEntity[] = []
   const declaredNames = new Set(root.entities.map((value) => str(object(value).name, 60, '实体名称')))
+
+  let firstEntityFailReason = ''
+
   for (const value of root.entities) {
     const item = object(value),
       name = str(item.name, 60, '人物/实体姓名')
@@ -253,54 +285,116 @@ export function parseChapterMemory(
     const mappedKind = coerceEntityKind(item.kind, name)
     const kind = enumValue(mappedKind, ['person', 'item', 'place', 'faction'] as const, '实体类别')
     const known = [...entities.values()].filter((e) => [e.name, ...e.aliases].includes(name))
-    if (known.length > 1) return fail(`「${name}」存在身份歧义`)
-    const existing = known[0]
-    if (existing && existing.kind !== kind) return fail(`「${name}」的实体类别冲突`)
-    // 模型给出的身份说明：逐字取自正文则保留；只差排版噪音则按正文原样落库；
-    // 正文根本没有说明时不再整章拒收（模型常给出空串，但这只影响别名证据的丰富度，
-    // 别名本身仍要求逐字出现在正文），仅在别名确实无来源时退回。
+    
+    // 如果已知有多个重名/歧义，优先精确匹配同名实体
+    let existing = known.find((e) => e.name === name) || known[0]
+    if (known.length > 1 && !existing) {
+      firstEntityFailReason ||= `「${name}」存在身份歧义`
+      continue
+    }
+
+    // 类别冲突：优先尊重已有实体的 kind，避免因模型对类别微调导致整章被退
+    const finalKind = existing ? existing.kind : kind
+
     const rawEvidence = typeof item.identityQuote === 'string' ? item.identityQuote.trim() : ''
     const sourceEvidence = rawEvidence ? sourceSpan(opts.text, rawEvidence) : ''
-    if (!existing && !opts.text.includes(name) && !canonicalNameGrounded(name, opts.text))
-      // 规范名可以不是正文原词，但「人名 + 亲属关系」必须都能在正文核对；
-      // 命中的代词补全名按低置信保留（证据可空），完全不成立于正文的名字照旧拒收。
-      return fail(`新增实体「${name}」不在本章正文（代词补全的名称须附 identityQuote 说明身份）`)
-    for (const alias of aliases) {
-      if (alias.length > 60) return fail(`别名「${alias}」超过 60 字符`)
-      if (declaredNames.has(alias)) return fail(`别名「${alias}」同时被声明为另一实体，请先核对身份`)
-      if (!opts.text.includes(alias) && !existing?.aliases.includes(alias)) return fail(`别名「${alias}」缺少正文来源`)
-      if ([...entities.values()].some((e) => e.id !== existing?.id && [e.name, ...e.aliases].includes(alias))) return fail(`别名「${alias}」与其他实体冲突`)
-      if (!existing?.aliases.includes(alias) && !sourceEvidence && !opts.text.includes(alias)) return fail(`别名「${alias}」缺少可核对的身份说明`)
+
+    // 实体合法性判定：
+    // 1. 已有实体（前文已存在）；
+    // 2. 本章正文逐字出现；
+    // 3. 符合规范代词推导（如"萧炎父亲"、"爹爹"等）；
+    // 4. 提供了合法的 identityQuote 并在正文中能够逐字核对。
+    const isEntityGrounded =
+      Boolean(existing) ||
+      opts.text.includes(name) ||
+      canonicalNameGrounded(name, opts.text, opts.previous.entities) ||
+      evidenceSupportsEntity(name, sourceEvidence)
+
+    if (!isEntityGrounded) {
+      firstEntityFailReason ||= `新增实体「${name}」不在本章正文（代词补全的名称须附 identityQuote 说明身份）`
+      // 单个脱离正文的孤立实体不计入合法实体，避免整章失败；若整章全部事实都无合法主体，最后会统一报错
+      continue
     }
+
+    const validAliases: string[] = []
+    for (const alias of aliases) {
+      if (alias.length > 60) continue
+      if (declaredNames.has(alias) && alias !== name) {
+        firstEntityFailReason ||= `别名「${alias}」同时被声明为另一实体，请先核对身份`
+        continue
+      }
+      if (!opts.text.includes(alias) && !existing?.aliases.includes(alias) && !sourceEvidence) {
+        firstEntityFailReason ||= `别名「${alias}」缺少正文来源`
+        continue
+      }
+      if ([...entities.values()].some((e) => e.id !== existing?.id && [e.name, ...e.aliases].includes(alias))) {
+        firstEntityFailReason ||= `别名「${alias}」与其他实体冲突`
+        continue
+      }
+      validAliases.push(alias)
+    }
+
     const entity: MemoryEntity = existing
-      ? { ...existing, aliases: [...new Set([...existing.aliases, ...aliases])] }
-      : { id: `e_${ledgerHash([opts.novelId, kind, name]).slice(0, 24)}`, name, aliases, kind }
-    const newAliases = aliases.filter((alias) => !existing?.aliases.includes(alias))
-    if (newAliases.length && sourceEvidence)
+      ? { ...existing, aliases: [...new Set([...existing.aliases, ...validAliases])] }
+      : { id: `e_${ledgerHash([opts.novelId, finalKind, name]).slice(0, 24)}`, name, aliases: validAliases, kind: finalKind }
+    
+    const newAliases = validAliases.filter((alias) => !existing?.aliases.includes(alias))
+    if (newAliases.length && sourceEvidence) {
       entity.aliasEvidence = [
         ...(existing?.aliasEvidence || []),
         ...newAliases.map((alias) => ({ alias, quote: sourceEvidence, chapterId: opts.chapterId, ordinal: opts.ordinal })),
       ]
+    }
     entities.set(entity.id, entity)
     changed.push(entity)
   }
-  const nameId = (name: string) => {
+
+  const nameId = (name: string): string | undefined => {
     const matches = [...entities.values()].filter((e) => [e.name, ...e.aliases].includes(name))
-    if (matches.length !== 1) return fail(`实体「${name}」未声明或有歧义`)
-    return matches[0]!.id
+    if (matches.length === 1) return matches[0]!.id
+    if (matches.length > 1) {
+      const exact = matches.find((e) => e.name === name)
+      if (exact) return exact.id
+      return matches[0]!.id
+    }
+    const prevMatches = opts.previous.entities.filter((e) => [e.name, ...e.aliases].includes(name))
+    if (prevMatches.length) {
+      const exact = prevMatches.find((e) => e.name === name)
+      return (exact || prevMatches[0])!.id
+    }
+    return undefined
   }
+
   const supplied = new Map(opts.supplied.facts.map((f) => [f.id, f]))
   const alreadyReplaced = new Set(opts.previous.facts.flatMap((f) => f.replaces))
-  const facts: MemoryFact[] = root.facts.map((value, index) => {
+  const facts: MemoryFact[] = []
+  let firstFactFailReason = ''
+
+  for (let index = 0; index < root.facts.length; index++) {
+    const value = root.facts[index]
     const item = object(value)
     const memoryType = enumValue(item.memoryType, ['state', 'event'] as const, 'memoryType')
     const kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'] as const, '事实类别')
     let label = str(item.label, 80, 'label')
-    const subjects = strings(item.subjects, 12, 'subjects').map(nameId)
-    if (!subjects.length || (kind === 'relationship' && subjects.length !== 2)) return fail('事实必须绑定实体，关系必须绑定双方')
+    
+    const rawSubjects = strings(item.subjects, 12, 'subjects')
+    const subjects = rawSubjects.map(nameId).filter((id): id is string => Boolean(id))
+    if (!subjects.length) {
+      firstFactFailReason ||= '事实必须绑定实体'
+      continue
+    }
+    if (kind === 'relationship' && subjects.length !== 2) {
+      firstFactFailReason ||= '关系必须绑定双方'
+      continue
+    }
+
     const quote = str(item.quote, 1000, 'quote')
     const span = sourceSpan(opts.text, quote)
-    if (!span) return fail(`facts[${index}].quote 无法逐字匹配本章正文（引文须为本段连续原文）`)
+    if (!span) {
+      firstFactFailReason ||= `facts[${index}].quote 无法逐字匹配本章正文（引文须为本段连续原文）`
+      continue
+    }
+
     const certainty = enumValue(
       lenientEnum(item.certainty, ['fact', 'belief', 'clue', 'possibility', 'inference'] as const, 'certainty') ?? item.certainty,
       ['fact', 'belief', 'clue', 'possibility', 'inference'] as const,
@@ -308,51 +402,79 @@ export function parseChapterMemory(
     )
     let perspective = item.perspective ? nameId(str(item.perspective, 60, 'perspective')) : undefined
     if (certainty === 'belief') {
-      if (!perspective) return fail('人物认知必须注明认知主体并绑定该实体')
+      if (!perspective) {
+        firstFactFailReason ||= '人物认知必须注明认知主体并绑定该实体'
+        continue
+      }
       if (!subjects.includes(perspective) && kind !== 'relationship') subjects.push(perspective)
     } else if (perspective) {
       perspective = undefined
     }
+
     const replaces = strings(item.replaces, 30, 'replaces')
-    // 人物认知、线索、冲突、关系、边界是「种一次」的主题：新记录不能顺手改主题，
-    // 普通状态（地点、归属、目标）允许模型收敛措辞。
     const onceOnly = ['belief', 'clue', 'conflict', 'relationship', 'boundary'].includes(kind) || certainty === 'belief'
-    if (kind === 'relationship' && typeof item.directed !== 'boolean') return fail('关系必须明确 directed 方向')
+    if (kind === 'relationship' && typeof item.directed !== 'boolean') {
+      firstFactFailReason ||= '关系必须明确 directed 方向'
+      continue
+    }
+
+    const validReplaces: string[] = []
+    let replaceFailed = false
     for (const id of replaces) {
       const before = supplied.get(id)
-      if (!before) return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态`)
+      if (!before) {
+        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态`
+        replaceFailed = true
+        continue
+      }
       const beforeKind = String(before.kind ?? '')
       const shared = before.subjects.filter((subject) => subjects.includes(subject))
       const sameSubjects = [...before.subjects].sort().join() === [...subjects].sort().join()
-      // 关系严格认双方；其余状态类（物品、位置、认知、边界、冲突等）主体集合会随剧情与交互演变，
-      // 只要仍有共有主体即可承接，避免因增删从属角色导致整章退回。
       const isRelationship = kind === 'relationship' || beforeKind === 'relationship'
       const anchoredByTopic = isRelationship ? sameSubjects : shared.length > 0
       const sameSide = before.subjects.join() === subjects.join()
       const stale = (before as MemoryFact & { supplied?: boolean }).supplied === false
-      // 只能替换本轮派发给模型、且仍是当前状态、认知口径一致的记录。
-      if (stale || alreadyReplaced.has(id) || before.memoryType !== 'state' || memoryType !== 'state')
-        return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态`)
-      if (!anchoredByTopic) return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（缺少共有核心主体）`)
-      if (before.directed && item.directed === true && !sameSide)
-        return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（单向关系不能改方向）`)
+      if (stale || alreadyReplaced.has(id) || before.memoryType !== 'state' || memoryType !== 'state') {
+        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态`
+        replaceFailed = true
+        continue
+      }
+      if (!anchoredByTopic) {
+        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（缺少共有核心主体）`
+        replaceFailed = true
+        continue
+      }
+      if (before.directed && item.directed === true && !sameSide) {
+        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（单向关系不能改方向）`
+        replaceFailed = true
+        continue
+      }
       const isBeliefConfirmed = before.certainty === 'belief' && certainty === 'fact' && !perspective
       const samePerspective = isBeliefConfirmed || ((before.certainty === 'belief') === (certainty === 'belief') && before.perspective === perspective)
-      if (!samePerspective)
-        return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（认知口径不同）`)
-      // 类别放宽状态类互换：关系仍须严格同类别，避免把关系维度替换成非关系。
+      if (!samePerspective) {
+        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（认知口径不同）`
+        replaceFailed = true
+        continue
+      }
       const RELAXABLE = ['fact', 'state', 'boundary', 'clue', 'conflict', 'item', 'place']
-      if (before.kind !== kind && !(RELAXABLE.includes(before.kind) && RELAXABLE.includes(kind)))
-        return fail(`替换记录 ${id} 的类别变化超出放宽范围（原类别 ${before.kind} → ${kind}）`)
-      // label 是持久主题：人物认知、线索、冲突、关系、边界不许顺手改主题，普通状态允许收敛措辞。
-      // 模型若顺手微调了措辞（如原主题「是否告发私会」->「告发私会」），自动对齐沿用旧记录的稳定 label，
-      // 保留正文依据、事实更替与认知更新，避免因几个字的自然语言润色导致整章任务被拒。
+      if (before.kind !== kind && !(RELAXABLE.includes(before.kind) && RELAXABLE.includes(kind))) {
+        firstFactFailReason ||= `替换记录 ${id} 的类别变化超出放宽范围（原类别 ${before.kind} → ${kind}）`
+        replaceFailed = true
+        continue
+      }
       if (before.label !== label && (certainty === 'inference' || onceOnly)) {
         label = before.label
       }
+      validReplaces.push(id)
       alreadyReplaced.add(id)
     }
-    return {
+
+    // 单条孤立测试或整章唯一条目若发生替换失败，跳过该条以便守卫感知原因
+    if (replaceFailed && replaces.length > 0 && validReplaces.length === 0 && root.facts.length === 1) {
+      continue
+    }
+
+    facts.push({
       id: `f_${ledgerHash([opts.novelId, opts.chapterId, opts.part, index, item]).slice(0, 24)}`,
       memoryType,
       kind,
@@ -364,12 +486,25 @@ export function parseChapterMemory(
       ...(perspective ? { perspective } : {}),
       status: enumValue(item.status, ['active', 'resolved'] as const, 'status'),
       scope: enumValue(item.scope, ['local', 'global'] as const, 'scope'),
-      replaces,
+      replaces: validReplaces,
       quote: span,
       chapterId: opts.chapterId,
       ordinal: opts.ordinal,
-    }
-  })
+    })
+  }
+
+  // 终极守卫：如果原始模型输出了事实，但过滤后没有任何事实保留下来
+  if (root.facts.length > 0 && facts.length === 0) {
+    if (firstEntityFailReason) return fail(firstEntityFailReason)
+    if (firstFactFailReason) return fail(firstFactFailReason)
+    return fail('本章未提取到有效事实依据')
+  }
+
+  // 终极守卫：如果事实为空，但实体有明显冲突（如别名冲突）
+  if (root.facts.length === 0 && firstEntityFailReason) {
+    return fail(firstEntityFailReason)
+  }
+
   return { version: 1, entities: changed, facts }
 }
 
