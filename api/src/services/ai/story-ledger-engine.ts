@@ -220,10 +220,17 @@ export async function advanceLedgerMemory(db: Db, kind: 'plot' | 'relationship',
               opts.novelId,
               token,
             ])
+            const isReasoningRunaway =
+              status === 'truncated' &&
+              !!res.reasoningTokens &&
+              !!res.completionTokens &&
+              res.reasoningTokens >= res.completionTokens * 0.85
             if (status !== 'complete')
               throw new AiError(
                 'invalid',
-                `章节记忆${status === 'truncated' ? '输出截断，请提高档案输出预算' : status === 'refused' ? '被模型拒绝' : '返回空内容'}；未推进该章，已完成章节可继续复用`,
+                isReasoningRunaway
+                  ? `章节记忆思考超限：模型思考消耗了全部 ${res.completionTokens.toLocaleString()} Token 导致正文未生成。请勿继续调高预算，建议在参数调优中将该任务的思考模式设为关闭 (disabled)，或切换为通用模型（如 DeepSeek-V3 / GPT-4o）`
+                  : `章节记忆${status === 'truncated' ? '输出截断，请提高档案输出预算' : status === 'refused' ? '被模型拒绝' : '返回空内容'}；未推进该章，已完成章节可继续复用`,
                 422,
               )
             let raw: Record<string, unknown>

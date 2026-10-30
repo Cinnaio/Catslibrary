@@ -284,9 +284,18 @@ function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) 
     )
   }
 
+  const isReasoningExhausted =
+    attempt.status === 'truncated' &&
+    !!attempt.reasoningTokens &&
+    !!attempt.completionTokens &&
+    attempt.reasoningTokens >= attempt.completionTokens * 0.85
+
   const statusMap: Record<string, { label: string; tone: string }> = {
     complete: { label: '完整返回', tone: 'text-foreground/90 font-medium' },
-    truncated: { label: '输出被截断，请提高此档案预算', tone: 'text-amber-600 dark:text-amber-400 font-medium' },
+    truncated: {
+      label: isReasoningExhausted ? '思考耗尽全部预算（请关闭思考模式或换通用大模型）' : '输出被截断，请提高此档案预算',
+      tone: 'text-amber-600 dark:text-amber-400 font-medium',
+    },
     refused: { label: '模型拒答，增加预算不能解决', tone: 'text-destructive font-medium' },
     empty: { label: '返回空内容，未确认截断', tone: 'text-muted-foreground font-medium' },
   }

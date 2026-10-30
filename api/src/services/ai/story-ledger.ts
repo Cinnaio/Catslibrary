@@ -295,7 +295,7 @@ export function parseChapterMemory(
     const item = object(value)
     const memoryType = enumValue(item.memoryType, ['state', 'event'] as const, 'memoryType')
     const kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'] as const, '事实类别')
-    const label = str(item.label, 80, 'label')
+    let label = str(item.label, 80, 'label')
     const subjects = strings(item.subjects, 12, 'subjects').map(nameId)
     if (!subjects.length || (kind === 'relationship' && subjects.length !== 2)) return fail('事实必须绑定实体，关系必须绑定双方')
     const quote = str(item.quote, 1000, 'quote')
@@ -344,8 +344,11 @@ export function parseChapterMemory(
       if (before.kind !== kind && !(RELAXABLE.includes(before.kind) && RELAXABLE.includes(kind)))
         return fail(`替换记录 ${id} 的类别变化超出放宽范围（原类别 ${before.kind} → ${kind}）`)
       // label 是持久主题：人物认知、线索、冲突、关系、边界不许顺手改主题，普通状态允许收敛措辞。
-      if (before.label !== label && (certainty === 'inference' || onceOnly))
-        return fail(`替换记录 ${id} 的主题变化过大（原主题「${before.label}」），请沿用旧 label 或另开新记录`)
+      // 模型若顺手微调了措辞（如原主题「是否告发私会」->「告发私会」），自动对齐沿用旧记录的稳定 label，
+      // 保留正文依据、事实更替与认知更新，避免因几个字的自然语言润色导致整章任务被拒。
+      if (before.label !== label && (certainty === 'inference' || onceOnly)) {
+        label = before.label
+      }
       alreadyReplaced.add(id)
     }
     return {
