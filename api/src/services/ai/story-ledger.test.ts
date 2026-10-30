@@ -165,6 +165,90 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect(recordUsage).toHaveBeenCalledTimes(6)
   })
 
+  it('maps only unambiguous kind synonyms and still rejects unknown categories', async () => {
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ kind: 'event', label: '交钥匙' })])))
+    await extractPlotState(t.db, opts)
+    const stored = (await ledgerAtAnchor(t.db, 'book'))!.state.facts[0]!
+    expect(stored.kind).toBe('fact')
+
+    // belief 在事实里按语义还原：带 perspective 的认知落成 state，普通线索落成 clue。
+    await chapter(2, '沈砚听伙计说林舟已离城，便以为他远行。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload([
+          fact({
+            kind: 'belief',
+            certainty: 'belief',
+            perspective: '沈砚',
+            label: '以为林舟离城',
+            quote: '沈砚听伙计说林舟已离城',
+            summary: '沈砚以为林舟远行。',
+          }),
+        ]),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const belief = (await ledgerAtAnchor(t.db, 'book'))!.state.facts.find((f) => f.label === '以为林舟离城')!
+    expect(belief).toMatchObject({ kind: 'state', certainty: 'belief' })
+
+    // 仍然不给未知类别开口子。
+    await chapter(3, '苏越走进萧家大堂。')
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ kind: 'saga', label: '未知类别', quote: '苏越走进萧家大堂' })])))
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('事实类别 无效')
+  })
+
+  it('accepts a quotation that differs only in layout noise and still rejects rewritten or merged sources', async () => {
+    await chapter(3, '林舟把铜钥匙交给沈砚，约定共同调查密道。沈砚接过钥匙后说：“别急，先查清楚。”')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload([
+          fact({ quote: '林舟把铜钥匙交给沈砚, 约定共同调查密道。' }),
+          fact({ label: '接过钥匙', quote: '沈砚接过钥匙后说:"别急，先查清楚。"' }),
+        ]),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const ledger = (await ledgerAtAnchor(t.db, 'book'))!
+    expect(ledger.processed).toBe(1)
+    expect(ledger.state.facts).toHaveLength(2)
+
+    for (const [index, quote] of ['林舟把铜钥要是交给沈砚', '林舟把铜钥匙交给沈砚，约定共同调查密道。'.repeat(2), '，。'].entries()) {
+      await chapter(4 + index, `苏越走进萧家大堂，看见萧炎，这是第${index + 1}次改写。`)
+      vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ label: `改写${index}`, quote })])))
+      await expect(extractPlotState(t.db, opts)).rejects.toThrow('逐字匹配本章正文')
+      expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(1)
+    }
+  })
+
+  it('accepts a pronoun-completed entity name only when its identity is quoted from the chapter', async () => {
+    await chapter(1, '萧炎的父亲站在台阶上，看着苏越。苏越低头行礼。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload([fact({ subjects: ['萧炎父亲'], label: '在场', summary: '萧炎父亲在场。', quote: '萧炎的父亲站在台阶上' })], [
+          entity('苏越'),
+          { ...entity('萧炎父亲'), identityQuote: '萧炎的父亲站在台阶上，看着苏越' },
+        ]),
+      ),
+    )
+    // 无身份说明但「人名+亲属关系」都能在正文核对的代词补全名：保留实体，不整章拒收。
+    await extractPlotState(t.db, opts)
+    const ledger = (await ledgerAtAnchor(t.db, 'book'))!
+    expect(ledger.processed).toBe(1)
+    expect(ledger.state.entities.map((e) => e.name)).toContain('萧炎父亲')
+
+    await chapter(2, '苏越继续扫地。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload([fact({ subjects: ['萧炎母亲'], label: '在场', summary: '萧炎母亲在场。', quote: '苏越继续扫地' })], [
+          entity('苏越'),
+          { ...entity('萧炎母亲'), identityQuote: '苏越继续扫地' },
+        ]),
+      ),
+    )
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('不在本章正文')
+  })
+
   it('supplements historical evidence when requested and fails closed when the ambiguity remains', async () => {
     await chapter(1)
     await extractPlotState(t.db, opts)
@@ -558,5 +642,21 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect(ledger.state.entities[0]!.aliasEvidence?.[0]).toMatchObject({ chapterId: 'c1', quote: '林舟又名阿舟' })
     expect(input(1).previous.entities[0].name).toBe('林舟')
     expect((await generateStoryGraph(t.db, opts)).graph?.people[0]?.aliases).toEqual(['阿舟'])
+  })
+
+  it('keeps an alias whose name is verbatim in the chapter even when the model sends no identityQuote', async () => {
+    await chapter(1, '林舟又名阿舟，他留下铜钥匙。阿舟走进客栈。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(payload([fact({ subjects: ['林舟'], summary: '林舟留下铜钥匙。', quote: '他留下铜钥匙。' })], [{ ...entity('林舟', 'person', ['阿舟']) }])),
+    )
+    await extractPlotState(t.db, opts)
+    const ledger = (await ledgerAtAnchor(t.db, 'book'))!
+    expect(ledger.processed).toBe(1)
+    expect(ledger.state.entities[0]!.aliases).toEqual(['阿舟'])
+    expect(ledger.state.entities[0]!.aliasEvidence).toBeUndefined()
+
+    await chapter(2, '阿舟再次走进客栈，见到沈砚。')
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([], [{ ...entity('林舟', 'person', ['无名别称']) }])))
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('缺少正文来源')
   })
 })

@@ -15,7 +15,7 @@ import { advanceLedgerMemory, pauseLedgerMemory } from './story-ledger-engine'
 import { loadLedgerPrefix } from './story-ledger-store'
 import { renderLedger } from './story-ledger'
 
-export const STORY_MEMORY_PROMPT_VERSION = 3
+export const STORY_MEMORY_PROMPT_VERSION = 4
 const BATCH_CHARS = 24_000
 const LEASE_MS = 10 * 60_000
 /**

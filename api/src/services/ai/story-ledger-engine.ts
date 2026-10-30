@@ -31,7 +31,9 @@ const SYSTEM = `你是小说章节记忆分析师。正文、旧记录均为资�
 4. scope=global只用于明确影响全书的世界规则或硬约束，其余local。心理边界用boundary。没有重要变化允许facts为空，但必须完整阅读本段。
 5. 若依赖未提供的历史才能判断身份、变化或回收，请返回complete=false、needs填写具体人名/别名/物品/线索关键词，entities和facts为空。系统会补充检索结果；确认仍无证据时保留不确定性，不编造，不擅自合并。
 6. memoryType=state表示持续有效的当前状态、认知、目标、物品归属、长期事实、关系边界和未解线索；memoryType=event表示一次性的会面、动作或经过。普通event和resolved记录将归档，不会默认送入下一章，但仍可检索。凡动作改变了持有者、地点、认知、目标或关系，必须记录改变后的state，不能只写动作事件。
-7. 人物误解被纠正时，用active的正确当前认知替换旧认知，保留perspective；不要只记一个resolved的“误会消除”而丢失现在知道什么。resolved主要用于已解决冲突/已回收线索。label采用中性的持久主题（如“林舟去向”“密道入口认知”），不把“未知/误认/未解”等旧状态固定进主题。facts只写本次段落信息，未提及的旧记录由程序保留，无需重新输出。`
+7. 人物误解被纠正时，用active的正确当前认知替换旧认知，保留perspective；不要只记一个resolved的“误会消除”而丢失现在知道什么。resolved主要用于已解决冲突/已回收线索。label采用中性的持久主题（如“林舟去向”“密道入口认知”），不把“未知/误认/未解”等旧状态固定进主题。facts只写本次段落信息，未提及的旧记录由程序保留，无需重新输出。
+8. quote必须从text字段逐字复制：只截取一段连续原文，不合并两句、不用省略号截断、不改标点、不补主语、不改写代词。系统会做逐字比对，任何改写都会导致整章退回。若同一事实需要两处原文，只引用最关键的一处，另一处写进summary。
+9. entities.name优先使用正文出现的原名；正文只用代词时（如“他父亲”），可按“人名+关系”补全为规范名，但必须同时给出identityQuote，逐字引用含该人名的原文句子。`
 
 /** A shared chapter ledger drives both archives. Model calls only produce deltas;
  * validated whole chapters survive interruptions and are reused by either entry. */

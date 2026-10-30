@@ -254,7 +254,7 @@ describe.each([
     expect((await t.db.query(`SELECT * FROM ${table}`)).rows).toHaveLength(0)
     expect(input()).toContain('正文1。')
     const second = await extract(t.db, { ...opts, afterChapterId: 'c2' })
-    expect(second).toMatchObject({ complete: true, processedChapters: 2, source: { coverage: 'full', sampleCount: 2, extractionPromptVersion: 3 } })
+    expect(second).toMatchObject({ complete: true, processedChapters: 2, source: { coverage: 'full', sampleCount: 2, extractionPromptVersion: 4 } })
     expect(input(1)).toContain(response.text)
     expect(input(1)).toContain('正文2。')
     expect(input(1)).not.toContain('正文1。')

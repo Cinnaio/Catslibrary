@@ -4,7 +4,7 @@ import { AiError } from './client'
 
 export const LEDGER_VERSION = 1
 /** Bump when extraction semantics change, without changing the stored JSON schema. */
-export const LEDGER_PROMPT_VERSION = 3
+export const LEDGER_PROMPT_VERSION = 4
 export type EntityKind = 'person' | 'item' | 'place' | 'faction'
 export type FactKind = 'fact' | 'state' | 'relationship' | 'boundary' | 'clue' | 'conflict' | 'item' | 'place'
 export interface MemoryEntity {
@@ -59,6 +59,96 @@ const strings = (value: unknown, max: number, field: string): string[] => {
 }
 const enumValue = <T extends string>(value: unknown, values: readonly T[], field: string): T =>
   values.includes(value as T) ? (value as T) : fail(`${field} 无效`)
+
+/** 枚举字段的近义归一：模型偶尔把「事实类别」写成 event/关系别名。 */
+const ENUM_SYNONYMS: Record<string, string> = {
+  event: 'fact',
+  event_fact: 'fact',
+  relationship_change: 'relationship',
+  relation: 'relationship',
+  relations: 'relationship',
+}
+const lenientEnum = <T extends string>(value: unknown, values: readonly T[], _field: string): T | undefined => {
+  const raw = String(value ?? '').trim().toLowerCase()
+  const mapped = ENUM_SYNONYMS[raw] ?? raw
+  return values.includes(mapped as T) ? (mapped as T) : undefined
+}
+
+/**
+ * 正文依据的比对口径：只抹平「排版噪音」，不容忍任何实词增删。
+ *
+ * 模型抽取 50 条以上事实时，偶尔会把引文里的空格、全半角标点、引号写成另一种形式；
+ * 这不影响「这句话确实出自本章」，但会让最严格的 includes 把整章判负（一次调用
+ * 6 分钟、2 万 token 全部作废）。因此比较时折叠空白与标点，同时保留汉字、字母、
+ * 数字的完整序列；任何改写、合并、省略仍会失败。
+ */
+const MATCH_IGNORABLE = /[\s\u00a0\u3000\u200b\ufeff"'“”‘’「」『』〈〉《》（）()［］\[\]【】{}，。、；：！？,.;:!?~～—－…·…⋯　\-_\u2010-\u2015/\\|]/gu
+export function normalizeForSourceMatch(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(MATCH_IGNORABLE, '')
+}
+/** 归一化后至少要留下这么多实字，避免空串或单个标点通过校验。 */
+const MIN_QUOTE_MATCH_CHARS = 4
+
+/** 引文是否逐字来自正文（容忍排版噪音，不容忍改写）。 */
+export function quoteMatchesText(text: string, quote: string): boolean {
+  return sourceSpan(text, quote) !== ''
+}
+
+/** 引文在正文中的原样片段；不匹配时返回空串。落库时用原文片段，避免把模型改写版存进证据。 */
+export function sourceSpan(text: string, quote: string): string {
+  const needle = normalizeForSourceMatch(quote)
+  if (needle.length < MIN_QUOTE_MATCH_CHARS) return ''
+  let from = -1
+  let counted = 0
+  for (let i = 0; i < text.length; i++) {
+    if (normalizeForSourceMatch(text[i]!).length !== 1) continue
+    if (from < 0) {
+      if (normalizeForSourceMatch(text.slice(i)).startsWith(needle)) {
+        from = i
+        counted = 1
+      }
+      continue
+    }
+    counted++
+    if (counted === needle.length) return text.slice(from, i + 1)
+  }
+  return ''
+}
+
+/** 代词补全名（正文只写「他父亲」，模型给出「萧炎父亲」）的落点判定：
+ * 关系后缀本身在正文出现，且后缀前的人名也在正文出现。
+ * 命中即保留（低置信），不要求模型额外给出 identityQuote。 */
+const RELATION_SUFFIX = /(父亲大人|母亲大人|父亲|母亲|爹|娘|爷爷|奶奶|外公|外婆|兄长|哥哥|弟弟|姐姐|妹妹|师父|师傅|师尊|弟子|徒弟|师兄|师姐|家主|族长|管家|叔叔|婶婶|舅舅|姑母|表哥|表妹)$/u
+export function canonicalNameGrounded(name: string, text: string): boolean {
+  const suffix = name.match(RELATION_SUFFIX)?.[1]
+  if (!suffix) return false
+  const head = name.slice(0, name.length - suffix.length)
+  if (head.length < 2 || !text.includes(head)) return false
+  return text.includes(suffix)
+}
+
+/** 模型常把认知/事件类值写进事实类别：entities 没有其他可落点，按名字推断；
+ * 事实则按 certainty 与 memoryType 还原语义再映射类别，避免把"人物认知"降级。 */
+const ENTITY_NAME_KIND = /(大殿|大厅|客栈|酒馆|城外|城内|山上|山下|后山|密道|广场|庭院|房间|书房|街道|城门|家$|家族|门派|宗门|学院|商会|帝国|大陆|王国|城$|山$|府$|宫$|殿$|坊$|局$|堂$)/u
+
+export function coerceFactKind(kind: unknown, item: Record<string, unknown>): string {
+  const raw = String(kind ?? '').trim()
+  if (['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'].includes(raw)) return raw
+  const memoryType = String(item.memoryType ?? '').trim()
+  const certainty = String(item.certainty ?? '').trim()
+  if (raw === 'belief' || raw === 'cognition' || raw === 'knowledge') return certainty === 'belief' ? 'state' : 'clue'
+  if (raw === 'event') return memoryType === 'event' ? 'fact' : 'fact'
+  return raw
+}
+
+export function coerceEntityKind(kind: unknown, name: string): EntityKind | string {
+  const raw = String(kind ?? '').trim()
+  if (['person', 'item', 'place', 'faction'].includes(raw)) return raw as EntityKind
+  if (raw === 'event' || raw === 'location' || raw === 'scene') return ENTITY_NAME_KIND.test(name) ? 'place' : 'person'
+  return raw
+}
 
 export function currentFacts(state: LedgerState): MemoryFact[] {
   const replaced = new Set(state.facts.flatMap((f) => f.replaces))
@@ -135,31 +225,36 @@ export function parseChapterMemory(
     const item = object(value),
       name = str(item.name, 60, '人物/实体姓名')
     const aliases = strings(item.aliases, 12, 'aliases').filter((n) => n !== name)
-    const kind = enumValue(item.kind, ['person', 'item', 'place', 'faction'] as const, '实体类别')
+    const mappedKind = coerceEntityKind(item.kind, name)
+    const kind = enumValue(mappedKind, ['person', 'item', 'place', 'faction'] as const, '实体类别')
     const known = [...entities.values()].filter((e) => [e.name, ...e.aliases].includes(name))
     if (known.length > 1) return fail(`「${name}」存在身份歧义`)
     const existing = known[0]
     if (existing && existing.kind !== kind) return fail(`「${name}」的实体类别冲突`)
-    if (!existing && !opts.text.includes(name)) return fail(`新增实体「${name}」不在本章正文`)
+    // 模型给出的身份说明：逐字取自正文则保留；只差排版噪音则按正文原样落库；
+    // 正文根本没有说明时不再整章拒收（模型常给出空串，但这只影响别名证据的丰富度，
+    // 别名本身仍要求逐字出现在正文），仅在别名确实无来源时退回。
+    const rawEvidence = typeof item.identityQuote === 'string' ? item.identityQuote.trim() : ''
+    const sourceEvidence = rawEvidence ? sourceSpan(opts.text, rawEvidence) : ''
+    if (!existing && !opts.text.includes(name) && !canonicalNameGrounded(name, opts.text))
+      // 规范名可以不是正文原词，但「人名 + 亲属关系」必须都能在正文核对；
+      // 命中的代词补全名按低置信保留（证据可空），完全不成立于正文的名字照旧拒收。
+      return fail(`新增实体「${name}」不在本章正文（代词补全的名称须附 identityQuote 说明身份）`)
     for (const alias of aliases) {
       if (alias.length > 60) return fail(`别名「${alias}」超过 60 字符`)
       if (declaredNames.has(alias)) return fail(`别名「${alias}」同时被声明为另一实体，请先核对身份`)
       if (!opts.text.includes(alias) && !existing?.aliases.includes(alias)) return fail(`别名「${alias}」缺少正文来源`)
       if ([...entities.values()].some((e) => e.id !== existing?.id && [e.name, ...e.aliases].includes(alias))) return fail(`别名「${alias}」与其他实体冲突`)
-      if (!existing?.aliases.includes(alias)) {
-        const quote = str(item.identityQuote, 1000, '新增别名的 identityQuote')
-        if (!opts.text.includes(quote) || !quote.includes(alias) || ![name, ...(existing?.aliases || [])].some((n) => quote.includes(n)))
-          return fail(`别名「${alias}」缺少可核对的身份说明`)
-      }
+      if (!existing?.aliases.includes(alias) && !sourceEvidence && !opts.text.includes(alias)) return fail(`别名「${alias}」缺少可核对的身份说明`)
     }
     const entity: MemoryEntity = existing
       ? { ...existing, aliases: [...new Set([...existing.aliases, ...aliases])] }
       : { id: `e_${ledgerHash([opts.novelId, kind, name]).slice(0, 24)}`, name, aliases, kind }
     const newAliases = aliases.filter((alias) => !existing?.aliases.includes(alias))
-    if (newAliases.length)
+    if (newAliases.length && sourceEvidence)
       entity.aliasEvidence = [
         ...(existing?.aliasEvidence || []),
-        ...newAliases.map((alias) => ({ alias, quote: (item.identityQuote as string).trim(), chapterId: opts.chapterId, ordinal: opts.ordinal })),
+        ...newAliases.map((alias) => ({ alias, quote: sourceEvidence, chapterId: opts.chapterId, ordinal: opts.ordinal })),
       ]
     entities.set(entity.id, entity)
     changed.push(entity)
@@ -174,13 +269,18 @@ export function parseChapterMemory(
   const facts: MemoryFact[] = root.facts.map((value, index) => {
     const item = object(value)
     const memoryType = enumValue(item.memoryType, ['state', 'event'] as const, 'memoryType')
-    const kind = enumValue(item.kind, ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'] as const, '事实类别')
+    const kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'] as const, '事实类别')
     const label = str(item.label, 80, 'label')
     const subjects = strings(item.subjects, 12, 'subjects').map(nameId)
     if (!subjects.length || (kind === 'relationship' && subjects.length !== 2)) return fail('事实必须绑定实体，关系必须绑定双方')
     const quote = str(item.quote, 1000, 'quote')
-    if (!opts.text.includes(quote)) return fail(`facts[${index}].quote 无法逐字匹配本章正文`)
-    const certainty = enumValue(item.certainty, ['fact', 'belief', 'clue', 'possibility', 'inference'] as const, 'certainty')
+    const span = sourceSpan(opts.text, quote)
+    if (!span) return fail(`facts[${index}].quote 无法逐字匹配本章正文（引文须为本段连续原文）`)
+    const certainty = enumValue(
+      lenientEnum(item.certainty, ['fact', 'belief', 'clue', 'possibility', 'inference'] as const, 'certainty') ?? item.certainty,
+      ['fact', 'belief', 'clue', 'possibility', 'inference'] as const,
+      'certainty',
+    )
     const perspective = item.perspective ? nameId(str(item.perspective, 60, 'perspective')) : undefined
     if (certainty === 'belief' && (!perspective || !subjects.includes(perspective))) return fail('人物认知必须注明认知主体并绑定该实体')
     if (certainty !== 'belief' && perspective) return fail(`facts[${index}]「${label}」：只有人物认知可设置 perspective（当前 certainty=${certainty}）`)
@@ -228,7 +328,7 @@ export function parseChapterMemory(
       status: enumValue(item.status, ['active', 'resolved'] as const, 'status'),
       scope: enumValue(item.scope, ['local', 'global'] as const, 'scope'),
       replaces,
-      quote,
+      quote: span,
       chapterId: opts.chapterId,
       ordinal: opts.ordinal,
     }
