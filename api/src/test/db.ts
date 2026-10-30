@@ -63,6 +63,15 @@ export async function createTestDb(dataDir?: string): Promise<TestDb> {
             await pg.exec(text)
             return { rows: [], rowCount: 0 }
           }
+          // 迁移脚本是整份多语句 SQL。真实 pg 驱动走简单查询协议时允许一次发送多条语句，
+          // pglite 的 query() 却会走扩展/预处理协议直接报
+          // 「cannot insert multiple commands into a prepared statement」。
+          // 无参数时统一走 exec()，与生产驱动的行为对齐。
+          if (params.length === 0) {
+            const results = await pg.exec(text)
+            const last = results.at(-1)
+            return { rows: (last?.rows ?? []) as never[], rowCount: last?.affectedRows ?? 0 }
+          }
           return query(text, params)
         },
         release() {},

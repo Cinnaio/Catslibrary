@@ -189,6 +189,15 @@ describe('Passkey WebAuthn endpoints', () => {
         `${String(version).padStart(3, '0')}_legacy.sql`,
       ])
     }
+    // 夹具只建了与 passkey 相关的表，模拟「记账到 061、后续迁移已跑完」的实例。
+    // 62 的修复迁移必须真跑（本用例验证的就是它），63 起的章节记忆表在这里不存在，
+    // 记为已应用以免重放时因缺表失败。
+    for (let version = 63; version <= 69; version += 1) {
+      await t.db.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING', [
+        version,
+        `${String(version).padStart(3, '0')}_legacy.sql`,
+      ])
+    }
     await runMigrations(t.db)
 
     const response = await request('/api/auth/passkeys', 'GET')

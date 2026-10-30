@@ -34,6 +34,13 @@ it('已记账早期 054 且仍保留旧状态约束的数据库可升级并执�
       code: '23514',
       constraint: 'book_import_runs_status_check',
     })
+    // 这个夹具从 038 起只建了导入相关的表，模拟的是「历史上只有部分表 + 记账到 054」的实例。
+    // 真实 runMigrations 会从 001 一路补齐；这里只验证 054 之后的那份迁移，所以把
+    // 055 之后的版本预登记为已应用，避免在缺表环境下重放 056+。
+    const files = (await readdir(dir)).filter((file) => file.endsWith('.sql'))
+    for (const file of files.filter((f) => Number.parseInt(f, 10) > 55)) {
+      await pg.query('INSERT INTO schema_migrations(version,name) VALUES ($1,$2)', [Number.parseInt(file, 10), file])
+    }
     await expect(runMigrations(db)).resolves.toContain('055_import_expired_status.sql')
     await expect(pruneImportSnapshots(db, 100)).resolves.toBe(2)
     const { rows } = await pg.query<{ id: string; status: string; source_text: string; changes_json: string; history_summary: string }>(

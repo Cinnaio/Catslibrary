@@ -224,8 +224,13 @@ describe('内容 API 端到端（pglite）', () => {
   })
 
   it('旧数据库中的 default 和第三方缺省封面均显示新版，真实封面保持原图', async () => {
-    const { novels } = await jsonOf<{ novels: Novel[] }>(await req('/api/novels'))
-    const id = novels[0]!.id
+    // 用专用小说，避免前面用例遗留的 cover_url 让「历史失效来源」修复逻辑先跑一遍。
+    const created = await req(
+      '/api/novels',
+      json('POST', { title: '封面回归样本', author: '测试', categories: [], description: '测试', contentRating: 'general' }, adminToken),
+    )
+    expect(created.status).toBe(201)
+    const id = (await jsonOf<{ novel: { id: string } }>(created)).novel.id
     const placeholder = Buffer.from((await getDefaultCoverImage()).data)
     for (const source of ['default', LEGACY_DEFAULT_COVER_URL]) {
       await run(t.db, `INSERT INTO novel_covers (data, content_type, source, novel_id, updated_at) VALUES ($1,$2,$3,$4,1)
@@ -234,9 +239,20 @@ describe('内容 API 端到端（pglite）', () => {
       expect(res.status).toBe(200)
       expect(res.headers.get('content-type')).toBe('image/webp')
       expect(Buffer.from(await res.arrayBuffer())).toEqual(placeholder)
+      // 缺省来源会被回落到本地新版封面，这里同步 URL，避免下一条断言受历史来源修复逻辑干扰。
+      await run(t.db, 'UPDATE novels SET cover_url=$2 WHERE id=$1', [id, source])
     }
     const original = Buffer.from('original uploaded cover')
-    await run(t.db, 'UPDATE novel_covers SET data=$1, content_type=$2, source=$3 WHERE novel_id=$4', [original, 'image/png', 'upload', id])
+    // 缺省来源的历史记录会在请求时被「回落到本地新版」的修复逻辑删除；
+    // 这里直接写一份真实上传记录（URL 与来源一致），验证不会被上述回落覆盖。
+    await run(t.db, 'UPDATE novels SET cover_url=$2 WHERE id=$1', [id, 'upload'])
+    await run(t.db, `INSERT INTO novel_covers (data, content_type, source, novel_id, updated_at) VALUES ($1,$2,$3,$4,1)
+      ON CONFLICT (novel_id) DO UPDATE SET data=EXCLUDED.data, content_type=EXCLUDED.content_type, source=EXCLUDED.source`, [
+      original,
+      'image/png',
+      'upload',
+      id,
+    ])
     const res = await req(`/api/cover/${id}`)
     expect(res.headers.get('content-type')).toBe('image/png')
     expect(Buffer.from(await res.arrayBuffer())).toEqual(original)

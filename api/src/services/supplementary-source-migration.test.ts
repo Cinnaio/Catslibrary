@@ -10,8 +10,12 @@ it('已执行早期 059 的数据库升级后可以保存部分目录结果，�
     await t.applyMigrations()
     await t.db.query('ALTER TABLE supplementary_sources DROP CONSTRAINT supplementary_sources_status_check')
     await t.db.query("ALTER TABLE supplementary_sources ADD CONSTRAINT supplementary_sources_status_check CHECK (status IN ('never','ok','error'))")
-    await t.db.query('CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY,name TEXT NOT NULL)')
+    await t.db.query('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY,name TEXT NOT NULL,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())')
     for (const name of (await readdir(new URL('../db/migrations/', import.meta.url))).filter((n) => n.endsWith('.sql') && Number.parseInt(n, 10) <= 59)) {
+      await t.db.query('INSERT INTO schema_migrations(version,name) VALUES ($1,$2)', [Number.parseInt(name, 10), name])
+    }
+    // 本夹具只建到 059 为止的表；把 060 之后的版本预登记，避免在缺表环境下重放 063+。
+    for (const name of (await readdir(new URL('../db/migrations/', import.meta.url))).filter((n) => n.endsWith('.sql') && Number.parseInt(n, 10) > 60)) {
       await t.db.query('INSERT INTO schema_migrations(version,name) VALUES ($1,$2)', [Number.parseInt(name, 10), name])
     }
     await t.db.query(
