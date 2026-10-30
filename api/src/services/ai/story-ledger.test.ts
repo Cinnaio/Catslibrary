@@ -700,4 +700,55 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect(dispatched.some((f) => f.id === second.id)).toBe(true)
     expect(currentFacts((await ledgerAtAnchor(t.db, 'book'))!.state).map((f) => f.summary)).toEqual(['铜钥匙仍在林舟手里。'])
   })
+  it('allows a character belief to be confirmed into an objective fact, replacing the belief while rejecting fact downgrade', async () => {
+    await chapter(1)
+    await extractPlotState(t.db, opts)
+    // 第2章：苏越个人推测拥有双修体质（belief）
+    await chapter(2, '苏越暗自猜测自己身负特殊双修体质。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [fact({ subjects: ['苏越'], label: '双修体质猜想', summary: '苏越怀疑自己拥有双修体质。', certainty: 'belief', perspective: '苏越', quote: '苏越暗自猜测自己身负特殊双修体质。' })],
+          [entity('苏越')],
+        ),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const belief = (await ledgerAtAnchor(t.db, 'book'))!.state.facts.find((f) => f.certainty === 'belief')!
+    expect(belief).toBeDefined()
+
+    // 第3章：正文直接证实，模型将旧 belief 替换升级为客观 fact（perspective 为空）
+    await chapter(3, '长老探查后，也证实了苏越的特殊双修体质。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [fact({ subjects: ['苏越'], label: '双修体质猜想', summary: '长老证实了苏越的特殊双修体质。', certainty: 'fact', quote: '也证实了苏越的特殊双修体质。', replaces: [belief.id] })],
+          [entity('苏越')],
+        ),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const ledger = (await ledgerAtAnchor(t.db, 'book'))!
+    expect(ledger.processed).toBe(3)
+    const active = currentFacts(ledger.state)
+    const upgraded = active.find((f) => f.replaces.includes(belief.id))!
+    expect(upgraded).toBeDefined()
+    expect(upgraded.certainty).toBe('fact')
+    expect(upgraded.perspective).toBeUndefined()
+    // 旧的 belief 依然保留在 state.facts 历史链中，但不在当前有效集合中
+    expect(ledger.state.facts.some((f) => f.id === belief.id)).toBe(true)
+    expect(active.some((f) => f.id === belief.id)).toBe(false)
+
+    // 反向校验：不允许将客观事实退化降级为个人认知
+    await chapter(4, '苏越又怀疑自己可能并非双修体质。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [fact({ subjects: ['苏越'], label: '双修体质猜想', summary: '苏越重新怀疑自己。', certainty: 'belief', perspective: '苏越', quote: '苏越又怀疑自己可能并非双修体质。', replaces: [upgraded.id] })],
+          [entity('苏越')],
+        ),
+      ),
+    )
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('认知口径不同')
+  })
 })
