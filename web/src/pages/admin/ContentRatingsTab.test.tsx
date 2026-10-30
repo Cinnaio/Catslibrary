@@ -417,7 +417,7 @@ describe('ContentRatingsTab', () => {
 
     expect(await screen.findByText('待审核 AI 作品')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '审核建议' }))
-    await user.click(screen.getByRole('button', { name: '取消', exact: true }))
+    await user.click(screen.getByRole('button', { name: /^取消$/ }))
     await waitFor(() => expect(screen.getByRole('button', { name: '审核建议' })).toHaveFocus())
     await user.click(screen.getByRole('button', { name: '审核建议' }))
     await user.click(screen.getByRole('button', { name: '进入批准确认' }))

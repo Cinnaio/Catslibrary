@@ -735,7 +735,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           <AdminEmptyState
             icon={<span className="job-spinner" aria-hidden="true" />}
             message="正在读取审核内容…"
-            description="正在同步当前筛选结果，请稍候。"
+            hint="正在同步当前筛选结果，请稍候。"
           />
         ) : error && !loading ? (
           <ErrorState message={`审核队列加载失败：${error}`} />
@@ -757,7 +757,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           <AdminEmptyState
             icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
             message={listStateTitle}
-            description={listStateDescription}
+            hint={listStateDescription}
             action={
               hasActiveFilters ? (
                 <Button variant="outline" size="sm" onClick={handleClearFilters}>

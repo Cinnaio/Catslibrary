@@ -13,7 +13,7 @@ import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
 import { adminApi, chaptersApi, novelsApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSourceSearchResponse } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
-import type { ChapterMeta, Chapter } from '@shared/types'
+import type { ChapterMeta } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -61,7 +61,7 @@ interface ChapterDraft {
 
 function extractVolumeTag(title: string): string | null {
   const match = title.match(/^(第[一二三四五六七八九十百千0-9]+卷|[Vv]ol(?:ume)?\.?\s*\d+)/)
-  return match ? match[1] : null
+  return match?.[1] ?? null
 }
 
 export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }: { highlightNovelId?: string; onHighlightConsumed?: () => void; mergeNovel?: IndexNovel; onMergeClose?: () => void; onMergeApplied?: () => void | Promise<void> }) {
@@ -77,7 +77,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [search, setSearch] = useState('')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [quickReaderChapter, setQuickReaderChapter] = useState<Chapter | null>(null)
+  const [quickReaderChapter, setQuickReaderChapter] = useState<ChapterMeta | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -857,13 +857,13 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                       <TableCell data-primary="" data-label="章节标题">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {extractVolumeTag(c.title) && (
-                            <span className="chapter-volume-tag">{extractVolumeTag(c.title)}</span>
+                            <span className="chapter-volume-tag">{extractVolumeTag(c.title)!}</span>
                           )}
                           <AdminCellText strong>
                             <button
                               type="button"
                               className="text-left hover:text-primary transition-colors cursor-pointer"
-                              onClick={() => setQuickReaderChapter(c as unknown as Chapter)}
+                              onClick={() => setQuickReaderChapter(c as unknown as ChapterMeta)}
                               title="点击速读章节内容"
                             >
                               {c.title || '—'}
@@ -893,7 +893,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                             className="admin-icon-button"
                             aria-label={`速读：第${c.order}章 ${c.title}`}
                             title="速读"
-                            onClick={() => setQuickReaderChapter(c as unknown as Chapter)}
+                            onClick={() => setQuickReaderChapter(c as unknown as ChapterMeta)}
                           >
                             <Eye className="size-4" />
                           </Button>
@@ -1022,7 +1022,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
         onClose={() => setQuickReaderChapter(null)}
         chapter={quickReaderChapter}
         novelTitle={selectedNovelInfo?.title}
-        chapters={chapters as unknown as Chapter[]}
+        chapters={chapters as unknown as ChapterMeta[]}
         onEdit={(ch) => {
           setQuickReaderChapter(null)
           void openChapterModal(ch as unknown as ChapterMeta)

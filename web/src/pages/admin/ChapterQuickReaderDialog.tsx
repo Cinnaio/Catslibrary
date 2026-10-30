@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Pencil, BookOpen, Clock, Hash } from 'lucide-react'
-import type { Chapter } from '@shared/types'
+import type { ChapterMeta } from '@shared/types'
 import { chaptersApi } from '@/lib/api'
 import { formatContent } from '@/lib/reader-utils'
 import { Button } from '@/components/ui/button'
@@ -10,10 +10,10 @@ import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDia
 interface ChapterQuickReaderDialogProps {
   open: boolean
   onClose: () => void
-  chapter: Chapter | null
+  chapter: ChapterMeta | null
   novelTitle?: string
-  chapters: Chapter[]
-  onEdit: (chapter: Chapter) => void
+  chapters: ChapterMeta[]
+  onEdit: (chapter: ChapterMeta) => void
 }
 
 export default function ChapterQuickReaderDialog({
@@ -24,7 +24,7 @@ export default function ChapterQuickReaderDialog({
   chapters,
   onEdit,
 }: ChapterQuickReaderDialogProps) {
-  const [currentChapter, setCurrentChapter] = useState<Chapter | null>(chapter)
+  const [currentChapter, setCurrentChapter] = useState<ChapterMeta | null>(chapter)
   const [content, setContent] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
