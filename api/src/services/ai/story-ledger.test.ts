@@ -776,4 +776,43 @@ describe('chapter ledger shared extraction and source integrity', () => {
     )
     await expect(extractPlotState(t.db, opts)).rejects.toThrow('认知口径不同')
   })
+
+  it('allows belief and boundary states to be replaced with shared core subjects and evolving fact kinds', async () => {
+    await chapter(1, '在萧媚视角里，苏越就是一个普通人。苏越觉醒斗气的事除萧玉外无人知道。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [
+            fact({ subjects: ['萧媚', '苏越'], label: '对苏越身份认知', summary: '萧媚认为苏越是普通人。', certainty: 'belief', perspective: '萧媚', quote: '在萧媚视角里，苏越就是一个普通人。' }),
+            fact({ kind: 'boundary', subjects: ['苏越', '萧玉'], label: '斗气觉醒保密范围', summary: '苏越觉醒斗气除萧玉外无人知晓。', quote: '苏越觉醒斗气的事除萧玉外无人知道。' }),
+          ],
+          [entity('萧媚'), entity('苏越'), entity('萧玉')],
+        ),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const state1 = (await ledgerAtAnchor(t.db, 'book'))!.state
+    const oldBelief = state1.facts.find((f) => f.certainty === 'belief')!
+    const oldBoundary = state1.facts.find((f) => f.kind === 'boundary')!
+
+    await chapter(2, '你你你！你竟然是斗者！苏越在萧媚面前展现了斗气。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [
+            // 认知更新：新条目 subjects 仅填萧媚，但共有主体为萧媚，承接成功
+            fact({ subjects: ['萧媚'], label: '对苏越修为认知', summary: '萧媚震惊苏越是斗者。', certainty: 'belief', perspective: '萧媚', quote: '你你你！你竟然是斗者！', replaces: [oldBelief.id] }),
+            // 边界打破：由 boundary 转化为 fact，涉及主体由萧玉变为萧媚，共有主体为苏越，承接成功
+            fact({ kind: 'fact', subjects: ['苏越', '萧媚'], label: '斗气觉醒公开', summary: '苏越向萧媚展现斗气。', quote: '苏越在萧媚面前展现了斗气。', replaces: [oldBoundary.id] }),
+          ],
+          [entity('萧媚'), entity('苏越'), entity('萧玉')],
+        ),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const state2 = (await ledgerAtAnchor(t.db, 'book'))!.state
+    const active = currentFacts(state2)
+    expect(active.some((f) => f.replaces.includes(oldBelief.id))).toBe(true)
+    expect(active.some((f) => f.replaces.includes(oldBoundary.id))).toBe(true)
+  })
 })

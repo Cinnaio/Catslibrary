@@ -324,14 +324,10 @@ export function parseChapterMemory(
       const beforeKind = String(before.kind ?? '')
       const shared = before.subjects.filter((subject) => subjects.includes(subject))
       const sameSubjects = [...before.subjects].sort().join() === [...subjects].sort().join()
-      // 物品归属认物品、位置认人物，主体集合会随转手/移动而变化，因此物品与地点类只要
-      // 仍有共有主体即可承接；其余主题要求核心主体完全一致。
-      // 此外，当人物主观猜想/认知被正文证实为客观事实时，认知者主体可能不再参与客观事实，允许共有主体承接。
-      const isBeliefConfirmed = before.certainty === 'belief' && certainty === 'fact' && !perspective
-      const anchoredByTopic =
-        ['item', 'place'].includes(beforeKind) || ['item', 'place'].includes(kind) || isBeliefConfirmed
-          ? shared.length > 0
-          : sameSubjects
+      // 关系严格认双方；其余状态类（物品、位置、认知、边界、冲突等）主体集合会随剧情与交互演变，
+      // 只要仍有共有主体即可承接，避免因增删从属角色导致整章退回。
+      const isRelationship = kind === 'relationship' || beforeKind === 'relationship'
+      const anchoredByTopic = isRelationship ? sameSubjects : shared.length > 0
       const sameSide = before.subjects.join() === subjects.join()
       const stale = (before as MemoryFact & { supplied?: boolean }).supplied === false
       // 只能替换本轮派发给模型、且仍是当前状态、认知口径一致的记录。
@@ -340,11 +336,12 @@ export function parseChapterMemory(
       if (!anchoredByTopic) return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（缺少共有核心主体）`)
       if (before.directed && item.directed === true && !sameSide)
         return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（单向关系不能改方向）`)
+      const isBeliefConfirmed = before.certainty === 'belief' && certainty === 'fact' && !perspective
       const samePerspective = isBeliefConfirmed || ((before.certainty === 'belief') === (certainty === 'belief') && before.perspective === perspective)
       if (!samePerspective)
         return fail(`替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（认知口径不同）`)
-      // 类别只放宽状态类互换：关系与边界仍须严格同类别，避免把关系维度替换成整体关系。
-      const RELAXABLE = ['fact', 'state', 'clue', 'conflict', 'item', 'place']
+      // 类别放宽状态类互换：关系仍须严格同类别，避免把关系维度替换成非关系。
+      const RELAXABLE = ['fact', 'state', 'boundary', 'clue', 'conflict', 'item', 'place']
       if (before.kind !== kind && !(RELAXABLE.includes(before.kind) && RELAXABLE.includes(kind)))
         return fail(`替换记录 ${id} 的类别变化超出放宽范围（原类别 ${before.kind} → ${kind}）`)
       // label 是持久主题：人物认知、线索、冲突、关系、边界不许顺手改主题，普通状态允许收敛措辞。
