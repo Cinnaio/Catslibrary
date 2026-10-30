@@ -3,7 +3,7 @@ import { normalizePlotTimeoutSeconds } from '@shared/ai-plot-timeout'
 import type { Db } from '../../db/pool'
 import { all, first, withTx } from '../../db/query'
 import { newId } from '../auth'
-import { chat, chatStream, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
+import { chat, chatStream, isTextAiConfigured, providerLabel, textProvider, AiError, type AiChatOptions } from './client'
 import { createTextProgressReporter } from './text-progress'
 import { saveGeneration, type Generation, type BatchDraft } from './generations'
 import { recordUsage } from './usage'
@@ -554,7 +554,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
   const planningBrief = formatPlanningWritingBrief(opts.writingBrief)
   if (planningBrief) prompt += `\n\n${planningBrief}`
 
-  const res = await chat({
+  const chatOptions: AiChatOptions = {
     messages: [
       {
         role: 'system',
@@ -569,13 +569,18 @@ export async function generatePlotSuggestions(db: Db, opts: {
       { role: 'user', content: prompt },
     ],
     temperature: 0.9,
-    // 5 条 40-80 字的候选加上 JSON 结构约需 600-900 token；多章大纲更长，
-    // 复用 plotState 预算（默认 3000）都够用。
-    maxTokens: settings.plotStateMaxTokens,
+    // 5 条 40-80 字的候选加上 JSON 结构约需 600-900 token；多章大纲更长（最高 20 章）。
+    // 限制单次候选预算（默认最多 2000，大纲最多 6000），避免推理模型在长上下文下无节制消耗数万 Token 思考触发网关 524 超时。
+    maxTokens: outlineMode
+      ? Math.min(settings.writingMaxTokens || 6000, 6000)
+      : Math.min(settings.plotStateMaxTokens, 2000),
     reasoningMode: settings.writingReasoningMode,
     timeoutMs: normalizePlotTimeoutSeconds(opts.timeoutSeconds) * 1000,
     retryOnTimeout: false,
-  })
+  }
+  const res = settings.writingStreamEnabled
+    ? await chatStream(chatOptions, () => {})
+    : await chat(chatOptions)
   const usage = { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens }
   const commonUsage = {
     userId: opts.userId,

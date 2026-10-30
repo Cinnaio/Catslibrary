@@ -353,9 +353,9 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             </div>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
               {([
-                ['writingReasoningMode', '正文与大纲思考模式'],
-                ['storyMemoryReasoningMode', '关系与情节档案思考模式'],
-              ] as const).map(([key, label]) => <AdminFormField key={key} label={label} htmlFor={key} hint="跟随供应商保持原行为。关闭、低强度和高强度适用于 DeepSeek 兼容模型；更换其他模型前请改回跟随供应商。">
+                ['writingReasoningMode', '正文、推荐情节与大纲思考模式', '控制正文续写、推荐情节和大纲规划的思考强度。跟随供应商保持原行为；关闭、低强度和高强度适用于 DeepSeek 兼容模型。'],
+                ['storyMemoryReasoningMode', '关系与情节档案思考模式', '跟随供应商保持原行为。关闭、低强度和高强度适用于 DeepSeek 兼容模型；更换其他模型前请改回跟随供应商。'],
+              ] as const).map(([key, label, hint]) => <AdminFormField key={key} label={label} htmlFor={key} hint={hint}>
                 <Select value={localSettings[key] ?? 'inherit'} onValueChange={(value) => setLocalSettings({ ...localSettings, [key]: value as 'inherit' | 'disabled' | 'low' | 'high' })} disabled={props.loading || saving}>
                   <SelectTrigger id={key}><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="inherit">跟随供应商</SelectItem><SelectItem value="disabled">关闭思考</SelectItem><SelectItem value="low">低强度思考</SelectItem><SelectItem value="high">高强度思考</SelectItem></SelectContent>
