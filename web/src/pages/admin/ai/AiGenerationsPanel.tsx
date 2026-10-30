@@ -1,6 +1,5 @@
 import DraftReview from './DraftReview'
 import PublishedMemoryUpdate from './PublishedMemoryUpdate'
-import AiGenerationsVisualBar from './AiGenerationsVisualBar'
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminFormField from '@/components/admin/AdminFormField'
@@ -509,8 +508,6 @@ export default function AiGenerationsPanel(props: {
           {batchDeleting ? '正在删除…' : '删除所选'}
         </Button>
       </AdminSelectionBar>
-
-      {items.length > 0 && <AiGenerationsVisualBar items={items} />}
 
       <AdminDataPanel
         className="content-ratings-panel content-ratings-ledger ai-generations-card"

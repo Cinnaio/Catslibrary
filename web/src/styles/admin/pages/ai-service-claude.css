@@ -862,10 +862,6 @@
 }
 .ai-service .ai-continuation-visualizer {
   width: 100%;
-  animation: fadeIn 0.25s ease-out;
-}
-.ai-service .ai-generations-visual-bar {
-  width: 100%;
 }
 .ai-service .ai-writing-outline-details {
   border: 0;
