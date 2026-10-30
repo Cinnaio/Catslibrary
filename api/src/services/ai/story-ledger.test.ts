@@ -815,4 +815,54 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect(active.some((f) => f.replaces.includes(oldBelief.id))).toBe(true)
     expect(active.some((f) => f.replaces.includes(oldBoundary.id))).toBe(true)
   })
+
+  it('resolves entity ids supplied directly in subjects and perspective fields', async () => {
+    await chapter(1, '苏越吸收了夭夜的斗气，修为提升。夭夜震惊地看着苏越。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [
+            fact({
+              subjects: ['苏越', '夭夜'],
+              label: '双修提升',
+              summary: '苏越吸收夭夜斗气。',
+              quote: '苏越吸收了夭夜的斗气，修为提升。',
+            }),
+          ],
+          [entity('苏越'), entity('夭夜')],
+        ),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const ledger1 = (await ledgerAtAnchor(t.db, 'book'))!
+    const suEntity = ledger1.state.entities.find((e) => e.name === '苏越')!
+    const yaoEntity = ledger1.state.entities.find((e) => e.name === '夭夜')!
+
+    await chapter(2, '夭夜回过神来，发现面前的人是苏越。')
+    vi.mocked(chat).mockResolvedValueOnce(
+      reply(
+        payload(
+          [
+            fact({
+              subjects: [suEntity.id, yaoEntity.id],
+              label: '认出苏越',
+              summary: '夭夜认出面前之人是苏越。',
+              certainty: 'belief',
+              perspective: yaoEntity.id,
+              quote: '夭夜回过神来，发现面前的人是苏越。',
+            }),
+          ],
+          [{ ...entity('苏越'), id: suEntity.id }, { ...entity('夭夜'), id: yaoEntity.id }],
+        ),
+      ),
+    )
+    await extractPlotState(t.db, opts)
+    const ledger2 = (await ledgerAtAnchor(t.db, 'book'))!
+    expect(ledger2.processed).toBe(2)
+    const fact2 = ledger2.state.facts.find((f) => f.label === '认出苏越')!
+    expect(fact2).toBeDefined()
+    expect(fact2.subjects).toContain(suEntity.id)
+    expect(fact2.subjects).toContain(yaoEntity.id)
+    expect(fact2.perspective).toBe(yaoEntity.id)
+  })
 })

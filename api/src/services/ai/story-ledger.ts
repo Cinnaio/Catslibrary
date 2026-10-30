@@ -279,15 +279,20 @@ export function parseChapterMemory(
   let firstEntityFailReason = ''
 
   for (const value of root.entities) {
-    const item = object(value),
-      name = str(item.name, 60, '人物/实体姓名')
+    const item = object(value)
+    const itemId = typeof item.id === 'string' ? item.id.trim() : ''
+    let rawName = typeof item.name === 'string' ? item.name.trim() : ''
+    if (!rawName && itemId && entities.has(itemId)) {
+      rawName = entities.get(itemId)!.name
+    }
+    const name = str(rawName || itemId, 60, '人物/实体姓名')
     const aliases = strings(item.aliases, 12, 'aliases').filter((n) => n !== name)
     const mappedKind = coerceEntityKind(item.kind, name)
     const kind = enumValue(mappedKind, ['person', 'item', 'place', 'faction'] as const, '实体类别')
-    const known = [...entities.values()].filter((e) => [e.name, ...e.aliases].includes(name))
+    const known = [...entities.values()].filter((e) => (itemId && e.id === itemId) || [e.name, ...e.aliases].includes(name))
     
-    // 如果已知有多个重名/歧义，优先精确匹配同名实体
-    let existing = known.find((e) => e.name === name) || known[0]
+    // 如果已知有多个重名/歧义，优先精确匹配同名实体或相同 ID 实体
+    let existing = (itemId ? entities.get(itemId) : undefined) || known.find((e) => e.name === name) || known[0]
     if (known.length > 1 && !existing) {
       firstEntityFailReason ||= `「${name}」存在身份歧义`
       continue
@@ -300,7 +305,7 @@ export function parseChapterMemory(
     const sourceEvidence = rawEvidence ? sourceSpan(opts.text, rawEvidence) : ''
 
     // 实体合法性判定：
-    // 1. 已有实体（前文已存在）；
+    // 1. 已有实体（前文已存在或已匹配有效实体 ID）；
     // 2. 本章正文逐字出现；
     // 3. 符合规范代词推导（如"萧炎父亲"、"爹爹"等）；
     // 4. 提供了合法的 identityQuote 并在正文中能够逐字核对。
@@ -336,7 +341,7 @@ export function parseChapterMemory(
 
     const entity: MemoryEntity = existing
       ? { ...existing, aliases: [...new Set([...existing.aliases, ...validAliases])] }
-      : { id: `e_${ledgerHash([opts.novelId, finalKind, name]).slice(0, 24)}`, name, aliases: validAliases, kind: finalKind }
+      : { id: itemId && !entities.has(itemId) ? itemId : `e_${ledgerHash([opts.novelId, finalKind, name]).slice(0, 24)}`, name, aliases: validAliases, kind: finalKind }
     
     const newAliases = validAliases.filter((alias) => !existing?.aliases.includes(alias))
     if (newAliases.length && sourceEvidence) {
@@ -349,19 +354,38 @@ export function parseChapterMemory(
     changed.push(entity)
   }
 
-  const nameId = (name: string): string | undefined => {
-    const matches = [...entities.values()].filter((e) => [e.name, ...e.aliases].includes(name))
+  const nameId = (nameOrId: string): string | undefined => {
+    if (!nameOrId || typeof nameOrId !== 'string') return undefined
+    const trimmed = nameOrId.trim()
+    if (!trimmed) return undefined
+
+    // 1. 直接以实体 ID 形式传入（如模型返回 "e_991b648700fdd60143c46990"）
+    if (entities.has(trimmed)) return trimmed
+    const prevById = opts.previous.entities.find((e) => e.id === trimmed)
+    if (prevById) return prevById.id
+
+    // 2. 按实体名称与别名在当前章节实体池中匹配
+    const matches = [...entities.values()].filter((e) => [e.name, ...e.aliases].includes(trimmed))
     if (matches.length === 1) return matches[0]!.id
     if (matches.length > 1) {
-      const exact = matches.find((e) => e.name === name)
+      const exact = matches.find((e) => e.name === trimmed)
       if (exact) return exact.id
       return matches[0]!.id
     }
-    const prevMatches = opts.previous.entities.filter((e) => [e.name, ...e.aliases].includes(name))
+
+    // 3. 按实体名称与别名在历史实体池中匹配
+    const prevMatches = opts.previous.entities.filter((e) => [e.name, ...e.aliases].includes(trimmed))
     if (prevMatches.length) {
-      const exact = prevMatches.find((e) => e.name === name)
+      const exact = prevMatches.find((e) => e.name === trimmed)
       return (exact || prevMatches[0])!.id
     }
+
+    // 4. 容错包含匹配（避免模型附带括号修饰或微弱前后缀噪音）
+    const partialMatch = [...entities.values(), ...opts.previous.entities].find(
+      (e) => (e.name.length >= 2 && trimmed.includes(e.name)) || e.aliases.some((a) => a.length >= 2 && trimmed.includes(a)),
+    )
+    if (partialMatch) return partialMatch.id
+
     return undefined
   }
 
