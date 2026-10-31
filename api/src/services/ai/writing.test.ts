@@ -3,7 +3,7 @@
  * generateWriting 本身走 AI/DB，这里只测可测的 parseContinuationTitle。
  */
 import { describe, it, expect } from 'vitest'
-import { cleanWritingTail, formatWritingBrief, parseContinuationTitle, parsePlotSuggestions, splitOutlineByChapter, validateWritingBrief } from './writing'
+import { buildContinuationChapterInstruction, cleanWritingTail, formatWritingBrief, parseContinuationTitle, parsePlotSuggestions, splitOutlineByChapter, validateWritingBrief } from './writing'
 
 describe('splitOutlineByChapter', () => {
   it('按「第N章」切分，每章只取自己的段落', () => {
@@ -62,6 +62,65 @@ describe('splitOutlineByChapter', () => {
   it('识别不出章节标记时返回空数组', () => {
     expect(splitOutlineByChapter('写一段轻松的日常，交代两人关系。', 3)).toEqual([])
     expect(splitOutlineByChapter('', 3)).toEqual([])
+  })
+})
+
+describe('buildContinuationChapterInstruction', () => {
+  it('有单章大纲时，第 1 章带本章大纲与总体背景，不带承接约束', () => {
+    const res = buildContinuationChapterInstruction({
+      chapterIndex: 0,
+      totalCount: 3,
+      chapterOutline: '第1章 起\n入城。',
+      instruction: '全篇主线：苏越与夭夜平定皇城。',
+      targetWords: 2000,
+    })
+    expect(res).toContain('本章大纲')
+    expect(res).toContain('入城')
+    expect(res).toContain('总体创作背景')
+    expect(res).toContain('苏越与夭夜平定皇城')
+    expect(res).not.toContain('创作要求（多章承接）')
+    expect(res).toContain('第 1 章，共 3 章')
+  })
+
+  it('有单章大纲时，第 2 章及后续章节带本章大纲与多章承接约束，坚决不带全局概括指令', () => {
+    const res = buildContinuationChapterInstruction({
+      chapterIndex: 1,
+      totalCount: 3,
+      chapterOutline: '第2章 承\n商议。',
+      instruction: '全篇主线：苏越与夭夜平定皇城。',
+      targetWords: 2000,
+    })
+    expect(res).toContain('本章大纲')
+    expect(res).toContain('商议')
+    expect(res).toContain('创作要求（多章承接）')
+    expect(res).toContain('严禁从头重新开场')
+    // 关键断言：绝对不能含有总体 instruction，防止模型提前写完全文或从头重新描写
+    expect(res).not.toContain('全篇主线')
+    expect(res).not.toContain('总体创作背景')
+    expect(res).toContain('第 2 章，共 3 章')
+  })
+
+  it('无单章大纲时，第 1 章使用总体指令，不带承接约束', () => {
+    const res = buildContinuationChapterInstruction({
+      chapterIndex: 0,
+      totalCount: 2,
+      instruction: '推进日常对话。',
+    })
+    expect(res).toContain('推进日常对话。')
+    expect(res).not.toContain('创作要求（多章承接）')
+    expect(res).toContain('第 1 章，共 2 章')
+  })
+
+  it('无单章大纲时，第 2 章及后续章节同时带有承接约束与总体指令', () => {
+    const res = buildContinuationChapterInstruction({
+      chapterIndex: 1,
+      totalCount: 2,
+      instruction: '推进日常对话。',
+    })
+    expect(res).toContain('创作要求（多章承接）')
+    expect(res).toContain('严禁从头重新开场')
+    expect(res).toContain('推进日常对话。')
+    expect(res).toContain('第 2 章，共 2 章')
   })
 })
 
