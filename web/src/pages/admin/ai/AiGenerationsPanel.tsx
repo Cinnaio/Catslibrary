@@ -5,7 +5,7 @@ import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDia
 import AdminFormField from '@/components/admin/AdminFormField'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, CirclePlus, CornerDownRight, RefreshCw, Sparkles } from 'lucide-react'
+import { ChevronDown, CirclePlus, CornerDownRight, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
@@ -20,6 +20,7 @@ import CustomSelect from '@/components/admin/CustomSelect'
 import { cn } from '@/lib/utils'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminModelTime from '@/components/admin/AdminModelTime'
+import AdminRowActions from '@/components/admin/AdminRowActions'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -646,10 +647,32 @@ export default function AiGenerationsPanel(props: {
                           <AdminModelTime model={item.model} timestamp={item.createdAt} />
                         </TableCell>
                         <TableCell data-actions="">
-                          <div className="admin-cell-actions flex-wrap justify-end">
-                            {REWRITABLE_KINDS.has(item.kind) && item.novelId && (item.groupItems ? item.groupItems.some(chapter => chapter.status === 'published') : item.status === 'published') && (
-                              <Button type="button" variant="secondary" size="sm" className="content-ratings-edit-button max-w-full whitespace-normal" onClick={() => showMemoryUpdate(item)}>一键更新情节与关系</Button>
-                            )}
+                          <AdminRowActions
+                            label={item.draftTitle || item.chapterTitle || item.novelTitle || '生成记录'}
+                            className="justify-end"
+                            items={[
+                              ...(REWRITABLE_KINDS.has(item.kind) && item.novelId && (item.groupItems ? item.groupItems.some(chapter => chapter.status === 'published') : item.status === 'published')
+                                ? [
+                                    {
+                                      label: '更新故事档案',
+                                      icon: RefreshCw,
+                                      onSelect: () => showMemoryUpdate(item),
+                                    },
+                                  ]
+                                : []),
+                              ...(!item.groupItems
+                                ? [
+                                    {
+                                      label: deletingId === item.id ? '正在删除…' : '删除记录',
+                                      icon: Trash2,
+                                      danger: true,
+                                      disabled: deletingId === item.id,
+                                      onSelect: () => void remove(item),
+                                    },
+                                  ]
+                                : []),
+                            ]}
+                          >
                             {item.groupItems ? (
                               <>
                                 {item.groupItems.some((chapter) => chapter.status === 'draft') && (
@@ -657,7 +680,7 @@ export default function AiGenerationsPanel(props: {
                                     type="button"
                                     variant="secondary"
                                     size="sm"
-                                    className="content-ratings-edit-button"
+                                    className="content-ratings-edit-button shrink-0"
                                     disabled={publishingBatchId === item.batchId}
                                     onClick={() => void publishBatch(item)}
                                   >
@@ -668,7 +691,7 @@ export default function AiGenerationsPanel(props: {
                                   type="button"
                                   variant="secondary"
                                   size="sm"
-                                  className="content-ratings-edit-button"
+                                  className="content-ratings-edit-button shrink-0"
                                   onClick={() => {
                                     const chapter = item.groupItems?.find((entry) => entry.status === 'draft') || item.groupItems?.[0]
                                     if (chapter) {
@@ -686,7 +709,7 @@ export default function AiGenerationsPanel(props: {
                                 type="button"
                                 variant="secondary"
                                 size="sm"
-                                className="content-ratings-edit-button"
+                                className="content-ratings-edit-button shrink-0"
                                 onClick={() => {
                                   setViewing(item)
                                   setPublishTitle(item.draftTitle || item.chapterTitle || '')
@@ -696,17 +719,7 @@ export default function AiGenerationsPanel(props: {
                                 {item.status === 'draft' ? '审阅' : '查看'}
                               </Button>
                             )}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="ai-generation-delete"
-                              disabled={!!item.groupItems || deletingId === item.id}
-                              onClick={() => void remove(item)}
-                            >
-                              {deletingId === item.id ? '删除中…' : '删除'}
-                            </Button>
-                          </div>
+                          </AdminRowActions>
                         </TableCell>
                       </TableRow>
                       {item.groupItems && expandedBatchId === item.id &&
@@ -767,12 +780,24 @@ export default function AiGenerationsPanel(props: {
                                 </div>
                               </TableCell>
                               <TableCell data-actions="">
-                                <div className="admin-cell-actions justify-end">
+                                <AdminRowActions
+                                  label={chapter.draftTitle || chapter.chapterTitle || `第 ${chapter.batchIndex} 章`}
+                                  className="justify-end"
+                                  items={[
+                                    {
+                                      label: deletingId === chapter.id ? '正在删除…' : '删除章节草稿',
+                                      icon: Trash2,
+                                      danger: true,
+                                      disabled: deletingId === chapter.id,
+                                      onSelect: () => void remove(chapter),
+                                    },
+                                  ]}
+                                >
                                   <Button
                                     type="button"
                                     variant="secondary"
                                     size="sm"
-                                    className="content-ratings-edit-button"
+                                    className="content-ratings-edit-button shrink-0"
                                     onClick={() => {
                                       setViewing(chapter)
                                       setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
@@ -781,17 +806,7 @@ export default function AiGenerationsPanel(props: {
                                   >
                                     {chapter.status === 'draft' ? '审阅' : '查看'}
                                   </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="ai-generation-delete"
-                                    disabled={deletingId === chapter.id}
-                                    onClick={() => void remove(chapter)}
-                                  >
-                                    {deletingId === chapter.id ? '删除中…' : '删除'}
-                                  </Button>
-                                </div>
+                                </AdminRowActions>
                               </TableCell>
                             </TableRow>
                           )
