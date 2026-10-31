@@ -16,6 +16,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
@@ -24,7 +26,7 @@ import ProfileOverrideEditor from './ProfileOverrideEditor'
 import MemoryRebuildDialog from './MemoryRebuildDialog'
 import { Textarea } from '@/components/ui/textarea'
 import { url } from '@/lib/api'
-import { Sparkles, ArrowRight, ChevronRight, Network, Pause } from 'lucide-react'
+import { Sparkles, ArrowRight, ChevronRight, Network, Pause, BookOpen, Cpu } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000
@@ -588,6 +590,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const initialGraphAnchor = useRef({ novelId: props.initialNovelId, chapterId: props.initialAfterChapterId })
   const [title, setTitle] = useState('')
   const [chapterTitle, setChapterTitle] = useState('')
+  const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false)
   const [instruction, setInstruction] = useState('')
   const [outline, setOutline] = useState('')
   /** 目标字数与章节数的文字态/数值态分离：编辑期允许为空，失焦或提交时归一化。
@@ -1254,141 +1257,176 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       </section>
     ) : null
 
-  const continuationAnalysis =
-    mode === 'continue' ? (
-      <section className="ai-writing-analysis" aria-labelledby="ai-writing-analysis-title">
-        <div className="ai-writing-section-heading">
-          <div>
-            <h3 id="ai-writing-analysis-title">小说分析</h3>
+  const continuationAnalysisDialog = (
+    <Dialog open={analysisDialogOpen} onOpenChange={setAnalysisDialogOpen}>
+      <AdminDialogContent size="wide" className="sm:max-w-[780px] max-h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/60 shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
+            <div className="flex items-center gap-2 min-w-0">
+              <DialogTitle className="text-base font-semibold text-foreground flex items-center gap-2 shrink-0">
+                <Sparkles className="size-4 text-[#D97757]" aria-hidden="true" />
+                <span id="ai-writing-analysis-title">小说分析</span>
+              </DialogTitle>
+              {selectedNovelTitle && (
+                <span className="text-xs text-muted-foreground truncate max-w-xs font-normal">
+                  《{selectedNovelTitle}》
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {props.onOpenGraph && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs font-medium"
+                  disabled={!novelId}
+                  onClick={() => {
+                    setAnalysisDialogOpen(false)
+                    props.onOpenGraph?.(novelId, afterChapterId || undefined)
+                  }}
+                >
+                  <Network className="size-3.5 mr-1" />
+                  查看故事图谱
+                </Button>
+              )}
+              <span
+                className="ai-writing-analysis__count inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[11px] font-medium text-primary"
+                aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}
+              >
+                可用于续写 {activeProfileLabels.length} / 3
+              </span>
+            </div>
           </div>
-          {props.onOpenGraph && <Button variant="ghost" size="sm" disabled={!novelId} onClick={() => props.onOpenGraph?.(novelId, afterChapterId || undefined)}><Network className="size-3.5" />查看故事图谱</Button>}
-          <span className="ai-writing-analysis__count" aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}>
-            可用于续写 {activeProfileLabels.length} / 3
-          </span>
-        </div>
-        <p className="text-xs leading-5 text-muted-foreground">分析结果保存在本书中；只有当前可用的完整档案会被续写参考。展开可查看内容与人工校正。</p>
-        <div className="ai-writing-profile-list">
-          <ProfileSection
-            label="风格画像"
-            key={`style-${novelId}`}
-            effective={styleEffective}
-            statusText={memoryStatus(styleEffective)}
-            extracted={!!styleProfile}
-            busy={styleBusy}
-            disabled={busy || styleBusy || taskActive || !novelId}
-            actionText={styleBusy ? '提取中…' : styleProfile ? '重新提取' : '提取风格画像'}
-            onAction={() => void refreshStyleProfile()}
-            emptyHint="分析最近最多 5 章的句式、叙事节奏、对话与表达边界，让续写延续原作文风。"
-            content={
-              styleProfile ? (
-                <>
-                  <ProfileText text={styleProfile} />
-                  {styleEffective && (
-                    <ProfileOverrideEditor
-                      novelId={novelId}
-                      kind="style"
-                      effective={styleEffective}
-                      onChanged={() => setProfileReloadToken((n) => n + 1)}
-                      disabled={busy || taskActive}
-                    />
-                  )}
-                </>
-              ) : undefined
-            }
-          />
-          <ProfileSection
-            label="关系画像"
-            key={`relationship-${novelId}`}
-            effective={relationshipEffective}
-            extracted={!!relationshipProfile}
-            statusText={memoryStatus(relationshipEffective)}
-            busy={relationshipBusy}
-            disabled={busy || relationshipBusy || memoryRunning(relationshipEffective) || taskActive || !novelId}
-            actionText={
-              relationshipBusy ? '更新中…' : relationshipEffective?.progress?.complete === false ? '继续更新关系档案' : '更新关系档案'
-            }
-            onAction={() => void refreshRelationshipProfile()}
-            extraActions={<MemoryRebuildDialog key={`rebuild-relationship-${novelId}`} novelId={novelId} kind="relationship" chapters={chapterOptions} disabled={busy || relationshipBusy || memoryRunning(relationshipEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
-            onPause={() => void pauseMemory('relationship')}
-            pausing={relationshipPausing}
-            running={memoryRunning(relationshipEffective)}
-            progressNote={memoryProgressNote(relationshipEffective, relationshipPausing, relationshipBusy) || (relationshipBusy ? '正在提交后台分析…' : undefined)}
-            emptyHint="梳理人物之间的关系、立场与变化，保留正文依据，供续写承接人物互动。"
-            footnote={
-              <p className="text-xs leading-5 text-muted-foreground">
-                后台覆盖目标起点前全部正文，后续增量更新；离开页面后仍会继续，暂停后可从检查点恢复。
-              </p>
-            }
-            sampleCaption="每批最多"
-            sampleLabel="关系画像每批章数"
-            sample={{ value: relationshipSampleInput.text, min: 1, max: 30, onChange: relationshipSampleInput.onChangeText, onBlur: relationshipSampleInput.commit }}
-            content={
-              relationshipProfile ? (
-                <>
-                  <ProfileText text={relationshipProfile} />
-                  {relationshipEffective && (
-                    <ProfileOverrideEditor
-                      novelId={novelId}
-                      kind="relationship"
-                      effective={relationshipEffective}
-                      onChanged={() => setProfileReloadToken((n) => n + 1)}
-                      disabled={busy || taskActive}
-                    />
-                  )}
-                </>
-              ) : undefined
-            }
-          />
-          <ProfileSection
-            label="情节状态"
-            key={`plot-${novelId}`}
-            effective={plotEffective}
-            extracted={!!plotState}
-            statusText={memoryStatus(plotEffective)}
-            busy={plotBusy}
-            disabled={busy || plotBusy || memoryRunning(plotEffective) || taskActive || !novelId}
-            actionText={plotBusy ? '更新中…' : plotEffective?.progress?.complete === false ? '继续更新情节档案' : '更新情节档案'}
-            onAction={() => void refreshPlotState()}
-            extraActions={<MemoryRebuildDialog key={`rebuild-plot-${novelId}`} novelId={novelId} kind="plot" chapters={chapterOptions} disabled={busy || plotBusy || memoryRunning(plotEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
-            onPause={() => void pauseMemory('plot')}
-            pausing={plotPausing}
-            running={memoryRunning(plotEffective)}
-            progressNote={memoryProgressNote(plotEffective, plotPausing, plotBusy) || (plotBusy ? '正在提交后台分析…' : undefined)}
-            emptyHint="整理角色现状、重要物品与地点、未解伏笔和冲突，帮助续写承接已有情节。"
-            sampleCaption="每批最多"
-            sampleLabel="情节状态每批章数"
-            sample={{ value: plotSampleInput.text, min: 1, max: 30, onChange: plotSampleInput.onChangeText, onBlur: plotSampleInput.commit }}
-            content={
-              plotState ? (
-                <>
-                  <ProfileText text={plotState} />
-                  {plotEffective && (
-                    <ProfileOverrideEditor
-                      novelId={novelId}
-                      kind="plot"
-                      effective={plotEffective}
-                      onChanged={() => setProfileReloadToken((n) => n + 1)}
-                      disabled={busy || taskActive}
-                    />
-                  )}
-                </>
-              ) : undefined
-            }
-            footnote={
-              plotState ? (
+          <DialogDescription className="text-xs text-muted-foreground pt-1">
+            分析结果保存在本书中；只有当前可用的完整档案会被续写参考。展开可查看内容与人工校正。
+          </DialogDescription>
+        </DialogHeader>
+
+        <AdminDialogBody className="px-6 py-4 overflow-y-auto space-y-4">
+          <div className="ai-writing-profile-list space-y-3">
+            <ProfileSection
+              label="风格画像"
+              key={`style-${novelId}`}
+              effective={styleEffective}
+              statusText={memoryStatus(styleEffective)}
+              extracted={!!styleProfile}
+              busy={styleBusy}
+              disabled={busy || styleBusy || taskActive || !novelId}
+              actionText={styleBusy ? '提取中…' : styleProfile ? '重新提取' : '提取风格画像'}
+              onAction={() => void refreshStyleProfile()}
+              emptyHint="分析最近最多 5 章的句式、叙事节奏、对话与表达边界，让续写延续原作文风。"
+              content={
+                styleProfile ? (
+                  <>
+                    <ProfileText text={styleProfile} />
+                    {styleEffective && (
+                      <ProfileOverrideEditor
+                        novelId={novelId}
+                        kind="style"
+                        effective={styleEffective}
+                        onChanged={() => setProfileReloadToken((n) => n + 1)}
+                        disabled={busy || taskActive}
+                      />
+                    )}
+                  </>
+                ) : undefined
+              }
+            />
+            <ProfileSection
+              label="关系画像"
+              key={`relationship-${novelId}`}
+              effective={relationshipEffective}
+              extracted={!!relationshipProfile}
+              statusText={memoryStatus(relationshipEffective)}
+              busy={relationshipBusy}
+              disabled={busy || relationshipBusy || memoryRunning(relationshipEffective) || taskActive || !novelId}
+              actionText={
+                relationshipBusy ? '更新中…' : relationshipEffective?.progress?.complete === false ? '继续更新关系档案' : '更新关系档案'
+              }
+              onAction={() => void refreshRelationshipProfile()}
+              extraActions={<MemoryRebuildDialog key={`rebuild-relationship-${novelId}`} novelId={novelId} kind="relationship" chapters={chapterOptions} disabled={busy || relationshipBusy || memoryRunning(relationshipEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
+              onPause={() => void pauseMemory('relationship')}
+              pausing={relationshipPausing}
+              running={memoryRunning(relationshipEffective)}
+              progressNote={memoryProgressNote(relationshipEffective, relationshipPausing, relationshipBusy) || (relationshipBusy ? '正在提交后台分析…' : undefined)}
+              emptyHint="梳理人物之间的关系、立场与变化，保留正文依据，供续写承接人物互动。"
+              footnote={
                 <p className="text-xs leading-5 text-muted-foreground">
-                  {plotEffective?.source?.coverage === 'full'
-                    ? `档案截至第 ${plotChaptersThrough} 章${plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}；覆盖该起点前全部正文，未解决的伏笔随增量更新保留。`
-                    : '当前为旧版取样结果，请更新档案以完成全部历史初始化。'}
+                  后台覆盖目标起点前全部正文，后续增量更新；离开页面后仍会继续，暂停后可从检查点恢复。
                 </p>
-              ) : (
-                <p className="text-xs leading-5 text-muted-foreground">后台覆盖目标起点前全部正文，后续只处理新增章节；离开页面后仍会继续，暂停后可恢复。</p>
-              )
-            }
-          />
-        </div>
-      </section>
-    ) : null
+              }
+              sampleCaption="每批最多"
+              sampleLabel="关系画像每批章数"
+              sample={{ value: relationshipSampleInput.text, min: 1, max: 30, onChange: relationshipSampleInput.onChangeText, onBlur: relationshipSampleInput.commit }}
+              content={
+                relationshipProfile ? (
+                  <>
+                    <ProfileText text={relationshipProfile} />
+                    {relationshipEffective && (
+                      <ProfileOverrideEditor
+                        novelId={novelId}
+                        kind="relationship"
+                        effective={relationshipEffective}
+                        onChanged={() => setProfileReloadToken((n) => n + 1)}
+                        disabled={busy || taskActive}
+                      />
+                    )}
+                  </>
+                ) : undefined
+              }
+            />
+            <ProfileSection
+              label="情节状态"
+              key={`plot-${novelId}`}
+              effective={plotEffective}
+              extracted={!!plotState}
+              statusText={memoryStatus(plotEffective)}
+              busy={plotBusy}
+              disabled={busy || plotBusy || memoryRunning(plotEffective) || taskActive || !novelId}
+              actionText={plotBusy ? '更新中…' : plotEffective?.progress?.complete === false ? '继续更新情节档案' : '更新情节档案'}
+              onAction={() => void refreshPlotState()}
+              extraActions={<MemoryRebuildDialog key={`rebuild-plot-${novelId}`} novelId={novelId} kind="plot" chapters={chapterOptions} disabled={busy || plotBusy || memoryRunning(plotEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
+              onPause={() => void pauseMemory('plot')}
+              pausing={plotPausing}
+              running={memoryRunning(plotEffective)}
+              progressNote={memoryProgressNote(plotEffective, plotPausing, plotBusy) || (plotBusy ? '正在提交后台分析…' : undefined)}
+              emptyHint="整理角色现状、重要物品与地点、未解伏笔和冲突，帮助续写承接已有情节。"
+              sampleCaption="每批最多"
+              sampleLabel="情节状态每批章数"
+              sample={{ value: plotSampleInput.text, min: 1, max: 30, onChange: plotSampleInput.onChangeText, onBlur: plotSampleInput.commit }}
+              content={
+                plotState ? (
+                  <>
+                    <ProfileText text={plotState} />
+                    {plotEffective && (
+                      <ProfileOverrideEditor
+                        novelId={novelId}
+                        kind="plot"
+                        effective={plotEffective}
+                        onChanged={() => setProfileReloadToken((n) => n + 1)}
+                        disabled={busy || taskActive}
+                      />
+                    )}
+                  </>
+                ) : undefined
+              }
+              footnote={
+                plotState ? (
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    {plotEffective?.source?.coverage === 'full'
+                      ? `档案截至第 ${plotChaptersThrough} 章${plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}；覆盖该起点前全部正文，未解决的伏笔随增量更新保留。`
+                      : '当前为旧版取样结果，请更新档案以完成全部历史初始化。'}
+                  </p>
+                ) : (
+                  <p className="text-xs leading-5 text-muted-foreground">后台覆盖目标起点前全部正文，后续只处理新增章节；离开页面后仍会继续，暂停后可恢复。</p>
+                )
+              }
+            />
+          </div>
+        </AdminDialogBody>
+      </AdminDialogContent>
+    </Dialog>
+  )
 
   const rawBrief = briefs[novelId] || emptyWritingBrief()
   const currentWritingBrief = { ...rawBrief, chapterGoals: rawBrief.chapterGoals.filter((goal) => goal.index <= chapterCount) }
@@ -1421,7 +1459,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         />
         <CardContent className="ai-writing-workspace">
           <section className="ai-writing-identity" aria-label="创作目标">
-            <div className="ai-form-grid ai-writing-basics grid gap-3 sm:grid-cols-2">
+            <div className={`ai-form-grid ai-writing-basics${mode === 'new' ? ' grid gap-3 sm:grid-cols-2' : ''}`}>
               <AdminFormField label="目标小说" labelId="ai-writing-novel-label">
                 {/* CustomSelect 渲染的是 button[role=combobox]，不接受 id，故用
                   aria-labelledby 指向标签，保留可见文案作为可访问名称。 */}
@@ -1437,15 +1475,114 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   aria-labelledby="ai-writing-novel-label"
                 />
               </AdminFormField>
-              <AdminFormField label={mode === 'new' ? '作品标题' : '章节标题（可选）'} htmlFor="ai-writing-title">
-                <Input
-                  id="ai-writing-title"
-                  value={mode === 'new' ? title : chapterTitle}
-                  onChange={(event) => (mode === 'new' ? setTitle(event.target.value) : setChapterTitle(event.target.value))}
-                  placeholder={mode === 'new' ? '例如：雾城来信' : '例如：第十二章 暴雨前夜'}
-                />
-              </AdminFormField>
+              {mode === 'new' && (
+                <AdminFormField label="作品标题" htmlFor="ai-writing-title">
+                  <Input
+                    id="ai-writing-title"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="例如：雾城来信"
+                  />
+                </AdminFormField>
+              )}
             </div>
+            {selectedNovel && (
+              <div className="ai-writing-selected-novel mt-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  {/* 左侧实体书影与书籍档案 */}
+                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    <div className="ai-writing-selected-novel__cover shrink-0">
+                      <BookOpen className="size-5 text-muted-foreground/35" aria-hidden="true" />
+                      <img
+                        key={selectedNovel.id}
+                        src={url(`/cover/${encodeURIComponent(selectedNovel.id)}?v=${encodeURIComponent(selectedNovel.updatedAt || 0)}&cover=4`)}
+                        alt={`${selectedNovel.title} 封面`}
+                        className="absolute inset-0 size-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.style.display = 'none'
+                        }}
+                      />
+                      <div className="ai-writing-selected-novel__spine-effect" aria-hidden="true" />
+                    </div>
+
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="font-semibold text-[15px] sm:text-base text-foreground tracking-tight truncate max-w-sm sm:max-w-md">
+                          {selectedNovel.title}
+                        </strong>
+                        <span className="text-xs text-muted-foreground/90 font-normal shrink-0">
+                          {selectedNovel.author ? `${selectedNovel.author} 著` : '未知作者'}
+                        </span>
+                        {selectedNovel.categories && selectedNovel.categories.length > 0 && (
+                          <span className="ai-writing-selected-novel__category inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium shrink-0">
+                            {selectedNovel.categories.slice(0, 2).join(' / ')}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1 text-foreground/90 font-medium shrink-0">
+                          <span className="font-semibold text-foreground">{selectedNovel.chapterCount || 0}</span>
+                          <span className="text-muted-foreground font-normal">章已发布</span>
+                        </span>
+                        <span className="text-muted-foreground/30 font-normal select-none">·</span>
+                        <span className="truncate max-w-[280px] sm:max-w-[420px] text-muted-foreground/85" title={chapterOptions[1]?.label || '暂无已发布章节'}>
+                          最新：{chapterOptions[1]?.label || '暂无已发布章节'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 右侧工坊上下文与分析工具群 */}
+                  <div className="ai-writing-selected-novel__tools flex items-center gap-2 sm:gap-2.5 shrink-0 self-end sm:self-center">
+                    <div
+                      className="ai-writing-selected-novel__model-badge inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono text-muted-foreground shrink-0"
+                      title={`当前创作生效模型：${props.model || '未配置'}`}
+                    >
+                      <Cpu className="size-3 text-[#D97757]/80 shrink-0" aria-hidden="true" />
+                      <span className="truncate max-w-[140px] sm:max-w-[190px]">{props.model || '未配置模型'}</span>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="ai-writing-selected-novel__action inline-flex items-center gap-1.5 shrink-0"
+                      aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}
+                      onClick={() => setAnalysisDialogOpen(true)}
+                    >
+                      <Sparkles className="size-3 text-[#D97757]" aria-hidden="true" />
+                      <span>小说分析</span>
+                      <span className={`ai-writing-selected-novel__action-count rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
+                        activeProfileLabels.length > 0 ? 'bg-[#D97757]/15 text-[#D97757] font-semibold' : 'bg-muted/80 text-muted-foreground'
+                      }`}>
+                        {activeProfileLabels.length}/3
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+
+                  {mode === 'continue' && pendingDrafts > 0 && !taskActive && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200 mt-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="shrink-0" aria-hidden="true">⚠️</span>
+                        <span>该小说有 <strong className="font-semibold">{pendingDrafts}</strong> 章未发布的续写草稿。续写上下文只取已发布章节，建议先发布草稿再继续。</span>
+                      </div>
+                      {props.onViewBatch && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6.5 px-2.5 text-xs font-medium border-amber-500/40 bg-background hover:bg-muted shrink-0"
+                          onClick={() => props.onViewBatch?.()}
+                        >
+                          查看草稿
+                        </Button>
+                      )}
+                    </div>
+                  )}
+              </div>
+            )}
             {mode === 'new' && (
               <AdminFormField label="章节标题" htmlFor="ai-writing-chapter-title" className="ai-writing-chapter-title">
                 <Input
@@ -1479,14 +1616,39 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           </section>
           {mode === 'continue' && (
             <section className="ai-writing-baseline" aria-labelledby="ai-writing-baseline-title">
-              <div className="ai-writing-section-heading">
-                <div>
+              <div className="ai-writing-section-heading flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
                   <h3 id="ai-writing-baseline-title">续写基线</h3>
+                  <span className="ai-writing-baseline__novel text-xs text-muted-foreground font-normal">
+                    {chapterOptions.length > 1 ? `${chapterOptions.length - 1} 章已发布` : '承接已发布章节'}
+                  </span>
                 </div>
-                <span className="ai-writing-baseline__novel">{chapterOptions.length > 1 ? `${chapterOptions.length - 1} 章已发布` : '承接已发布章节'}</span>
+                {isContinuationMode && (
+                  <div className="ai-writing-run-scale__choices shrink-0" role="group" aria-label="续写策略">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={!isMultiChapter}
+                      disabled={busy || taskActive}
+                      onClick={() => chapterCountInput.setCommittedValue(1)}
+                    >
+                      单章精写
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={isMultiChapter}
+                      disabled={busy || taskActive}
+                      onClick={() => chapterCountInput.setCommittedValue(Math.max(2, chapterCount))}
+                    >
+                      多章规划
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="ai-form-grid ai-writing-baseline-fields">
-                {' '}
                 {chapterOptions.length > 1 && (
                   <AdminFormField label="续写起点" labelId="ai-writing-after-chapter-label" className="ai-writing-continuation-start">
                     <CustomSelect
@@ -1506,78 +1668,45 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     {novelId ? '续写起点：将从最新已发布章节继续。' : '选择小说后，可在这里确认续写起点。'}
                   </p>
                 )}
-                <AdminFormField label={mode === 'continue' ? '每章目标字数' : '目标字数'} htmlFor="ai-writing-target-words">
-                  <div className="ai-writing-number-input">
-                    <Input
-                      id="ai-writing-target-words"
-                      type="number"
-                      min={300}
-                      max={30000}
-                      step={100}
-                      value={targetWordsInput.text}
-                      onChange={(event) => targetWordsInput.onChangeText(event.target.value)}
-                      onBlur={targetWordsInput.commit}
-                    />
-                    <span>字</span>
-                  </div>
-                </AdminFormField>
-              </div>
-              <div className="ai-writing-strategy">
-                {isContinuationMode && (
-                  <div className="ai-writing-run-scale">
-                    <span id="ai-writing-run-scale-label" className="ai-writing-run-scale-label">
-                      续写策略
-                    </span>
-                    <div className="ai-writing-run-scale__choices" role="group" aria-labelledby="ai-writing-run-scale-label">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        aria-pressed={!isMultiChapter}
-                        disabled={busy || taskActive}
-                        onClick={() => chapterCountInput.setCommittedValue(1)}
-                      >
-                        单章精写
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        aria-pressed={isMultiChapter}
-                        disabled={busy || taskActive}
-                        onClick={() => chapterCountInput.setCommittedValue(Math.max(2, chapterCount))}
-                      >
-                        多章规划
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {mode === 'continue' && isMultiChapter && (
-                  <div className="ai-writing-chapter-count-inline flex items-center gap-1.5">
-                    <Label htmlFor="ai-writing-chapter-count" className="text-xs font-medium text-foreground whitespace-nowrap">
-                      续写章节数
-                    </Label>
+                <div className="ai-writing-baseline-scale-fields grid grid-cols-2 gap-3 items-start">
+                  {isMultiChapter && (
+                    <AdminFormField label="续写章节数" htmlFor="ai-writing-chapter-count">
+                      <div className="ai-writing-number-input">
+                        <Input
+                          id="ai-writing-chapter-count"
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={chapterCountInput.text}
+                          onChange={(event) => chapterCountInput.onChangeText(event.target.value)}
+                          onBlur={chapterCountInput.commit}
+                        />
+                        <span>章</span>
+                      </div>
+                    </AdminFormField>
+                  )}
+                  <AdminFormField
+                    label={isMultiChapter ? '每章目标字数' : '目标字数'}
+                    htmlFor="ai-writing-target-words"
+                    className={isMultiChapter ? '' : 'col-span-2'}
+                  >
                     <div className="ai-writing-number-input">
                       <Input
-                        id="ai-writing-chapter-count"
+                        id="ai-writing-target-words"
                         type="number"
-                        min={1}
-                        max={20}
-                        className="h-8 w-16 text-center"
-                        value={chapterCountInput.text}
-                        onChange={(event) => chapterCountInput.onChangeText(event.target.value)}
-                        onBlur={chapterCountInput.commit}
+                        min={300}
+                        max={30000}
+                        step={100}
+                        value={targetWordsInput.text}
+                        onChange={(event) => targetWordsInput.onChangeText(event.target.value)}
+                        onBlur={targetWordsInput.commit}
                       />
-                      <span className="text-xs text-muted-foreground">章</span>
+                      <span>字</span>
                     </div>
-                  </div>
-                )}
-                <span className="ai-writing-strategy-hint">
-                  {isMultiChapter ? '每章按大纲逐段下发；请在下方确认大纲覆盖全部章节。' : '推荐先围绕一条情节方向精写一章；需要连续推进时再切换为多章规划。'}
-                </span>
+                  </AdminFormField>
+                </div>
               </div>
               {continuationContentScale}
-              {continuationAnalysis}
             </section>
           )}
           <div className="ai-writing-notes grid gap-4 border-t pt-5">
@@ -1595,17 +1724,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               <div className="ai-writing-brief-layout__main">
                 <section className="ai-writing-brief">
                   <div className="ai-writing-brief__head">
-                    <Label htmlFor="ai-writing-instruction">本次情节</Label>{' '}
-                    <Button type="button" variant="outline" size="sm" disabled={busy || suggestBusy || !novelId} onClick={() => void loadSuggestions()}>
-                      {suggestBusy ? (
-                        '推荐中…'
-                      ) : (
-                        <>
-                          <Sparkles className="size-3.5" aria-hidden="true" />
-                          推荐情节
-                        </>
-                      )}
-                    </Button>
+                    <Label htmlFor="ai-writing-instruction">本次情节</Label>
                     <span className="ai-writing-brief__count">
                       {instruction.replace(/\s/g, '').length > 0 ? `${instruction.replace(/\s/g, '').length} 字` : '未填写'}
                     </span>
@@ -1626,25 +1745,54 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       : '留空时模型自行发挥，情节走向随机——同一本书同一起点，两批结果可能完全不同。建议先「推荐情节」挑一条。'}
                   </p>
                 </section>
-                {/* 「推荐侧重点」不是创作要求的一部分，而是「推荐情节」的输入参数。
-                    它此前只有 aria-label、没有可见标签，用户看到上下两个输入框会以为
-                    这是第二处创作要求；现补可见标签，坐实「这是给按钮用的参数」。 */}
-                <div className="ai-writing-assist">
-                  <span className="ai-writing-assist__label" aria-hidden="true">
-                    侧重点
-                  </span>
-                  <Input
-                    aria-label="推荐侧重点（可选）"
-                    value={focus}
-                    onChange={(event) => setFocus(event.target.value)}
-                    placeholder="可留空，例如：感情升温的日常互动"
-                  />
+                <div className="ai-writing-assist-bar mt-2.5 flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border/70 bg-muted/30 p-2.5">
+                  <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[240px]">
+                    <span className="text-xs font-medium text-foreground/80 shrink-0">推荐侧重点</span>
+                    <Input
+                      aria-label="推荐侧重点（可选）"
+                      value={focus}
+                      onChange={(event) => setFocus(event.target.value)}
+                      placeholder="可留空，例如：感情升温的日常互动"
+                      className="h-8 text-xs flex-1 min-w-[150px] max-w-xs bg-background"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-3 text-xs shrink-0 font-medium bg-background hover:bg-accent"
+                      disabled={busy || suggestBusy || !novelId}
+                      onClick={() => void loadSuggestions()}
+                    >
+                      {suggestBusy ? (
+                        '推荐中…'
+                      ) : (
+                        <>
+                          <Sparkles className="size-3.5 mr-1" aria-hidden="true" />
+                          推荐情节
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 pl-2 border-l border-border/50">
+                    <Label htmlFor="ai-plot-timeout" className="text-xs text-muted-foreground whitespace-nowrap">
+                      超时:
+                    </Label>
+                    <Input
+                      id="ai-plot-timeout"
+                      aria-label="情节推荐与大纲超时（秒）"
+                      type="number"
+                      min={PLOT_TIMEOUT_MIN_SECONDS}
+                      max={PLOT_TIMEOUT_MAX_SECONDS}
+                      value={plotTimeoutInput.text}
+                      onChange={(event) => plotTimeoutInput.onChangeText(event.target.value)}
+                      onBlur={commitPlotTimeout}
+                      disabled={suggestBusy || outlineBusy}
+                      className="h-8 w-16 px-1 text-center font-mono text-xs bg-background"
+                      title="默认 180 秒，可设为 30–600 秒，同时用于推荐情节和按情节生成大纲"
+                    />
+                    <span className="text-xs text-muted-foreground">秒</span>
+                  </div>
                 </div>
-                <AdminFormField label="情节推荐与大纲超时（秒）" htmlFor="ai-plot-timeout" hint="默认 180 秒，可设为 30–600 秒，同时用于推荐情节和按情节生成大纲；在当前浏览器记住。模型超时后不自动重试。">
-                  <Input id="ai-plot-timeout" type="number" min={PLOT_TIMEOUT_MIN_SECONDS} max={PLOT_TIMEOUT_MAX_SECONDS}
-                    value={plotTimeoutInput.text} onChange={(event) => plotTimeoutInput.onChangeText(event.target.value)}
-                    onBlur={commitPlotTimeout} disabled={suggestBusy || outlineBusy} />
-                </AdminFormField>
               </div>
               <div className="ai-writing-brief-layout__aside">
                 {suggestions.length > 0 ? (
@@ -1911,6 +2059,34 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </Button>
               )}
             </div>
+            {task && (
+              <div className="ai-writing-live-task rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3 mt-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`size-2 shrink-0 rounded-full ${taskDotClass(task.status)}`} aria-hidden="true" />
+                  <span className="font-semibold text-sm text-foreground">
+                    本次任务：{taskKindLabel(task.kind)} · {taskStatusLabel(task.status)}
+                  </span>
+                  {task.kind === 'continue' && (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {task.current} / {task.total} 章
+                    </span>
+                  )}
+                  {taskActive && (
+                    <Button variant="outline" size="sm" className="ml-auto h-8 text-xs font-medium" onClick={() => void cancelTask()}>
+                      取消任务
+                    </Button>
+                  )}
+                  {!taskActive && task.current > 0 && props.onViewBatch && (
+                    <Button variant="outline" size="sm" className="ml-auto h-8 text-xs font-medium" onClick={() => props.onViewBatch?.(task.batchId || undefined)}>
+                      {task.batchId ? `查看本批草稿（${task.current} 章）` : '查看草稿'}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">{task.step || '等待处理'}</p>
+                {taskActive && <TextProgressPreview progress={parseAiTextProgress(task.result)} />}
+                {task.error && <p className="text-xs text-destructive">{task.error}</p>}
+              </div>
+            )}
           </div>
           {mode === 'new' && (
             <div className="grid gap-4 border-t pt-5">
@@ -1945,134 +2121,52 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               />
             </div>
           )}
-        </CardContent>
-      </Card>
-      <aside className="ai-writing-context" aria-label="创作上下文与任务">
-        <Card className="admin-panel-card">
-          <AdminPanelHeading
-            title="当前作品"
-            status={<AdminStatusBadge tone={novelId ? 'success' : 'muted'}>{novelId ? '上下文就绪' : '待选作品'}</AdminStatusBadge>}
-          />
-          <CardContent className="grid gap-4">
-            <div className="ai-context-book">
-              {selectedNovel && (
-                <img
-                  key={selectedNovel.id}
-                  src={url(`/cover/${encodeURIComponent(selectedNovel.id)}?v=${encodeURIComponent(selectedNovel.updatedAt || 0)}&cover=4`)}
-                  alt={`${selectedNovel.title} 封面`}
-                  onError={(event) => {
-                    event.currentTarget.style.display = 'none'
-                  }}
-                />
-              )}
-              <div>
-                <strong>{selectedNovelTitle || (mode === 'new' ? '新作品' : '尚未选择小说')}</strong>
-                <p>{selectedNovel?.author || '选择作品后加载上下文'}</p>
-                {selectedNovel && (
-                  <p>
-                    {selectedNovel.chapterCount || 0} 章 · {selectedNovel.categories?.slice(0, 2).join(' / ') || '未分类'}
-                  </p>
-                )}
-              </div>
-            </div>
-            <dl className="ai-writing-context__facts">
-              <div>
-                <dt>生成模型</dt>
-                <dd>{props.model || '未配置'}</dd>
-              </div>
-              <div>
-                <dt>最新章节</dt>
-                <dd>{chapterOptions[1]?.label || '暂无已发布章节'}</dd>
-              </div>
-              <div>
-                <dt>本次输出</dt>
-                <dd>
-                  {chapterCount} 章 · 约 {targetWordsInput.text || '—'} 字 / 章
-                </dd>
-              </div>
-            </dl>
-            {mode === 'continue' && pendingDrafts > 0 && !taskActive && (
-              <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-                <span>该小说有 {pendingDrafts} 章未发布的续写草稿。续写上下文只取已发布章节，建议先发布草稿再继续，避免剧情断档。</span>
-                {props.onViewBatch && (
-                  <Button variant="outline" size="sm" className="ml-auto" onClick={() => props.onViewBatch?.()}>
-                    查看草稿
-                  </Button>
-                )}
-              </div>
-            )}
-            <p className="text-xs leading-relaxed text-muted-foreground">生成结果先保存为草稿，审阅后再发布。续写上下文来自已发布章节。</p>
-          </CardContent>
-        </Card>
-        <Card className="admin-panel-card ai-writing-receipt">
-          <AdminPanelHeading title="本次任务" />
-          <CardContent className="grid gap-4">
-            {task && (
-              <div className="rounded-md border bg-muted/40 p-3 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`size-1.5 shrink-0 rounded-full ${taskDotClass(task.status)}`} aria-hidden />
-                  <span className="font-medium">
-                    {taskKindLabel(task.kind)} · {taskStatusLabel(task.status)}
-                  </span>
-                  {task.kind === 'continue' && (
-                    <span className="text-muted-foreground">
-                      {task.current} / {task.total} 章
-                    </span>
-                  )}
-                  {taskActive && (
-                    <Button variant="outline" size="sm" className="ml-auto" onClick={() => void cancelTask()}>
-                      取消任务
-                    </Button>
-                  )}
-                  {!taskActive && task.current > 0 && props.onViewBatch && (
-                    <Button variant="outline" size="sm" className="ml-auto" onClick={() => props.onViewBatch?.(task.batchId || undefined)}>
-                      {task.batchId ? `查看本批草稿（${task.current} 章）` : '查看草稿'}
-                    </Button>
-                  )}
-                </div>
-                <p className="mt-1 text-muted-foreground">{task.step || '等待处理'}</p>
-                {taskActive && <TextProgressPreview progress={parseAiTextProgress(task.result)} />}
-                {task.error && <p className="mt-1 text-destructive">{task.error}</p>}
-              </div>
-            )}
-            {!task && <p className="text-sm text-muted-foreground">尚未开始本次任务。生成后可在这里查看进度和草稿。</p>}
-            {recentTasks.length > 0 && (
-              <section className="ai-writing-recent">
-                <h3>最近任务</h3>
-                <ul>
-                  {recentTasks.map((item) => (
-                    <li key={item.id}>
-                      <div>
-                        <span>{item.novelTitle || taskKindLabel(item.kind)}</span>
-                        <AdminStatusBadge tone={item.status === 'completed' ? 'success' : 'muted'}>{taskStatusLabel(item.status)}</AdminStatusBadge>
-                      </div>
-                      <p>
-                        {taskKindLabel(item.kind)} · {item.current} / {item.total} 章
-                      </p>
+          {recentTasks.length > 0 && (
+            <details className="ai-writing-recent-drawer border-t pt-4 text-xs">
+              <summary className="flex cursor-pointer select-none items-center justify-between text-muted-foreground hover:text-foreground font-medium py-1">
+                <span>最近创作任务 ({recentTasks.length})</span>
+                <span className="text-[11px] font-normal text-muted-foreground/80">展开 / 收起</span>
+              </summary>
+              <ul className="mt-3 space-y-2">
+                {recentTasks.map((item) => (
+                  <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 p-2.5 transition-colors hover:bg-muted/40">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-xs text-foreground truncate">{item.novelTitle || taskKindLabel(item.kind)}</span>
+                      <span className="text-muted-foreground text-[11px]">·</span>
+                      <span className="text-xs text-muted-foreground">
+                        {taskKindLabel(item.kind)} · <span className="font-mono text-foreground/80">{item.current} / {item.total}</span> 章
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <AdminStatusBadge tone={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'danger' : 'muted'} className="text-[10px]">
+                        {taskStatusLabel(item.status)}
+                      </AdminStatusBadge>
                       {item.batchId && props.onViewBatch && (
-                        <Button variant="ghost" size="sm" onClick={() => props.onViewBatch?.(item.batchId)}>
-                          查看产出
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-accent hover:text-accent/80 font-medium" onClick={() => props.onViewBatch?.(item.batchId)}>
+                          查看产出 →
                         </Button>
                       )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            <p className="text-xs text-muted-foreground">
-              任务历史在{' '}
-              <a href="/admin/tasks" className="text-primary">
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-xs text-muted-foreground">
+            <span>生成结果先保存为草稿，审阅后再发布。续写上下文来自已发布章节。</span>
+            <div className="flex items-center gap-3">
+              <a href="/admin/tasks" className="text-primary hover:underline">
                 任务中心
               </a>
-              ，请求与消耗在{' '}
-              <a href="/admin/calls" className="text-primary">
+              <span>·</span>
+              <a href="/admin/calls" className="text-primary hover:underline">
                 调用与用量
               </a>
-              。
-            </p>
-          </CardContent>
-        </Card>
-      </aside>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      {continuationAnalysisDialog}
     </div>
   )
 }
