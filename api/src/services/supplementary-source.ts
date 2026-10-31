@@ -134,9 +134,10 @@ export async function checkSupplementarySource(db: Db, id: string, scan = scanLa
   try {
     const failedFolders: string[] = []
     const files = await scan(row.url, row.password, undefined, failedFolders)
+    const scannedFolders = new Set(files.map((f) => f.folder))
     const retained = sourceFiles(row)
-      .filter((f) => failedFolders.some((folder) => f.folder === folder || f.folder.startsWith(folder + '/')))
-      .map((f) => ({ ...f, stale: true, incomplete: true }))
+      .filter((f) => failedFolders.some((folder) => f.folder === folder || f.folder.startsWith(folder + '/')) || !scannedFolders.has(f.folder))
+      .map((f) => ({ ...f, stale: true, ...(failedFolders.some((folder) => f.folder === folder || f.folder.startsWith(folder + '/')) ? { incomplete: true } : {}) }))
     const merged = [...new Map([...retained, ...files].map((f) => [f.key, f])).values()]
     if (merged.length > 5000) throw new LanzouError('累计文件过多，请绑定更具体的目录')
     const error = failedFolders.length ? `以下目录未完整读取：${failedFolders.join('、')}。已读文件已保留，未读部分沿用旧清单，尚不能确认有无更新` : ''
