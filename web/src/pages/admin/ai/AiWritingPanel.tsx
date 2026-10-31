@@ -1212,20 +1212,26 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
    */
   const continuationContentScale =
     mode === 'continue' ? (
-      <section className="ai-writing-content-scope" aria-labelledby="ai-writing-content-scope-title">
-        <div className="ai-writing-section-heading">
-          <div>
-            <h3 id="ai-writing-content-scope-title">内容尺度</h3>
-            <p>它会同时影响续写和推荐情节；生成前必须在这里确认本次尺度。</p>
+      <section className="ai-writing-content-scope mt-3.5 pt-3.5 border-t border-border/60" aria-labelledby="ai-writing-content-scope-title">
+        <div className="ai-writing-section-heading flex items-center justify-between gap-3 mb-2">
+          <div className="flex items-center gap-2">
+            <h3 id="ai-writing-content-scope-title" className="text-xs font-semibold text-foreground">
+              内容尺度
+            </h3>
+            <span className="text-[11px] text-muted-foreground hidden sm:inline">
+              影响续写正文与情节推荐方向
+            </span>
           </div>
-          <AdminStatusBadge tone={adultContentMode === 'explicit' ? 'accent' : 'muted'}>
+          <AdminStatusBadge tone={adultContentMode === 'explicit' ? 'accent' : 'muted'} className="text-[10px]">
             {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
           </AdminStatusBadge>
         </div>
         <label className="ai-writing-content-scope__toggle">
           <span className="min-w-0">
-            <span className="block text-sm font-medium text-foreground">开启露骨 R18 模式</span>
-            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">开启后以成人场景为章节主体；推荐情节也会按相同尺度提供方向。</span>
+            <span className="block text-xs font-medium text-foreground">开启露骨 R18 模式</span>
+            <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+              开启后以成人场景为章节主体；推荐情节也会按相同尺度提供方向。
+            </span>
           </span>
           <Switch
             checked={adultContentMode === 'explicit'}
@@ -1236,7 +1242,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           />
         </label>
         {adultContentMode === 'explicit' && (
-          <div className="ai-writing-consent grid gap-3">
+          <div className="ai-writing-consent grid gap-2 mt-2.5">
             <div className="grid gap-1.5">
               <Label id="ai-writing-consent-tier-label" className="text-xs">
                 同意规则档位
@@ -1250,7 +1256,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 onChange={(value) => setConsentRuleTier(value as 'default' | 'fictional_nonconsent')}
                 aria-labelledby="ai-writing-consent-tier-label"
               />
-              <p className="text-xs text-muted-foreground">放宽档只适用于原作主线本身涉及对应题材且角色均为成年人的情况；它不解除成年前提。</p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                放宽档只适用于原作主线本身涉及对应题材且角色均为成年人的情况；它不解除成年前提。
+              </p>
             </div>
           </div>
         )}
@@ -1490,9 +1498,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               <div className="ai-writing-selected-novel mt-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                   {/* 左侧实体书影与书籍档案 */}
-                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="ai-writing-selected-novel__cover shrink-0">
-                      <BookOpen className="size-5 text-muted-foreground/35" aria-hidden="true" />
+                      <BookOpen className="size-4 text-muted-foreground/35" aria-hidden="true" />
                       <img
                         key={selectedNovel.id}
                         src={url(`/cover/${encodeURIComponent(selectedNovel.id)}?v=${encodeURIComponent(selectedNovel.updatedAt || 0)}&cover=4`)}
@@ -1502,31 +1510,30 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                           event.currentTarget.style.display = 'none'
                         }}
                       />
-                      <div className="ai-writing-selected-novel__spine-effect" aria-hidden="true" />
                     </div>
 
-                    <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <strong className="font-semibold text-[15px] sm:text-base text-foreground tracking-tight truncate max-w-sm sm:max-w-md">
+                        <strong className="font-semibold text-sm sm:text-[15px] text-foreground tracking-tight truncate max-w-sm sm:max-w-md">
                           {selectedNovel.title}
                         </strong>
-                        <span className="text-xs text-muted-foreground/90 font-normal shrink-0">
+                        <span className="text-xs text-muted-foreground font-normal shrink-0">
                           {selectedNovel.author ? `${selectedNovel.author} 著` : '未知作者'}
                         </span>
                         {selectedNovel.categories && selectedNovel.categories.length > 0 && (
-                          <span className="ai-writing-selected-novel__category inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium shrink-0">
+                          <span className="ai-writing-selected-novel__category inline-flex items-center rounded-full px-2 py-0.2 text-[11px] font-medium shrink-0">
                             {selectedNovel.categories.slice(0, 2).join(' / ')}
                           </span>
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1 text-foreground/90 font-medium shrink-0">
                           <span className="font-semibold text-foreground">{selectedNovel.chapterCount || 0}</span>
                           <span className="text-muted-foreground font-normal">章已发布</span>
                         </span>
                         <span className="text-muted-foreground/30 font-normal select-none">·</span>
-                        <span className="truncate max-w-[280px] sm:max-w-[420px] text-muted-foreground/85" title={chapterOptions[1]?.label || '暂无已发布章节'}>
+                        <span className="truncate max-w-[280px] sm:max-w-[420px] text-muted-foreground/80" title={chapterOptions[1]?.label || '暂无已发布章节'}>
                           最新：{chapterOptions[1]?.label || '暂无已发布章节'}
                         </span>
                       </div>
@@ -1534,13 +1541,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   </div>
 
                   {/* 右侧工坊上下文与分析工具群 */}
-                  <div className="ai-writing-selected-novel__tools flex items-center gap-2 sm:gap-2.5 shrink-0 self-end sm:self-center">
+                  <div className="ai-writing-selected-novel__tools flex items-center gap-2 shrink-0 self-end sm:self-center">
                     <div
                       className="ai-writing-selected-novel__model-badge inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono text-muted-foreground shrink-0"
                       title={`当前创作生效模型：${props.model || '未配置'}`}
                     >
                       <Cpu className="size-3 text-[#D97757]/80 shrink-0" aria-hidden="true" />
-                      <span className="truncate max-w-[140px] sm:max-w-[190px]">{props.model || '未配置模型'}</span>
+                      <span className="truncate max-w-[140px] sm:max-w-[180px]">{props.model || '未配置模型'}</span>
                     </div>
 
                     <Button
@@ -1562,25 +1569,25 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   </div>
                 </div>
 
-                  {mode === 'continue' && pendingDrafts > 0 && !taskActive && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200 mt-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="shrink-0" aria-hidden="true">⚠️</span>
-                        <span>该小说有 <strong className="font-semibold">{pendingDrafts}</strong> 章未发布的续写草稿。续写上下文只取已发布章节，建议先发布草稿再继续。</span>
-                      </div>
-                      {props.onViewBatch && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-6.5 px-2.5 text-xs font-medium border-amber-500/40 bg-background hover:bg-muted shrink-0"
-                          onClick={() => props.onViewBatch?.()}
-                        >
-                          查看草稿
-                        </Button>
-                      )}
+                {mode === 'continue' && pendingDrafts > 0 && !taskActive && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200 mt-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="shrink-0" aria-hidden="true">⚠️</span>
+                      <span>该小说有 <strong className="font-semibold">{pendingDrafts}</strong> 章未发布的续写草稿。续写上下文只取已发布章节，建议先发布草稿再继续。</span>
                     </div>
-                  )}
+                    {props.onViewBatch && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs font-medium border-amber-500/40 bg-background hover:bg-muted shrink-0 rounded-full"
+                        onClick={() => props.onViewBatch?.()}
+                      >
+                        查看草稿
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {mode === 'new' && (
@@ -1745,21 +1752,21 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       : '留空时模型自行发挥，情节走向随机——同一本书同一起点，两批结果可能完全不同。建议先「推荐情节」挑一条。'}
                   </p>
                 </section>
-                <div className="ai-writing-assist-bar mt-2.5 flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border/70 bg-muted/30 p-2.5">
-                  <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[240px]">
+                <div className="ai-writing-assist-bar mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[220px]">
                     <span className="text-xs font-medium text-foreground/80 shrink-0">推荐侧重点</span>
                     <Input
                       aria-label="推荐侧重点（可选）"
                       value={focus}
                       onChange={(event) => setFocus(event.target.value)}
                       placeholder="可留空，例如：感情升温的日常互动"
-                      className="h-8 text-xs flex-1 min-w-[150px] max-w-xs bg-background"
+                      className="h-8 text-xs flex-1 min-w-[140px] max-w-xs rounded-full bg-background border-border/70"
                     />
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 px-3 text-xs shrink-0 font-medium bg-background hover:bg-accent"
+                      className="h-8 px-3.5 text-xs shrink-0 font-medium rounded-full bg-background hover:bg-accent border-border/80 hover:border-[#D97757]/40 hover:text-[#D97757]"
                       disabled={busy || suggestBusy || !novelId}
                       onClick={() => void loadSuggestions()}
                     >
@@ -1787,7 +1794,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       onChange={(event) => plotTimeoutInput.onChangeText(event.target.value)}
                       onBlur={commitPlotTimeout}
                       disabled={suggestBusy || outlineBusy}
-                      className="h-8 w-16 px-1 text-center font-mono text-xs bg-background"
+                      className="h-8 w-14 px-1 text-center font-mono text-xs rounded-full bg-background"
                       title="默认 180 秒，可设为 30–600 秒，同时用于推荐情节和按情节生成大纲"
                     />
                     <span className="text-xs text-muted-foreground">秒</span>
@@ -2011,10 +2018,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           </div>
           {/* 执行区总结本次上下文；任务进度与草稿提醒由右侧回执区承担。 */}
           <div className="ai-writing-actions grid gap-3 border-t pt-5">
-            <p className="ai-writing-draft-note">生成结果先保存为草稿，审阅后再发布。</p>
             {isContinuationMode && (
-              <details className="ai-writing-submit-preview">
-                <summary>查看提交内容</summary>
+              <details className="ai-writing-submit-preview text-xs text-muted-foreground">
+                <summary className="cursor-pointer hover:text-foreground inline-flex items-center gap-1 select-none py-0.5">
+                  <span>查看本次上下文摘要</span>
+                </summary>
                 <p className="ai-writing-launch-summary" aria-live="polite">
                   {novelId ? (
                     <>
@@ -2028,7 +2036,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </p>
               </details>
             )}
-            <div className="flex flex-wrap gap-3 pt-1">
+            <div className="flex flex-wrap items-center gap-3 pt-1">
               {mode === 'new' ? (
                 <>
                   <Button
@@ -2058,6 +2066,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   {taskActive && task?.kind === 'continue' ? '生成中…' : '生成续写'}
                 </Button>
               )}
+              <span className="ai-writing-draft-note text-xs text-muted-foreground ml-1">
+                生成结果先保存为草稿，审阅后再发布。
+              </span>
             </div>
             {task && (
               <div className="ai-writing-live-task rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3 mt-2">
@@ -2153,7 +2164,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             </details>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-xs text-muted-foreground">
-            <span>生成结果先保存为草稿，审阅后再发布。续写上下文来自已发布章节。</span>
+            <span>续写上下文提取自已发布章节。离开本页任务仍会在后台继续执行。</span>
             <div className="flex items-center gap-3">
               <a href="/admin/tasks" className="text-primary hover:underline">
                 任务中心
