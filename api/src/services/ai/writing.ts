@@ -406,6 +406,40 @@ export function splitOutlineByChapter(outline: string, expectedCount: number): s
   return out
 }
 
+/**
+ * 为多章续写中的单章组装创作指令。
+ * - 当提供单章大纲时：以本章大纲为核心依据，严禁提前写后续章节；第 1 章附带总体创作背景作为全貌参考，
+ *   第 2 章起坚决不注入全局概括指令，防止剧透与从头重新描写开场。
+ * - 多章承接约束：只要不是第 1 章（chapterIndex > 0），强制注入承接上一章草稿尾部并严禁从头重复的指令。
+ * - 未拆出单章大纲时：回退到使用总体 instruction 作为每章任务。
+ */
+export function buildContinuationChapterInstruction(opts: {
+  chapterIndex: number
+  totalCount: number
+  chapterOutline?: string
+  instruction?: string
+  targetWords?: number
+}): string {
+  const { chapterIndex, totalCount, chapterOutline, instruction, targetWords } = opts
+  const continuationConstraint = chapterIndex > 0
+    ? '创作要求（多章承接）：上一章已推进本方向的开局或前文剧情。本章必须紧密承接上一章草稿的结尾与最新状态继续向前推进后续剧情，严禁从头重新开场，严禁重复上一章草稿中已经发生过的事件、人物出场或相同对话。'
+    : ''
+
+  const taskContent = chapterOutline
+    ? [
+        `本章大纲（按此写作本章内容，只推进本章情节，严禁提前写后续章节大纲的内容）：\n${chapterOutline}`,
+        chapterIndex === 0 && instruction
+          ? `总体创作背景（本批次总方向参考，本章只写本章大纲范围，不得提前写完后续章节情节）：\n${instruction}`
+          : '',
+      ].filter(Boolean).join('\n\n')
+    : (instruction || '')
+
+  const words = Math.max(300, Math.min(30000, Math.trunc(Number(targetWords) || 0)))
+  const countNotice = `这是续写的第 ${chapterIndex + 1} 章，共 ${totalCount} 章。目标字数为本章约 ${words} 字。`
+
+  return [taskContent, continuationConstraint, countNotice].filter(Boolean).join('\n\n')
+}
+
 /** 把模型输出解析成情节候选。容忍纯行列表与对象列表两种形态。 */
 export function parsePlotSuggestions(text: string): PlotSuggestion[] {
   const source = cleanWritingText(text).trim()
@@ -861,19 +895,18 @@ export async function generateContinuationChapters(db: Db, opts: {
   for (let index = startIndex; index < count; index += 1) {
     if (!(await isAiTaskActive(db, taskId))) break
     const chapterOutline = hasPerChapterOutline ? outlineByChapter[index] : ''
+    const instruction = buildContinuationChapterInstruction({
+      chapterIndex: index,
+      totalCount: count,
+      chapterOutline,
+      instruction: opts.instruction,
+      targetWords: opts.targetWords,
+    })
     const result = await generateWriting(db, {
       ...opts,
       kind: 'continue',
       title: opts.title,
-      // 本章的大纲片段放在指令最前，作为这一章要写什么的主依据；
-      // 拆不出片段时退回整份大纲（走 outline 材料位），保持原有行为。
-      instruction: [
-        chapterOutline ? `本章大纲（按此写作本章内容，不要写成其他章节）：\n${chapterOutline}` : '',
-        !hasPerChapterOutline && index > 0 && opts.instruction
-          ? `创作要求（多章承接）：上一章已推进本方向的开局或前半段。本章必须紧密承接上一章草稿的结尾与最新状态继续向前推进后续剧情，严禁从头重复已经发生过的事件、人物出场或相同对话。\n${opts.instruction}`
-          : opts.instruction,
-        `这是续写的第 ${index + 1} 章，共 ${count} 章。目标字数为本章约 ${Math.max(300, Math.min(30000, Math.trunc(Number(opts.targetWords) || 0)))} 字。`,
-      ].filter(Boolean).join('\n'),
+      instruction,
       outline: hasPerChapterOutline ? '' : opts.outline,
       context: usePipeline ? opts.context : context,
       chapterCount: 1,
