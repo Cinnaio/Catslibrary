@@ -45,6 +45,11 @@ const PARAM_GROUPS = [
     label: '导入复核',
     keys: ['importAiReviewEnabled', 'importAiMaxCandidates', 'importAiMaxTokens', 'importAiSystemPrompt'],
   },
+  {
+    id: 'contentRating',
+    label: '内容分级',
+    keys: ['contentRatingMaxTokens', 'contentRatingReasoningMode'],
+  },
   { id: 'tasks', label: '任务与运维', keys: ['maxConcurrentWritingTasks', 'taskRetentionDays'] },
   { id: 'audit', label: '审计配置', keys: ['logIpAddress', 'logUserAgent'] },
 ] as const satisfies readonly { id: string; label: string; keys: readonly (keyof AiSettings)[] }[]
@@ -54,7 +59,13 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
   const { toast } = useToast()
   const [localSettings, setLocalSettings] = useState<AiSettings | null>(null)
   const [saving, setSaving] = useState(false)
-  const [activeGroup, setActiveGroup] = useState<ParamGroupId>('recap')
+  const [activeGroup, setActiveGroup] = useState<ParamGroupId>(() => {
+    if (typeof window !== 'undefined') {
+      const param = new URLSearchParams(window.location.search).get('group') as ParamGroupId
+      if (param && PARAM_GROUPS.some((g) => g.id === param)) return param
+    }
+    return 'recap'
+  })
   const pendingInvalid = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -643,6 +654,64 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 />
               </AdminFormField>
             </details>
+          </CardContent>
+        </Card>
+
+        {/* 内容分级 */}
+        <Card
+          role="tabpanel"
+          aria-labelledby="ai-param-tab-contentRating"
+          hidden={activeGroup !== 'contentRating'}
+          id="ai-params-contentRating"
+          className="admin-panel-card ai-params-card"
+        >
+          <div className="admin-panel-heading ai-parameter-heading">
+            <div className="admin-panel-heading__copy">
+              <h3>内容分级</h3>
+              <p>控制未标注作品 LLM 内容分级建议的 Token 预算与思考推理强度。</p>
+            </div>
+            <span className="ai-parameter-count">2 项参数</span>
+          </div>
+          <CardContent className="space-y-4">
+            <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
+              <AdminFormField
+                label="分级输出 Token 上限"
+                htmlFor="content-rating-tokens"
+                hint="单本分级分析的最大输出 Token。包含模型思考过程与 JSON 判定结果；面对 DeepSeek 等推理模型，建议保持在 2000 以上避免截断。"
+              >
+                <Input
+                  id="content-rating-tokens"
+                  required
+                  type="number"
+                  min={500}
+                  max={1000000}
+                  value={Number.isFinite(localSettings.contentRatingMaxTokens ?? 4096) ? localSettings.contentRatingMaxTokens ?? 4096 : ''}
+                  disabled={props.loading || saving}
+                  onChange={(e) => setLocalSettings({ ...localSettings, contentRatingMaxTokens: e.target.value === '' ? Number.NaN : Number(e.target.value) })}
+                />
+              </AdminFormField>
+              <AdminFormField
+                label="分级分析思考模式"
+                htmlFor="contentRatingReasoningMode"
+                hint="控制内容分级分析的思考推理强度。分级判定以结构化规则输出为主，若上游推理模型频繁超时或产生截断，可选择关闭思考或降低强度。"
+              >
+                <Select
+                  value={localSettings.contentRatingReasoningMode ?? 'inherit'}
+                  onValueChange={(value) => setLocalSettings({ ...localSettings, contentRatingReasoningMode: value as 'inherit' | 'disabled' | 'low' | 'high' })}
+                  disabled={props.loading || saving}
+                >
+                  <SelectTrigger id="contentRatingReasoningMode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inherit">跟随供应商</SelectItem>
+                    <SelectItem value="disabled">关闭思考</SelectItem>
+                    <SelectItem value="low">低强度思考</SelectItem>
+                    <SelectItem value="high">高强度思考</SelectItem>
+                  </SelectContent>
+                </Select>
+              </AdminFormField>
+            </div>
           </CardContent>
         </Card>
 

@@ -94,6 +94,12 @@ export interface AiSettings {
   /** 复核系统提示词模板 */
   importAiSystemPrompt: string
 
+  // === 内容分级参数 ===
+  /** 内容分级分析的最大输出 token 上限（包含模型思考与 JSON 结果） */
+  contentRatingMaxTokens: number
+  /** 内容分级分析的思考模式（默认 inherit 跟随供应商；若上游耗时过长或截断可设为 disabled） */
+  contentRatingReasoningMode: AiReasoningMode
+
   // === 运维配置 ===
   /** 已结束 AI 任务的保留天数，启动时清理更早的记录 */
   taskRetentionDays: number
@@ -186,6 +192,10 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   importAiMaxTokens: 2000,
   importAiSystemPrompt: DEFAULT_IMPORT_REVIEW_SYSTEM_PROMPT,
 
+  // 内容分级参数默认值：默认 4096 给推理模型留足思考余量；思考模式跟随供应商
+  contentRatingMaxTokens: 4096,
+  contentRatingReasoningMode: 'inherit',
+
   // 运维配置默认值
   taskRetentionDays: 90,
 
@@ -224,6 +234,7 @@ const LIMITS = {
   importAiMaxCandidates: { min: 10, max: 300 },
   importAiMaxTokens: { min: 200, max: 8000 },
   importAiSystemPrompt: { maxLength: 2000 },
+  contentRatingMaxTokens: { min: 500, max: 1000000 },
   taskRetentionDays: { min: 7, max: 365 },
 }
 
@@ -330,6 +341,10 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     importAiMaxCandidates: clampInt(obj.importAiMaxCandidates, DEFAULT_AI_SETTINGS.importAiMaxCandidates, LIMITS.importAiMaxCandidates),
     importAiMaxTokens: clampInt(obj.importAiMaxTokens, DEFAULT_AI_SETTINGS.importAiMaxTokens, LIMITS.importAiMaxTokens),
     importAiSystemPrompt: clampString(obj.importAiSystemPrompt, DEFAULT_AI_SETTINGS.importAiSystemPrompt, LIMITS.importAiSystemPrompt.maxLength),
+
+    // 内容分级参数
+    contentRatingMaxTokens: clampInt(obj.contentRatingMaxTokens, DEFAULT_AI_SETTINGS.contentRatingMaxTokens, LIMITS.contentRatingMaxTokens),
+    contentRatingReasoningMode: clampEnum(obj.contentRatingReasoningMode, DEFAULT_AI_SETTINGS.contentRatingReasoningMode, ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,
 
     // 运维配置
     taskRetentionDays: clampInt(obj.taskRetentionDays, DEFAULT_AI_SETTINGS.taskRetentionDays, LIMITS.taskRetentionDays),

@@ -6,6 +6,8 @@ import { all, first, run } from '../db/query'
 import { newId } from './auth'
 import { applyContentRatingChange, parseContentRatingEvidence, type ContentRatingEvidenceItem } from './content-rating-governance'
 import { chat, isTextAiConfigured, providerLabel, textProvider } from './ai/client'
+import { getAiSettings } from './ai/settings'
+import type { AiReasoningMode } from '@shared/ai-text-progress'
 import { createAiTask, getAiTask, isAiTaskCancelled, startAiTaskHeartbeat, updateAiTask } from './ai/tasks'
 import { recordUsage } from './ai/usage'
 import { usageAuditFields } from './ai/upstream-usage'
@@ -35,6 +37,8 @@ export interface StartContentRatingAiReviewInput {
   novelIds?: string[]
   limit: number
   actorUserId: string
+  maxTokens?: number
+  reasoningMode?: AiReasoningMode
 }
 
 export interface ReviewContentRatingAiSuggestionInput {
@@ -327,6 +331,11 @@ export async function startContentRatingAiReview(db: Db, input: StartContentRati
   const actorUserId = boundedText(input.actorUserId, 160)
   if (!actorUserId) throw new ContentRatingAiValidationError('actorUserId is required')
   if (!isTextAiConfigured()) throw new ContentRatingAiValidationError('AI 文本服务未配置')
+  const settings = await getAiSettings(db)
+  const maxTokens = typeof input.maxTokens === 'number' && input.maxTokens >= 500 ? input.maxTokens : settings.contentRatingMaxTokens
+  const reasoningMode = input.reasoningMode && ['inherit', 'disabled', 'low', 'high'].includes(input.reasoningMode)
+    ? input.reasoningMode
+    : settings.contentRatingReasoningMode
   // 判据升级后，旧版本建议的证据不足，先归档再重选目标。否则这些作品会被
   // 「同作品同修订已有一条 pending 建议」挡住，永远拿不到新判据下的结论。
   await archiveOutdatedPromptSuggestions(db)
@@ -337,9 +346,14 @@ export async function startContentRatingAiReview(db: Db, input: StartContentRati
     kind: CONTENT_RATING_AI_TASK_KIND,
     total: targets.length,
     prompt: '内容分级 AI 辅助建议',
-    params: JSON.stringify({ novelIds: targets.map((novel) => novel.id), promptVersion: CONTENT_RATING_AI_PROMPT_VERSION }),
+    params: JSON.stringify({
+      novelIds: targets.map((novel) => novel.id),
+      promptVersion: CONTENT_RATING_AI_PROMPT_VERSION,
+      maxTokens,
+      reasoningMode,
+    }),
   })
-  void runContentRatingAiReviewTask(db, { taskId: task.id, actorUserId, novelIds: targets.map((novel) => novel.id) }).catch(() => {})
+  void runContentRatingAiReviewTask(db, { taskId: task.id, actorUserId, novelIds: targets.map((novel) => novel.id), maxTokens, reasoningMode }).catch(() => {})
   return { taskId: task.id, selected: targets.length, total: targets.length }
 }
 
@@ -347,6 +361,8 @@ export async function startContentRatingAiReview(db: Db, input: StartContentRati
 export interface ContentRatingAiTaskParams {
   novelIds: string[]
   promptVersion: string
+  maxTokens?: number
+  reasoningMode?: AiReasoningMode
 }
 
 /** 解析任务 params；旧任务或损坏 JSON 返回 undefined，由调用方回退到全量重选。 */
@@ -363,7 +379,16 @@ export function parseContentRatingAiTaskParams(value: unknown): ContentRatingAiT
   const record = raw as Record<string, unknown>
   const ids = Array.isArray(record.novelIds) ? Array.from(new Set(record.novelIds.map((id) => boundedText(id, 160)).filter(Boolean))).slice(0, 100) : []
   if (!ids.length) return undefined
-  return { novelIds: ids, promptVersion: boundedText(record.promptVersion, 80) || CONTENT_RATING_AI_PROMPT_VERSION }
+  const maxTokens = typeof record.maxTokens === 'number' && Number.isFinite(record.maxTokens) && record.maxTokens >= 500 ? record.maxTokens : undefined
+  const reasoningMode = typeof record.reasoningMode === 'string' && ['inherit', 'disabled', 'low', 'high'].includes(record.reasoningMode)
+    ? (record.reasoningMode as AiReasoningMode)
+    : undefined
+  return {
+    novelIds: ids,
+    promptVersion: boundedText(record.promptVersion, 80) || CONTENT_RATING_AI_PROMPT_VERSION,
+    ...(maxTokens ? { maxTokens } : {}),
+    ...(reasoningMode ? { reasoningMode } : {}),
+  }
 }
 
 /**
@@ -424,9 +449,21 @@ export async function resumeContentRatingAiReview(
     kind: CONTENT_RATING_AI_TASK_KIND,
     total: targets.length,
     prompt: '内容分级 AI 辅助建议（断点恢复）',
-    params: JSON.stringify({ novelIds: params.novelIds, promptVersion: params.promptVersion, resumedFrom: source.id }),
+    params: JSON.stringify({
+      novelIds: params.novelIds,
+      promptVersion: params.promptVersion,
+      resumedFrom: source.id,
+      ...(params.maxTokens ? { maxTokens: params.maxTokens } : {}),
+      ...(params.reasoningMode ? { reasoningMode: params.reasoningMode } : {}),
+    }),
   })
-  void runContentRatingAiReviewTask(db, { taskId: task.id, actorUserId, novelIds: targets }).catch(() => {})
+  void runContentRatingAiReviewTask(db, {
+    taskId: task.id,
+    actorUserId,
+    novelIds: targets,
+    maxTokens: params.maxTokens,
+    reasoningMode: params.reasoningMode,
+  }).catch(() => {})
   return { taskId: task.id, selected: targets.length, total: targets.length, skipped }
 }
 
@@ -491,10 +528,18 @@ export function parseContentRatingAiDecision(text: string): AiRatingDecision {
   return { rating, confidence, reason, evidence }
 }
 
-export async function runContentRatingAiReviewTask(db: Db, input: { taskId: string; actorUserId: string; novelIds: string[] }): Promise<void> {
+export async function runContentRatingAiReviewTask(
+  db: Db,
+  input: { taskId: string; actorUserId: string; novelIds: string[]; maxTokens?: number; reasoningMode?: AiReasoningMode },
+): Promise<void> {
   const stopHeartbeat = startAiTaskHeartbeat(db, input.taskId, 10_000)
   try {
     await updateAiTask(db, input.taskId, { status: 'running', step: '准备作品元数据' })
+    const task = await getAiTask(db, input.taskId)
+    const taskParams = parseContentRatingAiTaskParams(task?.params)
+    const settings = await getAiSettings(db)
+    const maxTokens = input.maxTokens ?? taskParams?.maxTokens ?? settings.contentRatingMaxTokens
+    const reasoningMode = input.reasoningMode ?? taskParams?.reasoningMode ?? settings.contentRatingReasoningMode
     const provider = textProvider()
     const total = input.novelIds.length
     let completed = 0
@@ -551,7 +596,8 @@ export async function runContentRatingAiReviewTask(db: Db, input: { taskId: stri
             { role: 'user', content: buildContentRatingAiPrompt(snapshot) },
           ],
           temperature: 0,
-          maxTokens: 700,
+          maxTokens,
+          reasoningMode,
           timeoutMs: 120_000,
         })
         const decision = parseContentRatingAiDecision(response.text)

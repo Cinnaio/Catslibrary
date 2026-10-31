@@ -16,6 +16,12 @@ describe('text generation controls', () => {
     expect(normalizeAiSettings({ writingReasoningMode: 'disabled', storyMemoryReasoningMode: 'low', writingStreamEnabled: true, storyMemoryStreamEnabled: true })).toMatchObject({ writingReasoningMode: 'disabled', storyMemoryReasoningMode: 'low', writingStreamEnabled: true, storyMemoryStreamEnabled: true })
     expect(normalizeAiSettings({ writingReasoningMode: 'bogus', storyMemoryReasoningMode: 'bogus' })).toMatchObject({ writingReasoningMode: 'inherit', storyMemoryReasoningMode: 'inherit' })
   })
+  it('defaults and normalizes content rating settings', () => {
+    expect(normalizeAiSettings({})).toMatchObject({ contentRatingMaxTokens: 4096, contentRatingReasoningMode: 'inherit' })
+    expect(normalizeAiSettings({ contentRatingMaxTokens: 8192, contentRatingReasoningMode: 'disabled' })).toMatchObject({ contentRatingMaxTokens: 8192, contentRatingReasoningMode: 'disabled' })
+    expect(normalizeAiSettings({ contentRatingMaxTokens: 100, contentRatingReasoningMode: 'unknown' })).toMatchObject({ contentRatingMaxTokens: 500, contentRatingReasoningMode: 'inherit' })
+    expect(normalizeAiSettings({ contentRatingMaxTokens: 2000000 })).toHaveProperty('contentRatingMaxTokens', 1000000)
+  })
 })
 
 describe('story memory timeout settings', () => {

@@ -1,6 +1,7 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
 import type { StoryGraphResponse } from '@shared/story-graph'
 import type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
+export type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
 import { normalizePlotTimeoutSeconds, PLOT_TIMEOUT_RESPONSE_GRACE_MS } from '@shared/ai-plot-timeout'
 import type { MemoryRebuildPlan, MemoryRebuildRequest, MemoryKind } from '@shared/story-memory-rebuild'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
@@ -1533,7 +1534,7 @@ export const adminApi = {
       const qs = query.toString()
       return request('GET', `/admin/content-rating-ai${qs ? '?' + qs : ''}`, null, true)
     },
-    scan(data: { novelIds?: string[]; limit?: number } = {}): Promise<{
+    scan(data: { novelIds?: string[]; limit?: number; maxTokens?: number; reasoningMode?: AiReasoningMode } = {}): Promise<{
       ok: boolean
       taskId: string
       selected: number
@@ -1960,6 +1961,9 @@ export interface AiSettings {
   importAiMaxCandidates: number
   importAiMaxTokens: number
   importAiSystemPrompt: string
+  // 内容分级参数
+  contentRatingMaxTokens?: number
+  contentRatingReasoningMode?: AiReasoningMode
   // 运维配置
   taskRetentionDays: number
   // 审计配置
