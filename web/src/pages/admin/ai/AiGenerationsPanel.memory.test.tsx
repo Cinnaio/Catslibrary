@@ -1,5 +1,6 @@
 import { MemoryRouter } from 'react-router-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import AiGenerationsPanel from './AiGenerationsPanel'
 const mocks = vi.hoisted(() => ({ generations: vi.fn(), publishBatch: vi.fn(), publishDraft: vi.fn(), confirm: vi.fn(), toast: vi.fn() }))
@@ -59,13 +60,21 @@ it('batch publish surfaces the update prompt without automatically starting paid
 })
 it('published batches retain the one-click action on a fresh visit', async () => {
   open([chapter('first', 'published'), chapter('second', 'published')])
-  fireEvent.click(await screen.findByRole('button', { name: '一键更新情节与关系' }))
+  await userEvent.click(await screen.findByRole('button', { name: /更多操作/ }))
+  const item = await screen.findByRole('menuitem', { name: /更新故事档案/ })
+  await userEvent.click(item)
   expect(screen.getByTestId('memory-update')).toHaveTextContent('book:start')
 })
 it('unpublished drafts have no formal-memory update action', async () => {
   open([chapter('first')])
   await screen.findByRole('button', { name: '审阅' })
-  expect(screen.queryByRole('button', { name: '一键更新情节与关系' })).not.toBeInTheDocument()
+  const more = screen.queryByRole('button', { name: /更多操作/ })
+  if (more) {
+    await userEvent.click(more)
+    expect(screen.queryByRole('menuitem', { name: /更新故事档案/ })).not.toBeInTheDocument()
+  } else {
+    expect(more).not.toBeInTheDocument()
+  }
 })
 it('single-chapter publication also surfaces the update prompt', async () => {
   open([chapter('first')])
