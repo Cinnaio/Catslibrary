@@ -188,7 +188,7 @@ export async function scanLanzouFolder(rawUrl: string, password = '', request = 
   const files = new Map<string, SupplementaryFile>()
   const deadline = Date.now() + 110000
   while (queue.length) {
-    if (Date.now() > deadline || visited.size >= 40) throw new LanzouError('目录过大或检查超时，请绑定更具体的月份目录')
+    if (Date.now() > deadline || visited.size >= 80) throw new LanzouError('目录过大或检查超时，请绑定更具体的月份目录')
     const current = queue.shift()!
     if (visited.has(current.url)) continue
     visited.add(current.url)
@@ -198,6 +198,10 @@ export async function scanLanzouFolder(rawUrl: string, password = '', request = 
       const html = new TextDecoder().decode(await request(current.url))
       folderName ||= decodeHtml(html.match(/<title>([^<]*)/)?.[1] || '根目录')
       if (/arg1=|验证码|访问频繁/.test(html)) throw new LanzouError('蓝奏需要浏览器验证，请稍后重新检查', 'manual')
+      if (/文件不存在|文件夹不存在|已删除|不存在或已删除/.test(html)) {
+        if (current.depth === 0) throw new LanzouError('蓝奏文件夹不存在或已删除', 'invalid')
+        continue
+      }
       const links = [...html.matchAll(/<a\b[^>]*href=["'](\/b[a-zA-Z0-9]+)["'][^>]*>[\s\S]*?<div\s+class=["']filename["']>([^<]+)/g)]
       if (links.length && current.depth >= 2) throw new LanzouError('目录层级超过限制，请绑定更具体的目录')
       for (const link of links.sort((a, b) => (b[2] || '').localeCompare(a[2] || '', 'zh-CN', { numeric: true })))
@@ -207,7 +211,10 @@ export async function scanLanzouFolder(rawUrl: string, password = '', request = 
           depth: current.depth + 1,
         })
       const endpoint = html.match(/url\s*:\s*['"]([^'"]*filemoreajax\.php[^'"]*)['"]/)?.[1]
-      if (!endpoint) throw new LanzouError('无法识别蓝奏文件夹，请检查链接、提取码或页面是否变化')
+      if (!endpoint) {
+        if (links.length || current.depth > 0) continue
+        throw new LanzouError('无法识别蓝奏文件夹，请检查链接、提取码或页面是否变化')
+      }
       const timeName = html.match(/['"]t['"]\s*:\s*([a-zA-Z_\d]+)/)?.[1]
       const keyName = html.match(/['"]k['"]\s*:\s*([a-zA-Z_\d]+)/)?.[1]
       const body: Record<string, string> = { pg: '1', pwd: password }
@@ -220,7 +227,10 @@ export async function scanLanzouFolder(rawUrl: string, password = '', request = 
         if (Date.now() > deadline) throw new LanzouError('目录检查超时，请稍后重试')
         body.pg = String(page)
         const result = await post(request, new URL(decodeHtml(endpoint), current.url).href, body, current.url)
-        if (Number(result.zt) === 2) {
+        if (
+          Number(result.zt) === 2 ||
+          (page > 1 && (Number(result.zt) === 4 && (result.text === 0 || String(result.info || '').includes('重试0'))))
+        ) {
           finished = true
           break
         }
