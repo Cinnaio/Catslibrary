@@ -944,6 +944,10 @@
   color: var(--text-muted, #736d65);
 }
 
+.content-ratings-reasoning-select {
+  width: 7.25rem;
+}
+
 .content-ratings-batch-select {
   width: 6.25rem;
 }

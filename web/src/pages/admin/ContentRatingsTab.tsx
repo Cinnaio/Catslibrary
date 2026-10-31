@@ -3,7 +3,7 @@ import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDia
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bot, CheckCircle2, CirclePlus, Eye, History, Info, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   adminApi,
   aiApi,
@@ -19,6 +19,7 @@ import {
   type AdminContentRatingRuleCandidate,
   type AdminContentRatingRuleCandidatePreviewResponse,
   type AdminContentRatingSource,
+  type AiReasoningMode,
   type AiTaskInfo,
   type ApiError,
 } from '@/lib/api'
@@ -545,6 +546,8 @@ function AiSuggestionPanel({
   resuming,
   batchLimit,
   onBatchLimit,
+  reasoningMode,
+  onReasoningMode,
   onRetry,
   onScan,
   onCancel,
@@ -562,6 +565,8 @@ function AiSuggestionPanel({
   resuming: boolean
   batchLimit: number
   onBatchLimit: (value: number) => void
+  reasoningMode: AiReasoningMode
+  onReasoningMode: (value: AiReasoningMode) => void
   onRetry: () => void
   onScan: () => void
   onCancel: () => void
@@ -612,6 +617,22 @@ function AiSuggestionPanel({
           chip
         />
         <div className="content-ratings-ai-actions ml-auto flex items-center gap-2">
+          <Label id="content-rating-reasoning-label" className="text-xs text-muted-foreground">
+            思考
+          </Label>
+          <CustomSelect
+            options={[
+              { value: 'inherit', label: '跟随默认' },
+              { value: 'disabled', label: '关闭思考' },
+              { value: 'low', label: '低强度' },
+              { value: 'high', label: '高强度' },
+            ]}
+            value={reasoningMode}
+            onChange={(value) => onReasoningMode(value as AiReasoningMode)}
+            aria-label="分级思考模式"
+            className="content-ratings-reasoning-select"
+            compact
+          />
           <Label id="content-rating-batch-label" className="text-xs text-muted-foreground">
             单批
           </Label>
@@ -632,6 +653,11 @@ function AiSuggestionPanel({
 
       <p className="content-ratings-panel-description text-xs text-muted-foreground/80 leading-relaxed mb-3">
         只分析未标注作品。判级依据是元数据加正文采样片段，正文成人词命中只用于定位采样章节，不直接决定分级。模型建议经人工审核才可修改分级；批准“继续未标注”不会标为一般。
+        可前往{' '}
+        <Link to="/admin/ai?sub=params&group=contentRating" className="underline underline-offset-2 hover:text-foreground">
+          AI 参数调优
+        </Link>{' '}
+        调整输出 Token 预算与默认思考强度。
       </p>
 
       {/* 任务进度条独立卡片 */}
@@ -855,6 +881,7 @@ export default function ContentRatingsTab() {
   const [aiCancelling, setAiCancelling] = useState(false)
   const [aiResuming, setAiResuming] = useState(false)
   const [aiBatchLimit, setAiBatchLimit] = useState<number>(DEFAULT_AI_BATCH_LIMIT)
+  const [aiReasoningMode, setAiReasoningMode] = useState<AiReasoningMode>('inherit')
   const [aiReviewSuggestion, setAiReviewSuggestion] = useState<AdminContentRatingAiSuggestion | null>(null)
   const [aiReviewDecision, setAiReviewDecision] = useState<'approve' | 'reject' | null>(null)
   const [aiReviewReason, setAiReviewReason] = useState('')
@@ -1206,7 +1233,9 @@ export default function ContentRatingsTab() {
     setAiScanning(true)
     setAiError('')
     try {
-      const result = await adminApi.contentRatingAi.scan({ limit: aiBatchLimit })
+      const payload: { limit: number; reasoningMode?: AiReasoningMode } = { limit: aiBatchLimit }
+      if (aiReasoningMode && aiReasoningMode !== 'inherit') payload.reasoningMode = aiReasoningMode
+      const result = await adminApi.contentRatingAi.scan(payload)
       if (!result.taskId) {
         toast(result.message || '当前没有可分析的 unknown 作品', 'default')
       } else {
@@ -1652,6 +1681,8 @@ export default function ContentRatingsTab() {
             resuming={aiResuming}
             batchLimit={aiBatchLimit}
             onBatchLimit={setAiBatchLimit}
+            reasoningMode={aiReasoningMode}
+            onReasoningMode={setAiReasoningMode}
             onRetry={() => void loadAiSuggestions()}
             onScan={() => void scanAiSuggestions()}
             onCancel={() => void cancelAiTask()}

@@ -3,6 +3,7 @@ import { getDb } from '../db/pool'
 import { withTx } from '../db/query'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { clampInt } from '../services/text'
+import type { AiReasoningMode } from '@shared/ai-text-progress'
 import { isTextAiConfigured } from '../services/ai/client'
 import { getAiTask, getLatestAiTaskByKind } from '../services/ai/tasks'
 import {
@@ -46,10 +47,16 @@ contentRatingAiRoutes.post('/scan', async (c) => {
     // 直接传 unknown 会在类型层失败，传 number 又会被静默忽略，故先归一为字符串。
     const rawLimit = body.limit
     const limit = clampInt(rawLimit === undefined || rawLimit === null ? undefined : String(rawLimit), 1, 100, 20)
+    const rawMaxTokens = body.maxTokens
+    const maxTokens = rawMaxTokens !== undefined && rawMaxTokens !== null ? clampInt(String(rawMaxTokens), 500, 1_000_000, 4096) : undefined
+    const rawReasoningMode = String(body.reasoningMode || '').trim()
+    const reasoningMode = ['inherit', 'disabled', 'low', 'high'].includes(rawReasoningMode) ? (rawReasoningMode as AiReasoningMode) : undefined
     const result = await startContentRatingAiReview(getDb(), {
       novelIds,
       limit,
       actorUserId: c.get('user').id,
+      maxTokens,
+      reasoningMode,
     })
     if (!result.taskId)
       return c.json({ ok: true, taskId: '', selected: 0, total: 0, message: '没有可分析的 unknown 作品' }, 200, { 'Cache-Control': 'no-store' })
