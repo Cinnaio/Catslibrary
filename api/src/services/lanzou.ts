@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createCipheriv, createHash } from 'node:crypto'
 import type { SupplementaryFile } from '@shared/supplementary-source'
 import { supplementaryIdentityKey } from '@shared/supplementary-source'
 import { outboundFetch } from './outbound-fetch'
@@ -18,10 +18,12 @@ const SHARE_DOMAINS = [
   'lanzoub.com',
   'lanzouy.com',
   'lanzouo.com',
+  'ilanzou.com',
 ]
-const DOWNLOAD_DOMAINS = [...SHARE_DOMAINS, 'woozooo.com', 'lanrar.com', 'lanzouc.com']
+const DOWNLOAD_DOMAINS = [...SHARE_DOMAINS, 'woozooo.com', 'lanrar.com', 'lanzouc.com', 'bakstotre.com', 'feejii.com']
 const MAX_FILE_BYTES = 25 * 1024 * 1024
 const MAX_PAGE_BYTES = 2 * 1024 * 1024
+const ILANZOU_KEY = Buffer.from('lanZouY-disk-app', 'utf8')
 
 export class LanzouError extends Error {
   constructor(
@@ -33,6 +35,33 @@ export class LanzouError extends Error {
 }
 function hostIn(host: string, domains: string[]) {
   return domains.some((d) => host === d || host.endsWith(`.${d}`))
+}
+export function isILanzouUrl(rawOrUrl: string | URL): boolean {
+  try {
+    const u = typeof rawOrUrl === 'string' ? new URL(rawOrUrl) : rawOrUrl
+    return hostIn(u.hostname, ['ilanzou.com'])
+  } catch {
+    return false
+  }
+}
+export function ilanzouEncrypt(text: string | number): string {
+  const cipher = createCipheriv('aes-128-ecb', ILANZOU_KEY, null)
+  return Buffer.concat([cipher.update(String(text), 'utf8'), cipher.final()]).toString('hex').toUpperCase()
+}
+function ilanzouUuid(): string {
+  return 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+function parseILanzouShareId(rawOrUrl: string | URL): string {
+  try {
+    const u = typeof rawOrUrl === 'string' ? new URL(rawOrUrl) : rawOrUrl
+    const match = u.pathname.match(/^\/s\/([a-zA-Z0-9]+)\/?$/)
+    return match ? match[1]! : ''
+  } catch {
+    return ''
+  }
 }
 function checkedUrl(raw: string, domains: string[]): URL {
   let u: URL
@@ -47,6 +76,11 @@ function checkedUrl(raw: string, domains: string[]): URL {
 }
 export function normalizeLanzouFolderUrl(raw: string): string {
   const u = checkedUrl(raw.trim(), SHARE_DOMAINS)
+  if (isILanzouUrl(u)) {
+    const shareId = parseILanzouShareId(u)
+    if (!shareId) throw new LanzouError('请填写蓝奏优享版文件夹分享链接（格式如 https://www.ilanzou.com/s/xxxxxx）', 'invalid')
+    return `https://www.ilanzou.com/s/${shareId}`
+  }
   if (!/^\/b[a-zA-Z0-9]+\/?$/.test(u.pathname)) throw new LanzouError('请填写蓝奏文件夹分享链接（不是单个文件）', 'invalid')
   return `${u.origin}${u.pathname.replace(/\/$/, '')}`
 }
@@ -180,9 +214,151 @@ async function post(request: LanzouRequest, url: string, body: Record<string, st
   )
 }
 
+async function callILanzouApi(
+  request: LanzouRequest,
+  path: string,
+  params: Record<string, string | number>,
+): Promise<Record<string, unknown>> {
+  const ts = ilanzouEncrypt(Date.now())
+  const qs = new URLSearchParams({
+    devType: '6',
+    devModel: 'Chrome',
+    uuid: ilanzouUuid(),
+    extra: '2',
+    timestamp: ts,
+    ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])),
+  }).toString()
+  const url = `https://apis.ilanzou.com${path}?${qs}`
+  const bytes = await request(url, {
+    method: 'POST',
+    headers: {
+      Origin: 'https://www.ilanzou.com',
+      Referer: 'https://www.ilanzou.com/',
+      appToken: '',
+    },
+  })
+  return json(bytes)
+}
+
+async function scanILanzouFolder(
+  root: string,
+  password = '',
+  request: LanzouRequest,
+  failedFolders?: string[],
+): Promise<SupplementaryFile[]> {
+  const shareId = parseILanzouShareId(root)
+  if (!shareId) throw new LanzouError('蓝奏优享版链接无法识别分享 ID', 'invalid')
+
+  const recResult = await callILanzouApi(request, '/unproved/recommend/list', {
+    shareId,
+    ...(password ? { code: password } : {}),
+  })
+  if (Number(recResult.status) === 0) {
+    throw new LanzouError('蓝奏优享版文件夹不存在或已删除', 'invalid')
+  }
+  if (Number(recResult.status) === 2) {
+    throw new LanzouError(password ? '蓝奏优享版提取码错误，请核对后重试' : '蓝奏优享版需要提取码，请填写后重试', 'invalid')
+  }
+  if (Number(recResult.status) !== 1 && Number(recResult.code) !== 200) {
+    throw new LanzouError('蓝奏优享版分享状态异常，请稍后重试')
+  }
+
+  const queue: Array<{ folderId: string; folderName: string; depth: number }> = [{ folderId: '', folderName: '', depth: 0 }]
+  const visited = new Set<string>()
+  const files = new Map<string, SupplementaryFile>()
+  const deadline = Date.now() + 110000
+
+  while (queue.length) {
+    if (Date.now() > deadline || visited.size >= 150) throw new LanzouError('目录过大或检查超时，请绑定更具体的月份目录')
+    const current = queue.shift()!
+    const visitKey = current.folderId || '__root__'
+    if (visited.has(visitKey)) continue
+    visited.add(visitKey)
+
+    const folderFiles = new Map<string, SupplementaryFile>()
+    const folderName = current.folderName || '根目录'
+    try {
+      let finished = false
+      for (let page = 1; page <= 20; page++) {
+        if (Date.now() > deadline) throw new LanzouError('目录检查超时，请稍后重试')
+        const params: Record<string, string | number> = {
+          shareId,
+          offset: page,
+          limit: 60,
+        }
+        if (current.folderId) params.folderId = current.folderId
+        if (password) params.code = password
+
+        const result = await callILanzouApi(request, '/unproved/share/list', params)
+        if (Number(result.code) !== 200 || !Array.isArray(result.list)) {
+          throw new LanzouError(password ? '蓝奏优享版目录读取失败，请核对提取码或稍后重试' : '蓝奏优享版目录读取失败；如有提取码，请填写后重试')
+        }
+        const list = result.list as Record<string, unknown>[]
+
+        const subfolders = list.filter((item) => Number(item.fileType) === 2)
+        subfolders.sort((a, b) =>
+          String(b.folderName || b.name || '').localeCompare(String(a.folderName || a.name || ''), 'zh-CN', { numeric: true }),
+        )
+        for (const item of subfolders) {
+          const subFolderId = String(item.folderId || item.sortId || '')
+          if (subFolderId && !visited.has(subFolderId)) {
+            if (current.depth >= 4) throw new LanzouError('目录层级超过限制，请绑定更具体的目录')
+            const name = String(item.folderName || item.name || '').trim()
+            const nextFolderName = current.folderName ? `${current.folderName}/${name}` : name
+            queue.push({ folderId: subFolderId, folderName: nextFolderName, depth: current.depth + 1 })
+          }
+        }
+
+        for (const item of list) {
+          if (Number(item.fileType) !== 1) continue
+          const rawName = String(item.name || item.fileName || '').trim()
+          const name = decodeHtml(rawName)
+          if (!/\.(txt|text|epub)$/i.test(name)) continue
+          const fileId = String(item.fileId || item.sortId || '')
+          if (!fileId) continue
+          const url = `${root}?fileId=${fileId}`
+          const key = createHash('sha256').update(url).digest('hex').slice(0, 24)
+          const rawSize = Number(item.fileSize)
+          const sizeStr =
+            !isNaN(rawSize) && rawSize > 0
+              ? rawSize >= 1024
+                ? `${(rawSize / 1024).toFixed(1)} M`
+                : `${rawSize} K`
+              : ''
+          folderFiles.set(key, {
+            key,
+            url,
+            name,
+            folder: folderName,
+            size: sizeStr,
+            ...fileIdentity(name),
+          })
+          if (files.size + folderFiles.size > 5000) throw new LanzouError('目录文件过多，请绑定更具体的目录')
+        }
+
+        const total = Number(result.total) || 0
+        if (list.length < 60 || (total > 0 && page * 60 >= total)) {
+          finished = true
+          break
+        }
+      }
+      if (!finished) throw new LanzouError('目录分页超过限制，本次结果未保存')
+      for (const [key, file] of folderFiles) files.set(key, file)
+    } catch (error) {
+      if (!failedFolders || (current.depth === 0 && folderFiles.size === 0) || files.size + folderFiles.size > 5000) throw error
+      failedFolders.push(folderName)
+      for (const [key, file] of folderFiles) files.set(key, { ...file, incomplete: true })
+    }
+  }
+  return [...files.values()]
+}
+
 /** 全量建立有限目录索引；任一页失败或达到上限均不冒充完整结果。 */
 export async function scanLanzouFolder(rawUrl: string, password = '', request = createLanzouRequest(), failedFolders?: string[]): Promise<SupplementaryFile[]> {
   const root = normalizeLanzouFolderUrl(rawUrl)
+  if (isILanzouUrl(root)) {
+    return scanILanzouFolder(root, password, request, failedFolders)
+  }
   const queue = [{ url: root, folder: '', depth: 0 }]
   const visited = new Set<string>()
   const files = new Map<string, SupplementaryFile>()
@@ -283,7 +459,58 @@ export function assertBookBytes(bytes: Uint8Array, name: string) {
     }
   }
 }
+async function downloadILanzouFile(file: SupplementaryFile, request: LanzouRequest): Promise<Uint8Array> {
+  const u = checkedUrl(file.url, SHARE_DOMAINS)
+  const shareId = parseILanzouShareId(u)
+  const fileId = u.searchParams.get('fileId')
+  if (!shareId || !fileId) {
+    throw new LanzouError('无效的蓝奏优享版文件链接', 'invalid')
+  }
+  const now = Date.now()
+  const downloadId = ilanzouEncrypt(`${fileId}|`)
+  const auth = ilanzouEncrypt(`${fileId}|${now}`)
+  const timestamp = ilanzouEncrypt(now)
+  const uuid = ilanzouUuid()
+  const qs = new URLSearchParams({
+    downloadId,
+    enable: '1',
+    devType: '6',
+    uuid,
+    timestamp,
+    auth,
+    shareId,
+  }).toString()
+  const redirectUrl = `https://apis.ilanzou.com/unproved/file/redirect?${qs}`
+  const bytes = await request(
+    redirectUrl,
+    {
+      headers: {
+        Origin: 'https://www.ilanzou.com',
+        Referer: 'https://www.ilanzou.com/',
+        appToken: '',
+      },
+    },
+    MAX_FILE_BYTES,
+  )
+  const head = new TextDecoder().decode(bytes.slice(0, 512)).trimStart()
+  if (head.startsWith('{') && head.includes('"code"')) {
+    try {
+      const parsed = JSON.parse(head) as { code?: number; msg?: string }
+      if (parsed.code !== 200 && parsed.msg) {
+        throw new LanzouError(`蓝奏优享版下载失败（${parsed.msg}），请手动下载后上传`, 'manual')
+      }
+    } catch (e) {
+      if (e instanceof LanzouError) throw e
+    }
+  }
+  assertBookBytes(bytes, file.name)
+  return bytes
+}
+
 export async function downloadLanzouFile(file: SupplementaryFile, request = createLanzouRequest()): Promise<Uint8Array> {
+  if (isILanzouUrl(file.url)) {
+    return downloadILanzouFile(file, request)
+  }
   const pageUrl = checkedUrl(file.url, SHARE_DOMAINS).href
   const html = new TextDecoder().decode(await request(pageUrl))
   const frame = html.match(/<iframe\b[^>]*src=["']([^"']+)["']/)?.[1]

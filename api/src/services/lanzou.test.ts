@@ -97,4 +97,109 @@ describe('蓝奏目录与下载', () => {
     content = '第1章 山雨\n正文'
     expect(new TextDecoder().decode(await downloadLanzouFile(file, request))).toBe(content)
   })
+  it('支持蓝奏优享版 (ilanzou) 链接格式校验与规范化', () => {
+    const ilanzouRoot = 'https://www.ilanzou.com/s/bTPy1rOoO'
+    expect(normalizeLanzouFolderUrl(ilanzouRoot)).toBe(ilanzouRoot)
+    expect(normalizeLanzouFolderUrl('https://ilanzou.com/s/bTPy1rOoO/')).toBe(ilanzouRoot)
+    expect(normalizeLanzouFolderUrl(ilanzouRoot + '?cp=share&foo=1')).toBe(ilanzouRoot)
+
+    for (const url of [
+      'http://www.ilanzou.com/s/bTPy1rOoO',
+      'https://www.ilanzou.com/bTPy1rOoO',
+      'https://www.ilanzou.com/s/',
+      'https://www.ilanzou.com/b12345',
+      'https://evil.ilanzou.com.test/s/bTPy1rOoO',
+    ])
+      expect(() => normalizeLanzouFolderUrl(url)).toThrow()
+  })
+  it('递归扫描蓝奏优享版目录与多级子文件夹并解析书籍', async () => {
+    const ilanzouRoot = 'https://www.ilanzou.com/s/bTPy1rOoO'
+    const request = vi.fn(async (url: string, init?: RequestInit) => {
+      const u = new URL(url)
+      if (u.pathname.includes('/unproved/recommend/list')) {
+        return bytes({ status: 1, code: 200, list: [{ shareId: 18062578 }] })
+      }
+      if (u.pathname.includes('/unproved/share/list')) {
+        const folderId = u.searchParams.get('folderId')
+        const offset = u.searchParams.get('offset')
+        if (!folderId) {
+          // 根目录：包含子目录 10月
+          return bytes({
+            code: 200,
+            total: 1,
+            list: [{ fileType: 2, folderId: '100', folderName: '10月' }],
+          })
+        }
+        if (folderId === '100') {
+          // 10月目录：包含子目录 1031推文
+          return bytes({
+            code: 200,
+            total: 1,
+            list: [{ fileType: 2, folderId: '101', folderName: '1031推文' }],
+          })
+        }
+        if (folderId === '101') {
+          // 1031推文：包含文件
+          if (offset === '1') {
+            return bytes({
+              code: 200,
+              total: 2,
+              list: [
+                { fileType: 1, fileId: '9001', name: '[更10] 《恶毒女配》作者：汐蝶.txt', fileSize: 908 },
+                { fileType: 1, fileId: '9002', name: '封面.jpg', fileSize: 50 },
+              ],
+            })
+          }
+        }
+      }
+      throw new Error(`Unexpected url: ${url}`)
+    })
+
+    const files = await scanLanzouFolder(ilanzouRoot, '', request)
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({
+      title: '恶毒女配',
+      author: '汐蝶',
+      revision: 10,
+      folder: '10月/1031推文',
+      size: '908 K',
+      url: `${ilanzouRoot}?fileId=9001`,
+    })
+  })
+  it('蓝奏优享版提取码错误或失效时抛出明确异常', async () => {
+    const ilanzouRoot = 'https://www.ilanzou.com/s/bTPy1rOoO'
+    const request = vi.fn(async (url: string) => {
+      const u = new URL(url)
+      if (u.pathname.includes('/unproved/recommend/list')) {
+        return bytes({ status: 2, code: 200, list: [] })
+      }
+      throw new Error('Not reached')
+    })
+    await expect(scanLanzouFolder(ilanzouRoot, '', request)).rejects.toThrow('需要提取码')
+  })
+  it('通过蓝奏优享版重定向接口下载书籍正文', async () => {
+    const file = {
+      key: 'key',
+      url: 'https://www.ilanzou.com/s/bTPy1rOoO?fileId=9001',
+      name: '恶毒女配.txt',
+      folder: '10月',
+      size: '908 K',
+      title: '恶毒女配',
+      author: '汐蝶',
+      revision: null,
+    }
+    const bookContent = '第一章 穿越\n正文内容'
+    const request = vi.fn(async (url: string) => {
+      const u = new URL(url)
+      expect(u.hostname).toBe('apis.ilanzou.com')
+      expect(u.pathname).toBe('/unproved/file/redirect')
+      expect(u.searchParams.get('shareId')).toBe('bTPy1rOoO')
+      expect(u.searchParams.get('downloadId')).toBeTruthy()
+      expect(u.searchParams.get('auth')).toBeTruthy()
+      return bytes(bookContent)
+    })
+
+    const downloaded = await downloadLanzouFile(file, request)
+    expect(new TextDecoder().decode(downloaded)).toBe(bookContent)
+  })
 })
