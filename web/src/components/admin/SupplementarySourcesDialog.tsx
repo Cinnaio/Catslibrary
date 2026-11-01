@@ -295,7 +295,7 @@ export default function SupplementarySourcesDialog({
                         value={draft.url}
                         disabled={busy}
                         onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-                        placeholder="https://…/b…"
+                        placeholder="https://…/b… 或 https://www.ilanzou.com/s/…"
                       />
                     </div>
                     <div className="supplementary-field">
