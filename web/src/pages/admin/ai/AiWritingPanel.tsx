@@ -1283,14 +1283,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           <DialogTitle id="ai-writing-analysis-title" className="flex items-center justify-center gap-1.5">
             <Sparkles className="size-4 text-[#D97757]" aria-hidden="true" />
             小说分析
-            {selectedNovelTitle && (
-              <span className="text-sm font-normal text-muted-foreground">
-                《{selectedNovelTitle}》
-              </span>
-            )}
           </DialogTitle>
-          <div className="flex items-center justify-center gap-2">
-            {props.onOpenGraph && (
+          {props.onOpenGraph && (
+            <div className="flex items-center justify-center">
               <Button
                 variant="ghost"
                 size="sm"
@@ -1304,21 +1299,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 <Network className="size-3.5" />
                 查看故事图谱
               </Button>
-            )}
-            <span
-              className={cn(
-                "ai-writing-analysis__count inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                activeProfileLabels.length === 3
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
-                  : activeProfileLabels.length > 0
-                  ? "bg-[#D97757]/10 border-[#D97757]/25 text-[#D97757]"
-                  : "bg-muted/50 border-border text-muted-foreground"
-              )}
-              aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}
-            >
-              可用于续写 {activeProfileLabels.length} / 3
-            </span>
-          </div>
+            </div>
+          )}
           <DialogDescription>
             分析结果保存在本书中；只有当前可用的完整档案会被续写参考。展开可查看内容与人工校正。
           </DialogDescription>
