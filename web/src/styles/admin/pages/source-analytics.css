@@ -1,621 +1,621 @@
-/* ==========================================================================
-   书源与追更 (Source Analytics & Followup) - Claude (Anthropic) Aesthetic
-   ========================================================================== */
-
-/* 顶部工作区导航：横向滑动胶囊切换栏 (Claude Capsule Segmented Tabs) */
-.source-analytics-tabs {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  width: 100%;
-}
-
-.source-analytics-workspace-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem 1rem;
-}
-
-.source-analytics-tab-count {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.1rem 0.5rem;
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
-  color: var(--text-muted);
-  font-size: 0.725rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  margin-left: 0.25rem;
-  transition: all 140ms var(--ease);
-}
-
-[data-state='active'] .source-analytics-tab-count {
-  background: var(--admin-accent-light);
-  color: var(--admin-accent);
-}
-
-/* ==========================================================================
-   透视方案：极简纸白站点洞察微卡网格 (Claude Site Insight Cards)
-   ========================================================================== */
-
-/* 顶部大盘口径与快照指示栏 */
-.source-analytics-scope-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem 1rem;
-  padding: 0.25rem 0.25rem 0.25rem;
-}
-
-.source-analytics-scope-bar .source-scope-select {
-  width: auto !important;
-  min-width: 15rem;
-  max-width: none !important;
-}
-
-.source-analytics-snapshot-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.785rem;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.source-analytics-snapshot-tag::before {
-  content: '';
-  width: 0.4rem;
-  height: 0.4rem;
-  border-radius: var(--radius-full);
-  background: var(--text-muted);
-  opacity: 0.4;
-}
-
-/* 宏观大盘横条 */
-.source-insight-macro-strip {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1.25rem 2.25rem;
-  padding: 1.15rem 1.5rem;
-  background: var(--admin-panel);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-2xl);
-}
-
-.source-insight-macro-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.source-insight-macro-label {
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-.source-insight-macro-value {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.2;
-}
-
-.source-insight-macro-unit {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-.source-insight-macro-sub {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--text-secondary);
-  margin-left: 0.25rem;
-}
-
-.source-insight-macro-divider {
-  width: 1px;
-  height: 2rem;
-  background: var(--admin-border);
-}
-
-.source-insight-attention-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.65rem;
-  border-radius: var(--radius-full);
-  background: var(--admin-accent-light);
-  border: 1px solid rgba(217, 119, 87, 0.3);
-  color: var(--admin-accent);
-  font-size: 0.775rem;
-  font-weight: 550;
-  cursor: pointer;
-  transition: all 140ms var(--ease);
-}
-
-.source-insight-attention-pill:hover {
-  background: rgba(217, 119, 87, 0.22);
-}
-
-.source-insight-healthy-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2rem 0.65rem;
-  border-radius: var(--radius-full);
-  background: rgba(79, 122, 82, 0.08);
-  border: 1px solid rgba(79, 122, 82, 0.2);
-  color: #4f7a52;
-  font-size: 0.775rem;
-  font-weight: 500;
-}
-
-/* 站点微卡网格 */
-.source-insight-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 1.25rem;
-}
-
-.source-insight-card {
-  display: flex;
-  flex-direction: column;
-  background: var(--admin-panel);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-2xl);
-  overflow: hidden;
-  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease);
-}
-
-.source-insight-card:hover {
-  border-color: var(--admin-border-strong);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.03);
-}
-
-/* 卡片头部 */
-.source-insight-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 1.1rem 1.25rem 0.85rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--admin-border) 45%, transparent);
-}
-
-.source-insight-card-site {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
-  transition: color 140ms var(--ease);
-}
-
-.source-insight-card-site:hover {
-  color: var(--admin-accent);
-}
-
-.source-insight-card-share-pill {
-  font-size: 0.725rem;
-  color: var(--text-muted);
-  background: var(--admin-panel-muted);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
-  padding: 0.125rem 0.5rem;
-}
-
-/* 指标四宫格 */
-.source-insight-card-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1px;
-  background: color-mix(in srgb, var(--admin-border) 45%, transparent);
-}
-
-.source-insight-metric-box {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.875rem 1.25rem;
-  background: var(--admin-panel);
-}
-
-.source-insight-metric-label {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.source-insight-metric-btn {
-  display: inline-flex;
-  align-items: baseline;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
-  color: var(--text-primary);
-  transition: color 140ms var(--ease);
-}
-
-.source-insight-metric-btn:hover {
-  color: var(--admin-accent);
-}
-
-/* 卡片底部操作栏 */
-.source-insight-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.75rem 1.25rem;
-  background: color-mix(in srgb, var(--admin-panel-muted) 30%, transparent);
-  border-top: 1px solid color-mix(in srgb, var(--admin-border) 45%, transparent);
-  margin-top: auto;
-}
-
-.source-attention-dot {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: var(--radius-full);
-  background: var(--admin-accent);
-  flex-shrink: 0;
-}
-
-.source-site-view-btn {
-  font-size: 0.75rem !important;
-  height: 1.75rem !important;
-  padding-inline: 0.65rem !important;
-  border-radius: var(--radius-full) !important;
-}
-
-.source-ledger-attention-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius-full);
-  background: var(--admin-accent-light);
-  border: 1px solid rgba(217, 119, 87, 0.28);
-  color: var(--admin-accent);
-  font-size: 0.725rem;
-  font-weight: 550;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 140ms var(--ease);
-}
-
-.source-ledger-attention-pill:hover {
-  background: rgba(217, 119, 87, 0.22);
-}
-
-/* 底部精炼注记 */
-.source-unified-footer {
-  padding: 0.75rem 1.25rem;
-  border-top: 1px solid color-mix(in srgb, var(--admin-border) 40%, transparent);
-  background: color-mix(in srgb, var(--admin-panel-muted) 35%, transparent);
-}
-
-.source-unified-note {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-
-/* Claude 低饱和度语义色板 */
-.source-color-configured,
-.followup-color-enabled {
-  background: #4f7a52; /* 冷绿色 */
-}
-
-.source-color-link,
-.followup-color-unconfigured {
-  background: #b07c2f; /* 琥珀金棕 */
-}
-
-.source-color-none {
-  background: #8c867e; /* 暖石板灰 */
-}
-
-.followup-color-paused {
-  background: #736d65; /* 次要中性灰 */
-}
-
-.followup-color-available {
-  background: #d97757; /* 陶土红 */
-}
-
-.followup-color-completed {
-  background: #c4bfb5; /* 纸基边框 */
-}
-
-[data-theme='dark'] .source-color-configured,
-[data-theme='dark'] .followup-color-enabled {
-  background: #72ab77;
-}
-
-[data-theme='dark'] .source-color-link,
-[data-theme='dark'] .followup-color-unconfigured {
-  background: #c79545;
-}
-
-[data-theme='dark'] .source-color-none {
-  background: #63615c;
-}
-
-[data-theme='dark'] .followup-color-paused {
-  background: #54524d;
-}
-
-[data-theme='dark'] .followup-color-available {
-  background: #e08264;
-}
-
-[data-theme='dark'] .followup-color-completed {
-  background: #3b3934;
-}
-
-/* ==========================================================================
-   去容器化小说明细 (Uncontainerized Books Ledger)
-   ========================================================================== */
-.source-analytics-list-view {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.source-analytics-filters {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.625rem;
-  padding: 0;
-}
-
-.source-analytics-filters .admin-search {
-  flex: 1 1 14rem;
-}
-
-@media (max-width: 900px) {
-  .source-analytics-filters {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 0.5rem !important;
-    margin-bottom: 0.75rem !important;
-    min-height: 0 !important;
-  }
-
-  .source-analytics-filters .admin-search {
-    width: 100% !important;
-    max-width: none !important;
-    min-width: 0 !important;
-    flex: 0 0 auto !important;
-    height: var(--admin-control-height, 2.5rem) !important;
-  }
-}
-
-.admin-layout .source-analytics-filters [role='combobox'] {
-  width: auto;
-  max-width: none;
-  min-width: 8.5rem;
-  flex: 0 1 auto;
-}
-
-.source-analytics-table-panel.admin-data-panel {
-  border-radius: var(--admin-table-panel-radius, 1rem);
-  border: 1px solid var(--admin-border, #e6e4dc);
-  background: var(--admin-table-background, #ffffff);
-  box-shadow:
-    0 1px 3px rgba(35, 30, 24, 0.03),
-    0 8px 24px -6px rgba(35, 30, 24, 0.04);
-  overflow: hidden;
-}
-
-[data-theme='dark'] .source-analytics-table-panel.admin-data-panel {
-  border-color: var(--admin-border, #2c2b28);
-  background: var(--admin-table-background, #1d1d1b);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.2),
-    0 8px 24px -4px rgba(0, 0, 0, 0.35);
-}
-
-.source-analytics-table-panel > [data-slot='table-container'] {
-  border-radius: var(--admin-table-panel-radius, 1rem);
-  overflow: hidden;
-}
-
-.source-analytics-table-panel table td {
-  height: auto;
-  min-height: var(--admin-table-row-height, 4rem);
-  padding-block: 0.75rem;
-}
-
-/* 数据表格与单元格 */
-.source-book-name {
-  color: var(--text-primary);
-  font-size: 0.885rem;
-  font-weight: 600;
-  text-align: left;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  transition: color 140ms var(--ease);
-}
-
-.source-book-name:hover {
-  color: var(--admin-accent);
-}
-
-.source-book-meta {
-  color: var(--text-muted);
-  font-size: 0.765rem;
-  line-height: 1.5;
-  margin-top: 0.2rem;
-  overflow-wrap: anywhere;
-}
-
-/* 待入库与受保护章节单元格 (Claude Refined Pending & Protection Cell) */
-.source-pending-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 0.25rem;
-  min-width: 0;
-  line-height: 1.25;
-}
-
-/* 行内操作按钮 */
-.source-row-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-full);
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid transparent;
-  transition: all 140ms var(--ease);
-}
-
-.source-row-action-btn:hover {
-  color: var(--admin-accent);
-  background: var(--admin-accent-light);
-  border-color: rgba(217, 119, 87, 0.2);
-}
-
-/* 作品详情弹窗 (Claude Book Details Dialog) */
-.source-book-dialog [data-slot='dialog-content'] {
-  width: min(calc(100% - 2rem), 38rem);
-}
-
-.source-book-details-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.875rem 1.25rem;
-  padding: 1rem 1.25rem;
-  background: var(--admin-panel-muted);
-  border-radius: var(--admin-radius);
-  border: 1px solid var(--admin-border);
-}
-
-.source-book-details-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.source-book-details-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.source-book-details-value {
-  font-size: 0.85rem;
-  color: var(--text-primary);
-  font-weight: 500;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.source-book-sources-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.source-book-source-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.75rem 1rem;
-  background: var(--admin-table-row-hover-background);
-  border-radius: var(--admin-radius-sm);
-  border: 1px solid var(--admin-border);
-}
-
-.source-book-source-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.source-book-source-kind {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.source-book-primary-pill {
-  font-size: 0.7rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: var(--radius-full);
-  background: var(--admin-accent-light);
-  color: var(--admin-accent);
-  font-weight: 550;
-}
-
-.source-book-source-url {
-  font-size: 0.8rem;
-  color: var(--admin-accent);
-  text-decoration: none;
-  overflow-wrap: anywhere;
-  font-family: var(--font-mono, monospace);
-}
-
-.source-book-source-url:hover {
-  text-decoration: underline;
-}
-
-.source-book-actions-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--admin-border);
-}
-
-.source-book-actions-bar > * {
-  border-radius: var(--radius-full);
-}
-
-/* 响应式断点 */
-@media (max-width: 1100px) {
-  .source-analytics-charts {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 640px) {
-  .source-chart-legend,
-  .source-chart-rows {
-    padding-inline: 0.875rem;
-  }
-  .source-chart-note {
-    padding-inline: 0.875rem;
-  }
-  .source-book-details-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .source-book-actions-bar [data-slot='button'] {
-    flex: 1 1 100%;
-  }
-}
+/* ==========================================================================
+   书源与追更 (Source Analytics & Followup) - Claude (Anthropic) Aesthetic
+   ========================================================================== */
+
+/* 顶部工作区导航：横向滑动胶囊切换栏 (Claude Capsule Segmented Tabs) */
+.source-analytics-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.source-analytics-workspace-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.source-analytics-tab-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  color: var(--text-muted);
+  font-size: 0.725rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-left: 0.25rem;
+  transition: all 140ms var(--ease);
+}
+
+[data-state='active'] .source-analytics-tab-count {
+  background: var(--admin-accent-light);
+  color: var(--admin-accent);
+}
+
+/* ==========================================================================
+   透视方案：极简纸白站点洞察微卡网格 (Claude Site Insight Cards)
+   ========================================================================== */
+
+/* 顶部大盘口径与快照指示栏 */
+.source-analytics-scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0.25rem 0.25rem 0.25rem;
+}
+
+.source-analytics-scope-bar .source-scope-select {
+  width: auto !important;
+  min-width: 15rem;
+  max-width: none !important;
+}
+
+.source-analytics-snapshot-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.785rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.source-analytics-snapshot-tag::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: var(--radius-full);
+  background: var(--text-muted);
+  opacity: 0.4;
+}
+
+/* 宏观大盘横条 */
+.source-insight-macro-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.25rem 2.25rem;
+  padding: 1.15rem 1.5rem;
+  background: var(--admin-panel);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-2xl);
+}
+
+.source-insight-macro-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.source-insight-macro-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.source-insight-macro-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.source-insight-macro-unit {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.source-insight-macro-sub {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-left: 0.25rem;
+}
+
+.source-insight-macro-divider {
+  width: 1px;
+  height: 2rem;
+  background: var(--admin-border);
+}
+
+.source-insight-attention-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-full);
+  background: var(--admin-accent-light);
+  border: 1px solid rgba(217, 119, 87, 0.3);
+  color: var(--admin-accent);
+  font-size: 0.775rem;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all 140ms var(--ease);
+}
+
+.source-insight-attention-pill:hover {
+  background: rgba(217, 119, 87, 0.22);
+}
+
+.source-insight-healthy-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-full);
+  background: rgba(79, 122, 82, 0.08);
+  border: 1px solid rgba(79, 122, 82, 0.2);
+  color: #4f7a52;
+  font-size: 0.775rem;
+  font-weight: 500;
+}
+
+/* 站点微卡网格 */
+.source-insight-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.25rem;
+}
+
+.source-insight-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--admin-panel);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
+  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+
+.source-insight-card:hover {
+  border-color: var(--admin-border-strong);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.03);
+}
+
+/* 卡片头部 */
+.source-insight-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.1rem 1.25rem 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--admin-border) 45%, transparent);
+}
+
+.source-insight-card-site {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: color 140ms var(--ease);
+}
+
+.source-insight-card-site:hover {
+  color: var(--admin-accent);
+}
+
+.source-insight-card-share-pill {
+  font-size: 0.725rem;
+  color: var(--text-muted);
+  background: var(--admin-panel-muted);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  padding: 0.125rem 0.5rem;
+}
+
+/* 指标四宫格 */
+.source-insight-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: color-mix(in srgb, var(--admin-border) 45%, transparent);
+}
+
+.source-insight-metric-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.875rem 1.25rem;
+  background: var(--admin-panel);
+}
+
+.source-insight-metric-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.source-insight-metric-btn {
+  display: inline-flex;
+  align-items: baseline;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+  transition: color 140ms var(--ease);
+}
+
+.source-insight-metric-btn:hover {
+  color: var(--admin-accent);
+}
+
+/* 卡片底部操作栏 */
+.source-insight-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: color-mix(in srgb, var(--admin-panel-muted) 30%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--admin-border) 45%, transparent);
+  margin-top: auto;
+}
+
+.source-attention-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: var(--radius-full);
+  background: var(--admin-accent);
+  flex-shrink: 0;
+}
+
+.source-site-view-btn {
+  font-size: 0.75rem !important;
+  height: 1.75rem !important;
+  padding-inline: 0.65rem !important;
+  border-radius: var(--radius-full) !important;
+}
+
+.source-ledger-attention-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--admin-accent-light);
+  border: 1px solid rgba(217, 119, 87, 0.28);
+  color: var(--admin-accent);
+  font-size: 0.725rem;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 140ms var(--ease);
+}
+
+.source-ledger-attention-pill:hover {
+  background: rgba(217, 119, 87, 0.22);
+}
+
+/* 底部精炼注记 */
+.source-unified-footer {
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--admin-border) 40%, transparent);
+  background: color-mix(in srgb, var(--admin-panel-muted) 35%, transparent);
+}
+
+.source-unified-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Claude 低饱和度语义色板 */
+.source-color-configured,
+.followup-color-enabled {
+  background: #4f7a52; /* 冷绿色 */
+}
+
+.source-color-link,
+.followup-color-unconfigured {
+  background: #b07c2f; /* 琥珀金棕 */
+}
+
+.source-color-none {
+  background: #8c867e; /* 暖石板灰 */
+}
+
+.followup-color-paused {
+  background: #736d65; /* 次要中性灰 */
+}
+
+.followup-color-available {
+  background: #d97757; /* 陶土红 */
+}
+
+.followup-color-completed {
+  background: #c4bfb5; /* 纸基边框 */
+}
+
+[data-theme='dark'] .source-color-configured,
+[data-theme='dark'] .followup-color-enabled {
+  background: #72ab77;
+}
+
+[data-theme='dark'] .source-color-link,
+[data-theme='dark'] .followup-color-unconfigured {
+  background: #c79545;
+}
+
+[data-theme='dark'] .source-color-none {
+  background: #63615c;
+}
+
+[data-theme='dark'] .followup-color-paused {
+  background: #54524d;
+}
+
+[data-theme='dark'] .followup-color-available {
+  background: #e08264;
+}
+
+[data-theme='dark'] .followup-color-completed {
+  background: #3b3934;
+}
+
+/* ==========================================================================
+   去容器化小说明细 (Uncontainerized Books Ledger)
+   ========================================================================== */
+.source-analytics-list-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.source-analytics-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  padding: 0;
+}
+
+.source-analytics-filters .admin-search {
+  flex: 1 1 14rem;
+}
+
+@media (max-width: 900px) {
+  .source-analytics-filters {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+    margin-bottom: 0.75rem !important;
+    min-height: 0 !important;
+  }
+
+  .source-analytics-filters .admin-search {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+    height: var(--admin-control-height, 2.5rem) !important;
+  }
+}
+
+.admin-layout .source-analytics-filters [role='combobox'] {
+  width: auto;
+  max-width: none;
+  min-width: 8.5rem;
+  flex: 0 1 auto;
+}
+
+.source-analytics-table-panel.admin-data-panel {
+  border-radius: var(--admin-table-panel-radius, 1rem);
+  border: 1px solid var(--admin-border, #e6e4dc);
+  background: var(--admin-table-background, #ffffff);
+  box-shadow:
+    0 1px 3px rgba(35, 30, 24, 0.03),
+    0 8px 24px -6px rgba(35, 30, 24, 0.04);
+  overflow: hidden;
+}
+
+[data-theme='dark'] .source-analytics-table-panel.admin-data-panel {
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-table-background, #1d1d1b);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    0 8px 24px -4px rgba(0, 0, 0, 0.35);
+}
+
+.source-analytics-table-panel > [data-slot='table-container'] {
+  border-radius: var(--admin-table-panel-radius, 1rem);
+  overflow: hidden;
+}
+
+.source-analytics-table-panel table td {
+  height: auto;
+  min-height: var(--admin-table-row-height, 4rem);
+  padding-block: 0.75rem;
+}
+
+/* 数据表格与单元格 */
+.source-book-name {
+  color: var(--text-primary);
+  font-size: 0.885rem;
+  font-weight: 600;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transition: color 140ms var(--ease);
+}
+
+.source-book-name:hover {
+  color: var(--admin-accent);
+}
+
+.source-book-meta {
+  color: var(--text-muted);
+  font-size: 0.765rem;
+  line-height: 1.5;
+  margin-top: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
+/* 待入库与受保护章节单元格 (Claude Refined Pending & Protection Cell) */
+.source-pending-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+/* 行内操作按钮 */
+.source-row-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all 140ms var(--ease);
+}
+
+.source-row-action-btn:hover {
+  color: var(--admin-accent);
+  background: var(--admin-accent-light);
+  border-color: rgba(217, 119, 87, 0.2);
+}
+
+/* 作品详情弹窗 (Claude Book Details Dialog) */
+.source-book-dialog [data-slot='dialog-content'] {
+  width: min(calc(100% - 2rem), 38rem);
+}
+
+.source-book-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem 1.25rem;
+  padding: 1rem 1.25rem;
+  background: var(--admin-panel-muted);
+  border-radius: var(--admin-radius);
+  border: 1px solid var(--admin-border);
+}
+
+.source-book-details-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.source-book-details-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.source-book-details-value {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.source-book-sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.source-book-source-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  background: var(--admin-table-row-hover-background);
+  border-radius: var(--admin-radius-sm);
+  border: 1px solid var(--admin-border);
+}
+
+.source-book-source-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.source-book-source-kind {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.source-book-primary-pill {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--admin-accent-light);
+  color: var(--admin-accent);
+  font-weight: 550;
+}
+
+.source-book-source-url {
+  font-size: 0.8rem;
+  color: var(--admin-accent);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono, monospace);
+}
+
+.source-book-source-url:hover {
+  text-decoration: underline;
+}
+
+.source-book-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+.source-book-actions-bar > * {
+  border-radius: var(--radius-full);
+}
+
+/* 响应式断点 */
+@media (max-width: 1100px) {
+  .source-analytics-charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .source-chart-legend,
+  .source-chart-rows {
+    padding-inline: 0.875rem;
+  }
+  .source-chart-note {
+    padding-inline: 0.875rem;
+  }
+  .source-book-details-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .source-book-actions-bar [data-slot='button'] {
+    flex: 1 1 100%;
+  }
+}
