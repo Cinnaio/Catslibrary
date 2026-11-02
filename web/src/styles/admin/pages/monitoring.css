@@ -1,751 +1,748 @@
-.admin-monitoring-page > [data-slot='tabs'] {
-  gap: 1rem;
-  min-width: 0;
-}
-
-.admin-monitoring-page [data-slot='tabs-list'] {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: 9999px;
-  background: var(--admin-panel-muted, #f8f7f3);
-  border: 1px solid var(--admin-border, #e5e3dc);
-  margin-bottom: 1.25rem;
-  width: fit-content;
-  max-width: 100%;
-}
-:root[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-list'],
-[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-list'] {
-  background: var(--admin-panel-muted, #23221f);
-  border-color: var(--admin-border, #2a2825);
-}
-.admin-monitoring-page [data-slot='tabs-trigger'] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  padding: 0.4375rem 1.125rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  border: 0;
-  background: transparent;
-  transition: all 0.15s ease;
-  cursor: pointer;
-}
-.admin-monitoring-page [data-slot='tabs-trigger'][data-state='active'] {
-  background: var(--admin-panel, #ffffff);
-  color: var(--text-primary);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.05);
-}
-:root[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-trigger'][data-state='active'],
-[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-trigger'][data-state='active'] {
-  background: #2a2926;
-  color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-.admin-monitoring-page [data-slot='tabs-trigger']:hover:not([data-state='active']) {
-  color: #d97757;
-}
-
-.admin-monitoring-page [data-slot='tabs-content'] {
-  min-width: 0;
-}
-
-/* ——— 调用与用量：Claude 极简设计规范与单层控制流 ——— */
-.calls-page {
-  gap: var(--admin-page-section-gap, 1.25rem);
-}
-
-.calls-page > [data-slot='tabs'],
-.calls-tabs {
-  display: grid;
-  gap: var(--admin-page-section-gap, 1.25rem);
-}
-
-.calls-nav-track {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.calls-nav-track [data-slot='tabs-list'] {
-  margin-bottom: 0 !important;
-}
-
-
-
-/* Claude 暖纸用量总账卡 (Warm Paper Summary Card) */
-.calls-summary-card {
-  border: 1px solid var(--admin-border, #e5e3dc);
-  border-radius: var(--admin-radius-card, 16px);
-  background: var(--admin-panel, #ffffff);
-  overflow: hidden;
-  transition: border-color 0.15s ease;
-}
-
-:root[data-theme='dark'] .calls-summary-card,
-[data-theme='dark'] .calls-summary-card {
-  border-color: var(--admin-border, #2c2b28);
-  background: var(--admin-panel, #1d1d1b);
-}
-
-.calls-summary-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.25rem;
-  padding: 1rem 1.375rem;
-  cursor: pointer;
-  user-select: none;
-  background: transparent;
-  transition: background-color 0.15s ease;
-}
-
-.calls-summary-card__header:hover {
-  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.02));
-}
-
-.calls-summary-card__title-group {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  min-width: 0;
-}
-
-.calls-summary-card__chevron {
-  flex: 0 0 auto;
-  width: 1rem;
-  height: 1rem;
-  color: var(--admin-accent, #d97757);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.calls-summary-card__chevron.is-open {
-  transform: rotate(90deg);
-}
-
-.calls-summary-card__title {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-
-.calls-summary-card__subtitle {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-.calls-summary-badges {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.calls-summary-badge {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.3125rem;
-  padding: 0.25rem 0.625rem;
-  border-radius: var(--radius-full, 9999px);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  background: var(--admin-panel-muted, #f8f7f3);
-  border: 1px solid var(--admin-border, #e5e3dc);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-:root[data-theme='dark'] .calls-summary-badge,
-[data-theme='dark'] .calls-summary-badge {
-  background: var(--admin-panel-muted, #242320);
-  border-color: var(--admin-border, #2c2b28);
-}
-
-.calls-summary-badge strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.calls-summary-card__body {
-  border-top: 1px solid var(--admin-border-subtle, var(--admin-border, #e5e3dc));
-  padding: 1.25rem;
-  background: color-mix(in srgb, var(--admin-panel) 97%, var(--admin-canvas, #faf9f5) 3%);
-}
-
-:root[data-theme='dark'] .calls-summary-card__body,
-[data-theme='dark'] .calls-summary-card__body {
-  background: color-mix(in srgb, var(--admin-panel) 97%, #141413 3%);
-}
-
-.calls-trend-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
-}
-
-.calls-sub-card {
-  border: 1px solid var(--admin-border, #e5e3dc);
-  border-radius: var(--radius-lg, 12px);
-  background: var(--admin-panel, #ffffff);
-  padding: 1.125rem 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-}
-
-:root[data-theme='dark'] .calls-sub-card,
-[data-theme='dark'] .calls-sub-card {
-  border-color: var(--admin-border, #2c2b28);
-  background: var(--admin-panel, #1d1d1b);
-}
-
-.calls-sub-card__header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.875rem;
-}
-
-.calls-sub-card__title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.calls-sub-card__meta {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.calls-sub-card__meta strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-/* 图表标题下的次级读数行：强制保持单行排布，左右卡片高度严格对齐 */
-.ai-usage-totals {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: baseline;
-  gap: 0.5rem;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  letter-spacing: -0.015em;
-  font-variant-numeric: tabular-nums;
-  margin-bottom: 0.75rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.ai-usage-totals::-webkit-scrollbar {
-  display: none;
-}
-
-.ai-usage-totals > span {
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.ai-usage-totals strong {
-  color: var(--text-primary);
-  font-size: 0.74rem;
-  font-weight: 600;
-}
-
-.ai-usage-totals__note {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.7rem;
-}
-
-.calls-chart-body {
-  min-width: 0;
-  flex: 1;
-}
-
-.calls-chart {
-  width: 100%;
-  height: 15rem;
-}
-
-.calls-chart-state {
-  min-height: 15rem;
-}
-
-.calls-trend-grid .admin-empty-state {
-  min-height: 15rem;
-}
-
-/* 单层控制流工具条 (Flat Control Flow Toolbar) */
-.calls-flat-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: var(--admin-control-to-card-gap, 0.75rem);
-  min-height: 2.5rem;
-}
-
-.calls-flat-toolbar__leading {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.calls-flat-toolbar__title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-
-.calls-flat-toolbar__trailing {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-/* AI 调用记录表：Claude 纸白作业台精修与展开档案卡 */
-.ai-audit-panel {
-  border-radius: var(--admin-radius-card, 16px);
-  background: var(--admin-panel, #ffffff);
-}
-
-.ai-audit-panel .admin-data-table th {
-  background: var(--admin-table-header-background, #f6f4ed);
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.02em;
-  padding-block: 0.75rem;
-}
-
-:root[data-theme='dark'] .ai-audit-panel .admin-data-table th {
-  background: #232220;
-}
-
-.ai-audit-panel .admin-data-table td {
-  padding-block: 0.8125rem;
-  vertical-align: middle;
-}
-
-/* 展开行容器：完全扁平纸感展开，消除多层嵌套与浮动卡片割裂感 */
-.ai-audit-panel .ai-audit-row--expanded td {
-  background: var(--admin-panel-muted, #f8f7f3);
-  border-bottom: 1px dashed var(--admin-border-subtle, var(--admin-border, #e5e3dc)) !important;
-}
-
-.ai-audit-panel .ai-audit-row--detail td {
-  background: var(--admin-panel-muted, #f8f7f3);
-  padding: 1.125rem 1.5rem 1.25rem 3.5rem;
-  border-top: 0 !important;
-  vertical-align: top;
-}
-
-:root[data-theme='dark'] .ai-audit-panel .ai-audit-row--expanded td,
-:root[data-theme='dark'] .ai-audit-panel .ai-audit-row--detail td,
-[data-theme='dark'] .ai-audit-panel .ai-audit-row--expanded td,
-[data-theme='dark'] .ai-audit-panel .ai-audit-row--detail td {
-  background: #1b1a18;
-  border-bottom-color: #2c2b27 !important;
-}
-
-.ai-audit-detail-sheet {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-/* 1. 扁平指标排：纯文字排版，无多余灰色胶囊容器 */
-.ai-audit-detail-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.875rem 2rem;
-}
-
-.ai-audit-detail-metric {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.ai-audit-detail-metric__label {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
-
-.ai-audit-detail-metric__value {
-  font-size: 0.875rem;
-  font-family: var(--font-mono, monospace);
-  font-weight: 500;
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
-}
-
-.ai-audit-detail-metric__value.is-accent {
-  color: var(--admin-accent, #c96442);
-  font-weight: 600;
-}
-
-/* 2. 详细元数据网格：去输入框化，自然等宽与文字键值 */
-.ai-audit-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.75rem 1.75rem;
-  padding-top: 0.875rem;
-  border-top: 1px solid var(--admin-border-subtle, var(--admin-border, #e5e3dc));
-}
-
-:root[data-theme='dark'] .ai-audit-detail-grid {
-  border-top-color: #2c2b27;
-}
-
-.ai-audit-detail-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.ai-audit-detail-field__label {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
-
-.ai-audit-detail-field__value {
-  font-size: 0.75rem;
-  color: var(--text-primary);
-  line-height: 1.4;
-}
-
-/* 3. 底部审计附注 */
-.ai-audit-detail-note {
-  margin: 0;
-  font-size: 0.7rem;
-  line-height: 1.5;
-  color: var(--text-muted);
-  opacity: 0.85;
-}
-
-@media (min-width: 1181px) {
-  .calls-trend-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 900px) {
-  .ai-usage-totals {
-    padding-inline: 1rem;
-  }
-  .calls-audit-scroll-hint {
-    display: block;
-    margin: 0 1rem 0.75rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-}
-@media (max-width: 640px) {
-  .admin-monitoring-page .ai-usage-card .admin-panel-heading {
-    flex-direction: row;
-  }
-  .admin-monitoring-page .ai-usage-card .admin-panel-heading__copy {
-    flex: 1;
-  }
-  .admin-monitoring-page .ai-usage-card .admin-panel-heading__actions {
-    width: auto;
-    flex: 0 0 auto;
-  }
-  .calls-audit-scope {
-    width: 100%;
-    margin-left: 0;
-  }
-  .calls-chart-body {
-    padding-inline: 0.5rem;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .admin-monitoring-trends > summary svg {
-    transition: none;
-  }
-}
-
-.admin-monitoring-trends > summary:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
-}
-
-.admin-monitoring-trends[open] > summary {
-  margin-bottom: 0.5rem;
-}
-/* ——— 任务中心：Claude 极简设计语言与单层控制流规范 ——— */
-.task-center-page {
-  gap: var(--admin-page-section-gap, 1.25rem);
-}
-
-.task-center-page > [data-slot='tabs'],
-.task-center-tabs {
-  display: grid;
-  gap: var(--admin-page-section-gap, 1.25rem);
-}
-
-.task-center-nav-track {
-  margin: 0;
-}
-
-.task-center-nav-track [data-slot='tabs-list'],
-.task-center-page .task-center-nav-track [data-slot='tabs-list'] {
-  margin-bottom: 0 !important;
-}
-
-.task-center-page [data-slot='tabs-content'] {
-  margin: 0;
-  padding: 0;
-}
-
-.task-center-page [data-slot='tabs-content'].ai-admin-page {
-  display: block;
-}
-
-
-/* 工具条与胶囊筛选轨道 (Claude Flat Filter Rail) */
-.task-workspace-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  margin-bottom: var(--admin-control-to-card-gap, 1rem) !important;
-  min-height: var(--admin-control-height, 2.5rem);
-}
-
-.task-workspace-toolbar .admin-filter-chips {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-.task-workspace-alert-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0 0.75rem;
-  height: var(--admin-filter-chip-height, 2.5rem);
-  border-radius: var(--radius-full, 9999px);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #bf5333;
-  background: rgba(217, 119, 87, 0.08);
-  border: 1px solid rgba(217, 119, 87, 0.2);
-  transition: all 0.15s ease;
-}
-
-.task-workspace-alert-badge:hover {
-  background: rgba(217, 119, 87, 0.14);
-  border-color: rgba(217, 119, 87, 0.35);
-}
-
-:root[data-theme='dark'] .task-workspace-alert-badge,
-[data-theme='dark'] .task-workspace-alert-badge {
-  color: #e08b6d;
-  background: rgba(217, 119, 87, 0.12);
-  border-color: rgba(217, 119, 87, 0.3);
-}
-
-:root[data-theme='dark'] .task-workspace-alert-badge:hover,
-[data-theme='dark'] .task-workspace-alert-badge:hover {
-  background: rgba(217, 119, 87, 0.2);
-  border-color: rgba(217, 119, 87, 0.45);
-}
-
-
-/* 纯净纸白作业台数据面板 (Claude Calm Paper Data Panel)
-   任务中心与调用与用量共用：两页的 AdminPage 都带 admin-monitoring-page。 */
-.admin-monitoring-page .admin-data-panel {
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-data-panel-radius);
-  background: var(--admin-table-background);
-  box-shadow: none;
-  overflow: hidden;
-}
-
-:root[data-theme='dark'] .admin-monitoring-page .admin-data-panel,
-[data-theme='dark'] .admin-monitoring-page .admin-data-panel {
-  border-color: var(--admin-border);
-  background: var(--admin-table-background);
-}
-
-.task-workspace-title {
-  font-size: 0.875rem;
-  font-weight: 550;
-  color: var(--text-primary);
-  line-height: 1.4;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.task-workspace-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  margin-top: 0.25rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  white-space: normal;
-}
-
-.task-workspace-id {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-  background: var(--admin-panel-muted, #f8f7f3);
-  border: 1px solid var(--admin-border, #e5e3dc);
-  padding: 0.0625rem 0.3125rem;
-  border-radius: 4px;
-  overflow-wrap: anywhere;
-}
-
-:root[data-theme='dark'] .task-workspace-id,
-[data-theme='dark'] .task-workspace-id {
-  background: var(--admin-panel-muted, #23221f);
-  border-color: var(--admin-border, #2a2825);
-}
-
-.task-workspace-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 0;
-  white-space: normal;
-  font-variant-numeric: tabular-nums;
-}
-
-.task-workspace-error {
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--color-danger, #d9534f);
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.task-workspace-link {
-  color: var(--admin-accent, #d97757);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  text-align: left;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--admin-accent, #d97757) 40%, transparent);
-  text-underline-offset: 3px;
-  transition: all 0.15s ease;
-}
-
-.task-workspace-link:hover {
-  color: #bf5333;
-  text-decoration-color: currentColor;
-}
-
-.task-workspace-link:focus-visible {
-  outline: 2px solid var(--admin-accent, #d97757);
-  outline-offset: 3px;
-  border-radius: 2px;
-}
-
-.task-workspace-footnote {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  line-height: 1.6;
-  margin-top: 0.75rem;
-  padding-inline: 0.25rem;
-}
-
-.task-workspace-details {
-  display: grid;
-  grid-template-columns: 6.5rem minmax(0, 1fr);
-  row-gap: 0.75rem;
-  column-gap: 1rem;
-  font-size: 0.8125rem;
-  padding-block: 0.25rem;
-}
-
-.task-workspace-details dt {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1.5;
-}
-
-.task-workspace-details dd {
-  margin: 0;
-  color: var(--text-primary);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-
-@media (max-width: 640px) {
-  .task-workspace-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  .task-workspace-toolbar .admin-filter-chips {
-    width: 100%;
-    margin-left: 0;
-    justify-content: flex-start;
-  }
-}
-
-.admin-panel-status {
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--radius-full, 9999px);
-  padding: 2px 10px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border: 1px solid var(--admin-border, #e5e3dc);
-  background: var(--admin-panel-muted, #f8f7f3);
-  color: var(--text-muted);
-}
-
-:root[data-theme='dark'] .admin-panel-status,
-[data-theme='dark'] .admin-panel-status {
-  border-color: var(--admin-border, #2a2825);
-  background: var(--admin-panel-muted, #23221f);
-}
-
-.admin-panel-status.is-error {
-  color: #bf5333;
-  border-color: rgba(217, 119, 87, 0.25);
-  background: rgba(217, 119, 87, 0.1);
-}
-
-.task-workspace-toolbar button {
-  border-radius: var(--radius-full, 9999px);
-}
+.admin-monitoring-page > [data-slot='tabs'] {
+  gap: 1rem;
+  min-width: 0;
+}
+
+.admin-monitoring-page [data-slot='tabs-list'] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, #f8f7f3);
+  border: 1px solid var(--admin-border, #e5e3dc);
+  margin-bottom: 1.25rem;
+  width: fit-content;
+  max-width: 100%;
+}
+:root[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-list'],
+[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-list'] {
+  background: var(--admin-panel-muted, #23221f);
+  border-color: var(--admin-border, #2a2825);
+}
+.admin-monitoring-page [data-slot='tabs-trigger'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0.4375rem 1.125rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: 0;
+  background: transparent;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.admin-monitoring-page [data-slot='tabs-trigger'][data-state='active'] {
+  background: var(--admin-panel, #ffffff);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.05);
+}
+:root[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-trigger'][data-state='active'],
+[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-trigger'][data-state='active'] {
+  background: #2a2926;
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.admin-monitoring-page [data-slot='tabs-trigger']:hover:not([data-state='active']) {
+  color: #d97757;
+}
+
+.admin-monitoring-page [data-slot='tabs-content'] {
+  min-width: 0;
+}
+
+/* ——— 调用与用量：Claude 极简设计规范与单层控制流 ——— */
+.calls-page {
+  gap: var(--admin-page-section-gap, 1.25rem);
+}
+
+.calls-page > [data-slot='tabs'],
+.calls-tabs {
+  display: grid;
+  gap: var(--admin-page-section-gap, 1.25rem);
+}
+
+.calls-nav-track {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.calls-nav-track [data-slot='tabs-list'] {
+  margin-bottom: 0 !important;
+}
+
+
+
+/* Claude 暖纸用量总账卡 (Warm Paper Summary Card) */
+.calls-summary-card {
+  border: 1px solid var(--admin-border, #e5e3dc);
+  border-radius: var(--admin-radius-card, 16px);
+  background: var(--admin-panel, #ffffff);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+:root[data-theme='dark'] .calls-summary-card,
+[data-theme='dark'] .calls-summary-card {
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-panel, #1d1d1b);
+}
+
+.calls-summary-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  padding: 1rem 1.375rem;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.calls-summary-card__header:hover {
+  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.02));
+}
+
+.calls-summary-card__title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.calls-summary-card__chevron {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  color: var(--admin-accent, #d97757);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.calls-summary-card__chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.calls-summary-card__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.calls-summary-card__subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.calls-summary-badges {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.calls-summary-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3125rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--admin-panel-muted, #f8f7f3);
+  border: 1px solid var(--admin-border, #e5e3dc);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+:root[data-theme='dark'] .calls-summary-badge,
+[data-theme='dark'] .calls-summary-badge {
+  background: var(--admin-panel-muted, #242320);
+  border-color: var(--admin-border, #2c2b28);
+}
+
+.calls-summary-badge strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.calls-summary-card__body {
+  border-top: 1px solid var(--admin-border-subtle, var(--admin-border, #e5e3dc));
+  padding: 1.25rem;
+  background: color-mix(in srgb, var(--admin-panel) 97%, var(--admin-canvas, #faf9f5) 3%);
+}
+
+:root[data-theme='dark'] .calls-summary-card__body,
+[data-theme='dark'] .calls-summary-card__body {
+  background: color-mix(in srgb, var(--admin-panel) 97%, #141413 3%);
+}
+
+.calls-trend-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.calls-sub-card {
+  border: 1px solid var(--admin-border, #e5e3dc);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--admin-panel, #ffffff);
+  padding: 1.125rem 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+}
+
+:root[data-theme='dark'] .calls-sub-card,
+[data-theme='dark'] .calls-sub-card {
+  border-color: var(--admin-border, #2c2b28);
+  background: var(--admin-panel, #1d1d1b);
+}
+
+.calls-sub-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
+}
+
+.calls-sub-card__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.calls-sub-card__meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.calls-sub-card__meta strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* 图表标题下的次级读数行：强制保持单行排布，左右卡片高度严格对齐 */
+.ai-usage-totals {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ai-usage-totals::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-usage-totals > span {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ai-usage-totals strong {
+  color: var(--text-primary);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.ai-usage-totals__note {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+}
+
+.calls-chart-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.calls-chart {
+  width: 100%;
+  height: 15rem;
+}
+
+.calls-chart-state {
+  min-height: 15rem;
+}
+
+.calls-trend-grid .admin-empty-state {
+  min-height: 15rem;
+}
+
+/* 单层控制流工具条 (Flat Control Flow Toolbar) */
+.calls-flat-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: var(--admin-control-to-card-gap, 0.75rem);
+  min-height: 2.5rem;
+}
+
+.calls-flat-toolbar__leading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.calls-flat-toolbar__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.calls-flat-toolbar__trailing {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+/* AI 调用记录表：Claude 纸白作业台精修与展开档案卡 */
+.ai-audit-panel {
+  border-radius: var(--admin-radius-card, 16px);
+  background: var(--admin-panel, #ffffff);
+}
+
+.ai-audit-panel .admin-data-table th {
+  background: var(--admin-table-header-background, #f6f4ed);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  padding-block: 0.75rem;
+}
+
+:root[data-theme='dark'] .ai-audit-panel .admin-data-table th {
+  background: #232220;
+}
+
+.ai-audit-panel .admin-data-table td {
+  padding-block: 0.8125rem;
+  vertical-align: middle;
+}
+
+/* 展开行容器：完全扁平纸感展开，消除多层嵌套与浮动卡片割裂感 */
+.ai-audit-panel .ai-audit-row--expanded td {
+  background: var(--admin-panel-muted, #f8f7f3);
+  border-bottom: 1px dashed var(--admin-border-subtle, var(--admin-border, #e5e3dc)) !important;
+}
+
+.ai-audit-panel .ai-audit-row--detail td {
+  background: var(--admin-panel-muted, #f8f7f3);
+  padding: 1.125rem 1.5rem 1.25rem 3.5rem;
+  border-top: 0 !important;
+  vertical-align: top;
+}
+
+:root[data-theme='dark'] .ai-audit-panel .ai-audit-row--expanded td,
+:root[data-theme='dark'] .ai-audit-panel .ai-audit-row--detail td,
+[data-theme='dark'] .ai-audit-panel .ai-audit-row--expanded td,
+[data-theme='dark'] .ai-audit-panel .ai-audit-row--detail td {
+  background: #1b1a18;
+  border-bottom-color: #2c2b27 !important;
+}
+
+.ai-audit-detail-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 1. 扁平指标排：纯文字排版，无多余灰色胶囊容器 */
+.ai-audit-detail-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.875rem 2rem;
+}
+
+.ai-audit-detail-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ai-audit-detail-metric__label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.ai-audit-detail-metric__value {
+  font-size: 0.875rem;
+  font-family: var(--font-mono, monospace);
+  font-weight: 500;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-audit-detail-metric__value.is-accent {
+  color: var(--admin-accent, #c96442);
+  font-weight: 600;
+}
+
+/* 2. 详细元数据网格：去输入框化，自然等宽与文字键值 */
+.ai-audit-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem 1.75rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--admin-border-subtle, var(--admin-border, #e5e3dc));
+}
+
+:root[data-theme='dark'] .ai-audit-detail-grid {
+  border-top-color: #2c2b27;
+}
+
+.ai-audit-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.ai-audit-detail-field__label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.ai-audit-detail-field__value {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+/* 3. 底部审计附注 */
+.ai-audit-detail-note {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+@media (min-width: 1181px) {
+  .calls-trend-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .ai-usage-totals {
+    padding-inline: 1rem;
+  }
+  .calls-audit-scroll-hint {
+    display: block;
+    margin: 0 1rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+}
+@media (max-width: 640px) {
+  .admin-monitoring-page .ai-usage-card .admin-panel-heading {
+    flex-direction: row;
+  }
+  .admin-monitoring-page .ai-usage-card .admin-panel-heading__copy {
+    flex: 1;
+  }
+  .admin-monitoring-page .ai-usage-card .admin-panel-heading__actions {
+    width: auto;
+    flex: 0 0 auto;
+  }
+  .calls-audit-scope {
+    width: 100%;
+    margin-left: 0;
+  }
+  .calls-chart-body {
+    padding-inline: 0.5rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-monitoring-trends > summary svg {
+    transition: none;
+  }
+}
+
+.admin-monitoring-trends > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.admin-monitoring-trends[open] > summary {
+  margin-bottom: 0.5rem;
+}
+/* ——— 任务中心：Claude 极简设计语言与单层控制流规范 ——— */
+.task-center-page {
+  gap: var(--admin-page-section-gap, 1.25rem);
+}
+
+.task-center-page > [data-slot='tabs'],
+.task-center-tabs {
+  display: grid;
+  gap: var(--admin-page-section-gap, 1.25rem);
+}
+
+.task-center-nav-track {
+  margin: 0;
+}
+
+.task-center-nav-track [data-slot='tabs-list'],
+.task-center-page .task-center-nav-track [data-slot='tabs-list'] {
+  margin-bottom: 0 !important;
+}
+
+.task-center-page [data-slot='tabs-content'] {
+  margin: 0;
+  padding: 0;
+}
+
+.task-center-page [data-slot='tabs-content'].ai-admin-page {
+  display: block;
+}
+
+
+/* 工具条与胶囊筛选轨道 (Claude Flat Filter Rail) */
+.task-workspace-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  margin-bottom: var(--admin-control-to-card-gap, 1rem) !important;
+  min-height: var(--admin-control-height, 2.5rem);
+}
+
+.task-workspace-toolbar .admin-filter-chips {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.task-workspace-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0.75rem;
+  height: var(--admin-filter-chip-height, 2.5rem);
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #bf5333;
+  background: rgba(217, 119, 87, 0.08);
+  border: 1px solid rgba(217, 119, 87, 0.2);
+  transition: all 0.15s ease;
+}
+
+.task-workspace-alert-badge:hover {
+  background: rgba(217, 119, 87, 0.14);
+  border-color: rgba(217, 119, 87, 0.35);
+}
+
+:root[data-theme='dark'] .task-workspace-alert-badge,
+[data-theme='dark'] .task-workspace-alert-badge {
+  color: #e08b6d;
+  background: rgba(217, 119, 87, 0.12);
+  border-color: rgba(217, 119, 87, 0.3);
+}
+
+:root[data-theme='dark'] .task-workspace-alert-badge:hover,
+[data-theme='dark'] .task-workspace-alert-badge:hover {
+  background: rgba(217, 119, 87, 0.2);
+  border-color: rgba(217, 119, 87, 0.45);
+}
+
+
+/* 纯净纸白作业台数据面板 (Claude Calm Paper Data Panel)
+   任务中心与调用与用量共用：两页的 AdminPage 都带 admin-monitoring-page。 */
+.admin-monitoring-page .admin-data-panel {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-data-panel-radius);
+  background: var(--admin-table-background);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+:root[data-theme='dark'] .admin-monitoring-page .admin-data-panel,
+[data-theme='dark'] .admin-monitoring-page .admin-data-panel {
+  border-color: var(--admin-border);
+  background: var(--admin-table-background);
+}
+
+.task-workspace-title {
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--text-primary);
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.task-workspace-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: normal;
+}
+
+.task-workspace-id {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  background: var(--admin-panel-muted, #f8f7f3);
+  border: 1px solid var(--admin-border, #e5e3dc);
+  padding: 0.0625rem 0.3125rem;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+:root[data-theme='dark'] .task-workspace-id,
+[data-theme='dark'] .task-workspace-id {
+  background: var(--admin-panel-muted, #23221f);
+  border-color: var(--admin-border, #2a2825);
+}
+
+.task-workspace-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  white-space: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-workspace-error {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-danger, #d9534f);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.task-workspace-link {
+  color: var(--admin-accent, #d97757);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--admin-accent, #d97757) 40%, transparent);
+  text-underline-offset: 3px;
+  transition: all 0.15s ease;
+}
+
+.task-workspace-link:hover {
+  color: #bf5333;
+  text-decoration-color: currentColor;
+}
+
+.task-workspace-link:focus-visible {
+  outline: 2px solid var(--admin-accent, #d97757);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.task-workspace-footnote {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-top: 0.75rem;
+  padding-inline: 0.25rem;
+}
+
+.task-workspace-details {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  row-gap: 0.75rem;
+  column-gap: 1rem;
+  font-size: 0.8125rem;
+  padding-block: 0.25rem;
+}
+
+.task-workspace-details dt {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.task-workspace-details dd {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+
+@media (max-width: 900px) {
+  .task-workspace-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem !important;
+    min-height: 0;
+  }
+}
+
+.admin-panel-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full, 9999px);
+  padding: 2px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--admin-border, #e5e3dc);
+  background: var(--admin-panel-muted, #f8f7f3);
+  color: var(--text-muted);
+}
+
+:root[data-theme='dark'] .admin-panel-status,
+[data-theme='dark'] .admin-panel-status {
+  border-color: var(--admin-border, #2a2825);
+  background: var(--admin-panel-muted, #23221f);
+}
+
+.admin-panel-status.is-error {
+  color: #bf5333;
+  border-color: rgba(217, 119, 87, 0.25);
+  background: rgba(217, 119, 87, 0.1);
+}
+
+.task-workspace-toolbar button {
+  border-radius: var(--radius-full, 9999px);
+}

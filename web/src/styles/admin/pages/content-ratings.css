@@ -1559,3 +1559,14 @@
     width: 100%;
   }
 }
+
+@media (max-width: 900px) {
+  .content-ratings-ledger .admin-data-table thead {
+    display: none !important;
+  }
+
+  .content-ratings-filter-rail {
+    margin-bottom: 0.625rem !important;
+    min-height: 0 !important;
+  }
+}

@@ -395,7 +395,7 @@ export default function NovelsTab({
       }
     >
       {/* Claude 风格全要素胶囊筛选轨道 */}
-      <AdminToolbar layout="inline" className="novels-filter-rail">
+      <AdminToolbar layout="inline" className="admin-filter-rail novels-filter-rail">
         <AdminSearch
           id="novel-search"
           label="搜索小说"

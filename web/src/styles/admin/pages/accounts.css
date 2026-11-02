@@ -313,6 +313,12 @@
   .account-users-filters__hint {
     display: none;
   }
+  .admin-filter-rail.account-users-filters,
+  .admin-filter-rail.account-audit-filters,
+  .admin-filter-rail.account-invite-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 @media (max-width: 480px) {
   .account-users-panel .account-users-filters {

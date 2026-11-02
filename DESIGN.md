@@ -1,891 +1,919 @@
----
-name: 知舟 (Zhi Zhou)
-description: AI 中文小说阅读站 — 温暖纸质感的沉浸式书库
-colors:
-  primary: "#8B6045"
-  primary-deep: "#74503A"
-  primary-light: "#F0E6D6"
-  primary-subtle: "#F8F3EC"
-  surface: "#FFFFFF"
-  toast-paper: "color-mix(in srgb, #FFFFFF 92%, #F8F3EC 8%)"
-  surface-warm: "#F6F4F1"
-  surface-hover: "#F5F2EE"
-  text-primary: "#211E1A"
-  text-secondary: "#5B554E"
-  text-muted: "#736D65"
-  border: "#ECE8E2"
-  border-light: "#F3F0EB"
-  focus-ring: "rgba(139, 96, 69, 0.24)"
-  success: "#4F7A52"
-  warning: "#B07C2F"
-  danger: "#BE123C"
-  seal: "#b8453a"
-  dark-surface: "#1B1C20"
-  dark-surface-warm: "#24252A"
-  dark-surface-card: "#2A2B31"
-  dark-text: "#E7E0D6"
-  dark-accent: "#BF8F52"
-  dark-border: "#3B3C43"
-typography:
-  heading:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
-    fontWeight: 700
-  body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
-    fontSize: "16px"
-    fontWeight: 400
-    lineHeight: 1.6
-  serif:
-    fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
-  home-title:
-    fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
-    fontSize: "2rem"
-    fontWeight: 500
-    lineHeight: 1.5
-    letterSpacing: "-0.02em"
-  home-title-mobile:
-    fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
-    fontSize: "1.55rem"
-    fontWeight: 500
-    lineHeight: 1.5
-  mono:
-    fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace"
-  # 枚举字号阶（机器可读字阶）。命名语义见正文 Typography 一节。
-  scale:
-    label-sm: "0.7rem"        # 11.2px 导航分组标签/后台 kicker（紧凑档下限）
-    table-head: "0.72rem"     # 11.52px 表头/指标条标签
-    label: "0.75rem"          # 12px 计数胶囊/元信息
-    caption: "0.78rem"        # 12.5px 发现卡作者/描述
-    body-compact: "0.8rem"    # 12.8px 表单标签/分页/排序
-    body-sm: "0.875rem"       # 14px 辅助文字/面板标题/页头描述
-    select-trigger: "0.9rem"  # 14.4px 下拉触发
-    card-title: "0.95rem"     # 15.2px 发现卡标题
-    novel-card-title: "0.875rem" # 14px 公共小说卡片书名
-    novel-card-meta: "0.75rem" # 12px 公共小说卡片作者/状态/简介
-    novel-card-footer: "0.7rem" # 11.2px 公共小说卡片分类/时间
-    body: "1rem"              # 16px 正文/品牌标记/队列摘要数值
-    modal-title: "1.15rem"    # 18.4px 弹窗标题
-    panel-title: "1rem"       # 16px 后台卡片标题（小于 20px 页标题）
-    stat: "1.45rem"           # 23.2px 指标条数值（AdminMetricStrip）——已全站停用，勿用于新页面
-    page-title: "1.25rem"        # 20px 后台页标题固定字号
-    hero-min: "1.35rem"       # 21.6px 公开页 hero clamp 下限
-    hero-max: "1.9rem"        # 30.4px 公开页 hero clamp 上限
-    display: "2rem"           # 32px h1
-    # 阅读表面专属档（reader.css）。刻意高于后台紧凑字阶——长时间阅读优先舒适度。
-    reader-body: "1.1rem"          # 17.6px 阅读器正文（移动端降到 body 1rem）
-    reader-glyph: "1.35rem"        # 21.6px 阅读器图标按钮字符 / 移动端章节标题
-    reader-title: "1.75rem"       # 28px / 500 章节标题；移动端 reader-glyph 1.35rem
-rounded:
-  sm: "6px"              # --radius-sm — 公共页控件
-  base: "8px"            # --radius — 全局基础圆角
-  md: "10px"             # --radius-md — 紧凑控件/卡片；也是 shadcn 桥接层 --sh-radius
-  lg: "12px"             # --radius-lg — 后台控件与分段 tabs 药丸
-  xl: "16px"             # --radius-xl — 嵌套表面/对话框/shadcn Card
-  2xl: "20px"            # --radius-2xl — 后台大面板/数据面板/后台卡片
-  full: "9999px"
-  reader-paper: "16px"   # 阅读纸面与通用 xl 同档；见 --reader-radius-paper
-spacing:
-  xs: "4px"
-  sm: "8px"
-  md: "16px"
-  lg: "24px"
-  xl: "32px"
-  2xl: "48px"
-  page-end-mobile: "24px + safe-area-inset-bottom"
-components:
-  novel-card-typography:
-    titleSize: "0.875rem"
-    metaSize: "0.75rem"
-    descriptionSize: "0.75rem"
-    footerSize: "0.7rem"
-  home-library-card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.xl}"
-    padding: "24px"
-  home-search:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.lg}"
-    width: "620px"
-    height: "60px"
-  toast-feedback:
-    backgroundColor: "{colors.toast-paper}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.lg}"
-    padding: "14px 16px"
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.sm}"
-    padding: "8px 16px"
-  button-secondary:
-    backgroundColor: "{colors.surface-warm}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.sm}"
-    padding: "8px 16px"
-  button-ghost:
-    backgroundColor: "transparent"
-    textColor: "{colors.text-secondary}"
-    rounded: "{rounded.sm}"
-    padding: "8px 8px"
-  card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.xl}"
-    padding: "24px"
-  input:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.sm}"
-    padding: "8px 12px"
-  reader-paper:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text-primary}"
-    rounded: "{rounded.reader-paper}"
-    padding: "44px 40px"
----
-
-# Design System: 知舟 (Zhi Zhou)
-
-## Overview
-
-**Creative North Star: "The Paper Sanctuary"**
-
-知舟的设计语言来自一个简单的感觉：在温暖的光线下翻阅纸质书。界面是安静的，像书房里被台灯照亮的纸页——没有刺眼的对比，没有冰冷的玻璃感，只有柔和的奶油色地面和深沉的墨色文字。这不是一个"科技产品"的界面，而是一个"阅读空间"的界面。
-
-色彩来自奶茶和旧书页：暖棕作为唯一的强调色（像书脊上的烫金字），大面积使用接近白色的暖灰和奶油色作为呼吸空间。阴影克制而自然，像纸页层叠投下的微光。组件有微妙的触觉感——圆润但不幼稚，边框细致如精装书的切边。
-
-系统里有两种读者：沉浸的阅读者和高效的运营者。公共阅读页服务于前者，管理后台服务于后者。两者共享同一套色调、字体和材质，但密度完全不同——后台把信息压到紧凑档以便扫描，阅读页把字号放大到舒适档以便久读。两种模式的边界是明确的，字阶与间距各自成档、互不外溢。
-
-**Key Characteristics:**
-- 奶茶色暖调贯穿，拒绝冷色和高饱和度
-- 纸质感地面（接近白色的暖灰），文字如墨迹
-- 阴影极简，依赖色调层次而非投影创造深度
-- 系统字体 + 衬线字体用于阅读场景
-- 组件触感温暖，圆角适度，像精心制作的文具
-- 后台是同一世界的紧凑档：同一套 token，更高的信息密度
-
-## Colors
-
-暖调奶茶色板，以唯一的棕色强调色（#8B6045）锚定视觉重心，大面积中性暖灰提供呼吸空间。
-
-### Primary
-- **Milk-Tea Brown** (#8B6045): 强调色，用于链接、按钮、活跃状态、品牌标记。像精装书封面上的烫金字——稀有而有分量。
-- **Espresso Ink** (#211E1A): 正文主色，接近深棕黑。用于标题和正文，不是纯黑而是带暖调的墨色。
-
-### Neutral
-- **Clean Paper** (#FFFFFF): 最浅的纸面，用于卡片和弹层背景。
-- **Warm Linen** (#F6F4F1): 微暖的灰白，用于页面地面和次级背景。
-- **Hover Tint** (#F5F2EE): 悬停态背景，比 Warm Linen 再暖一度。
-- **Faded Parchment** (#9A938A): 弱化文字的历史值。当前 `--text-muted` 是 #736D65（白底 5.11:1），刻意加深以满足 AA——不要再改回更浅的 #9A938A。
-- **Warm Gray-Brown** (#5B554E): 次要文字，用于非强调的说明文字。
-- **Border Mist** (#ECE8E2): 边框和分隔线，极淡的暖灰。
-- **Border Frost** (#F3F0EB): 比 Border Mist 更淡，用于表格行内侧分隔。
-
-### Admin Surfaces & Claude (Anthropic) Aesthetic
-管理后台遵循 Claude (Anthropic) 视觉设计语言，与公开前台（保持奶茶纸质书房沉浸感）形成明确隔离：
-后台聚焦于**温润橄榄炭黑/象牙羊皮纸、陶土红品牌色（Terracotta #D97757）、大圆角胶囊药丸（Pill shape）与人文杂志式排版**。它们统一定义在 `web/src/styles/admin/tokens.css` 及 `admin/components/`，不污染公开前台全局 token。
-
-- **Admin Accent (Terracotta #D97757):** 后台核心行动强调色（按钮、高光、聚焦环、排序活动态）。Hover 为加深陶土色 `#C56344`，弱态为 `rgba(217, 119, 87, 0.12)`。
-- **Admin Canvas:** 后台画布底色 `--admin-canvas`。暗色模式采用 Claude 标志性的温润近黑/橄榄炭黑 `#141413`，亮色模式采用象牙米白羊皮纸 `#FAF9F5`，避免生硬数码黑白。
-- **Admin Panel:** 普通面板与数据卡片的表面基色 `--admin-panel`。暗色采用 `#1D1D1B`，亮色采用高质感纸白 `#FFFFFF`。
-- **Admin Table Background:** 表格与数据面板容器使用 `--admin-table-background`，暗色为 `#1D1D1B`，亮色为 `#FFFFFF`，外框使用 16px 圆角（`var(--admin-table-panel-radius)`）。
-- **Admin Table Header:** 表头底色 `--admin-table-header-background`，暗色为 `#232220`，亮色为 `#F6F4ED`，字号清秀（0.74rem）、舒展字间距（0.04em）、中性弱化色，克制典雅。
-- **Admin Panel Muted:** 次级表面、胶囊底色 `--admin-panel-muted`，暗色为 `#242320`，亮色为 `#F6F4ED`。
-- **Admin Sidebar:** 侧栏底色 `--admin-sidebar`，暗色为 `#191917`，亮色为 `#F5F3EC`。导航项采用圆润药丸悬停与活动态（陶土红弱底 + 陶土红字墨）。
-- **Admin Border:** 细柔的 Hairline 边界线 `--admin-border`，暗色为 `#2C2B28`，亮色为 `#E6E4DC`。
-- **Admin Border Strong:** 强边界线 `--admin-border-strong`，暗色为 `#383733`，亮色为 `#D5D2C7`。
-- **Pill Shape Geometry:** 后台主次按钮、搜索输入框、筛选胶囊（Filter Chip）、批量操作条（Selection Bar）、状态与分级徽章统一采用全圆角胶囊药丸（`var(--radius-full)` 9999px）。
-- **Spacious Table Rhythm:** 表格普通行高舒展至 3.5rem（56px），行底部分割线采用 `--c-border-subtle`，悬停为柔和的陶土漫反射暖光（暗色 `rgba(217, 119, 87, 0.05)`，亮色 `#F8F6F0`）。
-- **Low-Saturation Semantic Badges:** 连载状态使用草木冷绿（#85BF8E 暗 / #3D7346 亮），完结状态使用暖石板灰，限制级使用柔和陶土粉（#E58B70 暗 / #BF5333 亮），杜绝高饱和亮红大绿。
-
-### Floating Dock Pattern (Claude 悬浮胶囊岛屿与进退场动效)
-
-后台批量选择操作（`AdminSelectionBar`）与 AI 参数保存操作共用 `AdminFloatingDock` 的**底部视口悬浮胶囊岛屿（Floating Pill Dock）**。共享外壳负责定位、暖纸材质、按钮几何和动效，业务组件负责状态文案、动作、提交及显示周期：
-
-1. **零布局跳动（Zero Layout Shift）：**
-   - 采用 `position: fixed; bottom: calc(2rem + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 50;` 悬浮吸附于视口底部中央；900px 及以下底距为 1rem 加安全区；
-   - 彻底解除与表格工具栏、数据面板的垂直高度绑定，无论用户在表格任意位置滚动或跨分页浏览，操作岛屿始终平稳跟随视线，不引发任何页面布局回流或表头抖动。
-2. **材质、层次与几何形态：**
-   - **全圆角药丸**：桌面外框、内嵌操作按钮与计数徽章使用 `--admin-button-radius`（9999px）；900px 及以下外框使用 `--admin-selection-mobile-radius`（24px），允许操作换行，内部按钮仍为胶囊；
-   - **毛玻璃暖纸表面**：背景使用高透暖白/炭黑混合色（亮色 `color-mix(in srgb, var(--admin-panel) 88%, transparent)`，暗色 `color-mix(in srgb, var(--admin-panel) 92%, transparent)`），配合 16px 毛玻璃（`backdrop-filter: blur(16px)`）；
-   - **双层漫反射落影**：亮色 `0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.08)`；暗色 `0 16px 40px -4px rgba(0, 0, 0, 0.5)`，提供强烈的空间立体纵深；
-   - **陶土红计数指示**：左侧已选项计数使用陶土红弱底（亮色 12%、暗色 18%）与 `--admin-selection-count-foreground`；文字由强调色和正文色混合加深或提亮，保证小字号可读性。
-3. **物理阻尼进退场动效（Entrance & Exit Motion Physics）：**
-   - **进入动效（Enter）**：从视口底部平滑弹起并微放大。时长 `0.28s`，运动曲线为 Claude 标志性物理阻尼弹簧 `cubic-bezier(0.16, 1, 0.3, 1)`（`translate(-50%, 28px) scale(0.94) -> translate(-50%, 0) scale(1)`）；
-   - **退出动效（Exit）**：当勾选清空或取消选择（`count` 归零）时，组件内部通过退出状态机保留当前渲染镜像，执行平滑下沉与消散动效。时长 `0.22s`，运动曲线为减速缓冲 `cubic-bezier(0.4, 0, 0.2, 1)`（`translate(-50%, 0) scale(1) -> translate(-50%, 24px) scale(0.94)`），并在退出期间通过 `pointer-events: none` 锁闭事件防止误触；
-   - **动态偏好减弱适配**：`@media (prefers-reduced-motion: reduce)` 下位移与形变关闭，组件仅保留最多0.15s的透明度变化；全站 `base.css` 的减弱动态守卫会进一步收敛到0.001ms，实际页面近乎即时切换。
-4. **组件生命周期与消费契约：**
-   - 页面消费端（如 `NovelsTab`, `ChaptersTab`, `ContentRatingsTab` 的 LLM 建议审查）直接常驻渲染 `<AdminSelectionBar count={selected.size} ... />`，禁止在外层使用 `{count > 0 && <AdminSelectionBar />}` 短路包裹，进退场动效完全由组件内置缓冲状态机与定时器驱动闭环。
-5. **岛内按钮统一契约（2026-10-14）：**
-   - **单一来源**：共享 `--admin-dock-*` token 位于 `admin/tokens.css`，外壳、按钮、动作分组和状态规则位于 `admin/components/floating-dock.css`；`selection.css` 仅保留批量选择的计数与清空分组。小说管理、章节管理、抓取发现、分级审核（LLM建议批量审查）和 AI 参数调优共同消费；既有 `--admin-selection-*` 几何和主操作颜色保留为兼容别名。`clearPlacement="actions"` 和 `"selection"` 的取消入口使用完全相同的尺寸规则。页面只传 `Button` 的 variant、事件和禁用态，不重复写 `h-*`、`px-*`、`text-*`、圆角、十六进制颜色或阴影。
-   - **尺寸**：桌面按钮和计数高度为 `--admin-selection-control-height`（36px）；900px 及以下或粗指针设备提升为 `--admin-selection-touch-height`（44px）。按钮的 `height` 与 `min-height` 同时设置，覆盖通用后台 40px 下限；图标按钮宽高同档。水平内边距14px，按钮间距与图文间距8px，图标16px，外框内缩8px。分别使用 `--admin-selection-padding-inline` / `gap` / `icon-size` / `inset`，禁止靠字号或按钮内容反推高度。
-   - **字阶与层级**：保留后台共享字阶和550字重：主要/危险操作14px，次要/描边/取消13px。主操作用陶土实底，次操作用中性微描边，取消用 Ghost，删除保留危险语义描边；同一岛内只突出当前主要动作。主操作颜色使用 `--admin-selection-primary-background/foreground`，亮色加深陶土底、暗色用陶土底配炭黑字，以满足小字号对比度；按钮不叠加阴影或悬停抬升。
-   - **响应式与状态**：窄屏最大宽度为视口减24px，操作组自然换行，不依赖水平滚动藏住取消或删除。禁用/处理中保留控件尺寸，统一弱化；键盘焦点使用2px陶土轮廓和2px偏移，不能被裁切。reduced motion 下关闭按钮位移和过渡，保留既有岛屿淡入淡出。
-   - **检查方法与适用边界**：修改后检查明暗主题、桌面/900px/390px/320px、粗指针、两种取消位置、图标按钮、焦点、禁用及长操作组；读取浏览器最终高度、最小高度、字号与内边距，不能只看声明值。分页与表格行内图标按钮保留各自专属尺寸 token，不套用悬浮岛规则。
-6. **持续显示的保存岛（2026-10-15）：**
-   - AI 参数页使用 `<AdminFloatingDock reserveSpace>`，随内容自然收窄并固定于视口底部中央，不使用铺满内容区的 sticky 保存长条；桌面底距32px，≤900px为16px，均叠加底部安全区。外壳内缩8px，按钮36px，≤900px或粗指针为44px，和选择岛共享相同的材质、阴影、焦点与禁用态。
-   - 状态使用 `.admin-floating-dock__status` 和 `role="status"`；未修改时显示生效值一致，有草稿时使用强调文字。动作放在 `.admin-floating-dock__actions`，保持撤销在前、保存主操作在后；≤600px状态单独占一行，动作右对齐并允许自然换行。保存中及无改动时仍显示操作岛，按钮尺寸保持稳定。
-   - 外壳留在原表单 DOM 中，保存按钮继续用原生 `type="submit"`。`reserveSpace` 通过 `ResizeObserver` 测量实际高度并预留底距和间隔，文字换行、页面缩放及安全区变化后，末尾字段仍能滚动到岛上方。分类草稿保留、撤销、隐藏分类校验与失败后保留草稿继续由页面管理。
-
-### Semantic
-- **Reading Green** (#4F7A52): 成功状态。柔和的书页绿，不刺眼。
-- **Amber Warning** (#B07C2F): 警告。旧纸般的琥珀色。
-- **Vermilion Danger** (#BE123C): 危险操作。传统朱砂红。
-- **Collector's Seal** (#b8453a): 收藏印章色，用于"已收录"标记。
-
-### Dark Theme
-暗色模式不是反转，而是"月光下的书房"：深灰地面（#1B1C20）替代白色纸面，金色强调色（#BF8F52）替代棕色，文字变为暖白（#E7E0D6）。所有语义色相应提亮。机制是 `[data-theme="dark"]`，不是 `.dark` 类；`@custom-variant dark` 只负责把它桥接给 Tailwind。
-
-### Named Rules
-**The 10% Accent Rule.** 奶茶棕色强调色在任何页面上不超过 10% 的面积。它的稀有性就是力量——读者的眼睛自然被引导到最重要的交互点。
-
-**The Derived-Surface Rule.** 后台表面永远是 `color-mix` 派生自公开色板的结果，不新开一套颜色。画布负责压低明度，表格负责承载阅读，表头和侧栏负责传递品牌——新表面要先问"它是哪两个既有 token 的混合"，答不上来就不要加。暗色主题保持相同的层级顺序，不机械反转明暗关系。
-
-## Typography
-
-**Display/Body Font:** System sans-serif stack (-apple-system, PingFang SC, Microsoft YaHei)
-**Serif Font:** Noto Serif SC / Source Han Serif SC (阅读器及已批准的公共页主标题)
-**Mono Font:** SF Mono / Fira Code / Consolas
-
-**Character:** 系统字体带来原生、安静的感觉——不抢注意力，让内容本身成为视觉主角。衬线字体在阅读器中营造纸质书的氛围。
-
-### Hierarchy
-- **Page Title** (700, `var(--admin-page-title-size)` → 20px, 1.15): 后台页标题（AdminTabHeader 的 h2），保持紧凑固定字号，`letter-spacing: -0.04em`。它是页面上最大的文字，也是唯一的页面级标题。
-- **Panel Title** (750, 1rem / 16px, 1.3): 后台卡片标题（AdminPanelHeading 的 h3），`letter-spacing: -0.03em`。必须小于 20px 页标题，卡片层级不能与页面标题持平或反超。
-- **Stat Value** (750, 1.45rem, 1): 指标条数值（AdminMetricStrip 的 strong），与 11.52px 标签形成尺寸断裂——全后台唯一的"大数字"层级。队列摘要用更小的 1rem，因为它与说明文字同处一个信息块，抬到 1.45rem 会撑破那块版面。
-- **Headline** (700, 2rem, 1.3): h1，用于页面级标题，letter-spacing: -0.02em。
-- **Title** (600, 1.3rem, 1.3): h2，段落标题。
-- **Body** (400, 16px, 1.6): 正文。行高 1.6 提供舒适的阅读节奏。
-- **Label** (750, 0.7–0.72rem, 0.08–0.1em uppercase): 分类标签。后台 kicker 用 0.72rem / 750 / 0.08em，侧栏分组标签用 0.7rem / 0.1em + uppercase。两者都压在 11px 可读下限之上，不再往下调。
-- **Compact Label Scale (Admin)** (400-750, 0.7-0.8rem): 管理后台专属的紧凑密度字号阶梯，用于 OPERATE 模式的高信息密度扫描。包括：导航分组标签 (0.7rem)、kicker (0.72rem)、表头 (0.72rem + 0.07em)、计数胶囊 (0.75rem)、元信息 (0.75rem)、分页 (0.8rem)。这一档刻意低于公开阅读界面的字号——管理控制台优先扫描效率，阅读界面优先舒适度。**对比度不可妥协**：弱化文字须满足 AA ≥4.5:1，数据读取面（表头/内容）字号 ≥11px。
-- **Reading Surface Scale (Reader)** (`reader.css`): 章节标题使用 `reader-title`（500 / 1.5），移动端使用 `reader-glyph`；取消标题 clamp 与装饰水印。正文 CSS 基线为 `reader-body` / 2.05，移动端为 body / 1.85；实际字号、行距、段距和字体由既有持久化阅读设置覆盖，不能用视觉改版重置用户选择。**这一档只在 `.reader-app` 内生效**，不得外溢到公共页或后台。
-
-后台表单标签另有 `--admin-field-label-weight: 400`——标签刻意保持常规字重，让当前选中的分段 tab 保持视觉主导；不要用加粗标签去和 tab 抢注意力。
-
-### Named Rules
-**The Content-First Rule.** 字体永远是配角。系统字体不创造风格，内容本身创造风格。阅读器使用衬线体营造沉浸；2026-10-02 用户批准的首页、书架、个人中心与小说详情也允许主标题使用现有 `--font-serif`，桌面 32px / 500 / 1.5、手机 1.55rem。小说详情手机主标题使用20px；例外限于 `Home`、`Bookshelf`、`Profile`、`Novel`，不扩展到后台或其他公共页；前言中的 `home-title` / `home-title-mobile` 记录这组共用尺寸，名称保持兼容。
-
-**The One Title Rule.** 每个可导航页面只有一个内容区主标题，由页头承担。面板标题写工作对象名（"作品目录"、"章节目录"、"审核列表"），不重复页面名。页头上方不再出现小字眉题——`AdminTabHeader` 的 `kicker` 与 `hero` 变体已退役，两个 prop 仍被接受但被忽略。标题字号膨胀和"每页一个更大的标题"都是被明确否定的方向。
-
-**The Single-Door Rule.** 一个动作只开一扇门。页头上的操作作用于整页（搜索、新建），面板工具条上的操作作用于那一份数据（筛选、批量、清除）；同一个动作在两处都出现，读者就要先判断"我点的是哪一个"。分级管理页的「刷新账本」因此只留在页头，面板内不再重复。
-
-**The No-Third-Pass Rule.** 同一个统计值在一屏里最多出现两次，并且每次都应靠近所属面板、筛选器或分页区；页名行不承载规模摘要或状态。若某个读数已在面板状态和分页区表达，就不能再另起一块表面；唯一例外是**贴在筛选器旁边的缺口读数**（「待标注 67 · 限制级 340」），因为它与下拉是同一件事的两种表达，且能被那个下拉直接筛出来。
-
-## Admin Page Anatomy
-
-后台**一个 tab 一个内容区主标题**。主标题由 `AdminTabHeader` 承担，与它下面的数据面板是两层不同职责的陈述：页头说**这是什么页**，面板标题说**这一块在干什么活**。
-
-### 页头版式：单行账本式
-
-页头是**一行**，不是两块堆叠（2026-09-25 收口，以小说管理为范本）。
-
-- **左**：`h2` 页名独占标题行，描述放在标题下方；标题后不附加规模摘要、状态小字或竖向分隔线。
-- **右**：该页的**看家动作**——搜索框与主操作按钮。桌面端 `width: fit-content` + `flex-wrap: nowrap`（标题在左、动作在右，中间留白）；900px 及以下动作区转 `width: 100%`、搜索框 `flex: 1 1 auto` 吃掉剩余宽度、按钮 `flex: 0 0 auto` 不被压缩。
-- **无底线**：`border-bottom: 0`。与面板之间的区隔靠 `.admin-redesign-page` 的 1rem grid gap，不靠分隔线。
-- **只放页面级动作**：搜索与「新建」这类作用于整页的动作归页头；筛选、批量、刷新某一份数据归面板工具条。两处都放同一个动作等于开了两扇门。
-- **标题行不承载元信息**：规模数字与只读状态放在所属面板标题栏、筛选器旁或分页区；异常状态放在相关内容区域中。页头右侧只放页面级操作。
-
-**已收口页面**：小说管理、章节管理、内容审核、分级管理、内容安全、站点运营（概览/流量/内容）、AI 服务（创作/封面/任务/已生成内容/用量/审计/配置/参数，页头由 `AiTab` 统一提供）、账户与注册（用户/注册/登录审计/操作审计）、后台总览。
-
-几何规则按页名分组写在 `admin-operations.css`（`.admin-redesign-page--{content-ratings,content-policy,site-operations,ai}`），新增页面只需把自己加进那组选择器；不要各写各的动作区样式。
-
-### 指标条已停用
-
-**`AdminMetricStrip` 全站不再有页面调用**（2026-09-25 收口）。分级管理页率先移除，随后是站点运营三个子页、AI 用量统计、客户端监控、账户与注册、后台总览。组件本体保留在 `AdminWorkspace.tsx`（`admin-readability.test.tsx` 仍断言它的三段结构），但**没有任何页面再渲染它**。
-
-理由：它把面板页头的几个字段抽出来、放大成 1.45rem 的独立表面，插在页头与面板之间。分级管理表里只有三个数字——总数、待标注、限制级——却占了完整一行、吃掉半屏高度；这些口径应贴近分级筛选与分页信息呈现。**同一个口径重复到第三次，就只剩噪音。**
-
-- **数字必须与能筛出它、或汇总它的那块内容相邻**。分级账本保留「待标注 67 · 限制级 340」贴着分级下拉；AI 用量统计的「总调用 / 总成本 / 平均单次」贴着它汇总的那张趋势图（`.ai-usage-totals`，0.72rem 次级文字）。读数和控件是同一件事的两种表达，不是两块信息。
-- **规模数字贴近所属内容**。站点运营的 PV / UV 与作品 / 分类读数放在对应的运营概览、趋势或分类面板中，不跟在页名之后。
-- **判据**：任何概览读数若不能一键筛出它描述的数据、或已由所属面板状态 / 筛选器 / 页脚计数表达，就不该单独成块。
-- **例外已取消**：DashboardTab 与 SiteOperationsTab 不使用独立指标条；统计值留在对应的面板和图表中，避免占据整行并把主要数据推到首屏以下。
-
-### 后台总览：追更与运营事项
-
-总览以自动追更的实际安排和检查结果为主，使用现有暖色画布、无外描边纸面、共享状态徽标与分段 tabs。页标题保持20px、面板标题16px、书名14px；数字不放大成独立指标卡，四项追更计数贴在追更列表上方。移除累计任务状态比例条，小说与章节规模贴在书库动态标题栏，封面、数据库、用户与限制级数量收在该面板底部。
-
-追更列表分为「需要处理 / 检查安排 / 最近结果」，有待处理项时默认展示异常，否则展示安排。需要处理涵盖检查失败、部分失败、待补章节和受保护章节，分别使用明确状态与原因；活跃任务不重复计入等待调度或异常。检查安排优先展示正在执行的书，再按下次检查时间排序；到期时间只表示等待调度，不承诺立即开始。统计覆盖全部书籍，各视图最多展示六本；书名完整换行，点击打开「追更事件详情」，读取最新完整原因、来源、失败次数、待入库与受保护章节、检查时间及关联任务。弹窗提供检查更新与调整追更设置，配置默认收起，取消草稿不写入；提交期间阻止关闭。管理小说作为辅助入口，关闭事件详情刷新总览。最近抓取任务点击打开独立任务详情，按任务 ID 读取进度、完整错误、失败章节和最近日志；运行中自动更新，关闭停止读取，不依赖总览列表缓存。关联任务可从追更详情继续查看，关闭任务后返回追更详情。最近结果保留未安排自动检查的书籍及新增章节数。调度资格沿用现有规则，包括管理员手动开启的完结书，不在总览读取时更改追更配置。
-
-右侧运营事项显示今日新增章节、运行中的抓取任务、历史失败记录和待标注分级，并进入现有任务中心或分级管理。历史失败明确标注为历史口径，不当作当前异常书籍数。保留最近抓取任务及书库动态。手动刷新全页，显示数据快照时间；刷新失败保留上次数据并提示，追更字段缺失显示不可用，不伪装成零。窄屏改为单列，保留所有信息、键盘切换和深色主题。
-
-### 书源与追更统计
-
-运行监控新增「书源与追更」独立页。页头只提供刷新统计；统计口径选择在内容区，默认主要来源每书计一次，优先抓取配置、作品来源、主要绑定来源。全部来源视图合并这三类来源，按每书每站去重，明确各站数量之和可超过小说总数；该视图的配置与追更状态属于关联作品，不宣称每个绑定源都可抓取。
-
-书源分布使用横向条形图，区分配置完整、仅有链接和无有效来源；追更覆盖按站点显示已开启、手动暂停、完结默认关闭、配置不足和可追更未开启。检查异常单独作为已开启中的重叠状态，不与五种关闭/开启分类相加。配置完整沿用实际追更的 URL 与目录/正文规则校验，不当作实时连通性证明。图例与色块均为可键盘操作的按钮，读屏名称包含站点、状态和数量，点击联动源站及状态筛选，并清除旧搜索、结果与连载条件。统计值贴在所属面板，不另开指标卡。
-
-下方小说明细复用 AdminDataPanel 列宽、移动卡片和 Pagination，支持源站、配置、追更、连载、最近结果、书名/作者与排序。未知目录快照显示「未核对」，不当作零章节缺口。书名打开详情，展示全部有效来源、当前主要来源、配置与追更原因、章节缺口及统计时间；继续进入现有追更详情与设置、融合章节名、小说管理或抓取中心。抓取中心只预填来源链接，分析及任务启动由用户操作。统计读取不初始化默认配置或触发任务；筛选失败不显示旧匹配列表，过期响应不得覆盖新筛选。
-
-### 任务中心：Claude 极简设计规范（2026-10-16）
-
-任务中心统一接入 Claude (Anthropic) 极简设计语言与单层控制流规范：
-- **胶囊分段导航 (Subtabs):** 任务分类采用共享 `.admin-capsule-tabs`（`抓取任务` / `AI 任务` / `下载记录`），统一 2.75rem 高度、圆角胶囊药丸与 0.15s 平滑过渡，彻底移除旧有定制标签栏的生硬色块与割裂感。
-- **总账总览卡片 (Warm Paper Summary Card):** 将原有裸露分散的标题和读数重构为统一的 Claude 暖纸总账卡（`padding: 1.125rem 1.5rem`、16px 圆角 `--admin-radius-card` 与柔和微描边）；左侧由 15px / 600 紧凑标题与 13px 状态说明陈述队列健康度，右侧由微型胶囊徽章（`全部 X · 运行中 Y · 已完成 Z`）聚合统计读数与刷新操作，彻底消灭标题与状态多层套娃的视觉堆砌。
-- **单层控制流 (Flat Control Flow):** 状态筛选器采用纯净胶囊分段按钮，选中项获得纸白高亮与陶土红文字，内嵌数字采用等宽微徽章；辅助操作（如“清除已结束”）平铺于工具条右侧，采用全圆角微描边按钮。
-- **纸白作业台 (Paper Table Workspace):** 数据表回归纯粹纸白作业台，使用 `AdminDataPanel` 16px 圆角纸面；表头统一为 12px / 550 暖灰底，数据行具备克制的阶梯式入场动效（Staggered Row Enter）与悬停微反馈，单元格作品名、阶段进度与等宽 ID 具有清晰的排版层级。
-
-### 身份线三段
-
-面板标题（`h3`，写工作对象名）→ 面板内工具条（搜索 / 筛选 / 批量）→ 数据区（表格 / 列表 / 页脚）。三者同属一份数据，默认同处一个 `AdminDataPanel` 盒子内；当页面需要把工作对象说明与数据操作明确拆开时，使用下面的双表面结构。
-
-### Admin Card Heading
-
-- **Title:** 后台卡片标题统一使用 `AdminPanelHeading` 或同级卡片标题，字号读取 `--admin-section-title-size`（16px），低于 20px 页标题；保留清楚的 700–750 字重。
-- **No divider:** 标题区与卡片正文之间不画横向分界线。工具条、表格或正文内部需要分段时，只保留对应内容区的分隔线。
-- **Title only:** 卡片标题行只写工作对象名，不在标题下放注释性副标题，也不在主标题前放 SVG 图标。右侧只保留实时状态、有归属的数据读数或可执行控件；静态快捷键、提示标签和装饰性徽标移入正文（确有需要时）或删除。必要说明放回字段帮助或正文，不作为卡头副标题。
-- **Coverage:** 该规则适用于所有后台 tab 的数据面板、配置卡和运营卡；新增卡片沿用共享样式，不建立页面专属标题例外。
-- **Workflow spacing:** 当卡片标题后紧接模式选择或表单时，标题到首个控件、模式选择到字段各保持约 12px 的组间距；不要叠加通用卡头底内距与正文上外距制造空档。输入要求、操作前提等必要说明留在对应字段下方，并精简到完成当前动作所需的信息。
-
-### Compact Utility Panel
-
-少量次级操作（例如配置导入/导出）使用共享 `.admin-utility-panel`：桌面端标题靠左、操作组靠右并保持同一行；最小高度为 `4.75rem`，内容换行时可自然增高，不增加注释性副标题或卡头分割线。卡片之间的距离只由页面父级布局控制，避免子卡片再叠加外边距。屏幕宽度不超过 640px 时标题与操作组纵向排列，按钮顺序不变并允许换行。该规则用于轻量工具区，不替代表单流程卡或数据面板布局。
-
-- **`AdminPage` 是容器契约**：它提供 `.tab-content` + `.admin-redesign-page`（统一区块间距、卡片表面归一化，不可省略），并接收 `title` / `description` / `actions` 三个 prop 转交 `AdminTabHeader`。子视图自带页头时传 `title={undefined}` 关闭父级页头（`scrape` 的书源子页即此用法）。
-
-### 双表面数据工作区
-
-当列表页同时包含“这份数据是什么”的说明和“如何操作这份数据”的高频控件时，说明面板与数据面板必须拆成两个相邻但职责不同的表面，结构固定为：
-
-`AdminPage` 页头 → `AdminContextPanel` 说明面板 → `AdminDataPanel` 数据面板。
-
-- `AdminContextPanel` 只承载工作对象标题和辅助说明，使用 `--admin-context-panel-*` token；它是独立的嵌套表面，保留 1px 暖色描边，不加阴影。
-- `AdminDataPanel` 只承载 `AdminToolbar`、选择条和表格/列表，使用 `--admin-data-panel-*` token；表格卡片保持无外描边，内部只用分隔线表达区段。分页默认属于面板；需要像小说管理这样形成独立控制行时，`Pagination variant="detached"` 放在 `AdminDataPanel` 外部，且不使用卡片背景、边框或圆角。
-- 两个表面之间的距离统一使用 `--admin-page-section-gap`。不要把说明重新塞回数据面板，也不要为工具条再创建第三张等权卡片。
-- 图一式的拆分不改变分页、筛选、批量操作、空状态或移动端 900px 卡片化契约；它只把说明与操作的阅读顺序变成“先理解对象，再处理数据”。
-- 如果页面没有需要保留的工作对象说明，且只剩一个高频筛选器，不要为了填补层级强行创建 `AdminContextPanel`；使用下方“单筛选外置行”例外。
-
-### LLM 分级建议审核
-
-LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页和指定页跳转；列表缩短后回到有效页。逐项选择和全选本页保留跨页选择，批量工具显示实际已选数量并支持清空。批量批准／拒绝使用共享三段式弹窗，列出所选作品、建议分级、置信度和模型理由，要求填写人工审核理由后确认。逐条沿用建议修订号校验和审计事务，成功项移出选择，失败项保留并显示具体原因；批准“继续未标注”不改为一般，拒绝不修改作品分级。工具条保持在列表所属纸面内，移动端自然换行，不增加独立卡片或页脚分隔线。 分级或修订发生变化后，旧待审核建议自动转为已过期并保留模型快照；读取建议时核查历史残留，默认待审核队列不含失效建议，可切换已过期查看原因与当前分级，历史记录不提供审核或批量选择。单条及批量审核确认缺少人工理由时，立即滚动并聚焦理由输入框，保证长列表也能定位必填项；确认按钮仅在提交期间禁用，缺少理由由点击后的校验提示引导。 审核弹窗使用可收缩的单列栅格；完整证据以编号段落逐条呈现，正文采样摘要与连续长文本在纸面宽度内自然换行，不截断证据，也不撑大正文或盖住页脚。列表紧凑证据仍保留摘要展示。 单条审核沿用居中页头、同色三段纸面及无页脚分隔线；区内小标题与辅助说明分别复用共享 label/hint 规范。采样统计贴近正文采样说明，不另设统计卡片；章节片段使用连续折叠列表与内部行分隔，不铺独立圆角色块。首个原文片段默认展开，模型版本信息折叠；滚动区外保留首尾间距，关闭后焦点返回原审核入口。
-
-## Layout
-
-内容驱动的流式布局，最大宽度 1200px（--max-width-content），阅读器收窄到 680px（--max-width-reader）。
-
-移动端页尾沿内容自然收束：公共页面使用 `--page-end-space`（24px 加设备底部安全区），后台共用内容区为 16px 加安全区；首页签名区取消固定最小高度。页面画布采用 `100dvh` 跟随浏览器可见高度，不用超过一屏的最小高度撑出空白，也不为浏览器地址栏另加占位。阅读页仅预留当前工具栏占用空间（收起 56px、展开 68px）、16px 间距及安全区，「回到首页／回到顶部」在手机右侧竖排浮动，按钮为 44px，间隔 12px，距右边缘 16px，底边为 176px 加安全区，避免与底部阅读工具栏重叠；正文末尾和章节导航保持正常阅读节奏。收起入口为居中「阅读工具」胶囊，44px 高，距安全区上沿 12px，细边框与轻投影；不铺满整条白底。文字搭配向上箭头，沿用纸面与文字色板，工具栏收起时隐藏内部键盘焦点。
-
-- **公共页面**: 居中容器，20px 内边距，纵向流动。小说网格使用 auto-fill + minmax(330px, 1fr)，间距 36px × 44px。
-- **首页例外（2026-10-02 用户追加调整）**: `Home` 使用最大 1200px 的暖灰纸面书库，桌面标题左、搜索右，hero 为 1:1.1 双列、间距 64px，1050px 以下间距 32px，700px 以下改为纵向居中。书目网格700px以上两列、700px以下单列；间距桌面16px、手机12px。手机容器内边距16px。首页不再展示最近阅读；完整表面策略见 `.impeccable/surfaces/web-src-pages-home-tsx.md`。
-- **管理后台**: 左侧可折叠侧边栏 + 右侧内容区。侧栏是 shadcn Sidebar（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动抽屉 18rem。桌面侧栏保留轻微外部留白、圆角与独立纸面，但不使用外描边或阴影；内容区宽度 `min(100%, 1440px)` 居中，内边距 1.5rem（桌面）/ 1rem（640px 以下）。滚动所有权在 `AdminShell` 的内容区，不在各 tab 内部。
-- **响应式断点**: 901px↑ 启用桌面固定列宽；900px 是主转折（表格折成卡片、工具栏转纵向、侧边栏折叠、网格单列）；640px 紧凑间距与页头收缩；400px 按钮全宽。审核工具条另有 1240px 的转纵向断点。
-- **间距节奏**: 全局 4/8/16/24/32/48px（xs → 2xl）；管理后台使用 `--admin-space-1` 到 `--admin-space-6` = 4/8/12/16/24/32px。后台的第三档是 12px 而不是 16px——这是紧凑档与全局节奏的刻意差异，不要用全局档去覆盖后台面板的内部间距。双表面工作区的兄弟表面间距固定读取 `--admin-page-section-gap`，当前为 16px。
-
-## Elevation & Depth
-
-阴影极其克制——这个系统依赖色调层次（tonal layering）而非投影来创造深度。阴影仅在两个场景出现：弹出层（modal/popover）和管理后台的全局阴影。
-
-### Shadow Vocabulary
-- **Rest** (`0 1px 2px rgba(40,32,24,0.04), 0 1px 3px rgba(40,32,24,0.05)`): 卡片和按钮的静态投影，几乎不可见——像纸页微微浮起。
-- **Elevated** (`0 6px 16px rgba(40,32,24,0.08)`): 悬停态和次要弹层。
-- **Modal** (`0 24px 70px rgba(40,32,24,0.18)`): 模态对话框，最重的阴影但仍保持暖调。
-- **Admin Ambient** (`0 18px 48px rgba(40,32,24,0.10)`): 管理后台浮起表面的全局阴影 token `--admin-shadow`。
-- **Admin Soft** (`0 10px 26px rgba(40,32,24,0.07)`): 轻量后台表面 `--admin-shadow-soft`。
-
-后台的数据面板和卡片在静止态**不使用**上述阴影：`--admin-panel-card` 与 `.admin-data-panel` 都是 `box-shadow: none`，靠 `--admin-panel` 的表面色与 `--admin-border` 描边分层。后台阴影只留给真正浮起的元素（弹窗、下拉、抽屉）。
-
-### Named Rules
-**The Flat-By-Default Rule.** 所有表面在静止状态是平的。阴影仅作为状态响应出现（hover、elevation、focus），或为弹出层提供层次暗示。
-
-**The Tonal-Admin Rule.** 后台一个像素的阴影都不要加。面板靠表面色 + 1px 描边区分层次；一旦给数据面板加投影，它就会在密集列表里看起来像浮起的卡片，破坏扫描。
-
-**The Serif-Card-Title & No-Icon Rule.** 后台所有卡片与面板标题（`CardTitle` / `.admin-panel-card` / `AdminPanelHeading`）统一遵循 Claude (Anthropic) 极简人文书卷规范：
-- **人文衬线字栈**: 标题统一采用 `--admin-font-serif`（Newsreader, Georgia, Source Han Serif SC, Noto Serif SC 等），字重统一为 600，字距微收 `-0.015em`，展现温润优雅的纸卷阅读质感；
-- **严禁卡片内装饰图标**: 卡片标题行与卡片内部严禁随意添加装饰性 Icon，彻底消除视觉杂噪，仅靠纯粹的纸白表面、精致衬线字阶与右侧功能性状态胶囊/操作按钮构建单层控制流。
-
-## Shapes
-
-圆角按公开页与后台作用域区分：公共按钮6px（--radius-sm），公开单行输入框12px（--input-radius），全局基础圆角8px（--radius），紧凑控件与卡片10px（--radius-md）。后台按钮、单行输入与分段 tabs 使用全圆角胶囊（--admin-button-radius / --admin-input-radius / --radius-full），textarea 保留12px；嵌套表面与对话框使用各自组件圆角，不能把胶囊规则扩散到大面板。悬浮岛窄屏外框为24px，内部按钮仍为胶囊。
-
-- **公共控件圆角 (6px)**: 公共页按钮、输入框、标签、复选框——足够圆润但不接近圆形，像文具的倒角。
-- **shadcn 控件圆角 (10px)**: shadcn/ui 基类（button/dialog）用 `rounded-md`，经 `shadcn.css` 的 `@theme inline` 桥接到 `--sh-radius`（即 `--radius-md` = 10px）。单行 Input 的最终圆角由全站 `--input-radius`（12px）覆盖。这里是 Tailwind 与站点 token 的接缝，也是唯一一处"工具类默认值不等于同名 CSS 变量"的地方——调整前台圆角时先看这里，不要改 Tailwind 工具类。
-- **管理后台控件圆角 (9999px)**: 后台按钮、单行输入、筛选器与分段 tabs 统一全圆角，适用于 `.admin-layout`、`.admin-dialog` 及共享后台弹窗作用域；textarea 保留12px，公开控件沿用公开规范。
-- **卡片圆角 (10px)**: 紧凑卡片与旧版表格包裹器使用 `--radius-md`。
-- **嵌套表面与对话框圆角 (16px)**: shadcn `Card`（`rounded-xl`）、对话框、嵌套表面。
-- **后台大面板圆角 (20px)**: 数据面板（`--admin-table-panel-radius`）、`.admin-panel-card`——更明显的圆润感，像精装书的封面弧度。
-- **表格顶部裁切**: 桌面端（901px 及以上）表格作为 `AdminDataPanel` 首段时，直属的 `[data-slot='table-container']:first-child` 统一使用 `--admin-data-panel-radius`（20px），由共享 `Table` 的滚动容器裁切表头背景，只设置左右上角，底部两角为 0，确保表头下沿保持直线；空态独立于表格容器时也不能把表头裁成胶囊。空态、加载态和有数据时采用相同规则。共享实现位于 `admin/components/tables.css`，不再仅对白名单页面生效。有前置标题或工具条时不额外给内部表格顶部添加外轮廓圆角，小说与章节既有独立表格圆角保留；移动端继续沿用连续卡片规则。
-- **公开页面结构归并**: 紧凑字段使用 `--radius-md`，控件使用 `--radius-lg`，操作下拉菜单遵循 `--menu-radius`（12px），内嵌卡片、浮层与对话框使用 `--radius-xl`，Hero 与大卡片使用 `--radius-2xl`；公开页面不再直接新增 11/13/14/15/17/18/22/24/26/28/30px 档位。
-- **全圆角 (9999px)**: 公开页用于胶囊标签、计数徽章、状态条；后台还用于按钮、单行输入、筛选器、分段 tabs 和桌面悬浮选择岛。
-- **阅读纸面圆角**: `--reader-radius-paper` 复用通用 xl，桌面与手机同档。阅读器不再保留超大圆角例外；正文纸面为平面，不带外描边、投影、渐变或水印。浮层仍使用既有阴影表达交互层次。
-
-## Components
-
-### Admin CustomTimePicker（时间选择器）
-
-- **触发器**: 统一遵循 Claude 单行输入框全圆角药丸几何（`--radius-full`，40px 高），右侧显示轻量次级灰时钟图标，彻底杜绝粗暴突兀的浏览器原生 `<input type="time">` 蓝底尖角弹窗；
-- **浮层面板**: 16px 圆角（`--radius-xl`）温润纸白浮层，顶部提供常用低峰时段快捷预设胶囊（`00:00`, `02:00`, `03:00`, `04:00`, `12:00`），中间提供时（00-23）与分（00-59）双列平滑滚动联动选择，选中项以陶土红强调色高亮与微光阴影表达；
-- **暗黑模式**: 完整适配 `:root[data-theme='dark']` 纸墨低眩光调色与极细微边框。
-
-### Reader Auth（登录／注册，2026-10-03）
-
-- **Surface:** `/auth` 使用 `.auth-page--reader` 与独立 `styles/auth.css`，暖灰 `--bg-secondary` 全视口画布、最大368px单列居中表单。移除外层 Card、描边、阴影与背景渐变；不改安装向导的 `.auth-page` 或全站共享 Card。品牌保留现有 logo，28px标识与16px / 600 产品名横排。
-- **Hierarchy:** 原阅读提示成为唯一 h1，使用既有 `--font-serif`、28px / 500、手机24px；品牌到标题24px、页头到表单32px。字段标签13px / 500 次级色，字段组20px间距；输入48px高，读取共享 input 的纸面、12px圆角和细描边，窄屏16px字号避免聚焦放大。
-- **Actions and States:** 主按钮48px高、14px / 500，不附加登录／注册装饰图标，仅处理中显示加载指示。密码显隐、模式切换及返回入口最小44px可触控并有键盘焦点。保持登录、错误、注册关闭提示与注册切换使用轻量字阶；长错误自然换行，无嵌套错误卡。处理中禁止模式切换，失败后恢复操作；关闭注册仍可返回登录。
-- **Behavior Boundary:** 保留账号、密码、邀请码、open／invite／closed 注册策略、原 API、保持登录、显隐、自动填充、Enter 提交、首次安装跳转及成功后来源页回跳。不新增第三方登录或忘记密码能力。尊重 reduced motion；短视口与长提示可自然滚动。
-- **Botanical Accent:** 登录／注册页使用透明底 `images/auth-flower.png` 细线淡粉花枝，桌面最多两处、放在表单外侧留白，900px及以下缩成页头外侧一处，620px及以下短视口隐藏。只通过伪元素呈现、`pointer-events: none`，不进入可访问树、不盖住表单、不添加动画；深色以轻量亮度／饱和度滤镜适配。资源来源与生成提示保存在 `docs/assets/auth-flower.provenance.json`，不扩散为全站背景纹理。
-
-### Full-page State（整页拦截与内容缺失，2026-10-03）
-
-- **Single Source:** `components/PageState.tsx` + `styles/page-state.css` 提供整页状态原语；`--page-state-width`（32rem）与 `--page-state-title-size`（1.25rem）集中在 `tokens.css`。小说详情／阅读器内容拦截、小说／章节未找到、管理员权限门禁统一消费，不再各自维护大卡片、emoji 空态或门禁卡样式。
-- **Viewport Ownership:** 整页状态使用暖灰 `--bg-secondary` 画布、`100dvh` 最小高度及安全区留白，消息组水平和垂直居中。无卡片底、外描边、阴影、导航栏或站点公告。`Layout` 通过 `PageLayoutContext` 在状态挂载时撤下公开页头与公告，卸载后恢复；不得用固定定位遮住仍可聚焦的导航，也不按错误路由字符串猜布局。长内容可以自然滚动，不裁切操作。
-- **Hierarchy:** 32px 次级色语义图标、20px / 600 标题、14px / 1.85 次级色说明；内容最大512px，靠留白建立层次，不增加品牌大标题、额外标签或装饰动画。沿用既有明暗主题及自定义强调色。操作最小44px高、14px / 500，主要操作用品牌色、返回入口为轻量次要按钮，键盘焦点清晰。
-- **Recovery:** 内容拦截保留明确返回首页。站点允许成人模式时，游客先登录并携带当前路径与查询参数返回；已登录者调用原成年确认与 Turnstile 流程，已有 adult 状态仍被拒绝时可重新验证。站点关闭成人模式时不显示解锁入口，明确说明暂不可阅读。管理员切换账号必须先完成原登出逻辑，再进入登录页，避免已登录账号自动回跳形成循环。
-- **Inline Boundary:** `PageState inline` 是局部提示，使用 h2 与 status 语义，不移除导航、不占满视口；首页隐藏限制级作品提示使用此模式。首页无搜索结果、书架空列表、后台面板错误／空态、表单校验仍使用各自原语，不改成整页阻断。正常浏览页、登录和安装表单不套用此状态页。
-- **Security Boundary:** 展示入口不是授权，仍由内容策略及后端权限决定访问；此原语不更改内容分级、成年确认、Turnstile 配置、会话授权或缓存规则。
-- **Usage and Inventory:** 全站消费清单、使用示例和恢复检查见 [公开整页状态与访问门禁](docs/public-page-state.md)。
-
-### Novel Detail and Reader（2026-10-02）
-
-- **小说详情:** 最大1080px暖灰画布，封面与信息构成透明 hero；封面单独使用共享落影。主标题使用已批准的衬线字阶，桌面32px / 500、手机20px；简介14px / 1.85、默认三行并保留展开。目录与社区为通用 xl 圆角平面纸面，桌面28px、手机20px内边距；目录以细底线形成3 / 2 / 1列连续条目，13px常规书名。保留搜索、已读标记、上次阅读定位及原有内容策略。小说路由复用 `header--paper`。完整响应式与行为边界见 `.impeccable/surfaces/web-src-pages-novel-tsx.md`。
-- **阅读器:** 保留用户选择的620 / 680 / 780px宽度与全部阅读设置，正文纸面使用前言 `reader-paper`，640px及以下内边距28px / 20px；标题使用前言 `reader-title`，手机1.35rem。顶部为原生纸色 sticky 工具栏与单条细底线，书名链接返回小说详情；上下章、目录、手机控制继续沿用现有行为。default / eye / paper 保留既有主题色板，表面统一平面。移动设置和目录弹层通过阅读根容器 portal 继承主题及遮罩；进度宽度即时更新，取消宽度过渡。完整契约见 `.impeccable/surfaces/web-src-pages-reader-tsx.md`。
-- **阅读控件修订:** 详情目录搜索由单一暖灰外框承载图标与输入，不叠加输入框描边；上次阅读项使用透明背景、暖棕标题及圆点徽标。评分以紧凑数字、细进度条与 SVG 星形表达，评论输入及底部剧透/发布动作共用一个纸面外框，发布与回复按钮按内容取宽。阅读器目录及设置浮层共用标题和明确关闭入口，设置按文字排版、阅读方式、辅助功能分组，保留全部原选项与持久化值；书签列表为正文流中的平面纸面，以计数、关闭入口和带说明的空态表达状态。控件沿用现有主题和语义色；详细尺寸留在对应表面契约。本次新增截图与最终视觉复审位于 `.impeccable/review/reading-controls`，最终复审在重复清除控件/字形图标与手机聚焦字号级联两项修正范围内给出 ship，两项已解决且该范围未发现新增回归；实际公开作品的匿名评分已采集桌面及手机截图；登录后的评论编辑器仍仅核对源码，真实写入未验证。
-
-### Public Account Paper（书架与个人中心限定）
-
-- **表面与导航:** `Bookshelf`、`Profile` 延续首页的暖纸世界，不增加色板。页面使用 `--bg-secondary`，卡片使用 `--bg-card`、`--radius-xl`（16px），无外描边、阴影、渐变或 hover 抬升。封面继续使用共享 `--novel-cover-shadow`，仅封面有深度。`.header--paper` 只用于 `/bookshelf`、`/profile`；首页继续使用 `.header--home`，保留既有账户、主题、安全模式、成人确认及手机导航行为。
-- **布局:** 个人中心与书架共享最大1080px、区块间距24px的居中容器，主标题与纸面外分类导航沿同一左基线对齐。两页桌面上下内边距48px / 64px；600px及以下为28px / 40px、水平内边距16px。主标题使用上文限定的衬线字阶。个人中心为单一16px圆角设置纸面，桌面内边距32px、手机20px；身份摘要与当前设置内容均在纸面内，不设左侧摘要栏。书架同步区在800px及以下移至标题下。书架书目网格1000px以上三列、1000px及以下两列、600px及以下单列，间距16px。
-- **书架（2026-10-02 修订）:** 用户否定先前四区纵向堆叠方案，改为收藏、最近阅读、书签、想法四个带计数的分类按钮，使用 `aria-pressed` 表达选择、一次只显示一个区域，其余区域 `hidden`，不使用 ARIA tabs 契约。按钮最小44px高，选中下划线与 hover 颜色复用 `--tabs-segmented-transition`，reduced motion 关闭过渡，键盘焦点使用2px暖棕外框、4px偏移。同步状态与按钮归页头。书目卡片统一18px内边距、最小高度152px、内容间距16px，封面固定72×108px、共享圆角与 `--novel-cover-shadow`，桌面/手机保持共享14 / 12 / 11.2px卡片字阶。书名最多两行，清除/取消收藏按钮位于卡片右下、与阅读链接分离，正文底部预留28px。书签与想法仍使用连续纸面记录、单条分隔线，14px标题与12px元数据可完整换行；四类空态使用透明背景。保持原有展示上限（收藏12、最近8、书签4、想法4）及API、同步、历史墓碑、删除、阅读跳转语义。修订类型检查与构建通过，fixture交互覆盖切换、同步、删除、链接及无横向溢出；截图使用模拟数据，不代表真实后端验证。本次14张截图最终复审结论为 ship（完成文档同步后），无需进一步修正或采图。
-- **个人中心:** 页头下、纸面外使用个人资料、账户安全、登录设备三枚 `aria-pressed` 分类按钮，桌面间距28px、600px及以下20px，最小高度44px；隐藏非当前内容但保留挂载和编辑草稿。纸面顶部共用身份摘要，头像48px、手机40px，姓名16px / 600、用户名12px、角色/状态徽标11.2px；选中文件预览直接使用这枚头像，不另设头像预览或重复简介。身份区底部内边距与外间距各28px、手机各24px，以单条分隔线区分设置内容。个人资料中的头像操作在 DOM 中位于字段之前，不使用 CSS order；选择/删除按钮始终提供，上传按钮仅选中文件或上传中显示，隐藏文件输入 `tabIndex={-1}`。头像操作与资料/安全字段桌面采用160px标签列 + 弹性内容列、间距32px；标签13px，字段行间距24px，600px及以下单列、间距10px。注册与最近登录移至纸面底部11.2px脚注，管理员入口按既有角色显示；隐藏面板不创建独立卡片。
-- **字段、设备与反馈:** 资料/密码沿用既有字段、可见性与提交行为；输入14px，600px及以下16px，移动按钮最小40px。设备列表最大高度300px、内部滚动，当前设备标记与注销限制保留，长设备名允许换行。`.profile-message` 放在页头描述之下的正常文档流中，空内容 `display:none`，13px / 1.8、12px上间距、`overflow-wrap:anywhere`；长失败信息不得覆盖标题或身份卡，保留 `role="status"` 和 polite 宣读。尊重 reduced motion，页面卡片与按钮关闭过渡。
-- **边界:** 登录返回地址、API、收藏/书签/历史/想法同步、资料保存、密码、头像、会话及退出登录均接既有流程。规则限定 `.profile-page`、`.bookshelf-page` 与上述顶栏修饰类；表面契约见 `.impeccable/surfaces/web-src-pages-bookshelf-tsx.md` 与 `.impeccable/surfaces/web-src-pages-profile-tsx.md`，不修改独立首页 HTML 样稿。
-
-### Home Library（首页限定）
-
-- **页脚落款（2026-10-03，居中花枝预览获用户批准）:** 页脚沿用暖纸背景，居中显示「知舟 · 一个安静的中文小说书库」，品牌名使用 16px 衬线体、介绍 13px。复用登录页透明花枝 `auth-flower.png`，桌面 76×38px、位于文字左侧；700px 以下缩为 44×22px，品牌名 15px、介绍 12px，保留自然换行。桌面上方间距 28px、页脚内边距 24px/32px，手机分别为 20px、22px/28px。移除旧头像、爱心书签、新增文案和长分隔线，不增加卡片、阴影或导航；花枝对读屏隐藏、不接收指针事件、无动效，深色沿用登录页亮度/饱和度处理。不改变书库、分页或内容权限。
-- **方向:** 基于用户批准的 Claude 风格 HTML，并按 2026-10-02 用户追加反馈直接调整正式项目：暖灰 `--bg-secondary` 画布、奶茶棕强调色、白色 `--bg-card` 内容纸面；深色继续读取既有主题 token。品牌 Logo 与账户、主题、成人确认菜单沿用现有组件。独立预览 HTML 保持原样，当前布局以项目实现为准。
-- **搜索:** 首页唯一搜索入口位于桌面 hero 右侧，手机标题下居中；桌面最大 620px、最小高度 60px，手机最小高度 56px。圆角与聚焦边框/光晕读取共享输入 token，标题与搜索尺寸使用 `--home-*` 命名变量。删除首页顶栏的重复搜索与手机搜索浮层，其他页面维持既有导航。
-- **卡片:** 仅首页使用 `NovelCard` 的 `library` 变体，16px 圆角、无外描边、无静态或 hover 阴影；桌面两列、内边距24px、最小高度212px，手机单列、内边距18px、最小高度196px。封面保留真实图片，桌面 96×144px、手机 88×132px；仅无图片时使用占位纸面。书名允许两行，作者单独一行，状态标签与章节数并排；字号使用下述共享卡片字阶，简介最多三行、行高1.8；hover 只使用浅色调反馈。
-- **安全提示:** 桌面为说明文字左、确认按钮右的轻量说明条；手机纵向排列，紧凑留白。调整仅涉及展示，安全模式与成人确认逻辑保持既有实现。
-- **筛选与排序:** 状态/分类使用浅选中态；分类默认按固定优先序显示最多10个现有常用标签，其余通过“更多标签”在分类行下方轻量展开，按题材背景、情节氛围、关系属性及其他标签分组，无容器底色、外边框、阴影或浮层。桌面组名左、标签右，手机组名上、标签下，标签12px默认透明，仅悬停和选中显示浅色底；桌面32px、手机40px高，支持标签多选，点选添加、再点取消，选择后保持展开，多个标签按同时满足取交集，简繁别名在单个标签内取并集；单选兼容category参数，多选使用JSON字符串数组categories参数，分页/演示筛选同口径。已选条件常显且可取消/清除，手机收起整个筛选区时仍显示已选摘要。“校园/校園、现代/現代、青梅竹马/青梅竹馬、轻松/輕鬆”分别共用一个入口，服务端与演示数据均匹配两种历史写法，不修改存储标签；安全模式同样约束常用及展开标签。手机通过带展开状态的按钮收起/展开筛选；四种排序为轻量文字，选中项下划线与文字等宽对齐，使用独立指示线和 transform 在选项间滑动；复用共享 180ms 动效 token，快速点击可连续转向，键盘和减少动态效果模式即时切换。首页不再请求最近阅读进度；保留现有筛选、拼音搜索、安全模式及每页 20 条分页语义，历史记录继续由阅读器与书架维护。
-- **实现边界:** 页面规则限定 `.home-page` 与首页顶栏修饰类，避免污染后台与其他卡片消费者。批准预览的演示登录、书架和数据交互不作为生产业务实现；正式页接现有 API 与路由。
-
-### Novel Cover Depth（公共小说封面共享）
-
-用户明确要求给书籍封面增加阴影，封面作为纸面上的书籍实体允许轻柔静态落影；容器仍遵守扁平卡片规范。共享 `.novel-card__cover`、小说详情封面读取 `--novel-cover-shadow`，浅色为 `0 2px 4px rgba(40, 32, 24, 0.08), 0 8px 18px rgba(40, 32, 24, 0.12)`，深色为 `0 2px 5px rgba(0, 0, 0, 0.24), 0 8px 20px rgba(0, 0, 0, 0.32)`。仅封面有阴影，卡片容器不增加投影或 hover 抬升；真实图片、占位封面、已读与更新角标沿用原实现。
-
-### Novel Card Typography（公共小说卡片共享）
-
-按用户提供的书目卡片样稿整体收紧字号，首页与书架的 `NovelCard` 共用 `tokens.css` 的字阶：书名 `--novel-card-title-size` 14px / 600，作者与状态 `--novel-card-meta-size` 12px，简介 `--novel-card-description-size` 12px，分类和更新时间 `--novel-card-footer-size` 11.2px。桌面与手机保持同一组字号，不在页面或断点另写字面量；页面只保留排版、行高和截断差异。此次只调整卡片内容字体，封面、圆角、内边距与布局不随字号缩放。
-
-组件以 shadcn/ui 为基础，通过 CSS custom properties 桥接到知舟的暖色调系统。后台组件另有一套 workspace 原语（`components/admin/AdminWorkspace.tsx`）：`AdminToolbar`、`AdminSearch`、`AdminContextPanel`、`AdminMetricStrip`、`AdminQueueSummary`、`AdminDataPanel`、`AdminPanelHeading`。
-
-### Buttons
-- **Shape:** 公共页圆角6px（--radius-sm）；管理后台全圆角（--admin-button-radius）。后台常规按钮最小高度40px（--admin-control-height），图标按钮保留组件尺寸。悬浮选择岛使用上述36px / 44px专属契约，分页和表格行操作继续使用各自 token；紧凑尺寸必须同时定义 `height` 与 `min-height`。
-- **Typography:** 后台常规按钮统一使用550字重（`--admin-button-label-weight`）；主要/危险操作字号为14px，次要/描边及 Ghost/Link 为13px。只有选中的分段 Tab 使用600字重。规则同时覆盖 `.admin-layout` 与 `.admin-dialog`；图标尺寸按钮和 combobox 不套用按钮字阶，`xs` 按钮保留组件字号。`.admin-layout` 内输入框与 SelectTrigger 为14px；`.admin-dialog` 保留组件的响应字号（共享 Input 窄屏16px、`md`及以上14px），不受按钮规则影响。页面不得用局部字号强制抹平共享按钮层级。
-- **Primary:** 奶茶棕背景（#8B6045）+ 白色文字，用于主要操作（保存、确认）
-- **Secondary:** 暖灰背景（#F6F4F1）+ 深色文字，用于次要操作（刷新、取消）
-- **Ghost:** 透明背景 + 次要文字色，用于图标按钮（表格行操作）
-- **Destructive:** 危险红背景 + 白色文字，用于删除操作
-- **Admin variants:** 上述实色为公开页语义。后台以 `admin/components/controls.css` 为准：主要操作陶土底，次要/描边中性微描边，Ghost透明底，危险操作使用危险文字与柔和描边；悬浮岛的主要操作使用专属对比度 token，不在调用点复制品牌颜色。
-- **Hover / Focus:** 背景色加深一档；键盘焦点是 3px 半透明暖色光晕（`--focus-ring: rgba(139,96,69,0.24)`，经 `--sh-ring` 桥接），并伴随边框变色。焦点态必须同时有颜色变化和光晕，不要只留光晕。
-
-### Switch Toggles (开关控件几何与微动效规范，2026-10-16)
-- **Claude Minimalist Aesthetics & Symmetry (几何严格对称与温润纸感):** 后台开关统一遵循 Claude 极简圆角药丸与几何严格对称：
-  - **默认规格 (Default):** 轨道尺寸固定为 36px × 20px（`width: 2.25rem; height: 1.25rem; box-sizing: border-box`），内边距 2px，1px 暖灰微边框 `--admin-border-strong`；白色圆形滑块（Thumb）直径严格为 14px（`0.875rem`），投射 0 1px 3px 柔和微投影。
-  - **行程计算与边距对称:** 轨道内盒可用宽度为 36px - 2px (左右边框) - 4px (左右内边距) = 30px；滑块位移量严格为 16px（`translateX(1rem)`，即 30px - 14px）。未勾选时滑块距轨道左右边界为 3px / 19px，勾选时为 19px / 3px，垂直方向居中且与上下外边界恒保持 3px 间隙（20px - 2px - 4px = 14px，滑块高 14px）。彻底消灭旧样式因尺寸失衡（38px 轨宽配 18px 滑块和 16px 位移导致右侧溢出 2px、纵向被挤压溢出 1px）造成的滑块右边缘被裁切、刺穿轨道描边的顽疾。
-  - **紧凑规格 (data-size="sm"):** 轨道尺寸 28px × 16px（`1.75rem × 1rem`），滑块 10px（`0.625rem`），勾选行程严格设为 12px（`translateX(0.75rem)`，即 28 - 6 - 10 = 12px），同享 3px 边距无溢出。
-- **Color & Micro-interactions (状态色彩与微交互边界):**
-  - 未勾选时轨道底色为 `--admin-panel-muted`（带内凹微阴影），勾选后平滑过渡至陶土红 `--admin-accent` 并附带暖色微光晕；
-  - 聚焦时拥有 3px 半透明陶土红外发光环（`rgba(217, 119, 87, 0.22)`）；
-  - 杜绝 `:active` 下强行拉伸滑块宽度（禁止将圆形拉伸成椭圆变形），保持纯粹圆润形态与稳定位移；
-  - 尊重减弱动效（`prefers-reduced-motion: reduce`）：仅取消过渡补间（`transition: none !important; animation: none !important;`），**严禁将滑块的 `transform` 设为 `none`**，避免因重置位移导致勾选状态下错误回弹到左侧的视觉故障。
-
-### Dialogs
-- **Admin Dialog:** 后台弹窗统一 `.admin-dialog`：三行栅格（页头 / 可滚动正文 `.admin-dialog__body` / 页脚），最大高度 `calc(100dvh - 2rem)`，外框 16px（--admin-radius-dialog）。宽度按任务定——小说编辑 540px、章节编辑 620px、章节融合 760px——不把弹窗拉成同一个宽度。页头/页脚/关闭按钮由 `data-slot='dialog-*'` 契约配合 Radix 实现。
-- **Header Alignment:** 页头一律居中，与 `DialogHeader` 的实际渲染一致（其 `text-center` 与 `sm:text-left` 中后者被 Tailwind 输出顺序压掉，居中才是既有事实）。标题避让右上角关闭按钮时用左右对称留白（`padding-inline`）而非只留右侧，否则居中标题会视觉偏左；描述块用 `margin-inline: auto` 跟随居中。
-- **Scroll Ownership:** 一个弹窗只设一个滚动所有者。`.admin-dialog` 由 `.admin-dialog__body` 承担；自建三行栅格（如 `.ai-generation-dialog`）必须显式指定中间滚动区，且**不得**依赖外层 `overflow: hidden` 裁切——超出内容会被静默截断且无法滚动恢复。长正文（数千字）用固定高度或视口相关上限 + 框内滚动，不随内容长高。
-- **Hidden Scrollbar (默认去除弹窗外层垂直滚动条，内层严格保留):** 弹窗外层主体（`.admin-dialog`、`.admin-dialog__body`、`.admin-dialog-reading`、`.ai-generation-modal` 等主视口容器）默认去除垂直滚动进度条，应用 `scrollbar-width: none` + `-ms-overflow-style: none` 与 `::-webkit-scrollbar { display: none }`——彻底消灭 base.css 的全局 8px 滚动条在弹窗纸白正文右缘切出的生硬竖轨。外层滚动能力完整保留（滚轮、触摸、键盘照常）；**内层独立滚动区严禁通配消除**：内嵌的独立滚动块（如 Prompt `pre` 文本、`textarea` 编辑框、正文阅读纸面 `.ai-generation-reading-paper`、代码块、抓取日志等）必须保留精致的内层微型滚动条（`scrollbar-width: thin` 与 6px 半透明滑块），以明确指示内容可滚动性与阅读拖动进度，严禁使用通配后代 `*` 抹杀内层交互线索。
-- **Segmented Surface & Seamless Flow:** 三段式栅格只区分结构，不区分颜色，**严禁在页头下方或页脚上方插入水平分割线**（`border-bottom: 0` 与 `border-top: 0`）。页头、正文、页脚共用同一纸面表面色 `--admin-panel`，三者处于同一张完整无缝的温暖纸面上，彻底消灭把弹窗横向切碎的生硬发丝线。页头、正文与页脚的层级过渡完全由呼吸间距（`--admin-space-*`）和控件自身视觉自然承担。
-- **Anti-Box-in-Box Rule (杜绝套娃卡片):** 弹窗正文内部严禁多层嵌套灰底描边矩形盒子（Box-in-box syndrome）。元信息优先以轻量通栏或纯净键值对表达；特征标签统一使用带微圆点的极简圆角药丸胶囊（Pill tags）；说明文字使用带左侧微弱强调条的编辑引文块（Callout），保持 Claude 纸质沉浸感与通透呼吸感。
-- **Field Labels:** 弹窗内的小标题（`标题`/`作者`/`正文`…）统一为 12px / 500 / `--text-muted`，读 `--admin-dialog-label-size`·`-weight`·`-color`·`-line-height`·`-letter-spacing`。不再出现 0.8rem/650/次级色、0.6875rem/600/大写等分叉写法，也不用 `text-transform: uppercase`（大写只对拉丁字母可见，会让中英标签风格分叉）。覆盖范围含 `.admin-dialog` 与自建三段式的 `.ai-generation-dialog`；无 `Label` 元素可挂的裸 `div` 用 `.admin-dialog-section-label` 表达同一语义。
-- **Helper Copy:** 控件下方的辅助说明与标签同尺寸同色，只降一档字重至 400（`--admin-dialog-hint-*`，或裸元素用 `.admin-dialog-hint`）。辅助说明不得比它说明的标签更粗或更大，否则主次颠倒。
-- **Mobile Editor:** 窄屏小说编辑窗口使用 `--admin-dialog-mobile-max-height` 收紧高度；底部操作区通过 `--admin-dialog-mobile-footer-*` 保持保存/取消同一行、不换行，并用 `--admin-dialog-mobile-action-min-*` 保留触控尺寸。
-- **History Records:** 导入历史使用共享弹窗三段式；记录标题读 `--admin-table-title-size`（14px），辅助说明读完整的 `--admin-dialog-hint-*`，状态复用 `AdminStatusBadge`，不另设状态混色。记录之间单条细线、纵向内边距16px。弹窗分页使用共享 `Pagination variant="dialog"`，复用分页字号、32px控件与跳转框尺寸，容器无描边、底色和额外内边距；手机端计数与控件分行，翻页与跳转分成两行。刷新为带可访问名称的轻量图标按钮。
-- **History Scroll Spacing:** 导入历史页头至正文沿用共享20px（手机16px），由固定页头底部承接；正文至页脚的24px（手机20px）由固定页脚顶部承接。正文纵向内边距归零，总间距不叠加。长列表滚动至任意位置仍保留首尾留白；此规则仅限导入历史，不改变其他弹窗。
-
-### Chapter Merge Preview
-
-小说管理的行内「更多操作」也提供「融合章节名」，直接以当前作品快照打开同一弹窗，不切换页面或重新选择作品；取消保留原列表，应用成功刷新列表。章节管理的「融合章节名」沿用居中页头、760px 共享三段式暖纸面弹窗，延续 Claude 式克制层级与现有奶茶色 token。完整书名、作者与章节数先交代当前作品；原作者源站区在读取成功后收起，将注意力交给章节名变化。对照列表提供「全部 / 自动更新 / 人工核对」、标题或序号搜索及每页 20 条分页，覆盖全部变化，不截断为前 80 条；需人工核对的标题提供逐条确认、确认本页及确认全部筛选结果，批量按钮显示待确认数量；支持逐条撤销和清空人工确认，跨页与筛选保留选择，更换来源或重新读取时清除。最终更新数量包含自动更新和人工确认项，未确认标题保持不变。未匹配章节按源站、本地分组，目录序号与原始标题分列，每组每页 10 条，长标题完整换行，不将全部条目拼接成段落。小说信息作为可选折叠区，简介可展开全文，支持全选可用字段与清空选择，勾选即用源站值更新该字段（包含已有内容），未勾选字段保留，不再设置额外覆盖开关；只提交已选且源站非空的字段。页脚按实际动作显示可更新标题数与信息补全/覆盖数，无可执行内容时禁用提交。
-
-窄屏将原章节名与更新后标题纵向对照，固定页脚分为摘要、操作两行，正文独立滚动。书名/作者搜索与链接读取支持 Enter 并避开中文输入法合成；读取失败保留链接与具体错误，允许重试，链接变化后立即清除旧预览。源站读取与应用更新期间禁止关闭弹窗及重复提交。局部警告文字使用 `color-mix(in srgb, var(--color-warning) 70%, var(--text-primary))` 提高对比度，不新增或调整全局色板、字阶与弹窗规则。
-
-### Novel Follow-up
-
-追更设置使用 480px 的三段式后台弹窗，同一纸面贯穿页头、正文和页脚。短标题「追更设置」与书名分开，书名作为 14px 次级描述自然换行，关闭按钮保持轻量。自动追更开关与说明组成一行；检查频率、最近结果、上次完成和下次检查按顺序展开，时间信息采用两列并允许日期与时间换行。手机底部「检查更新 / 保存设置」保持同一行，触控高度至少 44px；正文独立滚动，页脚始终可用。
-
-「批量追更设置」放在小说列表选中后的操作栏，沿用追更弹窗纸面与尺寸。页头说明选中数量，正文先选择开启、暂停或只调整频率，再展示频率及行为说明；暂停时隐藏频率字段并保留各书原值。所选书名默认折叠，保存后在正文展示成功与跳过数量、逐项跳过原因。底部「取消 / 应用设置」保持同一行和至少 44px 触控高度。弹窗使用打开时的选择快照，跨页选择保持有效，单次最多 500 本。
-
-小说管理的待更新标签使用浅强调色底与强调色文字，12px / 500，无阴影，以「待更新 N 章」说明源站尚未入库的章节。章节数与标签放在同一个弹性布局里，手机避免标签落入字段名列；桌面空间不足时允许在内容区自然换行。标签表示待入库状态，不使用危险操作的红色。部分章节受保护时，浅棕标签后用灰色锁图标标注「含受保护 N 章」；全部受保护时只显示灰色「受保护 N 章」。历史数据或书源没有可靠保护标识时展示「保护状态待检查」。数量按目录明细与已入库章节逐章对照，不用源站受保护总数替代待入库数量。追更窗口展示待入库、目录可抓取、受保护和未确认的数量，并说明账号或购买权限变化后可重新检查。
-
-### Segmented Tabs
-- **Track:** 外框 12px（`--tabs-segmented-radius`），内缩和分隔间距 3px（`--tabs-segmented-inset` / `--tabs-segmented-gap`），轨道边框和底色使用消费方语义 token。
-- **Label:** 标签统一使用 `--tabs-segmented-label-size`、`--tabs-segmented-label-weight`、`--tabs-segmented-active-label-weight`、`--tabs-segmented-label-line-height`（13px / 未选中 500 / 选中 600 / 1.6）；选中项通过字重差异强化当前选择，其他字阶保持一致。
-- **Active Surface:** 激活表面 9px（`--tabs-segmented-inner-radius`），使用消费方的 surface 与 `--tabs-segmented-active-shadow`；未选中和选中文字分别使用 `--tabs-segmented-muted-foreground` / `--tabs-segmented-active-foreground`，选中文字重读取 `--tabs-segmented-active-label-weight`。
-- **Motion:** 激活表面只用 `transform` 移动，不触发布局重排；时长、曲线和复合写法统一从 `--tabs-segmented-duration`、`--tabs-segmented-ease`、`--tabs-segmented-transition` 读取。默认是 180ms ease-out，必须在 `prefers-reduced-motion: reduce` 下将时长压到近乎 0。
-- **Consumers:** 抓取入口、抓取预设、书源筛选、任务状态、审核类型、导入来源（含弹窗）以及其他后台分段 Tab 只覆盖消费方表面色值；几何、激活层、文字状态（含选中字重）和动效统一读取 `--tabs-segmented-*`，不再维护页面级圆角、内缩、间距和位移字面量。
-- **Claude Capsule Navigation Tabs（大药丸主子页导航，2026-10-15）：**
-  - **定位与场景**：用于分级审核工作区（分级账本 / 规则候选 / LLM 建议）与 AI 服务主子页（AI 创作 / 封面生成 / 已生成内容 / AI 配置 / 参数调优）等核心业务的主子页胶囊导航；
-  - **轨道（Track）**：全圆角胶囊外框（`border-radius: 9999px`），高度 2.75rem（44px），内缩 4px，背景为柔和浅暖灰 `--admin-panel-muted`（暗色 `#23221f`），边框 1px `--admin-border`，消灭杂乱内阴影；
-  - **激活药丸（Active Surface）**：白色实体独立悬浮药丸（`background: var(--admin-panel)`，暗色 `#2a2926`），带有柔和微阴影（`0 1px 3px rgba(35, 30, 24, 0.05)`），激活文字使用陶土强调色 `--admin-accent`（`#d97757`）与 600 字重；
-  - **降噪契约**：彻底移除激活标签内多余的红点/彩点装饰（如 `size-1.5 bg-accent`）与生硬环形 ring 描边，依靠纯粹的物理纸白胶囊浮起与陶土字色表达层级；
-  - **未激活态（Inactive & Hover）**：次级文字色 `--text-muted`（13px / 500 字重），悬停时平滑渐变为陶土色，保持 Claude 纸面阅读工坊克制呼吸感。
-
-### Cards
-- **Corner Style:** shadcn `Card` 为 16px（`rounded-xl`）；说明面板使用 `--admin-context-panel-radius`（16px），后台数据面板使用 `--admin-data-panel-radius`（20px）
-- **Background:** 白色/卡片色（var(--bg-card)），管理后台说明面板与数据面板分别使用 `--admin-context-panel-background` / `--admin-data-panel-background` 标准化
-- **Shadow Strategy:** 静止无投影，hover 也不加（Flat-By-Default Rule + Tonal-Admin Rule）
-- **Border:** 说明面板保留 `--admin-context-panel-border-width` 的 `--admin-context-panel-border` 描边；数据面板本身 `border: 0`，靠表面色分层，内部工具条/页头用 1px `--admin-border` 底线分区
-- **Internal Padding:** 说明面板使用 `--admin-context-panel-padding`；数据面板工具条使用 `--admin-data-panel-toolbar-padding-block` × `--admin-data-panel-toolbar-padding-inline`，存在面板标题时仍使用 `1.5rem 1.5rem 1.25rem`
-
-### Inputs / Fields
-- **Style:** 全站单行 input、下拉选择与多行 textarea 共用纸面、1px 细暖灰描边和无静态阴影，参照「留空，由 AI 拟定」输入框样式。Input/Textarea 外观由 `styles/input-fields.css` 提供，下拉由 `styles/select-fields.css` 读取同一组 `--input-background`、`--input-border`、`--input-radius`、`--input-focus-border/shadow`。默认分别映射 `--bg-card`、`--border`、`--radius-lg`，公开控件为12px圆角；后台作用域将单行字段的 `--input-radius` 映射到 `--admin-input-radius`（全圆角），textarea 仍为12px。深色随语义变量适配，页面不再自行加深边框或添加静态阴影。
-- **Focus:** 键盘聚焦使用 `--input-focus-border` 强调色边框及 `--input-focus-shadow` 2px 半透明光晕；`aria-invalid="true"` 使用危险色边框和聚焦光晕。不得用静态阴影替代焦点状态。
-- **Geometry:** 后台常规 Input 与下拉继续使用40px高度，公共页保留各自布局尺寸；搜索图标内缩、密码显示按钮及输入宽度由调用点保留。分页下拉和跳转框使用当前34px尺寸，跳转框保留居中零内边距。共享下拉通过所在区域的 `--field-control-height` / `--field-control-padding-inline` / `--field-control-font-size` 对齐周围控件，不从按钮 variant 推断尺寸。后台常规字段14px，弹窗窄屏 Input 与下拉同时使用16px，768px及以上为14px。复合 Command 搜索框将描边放在含图标的外层容器，内部 input 保持透明。
-- **Multiline:** textarea 与单行输入共用白色纸面、细暖灰边框、12px 圆角和无静态阴影，聚焦与非法状态沿用共享输入 token；文本与占位字色沿用共享语义色。单行输入的固定高度规则不得作用于 textarea；保留各场景的最小高度、换行、行高、内边距与拖动调整大小。长提示词、章节正文、JSON 使用可伸缩的多行区域。
-
-- **Single Focus Boundary（复合输入单一焦点边界，2026-10-14）：** 图标与文本组合成一个搜索字段时，外层容器独占描边、圆角、纸面和焦点反馈。`CommandInput` 由 `[data-slot='command-input-wrapper']:focus-within` 读取共享焦点 token；内部 `[data-slot='command-input']` 在普通与 `:focus-visible` 状态都显式设置透明背景、零描边、零圆角、无 outline / box-shadow，不得只从普通 Input 规则中排除它——全局可访问性规则仍会重新画出内层焦点框。内部高度为容器的100%、最小高度0、上下内边距0，避免40px输入溢出36px外框。强制颜色模式下仅给外框系统色 outline，确保去重后仍有可见焦点。规则在 `input-fields.css` 共享，页面与下拉浮层不重复声明焦点外观；其他独立输入、按钮及清空操作保留各自焦点。
-- **Focus verification:** 检查普通 Command 与可搜索下拉，覆盖自动聚焦、鼠标、Tab、搜索输入、Escape 与焦点归还，以及明暗/窄屏/强制颜色模式。读取内部 input 的最终 border、outline、box-shadow 和实际边界，确认内部无高亮、外框仍高亮且输入没有越界；不能只检查外框已有光晕。后台 Command 搜索的所有使用点共同受此规则约束。
-
-### Selection Fields（下拉与 Input 同步，2026-10-14）
-
-- **Single source:** `SelectTrigger` 与 `CustomSelect` 触发器统一标记 `data-field="select"`，由 `select-fields.css` 负责外观；原生 select 共享纸面与状态，保留原生箭头、菜单和已有布局尺寸。Radix `PopoverTrigger asChild` 会把 CustomSelect 的 `data-slot` 改为 `popover-trigger`，因此禁止用 `[data-slot='button']` 推断它是否已获得后台字段样式。
-- **Contextual size:** 公开共享下拉默认36px，显式 `sm` / `compact` 为32px；进入后台表单、筛选栏、AI配置和账户管理后，两档都按周围常规 Input 使用40px。分页仍为34px，悬浮岛继承36px桌面 / 44px触屏尺寸。高度和最小高度必须一起设定；尺寸由区域 token 继承，业务页只保留用途决定的宽度。
-- **States:** 普通、搜索、筛选胶囊共用 Input 纸面、描边、文字、占位与焦点 token，不保留描边按钮的静态投影、按下缩放或陶土 hover 填充。禁用不改变几何；`aria-invalid="true"` 使用同一危险描边和焦点光晕。筛选胶囊保留前置图标与最小宽度，不另开一套字段外观。
-- **Portal contract:** Radix Select 和 CustomSelect 浮层显式带 `.shared-select-content`，不依赖 `.admin-layout` / `.admin-dialog` 祖先。浮层使用共享纸面、12px圆角、暖灰描边与菜单阴影，选项使用13px / 400字阶、36px桌面 / 44px窄屏或触屏命中高度，键盘高亮使用暖灰底和正常文字色；选中勾选保持独立可见。搜索框聚焦描边放在含图标的 wrapper。cmdk 的禁用值为 `data-disabled="true"`，不能用属性存在与否判断（启用项也有 `data-disabled="false"`）。
-- **Behavior and verification:** 保留选项值、搜索过滤、服务端补搜、键盘导航、Escape、焦点归还、禁用项与碰撞避让。检查明暗、1440/900/390/320px、普通/紧凑/搜索/筛选胶囊、后台表单/AI/账户/弹窗/分页；对照同排 Input 的最终高度、圆角、底色、描边、字号与 focus 样式，同时确认浮层及页面无横向溢出。操作菜单继续使用 `DropdownMenu` 的独立语义。
-- **Page override guard:** 页面不得用 `!important` 单独覆盖共享字段的高度、字号、圆角、纸面、描边及焦点。抓取入口 `ScrapeIntake` 的榜单来源与同排 URL Input 均使用40px、14px和后台全圆角；链接导入、作品搜索共用同一字段规则，不另写深色皮肤。验收必须带上实际页面祖先（如 `.admin-redesign-page--scrape`）与完整样式入口，而不是只在裸 `.admin-layout` 中渲染共享组件。2026-10-14 曾因此遗漏榜单下拉8px圆角、Input 38px及独立深色覆盖；后续字段检查将抓取入口三种模式加入固定验证范围。
-- **Scrape intake on narrow screens:** 640px及以下，抓取入口字段与提交按钮改为单列，三个模式按钮均分可用宽度并隐藏装饰图标，保留完整文字、顺序和当前状态。检查每个字段及按钮都在卡片边界内且真实可点击；只检查页面没有横向滚动不足以验收，卡片自身的 overflow 也可能裁掉控件。
-
-### Named Rules
-**The Fit-Content Rule.** 输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 `flex-1` / `w-full` 把输入框撑满整行——工具栏里的过滤/搜索框用 `min-w` 限定下限、内容自然决定宽度，长 URL 输入才放宽。
-
-**The Data-Panel Contract Rule.** 后台数据表一律走 `AdminDataPanel` + `columns`。`columns` 只做两件事：注入 `--col-N-w` 宽度变量、添加 `.admin-data-panel--grid`。它**不会**渲染单元格，也不会写 data 属性——调用方必须让「列定义顺序 = thead 顺序 = tbody 单元格顺序」三者一致，并手动标注 `data-primary` / `data-label` / `data-actions` / `data-check`。少写一个 `data-label`，那张卡片在 900px 以下就会缺一个字段标签；只传 `columns` 而不标属性，等于什么都没做。
-
-### Shared Dropdown Menus
-
-- **Shared Library:** 全站操作下拉菜单使用 `components/ui/dropdown-menu.tsx`，外观统一由 `styles/dropdown-menu.css` 和 `--menu-*` token 提供；后台行操作、用户管理与公开/后台账户菜单共用。不要在业务页重复定义菜单圆角、字号、内边距或行高。
-- **Surface:** 浅色主题使用白色纸面，深色主题跟随 `--bg-card`；12px 圆角（`--menu-radius`）、1px 暖灰轻描边和 `--menu-shadow` 柔和阴影。默认最小宽度 176px，内部留白 4px；主菜单与嵌套子菜单一致，宽度受 Radix 可用空间和视口约束。
-- **Items:** 默认文字 13px / 400（共享紧凑字阶）、行高 1.5，桌面每项至少 36px 高，左右内边距 12px，项目圆角 6px。保留足够留白，不要求普通操作添加图标；有图标时采用 16px，勾选/单选标记占独立左侧区域。标签保持次级层级，快捷键靠右。
-- **States:** 悬停和键盘高亮使用淡暖灰背景，不改变普通文字颜色；禁用项降低透明度并不可选择。危险项显式传 `variant="destructive"`，文字与图标采用共享危险色，高亮只增加淡红底色。
-- **Grouping:** 普通操作与删除等危险操作之间使用一条 1px 轻分割线，线条留在浮层内边距中，不贯穿外边框；分割线上下各 4px。
-- **Interaction:** 保留 Radix 的 portal、方向键导航、Esc 关闭、焦点返回、复选/单选状态及视口碰撞避让。菜单通过 portal 渲染，禁止使用依赖表格祖先的选择器调整浮层。900px 及以下或触屏使用至少 44px 的操作高度，减少动态效果时关闭浮层动画。
-
-
-### Shared Toast Feedback
-
-- **Entry:** 全站轻反馈与操作通知由 `components/ui/sonner.tsx` 和 `styles/toast-feedback.css` 统一呈现，业务页继续使用 `useToast().toast(message, type, options)`；不在页面复制局部外观。
-- **Positioning & Dock Collision Prevention:** 默认位置锁定为**顶部居中（`position="top-center"`）**，从视口顶部优雅滑入；彻底避免与底部常驻或唤出的「保存配置/撤销修改」悬浮胶囊岛（`AdminFloatingDock`）以及「批量选择操作条」（`AdminSelectionBar`）产生物理重叠与交互打架。
-- **Surface & Capsule Language (Claude Style):** 遵循 Claude 极简纸白药丸规范，采用全圆角胶囊（`--radius-full: 9999px`）、1px 极细微边框（`1px solid var(--border)`）与细腻柔和的环境浮层阴影（`0 4px 18px rgba(35, 30, 24, 0.08)`），消灭粗苯的方块卡片感。暗色模式自动切换为深暖黑低反光表面。
-- **Content & Typography:** 40px 高度（`min-height: 2.5rem`）、`0.5rem 1.125rem` 呼吸内边距、13px 中等字重（`0.8125rem` / 500）、1.5 行高；16px 细线状态图标（成功/提示统一使用 Anthropic 陶土色 `#d97757`，错误危险红，警告暖琥珀），长文字自适应平滑扩展。
-- **Actions:** 撤销等动作采用轻量微缩胶囊按钮（`[data-button]`，高度 26px，浅陶土底与深陶土字，悬停平滑加深）；禁止使用高饱和厚重实色底。
-- **Interaction:** 保留 Sonner 的顶部居中下坠、视口边距避让、多通知顺畅堆叠、滑动关闭与无障碍朗读；普通提示自动消失，带动作提示默认保留 10 秒。减少动态效果时自适应降级。
-
-### Shared Account and List Primitives
-
-用户目录预览中的搜索、计数、刷新、用户头像与身份/状态标签作为共享语言，页面只提供姓名、头像地址、数量和业务状态，不再复制局部外观。
-
-| 元素 | 共享入口 | 尺寸与外观 |
-| --- | --- | --- |
-| 搜索 | `AdminSearch` / `components/toolbar.css` | 默认宽 280px，窄屏随容器收缩；高度沿用后台 40px，白底、细边、12px 圆角、无静态阴影，保留图标、可访问名称和聚焦提示 |
-| 刷新等次要操作 | `Button variant="secondary"` | 暖灰底，无外描边和阴影；后台高度 40px、文字 13px，保留 hover、focus 与 disabled 状态；筛选 combobox 不使用此按钮外观 |
-| 面板数量 | `.admin-panel-status` | 随文字自然宽度，暖灰胶囊，无描边；文字 12px、常规字重、等宽数字，数量需注明单位 |
-| 用户头像 | `UserAvatar` / `identity.css` | 优先展示用户设置的图片，缺失或加载失败时由 `InitialAvatar` 显示姓名首字；默认 36px 圆形、等比裁切，文字回退为 13px 常规字重、浅奶茶底与品牌文字；`size="inherit"` 沿用所在入口的既有尺寸；只做装饰，姓名由相邻文字或控件标签提供 |
-| 当前身份 | `Badge variant="identity"` | 11px 常规字重、6px 圆角、2px × 5px 内边距，浅奶茶底，用于“本人”等身份标记 |
-| 角色与状态 | `AdminStatusBadge` | 11px 常规字重、3px × 8px 内边距、胶囊圆角、无描边；管理员使用 info/浅奶茶，普通角色 neutral/暖灰，正常 success/浅绿，禁用 danger/浅红；状态始终带文字，不能只依赖颜色 |
-
-头像和标签几何使用 `web/src/styles/tokens.css` 中的 `--avatar-*`、`--badge-*`，面板计数使用 `--panel-count-label-size`。颜色均取现有主题 token，暗色模式不写死浅色值。其他业务状态继续使用已有 tone 合约；强调性的 brand 标签保留实色。
-
-全站用户身份入口、用户目录、审计列表、密码目标、评论、段评、审核和个人资料统一使用 `UserAvatar`。图片和文字回退互斥，失败状态按图片地址保存，地址更新时可重新加载；禁止通过移除 DOM 或只隐藏失败图片造成空白头像。相对地址沿用 API 地址解析，本地上传预览保留 blob/data 图片地址。审计接口关联当前用户头像，账号不存在时保留记录并回退文字，不因头像缺失隐藏用户或记录。
-
-
-### Proxy Settings
-- **Hierarchy:** 代理设置采用「出站代理配置 → 路由与连通性」双面板。配置面板顶部集中展示当前生效地址或接口提供的代理主机、来源与跳过规则；编辑草稿不替换生效摘要。日志入口归页头，协议与部署说明使用面板外折叠区。
-- **Settings Rows:** 桌面端标签与简短说明在左，输入与字段提示在右；640px 及以下改为纵向。面板、圆角、按钮、控件和字阶沿用共享 token，手机标题与状态保持同一行。
-- **Feedback:** 保存反馈区分未保存修改、管理端配置生效和环境变量仍优先。读取失败不得显示为「未配置 / 直连」，重新读取成功后恢复配置与诊断操作。
-- **Diagnostics:** 路由检查遵循生效配置，命中跳过规则的直连为中性结果；代理连接测试强制走代理。未启用时可检查路由，但不能测试代理连接；目标变更、配置保存或重新读取时清除旧诊断结果。
-
-### Calls and Usage
-- **Hierarchy:** 调用与用量保留「AI 调用 / 出站请求」子 tab。AI 调用按「统一时间范围 → 可折叠用量趋势 → 调用记录」组织；7 / 30 / 90 天同时作用于趋势和明细，类型筛选只属于调用记录面板，切换筛选或时间范围后回到第一页。
-- **Trends:** 1181px 及以上，成本/次数与 Token 趋势并排、等宽、等高；更窄视口纵向排列。总调用、总成本、平均单次与总 Token 留在各自图表标题下的次级读数行，不新增独立指标卡。次数用淡品牌色柱形，成本用品牌色曲线，输入/输出 Token 使用共享成功色与信息色。
-- **Records:** 类型筛选、计数与刷新留在调用记录自己的控制行里，分页用 `Pagination variant="detached"` 放在面板之外；三者与数据面板平铺在画布上，面板本身直接从 `<thead>` 开始（见 The Claude Flat Workbench Rule）。调用记录包含跨列展开详情，因此保留原生表格和面板内横向滚动，窄屏提供滑动提示，不套用普通表格卡片化；出站请求继续使用 `AdminDataPanel + columns` 的 900px 卡片化契约。
-- **Cost:** 调用记录和用量趋势默认采用上游回传的账单成本，优先 `usage.cost`，兼容顶层 `cost`；文本、流式文本与图片共用解析规则。NewAPI 响应缺金额时，以 `x-oneapi-request-id` 精确关联同站只读账单，只有站点公开确认 USD 与 quota 单位时才换算，不使用 credit 或模型标价估算。明确的 0 是有效金额，未获取有效金额时标记 `costReported=false` 并显示「未回传」；查询失败不影响生成。API 金额单位不变，存储保留小数，界面显示四至八位小数，避免微小费用显示为 0；展开详情展示请求 ID、成本来源与币种。趋势标注金额回传覆盖次数，平均成本只以已回传金额的调用为分母；历史记录不自动重算。
-- **Upstream Cache:** 调用记录在消耗列显示「缓存命中 N / 缓存未命中 / 缓存未回传」，展开详情显示缓存读取、写入与推理 Token。`null` 与 0 严格区分；趋势汇总只计算已回传字段并显示覆盖次数。缓存读取与写入属于输入 Token，推理属于输出 Token，不再次相加到总 Token；Claude 原生用量分拆字段需先归一为总输入。此处统计上游提示缓存，站内已有内容复用仍不新增上游用量。沿用共享字体、次级文字及现有面板，不增加独立指标卡。
-- **Feedback:** 刷新入口属于对应的数据面板。初次读取失败使用共享读取失败空态，已有刷新入口的区域不重复放置重试；刷新失败但已有数据时保留数据并显示行内提示。读取失败或加载中不得将未知用量显示为 0。
-
-### Model and Time
-
-- **Shared Component:** 后台模型与时间组合使用 `AdminModelTime`（`components/admin/AdminModelTime.tsx`），共享样式位于 `admin/components/workspace.css`。上行模型名沿用确认样稿的 `Consolas, 'SF Mono', monospace` 字体栈，12px、字重 400、主文字色；下行使用 13px 次级文字色与等宽数字；两行间距 6px。
-- **Date Format:** 日期与时间保持在同一行，复用 `formatDateTime`，按浏览器本地时区显示 `YYYY-MM-DD HH:mm`，不显示秒，不将日期与时间拆成两行。使用语义化 `time` 与 ISO `dateTime` 属性。缺失或无效数据显示破折号，长模型名省略并保留完整悬停提示。
-
-### AI Service Workspaces
-
-- **Scope:** AI 服务侧边栏保留 AI 创作、封面生成、已生成内容、AI 配置、参数调优五个子页。`AiTab` 统一提供页头与 URL 深链，任务中心和调用与用量继续使用各自入口。布局规则位于 `admin/pages/ai-service-claude.css`，限定在 `.ai-service`，沿用共享纸面、圆角、字阶、表单、状态、弹窗与分页原语。
-- **Surface:** 暖纸面画布、无外描边白色面板、20px 面板圆角，面板之间 20px 留白。页标题 20px，面板标题 16px，段落标题 14px；控件与按钮继续使用共享尺寸。暗色通过语义变量映射，禁止页面硬编码浅色背景。配置供应商在桌面并排，卡片内部字段按标签在上、控件在下纵向排列，手机面板单列。
-- **Writing:** 默认续写已有小说，单章精写优先。桌面主表单旁展示真实作品上下文与任务回执，窄屏顺序堆叠。内容尺度和三份小说分析放在创作要求之前；分析状态常显、正文按需展开。推荐情节、大纲、新写、多章规划、人工校正与 R18 参数保留现有业务语义。目标作品与标题、承接章节与目标字数各成两列；内容尺度使用灰色内嵌表面，小说分析收敛为三条紧凑行。本次情节作为主要输入，标题右侧放推荐按钮；其下「进阶约束与材料」默认折叠，填写后收起仍显示已填写状态并保留内容。目标、人物、视角、节奏、保留事实和禁止事件同时传入推荐、大纲和正文，推荐与大纲必须避开禁区。大纲默认折叠，多章模式展开必填规划。侧栏提供真实封面、作者、章节数、模型、本次输出、未发布草稿提醒、任务进度和最近任务。结果审阅后发布。
-- **Cover:** 作品上下文、生成设置、候选比较分别组织。生成设置和候选区在宽屏并排，窄屏顺序排列；描述词在主表单常显，作品资料与 AI 理解按需折叠；候选以缩略图选择器配选中大图呈现，当前封面与历史独立成卡。真实图片等比呈现，保留大图查看、候选采纳与舍弃、上传替换及封面历史。生成只落候选，采纳或恢复才改变当前封面，保留版本并发检查。
-- **Directory:** 已生成内容复用 `AdminDataPanel density="comfortable"`，搜索属于页头，类型、状态筛选属于目录工具条，桌面使用关联内容（含选择框）、类型与状态、内容预览、模型与时间、操作五列，分页使用面板外 `Pagination variant="detached"`。搜索作品、章节与正文时由服务端过滤，列表和总数使用相同条件，输入 `%`、`_` 等字符按原文匹配。筛选或每页数量变化返回第一页；过期请求不覆盖新结果。分页以目录项计数：一个续写合集算一项，其他独立内容各算一项。服务端先按筛选条件合并续写批次再分页，同一合集的匹配章节不跨页；目录总数、页数及显示范围均使用该单位，展开章节不占每页名额。批量选择与删除仍按实际生成记录计数。删除导致当前页超出范围时回到最后一个有效页。合集的内容预览优先展示续写时选定的原始情节，不使用完整模型提示词或生成正文冒充；新产物保存情节快照，旧产物按精确任务关联恢复，缺少来源时回退到章节数量。
-- **Configuration:** 精细对齐 `docs/previews/ai-service-claude.html#config`：文本、图像供应商独立白色表面，桌面等宽双列、20px 间距、24px 内边距，标题旁显示带圆点的语义状态，标题下以 12px 说明用途。字段纵向排列，字段组间距 20px、标签与控件间距 6px；使用共享纸面输入框，页面采用 40px 高度，模型字段不重复附加说明。连接操作置于细分割线下。读者策略与服务检查使用通栏面板，策略说明与双列额度字段在桌面左右排列，窄屏顺序堆叠；用量使用自然换行的行内摘要，呈现今日调用、Token、成本和近 30 天调用及成本。底部保存栏使用 16px 圆角、12px 纵向内边距、距视口底部 16px。已配置不等于连通性验证成功；图像服务使用真实封面生成入口，不提供无后端支持的演示测试按钮。编辑只更新本地草稿，底部统一保存配置和撤销修改；保存前校验所有分组，按文本、图像、读者策略顺序提交有改动的分组。部分失败时提示已完成分组并保留失败草稿，重试不重复提交已成功分组，不在输入数字时自动写入。未改动的有效值刷新不清除其他分组草稿。密钥占位符和聚焦后的空输入不下发，明确填空格才按既有约定清空密钥。连通性测试基于已保存的文本供应商。
-- **Parameters:** 以 `docs/previews/ai-parameters-claude.html#params` 为参数调优样稿。六个参数组采用顶部分类标签和单个通栏面板，取消内部左侧导航；桌面标签自然排成一行，手机排成两行，字段单列堆叠。分类切换保留各组草稿，修改分类显示圆点，底部展示所有分类的待保存字段数；支持方向键与 Home/End 切换分类，标签与面板通过 ARIA 关联。所有面板保持挂载，保存时校验全部分类的数字字段，遇到隐藏分类的无效值先切换到该分类并聚焦字段，不允许跳过隐藏字段校验。AI 创作按基础生成和分析与辅助生成分层。Temperature 使用 0–1、步进 0.1 的滑块并显示当前值，开关使用简洁说明行，长提示词默认折叠。底部保存栏保持可见，显示未保存状态，支持撤销与保存全部参数。保存前校验输入范围，加载或保存期间禁用提交。页面滚动由外层文档承担，避免内层 `overflow: auto` 截断 sticky 区域；底部留白必须容纳保存栏。
-
-### Read Failure States
-- **Shared Surface:** 后台列表或面板首次读取失败使用 `ErrorState`，复用 `AdminEmptyState` 的居中结构，以抓取任务为范本：32px 淡化的禁止图标、次级色的加粗原因文字、至少 14rem 的内容区。避免紧凑红字错误块与相邻子 tab 形成不同的空态层级。
-- **Message:** 文案采用「对象加载失败：具体原因」。例如「AI 任务加载失败：需要管理员登录」。任务摘要同时显示读取失败标题与真实原因，不能继续显示正常操作介绍，也不能将失败呈现为「暂无记录」。
-- **Recovery:** 已有页头或面板刷新入口时，错误区不重复添加重试按钮；没有刷新入口的面板保留 `onRetry`。读取重试只重新获取数据，必须与任务的重新执行或重新生成区分。
-- **Partial Data:** 刷新失败且已有数据时继续展示旧内容，以 `InlineError` 提示失败。首屏读取失败、真实空列表、未配置供应商和任务本身执行失败使用各自的状态，不相互替代。表单校验、行内任务错误与完整管理员访问门禁不使用此空态替换。
-
-### Navigation (Sidebar)
-- **Style:** shadcn 可折叠侧边栏（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动端抽屉 18rem。桌面侧栏使用 `--admin-sidebar` 独立纸面，保留轻微外部留白和 `--radius-xl` 圆角，不使用外描边或阴影；不要把它改成边到边的 `sidebar` 变体。导航溢出时保留滚动能力，但隐藏滚动条视觉轨道。
-- **Brand / Account:** 侧栏顶部品牌容器是返回首页的入口；账户菜单固定在侧栏底部，承载个人中心与退出登录。账户区域与上方导航之间使用 `--admin-sidebar-footer-fade-height`（24px）的轻量纸面淡出，不添加硬分隔线或模糊滤镜。仅在下方仍有可滚动导航时显示；无溢出或滚到底时撤掉遮罩。导航末端保留等高余量，确保最后一个菜单完整可见。滚动、窗口尺寸与子菜单展开变化均更新边缘状态；遮罩不接收指针事件。桌面侧栏与手机抽屉沿用同一规则。
-- **Active State:** 当前项使用整行 `--admin-sidebar-active-background` 品牌色背景与 `--admin-sidebar-active-foreground` 前景色，取消旧的局部浅色/竖线指示器；悬停态不得覆盖当前项的品牌色。
-- **Typography:** 菜单项 0.875rem / 500；分组标签 0.75rem / 600，正常字距、不使用 uppercase，颜色 `--text-muted`。
-- **Geometry Tokens:** 菜单项高度、圆角、内边距、图标与文字间距分别读取 `--admin-sidebar-nav-height`、`--admin-sidebar-nav-radius`、`--admin-sidebar-nav-padding-inline`、`--admin-sidebar-nav-gap`；分组顶部留白使用 `--admin-sidebar-group-gap`。
-
-### Table
-- **Admin Surface:** `AdminDataPanel` 是无外框、纸面色表面，使用 `--admin-data-panel-radius`（20px）外圆角；需要说明时，标题/说明属于相邻的 `AdminContextPanel`，不再与筛选和表格挤在同一张大卡片里。
-- **Table Contract:** 表格内容区、表头、行分隔线、hover 背景和行高分别从 `--admin-table-background`、`--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取。亮色表头以 85% 次级背景色混合 15% 品牌强调色，保留低饱和奶茶棕暖调；暗色表头以 85% 表格内容底色混合 15% 弱化文字色，形成中性炭灰层级，避免品牌金棕色让表头与表格内容过于接近。表头文字继续使用 `--admin-table-header-foreground`，保持正文对比度和排序状态清晰。小说表格的滚动容器裁切表头底色，并以 `--admin-data-panel-radius` 保留左右上角圆弧，避免表头底色盖平数据面板圆角。桌面端列宽由 `--col-N-w` 注入：`@media (min-width: 901px)` 下启用 `table-layout: fixed` 并逐列消费该变量，规则覆盖第 1–12 列；**第 13 列起没有对应规则**，落到剩余宽度分配。范本统一使用百分比列宽且合计 100%——fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度。
-- **Breakpoint:** 900px 及以下是卡片化：thead 隐藏，`tr`/`td` 转 grid，`data-label` 变伪元素。与 901px↑ 的固定列宽成对，分界值是 900/901。
-- **Container-Query Exception:** **已撤销（2026-09-19）**。该例外曾用于 `AiGenerationsPanel` 的已生成内容表：当时那张表脱离 `AdminDataPanel` 并自带 `min-w-[760px]`，901–1100px 视口下内宽只有 756px，表格溢出且 sticky 冻结的操作列整列压住「内容预览」（数据丢失），只能改由 `@container (max-width: 48rem)` 按容器宽度卡片化。该表现已收敛到标准契约（`fixed` 布局 + 百分比列宽），不再需要最小宽度，溢出从根上消失，`@container` 块与 sticky 冻结列一并删除。**结论：最小宽度是破损的根因，容器查询只是补丁——遇到同类问题先问「为什么需要这个固定宽度」，而不是先加一个容器查询。** 当前全站数据表统一走 900/901 视口断点，无例外。
-- **Action Column Sizing:** 操作列宽度按**实测内容**反推，不套用固定百分比。判据是「同一行最宽的按钮组合能否单行放下」：文字按钮（如「查看章节」82px + 「删除」54px + 8px 间距 = 144px）比 32px 图标按钮宽得多，901px 视口（桌面固定布局最窄点）下若按图标按钮的 11% 分配，`td` 的 `overflow: hidden` 会把末位按钮整颗裁掉且不可点击。故文字按钮面板的操作列取 21%，并在该列解除固定行高（`height: auto` + `min-height: var(--admin-table-row-height)`）配 `flex-wrap`，使极窄容器下降级为换行而非裁切。范本小说表的图标按钮在同宽度下反而会裁切，属既有缺陷，**不要复制它的百分比**。
-- **Mobile Stack:** 移动端使用 `--admin-table-mobile-stack-gap` 保持行间距为 0，行不绘制左右外部描线；首行取消顶线以接续标题区，内部行只保留单条 `--admin-table-mobile-stack-divider` 水平分隔，末行使用 `--admin-table-mobile-card-radius` 的底部圆角收束。
-- **Data Details:** 分类标签间距使用 `--admin-table-tag-gap`，行操作区使用 `--admin-table-action-*`，排序按钮使用 `--admin-table-sort-*`；删除仅在 hover 时进入危险色。`.admin-cell-tags` 在桌面只显示前 3 个标签加 `+N` 徽章，900px 以下恢复全部并隐藏 `+N`——这是刻意的视口相关截断，完整列表始终对读屏可见。
-- **Motion:** 面板进入使用 `--admin-table-surface-enter` + offset，前 8 行使用 `--admin-table-row-enter` + `--admin-table-row-stagger-step` 依次出现；行、排序箭头、图标按钮的状态反馈使用 `--admin-table-row-interaction`。`prefers-reduced-motion: reduce` 下取消行位移动效，仅保留短淡入。
-
-### Pagination (Pagination)
-
-- **Single Source:** 全站后台分页只有一个实现（`components/admin/Pagination.tsx`），默认是「数据面板页脚」形态：左计数、右控件（每页条数 → 翻页 → 第 X / Y 页 → 跳转），共享分页 token。需要把表格与页码控件分开时，使用 `variant="detached"`：分页作为 `AdminDataPanel` 的同级元素，形成透明、无边框、无圆角的独立控制行，只靠页面区块间距与内容对齐表达层级。
-- **Shared Geometry:** `panel`、`detached` 与 `dialog` 分页的关键控件统一使用当前 `--admin-pagination-control-size: 2.125rem`（34px）：每页条数下拉触发器、文字或图标翻页按钮、页码输入框共用同一高度与最小高度，不继承后台普通控件的40px高度。宽度按用途保留：下拉使用 `--admin-pagination-page-size-width`，图标按钮为正方形，文字按钮随文案，页码输入框使用 `--admin-pagination-jump-width` 固定宽度、取消水平内边距并居中数字。尺寸由共享 `components/pagination.css` 提供；不要在调用点或页面 CSS 重新写高度、宽度或对齐魔法值。2026-10-14 检查确认通用 `sm` 规则会把 panel 的文字按钮撑到40px，而 detached 图标仍为34px；分页尺寸选择器必须包含 `[data-slot='button'][data-size]` 以稳定覆盖通用规则，不能只依赖导入顺序。验收时同时检查文字/图标、三种变体、明暗主题和窄屏布局。
-- **Novels Footer Rhythm:** 小说管理的 `variant="detached"` 分页与表格相邻但不套卡片；分页控制行通过 `margin-top: calc(-1 * var(--admin-space-2))` 抵消默认区块间距的一档，使表格与分页保持连续的页脚节奏。该收紧只属于小说列表，不外溢到其他后台页面。
-- **Narrow Geometry:** 400px及以下，detached 分页的页码读数移到末行，避免“每页行数 + 下拉 + 翻页 + 页码”四列最小宽度撑破容器。跳转输入框的尺寸规则也必须高于通用 Input 规则，确保下拉、按钮与输入全部为34px，不能只验证按钮高度。
-- **Default Page Size:** 默认每页 **15** 条，档位 **15 / 20 / 50 / 100**。两个常量 `ADMIN_DEFAULT_PAGE_SIZE` 与 `ADMIN_PAGE_SIZE_OPTIONS` 定义在 `lib/admin-pagination.ts`（独立模块，不是 `Pagination.tsx`——组件文件必须保持「只导出组件」，否则运行时常量导出会破坏 HMR 边界），是全站唯一来源——页面 `useState(ADMIN_DEFAULT_PAGE_SIZE)` 取初值并把 `ADMIN_PAGE_SIZE_OPTIONS` 传给 `pageSize.options`。**不要在页面里再写 `useState(50)` 或字面档位数组**：历史上小说 20 / 章节 50 / 审计 50 / 生成内容 50 四处分叉，正是这么来的。
-- **Presentation, Not API:** 15 是**展示层**默认值，后端各列表路由未传 limit 时仍回落到 50。这样未显式传参的调用方（含公开页）不会被静默截断。需要「一次拉全」的页面（抓取中心候选列表 `PAGE_SIZE=100`、审核队列 `limit: '80'`、章节索引 `limit: '2000'`）显式传自己的 limit，不消费本默认值。
-- **Page-Size Change Resets Page:** 改变每页条数必须回到第 1 页（组件内部已回调 `onPage(1)`，调用方需把 offset 一并归零）；换筛选条件同理。留在原 offset 会落在越界区间，表现为「改完一片空白」。
-- **Delete-Then-Empty Guard:** 当前页删到空且不在第 1 页时，回退一页而不是留在空页。
-- **Front-stage Exception:** 前台 `Home` 保留自己的实现（内联原生控件 + `.home-pagination`），两套刻意分开：前台是阅读场景的卡片皮肤，后台是紧凑控制带。后台不得复用前台类名（曾因 home.css 的裸 `.home-pagination` 选择器把前台 20px 圆角漏进后台）。
-
-### Panel Toolbar (AdminToolbar)
-
-- **Ownership:** 工具条归属于它筛选的那份数据，而不是页面。筛选/搜索/批量操作只作用于某个 `AdminDataPanel` 的列表时，该 `AdminToolbar` 必须渲染在**那个面板内部**；有 `AdminPanelHeading` 时位于标题之下，没有标题时作为数据面板的第一段，始终在数据区（表格 / 列表 / 页脚）之上。
-- **Anatomy:** 面板内工具条是面板的一段，不是独立表面。无自身圆角、无四边描边，只有一条 `--admin-border` 底线与数据区分隔；表面色用 `color-mix(in srgb, var(--admin-surface) 40%, transparent)` 与画布轻微区分。水平内边距与数据区（`.ai-list-body` / `.ai-tasks-content` 的 `1.25rem`，≤900px 降为 `1rem`）**必须同步**——只改一侧会让工具条与下方表格错开，出现两条左基线。
-- **内间距归属：** `.admin-toolbar--inline` 自身**只有 flex 布局**（`display: flex` + `flex-wrap` + `gap`），不含内间距。每个工具条必须由**自己的 class** 补 `padding: 0.75rem 1.25rem` 与 `border-bottom: 1px solid var(--admin-border)`（范本见 `.ai-service .ai-tasks-toolbar`、`.chapter-toolbar`、`.moderation-toolbar`）。裸用 `<AdminToolbar>` 而不给 `className` 会得到零内边距：控件贴住面板左右边缘，且表头被压在筛选条下沿。
-- **下边距必须外置：** `padding-bottom` 落在盒内，表格仍会紧贴 `border-bottom`（实测工具条 `bottom` 与 `thead top` 差 0px）。工具条与数据区之间需要 `margin-bottom: 1rem`，不能用 padding 代替。
-- **Geometry:** `display: flex` + `flex-wrap: wrap` + `gap: 0.75rem`，靠换行适配窄屏而不另写断点；`min-height` 与纵向内边距按内容定档（AI 三面板 3.25rem / `0.75rem`，章节目录面板 3.75rem / `0.875rem`），不做强制统一。
-- **Slots:** 组合顺序固定为「批量操作（仅在有选中项时出现）→ 字段标签 → 筛选控件 → 其余动作」；不要为筛选器新建一套卡片外观。
-- **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**。跨多个面板生效或确实需要独立成卡时，才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）；如果只是作用于一个数据集的轻量搜索/筛选组合，则使用透明的“列表控制行”，不能再创建等权卡片。
-- **工作台胶囊控制行与单层控制流（Filter Rail & Single Control Surface）:**
-  通用后台数据工作台（小说管理、分级管理、章节管理等）统一采用 `AdminPage` 页头（含全局动作） → `工作视图 Tabs`（如有） → `.admin-filter-rail`（透明外置控制行） → `AdminDataPanel`（数据表格直接作为实体卡片）的扁平结构。
-  - **搜索与筛选归一：** 搜索框（`AdminSearch`）位于左侧并弹性伸缩（`width: min(22rem, 100%)`），所有多维度筛选胶囊（`CustomSelect chip filterChip`）位于右侧（`.admin-filter-chips`），同处单行，严禁将搜索与过滤拆分至卡片内外两重空间。
-  - **沉静辅助读数：** 匹配数、微型健康度比例条、缺口统计等轻量辅助信息，收敛于控制行尾端（`.admin-filter-rail__status`），杜绝占用首屏的厚重独立横条与信息复读。
-
-**The Claude Flat Workbench Rule (去容器化与单层控制流准则).**
-在具有明确业务语境（页面标题或 Tabs）的数据列表页中，严禁在 `AdminDataPanel` 内部再包裹带有二级对象名的 `AdminPanelHeading` 或内嵌二级工具条（Card-in-Card 俄罗斯套娃）。
-数据面板直接从 `<thead>` 开始，以数据实体本身作为卡片。外置控制行使用透明背景、无描边、无圆角（`.admin-filter-rail`），只靠自然流式排版与极细 Hairline 分隔表达层级。分页默认作为同级元素外置（`Pagination variant="detached"`）。
-
-- **AI 建议与异步任务控制流（AI Suggestion & Task Control Flatness）:**
-  在 AI 分级建议或异步模型生成等任务工作台视图中，工具筛选条（状态切换、单批上限选择、分析未标注按钮）、说明性指引以及任务执行进度条/断点恢复卡片（`AiTaskProgressBar`），必须作为独立的控制表面平铺渲染在数据面板外部画布上，严禁打包揉塞进 `AdminDataPanel`。下方建议记录直接复用统一的数据表格设计规范（`AdminDataPanel columns={...} density="comfortable"` + `Table`），使用标准列宽契约、表头批量复选框与 `Pagination variant="detached"`，消灭非标队列卡片堆叠，实现纯粹的 Claude 纸白单层控制流。
-
-**The Claude Admin Vertical Rhythm & Baseline Alignment Standard (后台垂直律动、基准对齐与间距统一规范).**
-所有后台工作台、数据子页面与主-子视图（小说管理、内容审核、章节管理、分级账本、任务管理等）在垂直律动与控件层级上**以「小说管理 (NovelsTab)」为全站绝对基准与唯一真相 (The NovelsTab Benchmark as the Ground Truth)**。消灭子页面之间各写各的 margin、padding 与重复叠加导致的视觉残差：
-
-1. **宏观垂直律动 4 档基准阶梯（The 4-Tier Vertical Hierarchy Rhythm）**：
-   - **Tier 1 · 页头呼吸留白层 (Header Breathing Rhythm - 40px)**：
-     - `AdminTabHeader` 在全后台统一取消底部分隔线（`border-bottom: 0`），使作业台回归沉静纯粹的 Claude 纸白平面；
-     - 保持内下边距 `padding-bottom: 1rem` (16px) 与极细微外下边距 `margin-bottom: 0.25rem` (4px)；
-     - 配合主页面网格容器（`.admin-redesign-page` 自带 `display: grid; gap: var(--admin-page-section-gap, 1.25rem);` 即 20px 步长），
-       **页头描述/操作区基线到底部首道交互控制层（工作视图 Tabs 或直接到筛选轨道 Filter Rail）的视觉净距离严格固化为 40px (2.5rem)**；
-     - 绝对禁止在子页面手写 `padding-bottom: 0` 或 `margin-bottom: 1.25rem`，杜绝首屏过紧拥挤或过度膨胀。
-   - **Tier 2 · 工作视图 Tabs 间距 (Workspace Tabs Rhythm - 20px)**：
-     - 当页面含有二级视图胶囊切换（如内容审核的「想法 / 评论 / 举报」Tabs、分级管理的「分级账本 / 规则候选 / LLM 建议」）：
-     - 胶囊轨道高度统一为 `--admin-control-height: 2.5rem` (40px)；
-     - **Tabs 底部到下方筛选轨道（Filter Rail）的净距离严格保持为 20px (`var(--admin-page-section-gap, 1.25rem)`)**；
-     - Tabs 容器外边距严格设为 `margin-bottom: 0`，距离完全由父级 Grid 的 `gap` 自然释放，严禁手写额外 margin 导致与 Grid gap 二次叠加。
-   - **Tier 3 · 筛选控制轨到实体卡片间隙 (Filter Rail to Data Panel Gap - 20px)**：
-     - 外置筛选轨道（`AdminToolbar layout="inline"` / `.admin-filter-rail`）高度与最小高度统一锁定为 `--admin-control-height: 2.5rem` (40px)；
-     - **筛选轨到底部主体数据面板（`AdminDataPanel` / Table 卡片）的净距离严格保持与小说管理完全一致的 20px (`var(--admin-page-section-gap, 1.25rem)`)**；
-     - 当 Filter Rail 为 Grid 直接子级时，外边距设为 `margin-bottom: 0`；若处于非 Grid 容器（如 `<TabsContent>`）内，则显式指定 `margin-bottom: var(--admin-page-section-gap, 1.25rem)` 补足 20px 规范间距；
-     - 控制轨内部严格贯彻单层扁平流：左侧搜索框弹性伸缩（`width: min(22rem, 100%)`），多维筛选胶囊靠右对齐（`margin-left: auto`）。
-   - **Tier 4 · 数据面板到分离式分页 (Data Panel to Detached Pagination - 12px)**：
-     - 数据面板采用 `AdminDataPanel density="comfortable"`，圆角 `var(--admin-data-panel-radius)` (16px) 与柔和纸面阴影；
-     - 底部 `Pagination variant="detached"` 统一设置 `margin-top: calc(-1 * var(--admin-space-2))`（-8px），使表格卡片底边到分页栏净间距收紧为 **12px**，在视觉上形成呼吸均匀、紧密依附的整体；
-     - 杜绝分页栏在各子页面忽上忽下或贴边拥挤。
-
-2. **严禁在子页面手写外边距破坏全局节奏（Zero-Ad-hoc-Margin Rule）**：
-   绝对禁止在任何工作台子页面或控件类（如 `.moderation-tabs`, `.moderation-filter-rail`, `.ai-parameter-tabs`）上手写 `mb-4`, `mb-6`, `margin-bottom: 1rem !important` 等非标属性。所有层级跳跃与节律控制必须由上述 4 档基准阶梯与设计令牌（`--admin-page-section-gap`, `--admin-control-height`）统一收敛驱动。
-
-3. **跨面板绝对基准对齐原则（Cross-Tab Baseline Equality Rule）**：
-   在同级各视图切换（如内容审核「想法/评论/举报」、小说管理、章节管理、分级账本、任务管理等）时，页头基线、二级控制轨顶部 Y 轴起点、控件高度（40px）与卡片顶边绝对 Y 偏移量保持严格一致，杜绝切页时页面内容和卡片顶边产生像素级跳跃；
-   主体卡片内部的 `AdminPanelHeading` 标题栏垂直内边距统一收敛为 `24px 28px 16px`，确保视觉重心与文本基线一致。
-
-### Admin Tab Header (AdminTabHeader)
-- **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题独占标题行、描述位于其下，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，全后台统一以小说管理为范本关闭底部分隔线（`border-bottom: 0`）。
-- **Anatomy:** 只有一套。历史 `kicker` 眉题与 `hero` 变体已退役——标题上方不再出现小字，页面之间也不再有标题字号膨胀。
-- **Title:** 共享字号 token `--admin-page-title-size`（20px）；保持 700 字重与 `letter-spacing: -0.04em`。
-- **Title Line:** 标题后不附加规模摘要、状态小字或竖向分隔线；页名保持清楚、独立。
-- **Counts and Status:** 放在所属面板标题栏、相关筛选器或分页区。异常信息放在对应页面内容中，避免把状态提示塞进页名行。
-- **Actions 几何:** 桌面端 `width: fit-content` + `flex-wrap: nowrap`（左标题、右动作，中间留白）；900px 及以下 `width: 100%`，搜索框 `flex: 1 1 auto`、按钮 `flex: 0 0 auto`。搜索框自身定宽：小说管理 20rem，分级管理 18rem——**永不给 `flex: 1` 让它撑满页头**。
-- **Ownership:** 页头由父容器通过 `AdminPage` 提供，`title` 传 `undefined` 时不渲染页头——供自带页头的子视图使用（`scrape/sources` 是唯一消费者）。子 tab 型页面（AI 服务、站点运营、账户与注册）的页头也由父容器统一提供，子面板不再自建页头。
-- **动作归属:** 只有作用于**整页**的动作进页头。筛选某一份数据的下拉、批量操作、清除按钮归面板工具条（`AdminToolbar`），两者不重复同一个动作。
-
-### Admin Metric Strip (AdminMetricStrip) — 停用
-- **状态:** **全站无页面调用**（2026-09-25 起）。组件保留在 `AdminWorkspace.tsx` 供测试锚定三段结构，但新页面不得再引入。
-- **禁止场景:** 一个指标条的数字若已在所属筛选器旁的计数说明、面板标题栏状态或页脚计数中呈现，就不再另起一块表面。概览读数应当**贴在能筛出它或汇总它的那块内容旁边**：
-  - 分级账本 → 「待标注 67 · 限制级 340」贴着分级下拉；
-  - AI 用量统计 → 「总调用 / 总成本 / 平均单次」贴着趋势图（`.ai-usage-totals`）；
-  - 后台总览 → 库存 9 项收成一行紧凑读数（`.dashboard-stat-line`），不与任务状态争夺首屏。
-- **测试锚点:** `admin-readability.test.tsx` 仍断言 `AdminMetricStrip` 的三段结构（label / value / detail 各自成元素）。
-
-### Custom Combobox (CustomSelect)
-- **Style:** 基于 Popover + Command (cmdk) 的搜索下拉
-- **Trigger:** 使用基础 Input 的共享字段外观，右对齐 ChevronsUpDown 图标；不要把触发器按 outline 操作按钮单独着色。
-- **Dropdown:** 使用上述 `.shared-select-content` 纸面浮层，支持键盘导航和搜索过滤。
-- **Width:** 触发器基础宽度为 `w-full` + `max-w-[400px]`（表单内单列使用）。放入 flex 容器（尤其 `AdminToolbar`）时必须给出明确宽度，见下条。
-- **防滚动跳跃与焦点保全 (`Scroll & Focus Stability`)：** 下拉选择/弹层关闭时恢复触发器焦点，必须在 `PopoverContent` 的 `onCloseAutoFocus` 中调用 `triggerRef.current?.focus({ preventScroll: true })`，防止浏览器原生焦点回填强行将视口或外层滚动容器（`AdminShell` 的 `.admin-layout__content`）拉扯滚动到顶层或产生视口位移。
-- **`compact` 保留宽度约束并服从所在区域尺寸：** 保留 `max-w-[var(--admin-filter-width)]`（11rem），公开环境默认32px，后台仍与相邻 Input 对齐为40px；分页及悬浮岛继承各自区域高度，不再硬编码 `h-8`。调用方可用 `className` 覆盖用途决定的宽度上限。
-- **在 `AdminToolbar` 中的宽度契约：** 筛选器要么由 `CustomSelect` 自身的 `compact` 提供上限（11rem，适合「全部分级 / 全部来源」这类短选项），要么由外层容器用 `flex: 0 0 <宽度>` 固定（如 `.moderation-toolbar__status { flex: 0 0 9rem }`）。两者取其一即可，不必同时写。
-- **`.admin-toolbar__filters` 提供横向分组：** 子项不收缩、下拉触发器按内容宽度，窄屏允许换行；它不替代 `compact` 自带的11rem上限或业务容器的显式宽度。
-
-### Filter Chip (CustomSelect `filterChip`)
-
-- **Purpose:** 用于与列表搜索并排的可选筛选条件，视觉上对应“状态 / 模型 / 可见性”一类的添加筛选控件；它不是普通表单下拉，也不是独立卡片。
-- **Anatomy:** 前置 `CirclePlus` 图标 + 当前筛选文案 + 可点击触发器；隐藏普通下拉的 ChevronsUpDown，以加号图标表达“添加/打开筛选”。当前值仍由同一个 `CustomSelect` 下拉承载，不改变筛选行为。
-- **Tokens:** 保留 `--admin-filter-chip-height`、`--admin-filter-chip-min-width`、`--admin-filter-chip-padding-inline` 和图标布局；纸面、实线描边、圆角与焦点统一读取 Input token，不再使用独立虚线/陶土 hover 皮肤。后台同排字号14px、字重400，禁止在调用点重新写魔法值。
-- **Layout:** 当它与搜索框位于同一条 `AdminToolbar` 时，搜索框 `flex: 1 1 auto`，筛选胶囊 `flex: 0 0 auto` 并靠右；≤900px 搜索框独占第一行，筛选胶囊仍贴右对齐。
-- **Accessibility:** 触发器保留 `role="combobox"`、`aria-expanded` 和可读的 `aria-label`；图标仅作装饰，不能替代控件名称。
-
-**The Bounded-Compact Rule.** 紧凑控件可以更矮、更窄，但不能「无上限」。一个 `w-full` + `max-width: none` 的按钮放进 `flex-wrap` 容器，会独占一整行——单个筛选器撑满 1440px，三个控件把工具条撑成三行，视觉上从「筛选条」退化成「三个孤立的表单行」。**宽度上限必须由控件自身或容器显式给出，永远不要留给 flex 布局去决定。**
-
-### Admin Filter Controls
-
-- **Ownership:** 筛选控件的宽度归控件或它的直接容器，不归 flex 布局。
-- **Source of truth:** 紧凑筛选器的默认宽度上限是 `--admin-filter-width`（11rem），定义在 `admin-operations.css` 的 `:root`。新增紧凑筛选器时优先复用该变量，不要就地写魔法数字。
-- **Caller patterns（二选一）：** 短选项筛选器直接 `compact`（走 11rem）；需要更宽或更窄时，由外层容器 `flex: 0 0 <宽度>` 或 `className` 覆盖，并在调用点说明理由。
-- **Verification:** 改动筛选器宽度后，实测该工具条的**子元素数量与换行数**（`AdminToolbar` 设计为同行排布，除非窄屏换行）；用 `getBoundingClientRect().width` 确认下拉不等于工具条宽度。
-
-**`.admin-toolbar__filters`（标签 + 控件 + 计数说明的筛选器组）**
-
-- 它按内容排列：`display: flex` + `flex: 0 0 max-content` + `flex-wrap: nowrap`，子项 `flex: 0 0 auto`；≤900px 才放开换行。
-- **不要用 `width: max-content` + `max-width: 100%` 表达同一意图。** 百分比 `max-width` 在 flex 行里按已分配空间解析，与 `max-content` 形成循环依赖：浏览器按规范收敛到 286px，而子项里的 `CustomSelect` 触发器带 `w-full`，又按 `w-full` 长到 `max-w`（176px），最终子项共占 348px、溢出容器右界 62px。`flex-basis: max-content` 直接参与 flex 分配，绕开这一层耦合。
-- 筛选条内的 `CustomSelect` 触发器必须 `width: auto`（选择器 `[data-slot='popover-trigger']`，注意不是 `data-slot='button'`）：否则 `w-full` 与父级 `max-content` 循环，元素宽度随容器收敛而非随内容。
-- 该类名曾被当作「有类名、无规则」的占位容器使用，`display` 落到 `block`，标签、下拉、计数各自成块。它不是占位类，布局必须显式声明。
-
-
-### Content Library Mobile（内容库移动端，2026-10-19）
-
-小说管理与章节管理在 ≤900px 不再沿用「桌面表格转通用卡片」，而是各自重排为**记录卡**。样式归属 `web/src/styles/admin/pages/content-library-mobile.css`，在 `admin-operations.css` 末尾导入以晚于共享表格规则；901px 以上的固定列宽表格与 `components/tables.css` 完全不变。
-
-- **断点：** 与全站 900/901 卡片断点一致，不新增断点。390/430/900/901/768/601/320 逐档截图验收，`document.scrollWidth === clientWidth`（无横向溢出）。
-- **页头：** 标题收到 1.375rem（≤420px 为 1.25rem），描述退次级色；页头与首道控制层的净留白保持 20px 页网格 gap，不手写 margin。
-- **动作区：** 小说页 ≤640px 为「导入书籍占整行 + 其余三枚等宽一行」网格；601–900px 为单行 flex，不加空行。
-- **筛选轨：** 搜索独占一行，筛选胶囊组单行**横滑**（`overflow-x: auto` + 隐藏滚动条）。三枚胶囊按内容取宽共约 382px，390px 下必然溢出；换行会把轨道撑到 144px 且第三枚孤立成行。横滑后轨道高 94px。
-
-- **右缘内缩：** 胶囊组 padding-inline: 1px 1rem 且内层渐隐 1.5rem —— 430px 视口下第三枚胶囊原本正好顶到容器边界（右缘 0 呼吸位），加内边距后可继续右滑；渐隐落内层、不落轨道，避免遮罩边缘成为包含块而错开搜索框与胶囊的左起点。- **小说记录卡：** `grid-template-areas` 五行 —— 标题（书影 + 书名 + 私密/来源副行）／作者·状态·分级／分类胶囊／章节计数·更新时间／卡底操作。标题在手机上允许折两行（`-webkit-line-clamp: 2`）：触屏无悬停，截断等于丢信息。
-- **章节记录卡：** 两行 —— 序号贯穿左列作锚点，首行标题、次行「字数 · 创建时间 · 操作」，卡高由 128px 压到 86px。
-- **字段标签：** 记录卡内 `data-label` 的 `::before` 全部隐藏。状态、分级、字数自身可自解释；逐行 label:value 会把卡片撑到两屏高。
-- **控件几何：** 卡底图标键 36px（列表内次级图标），页头主操作与筛选胶囊 44px 触控档；分页控件沿用共享 `--admin-pagination-control-size`。
-- **分页：** ≤767px 收起首末页与跳转框（读数与上下页已覆盖），单行排布 `每页条数 · 上一页 · 读数 · 下一页`，高度 85px。
-- **选择岛：** 直接复用 `AdminSelectionBar` 与 `--admin-dock-*`，无页面级覆盖。
-- **数据属性契约：** 卡片排布只读 `data-primary` / `data-col` / `data-label` / `data-actions` / `data-check`，不依赖 td 序号；调整列顺序不会错位。新增列须带 `data-col`。
-
-- **验收截图：** docs/previews/content-library-mobile/（novels-390/430/320/900、chapters-390/396/900、暗色各一份、pagination-390、novels-rail-390）。
-
-## Do's and Don'ts
-
-后台样式的维护入口为 `web/src/styles/admin-operations.css` 的导入清单：后台语义变量集中在 `web/src/styles/admin/tokens.css`，共用外观在 `admin/components/`，业务布局在 `admin/pages/`，框架在 `admin/shell.css`。字段、状态与弹窗分别使用 `AdminFormField`、`AdminStatusBadge` / `AdminContentRatingBadge`、`AdminDialogContent`，具体归属与用法见 [后台共用样式与组件](docs/admin-style-system.md)。保留现有视觉与响应式契约，不在入口末尾继续堆叠覆盖规则。
-
-### Do:
-- **Do** 使用暖灰色调作为地面和背景，保持"纸面"质感
-- **Do** 保持强调色的稀缺性——奶茶棕只出现在交互元素和品牌标记上
-- **Do** 在管理后台使用 --admin-* 语义化间距和圆角变量
-- **Do** 在阅读器场景使用衬线字体营造沉浸感
-- **Do** 保持卡片和面板的扁平设计，仅在弹出层使用阴影
-- **Do** 在暗色模式使用月光暖调（金色强调 + 深灰地面），不要简单反转
-- **Do** 后台数据表统一走 `AdminDataPanel` + `columns` 契约，并手动标注 `data-primary` / `data-label` / `data-actions`
-- **Do** 让每个页面只保留一个内容区主标题，面板标题写工作对象名
-- **Do** 让后台卡片标题保持 16px、无分界线、无注释性副标题和前置 SVG 图标
-- **Do** 让卡片标题行右侧只出现实时状态、所属数据读数或可执行控件
-- **Do** 让页名独占标题行、描述位于其下方；标题后不接小字或竖线，搜索与整页动作留在右侧
-- **Do** 把规模与状态读数放在所属面板、筛选器或分页区，不放在页名旁
-- **Do** 把筛选读数贴在能筛出它的控件旁边（「待标注 67 · 限制级 340」紧邻分级下拉），而不是另起指标条
-- **Do** 用 `data-slot` 属性匹配 shadcn 组件（`table.tsx` / `dialog.tsx` 都带契约），而不是依赖 Tailwind 生成的类名
-- **Do** 将控制层（面板标题 `AdminPanelHeading`、工具条 `AdminToolbar`、筛选器 `CustomSelect compact chip`）独立平铺于数据面板之外，形成单层控制流（Flat Control Flow），下方 `AdminDataPanel` 回归纯粹纸白作业台
-- **Do** 在支持批量操作的数据列表中全面复用全局底部悬浮胶囊岛 `AdminSelectionBar`，将「已选 N 条」与批量动作收敛于视口底部浮动条，彻底移除卡片标题内的行内挤压按钮
-- **Do** 下拉选择与筛选操作（如 `CustomSelect`）生效后必须保持原视口位置（焦点恢复配置 `preventScroll: true`，且异步重载保留旧列表高度防页面瞬塌），禁止页面滚回顶部
-- **Do** 表格分页统一使用外置独立形态 `<Pagination variant="detached">`，平铺在数据面板之后
-
-### Don't:
-- **Don't** 使用纯黑（#000000）或纯白作为大面积背景——永远带暖调
-- **Don't** 使用冷色蓝/紫/绿作为强调色——系统只有暖棕一个强调色
-- **Don't** 给卡片或数据面板添加 hover 阴影效果——Flat-By-Default Rule 与 Tonal-Admin Rule
-- **Don't** 在同一个信息块里堆叠超过 3 级字号——字阶本身是分档的（通用 / 后台紧凑 / 阅读表面），但单块内保持克制，不要为了"更醒目"临时插一档
-- **Don't** 给后台加装饰性动效。状态反馈统一 150ms（`--admin-table-row-interaction`），面板进入 220ms（`--admin-table-surface-enter`），分段 tabs 位移 180ms——除此之外不加动效
-- **Don't** 忽略 prefers-reduced-motion 媒体查询——尊重用户的动画偏好
-- **Don't** 给数据面板套用 `columns` 之外的列宽方案，或手写 `--col-N-w`。列宽契约只有一个入口
-- **Don't** 在页标题上方再加小字眉题，或用面板标题重复当前页面名
-- **Don't** 在后台卡片标题下添加解释性副标题，或在标题前添加 SVG 图标
-- **Don't** 在卡片标题行放静态快捷键提示、操作说明或装饰性标签
-- **Don't** 在列表型后台页再插 `AdminMetricStrip`：它的数字若已在所属面板、筛选器或页脚计数里出现，就只是重复（见 The No-Third-Pass Rule）
-- **Don't** 把同一个动作同时放进页头和面板工具条（见 The Single-Door Rule）
-- **Don't** 让 `w-full` 的元素在 flex 容器里失去 `max-width`——`max-w-none` + `w-full` 会让筛选器独占整行，把工具条撑成多行
-- **Don't** 依赖 flex 布局替控件决定宽度：`flex: 0 0 auto` 配合 `w-full` 的宽高组合在 `flex-wrap` 下没有稳定结果
-- **Don't** 在弹窗内部的页头下方或页脚上方添加水平分割线（`border-bottom` / `border-top`），或在弹窗正文内滥用多层带边框的嵌套灰底矩形卡片（杜绝盒中盒反模式）
-- **Don't** 将工具条、状态进度条和描述性说明全部塞进数据面板内部，造成面板内部多层灰色带与边框挤压（Card-in-Card 俄罗斯套娃反模式）
-
-### Directory Row Density and Dates
-
-用户目录的注册时间使用本地日期 `YYYY-MM-DD`（共享 `formatDate`），以 `<time>` 标记并通过 title 提供完整本地日期时间；无值显示“—”。登录时间继续使用相对时间，无登录记录显示原有占位文案。
-
-共享 `AdminDataPanel` 提供 `density="compact" | "comfortable"`，默认 compact。用户目录采用 comfortable：桌面单元格上下 16px、左右 20px 内边距，目标行高 76px，内容较多时允许自然撑高；表头左右内边距与内容对齐。移动端保持连续卡片及单条分隔线，上下 16px 内边距、字段间距 8px，不施加桌面固定行高。字体、头像、控件尺寸不随行密度放大。
-
-几何参数统一放在 `web/src/styles/admin/tokens.css` 的 `--admin-table-comfortable-*`，由 `components/tables.css` 消费。其他表格按业务信息密度选择此变体，页面不复制行高或单元格内边距规则。
-
-### Registration and Audit Views
-
-账户与注册的四个入口继续使用现有 URL 与侧栏子导航，不另加桌面页面内 tab。注册、登录审计与操作审计沿用共享搜索、白色无外描边面板、comfortable 列表密度、状态标签、具体日期与三段式详情弹窗。
-
-- 注册方式以三张单选项表达，区分当前生效方式与未保存草稿；保存中禁用编辑与重复提交，失败保留草稿。邀请码目录集中数量与生成按钮，支持全量邀请码集合的搜索、状态筛选和分页（接口不再截断为最近 100 个码）；生成数量遵循现有接口的 1–50 限制。停用先确认，清理仍按确认快照处理所有失效码，不受当前搜索或分页影响。
-- 登录目录使用用户、结果与原因、访问来源、时间、操作五列；IP 与设备摘要组合，完整 User-Agent、原因、记录 ID 保留在只读详情。未知设备不推断具体平台，未知原因保留原值。限流采用 warning 状态。
-- 操作目录使用操作人、动作与范围、结果、操作标识、时间、操作六列；动作与目标数量组合，操作 ID 与 HTTP 状态组合。详情保留完整 ID、重放次数、错误以及创建/更新/完成时间，不展示请求哈希、密码或目标正文。用户名搜索必须由服务端完成，并保证总数与分页使用同一筛选条件。
-- 审计筛选与行数变化回到第一页，搜索保留 400ms 防抖；旧请求不得覆盖新筛选结果。外置分页沿用共享控件，不调整通用控件高度。移动端继续使用连续记录卡片，长字段在详情中完整换行显示。
-
-手机阅读控制区使用全宽、不透明的底部 dock，收起入口至少52px并预留 safe area。首页与回到顶部位于普通文档流页尾，保留44px触控区域；不能将独立悬浮按钮叠在正文文字上。小说详情手机纸面20px内边距通过页面作用域覆盖旧 `.section` 规则。
-
-### Backup Deployment Configuration
-
-备份设置保留「本地与运行环境」紧凑状态列表：目录与密钥标识只读，主密钥、数据库导出工具、数据库恢复工具、SFTP 传输工具使用整行按钮（状态徽标和右箭头），点击打开共享 AdminDialogContent 三段式卡片。数据库恢复弹窗同时配置 pg_restore 与 psql。弹窗复用 AdminFormField、Input 和 AdminStatusBadge，展示工具来源、版本与检测错误；留空继承部署路径或自动检测，检测不保存。弹窗独立保存本地配置，成功立即更新列表；取消、Escape 或外部点击撤销当前编辑并清除未保存密钥，焦点返回原入口。保存失败保留输入，保存时阻止关闭。页面其他业务草稿不受影响，仍由底部保存/撤销管理。主密钥支持输入 32 字节随机数据的 Base64，或服务端生成后先下载、再保存；已保存密钥不回显、不覆盖，环境密钥可原样迁入本地。生成、检测和本地保存使用当前管理员登录态与权限校验，无需再次输入密码。维护及保存期间禁用控件。主密钥、密码与工具原始输出不进入状态文案或日志。
-
-### Backup Task Visibility
-
-备份与恢复不在版本、存储目标、自动备份或设置页面重复展示「最近任务」历史列表。提交备份、连接测试、预检等操作后直接打开任务进度弹窗；历史执行记录统一从「操作日志 → 查看任务」进入，保留任务阶段、错误和日志及预检后的回滚入口。
-
-备份各页的操作结果统一复用 `useToast().toast()` 反馈栏，覆盖设置、计划与目标保存、演练库创建、密钥生成与导出、工具检测、下载、固定保留与任务提交；失败保留相关表单输入和局部错误详情。创建与保存期间沿用按钮忙碌状态。工具检测区分通过与未就绪，密钥导出明确提示尚未保存。当前观察到的任务结束时反馈完成、部分完成、失败或中断，历史已结束任务只展示详情；轮询不重复提示相同错误或同一任务的结束结果。父级刷新不重复触发子表单的成功提示。
-
-### Backup Rehearsal Creation
-
-恢复演练面板在尚未配置演练库时提供「一键创建演练库」，使用当前 PostgreSQL 实例与部署连接账号新建专用空库、初始化保护标记并立即加密保存连接，无需管理员密码二次验证。创建期间锁定表单，失败显示具体原因并保留其他草稿；成功显示脱敏连接标签、切换为后台配置，并保留其余未保存输入及新的配置 revision。主密钥未就绪或维护期间禁用；已有连接不显示创建入口。保留手动连接与初始化说明，说明 CREATEDB 权限要求，不自动为账号提权。
-
-
-### Backup Rehearsal Management
-
-恢复演练面板仅保留整行「演练库信息」入口（来源徽标和右箭头），打开共享 AdminDialogContent 弹窗后再读取信息；详情、检查连接和移除配置收敛到弹窗内，复用现有信息列表、状态徽标和统一反馈栏。关闭后焦点返回入口，检查及移除期间阻止关闭；展示主机、端口、库名、配置来源、上次连接与保护标记检查时间及当前库最近恢复预检结果；不回显用户名、密码或连接参数。信息读取不连接演练库，主动检查只读取数据库身份及专属保护标记，不能作为恢复演练通过的替代。检查结果注明时间，配置变更后不沿用旧状态；预检记录以脱敏目标标签关联，旧记录未绑定目标时不推定属于当前库。移除连接配置使用共享确认弹窗，明确保留数据库和数据、关闭在线回滚；部署环境地址仍保留，只有手动重新启用才恢复使用。后台清除已保存凭据并更新 revision，保留其他未保存草稿，维护、任务占用或配置版本冲突时拒绝操作。不提供真实删库入口。
-
-
-### Backup Restore Impact
-
-恢复预检通过后打开「回滚影响预览」共享管理弹窗，复用紧凑三段式 editor 变体，段间留白位于滚动区外，顶部和底部始终与正文保持间距；以当前线上数据 → 所选备份为方向显示小说、章节、用户、配置、图片和其他业务记录的新增/修改/移除及恢复前后数量；图片补充总字节数。详情支持类别、变化方向筛选及分页，正文只标记变化，账户与凭据不显示原值或摘要，配置仅展示白名单安全值。保留范围和比较说明在弹窗内解释。继续确认前校验报告有效性，过期、业务变化或读取失败提示重新预检；确认弹窗复用摘要并要求勾选已查看回滚影响，保留版本号和管理员密码验证。处理中禁止关闭，结果复用统一反馈栏。报告不完整不得当作无差异，服务端在停写状态再次检查，旧预检必须重新生成报告。
-
-
-### Novel Analysis Tasks
-
-续写草稿的单章发布、整批发布成功后，在列表上方展示「更新情节与关系」区域；已发布续写或章节记录保留「一键更新情节与关系」入口。发布只展示更新提示，显式点击才提交模型分析。两项任务固定到同一正式章节终点，分别显示覆盖进度、阶段内容、失败原因与重试，已完成项不重复提交。离开页面后任务继续；历史任务未覆盖新目标时明确提示继续更新，完整且来源有效的档案才标记可用于续写。入口沿用现有列表操作、暖色语义和全宽布局，窄屏允许操作换行。
-
-小说分析的情节与关系档案通过短请求提交后台任务，页面独立读取进度；离开页面不停止任务，常显说明此行为，暂停按钮才显式中止。章节覆盖、阶段预览、可用于续写的完整档案保持分离。失败状态显示后台错误并保留检查点，用户手动继续；同一本书同类分析的重复提交复用活动任务，目标章节在提交时固定。后台任务纳入现有任务中心，可查看、取消及手动重试。
-
-### Novel Cover Status
-
-首页与书架封面状态复用 NovelCoverStatus：更新数量在右上角，阅读记录「读过」与「收藏」合并为右下角的一条文字纸签，中间仅使用细分隔。标记统一暖纸底、6px圆角、20px高、11px字阶和5px内缩，无图标方块、外描边或阴影；更新数字用现有强调色，其余用次级文字色。随明暗主题适配，超过99章显示99+，悬停标题及无障碍名称保留完整数量。阅读只表示有记录，不表示已读完；保留书目链接与独立取消收藏操作。
-
-小说管理书籍导出：单本从行内「更多操作 → 导出 TXT」下载，批量通过现有勾选范围和选择操作栏「导出所选（ZIP）」下载。仅管理员可用，包含书名、作者、简介与排序后的正式正文，排除未发布 AI 草稿。导出期间禁用重复操作，失败保留勾选并提示原因；每批最多 100 本，文本不超过 64 MiB。
-
-书籍导出往返与封面：TXT 使用显式编号边界与缩进正文，本站导入识别导出格式并保留原始章节标题、顺序和正文，避免无编号 AI 标题漏分章或正文误切。单本保留纯 TXT，并提供「导出书籍包（含封面）」；批量 ZIP 每本独立目录，含正文与当前本地独立封面，不含默认图、历史或候选。缺少可用封面时附说明。书籍包需解压后选择正文 TXT 导入。
-
-ZIP 书籍导入：本地文件入口接受单本和批量 ZIP，先显示可勾选书籍清单，再逐本复用作品匹配、章节差异和最终提交。生成 ZIP 预览只创建导入快照，不写书库；每本独立提交与撤回。包内封面作为封面元数据选项，补齐模式保留已采纳封面，替换需显式选择；撤回恢复此前封面，发现后续封面修改则保留整本并提示冲突。正文与同目录封面严格配对，不确定时拒绝猜测。ZIP 限 64 MB、解压总量 64 MB、100 本和 400 条目，拒绝不安全路径、重名路径和类型不符的封面。
+---
+name: 知舟 (Zhi Zhou)
+description: AI 中文小说阅读站 — 温暖纸质感的沉浸式书库
+colors:
+  primary: "#8B6045"
+  primary-deep: "#74503A"
+  primary-light: "#F0E6D6"
+  primary-subtle: "#F8F3EC"
+  surface: "#FFFFFF"
+  toast-paper: "color-mix(in srgb, #FFFFFF 92%, #F8F3EC 8%)"
+  surface-warm: "#F6F4F1"
+  surface-hover: "#F5F2EE"
+  text-primary: "#211E1A"
+  text-secondary: "#5B554E"
+  text-muted: "#736D65"
+  border: "#ECE8E2"
+  border-light: "#F3F0EB"
+  focus-ring: "rgba(139, 96, 69, 0.24)"
+  success: "#4F7A52"
+  warning: "#B07C2F"
+  danger: "#BE123C"
+  seal: "#b8453a"
+  dark-surface: "#1B1C20"
+  dark-surface-warm: "#24252A"
+  dark-surface-card: "#2A2B31"
+  dark-text: "#E7E0D6"
+  dark-accent: "#BF8F52"
+  dark-border: "#3B3C43"
+typography:
+  heading:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
+    fontWeight: 700
+  body:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.6
+  serif:
+    fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
+  home-title:
+    fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
+    fontSize: "2rem"
+    fontWeight: 500
+    lineHeight: 1.5
+    letterSpacing: "-0.02em"
+  home-title-mobile:
+    fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
+    fontSize: "1.55rem"
+    fontWeight: 500
+    lineHeight: 1.5
+  mono:
+    fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace"
+  # 枚举字号阶（机器可读字阶）。命名语义见正文 Typography 一节。
+  scale:
+    label-sm: "0.7rem"        # 11.2px 导航分组标签/后台 kicker（紧凑档下限）
+    table-head: "0.72rem"     # 11.52px 表头/指标条标签
+    label: "0.75rem"          # 12px 计数胶囊/元信息
+    caption: "0.78rem"        # 12.5px 发现卡作者/描述
+    body-compact: "0.8rem"    # 12.8px 表单标签/分页/排序
+    body-sm: "0.875rem"       # 14px 辅助文字/面板标题/页头描述
+    select-trigger: "0.9rem"  # 14.4px 下拉触发
+    card-title: "0.95rem"     # 15.2px 发现卡标题
+    novel-card-title: "0.875rem" # 14px 公共小说卡片书名
+    novel-card-meta: "0.75rem" # 12px 公共小说卡片作者/状态/简介
+    novel-card-footer: "0.7rem" # 11.2px 公共小说卡片分类/时间
+    body: "1rem"              # 16px 正文/品牌标记/队列摘要数值
+    modal-title: "1.15rem"    # 18.4px 弹窗标题
+    panel-title: "1rem"       # 16px 后台卡片标题（小于 20px 页标题）
+    stat: "1.45rem"           # 23.2px 指标条数值（AdminMetricStrip）——已全站停用，勿用于新页面
+    page-title: "1.25rem"        # 20px 后台页标题固定字号
+    hero-min: "1.35rem"       # 21.6px 公开页 hero clamp 下限
+    hero-max: "1.9rem"        # 30.4px 公开页 hero clamp 上限
+    display: "2rem"           # 32px h1
+    # 阅读表面专属档（reader.css）。刻意高于后台紧凑字阶——长时间阅读优先舒适度。
+    reader-body: "1.1rem"          # 17.6px 阅读器正文（移动端降到 body 1rem）
+    reader-glyph: "1.35rem"        # 21.6px 阅读器图标按钮字符 / 移动端章节标题
+    reader-title: "1.75rem"       # 28px / 500 章节标题；移动端 reader-glyph 1.35rem
+rounded:
+  sm: "6px"              # --radius-sm — 公共页控件
+  base: "8px"            # --radius — 全局基础圆角
+  md: "10px"             # --radius-md — 紧凑控件/卡片；也是 shadcn 桥接层 --sh-radius
+  lg: "12px"             # --radius-lg — 后台控件与分段 tabs 药丸
+  xl: "16px"             # --radius-xl — 嵌套表面/对话框/shadcn Card
+  2xl: "20px"            # --radius-2xl — 后台大面板/数据面板/后台卡片
+  full: "9999px"
+  reader-paper: "16px"   # 阅读纸面与通用 xl 同档；见 --reader-radius-paper
+spacing:
+  xs: "4px"
+  sm: "8px"
+  md: "16px"
+  lg: "24px"
+  xl: "32px"
+  2xl: "48px"
+  page-end-mobile: "24px + safe-area-inset-bottom"
+components:
+  novel-card-typography:
+    titleSize: "0.875rem"
+    metaSize: "0.75rem"
+    descriptionSize: "0.75rem"
+    footerSize: "0.7rem"
+  home-library-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.xl}"
+    padding: "24px"
+  home-search:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.lg}"
+    width: "620px"
+    height: "60px"
+  toast-feedback:
+    backgroundColor: "{colors.toast-paper}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.lg}"
+    padding: "14px 16px"
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.surface}"
+    rounded: "{rounded.sm}"
+    padding: "8px 16px"
+  button-secondary:
+    backgroundColor: "{colors.surface-warm}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.sm}"
+    padding: "8px 16px"
+  button-ghost:
+    backgroundColor: "transparent"
+    textColor: "{colors.text-secondary}"
+    rounded: "{rounded.sm}"
+    padding: "8px 8px"
+  card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.xl}"
+    padding: "24px"
+  input:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.sm}"
+    padding: "8px 12px"
+  reader-paper:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.reader-paper}"
+    padding: "44px 40px"
+---
+
+# Design System: 知舟 (Zhi Zhou)
+
+## Overview
+
+**Creative North Star: "The Paper Sanctuary"**
+
+知舟的设计语言来自一个简单的感觉：在温暖的光线下翻阅纸质书。界面是安静的，像书房里被台灯照亮的纸页——没有刺眼的对比，没有冰冷的玻璃感，只有柔和的奶油色地面和深沉的墨色文字。这不是一个"科技产品"的界面，而是一个"阅读空间"的界面。
+
+色彩来自奶茶和旧书页：暖棕作为唯一的强调色（像书脊上的烫金字），大面积使用接近白色的暖灰和奶油色作为呼吸空间。阴影克制而自然，像纸页层叠投下的微光。组件有微妙的触觉感——圆润但不幼稚，边框细致如精装书的切边。
+
+系统里有两种读者：沉浸的阅读者和高效的运营者。公共阅读页服务于前者，管理后台服务于后者。两者共享同一套色调、字体和材质，但密度完全不同——后台把信息压到紧凑档以便扫描，阅读页把字号放大到舒适档以便久读。两种模式的边界是明确的，字阶与间距各自成档、互不外溢。
+
+**Key Characteristics:**
+- 奶茶色暖调贯穿，拒绝冷色和高饱和度
+- 纸质感地面（接近白色的暖灰），文字如墨迹
+- 阴影极简，依赖色调层次而非投影创造深度
+- 系统字体 + 衬线字体用于阅读场景
+- 组件触感温暖，圆角适度，像精心制作的文具
+- 后台是同一世界的紧凑档：同一套 token，更高的信息密度
+
+## Colors
+
+暖调奶茶色板，以唯一的棕色强调色（#8B6045）锚定视觉重心，大面积中性暖灰提供呼吸空间。
+
+### Primary
+- **Milk-Tea Brown** (#8B6045): 强调色，用于链接、按钮、活跃状态、品牌标记。像精装书封面上的烫金字——稀有而有分量。
+- **Espresso Ink** (#211E1A): 正文主色，接近深棕黑。用于标题和正文，不是纯黑而是带暖调的墨色。
+
+### Neutral
+- **Clean Paper** (#FFFFFF): 最浅的纸面，用于卡片和弹层背景。
+- **Warm Linen** (#F6F4F1): 微暖的灰白，用于页面地面和次级背景。
+- **Hover Tint** (#F5F2EE): 悬停态背景，比 Warm Linen 再暖一度。
+- **Faded Parchment** (#9A938A): 弱化文字的历史值。当前 `--text-muted` 是 #736D65（白底 5.11:1），刻意加深以满足 AA——不要再改回更浅的 #9A938A。
+- **Warm Gray-Brown** (#5B554E): 次要文字，用于非强调的说明文字。
+- **Border Mist** (#ECE8E2): 边框和分隔线，极淡的暖灰。
+- **Border Frost** (#F3F0EB): 比 Border Mist 更淡，用于表格行内侧分隔。
+
+### Admin Surfaces & Claude (Anthropic) Aesthetic
+管理后台遵循 Claude (Anthropic) 视觉设计语言，与公开前台（保持奶茶纸质书房沉浸感）形成明确隔离：
+后台聚焦于**温润橄榄炭黑/象牙羊皮纸、陶土红品牌色（Terracotta #D97757）、大圆角胶囊药丸（Pill shape）与人文杂志式排版**。它们统一定义在 `web/src/styles/admin/tokens.css` 及 `admin/components/`，不污染公开前台全局 token。
+
+- **Admin Accent (Terracotta #D97757):** 后台核心行动强调色（按钮、高光、聚焦环、排序活动态）。Hover 为加深陶土色 `#C56344`，弱态为 `rgba(217, 119, 87, 0.12)`。
+- **Admin Canvas:** 后台画布底色 `--admin-canvas`。暗色模式采用 Claude 标志性的温润近黑/橄榄炭黑 `#141413`，亮色模式采用象牙米白羊皮纸 `#FAF9F5`，避免生硬数码黑白。
+- **Admin Panel:** 普通面板与数据卡片的表面基色 `--admin-panel`。暗色采用 `#1D1D1B`，亮色采用高质感纸白 `#FFFFFF`。
+- **Admin Table Background:** 表格与数据面板容器使用 `--admin-table-background`，暗色为 `#1D1D1B`，亮色为 `#FFFFFF`，外框使用 16px 圆角（`var(--admin-table-panel-radius)`）。
+- **Admin Table Header:** 表头底色 `--admin-table-header-background`，暗色为 `#232220`，亮色为 `#F6F4ED`，字号清秀（0.74rem）、舒展字间距（0.04em）、中性弱化色，克制典雅。
+- **Admin Panel Muted:** 次级表面、胶囊底色 `--admin-panel-muted`，暗色为 `#242320`，亮色为 `#F6F4ED`。
+- **Admin Sidebar:** 侧栏底色 `--admin-sidebar`，暗色为 `#191917`，亮色为 `#F5F3EC`。导航项采用圆润药丸悬停与活动态（陶土红弱底 + 陶土红字墨）。
+- **Admin Border:** 细柔的 Hairline 边界线 `--admin-border`，暗色为 `#2C2B28`，亮色为 `#E6E4DC`。
+- **Admin Border Strong:** 强边界线 `--admin-border-strong`，暗色为 `#383733`，亮色为 `#D5D2C7`。
+- **Pill Shape Geometry:** 后台主次按钮、搜索输入框、筛选胶囊（Filter Chip）、批量操作条（Selection Bar）、状态与分级徽章统一采用全圆角胶囊药丸（`var(--radius-full)` 9999px）。
+- **Spacious Table Rhythm:** 表格普通行高舒展至 3.5rem（56px），行底部分割线采用 `--c-border-subtle`，悬停为柔和的陶土漫反射暖光（暗色 `rgba(217, 119, 87, 0.05)`，亮色 `#F8F6F0`）。
+- **Low-Saturation Semantic Badges:** 连载状态使用草木冷绿（#85BF8E 暗 / #3D7346 亮），完结状态使用暖石板灰，限制级使用柔和陶土粉（#E58B70 暗 / #BF5333 亮），杜绝高饱和亮红大绿。
+
+### Floating Dock Pattern (Claude 悬浮胶囊岛屿与进退场动效)
+
+后台批量选择操作（`AdminSelectionBar`）与 AI 参数保存操作共用 `AdminFloatingDock` 的**底部视口悬浮胶囊岛屿（Floating Pill Dock）**。共享外壳负责定位、暖纸材质、按钮几何和动效，业务组件负责状态文案、动作、提交及显示周期：
+
+1. **零布局跳动（Zero Layout Shift）：**
+   - 采用 `position: fixed; bottom: calc(2rem + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 50;` 悬浮吸附于视口底部中央；900px 及以下底距为 1rem 加安全区；
+   - 彻底解除与表格工具栏、数据面板的垂直高度绑定，无论用户在表格任意位置滚动或跨分页浏览，操作岛屿始终平稳跟随视线，不引发任何页面布局回流或表头抖动。
+2. **材质、层次与几何形态：**
+   - **全圆角药丸**：桌面外框、内嵌操作按钮与计数徽章使用 `--admin-button-radius`（9999px）；900px 及以下外框使用 `--admin-selection-mobile-radius`（24px），允许操作换行，内部按钮仍为胶囊；
+   - **毛玻璃暖纸表面**：背景使用高透暖白/炭黑混合色（亮色 `color-mix(in srgb, var(--admin-panel) 88%, transparent)`，暗色 `color-mix(in srgb, var(--admin-panel) 92%, transparent)`），配合 16px 毛玻璃（`backdrop-filter: blur(16px)`）；
+   - **双层漫反射落影**：亮色 `0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.08)`；暗色 `0 16px 40px -4px rgba(0, 0, 0, 0.5)`，提供强烈的空间立体纵深；
+   - **陶土红计数指示**：左侧已选项计数使用陶土红弱底（亮色 12%、暗色 18%）与 `--admin-selection-count-foreground`；文字由强调色和正文色混合加深或提亮，保证小字号可读性。
+3. **物理阻尼进退场动效（Entrance & Exit Motion Physics）：**
+   - **进入动效（Enter）**：从视口底部平滑弹起并微放大。时长 `0.28s`，运动曲线为 Claude 标志性物理阻尼弹簧 `cubic-bezier(0.16, 1, 0.3, 1)`（`translate(-50%, 28px) scale(0.94) -> translate(-50%, 0) scale(1)`）；
+   - **退出动效（Exit）**：当勾选清空或取消选择（`count` 归零）时，组件内部通过退出状态机保留当前渲染镜像，执行平滑下沉与消散动效。时长 `0.22s`，运动曲线为减速缓冲 `cubic-bezier(0.4, 0, 0.2, 1)`（`translate(-50%, 0) scale(1) -> translate(-50%, 24px) scale(0.94)`），并在退出期间通过 `pointer-events: none` 锁闭事件防止误触；
+   - **动态偏好减弱适配**：`@media (prefers-reduced-motion: reduce)` 下位移与形变关闭，组件仅保留最多0.15s的透明度变化；全站 `base.css` 的减弱动态守卫会进一步收敛到0.001ms，实际页面近乎即时切换。
+4. **组件生命周期与消费契约：**
+   - 页面消费端（如 `NovelsTab`, `ChaptersTab`, `ContentRatingsTab` 的 LLM 建议审查）直接常驻渲染 `<AdminSelectionBar count={selected.size} ... />`，禁止在外层使用 `{count > 0 && <AdminSelectionBar />}` 短路包裹，进退场动效完全由组件内置缓冲状态机与定时器驱动闭环。
+5. **岛内按钮统一契约（2026-10-14）：**
+   - **单一来源**：共享 `--admin-dock-*` token 位于 `admin/tokens.css`，外壳、按钮、动作分组和状态规则位于 `admin/components/floating-dock.css`；`selection.css` 仅保留批量选择的计数与清空分组。小说管理、章节管理、抓取发现、分级审核（LLM建议批量审查）和 AI 参数调优共同消费；既有 `--admin-selection-*` 几何和主操作颜色保留为兼容别名。`clearPlacement="actions"` 和 `"selection"` 的取消入口使用完全相同的尺寸规则。页面只传 `Button` 的 variant、事件和禁用态，不重复写 `h-*`、`px-*`、`text-*`、圆角、十六进制颜色或阴影。
+   - **尺寸**：桌面按钮和计数高度为 `--admin-selection-control-height`（36px）；900px 及以下或粗指针设备提升为 `--admin-selection-touch-height`（44px）。按钮的 `height` 与 `min-height` 同时设置，覆盖通用后台 40px 下限；图标按钮宽高同档。水平内边距14px，按钮间距与图文间距8px，图标16px，外框内缩8px。分别使用 `--admin-selection-padding-inline` / `gap` / `icon-size` / `inset`，禁止靠字号或按钮内容反推高度。
+   - **字阶与层级**：保留后台共享字阶和550字重：主要/危险操作14px，次要/描边/取消13px。主操作用陶土实底，次操作用中性微描边，取消用 Ghost，删除保留危险语义描边；同一岛内只突出当前主要动作。主操作颜色使用 `--admin-selection-primary-background/foreground`，亮色加深陶土底、暗色用陶土底配炭黑字，以满足小字号对比度；按钮不叠加阴影或悬停抬升。
+   - **响应式与状态**：窄屏最大宽度为视口减24px，操作组自然换行，不依赖水平滚动藏住取消或删除。禁用/处理中保留控件尺寸，统一弱化；键盘焦点使用2px陶土轮廓和2px偏移，不能被裁切。reduced motion 下关闭按钮位移和过渡，保留既有岛屿淡入淡出。
+   - **检查方法与适用边界**：修改后检查明暗主题、桌面/900px/390px/320px、粗指针、两种取消位置、图标按钮、焦点、禁用及长操作组；读取浏览器最终高度、最小高度、字号与内边距，不能只看声明值。分页与表格行内图标按钮保留各自专属尺寸 token，不套用悬浮岛规则。
+6. **持续显示的保存岛（2026-10-15）：**
+   - AI 参数页使用 `<AdminFloatingDock reserveSpace>`，随内容自然收窄并固定于视口底部中央，不使用铺满内容区的 sticky 保存长条；桌面底距32px，≤900px为16px，均叠加底部安全区。外壳内缩8px，按钮36px，≤900px或粗指针为44px，和选择岛共享相同的材质、阴影、焦点与禁用态。
+   - 状态使用 `.admin-floating-dock__status` 和 `role="status"`；未修改时显示生效值一致，有草稿时使用强调文字。动作放在 `.admin-floating-dock__actions`，保持撤销在前、保存主操作在后；≤600px状态单独占一行，动作右对齐并允许自然换行。保存中及无改动时仍显示操作岛，按钮尺寸保持稳定。
+   - 外壳留在原表单 DOM 中，保存按钮继续用原生 `type="submit"`。`reserveSpace` 通过 `ResizeObserver` 测量实际高度并预留底距和间隔，文字换行、页面缩放及安全区变化后，末尾字段仍能滚动到岛上方。分类草稿保留、撤销、隐藏分类校验与失败后保留草稿继续由页面管理。
+
+### Semantic
+- **Reading Green** (#4F7A52): 成功状态。柔和的书页绿，不刺眼。
+- **Amber Warning** (#B07C2F): 警告。旧纸般的琥珀色。
+- **Vermilion Danger** (#BE123C): 危险操作。传统朱砂红。
+- **Collector's Seal** (#b8453a): 收藏印章色，用于"已收录"标记。
+
+### Dark Theme
+暗色模式不是反转，而是"月光下的书房"：深灰地面（#1B1C20）替代白色纸面，金色强调色（#BF8F52）替代棕色，文字变为暖白（#E7E0D6）。所有语义色相应提亮。机制是 `[data-theme="dark"]`，不是 `.dark` 类；`@custom-variant dark` 只负责把它桥接给 Tailwind。
+
+### Named Rules
+**The 10% Accent Rule.** 奶茶棕色强调色在任何页面上不超过 10% 的面积。它的稀有性就是力量——读者的眼睛自然被引导到最重要的交互点。
+
+**The Derived-Surface Rule.** 后台表面永远是 `color-mix` 派生自公开色板的结果，不新开一套颜色。画布负责压低明度，表格负责承载阅读，表头和侧栏负责传递品牌——新表面要先问"它是哪两个既有 token 的混合"，答不上来就不要加。暗色主题保持相同的层级顺序，不机械反转明暗关系。
+
+## Typography
+
+**Display/Body Font:** System sans-serif stack (-apple-system, PingFang SC, Microsoft YaHei)
+**Serif Font:** Noto Serif SC / Source Han Serif SC (阅读器及已批准的公共页主标题)
+**Mono Font:** SF Mono / Fira Code / Consolas
+
+**Character:** 系统字体带来原生、安静的感觉——不抢注意力，让内容本身成为视觉主角。衬线字体在阅读器中营造纸质书的氛围。
+
+### Hierarchy
+- **Page Title** (700, `var(--admin-page-title-size)` → 20px, 1.15): 后台页标题（AdminTabHeader 的 h2），保持紧凑固定字号，`letter-spacing: -0.04em`。它是页面上最大的文字，也是唯一的页面级标题。
+- **Panel Title** (750, 1rem / 16px, 1.3): 后台卡片标题（AdminPanelHeading 的 h3），`letter-spacing: -0.03em`。必须小于 20px 页标题，卡片层级不能与页面标题持平或反超。
+- **Stat Value** (750, 1.45rem, 1): 指标条数值（AdminMetricStrip 的 strong），与 11.52px 标签形成尺寸断裂——全后台唯一的"大数字"层级。队列摘要用更小的 1rem，因为它与说明文字同处一个信息块，抬到 1.45rem 会撑破那块版面。
+- **Headline** (700, 2rem, 1.3): h1，用于页面级标题，letter-spacing: -0.02em。
+- **Title** (600, 1.3rem, 1.3): h2，段落标题。
+- **Body** (400, 16px, 1.6): 正文。行高 1.6 提供舒适的阅读节奏。
+- **Label** (750, 0.7–0.72rem, 0.08–0.1em uppercase): 分类标签。后台 kicker 用 0.72rem / 750 / 0.08em，侧栏分组标签用 0.7rem / 0.1em + uppercase。两者都压在 11px 可读下限之上，不再往下调。
+- **Compact Label Scale (Admin)** (400-750, 0.7-0.8rem): 管理后台专属的紧凑密度字号阶梯，用于 OPERATE 模式的高信息密度扫描。包括：导航分组标签 (0.7rem)、kicker (0.72rem)、表头 (0.72rem + 0.07em)、计数胶囊 (0.75rem)、元信息 (0.75rem)、分页 (0.8rem)。这一档刻意低于公开阅读界面的字号——管理控制台优先扫描效率，阅读界面优先舒适度。**对比度不可妥协**：弱化文字须满足 AA ≥4.5:1，数据读取面（表头/内容）字号 ≥11px。
+- **Reading Surface Scale (Reader)** (`reader.css`): 章节标题使用 `reader-title`（500 / 1.5），移动端使用 `reader-glyph`；取消标题 clamp 与装饰水印。正文 CSS 基线为 `reader-body` / 2.05，移动端为 body / 1.85；实际字号、行距、段距和字体由既有持久化阅读设置覆盖，不能用视觉改版重置用户选择。**这一档只在 `.reader-app` 内生效**，不得外溢到公共页或后台。
+
+后台表单标签另有 `--admin-field-label-weight: 400`——标签刻意保持常规字重，让当前选中的分段 tab 保持视觉主导；不要用加粗标签去和 tab 抢注意力。
+
+### Named Rules
+**The Content-First Rule.** 字体永远是配角。系统字体不创造风格，内容本身创造风格。阅读器使用衬线体营造沉浸；2026-10-02 用户批准的首页、书架、个人中心与小说详情也允许主标题使用现有 `--font-serif`，桌面 32px / 500 / 1.5、手机 1.55rem。小说详情手机主标题使用20px；例外限于 `Home`、`Bookshelf`、`Profile`、`Novel`，不扩展到后台或其他公共页；前言中的 `home-title` / `home-title-mobile` 记录这组共用尺寸，名称保持兼容。
+
+**The One Title Rule.** 每个可导航页面只有一个内容区主标题，由页头承担。面板标题写工作对象名（"作品目录"、"章节目录"、"审核列表"），不重复页面名。页头上方不再出现小字眉题——`AdminTabHeader` 的 `kicker` 与 `hero` 变体已退役，两个 prop 仍被接受但被忽略。标题字号膨胀和"每页一个更大的标题"都是被明确否定的方向。
+
+**The Single-Door Rule.** 一个动作只开一扇门。页头上的操作作用于整页（搜索、新建），面板工具条上的操作作用于那一份数据（筛选、批量、清除）；同一个动作在两处都出现，读者就要先判断"我点的是哪一个"。分级管理页的「刷新账本」因此只留在页头，面板内不再重复。
+
+**The No-Third-Pass Rule.** 同一个统计值在一屏里最多出现两次，并且每次都应靠近所属面板、筛选器或分页区；页名行不承载规模摘要或状态。若某个读数已在面板状态和分页区表达，就不能再另起一块表面；唯一例外是**贴在筛选器旁边的缺口读数**（「待标注 67 · 限制级 340」），因为它与下拉是同一件事的两种表达，且能被那个下拉直接筛出来。
+
+## Admin Page Anatomy
+
+后台**一个 tab 一个内容区主标题**。主标题由 `AdminTabHeader` 承担，与它下面的数据面板是两层不同职责的陈述：页头说**这是什么页**，面板标题说**这一块在干什么活**。
+
+### 页头版式：单行账本式
+
+页头是**一行**，不是两块堆叠（2026-09-25 收口，以小说管理为范本）。
+
+- **左**：`h2` 页名独占标题行，描述放在标题下方；标题后不附加规模摘要、状态小字或竖向分隔线。
+- **右**：该页的**看家动作**——搜索框与主操作按钮。桌面端 `width: fit-content` + `flex-wrap: nowrap`（标题在左、动作在右，中间留白）；900px 及以下动作区转 `width: 100%`、搜索框 `flex: 1 1 auto` 吃掉剩余宽度、按钮 `flex: 0 0 auto` 不被压缩。
+- **无底线**：`border-bottom: 0`。与面板之间的区隔靠 `.admin-redesign-page` 的 1rem grid gap，不靠分隔线。
+- **只放页面级动作**：搜索与「新建」这类作用于整页的动作归页头；筛选、批量、刷新某一份数据归面板工具条。两处都放同一个动作等于开了两扇门。
+- **标题行不承载元信息**：规模数字与只读状态放在所属面板标题栏、筛选器旁或分页区；异常状态放在相关内容区域中。页头右侧只放页面级操作。
+
+**已收口页面**：小说管理、章节管理、内容审核、分级管理、内容安全、站点运营（概览/流量/内容）、AI 服务（创作/封面/任务/已生成内容/用量/审计/配置/参数，页头由 `AiTab` 统一提供）、账户与注册（用户/注册/登录审计/操作审计）、后台总览。
+
+几何规则按页名分组写在 `admin-operations.css`（`.admin-redesign-page--{content-ratings,content-policy,site-operations,ai}`），新增页面只需把自己加进那组选择器；不要各写各的动作区样式。
+
+### 指标条已停用
+
+**`AdminMetricStrip` 全站不再有页面调用**（2026-09-25 收口）。分级管理页率先移除，随后是站点运营三个子页、AI 用量统计、客户端监控、账户与注册、后台总览。组件本体保留在 `AdminWorkspace.tsx`（`admin-readability.test.tsx` 仍断言它的三段结构），但**没有任何页面再渲染它**。
+
+理由：它把面板页头的几个字段抽出来、放大成 1.45rem 的独立表面，插在页头与面板之间。分级管理表里只有三个数字——总数、待标注、限制级——却占了完整一行、吃掉半屏高度；这些口径应贴近分级筛选与分页信息呈现。**同一个口径重复到第三次，就只剩噪音。**
+
+- **数字必须与能筛出它、或汇总它的那块内容相邻**。分级账本保留「待标注 67 · 限制级 340」贴着分级下拉；AI 用量统计的「总调用 / 总成本 / 平均单次」贴着它汇总的那张趋势图（`.ai-usage-totals`，0.72rem 次级文字）。读数和控件是同一件事的两种表达，不是两块信息。
+- **规模数字贴近所属内容**。站点运营的 PV / UV 与作品 / 分类读数放在对应的运营概览、趋势或分类面板中，不跟在页名之后。
+- **判据**：任何概览读数若不能一键筛出它描述的数据、或已由所属面板状态 / 筛选器 / 页脚计数表达，就不该单独成块。
+- **例外已取消**：DashboardTab 与 SiteOperationsTab 不使用独立指标条；统计值留在对应的面板和图表中，避免占据整行并把主要数据推到首屏以下。
+
+### 后台总览：追更与运营事项
+
+总览以自动追更的实际安排和检查结果为主，使用现有暖色画布、无外描边纸面、共享状态徽标与分段 tabs。页标题保持20px、面板标题16px、书名14px；数字不放大成独立指标卡，四项追更计数贴在追更列表上方。移除累计任务状态比例条，小说与章节规模贴在书库动态标题栏，封面、数据库、用户与限制级数量收在该面板底部。
+
+追更列表分为「需要处理 / 检查安排 / 最近结果」，有待处理项时默认展示异常，否则展示安排。需要处理涵盖检查失败、部分失败、待补章节和受保护章节，分别使用明确状态与原因；活跃任务不重复计入等待调度或异常。检查安排优先展示正在执行的书，再按下次检查时间排序；到期时间只表示等待调度，不承诺立即开始。统计覆盖全部书籍，各视图最多展示六本；书名完整换行，点击打开「追更事件详情」，读取最新完整原因、来源、失败次数、待入库与受保护章节、检查时间及关联任务。弹窗提供检查更新与调整追更设置，配置默认收起，取消草稿不写入；提交期间阻止关闭。管理小说作为辅助入口，关闭事件详情刷新总览。最近抓取任务点击打开独立任务详情，按任务 ID 读取进度、完整错误、失败章节和最近日志；运行中自动更新，关闭停止读取，不依赖总览列表缓存。关联任务可从追更详情继续查看，关闭任务后返回追更详情。最近结果保留未安排自动检查的书籍及新增章节数。调度资格沿用现有规则，包括管理员手动开启的完结书，不在总览读取时更改追更配置。
+
+右侧运营事项显示今日新增章节、运行中的抓取任务、历史失败记录和待标注分级，并进入现有任务中心或分级管理。历史失败明确标注为历史口径，不当作当前异常书籍数。保留最近抓取任务及书库动态。手动刷新全页，显示数据快照时间；刷新失败保留上次数据并提示，追更字段缺失显示不可用，不伪装成零。窄屏改为单列，保留所有信息、键盘切换和深色主题。
+
+### 书源与追更统计
+
+运行监控新增「书源与追更」独立页。页头只提供刷新统计；统计口径选择在内容区，默认主要来源每书计一次，优先抓取配置、作品来源、主要绑定来源。全部来源视图合并这三类来源，按每书每站去重，明确各站数量之和可超过小说总数；该视图的配置与追更状态属于关联作品，不宣称每个绑定源都可抓取。
+
+书源分布使用横向条形图，区分配置完整、仅有链接和无有效来源；追更覆盖按站点显示已开启、手动暂停、完结默认关闭、配置不足和可追更未开启。检查异常单独作为已开启中的重叠状态，不与五种关闭/开启分类相加。配置完整沿用实际追更的 URL 与目录/正文规则校验，不当作实时连通性证明。图例与色块均为可键盘操作的按钮，读屏名称包含站点、状态和数量，点击联动源站及状态筛选，并清除旧搜索、结果与连载条件。统计值贴在所属面板，不另开指标卡。
+
+下方小说明细复用 AdminDataPanel 列宽、移动卡片和 Pagination，支持源站、配置、追更、连载、最近结果、书名/作者与排序。未知目录快照显示「未核对」，不当作零章节缺口。书名打开详情，展示全部有效来源、当前主要来源、配置与追更原因、章节缺口及统计时间；继续进入现有追更详情与设置、融合章节名、小说管理或抓取中心。抓取中心只预填来源链接，分析及任务启动由用户操作。统计读取不初始化默认配置或触发任务；筛选失败不显示旧匹配列表，过期响应不得覆盖新筛选。
+
+### 任务中心：Claude 极简设计规范（2026-10-16）
+
+任务中心统一接入 Claude (Anthropic) 极简设计语言与单层控制流规范：
+- **胶囊分段导航 (Subtabs):** 任务分类采用共享 `.admin-capsule-tabs`（`抓取任务` / `AI 任务` / `下载记录`），统一 2.75rem 高度、圆角胶囊药丸与 0.15s 平滑过渡，彻底移除旧有定制标签栏的生硬色块与割裂感。
+- **总账总览卡片 (Warm Paper Summary Card):** 将原有裸露分散的标题和读数重构为统一的 Claude 暖纸总账卡（`padding: 1.125rem 1.5rem`、16px 圆角 `--admin-radius-card` 与柔和微描边）；左侧由 15px / 600 紧凑标题与 13px 状态说明陈述队列健康度，右侧由微型胶囊徽章（`全部 X · 运行中 Y · 已完成 Z`）聚合统计读数与刷新操作，彻底消灭标题与状态多层套娃的视觉堆砌。
+- **单层控制流 (Flat Control Flow):** 状态筛选器采用纯净胶囊分段按钮，选中项获得纸白高亮与陶土红文字，内嵌数字采用等宽微徽章；辅助操作（如“清除已结束”）平铺于工具条右侧，采用全圆角微描边按钮。
+- **纸白作业台 (Paper Table Workspace):** 数据表回归纯粹纸白作业台，使用 `AdminDataPanel` 16px 圆角纸面；表头统一为 12px / 550 暖灰底，数据行具备克制的阶梯式入场动效（Staggered Row Enter）与悬停微反馈，单元格作品名、阶段进度与等宽 ID 具有清晰的排版层级。
+
+### 身份线三段
+
+面板标题（`h3`，写工作对象名）→ 面板内工具条（搜索 / 筛选 / 批量）→ 数据区（表格 / 列表 / 页脚）。三者同属一份数据，默认同处一个 `AdminDataPanel` 盒子内；当页面需要把工作对象说明与数据操作明确拆开时，使用下面的双表面结构。
+
+### Admin Card Heading
+
+- **Title:** 后台卡片标题统一使用 `AdminPanelHeading` 或同级卡片标题，字号读取 `--admin-section-title-size`（16px），低于 20px 页标题；保留清楚的 700–750 字重。
+- **No divider:** 标题区与卡片正文之间不画横向分界线。工具条、表格或正文内部需要分段时，只保留对应内容区的分隔线。
+- **Title only:** 卡片标题行只写工作对象名，不在标题下放注释性副标题，也不在主标题前放 SVG 图标。右侧只保留实时状态、有归属的数据读数或可执行控件；静态快捷键、提示标签和装饰性徽标移入正文（确有需要时）或删除。必要说明放回字段帮助或正文，不作为卡头副标题。
+- **Coverage:** 该规则适用于所有后台 tab 的数据面板、配置卡和运营卡；新增卡片沿用共享样式，不建立页面专属标题例外。
+- **Workflow spacing:** 当卡片标题后紧接模式选择或表单时，标题到首个控件、模式选择到字段各保持约 12px 的组间距；不要叠加通用卡头底内距与正文上外距制造空档。输入要求、操作前提等必要说明留在对应字段下方，并精简到完成当前动作所需的信息。
+
+### Compact Utility Panel
+
+少量次级操作（例如配置导入/导出）使用共享 `.admin-utility-panel`：桌面端标题靠左、操作组靠右并保持同一行；最小高度为 `4.75rem`，内容换行时可自然增高，不增加注释性副标题或卡头分割线。卡片之间的距离只由页面父级布局控制，避免子卡片再叠加外边距。屏幕宽度不超过 640px 时标题与操作组纵向排列，按钮顺序不变并允许换行。该规则用于轻量工具区，不替代表单流程卡或数据面板布局。
+
+- **`AdminPage` 是容器契约**：它提供 `.tab-content` + `.admin-redesign-page`（统一区块间距、卡片表面归一化，不可省略），并接收 `title` / `description` / `actions` 三个 prop 转交 `AdminTabHeader`。子视图自带页头时传 `title={undefined}` 关闭父级页头（`scrape` 的书源子页即此用法）。
+
+### 双表面数据工作区
+
+当列表页同时包含“这份数据是什么”的说明和“如何操作这份数据”的高频控件时，说明面板与数据面板必须拆成两个相邻但职责不同的表面，结构固定为：
+
+`AdminPage` 页头 → `AdminContextPanel` 说明面板 → `AdminDataPanel` 数据面板。
+
+- `AdminContextPanel` 只承载工作对象标题和辅助说明，使用 `--admin-context-panel-*` token；它是独立的嵌套表面，保留 1px 暖色描边，不加阴影。
+- `AdminDataPanel` 只承载 `AdminToolbar`、选择条和表格/列表，使用 `--admin-data-panel-*` token；表格卡片保持无外描边，内部只用分隔线表达区段。分页默认属于面板；需要像小说管理这样形成独立控制行时，`Pagination variant="detached"` 放在 `AdminDataPanel` 外部，且不使用卡片背景、边框或圆角。
+- 两个表面之间的距离统一使用 `--admin-page-section-gap`。不要把说明重新塞回数据面板，也不要为工具条再创建第三张等权卡片。
+- 图一式的拆分不改变分页、筛选、批量操作、空状态或移动端 900px 卡片化契约；它只把说明与操作的阅读顺序变成“先理解对象，再处理数据”。
+- 如果页面没有需要保留的工作对象说明，且只剩一个高频筛选器，不要为了填补层级强行创建 `AdminContextPanel`；使用下方“单筛选外置行”例外。
+
+### LLM 分级建议审核
+
+LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页和指定页跳转；列表缩短后回到有效页。逐项选择和全选本页保留跨页选择，批量工具显示实际已选数量并支持清空。批量批准／拒绝使用共享三段式弹窗，列出所选作品、建议分级、置信度和模型理由，要求填写人工审核理由后确认。逐条沿用建议修订号校验和审计事务，成功项移出选择，失败项保留并显示具体原因；批准“继续未标注”不改为一般，拒绝不修改作品分级。工具条保持在列表所属纸面内，移动端自然换行，不增加独立卡片或页脚分隔线。 分级或修订发生变化后，旧待审核建议自动转为已过期并保留模型快照；读取建议时核查历史残留，默认待审核队列不含失效建议，可切换已过期查看原因与当前分级，历史记录不提供审核或批量选择。单条及批量审核确认缺少人工理由时，立即滚动并聚焦理由输入框，保证长列表也能定位必填项；确认按钮仅在提交期间禁用，缺少理由由点击后的校验提示引导。 审核弹窗使用可收缩的单列栅格；完整证据以编号段落逐条呈现，正文采样摘要与连续长文本在纸面宽度内自然换行，不截断证据，也不撑大正文或盖住页脚。列表紧凑证据仍保留摘要展示。 单条审核沿用居中页头、同色三段纸面及无页脚分隔线；区内小标题与辅助说明分别复用共享 label/hint 规范。采样统计贴近正文采样说明，不另设统计卡片；章节片段使用连续折叠列表与内部行分隔，不铺独立圆角色块。首个原文片段默认展开，模型版本信息折叠；滚动区外保留首尾间距，关闭后焦点返回原审核入口。
+
+## Layout
+
+内容驱动的流式布局，最大宽度 1200px（--max-width-content），阅读器收窄到 680px（--max-width-reader）。
+
+移动端页尾沿内容自然收束：公共页面使用 `--page-end-space`（24px 加设备底部安全区），后台共用内容区为 16px 加安全区；首页签名区取消固定最小高度。页面画布采用 `100dvh` 跟随浏览器可见高度，不用超过一屏的最小高度撑出空白，也不为浏览器地址栏另加占位。阅读页仅预留当前工具栏占用空间（收起 56px、展开 68px）、16px 间距及安全区，「回到首页／回到顶部」在手机右侧竖排浮动，按钮为 44px，间隔 12px，距右边缘 16px，底边为 176px 加安全区，避免与底部阅读工具栏重叠；正文末尾和章节导航保持正常阅读节奏。收起入口为居中「阅读工具」胶囊，44px 高，距安全区上沿 12px，细边框与轻投影；不铺满整条白底。文字搭配向上箭头，沿用纸面与文字色板，工具栏收起时隐藏内部键盘焦点。
+
+- **公共页面**: 居中容器，20px 内边距，纵向流动。小说网格使用 auto-fill + minmax(330px, 1fr)，间距 36px × 44px。
+- **首页例外（2026-10-02 用户追加调整）**: `Home` 使用最大 1200px 的暖灰纸面书库，桌面标题左、搜索右，hero 为 1:1.1 双列、间距 64px，1050px 以下间距 32px，700px 以下改为纵向居中。书目网格700px以上两列、700px以下单列；间距桌面16px、手机12px。手机容器内边距16px。首页不再展示最近阅读；完整表面策略见 `.impeccable/surfaces/web-src-pages-home-tsx.md`。
+- **管理后台**: 左侧可折叠侧边栏 + 右侧内容区。侧栏是 shadcn Sidebar（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动抽屉 18rem。桌面侧栏保留轻微外部留白、圆角与独立纸面，但不使用外描边或阴影；内容区宽度 `min(100%, 1440px)` 居中，内边距 1.5rem（桌面）/ 1rem（640px 以下）。滚动所有权在 `AdminShell` 的内容区，不在各 tab 内部。
+- **响应式断点**: 901px↑ 启用桌面固定列宽；900px 是主转折（表格折成卡片、工具栏转纵向、侧边栏折叠、网格单列）；640px 紧凑间距与页头收缩；400px 按钮全宽。审核工具条另有 1240px 的转纵向断点。
+- **间距节奏**: 全局 4/8/16/24/32/48px（xs → 2xl）；管理后台使用 `--admin-space-1` 到 `--admin-space-6` = 4/8/12/16/24/32px。后台的第三档是 12px 而不是 16px——这是紧凑档与全局节奏的刻意差异，不要用全局档去覆盖后台面板的内部间距。双表面工作区的兄弟表面间距固定读取 `--admin-page-section-gap`，当前为 16px。
+
+## Elevation & Depth
+
+阴影极其克制——这个系统依赖色调层次（tonal layering）而非投影来创造深度。阴影仅在两个场景出现：弹出层（modal/popover）和管理后台的全局阴影。
+
+### Shadow Vocabulary
+- **Rest** (`0 1px 2px rgba(40,32,24,0.04), 0 1px 3px rgba(40,32,24,0.05)`): 卡片和按钮的静态投影，几乎不可见——像纸页微微浮起。
+- **Elevated** (`0 6px 16px rgba(40,32,24,0.08)`): 悬停态和次要弹层。
+- **Modal** (`0 24px 70px rgba(40,32,24,0.18)`): 模态对话框，最重的阴影但仍保持暖调。
+- **Admin Ambient** (`0 18px 48px rgba(40,32,24,0.10)`): 管理后台浮起表面的全局阴影 token `--admin-shadow`。
+- **Admin Soft** (`0 10px 26px rgba(40,32,24,0.07)`): 轻量后台表面 `--admin-shadow-soft`。
+
+后台的数据面板和卡片在静止态**不使用**上述阴影：`--admin-panel-card` 与 `.admin-data-panel` 都是 `box-shadow: none`，靠 `--admin-panel` 的表面色与 `--admin-border` 描边分层。后台阴影只留给真正浮起的元素（弹窗、下拉、抽屉）。
+
+### Named Rules
+**The Flat-By-Default Rule.** 所有表面在静止状态是平的。阴影仅作为状态响应出现（hover、elevation、focus），或为弹出层提供层次暗示。
+
+**The Tonal-Admin Rule.** 后台一个像素的阴影都不要加。面板靠表面色 + 1px 描边区分层次；一旦给数据面板加投影，它就会在密集列表里看起来像浮起的卡片，破坏扫描。
+
+**The Serif-Card-Title & No-Icon Rule.** 后台所有卡片与面板标题（`CardTitle` / `.admin-panel-card` / `AdminPanelHeading`）统一遵循 Claude (Anthropic) 极简人文书卷规范：
+- **人文衬线字栈**: 标题统一采用 `--admin-font-serif`（Newsreader, Georgia, Source Han Serif SC, Noto Serif SC 等），字重统一为 600，字距微收 `-0.015em`，展现温润优雅的纸卷阅读质感；
+- **严禁卡片内装饰图标**: 卡片标题行与卡片内部严禁随意添加装饰性 Icon，彻底消除视觉杂噪，仅靠纯粹的纸白表面、精致衬线字阶与右侧功能性状态胶囊/操作按钮构建单层控制流。
+
+## Shapes
+
+圆角按公开页与后台作用域区分：公共按钮6px（--radius-sm），公开单行输入框12px（--input-radius），全局基础圆角8px（--radius），紧凑控件与卡片10px（--radius-md）。后台按钮、单行输入与分段 tabs 使用全圆角胶囊（--admin-button-radius / --admin-input-radius / --radius-full），textarea 保留12px；嵌套表面与对话框使用各自组件圆角，不能把胶囊规则扩散到大面板。悬浮岛窄屏外框为24px，内部按钮仍为胶囊。
+
+- **公共控件圆角 (6px)**: 公共页按钮、输入框、标签、复选框——足够圆润但不接近圆形，像文具的倒角。
+- **shadcn 控件圆角 (10px)**: shadcn/ui 基类（button/dialog）用 `rounded-md`，经 `shadcn.css` 的 `@theme inline` 桥接到 `--sh-radius`（即 `--radius-md` = 10px）。单行 Input 的最终圆角由全站 `--input-radius`（12px）覆盖。这里是 Tailwind 与站点 token 的接缝，也是唯一一处"工具类默认值不等于同名 CSS 变量"的地方——调整前台圆角时先看这里，不要改 Tailwind 工具类。
+- **管理后台控件圆角 (9999px)**: 后台按钮、单行输入、筛选器与分段 tabs 统一全圆角，适用于 `.admin-layout`、`.admin-dialog` 及共享后台弹窗作用域；textarea 保留12px，公开控件沿用公开规范。
+- **卡片圆角 (10px)**: 紧凑卡片与旧版表格包裹器使用 `--radius-md`。
+- **嵌套表面与对话框圆角 (16px)**: shadcn `Card`（`rounded-xl`）、对话框、嵌套表面。
+- **后台大面板圆角 (20px)**: 数据面板（`--admin-table-panel-radius`）、`.admin-panel-card`——更明显的圆润感，像精装书的封面弧度。
+- **表格顶部裁切**: 桌面端（901px 及以上）表格作为 `AdminDataPanel` 首段时，直属的 `[data-slot='table-container']:first-child` 统一使用 `--admin-data-panel-radius`（20px），由共享 `Table` 的滚动容器裁切表头背景，只设置左右上角，底部两角为 0，确保表头下沿保持直线；空态独立于表格容器时也不能把表头裁成胶囊。空态、加载态和有数据时采用相同规则。共享实现位于 `admin/components/tables.css`，不再仅对白名单页面生效。有前置标题或工具条时不额外给内部表格顶部添加外轮廓圆角，小说与章节既有独立表格圆角保留；移动端继续沿用连续卡片规则。
+- **公开页面结构归并**: 紧凑字段使用 `--radius-md`，控件使用 `--radius-lg`，操作下拉菜单遵循 `--menu-radius`（12px），内嵌卡片、浮层与对话框使用 `--radius-xl`，Hero 与大卡片使用 `--radius-2xl`；公开页面不再直接新增 11/13/14/15/17/18/22/24/26/28/30px 档位。
+- **全圆角 (9999px)**: 公开页用于胶囊标签、计数徽章、状态条；后台还用于按钮、单行输入、筛选器、分段 tabs 和桌面悬浮选择岛。
+- **阅读纸面圆角**: `--reader-radius-paper` 复用通用 xl，桌面与手机同档。阅读器不再保留超大圆角例外；正文纸面为平面，不带外描边、投影、渐变或水印。浮层仍使用既有阴影表达交互层次。
+
+## Components
+
+### Admin CustomTimePicker（时间选择器）
+
+- **触发器**: 统一遵循 Claude 单行输入框全圆角药丸几何（`--radius-full`，40px 高），右侧显示轻量次级灰时钟图标，彻底杜绝粗暴突兀的浏览器原生 `<input type="time">` 蓝底尖角弹窗；
+- **浮层面板**: 16px 圆角（`--radius-xl`）温润纸白浮层，顶部提供常用低峰时段快捷预设胶囊（`00:00`, `02:00`, `03:00`, `04:00`, `12:00`），中间提供时（00-23）与分（00-59）双列平滑滚动联动选择，选中项以陶土红强调色高亮与微光阴影表达；
+- **暗黑模式**: 完整适配 `:root[data-theme='dark']` 纸墨低眩光调色与极细微边框。
+
+### Reader Auth（登录／注册，2026-10-03）
+
+- **Surface:** `/auth` 使用 `.auth-page--reader` 与独立 `styles/auth.css`，暖灰 `--bg-secondary` 全视口画布、最大368px单列居中表单。移除外层 Card、描边、阴影与背景渐变；不改安装向导的 `.auth-page` 或全站共享 Card。品牌保留现有 logo，28px标识与16px / 600 产品名横排。
+- **Hierarchy:** 原阅读提示成为唯一 h1，使用既有 `--font-serif`、28px / 500、手机24px；品牌到标题24px、页头到表单32px。字段标签13px / 500 次级色，字段组20px间距；输入48px高，读取共享 input 的纸面、12px圆角和细描边，窄屏16px字号避免聚焦放大。
+- **Actions and States:** 主按钮48px高、14px / 500，不附加登录／注册装饰图标，仅处理中显示加载指示。密码显隐、模式切换及返回入口最小44px可触控并有键盘焦点。保持登录、错误、注册关闭提示与注册切换使用轻量字阶；长错误自然换行，无嵌套错误卡。处理中禁止模式切换，失败后恢复操作；关闭注册仍可返回登录。
+- **Behavior Boundary:** 保留账号、密码、邀请码、open／invite／closed 注册策略、原 API、保持登录、显隐、自动填充、Enter 提交、首次安装跳转及成功后来源页回跳。不新增第三方登录或忘记密码能力。尊重 reduced motion；短视口与长提示可自然滚动。
+- **Botanical Accent:** 登录／注册页使用透明底 `images/auth-flower.png` 细线淡粉花枝，桌面最多两处、放在表单外侧留白，900px及以下缩成页头外侧一处，620px及以下短视口隐藏。只通过伪元素呈现、`pointer-events: none`，不进入可访问树、不盖住表单、不添加动画；深色以轻量亮度／饱和度滤镜适配。资源来源与生成提示保存在 `docs/assets/auth-flower.provenance.json`，不扩散为全站背景纹理。
+
+### Full-page State（整页拦截与内容缺失，2026-10-03）
+
+- **Single Source:** `components/PageState.tsx` + `styles/page-state.css` 提供整页状态原语；`--page-state-width`（32rem）与 `--page-state-title-size`（1.25rem）集中在 `tokens.css`。小说详情／阅读器内容拦截、小说／章节未找到、管理员权限门禁统一消费，不再各自维护大卡片、emoji 空态或门禁卡样式。
+- **Viewport Ownership:** 整页状态使用暖灰 `--bg-secondary` 画布、`100dvh` 最小高度及安全区留白，消息组水平和垂直居中。无卡片底、外描边、阴影、导航栏或站点公告。`Layout` 通过 `PageLayoutContext` 在状态挂载时撤下公开页头与公告，卸载后恢复；不得用固定定位遮住仍可聚焦的导航，也不按错误路由字符串猜布局。长内容可以自然滚动，不裁切操作。
+- **Hierarchy:** 32px 次级色语义图标、20px / 600 标题、14px / 1.85 次级色说明；内容最大512px，靠留白建立层次，不增加品牌大标题、额外标签或装饰动画。沿用既有明暗主题及自定义强调色。操作最小44px高、14px / 500，主要操作用品牌色、返回入口为轻量次要按钮，键盘焦点清晰。
+- **Recovery:** 内容拦截保留明确返回首页。站点允许成人模式时，游客先登录并携带当前路径与查询参数返回；已登录者调用原成年确认与 Turnstile 流程，已有 adult 状态仍被拒绝时可重新验证。站点关闭成人模式时不显示解锁入口，明确说明暂不可阅读。管理员切换账号必须先完成原登出逻辑，再进入登录页，避免已登录账号自动回跳形成循环。
+- **Inline Boundary:** `PageState inline` 是局部提示，使用 h2 与 status 语义，不移除导航、不占满视口；首页隐藏限制级作品提示使用此模式。首页无搜索结果、书架空列表、后台面板错误／空态、表单校验仍使用各自原语，不改成整页阻断。正常浏览页、登录和安装表单不套用此状态页。
+- **Security Boundary:** 展示入口不是授权，仍由内容策略及后端权限决定访问；此原语不更改内容分级、成年确认、Turnstile 配置、会话授权或缓存规则。
+- **Usage and Inventory:** 全站消费清单、使用示例和恢复检查见 [公开整页状态与访问门禁](docs/public-page-state.md)。
+
+### Novel Detail and Reader（2026-10-02）
+
+- **小说详情:** 最大1080px暖灰画布，封面与信息构成透明 hero；封面单独使用共享落影。主标题使用已批准的衬线字阶，桌面32px / 500、手机20px；简介14px / 1.85、默认三行并保留展开。目录与社区为通用 xl 圆角平面纸面，桌面28px、手机20px内边距；目录以细底线形成3 / 2 / 1列连续条目，13px常规书名。保留搜索、已读标记、上次阅读定位及原有内容策略。小说路由复用 `header--paper`。完整响应式与行为边界见 `.impeccable/surfaces/web-src-pages-novel-tsx.md`。
+- **阅读器:** 保留用户选择的620 / 680 / 780px宽度与全部阅读设置，正文纸面使用前言 `reader-paper`，640px及以下内边距28px / 20px；标题使用前言 `reader-title`，手机1.35rem。顶部为原生纸色 sticky 工具栏与单条细底线，书名链接返回小说详情；上下章、目录、手机控制继续沿用现有行为。default / eye / paper 保留既有主题色板，表面统一平面。移动设置和目录弹层通过阅读根容器 portal 继承主题及遮罩；进度宽度即时更新，取消宽度过渡。完整契约见 `.impeccable/surfaces/web-src-pages-reader-tsx.md`。
+- **阅读控件修订:** 详情目录搜索由单一暖灰外框承载图标与输入，不叠加输入框描边；上次阅读项使用透明背景、暖棕标题及圆点徽标。评分以紧凑数字、细进度条与 SVG 星形表达，评论输入及底部剧透/发布动作共用一个纸面外框，发布与回复按钮按内容取宽。阅读器目录及设置浮层共用标题和明确关闭入口，设置按文字排版、阅读方式、辅助功能分组，保留全部原选项与持久化值；书签列表为正文流中的平面纸面，以计数、关闭入口和带说明的空态表达状态。控件沿用现有主题和语义色；详细尺寸留在对应表面契约。本次新增截图与最终视觉复审位于 `.impeccable/review/reading-controls`，最终复审在重复清除控件/字形图标与手机聚焦字号级联两项修正范围内给出 ship，两项已解决且该范围未发现新增回归；实际公开作品的匿名评分已采集桌面及手机截图；登录后的评论编辑器仍仅核对源码，真实写入未验证。
+
+### Public Account Paper（书架与个人中心限定）
+
+- **表面与导航:** `Bookshelf`、`Profile` 延续首页的暖纸世界，不增加色板。页面使用 `--bg-secondary`，卡片使用 `--bg-card`、`--radius-xl`（16px），无外描边、阴影、渐变或 hover 抬升。封面继续使用共享 `--novel-cover-shadow`，仅封面有深度。`.header--paper` 只用于 `/bookshelf`、`/profile`；首页继续使用 `.header--home`，保留既有账户、主题、安全模式、成人确认及手机导航行为。
+- **布局:** 个人中心与书架共享最大1080px、区块间距24px的居中容器，主标题与纸面外分类导航沿同一左基线对齐。两页桌面上下内边距48px / 64px；600px及以下为28px / 40px、水平内边距16px。主标题使用上文限定的衬线字阶。个人中心为单一16px圆角设置纸面，桌面内边距32px、手机20px；身份摘要与当前设置内容均在纸面内，不设左侧摘要栏。书架同步区在800px及以下移至标题下。书架书目网格1000px以上三列、1000px及以下两列、600px及以下单列，间距16px。
+- **书架（2026-10-02 修订）:** 用户否定先前四区纵向堆叠方案，改为收藏、最近阅读、书签、想法四个带计数的分类按钮，使用 `aria-pressed` 表达选择、一次只显示一个区域，其余区域 `hidden`，不使用 ARIA tabs 契约。按钮最小44px高，选中下划线与 hover 颜色复用 `--tabs-segmented-transition`，reduced motion 关闭过渡，键盘焦点使用2px暖棕外框、4px偏移。同步状态与按钮归页头。书目卡片统一18px内边距、最小高度152px、内容间距16px，封面固定72×108px、共享圆角与 `--novel-cover-shadow`，桌面/手机保持共享14 / 12 / 11.2px卡片字阶。书名最多两行，清除/取消收藏按钮位于卡片右下、与阅读链接分离，正文底部预留28px。书签与想法仍使用连续纸面记录、单条分隔线，14px标题与12px元数据可完整换行；四类空态使用透明背景。保持原有展示上限（收藏12、最近8、书签4、想法4）及API、同步、历史墓碑、删除、阅读跳转语义。修订类型检查与构建通过，fixture交互覆盖切换、同步、删除、链接及无横向溢出；截图使用模拟数据，不代表真实后端验证。本次14张截图最终复审结论为 ship（完成文档同步后），无需进一步修正或采图。
+- **个人中心:** 页头下、纸面外使用个人资料、账户安全、登录设备三枚 `aria-pressed` 分类按钮，桌面间距28px、600px及以下20px，最小高度44px；隐藏非当前内容但保留挂载和编辑草稿。纸面顶部共用身份摘要，头像48px、手机40px，姓名16px / 600、用户名12px、角色/状态徽标11.2px；选中文件预览直接使用这枚头像，不另设头像预览或重复简介。身份区底部内边距与外间距各28px、手机各24px，以单条分隔线区分设置内容。个人资料中的头像操作在 DOM 中位于字段之前，不使用 CSS order；选择/删除按钮始终提供，上传按钮仅选中文件或上传中显示，隐藏文件输入 `tabIndex={-1}`。头像操作与资料/安全字段桌面采用160px标签列 + 弹性内容列、间距32px；标签13px，字段行间距24px，600px及以下单列、间距10px。注册与最近登录移至纸面底部11.2px脚注，管理员入口按既有角色显示；隐藏面板不创建独立卡片。
+- **字段、设备与反馈:** 资料/密码沿用既有字段、可见性与提交行为；输入14px，600px及以下16px，移动按钮最小40px。设备列表最大高度300px、内部滚动，当前设备标记与注销限制保留，长设备名允许换行。`.profile-message` 放在页头描述之下的正常文档流中，空内容 `display:none`，13px / 1.8、12px上间距、`overflow-wrap:anywhere`；长失败信息不得覆盖标题或身份卡，保留 `role="status"` 和 polite 宣读。尊重 reduced motion，页面卡片与按钮关闭过渡。
+- **边界:** 登录返回地址、API、收藏/书签/历史/想法同步、资料保存、密码、头像、会话及退出登录均接既有流程。规则限定 `.profile-page`、`.bookshelf-page` 与上述顶栏修饰类；表面契约见 `.impeccable/surfaces/web-src-pages-bookshelf-tsx.md` 与 `.impeccable/surfaces/web-src-pages-profile-tsx.md`，不修改独立首页 HTML 样稿。
+
+### Home Library（首页限定）
+
+- **页脚落款（2026-10-03，居中花枝预览获用户批准）:** 页脚沿用暖纸背景，居中显示「知舟 · 一个安静的中文小说书库」，品牌名使用 16px 衬线体、介绍 13px。复用登录页透明花枝 `auth-flower.png`，桌面 76×38px、位于文字左侧；700px 以下缩为 44×22px，品牌名 15px、介绍 12px，保留自然换行。桌面上方间距 28px、页脚内边距 24px/32px，手机分别为 20px、22px/28px。移除旧头像、爱心书签、新增文案和长分隔线，不增加卡片、阴影或导航；花枝对读屏隐藏、不接收指针事件、无动效，深色沿用登录页亮度/饱和度处理。不改变书库、分页或内容权限。
+- **方向:** 基于用户批准的 Claude 风格 HTML，并按 2026-10-02 用户追加反馈直接调整正式项目：暖灰 `--bg-secondary` 画布、奶茶棕强调色、白色 `--bg-card` 内容纸面；深色继续读取既有主题 token。品牌 Logo 与账户、主题、成人确认菜单沿用现有组件。独立预览 HTML 保持原样，当前布局以项目实现为准。
+- **搜索:** 首页唯一搜索入口位于桌面 hero 右侧，手机标题下居中；桌面最大 620px、最小高度 60px，手机最小高度 56px。圆角与聚焦边框/光晕读取共享输入 token，标题与搜索尺寸使用 `--home-*` 命名变量。删除首页顶栏的重复搜索与手机搜索浮层，其他页面维持既有导航。
+- **卡片:** 仅首页使用 `NovelCard` 的 `library` 变体，16px 圆角、无外描边、无静态或 hover 阴影；桌面两列、内边距24px、最小高度212px，手机单列、内边距18px、最小高度196px。封面保留真实图片，桌面 96×144px、手机 88×132px；仅无图片时使用占位纸面。书名允许两行，作者单独一行，状态标签与章节数并排；字号使用下述共享卡片字阶，简介最多三行、行高1.8；hover 只使用浅色调反馈。
+- **安全提示:** 桌面为说明文字左、确认按钮右的轻量说明条；手机纵向排列，紧凑留白。调整仅涉及展示，安全模式与成人确认逻辑保持既有实现。
+- **筛选与排序:** 状态/分类使用浅选中态；分类默认按固定优先序显示最多10个现有常用标签，其余通过“更多标签”在分类行下方轻量展开，按题材背景、情节氛围、关系属性及其他标签分组，无容器底色、外边框、阴影或浮层。桌面组名左、标签右，手机组名上、标签下，标签12px默认透明，仅悬停和选中显示浅色底；桌面32px、手机40px高，支持标签多选，点选添加、再点取消，选择后保持展开，多个标签按同时满足取交集，简繁别名在单个标签内取并集；单选兼容category参数，多选使用JSON字符串数组categories参数，分页/演示筛选同口径。已选条件常显且可取消/清除，手机收起整个筛选区时仍显示已选摘要。“校园/校園、现代/現代、青梅竹马/青梅竹馬、轻松/輕鬆”分别共用一个入口，服务端与演示数据均匹配两种历史写法，不修改存储标签；安全模式同样约束常用及展开标签。手机通过带展开状态的按钮收起/展开筛选；四种排序为轻量文字，选中项下划线与文字等宽对齐，使用独立指示线和 transform 在选项间滑动；复用共享 180ms 动效 token，快速点击可连续转向，键盘和减少动态效果模式即时切换。首页不再请求最近阅读进度；保留现有筛选、拼音搜索、安全模式及每页 20 条分页语义，历史记录继续由阅读器与书架维护。
+- **实现边界:** 页面规则限定 `.home-page` 与首页顶栏修饰类，避免污染后台与其他卡片消费者。批准预览的演示登录、书架和数据交互不作为生产业务实现；正式页接现有 API 与路由。
+
+### Novel Cover Depth（公共小说封面共享）
+
+用户明确要求给书籍封面增加阴影，封面作为纸面上的书籍实体允许轻柔静态落影；容器仍遵守扁平卡片规范。共享 `.novel-card__cover`、小说详情封面读取 `--novel-cover-shadow`，浅色为 `0 2px 4px rgba(40, 32, 24, 0.08), 0 8px 18px rgba(40, 32, 24, 0.12)`，深色为 `0 2px 5px rgba(0, 0, 0, 0.24), 0 8px 20px rgba(0, 0, 0, 0.32)`。仅封面有阴影，卡片容器不增加投影或 hover 抬升；真实图片、占位封面、已读与更新角标沿用原实现。
+
+### Novel Card Typography（公共小说卡片共享）
+
+按用户提供的书目卡片样稿整体收紧字号，首页与书架的 `NovelCard` 共用 `tokens.css` 的字阶：书名 `--novel-card-title-size` 14px / 600，作者与状态 `--novel-card-meta-size` 12px，简介 `--novel-card-description-size` 12px，分类和更新时间 `--novel-card-footer-size` 11.2px。桌面与手机保持同一组字号，不在页面或断点另写字面量；页面只保留排版、行高和截断差异。此次只调整卡片内容字体，封面、圆角、内边距与布局不随字号缩放。
+
+组件以 shadcn/ui 为基础，通过 CSS custom properties 桥接到知舟的暖色调系统。后台组件另有一套 workspace 原语（`components/admin/AdminWorkspace.tsx`）：`AdminToolbar`、`AdminSearch`、`AdminContextPanel`、`AdminMetricStrip`、`AdminQueueSummary`、`AdminDataPanel`、`AdminPanelHeading`。
+
+### Buttons
+- **Shape:** 公共页圆角6px（--radius-sm）；管理后台全圆角（--admin-button-radius）。后台常规按钮最小高度40px（--admin-control-height），图标按钮保留组件尺寸。悬浮选择岛使用上述36px / 44px专属契约，分页和表格行操作继续使用各自 token；紧凑尺寸必须同时定义 `height` 与 `min-height`。
+- **Typography:** 后台常规按钮统一使用550字重（`--admin-button-label-weight`）；主要/危险操作字号为14px，次要/描边及 Ghost/Link 为13px。只有选中的分段 Tab 使用600字重。规则同时覆盖 `.admin-layout` 与 `.admin-dialog`；图标尺寸按钮和 combobox 不套用按钮字阶，`xs` 按钮保留组件字号。`.admin-layout` 内输入框与 SelectTrigger 为14px；`.admin-dialog` 保留组件的响应字号（共享 Input 窄屏16px、`md`及以上14px），不受按钮规则影响。页面不得用局部字号强制抹平共享按钮层级。
+- **Primary:** 奶茶棕背景（#8B6045）+ 白色文字，用于主要操作（保存、确认）
+- **Secondary:** 暖灰背景（#F6F4F1）+ 深色文字，用于次要操作（刷新、取消）
+- **Ghost:** 透明背景 + 次要文字色，用于图标按钮（表格行操作）
+- **Destructive:** 危险红背景 + 白色文字，用于删除操作
+- **Admin variants:** 上述实色为公开页语义。后台以 `admin/components/controls.css` 为准：主要操作陶土底，次要/描边中性微描边，Ghost透明底，危险操作使用危险文字与柔和描边；悬浮岛的主要操作使用专属对比度 token，不在调用点复制品牌颜色。
+- **Hover / Focus:** 背景色加深一档；键盘焦点是 3px 半透明暖色光晕（`--focus-ring: rgba(139,96,69,0.24)`，经 `--sh-ring` 桥接），并伴随边框变色。焦点态必须同时有颜色变化和光晕，不要只留光晕。
+
+### Switch Toggles (开关控件几何与微动效规范，2026-10-16)
+- **Claude Minimalist Aesthetics & Symmetry (几何严格对称与温润纸感):** 后台开关统一遵循 Claude 极简圆角药丸与几何严格对称：
+  - **默认规格 (Default):** 轨道尺寸固定为 36px × 20px（`width: 2.25rem; height: 1.25rem; box-sizing: border-box`），内边距 2px，1px 暖灰微边框 `--admin-border-strong`；白色圆形滑块（Thumb）直径严格为 14px（`0.875rem`），投射 0 1px 3px 柔和微投影。
+  - **行程计算与边距对称:** 轨道内盒可用宽度为 36px - 2px (左右边框) - 4px (左右内边距) = 30px；滑块位移量严格为 16px（`translateX(1rem)`，即 30px - 14px）。未勾选时滑块距轨道左右边界为 3px / 19px，勾选时为 19px / 3px，垂直方向居中且与上下外边界恒保持 3px 间隙（20px - 2px - 4px = 14px，滑块高 14px）。彻底消灭旧样式因尺寸失衡（38px 轨宽配 18px 滑块和 16px 位移导致右侧溢出 2px、纵向被挤压溢出 1px）造成的滑块右边缘被裁切、刺穿轨道描边的顽疾。
+  - **紧凑规格 (data-size="sm"):** 轨道尺寸 28px × 16px（`1.75rem × 1rem`），滑块 10px（`0.625rem`），勾选行程严格设为 12px（`translateX(0.75rem)`，即 28 - 6 - 10 = 12px），同享 3px 边距无溢出。
+- **Color & Micro-interactions (状态色彩与微交互边界):**
+  - 未勾选时轨道底色为 `--admin-panel-muted`（带内凹微阴影），勾选后平滑过渡至陶土红 `--admin-accent` 并附带暖色微光晕；
+  - 聚焦时拥有 3px 半透明陶土红外发光环（`rgba(217, 119, 87, 0.22)`）；
+  - 杜绝 `:active` 下强行拉伸滑块宽度（禁止将圆形拉伸成椭圆变形），保持纯粹圆润形态与稳定位移；
+  - 尊重减弱动效（`prefers-reduced-motion: reduce`）：仅取消过渡补间（`transition: none !important; animation: none !important;`），**严禁将滑块的 `transform` 设为 `none`**，避免因重置位移导致勾选状态下错误回弹到左侧的视觉故障。
+
+### Dialogs
+- **Admin Dialog:** 后台弹窗统一 `.admin-dialog`：三行栅格（页头 / 可滚动正文 `.admin-dialog__body` / 页脚），最大高度 `calc(100dvh - 2rem)`，外框 16px（--admin-radius-dialog）。宽度按任务定——小说编辑 540px、章节编辑 620px、章节融合 760px——不把弹窗拉成同一个宽度。页头/页脚/关闭按钮由 `data-slot='dialog-*'` 契约配合 Radix 实现。
+- **Header Alignment:** 页头一律居中，与 `DialogHeader` 的实际渲染一致（其 `text-center` 与 `sm:text-left` 中后者被 Tailwind 输出顺序压掉，居中才是既有事实）。标题避让右上角关闭按钮时用左右对称留白（`padding-inline`）而非只留右侧，否则居中标题会视觉偏左；描述块用 `margin-inline: auto` 跟随居中。
+- **Scroll Ownership:** 一个弹窗只设一个滚动所有者。`.admin-dialog` 由 `.admin-dialog__body` 承担；自建三行栅格（如 `.ai-generation-dialog`）必须显式指定中间滚动区，且**不得**依赖外层 `overflow: hidden` 裁切——超出内容会被静默截断且无法滚动恢复。长正文（数千字）用固定高度或视口相关上限 + 框内滚动，不随内容长高。
+- **Hidden Scrollbar (默认去除弹窗外层垂直滚动条，内层严格保留):** 弹窗外层主体（`.admin-dialog`、`.admin-dialog__body`、`.admin-dialog-reading`、`.ai-generation-modal` 等主视口容器）默认去除垂直滚动进度条，应用 `scrollbar-width: none` + `-ms-overflow-style: none` 与 `::-webkit-scrollbar { display: none }`——彻底消灭 base.css 的全局 8px 滚动条在弹窗纸白正文右缘切出的生硬竖轨。外层滚动能力完整保留（滚轮、触摸、键盘照常）；**内层独立滚动区严禁通配消除**：内嵌的独立滚动块（如 Prompt `pre` 文本、`textarea` 编辑框、正文阅读纸面 `.ai-generation-reading-paper`、代码块、抓取日志等）必须保留精致的内层微型滚动条（`scrollbar-width: thin` 与 6px 半透明滑块），以明确指示内容可滚动性与阅读拖动进度，严禁使用通配后代 `*` 抹杀内层交互线索。
+- **Segmented Surface & Seamless Flow:** 三段式栅格只区分结构，不区分颜色，**严禁在页头下方或页脚上方插入水平分割线**（`border-bottom: 0` 与 `border-top: 0`）。页头、正文、页脚共用同一纸面表面色 `--admin-panel`，三者处于同一张完整无缝的温暖纸面上，彻底消灭把弹窗横向切碎的生硬发丝线。页头、正文与页脚的层级过渡完全由呼吸间距（`--admin-space-*`）和控件自身视觉自然承担。
+- **Anti-Box-in-Box Rule (杜绝套娃卡片):** 弹窗正文内部严禁多层嵌套灰底描边矩形盒子（Box-in-box syndrome）。元信息优先以轻量通栏或纯净键值对表达；特征标签统一使用带微圆点的极简圆角药丸胶囊（Pill tags）；说明文字使用带左侧微弱强调条的编辑引文块（Callout），保持 Claude 纸质沉浸感与通透呼吸感。
+- **Field Labels:** 弹窗内的小标题（`标题`/`作者`/`正文`…）统一为 12px / 500 / `--text-muted`，读 `--admin-dialog-label-size`·`-weight`·`-color`·`-line-height`·`-letter-spacing`。不再出现 0.8rem/650/次级色、0.6875rem/600/大写等分叉写法，也不用 `text-transform: uppercase`（大写只对拉丁字母可见，会让中英标签风格分叉）。覆盖范围含 `.admin-dialog` 与自建三段式的 `.ai-generation-dialog`；无 `Label` 元素可挂的裸 `div` 用 `.admin-dialog-section-label` 表达同一语义。
+- **Helper Copy:** 控件下方的辅助说明与标签同尺寸同色，只降一档字重至 400（`--admin-dialog-hint-*`，或裸元素用 `.admin-dialog-hint`）。辅助说明不得比它说明的标签更粗或更大，否则主次颠倒。
+- **Mobile Editor:** 窄屏小说编辑窗口使用 `--admin-dialog-mobile-max-height` 收紧高度；底部操作区通过 `--admin-dialog-mobile-footer-*` 保持保存/取消同一行、不换行，并用 `--admin-dialog-mobile-action-min-*` 保留触控尺寸。
+- **History Records:** 导入历史使用共享弹窗三段式；记录标题读 `--admin-table-title-size`（14px），辅助说明读完整的 `--admin-dialog-hint-*`，状态复用 `AdminStatusBadge`，不另设状态混色。记录之间单条细线、纵向内边距16px。弹窗分页使用共享 `Pagination variant="dialog"`，复用分页字号、32px控件与跳转框尺寸，容器无描边、底色和额外内边距；手机端计数与控件分行，翻页与跳转分成两行。刷新为带可访问名称的轻量图标按钮。
+- **History Scroll Spacing:** 导入历史页头至正文沿用共享20px（手机16px），由固定页头底部承接；正文至页脚的24px（手机20px）由固定页脚顶部承接。正文纵向内边距归零，总间距不叠加。长列表滚动至任意位置仍保留首尾留白；此规则仅限导入历史，不改变其他弹窗。
+
+### Chapter Merge Preview
+
+小说管理的行内「更多操作」也提供「融合章节名」，直接以当前作品快照打开同一弹窗，不切换页面或重新选择作品；取消保留原列表，应用成功刷新列表。章节管理的「融合章节名」沿用居中页头、760px 共享三段式暖纸面弹窗，延续 Claude 式克制层级与现有奶茶色 token。完整书名、作者与章节数先交代当前作品；原作者源站区在读取成功后收起，将注意力交给章节名变化。对照列表提供「全部 / 自动更新 / 人工核对」、标题或序号搜索及每页 20 条分页，覆盖全部变化，不截断为前 80 条；需人工核对的标题提供逐条确认、确认本页及确认全部筛选结果，批量按钮显示待确认数量；支持逐条撤销和清空人工确认，跨页与筛选保留选择，更换来源或重新读取时清除。最终更新数量包含自动更新和人工确认项，未确认标题保持不变。未匹配章节按源站、本地分组，目录序号与原始标题分列，每组每页 10 条，长标题完整换行，不将全部条目拼接成段落。小说信息作为可选折叠区，简介可展开全文，支持全选可用字段与清空选择，勾选即用源站值更新该字段（包含已有内容），未勾选字段保留，不再设置额外覆盖开关；只提交已选且源站非空的字段。页脚按实际动作显示可更新标题数与信息补全/覆盖数，无可执行内容时禁用提交。
+
+窄屏将原章节名与更新后标题纵向对照，固定页脚分为摘要、操作两行，正文独立滚动。书名/作者搜索与链接读取支持 Enter 并避开中文输入法合成；读取失败保留链接与具体错误，允许重试，链接变化后立即清除旧预览。源站读取与应用更新期间禁止关闭弹窗及重复提交。局部警告文字使用 `color-mix(in srgb, var(--color-warning) 70%, var(--text-primary))` 提高对比度，不新增或调整全局色板、字阶与弹窗规则。
+
+### Novel Follow-up
+
+追更设置使用 480px 的三段式后台弹窗，同一纸面贯穿页头、正文和页脚。短标题「追更设置」与书名分开，书名作为 14px 次级描述自然换行，关闭按钮保持轻量。自动追更开关与说明组成一行；检查频率、最近结果、上次完成和下次检查按顺序展开，时间信息采用两列并允许日期与时间换行。手机底部「检查更新 / 保存设置」保持同一行，触控高度至少 44px；正文独立滚动，页脚始终可用。
+
+「批量追更设置」放在小说列表选中后的操作栏，沿用追更弹窗纸面与尺寸。页头说明选中数量，正文先选择开启、暂停或只调整频率，再展示频率及行为说明；暂停时隐藏频率字段并保留各书原值。所选书名默认折叠，保存后在正文展示成功与跳过数量、逐项跳过原因。底部「取消 / 应用设置」保持同一行和至少 44px 触控高度。弹窗使用打开时的选择快照，跨页选择保持有效，单次最多 500 本。
+
+小说管理的待更新标签使用浅强调色底与强调色文字，12px / 500，无阴影，以「待更新 N 章」说明源站尚未入库的章节。章节数与标签放在同一个弹性布局里，手机避免标签落入字段名列；桌面空间不足时允许在内容区自然换行。标签表示待入库状态，不使用危险操作的红色。部分章节受保护时，浅棕标签后用灰色锁图标标注「含受保护 N 章」；全部受保护时只显示灰色「受保护 N 章」。历史数据或书源没有可靠保护标识时展示「保护状态待检查」。数量按目录明细与已入库章节逐章对照，不用源站受保护总数替代待入库数量。追更窗口展示待入库、目录可抓取、受保护和未确认的数量，并说明账号或购买权限变化后可重新检查。
+
+### Segmented Tabs
+- **Track:** 外框 12px（`--tabs-segmented-radius`），内缩和分隔间距 3px（`--tabs-segmented-inset` / `--tabs-segmented-gap`），轨道边框和底色使用消费方语义 token。
+- **Label:** 标签统一使用 `--tabs-segmented-label-size`、`--tabs-segmented-label-weight`、`--tabs-segmented-active-label-weight`、`--tabs-segmented-label-line-height`（13px / 未选中 500 / 选中 600 / 1.6）；选中项通过字重差异强化当前选择，其他字阶保持一致。
+- **Active Surface:** 激活表面 9px（`--tabs-segmented-inner-radius`），使用消费方的 surface 与 `--tabs-segmented-active-shadow`；未选中和选中文字分别使用 `--tabs-segmented-muted-foreground` / `--tabs-segmented-active-foreground`，选中文字重读取 `--tabs-segmented-active-label-weight`。
+- **Motion:** 激活表面只用 `transform` 移动，不触发布局重排；时长、曲线和复合写法统一从 `--tabs-segmented-duration`、`--tabs-segmented-ease`、`--tabs-segmented-transition` 读取。默认是 180ms ease-out，必须在 `prefers-reduced-motion: reduce` 下将时长压到近乎 0。
+- **Consumers:** 抓取入口、抓取预设、书源筛选、任务状态、审核类型、导入来源（含弹窗）以及其他后台分段 Tab 只覆盖消费方表面色值；几何、激活层、文字状态（含选中字重）和动效统一读取 `--tabs-segmented-*`，不再维护页面级圆角、内缩、间距和位移字面量。
+- **Claude Capsule Navigation Tabs（大药丸主子页导航，2026-10-15）：**
+  - **定位与场景**：用于分级审核工作区（分级账本 / 规则候选 / LLM 建议）与 AI 服务主子页（AI 创作 / 封面生成 / 已生成内容 / AI 配置 / 参数调优）等核心业务的主子页胶囊导航；
+  - **轨道（Track）**：全圆角胶囊外框（`border-radius: 9999px`），高度 2.75rem（44px），内缩 4px，背景为柔和浅暖灰 `--admin-panel-muted`（暗色 `#23221f`），边框 1px `--admin-border`，消灭杂乱内阴影；
+  - **激活药丸（Active Surface）**：白色实体独立悬浮药丸（`background: var(--admin-panel)`，暗色 `#2a2926`），带有柔和微阴影（`0 1px 3px rgba(35, 30, 24, 0.05)`），激活文字使用陶土强调色 `--admin-accent`（`#d97757`）与 600 字重；
+  - **降噪契约**：彻底移除激活标签内多余的红点/彩点装饰（如 `size-1.5 bg-accent`）与生硬环形 ring 描边，依靠纯粹的物理纸白胶囊浮起与陶土字色表达层级；
+  - **未激活态（Inactive & Hover）**：次级文字色 `--text-muted`（13px / 500 字重），悬停时平滑渐变为陶土色，保持 Claude 纸面阅读工坊克制呼吸感。
+
+### Cards
+- **Corner Style:** shadcn `Card` 为 16px（`rounded-xl`）；说明面板使用 `--admin-context-panel-radius`（16px），后台数据面板使用 `--admin-data-panel-radius`（20px）
+- **Background:** 白色/卡片色（var(--bg-card)），管理后台说明面板与数据面板分别使用 `--admin-context-panel-background` / `--admin-data-panel-background` 标准化
+- **Shadow Strategy:** 静止无投影，hover 也不加（Flat-By-Default Rule + Tonal-Admin Rule）
+- **Border:** 说明面板保留 `--admin-context-panel-border-width` 的 `--admin-context-panel-border` 描边；数据面板本身 `border: 0`，靠表面色分层，内部工具条/页头用 1px `--admin-border` 底线分区
+- **Internal Padding:** 说明面板使用 `--admin-context-panel-padding`；数据面板工具条使用 `--admin-data-panel-toolbar-padding-block` × `--admin-data-panel-toolbar-padding-inline`，存在面板标题时仍使用 `1.5rem 1.5rem 1.25rem`
+
+### Inputs / Fields
+- **Style:** 全站单行 input、下拉选择与多行 textarea 共用纸面、1px 细暖灰描边和无静态阴影，参照「留空，由 AI 拟定」输入框样式。Input/Textarea 外观由 `styles/input-fields.css` 提供，下拉由 `styles/select-fields.css` 读取同一组 `--input-background`、`--input-border`、`--input-radius`、`--input-focus-border/shadow`。默认分别映射 `--bg-card`、`--border`、`--radius-lg`，公开控件为12px圆角；后台作用域将单行字段的 `--input-radius` 映射到 `--admin-input-radius`（全圆角），textarea 仍为12px。深色随语义变量适配，页面不再自行加深边框或添加静态阴影。
+- **Focus:** 键盘聚焦使用 `--input-focus-border` 强调色边框及 `--input-focus-shadow` 2px 半透明光晕；`aria-invalid="true"` 使用危险色边框和聚焦光晕。不得用静态阴影替代焦点状态。
+- **Geometry:** 后台常规 Input 与下拉继续使用40px高度，公共页保留各自布局尺寸；搜索图标内缩、密码显示按钮及输入宽度由调用点保留。分页下拉和跳转框使用当前34px尺寸，跳转框保留居中零内边距。共享下拉通过所在区域的 `--field-control-height` / `--field-control-padding-inline` / `--field-control-font-size` 对齐周围控件，不从按钮 variant 推断尺寸。后台常规字段14px，弹窗窄屏 Input 与下拉同时使用16px，768px及以上为14px。复合 Command 搜索框将描边放在含图标的外层容器，内部 input 保持透明。
+- **Multiline:** textarea 与单行输入共用白色纸面、细暖灰边框、12px 圆角和无静态阴影，聚焦与非法状态沿用共享输入 token；文本与占位字色沿用共享语义色。单行输入的固定高度规则不得作用于 textarea；保留各场景的最小高度、换行、行高、内边距与拖动调整大小。长提示词、章节正文、JSON 使用可伸缩的多行区域。
+
+- **Single Focus Boundary（复合输入单一焦点边界，2026-10-14）：** 图标与文本组合成一个搜索字段时，外层容器独占描边、圆角、纸面和焦点反馈。`CommandInput` 由 `[data-slot='command-input-wrapper']:focus-within` 读取共享焦点 token；内部 `[data-slot='command-input']` 在普通与 `:focus-visible` 状态都显式设置透明背景、零描边、零圆角、无 outline / box-shadow，不得只从普通 Input 规则中排除它——全局可访问性规则仍会重新画出内层焦点框。内部高度为容器的100%、最小高度0、上下内边距0，避免40px输入溢出36px外框。强制颜色模式下仅给外框系统色 outline，确保去重后仍有可见焦点。规则在 `input-fields.css` 共享，页面与下拉浮层不重复声明焦点外观；其他独立输入、按钮及清空操作保留各自焦点。
+- **Focus verification:** 检查普通 Command 与可搜索下拉，覆盖自动聚焦、鼠标、Tab、搜索输入、Escape 与焦点归还，以及明暗/窄屏/强制颜色模式。读取内部 input 的最终 border、outline、box-shadow 和实际边界，确认内部无高亮、外框仍高亮且输入没有越界；不能只检查外框已有光晕。后台 Command 搜索的所有使用点共同受此规则约束。
+
+### Selection Fields（下拉与 Input 同步，2026-10-14）
+
+- **Single source:** `SelectTrigger` 与 `CustomSelect` 触发器统一标记 `data-field="select"`，由 `select-fields.css` 负责外观；原生 select 共享纸面与状态，保留原生箭头、菜单和已有布局尺寸。Radix `PopoverTrigger asChild` 会把 CustomSelect 的 `data-slot` 改为 `popover-trigger`，因此禁止用 `[data-slot='button']` 推断它是否已获得后台字段样式。
+- **Contextual size:** 公开共享下拉默认36px，显式 `sm` / `compact` 为32px；进入后台表单、筛选栏、AI配置和账户管理后，两档都按周围常规 Input 使用40px。分页仍为34px，悬浮岛继承36px桌面 / 44px触屏尺寸。高度和最小高度必须一起设定；尺寸由区域 token 继承，业务页只保留用途决定的宽度。
+- **States:** 普通、搜索、筛选胶囊共用 Input 纸面、描边、文字、占位与焦点 token，不保留描边按钮的静态投影、按下缩放或陶土 hover 填充。禁用不改变几何；`aria-invalid="true"` 使用同一危险描边和焦点光晕。筛选胶囊保留前置图标与最小宽度，不另开一套字段外观。
+- **Portal contract:** Radix Select 和 CustomSelect 浮层显式带 `.shared-select-content`，不依赖 `.admin-layout` / `.admin-dialog` 祖先。浮层使用共享纸面、12px圆角、暖灰描边与菜单阴影，选项使用13px / 400字阶、36px桌面 / 44px窄屏或触屏命中高度，键盘高亮使用暖灰底和正常文字色；选中勾选保持独立可见。搜索框聚焦描边放在含图标的 wrapper。cmdk 的禁用值为 `data-disabled="true"`，不能用属性存在与否判断（启用项也有 `data-disabled="false"`）。
+- **Behavior and verification:** 保留选项值、搜索过滤、服务端补搜、键盘导航、Escape、焦点归还、禁用项与碰撞避让。检查明暗、1440/900/390/320px、普通/紧凑/搜索/筛选胶囊、后台表单/AI/账户/弹窗/分页；对照同排 Input 的最终高度、圆角、底色、描边、字号与 focus 样式，同时确认浮层及页面无横向溢出。操作菜单继续使用 `DropdownMenu` 的独立语义。
+- **Page override guard:** 页面不得用 `!important` 单独覆盖共享字段的高度、字号、圆角、纸面、描边及焦点。抓取入口 `ScrapeIntake` 的榜单来源与同排 URL Input 均使用40px、14px和后台全圆角；链接导入、作品搜索共用同一字段规则，不另写深色皮肤。验收必须带上实际页面祖先（如 `.admin-redesign-page--scrape`）与完整样式入口，而不是只在裸 `.admin-layout` 中渲染共享组件。2026-10-14 曾因此遗漏榜单下拉8px圆角、Input 38px及独立深色覆盖；后续字段检查将抓取入口三种模式加入固定验证范围。
+- **Scrape intake on narrow screens:** 640px及以下，抓取入口字段与提交按钮改为单列，三个模式按钮均分可用宽度并隐藏装饰图标，保留完整文字、顺序和当前状态。检查每个字段及按钮都在卡片边界内且真实可点击；只检查页面没有横向滚动不足以验收，卡片自身的 overflow 也可能裁掉控件。
+
+### Named Rules
+**The Fit-Content Rule.** 输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 `flex-1` / `w-full` 把输入框撑满整行——工具栏里的过滤/搜索框用 `min-w` 限定下限、内容自然决定宽度，长 URL 输入才放宽。
+
+**The Data-Panel Contract Rule.** 后台数据表一律走 `AdminDataPanel` + `columns`。`columns` 只做两件事：注入 `--col-N-w` 宽度变量、添加 `.admin-data-panel--grid`。它**不会**渲染单元格，也不会写 data 属性——调用方必须让「列定义顺序 = thead 顺序 = tbody 单元格顺序」三者一致，并手动标注 `data-primary` / `data-label` / `data-actions` / `data-check`。少写一个 `data-label`，那张卡片在 900px 以下就会缺一个字段标签；只传 `columns` 而不标属性，等于什么都没做。
+
+### Shared Dropdown Menus
+
+- **Shared Library:** 全站操作下拉菜单使用 `components/ui/dropdown-menu.tsx`，外观统一由 `styles/dropdown-menu.css` 和 `--menu-*` token 提供；后台行操作、用户管理与公开/后台账户菜单共用。不要在业务页重复定义菜单圆角、字号、内边距或行高。
+- **Surface:** 浅色主题使用白色纸面，深色主题跟随 `--bg-card`；12px 圆角（`--menu-radius`）、1px 暖灰轻描边和 `--menu-shadow` 柔和阴影。默认最小宽度 176px，内部留白 4px；主菜单与嵌套子菜单一致，宽度受 Radix 可用空间和视口约束。
+- **Items:** 默认文字 13px / 400（共享紧凑字阶）、行高 1.5，桌面每项至少 36px 高，左右内边距 12px，项目圆角 6px。保留足够留白，不要求普通操作添加图标；有图标时采用 16px，勾选/单选标记占独立左侧区域。标签保持次级层级，快捷键靠右。
+- **States:** 悬停和键盘高亮使用淡暖灰背景，不改变普通文字颜色；禁用项降低透明度并不可选择。危险项显式传 `variant="destructive"`，文字与图标采用共享危险色，高亮只增加淡红底色。
+- **Grouping:** 普通操作与删除等危险操作之间使用一条 1px 轻分割线，线条留在浮层内边距中，不贯穿外边框；分割线上下各 4px。
+- **Interaction:** 保留 Radix 的 portal、方向键导航、Esc 关闭、焦点返回、复选/单选状态及视口碰撞避让。菜单通过 portal 渲染，禁止使用依赖表格祖先的选择器调整浮层。900px 及以下或触屏使用至少 44px 的操作高度，减少动态效果时关闭浮层动画。
+
+
+### Shared Toast Feedback
+
+- **Entry:** 全站轻反馈与操作通知由 `components/ui/sonner.tsx` 和 `styles/toast-feedback.css` 统一呈现，业务页继续使用 `useToast().toast(message, type, options)`；不在页面复制局部外观。
+- **Positioning & Dock Collision Prevention:** 默认位置锁定为**顶部居中（`position="top-center"`）**，从视口顶部优雅滑入；彻底避免与底部常驻或唤出的「保存配置/撤销修改」悬浮胶囊岛（`AdminFloatingDock`）以及「批量选择操作条」（`AdminSelectionBar`）产生物理重叠与交互打架。
+- **Surface & Capsule Language (Claude Style):** 遵循 Claude 极简纸白药丸规范，采用全圆角胶囊（`--radius-full: 9999px`）、1px 极细微边框（`1px solid var(--border)`）与细腻柔和的环境浮层阴影（`0 4px 18px rgba(35, 30, 24, 0.08)`），消灭粗苯的方块卡片感。暗色模式自动切换为深暖黑低反光表面。
+- **Content & Typography:** 40px 高度（`min-height: 2.5rem`）、`0.5rem 1.125rem` 呼吸内边距、13px 中等字重（`0.8125rem` / 500）、1.5 行高；16px 细线状态图标（成功/提示统一使用 Anthropic 陶土色 `#d97757`，错误危险红，警告暖琥珀），长文字自适应平滑扩展。
+- **Actions:** 撤销等动作采用轻量微缩胶囊按钮（`[data-button]`，高度 26px，浅陶土底与深陶土字，悬停平滑加深）；禁止使用高饱和厚重实色底。
+- **Interaction:** 保留 Sonner 的顶部居中下坠、视口边距避让、多通知顺畅堆叠、滑动关闭与无障碍朗读；普通提示自动消失，带动作提示默认保留 10 秒。减少动态效果时自适应降级。
+
+### Shared Account and List Primitives
+
+用户目录预览中的搜索、计数、刷新、用户头像与身份/状态标签作为共享语言，页面只提供姓名、头像地址、数量和业务状态，不再复制局部外观。
+
+| 元素 | 共享入口 | 尺寸与外观 |
+| --- | --- | --- |
+| 搜索 | `AdminSearch` / `components/toolbar.css` | 默认宽 280px，窄屏随容器收缩；高度沿用后台 40px，白底、细边、12px 圆角、无静态阴影，保留图标、可访问名称和聚焦提示 |
+| 刷新等次要操作 | `Button variant="secondary"` | 暖灰底，无外描边和阴影；后台高度 40px、文字 13px，保留 hover、focus 与 disabled 状态；筛选 combobox 不使用此按钮外观 |
+| 面板数量 | `.admin-panel-status` | 随文字自然宽度，暖灰胶囊，无描边；文字 12px、常规字重、等宽数字，数量需注明单位 |
+| 用户头像 | `UserAvatar` / `identity.css` | 优先展示用户设置的图片，缺失或加载失败时由 `InitialAvatar` 显示姓名首字；默认 36px 圆形、等比裁切，文字回退为 13px 常规字重、浅奶茶底与品牌文字；`size="inherit"` 沿用所在入口的既有尺寸；只做装饰，姓名由相邻文字或控件标签提供 |
+| 当前身份 | `Badge variant="identity"` | 11px 常规字重、6px 圆角、2px × 5px 内边距，浅奶茶底，用于“本人”等身份标记 |
+| 角色与状态 | `AdminStatusBadge` | 11px 常规字重、3px × 8px 内边距、胶囊圆角、无描边；管理员使用 info/浅奶茶，普通角色 neutral/暖灰，正常 success/浅绿，禁用 danger/浅红；状态始终带文字，不能只依赖颜色 |
+
+头像和标签几何使用 `web/src/styles/tokens.css` 中的 `--avatar-*`、`--badge-*`，面板计数使用 `--panel-count-label-size`。颜色均取现有主题 token，暗色模式不写死浅色值。其他业务状态继续使用已有 tone 合约；强调性的 brand 标签保留实色。
+
+全站用户身份入口、用户目录、审计列表、密码目标、评论、段评、审核和个人资料统一使用 `UserAvatar`。图片和文字回退互斥，失败状态按图片地址保存，地址更新时可重新加载；禁止通过移除 DOM 或只隐藏失败图片造成空白头像。相对地址沿用 API 地址解析，本地上传预览保留 blob/data 图片地址。审计接口关联当前用户头像，账号不存在时保留记录并回退文字，不因头像缺失隐藏用户或记录。
+
+
+### Proxy Settings
+- **Hierarchy:** 代理设置采用「出站代理配置 → 路由与连通性」双面板。配置面板顶部集中展示当前生效地址或接口提供的代理主机、来源与跳过规则；编辑草稿不替换生效摘要。日志入口归页头，协议与部署说明使用面板外折叠区。
+- **Settings Rows:** 桌面端标签与简短说明在左，输入与字段提示在右；640px 及以下改为纵向。面板、圆角、按钮、控件和字阶沿用共享 token，手机标题与状态保持同一行。
+- **Feedback:** 保存反馈区分未保存修改、管理端配置生效和环境变量仍优先。读取失败不得显示为「未配置 / 直连」，重新读取成功后恢复配置与诊断操作。
+- **Diagnostics:** 路由检查遵循生效配置，命中跳过规则的直连为中性结果；代理连接测试强制走代理。未启用时可检查路由，但不能测试代理连接；目标变更、配置保存或重新读取时清除旧诊断结果。
+
+### Calls and Usage
+- **Hierarchy:** 调用与用量保留「AI 调用 / 出站请求」子 tab。AI 调用按「统一时间范围 → 可折叠用量趋势 → 调用记录」组织；7 / 30 / 90 天同时作用于趋势和明细，类型筛选只属于调用记录面板，切换筛选或时间范围后回到第一页。
+- **Trends:** 1181px 及以上，成本/次数与 Token 趋势并排、等宽、等高；更窄视口纵向排列。总调用、总成本、平均单次与总 Token 留在各自图表标题下的次级读数行，不新增独立指标卡。次数用淡品牌色柱形，成本用品牌色曲线，输入/输出 Token 使用共享成功色与信息色。
+- **Records:** 类型筛选、计数与刷新留在调用记录自己的控制行里，分页用 `Pagination variant="detached"` 放在面板之外；三者与数据面板平铺在画布上，面板本身直接从 `<thead>` 开始（见 The Claude Flat Workbench Rule）。调用记录包含跨列展开详情，因此保留原生表格和面板内横向滚动，窄屏提供滑动提示，不套用普通表格卡片化；出站请求继续使用 `AdminDataPanel + columns` 的 900px 卡片化契约。
+- **Cost:** 调用记录和用量趋势默认采用上游回传的账单成本，优先 `usage.cost`，兼容顶层 `cost`；文本、流式文本与图片共用解析规则。NewAPI 响应缺金额时，以 `x-oneapi-request-id` 精确关联同站只读账单，只有站点公开确认 USD 与 quota 单位时才换算，不使用 credit 或模型标价估算。明确的 0 是有效金额，未获取有效金额时标记 `costReported=false` 并显示「未回传」；查询失败不影响生成。API 金额单位不变，存储保留小数，界面显示四至八位小数，避免微小费用显示为 0；展开详情展示请求 ID、成本来源与币种。趋势标注金额回传覆盖次数，平均成本只以已回传金额的调用为分母；历史记录不自动重算。
+- **Upstream Cache:** 调用记录在消耗列显示「缓存命中 N / 缓存未命中 / 缓存未回传」，展开详情显示缓存读取、写入与推理 Token。`null` 与 0 严格区分；趋势汇总只计算已回传字段并显示覆盖次数。缓存读取与写入属于输入 Token，推理属于输出 Token，不再次相加到总 Token；Claude 原生用量分拆字段需先归一为总输入。此处统计上游提示缓存，站内已有内容复用仍不新增上游用量。沿用共享字体、次级文字及现有面板，不增加独立指标卡。
+- **Feedback:** 刷新入口属于对应的数据面板。初次读取失败使用共享读取失败空态，已有刷新入口的区域不重复放置重试；刷新失败但已有数据时保留数据并显示行内提示。读取失败或加载中不得将未知用量显示为 0。
+
+### Model and Time
+
+- **Shared Component:** 后台模型与时间组合使用 `AdminModelTime`（`components/admin/AdminModelTime.tsx`），共享样式位于 `admin/components/workspace.css`。上行模型名沿用确认样稿的 `Consolas, 'SF Mono', monospace` 字体栈，12px、字重 400、主文字色；下行使用 13px 次级文字色与等宽数字；两行间距 6px。
+- **Date Format:** 日期与时间保持在同一行，复用 `formatDateTime`，按浏览器本地时区显示 `YYYY-MM-DD HH:mm`，不显示秒，不将日期与时间拆成两行。使用语义化 `time` 与 ISO `dateTime` 属性。缺失或无效数据显示破折号，长模型名省略并保留完整悬停提示。
+
+### AI Service Workspaces
+
+- **Scope:** AI 服务侧边栏保留 AI 创作、封面生成、已生成内容、AI 配置、参数调优五个子页。`AiTab` 统一提供页头与 URL 深链，任务中心和调用与用量继续使用各自入口。布局规则位于 `admin/pages/ai-service-claude.css`，限定在 `.ai-service`，沿用共享纸面、圆角、字阶、表单、状态、弹窗与分页原语。
+- **Surface:** 暖纸面画布、无外描边白色面板、20px 面板圆角，面板之间 20px 留白。页标题 20px，面板标题 16px，段落标题 14px；控件与按钮继续使用共享尺寸。暗色通过语义变量映射，禁止页面硬编码浅色背景。配置供应商在桌面并排，卡片内部字段按标签在上、控件在下纵向排列，手机面板单列。
+- **Writing:** 默认续写已有小说，单章精写优先。桌面主表单旁展示真实作品上下文与任务回执，窄屏顺序堆叠。内容尺度和三份小说分析放在创作要求之前；分析状态常显、正文按需展开。推荐情节、大纲、新写、多章规划、人工校正与 R18 参数保留现有业务语义。目标作品与标题、承接章节与目标字数各成两列；内容尺度使用灰色内嵌表面，小说分析收敛为三条紧凑行。本次情节作为主要输入，标题右侧放推荐按钮；其下「进阶约束与材料」默认折叠，填写后收起仍显示已填写状态并保留内容。目标、人物、视角、节奏、保留事实和禁止事件同时传入推荐、大纲和正文，推荐与大纲必须避开禁区。大纲默认折叠，多章模式展开必填规划。侧栏提供真实封面、作者、章节数、模型、本次输出、未发布草稿提醒、任务进度和最近任务。结果审阅后发布。
+- **Cover:** 作品上下文、生成设置、候选比较分别组织。生成设置和候选区在宽屏并排，窄屏顺序排列；描述词在主表单常显，作品资料与 AI 理解按需折叠；候选以缩略图选择器配选中大图呈现，当前封面与历史独立成卡。真实图片等比呈现，保留大图查看、候选采纳与舍弃、上传替换及封面历史。生成只落候选，采纳或恢复才改变当前封面，保留版本并发检查。
+- **Directory:** 已生成内容复用 `AdminDataPanel density="comfortable"`，搜索属于页头，类型、状态筛选属于目录工具条，桌面使用关联内容（含选择框）、类型与状态、内容预览、模型与时间、操作五列，分页使用面板外 `Pagination variant="detached"`。搜索作品、章节与正文时由服务端过滤，列表和总数使用相同条件，输入 `%`、`_` 等字符按原文匹配。筛选或每页数量变化返回第一页；过期请求不覆盖新结果。分页以目录项计数：一个续写合集算一项，其他独立内容各算一项。服务端先按筛选条件合并续写批次再分页，同一合集的匹配章节不跨页；目录总数、页数及显示范围均使用该单位，展开章节不占每页名额。批量选择与删除仍按实际生成记录计数。删除导致当前页超出范围时回到最后一个有效页。合集的内容预览优先展示续写时选定的原始情节，不使用完整模型提示词或生成正文冒充；新产物保存情节快照，旧产物按精确任务关联恢复，缺少来源时回退到章节数量。
+- **Configuration:** 精细对齐 `docs/previews/ai-service-claude.html#config`：文本、图像供应商独立白色表面，桌面等宽双列、20px 间距、24px 内边距，标题旁显示带圆点的语义状态，标题下以 12px 说明用途。字段纵向排列，字段组间距 20px、标签与控件间距 6px；使用共享纸面输入框，页面采用 40px 高度，模型字段不重复附加说明。连接操作置于细分割线下。读者策略与服务检查使用通栏面板，策略说明与双列额度字段在桌面左右排列，窄屏顺序堆叠；用量使用自然换行的行内摘要，呈现今日调用、Token、成本和近 30 天调用及成本。底部保存栏使用 16px 圆角、12px 纵向内边距、距视口底部 16px。已配置不等于连通性验证成功；图像服务使用真实封面生成入口，不提供无后端支持的演示测试按钮。编辑只更新本地草稿，底部统一保存配置和撤销修改；保存前校验所有分组，按文本、图像、读者策略顺序提交有改动的分组。部分失败时提示已完成分组并保留失败草稿，重试不重复提交已成功分组，不在输入数字时自动写入。未改动的有效值刷新不清除其他分组草稿。密钥占位符和聚焦后的空输入不下发，明确填空格才按既有约定清空密钥。连通性测试基于已保存的文本供应商。
+- **Parameters:** 以 `docs/previews/ai-parameters-claude.html#params` 为参数调优样稿。六个参数组采用顶部分类标签和单个通栏面板，取消内部左侧导航；桌面标签自然排成一行，手机排成两行，字段单列堆叠。分类切换保留各组草稿，修改分类显示圆点，底部展示所有分类的待保存字段数；支持方向键与 Home/End 切换分类，标签与面板通过 ARIA 关联。所有面板保持挂载，保存时校验全部分类的数字字段，遇到隐藏分类的无效值先切换到该分类并聚焦字段，不允许跳过隐藏字段校验。AI 创作按基础生成和分析与辅助生成分层。Temperature 使用 0–1、步进 0.1 的滑块并显示当前值，开关使用简洁说明行，长提示词默认折叠。底部保存栏保持可见，显示未保存状态，支持撤销与保存全部参数。保存前校验输入范围，加载或保存期间禁用提交。页面滚动由外层文档承担，避免内层 `overflow: auto` 截断 sticky 区域；底部留白必须容纳保存栏。
+
+### Read Failure States
+- **Shared Surface:** 后台列表或面板首次读取失败使用 `ErrorState`，复用 `AdminEmptyState` 的居中结构，以抓取任务为范本：32px 淡化的禁止图标、次级色的加粗原因文字、至少 14rem 的内容区。避免紧凑红字错误块与相邻子 tab 形成不同的空态层级。
+- **Message:** 文案采用「对象加载失败：具体原因」。例如「AI 任务加载失败：需要管理员登录」。任务摘要同时显示读取失败标题与真实原因，不能继续显示正常操作介绍，也不能将失败呈现为「暂无记录」。
+- **Recovery:** 已有页头或面板刷新入口时，错误区不重复添加重试按钮；没有刷新入口的面板保留 `onRetry`。读取重试只重新获取数据，必须与任务的重新执行或重新生成区分。
+- **Partial Data:** 刷新失败且已有数据时继续展示旧内容，以 `InlineError` 提示失败。首屏读取失败、真实空列表、未配置供应商和任务本身执行失败使用各自的状态，不相互替代。表单校验、行内任务错误与完整管理员访问门禁不使用此空态替换。
+
+### Navigation (Sidebar)
+- **Style:** shadcn 可折叠侧边栏（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动端抽屉 18rem。桌面侧栏使用 `--admin-sidebar` 独立纸面，保留轻微外部留白和 `--radius-xl` 圆角，不使用外描边或阴影；不要把它改成边到边的 `sidebar` 变体。导航溢出时保留滚动能力，但隐藏滚动条视觉轨道。
+- **Brand / Account:** 侧栏顶部品牌容器是返回首页的入口；账户菜单固定在侧栏底部，承载个人中心与退出登录。账户区域与上方导航之间使用 `--admin-sidebar-footer-fade-height`（24px）的轻量纸面淡出，不添加硬分隔线或模糊滤镜。仅在下方仍有可滚动导航时显示；无溢出或滚到底时撤掉遮罩。导航末端保留等高余量，确保最后一个菜单完整可见。滚动、窗口尺寸与子菜单展开变化均更新边缘状态；遮罩不接收指针事件。桌面侧栏与手机抽屉沿用同一规则。
+- **Active State:** 当前项使用整行 `--admin-sidebar-active-background` 品牌色背景与 `--admin-sidebar-active-foreground` 前景色，取消旧的局部浅色/竖线指示器；悬停态不得覆盖当前项的品牌色。
+- **Typography:** 菜单项 0.875rem / 500；分组标签 0.75rem / 600，正常字距、不使用 uppercase，颜色 `--text-muted`。
+- **Geometry Tokens:** 菜单项高度、圆角、内边距、图标与文字间距分别读取 `--admin-sidebar-nav-height`、`--admin-sidebar-nav-radius`、`--admin-sidebar-nav-padding-inline`、`--admin-sidebar-nav-gap`；分组顶部留白使用 `--admin-sidebar-group-gap`。
+
+### Table
+- **Admin Surface:** `AdminDataPanel` 是无外框、纸面色表面，使用 `--admin-data-panel-radius`（20px）外圆角；需要说明时，标题/说明属于相邻的 `AdminContextPanel`，不再与筛选和表格挤在同一张大卡片里。
+- **Table Contract:** 表格内容区、表头、行分隔线、hover 背景和行高分别从 `--admin-table-background`、`--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取。亮色表头以 85% 次级背景色混合 15% 品牌强调色，保留低饱和奶茶棕暖调；暗色表头以 85% 表格内容底色混合 15% 弱化文字色，形成中性炭灰层级，避免品牌金棕色让表头与表格内容过于接近。表头文字继续使用 `--admin-table-header-foreground`，保持正文对比度和排序状态清晰。小说表格的滚动容器裁切表头底色，并以 `--admin-data-panel-radius` 保留左右上角圆弧，避免表头底色盖平数据面板圆角。桌面端列宽由 `--col-N-w` 注入：`@media (min-width: 901px)` 下启用 `table-layout: fixed` 并逐列消费该变量，规则覆盖第 1–12 列；**第 13 列起没有对应规则**，落到剩余宽度分配。范本统一使用百分比列宽且合计 100%——fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度。
+- **Breakpoint:** 900px 及以下是卡片化：thead 隐藏，`tr`/`td` 转 grid，`data-label` 变伪元素。与 901px↑ 的固定列宽成对，分界值是 900/901。
+- **Container-Query Exception:** **已撤销（2026-09-19）**。该例外曾用于 `AiGenerationsPanel` 的已生成内容表：当时那张表脱离 `AdminDataPanel` 并自带 `min-w-[760px]`，901–1100px 视口下内宽只有 756px，表格溢出且 sticky 冻结的操作列整列压住「内容预览」（数据丢失），只能改由 `@container (max-width: 48rem)` 按容器宽度卡片化。该表现已收敛到标准契约（`fixed` 布局 + 百分比列宽），不再需要最小宽度，溢出从根上消失，`@container` 块与 sticky 冻结列一并删除。**结论：最小宽度是破损的根因，容器查询只是补丁——遇到同类问题先问「为什么需要这个固定宽度」，而不是先加一个容器查询。** 当前全站数据表统一走 900/901 视口断点，无例外。
+- **Action Column Sizing:** 操作列宽度按**实测内容**反推，不套用固定百分比。判据是「同一行最宽的按钮组合能否单行放下」：文字按钮（如「查看章节」82px + 「删除」54px + 8px 间距 = 144px）比 32px 图标按钮宽得多，901px 视口（桌面固定布局最窄点）下若按图标按钮的 11% 分配，`td` 的 `overflow: hidden` 会把末位按钮整颗裁掉且不可点击。故文字按钮面板的操作列取 21%，并在该列解除固定行高（`height: auto` + `min-height: var(--admin-table-row-height)`）配 `flex-wrap`，使极窄容器下降级为换行而非裁切。范本小说表的图标按钮在同宽度下反而会裁切，属既有缺陷，**不要复制它的百分比**。
+- **Mobile Stack:** 移动端使用 `--admin-table-mobile-stack-gap` 保持行间距为 0，行不绘制左右外部描线；首行取消顶线以接续标题区，内部行只保留单条 `--admin-table-mobile-stack-divider` 水平分隔，末行使用 `--admin-table-mobile-card-radius` 的底部圆角收束。
+- **Data Details:** 分类标签间距使用 `--admin-table-tag-gap`，行操作区使用 `--admin-table-action-*`，排序按钮使用 `--admin-table-sort-*`；删除仅在 hover 时进入危险色。`.admin-cell-tags` 在桌面只显示前 3 个标签加 `+N` 徽章，900px 以下恢复全部并隐藏 `+N`——这是刻意的视口相关截断，完整列表始终对读屏可见。
+- **Motion:** 面板进入使用 `--admin-table-surface-enter` + offset，前 8 行使用 `--admin-table-row-enter` + `--admin-table-row-stagger-step` 依次出现；行、排序箭头、图标按钮的状态反馈使用 `--admin-table-row-interaction`。`prefers-reduced-motion: reduce` 下取消行位移动效，仅保留短淡入。
+
+### Pagination (Pagination)
+
+- **Single Source:** 全站后台分页只有一个实现（`components/admin/Pagination.tsx`），默认是「数据面板页脚」形态：左计数、右控件（每页条数 → 翻页 → 第 X / Y 页 → 跳转），共享分页 token。需要把表格与页码控件分开时，使用 `variant="detached"`：分页作为 `AdminDataPanel` 的同级元素，形成透明、无边框、无圆角的独立控制行，只靠页面区块间距与内容对齐表达层级。
+- **Shared Geometry:** `panel`、`detached` 与 `dialog` 分页的关键控件统一使用当前 `--admin-pagination-control-size: 2.125rem`（34px）：每页条数下拉触发器、文字或图标翻页按钮、页码输入框共用同一高度与最小高度，不继承后台普通控件的40px高度。宽度按用途保留：下拉使用 `--admin-pagination-page-size-width`，图标按钮为正方形，文字按钮随文案，页码输入框使用 `--admin-pagination-jump-width` 固定宽度、取消水平内边距并居中数字。尺寸由共享 `components/pagination.css` 提供；不要在调用点或页面 CSS 重新写高度、宽度或对齐魔法值。2026-10-14 检查确认通用 `sm` 规则会把 panel 的文字按钮撑到40px，而 detached 图标仍为34px；分页尺寸选择器必须包含 `[data-slot='button'][data-size]` 以稳定覆盖通用规则，不能只依赖导入顺序。验收时同时检查文字/图标、三种变体、明暗主题和窄屏布局。
+- **Novels Footer Rhythm:** 小说管理的 `variant="detached"` 分页与表格相邻但不套卡片；分页控制行通过 `margin-top: calc(-1 * var(--admin-space-2))` 抵消默认区块间距的一档，使表格与分页保持连续的页脚节奏。该收紧只属于小说列表，不外溢到其他后台页面。
+- **Narrow Geometry:** 400px及以下，detached 分页的页码读数移到末行，避免“每页行数 + 下拉 + 翻页 + 页码”四列最小宽度撑破容器。跳转输入框的尺寸规则也必须高于通用 Input 规则，确保下拉、按钮与输入全部为34px，不能只验证按钮高度。
+- **Default Page Size:** 默认每页 **15** 条，档位 **15 / 20 / 50 / 100**。两个常量 `ADMIN_DEFAULT_PAGE_SIZE` 与 `ADMIN_PAGE_SIZE_OPTIONS` 定义在 `lib/admin-pagination.ts`（独立模块，不是 `Pagination.tsx`——组件文件必须保持「只导出组件」，否则运行时常量导出会破坏 HMR 边界），是全站唯一来源——页面 `useState(ADMIN_DEFAULT_PAGE_SIZE)` 取初值并把 `ADMIN_PAGE_SIZE_OPTIONS` 传给 `pageSize.options`。**不要在页面里再写 `useState(50)` 或字面档位数组**：历史上小说 20 / 章节 50 / 审计 50 / 生成内容 50 四处分叉，正是这么来的。
+- **Presentation, Not API:** 15 是**展示层**默认值，后端各列表路由未传 limit 时仍回落到 50。这样未显式传参的调用方（含公开页）不会被静默截断。需要「一次拉全」的页面（抓取中心候选列表 `PAGE_SIZE=100`、审核队列 `limit: '80'`、章节索引 `limit: '2000'`）显式传自己的 limit，不消费本默认值。
+- **Page-Size Change Resets Page:** 改变每页条数必须回到第 1 页（组件内部已回调 `onPage(1)`，调用方需把 offset 一并归零）；换筛选条件同理。留在原 offset 会落在越界区间，表现为「改完一片空白」。
+- **Delete-Then-Empty Guard:** 当前页删到空且不在第 1 页时，回退一页而不是留在空页。
+- **Front-stage Exception:** 前台 `Home` 保留自己的实现（内联原生控件 + `.home-pagination`），两套刻意分开：前台是阅读场景的卡片皮肤，后台是紧凑控制带。后台不得复用前台类名（曾因 home.css 的裸 `.home-pagination` 选择器把前台 20px 圆角漏进后台）。
+
+### Panel Toolbar (AdminToolbar)
+
+- **Ownership:** 工具条归属于它筛选的那份数据，而不是页面。筛选/搜索/批量操作只作用于某个 `AdminDataPanel` 的列表时，该 `AdminToolbar` 必须渲染在**那个面板内部**；有 `AdminPanelHeading` 时位于标题之下，没有标题时作为数据面板的第一段，始终在数据区（表格 / 列表 / 页脚）之上。
+- **Anatomy:** 面板内工具条是面板的一段，不是独立表面。无自身圆角、无四边描边，只有一条 `--admin-border` 底线与数据区分隔；表面色用 `color-mix(in srgb, var(--admin-surface) 40%, transparent)` 与画布轻微区分。水平内边距与数据区（`.ai-list-body` / `.ai-tasks-content` 的 `1.25rem`，≤900px 降为 `1rem`）**必须同步**——只改一侧会让工具条与下方表格错开，出现两条左基线。
+- **内间距归属：** `.admin-toolbar--inline` 自身**只有 flex 布局**（`display: flex` + `flex-wrap` + `gap`），不含内间距。每个工具条必须由**自己的 class** 补 `padding: 0.75rem 1.25rem` 与 `border-bottom: 1px solid var(--admin-border)`（范本见 `.ai-service .ai-tasks-toolbar`、`.chapter-toolbar`、`.moderation-toolbar`）。裸用 `<AdminToolbar>` 而不给 `className` 会得到零内边距：控件贴住面板左右边缘，且表头被压在筛选条下沿。
+- **下边距必须外置：** `padding-bottom` 落在盒内，表格仍会紧贴 `border-bottom`（实测工具条 `bottom` 与 `thead top` 差 0px）。工具条与数据区之间需要 `margin-bottom: 1rem`，不能用 padding 代替。
+- **Geometry:** `display: flex` + `flex-wrap: wrap` + `gap: 0.75rem`，靠换行适配窄屏而不另写断点；`min-height` 与纵向内边距按内容定档（AI 三面板 3.25rem / `0.75rem`，章节目录面板 3.75rem / `0.875rem`），不做强制统一。
+- **Slots:** 组合顺序固定为「批量操作（仅在有选中项时出现）→ 字段标签 → 筛选控件 → 其余动作」；不要为筛选器新建一套卡片外观。
+- **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**。跨多个面板生效或确实需要独立成卡时，才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）；如果只是作用于一个数据集的轻量搜索/筛选组合，则使用透明的“列表控制行”，不能再创建等权卡片。
+- **工作台胶囊控制行与单层控制流（Filter Rail & Single Control Surface）:**
+  通用后台数据工作台（小说管理、分级管理、章节管理等）统一采用 `AdminPage` 页头（含全局动作） → `工作视图 Tabs`（如有） → `.admin-filter-rail`（透明外置控制行） → `AdminDataPanel`（数据表格直接作为实体卡片）的扁平结构。
+  - **搜索与筛选归一：** 搜索框（`AdminSearch`）位于左侧并弹性伸缩（`width: min(22rem, 100%)`），所有多维度筛选胶囊（`CustomSelect chip filterChip`）位于右侧（`.admin-filter-chips`），同处单行，严禁将搜索与过滤拆分至卡片内外两重空间。
+  - **沉静辅助读数：** 匹配数、微型健康度比例条、缺口统计等轻量辅助信息，收敛于控制行尾端（`.admin-filter-rail__status`），杜绝占用首屏的厚重独立横条与信息复读。
+
+**The Claude Flat Workbench Rule (去容器化与单层控制流准则).**
+在具有明确业务语境（页面标题或 Tabs）的数据列表页中，严禁在 `AdminDataPanel` 内部再包裹带有二级对象名的 `AdminPanelHeading` 或内嵌二级工具条（Card-in-Card 俄罗斯套娃）。
+数据面板直接从 `<thead>` 开始，以数据实体本身作为卡片。外置控制行使用透明背景、无描边、无圆角（`.admin-filter-rail`），只靠自然流式排版与极细 Hairline 分隔表达层级。分页默认作为同级元素外置（`Pagination variant="detached"`）。
+
+- **AI 建议与异步任务控制流（AI Suggestion & Task Control Flatness）:**
+  在 AI 分级建议或异步模型生成等任务工作台视图中，工具筛选条（状态切换、单批上限选择、分析未标注按钮）、说明性指引以及任务执行进度条/断点恢复卡片（`AiTaskProgressBar`），必须作为独立的控制表面平铺渲染在数据面板外部画布上，严禁打包揉塞进 `AdminDataPanel`。下方建议记录直接复用统一的数据表格设计规范（`AdminDataPanel columns={...} density="comfortable"` + `Table`），使用标准列宽契约、表头批量复选框与 `Pagination variant="detached"`，消灭非标队列卡片堆叠，实现纯粹的 Claude 纸白单层控制流。
+
+**The Claude Admin Vertical Rhythm & Baseline Alignment Standard (后台垂直律动、基准对齐与间距统一规范).**
+所有后台工作台、数据子页面与主-子视图（小说管理、内容审核、章节管理、分级账本、任务管理等）在垂直律动与控件层级上**以「小说管理 (NovelsTab)」为全站绝对基准与唯一真相 (The NovelsTab Benchmark as the Ground Truth)**。消灭子页面之间各写各的 margin、padding 与重复叠加导致的视觉残差：
+
+1. **宏观垂直律动 4 档基准阶梯（The 4-Tier Vertical Hierarchy Rhythm）**：
+   - **Tier 1 · 页头呼吸留白层 (Header Breathing Rhythm - 40px)**：
+     - `AdminTabHeader` 在全后台统一取消底部分隔线（`border-bottom: 0`），使作业台回归沉静纯粹的 Claude 纸白平面；
+     - 保持内下边距 `padding-bottom: 1rem` (16px) 与极细微外下边距 `margin-bottom: 0.25rem` (4px)；
+     - 配合主页面网格容器（`.admin-redesign-page` 自带 `display: grid; gap: var(--admin-page-section-gap, 1.25rem);` 即 20px 步长），
+       **页头描述/操作区基线到底部首道交互控制层（工作视图 Tabs 或直接到筛选轨道 Filter Rail）的视觉净距离严格固化为 40px (2.5rem)**；
+     - 绝对禁止在子页面手写 `padding-bottom: 0` 或 `margin-bottom: 1.25rem`，杜绝首屏过紧拥挤或过度膨胀。
+   - **Tier 2 · 工作视图 Tabs 间距 (Workspace Tabs Rhythm - 20px)**：
+     - 当页面含有二级视图胶囊切换（如内容审核的「想法 / 评论 / 举报」Tabs、分级管理的「分级账本 / 规则候选 / LLM 建议」）：
+     - 胶囊轨道高度统一为 `--admin-control-height: 2.5rem` (40px)；
+     - **Tabs 底部到下方筛选轨道（Filter Rail）的净距离严格保持为 20px (`var(--admin-page-section-gap, 1.25rem)`)**；
+     - Tabs 容器外边距严格设为 `margin-bottom: 0`，距离完全由父级 Grid 的 `gap` 自然释放，严禁手写额外 margin 导致与 Grid gap 二次叠加。
+   - **Tier 3 · 筛选控制轨到实体卡片间隙 (Filter Rail to Data Panel Gap - 20px)**：
+     - 外置筛选轨道（`AdminToolbar layout="inline"` / `.admin-filter-rail`）高度与最小高度统一锁定为 `--admin-control-height: 2.5rem` (40px)；
+     - **筛选轨到底部主体数据面板（`AdminDataPanel` / Table 卡片）的净距离严格保持与小说管理完全一致的 20px (`var(--admin-page-section-gap, 1.25rem)`)**；
+     - 当 Filter Rail 为 Grid 直接子级时，外边距设为 `margin-bottom: 0`；若处于非 Grid 容器（如 `<TabsContent>`）内，则显式指定 `margin-bottom: var(--admin-page-section-gap, 1.25rem)` 补足 20px 规范间距；
+     - 控制轨内部严格贯彻单层扁平流：左侧搜索框弹性伸缩（`width: min(22rem, 100%)`），多维筛选胶囊靠右对齐（`margin-left: auto`）。
+   - **Tier 4 · 数据面板到分离式分页 (Data Panel to Detached Pagination - 12px)**：
+     - 数据面板采用 `AdminDataPanel density="comfortable"`，圆角 `var(--admin-data-panel-radius)` (16px) 与柔和纸面阴影；
+     - 底部 `Pagination variant="detached"` 统一设置 `margin-top: calc(-1 * var(--admin-space-2))`（-8px），使表格卡片底边到分页栏净间距收紧为 **12px**，在视觉上形成呼吸均匀、紧密依附的整体；
+     - 杜绝分页栏在各子页面忽上忽下或贴边拥挤。
+
+2. **严禁在子页面手写外边距破坏全局节奏（Zero-Ad-hoc-Margin Rule）**：
+   绝对禁止在任何工作台子页面或控件类（如 `.moderation-tabs`, `.moderation-filter-rail`, `.ai-parameter-tabs`）上手写 `mb-4`, `mb-6`, `margin-bottom: 1rem !important` 等非标属性。所有层级跳跃与节律控制必须由上述 4 档基准阶梯与设计令牌（`--admin-page-section-gap`, `--admin-control-height`）统一收敛驱动。
+
+3. **跨面板绝对基准对齐原则（Cross-Tab Baseline Equality Rule）**：
+   在同级各视图切换（如内容审核「想法/评论/举报」、小说管理、章节管理、分级账本、任务管理等）时，页头基线、二级控制轨顶部 Y 轴起点、控件高度（40px）与卡片顶边绝对 Y 偏移量保持严格一致，杜绝切页时页面内容和卡片顶边产生像素级跳跃；
+   主体卡片内部的 `AdminPanelHeading` 标题栏垂直内边距统一收敛为 `24px 28px 16px`，确保视觉重心与文本基线一致。
+
+### Admin Tab Header (AdminTabHeader)
+- **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题独占标题行、描述位于其下，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，全后台统一以小说管理为范本关闭底部分隔线（`border-bottom: 0`）。
+- **Anatomy:** 只有一套。历史 `kicker` 眉题与 `hero` 变体已退役——标题上方不再出现小字，页面之间也不再有标题字号膨胀。
+- **Title:** 共享字号 token `--admin-page-title-size`（20px）；保持 700 字重与 `letter-spacing: -0.04em`。
+- **Title Line:** 标题后不附加规模摘要、状态小字或竖向分隔线；页名保持清楚、独立。
+- **Counts and Status:** 放在所属面板标题栏、相关筛选器或分页区。异常信息放在对应页面内容中，避免把状态提示塞进页名行。
+- **Actions 几何:** 桌面端 `width: fit-content` + `flex-wrap: nowrap`（左标题、右动作，中间留白）；900px 及以下 `width: 100%`，搜索框 `flex: 1 1 auto`、按钮 `flex: 0 0 auto`。搜索框自身定宽：小说管理 20rem，分级管理 18rem——**永不给 `flex: 1` 让它撑满页头**。
+- **Ownership:** 页头由父容器通过 `AdminPage` 提供，`title` 传 `undefined` 时不渲染页头——供自带页头的子视图使用（`scrape/sources` 是唯一消费者）。子 tab 型页面（AI 服务、站点运营、账户与注册）的页头也由父容器统一提供，子面板不再自建页头。
+- **动作归属:** 只有作用于**整页**的动作进页头。筛选某一份数据的下拉、批量操作、清除按钮归面板工具条（`AdminToolbar`），两者不重复同一个动作。
+
+### Admin Metric Strip (AdminMetricStrip) — 停用
+- **状态:** **全站无页面调用**（2026-09-25 起）。组件保留在 `AdminWorkspace.tsx` 供测试锚定三段结构，但新页面不得再引入。
+- **禁止场景:** 一个指标条的数字若已在所属筛选器旁的计数说明、面板标题栏状态或页脚计数中呈现，就不再另起一块表面。概览读数应当**贴在能筛出它或汇总它的那块内容旁边**：
+  - 分级账本 → 「待标注 67 · 限制级 340」贴着分级下拉；
+  - AI 用量统计 → 「总调用 / 总成本 / 平均单次」贴着趋势图（`.ai-usage-totals`）；
+  - 后台总览 → 库存 9 项收成一行紧凑读数（`.dashboard-stat-line`），不与任务状态争夺首屏。
+- **测试锚点:** `admin-readability.test.tsx` 仍断言 `AdminMetricStrip` 的三段结构（label / value / detail 各自成元素）。
+
+### Custom Combobox (CustomSelect)
+- **Style:** 基于 Popover + Command (cmdk) 的搜索下拉
+- **Trigger:** 使用基础 Input 的共享字段外观，右对齐 ChevronsUpDown 图标；不要把触发器按 outline 操作按钮单独着色。
+- **Dropdown:** 使用上述 `.shared-select-content` 纸面浮层，支持键盘导航和搜索过滤。
+- **Width:** 触发器基础宽度为 `w-full` + `max-w-[400px]`（表单内单列使用）。放入 flex 容器（尤其 `AdminToolbar`）时必须给出明确宽度，见下条。
+- **防滚动跳跃与焦点保全 (`Scroll & Focus Stability`)：** 下拉选择/弹层关闭时恢复触发器焦点，必须在 `PopoverContent` 的 `onCloseAutoFocus` 中调用 `triggerRef.current?.focus({ preventScroll: true })`，防止浏览器原生焦点回填强行将视口或外层滚动容器（`AdminShell` 的 `.admin-layout__content`）拉扯滚动到顶层或产生视口位移。
+- **`compact` 保留宽度约束并服从所在区域尺寸：** 保留 `max-w-[var(--admin-filter-width)]`（11rem），公开环境默认32px，后台仍与相邻 Input 对齐为40px；分页及悬浮岛继承各自区域高度，不再硬编码 `h-8`。调用方可用 `className` 覆盖用途决定的宽度上限。
+- **在 `AdminToolbar` 中的宽度契约：** 筛选器要么由 `CustomSelect` 自身的 `compact` 提供上限（11rem，适合「全部分级 / 全部来源」这类短选项），要么由外层容器用 `flex: 0 0 <宽度>` 固定（如 `.moderation-toolbar__status { flex: 0 0 9rem }`）。两者取其一即可，不必同时写。
+- **`.admin-toolbar__filters` 提供横向分组：** 子项不收缩、下拉触发器按内容宽度，窄屏允许换行；它不替代 `compact` 自带的11rem上限或业务容器的显式宽度。
+
+### Filter Chip (CustomSelect `filterChip`)
+
+- **Purpose:** 用于与列表搜索并排的可选筛选条件，视觉上对应“状态 / 模型 / 可见性”一类的添加筛选控件；它不是普通表单下拉，也不是独立卡片。
+- **Anatomy:** 前置 `CirclePlus` 图标 + 当前筛选文案 + 可点击触发器；隐藏普通下拉的 ChevronsUpDown，以加号图标表达“添加/打开筛选”。当前值仍由同一个 `CustomSelect` 下拉承载，不改变筛选行为。
+- **Tokens:** 保留 `--admin-filter-chip-height`、`--admin-filter-chip-min-width`、`--admin-filter-chip-padding-inline` 和图标布局；纸面、实线描边、圆角与焦点统一读取 Input token，不再使用独立虚线/陶土 hover 皮肤。后台同排字号14px、字重400，禁止在调用点重新写魔法值。
+- **Layout:** 当它与搜索框位于同一条 `AdminToolbar` 时，搜索框 `flex: 1 1 auto`，筛选胶囊 `flex: 0 0 auto` 并靠右；≤900px 搜索框独占第一行，筛选胶囊仍贴右对齐。
+- **Accessibility:** 触发器保留 `role="combobox"`、`aria-expanded` 和可读的 `aria-label`；图标仅作装饰，不能替代控件名称。
+
+**The Bounded-Compact Rule.** 紧凑控件可以更矮、更窄，但不能「无上限」。一个 `w-full` + `max-width: none` 的按钮放进 `flex-wrap` 容器，会独占一整行——单个筛选器撑满 1440px，三个控件把工具条撑成三行，视觉上从「筛选条」退化成「三个孤立的表单行」。**宽度上限必须由控件自身或容器显式给出，永远不要留给 flex 布局去决定。**
+
+### Admin Filter Controls
+
+- **Ownership:** 筛选控件的宽度归控件或它的直接容器，不归 flex 布局。
+- **Source of truth:** 紧凑筛选器的默认宽度上限是 `--admin-filter-width`（11rem），定义在 `admin-operations.css` 的 `:root`。新增紧凑筛选器时优先复用该变量，不要就地写魔法数字。
+- **Caller patterns（二选一）：** 短选项筛选器直接 `compact`（走 11rem）；需要更宽或更窄时，由外层容器 `flex: 0 0 <宽度>` 或 `className` 覆盖，并在调用点说明理由。
+- **Verification:** 改动筛选器宽度后，实测该工具条的**子元素数量与换行数**（`AdminToolbar` 设计为同行排布，除非窄屏换行）；用 `getBoundingClientRect().width` 确认下拉不等于工具条宽度。
+
+**`.admin-toolbar__filters`（标签 + 控件 + 计数说明的筛选器组）**
+
+- 它按内容排列：`display: flex` + `flex: 0 0 max-content` + `flex-wrap: nowrap`，子项 `flex: 0 0 auto`；≤900px 才放开换行。
+- **不要用 `width: max-content` + `max-width: 100%` 表达同一意图。** 百分比 `max-width` 在 flex 行里按已分配空间解析，与 `max-content` 形成循环依赖：浏览器按规范收敛到 286px，而子项里的 `CustomSelect` 触发器带 `w-full`，又按 `w-full` 长到 `max-w`（176px），最终子项共占 348px、溢出容器右界 62px。`flex-basis: max-content` 直接参与 flex 分配，绕开这一层耦合。
+- 筛选条内的 `CustomSelect` 触发器必须 `width: auto`（选择器 `[data-slot='popover-trigger']`，注意不是 `data-slot='button'`）：否则 `w-full` 与父级 `max-content` 循环，元素宽度随容器收敛而非随内容。
+- 该类名曾被当作「有类名、无规则」的占位容器使用，`display` 落到 `block`，标签、下拉、计数各自成块。它不是占位类，布局必须显式声明。
+
+
+### Mobile Admin Filter Rail & Layout Standards (后台移动端筛选控制轨与布局规范，2026-11-02)
+
+为彻底解决移动端（≤900px）下全后台各子系统出现的**「上下异常空隙过大（空洞）」**与**「筛选胶囊被下方数据卡片重叠覆盖」**两大顽疾，将小说管理验证成熟的单层横滑与双行控制轨范式正式升格为全后台通用架构标准。
+
+#### 1. 弹性盒纵向主轴陷阱与零空洞准则 (The Flex Column Main-Axis Trap & Zero-Void Rule)
+- **Root Cause (根本成因):** 
+  桌面端为实现搜索框自适应填充，常声明 `flex: 1 1 18rem` 或 `flex-basis: 100%`。
+  当断点 ≤900px 触发工具栏向列布局切换（`flex-direction: column`）时，弹性盒的主轴从水平 X 轴彻底翻转为垂直 Y 轴。此时原本声明在水平方向的 `flex-basis: 18rem`（288px+）会被浏览器直接解释为**垂直方向的高度 (Height)**！叠加搜索框自身的 `align-items: center`，导致原本仅 36px/40px 的输入框悬浮在高达近 300px 的虚高容器正中央，在搜索框上下凭空制造出各 60~100px 的巨大空白断层（视觉空洞）。
+- **Global Standard (全站规范):**
+  - 在移动端列布局下，所有搜索框、工具栏输入容器必须**显式截断纵向主轴膨胀**：
+    `width: 100% !important; max-width: none !important; min-width: 0 !important; flex: 0 0 auto !important; height: var(--admin-control-height, 2.5rem) !important;`
+  - 严禁在 `flex-direction: column` 容器中遗留任何非零的 `flex-basis: <rem/百分比>` 或允许纵向自由拉伸的 `flex: 1`。
+
+#### 2. 单层横滑轨与绝对防重叠契约 (The Single-Track Horizontal Scroll Standard & Anti-Overlap Contract)
+- **Root Cause (根本成因):**
+  在移动端窄屏（320px~414px）下，多维度筛选胶囊（`CustomSelect chip filterChip`）若允许自由折行（`flex-wrap: wrap`），会不规则折成 2~3 行。此时外层 Grid 容器（如 `.ai-service-stack`、`.admin-redesign-page`）在根据首行预估轨道高度时发生计算错位，导致第 2 行的主体数据卡片（`<AdminDataPanel>`）物理覆盖并重叠在被挤压下移的筛选胶囊之上，形成下层胶囊被白底卡片切割压盖的严重破版。
+- **Global Standard (全站规范):**
+  - 移动端筛选胶囊容器（`.admin-filter-chips`, `.novels-filter-chips` 等）**彻底废除纵向折行**，一律锁定为**单层横向平滑触摸滚动条**：
+    `display: flex !important; flex-wrap: nowrap !important; overflow-x: auto !important; overscroll-behavior-x: contain; scrollbar-width: none;`
+  - 胶囊自身保持内容定宽与触控高度：`flex: 0 0 auto !important; height: var(--admin-control-height, 2.5rem);`；
+  - 轨道右缘统一配置极轻量边缘遮罩与呼吸留白：
+    `padding-inline: 1px 1rem; mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent); -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);`；
+  - 双行结构高度恒定确定（Row 1 搜索 40px，Row 2 胶囊 36~40px，gap 8px），彻底消除动态折行带来的高度不可控与卡片层级重叠。
+
+#### 3. 全后台 900px 移动断点归一 (Unified 900px Breakpoint Standard)
+- 全后台所有页面（小说、章节、内容审核、分级管理、任务监控、账户安全、AI 各子面板等）必须以全站统一的 `max-width: 900px` 为唯一移动转折点；
+- 坚决废除个别页面孤立手写的 640px / 767px 工具栏媒体查询，杜绝在 641px~900px 之间出现「半桌面半移动」的夹缝态破版。
+
+### Content Library Mobile（内容库移动端，2026-10-19）
+
+小说管理与章节管理在 ≤900px 不再沿用「桌面表格转通用卡片」，而是各自重排为**记录卡**。样式归属 `web/src/styles/admin/pages/content-library-mobile.css`，在 `admin-operations.css` 末尾导入以晚于共享表格规则；901px 以上的固定列宽表格与 `components/tables.css` 完全不变。
+
+- **断点：** 与全站 900/901 卡片断点一致，不新增断点。390/430/900/901/768/601/320 逐档截图验收，`document.scrollWidth === clientWidth`（无横向溢出）。
+- **页头：** 标题收到 1.375rem（≤420px 为 1.25rem），描述退次级色；页头与首道控制层的净留白保持 20px 页网格 gap，不手写 margin。
+- **动作区：** 小说页 ≤640px 为「导入书籍占整行 + 其余三枚等宽一行」网格；601–900px 为单行 flex，不加空行。
+- **筛选轨：** 搜索独占一行，筛选胶囊组单行**横滑**（`overflow-x: auto` + 隐藏滚动条）。三枚胶囊按内容取宽共约 382px，390px 下必然溢出；换行会把轨道撑到 144px 且第三枚孤立成行。横滑后轨道高 94px。
+
+- **右缘内缩：** 胶囊组 padding-inline: 1px 1rem 且内层渐隐 1.5rem —— 430px 视口下第三枚胶囊原本正好顶到容器边界（右缘 0 呼吸位），加内边距后可继续右滑；渐隐落内层、不落轨道，避免遮罩边缘成为包含块而错开搜索框与胶囊的左起点。- **小说记录卡：** `grid-template-areas` 五行 —— 标题（书影 + 书名 + 私密/来源副行）／作者·状态·分级／分类胶囊／章节计数·更新时间／卡底操作。标题在手机上允许折两行（`-webkit-line-clamp: 2`）：触屏无悬停，截断等于丢信息。
+- **章节记录卡：** 两行 —— 序号贯穿左列作锚点，首行标题、次行「字数 · 创建时间 · 操作」，卡高由 128px 压到 86px。
+- **字段标签：** 记录卡内 `data-label` 的 `::before` 全部隐藏。状态、分级、字数自身可自解释；逐行 label:value 会把卡片撑到两屏高。
+- **控件几何：** 卡底图标键 36px（列表内次级图标），页头主操作与筛选胶囊 44px 触控档；分页控件沿用共享 `--admin-pagination-control-size`。
+- **分页：** ≤767px 收起首末页与跳转框（读数与上下页已覆盖），单行排布 `每页条数 · 上一页 · 读数 · 下一页`，高度 85px。
+- **选择岛：** 直接复用 `AdminSelectionBar` 与 `--admin-dock-*`，无页面级覆盖。
+- **数据属性契约：** 卡片排布只读 `data-primary` / `data-col` / `data-label` / `data-actions` / `data-check`，不依赖 td 序号；调整列顺序不会错位。新增列须带 `data-col`。
+
+- **验收截图：** docs/previews/content-library-mobile/（novels-390/430/320/900、chapters-390/396/900、暗色各一份、pagination-390、novels-rail-390）。
+
+## Do's and Don'ts
+
+后台样式的维护入口为 `web/src/styles/admin-operations.css` 的导入清单：后台语义变量集中在 `web/src/styles/admin/tokens.css`，共用外观在 `admin/components/`，业务布局在 `admin/pages/`，框架在 `admin/shell.css`。字段、状态与弹窗分别使用 `AdminFormField`、`AdminStatusBadge` / `AdminContentRatingBadge`、`AdminDialogContent`，具体归属与用法见 [后台共用样式与组件](docs/admin-style-system.md)。保留现有视觉与响应式契约，不在入口末尾继续堆叠覆盖规则。
+
+### Do:
+- **Do** 使用暖灰色调作为地面和背景，保持"纸面"质感
+- **Do** 保持强调色的稀缺性——奶茶棕只出现在交互元素和品牌标记上
+- **Do** 在管理后台使用 --admin-* 语义化间距和圆角变量
+- **Do** 在阅读器场景使用衬线字体营造沉浸感
+- **Do** 保持卡片和面板的扁平设计，仅在弹出层使用阴影
+- **Do** 在暗色模式使用月光暖调（金色强调 + 深灰地面），不要简单反转
+- **Do** 后台数据表统一走 `AdminDataPanel` + `columns` 契约，并手动标注 `data-primary` / `data-label` / `data-actions`
+- **Do** 让每个页面只保留一个内容区主标题，面板标题写工作对象名
+- **Do** 让后台卡片标题保持 16px、无分界线、无注释性副标题和前置 SVG 图标
+- **Do** 让卡片标题行右侧只出现实时状态、所属数据读数或可执行控件
+- **Do** 让页名独占标题行、描述位于其下方；标题后不接小字或竖线，搜索与整页动作留在右侧
+- **Do** 把规模与状态读数放在所属面板、筛选器或分页区，不放在页名旁
+- **Do** 把筛选读数贴在能筛出它的控件旁边（「待标注 67 · 限制级 340」紧邻分级下拉），而不是另起指标条
+- **Do** 用 `data-slot` 属性匹配 shadcn 组件（`table.tsx` / `dialog.tsx` 都带契约），而不是依赖 Tailwind 生成的类名
+- **Do** 将控制层（面板标题 `AdminPanelHeading`、工具条 `AdminToolbar`、筛选器 `CustomSelect compact chip`）独立平铺于数据面板之外，形成单层控制流（Flat Control Flow），下方 `AdminDataPanel` 回归纯粹纸白作业台
+- **Do** 在支持批量操作的数据列表中全面复用全局底部悬浮胶囊岛 `AdminSelectionBar`，将「已选 N 条」与批量动作收敛于视口底部浮动条，彻底移除卡片标题内的行内挤压按钮
+- **Do** 下拉选择与筛选操作（如 `CustomSelect`）生效后必须保持原视口位置（焦点恢复配置 `preventScroll: true`，且异步重载保留旧列表高度防页面瞬塌），禁止页面滚回顶部
+- **Do** 表格分页统一使用外置独立形态 `<Pagination variant="detached">`，平铺在数据面板之后
+
+### Don't:
+- **Don't** 使用纯黑（#000000）或纯白作为大面积背景——永远带暖调
+- **Don't** 使用冷色蓝/紫/绿作为强调色——系统只有暖棕一个强调色
+- **Don't** 给卡片或数据面板添加 hover 阴影效果——Flat-By-Default Rule 与 Tonal-Admin Rule
+- **Don't** 在同一个信息块里堆叠超过 3 级字号——字阶本身是分档的（通用 / 后台紧凑 / 阅读表面），但单块内保持克制，不要为了"更醒目"临时插一档
+- **Don't** 给后台加装饰性动效。状态反馈统一 150ms（`--admin-table-row-interaction`），面板进入 220ms（`--admin-table-surface-enter`），分段 tabs 位移 180ms——除此之外不加动效
+- **Don't** 忽略 prefers-reduced-motion 媒体查询——尊重用户的动画偏好
+- **Don't** 给数据面板套用 `columns` 之外的列宽方案，或手写 `--col-N-w`。列宽契约只有一个入口
+- **Don't** 在页标题上方再加小字眉题，或用面板标题重复当前页面名
+- **Don't** 在后台卡片标题下添加解释性副标题，或在标题前添加 SVG 图标
+- **Don't** 在卡片标题行放静态快捷键提示、操作说明或装饰性标签
+- **Don't** 在列表型后台页再插 `AdminMetricStrip`：它的数字若已在所属面板、筛选器或页脚计数里出现，就只是重复（见 The No-Third-Pass Rule）
+- **Don't** 把同一个动作同时放进页头和面板工具条（见 The Single-Door Rule）
+- **Don't** 让 `w-full` 的元素在 flex 容器里失去 `max-width`——`max-w-none` + `w-full` 会让筛选器独占整行，把工具条撑成多行
+- **Don't** 依赖 flex 布局替控件决定宽度：`flex: 0 0 auto` 配合 `w-full` 的宽高组合在 `flex-wrap` 下没有稳定结果
+- **Don't** 在弹窗内部的页头下方或页脚上方添加水平分割线（`border-bottom` / `border-top`），或在弹窗正文内滥用多层带边框的嵌套灰底矩形卡片（杜绝盒中盒反模式）
+- **Don't** 将工具条、状态进度条和描述性说明全部塞进数据面板内部，造成面板内部多层灰色带与边框挤压（Card-in-Card 俄罗斯套娃反模式）
+
+### Directory Row Density and Dates
+
+用户目录的注册时间使用本地日期 `YYYY-MM-DD`（共享 `formatDate`），以 `<time>` 标记并通过 title 提供完整本地日期时间；无值显示“—”。登录时间继续使用相对时间，无登录记录显示原有占位文案。
+
+共享 `AdminDataPanel` 提供 `density="compact" | "comfortable"`，默认 compact。用户目录采用 comfortable：桌面单元格上下 16px、左右 20px 内边距，目标行高 76px，内容较多时允许自然撑高；表头左右内边距与内容对齐。移动端保持连续卡片及单条分隔线，上下 16px 内边距、字段间距 8px，不施加桌面固定行高。字体、头像、控件尺寸不随行密度放大。
+
+几何参数统一放在 `web/src/styles/admin/tokens.css` 的 `--admin-table-comfortable-*`，由 `components/tables.css` 消费。其他表格按业务信息密度选择此变体，页面不复制行高或单元格内边距规则。
+
+### Registration and Audit Views
+
+账户与注册的四个入口继续使用现有 URL 与侧栏子导航，不另加桌面页面内 tab。注册、登录审计与操作审计沿用共享搜索、白色无外描边面板、comfortable 列表密度、状态标签、具体日期与三段式详情弹窗。
+
+- 注册方式以三张单选项表达，区分当前生效方式与未保存草稿；保存中禁用编辑与重复提交，失败保留草稿。邀请码目录集中数量与生成按钮，支持全量邀请码集合的搜索、状态筛选和分页（接口不再截断为最近 100 个码）；生成数量遵循现有接口的 1–50 限制。停用先确认，清理仍按确认快照处理所有失效码，不受当前搜索或分页影响。
+- 登录目录使用用户、结果与原因、访问来源、时间、操作五列；IP 与设备摘要组合，完整 User-Agent、原因、记录 ID 保留在只读详情。未知设备不推断具体平台，未知原因保留原值。限流采用 warning 状态。
+- 操作目录使用操作人、动作与范围、结果、操作标识、时间、操作六列；动作与目标数量组合，操作 ID 与 HTTP 状态组合。详情保留完整 ID、重放次数、错误以及创建/更新/完成时间，不展示请求哈希、密码或目标正文。用户名搜索必须由服务端完成，并保证总数与分页使用同一筛选条件。
+- 审计筛选与行数变化回到第一页，搜索保留 400ms 防抖；旧请求不得覆盖新筛选结果。外置分页沿用共享控件，不调整通用控件高度。移动端继续使用连续记录卡片，长字段在详情中完整换行显示。
+
+手机阅读控制区使用全宽、不透明的底部 dock，收起入口至少52px并预留 safe area。首页与回到顶部位于普通文档流页尾，保留44px触控区域；不能将独立悬浮按钮叠在正文文字上。小说详情手机纸面20px内边距通过页面作用域覆盖旧 `.section` 规则。
+
+### Backup Deployment Configuration
+
+备份设置保留「本地与运行环境」紧凑状态列表：目录与密钥标识只读，主密钥、数据库导出工具、数据库恢复工具、SFTP 传输工具使用整行按钮（状态徽标和右箭头），点击打开共享 AdminDialogContent 三段式卡片。数据库恢复弹窗同时配置 pg_restore 与 psql。弹窗复用 AdminFormField、Input 和 AdminStatusBadge，展示工具来源、版本与检测错误；留空继承部署路径或自动检测，检测不保存。弹窗独立保存本地配置，成功立即更新列表；取消、Escape 或外部点击撤销当前编辑并清除未保存密钥，焦点返回原入口。保存失败保留输入，保存时阻止关闭。页面其他业务草稿不受影响，仍由底部保存/撤销管理。主密钥支持输入 32 字节随机数据的 Base64，或服务端生成后先下载、再保存；已保存密钥不回显、不覆盖，环境密钥可原样迁入本地。生成、检测和本地保存使用当前管理员登录态与权限校验，无需再次输入密码。维护及保存期间禁用控件。主密钥、密码与工具原始输出不进入状态文案或日志。
+
+### Backup Task Visibility
+
+备份与恢复不在版本、存储目标、自动备份或设置页面重复展示「最近任务」历史列表。提交备份、连接测试、预检等操作后直接打开任务进度弹窗；历史执行记录统一从「操作日志 → 查看任务」进入，保留任务阶段、错误和日志及预检后的回滚入口。
+
+备份各页的操作结果统一复用 `useToast().toast()` 反馈栏，覆盖设置、计划与目标保存、演练库创建、密钥生成与导出、工具检测、下载、固定保留与任务提交；失败保留相关表单输入和局部错误详情。创建与保存期间沿用按钮忙碌状态。工具检测区分通过与未就绪，密钥导出明确提示尚未保存。当前观察到的任务结束时反馈完成、部分完成、失败或中断，历史已结束任务只展示详情；轮询不重复提示相同错误或同一任务的结束结果。父级刷新不重复触发子表单的成功提示。
+
+### Backup Rehearsal Creation
+
+恢复演练面板在尚未配置演练库时提供「一键创建演练库」，使用当前 PostgreSQL 实例与部署连接账号新建专用空库、初始化保护标记并立即加密保存连接，无需管理员密码二次验证。创建期间锁定表单，失败显示具体原因并保留其他草稿；成功显示脱敏连接标签、切换为后台配置，并保留其余未保存输入及新的配置 revision。主密钥未就绪或维护期间禁用；已有连接不显示创建入口。保留手动连接与初始化说明，说明 CREATEDB 权限要求，不自动为账号提权。
+
+
+### Backup Rehearsal Management
+
+恢复演练面板仅保留整行「演练库信息」入口（来源徽标和右箭头），打开共享 AdminDialogContent 弹窗后再读取信息；详情、检查连接和移除配置收敛到弹窗内，复用现有信息列表、状态徽标和统一反馈栏。关闭后焦点返回入口，检查及移除期间阻止关闭；展示主机、端口、库名、配置来源、上次连接与保护标记检查时间及当前库最近恢复预检结果；不回显用户名、密码或连接参数。信息读取不连接演练库，主动检查只读取数据库身份及专属保护标记，不能作为恢复演练通过的替代。检查结果注明时间，配置变更后不沿用旧状态；预检记录以脱敏目标标签关联，旧记录未绑定目标时不推定属于当前库。移除连接配置使用共享确认弹窗，明确保留数据库和数据、关闭在线回滚；部署环境地址仍保留，只有手动重新启用才恢复使用。后台清除已保存凭据并更新 revision，保留其他未保存草稿，维护、任务占用或配置版本冲突时拒绝操作。不提供真实删库入口。
+
+
+### Backup Restore Impact
+
+恢复预检通过后打开「回滚影响预览」共享管理弹窗，复用紧凑三段式 editor 变体，段间留白位于滚动区外，顶部和底部始终与正文保持间距；以当前线上数据 → 所选备份为方向显示小说、章节、用户、配置、图片和其他业务记录的新增/修改/移除及恢复前后数量；图片补充总字节数。详情支持类别、变化方向筛选及分页，正文只标记变化，账户与凭据不显示原值或摘要，配置仅展示白名单安全值。保留范围和比较说明在弹窗内解释。继续确认前校验报告有效性，过期、业务变化或读取失败提示重新预检；确认弹窗复用摘要并要求勾选已查看回滚影响，保留版本号和管理员密码验证。处理中禁止关闭，结果复用统一反馈栏。报告不完整不得当作无差异，服务端在停写状态再次检查，旧预检必须重新生成报告。
+
+
+### Novel Analysis Tasks
+
+续写草稿的单章发布、整批发布成功后，在列表上方展示「更新情节与关系」区域；已发布续写或章节记录保留「一键更新情节与关系」入口。发布只展示更新提示，显式点击才提交模型分析。两项任务固定到同一正式章节终点，分别显示覆盖进度、阶段内容、失败原因与重试，已完成项不重复提交。离开页面后任务继续；历史任务未覆盖新目标时明确提示继续更新，完整且来源有效的档案才标记可用于续写。入口沿用现有列表操作、暖色语义和全宽布局，窄屏允许操作换行。
+
+小说分析的情节与关系档案通过短请求提交后台任务，页面独立读取进度；离开页面不停止任务，常显说明此行为，暂停按钮才显式中止。章节覆盖、阶段预览、可用于续写的完整档案保持分离。失败状态显示后台错误并保留检查点，用户手动继续；同一本书同类分析的重复提交复用活动任务，目标章节在提交时固定。后台任务纳入现有任务中心，可查看、取消及手动重试。
+
+### Novel Cover Status
+
+首页与书架封面状态复用 NovelCoverStatus：更新数量在右上角，阅读记录「读过」与「收藏」合并为右下角的一条文字纸签，中间仅使用细分隔。标记统一暖纸底、6px圆角、20px高、11px字阶和5px内缩，无图标方块、外描边或阴影；更新数字用现有强调色，其余用次级文字色。随明暗主题适配，超过99章显示99+，悬停标题及无障碍名称保留完整数量。阅读只表示有记录，不表示已读完；保留书目链接与独立取消收藏操作。
+
+小说管理书籍导出：单本从行内「更多操作 → 导出 TXT」下载，批量通过现有勾选范围和选择操作栏「导出所选（ZIP）」下载。仅管理员可用，包含书名、作者、简介与排序后的正式正文，排除未发布 AI 草稿。导出期间禁用重复操作，失败保留勾选并提示原因；每批最多 100 本，文本不超过 64 MiB。
+
+书籍导出往返与封面：TXT 使用显式编号边界与缩进正文，本站导入识别导出格式并保留原始章节标题、顺序和正文，避免无编号 AI 标题漏分章或正文误切。单本保留纯 TXT，并提供「导出书籍包（含封面）」；批量 ZIP 每本独立目录，含正文与当前本地独立封面，不含默认图、历史或候选。缺少可用封面时附说明。书籍包需解压后选择正文 TXT 导入。
+
+ZIP 书籍导入：本地文件入口接受单本和批量 ZIP，先显示可勾选书籍清单，再逐本复用作品匹配、章节差异和最终提交。生成 ZIP 预览只创建导入快照，不写书库；每本独立提交与撤回。包内封面作为封面元数据选项，补齐模式保留已采纳封面，替换需显式选择；撤回恢复此前封面，发现后续封面修改则保留整本并提示冲突。正文与同目录封面严格配对，不确定时拒绝猜测。ZIP 限 64 MB、解压总量 64 MB、100 本和 400 条目，拒绝不安全路径、重名路径和类型不符的封面。
