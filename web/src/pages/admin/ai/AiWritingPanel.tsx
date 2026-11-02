@@ -26,7 +26,8 @@ import ProfileOverrideEditor from './ProfileOverrideEditor'
 import MemoryRebuildDialog from './MemoryRebuildDialog'
 import { Textarea } from '@/components/ui/textarea'
 import { url } from '@/lib/api'
-import { Sparkles, ArrowRight, ChevronRight, Network, Pause, BookOpen, Cpu } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Sparkles, ArrowRight, ChevronRight, Network, Pause, BookOpen, Cpu, SlidersHorizontal } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000
@@ -378,10 +379,12 @@ export function ProfileSection(props: {
     : props.statusText || (props.extracted ? '已提取' : '未提取')
   // 已提取则默认收起；正文较长，展开态按需触发，与「提取一次、复看少数几次」的使用频率一致
   const [open, setOpen] = useState(false)
+  const isWarningStatus = Boolean(props.statusText) || (!props.extracted && !isRunning)
+  const isSuccessStatus = props.extracted && !props.statusText && !isRunning
 
   const heading = (
     <>
-      <span>{props.label}</span>
+      <span className="font-semibold text-foreground tracking-tight">{props.label}</span>
       {/* 状态徽标加 aria-hidden：否则按钮的可访问名称会把两段连读成
           「风格画像已提取」（实测），既啰嗦又让「已提取/未提取」抢掉主体名。
           状态改由 aria-expanded 与展开后的内容表达，不再重复播报。 */}
@@ -390,8 +393,10 @@ export function ProfileSection(props: {
         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
           isRunning
             ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-            : props.extracted && !props.statusText
+            : isSuccessStatus
             ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            : isWarningStatus && props.extracted
+            ? 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300'
             : 'border-border bg-muted/40 text-muted-foreground'
         }`}
       >
@@ -399,8 +404,10 @@ export function ProfileSection(props: {
           className={`size-1.5 rounded-full ${
             isRunning
               ? 'bg-amber-600 motion-safe:animate-pulse dark:bg-amber-400'
-              : props.extracted && !props.statusText
+              : isSuccessStatus
               ? 'bg-emerald-600 dark:bg-emerald-400'
+              : isWarningStatus && props.extracted
+              ? 'bg-amber-500 dark:bg-amber-400'
               : 'bg-muted-foreground/40'
           }`}
         />
@@ -411,11 +418,11 @@ export function ProfileSection(props: {
 
   return (
     <div className="ai-analysis-row grid gap-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:justify-between">
-        <div className="flex shrink-0 items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex shrink-0 items-center gap-2.5 min-w-0">
           {collapsible ? (
             <button type="button" className="ai-profile-trigger" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen((value) => !value)}>
-              <ChevronRight className="ai-profile-trigger__caret size-3.5" aria-hidden="true" />
+              <ChevronRight className={`ai-profile-trigger__caret size-3.5 transition-transform duration-200 ${open ? 'rotate-90' : ''}`} aria-hidden="true" />
               {heading}
               <span className="ai-profile-trigger__hint">{open ? '收起内容' : '查看内容'}</span>
             </button>
@@ -425,40 +432,29 @@ export function ProfileSection(props: {
             </span>
           )}
         </div>
-        <div className="flex basis-full flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-2.5 sm:ml-auto sm:basis-auto sm:border-t-0 sm:pt-0">
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
           {sample && (
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="whitespace-nowrap text-xs text-muted-foreground">{props.sampleCaption || '取样'}</span>
+            <div className="ai-analysis-sample-pill shrink-0 inline-flex items-center gap-1 h-7 rounded-full border border-border/80 bg-muted/30 px-2 text-xs text-muted-foreground">
+              <span className="whitespace-nowrap text-[11px] text-muted-foreground select-none">{props.sampleCaption || '每批'}</span>
               <Input
                 type="number"
                 min={sample.min}
                 max={sample.max}
-                /* 「取样」是裸文本，与输入框没有程序化关联；单位「章」在控件之后，
-                   套 label 会把单位一并读进名称，故用 aria-label。 */
                 aria-label={props.sampleLabel || '取样章数'}
-                className="h-10 w-13 px-1 text-center sm:h-8 sm:w-[4.5rem]"
                 value={sample.value}
                 disabled={props.busy || props.running}
                 onChange={(event) => sample.onChange(event.target.value)}
                 onBlur={sample.onBlur}
+                className="h-5 w-7 shrink-0 rounded-none border-0 bg-transparent p-0 text-center font-semibold text-xs text-foreground shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-background/80"
               />
-              <span className="whitespace-nowrap text-xs text-muted-foreground">章</span>
+              <span className="whitespace-nowrap text-[11px] text-muted-foreground select-none">章</span>
             </div>
           )}
-          <Button
-            className="min-h-10 shrink-0 whitespace-nowrap px-3 sm:min-h-0"
-            variant="outline"
-            size="sm"
-            disabled={props.disabled}
-            onClick={props.onAction}
-          >
-            {props.actionText}
-          </Button>
           {props.onPause && props.running && (
             <Button
               variant="outline"
               size="sm"
-              className="min-h-10 border-amber-500/40 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:border-amber-400/40 dark:text-amber-300 dark:hover:bg-amber-400/10 sm:min-h-0 font-medium transition-all"
+              className="h-7 min-h-7 shrink-0 whitespace-nowrap rounded-full border-amber-500/40 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:border-amber-400/40 dark:text-amber-300 dark:hover:bg-amber-400/10 px-2.5 text-xs font-medium transition-all"
               disabled={props.pausing}
               onClick={props.onPause}
             >
@@ -466,6 +462,18 @@ export function ProfileSection(props: {
               {props.pausing ? '正在暂停…' : '暂停更新'}
             </Button>
           )}
+          <Button
+            className={cn(
+              "h-7 min-h-7 shrink-0 whitespace-nowrap px-3 text-xs font-semibold rounded-full shadow-none transition-all",
+              (!props.extracted || props.statusText) && !isRunning && "ai-analysis-btn-primary"
+            )}
+            variant="outline"
+            size="sm"
+            disabled={props.disabled}
+            onClick={props.onAction}
+          >
+            {props.actionText}
+          </Button>
           {props.extraActions}
         </div>
       </div>
@@ -549,12 +557,15 @@ export function ProfileSection(props: {
         </details>
       )}
 
+      {/* 底部元信息 */}
       {props.effective && props.extracted && (
-        <p className="text-xs leading-5 text-muted-foreground">
-          {props.effective.effectiveContent ? `续写将参考：${props.effective.effectiveOrigin === 'manual' ? '人工校正版' : '自动分析版'}` : '已保存档案，当前不可用于续写；请更新或检查续写起点。'}
-          {props.effective.source?.sampleCount ? ` · 来源 ${props.effective.source.sampleCount} 章` : ''}
-          {props.effective.updatedAt ? ` · 更新于 ${new Date(props.effective.updatedAt).toLocaleString('zh-CN', { hour12: false })}` : ''}
-        </p>
+        <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-border/40 text-xs text-muted-foreground leading-relaxed">
+          <span className={props.effective.effectiveContent ? '' : 'text-amber-700 dark:text-amber-400 font-medium'}>
+            {props.effective.effectiveContent ? `续写将参考：${props.effective.effectiveOrigin === 'manual' ? '人工校正版' : '自动分析版'}` : '已保存档案，当前不可用于续写；请更新或检查续写起点。'}
+          </span>
+          {props.effective.source?.sampleCount ? <span>· 来源 {props.effective.source.sampleCount} 章</span> : null}
+          {props.effective.updatedAt ? <span>· 更新于 {new Date(props.effective.updatedAt).toLocaleString('zh-CN', { hour12: false })}</span> : null}
+        </div>
       )}
       {props.content ? (
         <Collapsible open={open} onOpenChange={setOpen}>
@@ -1267,7 +1278,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   const continuationAnalysisDialog = (
     <Dialog open={analysisDialogOpen} onOpenChange={setAnalysisDialogOpen}>
-      <AdminDialogContent size="wide" className="sm:max-w-[780px] max-h-[85vh] flex flex-col p-0">
+      <AdminDialogContent size="wide" className="sm:max-w-[780px] max-h-[85vh] flex flex-col p-0 ai-service">
         <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/60 shrink-0">
           <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
             <div className="flex items-center gap-2 min-w-0">
@@ -1298,7 +1309,14 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </Button>
               )}
               <span
-                className="ai-writing-analysis__count inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[11px] font-medium text-primary"
+                className={cn(
+                  "ai-writing-analysis__count inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                  activeProfileLabels.length === 3
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                    : activeProfileLabels.length > 0
+                    ? "bg-[#D97757]/10 border-[#D97757]/25 text-[#D97757]"
+                    : "bg-muted/50 border-border text-muted-foreground"
+                )}
                 aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}
               >
                 可用于续写 {activeProfileLabels.length} / 3
@@ -1352,7 +1370,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 relationshipBusy ? '更新中…' : relationshipEffective?.progress?.complete === false ? '继续更新关系档案' : '更新关系档案'
               }
               onAction={() => void refreshRelationshipProfile()}
-              extraActions={<MemoryRebuildDialog key={`rebuild-relationship-${novelId}`} novelId={novelId} kind="relationship" chapters={chapterOptions} disabled={busy || relationshipBusy || memoryRunning(relationshipEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
+              extraActions={<MemoryRebuildDialog key={`rebuild-relationship-${novelId}`} triggerMode="dropdown" novelId={novelId} kind="relationship" chapters={chapterOptions} disabled={busy || relationshipBusy || memoryRunning(relationshipEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
               onPause={() => void pauseMemory('relationship')}
               pausing={relationshipPausing}
               running={memoryRunning(relationshipEffective)}
@@ -1363,7 +1381,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   后台覆盖目标起点前全部正文，后续增量更新；离开页面后仍会继续，暂停后可从检查点恢复。
                 </p>
               }
-              sampleCaption="每批最多"
+              sampleCaption="每批"
               sampleLabel="关系画像每批章数"
               sample={{ value: relationshipSampleInput.text, min: 1, max: 30, onChange: relationshipSampleInput.onChangeText, onBlur: relationshipSampleInput.commit }}
               content={
@@ -1393,13 +1411,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               disabled={busy || plotBusy || memoryRunning(plotEffective) || taskActive || !novelId}
               actionText={plotBusy ? '更新中…' : plotEffective?.progress?.complete === false ? '继续更新情节档案' : '更新情节档案'}
               onAction={() => void refreshPlotState()}
-              extraActions={<MemoryRebuildDialog key={`rebuild-plot-${novelId}`} novelId={novelId} kind="plot" chapters={chapterOptions} disabled={busy || plotBusy || memoryRunning(plotEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
+              extraActions={<MemoryRebuildDialog key={`rebuild-plot-${novelId}`} triggerMode="dropdown" novelId={novelId} kind="plot" chapters={chapterOptions} disabled={busy || plotBusy || memoryRunning(plotEffective) || taskActive || !novelId} onChanged={() => setProfileReloadToken(n => n + 1)} />}
               onPause={() => void pauseMemory('plot')}
               pausing={plotPausing}
               running={memoryRunning(plotEffective)}
               progressNote={memoryProgressNote(plotEffective, plotPausing, plotBusy) || (plotBusy ? '正在提交后台分析…' : undefined)}
               emptyHint="整理角色现状、重要物品与地点、未解伏笔和冲突，帮助续写承接已有情节。"
-              sampleCaption="每批最多"
+              sampleCaption="每批"
               sampleLabel="情节状态每批章数"
               sample={{ value: plotSampleInput.text, min: 1, max: 30, onChange: plotSampleInput.onChangeText, onBlur: plotSampleInput.commit }}
               content={

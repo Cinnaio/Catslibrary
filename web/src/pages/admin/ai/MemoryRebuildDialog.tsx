@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { MoreHorizontal, RotateCcw } from 'lucide-react'
 
 const labels = { relationship: '关系画像', plot: '情节状态' }
 type History = Awaited<ReturnType<typeof aiApi.writing.memoryHistory>>['items']
@@ -17,12 +19,14 @@ export default function MemoryRebuildDialog({
   chapters,
   disabled,
   onChanged,
+  triggerMode = 'button',
 }: {
   novelId: string
   kind: MemoryKind
   chapters: { value: string; label: string }[]
   disabled: boolean
   onChanged: () => void
+  triggerMode?: 'button' | 'dropdown'
 }) {
   const options = chapters.filter((chapter) => chapter.value)
   const [open, setOpen] = useState(false)
@@ -107,18 +111,47 @@ export default function MemoryRebuildDialog({
   }
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={disabled || !options.length}
-        onClick={() => {
-          changed()
-          setHistory(null)
-          setOpen(true)
-        }}
-      >
-        重新分析{labels[kind]}
-      </Button>
+      {triggerMode === 'dropdown' ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="ai-analysis-btn-icon size-7 min-h-7 min-w-7 rounded-full border-border/80 hover:border-border text-muted-foreground hover:text-foreground shrink-0 shadow-none transition-colors"
+              disabled={disabled || !options.length}
+              aria-label={`${labels[kind]}更多选项`}
+            >
+              <MoreHorizontal className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem
+              disabled={disabled || !options.length}
+              onSelect={() => {
+                changed()
+                setHistory(null)
+                setOpen(true)
+              }}
+            >
+              <RotateCcw className="size-3.5 mr-2 text-muted-foreground" />
+              指定章节范围重新分析…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled || !options.length}
+          onClick={() => {
+            changed()
+            setHistory(null)
+            setOpen(true)
+          }}
+        >
+          重新分析{labels[kind]}
+        </Button>
+      )}
       <Dialog
         open={open}
         onOpenChange={(value) => {
