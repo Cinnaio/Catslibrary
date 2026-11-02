@@ -5,13 +5,13 @@
 
 @media (max-width: 900px) {
   .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar),
-  .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) {
+  .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar, .ai-generations-filter-rail) {
     align-items: stretch;
   }
 
   .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='select-trigger'],
   .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='input'],
-  .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='select-trigger'] {
+  .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar, .ai-generations-filter-rail) [data-slot='select-trigger'] {
     width: 100%;
     max-width: none;
     /* 只能是 0 0 auto：.admin-toolbar--inline 在本断点转 column，此时 flex-basis
@@ -28,7 +28,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar),
-  .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) {
+  .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar, .ai-generations-filter-rail) {
     transition: none;
   }
 }

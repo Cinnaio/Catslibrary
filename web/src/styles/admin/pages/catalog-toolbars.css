@@ -56,22 +56,95 @@
   color: #8c877e;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 900px) {
+  .admin-filter-rail,
+  .novels-filter-rail,
+  .novels-rating-toolbar,
+  .ai-generations-filter-rail,
+  .source-analytics-filters,
+  .task-workspace-toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 0;
+  }
+
   .admin-filter-rail > .admin-search,
   .novels-filter-rail > .admin-search,
   .novels-rating-toolbar > .admin-search,
-  .ai-generations-filter-rail > .admin-search {
+  .ai-generations-filter-rail > .admin-search,
+  .source-analytics-filters > .admin-search,
+  .task-workspace-toolbar > .admin-search {
     width: 100%;
     max-width: none;
-    flex-basis: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+    height: var(--admin-control-height, 2.5rem);
+  }
+
+  .admin-filter-rail > .admin-search .admin-search__input,
+  .novels-filter-rail > .admin-search .admin-search__input,
+  .novels-rating-toolbar > .admin-search .admin-search__input,
+  .ai-generations-filter-rail > .admin-search .admin-search__input,
+  .source-analytics-filters > .admin-search .admin-search__input,
+  .task-workspace-toolbar > .admin-search .admin-search__input,
+  .admin-filter-rail > .admin-search [data-slot='input'],
+  .novels-filter-rail > .admin-search [data-slot='input'],
+  .novels-rating-toolbar > .admin-search [data-slot='input'],
+  .ai-generations-filter-rail > .admin-search [data-slot='input'],
+  .source-analytics-filters > .admin-search [data-slot='input'],
+  .task-workspace-toolbar > .admin-search [data-slot='input'] {
+    width: 100%;
+    max-width: none;
+    height: var(--admin-control-height, 2.5rem);
+    flex: 1 1 auto;
   }
 
   .admin-filter-chips,
   .novels-filter-chips,
   .novels-rating-toolbar__filter {
-    margin-left: 0;
+    display: flex;
     width: 100%;
+    min-width: 0;
+    align-items: center;
     justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    margin-left: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding-block: 0.125rem;
+    padding-inline: 1px 1rem;
+    mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+  }
+
+  .admin-filter-chips::-webkit-scrollbar,
+  .novels-filter-chips::-webkit-scrollbar,
+  .novels-rating-toolbar__filter::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-filter-chips > *,
+  .novels-filter-chips > *,
+  .novels-rating-toolbar__filter > * {
+    flex: 0 0 auto;
+  }
+
+  .admin-filter-chips [data-slot='popover-trigger'].admin-filter-chip,
+  .novels-filter-chips [data-slot='popover-trigger'].admin-filter-chip {
+    min-width: 0;
+    width: auto;
+    height: var(--admin-table-action-size-mobile, 2.25rem);
+    font-size: 0.8125rem;
+  }
+
+  .admin-filter-rail__status {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 }
 

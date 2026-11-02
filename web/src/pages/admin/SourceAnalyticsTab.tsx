@@ -363,7 +363,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
             {/* 视图一：去容器化小说明细 (Uncontainerized List) */}
             <TabsContent value="list" forceMount className={cn('source-analytics-list-view', activeTab !== 'list' && 'hidden')}>
               {/* 单层控制流：筛选工具栏直接平铺 */}
-              <AdminToolbar layout="inline" className="source-analytics-filters" ariaLive="polite">
+              <AdminToolbar layout="inline" className="admin-filter-rail source-analytics-filters" ariaLive="polite">
                 <AdminSearch
                   id="source-analytics-search"
                   label="搜索小说"

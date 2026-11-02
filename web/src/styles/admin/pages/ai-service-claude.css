@@ -543,11 +543,17 @@
     flex-direction: column;
     flex-wrap: nowrap;
     align-items: stretch;
+    min-height: 0;
+    gap: 0.5rem;
   }
   .ai-service .ai-generations-filter-rail > .admin-search,
   .ai-service .ai-generations-filter-rail > .admin-filter-chips {
     width: 100%;
     flex: 0 0 auto;
+  }
+  .ai-service .ai-generations-filter-rail > .admin-search {
+    height: var(--admin-control-height, 2.5rem);
+    max-width: none;
   }
   .ai-service .ai-generations-filter-rail > .admin-filter-chips {
     justify-content: flex-start;
@@ -578,7 +584,9 @@
   }
   .ai-service :is(.ai-generations-toolbar, .ai-generations-filter-rail) .admin-search {
     max-width: none;
-    flex-basis: 100%;
+    width: 100%;
+    flex: 0 0 auto;
+    height: var(--admin-control-height, 2.5rem);
   }
 }
 
