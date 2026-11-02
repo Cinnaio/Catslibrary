@@ -417,12 +417,21 @@ export function buildContinuationChapterInstruction(opts: {
   chapterIndex: number
   totalCount: number
   chapterOutline?: string
+  nextChapterOutline?: string
+  hasPriorContext?: boolean
   instruction?: string
   targetWords?: number
 }): string {
-  const { chapterIndex, totalCount, chapterOutline, instruction, targetWords } = opts
+  const { chapterIndex, totalCount, chapterOutline, nextChapterOutline, hasPriorContext, instruction, targetWords } = opts
+  const priorContextConstraint = hasPriorContext && chapterIndex === 0
+    ? '创作要求（前序承接）：本章紧密接续前文已发布章节的最终落点与当前人物状态继续向前推进，严禁时间线倒带、严禁推翻前文已发生状态、严禁无故重置场景开局。'
+    : ''
   const continuationConstraint = chapterIndex > 0
-    ? '创作要求（多章承接）：上一章已推进本方向的开局或前文剧情。本章必须紧密承接上一章草稿的结尾与最新状态继续向前推进后续剧情，严禁从头重新开场，严禁重复上一章草稿中已经发生过的事件、人物出场或相同对话。'
+    ? '创作要求（多章承接）：上一章已推进本方向的开局或前文剧情。本章必须紧密承接上一章草稿的结尾与最新状态继续向前推进后续剧情，严禁从头重新开场，严禁重复上一章草稿中已经发生过的事件、人物出场或相同对话。【状态冲突裁决】：若上一章草稿实际结尾已提前推进了本章大纲的某些前置事件，以最新草稿的实际现状为最高事实基准顺延推进新情节；严禁时光倒流回旧起点，严禁将已发生的事件通过闪回或回忆重复描写。'
+    : ''
+
+  const boundaryNotice = nextChapterOutline && nextChapterOutline.trim()
+    ? `本章严格截止边界（下一章起笔点）：下一章大纲将从以下事件起笔：『${nextChapterOutline.trim()}』。本章描写一旦触及该事件或完成本章核心情节，必须立即在当前自然收尾或留白处停笔，严禁提前展开下一章的内容！`
     : ''
 
   const taskContent = chapterOutline
@@ -437,7 +446,7 @@ export function buildContinuationChapterInstruction(opts: {
   const words = Math.max(300, Math.min(30000, Math.trunc(Number(targetWords) || 0)))
   const countNotice = `这是续写的第 ${chapterIndex + 1} 章，共 ${totalCount} 章。目标字数为本章约 ${words} 字。`
 
-  return [taskContent, continuationConstraint, countNotice].filter(Boolean).join('\n\n')
+  return [taskContent, boundaryNotice, priorContextConstraint, continuationConstraint, countNotice].filter(Boolean).join('\n\n')
 }
 
 /** 把模型输出解析成情节候选。容忍纯行列表与对象列表两种形态。 */
@@ -895,10 +904,13 @@ export async function generateContinuationChapters(db: Db, opts: {
   for (let index = startIndex; index < count; index += 1) {
     if (!(await isAiTaskActive(db, taskId))) break
     const chapterOutline = hasPerChapterOutline ? outlineByChapter[index] : ''
+    const nextChapterOutline = hasPerChapterOutline && index + 1 < count ? outlineByChapter[index + 1] : undefined
     const instruction = buildContinuationChapterInstruction({
       chapterIndex: index,
       totalCount: count,
       chapterOutline,
+      nextChapterOutline,
+      hasPriorContext: true,
       instruction: opts.instruction,
       targetWords: opts.targetWords,
     })
