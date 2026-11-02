@@ -224,6 +224,18 @@ function cleanTitle(value: string): string {
     .slice(0, 40)
 }
 
+/** 从单章大纲首行提取章节标题作为兜底（支持带有「第N章」前缀或纯标题行）。 */
+export function extractOutlineChapterTitle(rawOutline: string): string {
+  const line = String(rawOutline || '').trim().split('\n')[0]?.trim() || ''
+  if (!line) return ''
+  const match = line.match(/^(?:#+\s*)?第\s*[0-9一二三四五六七八九十百千零两]+\s*[章节回]?\s*[:：、.．\s]*(.*)$/)
+  const candidate = (match?.[1] ?? line).trim()
+  if (candidate && candidate.length <= 40 && !/[。！？!?…]$/.test(candidate)) {
+    return cleanTitle(candidate)
+  }
+  return ''
+}
+
 /** 从单行提取标题：「标题：xxx」前缀 / 【】《》「」包裹 / # 前缀；不满足返回空。 */
 function titleFromLine(line: string): string {
   const labeled = line.match(/^(?:章节标题|标题|title)\s*[:：]\s*(.+)$/i)
@@ -664,6 +676,8 @@ export async function generateWriting(db: Db, opts: {
   title: string
   instruction: string
   outline?: string
+  /** 当 AI 未输出标题行时，可作为兜底的章节标题（如来自大纲分章标题）。 */
+  outlineTitle?: string
   context?: string
   maxTokens?: number
   temperature?: number
@@ -800,8 +814,11 @@ export async function generateWriting(db: Db, opts: {
     await recordUsage(db, { usageId, userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
     // 续写/新写章节：解析 AI 输出的首行标题（提示词要求输出标题），标题存入 params_json.draftTitle
-    // 供发布时自动填充；正文剥掉标题行后落库，避免标题混入章节正文。
+    // 供发布时自动填充；若 AI 漏输出了标题行，优先使用大纲中提取的章节标题作为兜底；
+    // 正文剥掉标题行后落库，避免标题混入章节正文。
     const parsedTitle = opts.kind === 'continue' || opts.kind === 'write_chapter' ? parseContinuationTitle(res.text) : null
+    const fallbackTitle = (opts.kind === 'continue' || opts.kind === 'write_chapter') && opts.outlineTitle ? cleanTitle(opts.outlineTitle) : ''
+    const effectiveDraftTitle = parsedTitle?.title || fallbackTitle
     const resultText = parsedTitle?.title ? parsedTitle.body : res.text
     const generation = await withTx(db, async q => {
       const active = await q<{ status: string }>('SELECT status FROM ai_tasks WHERE id=$1 FOR UPDATE', [taskId])
@@ -826,7 +843,7 @@ export async function generateWriting(db: Db, opts: {
         // 它被削过，是这类改写最危险的失败模式。
         ...(operatorPromptRemoved.length ? { systemPromptPatch: operatorPromptRemoved } : {}),
         ...(opts.taskId ? { taskId: opts.taskId } : {}),
-        ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}),
+        ...(effectiveDraftTitle ? { draftTitle: effectiveDraftTitle } : {}),
         ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}),
         ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}),
       }),
@@ -904,6 +921,7 @@ export async function generateContinuationChapters(db: Db, opts: {
   for (let index = startIndex; index < count; index += 1) {
     if (!(await isAiTaskActive(db, taskId))) break
     const chapterOutline = hasPerChapterOutline ? outlineByChapter[index] : ''
+    const outlineTitle = hasPerChapterOutline ? extractOutlineChapterTitle(outlineByChapter[index] || '') : ''
     const nextChapterOutline = hasPerChapterOutline && index + 1 < count ? outlineByChapter[index + 1] : undefined
     const instruction = buildContinuationChapterInstruction({
       chapterIndex: index,
@@ -920,6 +938,7 @@ export async function generateContinuationChapters(db: Db, opts: {
       title: opts.title,
       instruction,
       outline: hasPerChapterOutline ? '' : opts.outline,
+      outlineTitle,
       context: usePipeline ? opts.context : context,
       chapterCount: 1,
       batchId,
