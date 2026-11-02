@@ -797,6 +797,32 @@ LLM 建议列表沿用共享分页，提供每页数量、上一页／下一页�
 - 全后台所有页面（小说、章节、内容审核、分级管理、任务监控、账户安全、AI 各子面板等）必须以全站统一的 `max-width: 900px` 为唯一移动转折点；
 - 坚决废除个别页面孤立手写的 640px / 767px 工具栏媒体查询，杜绝在 641px~900px 之间出现「半桌面半移动」的夹缝态破版。
 
+#### 4. 移动端卡片表单基准与侧边间距对齐规范 (Mobile Card Form Baseline & Side Spacing Alignment Standard)
+- **Root Cause (根本成因):**
+  在移动端视口（如 iPhone 16 393px）下，外层布局容器（`AdminShell` 的 `.admin-layout__content`）提供 1rem (16px) 的四周呼吸留白，内部卡片（`.admin-panel-card`）左右对称展开。然而由于历史遗留：
+  1. 表单网格（`.ai-form-grid` 等）桌面端为防过宽设置了固定上限（如 `grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 18rem)); justify-content: start;`），在窄屏上直接锁死单列最大宽度为 18rem (288px)，且 `justify-content: start` / `justify-self: start` 导致输入框与下拉选择框被死死钉在左侧，右侧留下高达 40px~70px 的巨大空白断崖；
+  2. 数字输入框（如 `.ai-writing-number-input`）固定死宽为 `8.75rem` (140px)，右侧留出 180px 孤岛空洞；
+  3. 书籍展示卡片（`.ai-writing-selected-novel`）和开关组件（`ai-writing-content-scope__toggle`）则作为独立块级元素拉伸到了 100% 满宽；
+  4. 书籍卡片内的右侧分析工具群（`.ai-writing-selected-novel__tools`）带有 `self-end`，在窄屏弹性空间不足时向右推挤，将操作胶囊逼到卡片边框甚至发生切断；
+  5. 各子页面断点割裂（640px / 767px / 900px），导致在 641px~900px 之间卡片外边距与内边距基线错位，造成“侧边间距完全乱掉、右侧边缘锯齿状参差与超宽截断”的糟糕视觉效果。
+- **Global Standard (全站规范):**
+  - **外层容器边距统一：** 全后台所有子界面在 `max-width: 900px` 下，`.admin-layout__content` 统一提供 `padding: 1rem !important` (16px) 呼吸间距，保证所有卡片左、右外边距严格对称；
+  - **卡片内外边距严格契合：**
+    - 卡片标题条（`AdminPanelHeading`, `[data-slot='card-header']`）在 ≤900px 下统一为 `padding: 1.125rem 1rem 1rem`；
+    - 卡片主体（`[data-slot='card-content']`）在含有标题栏时统一为 `padding: 0 1rem 1rem !important`（顶内边距归零，由标题底内边距接续），彻底消除标题与内容的左右基线错位与死留白；
+  - **卡片内表单控件全宽伸展契约 (Form Controls Full-Width Stretch Contract)：**
+    - 移动端（≤900px）下，卡片内部的所有表单网格（`.admin-form-grid`, `.ai-form-grid`, `.ai-writing-basics`, `.ai-writing-baseline-fields`）强制收敛为单列自适应流：
+      `grid-template-columns: minmax(0, 1fr) !important; width: 100% !important; justify-content: stretch !important;`
+    - 所有输入框、选择器胶囊与下拉框（`[data-slot='input']`, `[data-slot='select-trigger']`, `[role='combobox']`, `button[data-field='select']`, `.custom-select__trigger`）在移动端彻底废除 `28rem` / `18rem` / `400px` 的固定上限限制，一律铺满所属网格列：
+      `width: 100% !important; max-width: 100% !important; justify-self: stretch !important;`
+    - 数字输入框（`.ai-writing-number-input`）在移动端转为全宽弹性盒：
+      `width: 100% !important; [data-slot='input'] { flex: 1 1 auto !important; width: 100% !important; min-width: 0 !important; }`，单位字符跟随在右缘，杜绝悬空死留白；
+  - **工具群与浮动胶囊自适应流转 (Tools Self-Stretch & Anti-Overflow Contract)：**
+    - 移动端卡片内部的所有附属工具行（如 `.ai-writing-selected-novel__tools`）彻底废除 `self-end` 单边挤压，统一设为 `width: 100% !important; align-self: stretch !important; justify-content: space-between !important; flex-wrap: wrap !important;`；
+    - 文本徽章允许收缩截断（`max-width: calc(100% - 7.5rem); flex-shrink: 1;`），操作按钮右对齐（`margin-left: auto; flex-shrink: 0;`），确保在任何超窄屏（320px~390px）下绝不横向溢出卡片右边界；
+  - **分段策略头响应式平衡：**
+    - `.ai-writing-section-heading` 在移动端保持单行双端平衡（`display: flex !important; flex-wrap: wrap; justify-content: space-between; align-items: center;`），使标题留在左侧、分段胶囊（单章精写/多章规划）对齐右侧，仅在极窄屏时自然优雅折行，消灭第二行孤岛空洞。
+
 ### Content Library Mobile（内容库移动端，2026-10-19）
 
 小说管理与章节管理在 ≤900px 不再沿用「桌面表格转通用卡片」，而是各自重排为**记录卡**。样式归属 `web/src/styles/admin/pages/content-library-mobile.css`，在 `admin-operations.css` 末尾导入以晚于共享表格规则；901px 以上的固定列宽表格与 `components/tables.css` 完全不变。

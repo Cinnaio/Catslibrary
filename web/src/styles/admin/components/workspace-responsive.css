@@ -1,4 +1,8 @@
 @media (max-width: 900px) {
+  .admin-layout__content {
+    padding: 1rem !important;
+  }
+
   .admin-context-panel {
     grid-template-columns: 1fr;
   }
@@ -14,6 +18,32 @@
 
   .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-content'] {
     padding: 1rem;
+  }
+
+  /* 带独立标题栏的卡片内容区顶内边距归零，由标题栏底内边距接续，左右边距严格保持 1rem 对齐 */
+  .admin-redesign-page :is(.admin-panel-card, [data-slot='card']):has(> [data-slot='card-header'], > .admin-panel-heading) > [data-slot='card-content'] {
+    padding: 0 1rem 1rem;
+  }
+
+  /* 全后台移动端统一卡片内控件全宽契约 (Mobile Card Form Baseline & Full-Width Contract)
+     废除 28rem / 18rem 等桌面端防过宽限制在窄屏造成的参差不对齐与右侧死留白 */
+  .admin-redesign-page :is([data-slot='input'], [data-slot='select-trigger'], button[role='combobox'], [data-field='select'], .custom-select__trigger) {
+    width: 100% !important;
+    max-width: 100% !important;
+    justify-self: stretch !important;
+  }
+
+  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5):has(> [data-slot='input']),
+  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5):has(> textarea),
+  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5):has(> [data-slot='select-trigger']),
+  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5):has(> button[role='combobox']) {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5) > p.text-xs {
+    max-width: 100% !important;
   }
 
   .admin-queue-summary {
