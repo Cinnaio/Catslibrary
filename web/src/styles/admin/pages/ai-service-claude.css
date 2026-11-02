@@ -866,9 +866,9 @@
 :is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'] {
   border: 1px solid var(--admin-border, #e5e3dc);
   background: var(--admin-panel);
-  min-height: 1.75rem;
-  height: 1.75rem;
-  padding: 0 0.75rem;
+  min-height: 1.75rem !important;
+  height: 1.75rem !important;
+  padding: 0 0.75rem !important;
   font-size: 0.75rem;
   font-weight: 550;
   border-radius: 9999px !important;
