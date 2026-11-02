@@ -1541,7 +1541,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   </div>
 
                   {/* 右侧工坊上下文与分析工具群 */}
-                  <div className="ai-writing-selected-novel__tools flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <div className="ai-writing-selected-novel__tools flex items-center gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-start self-stretch sm:self-center">
                     <div
                       className="ai-writing-selected-novel__model-badge inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono text-muted-foreground shrink-0"
                       title={`当前创作生效模型：${props.model || '未配置'}`}

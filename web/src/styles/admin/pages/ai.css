@@ -25,6 +25,46 @@
   .ai-workbench-nav-track::-webkit-scrollbar {
     display: none;
   }
+
+  .ai-admin-page [data-slot='input'],
+  .ai-generation-dialog [data-slot='input'],
+  .ai-admin-page [data-slot='select-trigger'],
+  .ai-generation-dialog [data-slot='select-trigger'],
+  .ai-admin-page [role='combobox'],
+  .ai-generation-dialog [role='combobox'] {
+    width: 100% !important;
+    max-width: 100% !important;
+    justify-self: stretch !important;
+  }
+
+  .ai-admin-page .ai-form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    justify-content: stretch !important;
+  }
+
+  .ai-writing-panel .ai-writing-basics {
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    gap: 1rem !important;
+  }
+
+  .ai-writing-panel .ai-writing-options {
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+  }
+
+  .ai-writing-number-input {
+    width: 100% !important;
+  }
+
+  .ai-writing-number-input [data-slot='input'] {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
 }
 
 .ai-service-tabs__content {
@@ -981,11 +1021,14 @@
   padding-left: 0.75rem;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   .ai-writing-section-heading {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 0.5rem;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.75rem !important;
   }
 
   .ai-writing-identity__mode,
@@ -995,9 +1038,10 @@
     max-width: 100%;
   }
 
-
   .ai-writing-content-scope__toggle {
-    padding: 0.75rem;
+    width: 100% !important;
+    padding: 0.75rem 0.875rem;
+    box-sizing: border-box !important;
   }
 }
 
