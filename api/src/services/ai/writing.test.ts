@@ -3,7 +3,7 @@
  * generateWriting 本身走 AI/DB，这里只测可测的 parseContinuationTitle。
  */
 import { describe, it, expect } from 'vitest'
-import { buildContinuationChapterInstruction, cleanWritingTail, formatWritingBrief, parseContinuationTitle, parsePlotSuggestions, splitOutlineByChapter, validateWritingBrief } from './writing'
+import { buildContinuationChapterInstruction, cleanWritingTail, extractOutlineChapterTitle, formatWritingBrief, parseContinuationTitle, parsePlotSuggestions, splitOutlineByChapter, validateWritingBrief } from './writing'
 
 describe('splitOutlineByChapter', () => {
   it('按「第N章」切分，每章只取自己的段落', () => {
@@ -62,6 +62,24 @@ describe('splitOutlineByChapter', () => {
   it('识别不出章节标记时返回空数组', () => {
     expect(splitOutlineByChapter('写一段轻松的日常，交代两人关系。', 3)).toEqual([])
     expect(splitOutlineByChapter('', 3)).toEqual([])
+  })
+})
+
+describe('extractOutlineChapterTitle', () => {
+  it('从包含章节序号的大纲首行提取小标题', () => {
+    expect(extractOutlineChapterTitle('第4章 隔墙的人\n一早谢薇端着水推门进来')).toBe('隔墙的人')
+    expect(extractOutlineChapterTitle('第 118 章 隔间镜子 H\n内容')).toBe('隔间镜子 H')
+    expect(extractOutlineChapterTitle('4. 隔墙的人\n内容')).toBe('隔墙的人')
+  })
+
+  it('从已剥离序号的纯标题行提取小标题', () => {
+    expect(extractOutlineChapterTitle('隔墙的人\n一早谢薇端着水推门进来')).toBe('隔墙的人')
+    expect(extractOutlineChapterTitle('【隔间镜子】HH\n正文')).toBe('隔间镜子 HH')
+  })
+
+  it('当大纲首行即为叙述性正文或带句号长句时返回空，不误判为标题', () => {
+    expect(extractOutlineChapterTitle('一早谢薇端着水推门进来，说隔墙听了一晚上。')).toBe('')
+    expect(extractOutlineChapterTitle('')).toBe('')
   })
 })
 
