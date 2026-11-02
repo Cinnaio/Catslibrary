@@ -1279,51 +1279,47 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const continuationAnalysisDialog = (
     <Dialog open={analysisDialogOpen} onOpenChange={setAnalysisDialogOpen}>
       <AdminDialogContent size="wide" className="sm:max-w-[780px] max-h-[85vh] flex flex-col p-0 ai-service">
-        <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/60 shrink-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
-            <div className="flex items-center gap-2 min-w-0">
-              <DialogTitle className="text-base font-semibold text-foreground flex items-center gap-2 shrink-0">
-                <Sparkles className="size-4 text-[#D97757]" aria-hidden="true" />
-                <span id="ai-writing-analysis-title">小说分析</span>
-              </DialogTitle>
-              {selectedNovelTitle && (
-                <span className="text-xs text-muted-foreground truncate max-w-xs font-normal">
-                  《{selectedNovelTitle}》
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {props.onOpenGraph && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs font-medium"
-                  disabled={!novelId}
-                  onClick={() => {
-                    setAnalysisDialogOpen(false)
-                    props.onOpenGraph?.(novelId, afterChapterId || undefined)
-                  }}
-                >
-                  <Network className="size-3.5 mr-1" />
-                  查看故事图谱
-                </Button>
-              )}
-              <span
-                className={cn(
-                  "ai-writing-analysis__count inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-                  activeProfileLabels.length === 3
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
-                    : activeProfileLabels.length > 0
-                    ? "bg-[#D97757]/10 border-[#D97757]/25 text-[#D97757]"
-                    : "bg-muted/50 border-border text-muted-foreground"
-                )}
-                aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}
-              >
-                可用于续写 {activeProfileLabels.length} / 3
+        <DialogHeader className="shrink-0">
+          <DialogTitle id="ai-writing-analysis-title" className="flex items-center justify-center gap-1.5">
+            <Sparkles className="size-4 text-[#D97757]" aria-hidden="true" />
+            小说分析
+            {selectedNovelTitle && (
+              <span className="text-sm font-normal text-muted-foreground">
+                《{selectedNovelTitle}》
               </span>
-            </div>
+            )}
+          </DialogTitle>
+          <div className="flex items-center justify-center gap-2">
+            {props.onOpenGraph && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs font-medium"
+                disabled={!novelId}
+                onClick={() => {
+                  setAnalysisDialogOpen(false)
+                  props.onOpenGraph?.(novelId, afterChapterId || undefined)
+                }}
+              >
+                <Network className="size-3.5" />
+                查看故事图谱
+              </Button>
+            )}
+            <span
+              className={cn(
+                "ai-writing-analysis__count inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                activeProfileLabels.length === 3
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+                  : activeProfileLabels.length > 0
+                  ? "bg-[#D97757]/10 border-[#D97757]/25 text-[#D97757]"
+                  : "bg-muted/50 border-border text-muted-foreground"
+              )}
+              aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}
+            >
+              可用于续写 {activeProfileLabels.length} / 3
+            </span>
           </div>
-          <DialogDescription className="text-xs text-muted-foreground pt-1">
+          <DialogDescription>
             分析结果保存在本书中；只有当前可用的完整档案会被续写参考。展开可查看内容与人工校正。
           </DialogDescription>
         </DialogHeader>
