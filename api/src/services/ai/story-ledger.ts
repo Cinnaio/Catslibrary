@@ -63,13 +63,28 @@ const strings = (value: unknown, max: number, field: string): string[] => {
 const enumValue = <T extends string>(value: unknown, values: readonly T[], field: string): T =>
   values.includes(value as T) ? (value as T) : fail(`${field} 无效`)
 
-/** 枚举字段的近义归一：模型偶尔把「事实类别」写成 event/关系别名。 */
+/** 枚举字段的近义归一：模型偶尔把「事实类别」写成 event/关系别名，或将状态/范围写成近义词。 */
 const ENUM_SYNONYMS: Record<string, string> = {
   event: 'fact',
   event_fact: 'fact',
   relationship_change: 'relationship',
   relation: 'relationship',
   relations: 'relationship',
+  ongoing: 'active',
+  current: 'active',
+  open: 'active',
+  in_progress: 'active',
+  closed: 'resolved',
+  ended: 'resolved',
+  done: 'resolved',
+  finished: 'resolved',
+  scene: 'local',
+  chapter: 'local',
+  temporary: 'local',
+  book: 'global',
+  main: 'global',
+  story: 'global',
+  overall: 'global',
 }
 const lenientEnum = <T extends string>(value: unknown, values: readonly T[], _field: string): T | undefined => {
   const raw = String(value ?? '').trim().toLowerCase()
@@ -588,8 +603,8 @@ export function parseChapterMemory(
       certainty,
       ...(kind === 'relationship' ? { directed: item.directed as boolean } : {}),
       ...(perspective ? { perspective } : {}),
-      status: enumValue(item.status, ['active', 'resolved'] as const, 'status'),
-      scope: enumValue(item.scope, ['local', 'global'] as const, 'scope'),
+      status: lenientEnum(item.status, ['active', 'resolved'] as const, 'status') ?? 'active',
+      scope: lenientEnum(item.scope, ['local', 'global'] as const, 'scope') ?? 'local',
       replaces: validReplaces,
       quote: span,
       chapterId: opts.chapterId,

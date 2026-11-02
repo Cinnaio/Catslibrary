@@ -94,10 +94,39 @@ describe('buildContinuationChapterInstruction', () => {
     expect(res).toContain('商议')
     expect(res).toContain('创作要求（多章承接）')
     expect(res).toContain('严禁从头重新开场')
+    expect(res).toContain('状态冲突裁决')
     // 关键断言：绝对不能含有总体 instruction，防止模型提前写完全文或从头重新描写
     expect(res).not.toContain('全篇主线')
     expect(res).not.toContain('总体创作背景')
     expect(res).toContain('第 2 章，共 3 章')
+  })
+
+  it('传入下一章大纲时，注入严格截止边界提示，防止提前剧透或超写', () => {
+    const res = buildContinuationChapterInstruction({
+      chapterIndex: 0,
+      totalCount: 3,
+      chapterOutline: '第1章 起\n入城。',
+      nextChapterOutline: '第2章 承\n商议。',
+      instruction: '全篇主线：苏越与夭夜平定皇城。',
+      targetWords: 2000,
+    })
+    expect(res).toContain('本章严格截止边界')
+    expect(res).toContain('商议')
+    expect(res).toContain('严禁提前展开下一章的内容')
+  })
+
+  it('指定前文上下文时，第 1 章带前序承接约束，防止时间线倒带', () => {
+    const res = buildContinuationChapterInstruction({
+      chapterIndex: 0,
+      totalCount: 3,
+      chapterOutline: '第1章 起\n入城。',
+      hasPriorContext: true,
+      instruction: '全篇主线：苏越与夭夜平定皇城。',
+      targetWords: 2000,
+    })
+    expect(res).toContain('创作要求（前序承接）')
+    expect(res).toContain('严禁时间线倒带')
+    expect(res).not.toContain('创作要求（多章承接）')
   })
 
   it('无单章大纲时，第 1 章使用总体指令，不带承接约束', () => {
