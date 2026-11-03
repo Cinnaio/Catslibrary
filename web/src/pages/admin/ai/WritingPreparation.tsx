@@ -14,6 +14,14 @@ export default function WritingPreparation(props: {
   disabled: boolean
   continuation: boolean
   onPreview: (revision: string, requestKey: string) => void
+  /** 推荐情节超时秒数（可选），由调用方持有状态 */
+  plotTimeout?: {
+    value: string
+    min: number
+    max: number
+    onChange: (value: string) => void
+    onBlur: () => void
+  }
 }) {
   const [preview, setPreview] = useState<{ key: string; materials: AiWritingMaterials } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -62,8 +70,7 @@ export default function WritingPreparation(props: {
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <AdminFormField label="本章目标" htmlFor="writing-objective">
-            <Textarea
+          <AdminFormField label="本章目标" htmlFor="writing-objective">            <Textarea
               id="writing-objective"
               maxLength={1000}
               rows={2}
@@ -124,6 +131,26 @@ export default function WritingPreparation(props: {
             />
           </AdminFormField>
         </div>
+        {props.plotTimeout && (
+          <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+            <label htmlFor="writing-plot-timeout" className="text-xs text-muted-foreground whitespace-nowrap">
+              推荐情节超时
+            </label>
+            <Input
+              id="writing-plot-timeout"
+              type="number"
+              min={props.plotTimeout.min}
+              max={props.plotTimeout.max}
+              value={props.plotTimeout.value}
+              disabled={props.disabled}
+              onChange={(e) => props.plotTimeout!.onChange(e.target.value)}
+              onBlur={props.plotTimeout.onBlur}
+              className="h-7 w-16 px-1 text-center font-mono text-xs"
+              title={`推荐情节的请求超时，默认 180 秒，范围 ${props.plotTimeout.min}–${props.plotTimeout.max} 秒`}
+            />
+            <span className="text-xs text-muted-foreground">秒</span>
+          </div>
+        )}
         {props.chapterCount > 1 && (
           <details>
             <summary className="cursor-pointer text-sm">分别指定 {props.chapterCount} 章的目标</summary>
