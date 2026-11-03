@@ -33,6 +33,8 @@ npm run dev   # 同时启动 api（8787）与 web（5173），web 将 /api 代�
 
 首次连接数据库时迁移自动执行；也可手动执行 `npm run db:migrate`。
 
+开发时可访问 [组件与样式展示页](http://localhost:5173/dev/components)，集中查看通用组件、业务组件及页面专属样式，支持主题、真实视口和状态预览。该入口仅在 Vite 开发环境启用，使用方式与补充示例见 [组件展示页维护说明](docs/component-gallery.md)。
+
 ## 常用脚本
 
 | 命令 | 说明 |
