@@ -57,14 +57,15 @@ pwsh -File ios/scripts/admin-operation-smoke.ps1
 
 ## CI 与发布
 
-- `build-ios.yml`：iOS 代码、工程或构建脚本变更的 PR，以及合入 `main` 时运行 Core 测试和未签名 Release 构建；纯 iOS 文档/字体分发文件改动不自动构建。也可手动运行。
+- `build-ios.yml`：仅通过 `workflow_dispatch` 手动运行 Core 测试和未签名 Release 构建。在 Actions 中选择 **Build and Test iOS (unsigned IPA) → Run workflow**，选择分支后启动；推送和 PR 均不自动构建。
 - `frontend-audit.yml`：继续手动触发，验证 iPhone/iPad，工件名保持 `frontend-audit-phone` / `frontend-audit-tablet`。
-- `ci.yml`、`backup-recovery.yml`、`deploy.yml`：仅 iOS 目录或 iOS 工作流变更时跳过；同时修改 Web/API 时仍按原有规则运行。手动触发入口保留。
+- `deploy.yml`：仅通过 `workflow_dispatch` 手动部署网站。在 Actions 中选择 **Deploy → Run workflow**，选择要部署的分支；推送和 PR 均不自动部署。
+- `ci.yml`、`backup-recovery.yml`：保留现有自动检查与手动入口；仅 iOS 目录或 iOS 工作流变更时跳过，同时修改 Web/API 时按原有规则检查。
 - 工作流的 shell 命令默认在 `ios/` 执行；cache/upload 等 action 的路径以仓库根目录为准，显式使用 `ios/` 前缀。缓存采用新版本 key，避免复用旧仓库布局。
 - IPA 工件名继续为 `ZhiZhou-unsigned-ipa`，内部文件名为 `ZhiZhou-unsigned.ipa`。在 **Cinnaio/zhi-zhou → Actions → Build and Test iOS** 下载对应提交的工件；本地自动下载脚本如有旧仓库默认值，应改为 `Cinnaio/zhi-zhou`。
 - Web/API 与 iOS 版本号、构建和发布节奏保持独立。只有服务器部署流程会发布 Web/API，构建 IPA 不会安装到设备。
 
-迁移分支中对根目录工具配置和服务器工作流的改动仍可能满足服务器部署条件；推送 `main` 应按正常服务器发布处理。
+需要发布网站或生成 IPA 时分别手动启动对应工作流；推送 `main` 只更新源码，不自动发布网站或构建 iOS。
 
 ## 旧仓库收尾
 

@@ -5,14 +5,7 @@ name: Deploy
 # web/dist 再打包，构建失败会直接把线上页面删空。这里改成「远端构建 → 原子替换」。
 # 移除了阻塞部署的耗时全量测试，仅保留必要的类型检查与构建校验，大幅缩短发布耗时。
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'ios/**'
-      - '.github/workflows/build-ios.yml'
-      - '.github/workflows/frontend-audit.yml'
-      - '**/*.md'
-      - 'LICENSE'
+  # 在 Actions 中选择分支并手动运行，推送与 PR 均不发布网站。
   workflow_dispatch:
 
 permissions:

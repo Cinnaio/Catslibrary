@@ -7,23 +7,7 @@
 name: Build and Test iOS (unsigned IPA)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'ios/**'
-      - '!ios/**/*.md'
-      - '!ios/docs/**'
-      - '!ios/font-dist/**'
-      - '.github/workflows/build-ios.yml'
-      - '.gitattributes'
-  pull_request:
-    paths:
-      - 'ios/**'
-      - '!ios/**/*.md'
-      - '!ios/docs/**'
-      - '!ios/font-dist/**'
-      - '.github/workflows/build-ios.yml'
-      - '.gitattributes'
+  # 在 Actions 中选择分支并手动运行，推送与 PR 均不自动构建 IPA。
   workflow_dispatch:
 
 permissions:
