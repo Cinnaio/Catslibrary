@@ -1,0 +1,166 @@
+# 知舟 iOS（SwiftUI 原生客户端）
+
+知舟（[zhi-zhou](https://github.com/Cinnaio/zhi-zhou)）的 SwiftUI 原生 iOS 客户端，对接知舟自托管实例的 REST API。源码位于同一仓库的 `ios/`，与 `web/`、`api/` 一起维护，保留独立的 Xcode 构建、版本号和 IPA 发布流程。可在 Windows 上开发，用 GitHub Actions 云端构建，再通过自签（sideload）安装到 iPhone。
+
+本文的文件路径和本地构建命令以 `ios/` 为工作目录；先从仓库根目录执行 `cd ios`。工作流统一位于仓库根目录的 [`.github/workflows/`](../.github/workflows/)。迁移来源、跨端开发与发布约定见 [iOS 并仓说明](../docs/ios-monorepo.md)。
+
+## 技术要点
+
+- **SwiftUI + iOS 26+（Liquid Glass 液态玻璃）**，XcodeGen 描述工程（`project.yml` → `xcodegen generate` 生成 `.xcodeproj`，无需本地 Mac 也能被 CI 构建）
+- **固定服务器地址**：应用内置硬编码 `https://catrr.uk`，无需用户配置
+- **API 对接**：复用知舟 REST API（`/api/novels`、`/api/chapters`、`/api/auth`、`/api/progress`、`/api/bookshelf`、`/api/auth/reader-settings` 等），字段与仓库 `shared/types.ts` 一一对应
+- **鉴权**：Bearer Token 存 Keychain（`ZhiZhou/Networking/Keychain.swift`），登录用 `remember` 长会话
+- **阅读设置同步**：使用 `/api/auth/reader-settings` 的独立 `ios` 分区（LWW 合并），首次迁移由后端继承旧 `mobile` 快照；账号内容模式保持共享
+- **阅读图片**：章节插图按段落锚点展示，支持显示开关、大图缩放、失败重试；图片段评与 Web 互通。分页模式在锚点处使用独立插图页，图片不写入离线下载或封面缓存。实现与验收见 [第一批跨端对齐](docs/web-ios-parity-phase1.md)
+- **进度同步**：滚动百分比 → `/api/progress`，进入章节自动恢复上次位置
+- **设计系统**：`ZhiZhou/Theme/Theme.swift` —— 语义色跟随系统浅/深外观（无强制浅色），阅读器纸面独立主题（跟随系统/护眼/羊皮/夜间）
+
+## 目录结构
+
+```
+project.yml                        XcodeGen 工程描述
+ZhiZhou/
+  ZhiZhouApp.swift                 App 入口
+  Support/Info.plist               应用基础配置（固定 HTTPS）
+  Support/PrivacyInfo.xcprivacy    Apple 隐私清单（UserDefaults / 文件大小访问原因）
+  Assets.xcassets/AppIcon.appiconset   App 图标（1024 单尺寸，可替换）
+  Models/Models.swift              服务端模型（对齐 shared/types.ts）
+  Models/AdminModels.swift         管理后台模型（admin.ts / admin-users.ts / site.ts 返回结构）
+  Networking/
+    APIClient.swift                类型化 fetch 封装（Bearer token / 超时 / 分页）
+    AdminAPI.swift                 管理后台 API（/api/admin*，需管理员身份）
+    ServerConfig.swift             服务器地址配置（自托管必配）
+    Keychain.swift                 token 安全存储
+  Services/
+    AppState.swift                 登录会话 + 启动引导
+    ReaderSettingsStore.swift      阅读设置（按账号本地保存 + LWW 同步）
+    ReaderProgressStore.swift       进度上传适配器（Core outbox → API）
+    OfflineReadingStore.swift       离线章节目录、下载与删除协调
+    AdminFormat.swift              管理后台展示格式化（任务状态/举报理由/时间/字节）
+  Theme/Theme.swift                设计 token + Liquid Glass 背景
+  Views/
+    RootView / MainTabView         启动路由 / 三个 Tab（iOS 26 玻璃 Tab 栏）
+    LoginView                      登录 / 注册（浅色原生感账号入口）
+    HomeView / NovelCardView       发现页（系统搜索/筛选、继续阅读、轻量更新列表）
+    NovelDetailView                详情 + 章节目录
+    ReaderView                     阅读器（核心）
+    ChapterListView / ReaderSettingsView
+    BookshelfView / ProfileView
+    OfflineReadingView              离线章节管理与阅读入口
+    Admin/                         管理后台（原生 SwiftUI，入口在「我的」页，仅管理员可见）
+      AdminRootView                管理首页（模块入口）
+      AdminDashboardView           总览（内容规模 / 任务状态 / 最近任务 / 最近更新）
+      AdminModerationView          内容审核（评论 / 举报 / 想法）
+      AdminUsersView               用户与邀请码（注册模式 / 邀请码 / 用户管理）
+      AdminPolicyView              内容安全（成人内容开关）
+      AdminAnnouncementView        站点公告编辑
+      AdminJobsView                任务管理（抓取任务 + 下载日志）
+      AdminNovelsView              小说管理（搜索 / 编辑 / 新建 / 删除 / 增量更新）
+      AdminChaptersView            章节管理（选书 / 章节 CRUD）
+      AdminScrapeCenterView        爬虫抓取中心（URL 分析 → 建书 → 选择器测试 → 启动）
+      AdminScrapeSourcesView       源管理（启停 / 删除 / 测试 / 连通性）
+      AdminProxyView               代理设置（配置 / 测试 / 日志）
+      AdminAIServiceView           AI 服务入口（状态 / 供应商 / 参数 / 任务 / 审计）
+ZhiZhouCore/
+  Package.swift                     平台无关的阅读核心模块
+  Sources/ZhiZhouCore/              设置、进度、本地存储、安全策略、缓存
+  Tests/ZhiZhouCoreTests/           可在 macOS 直接运行的核心行为测试
+../.github/workflows/build-ios.yml macOS 测试、校验 → 未签名 .ipa
+../.github/workflows/frontend-audit.yml  iPhone / iPad 原生 UI 验证
+```
+
+> 服务器地址已固定为 `https://catrr.uk`（`ZhiZhou/Networking/ServerConfig.swift`），不再提供填写/修改入口。
+
+## 开发流程（Windows + GitHub Actions + 自签）
+
+```
+1. 在 Cinnaio/zhi-zhou 仓库的分支中修改 ios/；接口变更同时更新 api/、shared/、web/ 中的相关实现
+2. PR 或合入 main 的 iOS 代码变更触发 Build and Test iOS（也可手动 workflow_dispatch）→ 下载 ZhiZhou-unsigned-ipa artifact
+3. Windows 上安装 Sideloadly（或 AltStore）→ 输入 Apple ID 签名 → USB 安装到 iPhone
+```
+
+### 自签的三种方式
+
+| 方式 | 费用 | 有效期 | 限制 | 建议 |
+|---|---|---|---|---|
+| 免费 Apple ID（Sideloadly/AltStore） | 免费 | ⚠️ **7 天**重签重装 | 3 个 App 上限、仅自己设备 | 零成本验证闭环 |
+| 开发者账号（$99/年） | $99/年 | 证书 1 年、TestFlight 90 天 | Ad Hoc 限 100 台注册设备 | ✅ 推荐，省心 |
+| 企业签名（$299/年） | $299/年 | 1 年 | 需公司资质，监管严格 | 公司内部分发 |
+
+> **免费账号 7 天限制缓解**：用 AltStore（手机与电脑同一网络时自动后台续签，基本无感）；Sideloadly 需要手动重签。
+> 换用 $99 账号后建议直接走 TestFlight，彻底摆脱侧载。
+
+### 自签安装步骤（免费 Apple ID 为例）
+
+1. iPhone 上安装 **AltStore**（电脑装 AltServer，手机同网络自动续签）或直接用 **Sideloadly**（Windows 版）
+2. 下载 Actions 产出的 `ZhiZhou-unsigned.ipa`
+3. Sideloadly：选择 ipa → 填 Apple ID → 安装（首次需在 iPhone 设置里信任证书：设置 → 通用 → VPN 与设备管理）
+4. 每 7 天重签一次（AltStore 自动 / Sideloadly 手动）
+
+## 首次使用 App
+
+1. 打开 App（服务器地址已内置为 `https://catrr.uk`）→ 登录 / 注册（注册模式随服务端 `register-status` 自动切换，邀请制需要邀请码）
+2. 发现页浏览/搜索 → 详情页 → 阅读器
+
+## 自托管 HTTPS 证书（TLS 错误排查）
+
+> 本 App 固定连接公网 `https://catrr.uk`，正常情况无需处理证书。若你替换为自签名证书的服务器，按以下排查：
+
+知舟服务器若使用**自签名证书**（mkcert/openssl 自签）或证书过期/域名不匹配，iOS 会直接拒绝，登录时报
+`网络错误：TLS错误导致安全连接失败`。解决：
+
+- **开发期 Debug 构建**：在「我的 → 高级」打开 **“信任无效证书（开发用）”** 开关，App 会跳过证书校验。注意这会使连接可被中间人攻击，仅限自用/开发。
+- **生产 Release 构建**：不包含证书放行代码，必须为域名配置受信任的正式证书（Let's Encrypt / 云厂商证书）。
+
+## 已知限制与后续路线
+
+- [x] 管理后台核心模块（原生 SwiftUI，见下）
+- [x] 阅读设置按账号隔离，并在网络恢复后自动同步
+- [x] 阅读进度本地 outbox：退后台、回到前台或下次登录继续上传
+- [x] Release 构建移除无效证书放行能力，并加入 Apple 隐私清单
+- [x] CI 直接运行 Core 行为测试，并执行 Release 构建与 plist 校验
+- [x] 离线阅读（按章下载/管理/无网打开，阅读中自动预取下一章）
+- [x] 段评（阅读器按段查看、选中文字引用、发布与删除本人段评）
+- [ ] 评论 / 评分页（API 已就绪，UI 未做）
+- [ ] 推送通知（新章节提醒，需自建推送服务，如 APNs + 你的服务器）
+- [ ] CI 签名（$99 账号 + GitHub Secrets + fastlane match → 出签名 ipa / TestFlight）
+
+### 管理后台（入口：「我的」→ 管理后台，仅 `role == admin` 可见）
+
+- [x] 总览（内容规模 / 任务状态 / 最近任务 / 最近更新）
+- [x] 内容审核（评论 / 举报 / 想法：隐藏、恢复、删除、处理举报）
+- [x] 用户与邀请码（注册模式 / 生成·禁用·清理邀请码 / 角色·禁用·重置密码·删除用户）
+- [x] 内容安全（成人内容开关）
+- [x] 站点公告（编辑并保存，最长 240 字）
+- [x] 小说 / 章节管理（列表编辑）
+- [x] 任务管理（抓取任务列表操作）
+- [x] 爬虫抓取中心（采集向导 / 源管理 / 代理）
+- [x] 爬虫「发现」搜索（PO18 书名/作者搜索 + 榜单浏览 + 详情建书 + 批量抓取）
+- [x] 爬虫配置导入导出（导出 JSON / 粘贴导入 / Legado 书源导入）
+- [x] 源管理增强（批量启停 / 批量删除 / 连通性检查）
+- [x] AI 服务（状态与用量 / 供应商配置 / 运行参数 / 任务 / 审计）
+- [x] AI 封面生成（选书 → 生成描述词 → 后台生成 → 候选采纳/弃用 → 上传本地图）
+- [x] AI 创作（新写大纲/章节、续写多章后台任务 + 风格/情节/关系画像提取）
+- [x] AI 已生成内容管理（类型/状态筛选、草稿编辑、发布/撤销发布、批量删除）
+- [x] AI 用量审计增强（调用类型筛选 + 近 30 天趋势）
+- [x] 站点运营（今日/近 7 天指标、热门小说、流量分析、内容健康度、公告）
+- [x] 登录审计（状态筛选 / 用户名搜索 / 分页）
+
+## App Store 上架注意事项（重要）
+
+当前源码支持账号同步的 R18 阅读：在「我的 → 内容模式」读取与 Web 相同的远程开关。账号已开启且登录有效时，iOS 无需逐设备重复验证；首次开启账号模式仍需确认成年并通过 Turnstile。已读章节使用按账号和模式隔离的内存/磁盘缓存，暂不开放限制级作品的主动离线下载。短暂网络失败保留上次确认状态，跨端关闭需联网同步后生效；冷启动仍先联网确认账号状态。
+
+服务端须同步部署 `/api/content-policy/native-challenge` 验证页面、`/api/content-policy/status` 状态接口与章节安全模式拦截；站点须开启成人内容并配置 Turnstile，允许当前服务器域名。实现和验收范围见 [在线 R18 阅读第一版](docs/r18-online-reading-phase1.md)。
+
+此实现不代表可直接提交 App Store。正式上架前须按实际内容核对 [Apple 审核指南 1.1.4 与 1.2](https://developer.apple.com/cn/app-store/review/guidelines/)，确认成人内容及开启方式符合适用要求；成年确认与人机验证不能替代审核要求。Release 构建仍须使用受信任的 HTTPS 证书，并核对公开隐私政策与 App Store Connect 隐私问卷。
+
+## 构建细节
+
+- 生成工程：`xcodegen generate`（需 XcodeGen，CI 已装）
+- 核心测试：`swift test --package-path ZhiZhouCore`（无需启动 iOS 模拟器）
+- 本地有 Mac 时：`open ZhiZhou.xcodeproj` 后直接 ⌘R 运行模拟器
+- 修改 Info.plist 后需在 `project.yml` 保持 `INFOPLIST_FILE` 指向不变
+
+---
+
+*接口字段如有变动，以知舟仓库 `shared/types.ts` 为准，同步更新 `Models/Models.swift`。*

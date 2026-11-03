@@ -1,0 +1,164 @@
+# 在 GitHub Actions 的 macOS runner 上构建未签名 .ipa（Windows 开发 → GitHub 云构建 → 自签安装）
+#
+# 签名升级（后续）：
+# - 买 Apple Developer Program（$99/年）后，把 .p12 证书 + .mobileprovision 放进
+#   GitHub Secrets，用 fastlane match 或 xcodebuild -exportArchive 产出签名 ipa / TestFlight
+
+name: Build and Test iOS (unsigned IPA)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '!ios/**/*.md'
+      - '!ios/docs/**'
+      - '!ios/font-dist/**'
+      - '.github/workflows/build-ios.yml'
+      - '.gitattributes'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '!ios/**/*.md'
+      - '!ios/docs/**'
+      - '!ios/font-dist/**'
+      - '.github/workflows/build-ios.yml'
+      - '.gitattributes'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: ios
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Core unit tests
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run unit tests
+        run: swift test --package-path ZhiZhouCore
+
+  build:
+    name: Build unsigned IPA
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Select Xcode 26 (iOS 26 SDK for Liquid Glass)
+        run: |
+          XCODE_26=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort | tail -n 1)
+          if [ -n "$XCODE_26" ]; then
+            sudo xcode-select -s "$XCODE_26"
+          fi
+          xcodebuild -version
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Identify build cache
+        id: build-cache
+        run: |
+          TOOLCHAIN=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)
+          echo "toolchain=$TOOLCHAIN" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Release DerivedData
+        id: derived-data
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ios/DerivedData
+            ios/.ci-cache/source-mtimes.json
+          key: ios-release-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('ios/project.yml', 'ios/ZhiZhouCore/Package.swift', 'ios/**/Package.resolved', '.github/workflows/build-ios.yml', 'ios/scripts/ci-source-mtimes.py') }}-${{ github.sha }}
+          restore-keys: |
+            ios-release-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('ios/project.yml', 'ios/ZhiZhouCore/Package.swift', 'ios/**/Package.resolved', '.github/workflows/build-ios.yml', 'ios/scripts/ci-source-mtimes.py') }}-
+
+      - name: Restore timestamps of unchanged build inputs
+        run: python3 scripts/ci-source-mtimes.py restore
+
+      - name: Validate property lists
+        run: |
+          plutil -lint ZhiZhou/Support/Info.plist
+          plutil -lint ZhiZhou/Support/PrivacyInfo.xcprivacy
+
+      - name: Build (unsigned)
+        run: |
+          set -o pipefail
+          STARTED=$(date +%s)
+          xcodebuild \
+            -project ZhiZhou.xcodeproj \
+            -scheme ZhiZhou \
+            -configuration Release \
+            -derivedDataPath DerivedData \
+            -destination 'generic/platform=iOS' \
+            -showBuildTimingSummary \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee "$RUNNER_TEMP/ios-release-build.log"
+          echo "### Release build" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build seconds: $(($(date +%s) - STARTED))" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Restored cache: ${{ steps.derived-data.outputs.cache-matched-key }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Release bundle
+        run: |
+          APP_PATH=$(find DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::未找到 Release .app 产物"
+            exit 1
+          fi
+          test -f "$APP_PATH/PrivacyInfo.xcprivacy"
+          plutil -lint "$APP_PATH/PrivacyInfo.xcprivacy"
+          if plutil -extract NSAppTransportSecurity.NSAllowsArbitraryLoads raw -o - "$APP_PATH/Info.plist" >/dev/null 2>&1; then
+            echo "::error::Release 包仍包含 NSAllowsArbitraryLoads"
+            exit 1
+          fi
+
+      - name: Package unsigned .ipa
+        run: |
+          APP_PATH=$(find DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::未找到 .app 产物"
+            exit 1
+          fi
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry ZhiZhou-unsigned.ipa Payload
+          ls -lh ZhiZhou-unsigned.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZhiZhou-unsigned-ipa
+          path: ios/ZhiZhou-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Record build input timestamps
+        if: success() && steps.derived-data.outputs.cache-hit != 'true'
+        run: python3 scripts/ci-source-mtimes.py save
+
+      - name: Save Release DerivedData
+        if: success() && steps.derived-data.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ios/DerivedData
+            ios/.ci-cache/source-mtimes.json
+          key: ${{ steps.derived-data.outputs.cache-primary-key }}

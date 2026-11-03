@@ -1,0 +1,661 @@
+import SwiftUI
+import ZhiZhouCore
+
+/// 源管理：书源列表（搜索 / 启停 / 删除 / 测试 / 连通性检查 / 清理不可达）。
+/// 对齐 Web 端 admin scrape SourcesView。
+struct AdminScrapeSourcesView: View {
+    @State private var sources: [ScrapeSourceRow] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    @State private var searchText = ""
+    @State private var requests = ListRequestGuard<String>()
+    @State private var togglingHost: String?
+    @State private var testingHost: String?
+    @State private var checkingConnectivity = false
+    @State private var deletingHost: String?
+    @State private var cleaningUnreachable = false
+    @State private var connectivityText: String?
+    @State private var deleteTarget: ScrapeSourceRow?
+    @State private var testResultText: String?
+    @State private var actionError: String?
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
+
+    // 批量操作
+    @State private var selectionMode = false
+    @State private var selectedHosts = Set<String>()
+    @State private var batchBusy = false
+    @State private var showBatchToggle = false
+
+    // Legado 导入
+    @State private var showLegadoImport = false
+    @State private var showPo18Account = false
+    @State private var legadoUrl = ""
+    @State private var legadoText = ""
+    @State private var legadoImporting = false
+    @State private var legadoResult: String?
+
+    var body: some View {
+        List {
+            listContent
+        }
+        .scrollContentBackground(.hidden)
+        .appListStyle(.settings)
+        .navigationTitle("源管理")
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $searchText, prompt: "搜索主机 / 名称")
+        .refreshable { await load() }
+        .task(id: searchText) {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            await load()
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("检查全部连通性", systemImage: "antenna.radiowaves.left.and.right") {
+                        Task { await checkAll() }
+                    }
+                    Button("删除不可达书源", systemImage: "trash", role: .destructive) {
+                        requestDeleteUnreachable()
+                    }
+                    Divider()
+                    Button(selectionMode ? "退出批量选择" : "批量选择", systemImage: "checkmark.circle") {
+                        selectionMode.toggle()
+                        selectedHosts = []
+                    }
+                    Button("导入 Legado 书源", systemImage: "square.and.arrow.down") {
+                        showLegadoImport = true
+                    }
+                    Button("POPO 账号", systemImage: "person.badge.key") {
+                        showPo18Account = true
+                    }
+                } label: {
+                    if checkingConnectivity || cleaningUnreachable {
+                        AdminInlineProgress()
+                    } else {
+                        Label("更多", systemImage: "ellipsis.circle")
+                    }
+                }
+                .disabled(checkingConnectivity || cleaningUnreachable || batchBusy)
+            }
+        }
+        .sheet(isPresented: $showLegadoImport) {
+            LegadoImportSheet(
+                url: $legadoUrl,
+                text: $legadoText,
+                importing: legadoImporting,
+                result: legadoResult,
+                onImport: { operation, url, text in
+                    Task {
+                        await importLegado(
+                            operationID: operation.operationID,
+                            url: url,
+                            text: text
+                        )
+                    }
+                },
+                onClose: {
+                    showLegadoImport = false
+                    legadoUrl = ""
+                    legadoText = ""
+                    legadoResult = nil
+                }
+            )
+        }
+        .sheet(isPresented: $showPo18Account) {
+            Po18AccountSheet()
+        }
+        .confirmationDialog(
+            "批量启停书源",
+            isPresented: Binding(
+                get: { showBatchToggle },
+                set: { if !$0 { showBatchToggle = false } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("启用所选（\(selectedHosts.count)）") { Task { await batchToggle(enabled: true) } }
+            Button("禁用所选（\(selectedHosts.count)）") { Task { await batchToggle(enabled: false) } }
+            Button("取消", role: .cancel) { showBatchToggle = false }
+        } message: {
+            Text("将对选中的 \(selectedHosts.count) 个书源批量修改启停状态。")
+        }
+        .confirmationDialog(
+            "删除书源",
+            isPresented: Binding(
+                get: { deleteTarget != nil },
+                set: { if !$0 { deleteTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除「\(deleteTarget?.host ?? "")」", role: .destructive) {
+                guard let target = deleteTarget else { return }
+                Task { await delete(target) }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("删除后该书源将不再参与识别。")
+        }
+        .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+            switch operation.action {
+            case .batchDeleteScrapeSources:
+                Task { await batchDelete(operation) }
+            case .deleteUnreachableScrapeSources:
+                Task { await deleteUnreachable(operationID: operation.operationID, hosts: operation.targetIDs) }
+            default:
+                break
+            }
+        }
+        .alert("测试结果", isPresented: testResultAlertBinding) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(testResultText ?? "")
+        }
+        .alert("操作失败", isPresented: errorAlertBinding) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(actionError ?? "")
+        }
+    }
+
+    // MARK: - 列表内容（拆分以降低 Release 类型检查开销）
+
+    @ViewBuilder
+    private var listContent: some View {
+        if isLoading && sources.isEmpty {
+            Section {
+                ProgressView("加载中…")
+                    .frame(maxWidth: .infinity, minHeight: 160)
+                    .listRowBackground(Color.clear)
+            }
+        } else if let errorMessage, sources.isEmpty {
+            Section {
+                ContentUnavailableView {
+                    Label("加载失败", systemImage: "wifi.slash")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("重试") { Task { await load() } }
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+        } else {
+            if sources.isEmpty {
+                Section {
+                    ContentUnavailableView {
+                        Label("暂无书源", systemImage: "antenna.radiowaves.left.and.right")
+                    } description: {
+                        Text("当前条件下没有匹配的书源。")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+            } else {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await load() }
+                    }
+                }
+                if selectionMode && !sources.isEmpty {
+                    batchBarSection
+                }
+                Section("书源（\(sources.count)）") {
+                    ForEach(sources) { source in
+                        sourceRow(source)
+                    }
+                }
+            }
+            if let connectivityText {
+                Section {
+                    Label(connectivityText, systemImage: "antenna.radiowaves.left.and.right")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+        }
+    }
+
+    private var batchBarSection: some View {
+        Section {
+            HStack {
+                Text("已选 \(selectedHosts.count) 个")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                Spacer()
+                if batchBusy {
+                    AdminInlineProgress()
+                } else {
+                    Button(selectedHosts.count == sources.count ? "全不选" : "全选") {
+                        selectedHosts = selectedHosts.count == sources.count ? [] : Set(sources.map { $0.host })
+                    }
+                    .font(.subheadline)
+                    Button("启停") { showBatchToggle = true }
+                        .font(.subheadline)
+                        .disabled(selectedHosts.isEmpty)
+                    Button("删除", role: .destructive) { requestBatchDelete() }
+                        .font(.subheadline)
+                        .disabled(selectedHosts.isEmpty)
+                }
+            }
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    // MARK: - 行
+
+    private func sourceRow(_ source: ScrapeSourceRow) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                if selectionMode {
+                    Button {
+                        toggleSelected(source.host)
+                    } label: {
+                        Image(systemName: selectedHosts.contains(source.host) ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(selectedHosts.contains(source.host) ? AppTheme.primary : AppTheme.textSecondary)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(selectedHosts.contains(source.host) ? "取消选择\(source.name)" : "选择\(source.name)")
+                    .accessibilityValue(selectedHosts.contains(source.host) ? "已选择" : "未选择")
+                }
+                Text(source.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .appTextLineLimit(2)
+            }
+            HStack(spacing: 10) {
+                if testingHost == source.host {
+                    AdminInlineProgress()
+                } else {
+                    connectivityBadge(source)
+                }
+                Spacer(minLength: 8)
+                if !selectionMode {
+                    if deletingHost == source.host {
+                        AdminInlineProgress()
+                    } else {
+                        if togglingHost == source.host {
+                            AdminInlineProgress()
+                        } else {
+                            Toggle("", isOn: Binding(
+                                get: { source.enabled ?? true },
+                                set: { newValue in
+                                    Task { await toggle(source, enabled: newValue) }
+                                }
+                            ))
+                            .labelsHidden()
+                            .accessibilityLabel("启用\(source.name)")
+                            .accessibilityValue((source.enabled ?? true) ? "已启用" : "已停用")
+                        }
+                        Menu {
+                            Button("测试书源", systemImage: "checkmark.seal") {
+                                Task { await testSource(source) }
+                            }
+                            Button("删除", systemImage: "trash", role: .destructive) {
+                                deleteTarget = source
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.title3)
+                                .frame(width: 44, height: 44)
+                        }
+                        .disabled(deletingHost != nil || testingHost != nil || togglingHost != nil || batchBusy)
+                        .accessibilityLabel("书源操作")
+                    }
+                }
+            }
+            Text(source.host)
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .appTextLineLimit(1)
+            HStack(spacing: 8) {
+                if let support = source.support, !support.isEmpty {
+                    Text(support)
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                if let encoding = source.encoding, !encoding.isEmpty {
+                    Text("编码 \(encoding)")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                if let list = source.chapterList, !list.isEmpty {
+                    Text("列表 ✓")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.success)
+                }
+                if let content = source.chapterContent, !content.isEmpty {
+                    Text("正文 ✓")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.success)
+                }
+            }
+            if let error = source.connectivityError, !error.isEmpty {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.danger)
+                    .appTextLineLimit(1)
+            }
+        }
+        .padding(.vertical, 2)
+        .contextMenu {
+            Button("测试书源", systemImage: "checkmark.seal") {
+                Task { await testSource(source) }
+            }
+            Button("删除", systemImage: "trash", role: .destructive) {
+                deleteTarget = source
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func connectivityBadge(_ source: ScrapeSourceRow) -> some View {
+        switch source.connectivity {
+        case "reachable":
+            AdminStatusBadge("可达", tint: AppTheme.success, systemImage: "checkmark")
+        case "unreachable":
+            AdminStatusBadge("不可达", tint: AppTheme.danger, systemImage: "xmark")
+        default:
+            AdminStatusBadge("未检测", tint: AppTheme.textSecondary, systemImage: "questionmark")
+        }
+    }
+
+    // MARK: - 数据
+
+    private func load() async {
+        let ticket = requests.begin(searchText)
+        isLoading = true
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
+        do {
+            let trimmed = ticket.query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let r = try await AdminAPI.scrapeSources(page: 1, pageSize: 100)
+            guard !Task.isCancelled, requests.accepts(ticket, query: searchText) else { return }
+            let all = r.sources
+            sources = trimmed.isEmpty ? all : all.filter {
+                $0.host.localizedCaseInsensitiveContains(trimmed) || $0.name.localizedCaseInsensitiveContains(trimmed)
+            }
+            errorMessage = nil
+        } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: searchText) else { return }
+            errorMessage = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func toggle(_ source: ScrapeSourceRow, enabled: Bool) async {
+        guard togglingHost == nil else { return }
+        togglingHost = source.host
+        defer { togglingHost = nil }
+        do {
+            try await AdminAPI.toggleScrapeSource(host: source.host, enabled: enabled)
+            await load()
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+            await load()
+        }
+    }
+
+    private func delete(_ source: ScrapeSourceRow) async {
+        guard deletingHost == nil else { return }
+        deletingHost = source.host
+        defer { deletingHost = nil }
+        do {
+            try await AdminAPI.deleteScrapeSource(host: source.host)
+            sources.removeAll { $0.host == source.host }
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func testSource(_ source: ScrapeSourceRow) async {
+        guard testingHost == nil else { return }
+        testingHost = source.host
+        defer { testingHost = nil }
+        do {
+            let result = try await AdminAPI.testScrapeSource(host: source.host)
+            if let links = result.links, !links.isEmpty {
+                let samples = result.sampleChapters ?? []
+                let sampleOk = samples.filter { $0.ok == true }.count
+                testResultText = "\(source.name)：识别到 \(links.count) 个章节链接，样章 \(sampleOk)/\(samples.count) 可读。"
+            } else {
+                testResultText = result.error ?? "\(source.name)：未识别到章节链接。"
+            }
+        } catch {
+            testResultText = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func checkAll() async {
+        guard !checkingConnectivity else { return }
+        checkingConnectivity = true
+        connectivityText = "正在检查全部书源…"
+        defer { checkingConnectivity = false }
+        do {
+            let result = try await AdminAPI.checkSourceConnectivity(hosts: [])
+            connectivityText = "检查完成：共 \(result.checked ?? 0) 个，可达 \(result.reachable ?? 0)，不可达 \(result.unreachable ?? 0)。"
+            await load()
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func requestDeleteUnreachable() {
+        guard !cleaningUnreachable else { return }
+        let hosts = sources
+            .filter { $0.connectivity == "unreachable" }
+            .map(\.host)
+            .sorted()
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .deleteUnreachableScrapeSources,
+            kind: .batchDelete,
+            targetIDs: hosts,
+            title: "删除不可达书源",
+            message: hosts.isEmpty
+                ? "确认时没有发现不可达书源，不会删除新出现的记录。"
+                : "将删除确认时发现的 \(hosts.count) 个不可达书源；之后状态变化的书源会保留。",
+            confirmLabel: hosts.isEmpty ? "确认空操作" : "删除 \(hosts.count) 个书源"
+        )
+    }
+
+    private func deleteUnreachable(operationID: String, hosts: [String]) async {
+        guard !cleaningUnreachable else { return }
+        cleaningUnreachable = true
+        defer { cleaningUnreachable = false }
+        do {
+            let result = try await AdminAPI.deleteUnreachableSources(operationID: operationID, hosts: hosts)
+            connectivityText = "已删除 \(result.deleted ?? 0) 个不可达书源。"
+            await load()
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    // MARK: - 批量操作
+
+    private func toggleSelected(_ host: String) {
+        if selectedHosts.contains(host) {
+            selectedHosts.remove(host)
+        } else {
+            selectedHosts.insert(host)
+        }
+    }
+
+    private func batchToggle(enabled: Bool) async {
+        guard !selectedHosts.isEmpty, !batchBusy else { return }
+        batchBusy = true
+        defer { batchBusy = false }
+        do {
+            let hosts = Array(selectedHosts)
+            let result = try await AdminAPI.batchToggleSources(hosts: hosts, enabled: enabled)
+            connectivityText = "已\(enabled ? "启用" : "禁用") \(result.updated ?? 0) 个书源。"
+            selectedHosts = []
+            showBatchToggle = false
+            await load()
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func requestBatchDelete() {
+        let hosts = selectedHosts.sorted()
+        guard !hosts.isEmpty, !batchBusy else { return }
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .batchDeleteScrapeSources,
+            kind: .batchDelete,
+            targetIDs: hosts,
+            title: "批量删除书源",
+            message: "将删除确认时选中的 \(hosts.count) 个书源。目标已锁定，删除后不可恢复。",
+            confirmLabel: "删除 \(hosts.count) 个书源"
+        )
+    }
+
+    private func batchDelete(_ operation: AdminDangerousOperation) async {
+        let hosts = operation.targetIDs
+        guard !hosts.isEmpty, !batchBusy else { return }
+        batchBusy = true
+        defer { batchBusy = false }
+        do {
+            let result = try await AdminAPI.batchDeleteSources(
+                hosts: hosts,
+                operationID: operation.operationID
+            )
+            connectivityText = "已删除 \(result.deleted ?? 0) 个书源。"
+            selectedHosts = []
+            await load()
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    // MARK: - Legado 导入
+
+    private func importLegado(operationID: String, url: String, text: String) async {
+        guard !legadoImporting else { return }
+        legadoImporting = true
+        defer { legadoImporting = false }
+        do {
+            guard !url.isEmpty || !text.isEmpty else {
+                legadoResult = "请填写书源池 URL 或粘贴书源 JSON。"
+                return
+            }
+            let payload: [String: Any] = url.isEmpty ? ["text": text] : ["url": url]
+            let result = try await AdminAPI.scrapeImportLegado(
+                payload: payload,
+                operationID: operationID
+            )
+            legadoResult = "导入完成：新增 \(result.imported ?? 0)，更新 \(result.updated ?? 0)。\(result.parseErrorCount.map { "解析失败 \($0) 条。" } ?? "")"
+            await load()
+        } catch {
+            legadoResult = AppCopy.friendlyError(error)
+        }
+    }
+
+    private var testResultAlertBinding: Binding<Bool> {
+        Binding(
+            get: { testResultText != nil },
+            set: { if !$0 { testResultText = nil } }
+        )
+    }
+
+    private var errorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { actionError != nil },
+            set: { if !$0 { actionError = nil } }
+        )
+    }
+}
+
+// MARK: - Legado 导入 Sheet
+
+private struct LegadoImportSheet: View {
+    @Binding var url: String
+    @Binding var text: String
+    let importing: Bool
+    let result: String?
+    let onImport: (AdminDangerousOperation, String, String) -> Void
+    let onClose: () -> Void
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    TextField("https://example.com/legado.json", text: $url)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("书源池 URL")
+                } footer: {
+                    Text("填写公开的书源池 JSON 地址，从远端拉取。")
+                }
+                Section("或粘贴书源 JSON") {
+                    TextEditor(text: $text)
+                        .frame(minHeight: 140)
+                        .font(.caption2)
+                        .scrollContentBackground(.hidden)
+                        .padding(.vertical, 4)
+                }
+                if let result {
+                    Section {
+                        Label(result, systemImage: importing ? "hourglass" : "checkmark.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(importing ? AppTheme.textSecondary : AppTheme.success)
+                    }
+                }
+                Section {
+                    Button {
+                        requestImport()
+                    } label: {
+                        if importing {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                Spacer()
+                            }
+                        } else {
+                            Label("开始导入", systemImage: "square.and.arrow.down")
+                        }
+                    }
+                    .disabled(importing || (url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .appListStyle(.settings)
+            .navigationTitle("导入 Legado 书源")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭", action: onClose)
+                }
+            }
+        }
+        .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+            let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            onImport(operation, trimmedURL, trimmedText)
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func requestImport() {
+        let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURL.isEmpty || !trimmedText.isEmpty else { return }
+        let sourceID = trimmedURL.isEmpty ? "legado:pasted-json" : trimmedURL
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .importLegadoSources,
+            kind: .overwrite,
+            targetIDs: [sourceID],
+            title: "导入并更新书源",
+            message: "导入会新增书源，并按主机名更新已有书源配置。现有同名配置可能被覆盖。",
+            confirmLabel: "确认导入书源"
+        )
+    }
+}

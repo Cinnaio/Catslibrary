@@ -1,0 +1,95 @@
+# XcodeGen 工程描述文件：纯文本描述 Xcode 工程，CI 上用 `xcodegen generate` 生成 .xcodeproj
+# 语法参考：https://github.com/yonaskolb/XcodeGen
+name: ZhiZhou
+
+options:
+  bundleIdPrefix: com.zhizhou
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+packages:
+  ZhiZhouCore:
+    path: ZhiZhouCore
+
+targets:
+  ZhiZhou:
+    type: application
+    platform: iOS
+    dependencies:
+      - package: ZhiZhouCore
+    sources:
+      - path: ZhiZhou
+        excludes:
+          - "Support/Info.plist"
+          - "Support/PrivacyInfo.xcprivacy"
+      - path: ZhiZhou/Support/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zhizhou.app
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 16
+        INFOPLIST_FILE: ZhiZhou/Support/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ZhiZhou/Support/ZhiZhou.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        ENABLE_PREVIEWS: YES
+
+  ZhiZhouTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ZhiZhouTests
+    dependencies:
+      - target: ZhiZhou
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+
+  ZhiZhouUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ZhiZhouUITests
+    dependencies:
+      - target: ZhiZhou
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        TEST_TARGET_NAME: ZhiZhou
+
+schemes:
+  ZhiZhou:
+    build:
+      targets:
+        ZhiZhou: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
+  ZhiZhouReaderTests:
+    build:
+      targets:
+        ZhiZhou: all
+        ZhiZhouTests: [test]
+    test:
+      config: Debug
+      targets:
+        - ZhiZhouTests
+
+  ZhiZhouAudit:
+    build:
+      targets:
+        ZhiZhou: all
+        ZhiZhouUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - ZhiZhouUITests

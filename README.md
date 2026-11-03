@@ -1,14 +1,19 @@
 # 知舟（Zhi Zhou）
 
-自托管的 AI 中文小说阅读站。读者获得干净、沉浸的阅读体验；管理员通过 Web 运营台完成书库管理、多源抓取、内容审核与 AI 创作的全链路工作流。
+自托管的 AI 中文小说阅读站。读者获得干净、沉浸的阅读体验；管理员通过 Web 运营台与 iOS 原生管理端完成书库管理、多源抓取、内容审核与 AI 创作的全链路工作流。
 
 ## 技术栈
 
 - **前端**：React 19 + Vite 7 + Tailwind CSS 4（shadcn/ui + Radix UI），位于 `web/`
+- **iOS 客户端**：SwiftUI + iOS 26，XcodeGen 工程与独立 Swift Package，位于 `ios/`
 - **后端**：Hono on Node.js（`@hono/node-server`），位于 `api/`
 - **数据库**：PostgreSQL（原生 SQL + 版本化迁移，无 ORM）
 - **测试**：Vitest；后端用 [pglite](https://pglite.dev/)（WASM PostgreSQL）做端到端测试，无需本地 PG 服务器
-- **仓库结构**：npm workspaces monorepo（`web/` + `api/` + `shared/`）
+- **仓库结构**：`web/` + `api/` + `shared/` + `ios/` 单仓库；npm workspaces 管理 Web/API，iOS 独立构建和发布
+
+## iOS 客户端
+
+原独立的 `zhi-zhou-ios` 已并入本仓库的 `ios/`，完整保留原提交历史。客户端构建、测试与安装见 [iOS 开发说明](ios/README.md)，跨端开发、CI 路径隔离及迁移来源见 [并仓说明](docs/ios-monorepo.md)。本节记录源码布局；迁移后的原生构建状态以对应提交的 GitHub Actions 为准。
 
 ## 快速开始
 
@@ -27,6 +32,8 @@ npm run dev   # 同时启动 api（8787）与 web（5173），web 将 /api 代�
 ```
 
 首次连接数据库时迁移自动执行；也可手动执行 `npm run db:migrate`。
+
+开发时可访问 [组件与样式展示页](http://localhost:5173/dev/components)，集中查看通用组件、业务组件及页面专属样式，支持主题、真实视口和状态预览。该入口仅在 Vite 开发环境启用，使用方式与补充示例见 [组件展示页维护说明](docs/component-gallery.md)。
 
 ## 常用脚本
 
@@ -54,6 +61,7 @@ web/            React 前端
   src/components/ 组件（reader / admin / ui）
   src/lib/        API 客户端与工具
 shared/         前后端共享的类型与纯函数（广告清洗、工具函数）
+ios/            SwiftUI 原生客户端、Core 模块、测试与 XcodeGen 工程
 scripts/        开发编排脚本与发布辅助脚本（zhizhou-release.sh）
 data/           运行时数据（runtime-config.json 等，已 gitignore）
 ```
