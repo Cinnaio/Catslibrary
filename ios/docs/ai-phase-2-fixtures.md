@@ -1,6 +1,6 @@
 # 第二批 B6 固定夹具
 
-夹具的机器可执行定义在 API 仓库的 [`phase2-fixtures.ts`](../../zhi-zhou/api/src/services/ai/phase2-fixtures.ts)，测试在 [`phase2-fixtures.test.ts`](../../zhi-zhou/api/src/services/ai/phase2-fixtures.test.ts)。它们只使用仓库自写的短文本，不读取生产小说、真实账号或外部图片，也不会调用文本或图像供应商。
+夹具的机器可执行定义在本仓库的 [`phase2-fixtures.ts`](../../api/src/services/ai/phase2-fixtures.ts)，测试在 [`phase2-fixtures.test.ts`](../../api/src/services/ai/phase2-fixtures.test.ts)。它们只使用仓库自写的短文本，不读取生产小说、真实账号或外部图片，也不会调用文本或图像供应商。
 
 ## 续写六组
 

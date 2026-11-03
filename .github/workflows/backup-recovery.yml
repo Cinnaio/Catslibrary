@@ -3,7 +3,19 @@ name: Backup recovery
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'ios/**'
+      - '.github/workflows/build-ios.yml'
+      - '.github/workflows/frontend-audit.yml'
+      - '**/*.md'
+      - 'LICENSE'
   pull_request:
+    paths-ignore:
+      - 'ios/**'
+      - '.github/workflows/build-ios.yml'
+      - '.github/workflows/frontend-audit.yml'
+      - '**/*.md'
+      - 'LICENSE'
   workflow_dispatch:
 
 permissions:

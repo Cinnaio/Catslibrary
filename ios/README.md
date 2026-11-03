@@ -1,6 +1,8 @@
 # 知舟 iOS（SwiftUI 原生客户端）
 
-知舟（[zhi-zhou](https://github.com/your-org/zhi-zhou)）的 SwiftUI 原生 iOS 客户端，对接知舟自托管实例的 REST API。**独立于 web/api 仓库**，可在 Windows 上开发，用 GitHub Actions 云端构建，再通过自签（sideload）安装到 iPhone。
+知舟（[zhi-zhou](https://github.com/Cinnaio/zhi-zhou)）的 SwiftUI 原生 iOS 客户端，对接知舟自托管实例的 REST API。源码位于同一仓库的 `ios/`，与 `web/`、`api/` 一起维护，保留独立的 Xcode 构建、版本号和 IPA 发布流程。可在 Windows 上开发，用 GitHub Actions 云端构建，再通过自签（sideload）安装到 iPhone。
+
+本文的文件路径和本地构建命令以 `ios/` 为工作目录；先从仓库根目录执行 `cd ios`。工作流统一位于仓库根目录的 [`.github/workflows/`](../.github/workflows/)。迁移来源、跨端开发与发布约定见 [iOS 并仓说明](../docs/ios-monorepo.md)。
 
 ## 技术要点
 
@@ -63,7 +65,8 @@ ZhiZhouCore/
   Package.swift                     平台无关的阅读核心模块
   Sources/ZhiZhouCore/              设置、进度、本地存储、安全策略、缓存
   Tests/ZhiZhouCoreTests/           可在 macOS 直接运行的核心行为测试
-.github/workflows/build-ios.yml    macOS 测试、校验 → 未签名 .ipa
+../.github/workflows/build-ios.yml macOS 测试、校验 → 未签名 .ipa
+../.github/workflows/frontend-audit.yml  iPhone / iPad 原生 UI 验证
 ```
 
 > 服务器地址已固定为 `https://catrr.uk`（`ZhiZhou/Networking/ServerConfig.swift`），不再提供填写/修改入口。
@@ -71,8 +74,8 @@ ZhiZhouCore/
 ## 开发流程（Windows + GitHub Actions + 自签）
 
 ```
-1. git init / push 到 GitHub（建议公开仓库：macOS 构建免费）
-2. push 触发 Actions（或手动 workflow_dispatch）→ 下载 ZhiZhou-unsigned-ipa artifact
+1. 在 Cinnaio/zhi-zhou 仓库的分支中修改 ios/；接口变更同时更新 api/、shared/、web/ 中的相关实现
+2. PR 或合入 main 的 iOS 代码变更触发 Build and Test iOS（也可手动 workflow_dispatch）→ 下载 ZhiZhou-unsigned-ipa artifact
 3. Windows 上安装 Sideloadly（或 AltStore）→ 输入 Apple ID 签名 → USB 安装到 iPhone
 ```
 

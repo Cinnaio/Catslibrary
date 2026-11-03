@@ -12,10 +12,18 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+Payload/
+audit-results/
+artifacts/
+build-artifacts/
 
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Python 构建脚本缓存
+__pycache__/
+*.py[cod]
 
 # macOS
 .DS_Store

@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: ios
+
 jobs:
   audit:
     name: Native UI - ${{ matrix.device }}
@@ -78,8 +82,8 @@ jobs:
         with:
           name: frontend-audit-${{ matrix.device }}
           path: |
-            audit-results/screenshots/*.png
-            audit-results/screenshots/*.txt
-            audit-results/screenshots/manifest.json
-            audit-results/xcodebuild.log
+            ios/audit-results/screenshots/*.png
+            ios/audit-results/screenshots/*.txt
+            ios/audit-results/screenshots/manifest.json
+            ios/audit-results/xcodebuild.log
           if-no-files-found: warn
