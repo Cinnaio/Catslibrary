@@ -1,0 +1,568 @@
+import SwiftUI
+import ZhiZhouCore
+
+/// 发现页：以继续阅读为首要入口，紧凑宽度使用单列导航，宽屏保留书单与详情列。
+struct HomeView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var novels: [Novel] = []
+    @State private var categories: [String] = []
+    @State private var selectedCategory: String?
+    @State private var selectedStatus = ""
+    @State private var selectedSort = "updated_at"
+    @State private var selectedNovel: Novel?
+    @State private var selectedReaderLaunch: ReaderLaunch?
+    @State private var navigationPath: [HomeRoute] = []
+    @State private var search = ""
+    @State private var page = 1
+    @State private var totalPages = 1
+    @State private var totalNovelCount = 0
+    @State private var bookshelf: BookshelfResponse?
+    @State private var isLoading = false
+    @State private var isLoadingMore = false
+    @State private var errorMessage: String?
+    @State private var loadMoreError: String?
+    @State private var reloadTask: Task<Void, Never>?
+    @State private var requests = ListRequestGuard<[String]>()
+    @State private var interactionFeedback = 0
+    @Namespace private var categoryNamespace
+
+    private enum HomeRoute: Hashable {
+        case novel(Novel)
+        case reader(ReaderLaunch)
+    }
+
+    private var recentReading: RecentItem? {
+        bookshelf?.recent.first { ContentAccessStore.shared.mode == "adult" || !$0.asNovel.isRestricted }
+    }
+
+    private var catalogQuery: [String] {
+        [search.trimmingCharacters(in: .whitespacesAndNewlines), selectedCategory ?? "", selectedStatus, selectedSort]
+    }
+
+    var body: some View {
+        if horizontalSizeClass != .regular {
+            NavigationStack(path: $navigationPath) {
+                homeList
+                    .navigationDestination(for: HomeRoute.self) { route in
+                        switch route {
+                        case .novel(let novel):
+                            NovelDetailView(novel: novel)
+                        case .reader(let launch):
+                            ReaderView(
+                                novel: launch.novel,
+                                chapterOrder: launch.chapterOrder,
+                                preloadedChapters: launch.preloadedChapters
+                            )
+                        }
+                    }
+            }
+            // 标签栏属于发现页根层；进入详情或阅读器后让内容获得完整高度。
+            .toolbar(navigationPath.isEmpty ? .visible : .hidden, for: .tabBar)
+        } else {
+            NavigationSplitView {
+                homeList
+                    .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
+            } detail: {
+                NavigationStack {
+                    if let selectedReaderLaunch {
+                        ReaderView(
+                            novel: selectedReaderLaunch.novel,
+                            chapterOrder: selectedReaderLaunch.chapterOrder,
+                            preloadedChapters: selectedReaderLaunch.preloadedChapters
+                        )
+                    } else if let selectedNovel {
+                        NovelDetailView(novel: selectedNovel)
+                    } else {
+                        ContentUnavailableView(
+                            "选择一本书",
+                            systemImage: "book.closed",
+                            description: Text("从书单打开详情，或从继续阅读接着读")
+                        )
+                    }
+                }
+            }
+            .navigationSplitViewStyle(.balanced)
+        }
+    }
+
+    private var homeList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if let recentReading {
+                    VStack(alignment: .leading, spacing: 0) {
+                        sectionHeader("继续阅读")
+                            .padding(.bottom, 12)
+                        continueReadingHero(recentReading)
+                    }
+                    .padding(.top, 16)
+                    .padding(.bottom, 28)
+                    .transition(readingContextTransition)
+                } else if bookshelf != nil {
+                    startExploringHint
+                        .padding(.top, 16)
+                        .padding(.bottom, 22)
+                        .transition(readingContextTransition)
+                }
+
+                sectionHeader(
+                    selectedSort == "title" ? "按书名浏览" : (selectedSort == "chapter_count" ? "章节最多" : "最近更新"),
+                    trailing: totalNovelCount > 0 ? "\(totalNovelCount) 本" : nil
+                )
+                .padding(.bottom, 12)
+
+                if !categories.isEmpty {
+                    categoryChipsBar
+                        .padding(.bottom, 12)
+                }
+
+                catalogContent
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
+        }
+        .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.always, axes: .vertical)
+        // Liquid Glass TabBar floats over the scroll content on iOS 26;
+        // reserve a small tail so the final row can rest clear of the bar.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear
+                .frame(height: 24)
+        }
+        .pageBackground(.browsing)
+        .navigationTitle("发现")
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索书名或作者")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                categoryMenu
+            }
+        }
+        .refreshable {
+            await reload()
+            await loadReadingContext()
+        }
+        .task(id: ContentAccessStore.shared.mode) {
+            if ContentAccessStore.shared.mode == "safe" {
+                novels.removeAll { $0.isRestricted }
+                bookshelf = nil
+            }
+            async let readingContext: Void = loadReadingContext()
+            await reload()
+            await readingContext
+        }
+        .onChange(of: search) { _, _ in
+            scheduleReload()
+        }
+        .onChange(of: selectedCategory) { _, _ in
+            scheduleReload()
+        }
+        .onChange(of: selectedStatus) { _, _ in scheduleReload() }
+        .onChange(of: selectedSort) { _, _ in scheduleReload() }
+        .onChange(of: navigationPath) { _, newPath in
+            guard newPath.isEmpty else { return }
+            Task { await loadReadingContext() }
+        }
+        .sensoryFeedback(.selection, trigger: interactionFeedback)
+    }
+
+    private var readingContextTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity.animation(.easeOut(duration: 0.16))
+        }
+        return .offset(y: 8).combined(with: .opacity)
+    }
+
+    @ViewBuilder
+    private var catalogContent: some View {
+        if isLoading && novels.isEmpty {
+            ProgressView("加载中…")
+                .frame(maxWidth: .infinity, minHeight: 220)
+        } else if let errorMessage, novels.isEmpty {
+            ContentUnavailableView {
+                Label("加载失败", systemImage: "wifi.slash")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await reload() } }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.primary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 220)
+        } else if novels.isEmpty {
+            emptyState
+                .frame(maxWidth: .infinity, minHeight: 220)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await reload() }
+                    }
+                }
+                ForEach(novels.filter { ContentAccessStore.shared.mode == "adult" || !$0.isRestricted }) { novel in
+                    novelRow(novel)
+                        .onAppear {
+                            if novel.id == novels.last?.id { loadMoreIfNeeded() }
+                        }
+                    if novel.id != novels.last?.id {
+                        Divider()
+                            .padding(.leading, 76)
+                    }
+                }
+
+                if isLoadingMore {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                } else if let loadMoreError {
+                    Button(loadMoreError) { loadMoreIfNeeded() }
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(AppTheme.danger)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+                }
+            }
+        }
+    }
+
+    /// 紧凑宽度直接持有导航目标；宽屏则更新分栏详情选择。
+    @ViewBuilder
+    private func novelRow(_ novel: Novel) -> some View {
+        Button {
+            selectedReaderLaunch = nil
+            if horizontalSizeClass != .regular {
+                navigationPath.append(.novel(novel))
+            } else {
+                selectedNovel = novel
+            }
+        } label: {
+            NovelCardView(
+                novel: novel,
+                isSelected: horizontalSizeClass == .regular && selectedNovel?.id == novel.id
+            )
+        }
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("catalog.\(novel.id)")
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        let trimmed = search.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            ContentUnavailableView.search(text: trimmed)
+        } else if selectedCategory != nil {
+            ContentUnavailableView(
+                "没有作品",
+                systemImage: "tray",
+                description: Text("换个分类试试")
+            )
+        } else {
+            ContentUnavailableView(
+                "暂时没有作品",
+                systemImage: "books.vertical"
+            )
+        }
+    }
+
+    private func sectionHeader(_ title: String, trailing: String? = nil) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Spacer(minLength: 12)
+            if let trailing {
+                Text(trailing)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+    }
+
+    private func continueReadingHero(_ item: RecentItem) -> some View {
+        let progress = min(max(item.scrollPercent, 0), 1)
+        return Button {
+            openRecent(item)
+        } label: {
+            HStack(alignment: .top, spacing: 16) {
+                NovelCoverView(
+                    novel: item.asNovel,
+                    size: CGSize(width: 88, height: 124)
+                )
+                .shadow(color: AppTheme.cardShadow, radius: 8, y: 4)
+
+                VStack(alignment: .leading, spacing: 9) {
+                    Text(item.novelTitle)
+                        .font(serifFont(.title3, .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .appTextLineLimit(2)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("第 \(item.chapterOrder) 章")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.primary)
+                        if let chapterTitle = continueReadingChapterTitle(item) {
+                            Text(chapterTitle)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .appTextLineLimit(2)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        progressLayout {
+                            Text("本章进度")
+                            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
+                            Text("已读 \(Int((progress * 100).rounded()))%")
+                                .contentTransition(.numericText())
+                                .monospacedDigit()
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+
+                        ProgressView(value: progress, total: 1)
+                            .tint(AppTheme.primary)
+                    }
+
+                    Label("继续阅读", systemImage: "arrow.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.primary)
+                }
+            }
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+        .accessibilityLabel("继续阅读《\(item.novelTitle)》")
+        .accessibilityValue("第 \(item.chapterOrder) 章，本章已读 \(Int((progress * 100).rounded()))%")
+        .accessibilityHint("打开并从上次位置继续")
+    }
+
+    private func continueReadingChapterTitle(_ item: RecentItem) -> String? {
+        let title = item.chapterTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+
+        let normalizedTitle = title.components(separatedBy: .whitespacesAndNewlines).joined()
+        let normalizedOrder = "第\(item.chapterOrder)章"
+        return normalizedTitle == normalizedOrder ? nil : title
+    }
+
+    private var progressLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout())
+    }
+
+    private var startExploringHint: some View {
+        Label("从最近更新里挑一本开始阅读", systemImage: "sparkles")
+            .font(.subheadline)
+            .foregroundStyle(AppTheme.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var categoryChipsBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                categoryChip(title: "全部", category: nil)
+                ForEach(categories, id: \.self) { cat in
+                    categoryChip(title: cat, category: cat)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+        }
+        .padding(.horizontal, -16)
+    }
+
+    private func categoryChip(title: String, category: String?) -> some View {
+        let isSelected = (selectedCategory == category)
+        return Button {
+            withAnimation(reduceMotion ? nil : AppMotion.structural) {
+                setCategory(category)
+            }
+            UISelectionFeedbackGenerator().selectionChanged()
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textSecondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background {
+                    if isSelected {
+                        Capsule()
+                            .fill(AppTheme.primary.opacity(0.12))
+                            .matchedGeometryEffect(id: "activeCategoryPill", in: categoryNamespace)
+                    } else {
+                        Capsule()
+                            .fill(Color.clear)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var categoryMenu: some View {
+        Menu {
+            Picker("状态", selection: $selectedStatus) {
+                Text("全部状态").tag("")
+                Text("连载中").tag("ongoing")
+                Text("已完结").tag("completed")
+            }
+            Picker("排序", selection: $selectedSort) {
+                Text("最近更新").tag("updated_at")
+                Text("书名 A–Z").tag("title")
+                Text("章节最多").tag("chapter_count")
+            }
+            Divider()
+            Button {
+                setCategory(nil)
+            } label: {
+                if selectedCategory == nil {
+                    Label("全部", systemImage: "checkmark")
+                } else {
+                    Text("全部")
+                }
+            }
+
+            if !categories.isEmpty {
+                Divider()
+                ForEach(categories, id: \.self) { category in
+                    Button {
+                        setCategory(category)
+                    } label: {
+                        if selectedCategory == category {
+                            Label(category, systemImage: "checkmark")
+                        } else {
+                            Text(category)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: selectedCategory == nil && selectedStatus.isEmpty && selectedSort == "updated_at"
+                ? "line.3.horizontal.decrease.circle"
+                : "line.3.horizontal.decrease.circle.fill")
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .accessibilityLabel("筛选与排序")
+    }
+
+    private func setCategory(_ category: String?) {
+        guard selectedCategory != category else { return }
+        selectedCategory = category
+        interactionFeedback &+= 1
+    }
+
+    private func openRecent(_ item: RecentItem) {
+        let launch = item.asLaunch
+        selectedNovel = nil
+        if horizontalSizeClass != .regular {
+            navigationPath.append(.reader(launch))
+        } else {
+            selectedReaderLaunch = launch
+        }
+    }
+
+    /// 搜索与分类共用同一条防抖加载通道，避免并发 reload 竞态。
+    private func scheduleReload() {
+        reloadTask?.cancel()
+        reloadTask = Task {
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled else { return }
+            await reload()
+        }
+    }
+
+    func reload() async {
+        loadMoreError = nil
+        let ticket = requests.begin(catalogQuery)
+        isLoading = true
+        isLoadingMore = false
+        await fetchPage(1, append: false, ticket: ticket)
+    }
+
+    private func loadReadingContext() async {
+        guard APIClient.shared.isAuthenticated else { return }
+        do {
+            let response: BookshelfResponse = try await APIClient.shared.getReader(
+                "/api/bookshelf",
+                auth: true
+            )
+            guard !Task.isCancelled else { return }
+            // Animate structural changes only; progress refreshes keep the existing entrance in place.
+            let changesLayout = bookshelf == nil || bookshelf?.recent.isEmpty != response.recent.isEmpty
+            if changesLayout {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1)) {
+                    bookshelf = response
+                }
+            } else {
+                bookshelf = response
+            }
+        } catch {
+            // 阅读入口不是发现页的阻塞条件，书架请求失败时继续展示目录。
+        }
+    }
+
+    private func loadMoreIfNeeded() {
+        guard !isLoading, !isLoadingMore, errorMessage == nil, page < totalPages,
+              let ticket = requests.beginNext(catalogQuery) else { return }
+        isLoadingMore = true
+        let target = page + 1
+        Task { await fetchPage(target, append: true, ticket: ticket) }
+    }
+
+    private func fetchPage(_ target: Int, append: Bool, ticket: ListRequestGuard<[String]>.Ticket) async {
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+                isLoadingMore = false
+            }
+        }
+        do {
+            var params: [String: String] = [
+                "page": String(target),
+                "limit": "20",
+                "sort": ticket.query[3],
+                "order": ticket.query[3] == "title" ? "asc" : "desc",
+                "contentMode": ContentAccessStore.shared.mode,
+            ]
+            let trimmed = ticket.query[0]
+            if !trimmed.isEmpty { params["search"] = trimmed }
+            if !ticket.query[1].isEmpty { params["category"] = ticket.query[1] }
+            if !ticket.query[2].isEmpty { params["status"] = ticket.query[2] }
+
+            let r: NovelListResponse = try await APIClient.shared.getReader("/api/novels?" + Self.query(params))
+            guard !Task.isCancelled, requests.accepts(ticket, query: catalogQuery) else { return }
+            if append {
+                let existing = Set(novels.map(\.id))
+                novels += r.novels.filter { !existing.contains($0.id) }
+            } else {
+                novels = r.novels
+                categories = r.availableCategories
+                totalNovelCount = r.total
+            }
+            page = r.page
+            totalPages = r.totalPages
+            errorMessage = nil
+            loadMoreError = nil
+            requests.finish(ticket, succeeded: true)
+            isLoading = false
+            isLoadingMore = false
+            await CoverPrefetcher.shared.prefetch(r.novels)
+        } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: catalogQuery) else { return }
+            let message = AppCopy.friendlyError(error)
+            if append {
+                loadMoreError = "加载失败，点按重试"
+            } else {
+                errorMessage = message
+            }
+        }
+    }
+
+    static func query(_ params: [String: String]) -> String {
+        ReaderQuery.encode(params)
+    }
+}

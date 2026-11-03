@@ -1,0 +1,36 @@
+# Xcode
+DerivedData/
+.ci-cache/
+build/
+*.xcuserstate
+xcuserdata/
+
+# XcodeGen 生成物（.xcodeproj 由 CI/本地 `xcodegen generate` 生成，不入库）
+*.xcodeproj
+
+# iOS 构建产物
+*.ipa
+*.dSYM.zip
+*.dSYM
+Payload/
+audit-results/
+artifacts/
+build-artifacts/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Python 构建脚本缓存
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# 环境变量
+.env
+.env.*
+
+# impeccable
+.impeccable/

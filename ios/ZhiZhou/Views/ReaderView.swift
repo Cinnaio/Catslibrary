@@ -1,0 +1,1666 @@
+import SwiftUI
+import ZhiZhouCore
+import UIKit
+
+private final class ReaderPercentBox {
+    var value: Double = 0
+}
+
+/// Caches the expensive text-to-NSAttributedString conversion for each
+/// paragraph. Scroll progress updates the reader chrome frequently, but does
+/// not change the paragraph's visual content.
+private final class ReaderParagraphTextCache {
+    private struct Entry {
+        let text: String
+        let thoughtsKey: String
+        let renderKey: String
+        let value: NSAttributedString
+    }
+
+    private var entries: [Int: Entry] = [:]
+
+    func value(
+        for index: Int,
+        text: String,
+        thoughtsKey: String,
+        renderKey: String,
+        make: () -> NSAttributedString
+    ) -> NSAttributedString {
+        if let entry = entries[index],
+           entry.text == text,
+           entry.thoughtsKey == thoughtsKey,
+           entry.renderKey == renderKey {
+            return entry.value
+        }
+
+        let value = make()
+        entries[index] = Entry(
+            text: text,
+            thoughtsKey: thoughtsKey,
+            renderKey: renderKey,
+            value: value
+        )
+        return value
+    }
+
+    func removeAll() {
+        entries.removeAll(keepingCapacity: true)
+    }
+}
+
+/// 中文段首缩进：两个全角空格（U+3000 宽恰为一个汉字，随字号自动缩放）。
+let paragraphIndent = "\u{3000}\u{3000}"
+
+/// 阅读器：滚动/翻页双模式、纸面主题、点击翻页开关、正文双向滑动、按段/页恢复进度。
+///
+/// 布局：正文占满阅读区（点击中部可收起/展开阅读控制），顶部为系统导航条
+/// （纸面底色），底部安全区保留上一章/下一章/页码控制，避免正文被遮挡。
+struct ReaderView: View {
+    let novel: Novel
+    let preloadedChapters: [ChapterMeta]
+    let offlineOnly: Bool
+    @State var chapterOrder: Int
+
+    @Environment(AppState.self) private var appState
+    @Environment(ReaderSettingsStore.self) private var settings
+    @Environment(OfflineReadingStore.self) private var offlineStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var systemScheme
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var chapter: ChapterFull?
+    @State private var chapterMetas: [ChapterMeta] = []
+    @State private var chapterCount = 0
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var statsOwner = UUID()
+    @State private var showTOC = false
+    @State private var showSettings = false
+    @State private var showChrome = true
+    @State private var scrollTapGuard = ReaderTapGuard()
+    @State private var scrolledParagraph: Int?
+    @State private var pendingScrollRestore: Int?
+    @State private var paragraphCount = 0
+    /// 章节正文一次性切分缓存，避免滚动时反复 split 整章字符串。
+    @State private var paragraphs: [String] = []
+    @State private var saveTask: Task<Void, Never>?
+    @State private var percentBox = ReaderPercentBox()
+    /// 展示用百分比（@Observable 之外的可变参考 → 派生为可观察 State，驱动 Chrome 刷新）。
+    @State private var progressPercent = 0.0
+    @State private var suppressPercent = false
+    @State private var paragraphTextCache = ReaderParagraphTextCache()
+    /// 翻页模式：分页结果、当前页、每页对应的整章字符区间、待恢复的进度百分比。
+    @State private var pages: [NSAttributedString] = []
+    @State private var pageRanges: [NSRange] = []
+    @State private var pageIllustrations: [Int: ChapterIllustration] = [:]
+    @State private var chapterIllustrations: ChapterIllustrationsResponse?
+    @State private var illustrationPositions: [String: Int] = [:]
+    @State private var illustrationsError: String?
+    @State private var showIllustrationsNotice = false
+    @State private var illustrationsAttempt = 0
+    @State private var currentPage = 0
+    @State private var pendingRestorePercent: Double?
+    @State private var interactionFeedback = 0
+    @State private var fontRevision = 0
+    @State private var chapterIsSaved = false
+    /// 底部控制区的稳定高度；隐藏时仍保留这段安全区，避免正文上下跳动。
+    private let readerChromeHeight: CGFloat = 78
+    /// Scroll target before the chapter title. Paragraph IDs start at zero.
+    private let readerTopScrollID = -1
+    @State private var chapterThoughts: [Thought] = []
+    @State private var thoughtParagraphPositions: [String: Int] = [:]
+    @State private var thoughtsLoadTask: Task<Void, Never>?
+    @State private var isLoadingThoughts = false
+    @State private var thoughtsError: String?
+    @State private var activeThoughtParagraph: Int?
+    @State private var activeThoughtSelection = ""
+    @State private var showThoughtPanel = false
+    @State private var chapterSwipeProgress: CGFloat = 0
+    @State private var hasFiredSwipeHaptic = false
+    @State private var isSelectingBodyText = false
+    @State private var showBookmark = false
+    @State private var showRecap = false
+    @State private var recapEnabled = false
+    @State private var autoScrollPaused = true
+
+    private var previousChapter: ChapterMeta? {
+        chapterMetas.filter { $0.order < chapterOrder }.max { $0.order < $1.order }
+    }
+
+    private var statisticsVisible: Bool {
+        !isLoading && chapter != nil && pendingScrollRestore == nil
+            && (!novel.isRestricted || (!offlineOnly && ContentAccessStore.shared.mode == "adult"))
+            && !showTOC && !showSettings && !showThoughtPanel && !showBookmark
+            && !showRecap && !showIllustrationsNotice && scenePhase == .active
+    }
+
+    private var autoScrollActive: Bool {
+        !autoScrollPaused && settings.pageMode == "scroll" && !isLoading && chapter != nil
+            && pendingScrollRestore == nil && !showTOC && !showSettings && !showThoughtPanel
+            && !showBookmark && !showRecap && !showIllustrationsNotice && !isSelectingBodyText && scenePhase == .active
+    }
+
+    init(
+        novel: Novel,
+        chapterOrder: Int,
+        preloadedChapters: [ChapterMeta] = [],
+        offlineOnly: Bool = false
+    ) {
+        self.novel = novel
+        self.preloadedChapters = preloadedChapters
+        self.offlineOnly = offlineOnly
+        _chapterOrder = State(initialValue: chapterOrder)
+    }
+
+    var totalOrderCount: Int {
+        if offlineOnly {
+            return max(chapterCount, chapterMetas.map(\.order).max() ?? 0)
+        }
+        return max(chapterCount, novel.chapterCount, chapterMetas.count)
+    }
+
+    /// 系统深色：跟随 @Environment 而非 UIScreen.main（多窗口/iPad 更准，且实时响应外观切换）。
+    private var systemIsDark: Bool { systemScheme == .dark }
+    private var paper: Color { settings.backgroundColor(systemDark: systemIsDark) }
+    private var ink: Color { settings.textColor(systemDark: systemIsDark) }
+    private var inkUIColor: UIColor { UIColor(ink) }
+    private var scheme: ColorScheme? { settings.colorSchemeOverride(systemDark: systemIsDark) }
+    private var readerTitleFont: Font { settings.titleFont(for: dynamicTypeSize) }
+    private var readerBodyUIFont: UIFont { settings.bodyUIFont(for: dynamicTypeSize) }
+    private var readerTitleUIFont: UIFont { settings.titleUIFont(for: dynamicTypeSize) }
+    private var readerLineSpacing: CGFloat { settings.lineSpacing(for: dynamicTypeSize) }
+    private var readerParagraphSpacing: CGFloat { settings.paragraphSpacing(for: dynamicTypeSize) }
+
+    private var thoughtsByParagraph: [Int: [Thought]] {
+        Dictionary(grouping: chapterThoughts) {
+            thoughtParagraphPositions[$0.id] ?? -1
+        }
+    }
+
+    private var currentDisplayName: String {
+        guard let user = appState.user else { return "" }
+        let name = user.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? user.id : name
+    }
+
+    private var percentText: String {
+        "已读 \(Int((progressPercent * 100).rounded()))%"
+    }
+
+    private var atChapterEnd: Bool {
+        settings.pageMode == "page"
+            && !pages.isEmpty
+            && currentPage == pages.count - 1
+            && hasNextChapter
+    }
+
+    private var hasPreviousChapter: Bool {
+        offlineOnly
+            ? chapterMetas.contains { $0.order == chapterOrder - 1 }
+            : chapterOrder > 1
+    }
+
+    private var hasNextChapter: Bool {
+        offlineOnly
+            ? chapterMetas.contains { $0.order == chapterOrder + 1 }
+            : chapterOrder < totalOrderCount
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            if settings.pageMode == "page" {
+                pagedReader(geo: geo)
+            } else {
+                readerScroll(geo: geo)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if !showChrome {
+                readerChromeRevealButton
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 14)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.8).combined(with: .opacity))
+            }
+        }
+        .background(paper.ignoresSafeArea())
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(chapter?.title ?? "阅读")
+        // 顶部系统区域保持固定占位；只切换控制内容，避免正文在收起控制时重新布局。
+        .toolbarBackground(paper, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar(.hidden, for: .bottomBar)
+        .toolbar(.hidden, for: .tabBar)
+        .statusBarHidden(false)
+        .persistentSystemOverlays(.automatic)
+        .toolbar {
+            if showChrome {
+                ToolbarItem(placement: .topBarTrailing) {
+                    readerToolbarGroup
+                }
+            }
+        }
+        .sensoryFeedback(.selection, trigger: chapterOrder)
+        .sensoryFeedback(.selection, trigger: currentPage)
+        .sensoryFeedback(.selection, trigger: interactionFeedback)
+        .sheet(isPresented: $showBookmark) {
+            if let chapter {
+                BookmarkEditorView(novelID: novel.id, chapterID: chapter.id, chapterTitle: chapter.title)
+            }
+        }
+        .sheet(isPresented: $showRecap) {
+            if let previousChapter {
+                ReaderRecapView(source: .chapter(id: previousChapter.id, title: previousChapter.title))
+            }
+        }
+        .sheet(isPresented: $showTOC) {
+            ChapterListView(
+                novel: novel,
+                currentOrder: chapterOrder,
+                initialChapters: chapterMetas
+            ) { order in
+                go(to: order)
+            }
+            .preferredColorScheme(scheme)
+            .presentationBackground(AppTheme.canvas)
+            .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+        }
+        .sheet(isPresented: $showSettings) {
+            ReaderSettingsView()
+                .preferredColorScheme(scheme)
+                .presentationBackground(AppTheme.background)
+                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showThoughtPanel, onDismiss: {
+            activeThoughtParagraph = nil
+            activeThoughtSelection = ""
+        }) {
+            if let index = activeThoughtParagraph,
+               paragraphs.indices.contains(index),
+               let chapter {
+                ThoughtPanelView(
+                    chapterTitle: chapter.title,
+                    paragraphExcerpt: paragraphExcerpt(for: paragraphs[index]),
+                    selectedText: activeThoughtSelection,
+                    thoughts: thoughtsByParagraph[index] ?? [],
+                    currentUserID: appState.user?.id,
+                    defaultDisplayName: currentDisplayName,
+                    isLoading: isLoadingThoughts,
+                    loadError: thoughtsError,
+                    canCompose: !offlineOnly && appState.user != nil,
+                    onRetry: { loadThoughts(for: chapter.id) },
+                    onSubmit: { text, displayName in
+                        try await submitThought(text: text, displayName: displayName)
+                    },
+                    onDelete: { id in
+                        try await deleteThought(id: id)
+                    }
+                )
+                .preferredColorScheme(scheme)
+                .presentationBackground(AppTheme.canvas)
+                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                .presentationDragIndicator(.visible)
+            } else if let chapter, let unmatched = thoughtsByParagraph[-1], !unmatched.isEmpty {
+                ThoughtPanelView(
+                    chapterTitle: chapter.title, paragraphExcerpt: "原段落已变更或暂时无法定位，以下想法保留供查看。",
+                    selectedText: "", thoughts: unmatched, currentUserID: appState.user?.id,
+                    defaultDisplayName: currentDisplayName, isLoading: isLoadingThoughts,
+                    loadError: thoughtsError, canCompose: false,
+                    onRetry: { loadThoughts(for: chapter.id) },
+                    onSubmit: { _, _ in throw APIError.invalidResponse },
+                    onDelete: { try await deleteThought(id: $0) },
+                    panelTitle: "原段落已变更的想法"
+                )
+            } else {
+                Color.clear
+            }
+        }
+        .preferredColorScheme(scheme)
+        .alert("章节插图", isPresented: $showIllustrationsNotice) {
+            if illustrationsError != nil && !offlineOnly {
+                Button("重新加载插图") { illustrationsAttempt += 1 }
+            }
+            Button("关闭", role: .cancel) {}
+        } message: {
+            Text(illustrationsError ?? "部分插图与当前正文位置不匹配，暂未显示。")
+        }
+        .modifier(ReaderStatisticsModifier(owner: statsOwner, novelID: novel.id,
+            chapterID: chapter?.id, mode: offlineOnly ? "safe" : ContentAccessStore.shared.mode,
+            visible: statisticsVisible))
+        .task(id: "\(chapterOrder)-\(ContentAccessStore.shared.mode)") { await load() }
+        .task(id: ContentAccessStore.shared.revision) {
+            recapEnabled = false
+            guard !offlineOnly, appState.user != nil else { return }
+            let revision = ContentAccessStore.shared.revision
+            let status: ReaderAIStatus? = try? await APIClient.shared.get("/api/ai/status", auth: true)
+            guard !Task.isCancelled, revision == ContentAccessStore.shared.revision else { return }
+            recapEnabled = status?.features.recap == true
+        }
+        .task(id: "\(chapter?.id ?? "-"):\(ContentAccessStore.shared.revision):\(illustrationsAttempt)") {
+            await loadIllustrations()
+        }
+        .onChange(of: settings.illustrationsEnabled) { _, _ in
+            preserveScrollPosition()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .zhiZhouFontStoreDidChange)) { _ in
+            fontRevision &+= 1
+        }
+        .onChange(of: chapterOrder) { _, _ in
+            resetForNewChapter()
+        }
+        .onChange(of: settings.pageMode) { _, mode in
+            autoScrollPaused = true
+            prepareForModeChange(to: mode)
+        }
+        .onChange(of: isSelectingBodyText) { _, selecting in
+            if selecting { autoScrollPaused = true }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background || phase == .inactive {
+                autoScrollPaused = true
+                saveProgressNow()
+            } else if phase == .active {
+                flushProgress()
+            }
+        }
+        .onAppear { applyWakeLock() }
+        .onChange(of: settings.wakeLockEnabled) { _, _ in applyWakeLock() }
+        .onDisappear {
+            autoScrollPaused = true
+            UIApplication.shared.isIdleTimerDisabled = false
+            saveTask?.cancel()
+            thoughtsLoadTask?.cancel()
+            saveProgressNow()
+        }
+        .readerContentAccess(isRestricted: novel.isRestricted)
+    }
+
+    /// 阅读区内容：加载中 / 加载失败 / 章节正文（居中标题 + 带首行缩进的段落）。
+    @ViewBuilder
+    private func readingContent(width: CGFloat) -> some View {
+        if isLoading && chapter == nil {
+            ProgressView("加载中…")
+                .tint(ink)
+                .frame(maxWidth: .infinity, minHeight: 300)
+        } else if let errorMessage, chapter == nil {
+            ContentUnavailableView {
+                Label("无法打开这一章", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await load() } }
+                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+            }
+            .foregroundStyle(ink)
+            .frame(maxWidth: .infinity, minHeight: 300)
+        } else if let chapter {
+            let paragraphThoughts = thoughtsByParagraph
+            let mediaByPosition = Dictionary(grouping: resolvedIllustrations, by: \.position).mapValues { $0.map(\.item) }
+            let renderKey = paragraphRenderKey
+            Color.clear
+                .frame(height: 1)
+                .id(readerTopScrollID)
+            illustrationsNotice
+            illustrationViews(items: mediaByPosition[-1] ?? [])
+            Text(chapter.title)
+                .font(readerTitleFont)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(ink)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 14)
+                .contentShape(Rectangle())
+                .simultaneousGesture(SpatialTapGesture().onEnded { value in
+                    handleScrollTap(x: value.location.x, width: width)
+                })
+            ForEach(paragraphs.indices, id: \.self) { index in
+                readerParagraph(
+                    index: index,
+                    text: paragraphs[index],
+                    thoughts: paragraphThoughts[index] ?? [],
+                    renderKey: renderKey,
+                    width: width
+                )
+                    .id(index)
+                illustrationViews(items: mediaByPosition[index] ?? [])
+            }
+            illustrationViews(items: mediaByPosition[paragraphs.count] ?? [])
+            if hasNextChapter {
+                nextChapterButton
+            }
+        }
+    }
+
+    private var resolvedIllustrations: [(item: ChapterIllustration, position: Int)] {
+        guard settings.illustrationsEnabled, let data = chapterIllustrations, let chapter else { return [] }
+        return data.illustrations.filter { !$0.deleted && $0.chapterId == chapter.id }.compactMap { item -> (item: ChapterIllustration, position: Int)? in
+            guard let position = illustrationPositions[item.id] else { return nil }
+            return (item, position)
+        }.sorted {
+            $0.item.order == $1.item.order ? $0.item.id < $1.item.id : $0.item.order < $1.item.order
+        }
+    }
+
+    @ViewBuilder
+    private func illustrationViews(items: [ChapterIllustration]) -> some View {
+        ForEach(items) { item in
+            ReaderMediaView(path: item.imagePath, caption: item.caption,
+                            aspectRatio: CGFloat(item.width) / CGFloat(max(1, item.height)))
+                .frame(maxWidth: item.size == "medium" ? 440 : .infinity)
+                .frame(maxWidth: .infinity)
+                .id("illustration:\(item.id)")
+        }
+    }
+
+    @ViewBuilder
+    private var illustrationsNotice: some View {
+        if settings.illustrationsEnabled {
+            if let illustrationsError {
+                VStack(spacing: 8) {
+                    Text(illustrationsError).font(.footnote).foregroundStyle(ink)
+                    if !offlineOnly {
+                        Button("重新加载插图") { illustrationsAttempt += 1 }
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                    }
+                }
+            } else if let data = chapterIllustrations,
+                      data.illustrations.filter({ !$0.deleted }).count > resolvedIllustrations.count {
+                Text("部分插图与当前正文位置不匹配，暂未显示。")
+                    .font(.footnote).foregroundStyle(ink)
+            }
+        }
+    }
+
+    private func preserveScrollPosition() {
+        guard settings.pageMode != "page", chapter != nil else { return }
+        let target = currentReadingParagraphIndex ?? 0
+        suppressPercent = true
+        pendingScrollRestore = target
+    }
+
+    private func loadIllustrations() async {
+        guard let chapter else { return }
+        guard !offlineOnly else {
+            illustrationsError = "离线章节仅包含正文；插图需联网查看。"
+            return
+        }
+        let revision = ContentAccessStore.shared.revision
+        do {
+            let response = try await ReaderMediaAPI.illustrations(chapterID: chapter.id)
+            guard !Task.isCancelled, self.chapter?.id == chapter.id,
+                  revision == ContentAccessStore.shared.revision else { return }
+            guard response.contentHash == IllustrationAnchor.contentHash(chapter.content) else {
+                illustrationsError = "正文版本已更新，重新打开章节后可查看插图。"
+                return
+            }
+            preserveScrollPosition()
+            illustrationPositions = Dictionary(uniqueKeysWithValues: response.illustrations.compactMap { item in
+                item.anchor.resolve(in: paragraphs, sameRevision: item.chapterRevision == response.chapterRevision).map { (item.id, $0) }
+            })
+            chapterIllustrations = response
+            illustrationsError = nil
+        } catch is CancellationError {
+        } catch {
+            guard !Task.isCancelled, self.chapter?.id == chapter.id,
+                  revision == ContentAccessStore.shared.revision else { return }
+            illustrationsError = "插图暂时无法加载，正文可继续阅读。"
+        }
+    }
+
+    /// 段落级段评入口：正文保持干净，仅在已有段评时显示轻量标记；选中文字可直接引用。
+    private func readerParagraph(
+        index: Int,
+        text: String,
+        thoughts: [Thought],
+        renderKey: String,
+        width: CGFloat
+    ) -> some View {
+        SelectableTextView(
+            attributedText: paragraphAttributedText(
+                index: index,
+                text: text,
+                thoughts: thoughts,
+                renderKey: renderKey
+            ),
+            textColor: inkUIColor,
+            menuTitle: thoughts.isEmpty ? "写段评" : "查看段评",
+            isThoughtActionEnabled: !offlineOnly,
+            accessibilityID: "reader.paragraph.\(index)",
+            thoughtCount: thoughts.count,
+            thoughtMarkerColor: UIColor(AppTheme.primary),
+            onThoughtMarkerTap: { openThoughtPanel(for: index) },
+            onBodyTap: { handleScrollTap(x: $0.x, width: width) },
+            onSelectionChange: { isSelectingBodyText = $0 }
+        ) { selectedText, _ in
+            openThoughtPanel(for: index, selectedText: selectedText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityHint("选中文字后从菜单进入段评")
+    }
+
+    private func paragraphAttributedText(
+        index: Int,
+        text: String,
+        thoughts: [Thought],
+        renderKey: String
+    ) -> NSAttributedString {
+        let thoughtsKey = thoughts.isEmpty
+            ? ""
+            : thoughts.map { "\($0.id):\($0.selectedText)" }.joined(separator: "|")
+        return paragraphTextCache.value(
+            for: index,
+            text: text,
+            thoughtsKey: thoughtsKey,
+            renderKey: renderKey
+        ) {
+            let style = NSMutableParagraphStyle()
+            style.lineSpacing = readerLineSpacing
+            style.alignment = .natural
+            let renderedText = NSMutableAttributedString(
+                string: paragraphIndent + text,
+                attributes: [
+                    .font: readerBodyUIFont,
+                    .foregroundColor: inkUIColor,
+                    .paragraphStyle: style,
+                ]
+            )
+            let indentLength = paragraphIndent.utf16.count
+            for range in ReaderTextHighlight.ranges(
+                in: text,
+                matching: thoughts.map(\.selectedText),
+                includeParagraph: thoughts.contains { IllustrationAnchor.normalize($0.selectedText).isEmpty }
+            ) {
+                renderedText.addAttributes(
+                    thoughtHighlightAttributes,
+                    range: NSRange(
+                        location: indentLength + range.location,
+                        length: range.length
+                    )
+                )
+            }
+            return renderedText
+        }
+    }
+
+    private var paragraphRenderKey: String {
+        [
+            chapter?.id ?? "loading",
+            String(settings.fontSizeIndex),
+            "\(settings.lineHeight)",
+            "\(readerLineSpacing)",
+            "\(readerParagraphSpacing)",
+            settings.useSerif ? "serif" : "system",
+            String(describing: dynamicTypeSize),
+            String(fontRevision),
+            settings.themeName,
+            systemIsDark ? "dark" : "light",
+        ].joined(separator: ":")
+    }
+
+    private var thoughtHighlightAttributes: [NSAttributedString.Key: Any] {
+        [
+            .underlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78),
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .readerThoughtWave: true,
+        ]
+    }
+
+    /// 滚动区。独立成子表达式，避免 body 表达式过复杂导致 Release 下类型检查超时。
+    /// 水平安全区在横屏（灵动岛/刘海）下左右不相等，若交给 ScrollView 自动处理，
+    /// 正文左右留白会被压得一宽一窄。这里关掉自动水平安全区，
+    /// 自己按“两侧取较大值”补一份对称留白，任何方向都左右等宽。
+    private func readerScroll(geo: GeometryProxy) -> some View {
+        let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing)
+        let scrollIdentity = readerScrollIdentity
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: readerParagraphSpacing) {
+                    readingContent(width: max(40, min(geo.size.width, 720) - (sideInset + 22) * 2))
+                }
+                .padding(.horizontal, sideInset + 22)
+                .padding(.top, 18)
+                .padding(.bottom, 24)
+                // 固定正文容器宽度，字号变化时只重新排版，不让 SwiftUI 重新猜测横向尺寸。
+                .frame(width: min(geo.size.width, 720))
+                .frame(maxWidth: .infinity)
+                .scrollTargetLayout()
+                .background {
+                    ReaderAutoScrollDriver(active: autoScrollActive, speed: settings.autoScrollSpeed) {
+                        autoScrollPaused = true
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+            // A chapter change must create a fresh UIScrollView. Clearing the
+            // binding alone leaves the old content offset attached to the reused
+            // scroll container while the next chapter is loading.
+            .id(scrollIdentity)
+            .scrollIndicators(.hidden)
+            .ignoresSafeArea(edges: .horizontal)
+            .background(paper)
+            // 使用系统滚动边缘材质连接正文和固定导航/底部玻璃控制。
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            // 收起底栏仍保留安全区高度以稳定正文位置，但移除底部边缘效果。
+            .scrollEdgeEffectHidden(!showChrome, for: .bottom)
+            .contentShape(Rectangle())
+            .accessibilityHint("正文左滑下一章，右滑上一章；轻点中央显示阅读控制")
+            .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
+                toggleChrome()
+            }
+            // 整个正文都接收横向滑动；与纵向滚动、原生选字同时监听，按方向过滤。
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 18)
+                    .onChanged { value in
+                        updateChapterSwipeProgress(value)
+                    }
+                    .onEnded { value in
+                        handleChapterSwipe(value)
+                        chapterSwipeProgress = 0
+                    }
+            )
+            // 控制区放进 ScrollView 的安全区，滚动到末尾时也不会压住正文。
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                readerChrome
+            }
+            .scrollPosition(id: $scrolledParagraph)
+            .overlay(alignment: chapterSwipeProgress < 0 ? .trailing : .leading) {
+                if chapterSwipeProgress != 0 {
+                    let isReady = abs(chapterSwipeProgress) >= 1.0
+                    Image(systemName: chapterSwipeProgress < 0 ? "chevron.left" : "chevron.right")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(isReady ? AppTheme.primary : ink.opacity(0.36 + abs(chapterSwipeProgress) * 0.38))
+                        .frame(width: 44, height: 52)
+                        .background(
+                            (isReady ? AppTheme.primaryLight.opacity(0.95) : AppTheme.surface.opacity(0.82)),
+                            in: Capsule()
+                        )
+                        .scaleEffect(isReady ? 1.12 : 1.0)
+                        .offset(x: (chapterSwipeProgress < 0 ? 1 : -1) * (12 - abs(chapterSwipeProgress) * 12))
+                        .padding(.horizontal, 8)
+                        .animation(reduceMotion ? nil : AppMotion.state, value: isReady)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .onScrollGeometryChange(for: CGSize.self) { geometry in
+                geometry.contentSize
+            } action: { _, contentSize in
+                guard contentSize.height > 0, let target = pendingScrollRestore else { return }
+                restoreScrollTarget(target, using: proxy, identity: scrollIdentity)
+            }
+            .onChange(of: pendingScrollRestore) { _, target in
+                guard let target else { return }
+                restoreScrollTarget(target, using: proxy, identity: scrollIdentity)
+            }
+            // 按段落更新阅读进度，避免滚动过程中每个 offset 变化都让整个阅读器重算。
+            .onChange(of: scrolledParagraph) { _, index in
+                ReadingStatsStore.shared.activity(owner: statsOwner)
+                updatePercent(from: index)
+            }
+            // 拖动正文时自动收起浮层，轻点恢复。
+            .onScrollPhaseChange { _, newPhase in
+                ReadingStatsStore.shared.activity(owner: statsOwner)
+                let phase: ReaderTapGuard.Phase
+                switch newPhase {
+                case .idle: phase = .idle
+                case .tracking: phase = .tracking
+                default: phase = .moving
+                }
+                scrollTapGuard.updatePhase(
+                    phase,
+                    at: ProcessInfo.processInfo.systemUptime
+                )
+                if newPhase == .interacting { autoScrollPaused = true; hideChrome() }
+            }
+            .onDisappear {
+                scrollTapGuard = ReaderTapGuard()
+            }
+        }
+    }
+
+    private var readerScrollIdentity: String {
+        if let chapter {
+            return "chapter:\(chapter.id)"
+        }
+        return "loading:\(chapterOrder)"
+    }
+
+    /// 翻页阅读区（TabView 负责左右滑动，点按左右区域可选）。水平安全区同样用两侧较大值做对称留白。
+    private func pagedReader(geo: GeometryProxy) -> some View {
+        let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing) + 22
+        // 与滚动模式一致：内容总宽上限 720，再扣对称留白，宽屏下正文不无脑拉满。
+        let contentWidth = max(40, min(geo.size.width, 720) - sideInset * 2)
+        // 页面高度固定；底部安全区单独给阅读控制，不参与正文分页。
+        let contentHeight = max(120, geo.size.height - 8 - readerChromeHeight)
+        let pageSize = CGSize(width: contentWidth, height: contentHeight)
+        let thoughtIDs = chapterThoughts.map(\.id).joined(separator: ",")
+        let mediaKey = resolvedIllustrations.map { "\($0.item.id):\($0.item.version):\($0.position)" }.joined(separator: ",")
+        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(readerParagraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs):\(mediaKey):\(isLoading)"
+
+        return Group {
+            if isLoading && chapter == nil {
+                ProgressView("加载中…")
+                    .tint(ink)
+                    .frame(maxWidth: .infinity, minHeight: 300)
+            } else if let errorMessage, chapter == nil {
+                ContentUnavailableView {
+                    Label("无法打开这一章", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("重试") { Task { await load() } }
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+                }
+                .foregroundStyle(ink)
+                .frame(maxWidth: .infinity, minHeight: 300)
+            } else if pages.isEmpty {
+                ProgressView("正在排版…")
+                    .tint(ink)
+                    .frame(maxWidth: .infinity, minHeight: 300)
+            } else {
+                TabView(selection: $currentPage) {
+                    ForEach(pages.indices, id: \.self) { index in
+                        Group {
+                            if let item = pageIllustrations[index] {
+                                ScrollView {
+                                    ReaderMediaView(path: item.imagePath, caption: item.caption,
+                                                    aspectRatio: CGFloat(item.width) / CGFloat(max(1, item.height)),
+                                                    maximumHeight: max(60, contentHeight - 90))
+                                }
+                                .scrollIndicators(.hidden)
+                                .frame(width: contentWidth, height: contentHeight)
+                            } else {
+                                pagedPage(pages[index], pageIndex: index, width: contentWidth, height: contentHeight)
+                            }
+                        }
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
+                    toggleChrome()
+                }
+            }
+        }
+        .task(id: key) { await rebuildPages(size: pageSize) }
+        .onChange(of: currentPage) { _, page in
+            ReadingStatsStore.shared.activity(owner: statsOwner)
+            updatePageProgress(page)
+        }
+        // 与滚动模式一致，控制区占据真实安全区而不是盖在页面上。
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            readerChrome
+        }
+    }
+
+    /// 单页内容：按排版尺寸顶对齐展示；若个别页因测量误差超出一行，内部可纵向滚动兜底。
+    private func pagedPage(
+        _ text: NSAttributedString,
+        pageIndex: Int,
+        width: CGFloat,
+        height: CGFloat
+    ) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                SelectableTextView(
+                    attributedText: text,
+                    textColor: inkUIColor,
+                    menuTitle: "段评",
+                    isThoughtActionEnabled: !offlineOnly
+                ) { selectedText, selectedRange in
+                    guard pageRanges.indices.contains(pageIndex) else { return }
+                    let location = pageRanges[pageIndex].location + selectedRange.location
+                    guard let paragraphIndex = paragraphIndex(atCharacterLocation: location) else { return }
+                    openThoughtPanel(for: paragraphIndex, selectedText: selectedText)
+                }
+                    .frame(width: width, alignment: .topLeading)
+            }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
+        .frame(width: width, height: height, alignment: .top)
+        .contentShape(Rectangle())
+        // 单页内仅有正文；轻点手势不再包住文末按钮或覆盖原生横向滑动。
+        .simultaneousGesture(SpatialTapGesture().onEnded { value in
+            handlePageTap(x: value.location.x, width: width)
+        })
+    }
+
+    private func handlePageTap(x: CGFloat, width: CGFloat) {
+        guard !pages.isEmpty else { return }
+        guard settings.clickPagingEnabled else {
+            toggleChrome()
+            return
+        }
+        let third = width / 3
+        if x < third {
+            goPage(currentPage - 1)
+        } else if x > width - third {
+            goPage(currentPage + 1)
+        } else {
+            toggleChrome()
+        }
+    }
+
+    private func handleScrollTap(x: CGFloat, width: CGFloat) {
+        guard scrollTapGuard.allowsTap(at: ProcessInfo.processInfo.systemUptime) else { return }
+        guard settings.clickPagingEnabled else {
+            toggleChrome()
+            return
+        }
+        // 保留较窄的边缘热区，避免普通阅读点按意外切章。
+        let edge = width * 0.18
+        if x < edge {
+            go(to: chapterOrder - 1)
+        } else if x > width - edge {
+            go(to: chapterOrder + 1)
+        } else {
+            toggleChrome()
+        }
+    }
+
+    private func updateChapterSwipeProgress(_ value: DragGesture.Value) {
+        let horizontal = value.translation.width
+        let vertical = abs(value.translation.height)
+
+        guard !isLoading, !isSelectingBodyText,
+              abs(horizontal) > 0,
+              abs(horizontal) >= vertical / 0.6,
+              (horizontal < 0 ? hasNextChapter : hasPreviousChapter)
+        else {
+            chapterSwipeProgress = 0
+            hasFiredSwipeHaptic = false
+            return
+        }
+
+        let ratio = min(1, abs(horizontal) / 60)
+        chapterSwipeProgress = (horizontal < 0 ? -1 : 1) * ratio
+        if ratio >= 1.0 {
+            if !hasFiredSwipeHaptic {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                hasFiredSwipeHaptic = true
+            }
+        } else {
+            hasFiredSwipeHaptic = false
+        }
+    }
+
+    private func handleChapterSwipe(_ value: DragGesture.Value) {
+        hasFiredSwipeHaptic = false
+        let horizontal = value.translation.width
+        let vertical = value.translation.height
+
+        // 与 Web 相同，以实际位移和横纵比例判定；短拖动、纵向滚动不切章。
+        guard !isLoading, !isSelectingBodyText,
+              abs(horizontal) >= 60,
+              abs(vertical) <= abs(horizontal) * 0.6
+        else { return }
+
+        if horizontal < 0 {
+            go(to: chapterOrder + 1)
+        } else {
+            go(to: chapterOrder - 1)
+        }
+    }
+
+    private func goPage(_ page: Int) {
+        guard !pages.isEmpty else { return }
+        let target = max(0, min(page, pages.count - 1))
+        guard target != currentPage else { return }
+        if reduceMotion {
+            currentPage = target
+        } else {
+            withAnimation(.easeOut(duration: 0.25)) {
+                currentPage = target
+            }
+        }
+    }
+
+    /// 底部阅读控制：上一章/页码/下一章。翻页到章末时变为居中的“下一章”按钮。
+    private var readerChrome: some View {
+        GlassEffectContainer(spacing: 12) {
+            Group {
+                if atChapterEnd {
+                    nextChapterButton
+                } else {
+                    GlassEffectContainer(spacing: 8) {
+                        HStack(spacing: 8) {
+                            chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: hasPreviousChapter) {
+                                go(to: chapterOrder - 1)
+                            }
+                            readerStatusPill
+                            chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: hasNextChapter) {
+                                go(to: chapterOrder + 1)
+                            }
+                        }
+                    }
+                    .frame(height: 52)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity)
+        .frame(height: readerChromeHeight, alignment: .bottom)
+        .offset(y: (reduceMotion || showChrome) ? 0 : 20)
+        .scaleEffect((reduceMotion || showChrome) ? 1 : 0.96)
+        .opacity(showChrome ? 1 : 0)
+        .allowsHitTesting(showChrome)
+        .accessibilityHidden(!showChrome)
+    }
+
+    private var chapterAvailabilityLabel: String {
+        if !offlineOnly && ContentAccessStore.shared.mode == "adult" { return chapterIsSaved ? "已缓存" : "阅读缓存" }
+        return chapterIsSaved ? "离线可读" : "未缓存"
+    }
+
+    private var readerStatusPill: some View {
+        VStack(spacing: 2) {
+            Text("第 \(chapterOrder)/\(totalOrderCount) 章")
+                .font(.footnote.weight(.semibold))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .foregroundStyle(AppTheme.primary.opacity(0.92))
+            HStack(spacing: 4) {
+                Text(percentText)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Image(systemName: chapterIsSaved ? "arrow.down.circle.fill" : "icloud.slash")
+                    .contentTransition(.symbolEffect(.replace))
+                    .accessibilityHidden(true)
+                Text(chapterAvailabilityLabel)
+            }
+            .font(.caption2)
+            .foregroundStyle(AppTheme.primary.opacity(0.7))
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 44)
+        .appGlassEffect(AppTheme.glassClear, in: Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)，\(chapterAvailabilityLabel)")
+        .accessibilityIdentifier("reader.progress")
+    }
+
+    private var nextChapterButton: some View {
+        Button {
+            interactionFeedback += 1
+            go(to: chapterOrder + 1)
+        } label: {
+            Label("下一章", systemImage: "arrow.forward")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .foregroundStyle(AppTheme.primary)
+        .buttonStyle(AppGlassButtonStyle(
+            glass: AppTheme.glassProminent,
+            fallback: AppTheme.primaryLight
+        ))
+        .accessibilityLabel("下一章")
+        .accessibilityIdentifier("reader.next-chapter")
+    }
+
+    private var readerChromeRevealButton: some View {
+        Button {
+            guard settings.pageMode == "page"
+                || scrollTapGuard.allowsTap(at: ProcessInfo.processInfo.systemUptime)
+            else { return }
+            toggleChrome()
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.title3.weight(.semibold))
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
+        .foregroundStyle(ink.opacity(0.9))
+        .allowsHitTesting(settings.pageMode == "page" || !scrollTapGuard.isScrollInteractionActive)
+        .accessibilityLabel("显示阅读控制")
+        .accessibilityHint("显示目录、阅读设置和章节切换")
+    }
+
+    /// 顶部操作组：只保留图标与 44pt 点按区，不再叠加玻璃容器和按钮底板。
+    private var readerToolbarGroup: some View {
+        HStack(spacing: 10) {
+            if settings.illustrationsEnabled && (illustrationsError != nil || (chapterIllustrations?.illustrations.count ?? 0) > illustrationPositions.count) {
+                Button { showIllustrationsNotice = true } label: {
+                    Image(systemName: "photo.badge.exclamationmark")
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("查看插图加载状态")
+            }
+            if !offlineOnly || settings.pageMode == "scroll" { readerMoreMenu }
+
+            Button {
+                showTOC = true
+                interactionFeedback += 1
+            } label: {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 17, weight: .medium))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("目录")
+
+            Button {
+                showSettings = true
+                interactionFeedback += 1
+            } label: {
+                Image(systemName: "textformat.size")
+                    .font(.system(size: 17, weight: .medium))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("阅读设置")
+        }
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.92))
+        .foregroundStyle(ink.opacity(0.82))
+        .fixedSize()
+    }
+
+    private var readerMoreMenu: some View {
+        Menu {
+            if !offlineOnly {
+                Button("当前段评", systemImage: "text.bubble") { openCurrentThoughtPanel() }
+                    .disabled(currentReadingParagraphIndex == nil)
+                Button("保存章节书签", systemImage: "bookmark") { showBookmark = true }
+                    .disabled(chapter == nil || appState.user == nil)
+                if let unmatched = thoughtsByParagraph[-1], !unmatched.isEmpty {
+                    Button("原段落已变更的想法（\(unmatched.count)）", systemImage: "text.bubble") {
+                        activeThoughtParagraph = nil
+                        activeThoughtSelection = ""
+                        showThoughtPanel = true
+                    }
+                }
+                if recapEnabled && previousChapter != nil {
+                    Button("前情提要", systemImage: "sparkles") { showRecap = true }
+                }
+            }
+            if settings.pageMode == "scroll" {
+                Menu("自动滚动", systemImage: "arrow.down") {
+                    Button("关闭") { settings.set("readerAutoScrollSpeed", "off"); autoScrollPaused = true }
+                    Button("慢速") { settings.set("readerAutoScrollSpeed", "slow"); autoScrollPaused = false }
+                    Button("中速") { settings.set("readerAutoScrollSpeed", "medium"); autoScrollPaused = false }
+                    Button("快速") { settings.set("readerAutoScrollSpeed", "fast"); autoScrollPaused = false }
+                    if settings.autoScrollSpeed != .off {
+                        Divider()
+                        Button(autoScrollPaused ? "继续自动滚动" : "暂停自动滚动") { autoScrollPaused.toggle() }
+                    }
+                }
+                .disabled(chapter == nil || isLoading)
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: 44, height: 44)
+        }
+        .accessibilityLabel("更多阅读操作")
+    }
+
+    /// 底部阅读控制组：上一章、章节进度、下一章共享一块轻量分段表面。
+    private func chromeSegmentButton(
+        systemName: String,
+        label: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 44, height: 44)
+        }
+        .foregroundStyle(AppTheme.primary.opacity(isEnabled ? 0.95 : 0.28))
+        .disabled(!isEnabled)
+        .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
+        .accessibilityLabel(label)
+    }
+
+    /// 重新排版：按当前字号/行距/视口把章节切成多页，并尽量保持阅读位置不漂移。
+    /// 若此前已有分页（用户改了字号/行距），则按“上一页起始字符”在新分页里重新定位，
+    /// 而不是按百分比——百分比在文本重排后无法对齐同一段落，会产生正文偏移。
+    private func rebuildPages(size: CGSize) async {
+        guard !isLoading, let chapter, size.width > 40, size.height > 60 else { return }
+        guard paragraphs.count > 0 || !chapter.title.isEmpty else { return }
+        // 锚点 = 重排前当前页的起始字符。只有 pageRanges 与当前页有效时才使用。
+        let anchorChar: Int? = currentPage < pageRanges.count ? pageRanges[currentPage].location : nil
+        let anchorImageID = pageIllustrations[currentPage]?.id
+        let wasAtStart = currentPage == 0 && percentBox.value <= 0 && (anchorChar ?? 0) == 0
+        let offsets = ChapterPaginator.paragraphOffsets(title: chapter.title, paragraphs: paragraphs)
+        let textLength = (offsets.last ?? chapter.title.utf16.count + 1) + (paragraphs.last.map { (paragraphIndent + $0).utf16.count } ?? 0)
+        let placements = resolvedIllustrations.map { entry in
+            let offset: Int
+            if entry.position == -1 { offset = 0 }
+            else if entry.position + 1 < offsets.count { offset = offsets[entry.position + 1] }
+            else { offset = textLength }
+            return ChapterPaginator.IllustrationPlacement(characterOffset: offset, illustration: entry.item)
+        }
+        let spec = ChapterPaginator.Spec(
+            bodyFont: readerBodyUIFont,
+            titleFont: readerTitleUIFont,
+            lineSpacing: readerLineSpacing,
+            paragraphSpacing: readerParagraphSpacing,
+            title: chapter.title,
+            paragraphs: paragraphs,
+            thoughtSelectionsByParagraph: thoughtsByParagraph.mapValues {
+                $0.map(\.selectedText)
+            },
+            thoughtUnderlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78),
+            illustrations: placements
+        )
+        let result = await Task.detached(priority: .userInitiated) {
+            guard !Task.isCancelled else { return [ChapterPaginator.Page]() }
+            let attr = ChapterPaginator.attributedString(for: spec)
+            return ChapterPaginator.illustratedPages(
+                of: attr,
+                placements: spec.illustrations,
+                pageSize: size,
+                isCancelled: { Task.isCancelled }
+            )
+        }.value
+        guard !Task.isCancelled else { return }
+        guard chapter.id == self.chapter?.id else { return }
+        guard !result.isEmpty else { pages = []; pageRanges = []; pageIllustrations = [:]; return }
+        pages = result.map(\.attributed)
+        pageRanges = result.map { $0.range }
+        pageIllustrations = Dictionary(uniqueKeysWithValues: result.enumerated().compactMap { index, page in
+            page.illustration.map { (index, $0) }
+        })
+        let lastPage = max(result.count - 1, 0)
+        if wasAtStart && anchorImageID == nil {
+            currentPage = 0
+        } else if let anchorImageID, let index = result.firstIndex(where: { $0.illustration?.id == anchorImageID }) {
+            currentPage = index
+        } else if let anchorChar {
+            // 起点 ≤ 锚点的最后一页：该页起点最贴近锚点且不越过它，
+            // 锚点字符落在页首而非页身中部——避免露出过多旧文本导致“正文偏移”的观感。
+            if let idx = result.lastIndex(where: { $0.illustration == nil && $0.range.location <= anchorChar }) {
+                currentPage = idx
+            } else {
+                currentPage = 0
+            }
+        } else if lastPage > 0 {
+            // 进度只计算正文页，新增图片不会稀释原有阅读进度。
+            let restore = pendingRestorePercent ?? percentBox.value
+            let textPages = result.indices.filter { result[$0].illustration == nil }
+            let target = min(max(0, textPages.count - 1), max(0, Int((restore * Double(max(0, textPages.count - 1))).rounded())))
+            currentPage = restore <= 0 ? 0 : (textPages.indices.contains(target) ? textPages[target] : 0)
+        } else {
+            currentPage = 0
+        }
+        pendingRestorePercent = nil
+    }
+
+    private func updatePageProgress(_ page: Int) {
+        guard pageRanges.indices.contains(page) else { return }
+        let textPages = pages.indices.filter { pageIllustrations[$0] == nil }
+        let index = textPages.lastIndex(where: { $0 <= page }) ?? 0
+        let value = textPages.count > 1 ? Double(index) / Double(textPages.count - 1) : 0
+        setProgress(value)
+        pendingRestorePercent = value
+        debounceSaveProgress()
+    }
+
+    private func toggleChrome() {
+        ReadingStatsStore.shared.activity(owner: statsOwner)
+        interactionFeedback += 1
+        if reduceMotion {
+            showChrome.toggle()
+        } else {
+            withAnimation(.spring(response: 0.28, dampingFraction: 1)) { showChrome.toggle() }
+        }
+    }
+
+    private func hideChrome() {
+        guard showChrome else { return }
+        if reduceMotion {
+            showChrome = false
+        } else {
+            withAnimation(.spring(response: 0.28, dampingFraction: 1)) { showChrome = false }
+        }
+    }
+
+    private func setProgress(_ value: Double) {
+        let clamped = min(1, max(0, value))
+        percentBox.value = clamped
+        progressPercent = clamped
+    }
+
+    private func prepareForModeChange(to mode: String) {
+        isSelectingBodyText = false
+        chapterSwipeProgress = 0
+        if mode == "page" {
+            pages = []
+            pageRanges = []
+            pageIllustrations = [:]
+            currentPage = 0
+            pendingRestorePercent = progressPercent
+        } else {
+            let last = max(paragraphs.count - 1, 0)
+            let target = last == 0
+                ? 0
+                : min(last, max(0, Int((progressPercent * Double(last)).rounded(.down))))
+            suppressPercent = true
+            scrolledParagraph = nil
+            pendingScrollRestore = target
+        }
+    }
+
+    private func applyWakeLock() {
+        UIApplication.shared.isIdleTimerDisabled = settings.wakeLockEnabled
+    }
+
+    /// 切章前清空旧正文，避免失败时静默显示上一章内容。
+    private func resetForNewChapter() {
+        autoScrollPaused = true
+        showBookmark = false
+        showRecap = false
+        isSelectingBodyText = false
+        chapterSwipeProgress = 0
+        saveTask?.cancel()
+        thoughtsLoadTask?.cancel()
+        paragraphTextCache.removeAll()
+        chapter = nil
+        paragraphs = []
+        paragraphCount = 0
+        setProgress(0)
+        scrolledParagraph = nil
+        // Keep geometry callbacks from the old scroll container from writing
+        // a new chapter's progress before its restore target is installed.
+        suppressPercent = true
+        errorMessage = nil
+        pages = []
+        pageRanges = []
+        currentPage = 0
+        pendingRestorePercent = nil
+        pendingScrollRestore = nil
+        chapterIsSaved = false
+        chapterThoughts = []
+        chapterIllustrations = nil
+        illustrationPositions = [:]
+        illustrationsError = nil
+        pageIllustrations = [:]
+        isLoadingThoughts = false
+        thoughtsError = nil
+        activeThoughtParagraph = nil
+        activeThoughtSelection = ""
+        showThoughtPanel = false
+    }
+
+    private func load() async {
+        guard !offlineOnly || !novel.isRestricted else {
+            isLoading = false
+            errorMessage = "限制级作品暂不提供离线下载，可正常使用已读章节缓存。"
+            return
+        }
+        isLoading = true
+        let order = chapterOrder // 快照：防止慢响应覆盖新章状态
+        defer {
+            // 仅当前章节仍为目标时清除 loading，避免旧请求把新章节的加载态提前关掉
+            if order == chapterOrder { isLoading = false }
+        }
+        do {
+            if chapterMetas.isEmpty {
+                if !preloadedChapters.isEmpty {
+                    chapterMetas = preloadedChapters
+                } else {
+                    do {
+                        let list: ChaptersResponse = try await APIClient.shared.getReader(
+                            "/api/chapters?novelId=\(novel.id)", offline: offlineOnly
+                        )
+                        chapterMetas = list.chapters
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        let saved = ContentAccessStore.shared.mode == "adult" || novel.isRestricted ? [] : offlineStore.chapters(for: novel.id)
+                        guard !saved.isEmpty else {
+                            guard chapterOrder == order else { return }
+                            errorMessage = AppCopy.friendlyError(error)
+                            return
+                        }
+                        chapterMetas = saved
+                    }
+                }
+            }
+            chapterCount = chapterMetas.count
+
+            guard chapterOrder == order else { return } // 用户已切章，丢弃过期结果
+
+            guard let meta = chapterMetas.first(where: { $0.order == chapterOrder }) else {
+                if offlineOnly {
+                    errorMessage = "这一章尚未下载，请联网后在详情页下载。"
+                    return
+                }
+                let list: ChaptersResponse = try await APIClient.shared.getReader(
+                    "/api/chapters?novelId=\(novel.id)", offline: offlineOnly
+                )
+                chapterMetas = list.chapters
+                chapterCount = list.chapters.count
+                guard chapterOrder == order else { return }
+                guard let retry = chapterMetas.first(where: { $0.order == chapterOrder }) else {
+                    errorMessage = "未找到第 \(chapterOrder) 章"
+                    return
+                }
+                try await loadContent(id: retry.id)
+                return
+            }
+
+            try await loadContent(id: meta.id)
+        } catch is CancellationError {
+            return
+        } catch {
+            // 仅当前章节仍为目标时显示错误，避免切章后旧错误串台
+            guard chapterOrder == order else { return }
+            errorMessage = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func loadContent(id: String) async throws {
+        let order = chapterOrder
+        let r: ChapterResponse = try await APIClient.shared.getReader(
+            "/api/chapters/\(id)", offline: offlineOnly
+        )
+        guard chapterOrder == order else { return }
+        let content = r.chapter.content
+        let parsedParagraphs = await Task.detached(priority: .utility) {
+            guard !Task.isCancelled else { return [String]() }
+            return Self.paragraphs(from: content)
+        }.value
+        guard chapterOrder == order, !Task.isCancelled else { return }
+        paragraphTextCache.removeAll()
+        suppressPercent = true
+        scrolledParagraph = nil
+        pendingScrollRestore = nil
+        chapter = r.chapter
+        errorMessage = nil
+        paragraphs = parsedParagraphs
+        paragraphCount = paragraphs.count
+        loadThoughts(for: r.chapter.id)
+
+        var restore: Double = 0
+        if APIClient.shared.isAuthenticated {
+            do {
+                let p: ProgressResponse = try await APIClient.shared.get(
+                    "/api/progress?novelId=\(novel.id)", auth: true
+                )
+                guard chapterOrder == order else { return }
+                if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
+                    restore = prog.scrollPercent
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // 正文已经可以从磁盘缓存离线打开；进度失败不应遮挡当前章节。
+                guard chapterOrder == order else { return }
+            }
+        }
+        // 网络返回旧快照时，优先使用本地尚未上传的同章进度，避免弱网下回退到旧位置。
+        if let pending = ReaderProgressStore.shared.pendingBody(for: novel.id),
+           pending.chapterId == r.chapter.id {
+            restore = pending.scrollPercent
+        }
+
+        let last = max(paragraphs.count - 1, 0)
+        let target = last == 0 ? 0 : min(last, max(0, Int((restore * Double(last)).rounded(.down))))
+        setProgress(restore)
+        pendingRestorePercent = restore > 0 ? restore : nil
+        suppressPercent = true
+        scrolledParagraph = nil
+        // contentSize 已准备好时由 geometry 回调定位；若进度响应更晚，
+        // pendingScrollRestore 的 change 回调会走同一条显式 proxy 路径。
+        pendingScrollRestore = target
+        prefetchNextChapter()
+        let isSaved = await APIClient.shared.hasCachedChapter(
+            id: r.chapter.id, mode: offlineOnly ? "safe" : ContentAccessStore.shared.mode
+        )
+        guard chapterOrder == order else { return }
+        chapterIsSaved = isSaved
+    }
+
+    private func openThoughtPanel(for index: Int, selectedText: String = "") {
+        guard !offlineOnly, paragraphs.indices.contains(index) else { return }
+        activeThoughtParagraph = index
+        activeThoughtSelection = String(
+            selectedText.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200)
+        )
+        showThoughtPanel = true
+        interactionFeedback &+= 1
+    }
+
+    private func openCurrentThoughtPanel() {
+        guard let index = currentReadingParagraphIndex else { return }
+        openThoughtPanel(for: index)
+    }
+
+    private var currentReadingParagraphIndex: Int? {
+        guard !paragraphs.isEmpty else { return nil }
+        if settings.pageMode == "page" {
+            return paragraphIndex(forPage: currentPage)
+        }
+        if let scrolledParagraph, paragraphs.indices.contains(scrolledParagraph) {
+            return scrolledParagraph
+        }
+        return paragraphs.indices.first
+    }
+
+    /// 翻页模式下，把当前页起始字符映射回正文段落，保证工具栏段评仍然有明确对象。
+    private func paragraphIndex(forPage page: Int) -> Int? {
+        guard pageRanges.indices.contains(page), !paragraphs.isEmpty else { return nil }
+        return paragraphIndex(atCharacterLocation: pageRanges[page].location)
+    }
+
+    /// 字符位置使用 TextKit 的 UTF-16 坐标，与 NSRange 和分页结果保持一致。
+    private func paragraphIndex(atCharacterLocation location: Int) -> Int? {
+        guard !paragraphs.isEmpty else { return nil }
+        let titleLength = (chapter?.title ?? "").utf16.count + 1
+        var cursor = titleLength
+
+        for (index, paragraph) in paragraphs.enumerated() {
+            if index > 0 { cursor += 1 }
+            let end = cursor + (paragraphIndent + paragraph).utf16.count
+            if location < end { return index }
+            cursor = end
+        }
+        return paragraphs.indices.last
+    }
+
+    private func loadThoughts(for chapterID: String) {
+        thoughtsLoadTask?.cancel()
+        chapterThoughts = []
+        thoughtParagraphPositions = [:]
+        thoughtsError = nil
+
+        guard !offlineOnly else {
+            isLoadingThoughts = false
+            return
+        }
+
+        isLoadingThoughts = true
+        thoughtsLoadTask = Task { @MainActor in
+            do {
+                let response: PublicThoughtsResponse = try await ThoughtsAPI.list(
+                    chapterID: chapterID
+                )
+                guard !Task.isCancelled, self.chapter?.id == chapterID else { return }
+                self.chapterThoughts = response.thoughts.sorted {
+                    if $0.paragraphIndex != $1.paragraphIndex {
+                        return $0.paragraphIndex < $1.paragraphIndex
+                    }
+                    return $0.createdAt < $1.createdAt
+                }
+                self.relocateThoughts()
+                self.thoughtsError = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard self.chapter?.id == chapterID else { return }
+                self.thoughtsError = AppCopy.friendlyError(error)
+            }
+
+            guard self.chapter?.id == chapterID else { return }
+            self.isLoadingThoughts = false
+        }
+    }
+
+    private func relocateThoughts() {
+        let hashes = paragraphs.map(IllustrationAnchor.contentHash)
+        let source = chapter?.content ?? ""
+        let sourceHash = IllustrationAnchor.contentHash(source)
+        thoughtParagraphPositions = Dictionary(uniqueKeysWithValues: chapterThoughts.map { thought in
+            let position = ThoughtAnchor.resolve(index: thought.paragraphIndex, hash: thought.paragraphHash,
+                                                  selection: thought.selectedText, paragraphs: paragraphs,
+                                                  sourceText: source, paragraphHashes: hashes, sourceHash: sourceHash)
+            return (thought.id, position ?? -1)
+        })
+    }
+
+    private func submitThought(text: String, displayName: String) async throws {
+        guard let currentChapter = chapter,
+              let index = activeThoughtParagraph,
+              paragraphs.indices.contains(index)
+        else {
+            throw APIError.invalidResponse
+        }
+
+        thoughtsLoadTask?.cancel()
+        isLoadingThoughts = false
+
+        let payload = ThoughtCreatePayload(
+            novelId: currentChapter.novelId,
+            chapterId: currentChapter.id,
+            paragraphIndex: index,
+            paragraphHash: Self.paragraphHash(paragraphs[index]),
+            selectedText: String(activeThoughtSelection.prefix(200)),
+            thoughtText: String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300)),
+            displayName: String(displayName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
+        )
+        let thought = try await ThoughtsAPI.create(payload: payload)
+        guard self.chapter?.id == currentChapter.id else { return }
+        chapterThoughts.removeAll { $0.id == thought.id }
+        chapterThoughts.append(thought)
+        relocateThoughts()
+        AppFeedback.success("段评已发布")
+    }
+
+    private func deleteThought(id: String) async throws {
+        thoughtsLoadTask?.cancel()
+        isLoadingThoughts = false
+        try await ThoughtsAPI.remove(id: id)
+        chapterThoughts.removeAll { $0.id == id }
+        thoughtParagraphPositions.removeValue(forKey: id)
+        AppFeedback.success("段评已删除")
+    }
+
+    private func paragraphExcerpt(for text: String) -> String {
+        let normalized = Self.normalizedParagraphText(text)
+        guard !normalized.isEmpty else { return "这一段暂无文字" }
+        return normalized.count > 120
+            ? String(normalized.prefix(120)) + "…"
+            : normalized
+    }
+
+    private func updatePercent(from index: Int?) {
+        guard !suppressPercent, let index, paragraphCount > 1 else { return }
+        let value = min(1, max(0, Double(index) / Double(paragraphCount - 1)))
+        setProgress(value)
+        debounceSaveProgress()
+    }
+
+    /// A late progress response can install the restore target after the
+    /// scroll view has already reported its content size. Use the proxy as a
+    /// second, deterministic restore path for that timing window.
+    private func restoreScrollTarget(
+        _ target: Int,
+        using proxy: ScrollViewProxy,
+        identity: String
+    ) {
+        Task { @MainActor in
+            await Task.yield()
+            guard readerScrollIdentity == identity, pendingScrollRestore == target else { return }
+            let scrollID = target == 0 ? readerTopScrollID : target
+            proxy.scrollTo(scrollID, anchor: .top)
+            scrolledParagraph = scrollID
+            pendingScrollRestore = nil
+            suppressPercent = false
+        }
+    }
+
+    private func debounceSaveProgress() {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard !Task.isCancelled, APIClient.shared.isAuthenticated else { return }
+            saveProgressNow()
+        }
+    }
+
+    private func saveProgressNow() {
+        guard APIClient.shared.isAuthenticated, let body = progressBody() else { return }
+        ReaderProgressStore.shared.enqueue(body)
+        flushProgress()
+    }
+
+    private func flushProgress() {
+        Task { @MainActor in await ReaderProgressStore.shared.flush() }
+    }
+
+    private func prefetchNextChapter() {
+        guard ContentAccessStore.shared.mode == "safe", !novel.isRestricted else { return }
+        guard let next = chapterMetas.first(where: { $0.order == chapterOrder + 1 }) else { return }
+        let nextID = next.id
+        Task {
+            await APIClient.shared.prefetchChapter(id: nextID)
+        }
+    }
+
+    /// 进度体与当前展示章节强一致：切章失败/错位时不写脏数据。
+    private func progressBody() -> SaveProgressBody? {
+        guard let chapter, chapter.order == chapterOrder else { return nil }
+        return SaveProgressBody(
+            novelId: novel.id,
+            chapterId: chapter.id,
+            chapterTitle: chapter.title,
+            chapterOrder: chapter.order,
+            scrollPercent: percentBox.value,
+            pageMode: settings.pageMode,
+            clientUpdatedAt: Int64(Date().timeIntervalSince1970 * 1000)
+        )
+    }
+
+    private func go(to order: Int) {
+        guard order >= 1, order <= totalOrderCount else { return }
+        if offlineOnly && !chapterMetas.contains(where: { $0.order == order }) { return }
+        guard order != chapterOrder else { return }
+        // 必须在修改 chapterOrder 前捕获旧章节进度，否则 resetForNewChapter
+        // 会清空 chapter，旧章节就没有可保存的快照了。
+        saveTask?.cancel()
+        saveProgressNow()
+        chapterOrder = order
+    }
+
+    /// 章节段落切分：静态纯函数，仅在加载时执行一次。
+    nonisolated private static func paragraphs(from content: String) -> [String] {
+        // Web 的纯文本阅读器将每个非空行视作一个段落；避免单换行与空行混用时锚点错位。
+        return content
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    nonisolated private static func normalizedParagraphText(_ text: String) -> String {
+        text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+
+    /// 与 Web 段评使用相同的 FNV-1a + base36 段落指纹，方便正文变更时定位段落。
+    nonisolated private static func paragraphHash(_ text: String) -> String {
+        IllustrationAnchor.contentHash(text)
+    }
+}

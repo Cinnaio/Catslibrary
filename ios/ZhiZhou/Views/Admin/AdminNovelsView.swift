@@ -1,0 +1,461 @@
+import SwiftUI
+import ZhiZhouCore
+
+/// 小说管理：搜索 / 状态过滤 / 分页列表 / 编辑 / 新建 / 删除 / 增量更新。
+/// 对齐 Web 端 admin NovelsTab（管理维护用 /api/novels 系列接口）。
+struct AdminNovelsView: View {
+    @State private var novels: [Novel] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    @State private var searchText = ""
+    @State private var statusFilter = "all"
+    @State private var page = 1
+    @State private var hasMore = false
+    @State private var loadedTotal = 0
+    @State private var editorDestination: NovelEditorDestination?
+    @State private var followupNovel: Novel?
+    @State private var deleteTarget: Novel?
+    @State private var actionError: String?
+    @State private var busyNovelId: String?
+    @State private var updatingNovelId: String?
+    @State private var loadingMore = false
+    @State private var requests = ListRequestGuard<[String]>()
+
+    private var query: [String] {
+        [searchText.trimmingCharacters(in: .whitespacesAndNewlines), statusFilter == "all" ? "" : statusFilter]
+    }
+
+    var body: some View {
+        List {
+            Section {
+                AdminFilterBar {
+                    AdminFilterMenu("状态", value: novelStatusLabel) {
+                        Picker("状态", selection: $statusFilter) {
+                            Text("全部").tag("all")
+                            Text("连载").tag("ongoing")
+                            Text("完结").tag("completed")
+                        }
+                    }
+                }
+            }
+
+            if isLoading && novels.isEmpty {
+                Section {
+                    ProgressView("加载中…")
+                        .frame(maxWidth: .infinity, minHeight: 160)
+                        .listRowBackground(Color.clear)
+                }
+            } else if let errorMessage, novels.isEmpty {
+                Section {
+                    ContentUnavailableView {
+                        Label("加载失败", systemImage: "wifi.slash")
+                    } description: {
+                        Text(errorMessage)
+                    } actions: {
+                        Button("重试") { Task { await reload() } }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+            } else {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await reload() }
+                    }
+                }
+                if novels.isEmpty {
+                    ContentUnavailableView("没有匹配的小说", systemImage: "books.vertical")
+                        .listRowBackground(Color.clear)
+                }
+                ForEach(novels) { novel in
+                    novelRow(novel)
+                }
+                if hasMore {
+                    Button {
+                        Task { await loadMore() }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if loadingMore {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("加载更多（\(novels.count)/\(loadedTotal)）")
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppTheme.primary)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(loadingMore || isLoading || errorMessage != nil)
+                    .listRowBackground(Color.clear)
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .appListStyle(.settings)
+        .navigationTitle("小说管理")
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $searchText, prompt: "搜索书名 / 作者")
+        .refreshable { await reload() }
+        .task(id: query) {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            await reload()
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    editorDestination = NovelEditorDestination(novel: nil)
+                } label: {
+                    Label("新建小说", systemImage: "plus")
+                }
+            }
+        }
+        .sheet(item: $followupNovel) { novel in
+            NavigationStack {
+                AdminFollowupView(novel: novel)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) {
+                        Button("完成") { followupNovel = nil }
+                    } }
+            }
+        }
+        .sheet(item: $editorDestination) { destination in
+            NovelEditSheet(novel: destination.novel) { saved in
+                if destination.novel == nil {
+                    novels.insert(saved, at: 0)
+                    loadedTotal += 1
+                } else if let idx = novels.firstIndex(where: { $0.id == saved.id }) {
+                    novels[idx] = saved
+                }
+            }
+        }
+        .confirmationDialog(
+            "删除小说",
+            isPresented: Binding(
+                get: { deleteTarget != nil },
+                set: { if !$0 { deleteTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除「\(deleteTarget?.title ?? "")」", role: .destructive) {
+                guard let target = deleteTarget else { return }
+                Task { await delete(target) }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将级联删除该书全部章节，不可恢复。")
+        }
+        .alert("操作失败", isPresented: errorAlertBinding) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(actionError ?? "")
+        }
+    }
+
+    // MARK: - 行
+
+    private var novelStatusLabel: String {
+        switch statusFilter {
+        case "ongoing": return "连载"
+        case "completed": return "完结"
+        default: return "全部状态"
+        }
+    }
+
+    private func novelRow(_ novel: Novel) -> some View {
+        HStack(spacing: 10) {
+            CachedAsyncImage(
+                url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
+                targetSize: AppLayout.coverListThumbnail
+            ) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
+                        .fill(AppTheme.surface.opacity(0.6))
+                    Image(systemName: "book")
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+            .frame(width: AppLayout.coverListThumbnail.width, height: AppLayout.coverListThumbnail.height)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(novel.title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .appTextLineLimit(1)
+                    if novel.hasUpdate {
+                        AdminStatusBadge("有更新", tint: AppTheme.primary, systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+                Text(novel.author)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .appTextLineLimit(1)
+                HStack(spacing: 8) {
+                    Text("\(novel.chapterCount) 章")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textSecondary)
+                    if novel.remoteChapterCount > novel.chapterCount {
+                        Text("远端 \(novel.remoteChapterCount)")
+                            .font(.caption2)
+                            .foregroundStyle(AppTheme.primary)
+                    }
+                    if let label = novel.statusLabel {
+                        Text(label)
+                            .font(.caption2)
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                }
+            }
+            Spacer()
+            if busyNovelId == novel.id || updatingNovelId == novel.id {
+                AdminInlineProgress()
+            } else {
+                Menu {
+                    Button("编辑", systemImage: "pencil") {
+                        editorDestination = NovelEditorDestination(novel: novel)
+                    }
+                    Button("追更设置", systemImage: "clock.arrow.circlepath") { followupNovel = novel }
+                    Button("增量更新", systemImage: "arrow.triangle.2.circlepath") {
+                        Task { await scrapeUpdate(novel) }
+                    }
+                    Button("删除", systemImage: "trash", role: .destructive) {
+                        deleteTarget = novel
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(busyNovelId != nil || updatingNovelId != nil)
+                .accessibilityLabel("小说操作")
+            }
+        }
+        .contextMenu {
+            Button("编辑", systemImage: "pencil") {
+                editorDestination = NovelEditorDestination(novel: novel)
+            }
+            Button("追更设置", systemImage: "clock.arrow.circlepath") { followupNovel = novel }
+            Button("增量更新", systemImage: "arrow.triangle.2.circlepath") {
+                Task { await scrapeUpdate(novel) }
+            }
+            Button("删除", systemImage: "trash", role: .destructive) {
+                deleteTarget = novel
+            }
+        }
+    }
+
+    // MARK: - 数据
+
+    private func reload() async {
+        let ticket = requests.begin(query)
+        isLoading = true
+        loadingMore = false
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
+        do {
+            let r = try await AdminAPI.novels(search: ticket.query[0], status: ticket.query[1], page: 1, limit: 20)
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            novels = r.novels
+            page = r.page
+            hasMore = r.hasMore
+            loadedTotal = r.total
+            errorMessage = nil
+            requests.finish(ticket, succeeded: true)
+            isLoading = false
+        } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            errorMessage = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func loadMore() async {
+        guard !loadingMore, !isLoading, errorMessage == nil, hasMore,
+              let ticket = requests.beginNext(query) else { return }
+        loadingMore = true
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                loadingMore = false
+            }
+        }
+        do {
+            let r = try await AdminAPI.novels(search: ticket.query[0], status: ticket.query[1], page: page + 1, limit: 20)
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            let existing = Set(novels.map(\.id))
+            novels.append(contentsOf: r.novels.filter { !existing.contains($0.id) })
+            page = r.page
+            hasMore = r.hasMore
+            loadedTotal = r.total
+        } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func scrapeUpdate(_ novel: Novel) async {
+        guard updatingNovelId == nil else { return }
+        updatingNovelId = novel.id
+        defer { updatingNovelId = nil }
+        do {
+            _ = try await AdminAPI.scrapeAction("update", novelId: novel.id)
+            await reload()
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func delete(_ novel: Novel) async {
+        guard busyNovelId == nil else { return }
+        busyNovelId = novel.id
+        defer { busyNovelId = nil }
+        do {
+            try await AdminAPI.deleteNovel(id: novel.id)
+            novels.removeAll { $0.id == novel.id }
+            loadedTotal = max(0, loadedTotal - 1)
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private var errorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { actionError != nil },
+            set: { if !$0 { actionError = nil } }
+        )
+    }
+}
+
+// MARK: - 编辑 / 新建 Sheet
+
+/// Presentation and target travel together, including an explicit create
+/// destination. Each opening owns a fresh form and an immutable novel snapshot.
+private struct NovelEditorDestination: Identifiable {
+    let id = UUID()
+    let novel: Novel?
+}
+
+private struct NovelEditSheet: View {
+    let novel: Novel?
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var author = ""
+    @State private var status = "ongoing"
+    @State private var descriptionText = ""
+    @State private var coverUrl = ""
+    @State private var categories = ""
+    @State private var sourceUrl = ""
+    @State private var saving = false
+    @State private var errorMessage: String?
+    let onSaved: (Novel) -> Void
+
+    init(novel: Novel?, onSaved: @escaping (Novel) -> Void) {
+        self.novel = novel
+        self.onSaved = onSaved
+        _title = State(initialValue: novel?.title ?? "")
+        _author = State(initialValue: novel?.author ?? "")
+        _status = State(initialValue: novel?.status ?? "ongoing")
+        _descriptionText = State(initialValue: novel?.description ?? "")
+        _coverUrl = State(initialValue: novel?.coverUrl ?? "")
+        _categories = State(initialValue: novel?.categories.joined(separator: "，") ?? "")
+        _sourceUrl = State(initialValue: novel?.sourceUrl ?? "")
+    }
+
+    private var isEditing: Bool { novel != nil }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("基本信息") {
+                    TextField("书名 *", text: $title)
+                    TextField("作者 *", text: $author)
+                    Picker("状态", selection: $status) {
+                        Text("连载").tag("ongoing")
+                        Text("完结").tag("completed")
+                    }
+                    .pickerStyle(.menu)
+                }
+                Section("详情") {
+                    TextField("分类（逗号分隔）", text: $categories)
+                    TextField("封面 URL", text: $coverUrl)
+                    TextField("源站 URL", text: $sourceUrl)
+                }
+                Section("简介") {
+                    TextEditor(text: $descriptionText)
+                        .frame(minHeight: 120)
+                }
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.danger)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .appListStyle(.settings)
+            .navigationTitle(isEditing ? "编辑小说" : "新建小说")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        save()
+                    } label: {
+                        if saving {
+                            ProgressView()
+                        } else {
+                            Text(isEditing ? "保存" : "创建")
+                        }
+                    }
+                        .disabled(saving)
+                }
+            }
+        }
+    }
+
+    private func save() {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAuthor = author.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty, !trimmedAuthor.isEmpty else {
+            errorMessage = "书名和作者不能为空"
+            return
+        }
+        saving = true
+        Task {
+            defer { saving = false }
+            do {
+                let fields: [String: Any] = [
+                    "title": trimmedTitle,
+                    "author": trimmedAuthor,
+                    "status": status,
+                    "description": descriptionText,
+                    "coverUrl": coverUrl.trimmingCharacters(in: .whitespacesAndNewlines),
+                    "categories": AdminFormat.parseCategories(categories),
+                    "sourceUrl": sourceUrl.trimmingCharacters(in: .whitespacesAndNewlines),
+                ]
+                let saved: Novel
+                if let novel {
+                    saved = try await AdminAPI.updateNovel(id: novel.id, fields)
+                } else {
+                    saved = try await AdminAPI.createNovel(fields)
+                }
+                onSaved(saved)
+                dismiss()
+            } catch {
+                errorMessage = AppCopy.friendlyError(error)
+            }
+        }
+    }
+}
