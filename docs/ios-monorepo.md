@@ -79,5 +79,6 @@ pwsh -File ios/scripts/admin-operation-smoke.ps1
 - 11 份现有 PowerShell smoke 从仓库根目录运行通过，证明相对路径迁移后仍能定位源码。
 - 5 份工作流通过 actionlint 1.7.12 检查（未运行 shellcheck/pyflakes）；13 组路径场景验证原生、Web/API、文档和混合变更的触发隔离。
 - XcodeGen 源码与 plist/entitlements 路径、plist 解析、缓存输入及 action 工件路径检查通过；146 个构建输入的时间戳保存/恢复通过，并验证了实际时间戳恢复及根目录/`ios/` 两种调用位置。
-- 工作流格式检查和 `git diff --check` 通过；iOS 工程与生成产物的忽略规则已核对。
+- 工作流格式检查、ESLint 配置检查和 `git diff --check` 通过；ESLint/Prettier 对 `ios/` 的隔离及原生生成产物的忽略规则已核对。
+- 迁移分支已切回原项目工作目录；原有 10 个未提交文件已核对，网页文件保持原样，README 的组件展示页说明仍单独留在未暂存区。
 - 本机为 Windows，没有 Swift/Xcode；尚未执行迁移后 macOS Core 测试、Release 构建、模拟器或真机验收。需要新仓库对应提交的 GitHub Actions 结果后才能确认 IPA 构建成功并归档旧仓库。
