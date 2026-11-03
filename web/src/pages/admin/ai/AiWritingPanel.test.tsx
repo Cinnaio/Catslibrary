@@ -256,7 +256,7 @@ describe('AiWritingPanel', () => {
     expect(details.open).toBe(false)
     expect(details.querySelector('summary')?.textContent).toContain('已填写')
     expect((screen.getByLabelText('本次禁止发生的事件') as HTMLTextAreaElement).value).toBe('不得揭露真实身份')
-    fireEvent.change(screen.getByLabelText('情节推荐与大纲超时（秒）'), { target: { value: '300' } })
+    fireEvent.change(screen.getByLabelText('推荐情节超时'), { target: { value: '300' } })
     fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalledWith(expect.objectContaining({
       writingBrief: expect.objectContaining({ objective: '建立初步信任', forbiddenEvents: '不得揭露真实身份' }),

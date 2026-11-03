@@ -259,14 +259,14 @@ export function compileWritingPrompt(opts: WritingPromptCompilerOptions): Writin
           {
             name: 'pipeline:single-chapter',
             order: SYSTEM_SECTION_ORDERS.singleChapter,
-            text: '本次只能生成一章。开头只输出一次章节标题，正文不得出现下一章、上一章或额外章节标题；写完当前章节立即停止。',
+            text: '本次只能生成一章。首行必须使用「标题：章节名」，随后空一行再写正文；不要单独输出裸标题或章节序号。开头只输出一次章节标题，正文不得出现下一章、上一章或额外章节标题；写完当前章节立即停止。',
           },
         ]
       : []),
   ]
   const ordered = assembleSystemSections(ensureAuthorizationSection(sections, authorization))
   const output = [
-    `输出要求：${plan.output.singleChapter ? '单章标题 + 正文' : '章节大纲'}。`,
+    `输出要求：${plan.output.singleChapter ? '首行「标题：章节名」，空一行后写单章正文' : '章节大纲'}。`,
     plan.output.targetWords ? `目标长度约 ${plan.output.targetWords} 个中文字符。` : '',
     plan.output.chapterCount && plan.output.chapterCount > 1 ? `这是 ${plan.output.chapterCount} 章批次；当前材料只服务本次调用。` : '',
     plan.kind === 'write_outline' ? '不要输出章节正文。' : '',
