@@ -1,10 +1,5 @@
 # 在 GitHub Actions 的 macOS runner 上构建未签名 .ipa（Windows 开发 → GitHub 云构建 → 自签安装）
 #
-# 免费额度提示：
-# - 公开仓库：GitHub-hosted runner（含 macOS）构建免费
-# - 私有仓库：免费 2000 分钟/月（Linux 计费），macOS 按 10 倍消耗 ≈ 200 分钟/月
-# - 如需更多 macOS 分钟，可改用 Codemagic / Bitrise 的免费额度
-#
 # 签名升级（后续）：
 # - 买 Apple Developer Program（$99/年）后，把 .p12 证书 + .mobileprovision 放进
 #   GitHub Secrets，用 fastlane match 或 xcodebuild -exportArchive 产出签名 ipa / TestFlight
@@ -14,10 +9,33 @@ name: Build and Test iOS (unsigned IPA)
 on:
   push:
     branches: [main]
+    paths:
+      - 'ios/**'
+      - '!ios/**/*.md'
+      - '!ios/docs/**'
+      - '!ios/font-dist/**'
+      - '.github/workflows/build-ios.yml'
+      - '.gitattributes'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '!ios/**/*.md'
+      - '!ios/docs/**'
+      - '!ios/font-dist/**'
+      - '.github/workflows/build-ios.yml'
+      - '.gitattributes'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: ios
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   tests:
@@ -65,11 +83,11 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            DerivedData
-            .ci-cache/source-mtimes.json
-          key: ios-release-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('project.yml', 'ZhiZhouCore/Package.swift', '**/Package.resolved', '.github/workflows/build-ios.yml', 'scripts/ci-source-mtimes.py') }}-${{ github.sha }}
+            ios/DerivedData
+            ios/.ci-cache/source-mtimes.json
+          key: ios-release-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('ios/project.yml', 'ios/ZhiZhouCore/Package.swift', 'ios/**/Package.resolved', '.github/workflows/build-ios.yml', 'ios/scripts/ci-source-mtimes.py') }}-${{ github.sha }}
           restore-keys: |
-            ios-release-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('project.yml', 'ZhiZhouCore/Package.swift', '**/Package.resolved', '.github/workflows/build-ios.yml', 'scripts/ci-source-mtimes.py') }}-
+            ios-release-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('ios/project.yml', 'ios/ZhiZhouCore/Package.swift', 'ios/**/Package.resolved', '.github/workflows/build-ios.yml', 'ios/scripts/ci-source-mtimes.py') }}-
 
       - name: Restore timestamps of unchanged build inputs
         run: python3 scripts/ci-source-mtimes.py restore
@@ -129,7 +147,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ZhiZhou-unsigned-ipa
-          path: ZhiZhou-unsigned.ipa
+          path: ios/ZhiZhou-unsigned.ipa
           if-no-files-found: error
 
       - name: Record build input timestamps
@@ -141,6 +159,6 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: |
-            DerivedData
-            .ci-cache/source-mtimes.json
+            ios/DerivedData
+            ios/.ci-cache/source-mtimes.json
           key: ${{ steps.derived-data.outputs.cache-primary-key }}

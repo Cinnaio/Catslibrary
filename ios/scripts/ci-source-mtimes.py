@@ -41,5 +41,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("restore", "save"))
     args = parser.parse_args()
-    workspace = Path.cwd()
+    workspace = Path(__file__).resolve().parents[1]
     synchronize(args.mode, workspace, workspace / ".ci-cache" / "source-mtimes.json")

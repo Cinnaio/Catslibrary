@@ -3,6 +3,12 @@ name: CI
 on:
   workflow_dispatch:
   pull_request:
+    paths-ignore:
+      - 'ios/**'
+      - '.github/workflows/build-ios.yml'
+      - '.github/workflows/frontend-audit.yml'
+      - '**/*.md'
+      - 'LICENSE'
 
 jobs:
   ci:

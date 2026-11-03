@@ -8,6 +8,9 @@ on:
   push:
     branches: [main]
     paths-ignore:
+      - 'ios/**'
+      - '.github/workflows/build-ios.yml'
+      - '.github/workflows/frontend-audit.yml'
       - '**/*.md'
       - 'LICENSE'
   workflow_dispatch:
