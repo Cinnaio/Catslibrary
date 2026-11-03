@@ -72,6 +72,10 @@ describe('extractOutlineChapterTitle', () => {
     expect(extractOutlineChapterTitle('4. 隔墙的人\n内容')).toBe('隔墙的人')
   })
 
+  it.each(['4、', '4)', '4）', '4:', '4．', '## 4.'])('支持大纲数字序号 %s', (prefix) => {
+    expect(extractOutlineChapterTitle(`${prefix} 隔墙的人\n内容`)).toBe('隔墙的人')
+  })
+
   it('从已剥离序号的纯标题行提取小标题', () => {
     expect(extractOutlineChapterTitle('隔墙的人\n一早谢薇端着水推门进来')).toBe('隔墙的人')
     expect(extractOutlineChapterTitle('【隔间镜子】HH\n正文')).toBe('隔间镜子 HH')
@@ -297,6 +301,22 @@ describe('parseContinuationTitle', () => {
     expect(parseContinuationTitle(text)).toEqual({ title: '', body: text })
   })
 
+  it('裸首行与大纲标题完全一致时，即使没有空行也剥离标题', () => {
+    expect(parseContinuationTitle('雨夜断剑\n少年拾起断剑。', '雨夜断剑')).toEqual({ title: '雨夜断剑', body: '少年拾起断剑。' })
+  })
+
+  it('大纲标题匹配兼容 CRLF、首尾空白和大纲包裹符号', () => {
+    expect(parseContinuationTitle('  雨夜断剑  \r\n少年拾起断剑。', '【雨夜断剑】')).toEqual({ title: '雨夜断剑', body: '少年拾起断剑。' })
+  })
+
+  it('大纲标题只做完整匹配，不删除正文首句或同前缀长行', () => {
+    const text = '雨夜断剑落在少年面前\n少年拾起断剑。'
+    expect(parseContinuationTitle(text, '雨夜断剑')).toEqual({ title: '', body: text })
+    const longLine = '长'.repeat(40) + '正文内容'
+    expect(parseContinuationTitle(`${longLine}\n正文。`, '长'.repeat(40))).toEqual({ title: '', body: `${longLine}\n正文。` })
+    expect(parseContinuationTitle('雨夜断剑', '雨夜断剑')).toEqual({ title: '', body: '雨夜断剑' })
+  })
+
   it('空输入 / 空首行返回空标题与原文', () => {
     expect(parseContinuationTitle('')).toEqual({ title: '', body: '' })
     expect(parseContinuationTitle('\n\n正文。')).toEqual({ title: '', body: '正文。' })
@@ -370,5 +390,35 @@ describe('parseContinuationTitle', () => {
   it('识别单次输出中混入的第二章标题', () => {
     const parsed = parseContinuationTitle('【笼门】HHHH\n\n第一章正文。\n\n【心甘情愿】HHH\n\n第二章正文。')
     expect(parsed.body).toBe('第一章正文。')
+  })
+
+  it.each(['【明天见】', '【系统提示】', '【语音/消息】', '【消息 H】', '【番茄到了】'])('保留正文中的普通括号行 %s 及后续剧情', (message) => {
+    const body = `屏幕上显示一条消息：\n\n${message}\n\n他把手机放回口袋，继续向前走。${'后续剧情。'.repeat(100)}`
+    expect(parseContinuationTitle(`标题：雨夜来信\n\n${body}`)).toEqual({ title: '雨夜来信', body })
+  })
+
+  it('保留无空行的消息和未识别到首行标题的原文', () => {
+    const body = '屏幕上显示一条消息：\n【明天见】\n\n他把手机放回口袋。'
+    expect(parseContinuationTitle(`标题：雨夜来信\n\n${body}`).body).toBe(body)
+    const untitled = '他收到一条消息。\n\n【明天见】\n\n他把手机放回口袋。'
+    expect(parseContinuationTitle(untitled)).toEqual({ title: '', body: untitled })
+  })
+
+  it.each(['第 2 章 次日', '## 第二章 次日', '【第2章 次日】', '【第2章次日】', '【番外：次日】', '【次日清晨】h'])('仍然识别明确的后续章节边界 %s', (boundary) => {
+    expect(parseContinuationTitle(`标题：雨夜来信\n\n第一章正文。\n\n${boundary}\n\n第二章正文。`).body).toBe('第一章正文。')
+  })
+
+  it.each([
+    { kept: 1500, removed: 301, large: true },
+    { kept: 1500, removed: 300, large: false },
+    { kept: 100, removed: 40, large: true },
+    { kept: 120, removed: 40, large: false },
+  ])('准确记录截断量并区分字数或比例阈值：$kept/$removed', ({ kept, removed, large }) => {
+    const body = '甲'.repeat(kept)
+    const suffix = '\n\n第2章 次日\n\n'
+    const rawBody = body + suffix + '乙'.repeat(removed - suffix.length)
+    const parsed = parseContinuationTitle(`标题：雨夜来信\n\n${rawBody}`)
+    expect(parsed.body).toBe(body)
+    expect(parsed.truncation).toEqual({ originalBodyCharacters: kept + removed, removedCharacters: removed, large })
   })
 })
