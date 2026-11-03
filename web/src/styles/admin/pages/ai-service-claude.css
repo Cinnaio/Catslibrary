@@ -588,6 +588,16 @@
   .ai-service .ai-generations-filter-rail > .admin-filter-chips {
     justify-content: flex-start;
     margin-left: 0;
+    /* 筛选胶囊按内容宽度换行，避免全宽表单规则把横向轨道撑出手机视口。 */
+    flex-wrap: wrap;
+    overflow: visible;
+    padding-inline: 0;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+  .ai-service .ai-generations-filter-rail .admin-filter-chip {
+    width: auto !important;
+    max-width: 100% !important;
   }
   .ai-service .ai-params-nav {
     position: static;
