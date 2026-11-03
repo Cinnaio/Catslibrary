@@ -1280,30 +1280,27 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     <Dialog open={analysisDialogOpen} onOpenChange={setAnalysisDialogOpen}>
       <AdminDialogContent size="wide" className="sm:max-w-[780px] max-h-[85vh] flex flex-col p-0 ai-service">
         <DialogHeader className="shrink-0">
-          <DialogTitle id="ai-writing-analysis-title" className="flex items-center justify-center gap-1.5">
-            <Sparkles className="size-4 text-[#D97757]" aria-hidden="true" />
+          <DialogTitle id="ai-writing-analysis-title">
             小说分析
           </DialogTitle>
-          {props.onOpenGraph && (
-            <div className="flex items-center justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs font-medium"
-                disabled={!novelId}
-                onClick={() => {
-                  setAnalysisDialogOpen(false)
-                  props.onOpenGraph?.(novelId, afterChapterId || undefined)
-                }}
-              >
-                <Network className="size-3.5" />
-                查看故事图谱
-              </Button>
-            </div>
-          )}
           <DialogDescription>
             分析结果保存在本书中；只有当前可用的完整档案会被续写参考。展开可查看内容与人工校正。
           </DialogDescription>
+          {props.onOpenGraph && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute left-4 top-4 h-7 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+              disabled={!novelId}
+              onClick={() => {
+                setAnalysisDialogOpen(false)
+                props.onOpenGraph?.(novelId, afterChapterId || undefined)
+              }}
+            >
+              <Network className="size-3.5" />
+              故事图谱
+            </Button>
+          )}
         </DialogHeader>
 
         <AdminDialogBody className="px-6 py-4 overflow-y-auto space-y-4">
