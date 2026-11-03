@@ -5,12 +5,12 @@ import { chromium } from 'playwright'
 const base = process.env.WEB_URL || 'http://localhost:5173'
 const output = '.visual/ai-content-mobile'
 await mkdir(output, { recursive: true })
-const items = Array.from({ length: 4 }, (_, i) => ({
+const items = Array.from({ length: 8 }, (_, i) => ({
   id: `generation-${i}`, kind: 'continue', model: 'deepseek-v4.1-flash-uncensored',
   novelId: 'fixture', novelTitle: '和哥哥在大世界里愉快恋爱', chapterId: '',
   chapterTitle: `第 ${i + 1} 章`, result: '窗外的夜色渐深，他们循着旧日留下的线索，再次走向故事的深处。',
-  status: 'published', createdAt: 1793671200000, batchId: 'batch-fixture',
-  batchIndex: i, batchCount: 4, draftTitle: `第 ${i + 1} 章`, contentRevision: 'fixture',
+  status: 'published', createdAt: 1793671200000, batchId: `batch-fixture-${Math.floor(i / 4)}`,
+  batchIndex: i % 4 + 1, batchCount: 4, draftTitle: `第 ${i + 1} 章`, contentRevision: 'fixture',
 }))
 const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_CHANNEL || undefined })
 try {
@@ -27,12 +27,13 @@ try {
         if (path === '/api/auth/me') data = { user: { id: 'fixture', username: 'admin', role: 'admin', status: 'active' } }
         else if (path === '/api/auth/reader-settings') data = { settings: { contentMode: 'safe' } }
         else if (path === '/api/ai/settings') data = { settings: {}, provider: { model: 'fixture' } }
-        else if (path === '/api/ai/generations') data = { items, total: 1 }
+        else if (path === '/api/ai/generations') data = { items, total: 2 }
         await route.fulfill({ json: data })
       })
       const page = await context.newPage()
       await page.goto(`${base}/admin/ai?sub=content`)
       await page.locator('.ai-generation-row').first().waitFor()
+      await page.screenshot({ path: `${output}/${width}-${theme}-collapsed.png` })
       const checkLayout = async () => {
         const metrics = await page.evaluate(() => ({
           viewport: innerWidth, document: document.documentElement.scrollWidth,
@@ -49,9 +50,23 @@ try {
         return metrics
       }
       const metrics = await checkLayout()
-      await page.getByRole('button', { name: '4 章', exact: true }).click()
+      const checkDividers = async () => {
+        const dividers = await page.locator('.ai-generation-row > td[data-actions]').evaluateAll(cells => cells.map(cell => {
+          const actions = getComputedStyle(cell)
+          const previous = getComputedStyle(cell.previousElementSibling)
+          return { top: actions.borderTopWidth, bottom: actions.borderBottomWidth, previousBottom: previous.borderBottomWidth }
+        }))
+        if (width <= 900) for (const divider of dividers) {
+          assert.equal(divider.top, '1px', 'keep one divider above mobile actions')
+          assert.equal(divider.bottom, '0px', 'mobile actions must not duplicate the record divider')
+          assert.equal(divider.previousBottom, '0px', 'model/time must not duplicate the actions divider')
+        }
+      }
+      await checkDividers()
+      await page.getByRole('button', { name: '4 章', exact: true }).first().click()
       await page.locator('.ai-generation-row--child').first().waitFor()
       await checkLayout()
+      await checkDividers()
       await page.screenshot({ path: `${output}/${width}-${theme}.png` })
       await page.getByRole('combobox', { name: '按类型筛选生成内容' }).click()
       await page.getByRole('option', { name: '创作大纲', exact: true }).click()
@@ -59,7 +74,7 @@ try {
       await checkLayout()
       await page.getByRole('button', { name: '清除筛选', exact: true }).click()
       await checkLayout()
-      console.log(JSON.stringify({ width, theme, ...metrics, expandedBatch: 'passed', filters: 'passed' }))
+      console.log(JSON.stringify({ width, theme, ...metrics, expandedBatch: 'passed', filters: 'passed', dividers: 'passed' }))
       await context.close()
     }
   }

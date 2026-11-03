@@ -1923,6 +1923,11 @@
   .ai-service .ai-generation-row > td {
     padding: 4px 0;
   }
+  /* 操作区顶线和记录边界各自负责分隔，避免模型格与操作格的底线重复绘制。 */
+  .ai-service .ai-generation-row > td:nth-last-child(2),
+  .ai-service .ai-generation-row > td[data-actions] {
+    border-bottom: 0;
+  }
   .ai-service .ai-generation-row .ai-generation-identity {
     justify-content: flex-start;
   }
