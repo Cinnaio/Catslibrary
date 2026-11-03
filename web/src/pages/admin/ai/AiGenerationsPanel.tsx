@@ -1,4 +1,6 @@
 import DraftReview from './DraftReview'
+import WritingQualityNotice from './WritingQualityNotice'
+import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import PublishedMemoryUpdate from './PublishedMemoryUpdate'
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
@@ -50,6 +52,7 @@ interface AiGenerationListItem {
   plotDirection?: string
   /** 正文 SHA-256 版本；选段改写的前置校验字段 */
   contentRevision: string
+  quality?: WritingQualityReport
   groupItems?: AiGenerationListItem[]
 }
 
@@ -70,6 +73,9 @@ const AI_GENERATION_COLUMNS: readonly AdminColumn[] = [
 ]
 
 const generationStatusLabel = (status: string) => ({ draft: '待审草稿', published: '已发布', rejected: '已拒绝' })[status] || status
+const qualityCount = (item: AiGenerationListItem) => item.groupItems
+  ? item.groupItems.filter(chapter => chapter.status === 'draft' && chapter.quality?.warnings.length).length
+  : item.status === 'draft' && item.quality?.warnings.length ? 1 : 0
 
 export default function AiGenerationsPanel(props: {
   scope: 'all' | 'reader' | 'writing'
@@ -348,7 +354,7 @@ export default function AiGenerationsPanel(props: {
       // 保存后正文版本必变；把新的 contentRevision 一并写回，
       // 否则紧接着的选段改写会拿着旧版本号提交，被服务端 409 拒绝。
       const saved = await aiApi.writing.updateDraft(item.id, text)
-      setViewing((current) => (current ? { ...current, result: text, contentRevision: saved.contentRevision } : current))
+      setViewing((current) => (current ? { ...current, result: text, contentRevision: saved.contentRevision, quality: saved.quality } : current))
       setEditingText(null)
       toast('草稿已保存', 'success')
       void load()
@@ -632,6 +638,9 @@ export default function AiGenerationsPanel(props: {
                                   : `${item.groupItems.filter((chapter) => chapter.status === 'draft').length} 章待审`
                                 : generationStatusLabel(item.status)}
                             </AdminStatusBadge>
+                            {qualityCount(item) > 0 && (
+                              <AdminStatusBadge tone="warning">{item.groupItems ? `${qualityCount(item)} 章需检查` : '需检查'}</AdminStatusBadge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell data-label="内容预览">
@@ -766,6 +775,7 @@ export default function AiGenerationsPanel(props: {
                                   >
                                     {generationStatusLabel(chapter.status)}
                                   </AdminStatusBadge>
+                                  {qualityCount(chapter) > 0 && <AdminStatusBadge tone="warning">需检查</AdminStatusBadge>}
                                 </div>
                               </TableCell>
                               <TableCell data-label="内容预览">
@@ -867,6 +877,7 @@ export default function AiGenerationsPanel(props: {
             <>
               {/* 中间区是唯一的滚动所有者，发布区常驻可见 */}
               <AdminDialogBody className="ai-generation-modal__body flex min-h-0 flex-1 flex-col gap-3.5 pr-0.5">
+                {editingText === null && <WritingQualityNotice quality={viewing.quality} />}
                 {viewing.prompt && (
                   <details className="ai-generation-prompt-card group shrink-0">
                     <summary className="ai-generation-prompt-card__summary">
@@ -953,6 +964,7 @@ export default function AiGenerationsPanel(props: {
                       contentRevision={viewing.contentRevision || ''}
                       onApplied={({ result, contentRevision }) => {
                         setViewing((current) => (current ? { ...current, result, contentRevision } : current))
+                        void refreshViewing()
                         void load()
                       }}
                       onStale={() => void refreshViewing()}

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import AiGenerationsPanel from './AiGenerationsPanel'
+import { assessWritingQuality, type WritingQualityReport } from '@shared/ai-writing-quality'
 const mocks = vi.hoisted(() => ({ generations: vi.fn(), publishBatch: vi.fn(), publishDraft: vi.fn(), confirm: vi.fn(), toast: vi.fn() }))
 vi.mock('@/lib/api', () => ({
   aiApi: {
@@ -44,7 +45,7 @@ beforeEach(() => {
   mocks.publishBatch.mockResolvedValue({ published: [{ chapterId: 'c1' }, { chapterId: 'c2' }] })
   mocks.publishDraft.mockResolvedValue({ chapterId: 'c1' })
 })
-function open(items: ReturnType<typeof chapter>[]) {
+function open(items: Array<ReturnType<typeof chapter> & { quality?: WritingQualityReport }>) {
   mocks.generations.mockResolvedValue({ items, total: items.length > 1 ? 1 : items.length })
   render(
     <MemoryRouter>
@@ -81,4 +82,12 @@ it('single-chapter publication also surfaces the update prompt', async () => {
   fireEvent.click(await screen.findByRole('button', { name: '审阅' }))
   fireEvent.click(await screen.findByRole('button', { name: '发布为正式章节' }))
   expect(await screen.findByTestId('memory-update')).toHaveTextContent('book:prompt')
+})
+
+it('shows chapter warnings in a batch and keeps publication available after inspection', async () => {
+  open([{ ...chapter('first'), quality: assessWritingQuality({ text: '正文', targetWords: 2000 }) }, chapter('second')])
+  expect(await screen.findByText('1 章需检查')).toBeInTheDocument()
+  fireEvent.click(await screen.findByRole('button', { name: '审阅' }))
+  expect(screen.getByLabelText('生成质量提示')).toHaveTextContent('不足目标')
+  expect(screen.getByRole('button', { name: '发布为正式章节' })).toBeEnabled()
 })

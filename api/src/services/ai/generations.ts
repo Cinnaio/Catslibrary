@@ -4,6 +4,7 @@
  * params_json 参与命中判断，因此换模型或改提示词版本会自然失效重算。
  */
 import { createHash } from 'node:crypto'
+import { assessWritingQuality, type WritingQualityReport } from '@shared/ai-writing-quality'
 import type { Db, DbClient } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
@@ -38,9 +39,31 @@ export interface Generation {
   result: string
   status: string
   createdAt: number
+  quality?: WritingQualityReport
+}
+
+/** Recompute current-body warnings after edits; keep original upstream termination as audit data. */
+export function generationWritingQuality(kind: string, result: string, paramsJson: string): WritingQualityReport | undefined {
+  if (kind !== 'continue' && kind !== 'write_chapter') return undefined
+  let params: Record<string, unknown> = {}
+  try { params = JSON.parse(paramsJson || '{}') || {} } catch { /* Legacy records may lack valid metadata. */ }
+  const raw = params.writingQuality
+  const audit = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+  const boundary = params.chapterBoundaryTruncation
+  return assessWritingQuality({
+    text: result,
+    targetWords: typeof params.targetWords === 'number' ? params.targetWords : 0,
+    finishReason: typeof audit.finishReason === 'string' ? audit.finishReason : '',
+    upstreamIncomplete: audit.upstreamIncomplete === true,
+    editedSinceGeneration: typeof audit.originalRevision === 'string' && audit.originalRevision !== generationContentRevision(result),
+    titleNeedsReview: audit.titleNeedsReview === true,
+    repeatedOpening: audit.repeatedOpening === true,
+    largeBoundaryTruncation: !!boundary && typeof boundary === 'object' && (boundary as Record<string, unknown>).large === true,
+  })
 }
 
 export function rowToGeneration(row: GenerationRow): Generation {
+  const quality = generationWritingQuality(row.kind, row.result, row.params_json)
   return {
     id: String(row.id),
     novelId: String(row.novel_id || ''),
@@ -50,6 +73,7 @@ export function rowToGeneration(row: GenerationRow): Generation {
     result: String(row.result || ''),
     status: String(row.status || ''),
     createdAt: Number(row.created_at) || 0,
+    ...(quality ? { quality } : {}),
   }
 }
 
@@ -107,6 +131,7 @@ export async function saveGeneration(db: DbClient, input: SaveGenerationInput): 
       createdAt,
     ],
   )
+  const quality = generationWritingQuality(input.kind, input.result, input.paramsJson)
   return {
     id,
     novelId: input.novelId || '',
@@ -116,6 +141,7 @@ export async function saveGeneration(db: DbClient, input: SaveGenerationInput): 
     result: input.result || '',
     status: input.status,
     createdAt,
+    ...(quality ? { quality } : {}),
   }
 }
 

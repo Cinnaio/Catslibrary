@@ -1,4 +1,5 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
+import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import type { StoryGraphResponse } from '@shared/story-graph'
 import type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
 export type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
@@ -2110,7 +2111,10 @@ export interface AiWritingBrief {
   chapterGoals: Array<{ index: number; goal: string }>
 }
 export interface AiWritingMaterials {
-  memorySelection?: { revision: string; retrievedFacts: number; totalFacts: number }
+  memorySelection?: {
+    revision: string; retrievedFacts: number; totalFacts: number
+    selectionVersion?: number; omittedFacts?: number; projectedSupersededFacts?: number; materialCharacters?: number; overBudget?: boolean
+  }
   revision: string
   anchor: { chapterId: string; title: string; sortOrder: number }
   plan: {
@@ -2599,7 +2603,7 @@ export const aiApi = {
       const timeoutSeconds = normalizePlotTimeoutSeconds(data.timeoutSeconds)
       return request('POST', '/ai/writing/plot-suggestions', { ...data, timeoutSeconds }, true, {}, timeoutSeconds * 1000 + PLOT_TIMEOUT_RESPONSE_GRACE_MS)
     },
-    updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string; contentRevision: string }> {
+    updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string; contentRevision: string; quality?: WritingQualityReport }> {
       return request('PUT', `/ai/writing/drafts/${encodeURIComponent(id)}`, { result }, true)
     },
     /**
@@ -2718,6 +2722,7 @@ export const aiApi = {
       batchCount: number
       /** 续写时从 AI 输出解析出的章节标题，用于发布自动填充 */
       draftTitle: string
+      quality?: WritingQualityReport
       /** 正文 SHA-256 版本；选段改写与保存都要拿它做乐观并发校验 */
       contentRevision: string
     }>
@@ -2753,6 +2758,7 @@ export const aiApi = {
       batchIndex: number
       batchCount: number
       draftTitle: string
+      quality?: WritingQualityReport
       contentRevision: string
     }
   }> {

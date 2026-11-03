@@ -308,7 +308,7 @@ export function parseChapterMemory(
     const known = [...entities.values()].filter((e) => (itemId && e.id === itemId) || [e.name, ...e.aliases].includes(name))
     
     // 如果已知有多个重名/歧义，优先精确匹配同名实体或相同 ID 实体
-    let existing = (itemId ? entities.get(itemId) : undefined) || known.find((e) => e.name === name) || known[0]
+    const existing = (itemId ? entities.get(itemId) : undefined) || known.find((e) => e.name === name) || known[0]
     if (known.length > 1 && !existing) {
       firstEntityFailReason ||= `「${name}」存在身份歧义`
       continue
@@ -447,7 +447,7 @@ export function parseChapterMemory(
       continue
     }
 
-    let subjects = rawSubjects.map(nameId).filter((id): id is string => Boolean(id))
+    const subjects = rawSubjects.map(nameId).filter((id): id is string => Boolean(id))
     if (!subjects.length && opts.tolerant) {
       for (const rawName of rawSubjects) {
         const trimmed = typeof rawName === 'string' ? rawName.trim() : ''
@@ -650,7 +650,10 @@ export function renderLedger(state: LedgerState, kind: 'plot' | 'relationship', 
   const facts = (includeHistory ? state.facts : currentFacts(state)).filter((f) =>
     kind === 'relationship' ? ['relationship', 'boundary'].includes(f.kind) : !['relationship', 'boundary'].includes(f.kind),
   )
-  const lines = facts.map((f) => `${current.has(f.id) ? '' : '【历史记录，已被后续状态更新】'}${factLine(f, state)}\n正文依据：${f.quote}`)
+  const lines = facts.map((f) => {
+    const prefix = !current.has(f.id) ? '【历史记录，已被后续状态更新】' : f.stillActive === false ? '【历史记录，仅作回顾依据】' : ''
+    return `${prefix}${factLine(f, state)}\n正文依据：${f.quote}`
+  })
   const aliases = state.entities
     .filter((e) => e.aliases.length && facts.some((f) => f.subjects.includes(e.id)))
     .map(

@@ -13,6 +13,7 @@ import { createTestDb, type TestDb } from '../../test/db'
 import { createAiTask, getAiTask, cancelAiTask } from './tasks'
 import { generateContinuationChapters, generateWriting } from './writing'
 import { WRITING_PROMPT_PIPELINE_VERSION } from './writing-prompt'
+import { getGenerationDetail, updateGenerationResult } from './generations'
 import { parseAiTextProgress } from '@shared/ai-text-progress'
 let t: TestDb
 beforeAll(async () => { t = await createTestDb(); await t.applyMigrations() })
@@ -73,6 +74,29 @@ it('keeps a narrative opening when only the fallback title is available', async 
   mocks.chatStream.mockResolvedValueOnce({ ...result, text })
   const saved = await generateWriting(t.db, { userId: 'test', novelId: '', kind: 'continue', title: '书', instruction: '写一章', outlineTitle: '雨夜来信', profileOverrides: {}, promptPipelineVersion: 1 })
   expect(saved.generation.result).toBe(text)
+})
+
+it('persists finish reason and recomputes quality after edits without another model call', async () => {
+  mocks.chatStream.mockResolvedValueOnce({ ...result, text: `标题：雨夜来信\n\n${'正文。'.repeat(100)}`, finishReason: 'length' })
+  const saved = await generateWriting(t.db, { userId: 'test', novelId: '', kind: 'continue', title: '书', instruction: '写一章', targetWords: 2000, profileOverrides: {}, promptPipelineVersion: 1 })
+  expect(saved.generation.quality?.warnings.map(warning => warning.code)).toEqual(['short_chapter', 'output_limit'])
+  const row = (await t.db.query<{ params_json: string }>('SELECT params_json FROM ai_generations WHERE id=$1', [saved.generation.id])).rows[0]!
+  expect(JSON.parse(row.params_json)).toMatchObject({ performance: { finishReason: 'length' }, writingQuality: { finishReason: 'length' } })
+  await updateGenerationResult(t.db, saved.generation.id, '补全正文。'.repeat(400))
+  const edited = await getGenerationDetail(t.db, saved.generation.id)
+  expect(edited?.quality).toMatchObject({ editedSinceGeneration: true, finishReason: 'length' })
+  expect(edited?.quality?.warnings.map(warning => warning.code)).toEqual(['output_limit'])
+  expect(mocks.chatStream).toHaveBeenCalledTimes(1)
+})
+
+it('preserves a mismatched bare title and flags it until the body is corrected', async () => {
+  const text = '一个一个词\n他收到一条消息。'
+  mocks.chatStream.mockResolvedValueOnce({ ...result, text, finishReason: 'stop' })
+  const saved = await generateWriting(t.db, { userId: 'test', novelId: '', kind: 'continue', title: '书', instruction: '写一章', outlineTitle: '一个词一个词', profileOverrides: {}, promptPipelineVersion: 1 })
+  expect(saved.generation.result).toBe(text)
+  expect(saved.generation.quality?.warnings.map(warning => warning.code)).toEqual(['title_format'])
+  await updateGenerationResult(t.db, saved.generation.id, '他收到一条消息。')
+  expect((await getGenerationDetail(t.db, saved.generation.id))?.quality?.warnings).toEqual([])
 })
 
 it.each([1, WRITING_PROMPT_PIPELINE_VERSION])('passes the plot after a message to the next chapter, excluding archived overflow (pipeline %s)', async (promptPipelineVersion) => {

@@ -1,11 +1,12 @@
 import { removeAdPatterns } from '@shared/ad-cleaner'
 import { normalizePlotTimeoutSeconds } from '@shared/ai-plot-timeout'
+import { detectRepeatedOpening } from '@shared/ai-writing-quality'
 import type { Db } from '../../db/pool'
 import { all, first, withTx } from '../../db/query'
 import { newId } from '../auth'
 import { chat, chatStream, isTextAiConfigured, providerLabel, textProvider, AiError, type AiChatOptions } from './client'
 import { createTextProgressReporter } from './text-progress'
-import { saveGeneration, type Generation, type BatchDraft } from './generations'
+import { saveGeneration, generationContentRevision, type Generation, type BatchDraft } from './generations'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 import { getAiSettings } from './settings'
@@ -164,7 +165,10 @@ export interface ContinuationSnapshotV1 {
   contentPreferences?: WritingContentPreferencesV1
   excludedProfiles: Array<{ kind: 'style' | 'relationship' | 'plot'; reason: string }>
   historicalPassages?: HistoryPassage[]
-  memorySelection?: { revision: string; retrievedFacts: number; totalFacts: number }
+  memorySelection?: {
+    revision: string; retrievedFacts: number; totalFacts: number
+    selectionVersion?: number; omittedFacts?: number; projectedSupersededFacts?: number; materialCharacters?: number; overBudget?: boolean
+  }
 }
 
 export function cleanWritingText(raw: string, maxChars = MAX_CONTEXT_CHARS): string {
@@ -794,6 +798,7 @@ export async function generateWriting(db: Db, opts: {
     const systemParts = [baseSystem]
     if (opts.kind === 'continue' || opts.kind === 'write_chapter') {
       systemParts.push('本次请求只能创作一章。只在开头输出一次章节标题，正文中不得出现下一章、上一章或任何额外章节标题；写完本章立即停止。')
+      systemParts.push('首行必须使用「标题：章节名」，随后空一行再写正文；不要单独输出裸标题或章节序号。')
     }
     if (styleProfile) systemParts.push(`本作风格特征（续写须严格遵循）：\n${styleProfile}`)
     if (relationshipProfile) systemParts.push(`本作角色关系动态（续写须保持人设与权力结构一致，不得逾越关系边界）：\n${relationshipProfile}`)
@@ -841,6 +846,10 @@ export async function generateWriting(db: Db, opts: {
     const parsedTitle = opts.kind === 'continue' || opts.kind === 'write_chapter' ? parseContinuationTitle(res.text, fallbackTitle) : null
     const effectiveDraftTitle = parsedTitle?.title || fallbackTitle
     const resultText = parsedTitle?.title ? parsedTitle.body : res.text
+    const firstLines = res.text.trimStart().replace(/\r\n/g, '\n').split('\n')
+    const firstLine = (firstLines[0] || '').trim()
+    const titleNeedsReview = !!parsedTitle && !parsedTitle.title && firstLine.length >= 2 && firstLine.length <= 40
+      && !/[。！？!?…，,：:；;]/.test(firstLine) && !!firstLines[1]?.trim()
     const generation = await withTx(db, async q => {
       const active = await q<{ status: string }>('SELECT status FROM ai_tasks WHERE id=$1 FOR UPDATE', [taskId])
       if (!['queued', 'running'].includes(active.rows[0]?.status || '')) throw new AiError('invalid', '任务已停止')
@@ -856,7 +865,12 @@ export async function generateWriting(db: Db, opts: {
         temperature,
         maxTokens,
         reasoningMode: settings.writingReasoningMode || 'inherit',
-        performance: { ...progress.metrics(), outputCharacters: res.text.length, resultCharacters: resultText.length, reasoningTokens: res.reasoningTokens ?? null, completionTokens: res.completionTokens, streamRequested: !!settings.writingStreamEnabled, streamed: !!res.streamed },
+        performance: { ...progress.metrics(), outputCharacters: res.text.length, resultCharacters: resultText.length, finishReason: res.finishReason || '', reasoningTokens: res.reasoningTokens ?? null, completionTokens: res.completionTokens, streamRequested: !!settings.writingStreamEnabled, streamed: !!res.streamed },
+        ...(parsedTitle ? { writingQuality: {
+          version: 1, originalRevision: generationContentRevision(resultText), finishReason: res.finishReason || '',
+          upstreamIncomplete: res.truncated === true, titleNeedsReview,
+          repeatedOpening: detectRepeatedOpening(resultText, opts.batchDrafts?.at(-1)?.text || opts.context || ''),
+        } } : {}),
         // 章节边界仍可能存在歧义；保留截断前原文，避免误判后不可恢复地丢失正文。
         ...(parsedTitle?.truncation ? { chapterBoundaryTruncation: { ...parsedTitle.truncation, originalText: res.text } } : {}),
         targetWords: opts.targetWords || 0,

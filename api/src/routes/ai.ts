@@ -34,6 +34,7 @@ import {
   getGeneration,
   getGenerationDetail,
   updateGenerationResult,
+  generationWritingQuality,
   generationContentRevision,
   UNDO_WINDOW_MS,
   type GenerationRow,
@@ -673,7 +674,10 @@ async function buildContinuationSnapshot(
     throw new AiError('invalid', '章节增量记忆尚未完整覆盖此续写起点，请先更新或继续故事记忆后再预览和续写', 422)
   }
   const ledgerMaterials = memorySettings.storyMemoryEngine === 'incremental' ? await selectLedgerMaterials(db, novelId, loaded.anchor.chapterId,
-    [loaded.context, instruction, brief?.objective, brief?.requiredFacts, ...(brief?.characters || []), ...(brief?.chapterGoals.map(g => g.goal) || [])].filter(Boolean).join('\n'), { plot, relationship }) : undefined
+    [loaded.context, instruction, brief?.objective, brief?.requiredFacts, ...(brief?.characters || []), ...(brief?.chapterGoals.map(g => g.goal) || [])].filter(Boolean).join('\n'), { plot, relationship }, {
+      context: loaded.context,
+      instruction: [instruction, brief?.objective, brief?.requiredFacts, ...(brief?.characters || []), ...(brief?.chapterGoals.map(g => g.goal) || [])].filter(Boolean).join('\n'),
+    }) : undefined
   if (ledgerMaterials) Object.assign(profiles, ledgerMaterials.selected)
   return {
     version: 1,
@@ -688,7 +692,11 @@ async function buildContinuationSnapshot(
     contentPreferences,
     excludedProfiles,
     historicalPassages: await retrieveWritingHistory(db, novelId, loaded.anchor, brief, instruction),
-    ...(ledgerMaterials ? { memorySelection: { revision: ledgerMaterials.revision, retrievedFacts: ledgerMaterials.retrievedFacts, totalFacts: ledgerMaterials.totalFacts } } : {}),
+    ...(ledgerMaterials ? { memorySelection: {
+      revision: ledgerMaterials.revision, retrievedFacts: ledgerMaterials.retrievedFacts, totalFacts: ledgerMaterials.totalFacts,
+      selectionVersion: ledgerMaterials.selectionVersion, omittedFacts: ledgerMaterials.omittedFacts,
+      projectedSupersededFacts: ledgerMaterials.projectedSupersededFacts, materialCharacters: ledgerMaterials.materialCharacters, overBudget: ledgerMaterials.overBudget,
+    } } : {}),
   }
 }
 
@@ -1692,9 +1700,12 @@ aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const result = String(body.result ?? '').trim()
   if (!result) return c.json({ error: '内容不能为空' }, 400)
+  const before = await getGeneration(getDb(), id)
   const updated = await updateGenerationResult(getDb(), id, result)
   if (!updated) return c.json({ error: '草稿不存在、已发布、已删除或不可编辑' }, 409)
-  return c.json({ ok: true, id, result, contentRevision: generationContentRevision(result) })
+  return c.json({ ok: true, id, result, contentRevision: generationContentRevision(result),
+    ...(before ? { quality: generationWritingQuality(before.kind, result, before.params_json) } : {}),
+  })
 })
 
 // ---------- 草稿选段改写：建议与应用分离，正文以 SHA-256 做乐观并发校验 ----------

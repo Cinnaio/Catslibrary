@@ -195,7 +195,7 @@ export default function WritingPreparation(props: {
                 <p className="text-xs leading-5 text-muted-foreground">
                   起点：{visiblePreview.anchor.title} · 材料约 {visiblePreview.characterCount.toLocaleString()} 字符（不是 Token 数）。
                   {visiblePreview.recentContextPolicy}
-                  {visiblePreview.memorySelection && <span className="mt-1 block">增量记忆：本次关联 {visiblePreview.memorySelection.retrievedFacts} 条 / 已存 {visiblePreview.memorySelection.totalFacts} 条；完整历史仍可追溯。</span>}
+                  {visiblePreview.memorySelection && <span className="mt-1 block">增量记忆：本次关联 {visiblePreview.memorySelection.retrievedFacts} 条 / 已存 {visiblePreview.memorySelection.totalFacts} 条；完整历史仍可追溯。{visiblePreview.memorySelection.overBudget ? '关键约束较多，已完整保留，建议检查材料范围。' : ''}</span>}
                 </p>
                 {visiblePreview.excludedProfiles.length > 0 && (
                   <p className="text-xs text-muted-foreground">
