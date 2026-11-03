@@ -1745,53 +1745,32 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       : '留空时模型自行发挥，情节走向随机——同一本书同一起点，两批结果可能完全不同。建议先「推荐情节」挑一条。'}
                   </p>
                 </section>
-                <div className="ai-writing-assist-bar mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
-                  <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[220px]">
-                    <span className="text-xs font-medium text-foreground/80 shrink-0">推荐侧重点</span>
-                    <Input
-                      aria-label="推荐侧重点（可选）"
-                      value={focus}
-                      onChange={(event) => setFocus(event.target.value)}
-                      placeholder="可留空，例如：感情升温的日常互动"
-                      className="h-8 text-xs flex-1 min-w-[140px] max-w-xs rounded-full bg-background border-border/70"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3.5 text-xs shrink-0 font-medium rounded-full bg-background hover:bg-accent border-border/80 hover:border-[#D97757]/40 hover:text-[#D97757]"
-                      disabled={busy || suggestBusy || !novelId}
-                      onClick={() => void loadSuggestions()}
-                    >
-                      {suggestBusy ? (
-                        '推荐中…'
-                      ) : (
-                        <>
-                          <Sparkles className="size-3.5 mr-1" aria-hidden="true" />
-                          推荐情节
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0 pl-2 border-l border-border/50">
-                    <Label htmlFor="ai-plot-timeout" className="text-xs text-muted-foreground whitespace-nowrap">
-                      超时:
-                    </Label>
-                    <Input
-                      id="ai-plot-timeout"
-                      aria-label="情节推荐与大纲超时（秒）"
-                      type="number"
-                      min={PLOT_TIMEOUT_MIN_SECONDS}
-                      max={PLOT_TIMEOUT_MAX_SECONDS}
-                      value={plotTimeoutInput.text}
-                      onChange={(event) => plotTimeoutInput.onChangeText(event.target.value)}
-                      onBlur={commitPlotTimeout}
-                      disabled={suggestBusy || outlineBusy}
-                      className="h-8 w-14 px-1 text-center font-mono text-xs rounded-full bg-background"
-                      title="默认 180 秒，可设为 30–600 秒，同时用于推荐情节和按情节生成大纲"
-                    />
-                    <span className="text-xs text-muted-foreground">秒</span>
-                  </div>
+                <div className="ai-writing-assist-bar mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
+                  <span className="text-xs font-medium text-foreground/80 shrink-0">推荐侧重点</span>
+                  <Input
+                    aria-label="推荐侧重点（可选）"
+                    value={focus}
+                    onChange={(event) => setFocus(event.target.value)}
+                    placeholder="可留空，例如：感情升温的日常互动"
+                    className="h-8 text-xs flex-1 min-w-[140px] max-w-xs rounded-full bg-background border-border/70"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3.5 text-xs shrink-0 font-medium rounded-full bg-background hover:bg-accent border-border/80 hover:border-[#D97757]/40 hover:text-[#D97757]"
+                    disabled={busy || suggestBusy || !novelId}
+                    onClick={() => void loadSuggestions()}
+                  >
+                    {suggestBusy ? (
+                      '推荐中…'
+                    ) : (
+                      <>
+                        <Sparkles className="size-3.5 mr-1" aria-hidden="true" />
+                        推荐情节
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
               <div className="ai-writing-brief-layout__aside">
@@ -1956,6 +1935,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               disabled={busy || taskActive}
               continuation={mode === 'continue'}
               onPreview={(revision, key) => setMaterialPreview({ revision, key })}
+              plotTimeout={{
+                value: plotTimeoutInput.text,
+                min: PLOT_TIMEOUT_MIN_SECONDS,
+                max: PLOT_TIMEOUT_MAX_SECONDS,
+                onChange: plotTimeoutInput.onChangeText,
+                onBlur: commitPlotTimeout,
+              }}
             />
             <details className="ai-writing-outline-details" open={isMultiChapter || undefined}>
               <summary>
