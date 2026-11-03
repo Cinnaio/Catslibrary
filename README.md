@@ -86,13 +86,19 @@ data/           运行时数据（runtime-config.json 等，已 gitignore）
 
 生产环境由 GitHub Actions 构建与发布，**不要在服务器上跑 `npm run build`**：生产机内存很小，`vite build` 会撞 V8 堆上限；而且 `vite build` 会先清空 `web/dist` 再打包，构建失败会直接把线上页面删空。
 
-### 自动发布（推荐）
+### 按需发布（GitHub Actions）
 
-推送 `main` 后 `.github/workflows/deploy.yml` 会依次执行：
+网站部署和 iOS 构建分别手动选择运行，推送或创建/更新 PR 均不会自动触发它们：
 
-1. `verify`：`npm ci` → 类型检查 → 全量测试
-2. `build`：在 GitHub 托管的 runner 上清空旧产物后 `npm run build`，校验 `index.html` 引用的每个 `/assets/*` 都真实存在
-3. 打包 `web/dist` + `api/dist`（排除 sourcemap）为 `release-<sha>.tgz`
+- 网站：进入仓库 **Actions → Deploy → Run workflow**，选择要部署的分支（通常为 `main`）并运行。
+- iOS：进入 **Actions → Build and Test iOS (unsigned IPA) → Run workflow**，选择分支并运行；完成后下载 `ZhiZhou-unsigned-ipa` 工件。
+- 普通 CI 与备份集成检查继续按各自工作流的现有规则触发。
+
+手动运行 `.github/workflows/deploy.yml` 后会依次执行：
+
+1. 安装依赖并运行类型检查；全量测试由独立 CI 执行
+2. 在 GitHub 托管的 runner 上清空旧产物后 `npm run build`，校验 `index.html` 引用的每个 `/assets/*` 都真实存在
+3. 打包 `web/dist` + `api/dist`（排除 sourcemap）为 `release.tgz`
 4. 通过 SSH 上传到 `/tmp`，再执行服务器上的 `/usr/local/bin/zhizhou-release <sha>` 完成原子切换
 
 `zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）的行为：

@@ -75,7 +75,7 @@ ZhiZhouCore/
 
 ```
 1. 在 Cinnaio/zhi-zhou 仓库的分支中修改 ios/；接口变更同时更新 api/、shared/、web/ 中的相关实现
-2. PR 或合入 main 的 iOS 代码变更触发 Build and Test iOS（也可手动 workflow_dispatch）→ 下载 ZhiZhou-unsigned-ipa artifact
+2. 在仓库 Actions → Build and Test iOS (unsigned IPA) → Run workflow 选择分支并手动运行 → 下载 ZhiZhou-unsigned-ipa artifact（推送和 PR 不自动构建）
 3. Windows 上安装 Sideloadly（或 AltStore）→ 输入 Apple ID 签名 → USB 安装到 iPhone
 ```
 
