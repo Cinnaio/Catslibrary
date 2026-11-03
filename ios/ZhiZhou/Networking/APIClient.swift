@@ -1,0 +1,713 @@
+import Foundation
+import ZhiZhouCore
+
+enum APIError: LocalizedError, Equatable {
+    case notConfigured
+    case invalidResponse
+    case unauthorized
+    case http(status: Int, message: String?)
+    case network(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .notConfigured: return "尚未配置服务器地址"
+        case .invalidResponse: return "服务器响应格式不正确"
+        case .unauthorized: return "登录已过期，请重新登录"
+        case .http(let status, let message): return message ?? "请求失败（HTTP \(status)）"
+        case .network(let detail): return "网络错误：\(detail)"
+        }
+    }
+}
+
+struct ErrorEnvelope: Decodable { let error: String? }
+
+/// 忽略响应体的空类型：任何合法 JSON 都能解码成功。
+struct EmptyResponse: Decodable {}
+
+/// 让 Swift Task 的取消能够传递到底层 URLSessionTask。
+private final class URLSessionTaskBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDataTask?
+    private var cancelled = false
+
+    func set(_ task: URLSessionDataTask) {
+        lock.lock()
+        let shouldCancel = cancelled
+        if !shouldCancel { self.task = task }
+        lock.unlock()
+        if shouldCancel { task.cancel() }
+        task.resume()
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let task = self.task
+        lock.unlock()
+        task?.cancel()
+    }
+}
+
+/// Tracks the account namespace used by chapter caches. A generation changes
+/// at every account boundary so an old request cannot publish data into a new
+/// session after logout or account switching.
+private actor ChapterCacheScope {
+    struct Snapshot: Sendable, Equatable {
+        let userID: String
+        let generation: UUID
+    }
+
+    private var userID: String?
+    private var generation = UUID()
+
+    func set(userID: String?) {
+        let normalized = userID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.userID = normalized?.isEmpty == true ? nil : normalized
+        generation = UUID()
+    }
+
+    func snapshot() -> Snapshot? {
+        guard let userID else { return nil }
+        return Snapshot(userID: userID, generation: generation)
+    }
+
+    func isCurrent(_ snapshot: Snapshot) -> Bool {
+        userID == snapshot.userID && generation == snapshot.generation
+    }
+}
+
+/// 类型化 fetch 封装 —— 语义对齐 web/src/lib/api.ts。
+/// - 鉴权：Authorization: Bearer <token>（token 存 Keychain）
+/// - 超时：普通请求 30s；长耗时调用由调用方显式传入更长预算
+final class APIClient: NSObject, URLSessionTaskDelegate {
+    static let shared = APIClient()
+
+    private let decoder = JSONDecoder()
+    private static let tokenKey = "zhizhou.token"
+    #if DEBUG
+    private static let allowInvalidCertKey = "zhizhou.allowInvalidCert"
+    #endif
+
+    /// 阅读器章节数据内存缓存：避免切回已读章节时重复下载（Data 按 URL 缓存）。
+    private let chapterDataCache: NSCache<NSString, NSData> = {
+        let cache = NSCache<NSString, NSData>()
+        cache.countLimit = 20
+        cache.totalCostLimit = 16 * 1024 * 1024
+        return cache
+    }()
+    private let chapterCacheScope = ChapterCacheScope()
+
+    /// 兼容旧调用，仅清理章节内存缓存。
+    func clearMemoryCaches() {
+        chapterDataCache.removeAllObjects()
+    }
+
+    /// 清理章节内存与磁盘缓存，供存储管理页等待完成后刷新占用。
+    func clearCaches() async {
+        chapterDataCache.removeAllObjects()
+        await ChapterDiskCache.shared.removeAll()
+    }
+
+    /// Change the account namespace for reader caches and invalidate memory data.
+    /// Persistent data for other accounts remains on disk but is unreachable
+    /// until that account is explicitly activated again.
+    func setChapterCacheScope(userID: String?) async {
+        setImageCacheAccount(userID)
+        await chapterCacheScope.set(userID: userID)
+        chapterDataCache.removeAllObjects()
+    }
+
+    /// lazy：URLSession 的 delegate 需要 self 已完全初始化，故延迟到首次使用时创建
+    private lazy var session: URLSession = {
+        let config = URLSessionConfiguration.default
+        #if DEBUG && targetEnvironment(simulator)
+        VisualAudit.configure(config)
+        #endif
+        config.timeoutIntervalForRequest = 30
+        // 原生读取用 Bearer；不要让 unlock 的 Cookie 泄入安全模式或离线下载。
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.urlCache = nil
+        // AI 画像提取是同步的服务端模型调用，服务端自身可能进行多轮
+        // 上游重试；不能让 URLSession 的资源预算在回到前台前先把它判成失败。
+        config.timeoutIntervalForResource = 420
+        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
+    }()
+
+    // MARK: - 鉴权
+
+    private let tokenLock = NSLock()
+    private var sessionRotation = SessionRotationGuard()
+    private var imageCacheAccount: String?
+
+    // Stable across access-cookie refreshes and Bearer rotation within one account.
+    var imageCacheIdentity: String {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        return imageCacheAccount.map { "account:\($0)" } ?? "session:\(Keychain.load(Self.tokenKey) ?? "")"
+    }
+
+    private func setImageCacheAccount(_ userID: String?) {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        imageCacheAccount = userID
+    }
+
+    var token: String? {
+        get {
+            tokenLock.lock()
+            defer { tokenLock.unlock() }
+            return Keychain.load(Self.tokenKey)
+        }
+        set {
+            tokenLock.lock()
+            defer { tokenLock.unlock() }
+            if let newValue, !newValue.isEmpty {
+                _ = Keychain.save(newValue, forKey: Self.tokenKey)
+            } else {
+                Keychain.delete(Self.tokenKey)
+            }
+        }
+    }
+
+    var isAuthenticated: Bool {
+        guard let token, !token.isEmpty else { return false }
+        return true
+    }
+
+    /// 401 会话失效统一处理：清 token 并广播，让 AppState 跳转登录。
+    /// 供 AppState 注册，避免 APIClient 直接依赖视图层。
+    var onUnauthorized: ((String) -> Void)?
+
+    // MARK: - TLS
+
+    #if DEBUG
+    /// 仅 Debug 构建允许排查自签名证书；Release 构建不包含此能力。
+    var allowsInvalidCertificates: Bool {
+        get { UserDefaults.standard.object(forKey: Self.allowInvalidCertKey) as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: Self.allowInvalidCertKey) }
+    }
+
+    /// ⚠️ TLS 服务器证书（serverTrust）challenge 只走 **task 级** delegate：
+    /// `urlSession(_:task:didReceive:completionHandler:)`。
+    /// session 级方法只处理代理认证等，接不到证书 challenge，必须实现 task 级版本。
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard allowsInvalidCertificates,
+              challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust
+        else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        completionHandler(.useCredential, URLCredential(trust: trust))
+    }
+    #endif
+
+    // MARK: - 资源 URL
+
+    func coverURL(novelId: String, updatedAt: Int64) -> URL? {
+        guard let base = ServerConfig.shared.baseURL else { return nil }
+        let path = base.appending(path: "api/cover/\(novelId)")
+        var comps = URLComponents()
+        comps.queryItems = [
+            URLQueryItem(name: "v", value: String(updatedAt)),
+            URLQueryItem(name: "cover", value: "2"),
+        ]
+        guard let query = comps.url?.query() else { return path }
+        return URL(string: path.absoluteString + "?" + query)
+    }
+
+    func avatarURL(userId: String, updatedAt: Int64? = nil) -> URL? {
+        guard let base = ServerConfig.shared.baseURL else { return nil }
+        let url = base.appending(path: "api/avatar/\(userId)")
+        guard let updatedAt else { return url }
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "v", value: String(updatedAt))]
+        return components?.url
+    }
+
+    // MARK: - 请求
+
+    private func makeURL(_ path: String) throws -> URL {
+        if path.lowercased().hasPrefix("http://") || path.lowercased().hasPrefix("https://") {
+            guard let url = URL(string: path) else { throw APIError.invalidResponse }
+            return url
+        }
+        guard let base = ServerConfig.shared.baseURL else { throw APIError.notConfigured }
+        // IDs in media paths and query values are already escaped by the caller.
+        // appendingPathComponent escapes '%' again (%5F → %255F), producing a different chapter ID.
+        guard let url = APIRequestURL.resolve(path, relativeTo: base) else { throw APIError.invalidResponse }
+        return url
+    }
+
+    func request<T: Decodable>(
+        _ method: String,
+        _ path: String,
+        body: Data? = nil,
+        auth: Bool = false,
+        contentType: String? = nil,
+        idempotencyKey: String? = nil,
+        expectedToken: String? = nil,
+        timeout: TimeInterval = 30
+    ) async throws -> T {
+        try await requestInternal(
+            method,
+            path,
+            body: body,
+            auth: auth,
+            contentType: contentType,
+            idempotencyKey: idempotencyKey,
+            expectedToken: expectedToken,
+            timeout: timeout
+        )
+    }
+
+    private func requestInternal<T: Decodable>(
+        _ method: String,
+        _ path: String,
+        body: Data? = nil,
+        auth: Bool = false,
+        contentType: String? = nil,
+        idempotencyKey: String? = nil,
+        expectedToken: String? = nil,
+        expectedReaderCacheScope: ChapterCacheScope.Snapshot? = nil,
+        timeout: TimeInterval = 30
+    ) async throws -> T {
+        let url = try makeURL(path)
+        // Check the captured identity before returning any authenticated cached data.
+        if let expectedToken, token != expectedToken { throw CancellationError() }
+        if auth && !isAuthenticated { throw APIError.http(status: 401, message: "请先登录") }
+
+        let usesReaderChapterCache = method == "GET" && isReaderChapterPath(path)
+            && ContentPolicy.canCacheChapter(path: path, authenticated: auth)
+        let cacheScope: ChapterCacheScope.Snapshot?
+        if usesReaderChapterCache {
+            let currentScope = await chapterCacheScope.snapshot()
+            if let expectedReaderCacheScope {
+                guard let currentScope, currentScope == expectedReaderCacheScope else {
+                    throw CancellationError()
+                }
+            }
+            cacheScope = currentScope
+        } else {
+            cacheScope = nil
+        }
+        let cacheKey = cacheScope.map { chapterCacheKey(for: url, scope: $0) }
+
+        // 阅读器章节列表/正文优先走内存缓存：切章和打开目录时不重复下载。
+        if let cacheScope,
+           let cacheKey,
+           let cached = chapterDataCache.object(forKey: cacheKey),
+           let decoded = decode(cached as Data, as: T.self) {
+            guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
+            // 内存缓存可能仍在，但磁盘缓存已因容量淘汰；离线下载需补回持久副本。
+            if !(await ChapterDiskCache.shared.contains(url.absoluteString, scope: cacheScope.userID)) {
+                await ChapterDiskCache.shared.store(cached as Data, for: url.absoluteString, scope: cacheScope.userID)
+            }
+            guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
+            return decoded
+        }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.timeoutInterval = max(1, timeout)
+        if let body {
+            req.httpBody = body
+            // multipart 上传（AI 封面上传等）由调用方指定完整 Content-Type（含 boundary）
+            req.setValue(contentType ?? "application/json", forHTTPHeaderField: "Content-Type")
+        }
+        let requestToken = auth ? token : nil
+        if let expectedToken, requestToken != expectedToken { throw CancellationError() }
+        if let requestToken {
+            req.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization")
+        }
+        if let idempotencyKey, !idempotencyKey.isEmpty {
+            // The server stores the operation result under this key. A retry
+            // after a lost response therefore replays the original task
+            // instead of creating another quota-bearing job.
+            req.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        }
+        // 与 Web 端一致：不做浏览器 HTTP 缓存，始终拿最新数据（章节正文除外，走上面内存缓存）
+        req.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await performIdempotent(req, key: idempotencyKey)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError {
+            if error.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            if let cacheScope,
+               await chapterCacheScope.isCurrent(cacheScope),
+               let cached = await ChapterDiskCache.shared.data(for: url.absoluteString, scope: cacheScope.userID),
+               let decoded = decode(cached, as: T.self) {
+                guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
+                return decoded
+            }
+            throw APIError.network(friendlyDescription(for: error))
+        } catch {
+            if Task.isCancelled {
+                throw CancellationError()
+            }
+            if let cacheScope,
+               await chapterCacheScope.isCurrent(cacheScope),
+               let cached = await ChapterDiskCache.shared.data(for: url.absoluteString, scope: cacheScope.userID),
+               let decoded = decode(cached, as: T.self) {
+                guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
+                return decoded
+            }
+            throw APIError.network(error.localizedDescription)
+        }
+
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if let idempotencyKey,
+           !idempotencyKey.isEmpty,
+           [502, 503, 504].contains(http.statusCode) {
+            // A gateway error can arrive after the server committed the
+            // operation. Repeating the same key is safe and may replay it.
+            let retried = try await perform(req)
+            guard let retriedHTTP = retried.1 as? HTTPURLResponse else { throw APIError.invalidResponse }
+            if (200..<300).contains(retriedHTTP.statusCode) {
+                return try await decodeResponse(retried.0, response: retried.1, cacheScope: cacheScope, cacheKey: cacheKey, url: url, type: T.self)
+            }
+            // Keep the original response path for consistent error handling.
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let message = (try? decoder.decode(ErrorEnvelope.self, from: data))?.error
+            if let requestToken, AccountPolicy.shouldInvalidateSession(
+                method: method, path: path, statusCode: http.statusCode, errorMessage: message
+            ) {
+                handleUnauthorized(requestToken: requestToken)
+            }
+            throw APIError.http(status: http.statusCode, message: message)
+        }
+
+        if let cacheScope, !(await chapterCacheScope.isCurrent(cacheScope)) {
+            throw CancellationError()
+        }
+
+        guard let decoded = decode(data, as: T.self) else {
+            throw APIError.invalidResponse
+        }
+
+        if let cacheScope, let cacheKey {
+            chapterDataCache.setObject(
+                data as NSData,
+                forKey: cacheKey,
+                cost: data.count
+            )
+            await ChapterDiskCache.shared.store(data, for: url.absoluteString, scope: cacheScope.userID)
+            guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
+        }
+        return decoded
+    }
+
+    private func performIdempotent(_ req: URLRequest, key: String?) async throws -> (Data, URLResponse) {
+        do {
+            return try await perform(req)
+        } catch let error as URLError {
+            guard let key, !key.isEmpty, !Task.isCancelled,
+                  error.code != .cancelled else { throw error }
+            return try await perform(req)
+        } catch {
+            guard let key, !key.isEmpty, !Task.isCancelled else { throw error }
+            return try await perform(req)
+        }
+    }
+
+    private func decodeResponse<T: Decodable>(
+        _ data: Data,
+        response: URLResponse,
+        cacheScope: ChapterCacheScope.Snapshot?,
+        cacheKey: NSString?,
+        url: URL,
+        type: T.Type
+    ) async throws -> T {
+        if let cacheScope, !(await chapterCacheScope.isCurrent(cacheScope)) {
+            throw CancellationError()
+        }
+        guard let decoded = decode(data, as: type) else { throw APIError.invalidResponse }
+        if let cacheScope, let cacheKey {
+            chapterDataCache.setObject(data as NSData, forKey: cacheKey, cost: data.count)
+            await ChapterDiskCache.shared.store(data, for: url.absoluteString, scope: cacheScope.userID)
+            guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
+        }
+        return decoded
+    }
+
+    private func isReaderChapterPath(_ path: String) -> Bool {
+        // GET /api/chapters（目录）和 /api/chapters/{id}（正文）均可离线回退。
+        let base = path.split(separator: "?").first.map(String.init) ?? path
+        let parts = base.split(separator: "/").filter { !$0.isEmpty }.map(String.init)
+        return (parts.count == 2 || parts.count == 3)
+            && parts[0] == "api"
+            && parts[1] == "chapters"
+    }
+
+    private func decode<T: Decodable>(_ data: Data, as type: T.Type) -> T? {
+        if T.self == EmptyResponse.self {
+            return EmptyResponse() as? T
+        }
+        return try? decoder.decode(T.self, from: data)
+    }
+
+    private func handleUnauthorized(requestToken: String) {
+        // The compare-and-clear inside invalidateSession is atomic with the
+        // token lock, so an old response cannot wipe out a newer login.
+        invalidateSession(expectedToken: requestToken)
+    }
+
+    func beginTokenRotation(expectedToken: String) -> Bool {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        guard Keychain.load(Self.tokenKey) == expectedToken else { return false }
+        return sessionRotation.begin(token: expectedToken)
+    }
+
+    func finishTokenRotation(expectedToken: String) {
+        tokenLock.lock()
+        let rejected = sessionRotation.finish(token: expectedToken, currentToken: Keychain.load(Self.tokenKey))
+        tokenLock.unlock()
+        if let rejected { invalidateSession(expectedToken: rejected) }
+    }
+
+    /// 主动使当前会话失效，例如启动恢复收到 403 时。
+    func invalidateSession(expectedToken: String? = nil) {
+        tokenLock.lock()
+        let currentToken = Keychain.load(Self.tokenKey)
+        if let expectedToken, currentToken == expectedToken,
+           sessionRotation.deferInvalidation(for: expectedToken) {
+            tokenLock.unlock()
+            return
+        }
+        let shouldInvalidate: Bool
+        if let currentToken, !currentToken.isEmpty {
+            shouldInvalidate = expectedToken.map { $0 == currentToken } ?? true
+        } else {
+            shouldInvalidate = false
+        }
+        if shouldInvalidate {
+            Keychain.delete(Self.tokenKey)
+        }
+        tokenLock.unlock()
+
+        guard shouldInvalidate, let currentToken else { return }
+        onUnauthorized?(currentToken)
+    }
+
+    func get<T: Decodable>(_ path: String, auth: Bool = false) async throws -> T {
+        try await request("GET", path, auth: auth)
+    }
+
+    @MainActor
+    func getReader<T: Decodable>(_ path: String, auth: Bool = false, offline: Bool = false) async throws -> T {
+        let access = ContentAccessStore.shared
+        let revision = access.revision
+        let mode = offline ? "safe" : access.mode
+        let authenticated = auth || mode == "adult"
+        let tokenAtStart = token
+        let readerPath = ContentPolicy.readerPath(path, mode: mode)
+        do {
+            let result: T = try await request("GET", readerPath, auth: authenticated,
+                                              expectedToken: authenticated ? tokenAtStart : nil)
+            guard !Task.isCancelled, revision == access.revision, token == tokenAtStart else { throw CancellationError() }
+            return result
+        } catch let error as APIError {
+            if revision == access.revision, mode == "adult", case .http(let status, _) = error, status == 403 {
+                access.revoke(message: "账号 R18 阅读已关闭或当前登录已失效，请同步账号状态。")
+            }
+            throw error
+        }
+    }
+
+    /// 读取需要鉴权的二进制资源（例如封面历史图片）。Token 只放在请求头，
+    /// 不拼进 URL，避免图片缓存或日志泄露会话凭证。
+    func data(_ path: String, auth: Bool = false) async throws -> Data {
+        let url = try makeURL(path)
+        var req = URLRequest(url: url)
+        req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        req.httpMethod = "GET"
+        req.timeoutInterval = 30
+        let requestToken = auth ? token : nil
+        if let requestToken {
+            req.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization")
+        }
+        req.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        do {
+            let (data, response) = try await perform(req)
+            guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+            guard (200..<300).contains(http.statusCode) else {
+                let message = (try? decoder.decode(ErrorEnvelope.self, from: data))?.error
+                if http.statusCode == 401, let requestToken {
+                    handleUnauthorized(requestToken: requestToken)
+                }
+                throw APIError.http(status: http.statusCode, message: message)
+            }
+            return data
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as APIError {
+            throw error
+        } catch let error as URLError {
+            if error.code == .cancelled || Task.isCancelled { throw CancellationError() }
+            throw APIError.network(friendlyDescription(for: error))
+        } catch {
+            if Task.isCancelled { throw CancellationError() }
+            throw APIError.network(error.localizedDescription)
+        }
+    }
+
+    /// 预取下一章：已有磁盘缓存时不触网，在线时复用正常章节缓存路径。
+    func prefetchChapter(id: String) async {
+        let path = ContentPolicy.safePath("/api/chapters/\(id)")
+        guard let url = try? makeURL(path) else { return }
+        guard let cacheScope = await chapterCacheScope.snapshot() else { return }
+        if await ChapterDiskCache.shared.contains(url.absoluteString, scope: cacheScope.userID) { return }
+        do {
+            let _: ChapterResponse = try await requestInternal(
+                "GET",
+                path,
+                expectedReaderCacheScope: cacheScope
+            )
+        } catch {
+            // 预取是体验优化，失败不打扰当前章节阅读。
+        }
+    }
+
+    func hasCachedChapter(id: String, userID: String? = nil, mode: String = "safe") async -> Bool {
+        let path = ContentPolicy.readerPath("/api/chapters/\(id)", mode: mode)
+        guard let url = try? makeURL(path) else { return false }
+        guard let cacheScope = await chapterCacheScope.snapshot(),
+              userID == nil || userID == cacheScope.userID else { return false }
+        let exists = await ChapterDiskCache.shared.contains(url.absoluteString, scope: cacheScope.userID)
+        guard await chapterCacheScope.isCurrent(cacheScope) else { return false }
+        return exists
+    }
+
+    func removeCachedChapter(id: String, userID: String? = nil) async {
+        let path = ContentPolicy.safePath("/api/chapters/\(id)")
+        guard let url = try? makeURL(path) else { return }
+        guard let cacheScope = await chapterCacheScope.snapshot(),
+              userID == nil || userID == cacheScope.userID else { return }
+        chapterDataCache.removeObject(forKey: chapterCacheKey(for: url, scope: cacheScope))
+        await ChapterDiskCache.shared.remove(url.absoluteString, scope: cacheScope.userID)
+    }
+
+    private func chapterCacheKey(for url: URL, scope: ChapterCacheScope.Snapshot) -> NSString {
+        "\(scope.userID)|\(url.absoluteString)" as NSString
+    }
+
+    /// 读取服务端 SSE 文本行。用于可恢复任务的前台实时展示；连接中断不影响服务端任务本身。
+    func streamLines(_ path: String, auth: Bool = false) -> AsyncThrowingStream<String, Error> {
+        let requestToken = auth ? token : nil
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let url = try makeURL(path)
+                    var req = URLRequest(url: url)
+                    req.httpMethod = "GET"
+                    req.timeoutInterval = 120
+                    if let requestToken {
+                        req.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization")
+                    }
+                    req.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+                    req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+
+                    let (bytes, response) = try await session.bytes(for: req)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw APIError.invalidResponse
+                    }
+                    guard (200..<300).contains(http.statusCode) else {
+                        if http.statusCode == 401, let requestToken {
+                            handleUnauthorized(requestToken: requestToken)
+                        }
+                        throw APIError.http(status: http.statusCode, message: nil)
+                    }
+
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        continuation.yield(line)
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish(throwing: CancellationError())
+                } catch let error as APIError {
+                    continuation.finish(throwing: error)
+                } catch let error as URLError {
+                    continuation.finish(throwing: APIError.network(friendlyDescription(for: error)))
+                } catch {
+                    continuation.finish(throwing: APIError.network(error.localizedDescription))
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    func post<T: Decodable>(_ path: String, body: Data? = nil, auth: Bool = false, idempotencyKey: String? = nil, timeout: TimeInterval = 30) async throws -> T {
+        try await request("POST", path, body: body, auth: auth, idempotencyKey: idempotencyKey, timeout: timeout)
+    }
+
+    func delete<T: Decodable>(_ path: String, auth: Bool = false, idempotencyKey: String? = nil) async throws -> T {
+        try await request("DELETE", path, auth: auth, idempotencyKey: idempotencyKey)
+    }
+
+    /// 只关心状态码的请求（登录/登出/加书架等）
+    func requestVoid(_ method: String, _ path: String, body: Data? = nil, auth: Bool = false, idempotencyKey: String? = nil) async throws {
+        let _: EmptyResponse = try await request(method, path, body: body, auth: auth, idempotencyKey: idempotencyKey)
+    }
+
+    func jsonBody(_ value: some Encodable) throws -> Data {
+        try JSONEncoder().encode(value)
+    }
+
+    /// 走传统 dataTask(completionHandler) 路径，而非 async `data(for:)`：
+    /// async 包装在部分 iOS 版本上存在 task 级 serverTrust challenge 不回调的问题，
+    /// 传统路径的 URLSessionTaskDelegate 证书放行是可靠触发的。
+    private func perform(_ req: URLRequest) async throws -> (Data, URLResponse) {
+        let taskBox = URLSessionTaskBox()
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: req) { data, response, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if let data, let response {
+                        continuation.resume(returning: (data, response))
+                    } else {
+                        continuation.resume(throwing: APIError.invalidResponse)
+                    }
+                }
+                taskBox.set(task)
+            }
+        }, onCancel: {
+            taskBox.cancel()
+        })
+    }
+
+    /// TLS/证书类错误的友好提示，引导用户开启开发用证书放行开关
+    private func friendlyDescription(for error: URLError) -> String {
+        switch error.code {
+        case .serverCertificateUntrusted,
+             .serverCertificateHasBadDate,
+             .serverCertificateHasUnknownRoot,
+             .serverCertificateNotYetValid,
+             .secureConnectionFailed:
+            #if DEBUG
+            return "TLS/证书错误（code \(error.code.rawValue)）：服务器证书不受信任。可在「我的 → 高级」中开启“信任无效证书（开发用）”后重试。"
+            #else
+            return "TLS/证书错误（code \(error.code.rawValue)）：服务器证书不受信任，请联系服务端配置受信任的 HTTPS 证书。"
+            #endif
+        default:
+            return "网络错误（code \(error.code.rawValue)）：\(error.localizedDescription)"
+        }
+    }
+}
