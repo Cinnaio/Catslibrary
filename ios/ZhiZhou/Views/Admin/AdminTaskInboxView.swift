@@ -31,11 +31,13 @@ struct AdminTaskInboxView: View {
                     AdminInboxTaskLink(item: item, bookTitle: item.novelID.flatMap { overview.bookTitles[$0] })
                 }
             }
-            Section("记录与内容") {
+            Section {
                 NavigationLink("待处理草稿") { AdminAIGenerationsView(novelID: novelID, initialStatus: "draft") }
                 NavigationLink("下载记录") { AdminDownloadRecordsView() }
                 NavigationLink("全部 AI 任务") { AdminAITasksView() }
                 NavigationLink("全部抓取任务") { AdminJobsView() }
+            } header: {
+                Text("记录与内容")
             } footer: {
                 Text("汇总最近 100 项 AI 任务及服务端返回的近期抓取任务。更早记录可进入各类任务查看。")
             }
