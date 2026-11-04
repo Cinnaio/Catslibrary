@@ -64,124 +64,13 @@ struct BookshelfView: View {
     }
 
     private var bookshelfList: some View {
-            List(selection: $selection) {
-                if isLoading && response == nil {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 160)
-                        .listRowBackground(Color.clear)
-                } else if let errorMessage, response == nil {
-                    ContentUnavailableView {
-                        Label("加载失败", systemImage: "wifi.slash")
-                    } description: {
-                        Text(errorMessage)
-                    } actions: {
-                        Button("重试") { Task { await load() } }
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                } else if let response = visibleResponse {
-                    if response.favorites.isEmpty && (response.recent.isEmpty || !search.isEmpty || !reading.isEmpty) && errorMessage == nil {
-                        ContentUnavailableView(
-                            search.isEmpty && reading.isEmpty ? "书架空空" : "没有匹配的收藏",
-                            systemImage: "books.vertical",
-                            description: Text(search.isEmpty && reading.isEmpty ? "去发现页找一本喜欢的书吧" : "换个关键词或筛选条件试试")
-                        )
-                            .listRowBackground(Color.clear)
-                    }
-                    if let errorMessage {
-                        LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
-                            Task { await load() }
-                        }
-                    }
-                    if search.isEmpty && reading.isEmpty && !response.recent.isEmpty {
-                        Section("最近阅读") {
-                            ForEach(response.recent) { item in
-                                recentLink(item)
-                                    .swipeActions(edge: .trailing) {
-                                        Button("删除记录", role: .destructive) {
-                                            pendingRecentRemove = item
-                                        }
-                                    }
-                            }
-                            .onDelete { offsets in
-                                guard let index = offsets.first,
-                                      response.recent.indices.contains(index)
-                                else { return }
-                                pendingRecentRemove = response.recent[index]
-                            }
-                        }
-                    }
-
-                    if !response.favorites.isEmpty {
-                        Section("我的书架（\(response.totals?.favorites ?? response.favorites.count)）") {
-                            ForEach(response.favorites) { favorite in
-                                favoriteLink(favorite)
-                                    .swipeActions(edge: .trailing) {
-                                        Button("移出书架", role: .destructive) {
-                                            pendingRemove = favorite
-                                        }
-                                    }
-                            }
-                            .onDelete { offsets in
-                                guard let index = offsets.first,
-                                      response.favorites.indices.contains(index)
-                                else { return }
-                                pendingRemove = response.favorites[index]
-                            }
-                            if hasMore {
-                                Button {
-                                    loadNextPage()
-                                } label: {
-                                    HStack {
-                                        if isLoadingMore { ProgressView() }
-                                        Text(loadMoreError ?? "加载更多收藏")
-                                    }
-                                    .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
-                                }
-                                .disabled(isLoading || isLoadingMore)
-                                .accessibilityIdentifier("bookshelf.loadMore")
-                            }
-                        }
-                    }
-                }
-            }
+        bookshelfContent
             .appListStyle(.browsing)
             .navigationTitle("书架")
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $search, prompt: "搜索收藏的书名或作者")
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("排序", selection: $sort) {
-                            Text("收藏时间").tag("added")
-                            Text("最近阅读").tag("recent_read")
-                            Text("最近更新").tag("updated")
-                            Text("书名").tag("title")
-                        }
-                        Picker("阅读状态", selection: $reading) {
-                            Text("全部").tag("")
-                            Text("未开始").tag("unread")
-                            Text("已开始").tag("started")
-                        }
-                    } label: {
-                        Label("筛选与排序", systemImage: sort == "added" && reading.isEmpty
-                            ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                    }
-                }
-                if response?.favorites.isEmpty == false || response?.recent.isEmpty == false {
-                    if isPerformingAction {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            ProgressView()
-                                .accessibilityLabel("正在更新书架")
-                        }
-                    } else {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            EditButton()
-                        }
-                    }
-                }
-            }
+            .toolbar { bookshelfToolbar }
             .refreshable { await load() }
             .onChange(of: ContentAccessStore.shared.mode) { _, mode in
                 if mode == "safe" { response = nil }
@@ -235,6 +124,142 @@ struct BookshelfView: View {
             } message: {
                 Text(actionError ?? "")
             }
+    }
+
+    // Give each section its own type-checking boundary as the list grows.
+    private var bookshelfContent: some View {
+        List(selection: $selection) {
+            if isLoading && response == nil {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 160)
+                    .listRowBackground(Color.clear)
+            } else if let errorMessage, response == nil {
+                ContentUnavailableView {
+                    Label("加载失败", systemImage: "wifi.slash")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("重试") { Task { await load() } }
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            } else if let response = visibleResponse {
+                loadedContent(response)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func loadedContent(_ response: BookshelfResponse) -> some View {
+        if response.favorites.isEmpty && (response.recent.isEmpty || !search.isEmpty || !reading.isEmpty) && errorMessage == nil {
+            ContentUnavailableView(
+                search.isEmpty && reading.isEmpty ? "书架空空" : "没有匹配的收藏",
+                systemImage: "books.vertical",
+                description: Text(search.isEmpty && reading.isEmpty ? "去发现页找一本喜欢的书吧" : "换个关键词或筛选条件试试")
+            )
+                .listRowBackground(Color.clear)
+        }
+        if let errorMessage {
+            LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                Task { await load() }
+            }
+        }
+        if search.isEmpty && reading.isEmpty && !response.recent.isEmpty {
+            recentSection(response.recent)
+        }
+
+        if !response.favorites.isEmpty {
+            favoritesSection(response)
+        }
+    }
+
+    private func recentSection(_ recent: [RecentItem]) -> some View {
+        Section("最近阅读") {
+            ForEach(recent) { item in
+                recentLink(item)
+                    .swipeActions(edge: .trailing) {
+                        Button("删除记录", role: .destructive) {
+                            pendingRecentRemove = item
+                        }
+                    }
+            }
+            .onDelete { offsets in
+                guard let index = offsets.first,
+                      recent.indices.contains(index)
+                else { return }
+                pendingRecentRemove = recent[index]
+            }
+        }
+    }
+
+    private func favoritesSection(_ response: BookshelfResponse) -> some View {
+        Section("我的书架（\(response.totals?.favorites ?? response.favorites.count)）") {
+            ForEach(response.favorites) { favorite in
+                favoriteLink(favorite)
+                    .swipeActions(edge: .trailing) {
+                        Button("移出书架", role: .destructive) {
+                            pendingRemove = favorite
+                        }
+                    }
+            }
+            .onDelete { offsets in
+                guard let index = offsets.first,
+                      response.favorites.indices.contains(index)
+                else { return }
+                pendingRemove = response.favorites[index]
+            }
+            if hasMore {
+                loadMoreButton
+            }
+        }
+    }
+
+    private var loadMoreButton: some View {
+        Button {
+            loadNextPage()
+        } label: {
+            HStack {
+                if isLoadingMore { ProgressView() }
+                Text(loadMoreError ?? "加载更多收藏")
+            }
+            .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+        }
+        .disabled(isLoading || isLoadingMore)
+        .accessibilityIdentifier("bookshelf.loadMore")
+    }
+
+    @ToolbarContentBuilder
+    private var bookshelfToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Picker("排序", selection: $sort) {
+                    Text("收藏时间").tag("added")
+                    Text("最近阅读").tag("recent_read")
+                    Text("最近更新").tag("updated")
+                    Text("书名").tag("title")
+                }
+                Picker("阅读状态", selection: $reading) {
+                    Text("全部").tag("")
+                    Text("未开始").tag("unread")
+                    Text("已开始").tag("started")
+                }
+            } label: {
+                Label("筛选与排序", systemImage: sort == "added" && reading.isEmpty
+                    ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+            }
+        }
+        if response?.favorites.isEmpty == false || response?.recent.isEmpty == false {
+            if isPerformingAction {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ProgressView()
+                        .accessibilityLabel("正在更新书架")
+                }
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    EditButton()
+                }
+            }
+        }
     }
 
     @ViewBuilder
