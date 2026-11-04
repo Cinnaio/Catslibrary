@@ -507,79 +507,6 @@
   font-size: 0.75rem;
   font-weight: 400;
 }
-:global(.bookshelf-novel-grid) {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 25px 18px;
-}
-:global(.bookshelf-novel-card) {
-  position: relative;
-  min-width: 0;
-  border-radius: 0;
-  background: transparent;
-}
-.shelf :global(.novel-card) {
-  gap: 0;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  display: block;
-}
-.shelf :global(.novel-card):hover {
-  background: transparent;
-  transform: none;
-  box-shadow: none;
-}
-.shelf :global(.novel-card__cover) {
-  width: 100%;
-  height: auto;
-  border-radius: var(--radius-poster);
-  box-shadow: var(--novel-cover-shadow);
-  aspect-ratio: 2 / 3;
-}
-.shelf :global(.novel-card__title) {
-  white-space: nowrap;
-  display: block;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.5;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 13px;
-}
-.shelf :global(.novel-card__body) {
-  min-width: 0;
-  padding-bottom: 0;
-  margin-top: 11px;
-}
-.shelf :global(.novel-card__meta) {
-  margin-top: 6px;
-  font-size: var(--novel-card-meta-size);
-}
-.shelf :global(.novel-card__time) {
-  margin-top: 12px;
-}
-:global(.bookshelf-card-action) {
-  position: static;
-  right: 16px;
-  bottom: 12px;
-  min-height: 44px;
-  padding: 6px 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: 11px;
-  cursor: pointer;
-}
-:global(.bookshelf-card-action):hover {
-  background: var(--bg-hover);
-  color: var(--color-danger);
-}
 :global(.bookshelf-record-panel) {
   padding: 4px 20px;
   border-radius: var(--radius-container);
@@ -622,20 +549,9 @@
   font-size: 0.8125rem;
   line-height: 1.8;
 }
-:global(.bookshelf-novel-grid) > :global(.profile-empty-note) {
-  grid-column: 1 / -1;
-  padding: 40px 0;
-  background: transparent;
-  text-align: center;
-}
 :global(.bookshelf-record-panel):has(> :global(.profile-empty-note)) {
   background: transparent;
   text-align: center;
-}
-@media (max-width: 1000px) {
-  :global(.bookshelf-novel-grid) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 @media (max-width: 800px) {
   :global(.account-stats--cards) {
@@ -703,9 +619,6 @@
   :global(.profile-sync-card) {
     flex-wrap: wrap;
   }
-  :global(.bookshelf-novel-grid) {
-    grid-template-columns: minmax(0, 1fr);
-  }
   :global(.bookshelf-tabs) {
     gap: 20px;
   }
@@ -713,16 +626,11 @@
     gap: 5px;
     font-size: 0.8125rem;
   }
-  .shelf :global(.novel-card) {
-    padding: 18px;
-    gap: 16px;
-  }
   :global(.bookshelf-record-panel) {
     padding-inline: 20px;
   }
   .profile :global(.btn),
-  .shelf :global(.btn),
-  :global(.bookshelf-card-action) {
+  .shelf :global(.btn) {
     min-height: 40px;
   }
   .profile :global(.form-input) {
@@ -731,7 +639,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .profile :global(.card),
-  .shelf :global(.novel-card),
   .profile :global(.btn),
   .shelf :global(.btn) {
     transition: none;
@@ -1183,16 +1090,6 @@
 :global(.account-page-heading) {
   grid-column: 1 / -1;
 }
-@media (max-width: 1250px) {
-  :global(.bookshelf-novel-grid) {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-@media (max-width: 960px) {
-  :global(.bookshelf-novel-grid) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
 @media (max-width: 700px) {
   .profile,
   .shelf {
@@ -1213,16 +1110,8 @@
     width: 64px;
     height: 64px;
   }
-  :global(.bookshelf-novel-grid) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 22px 14px;
-  }
-  .shelf :global(.novel-card) {
-    padding: 0;
-  }
   .profile :global(.btn),
-  .shelf :global(.btn),
-  :global(.bookshelf-card-action) {
+  .shelf :global(.btn) {
     min-height: 48px;
   }
   :global(.profile-tab),

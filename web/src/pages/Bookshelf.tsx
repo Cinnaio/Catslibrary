@@ -1,11 +1,14 @@
 import cardStyles from '../components/novel-card.module.css'
 import styles from './account.module.css'
+import shelfStyles from './bookshelf.module.css'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 /**
  * 书架页 —— 收藏、最近阅读、书签、想法、手动同步（由 Novel-KV js/bookshelf.js 平移）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { MoreHorizontal } from 'lucide-react'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../components/ui/dropdown-menu'
 import type { ReadingHistoryEntry, Thought } from '@shared/types'
 import { bookmarksApi, bookshelfApi, getToken, progressApi } from '../lib/api'
 import { applyProgressState } from '../lib/progress-state'
@@ -13,7 +16,6 @@ import {
   clearHistory,
   getAllBookmarks,
   getStorageScope,
-  getBookshelf,
   getNovelHistory,
   getRecentHistory,
   removeFromBookshelf,
@@ -26,7 +28,6 @@ import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useToast } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { timeAgo } from '../lib/format'
-import NovelCoverStatus from '../components/NovelCoverStatus'
 import { coverUrl } from '../lib/cover-url'
 
 interface Favorite {
@@ -38,6 +39,8 @@ interface Favorite {
   novelTitle?: string
   chapterId?: string
   chapterTitle?: string
+  novelUpdatedAt?: number
+  progressUpdatedAt?: number
 }
 
 type ShelfThought = Thought & { novelTitle?: string; chapterTitle?: string }
@@ -112,11 +115,17 @@ export default function Bookshelf() {
     setViewParams(next)
   }
   const loadRevision = useRef(0)
+  const contextRevision = useRef(0)
+  const pendingMutations = useRef(new Set<string>())
+  const [pending, setPending] = useState(new Set<string>())
   const [pages, setPages] = useState<Record<string, number>>({})
   const page = pages[activeShelf] || 1
   const pageSize = 12
 
   useEffect(() => {
+    contextRevision.current++
+    pendingMutations.current.clear()
+    setPending(new Set())
     if (!loading && !user) {
       navigate('/auth', { replace: true, state: { from: `/bookshelf${viewParams.size ? '?' + viewParams.toString() : ''}` } })
       return
@@ -129,7 +138,7 @@ export default function Bookshelf() {
     setSyncStatus('')
     setSyncing(false)
     if (user) void loadAll()
-    return () => { loadRevision.current++ }
+    return () => { loadRevision.current++; contextRevision.current++ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading, safeMode])
 
@@ -168,7 +177,8 @@ export default function Bookshelf() {
       recentList.forEach(h => saveHistory(h.novelId, h))
       setRecent(recentList)
       setBookmarks(getAllBookmarks())
-      setFavorites(getBookshelf())
+      // 保留云端章节字段；本机收藏镜像只有基础书目，不能作为阅读状态来源。
+      setFavorites(allFavorites as Favorite[])
       setThoughts(allThoughts as ShelfThought[])
       setLoadedMode(safeMode)
       setSyncStatus(`上次同步 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`)
@@ -193,31 +203,87 @@ export default function Bookshelf() {
     }
   }
 
-  async function deleteFavorite(novelId: string) {
-    if (!novelId) return
-    loadRevision.current++
-    setSyncing(false)
+  function beginMutation(novelId: string) {
+    if (pendingMutations.current.size > 0) return null
     const token = getToken()
     const scope = getStorageScope()
+    const revision = contextRevision.current
+    if (!token || scope === 'pending') return null
+    const current = () => revision === contextRevision.current && token === getToken() && scope === getStorageScope()
+    pendingMutations.current.add(novelId)
+    setPending(new Set(pendingMutations.current))
+    loadRevision.current++
+    setSyncing(false)
+    return current
+  }
+
+  function finishMutation(novelId: string, current: () => boolean) {
+    if (!current()) return
+    loadRevision.current++
+    pendingMutations.current.delete(novelId)
+    setPending(new Set(pendingMutations.current))
+    setSyncing(false)
+  }
+
+  async function addFavorite(novelId: string, allowed: () => boolean = () => true) {
+    if (!allowed()) return
+    const current = beginMutation(novelId)
+    if (!current) return
     try {
-      if (token) await bookshelfApi.remove(novelId)
-      if (token !== getToken() || scope !== getStorageScope()) return
+      await bookshelfApi.add(novelId)
+      if (!current()) return
+      finishMutation(novelId, current)
+      await loadAll()
+      if (current()) toast('已加入收藏', 'success')
+    } catch (err) {
+      if (current()) toast((err as Error).message || '收藏失败，请重试', 'error')
+    } finally { finishMutation(novelId, current) }
+  }
+
+  async function deleteFavorite(novelId: string) {
+    if (!novelId) return
+    const current = beginMutation(novelId)
+    if (!current) return
+    try {
+      await bookshelfApi.remove(novelId)
+      if (!current()) return
       removeFromBookshelf(novelId)
-      setFavorites(getBookshelf())
-      toast('已移出书架', 'success')
-    } catch (err) { toast((err as Error).message || '移出书架失败，请重试', 'error') }
+      setFavorites(items => items.filter(item => item.novelId !== novelId))
+      toast('已移出书架', 'success', { action: { label: '撤销', onClick: () => { void addFavorite(novelId, current) } } })
+    } catch (err) {
+      if (current()) toast((err as Error).message || '移出书架失败，请重试', 'error')
+    } finally { finishMutation(novelId, current) }
+  }
+
+  async function restoreRecent(entry: ReadingHistoryEntry, deletedAt: number, allowed: () => boolean) {
+    if (!allowed()) return
+    const current = beginMutation(entry.novelId)
+    if (!current) return
+    try {
+      // 仅比本次删除更新一个版本，让删除之后的跨设备阅读/删除继续获胜。
+      const state = await progressApi.save({ novelId: entry.novelId, chapterId: entry.chapterId, scrollPercent: entry.scrollPercent, clientUpdatedAt: deletedAt + 1 })
+      if (!current()) return
+      const sameChapter = state.progress?.chapterId === entry.chapterId
+      applyProgressState(entry.novelId, state, {
+        novelTitle: entry.novelTitle,
+        ...(sameChapter ? { chapterTitle: entry.chapterTitle, chapterOrder: entry.chapterOrder, pageMode: entry.pageMode, pageIndex: entry.pageIndex, pagePercent: entry.pagePercent } : {}),
+      })
+      finishMutation(entry.novelId, current)
+      await loadAll()
+      if (current()) toast(state.skipped ? '阅读记录已变化，保留较新的状态' : '已恢复阅读记录', state.skipped ? 'default' : 'success')
+    } catch (err) {
+      if (current()) toast('恢复阅读记录失败：' + (err as Error).message, 'error')
+    } finally { finishMutation(entry.novelId, current) }
   }
 
   async function deleteRecent(novelId: string) {
     if (!novelId) return
-    loadRevision.current++
-    setSyncing(false)
-    const token = getToken()
-    const scope = getStorageScope()
+    const current = beginMutation(novelId)
+    if (!current) return
+    const entry = recent.find(item => item.novelId === novelId)
     try {
-      if (token) {
         const state = await progressApi.remove(novelId)
-        if (token !== getToken() || scope !== getStorageScope()) return
+        if (!current()) return
         loadRevision.current++
         setSyncing(false)
         applyProgressState(novelId, state)
@@ -227,15 +293,20 @@ export default function Bookshelf() {
           const local = getNovelHistory(h.novelId)
           return local ? [local] : []
         }))
-        toast(state.skipped ? '阅读位置已更新，保留较新的记录' : '阅读记录已删除', state.skipped ? 'default' : 'success')
-      } else {
-        clearHistory(novelId)
-        setRecent(getRecentHistory(8))
-        toast('阅读记录已删除', 'success')
-      }
+        setFavorites(items => items.map(f => f.novelId !== novelId ? f : {
+          ...f, chapterId: state.progress?.chapterId || '',
+          chapterTitle: state.progress?.chapterId === f.chapterId ? f.chapterTitle : '',
+          progressUpdatedAt: state.progress?.updatedAt || 0,
+        }))
+        const deletedAt = Number(state.tombstone?.updatedAt || state.tombstone?.deletedAt || 0)
+        if (!state.skipped && deletedAt && entry?.chapterId) {
+          toast('阅读记录已删除', 'success', { action: { label: '撤销', onClick: () => { void restoreRecent(entry, deletedAt, current) } } })
+        } else {
+          toast(state.skipped ? '阅读位置已更新，保留较新的记录' : '阅读记录已删除', state.skipped ? 'default' : 'success')
+        }
     } catch (err) {
-      if (token === getToken() && scope === getStorageScope()) toast('删除阅读记录失败：' + (err as Error).message, 'error')
-    }
+      if (current()) toast('删除阅读记录失败：' + (err as Error).message, 'error')
+    } finally { finishMutation(novelId, current) }
   }
 
   if (loading) {
@@ -254,7 +325,7 @@ export default function Bookshelf() {
 
   return (
     <main className={`${styles.shelf} bookshelf-page`}>
-      <div className="container bookshelf-shell">
+      <div className={`container bookshelf-shell ${shelfStyles.layout}`}>
         <section className="bookshelf-hero">
           <div>
             <h1>{activeShelf === 'recent' ? '阅读记录' : '我的书架'}</h1>
@@ -264,7 +335,7 @@ export default function Bookshelf() {
             <span className="text-sm text-muted" id="syncStatusText" role="status" aria-live="polite">
               {syncStatus}
             </span>
-            <button className="btn btn--secondary btn--sm" id="btnSyncNow" disabled={syncing} onClick={() => void manualSync()}>
+            <button className="btn btn--secondary btn--sm" id="btnSyncNow" disabled={syncing || pending.size > 0} onClick={() => void manualSync()}>
               {syncing ? '同步中…' : '立即同步'}
             </button>
           </div>
@@ -290,25 +361,18 @@ export default function Bookshelf() {
             <h2 className="bookshelf-subtitle sr-only">
               收藏 <span className="text-muted">· {favorites.length}</span>
             </h2>
-            <div className="bookshelf-novel-grid" id="bookshelfFavorites">
+            <div className={shelfStyles.grid} id="bookshelfFavorites" aria-busy={syncing} key={`favorites-${visiblePage}`}>
               {favorites.length === 0 ? (
                 <p className="profile-empty-note">还没有收藏小说</p>
               ) : (
-                favorites.slice(start, start + pageSize).map((f) => (
-                  <div className="bookshelf-novel-card" key={f.novelId}>
-                    <Link to={`/novel/${encodeURIComponent(f.novelId)}`} className={`${cardStyles.card} novel-card`}>
-                      <CoverOrPlaceholder novelId={f.novelId} title={f.title || f.novelTitle || f.novelId} updatedAt={f.updatedAt} favorite />
-                      <div className="novel-card__body">
-                        <div className="novel-card__title">{f.title || f.novelTitle || f.novelId}</div>
-                        <div className="novel-card__meta">{f.chapterTitle ? `继续：${f.chapterTitle}` : f.author || '未开始阅读'}</div>
-                        {f.updatedAt ? <div className="novel-card__time">{timeAgo(f.updatedAt)}</div> : null}
-                      </div>
-                    </Link>
-                    <button className="bookshelf-card-action" aria-label="取消收藏" onClick={() => void deleteFavorite(f.novelId)}>
-                      取消收藏
-                    </button>
-                  </div>
-                ))
+                favorites.slice(start, start + pageSize).map((f) => {
+                  const latest = recent.find(h => h.novelId === f.novelId)
+                  const reading = latest && latest.timestamp >= (f.progressUpdatedAt || 0) ? latest : f
+                  return <ShelfBookCard key={f.novelId} novelId={f.novelId} title={f.title || f.novelTitle || f.novelId}
+                    author={f.author} coverUpdatedAt={f.novelUpdatedAt} reading={reading} favorite
+                    time={f.updatedAt ? `收藏于 ${timeAgo(f.updatedAt)}` : undefined}
+                    pending={pending.size > 0} onRemove={() => void deleteFavorite(f.novelId)} />
+                })
               )}
             </div>
           </div>
@@ -320,28 +384,15 @@ export default function Bookshelf() {
             <h2 className="bookshelf-subtitle sr-only">
               最近阅读 <span className="text-muted">· {recentItems.length}</span>
             </h2>
-            <div className="bookshelf-novel-grid" id="bookshelfRecent">
+            <div className={shelfStyles.grid} id="bookshelfRecent" aria-busy={syncing}>
               {recentItems.length === 0 ? (
                 <p className="profile-empty-note">还没有阅读记录</p>
               ) : (
-                recentItems.map((h) => (
-                  <div className="bookshelf-novel-card" key={h.novelId}>
-                    <Link
-                      to={h.chapterId ? `/read/${encodeURIComponent(h.novelId)}/${encodeURIComponent(h.chapterId)}` : `/novel/${encodeURIComponent(h.novelId)}`}
-                      className={`${cardStyles.card} novel-card`}
-                    >
-                      <CoverOrPlaceholder novelId={h.novelId} title={h.novelTitle || h.novelId} updatedAt={h.timestamp} read favorite={favorites.some((item) => item.novelId === h.novelId)} />
-                      <div className="novel-card__body">
-                        <div className="novel-card__title">{h.novelTitle || h.novelId}</div>
-                        <div className="novel-card__meta">{h.chapterTitle || '继续阅读'}</div>
-                        <div className="novel-card__time">{timeAgo(h.timestamp)}</div>
-                      </div>
-                    </Link>
-                    <button className="bookshelf-card-action" aria-label="清除记录" onClick={() => void deleteRecent(h.novelId)}>
-                      清除记录
-                    </button>
-                  </div>
-                ))
+                recentItems.map(h => <ShelfBookCard key={h.novelId} novelId={h.novelId} title={h.novelTitle || h.novelId}
+                  reading={h} recentView favorite={favorites.some(f => f.novelId === h.novelId)}
+                  time={h.timestamp ? `上次阅读 · ${timeAgo(h.timestamp)}` : '上次阅读时间未知'}
+                  pending={pending.size > 0} onRemove={() => void deleteRecent(h.novelId)}
+                  onFavorite={() => void addFavorite(h.novelId)} />)
               )}
             </div>
           </div>
@@ -401,7 +452,38 @@ export default function Bookshelf() {
   )
 }
 
-function CoverOrPlaceholder({ novelId, title, updatedAt, read, favorite }: { novelId: string; title: string; updatedAt?: number; read?: boolean; favorite?: boolean }) {
+function ShelfBookCard({ novelId, title, author, coverUpdatedAt, reading, favorite, recentView, time, pending, onRemove, onFavorite }: {
+  novelId: string; title: string; author?: string; coverUpdatedAt?: number
+  reading: { chapterId?: string; chapterTitle?: string }; favorite: boolean; recentView?: boolean
+  time?: string; pending: boolean; onRemove: () => void; onFavorite?: () => void
+}) {
+  const detail = `/novel/${encodeURIComponent(novelId)}`
+  const resume = reading.chapterId ? `/read/${encodeURIComponent(novelId)}/${encodeURIComponent(reading.chapterId)}` : detail
+  const target = recentView ? resume : detail
+  return <article className={`${cardStyles.card} ${shelfStyles.card}`} aria-label={title} aria-busy={pending}>
+    <Link to={target} className={shelfStyles.coverLink} aria-label={`${recentView ? '继续阅读' : '查看作品'}《${title}》封面`}>
+      <CoverOrPlaceholder novelId={novelId} title={title} updatedAt={coverUpdatedAt} />
+    </Link>
+    <div className={shelfStyles.body}>
+      <div className={shelfStyles.heading}>
+        <Link to={target} className={shelfStyles.title}>{title}</Link>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><button type="button" className={shelfStyles.more} aria-label={`更多操作：《${title}》`} disabled={pending}><MoreHorizontal size={16} aria-hidden="true" /></button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end"><DropdownMenuItem variant="destructive" onSelect={onRemove}>{recentView ? '清除记录' : '取消收藏'}</DropdownMenuItem></DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      {!recentView && <p className={shelfStyles.meta}>{author || '作者未知'}</p>}
+      <p className={shelfStyles.position}>{reading.chapterId ? `读至 ${reading.chapterTitle || '上次阅读的章节'}` : '尚未开始阅读'}</p>
+      {recentView && <p className={shelfStyles.meta}>{time}</p>}
+      <div className={shelfStyles.footer}>
+        {recentView ? favorite ? <span className={shelfStyles.meta}>已收藏</span> : <button type="button" className={shelfStyles.favorite} disabled={pending} onClick={onFavorite}>加入收藏</button> : <span className={shelfStyles.meta}>{time || '收藏时间未知'}</span>}
+        <Link to={resume} className={`btn btn--sm ${reading.chapterId ? 'btn--primary' : 'btn--secondary'}`} aria-label={`${reading.chapterId ? '继续阅读' : '查看作品'}《${title}》`}>{reading.chapterId ? '继续阅读' : '查看作品'}</Link>
+      </div>
+    </div>
+  </article>
+}
+
+function CoverOrPlaceholder({ novelId, title, updatedAt }: { novelId: string; title: string; updatedAt?: number }) {
   const src = coverUrl({ id: novelId, updatedAt })
   const [failed, setFailed] = useState(false)
   const hasCover = !!src && !failed
@@ -412,7 +494,6 @@ function CoverOrPlaceholder({ novelId, title, updatedAt, read, favorite }: { nov
       ) : (
         <span className="novel-card__cover-char">{(title || '书').slice(0, 1)}</span>
       )}
-      <NovelCoverStatus read={read ?? !!getNovelHistory(novelId)} favorite={favorite} />
     </div>
   )
 }
