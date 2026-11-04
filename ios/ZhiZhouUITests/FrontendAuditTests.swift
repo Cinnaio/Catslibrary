@@ -63,6 +63,77 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testBookshelfCanReachFiftyFirstFavoriteAndDetailKnowsItIsSaved() {
+        let app = launch("bookshelf-many")
+        selectTab("书架", app: app)
+        let more = app.buttons["bookshelf.loadMore"]
+        for _ in 0..<60 {
+            if more.isHittable { break }
+            app.swipeUp()
+        }
+        tap(more)
+        let last = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "书架作品51")).firstMatch
+        reveal(last, app: app)
+        tap(last)
+        XCTAssertTrue(app.buttons["已在书架，点按移除"].waitForExistence(timeout: 10))
+        capture("bookshelf-fifty-first-favorite", app: app)
+    }
+
+    @MainActor
+    func testChapterSearchAndNumberJump() {
+        let app = launch()
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        tap(app.buttons["目录"])
+        let search = app.searchFields.firstMatch
+        tap(search)
+        search.typeText("没有这一章")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "没有这一章")).firstMatch.waitForExistence(timeout: 10))
+        tap(app.buttons["目录选项"])
+        tap(app.buttons["跳转章节"])
+        let number = app.alerts.textFields.firstMatch
+        tap(number)
+        number.typeText("12")
+        tap(app.alerts.buttons["开始阅读"])
+        XCTAssertTrue(app.navigationBars["第 12 章 山路上的回声"].waitForExistence(timeout: 10))
+        capture("reader-jump-to-chapter", app: app)
+    }
+
+    @MainActor
+    func testCustomCacheBudgetSurvivesRelaunchAndRejectsInvalidInput() {
+        let app = launch()
+        func openStorage() {
+            selectTab("我的", app: app)
+            let storage = app.buttons["存储管理"]
+            reveal(storage, app: app)
+            tap(storage)
+        }
+        openStorage()
+        let limit = app.buttons["storage.cacheLimit"]
+        reveal(limit, app: app)
+        tap(limit)
+        let field = app.textFields["storage.cacheLimit.value"]
+        tap(field)
+        let initial = field.value as? String ?? "256"
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: initial.count) + "0")
+        XCTAssertFalse(app.buttons["storage.cacheLimit.save"].isEnabled)
+        field.typeText(XCUIKeyboardKey.delete.rawValue + "333")
+        tap(app.buttons["storage.cacheLimit.save"])
+        XCTAssertTrue(app.buttons["storage.cacheLimit"].waitForExistence(timeout: 10))
+        app.terminate()
+        app.launch()
+        openStorage()
+        reveal(app.buttons["storage.cacheLimit"], app: app)
+        tap(app.buttons["storage.cacheLimit"])
+        XCTAssertEqual(field.value as? String, "333")
+        capture("storage-custom-cache-budget", app: app)
+        // Restore the device preference so later UI tests retain the default budget.
+        field.tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 3) + initial)
+        tap(app.buttons["storage.cacheLimit.save"])
+    }
+
+    @MainActor
     func testChapterIllustrationPreviewAndVisibilitySetting() {
         let app = launch("media")
         tap(app.buttons["catalog.audit-book-1"])

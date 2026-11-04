@@ -14,7 +14,19 @@ struct BookshelfView: View {
     @State private var compactDetailNovel: Novel?
     @State private var pendingRemove: FavoriteItem?
     @State private var pendingRecentRemove: RecentItem?
-    @State private var requests = ListRequestGuard<Bool>()
+    @State private var requests = ListRequestGuard<[String]>()
+    @State private var search = ""
+    @State private var sort = "added"
+    @State private var reading = ""
+    @State private var isLoadingMore = false
+    @State private var loadMoreError: String?
+    @State private var nextOffset = 0
+    @State private var hasMore = false
+    private let pageSize = 50
+
+    private var shelfQuery: [String] {
+        [search.trimmingCharacters(in: .whitespacesAndNewlines), sort, reading, ContentAccessStore.shared.mode]
+    }
 
     @ViewBuilder
     var body: some View {
@@ -46,7 +58,8 @@ struct BookshelfView: View {
         return BookshelfResponse(
             favorites: response.favorites.filter { !$0.asNovel.isRestricted },
             recent: response.recent.filter { !$0.asNovel.isRestricted },
-            thoughts: response.thoughts
+            thoughts: response.thoughts,
+            totals: response.totals
         )
     }
 
@@ -67,8 +80,12 @@ struct BookshelfView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 } else if let response = visibleResponse {
-                    if response.favorites.isEmpty && response.recent.isEmpty && errorMessage == nil {
-                        ContentUnavailableView("书架空空", systemImage: "books.vertical", description: Text("去发现页找一本喜欢的书吧"))
+                    if response.favorites.isEmpty && (response.recent.isEmpty || !search.isEmpty || !reading.isEmpty) && errorMessage == nil {
+                        ContentUnavailableView(
+                            search.isEmpty && reading.isEmpty ? "书架空空" : "没有匹配的收藏",
+                            systemImage: "books.vertical",
+                            description: Text(search.isEmpty && reading.isEmpty ? "去发现页找一本喜欢的书吧" : "换个关键词或筛选条件试试")
+                        )
                             .listRowBackground(Color.clear)
                     }
                     if let errorMessage {
@@ -76,7 +93,7 @@ struct BookshelfView: View {
                             Task { await load() }
                         }
                     }
-                    if !response.recent.isEmpty {
+                    if search.isEmpty && reading.isEmpty && !response.recent.isEmpty {
                         Section("最近阅读") {
                             ForEach(response.recent) { item in
                                 recentLink(item)
@@ -96,7 +113,7 @@ struct BookshelfView: View {
                     }
 
                     if !response.favorites.isEmpty {
-                        Section("我的书架（\(response.favorites.count)）") {
+                        Section("我的书架（\(response.totals?.favorites ?? response.favorites.count)）") {
                             ForEach(response.favorites) { favorite in
                                 favoriteLink(favorite)
                                     .swipeActions(edge: .trailing) {
@@ -111,6 +128,19 @@ struct BookshelfView: View {
                                 else { return }
                                 pendingRemove = response.favorites[index]
                             }
+                            if hasMore {
+                                Button {
+                                    loadNextPage()
+                                } label: {
+                                    HStack {
+                                        if isLoadingMore { ProgressView() }
+                                        Text(loadMoreError ?? "加载更多收藏")
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+                                }
+                                .disabled(isLoading || isLoadingMore)
+                                .accessibilityIdentifier("bookshelf.loadMore")
+                            }
                         }
                     }
                 }
@@ -118,8 +148,27 @@ struct BookshelfView: View {
             .appListStyle(.browsing)
             .navigationTitle("书架")
             .navigationBarTitleDisplayMode(.large)
+            .searchable(text: $search, prompt: "搜索收藏的书名或作者")
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("排序", selection: $sort) {
+                            Text("收藏时间").tag("added")
+                            Text("最近阅读").tag("recent_read")
+                            Text("最近更新").tag("updated")
+                            Text("书名").tag("title")
+                        }
+                        Picker("阅读状态", selection: $reading) {
+                            Text("全部").tag("")
+                            Text("未开始").tag("unread")
+                            Text("已开始").tag("started")
+                        }
+                    } label: {
+                        Label("筛选与排序", systemImage: sort == "added" && reading.isEmpty
+                            ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                    }
+                }
                 if response?.favorites.isEmpty == false || response?.recent.isEmpty == false {
                     if isPerformingAction {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -134,9 +183,11 @@ struct BookshelfView: View {
                 }
             }
             .refreshable { await load() }
-            .task(id: ContentAccessStore.shared.mode) {
-                if ContentAccessStore.shared.mode == "safe" { response = nil }
-                await load()
+            .onChange(of: ContentAccessStore.shared.mode) { _, mode in
+                if mode == "safe" { response = nil }
+            }
+            .task(id: shelfQuery) {
+                await load(debounce: true)
             }
             .onChange(of: selection) { oldSelection, newSelection in
                 // 应用内从阅读器返回时 selection 才会归零；scenePhase 不会变化。
@@ -390,33 +441,69 @@ struct BookshelfView: View {
         "\(percentValue(raw))%"
     }
 
-    private func load(animate: Bool = false) async {
+    private func load(animate: Bool = false, debounce: Bool = false) async {
         guard APIClient.shared.isAuthenticated else { return }
-        let ticket = requests.begin(true)
+        let ticket = requests.begin(shelfQuery)
         isLoading = true
+        isLoadingMore = false
+        if debounce {
+            do { try await Task.sleep(nanoseconds: 300_000_000) } catch {
+                if requests.accepts(ticket, query: shelfQuery) {
+                    requests.finish(ticket)
+                    isLoading = false
+                }
+                return
+            }
+        }
+        await fetchPage(offset: 0, ticket: ticket, animate: animate)
+    }
+
+    private func loadNextPage() {
+        guard hasMore, !isLoading, !isLoadingMore,
+              let ticket = requests.beginNext(shelfQuery) else { return }
+        isLoadingMore = true
+        Task { await fetchPage(offset: nextOffset, ticket: ticket) }
+    }
+
+    private func fetchPage(offset: Int, ticket: ListRequestGuard<[String]>.Ticket, animate: Bool = false) async {
         defer {
-            if requests.accepts(ticket, query: true) {
+            if requests.accepts(ticket, query: shelfQuery) {
                 requests.finish(ticket)
                 isLoading = false
+                isLoadingMore = false
             }
         }
         do {
+            let params = ["limit": String(pageSize), "offset": String(offset),
+                          "search": ticket.query[0], "sort": ticket.query[1], "reading": ticket.query[2]]
             let r: BookshelfResponse = try await APIClient.shared.getReader(
-                "/api/bookshelf", auth: true
+                "/api/bookshelf?" + ReaderQuery.encode(params), auth: true
             )
-            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: shelfQuery) else { return }
+            let existing = offset == 0 ? [] : (response?.favorites ?? [])
+            let ids = Set(existing.map(\.novelId))
+            let updated = BookshelfResponse(
+                favorites: existing + r.favorites.filter { !ids.contains($0.novelId) },
+                recent: r.recent, thoughts: r.thoughts, totals: r.totals
+            )
             if animate {
                 withAnimation(reduceMotion ? AppMotion.micro : AppMotion.state) {
-                    response = r
-                    errorMessage = nil
+                    response = updated
                 }
             } else {
-                response = r
-                errorMessage = nil
+                response = updated
             }
+            nextOffset = offset + r.favorites.count
+            hasMore = r.favorites.count == pageSize && nextOffset < (r.totals?.favorites ?? Int.max)
+            errorMessage = nil
+            loadMoreError = nil
+            requests.finish(ticket, succeeded: true)
+            isLoading = false
+            isLoadingMore = false
         } catch {
-            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
-            errorMessage = AppCopy.friendlyError(error)
+            guard !Task.isCancelled, requests.accepts(ticket, query: shelfQuery) else { return }
+            if offset > 0 { loadMoreError = "加载失败，点按重试" }
+            else { errorMessage = AppCopy.friendlyError(error) }
         }
     }
 

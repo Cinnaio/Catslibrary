@@ -35,6 +35,8 @@ final class OfflineReadingStore {
     private(set) var batchNovelID: String?
     private(set) var batchCompleted = 0
     private(set) var batchTotal = 0
+    private(set) var batchFailed = 0
+    private(set) var failedBatch: DownloadedBook?
     private(set) var lastBatchWasCancelled = false
     var lastError: String?
     private var batchCancellationRequested = false
@@ -148,12 +150,15 @@ final class OfflineReadingStore {
         batchNovelID = novel.id
         batchCompleted = 0
         batchTotal = chapters.count
+        batchFailed = 0
+        failedBatch = nil
         batchCancellationRequested = false
         lastBatchWasCancelled = false
         lastError = nil
         defer { finishBatch(session) }
 
         var hadFailure = false
+        var failed: [ChapterMeta] = []
         var wasCancelled = false
         for chapter in chapters {
             guard isCurrent(session), !batchCancellationRequested, !Task.isCancelled else {
@@ -166,6 +171,8 @@ final class OfflineReadingStore {
                 guard isCurrent(session) else { return }
                 if !success, !Task.isCancelled, !batchCancellationRequested {
                     hadFailure = true
+                    batchFailed += 1
+                    failed.append(chapter)
                 }
             }
 
@@ -179,7 +186,15 @@ final class OfflineReadingStore {
         guard isCurrent(session) else { return }
         if !hadFailure {
             lastError = nil
+        } else {
+            failedBatch = DownloadedBook(novel: novel, chapters: failed, updatedAt: nowMilliseconds())
+            lastError = "有 \(failed.count) 章下载失败，可在离线下载中重试。"
         }
+    }
+
+    func retryFailed() async {
+        guard let failedBatch, !isBatchDownloading else { return }
+        await downloadAll(novel: failedBatch.novel, chapters: failedBatch.chapters)
     }
 
     func cancelBatch() {
@@ -238,13 +253,24 @@ final class OfflineReadingStore {
         return true
     }
 
-    /// 存储管理清空全局章节缓存后，同步丢弃已失效的离线目录。
-    func forgetAll() {
-        books = []
-        persist()
+    /// Protect every account's legacy downloads before clearing or shrinking shared caches.
+    func migrateLegacyDownloads() async throws {
+        for (key, value) in defaults.dictionaryRepresentation() where key.hasPrefix(Self.storageKeyPrefix) {
+            guard let data = value as? Data,
+                  let saved = try? JSONDecoder().decode([DownloadedBook].self, from: data) else { continue }
+            var encoded = String(key.dropFirst(Self.storageKeyPrefix.count))
+                .replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+            encoded += String(repeating: "=", count: (4 - encoded.count % 4) % 4)
+            guard let userData = Data(base64Encoded: encoded), let userID = String(data: userData, encoding: .utf8) else { continue }
+            for book in saved where !book.novel.isRestricted {
+                for chapter in book.chapters {
+                    _ = try await APIClient.shared.preserveOfflineChapter(id: chapter.id, userID: userID)
+                }
+            }
+        }
     }
 
-    /// 清理因缓存容量淘汰或全局清理而失效的离线记录。
+    /// 迁移旧下载，并清理文件已不存在的离线记录。
     func refresh() async {
         guard let session = currentSession else { return }
         await refresh(session: session)
@@ -258,7 +284,14 @@ final class OfflineReadingStore {
             var validChapters: [ChapterMeta] = []
             for chapter in book.chapters {
                 guard isCurrent(session) else { return }
-                if await APIClient.shared.hasCachedChapter(id: chapter.id, userID: session.userID) {
+                let exists: Bool
+                do {
+                    exists = try await APIClient.shared.preserveOfflineChapter(id: chapter.id, userID: session.userID)
+                } catch {
+                    lastError = "离线章节保存失败，请检查可用存储空间后重试。"
+                    exists = await APIClient.shared.hasCachedChapter(id: chapter.id, userID: session.userID)
+                }
+                if exists {
                     validChapters.append(chapter)
                 }
             }
@@ -291,9 +324,7 @@ final class OfflineReadingStore {
         }
 
         do {
-            let _: ChapterResponse = try await APIClient.shared.get(
-                ContentPolicy.safePath("/api/chapters/\(chapter.id)")
-            )
+            try await APIClient.shared.downloadChapter(id: chapter.id, userID: session.userID)
             guard isCurrent(session), !Task.isCancelled else { return false }
             guard await APIClient.shared.hasCachedChapter(id: chapter.id, userID: session.userID) else {
                 if isCurrent(session) {
@@ -356,6 +387,8 @@ final class OfflineReadingStore {
         batchNovelID = nil
         batchCompleted = 0
         batchTotal = 0
+        batchFailed = 0
+        failedBatch = nil
         lastBatchWasCancelled = false
         lastError = nil
         batchCancellationRequested = false

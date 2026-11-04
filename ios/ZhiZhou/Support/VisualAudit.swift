@@ -31,11 +31,11 @@ enum VisualAudit {
     }
 
     static var books: [Novel] {
-        (1...4).map { index in
+        (1...(scenario == "bookshelf-many" ? 51 : 4)).map { index in
             Novel(
                 id: "audit-book-\(index)",
-                title: ["山中来信", "长街灯火里的旧日时光", "海边书店", "春山可望"][index - 1],
-                author: ["林溪", "陈雨", "周清", "江宁"][index - 1],
+                title: index <= 4 ? ["山中来信", "长街灯火里的旧日时光", "海边书店", "春山可望"][index - 1] : "书架作品\(index)",
+                author: index <= 4 ? ["林溪", "陈雨", "周清", "江宁"][index - 1] : "测试作者",
                 description: "山里的邮局，每周只送一次信。林溪回到故乡后，在旧书架里发现了一封没有寄出的信。\n\n她沿着信上的地址，走过村口的小桥和开满白花的院子。那些以为早已忘记的往事，也随着脚步一点一点清晰起来。\n\n这是一段关于书信、归途与重逢的故事。",
                 coverUrl: "", categories: ["文学", "故事"], status: "ongoing", sourceUrl: "",
                 chapterCount: 12, remoteChapterCount: 12, updateCheckedAt: timestamp,
@@ -257,6 +257,20 @@ private final class VisualAuditProtocol: URLProtocol {
         case ("GET", "/api/bookshelf"):
             let book = VisualAudit.books[0]
             let offset = Int(queryValue("offset") ?? "0") ?? 0
+            let limit = Int(queryValue("limit") ?? "50") ?? 50
+            var favorites = VisualAudit.scenario == "bookshelf-many" ? VisualAudit.books : []
+            if let id = queryValue("novelId"), !id.isEmpty { favorites = favorites.filter { $0.id == id } }
+            if let search = queryValue("search"), !search.isEmpty {
+                favorites = favorites.filter { $0.title.localizedStandardContains(search) || $0.author.localizedStandardContains(search) }
+            }
+            if queryValue("reading") == "started" { favorites = [] }
+            if queryValue("sort") == "title" { favorites.sort { $0.title < $1.title } }
+            let favoriteCount = favorites.count
+            let favoriteItems: [[String: Any]] = favorites.dropFirst(offset).prefix(limit).map { item in
+                ["novelId": item.id, "title": item.title, "author": item.author, "description": item.description,
+                 "status": item.status, "chapterCount": item.chapterCount, "remoteChapterCount": item.remoteChapterCount,
+                 "novelUpdatedAt": item.updatedAt]
+            }
             let thoughtCount = VisualAudit.scenario == "parity" ? 51 : 0
             let thoughts: [[String: Any]] = (offset..<min(offset + 50, max(offset, thoughtCount))).map { index in
                 ["id": "library-thought-\(index)", "novelId": book.id, "chapterId": "\(book.id)-chapter-1",
@@ -264,14 +278,14 @@ private final class VisualAuditProtocol: URLProtocol {
                  "thoughtText": "我的阅读想法 \(index + 1)", "createdAt": VisualAudit.timestamp]
             }
             body = [
-                "favorites": [],
+                "favorites": favoriteItems,
                 "recent": VisualAudit.scenario == "empty" || Self.removedRecent ? [] : [[
                     "novelId": book.id, "chapterId": "\(book.id)-chapter-1", "novelTitle": book.title,
                     "chapterTitle": "第 1 章 一封没有寄出的信", "chapterOrder": 1,
                     "scrollPercent": 0.42, "updatedAt": VisualAudit.timestamp,
                 ]],
                 "thoughts": thoughts,
-                "totals": ["favorites": 0, "thoughts": thoughtCount],
+                "totals": ["favorites": favoriteCount, "thoughts": thoughtCount],
             ] as [String: Any]
         case ("GET", "/api/scrape") where queryValue("action") == "followup":
             body = Self.followupFixture

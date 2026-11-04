@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import ImageIO
 import CryptoKit
+import ZhiZhouCore
 
 /// 统一图片缓存（内存 + 磁盘），避免封面在滚动/重访时反复下载。
 enum ImageCache {
@@ -15,9 +16,9 @@ enum ImageCache {
     }()
 
     static let sharedCache: URLCache = {
-        // 封面使用缩略图解码；控制 URLCache 上限，避免长期滚动把设备缓存顶到数百 MB。
+        // Device-local automatic budget is shared with chapter caching (3:1).
         URLCache(memoryCapacity: 64 * 1024 * 1024,
-                 diskCapacity: 192 * 1024 * 1024,
+                 diskCapacity: Int(CacheStoragePolicy.load().imageBytes),
                  diskPath: "ZhiZhouImageCache")
     }()
 

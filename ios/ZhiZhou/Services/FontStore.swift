@@ -183,7 +183,8 @@ final class FontStore {
         postFontChange()
     }
 
-    func clearCaches() async {
+    func clearCaches() async throws {
+        try await OfflineReadingStore.shared.migrateLegacyDownloads()
         ImageCache.decodedImageCache.removeAllObjects()
         ImageCache.sharedCache.removeAllCachedResponses()
         await APIClient.shared.clearCaches()
