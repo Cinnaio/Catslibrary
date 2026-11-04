@@ -10,7 +10,7 @@ import { useSession } from '../context/SessionContext'
 import { useConfirm } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate, timeAgo } from '../lib/format'
-import { KeyRound, Monitor, Smartphone } from 'lucide-react'
+import { ImagePlus, KeyRound, Monitor, Smartphone, Trash2 } from 'lucide-react'
 import { ReadingDataPanel } from '../components/ReadingDataPanel'
 import { ReadingStatsPanel } from '../components/ReadingStatsPanel'
 import { useContentPolicy } from '../context/ContentPolicyContext'
@@ -277,33 +277,20 @@ export default function Profile() {
   return (
     <main className={`${styles.profile} profile-page`}>
       <div className="container profile-shell">
-        <div className="account-page-heading">
-          <h1>个人中心</h1>
-          <p>管理你的资料与账户安全。</p>
-          <p className="profile-message" id="profileMessage" role="status" aria-live="polite">
-            {msg}
-          </p>
-        </div>
+        <div className="profile-heading">
+          <div className="account-page-heading">
+            <h1>个人中心</h1>
+            <p>管理你的资料与账户安全。</p>
+            <p className="profile-message" id="profileMessage" role="status" aria-live="polite">
+              {msg}
+            </p>
+          </div>
 
-          <nav className="profile-tabs" aria-label="个人中心设置">
-            {[
-              { id: 'details', label: '个人资料' },
-              { id: 'security', label: '账户安全' },
-              { id: 'sessions', label: '登录设备' },
-              { id: 'stats', label: '阅读统计' },
-              { id: 'reading', label: '阅读数据' },
-            ].map((item) => (
-              <button type="button" className="profile-tab" key={item.id} aria-pressed={activeSettings === item.id} onClick={() => setActiveSettings(item.id)}>
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        <div className="profile-settings-sheet">
           {/* Account identity */}
           <section className="profile-hero" aria-label="账户摘要">
             <div className="profile-hero__main">
               <div className="profile-avatar profile-avatar--hero">
-                <UserAvatar src={displayAvatar} name={name || '我'} size="inherit" />
+                <UserAvatar src={user.avatarUrl} name={name || '我'} size="inherit" />
               </div>
               <div className="profile-hero__identity">
                 <h2 className="profile-hero__name" id="profileName">
@@ -321,19 +308,35 @@ export default function Profile() {
               </div>
             </div>
           </section>
+        </div>
 
-          <div className="profile-edit-grid">
+        <div className="profile-settings-sheet">
+          <nav className="profile-tabs" aria-label="个人中心设置">
+            {[
+              { id: 'details', label: '个人资料' },
+              { id: 'security', label: '账户安全' },
+              { id: 'sessions', label: '登录设备' },
+              { id: 'stats', label: '阅读统计' },
+              { id: 'reading', label: '阅读数据' },
+            ].map((item) => (
+              <button type="button" className="profile-tab" key={item.id} aria-pressed={activeSettings === item.id} onClick={() => setActiveSettings(item.id)}>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="profile-edit-grid" data-settings={activeSettings}>
             {activeSettings === 'stats' && <ReadingStatsPanel key={`${user.id}:${safeMode}`} />}
             {activeSettings === 'reading' && <ReadingDataPanel key={`${user.id}:${safeMode}`} userId={user.id} username={user.username} />}
-            {/* 头像 */}
-            <section className="profile-section profile-avatar-section" hidden={activeSettings !== 'details'}>
-              <div className="profile-edit-panel">
-                <div className="profile-edit-panel__head">
-                  <div>
-                    <h2 className="profile-section-heading">头像</h2>
-                  </div>
+            <section className="profile-section profile-details-card" aria-label="个人资料" hidden={activeSettings !== 'details'}>
+              <div className="profile-edit-panel__head">
+                <h2 className="profile-section-heading">个人资料</h2>
+              </div>
+              <div className="profile-avatar-picker">
+                <div className="profile-avatar profile-avatar--preview">
+                  <UserAvatar src={displayAvatar} name={name || '我'} size="inherit" />
                 </div>
-                <div className="profile-avatar-picker">
+                <div className="profile-avatar-controls">
                   <div className="profile-action-group">
                     <input
                       ref={avatarInputRef}
@@ -341,7 +344,7 @@ export default function Profile() {
                       id="avatarInput"
                       tabIndex={-1}
                       className="profile-file-input"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
                       onChange={(e) => {
                         const file = e.target.files?.[0] || null
                         setAvatarFile(file)
@@ -355,51 +358,47 @@ export default function Profile() {
                       }}
                     />
                     <button type="button" className="btn btn--secondary" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}>
-                      选择头像
+                      <ImagePlus size={16} aria-hidden="true" />
+                      更换头像
                     </button>
                     {(avatarFile || avatarUploading) && (
                       <button type="button" className="btn btn--primary" onClick={() => void uploadAvatar()} disabled={!avatarFile || avatarUploading}>
                         {avatarUploading ? '上传中…' : '上传头像'}
                       </button>
                     )}
-                    <button type="button" className="btn btn--secondary" onClick={() => void deleteAvatar()} disabled={avatarUploading}>
-                      删除头像
+                    <button type="button" className="btn btn--ghost" onClick={() => void deleteAvatar()} disabled={avatarUploading}>
+                      <Trash2 size={16} aria-hidden="true" />
+                      移除头像
                     </button>
                   </div>
+                  <p className="profile-avatar-note">支持 JPG、PNG、WebP、GIF，最大 1 MB。头像以圆形显示。</p>
                 </div>
               </div>
-            </section>
-
-            {/* 资料编辑 */}
-            <section className="profile-section" hidden={activeSettings !== 'details'}>
-              <div className="profile-edit-panel">
-                <div className="profile-edit-panel__head">
-                  <div>
-                    <h2 className="profile-section-heading sr-only">个人资料</h2>
-                  </div>
-                </div>
-                <div className="profile-settings">
-                  <label className="profile-field">
-                    <span>显示名称</span>
-                    <input
-                      type="text"
-                      className="form-input"
-                      id="displayNameInput"
-                      maxLength={20}
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                    />
-                  </label>
-                  <label className="profile-field">
-                    <span>个人简介</span>
-                    <textarea className="form-input" id="bioInput" maxLength={80} rows={3} value={bio} onChange={(e) => setBio(e.target.value)}></textarea>
-                  </label>
-                </div>
-                <div className="profile-edit-panel__actions">
-                  <button className="btn btn--primary" onClick={() => void saveProfile()}>
-                    保存资料
-                  </button>
-                </div>
+              <div className="profile-settings">
+                <label className="profile-field">
+                  <span>昵称</span>
+                  <input
+                    type="text"
+                    className="form-input"
+                    id="displayNameInput"
+                    maxLength={20}
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                  />
+                </label>
+                <label className="profile-field">
+                  <span>邮箱</span>
+                  <input type="email" className="form-input" id="emailInput" placeholder="暂未开放邮箱绑定" disabled />
+                </label>
+                <label className="profile-field">
+                  <span>个人简介</span>
+                  <textarea className="form-input" id="bioInput" maxLength={80} rows={3} value={bio} onChange={(e) => setBio(e.target.value)}></textarea>
+                </label>
+              </div>
+              <div className="profile-edit-panel__actions">
+                <button className="btn btn--primary" onClick={() => void saveProfile()}>
+                  保存修改
+                </button>
               </div>
             </section>
 
