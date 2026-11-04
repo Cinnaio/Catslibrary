@@ -29,3 +29,12 @@ style(admin-content-ratings): 采纳方案A微缩光谱至账本标题右侧，�
 - 释放近 50px 宝贵的垂直空间，首屏呈现更多书籍条目，大幅提升工作流呼吸感
 - 保持全部业务交互契约与 ARIA 属性完整
 ```
+
+## 4. 版本与发布管理 (Version & Release Management)
+- iOS、API、Web 按各自的交付内容独立管理版本；源码版本来源与发布步骤见 `docs/releasing.md`。
+- 新功能交付递增对应模块的小版本；已交付版本的修复递增补丁版本。发布前的相关提交可合并到同一候选版本，不要求每个提交都改版本号。
+- iOS 每次交付源码发生变化的新 IPA 时递增 `CURRENT_PROJECT_VERSION`，同时核对 `MARKETING_VERSION`；相同提交的构建重试可以使用原构建号。
+- API/Web 更新 `package.json` 版本时，同步更新 `package-lock.json` 对应 workspace 的版本。仓库根包、Web、API 不强制使用相同版本号，也不因其他模块发版而无条件递增。
+- 在 `CHANGELOG.md` 记录对应版本的用户可感知变化、跨端依赖及源码提交。源码版本更新、构建成功、部署成功与真机验收分别记录，不能互相代替。
+- 提交前检查本次交付是否需要更新版本与变更记录。提交消息必须有 Body 清单，不得只提交 Header；scope 应精确到本次模块，如 `ios-admin-workspace`、`ios-reader-storage` 或 `release-metadata`。
+- 已推送提交的消息不通过自动 amend/rebase/force push 改写；如需修正历史，先取得用户明确授权。后续新增提交仍须按规范填写。
