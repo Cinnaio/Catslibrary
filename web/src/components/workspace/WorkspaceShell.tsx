@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Dialog } from 'radix-ui'
-import { ArrowUpRight, BookOpen, ChevronDown, History, Library, Menu, Search, Settings2, Shield, X, type LucideIcon } from 'lucide-react'
+import { Dialog, Switch } from 'radix-ui'
+import { ArrowUpRight, BookOpen, ChevronDown, History, Library, LogOut, Menu, Search, Settings2, Shield, X, type LucideIcon } from 'lucide-react'
 import { useSession } from '../../context/SessionContext'
 import { useContentPolicy } from '../../context/ContentPolicyContext'
 import { useSiteBranding } from '../../lib/site-branding'
 import { useToast } from '../feedback'
 import { AccountMenu } from '../AccountMenu'
 import { ThemeMenu } from '../ThemeMenu'
+import { UserAvatar } from '../ui/user-avatar'
 import SiteNotice from '../SiteNotice'
 import styles from './workspace-shell.module.css'
 
@@ -123,12 +124,15 @@ export default function WorkspaceShell({
   standalone?: boolean
 }) {
   const branding = useSiteBranding()
-  const { user, loading } = useSession()
-  const { mode, setMode, adultContentEnabled } = useContentPolicy()
+  const { user, loading, logout } = useSession()
+  const { mode, setMode, adultContentEnabled, checking } = useContentPolicy()
   const { toast } = useToast()
   const location = useLocation()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [switchingMode, setSwitchingMode] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const logoutPending = useRef(false)
   const [floating, setFloating] = useState(false)
   const [query, setQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
@@ -201,48 +205,95 @@ export default function WorkspaceShell({
       </span>
     </Link>
   )
-  const secondary = (
+  async function changeSafeMode(checked: boolean) {
+    if (checking || switchingMode) return
+    setSwitchingMode(true)
+    // 先关闭导航抽屉，再沿用内容策略提供的验证弹窗及授权流程。
+    setMenuOpen(false)
+    try {
+      await setMode(checked ? 'safe' : 'adult')
+    } catch (error) {
+      toast((error as Error).message || '切换内容模式失败', 'error')
+    } finally {
+      setSwitchingMode(false)
+    }
+  }
+  const showWorkspaceLink = admin || user?.role === 'admin'
+  const showContentMode = adultContentEnabled && !!user
+  const secondary = (showWorkspaceLink || showContentMode) ? (
     <div className={styles.secondary}>
-      {(admin || user?.role === 'admin') && (
+      {showWorkspaceLink && (
         <Link className={styles.navLink} to={admin ? '/' : '/admin'} onClick={() => setMenuOpen(false)}>
-          <Settings2 size={18} />
+          <Settings2 size={18} aria-hidden="true" />
           <span>{admin ? '返回阅读空间' : '管理工作台'}</span>
-          <ArrowUpRight size={14} />
+          <ArrowUpRight size={14} aria-hidden="true" />
         </Link>
       )}
-      {user && (
-        <Link className={styles.navLink} data-active={location.pathname === '/profile' || undefined} to="/profile" onClick={() => setMenuOpen(false)}>
-          <Settings2 size={18} />
-          <span>个人中心</span>
-        </Link>
-      )}
-      {adultContentEnabled && user && (
-        <button
-          className={styles.navLink}
-          type="button"
-          onClick={async () => {
-            setMenuOpen(false)
-            try {
-              await setMode(mode === 'adult' ? 'safe' : 'adult')
-            } catch (error) {
-              toast((error as Error).message || '切换内容模式失败', 'error')
-            }
-          }}
+      {showContentMode && (
+        <Switch.Root
+          className={`${styles.navLink} ${styles.modeSwitch}`}
+          checked={mode === 'safe'}
+          onCheckedChange={(checked) => void changeSafeMode(checked)}
+          disabled={checking || switchingMode}
+          aria-label="安全模式"
+          aria-busy={switchingMode}
         >
-          <Shield size={18} />
-          <span>{mode === 'adult' ? '切回安全模式' : '内容访问设置'}</span>
-        </button>
+          <Shield size={18} aria-hidden="true" />
+          <span>安全模式</span>
+          <span className={styles.switchTrack} aria-hidden="true">
+            <Switch.Thumb className={styles.switchThumb} />
+          </span>
+        </Switch.Root>
       )}
     </div>
-  )
+  ) : null
+  const accountName = user?.displayName || user?.username || `${branding.name}读者`
+  const accountHandle = user?.username || user?.id || ''
+  async function handleLogout() {
+    if (logoutPending.current) return
+    logoutPending.current = true
+    setLoggingOut(true)
+    setMenuOpen(false)
+    try {
+      await logout()
+      navigate('/', { replace: true })
+    } catch (error) {
+      toast((error as Error).message || '退出登录失败', 'error')
+    } finally {
+      logoutPending.current = false
+      setLoggingOut(false)
+    }
+  }
   const account = (
     <div className={styles.account}>
       {loading ? (
         <span className={styles.waiting}>正在恢复会话…</span>
       ) : user ? (
         <>
-          <AccountMenu variant="admin" onNavigate={() => setMenuOpen(false)} />
-          <ThemeMenu className={`${styles.iconButton} ${styles.themeButton}`} />
+          <Link
+            to="/profile"
+            className={styles.profileLink}
+            onClick={() => setMenuOpen(false)}
+            aria-label={`个人中心：${accountName}，@${accountHandle}`}
+            aria-current={location.pathname === '/profile' ? 'page' : undefined}
+          >
+            <UserAvatar name={accountName} src={user.avatarUrl} className={styles.accountAvatar} />
+            <span className={styles.accountIdentity}>
+              <span className={styles.accountName} title={accountName}>{accountName}</span>
+              <span className={styles.accountHandle} title={`@${accountHandle}`}>@{accountHandle}</span>
+            </span>
+          </Link>
+          <button
+            type="button"
+            className={`${styles.iconButton} ${styles.logoutButton}`}
+            aria-label={loggingOut ? '正在退出登录' : '退出登录'}
+            title={loggingOut ? '正在退出登录' : '退出登录'}
+            disabled={loggingOut}
+            aria-busy={loggingOut}
+            onClick={() => void handleLogout()}
+          >
+            <LogOut size={16} aria-hidden="true" />
+          </button>
         </>
       ) : (
         <>
