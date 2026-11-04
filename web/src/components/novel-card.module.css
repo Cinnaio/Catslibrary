@@ -1,13 +1,17 @@
 .card {
-  display: block;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
   min-width: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-poster);
   box-shadow: none;
   color: var(--text-primary);
   text-decoration: none;
+  transition: border-color 160ms;
 }
 .card :global(.novel-card__cover) {
   position: relative;
@@ -18,7 +22,7 @@
   width: 100%;
   height: auto;
   aspect-ratio: 2 / 3;
-  border-radius: var(--radius-poster);
+  border-radius: var(--radius-control);
   background: var(--bg-secondary);
   box-shadow: none;
   isolation: isolate;
@@ -30,7 +34,7 @@
   transition: transform 350ms var(--ease);
 }
 .card :global(.novel-card__cover-char) {
-  font: 500 32px / 1.5 var(--font-serif);
+  font: 500 28px / 1.5 var(--font-serif);
   color: var(--text-muted);
 }
 .card :global(.novel-card__cover--placeholder) {
@@ -39,74 +43,102 @@
 .card :global(.novel-card__cover-typeset) {
   width: 100%;
   height: 100%;
-  padding: 22px 14px;
+  padding: 12px 8px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
   text-align: center;
   font-family: var(--font-serif);
   color: var(--text-secondary);
 }
 .card :global(.novel-card__cover-title) {
-  font-size: clamp(18px, 1.7vw, 26px);
-  line-height: 1.7;
+  font-size: 16px;
+  line-height: 1.5;
   font-weight: 500;
   overflow-wrap: anywhere;
   text-wrap: balance;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
 }
 .card :global(.novel-card__cover-author) {
   font-size: 10px;
 }
 .card :global(.novel-card__body) {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  gap: 3px;
-  margin-top: 11px;
+  min-height: 144px;
+  gap: 5px;
 }
 .card :global(.novel-card__title) {
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.5;
   font-weight: 550;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 .card :global(.novel-card__meta) {
   font-size: 11px;
   line-height: 1.6;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .card :global(.novel-card__facts) {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px 10px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .card :global(.novel-card__status) {
   font-size: inherit;
   color: var(--text-secondary);
 }
 .card :global(.novel-card__desc) {
-  display: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-secondary);
 }
 .card :global(.novel-card__footer) {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 2px;
+  display: grid;
+  gap: 3px;
+  margin-top: auto;
+  padding-top: 2px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .card :global(.novel-card__category) {
   color: var(--accent);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .card :global(.novel-card__time) {
-  font-size: 10px;
+  font-size: 11px;
+}
+.card:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 @media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    border-color: var(--accent);
+  }
   .card:hover :global(.novel-card__cover) img {
     transform: scale(1.025);
   }
@@ -115,11 +147,34 @@
   }
 }
 @media (max-width: 700px) {
+  .card {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+  .card :global(.novel-card__body) {
+    min-height: 108px;
+    gap: 4px;
+  }
+  .card :global(.novel-card__title) {
+    font-size: 14px;
+  }
+  .card :global(.novel-card__desc) {
+    -webkit-line-clamp: 2;
+  }
   .card :global(.novel-card__cover-title) {
-    font-size: 22px;
+    font-size: 14px;
+  }
+  .card :global(.novel-card__cover-typeset) {
+    padding: 10px 6px;
+    gap: 6px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .card,
+  .card :global(.novel-card__cover) img {
+    transition: none;
+  }
   .card:hover :global(.novel-card__cover) img {
     transform: none;
   }

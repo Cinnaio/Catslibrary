@@ -36,7 +36,7 @@ describe('NovelCard', () => {
   it('渲染标题、作者与待更新角标', () => {
     renderCard(novel)
     expect(screen.getByText('雾城来信')).toBeInTheDocument()
-    expect(screen.getByText('作者：某作者')).toBeInTheDocument()
+    expect(screen.getByText('某作者')).toBeInTheDocument()
     expect(screen.getByText('+2')).toBeInTheDocument() // remote 12 - local 10
   })
 

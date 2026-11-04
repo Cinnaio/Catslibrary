@@ -214,8 +214,8 @@
 }
 .page :global(.grid--novels) {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 25px 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
   min-height: 0;
 }
 .page :global(.grid--novels[aria-busy='true']) {
@@ -322,16 +322,17 @@
     transform: none;
   }
 }
-@media (max-width: 1250px) {
-  .page :global(.grid--novels) {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 24px 16px;
-  }
-}
-@media (max-width: 960px) {
+@media (min-width: 1600px) {
   .page :global(.grid--novels) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+@media (max-width: 1100px) {
+  .page :global(.grid--novels) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 960px) {
   .page :global(.home-hero__content) {
     align-items: stretch;
     flex-direction: column;
@@ -399,8 +400,7 @@
     font-size: 11px;
   }
   .page :global(.grid--novels) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 23px 14px;
+    gap: 16px;
   }
   .reading {
     align-items: flex-start;
