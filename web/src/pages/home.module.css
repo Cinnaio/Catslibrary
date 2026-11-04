@@ -173,6 +173,9 @@
   border: 0;
   background: transparent;
 }
+.page :global(.page-state__content--inline) + :global(.sort-tabs-row) {
+  margin-top: 24px;
+}
 .page :global(.sort-tabs) {
   position: relative;
   display: flex;
@@ -326,6 +329,9 @@
   }
 }
 @media (max-width: 700px) {
+  .page :global(.page-state__content--inline) + :global(.sort-tabs-row) {
+    margin-top: 20px;
+  }
   .page :global(.home-hero h1) {
     font-size: 25px;
   }
