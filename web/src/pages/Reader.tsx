@@ -51,6 +51,7 @@ import { ThemeMenu } from '../components/ThemeMenu'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
 import ContentPolicyStatus from '../components/ContentPolicyStatus'
+import FloatingPageTools from '../components/FloatingPageTools'
 
 const CHAPTER_ROW_H = 34
 const CHAPTER_CACHE_MAX = 6
@@ -1494,14 +1495,7 @@ export default function Reader() {
         />
       )}
 
-      <div className="reader-footer-actions">
-        <Link to="/" className="float-top float-top--home visible" aria-label="回到首页" title="回到首页">
-          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7.5l7-5.5 7 5.5" /><path d="M4.5 8.5v6h3v-4h3v4h3v-6" /></svg>
-        </Link>
-        <button className="float-top visible" aria-label="回到顶部" title="回到顶部" onClick={() => window.scrollTo({ top: 0, behavior: scrollBehavior() })}>
-          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="12 11 9 7 6 11" /><line x1="4" y1="14" x2="14" y2="14" /></svg>
-        </button>
-      </div>
+      <FloatingPageTools reader />
     </div>
   )
 }

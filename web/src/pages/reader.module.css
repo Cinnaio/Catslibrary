@@ -274,47 +274,6 @@ body:has(.page:not(:global(.hidden))) {
   border-radius: var(--radius-full);
 }
 
-/* Float back-to-top — shared base in _header.css, reader offsets */
-:global(.float-top--home) {
-  bottom: 104px;
-}
-
-@media (max-width: 640px) {
-  :global(.reader-footer-actions) {
-    position: fixed;
-    right: 16px;
-    bottom: calc(176px + env(safe-area-inset-bottom));
-    z-index: 210;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 0;
-  }
-  :global(.reader-footer-actions) :global(.float-top) {
-    position: static;
-    display: inline-flex;
-    transform: none;
-    opacity: 1;
-    width: 44px;
-    height: 44px;
-    box-shadow: none;
-    background: var(--reader-paper);
-  }
-  :global(.float-top) {
-    right: 16px;
-    width: 40px;
-    height: 40px;
-    bottom: calc(92px + env(safe-area-inset-bottom));
-  }
-  :global(.float-top) svg {
-    width: 16px;
-    height: 16px;
-  }
-  :global(.float-top--home) {
-    bottom: calc(148px + env(safe-area-inset-bottom));
-  }
-}
-
 :global(.reader-controls) {
   display: flex;
   align-items: center;
@@ -440,8 +399,7 @@ body:has(.page:not(:global(.hidden))) {
 
 :global(.reader-nav-btn):focus-visible,
 :global(.reader-controls) button:focus-visible,
-:global(.chapter-dropdown__item):focus-visible,
-:global(.float-top):focus-visible {
+:global(.chapter-dropdown__item):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   box-shadow: 0 0 0 4px var(--focus-ring);

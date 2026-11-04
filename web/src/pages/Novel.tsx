@@ -20,7 +20,8 @@ import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useBookshelf } from '../hooks/useBookshelf'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useToast, useConfirm } from '../components/feedback'
-import { BackToTopIcon, HomeIcon, SearchIcon } from '../components/icons'
+import { SearchIcon } from '../components/icons'
+import FloatingPageTools from '../components/FloatingPageTools'
 import CatchupRecap from '../components/CatchupRecap'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
@@ -697,18 +698,7 @@ export default function Novel() {
         )}
       </div>
 
-      {/* 浮动按钮 */}
-      <Link to="/" className="float-top float-top--home visible" aria-label="回到首页" title="回到首页">
-        <HomeIcon />
-      </Link>
-      <button
-        className="float-top visible"
-        aria-label="回到顶部"
-        title="回到顶部"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      >
-        <BackToTopIcon />
-      </button>
+      <FloatingPageTools />
     </main>
   )
 }
