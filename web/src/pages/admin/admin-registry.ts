@@ -57,22 +57,22 @@ export interface AdminNavItem {
 
 export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
   {
-    label: '监控',
+    label: '工作台',
     items: [{ id: 'dashboard', label: '后台总览', icon: LayoutDashboard }],
   },
   {
-    label: '内容库',
+    label: '作品',
     items: [
-      { id: 'novels', label: '小说管理', icon: BookOpen },
+      { id: 'novels', label: '作品库', icon: BookOpen },
       { id: 'chapters', label: '章节管理', icon: FileText },
     ],
   },
   {
-    label: '内容生产',
+    label: '创作',
     items: [
       {
         id: 'scrape',
-        label: '爬虫抓取',
+        label: '导入与抓取',
         icon: Bug,
         children: [
           { id: 'scrape-center', label: '抓取中心', to: `${adminTabPath('scrape')}?view=center` },
@@ -81,20 +81,19 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
       },
       {
         id: 'ai',
-        label: 'AI 服务',
+        label: '创作工作区',
         icon: Sparkles,
         children: [
           { id: 'ai-writing', label: 'AI 创作', to: `${adminTabPath('ai')}?sub=writing` },
           { id: 'ai-cover', label: '封面生成', to: `${adminTabPath('ai')}?sub=cover` },
-          { id: 'ai-content', label: '已生成内容', to: `${adminTabPath('ai')}?sub=content` },
-          { id: 'ai-config', label: 'AI 配置', to: `${adminTabPath('ai')}?sub=config` },
-          { id: 'ai-params', label: '参数调优', to: `${adminTabPath('ai')}?sub=params` },
+          { id: 'ai-content', label: '草稿与产出', to: `${adminTabPath('ai')}?sub=content` },
+          { id: 'ai-graph', label: '故事档案', to: `${adminTabPath('ai')}?sub=graph` },
         ],
       },
     ],
   },
   {
-    label: '运行监控',
+    label: '运行',
     items: [
       { id: 'tasks', label: '任务中心', icon: ListChecks },
       { id: 'calls', label: '调用与用量', icon: Activity },
@@ -117,7 +116,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
     ],
   },
   {
-    label: '平台运营',
+    label: '系统',
     items: [
       {
         id: 'backups',
@@ -155,6 +154,8 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         children: [
           { id: 'site-settings-branding', label: '站点信息', to: `${adminTabPath('site-settings')}?view=branding` },
           { id: 'site-settings-security', label: '安全验证', to: `${adminTabPath('site-settings')}?view=security` },
+          { id: 'ai-config', label: '模型与服务', to: `${adminTabPath('ai')}?sub=config` },
+          { id: 'ai-params', label: '创作参数', to: `${adminTabPath('ai')}?sub=params` },
           { id: 'site-settings-passkey', label: 'Passkey', to: `${adminTabPath('site-settings')}?view=passkey` },
         ],
       },
@@ -199,4 +200,14 @@ export function getTabLabel(id: string): string {
     NAV_GROUPS.flatMap((group) => group.items.flatMap((item) => item.children || [])).find((sub) => sub.id === id)?.label ||
     ''
   )
+}
+
+/** Resolve the visible subview, including AI configuration placed in the system navigation. */
+export function getAdminViewLabel(id: string, search: string): string {
+  const current = new URLSearchParams(search)
+  for (const child of NAV_GROUPS.flatMap(group => group.items.flatMap(item => item.children || []))) {
+    const target = new URL(child.to, 'https://workspace.local')
+    if (target.pathname === adminTabPath(id) && [...target.searchParams].every(([key, value]) => current.get(key) === value)) return child.label
+  }
+  return getTabLabel(id)
 }

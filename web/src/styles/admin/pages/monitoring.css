@@ -8,7 +8,7 @@
   align-items: center;
   gap: 0.25rem;
   padding: 0.25rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted, #f8f7f3);
   border: 1px solid var(--admin-border, #e5e3dc);
   margin-bottom: 1.25rem;
@@ -24,7 +24,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   padding: 0.4375rem 1.125rem;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -47,7 +47,7 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 .admin-monitoring-page [data-slot='tabs-trigger']:hover:not([data-state='active']) {
-  color: #d97757;
+  color: var(--accent);
 }
 
 .admin-monitoring-page [data-slot='tabs-content'] {

@@ -1,28 +1,17 @@
 /* 后台样式唯一入口。导入顺序保留既有层叠关系；修改共用外观请到对应组件模块，勿在入口追加覆盖。 */
-@import './admin/tokens.css';
 @import './admin/components/list-toolbars.css';
 @import './admin/components/panel-status.css';
-@import './admin/pages/accounts.css';
 @import './admin/components/panel-base.css';
-@import './admin/pages/po18-account.css';
 @import './admin/components/metric-responsive.css';
-@import './admin/pages/scrape-center.css';
 @import './admin/shell.css';
-@import './admin/pages/ai.css';
-@import './admin/pages/chapters.css';
 @import './admin/components/page-surfaces.css';
 @import './admin/pages/jobs.css';
-@import './admin/pages/content-policy.css';
 @import './admin/components/subtabs-and-progress.css';
 @import './admin/components/panels.css';
 @import './admin/components/pagination.css';
 @import './admin/pages/content-toolbars.css';
-@import './admin/pages/scrape-workflow.css';
 @import './admin/components/controls.css';
-@import './admin/pages/scrape-responsive.css';
-@import './admin/pages/site-operations.css';
 @import './admin/components/page-header.css';
-@import './admin/pages/overview.css';
 @import './admin/components/table-motion.css';
 @import './admin/components/control-states.css';
 @import './admin/pages/content-lists.css';
@@ -35,7 +24,6 @@
 @import './admin/components/workspace-responsive.css';
 @import './admin/components/tables.css';
 @import './admin/pages/moderation-responsive.css';
-@import './admin/pages/scrape-panels.css';
 @import './admin/components/row-actions.css';
 @import './admin/components/floating-dock.css';
 @import './admin/components/selection.css';
@@ -44,11 +32,8 @@
 @import './admin/components/status-badges.css';
 @import './admin/components/dialog-variants.css';
 @import './admin/pages/monitoring.css';
-@import './admin/pages/proxy-settings.css';
-@import './admin/pages/content-ratings.css';
 
 /* AI 服务布局在共享组件之后声明，尺寸仍取共享 token。 */
-@import './admin/pages/ai-service-claude.css';
 
 /* 内容库（小说管理 / 章节管理）移动端记录卡：必须晚于共享表格规则，
    以页级作用域覆盖 900px 以下的通用卡片排布。 */

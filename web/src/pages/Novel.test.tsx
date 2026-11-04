@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
@@ -13,7 +14,7 @@ vi.mock('../context/ContentPolicyContext', () => ({ useContentPolicy: () => mock
 vi.mock('../components/feedback', () => ({ useToast: () => ({ toast: vi.fn() }), useConfirm: () => ({ confirm: vi.fn() }) }))
 vi.mock('../hooks/useBookshelf', () => ({ useBookshelf: () => ({ inShelf: false, toggle: vi.fn() }) }))
 vi.mock('../components/CatchupRecap', () => ({ default: () => null }))
-vi.mock('../components/SiteHeader', () => ({ default: () => <nav aria-label="站点导航">站点导航</nav> }))
+vi.mock('../components/workspace/WorkspaceShell', () => ({ default: ({ children, standalone }: { children: ReactNode; standalone?: boolean }) => <>{!standalone && <><nav aria-label="站点导航">站点导航</nav><aside>站点公告</aside></>}{children}</> }))
 vi.mock('../components/SiteNotice', () => ({ default: () => <aside>站点公告</aside> }))
 vi.mock('../lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('../lib/api')>(),

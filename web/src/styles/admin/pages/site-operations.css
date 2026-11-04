@@ -6,7 +6,7 @@
 .site-operations .traffic-panel {
   border: 1px solid var(--admin-panel-border);
   border-radius: var(--admin-table-panel-radius);
-  box-shadow: var(--admin-panel-shadow);
+  box-shadow: none;
   min-width: 0;
   background: var(--admin-panel);
 }
@@ -344,7 +344,7 @@
   background: var(--admin-surface, #ffffff);
   border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));
   border-radius: 1.125rem;
-  box-shadow: 0 2px 12px -4px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  box-shadow: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -352,7 +352,7 @@
 .dark .site-operations .traffic-panel {
   background: var(--admin-panel, #1a1a19);
   border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
 }
 
 .traffic-segment {
@@ -384,7 +384,7 @@
 :root[data-theme='dark'] .traffic-segment button[aria-pressed='true'],
 .dark .traffic-segment button[aria-pressed='true'] {
   background: var(--admin-panel, #242422) !important;
-  color: #f3f3ee !important;
+  color: var(--bg-secondary) !important;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3) !important;
 }
 
@@ -423,7 +423,7 @@
 
 :root[data-theme='dark'] .traffic-dialog-total strong,
 .dark .traffic-dialog-total strong {
-  color: #f3f3ee;
+  color: var(--bg-secondary);
 }
 
 .traffic-details summary,

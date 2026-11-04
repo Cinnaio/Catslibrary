@@ -1,3 +1,8 @@
+import '../../../styles/admin/pages/po18-account.css'
+import '../../../styles/admin/pages/scrape-panels.css'
+import '../../../styles/admin/pages/scrape-responsive.css'
+import '../../../styles/admin/pages/scrape-workflow.css'
+import '../../../styles/admin/pages/scrape-center.css'
 // ============================================================
 // ScrapeTab — coordinator for the two scrape sub-views.
 // ============================================================

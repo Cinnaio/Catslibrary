@@ -412,7 +412,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   height: 56px;
   border-radius: 16px;
   background: rgba(217, 119, 87, 0.1);
-  color: #D97757;
+  color: var(--accent);
   margin-bottom: 0.25rem;
 }
 
@@ -444,7 +444,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   justify-content: center;
   min-width: 2.25rem;
   padding: 0.15rem 0.5rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted, rgba(0, 0, 0, 0.04));
   border: 1px solid var(--admin-border, #e6e4dc);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -462,7 +462,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   margin-right: 0.4rem;
   border-radius: 6px;
   background: rgba(217, 119, 87, 0.1);
-  color: #D97757;
+  color: var(--accent);
   font-size: 0.7rem;
   font-weight: 600;
   vertical-align: middle;
@@ -470,7 +470,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
 
 /* 4. 排序切换胶囊 */
 .chapter-sort-pill {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   font-size: 0.8rem !important;
   height: 2rem !important;
   padding: 0 0.75rem !important;
@@ -483,7 +483,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
 .chapter-sort-pill:hover {
   background: var(--admin-panel-muted, #faf9f5) !important;
   border-color: rgba(217, 119, 87, 0.4) !important;
-  color: #D97757 !important;
+  color: var(--accent) !important;
 }
 
 /* 5. 沉浸式章节速读抽屉 (Quick Reader) */
@@ -511,8 +511,8 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   gap: 0.35rem;
   padding: 0.2rem 0.6rem;
   background: rgba(217, 119, 87, 0.1);
-  color: #D97757;
-  border-radius: 9999px;
+  color: var(--accent);
+  border-radius: var(--radius-tag);
   font-size: 0.75rem;
   font-weight: 600;
 }

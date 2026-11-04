@@ -43,7 +43,7 @@
   flex: 1 1 16rem;
   min-width: 0;
   max-width: none;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
 }
 
 @media (max-width: 900px) {

@@ -1,11 +1,10 @@
-import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('./AdminSidebar', () => ({
-  default: () => <aside data-testid="admin-sidebar" />,
-}))
+vi.mock('../../context/SessionContext', () => ({ useSession: () => ({ user: null, loading: false }) }))
+vi.mock('../../context/ContentPolicyContext', () => ({ useContentPolicy: () => ({ mode: 'safe', adultContentEnabled: false }) }))
+vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: vi.fn() }) }))
 
 vi.mock('../../components/ThemeMenu', () => ({
   ThemeMenu: () => (
@@ -15,20 +14,10 @@ vi.mock('../../components/ThemeMenu', () => ({
   ),
 }))
 
-vi.mock('@/components/ui/separator', () => ({
-  Separator: () => <span data-testid="separator" />,
-}))
-
-vi.mock('@/components/ui/sidebar', () => ({
-  SidebarInset: ({ children, ...props }: { children: ReactNode }) => <div {...props}>{children}</div>,
-  SidebarProvider: ({ children, ...props }: { children: ReactNode }) => <div {...props}>{children}</div>,
-  SidebarTrigger: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props} />,
-}))
-
 import AdminShell from './AdminShell'
 
 describe('AdminShell topbar controls', () => {
-  it('将账户入口交给侧栏，并保留顶栏主题入口', () => {
+  it('共享工作区保留主题入口，并且不显示未登录账户菜单', () => {
     render(
       <MemoryRouter>
         <AdminShell active="jobs" activeLabel="任务管理">
@@ -37,7 +26,7 @@ describe('AdminShell topbar controls', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByTestId('theme-menu')).toBeInTheDocument()
+    expect(screen.getAllByTestId('theme-menu').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: '账户菜单：猫' })).not.toBeInTheDocument()
   })
 })

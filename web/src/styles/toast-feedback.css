@@ -8,7 +8,7 @@
   gap: var(--toast-gap, 0.625rem);
   padding: var(--toast-padding-block, 0.5rem) var(--toast-padding-inline, 1.125rem);
   border: 1px solid var(--toast-border, var(--border, #ece8e2));
-  border-radius: var(--radius-full, 9999px) !important;
+  border-radius: var(--toast-radius, 14px) !important;
   background: var(--toast-background);
   color: var(--toast-foreground);
   box-shadow: var(--toast-shadow);
@@ -78,7 +78,7 @@
   min-height: 1.625rem;
   margin-inline-start: 0.5rem;
   padding: 0 0.625rem;
-  border-radius: var(--radius-full, 9999px);
+  border-radius: var(--toast-radius, 14px);
   border: 0;
   background: rgba(217, 119, 87, 0.1);
   color: var(--admin-accent, #d97757);

@@ -1,3 +1,4 @@
+import '../../styles/admin/pages/chapters.css'
 /**
  * 章节管理 tab —— 选书下拉（全库索引）、章节 CRUD、批量删除、按源站映射融合章节名。
  * 由 Novel-KV js/admin-chapters.js 平移。

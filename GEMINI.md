@@ -5,7 +5,7 @@
 - **无需主动截图**：用户本地开着开发服务器，可以一眼看到页面渲染效果，非用户显式要求不必额外运行 Playwright 截屏脚本。
 
 ## 2. 界面设计规范 (UI & Motion Standards)
-- 遵循 `DESIGN.md` 中定义的 Claude (Anthropic) 极简设计语言与单层控制流规范。
+- 遵循 `DESIGN.md` 中基于 cats-watching 的统一视觉与工作区布局规范；前后台共用暖纸白、陶土色、分层圆角和共享外壳。历史设计文档仅作业务契约参考，不恢复旧的双强调色与全胶囊规则。
 - 列表筛选、分页、搜索流转必须配备轻量、克制的阶梯式入场动效（Staggered Row Enter）与检索过渡态（Transitioning State）。
 
 ## 3. Git 提交信息规范 (Commit Message Conventions)

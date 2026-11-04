@@ -3,7 +3,7 @@
    Claude (Anthropic) 极简双栏工作台设计：
    - 陶土红 (Terracotta #D97757) 品牌核心色与温润炭黑/羊皮纸表面
    - 桌面端配置与诊断双栏并排 (Dual-Pane Workbench)，移动端自然堆叠
-   - 舒展克制的人文排版与全圆角胶囊药丸 (Pill Shape)
+   - 舒展克制的人文排版与共享圆角药丸 (Pill Shape)
    ========================================================================== */
 
 .admin-redesign-page--proxy > .admin-tab-header {
@@ -35,7 +35,7 @@
   border-radius: var(--admin-table-panel-radius, 1rem);
   border: 1px solid var(--admin-border, #e6e4dc);
   background: var(--admin-panel, #ffffff);
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.03), 0 8px 24px -6px rgba(35, 30, 24, 0.04);
+  box-shadow: none;
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
@@ -44,7 +44,7 @@
 [data-theme='dark'] .proxy-settings-page .admin-panel-card {
   border-color: var(--admin-border, #2c2b28);
   background: var(--admin-panel, #1d1d1b);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 8px 24px -4px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
 }
 
 .proxy-settings-page .admin-panel-heading {
@@ -121,7 +121,7 @@
 
 :root[data-theme='dark'] .proxy-effective__source,
 [data-theme='dark'] .proxy-effective__source {
-  color: #a8a39b;
+  color: var(--text-muted);
 }
 
 .proxy-effective__value {
@@ -287,7 +287,7 @@
   padding-inline: 1.25rem;
   border-radius: var(--radius-full, 9999px) !important;
   background: var(--admin-accent, #d97757) !important;
-  color: #ffffff !important;
+  color: var(--accent-ink) !important;
   font-size: 0.825rem;
   font-weight: 550;
   border: 1px solid transparent !important;

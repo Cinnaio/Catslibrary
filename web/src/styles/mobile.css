@@ -260,28 +260,6 @@
     grid-template-columns: 1fr;
     gap: 18px;
   }
-  .novel-card {
-    gap: 12px;
-  }
-  .novel-card__cover {
-    width: 88px;
-    height: 118px;
-  }
-  .novel-card__cover-char {
-    font-size: 1.5rem;
-  }
-  .novel-card__title {
-    font-size: var(--novel-card-title-size);
-  }
-  .novel-card__meta {
-    font-size: var(--novel-card-meta-size);
-  }
-  .novel-card__desc {
-    font-size: var(--novel-card-description-size);
-  }
-  .novel-card__time {
-    font-size: var(--novel-card-footer-size);
-  }
 
 
   /* Chapter ledger → single column */
@@ -546,13 +524,6 @@
   }
 
   /* Tiny screens */
-  .novel-card__cover {
-    width: 76px;
-    height: 102px;
-  }
-  .novel-card__title {
-    font-size: var(--novel-card-title-size);
-  }
   .filter-btn {
     padding: 3px 8px;
   }

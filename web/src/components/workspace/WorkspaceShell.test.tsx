@@ -11,30 +11,30 @@ const mocks = vi.hoisted(() => ({
   useConfirm: vi.fn(),
 }))
 
-vi.mock('../context/SessionContext', () => ({
+vi.mock('../../context/SessionContext', () => ({
   useSession: mocks.useSession,
 }))
 
-vi.mock('../context/SearchContext', () => ({
+vi.mock('../../context/SearchContext', () => ({
   useSearch: mocks.useSearch,
 }))
 
-vi.mock('../context/ContentPolicyContext', () => ({
+vi.mock('../../context/ContentPolicyContext', () => ({
   useContentPolicy: mocks.useContentPolicy,
 }))
 
-vi.mock('./feedback', () => ({
+vi.mock('../feedback', () => ({
   useToast: mocks.useToast,
   useConfirm: mocks.useConfirm,
 }))
 
-vi.mock('./ThemeMenu', () => ({
+vi.mock('../ThemeMenu', () => ({
   ThemeMenu: () => <button type="button">主题设置</button>,
 }))
 
-import SiteHeader from './SiteHeader'
+import WorkspaceShell from './WorkspaceShell'
 
-describe('SiteHeader account menu', () => {
+describe('WorkspaceShell account and navigation', () => {
   beforeEach(() => {
     mocks.useSession.mockReturnValue({
       user: {
@@ -59,37 +59,48 @@ describe('SiteHeader account menu', () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter initialEntries={['/novel/demo']}>
-        <SiteHeader />
+        <WorkspaceShell>
+          <main>内容</main>
+        </WorkspaceShell>
       </MemoryRouter>,
     )
 
-    await user.click(screen.getByRole('button', { name: '账户菜单：猫' }))
+    await user.click(screen.getAllByRole('button', { name: '账户菜单：猫' })[0]!)
 
     expect(screen.getByRole('menuitem', { name: '个人中心' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: '退出登录' })).toBeInTheDocument()
   })
 
-  it('首页导航保留书架与账户入口，搜索由页面中央承担', () => {
+  it('书库导航保留书架、阅读记录和账户入口，搜索由页面内容承担', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
-        <SiteHeader />
+        <WorkspaceShell>
+          <main>内容</main>
+        </WorkspaceShell>
       </MemoryRouter>,
     )
     expect(screen.queryByRole('link', { name: '书库' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '刷新页面' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '我的书架' })).toHaveAttribute('href', '/bookshelf')
+    expect(screen.getAllByRole('link', { name: '我的书架' }).every((link) => link.getAttribute('href') === '/bookshelf')).toBe(true)
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('button', { name: '搜索' })).toBeNull()
-    expect(screen.getByRole('button', { name: '账户菜单：猫' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: '阅读记录' }).every((link) => link.getAttribute('href') === '/bookshelf?view=recent')).toBe(true)
+    expect(screen.getAllByRole('button', { name: '账户菜单：猫' })[0]!).toBeInTheDocument()
   })
 
   it('站点开放 R18 时游客的桌面和移动导航都没有模式开关', async () => {
     mocks.useSession.mockReturnValue({ user: null })
     mocks.useContentPolicy.mockReturnValue({ mode: 'safe', setMode: vi.fn(), adultContentEnabled: true })
-    render(<MemoryRouter><SiteHeader /></MemoryRouter>)
-    expect(screen.queryByRole('button', { name: /内容安全模式/ })).toBeNull()
-    await userEvent.setup().click(screen.getByRole('button', { name: /导航菜单|打开菜单|菜单/ }))
-    expect(screen.queryByRole('button', { name: /内容安全模式/ })).toBeNull()
+    render(
+      <MemoryRouter>
+        <WorkspaceShell>
+          <main>内容</main>
+        </WorkspaceShell>
+      </MemoryRouter>,
+    )
+    expect(screen.queryByRole('button', { name: /内容访问设置|切回安全模式/ })).toBeNull()
+    await userEvent.setup().click(screen.getByRole('button', { name: '打开导航' }))
+    expect(screen.queryByRole('button', { name: /内容访问设置|切回安全模式/ })).toBeNull()
     expect(screen.queryByRole('button', { name: '刷新页面' })).not.toBeInTheDocument()
   })
 })

@@ -1,3 +1,4 @@
+import styles from './novel-card.module.css'
 /**
  * 小说卡片 —— 由 home.js renderNovels 平移。封面左侧横排卡片。
  */
@@ -17,7 +18,7 @@ export default function NovelCard({ novel, variant, category }: { novel: Novel; 
   const read = !!getNovelHistory(novel.id)
 
   return (
-    <Link to={`/novel/${encodeURIComponent(novel.id)}`} className={`novel-card${variant === 'library' ? ' novel-card--library' : ''}`}>
+    <Link to={`/novel/${encodeURIComponent(novel.id)}`} className={`${styles.card} novel-card${variant === 'library' ? ' novel-card--library' : ''}`}>
       <div className={`novel-card__cover${hasCover ? '' : ' novel-card__cover--placeholder'}`}>
         {hasCover ? (
           <img src={src} alt={novel.title} loading="lazy" onLoad={() => setImgFailed(false)} onError={() => setImgFailed(true)} />

@@ -1,3 +1,5 @@
+import styles from './home.module.css'
+import { getRecentHistory } from '../lib/storage'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 import { useSession } from '../context/SessionContext'
 /**
@@ -301,14 +303,20 @@ export default function Home() {
     document.getElementById('homeLibrary')?.scrollIntoView({ block: 'start' })
   }
 
+  const recentReading = !loading && !apiFailed && !hasFilter && currentPage === 1
+    ? getRecentHistory(8).flatMap(entry => {
+      const book = novels.find(item => item.id === entry.novelId)
+      return book ? [{ entry, book }] : []
+    })[0] : undefined
+
   return (
-    <main className="home-page">
+    <main className={`${styles.page} home-page`}>
       <section className="home-hero">
         <div className="container home-shell">
           <div className="home-hero__content">
             <div className="home-hero__intro">
-              <h1>在纸页之间，继续你的故事。</h1>
-              <p>收藏、搜索、筛选与继续阅读，都收进一个安静的中文小说书库。</p>
+              <h1>全部书库</h1>
+              <p>找一本想读的书，让故事从这里继续。</p>
             </div>
             <div className="home-hero__search-area">
               <form
@@ -328,6 +336,7 @@ export default function Home() {
                 <input
                   ref={searchInputRef}
                   id="homeSearch"
+                  data-inline-search
                   className="home-search__input"
                   type="search"
                   placeholder="寻找一本书，或一位作者…"
@@ -348,6 +357,10 @@ export default function Home() {
         </div>
       </section>
 
+      {recentReading && <section className={styles.reading} aria-label="继续阅读">
+        <div><small>接着上次的故事</small><h2>{recentReading.book.title}</h2><p>{recentReading.entry.chapterTitle || '打开作品，继续阅读'}</p></div>
+        <Link className="btn btn--primary" to={recentReading.entry.chapterId ? `/read/${encodeURIComponent(recentReading.book.id)}/${encodeURIComponent(recentReading.entry.chapterId)}` : `/novel/${encodeURIComponent(recentReading.book.id)}`}>继续阅读 <ArrowRight size={16} aria-hidden="true" /></Link>
+      </section>}
       <section id="homeLibrary" className="section section--hero home-library">
         <div className="container home-shell">
           <button

@@ -2697,6 +2697,7 @@ export const aiApi = {
     filters: {
       groupBatches?: boolean
       q?: string
+      novelId?: string
       kind?: 'summary' | 'catchup' | 'continue' | 'write_outline' | 'write_chapter'
       scope?: 'all' | 'reader' | 'writing'
       status?: 'all' | 'published' | 'draft' | 'rejected'
@@ -2726,6 +2727,7 @@ export const aiApi = {
       /** 正文 SHA-256 版本；选段改写与保存都要拿它做乐观并发校验 */
       contentRevision: string
     }>
+    novelId?: string | null
     total: number
     limit: number
     offset: number
@@ -2733,6 +2735,7 @@ export const aiApi = {
     const params = new URLSearchParams()
     if (filters.groupBatches) params.set('groupBatches', 'true')
     if (filters.q) params.set('q', filters.q.trim().slice(0, 100))
+    if (filters.novelId) params.set('novelId', filters.novelId)
     if (filters.kind) params.set('kind', filters.kind)
     if (filters.scope) params.set('scope', filters.scope)
     if (filters.status) params.set('status', filters.status)

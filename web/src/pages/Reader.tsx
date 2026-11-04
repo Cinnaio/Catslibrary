@@ -1,3 +1,6 @@
+import styles from './reader.module.css'
+import '../styles/reader-highlights.css'
+import '../styles/bookmarks.css'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 /**
  * Reader 阅读器 —— 沉浸式阅读（由 Novel-KV js/read.js 2723 行平移为 React）。
@@ -1215,7 +1218,7 @@ export default function Reader() {
   const nid = chapter.novelId || novelId
 
   return (
-    <div ref={readerAppRef} className={`reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme} data-mobile-toolbar={mobileBarHidden ? 'collapsed' : 'expanded'}>
+    <div ref={readerAppRef} className={`${styles.page} reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme} data-mobile-toolbar={mobileBarHidden ? 'collapsed' : 'expanded'}>
       <div className="reader-shell">
         {/* Top bar */}
         <div className="reader-top">

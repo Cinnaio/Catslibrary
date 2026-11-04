@@ -133,7 +133,7 @@
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
-  border-radius: 9999px;
+  border-radius: var(--radius-tag);
   font-size: 0.6875rem;
   font-weight: 500;
   background: var(--graph-canvas);
@@ -259,7 +259,7 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--graph-border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   padding: 3px 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
@@ -496,13 +496,13 @@
   margin: 16px 20px 0;
   padding: 4px;
   background: var(--graph-canvas);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
 }
 .story-graph-detail__tabs button {
   flex: 1;
   min-height: 34px;
   padding: 6px 8px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   font-size: 0.75rem;
   color: var(--graph-muted);
   transition: color 140ms ease, background-color 140ms ease;
@@ -542,7 +542,7 @@
   padding: 2px 9px;
   color: var(--graph-accent);
   background: color-mix(in srgb, var(--graph-accent) 10%, transparent);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   font-size: 0.6875rem;
 }
 .story-graph-detail__heading > p {
@@ -632,7 +632,7 @@
 }
 .story-graph-person-chip {
   border: 1px solid var(--graph-border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   padding: 5px 12px;
   min-height: 32px;
   font-size: 0.75rem;
@@ -713,7 +713,7 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--graph-border);
   border-radius: 20px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.02);
+  box-shadow: none;
   padding: 36px 28px;
   display: flex;
   flex-direction: column;
@@ -764,7 +764,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: var(--graph-canvas);
   border: 1px solid var(--graph-border);
   font-size: 0.75rem;

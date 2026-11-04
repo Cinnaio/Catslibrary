@@ -1,3 +1,4 @@
+import '../../styles/admin/pages/content-ratings.css'
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'

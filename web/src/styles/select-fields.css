@@ -8,7 +8,7 @@
   --field-control-font-size: 0.875rem;
 }
 
-/* The admin pill radius belongs to single-line fields, including native ones. */
+/* The shared control radius belongs to single-line fields, including native ones. */
 :where(.admin-layout, .admin-dialog, .ai-generation-dialog) textarea {
   --input-radius: var(--radius-lg);
 }
@@ -35,8 +35,8 @@
 }
 
 :root [data-field='select'][role='combobox'] {
-  height: var(--field-control-height, 2.25rem);
-  min-height: var(--field-control-height, 2.25rem);
+  height: var(--field-control-height, var(--control-height));
+  min-height: var(--field-control-height, var(--control-height));
   gap: 0.5rem;
   padding: 0 var(--field-control-padding-inline, 0.75rem);
   font-size: var(--field-control-font-size, var(--select-default-font-size));

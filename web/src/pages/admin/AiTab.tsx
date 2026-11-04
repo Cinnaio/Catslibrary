@@ -1,3 +1,5 @@
+import '../../styles/admin/pages/ai-service-claude.css'
+import '../../styles/admin/pages/ai.css'
 /**
  * AI 服务 tab —— 薄容器：加载配置并把各子面板挂到分组子 tab 上。
  * 子 tab 支持 URL 深链：/admin/ai?sub=content&batch=... 可复现「任务 → 产出」上下文，
@@ -28,10 +30,10 @@ const VALID_SUBS = ['writing', 'cover', 'content', 'config', 'params', 'graph'] 
 type SubTab = (typeof VALID_SUBS)[number]
 
 const AI_SUBTAB_META: Record<SubTab, { title: string; description: string }> = {
-  graph: { title: '故事图谱', description: '查看本书人物关系、当前处境与未解情节，核对分析档案依据。' },
+  graph: { title: '故事档案', description: '查看本书人物关系、当前处境与未解情节，核对分析档案依据。' },
   writing: { title: 'AI 创作', description: '组织大纲、章节与续写任务，保留现有创作上下文。' },
   cover: { title: '封面生成', description: '生成、比较并应用小说封面候选图。' },
-  content: { title: '已生成内容', description: '审阅、编辑和管理 AI 生成的章节与摘要。' },
+  content: { title: '草稿与产出', description: '审阅、编辑和管理 AI 生成的章节与摘要。' },
   config: { title: 'AI 配置', description: '连接文本与图像服务，管理模型和读者生成策略。' },
   params: { title: '参数调优', description: '调整摘要、回顾、创作和生图的生成参数。' },
 }
@@ -73,7 +75,6 @@ export default function AiTab() {
       next.set('sub', 'content')
       if (batchId) next.set('batch', batchId)
       else next.delete('batch')
-      next.delete('novel')
       setSearchParams(next, { replace: false })
     },
     [searchParams, setActiveSubTab, setSearchParams],
@@ -123,7 +124,7 @@ export default function AiTab() {
       >
         <div className="ai-workbench-nav-track flex items-center justify-between">
           <TabsList className="ai-service-tabs__list" aria-label="AI 服务视图">
-            {VALID_SUBS.filter((subKey) => subKey !== 'graph').map((subKey) => (
+            {VALID_SUBS.filter((subKey) => ['config', 'params'].includes(currentSubTab) ? ['config', 'params'].includes(subKey) : !['config', 'params'].includes(subKey)).map((subKey) => (
               <TabsTrigger key={subKey} value={subKey}>
                 {AI_SUBTAB_META[subKey].title}
               </TabsTrigger>
@@ -157,7 +158,7 @@ export default function AiTab() {
             />
           )}
 
-          {currentSubTab === 'content' && <AiGenerationsPanel scope="all" status="all" focusBatchId={urlBatch} />}
+          {currentSubTab === 'content' && <AiGenerationsPanel key={urlNovel} scope="all" status="all" focusBatchId={urlBatch} novelId={urlNovel || undefined} />}
 
           {currentSubTab === 'config' && (
             <AiConfigPanel

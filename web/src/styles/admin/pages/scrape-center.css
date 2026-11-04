@@ -41,7 +41,7 @@
   flex: 0 0 auto;
   padding: 0.35rem 0.55rem;
   border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted);
   color: var(--text-muted);
   font-size: 0.7rem;
@@ -155,7 +155,7 @@
 
 .scrape-intake__control-row [data-slot='input'] {
   height: 2.75rem !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   padding-inline: 1.25rem !important;
   font-size: 0.875rem !important;
   background: var(--admin-panel) !important;
@@ -164,7 +164,7 @@
 .scrape-intake__control-row > [data-slot='button'] {
   height: 2.75rem !important;
   padding-inline: 1.5rem !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   font-size: 0.875rem !important;
   font-weight: 600 !important;
 }
@@ -559,7 +559,7 @@
   height: 2.25rem;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   background: var(--accent-subtle);
   color: var(--accent);
 }
@@ -1007,7 +1007,7 @@
   align-items: center;
   justify-content: center;
   padding: 0.2rem 0.65rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted, #f4f2ec);
   border: 1px solid var(--admin-border, #eae6df);
   color: var(--text-secondary);
@@ -1038,7 +1038,7 @@
   border-radius: 50%;
   background: var(--admin-panel, #ffffff);
   border: 1px solid var(--admin-border, #eae6df);
-  color: #d97757;
+  color: var(--accent);
   margin-bottom: 0.25rem;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
@@ -1254,7 +1254,7 @@
 }
 
 .status-dot-pulse--terracotta {
-  background-color: #D97757;
+  background-color: var(--accent);
   box-shadow: 0 0 0 0 rgba(217, 119, 87, 0.5);
   animation: pulse-terracotta 2s infinite cubic-bezier(0.66, 0, 0, 1);
 }
@@ -1282,14 +1282,14 @@
   background: var(--admin-panel, #ffffff);
   border: 1px solid var(--admin-border, #eae6df);
   border-radius: 16px;
-  box-shadow: 0 2px 10px rgba(35, 30, 24, 0.03);
+  box-shadow: none;
   overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .po18-account-pill-card:hover {
   border-color: rgba(217, 119, 87, 0.35);
-  box-shadow: 0 4px 16px rgba(217, 119, 87, 0.05);
+  box-shadow: none;
 }
 
 .po18-account-compact-bar {
@@ -1381,14 +1381,14 @@
   display: inline-flex !important;
   background: var(--admin-panel-muted, #f4f2ec) !important;
   border: 1px solid var(--admin-border, #eae6df) !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   padding: 3px !important;
   gap: 4px !important;
   width: auto !important;
 }
 
 .scrape-intake__tab {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   padding: 0.45rem 1.15rem !important;
   font-size: 0.825rem !important;
   font-weight: 500 !important;
@@ -1438,7 +1438,7 @@
 }
 
 .scrape-intake__prompt-box:focus-within {
-  border-color: #d97757;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.16);
 }
 
@@ -1471,8 +1471,8 @@
   padding-inline: 1.25rem !important;
   font-size: 0.85rem !important;
   font-weight: 600 !important;
-  background: #d97757 !important;
-  color: #ffffff !important;
+  background: var(--accent) !important;
+  color: var(--accent-ink) !important;
   box-shadow: 0 2px 6px rgba(217, 119, 87, 0.22) !important;
   transition: all 0.15s ease !important;
   white-space: nowrap;
@@ -1499,7 +1499,7 @@
   font-size: 0.75rem;
   color: var(--text-muted);
   padding: 0.2rem 0.65rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-tag);
   background: var(--admin-panel-muted, #faf9f5);
   border: 1px solid var(--admin-border, #eae6df);
 }
@@ -1508,19 +1508,19 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #d97757;
+  background: var(--accent);
 }
 
 .scrape-intake__search-type-pill {
   display: inline-flex !important;
   background: var(--admin-panel-muted, #f4f2ec) !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   padding: 2px !important;
   margin-right: 0.5rem;
 }
 
 .scrape-intake__search-type-btn {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   height: 1.9rem !important;
   padding-inline: 0.75rem !important;
   font-size: 0.75rem !important;
@@ -1549,7 +1549,7 @@
 }
 
 .scrape-intake__ranking-input:focus-visible {
-  border-color: #d97757 !important;
+  border-color: var(--accent) !important;
   outline: 2px solid rgba(217, 119, 87, 0.2) !important;
 }
 
@@ -1586,7 +1586,7 @@
   border: 1px solid var(--admin-border, #eae6df);
   border-radius: 18px;
   padding: 1.25rem 1.5rem;
-  box-shadow: 0 4px 16px rgba(35, 30, 24, 0.03);
+  box-shadow: none;
 }
 
 .scrape-config-card .admin-panel-heading {
@@ -1625,18 +1625,18 @@
   border: 1px solid var(--admin-border, #e6e4dc);
   border-radius: 16px;
   padding: 1.15rem;
-  box-shadow: 0 4px 16px rgba(35, 30, 24, 0.04);
+  box-shadow: none;
   transition: all 0.2s ease;
 }
 
 .scrape-job-card--claude:hover {
   border-color: rgba(217, 119, 87, 0.35);
-  box-shadow: 0 6px 20px rgba(217, 119, 87, 0.06);
+  box-shadow: none;
 }
 
 .scrape-job-card__progress-track {
   height: 6px;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted, #edebe5);
   overflow: hidden;
   margin: 0.75rem 0;
@@ -1644,7 +1644,7 @@
 
 .scrape-job-card__progress-fill {
   height: 100%;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: linear-gradient(90deg, #D97757 0%, #E58C6E 100%);
   transition: width 0.3s ease;
 }
@@ -1662,7 +1662,7 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.15rem 0.55rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted, #faf9f5);
   border: 1px solid var(--admin-border, #e6e4dc);
   font-size: 0.75rem;

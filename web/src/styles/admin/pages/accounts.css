@@ -350,7 +350,7 @@
   border-radius: var(--admin-radius-card, 16px);
   border: 1px solid var(--admin-border);
   background: var(--admin-panel, #ffffff);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-shadow: none;
   margin-bottom: var(--admin-page-section-gap, 1.25rem);
 }
 
@@ -465,7 +465,7 @@
 
 .account-register-save-btn--active:not(:disabled) {
   background: var(--admin-terracotta, #D97757) !important;
-  color: #ffffff !important;
+  color: var(--accent-ink) !important;
   box-shadow: 0 1px 4px rgba(217, 119, 87, 0.25);
 }
 
