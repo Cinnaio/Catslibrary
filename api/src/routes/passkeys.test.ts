@@ -8,6 +8,8 @@ import { app } from '../app'
 import { runMigrations } from '../db/migrate'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
+import { loadConfig } from '../config'
+import { hashToken, SESSION_TTL, REMEMBER_TTL } from '../services/auth'
 
 let t: TestDb
 let admin = ''
@@ -173,6 +175,47 @@ describe('Passkey WebAuthn endpoints', () => {
     const blocked = await request('/api/admin/site-settings/passkey', 'PUT', { enabled: true, registrationEnabled: true, rpName: '书灯' })
     expect(blocked.status).toBe(403)
     expect(await blocked.json()).toMatchObject({ code: 'reauth_required' })
+  })
+
+  it('管理员 Passkey 登录使用三十天或一百八十天会话，保持登录 Cookie 与数据库期限一致', async () => {
+    for (const remember of [false, true]) {
+      const options = (await (await request('/api/auth/passkeys/login/options', 'POST', {}, '')).json()) as { challenge: string }
+      webAuthnMocks.verifyAuthenticationResponse.mockResolvedValueOnce({
+        verified: true,
+        authenticationInfo: { userVerified: true, newCounter: remember ? 7 : 6 },
+      })
+      const response = await app.request('http://localhost:5173/api/auth/passkeys/login/verify', {
+        method: 'POST',
+        headers: {
+          Origin: 'http://localhost:5173',
+          'Content-Type': 'application/json',
+          'X-ZZ-CSRF': '1',
+          'X-Session-Transport': 'cookie',
+          'User-Agent': 'passkey-session-ttl',
+        },
+        body: JSON.stringify({
+          challenge: options.challenge,
+          remember,
+          response: {
+            id: 'fixture-reauth-credential',
+            rawId: 'fixture-reauth-credential',
+            type: 'public-key',
+            response: { clientDataJSON: 'fixture', authenticatorData: 'fixture', signature: 'fixture' },
+          },
+        }),
+      })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ user: { role: 'admin' }, remember })
+      const cookie = response.headers.get('set-cookie')!
+      const ttl = remember ? REMEMBER_TTL : SESSION_TTL
+      if (remember) expect(cookie).toContain(`Max-Age=${ttl / 1000}`)
+      else expect(cookie).not.toContain('Max-Age=')
+      const hash = await hashToken(cookie.split(';')[0]!.split('=')[1]!, loadConfig().sessionHashSalt)
+      const session = (
+        await t.db.query<{ created_at: number; expires_at: number }>('SELECT created_at,expires_at FROM user_sessions WHERE token_hash=$1', [hash])
+      ).rows[0]!
+      expect(Number(session.expires_at) - Number(session.created_at)).toBe(ttl)
+    }
   })
 
   it('repairs a previously-created user_passkeys table before listing credentials', async () => {

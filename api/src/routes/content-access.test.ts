@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createHmac } from 'node:crypto'
 import { createSession } from '../services/sessions'
+import { hashToken } from '../services/auth'
 import { loadConfig } from '../config'
 import { setAdultContentEnabled } from '../services/content-policy'
 import { app } from '../app'
@@ -305,6 +306,21 @@ describe('限制级内容服务端访问闭环', () => {
     expect(admin.status).toBe(200)
 
     await t.db.query("UPDATE app_settings SET value = 'true', updated_at = $1 WHERE key = 'adult_content_enabled'", [Date.now()])
+  })
+
+  it('管理员超八小时且闲置后仍可读取受限内容，实际到期后 Bearer 与内容 Cookie 都失效', async () => {
+    const user = (await t.db.query<{ id: string }>('SELECT id FROM users WHERE username=$1', ['access-admin'])).rows[0]!
+    const token = await createSession(t.db, user.id, 'long-lived-admin', loadConfig().sessionHashSalt)
+    const hash = await hashToken(token, loadConfig().sessionHashSalt)
+    await t.db.query('UPDATE user_sessions SET created_at=$2,last_seen_at=$3 WHERE token_hash=$1', [hash, Date.now() - 9 * 3600000, Date.now() - 31 * 60000])
+    const chapter = await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, token))
+    expect(chapter.status).toBe(200)
+    const cookie = cookiePair(chapter)
+    expect(cookie).toMatch(/^zhizhou_adult_access=v2\./)
+    expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, undefined, cookie))).status).toBe(200)
+    await t.db.query('UPDATE user_sessions SET expires_at=$2 WHERE token_hash=$1', [hash, Date.now() - 1])
+    expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, token))).status).toBe(403)
+    expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, undefined, cookie))).status).toBe(403)
   })
 
   it('篡改或清除凭证后恢复服务端拦截', async () => {

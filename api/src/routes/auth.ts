@@ -23,7 +23,7 @@ import {
   type UserRow,
 } from '../services/auth'
 import { createSession, deleteSessionByToken } from '../services/sessions'
-import { SESSION_TTL, REMEMBER_TTL, REAUTH_TTL, ADMIN_SESSION_TTL } from '../services/auth'
+import { SESSION_TTL, REMEMBER_TTL, REAUTH_TTL } from '../services/auth'
 import {
   cleanReaderSettings,
   cleanUpdatedAt,
@@ -92,7 +92,7 @@ authRoutes.post('/register', async (c) => {
     )
     const user = await publicUserById(db, id)
     const token = await createSession(db, id, c.req.header('User-Agent') || '', loadConfig().sessionHashSalt)
-    return c.json({ user, ...sessionResponse(c, token, user?.role === 'admin' ? ADMIN_SESSION_TTL : SESSION_TTL) }, 201)
+    return c.json({ user, ...sessionResponse(c, token, SESSION_TTL) }, 201)
   } catch (err) {
     if (mode === '1') {
       await run(db, "UPDATE invites SET used_at = 0, used_by = '' WHERE code = $1 AND used_by = $2", [invite, id])
@@ -139,7 +139,7 @@ authRoutes.post('/login', async (c) => {
   await recordLoginAudit(db, c, { userId: user.id, username: user.username, status: 'success', reason: 'login' })
   return c.json({
     user: publicUser(user),
-    ...sessionResponse(c, token, user.role === 'admin' ? ADMIN_SESSION_TTL : remember ? REMEMBER_TTL : SESSION_TTL, remember),
+    ...sessionResponse(c, token, remember ? REMEMBER_TTL : SESSION_TTL, remember),
   })
 })
 
@@ -160,7 +160,7 @@ authRoutes.post('/web-session', requireUser(), async (c) => {
       )
     ).rows[0]
     if (!row) return null
-    const expiresAt = Math.min(c.get('user').role === 'admin' ? Number(row.created_at) + ADMIN_SESSION_TTL : Number(row.expires_at), Number(row.expires_at))
+    const expiresAt = Number(row.expires_at)
     const ttl = expiresAt - Date.now()
     if (ttl <= 0) return null
     const tx = { query } as Db
@@ -292,7 +292,7 @@ authRoutes.post('/change-password', requireUser(), async (c) => {
   })
   return c.json({
     user: fresh,
-    ...sessionResponse(c, token, user.role === 'admin' ? ADMIN_SESSION_TTL : body.remember === true ? REMEMBER_TTL : SESSION_TTL, body.remember === true),
+    ...sessionResponse(c, token, body.remember === true ? REMEMBER_TTL : SESSION_TTL, body.remember === true),
   })
 })
 
@@ -397,7 +397,7 @@ async function createBootstrapAdmin(c: Context<AuthEnv>) {
     if (!created) return c.json({ error: '管理员已存在' }, 409)
     const user = await publicUserById(db, id)
     const token = await createSession(db, id, c.req.header('User-Agent') || '', loadConfig().sessionHashSalt)
-    return c.json({ user, ...sessionResponse(c, token, user?.role === 'admin' ? ADMIN_SESSION_TTL : SESSION_TTL) }, 201)
+    return c.json({ user, ...sessionResponse(c, token, SESSION_TTL) }, 201)
   } catch (err) {
     if (err instanceof Error && /unique/i.test(err.message)) return c.json({ error: '用户名已存在' }, 409)
     throw err

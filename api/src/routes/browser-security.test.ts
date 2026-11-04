@@ -2,7 +2,7 @@ import { beforeAll, afterAll, expect, it } from 'vitest'
 import { app } from '../app'
 import { createTestDb, type TestDb } from '../test/db'
 import { setDbForTests } from '../db/pool'
-import { hashToken } from '../services/auth'
+import { hashToken, SESSION_TTL, REMEMBER_TTL } from '../services/auth'
 import { loadConfig } from '../config'
 import { Hono } from 'hono'
 import { browserSecurityHeaders } from '../middlewares/browser-security'
@@ -42,6 +42,7 @@ async function login() {
   expect(cookie).toContain('HttpOnly')
   expect(cookie).toContain('Secure')
   expect(cookie).toContain('SameSite=Lax')
+  expect(cookie).toContain(`Max-Age=${REMEMBER_TTL / 1000}`)
   expect(cookie).not.toContain('Domain=')
   return cookie.split(';')[0]!
 }
@@ -52,6 +53,16 @@ it('网页只收到 HttpOnly Cookie，原生客户端仍使用 Bearer；显式�
   expect((await call('/auth/me', 'GET', undefined, { Cookie: cookie, Authorization: 'Bearer invalid' })).status).toBe(401)
   const insecure = cookie.replace('__Host-zz_session', 'zz_session')
   expect((await call('/auth/me', 'GET', undefined, { Cookie: insecure })).status).toBe(401)
+})
+it('管理员未勾选保持登录时使用会话 Cookie，服务端有效期为三十天', async () => {
+  const response = await call('/auth/login', 'POST', { username: 'security-admin', password: 'fixturepass123' }, web)
+  expect(response.status).toBe(200)
+  const cookie = response.headers.get('set-cookie')!
+  expect(cookie).not.toContain('Max-Age=')
+  const hash = await hashToken(cookie.split(';')[0]!.split('=')[1]!, loadConfig().sessionHashSalt)
+  const session = (await t.db.query<{ created_at: number; expires_at: number }>('SELECT created_at,expires_at FROM user_sessions WHERE token_hash=$1', [hash]))
+    .rows[0]!
+  expect(Number(session.expires_at) - Number(session.created_at)).toBe(SESSION_TTL)
 })
 it('登录与 Cookie 写入拒绝跨站、空来源、缺少自定义头；拒绝前不创建会话', async () => {
   const before = (await t.db.query('SELECT * FROM user_sessions')).rows
@@ -69,7 +80,8 @@ it('登录与 Cookie 写入拒绝跨站、空来源、缺少自定义头；拒�
 it('迁移轮换旧凭据，旧 Bearer 失效；退出会清除会话和 Cookie', async () => {
   const old = ((await (await call('/auth/login', 'POST', { username: 'security-admin', password: 'fixturepass123' })).json()) as { token: string }).token
   const oldHash = await hashToken(old, loadConfig().sessionHashSalt)
-  const created = Date.now() - 7 * 3600000
+  const created = Date.now() - 9 * 3600000
+  const expiresAt = (await t.db.query<{ expires_at: number }>('SELECT expires_at FROM user_sessions WHERE token_hash=$1', [oldHash])).rows[0]!.expires_at
   await t.db.query('UPDATE user_sessions SET created_at=$2,reauthenticated_at=$3 WHERE token_hash=$1', [oldHash, created, Date.now() - 11 * 60000])
   const migrated = await call('/auth/web-session', 'POST', { remember: true }, { ...web, Authorization: 'Bearer ' + old })
   expect(migrated.status).toBe(200)
@@ -83,7 +95,7 @@ it('迁移轮换旧凭据，旧 Bearer 失效；退出会清除会话和 Cookie'
     )
   ).rows[0]!
   expect(Number(rotated.created_at)).toBe(created)
-  expect(Number(rotated.expires_at)).toBeLessThanOrEqual(created + 8 * 3600000)
+  expect(Number(rotated.expires_at)).toBe(Number(expiresAt))
   expect(Number(rotated.reauthenticated_at)).toBeLessThan(Date.now() - 10 * 60000)
   const sessions = (await (await call('/auth/sessions', 'GET', undefined, { Cookie: cookie })).json()) as { sessions: { current: boolean }[] }
   expect(sessions.sessions.some((row) => row.current)).toBe(true)
@@ -93,13 +105,15 @@ it('迁移轮换旧凭据，旧 Bearer 失效；退出会清除会话和 Cookie'
   expect(logout.headers.get('set-cookie')).toContain('Max-Age=0')
   expect((await call('/auth/me', 'GET', undefined, { Cookie: cookie })).status).toBe(401)
 })
-it('管理员会话最多八小时，闲置三十分钟失效；关键写入需要十分钟内认证', async () => {
+it('管理员超过八小时且闲置三十分钟后仍登录，关键写入继续需要近期认证，实际到期后失效', async () => {
   const cookie = await login()
   const token = cookie.split('=')[1]!,
     hash = await hashToken(token, loadConfig().sessionHashSalt)
   const session = (await t.db.query<{ expires_at: number; created_at: number }>('SELECT expires_at,created_at FROM user_sessions WHERE token_hash=$1', [hash]))
     .rows[0]!
-  expect(Number(session.expires_at) - Number(session.created_at)).toBe(8 * 3600000)
+  expect(Number(session.expires_at) - Number(session.created_at)).toBe(REMEMBER_TTL)
+  await t.db.query('UPDATE user_sessions SET created_at=$2,last_seen_at=$3 WHERE token_hash=$1', [hash, Date.now() - 9 * 3600000, Date.now() - 31 * 60000])
+  expect((await call('/auth/me', 'GET', undefined, { Cookie: cookie })).status).toBe(200)
   await t.db.query('UPDATE user_sessions SET reauthenticated_at=$2 WHERE token_hash=$1', [hash, Date.now() - 11 * 60000])
   const blocked = await call('/admin-users/' + userId, 'PUT', { displayName: '旧认证不允许' }, { ...web, Cookie: cookie })
   expect(blocked.status).toBe(403)
@@ -109,7 +123,7 @@ it('管理员会话最多八小时，闲置三十分钟失效；关键写入需�
   expect((await call('/auth/reauthenticate', 'POST', { password: 'fixturepass123' }, { ...web, Cookie: cookie })).status).toBe(200)
   const retried = await call('/admin-users/' + userId, 'PUT', { displayName: '新认证' }, { ...web, Cookie: cookie })
   expect(retried.status).not.toBe(403)
-  await t.db.query('UPDATE user_sessions SET last_seen_at=$2 WHERE token_hash=$1', [hash, Date.now() - 31 * 60000])
+  await t.db.query('UPDATE user_sessions SET expires_at=$2 WHERE token_hash=$1', [hash, Date.now() - 1])
   expect((await call('/auth/me', 'GET', undefined, { Cookie: cookie })).status).toBe(401)
 })
 it('改密码后创建新会话失败时，密码与旧会话整批回滚', async () => {
