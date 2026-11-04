@@ -4,50 +4,7 @@
 }
 
 .admin-monitoring-page [data-slot='tabs-list'] {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: var(--radius-control);
-  background: var(--admin-panel-muted, #f8f7f3);
-  border: 1px solid var(--admin-border, #e5e3dc);
   margin-bottom: 1.25rem;
-  width: fit-content;
-  max-width: 100%;
-}
-:root[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-list'],
-[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-list'] {
-  background: var(--admin-panel-muted, #23221f);
-  border-color: var(--admin-border, #2a2825);
-}
-.admin-monitoring-page [data-slot='tabs-trigger'] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-control);
-  padding: 0.4375rem 1.125rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  border: 0;
-  background: transparent;
-  transition: all 0.15s ease;
-  cursor: pointer;
-}
-.admin-monitoring-page [data-slot='tabs-trigger'][data-state='active'] {
-  background: var(--admin-panel, #ffffff);
-  color: var(--text-primary);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.05);
-}
-:root[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-trigger'][data-state='active'],
-[data-theme='dark'] .admin-monitoring-page [data-slot='tabs-trigger'][data-state='active'] {
-  background: #2a2926;
-  color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-.admin-monitoring-page [data-slot='tabs-trigger']:hover:not([data-state='active']) {
-  color: var(--accent);
 }
 
 .admin-monitoring-page [data-slot='tabs-content'] {
