@@ -201,6 +201,12 @@ struct AdminAIWritingView: View {
     }
 
     var body: some View {
+        contentPreferenceObservers
+    }
+
+    // Each opaque view is a type-checking boundary. Keep modifier order while
+    // avoiding one expression containing every sheet, alert and state observer.
+    private var writingContent: some View {
         List {
             if isLoading {
                 Section {
@@ -217,6 +223,10 @@ struct AdminAIWritingView: View {
         .appListStyle(.settings)
         .navigationTitle("AI 创作")
         .navigationBarTitleDisplayMode(.large)
+    }
+
+    private var inputDraftContent: some View {
+        writingContent
         .task {
             await initialLoad()
             await resumeWritingTask()
@@ -240,6 +250,10 @@ struct AdminAIWritingView: View {
                     .frame(maxWidth: .infinity).padding(10).background(AppTheme.background)
             }
         }
+    }
+
+    private var selectionAlertContent: some View {
+        inputDraftContent
         .sheet(isPresented: $showNovelPicker) {
             AdminNovelPickerSheet(
                 options: novelOptions,
@@ -276,6 +290,10 @@ struct AdminAIWritingView: View {
         } message: {
             Text(droppedChapterGoalsMessage)
         }
+    }
+
+    private var writingConfirmationContent: some View {
+        selectionAlertContent
         .confirmationDialog(
             "确认启动多章续写？",
             isPresented: $showLargeTaskWarning,
@@ -320,6 +338,10 @@ struct AdminAIWritingView: View {
         } message: {
             Text("当前大纲中已有内容，生成新的大纲会替换它。")
         }
+    }
+
+    private var presentedContent: some View {
+        writingConfirmationContent
         .sheet(isPresented: $showingTaskResults) {
             NavigationStack {
                 AdminAIGenerationsView(taskID: activeTask?.id)
@@ -333,6 +355,10 @@ struct AdminAIWritingView: View {
                   let taskID = operation.targetIDs.first else { return }
             Task { await cancelWritingTask(taskID: taskID, operationID: operation.operationID) }
         }
+    }
+
+    private var lifecycleContent: some View {
+        presentedContent
         .onDisappear {
             saveInputDraft()
             pollTask?.cancel()
@@ -350,6 +376,10 @@ struct AdminAIWritingView: View {
                 writingPollingToken = UUID()
             }
         }
+    }
+
+    private var selectionObservers: some View {
+        lifecycleContent
         .onChange(of: afterChapterId) { _, anchorID in
             guard restoredSelection != selectionSnapshot else { return }
             guard mode == .continueWriting, !novelId.isEmpty else { return }
@@ -382,6 +412,10 @@ struct AdminAIWritingView: View {
             guard restoredSelection != selectionSnapshot else { return }
             resetContinuationAssistState(clearOutline: true)
         }
+    }
+
+    private var contentPreferenceObservers: some View {
+        selectionObservers
         .onChange(of: adultContentMode) { _, value in
             guard restoredSelection != selectionSnapshot else { return }
             if value == .off {
