@@ -193,6 +193,28 @@
 .iconButton:hover {
   background: var(--bg-hover);
 }
+:global(.theme-menu) > .themeButton[data-slot='theme-menu-trigger'][data-state] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+.themeButton :global(.theme-menu__trigger-main) {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-compact);
+  transition: background 160ms, transform 160ms;
+}
+.themeButton :global(.theme-icon) {
+  width: 14px;
+  height: 14px;
+}
+.themeButton:hover :global(.theme-menu__trigger-main),
+.themeButton[data-state='open'] :global(.theme-menu__trigger-main) {
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+}
+.themeButton:active :global(.theme-menu__trigger-main) {
+  transform: scale(0.98);
+}
 .main {
   margin-left: var(--workspace-sidebar-width);
   min-width: 0;
@@ -493,8 +515,12 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .topbarInner,
-  .expand svg {
+  .expand svg,
+  .themeButton :global(.theme-menu__trigger-main) {
     transition: none;
+  }
+  .themeButton:active :global(.theme-menu__trigger-main) {
+    transform: none;
   }
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
