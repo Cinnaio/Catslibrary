@@ -3,22 +3,40 @@
   align-items: center;
   width: fit-content;
   max-width: 100%;
-  min-height: var(--control-height);
-  padding: 3px;
+  min-height: 40px;
+  height: auto;
+  padding: 4px;
   gap: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--bg-secondary);
 }
 .list[data-variant='line'] {
+  min-height: var(--control-height);
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
 }
+.indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: var(--radius-compact);
+  background: var(--bg-card);
+  pointer-events: none;
+  transition:
+    transform 180ms ease-out,
+    width 180ms ease-out,
+    height 180ms ease-out;
+}
 .list[data-variant='default'] > .trigger {
-  min-height: calc(var(--control-height) - 8px);
-  padding-inline: 12px;
+  position: relative;
+  z-index: 1;
+  min-height: 30px;
+  height: auto;
+  padding: 4px 16px;
   border-radius: var(--radius-compact);
   color: var(--text-muted);
   font-size: 13px;
@@ -29,6 +47,12 @@
   background: var(--bg-card);
   color: var(--accent);
   box-shadow: none;
+}
+.list[data-variant='default'][data-indicator-ready='true'] > .trigger[data-state='active'] {
+  background: transparent;
+}
+.list[data-variant='default'] > .trigger:not(:disabled):hover {
+  color: var(--accent);
 }
 .trigger:focus-visible {
   outline: 2px solid var(--accent);
@@ -42,5 +66,16 @@
 @media (max-width: 700px) {
   .list[data-variant='default'] > .trigger {
     min-height: 48px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .indicator {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .list[data-variant='default'] > .trigger[data-state='active'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
   }
 }

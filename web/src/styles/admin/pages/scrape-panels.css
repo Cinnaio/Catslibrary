@@ -582,24 +582,6 @@
   background: var(--tabs-segmented-track-background);
 }
 
-.admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list']::before {
-  position: absolute;
-  z-index: 0;
-  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
-  width: calc((100% - var(--tabs-segmented-gap) * 3) / 2);
-  border-radius: var(--tabs-segmented-inner-radius);
-  background: var(--tabs-segmented-active-background);
-  box-shadow: var(--tabs-segmented-active-shadow);
-  content: '';
-  pointer-events: none;
-  transform: translateX(0);
-  transition: transform var(--tabs-segmented-transition);
-}
-
-.admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list'][data-active-index='1']::before {
-  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
-}
-
 .admin-redesign-page--scrape .scrape-setup__preset-tabs [data-slot='tabs-trigger'] {
   position: relative;
   z-index: 1;

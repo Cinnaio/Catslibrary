@@ -64,29 +64,47 @@ function TabsList({
     })
   }, [])
 
-  React.useEffect(() => {
-    if (typeof window === 'undefined' || variant === 'line') return
-    const id = requestAnimationFrame(update)
-    return () => cancelAnimationFrame(id)
-  })
+  React.useLayoutEffect(() => {
+    if (variant === 'line') return
+    const list = listRef.current
+    if (!list) return
+    let frame = 0
+    const schedule = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(update)
+    }
+    const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(schedule)
+    const observeSizes = () => {
+      resize?.disconnect()
+      resize?.observe(list)
+      list.querySelectorAll<HTMLElement>('[data-slot="tabs-trigger"]').forEach((trigger) => resize?.observe(trigger))
+    }
+    const mutations = new MutationObserver(() => {
+      observeSizes()
+      schedule()
+    })
+    mutations.observe(list, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-state'] })
+    observeSizes()
+    update()
+    window.addEventListener('resize', schedule)
+    return () => {
+      cancelAnimationFrame(frame)
+      mutations.disconnect()
+      resize?.disconnect()
+      window.removeEventListener('resize', schedule)
+    }
+  }, [update, variant])
 
   return (
     <TabsPrimitive.List
       ref={listRef}
       data-slot="tabs-list"
       data-variant={variant}
+      data-indicator-ready={variant !== 'line' && indicatorStyle.opacity === 1}
       className={cn(styles.list, 'relative isolate', tabsListVariants({ variant }), className)}
-      onClick={update}
       {...props}
     >
-      {variant !== 'line' && (
-        <span
-          data-slot="tabs-indicator"
-          className="tabs-sliding-indicator pointer-events-none absolute left-0 top-0 z-0 rounded-[10px] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
-          style={indicatorStyle}
-          aria-hidden="true"
-        />
-      )}
+      {variant !== 'line' && <span data-slot="tabs-indicator" className={styles.indicator} style={indicatorStyle} aria-hidden="true" />}
       {children}
     </TabsPrimitive.List>
   )
