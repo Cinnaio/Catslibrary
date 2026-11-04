@@ -460,23 +460,24 @@ function ShelfBookCard({ novelId, title, author, coverUpdatedAt, reading, favori
   const detail = `/novel/${encodeURIComponent(novelId)}`
   const resume = reading.chapterId ? `/read/${encodeURIComponent(novelId)}/${encodeURIComponent(reading.chapterId)}` : detail
   const target = recentView ? resume : detail
+  const positionLabel = reading.chapterId ? `读至 ${reading.chapterTitle || '上次阅读的章节'}` : '尚未开始阅读'
   return <article className={`${cardStyles.card} ${shelfStyles.card}`} aria-label={title} aria-busy={pending}>
     <Link to={target} className={shelfStyles.coverLink} aria-label={`${recentView ? '继续阅读' : '查看作品'}《${title}》封面`}>
       <CoverOrPlaceholder novelId={novelId} title={title} updatedAt={coverUpdatedAt} />
     </Link>
     <div className={shelfStyles.body}>
       <div className={shelfStyles.heading}>
-        <Link to={target} className={shelfStyles.title}>{title}</Link>
+        <Link to={target} className={shelfStyles.title} title={title}>{title}</Link>
         <DropdownMenu>
           <DropdownMenuTrigger asChild><button type="button" className={shelfStyles.more} aria-label={`更多操作：《${title}》`} disabled={pending}><MoreHorizontal size={16} aria-hidden="true" /></button></DropdownMenuTrigger>
           <DropdownMenuContent align="end"><DropdownMenuItem variant="destructive" onSelect={onRemove}>{recentView ? '清除记录' : '取消收藏'}</DropdownMenuItem></DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {!recentView && <p className={shelfStyles.meta}>{author || '作者未知'}</p>}
-      <p className={shelfStyles.position}>{reading.chapterId ? `读至 ${reading.chapterTitle || '上次阅读的章节'}` : '尚未开始阅读'}</p>
-      {recentView && <p className={shelfStyles.meta}>{time}</p>}
+      {!recentView && <p className={shelfStyles.meta} title={author || '作者未知'}>{author || '作者未知'}</p>}
+      <p className={shelfStyles.position} title={positionLabel}>{positionLabel}</p>
+      {recentView && <p className={shelfStyles.meta} title={time}>{time}</p>}
       <div className={shelfStyles.footer}>
-        {recentView ? favorite ? <span className={shelfStyles.meta}>已收藏</span> : <button type="button" className={shelfStyles.favorite} disabled={pending} onClick={onFavorite}>加入收藏</button> : <span className={shelfStyles.meta}>{time || '收藏时间未知'}</span>}
+        {recentView ? favorite ? <span className={shelfStyles.meta}>已收藏</span> : <button type="button" className={shelfStyles.favorite} disabled={pending} onClick={onFavorite}>加入收藏</button> : <span className={shelfStyles.meta} title={time || '收藏时间未知'}>{time || '收藏时间未知'}</span>}
         <Link to={resume} className={`btn btn--sm ${reading.chapterId ? 'btn--primary' : 'btn--secondary'}`} aria-label={`${reading.chapterId ? '继续阅读' : '查看作品'}《${title}》`}>{reading.chapterId ? '继续阅读' : '查看作品'}</Link>
       </div>
     </div>
