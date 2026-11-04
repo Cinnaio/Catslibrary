@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner'
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Pencil, BookOpen, Clock, Hash } from 'lucide-react'
 import type { ChapterMeta } from '@shared/types'
@@ -5,7 +6,7 @@ import { chaptersApi } from '@/lib/api'
 import { formatContent } from '@/lib/reader-utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 
 interface ChapterQuickReaderDialogProps {
   open: boolean
@@ -68,7 +69,7 @@ export default function ChapterQuickReaderDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <AdminDialogContent variant="editor" className="chapter-quick-reader-dialog sm:max-w-[720px]">
+      <DialogFrame variant="editor" className="chapter-quick-reader-dialog sm:max-w-[720px]">
         <DialogHeader className="chapter-quick-reader__header">
           <div className="chapter-quick-reader__meta">
             <span className="chapter-quick-reader__novel-tag">
@@ -98,10 +99,10 @@ export default function ChapterQuickReaderDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <AdminDialogBody className="chapter-quick-reader__body">
+        <DialogBody className="chapter-quick-reader__body">
           {loading ? (
             <div className="chapter-quick-reader__loading">
-              <div className="spinner" />
+              <Spinner  />
               <p className="text-sm text-muted-foreground">正在翻开书页…</p>
             </div>
           ) : error ? (
@@ -134,7 +135,7 @@ export default function ChapterQuickReaderDialog({
               dangerouslySetInnerHTML={formattedHtml}
             />
           )}
-        </AdminDialogBody>
+        </DialogBody>
 
         <DialogFooter className="chapter-quick-reader__footer flex items-center justify-between sm:justify-between">
           <div className="flex items-center gap-2">
@@ -180,7 +181,7 @@ export default function ChapterQuickReaderDialog({
             </Button>
           </div>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }

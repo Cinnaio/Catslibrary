@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import CustomSelect from './CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 
 export interface NovelVisibilityDraft {
   visibility: NovelVisibility
@@ -71,7 +71,7 @@ export default function NovelVisibilityField({ novelId, onChange, disabled }: {
       {error ? <div role="alert" className="novel-visibility-feedback">{error}<Button variant="secondary" size="sm" onClick={() => setRetry((n) => n + 1)}>重试</Button></div>
         : !settings ? <p role="status">正在加载可见范围…</p>
         : <>
-          <CustomSelect aria-labelledby="novel-visibility-label" options={options} value={settings.visibility} disabled={disabled}
+          <SearchSelect aria-labelledby="novel-visibility-label" options={options} value={settings.visibility} disabled={disabled}
             onChange={(visibility) => change({ ...settings, visibility: visibility as NovelVisibility })} />
           <p>私密作品仅对管理员和授权用户可见，其他人访问时显示页面不存在。内容分级仍独立生效。</p>
           {settings.visibility === 'selected' && <div className="novel-visibility-users">

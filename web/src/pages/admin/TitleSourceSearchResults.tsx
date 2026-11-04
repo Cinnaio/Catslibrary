@@ -40,11 +40,11 @@ export default function TitleSourceSearchResults({ search, disabled, onSelect }:
     <div className="chapter-merge-dialog__search-results mt-3 space-y-3">
       {preferred.length > 0 ? (
         <section aria-label="优先候选">
-          <div className="admin-dialog-section-label mb-1">优先候选 · {preferred.length} 个</div>
-          <p className="admin-dialog-hint mb-2">已按书名、作者匹配程度排序，点击候选读取预览。</p>
+          <div className="dialog-frame-section-label mb-1">优先候选 · {preferred.length} 个</div>
+          <p className="dialog-frame-hint mb-2">已按书名、作者匹配程度排序，点击候选读取预览。</p>
           <div className="grid gap-2">{preferred.map(renderCandidate)}</div>
         </section>
-      ) : <p className="admin-dialog-hint">没有找到高匹配候选，可展开源站结果手动查找。</p>}
+      ) : <p className="dialog-frame-hint">没有找到高匹配候选，可展开源站结果手动查找。</p>}
       {SITES.map(site => {
         const bucket = search.sources?.[site]
         const results = (bucket?.results || []).filter(candidate => !preferredSet.has(candidate))
@@ -57,7 +57,7 @@ export default function TitleSourceSearchResults({ search, disabled, onSelect }:
                 <summary className="cursor-pointer text-sm">{label}其他结果 · {results.length} 个</summary>
                 <div className="mt-2 grid gap-2">{results.map(renderCandidate)}</div>
               </details>
-            ) : <p className="admin-dialog-hint">{label} · {bucket?.results?.length ? '全部结果已列入优先候选' : bucket?.ok ? '没有匹配结果' : '搜索不可用'}</p>}
+            ) : <p className="dialog-frame-hint">{label} · {bucket?.results?.length ? '全部结果已列入优先候选' : bucket?.ok ? '没有匹配结果' : '搜索不可用'}</p>}
           </div>
         )
       })}

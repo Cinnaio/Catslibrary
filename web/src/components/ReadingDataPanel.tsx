@@ -1,3 +1,5 @@
+import '@/styles/input-fields.css'
+import { Button } from '@/components/ui/button'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReadingDataPreview, ReadingDataResult } from '@shared/reading-data'
 import { readingDataApi, getToken } from '../lib/api'
@@ -26,14 +28,14 @@ function Preview({ preview }: { preview: ReadingDataPreview }) {
         ))}
       </ul>
       {visible && !expanded && preview.items.length > 20 && (
-        <button type="button" className="btn btn--secondary btn--sm" aria-controls={listId} onClick={() => setExpanded(true)}>
+        <Button variant="secondary" size="sm" type="button"  aria-controls={listId} onClick={() => setExpanded(true)}>
           查看全部 {preview.items.length} 项
-        </button>
+        </Button>
       )}
       {preview.items.length > 0 && (
-        <button
+        <Button variant="secondary" size="sm"
           type="button"
-          className="btn btn--secondary btn--sm"
+
           aria-expanded={visible}
           aria-controls={listId}
           onClick={() => {
@@ -42,7 +44,7 @@ function Preview({ preview }: { preview: ReadingDataPreview }) {
           }}
         >
           {visible ? '折起' : `展开明细 ${preview.items.length} 项`}
-        </button>
+        </Button>
       )}
       {preview.hasMore && <p className="profile-empty-note">每次最多修复 100 项；完成后可再次检查剩余数据。</p>}
     </>
@@ -170,18 +172,18 @@ export function ReadingDataPanel({ userId, username }: { userId: string; usernam
               <h3>检查历史数据</h3>
               <p>检查当前账号的书签与阅读进度，修复前可查看变更。</p>
             </div>
-            <button className="btn btn--secondary" disabled={busy} onClick={() => void preview('repair')}>
+            <Button variant="secondary"  disabled={busy} onClick={() => void preview('repair')}>
               {busy ? '处理中…' : '检查当前账号'}
-            </button>
+            </Button>
           </div>
           {repair && (
             <div className="reading-data-result">
               <p>{repair.items.length ? `发现 ${repair.items.length} 项待修复记录。` : '本次检查没有发现异常。'}</p>
               <Preview key={repair.previewToken} preview={repair} />
               {repair.items.length > 0 && (
-                <button className="btn btn--primary" disabled={busy} onClick={() => void apply('repair')}>
+                <Button variant="default"  disabled={busy} onClick={() => void apply('repair')}>
                   确认修复 {repair.items.length} 项
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -194,9 +196,9 @@ export function ReadingDataPanel({ userId, username }: { userId: string; usernam
                 ? `${legacy.data.bookmarks.length} 个书签 · ${legacy.data.progress.length} 条阅读历史 · ${legacy.data.bookshelf.length} 本书架记录`
                 : '当前浏览器没有可识别的旧版阅读数据。'}</p>
             </div>
-            <button className="btn btn--secondary" disabled={busy} onClick={() => void preview('restore')}>
+            <Button variant="secondary"  disabled={busy} onClick={() => void preview('restore')}>
               预览可恢复数据
-            </button>
+            </Button>
           </div>
           {legacy.invalid > 0 && <p>另有 {legacy.invalid} 条格式无效的记录将跳过。</p>}
           {legacy.errors.map((error, i) => (
@@ -217,9 +219,9 @@ export function ReadingDataPanel({ userId, username }: { userId: string; usernam
                     <input type="checkbox" checked={acknowledged} disabled={busy} onChange={(e) => setAcknowledged(e.target.checked)} />
                     我确认旧数据属于我，并恢复到 @{username}
                   </label>
-                  <button className="btn btn--primary" disabled={busy || !acknowledged} onClick={() => void apply('restore')}>
+                  <Button variant="default"  disabled={busy || !acknowledged} onClick={() => void apply('restore')}>
                     恢复到当前账号
-                  </button>
+                  </Button>
                 </>
               )}
             </div>

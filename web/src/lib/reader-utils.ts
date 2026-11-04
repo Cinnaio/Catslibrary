@@ -18,13 +18,7 @@ export function clamp(num: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, num))
 }
 
-export function prefersReducedMotion(): boolean {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-}
 
-export function scrollBehavior(): ScrollBehavior {
-  return prefersReducedMotion() ? 'auto' : 'smooth'
-}
 
 export function jumpScrollTo(y: number): void {
   const root = document.documentElement

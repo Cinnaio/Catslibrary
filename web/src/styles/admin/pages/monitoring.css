@@ -286,7 +286,7 @@
   min-height: 15rem;
 }
 
-.calls-trend-grid .admin-empty-state {
+.calls-trend-grid .empty-state {
   min-height: 15rem;
 }
 
@@ -463,13 +463,13 @@
   }
 }
 @media (max-width: 640px) {
-  .admin-monitoring-page .ai-usage-card .admin-panel-heading {
+  .admin-monitoring-page .ai-usage-card .panel-heading {
     flex-direction: row;
   }
-  .admin-monitoring-page .ai-usage-card .admin-panel-heading__copy {
+  .admin-monitoring-page .ai-usage-card .panel-heading__copy {
     flex: 1;
   }
-  .admin-monitoring-page .ai-usage-card .admin-panel-heading__actions {
+  .admin-monitoring-page .ai-usage-card .panel-heading__actions {
     width: auto;
     flex: 0 0 auto;
   }
@@ -539,7 +539,7 @@
   min-height: var(--admin-control-height, 2.5rem);
 }
 
-.task-workspace-toolbar .admin-filter-chips {
+.task-workspace-toolbar .select-filter-chips {
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
@@ -552,7 +552,7 @@
   align-items: center;
   gap: 0.375rem;
   padding: 0 0.75rem;
-  height: var(--admin-filter-chip-height, 2.5rem);
+  height: var(--select-filter-chip-height, 2.5rem);
   border-radius: var(--radius-full, 9999px);
   font-size: 0.75rem;
   font-weight: 500;

@@ -1,3 +1,4 @@
+import '@/styles/input-fields.css'
 /**
  * 导入解析诊断面板。
  *

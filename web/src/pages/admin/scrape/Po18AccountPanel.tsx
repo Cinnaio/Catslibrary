@@ -1,4 +1,4 @@
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowRight, Check, ChevronDown, CircleCheck, KeyRound, LockKeyhole, RefreshCw, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import { useConfirm, useToast } from '../../../components/feedback'
@@ -304,7 +304,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
 
             <div className="po18-account-login-form">
               <div className="po18-account-fields">
-                <AdminFormField label="账号" htmlFor="po18-account-username">
+                <FormField label="账号" htmlFor="po18-account-username">
                   <Input
                     id="po18-account-username"
                     autoComplete="username"
@@ -313,8 +313,8 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                     placeholder="PO18.tw 登录账号"
                     className="po18-claude-input"
                   />
-                </AdminFormField>
-                <AdminFormField label="密码" htmlFor="po18-account-password">
+                </FormField>
+                <FormField label="密码" htmlFor="po18-account-password">
                   <Input
                     id="po18-account-password"
                     type="password"
@@ -324,7 +324,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                     placeholder={status?.hasPassword ? '留空表示保持原密码' : 'PO18.tw 登录密码'}
                     className="po18-claude-input"
                   />
-                </AdminFormField>
+                </FormField>
               </div>
 
               <div className="po18-account-actions">
@@ -413,7 +413,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                 验证码无法通过或自动登录不成功时，在浏览器登录 PO18.tw 后复制 Cookie 粘贴到这里。Cookie 保存后不会回显；密码和 Cookie 均由服务端加密存储。
               </p>
               <div className="po18-account-fallback-fields">
-                <AdminFormField label="会话 Cookie" htmlFor="po18-session-cookie">
+                <FormField label="会话 Cookie" htmlFor="po18-session-cookie">
                   <Textarea
                     id="po18-session-cookie"
                     rows={3}
@@ -422,8 +422,8 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                     placeholder={'粘贴 Cookie，例如 PHPSESSID=…; other=…'}
                     className="po18-claude-textarea font-mono text-xs"
                   />
-                </AdminFormField>
-                <AdminFormField label="会话验证链接（可选）" htmlFor="po18-session-test-url">
+                </FormField>
+                <FormField label="会话验证链接（可选）" htmlFor="po18-session-test-url">
                   <Input
                     id="po18-session-test-url"
                     aria-describedby="po18-session-test-hint"
@@ -432,10 +432,10 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                     placeholder="粘贴有权限的 POPO 目录或章节链接"
                     className="po18-claude-input"
                   />
-                  <p id="po18-session-test-hint" className="admin-form-field__hint">
+                  <p id="po18-session-test-hint" className="form-field__hint">
                     留空只检查站点可访问；填写链接才能验证实际抓取权限。
                   </p>
-                </AdminFormField>
+                </FormField>
               </div>
 
               <div className="po18-account-actions">

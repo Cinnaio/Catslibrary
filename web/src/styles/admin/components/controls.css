@@ -2,261 +2,82 @@
 /* Input / textarea 的纸面、描边和焦点统一由 input-fields.css 提供。 */
 
 /* 普通后台 Popover 保留原有外观；选择浮层由 select-fields.css 直接命中 portal。 */
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='popover-content']:not(.shared-select-content) {
-  border: 1px solid var(--admin-border-strong);
-  border-radius: 14px;
-  background: var(--admin-panel);
-  box-shadow: 0 14px 34px -4px rgba(20, 20, 19, 0.12), 0 4px 12px -2px rgba(20, 20, 19, 0.08);
-  padding: 4px;
-  overflow: hidden;
-}
-
-[data-slot='dialog-content'].admin-dialog {
-  border-radius: var(--admin-radius-dialog);
-}
 
 /* ——— Switch 开关：Claude 极简温润药丸与几何严格对称微动效 ——— */
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch'] {
-  box-sizing: border-box;
-  width: 2.25rem; /* 36px */
-  height: 1.25rem; /* 20px */
-  padding: 2px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--admin-border-strong);
-  background: var(--admin-panel-muted);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: background-color 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
-              border-color 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
-              box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
-  outline: none;
-  cursor: pointer;
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch']:focus-visible {
-  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.22);
-  border-color: var(--admin-accent);
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch'][data-state='checked'] {
-  background: var(--admin-accent);
-  border-color: var(--admin-accent);
-  box-shadow: 0 2px 6px rgba(217, 119, 87, 0.28);
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch-thumb'] {
-  box-sizing: border-box;
-  width: 0.875rem; /* 14px */
-  height: 0.875rem; /* 14px */
-  border-radius: var(--radius-full);
-  background: #FFFFFF;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.12);
-  translate: 0 0 !important; /* 强制消除 Tailwind translate-x 独立属性与 transform 叠加造成的双倍越界溢出 */
-  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-[data-theme='dark'] :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch-thumb'] {
-  background: #FFFFFF;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch'][data-state='checked'] [data-slot='switch-thumb'] {
-  transform: translateX(1rem) !important; /* 16px: 36px 轨宽 - 2px 描边 - 4px 内边距 - 14px 滑块 = 16px 行程，左右各留 3px 边距严格对称 */
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch'][data-state='unchecked'] [data-slot='switch-thumb'] {
-  transform: translateX(0) !important;
-}
 
 /* 紧凑型 Switch 开关（data-size='sm'）几何对齐 */
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch'][data-size='sm'] {
-  width: 1.75rem; /* 28px */
-  height: 1rem; /* 16px */
-  padding: 2px;
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch'][data-size='sm'] [data-slot='switch-thumb'] {
-  width: 0.625rem; /* 10px */
-  height: 0.625rem; /* 10px */
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch'][data-size='sm'][data-state='checked'] [data-slot='switch-thumb'] {
-  transform: translateX(0.75rem) !important; /* 12px: 28px - 2px - 4px - 10px = 12px 行程，左右各留 3px 边距严格对称 */
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch'][data-size='sm'][data-state='unchecked'] [data-slot='switch-thumb'] {
-  transform: translateX(0) !important;
-}
 
 /* ——— 分段控制胶囊组（Segmented Choices / Run Scale）：统一 Claude 极简药丸轨道与无边框微浮起滑块 ——— */
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-service, .ai-writing-panel) :is(.ai-writing-run-scale__choices, .admin-segmented, [data-slot='segmented-group']) {
-  display: inline-flex;
-  align-items: center;
-  width: auto;
-  height: 2rem;
-  min-height: 2rem;
-  background: var(--admin-panel-muted);
-  border: 1px solid var(--admin-border) !important;
-  border-radius: var(--radius-control) !important;
-  padding: 2.5px !important;
-  gap: 2px !important;
-  box-sizing: border-box;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-service, .ai-writing-panel) :is(.ai-writing-run-scale__choices, .admin-segmented, [data-slot='segmented-group']) [data-slot='button'] {
-  flex: 0 0 auto;
-  width: auto;
-  min-width: 0;
-  height: 100% !important;
-  min-height: 0 !important;
-  border: 0 !important;
-  border-radius: var(--radius-control) !important;
-  box-shadow: none !important;
-  padding: 0 0.85rem !important;
-  font-size: 0.775rem !important;
-  font-weight: 500 !important;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-service, .ai-writing-panel) :is(.ai-writing-run-scale__choices, .admin-segmented, [data-slot='segmented-group']) [data-slot='button'][aria-pressed='true'] {
-  background: var(--admin-panel, #ffffff) !important;
-  color: var(--admin-accent) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
-  font-weight: 600 !important;
-}
-
-[data-theme='dark'] :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-service, .ai-writing-panel) :is(.ai-writing-run-scale__choices, .admin-segmented, [data-slot='segmented-group']) [data-slot='button'][aria-pressed='true'] {
-  background: var(--admin-panel) !important;
-  color: var(--admin-accent) !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-service, .ai-writing-panel) :is(.ai-writing-run-scale__choices, .admin-segmented, [data-slot='segmented-group']) [data-slot='button'][aria-pressed='false'] {
-  background: transparent !important;
-  color: var(--text-muted) !important;
-  box-shadow: none !important;
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-service, .ai-writing-panel) :is(.ai-writing-run-scale__choices, .admin-segmented, [data-slot='segmented-group']) [data-slot='button'][aria-pressed='false']:hover {
-  color: var(--text-primary) !important;
-}
 
 /* ——— Checkbox 复选框：温和圆角与陶土红弹簧微动效 ——— */
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox'] {
-  width: 1.125rem;
-  height: 1.125rem;
-  border-radius: 5px;
-  border: 1.5px solid var(--admin-border-strong);
-  background: var(--admin-panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: background-color 0.18s ease,
-              border-color 0.18s ease,
-              box-shadow 0.18s ease;
-  outline: none;
-  cursor: pointer;
-}
 
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox']:hover {
-  border-color: var(--admin-accent);
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox']:focus-visible {
-  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.2);
-  border-color: var(--admin-accent);
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox'][data-state='checked'] {
-  background: var(--admin-accent);
-  border-color: var(--admin-accent);
-  color: #FFFFFF;
-  box-shadow: 0 1px 4px rgba(217, 119, 87, 0.25);
-}
-
-@keyframes admin-check-spring {
-  0% { transform: scale(0.6); opacity: 0; }
-  60% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) [data-slot='checkbox'][data-state='checked'] [data-slot='checkbox-indicator'] {
-  animation: admin-check-spring 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
-}
-
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .ai-generation-dialog) input[type='checkbox'] {
+:is(.admin-layout, .dialog-frame, [data-slot='dialog-content'].dialog-frame, .ai-generation-dialog) input[type='checkbox'] {
   accent-color: var(--admin-accent);
   border-radius: 4px;
   cursor: pointer;
 }
 
 /* ——— 折叠详情手风琴（Details & Summary）优雅过渡 ——— */
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog) details {
+:is(.admin-layout, .dialog-frame, [data-slot='dialog-content'].dialog-frame) details {
   transition: all 0.2s ease;
 }
 
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog) summary {
+:is(.admin-layout, .dialog-frame, [data-slot='dialog-content'].dialog-frame) summary {
   cursor: pointer;
   user-select: none;
   transition: color 0.15s ease, background-color 0.15s ease;
 }
 
-:is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog) summary:hover {
+:is(.admin-layout, .dialog-frame, [data-slot='dialog-content'].dialog-frame) summary:hover {
   color: var(--admin-accent);
 }
 
 /* ——— 减弱动效适配 ——— */
 @media (prefers-reduced-motion: reduce) {
-  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch-thumb'],
-  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='switch'],
-  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='button'],
-  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='checkbox-indicator'] {
+  :is(.admin-layout, .dialog-frame, [data-slot='dialog-content'].dialog-frame, .dialog-frame-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='button'] {
     transition: none !important;
     animation: none !important;
   }
 
   /* switch-thumb 的开关状态位由 transform: translateX 维持，减弱动效时仅取消过渡补间，禁止置空位移 */
-  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='button'],
-  :is(.admin-layout, .admin-dialog, [data-slot='dialog-content'].admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='checkbox-indicator'] {
+  :is(.admin-layout, .dialog-frame, [data-slot='dialog-content'].dialog-frame, .dialog-frame-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='button'] {
     transform: none !important;
   }
 }
 
 /* ——— 全局交互列表行与卡片行统一四态规范（Claude 暖纸质感） ——— */
-:is(.admin-layout, .admin-dialog) .admin-interactive-row,
-:is(.admin-layout, .admin-dialog) [data-interactive-row='true'],
-:is(.admin-layout, .admin-dialog) .dashboard-row,
-:is(.admin-layout, .admin-dialog) .dashboard-op-item {
+:is(.admin-layout, .dialog-frame) .admin-interactive-row,
+:is(.admin-layout, .dialog-frame) [data-interactive-row='true'],
+:is(.admin-layout, .dialog-frame) .dashboard-row,
+:is(.admin-layout, .dialog-frame) .dashboard-op-item {
   border-radius: 12px;
   border: 1px solid transparent;
   transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-:is(.admin-layout, .admin-dialog) .admin-interactive-row:hover,
-:is(.admin-layout, .admin-dialog) [data-interactive-row='true']:hover,
-:is(.admin-layout, .admin-dialog) .admin-interactive-row.is-selected,
-:is(.admin-layout, .admin-dialog) [data-interactive-row='true'][data-selected='true'],
-:is(.admin-layout, .admin-dialog) [data-interactive-row='true'][aria-selected='true'] {
+:is(.admin-layout, .dialog-frame) .admin-interactive-row:hover,
+:is(.admin-layout, .dialog-frame) [data-interactive-row='true']:hover,
+:is(.admin-layout, .dialog-frame) .admin-interactive-row.is-selected,
+:is(.admin-layout, .dialog-frame) [data-interactive-row='true'][data-selected='true'],
+:is(.admin-layout, .dialog-frame) [data-interactive-row='true'][aria-selected='true'] {
   background: var(--admin-accent-subtle) !important;
   border-color: color-mix(in srgb, var(--admin-accent) 22%, transparent) !important;
 }
 
-:is(.admin-layout, .admin-dialog) .admin-interactive-row:active,
-:is(.admin-layout, .admin-dialog) [data-interactive-row='true']:active {
+:is(.admin-layout, .dialog-frame) .admin-interactive-row:active,
+:is(.admin-layout, .dialog-frame) [data-interactive-row='true']:active {
   transform: scale(0.996);
 }
 
-:is(.admin-layout, .admin-dialog) .admin-interactive-row:focus-visible,
-:is(.admin-layout, .admin-dialog) [data-interactive-row='true']:focus-visible {
+:is(.admin-layout, .dialog-frame) .admin-interactive-row:focus-visible,
+:is(.admin-layout, .dialog-frame) [data-interactive-row='true']:focus-visible {
   outline: none !important;
   border-color: var(--admin-accent) !important;
   box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.22) !important;
 }
 
 /* 表格被选中行的暖色底色统一（压制默认冷灰） */
-:is(.admin-layout, .admin-dialog) .admin-data-table tr[data-state='selected'],
-:is(.admin-layout, .admin-dialog) [data-slot='table-row'][data-state='selected'] {
+:is(.admin-layout, .dialog-frame) .admin-data-table tr[data-state='selected'],
+:is(.admin-layout, .dialog-frame) [data-slot='table-row'][data-state='selected'] {
   background: var(--admin-accent-subtle) !important;
 }

@@ -14,7 +14,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Inbox, Settings2 } from 'lucide-react'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import EmptyState from "@/components/shared/EmptyState"
 import { Button } from '@/components/ui/button'
 import { adminTabPath } from '../admin-registry'
 
@@ -43,7 +43,7 @@ export default function AiPanelEmptyState({
 }: AiPanelEmptyStateProps) {
   if (configured === false) {
     return (
-      <AdminEmptyState
+      <EmptyState
         message={unconfiguredMessage}
         icon={<Settings2 className="size-8 text-primary/60" aria-hidden="true" />}
         action={
@@ -59,7 +59,7 @@ export default function AiPanelEmptyState({
   }
 
   return (
-    <AdminEmptyState
+    <EmptyState
       message={emptyMessage}
       icon={icon ?? <Inbox className="size-8 opacity-40" aria-hidden="true" />}
       action={hint ? <p className="text-xs text-muted-foreground">{hint}</p> : undefined}

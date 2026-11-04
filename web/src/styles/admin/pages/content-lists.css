@@ -35,13 +35,13 @@
   background: transparent !important;
 }
 
-.admin-redesign-page--moderation .moderation-filter-rail > .admin-search {
+.admin-redesign-page--moderation .moderation-filter-rail > .search-field {
   width: min(22rem, 100%) !important;
   max-width: 22rem !important;
   flex: 0 1 20rem !important;
 }
 
-.admin-redesign-page--moderation .moderation-filter-rail .admin-filter-chips {
+.admin-redesign-page--moderation .moderation-filter-rail .select-filter-chips {
   display: flex !important;
   align-items: center !important;
   flex-wrap: nowrap !important;

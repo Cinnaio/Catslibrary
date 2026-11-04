@@ -64,7 +64,7 @@ it('展示匹配依据与相邻章节，保存未匹配章的人工对应关系'
   expect(screen.getByRole('button', { name: '调整映射：本地 2' })).toHaveAttribute('aria-expanded', 'true')
   expect(screen.getByText(/本地前章：本地第一章/)).toBeInTheDocument()
   await user.click(screen.getByRole('combobox'))
-  // CustomSelect 把“选择后交换”渲染成行尾 note，与选项正文同属可访问名（无分隔空格）。
+  // SearchSelect 把“选择后交换”渲染成行尾 note，与选项正文同属可访问名（无分隔空格）。
   expect(screen.getByRole('option', { name: '1 · 源站第一章选择后交换' })).not.toHaveAttribute('aria-disabled', 'true')
   await user.click(screen.getByRole('option', { name: '2 · 源站第二章' }))
   expect(screen.getByText(/源站前章：源站第一章/)).toBeInTheDocument()

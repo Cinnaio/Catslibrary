@@ -1,3 +1,4 @@
+import '@/styles/input-fields.css'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { PasskeyAdminSettings, SiteBranding, TurnstileSettings } from '@shared/site-settings'
@@ -6,13 +7,13 @@ import { brandingAssetUrl, setSiteBranding } from '@/lib/site-branding'
 import { useContentPolicy } from '@/context/ContentPolicyContext'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { LoadingState } from '@/components/admin/AsyncStates'
+import { LoadingState } from "@/components/shared/AsyncStates"
 import TurnstileTestWidget from '@/components/TurnstileTestWidget'
 import '@/styles/admin/pages/site-settings.css'
 
@@ -137,23 +138,23 @@ export default function SiteSettingsTab() {
         <CardContent className="site-settings__fields">
           {security ? <>
             <p className="site-settings__status" role="status">{challenge.configured ? '已配置，可用于成人模式验证' : '尚未就绪，成人模式验证不会放行'}</p>
-            <AdminFormField label="Site Key" hint={`来源：${sourceLabel[challenge.sources.siteKey]}`}>{({ id }) => <Input id={id} value={siteKey} maxLength={200} disabled={busy || challenge.sources.siteKey === 'environment'} onChange={e => { setSiteKey(e.target.value); setTesting(false); setTestToken('') }} autoComplete="off" />}</AdminFormField>
-            <AdminFormField label="Secret Key" hint={`来源：${sourceLabel[challenge.sources.secret]}。${challenge.secretSet ? '已设置，留空保留原密钥。' : '尚未设置。'}保存后不会回显原值。`}>{({ id }) => <Input id={id} type="password" value={secretKey} maxLength={200} disabled={busy || clearSecret || !challenge.encryptionReady || challenge.sources.secret === 'environment'} onChange={e => { setSecretKey(e.target.value); setTesting(false); setTestToken('') }} autoComplete="new-password" placeholder={challenge.secretSet ? '已设置 · 输入新密钥以替换' : '输入私钥'} />}</AdminFormField>
+            <FormField label="Site Key" hint={`来源：${sourceLabel[challenge.sources.siteKey]}`}>{({ id }) => <Input id={id} value={siteKey} maxLength={200} disabled={busy || challenge.sources.siteKey === 'environment'} onChange={e => { setSiteKey(e.target.value); setTesting(false); setTestToken('') }} autoComplete="off" />}</FormField>
+            <FormField label="Secret Key" hint={`来源：${sourceLabel[challenge.sources.secret]}。${challenge.secretSet ? '已设置，留空保留原密钥。' : '尚未设置。'}保存后不会回显原值。`}>{({ id }) => <Input id={id} type="password" value={secretKey} maxLength={200} disabled={busy || clearSecret || !challenge.encryptionReady || challenge.sources.secret === 'environment'} onChange={e => { setSecretKey(e.target.value); setTesting(false); setTestToken('') }} autoComplete="new-password" placeholder={challenge.secretSet ? '已设置 · 输入新密钥以替换' : '输入私钥'} />}</FormField>
             {challenge.secretSet && challenge.sources.secret !== 'environment' && <label className="site-settings__check"><input type="checkbox" checked={clearSecret} disabled={busy} onChange={e => { setClearSecret(e.target.checked); setSecretKey(''); setTesting(false); setTestToken('') }} />保存时清除后台密钥（成人验证将不可用）</label>}
             {!challenge.encryptionReady && <p className="site-settings__hint">后台私钥存储需要部署端配置 SITE_SETTINGS_ENCRYPTION_KEY。现有环境变量密钥仍可正常使用。</p>}
             {challenge.secretSet && !challenge.secretReadable && <p role="alert">已存密钥无法解密，请恢复原加密主密钥，或配置主密钥后替换私钥。</p>}
-            <AdminFormField label="允许验证的域名" hint={`来源：${sourceLabel[challenge.sources.hostnames]}。每行一个纯域名；同时在 Cloudflare 控制台配置对应域名。`}>{({ id }) => <Textarea id={id} rows={4} value={hostnames} disabled={busy || challenge.sources.hostnames === 'environment'} onChange={e => { setHostnames(e.target.value); setTesting(false); setTestToken('') }} placeholder="read.example.com" />}</AdminFormField>
+            <FormField label="允许验证的域名" hint={`来源：${sourceLabel[challenge.sources.hostnames]}。每行一个纯域名；同时在 Cloudflare 控制台配置对应域名。`}>{({ id }) => <Textarea id={id} rows={4} value={hostnames} disabled={busy || challenge.sources.hostnames === 'environment'} onChange={e => { setHostnames(e.target.value); setTesting(false); setTestToken('') }} placeholder="read.example.com" />}</FormField>
           </> : passkeyView ? <>
             <p className="site-settings__status" role="status">{passkey.enabled ? passkey.configured ? '已开启，登录页会提供 Passkey 登录。' : '已开启，但部署环境尚未完成 RP 配置。' : '当前关闭，用户不会看到 Passkey 登录入口。'}</p>
             <label className="site-settings__check"><input type="checkbox" checked={passkey.enabled} disabled={busy} onChange={e => setPasskey({ ...passkey, enabled: e.target.checked })} />启用 Passkey 登录</label>
             <label className="site-settings__check"><input type="checkbox" checked={passkey.registrationEnabled} disabled={busy} onChange={e => setPasskey({ ...passkey, registrationEnabled: e.target.checked })} />允许已登录用户注册新的 Passkey</label>
-            <AdminFormField label="Passkey 显示名称" hint="会显示在浏览器或系统的凭据选择器中，最多 64 个字符。">{({ id }) => <Input id={id} value={passkey.rpName} maxLength={64} disabled={busy} onChange={e => setPasskey({ ...passkey, rpName: e.target.value })} />}</AdminFormField>
+            <FormField label="Passkey 显示名称" hint="会显示在浏览器或系统的凭据选择器中，最多 64 个字符。">{({ id }) => <Input id={id} value={passkey.rpName} maxLength={64} disabled={busy} onChange={e => setPasskey({ ...passkey, rpName: e.target.value })} />}</FormField>
             <p className="site-settings__hint">凭据的 RP ID 与允许来源不能在后台改写，避免误配后把现有 Passkey 绑定到错误站点。</p>
           </> : <>
-            {([['name', '站点名称', 32], ['tagline', '站点简介', 100], ['homeTitle', '首页浏览器标题', 100], ['description', 'SEO 描述', 300]] as const).map(([key, label, limit]) => <AdminFormField key={key} label={label}>{({ id }) => <Input id={id} required value={branding[key]} maxLength={limit} disabled={busy} onChange={e => setBranding({ ...branding, [key]: e.target.value })} />}</AdminFormField>)}
+            {([['name', '站点名称', 32], ['tagline', '站点简介', 100], ['homeTitle', '首页浏览器标题', 100], ['description', 'SEO 描述', 300]] as const).map(([key, label, limit]) => <FormField key={key} label={label}>{({ id }) => <Input id={id} required value={branding[key]} maxLength={limit} disabled={busy} onChange={e => setBranding({ ...branding, [key]: e.target.value })} />}</FormField>)}
             <div className="site-settings__assets">{(['logo', 'favicon'] as const).map(kind => <div key={kind} className="site-settings__asset">
               <img src={brandingAssetUrl(branding[`${kind}Url`])} width={48} height={48} alt={`${kind === 'logo' ? 'Logo' : '浏览器图标'}预览`} />
-              <AdminFormField label={kind === 'logo' ? 'Logo' : '浏览器图标 Favicon'} hint="PNG / WebP，最大 1MB；图片上传后立即生效。">{({ id }) => <Input id={id} type="file" accept="image/png,image/webp" disabled={busy} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void asset(kind, file) }} />}</AdminFormField>
+              <FormField label={kind === 'logo' ? 'Logo' : '浏览器图标 Favicon'} hint="PNG / WebP，最大 1MB；图片上传后立即生效。">{({ id }) => <Input id={id} type="file" accept="image/png,image/webp" disabled={busy} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void asset(kind, file) }} />}</FormField>
               <Button type="button" variant="ghost" disabled={busy || branding[`${kind}Url`] === '/images/logo.png'} onClick={() => void asset(kind)}>恢复默认</Button>
             </div>)}</div>
           </>}

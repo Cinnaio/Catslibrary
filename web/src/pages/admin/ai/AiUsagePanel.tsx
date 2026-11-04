@@ -3,7 +3,7 @@ import { ChevronRight, RefreshCw } from 'lucide-react'
 import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { aiApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
 import { Button } from '@/components/ui/button'

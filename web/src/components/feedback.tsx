@@ -7,6 +7,7 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
 import { toast as sonnerToast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
+import { ControlAppearance, useControlAppearance, type ControlAppearanceName } from '@/components/ui/control-appearance'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,16 +82,20 @@ interface ConfirmContextValue {
   confirm: (opts?: ConfirmOptions) => Promise<boolean>
 }
 
-const ConfirmContext = createContext<ConfirmContextValue | null>(null)
+interface ConfirmRequestContext {
+  confirm: (opts: ConfirmOptions | undefined, appearance: ControlAppearanceName) => Promise<boolean>
+}
+
+const ConfirmContext = createContext<ConfirmRequestContext | null>(null)
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<(ConfirmOptions & { visible: boolean }) | null>(null)
+  const [state, setState] = useState<(ConfirmOptions & { visible: boolean; appearance: ControlAppearanceName }) | null>(null)
   const resolveRef = useRef<((v: boolean) => void) | null>(null)
 
-  const confirm = useCallback((opts: ConfirmOptions = {}) => {
+  const confirm = useCallback((opts: ConfirmOptions = {}, appearance: ControlAppearanceName = 'default') => {
     return new Promise<boolean>((resolve) => {
       resolveRef.current = resolve
-      setState({ visible: true, ...opts })
+      setState({ visible: true, ...opts, appearance })
     })
   }, [])
 
@@ -107,7 +112,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   return (
     <ConfirmContext.Provider value={{ confirm }}>
       {children}
-      <AlertDialog
+      <ControlAppearance appearance={state?.appearance ?? 'default'}><AlertDialog
         // 必须给布尔而不是 undefined：首帧 state 为 null 时 open=undefined
         // 会让 Radix 按「非受控」初始化，第二帧传入 true 再切成受控——
         // React 会就此告警，且非受控初值在部分版本下会让关闭回调不可靠。
@@ -149,13 +154,19 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog></ControlAppearance>
     </ConfirmContext.Provider>
   )
 }
 
 export function useConfirm(): ConfirmContextValue {
   const ctx = useContext(ConfirmContext)
+  const request = ctx?.confirm
+  const appearance = useControlAppearance()['data-ui']
+  const confirm = useCallback((opts?: ConfirmOptions) => {
+    if (!request) throw new Error('useConfirm must be used within ConfirmProvider')
+    return request(opts, appearance)
+  }, [request, appearance])
   if (!ctx) throw new Error('useConfirm must be used within ConfirmProvider')
-  return ctx
+  return { confirm }
 }

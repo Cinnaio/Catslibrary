@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import BatchNovelFollowupDialog from './BatchNovelFollowupDialog'
 vi.mock('@/lib/api', () => ({ url: (value: string) => value, authHeaders: () => ({}) }))
-vi.mock('./CustomSelect', () => ({
+vi.mock("@/components/shared/SearchSelect", () => ({
   default: ({ options, value, onChange, disabled, ...props }: any) => (
     <select aria-labelledby={props['aria-labelledby']} disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
       {options.map((option: any) => (

@@ -1,10 +1,11 @@
+import '@/styles/input-fields.css'
 import { useState } from 'react'
 import type { BookImportChapterDiff, BookImportChapterResolution, BookImportLocalChapter } from '@shared/types'
 import { planImportInsertions } from '@shared/book-import-resolution'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import CustomSelect, { type SelectOption } from './CustomSelect'
+import SearchSelect, { type SelectOption } from "@/components/shared/SearchSelect"
 
 export type ChapterResolutionChoice = { action: 'match'; localChapterId: string } | { action: 'insert'; afterChapterId: string | null; afterIncomingChapterId?: string }
 
@@ -138,7 +139,7 @@ export default function BookImportChapterResolver({
             onChange={(event) => setSearch(event.target.value)}
           />
           <Label id={`${targetTriggerId}-label`} htmlFor={targetTriggerId}>{action === 'match' ? '对应的本地章节' : '插入位置'}</Label>
-          <CustomSelect
+          <SearchSelect
             id={targetTriggerId}
             className="w-full min-w-0"
             options={targetOptions}

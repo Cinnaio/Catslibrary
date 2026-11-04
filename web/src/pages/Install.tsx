@@ -1,3 +1,4 @@
+import '@/styles/identity-layout.css'
 /**
  * Install 页 —— 首次安装向导（独立顶层路由，无 Layout）。
  * 三步：① 数据库连接（needsSetup 时）→ ② 可选配置（AI/代理/CORS，可跳过）

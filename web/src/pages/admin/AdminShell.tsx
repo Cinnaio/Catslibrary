@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react'
 import WorkspaceShell, { type WorkspaceNavGroup } from '../../components/workspace/WorkspaceShell'
 import { NAV_GROUPS, adminTabPath } from './admin-registry'
 import { useSiteBranding } from '../../lib/site-branding'
+import { ControlAppearance, ControlSurface } from '@/components/ui/control-appearance'
 
 const navigation: WorkspaceNavGroup[] = NAV_GROUPS.map((group) => ({
   label: group.label,
@@ -18,7 +19,7 @@ export default function AdminShell({ activeLabel, children }: { active: string; 
   }, [activeLabel, branding.name, branding.homeTitle])
   return (
     <WorkspaceShell groups={navigation} title={activeLabel} admin>
-      <div className="admin-layout">{children}</div>
+      <ControlAppearance appearance="management"><ControlSurface className="admin-layout">{children}</ControlSurface></ControlAppearance>
     </WorkspaceShell>
   )
 }

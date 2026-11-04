@@ -1,14 +1,14 @@
 /* 书籍导入工作流：沿用 Paper Sanctuary 的纸面、细分隔线与低饱和状态色。
 
-   弹窗三段（页头 / 正文 / 页脚）遵循 .admin-dialog 的设计约定：
+   弹窗三段（页头 / 正文 / 页脚）遵循 .dialog-frame 的设计约定：
    页头与页脚**不加边框、不加底色**，分隔完全交给间距与按钮视觉
-   （见 admin-operations.css 中 `.admin-dialog [data-slot='dialog-header']`
+   （见 admin-operations.css 中 `.dialog-frame [data-slot='dialog-header']`
    的 border-bottom:0 与 footer 的 border-top:0）。三段桌面留白继承共享规则，
    本文件只补充工作流布局与窄屏适配，不重新引入分隔线或另一套字阶。 */
 
 /* 导入历史：独立记录布局，避免书架横向条目压缩长标题。 */
-[data-slot='dialog-content'].admin-dialog.book-import-history-dialog {
-  /* 采用共享 admin-dialog 宽度，解除基础 Dialog 的 sm:max-w-lg 限制。 */
+[data-slot='dialog-content'].dialog-frame.book-import-history-dialog {
+  /* 采用共享 dialog-frame 宽度，解除基础 Dialog 的 sm:max-w-lg 限制。 */
   max-width: none;
 }
 [data-slot='dialog-content'].book-import-history-dialog [data-slot='dialog-description'] {
@@ -55,9 +55,9 @@
 .book-import-history__note,
 .book-import-history__action > span {
   color: var(--text-muted);
-  font-size: var(--admin-dialog-hint-size);
-  font-weight: var(--admin-dialog-hint-weight);
-  line-height: var(--admin-dialog-hint-line-height);
+  font-size: var(--dialog-frame-hint-size);
+  font-weight: var(--dialog-frame-hint-weight);
+  line-height: var(--dialog-frame-hint-line-height);
 }
 .book-import-history__source,
 .book-import-history__note {
@@ -416,7 +416,7 @@
   gap: 0.5rem;
   min-height: 2.75rem;
   color: var(--text-secondary);
-  font-size: var(--admin-dialog-label-size);
+  font-size: var(--dialog-frame-label-size);
   cursor: pointer;
   list-style: none;
 }
@@ -460,16 +460,16 @@
 }
 
 .book-import__field label {
-  color: var(--admin-dialog-label-color, var(--text-muted));
-  font-size: var(--admin-dialog-label-size, 0.75rem);
+  color: var(--dialog-frame-label-color, var(--text-muted));
+  font-size: var(--dialog-frame-label-size, 0.75rem);
 }
 
 .book-import__hint {
   margin: 0;
-  color: var(--admin-dialog-hint-color);
-  font-size: var(--admin-dialog-hint-size);
-  font-weight: var(--admin-dialog-hint-weight);
-  line-height: var(--admin-dialog-hint-line-height);
+  color: var(--dialog-frame-hint-color);
+  font-size: var(--dialog-frame-hint-size);
+  font-weight: var(--dialog-frame-hint-weight);
+  line-height: var(--dialog-frame-hint-line-height);
 }
 
 .book-import__source-callout,
@@ -720,11 +720,11 @@
 }
 
 .book-import__metadata-copy strong {
-  color: var(--admin-dialog-label-color);
-  font-size: var(--admin-dialog-label-size);
-  font-weight: var(--admin-dialog-label-weight);
-  line-height: var(--admin-dialog-label-line-height);
-  letter-spacing: var(--admin-dialog-label-letter-spacing);
+  color: var(--dialog-frame-label-color);
+  font-size: var(--dialog-frame-label-size);
+  font-weight: var(--dialog-frame-label-weight);
+  line-height: var(--dialog-frame-label-line-height);
+  letter-spacing: var(--dialog-frame-label-letter-spacing);
 }
 
 .book-import__metadata-values {
@@ -1040,9 +1040,9 @@
 .book-import__content-preview > span {
   display: block;
   margin-bottom: var(--admin-space-2);
-  color: var(--admin-dialog-label-color);
-  font-size: var(--admin-dialog-label-size);
-  font-weight: var(--admin-dialog-label-weight);
+  color: var(--dialog-frame-label-color);
+  font-size: var(--dialog-frame-label-size);
+  font-weight: var(--dialog-frame-label-weight);
 }
 
 .book-import__content-preview pre {
@@ -1602,7 +1602,7 @@
 }
 .book-import__impact-text > span {
   color: var(--text-muted);
-  font-size: var(--admin-dialog-label-size);
+  font-size: var(--dialog-frame-label-size);
 }
 .book-import__impact-text p {
   margin: var(--admin-space-2) 0 0;
@@ -1685,9 +1685,9 @@
 .book-import__boundary-form legend {
   padding: 0;
   margin-bottom: var(--admin-space-2);
-  color: var(--admin-dialog-label-color);
-  font-size: var(--admin-dialog-label-size);
-  font-weight: var(--admin-dialog-label-weight);
+  color: var(--dialog-frame-label-color);
+  font-size: var(--dialog-frame-label-size);
+  font-weight: var(--dialog-frame-label-weight);
 }
 .book-import__boundary-form .book-import__boundary-verdict-options {
   margin-top: 0;

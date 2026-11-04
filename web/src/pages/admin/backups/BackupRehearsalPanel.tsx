@@ -4,7 +4,7 @@ import type { BackupRehearsalInfo, BackupSettings } from '@shared/backups'
 import { backupsApi } from '@/lib/backups-api'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
@@ -125,7 +125,7 @@ export default function BackupRehearsalPanel({
           if (!pending) setOpen(value)
         }}
       >
-        <AdminDialogContent
+        <DialogFrame
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             trigger.current?.focus()
@@ -141,7 +141,7 @@ export default function BackupRehearsalPanel({
             <DialogTitle>演练库信息</DialogTitle>
             <DialogDescription>查看当前演练库信息，检查连接或移除连接配置。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="backup-fields">
+          <DialogBody className="backup-fields">
             <dl className="backup-environment-list" aria-label="演练库信息">
               <div>
                 <dt>配置来源</dt>
@@ -201,7 +201,7 @@ export default function BackupRehearsalPanel({
               </Button>
             </div>
             <p className="backup-hint">连接检查只读取数据库身份和保护标记，不执行恢复。检查状态以显示时间为准；移除配置会保留数据库。</p>
-          </AdminDialogBody>
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="secondary" disabled={Boolean(pending)} onClick={() => setOpen(false)}>
               关闭
@@ -210,7 +210,7 @@ export default function BackupRehearsalPanel({
               {pending === 'check' ? '正在检查连接…' : '检查连接'}
             </Button>
           </DialogFooter>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
     </>
   )

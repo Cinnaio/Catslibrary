@@ -2,17 +2,19 @@ import { useState } from 'react'
 import { isZhiZhouIosApp } from '@shared/device'
 import { CirclePlus, RefreshCw } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/format'
-import { UserAvatar } from '@/components/ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
-import CustomSelect from '@/components/admin/CustomSelect'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import { SearchField } from '@/components/shared/SearchField'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { cn } from '@/lib/utils'
-import Pagination from '@/components/admin/Pagination'
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 
 export interface LoginAudit {
@@ -57,12 +59,12 @@ export function AccountRecordDetails({ detail, onClose }: { detail: AccountRecor
         if (!open) onClose()
       }}
     >
-      <AdminDialogContent>
+      <DialogFrame>
         <DialogHeader>
           <DialogTitle>{detail?.title || '记录详情'}</DialogTitle>
           <DialogDescription>完整记录信息，供管理与问题追溯。</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody>
+        <DialogBody>
           <dl className="account-record-detail">
             {detail?.fields.map(([label, value]) => (
               <div key={label}>
@@ -71,13 +73,13 @@ export function AccountRecordDetails({ detail, onClose }: { detail: AccountRecor
               </div>
             ))}
           </dl>
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose}>
             关闭
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }
@@ -217,7 +219,7 @@ export default function AccountAuditPanel({
     <>
       <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters account-audit-filters" ariaLive="polite">
         {onSearch !== undefined && (
-          <AdminSearch
+          <SearchField
             id={`account-${kind}-search`}
             label={`搜索${kind === 'login' ? '登录' : '操作'}用户名`}
             placeholder="搜索用户名"
@@ -225,12 +227,12 @@ export default function AccountAuditPanel({
             onChange={(e) => onSearch(e.target.value)}
           />
         )}
-        <div className="admin-filter-chips">
-          <CustomSelect
+        <div className="select-filter-chips">
+          <SearchSelect
             compact
             chip
             filterChip
-            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
             aria-label={kind === 'login' ? '登录结果' : '操作结果'}
             value={status}
             onChange={onStatus}

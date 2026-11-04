@@ -6,8 +6,8 @@ import { novelsApi, url, authHeaders } from '../../lib/api'
 import { coverUrl as novelCoverUrl } from '@/lib/cover-url'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
-import CustomSelect from '../../components/admin/CustomSelect'
-import Pagination from '../../components/admin/Pagination'
+import SearchSelect from "@/components/shared/SearchSelect"
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { Badge } from '@/components/ui/badge'
@@ -19,8 +19,11 @@ import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { ErrorState } from '@/components/admin/AsyncStates'
-import { AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { ErrorState } from "@/components/shared/AsyncStates"
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { CellText } from '@/components/shared/CellText'
+import { SearchField } from '@/components/shared/SearchField'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import BatchNovelFollowupDialog from '@/components/admin/BatchNovelFollowupDialog'
 import NovelFollowupDialog from '@/components/admin/NovelFollowupDialog'
 import NovelUpdateTag from '@/components/admin/NovelUpdateTag'
@@ -396,25 +399,25 @@ export default function NovelsTab({
     >
       {/* Claude 风格全要素胶囊筛选轨道 */}
       <AdminToolbar layout="inline" className="admin-filter-rail novels-filter-rail">
-        <AdminSearch
+        <SearchField
           id="novel-search"
           label="搜索小说"
           type="search"
-          data-admin-search
+          data-search-field
           placeholder="搜索作品标题、作者名或简介…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
         <div className="novels-filter-chips">
-          <CustomSelect compact chip filterChip leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+          <SearchSelect compact chip filterChip leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
             aria-label="按可见范围筛选小说" value={visibilityFilter}
             options={[{ value: '', label: '全部可见范围' }, { value: 'public', label: '公开' }, { value: 'admin', label: '仅管理员' }, { value: 'selected', label: '指定用户' }]}
             onChange={(value) => { setVisibilityFilter(value); setPage(1) }} />
-          <CustomSelect
+          <SearchSelect
             compact
             chip
             filterChip
-            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
             aria-label="按连载状态筛选小说"
             options={STATUS_FILTER_OPTIONS}
             value={statusFilter}
@@ -423,11 +426,11 @@ export default function NovelsTab({
               setPage(1)
             }}
           />
-          <CustomSelect
+          <SearchSelect
             compact
             chip
             filterChip
-            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
             aria-label="按分级筛选小说"
             options={RATING_FILTER_OPTIONS}
             value={ratingFilter}
@@ -590,7 +593,7 @@ export default function NovelsTab({
                     </div>
                   </TableCell>
                   <TableCell data-col="author">
-                    <AdminCellText>{n.author || '未知作者'}</AdminCellText>
+                    <CellText>{n.author || '未知作者'}</CellText>
                   </TableCell>
                   <TableCell data-col="categories">
                     <div className="flex flex-wrap gap-1">

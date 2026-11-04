@@ -1,0 +1,231 @@
+/* 公开页、数据面板与弹窗共享分页行为；形态通过明确的 variant 表达。 */
+.pagination {
+  --pagination-control-size: var(--control-height);
+  --pagination-padding-inline: var(--ui-panel-padding, 20px);
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--pagination-gap);
+  /* 页脚表面：与 AdminDataPanel 页头同一条分区契约，页脚不是独立卡片。 */
+  margin: 0;
+  padding: var(--pagination-padding-block) var(--pagination-padding-inline);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--pagination-font-size);
+}
+
+.pagination--plain {
+  justify-content: center;
+  gap: 20px;
+  padding: 24px 0 0;
+  border: 0;
+  background: transparent;
+}
+.pagination--plain .pagination__controls {
+  justify-content: center;
+}
+@media (max-width: 640px) {
+  .pagination--plain {
+    align-items: center;
+  }
+}
+
+.pagination--detached {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding-inline: var(--pagination-padding-inline);
+}
+
+/* 后台弹窗沿用三段式纸面；分页不另加描边、底色或内边距。 */
+.pagination--dialog {
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.dialog-frame .pagination--dialog .pagination__jump-input[type='number'] {
+  width: var(--pagination-jump-width);
+  min-width: var(--pagination-jump-width);
+  height: var(--pagination-control-size);
+  min-height: var(--pagination-control-size);
+  padding: 0;
+  text-align: center;
+}
+.dialog-frame .pagination--dialog .pagination__controls > [data-slot='button'][data-size] {
+  height: var(--pagination-control-size);
+  min-height: var(--pagination-control-size);
+  padding-block: 0;
+}
+
+.pagination__summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pagination__controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--pagination-gap);
+}
+
+.pagination__info,
+.pagination__jump {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.pagination__jump {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pagination-gap);
+}
+
+/* 跳转输入框：定宽，不参与弹性分配（Fit-Content Rule）。
+   必须带 .pagination-surface 前缀且写到 [type='number'] 这一层：shadcn Input 自带
+   w-full，而 .ai-admin-page [data-slot='input'][type='number']（width: 9rem）
+   也会命中分页跳转框——单类选择器会被压掉，实测 AI 面板下宽度失控为 144px。 */
+.pagination .pagination__jump-input[type='number'] {
+  width: var(--pagination-jump-width);
+  min-width: var(--pagination-jump-width);
+  height: var(--pagination-control-size);
+  min-height: var(--pagination-control-size);
+  padding: 0;
+  text-align: center;
+}
+
+.pagination__page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pagination-gap);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.pagination__page-size [data-slot='select-trigger'] {
+  min-width: var(--pagination-page-size-width);
+}
+
+/* panel 与 detached 都使用分页紧凑高度，覆盖后台通用按钮的 40px 高度。 */
+.pagination .pagination__controls > [data-slot='button'][data-size],
+.pagination__page-size [data-slot='select-trigger'] {
+  height: var(--pagination-control-size);
+  min-height: var(--pagination-control-size);
+  padding-block: 0;
+}
+
+.pagination__icon-button {
+  width: var(--pagination-control-size);
+  min-width: var(--pagination-control-size);
+  height: var(--pagination-control-size);
+  padding: 0;
+  border-radius: var(--radius-control);
+  transition: all 0.15s ease;
+}
+
+.pagination__icon-button:hover {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.pagination__icon-button > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* 窄屏：计数与控件各占一行、控件左起，避免计数与按钮互压。 */
+@media (max-width: 640px) {
+  .pagination--dialog .pagination__controls {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .pagination--dialog .pagination__info {
+    text-align: center;
+  }
+  .pagination--dialog .pagination__jump {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: end;
+  }
+  .pagination {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--pagination-gap);
+  }
+
+  .pagination__controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .pagination--detached .pagination__controls {
+    display: grid;
+    grid-template-columns:
+      max-content
+      var(--pagination-control-size)
+      var(--pagination-control-size)
+      max-content;
+    grid-template-rows: auto auto;
+    justify-content: start;
+    gap: 4px;
+  }
+
+  .pagination--detached .pagination__page-size {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .pagination--detached .pagination__controls > [aria-label='第一页'] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .pagination--detached .pagination__controls > [aria-label='上一页'] {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .pagination--detached .pagination__info {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .pagination--detached .pagination__jump {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .pagination--detached .pagination__controls > [aria-label='下一页'] {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .pagination--detached .pagination__controls > [aria-label='最后一页'] {
+    grid-column: 3;
+    grid-row: 2;
+  }
+}
+
+/* 极窄屏把页码读数移到末行，避免四列最小内容宽度撑破分页容器。 */
+@media (max-width: 400px) {
+  .pagination--detached .pagination__controls {
+    grid-template-columns: max-content repeat(2, var(--pagination-control-size));
+  }
+
+  .pagination--detached .pagination__info {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+
+/* AI 列表页脚：统一分页组件承担布局，这里不保留任何页面级覆盖——
+   原先为 AI 面板另设的紧凑尺寸（info 0.8125rem、跳转框 3.5rem、下拉 2rem）
+   与 ai-list-footer / -total / -pagination-controls / -page-size 四个自持
+   容器类已随收敛全部删除。 */

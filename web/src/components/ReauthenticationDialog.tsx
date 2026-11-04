@@ -3,7 +3,7 @@ import { KeyRound } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from './ui/dialog'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import AdminFormField from './admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import { authApi, request, getToken } from '../lib/api'
 import type { ReauthenticationRequest } from '../lib/reauthentication'
 
@@ -148,7 +148,7 @@ export function ReauthenticationDialog() {
           }}
           className="space-y-4"
         >
-          <AdminFormField label="当前密码" htmlFor="reauth-password">
+          <FormField label="当前密码" htmlFor="reauth-password">
             <Input
               id="reauth-password"
               type="password"
@@ -161,7 +161,7 @@ export function ReauthenticationDialog() {
               disabled={busy}
               className="w-full rounded-full"
             />
-          </AdminFormField>
+          </FormField>
 
           {error && (
             <p role="alert" className="text-xs text-destructive font-medium -mt-1">

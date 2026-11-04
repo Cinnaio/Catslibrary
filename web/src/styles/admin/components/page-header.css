@@ -73,7 +73,7 @@
   /* 搜索框是唯一可伸缩的成员：其余按钮保持自身尺寸，不被压扁。 */
   :is(.admin-redesign-page--content-ratings, .admin-redesign-page--content-policy, .admin-redesign-page--site-operations, .admin-redesign-page--ai)
     .admin-tab-header__actions
-    .admin-search {
+    .search-field {
     width: auto;
     max-width: none;
     flex: 1 1 auto;

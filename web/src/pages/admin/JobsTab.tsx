@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner'
 /**
  * 任务管理 tab —— 抓取任务列表 + 下载日志。
  * 由 Novel-KV js/admin-jobs.js 的 Task Management 部分 + admin.html #tab-jobs 平移。
@@ -11,7 +12,7 @@
  */
 import { TaskDetails } from './TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import CustomSelect, { type SelectOption } from '@/components/admin/CustomSelect'
+import SearchSelect, { type SelectOption } from "@/components/shared/SearchSelect"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CircleMinus, Check, AlertCircle, RefreshCw, CirclePlus } from 'lucide-react'
 import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
@@ -19,10 +20,12 @@ import { formatDateTime } from '../../lib/format'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { ErrorState } from '@/components/admin/AsyncStates'
+import EmptyState from "@/components/shared/EmptyState"
+import { ErrorState } from "@/components/shared/AsyncStates"
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import { SearchField } from '@/components/shared/SearchField'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
@@ -414,7 +417,7 @@ export default function JobsTab({
     if (isJobRunning(j.status)) {
       return (
         <AdminStatusBadge variant="secondary" tone="info">
-          <span className="job-spinner"></span>
+          <Spinner size="sm"  />
           {label}
         </AdminStatusBadge>
       )
@@ -484,21 +487,21 @@ export default function JobsTab({
       {view !== 'downloads' && (
         <>
           <AdminToolbar layout="inline" className="admin-filter-rail task-workspace-toolbar" ariaLive="polite">
-            <AdminSearch
+            <SearchField
               id="scrape-jobs-search"
               label="搜索抓取任务"
               type="search"
-              data-admin-search
+              data-search-field
               placeholder="搜索作品标题、任务 ID 或类型…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <div className="admin-filter-chips">
-              <CustomSelect
+            <div className="select-filter-chips">
+              <SearchSelect
                 compact
                 chip
                 filterChip
-                leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size,1rem)]" />}
+                leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size,1rem)]" />}
                 aria-label="按抓取任务状态筛选"
                 options={statusOptions}
                 value={filter}
@@ -594,11 +597,11 @@ export default function JobsTab({
                 </TableBody>
               </Table>
             ) : jobsLoading ? (
-              <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取任务队列…" />
+              <EmptyState className="jobs-empty" icon={<Spinner size="sm" aria-hidden="true" />} message="正在读取任务队列…" />
             ) : jobsError ? (
               <ErrorState message={`任务队列加载失败：${jobsError}`} />
             ) : (
-              <AdminEmptyState
+              <EmptyState
                 className="jobs-empty"
                 icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
                 message={search.trim() ? `未找到与「${search.trim()}」相关的抓取任务` : FILTER_EMPTY_LABEL[filter]}
@@ -617,21 +620,21 @@ export default function JobsTab({
       {view !== 'scrape' && (
         <>
           <AdminToolbar layout="inline" className="task-workspace-toolbar admin-filter-rail" ariaLive="polite">
-            <AdminSearch
+            <SearchField
               id="download-logs-search"
               label="搜索下载记录"
               type="search"
-              data-admin-search
+              data-search-field
               placeholder="搜索下载对象或类型…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <div className="admin-filter-chips">
-              <CustomSelect
+            <div className="select-filter-chips">
+              <SearchSelect
                 compact
                 chip
                 filterChip
-                leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size,1rem)]" />}
+                leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size,1rem)]" />}
                 aria-label="按下载类型筛选"
                 options={downloadTypeOptions}
                 value={downloadType}
@@ -651,11 +654,11 @@ export default function JobsTab({
           </AdminToolbar>
           <AdminDataPanel className="jobs-data-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS} density="comfortable">
           {logsLoading ? (
-            <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
+            <EmptyState className="jobs-empty" icon={<Spinner size="sm" aria-hidden="true" />} message="正在读取下载日志…" />
           ) : logsError ? (
             <ErrorState message={`下载日志加载失败：${logsError}`} />
           ) : filteredDownloads.length === 0 ? (
-            <AdminEmptyState
+            <EmptyState
               className="jobs-empty"
               icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
               message={

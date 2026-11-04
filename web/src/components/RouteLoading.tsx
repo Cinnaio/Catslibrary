@@ -1,3 +1,5 @@
+import '@/styles/loading-indicators.css'
+import '@/styles/route-loading.css'
 import { LoaderCircle } from 'lucide-react'
 
 /** 路由资源加载时的轻量过渡；随真实加载结束卸载，不额外延长等待。 */

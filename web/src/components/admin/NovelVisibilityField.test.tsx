@@ -8,7 +8,7 @@ import type { Novel } from '@shared/types'
 const mocks = vi.hoisted(() => ({ visibility: vi.fn(), accessUsers: vi.fn(), update: vi.fn(), toast: vi.fn() }))
 vi.mock('@/lib/api', () => ({ novelsApi: mocks }))
 vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: vi.fn() }) }))
-vi.mock('./CustomSelect', () => ({ default: (props: { value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }>; 'aria-labelledby': string }) =>
+vi.mock("@/components/shared/SearchSelect", () => ({ default: (props: { value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }>; 'aria-labelledby': string }) =>
   <select aria-labelledby={props['aria-labelledby']} value={props.value} onChange={(event) => props.onChange(event.target.value)}>
     {props.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
   </select>,

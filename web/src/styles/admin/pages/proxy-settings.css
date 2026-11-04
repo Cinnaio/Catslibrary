@@ -47,7 +47,7 @@
   box-shadow: none;
 }
 
-.proxy-settings-page .admin-panel-heading {
+.proxy-settings-page .panel-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -55,12 +55,12 @@
   border-bottom: 1px solid var(--admin-border, #e6e4dc);
 }
 
-:root[data-theme='dark'] .proxy-settings-page .admin-panel-heading,
-[data-theme='dark'] .proxy-settings-page .admin-panel-heading {
+:root[data-theme='dark'] .proxy-settings-page .panel-heading,
+[data-theme='dark'] .proxy-settings-page .panel-heading {
   border-bottom-color: var(--admin-border, #2c2b28);
 }
 
-.proxy-settings-page .admin-panel-heading h3 {
+.proxy-settings-page .panel-heading h3 {
   font-family: var(--admin-font-serif, serif);
   font-size: 1.05rem;
   font-weight: 600;
@@ -68,8 +68,8 @@
   color: var(--text-primary, #211e1a);
 }
 
-:root[data-theme='dark'] .proxy-settings-page .admin-panel-heading h3,
-[data-theme='dark'] .proxy-settings-page .admin-panel-heading h3 {
+:root[data-theme='dark'] .proxy-settings-page .panel-heading h3,
+[data-theme='dark'] .proxy-settings-page .panel-heading h3 {
   color: var(--dark-text, #e7e0d6);
 }
 
@@ -575,7 +575,7 @@
 @media (max-width: 640px) {
   .proxy-panel-content,
   .proxy-test-body,
-  .proxy-settings-page .admin-panel-heading {
+  .proxy-settings-page .panel-heading {
     padding-inline: 1.125rem;
   }
 

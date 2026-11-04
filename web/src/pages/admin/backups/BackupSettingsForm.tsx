@@ -2,10 +2,10 @@ import { useState, type FormEvent } from 'react'
 import type { BackupSettings, BackupSettingsInput, BackupSettingsPage } from '@shared/backups'
 import { useToast } from '@/components/feedback'
 import { backupsApi } from '@/lib/backups-api'
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import BackupRehearsalPanel from './BackupRehearsalPanel'
 import BackupDeploymentPanel from './BackupDeploymentPanel'
-import CustomSelect from '@/components/admin/CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -124,9 +124,9 @@ export default function BackupSettingsForm({
             {/* 左列：服务器访问白名单 */}
             <div className="backup-policy-col">
               <h4 className="backup-subheading">服务器访问白名单</h4>
-              <AdminFormField label="允许列表来源">
+              <FormField label="允许列表来源">
                 {({ labelId }) => (
-                  <CustomSelect
+                  <SearchSelect
                     aria-labelledby={labelId}
                     disabled={locked}
                     value={draft.hostSource}
@@ -137,8 +137,8 @@ export default function BackupSettingsForm({
                     onChange={(value) => setDraft((previous) => ({ ...previous, hostSource: value as BackupSettings['hostSource'] }))}
                   />
                 )}
-              </AdminFormField>
-              <AdminFormField
+              </FormField>
+              <FormField
                 label="允许连接的服务器"
                 htmlFor="backup-allowed-hosts"
                 hint="每行一个主机名或 IP，也可用逗号分隔。填写主机即可，不包含协议、端口或通配符。"
@@ -151,14 +151,14 @@ export default function BackupSettingsForm({
                   onChange={(event) => setHosts(event.target.value)}
                   placeholder="backup.example.com"
                 />
-              </AdminFormField>
+              </FormField>
               <p className="backup-hint">移除主机后，该服务器的传输和远程取回将停止。本地副本不受影响。回环与云元数据地址始终禁止访问。</p>
             </div>
 
             {/* 右列：任务重试与日志生命周期 */}
             <div className="backup-policy-col">
               <h4 className="backup-subheading">任务与日志生命周期</h4>
-              <AdminFormField
+              <FormField
                 label="远程失败自动重试次数"
                 htmlFor="backup-retry-limit"
                 hint="0 表示关闭，最多 3 次，分别等待 1、5、15 分钟。仅网络类失败自动重试。"
@@ -172,8 +172,8 @@ export default function BackupSettingsForm({
                   disabled={locked}
                   onChange={(event) => setDraft((previous) => ({ ...previous, retryLimit: Number(event.target.value) }))}
                 />
-              </AdminFormField>
-              <AdminFormField
+              </FormField>
+              <FormField
                 label="常规日志保留天数"
                 htmlFor="backup-log-retention"
                 hint="7–3650 天。缩短期限后，过期常规日志会在后续任务清理时删除；恢复与预检日志持续保留。"
@@ -187,7 +187,7 @@ export default function BackupSettingsForm({
                   disabled={locked}
                   onChange={(event) => setDraft((previous) => ({ ...previous, logRetentionDays: Number(event.target.value) }))}
                 />
-              </AdminFormField>
+              </FormField>
               <p className="backup-hint">常规日志按期清理；恢复演练与版本回滚审计日志将持续永久保留，便于安全追溯与异常审计。</p>
             </div>
           </div>
@@ -251,9 +251,9 @@ export default function BackupSettingsForm({
                   </p>
                 </>
               )}
-              <AdminFormField label="演练数据库来源" hint="切回部署配置或关闭在线回滚并保存后，会清除已保存的后台连接凭据。">
+              <FormField label="演练数据库来源" hint="切回部署配置或关闭在线回滚并保存后，会清除已保存的后台连接凭据。">
                 {({ labelId }) => (
-                  <CustomSelect
+                  <SearchSelect
                     aria-labelledby={labelId}
                     disabled={locked}
                     value={draft.rehearsalSource}
@@ -265,9 +265,9 @@ export default function BackupSettingsForm({
                     onChange={(value) => setDraft((previous) => ({ ...previous, rehearsalSource: value as BackupSettings['rehearsalSource'] }))}
                   />
                 )}
-              </AdminFormField>
+              </FormField>
               {draft.rehearsalSource === 'custom' && (
-                <AdminFormField
+                <FormField
                   label="演练数据库连接地址"
                   htmlFor="backup-rehearsal-url"
                   hint={
@@ -286,7 +286,7 @@ export default function BackupSettingsForm({
                     placeholder="postgresql://用户:密码@主机:5432/演练库"
                     onChange={(event) => setConnection(event.target.value)}
                   />
-                </AdminFormField>
+                </FormField>
               )}
               <p className="backup-hint">
                 当前连接：{settings.rehearsalConfigured ? settings.rehearsalLabel : '未配置'}。演练库必须与业务库不同名，且只能用于备份恢复测试。

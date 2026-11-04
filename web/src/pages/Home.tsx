@@ -1,3 +1,10 @@
+import { FilterChip } from '@/components/ui/filter-chip'
+import { Spinner } from '@/components/ui/spinner'
+import '@/styles/catalog-controls.css'
+import '@/styles/input-fields.css'
+import { Button } from '@/components/ui/button'
+import EmptyState from '@/components/shared/EmptyState'
+import Pagination from '@/components/shared/Pagination'
 import styles from './home.module.css'
 import { getRecentHistory } from '../lib/storage'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
@@ -283,14 +290,11 @@ export default function Home() {
 
   function categoryButton(category: string) {
     return (
-      <button
-        key={category}
-        className={`filter-btn${activeCategories.includes(category) ? ' filter-btn--active' : ''}`}
-        aria-pressed={activeCategories.includes(category)}
-        onClick={() => selectCategory(category)}
-      >
+      <FilterChip selected={activeCategories.includes(category)}  key={category}
+aria-pressed={activeCategories.includes(category)}
+onClick={() => selectCategory(category)}>
         {category}
-      </button>
+      </FilterChip>
     )
   }
 
@@ -364,7 +368,7 @@ export default function Home() {
 
       {recentReading && <section className={styles.reading} aria-label="继续阅读">
         <div><small>接着上次的故事</small><h2>{recentReading.book.title}</h2><p>{recentReading.entry.chapterTitle || '打开作品，继续阅读'}</p></div>
-        <Link className="btn btn--primary" to={recentReading.entry.chapterId ? `/read/${encodeURIComponent(recentReading.book.id)}/${encodeURIComponent(recentReading.entry.chapterId)}` : `/novel/${encodeURIComponent(recentReading.book.id)}`}>继续阅读 <ArrowRight size={16} aria-hidden="true" /></Link>
+        <Button asChild variant="default"><Link  to={recentReading.entry.chapterId ? `/read/${encodeURIComponent(recentReading.book.id)}/${encodeURIComponent(recentReading.entry.chapterId)}` : `/novel/${encodeURIComponent(recentReading.book.id)}`}>继续阅读 <ArrowRight size={16} aria-hidden="true" /></Link></Button>
       </section>}
       <section id="homeLibrary" className="section section--hero home-library">
         <div className="container home-shell">
@@ -394,48 +398,39 @@ export default function Home() {
                   { v: 'ongoing', label: '连载中' },
                   { v: 'completed', label: '已完结' },
                 ].map((s) => (
-                  <button
-                    key={s.v}
-                    className={`filter-btn${activeStatus === s.v ? ' filter-btn--active' : ''}`}
-                    aria-pressed={activeStatus === s.v}
-                    onClick={() => {
+                  <FilterChip selected={activeStatus === s.v}  key={s.v}
+aria-pressed={activeStatus === s.v}
+onClick={() => {
                       setActiveStatus(s.v)
                       setCurrentPage(1)
-                    }}
-                  >
+                    }}>
                     {s.label}
-                  </button>
+                  </FilterChip>
                 ))}
               </div>
             </div>
             <div className="filter-row">
               <span className="filter-row__label">分类</span>
               <div className="category-filter" role="group" aria-label="小说分类">
-                <button
-                  className={`filter-btn${activeCategories.length === 0 ? ' filter-btn--active' : ''}`}
-                  aria-pressed={activeCategories.length === 0}
-                  onClick={() => {
+                <FilterChip selected={activeCategories.length === 0}  aria-pressed={activeCategories.length === 0}
+onClick={() => {
                     setActiveCategories([])
                     setCurrentPage(1)
-                  }}
-                >
+                  }}>
                   全部
-                </button>
+                </FilterChip>
                 {visibleCommon.map(categoryButton)}
                 {categoryOptions.hasMore && (
-                  <button
-                    type="button"
-                    className="filter-btn home-category-more"
-                    aria-expanded={moreCategoriesOpen}
-                    aria-controls="homeMoreCategories"
-                    onClick={event => {
+                  <FilterChip  className="home-category-more" type="button"
+aria-expanded={moreCategoriesOpen}
+aria-controls="homeMoreCategories"
+onClick={event => {
                       preserveDisclosureFocus(event, 'homeMoreCategories', moreCategoriesOpen)
                       setCategoryMotion(inputMotion(event))
                       setMoreCategoriesOpen(open => !open)
-                    }}
-                  >
+                    }}>
                     {moreCategoriesOpen ? '收起标签' : '更多标签'} <ChevronDown size={14} aria-hidden="true" />
-                  </button>
+                  </FilterChip>
                 )}
               </div>
             </div>
@@ -457,31 +452,27 @@ export default function Home() {
             <div className="home-active-filters" aria-label="当前筛选">
               <span>已选 · 同时满足</span>
               {activeCategories.map((category) => (
-                <button key={category} className="filter-btn filter-btn--active" aria-label={`取消分类 ${category}`} onClick={() => selectCategory(category)}>
+                <FilterChip selected={true}  key={category}
+aria-label={`取消分类 ${category}`}
+onClick={() => selectCategory(category)}>
                   {category} ×
-                </button>
+                </FilterChip>
               ))}
               {activeStatus && (
-                <button
-                  className="filter-btn filter-btn--active"
-                  aria-label="取消状态筛选"
-                  onClick={() => {
+                <FilterChip selected={true}  aria-label="取消状态筛选"
+onClick={() => {
                     setActiveStatus('')
                     setCurrentPage(1)
-                  }}
-                >
+                  }}>
                   {activeStatus === 'ongoing' ? '连载中' : '已完结'} ×
-                </button>
+                </FilterChip>
               )}
-              <button
-                className="filter-btn"
-                onClick={() => {
+              <FilterChip   onClick={() => {
                   selectCategory('')
                   setActiveStatus('')
-                }}
-              >
+                }}>
                 清除筛选条件
-              </button>
+              </FilterChip>
             </div>
           )}
 
@@ -532,8 +523,8 @@ export default function Home() {
           {apiFailed && (
             <div className="retry-banner">
               <span>API 连接失败，已加载演示数据</span>
-              <button
-                className="btn btn--primary btn--sm"
+              <Button variant="default" size="sm"
+
                 onClick={() => {
                   setApiFailed(false)
                   setCurrentPage(1)
@@ -541,7 +532,7 @@ export default function Home() {
                 }}
               >
                 重试连接
-              </button>
+              </Button>
             </div>
           )}
 
@@ -553,26 +544,22 @@ export default function Home() {
             </div>
           ) : (
             !loading && (
-              <div className="empty-state">
-                <div className="empty-state__icon" aria-hidden="true">
-                  <BookOpen size={28} />
-                </div>
-                <div className="empty-state__title">{hasFilter ? '没有找到相关小说' : '暂无小说'}</div>
-                <div className="empty-state__desc">
-                  {hasFilter
+              <EmptyState icon={<BookOpen size={28} />} message={hasFilter ? '没有找到相关小说' : '暂无小说'} hint={hasFilter
                     ? query
                       ? `没有找到「${query}」相关的小说，试试其他关键词吧`
                       : '当前筛选条件下没有小说，试试调整筛选条件'
-                    : '前往管理页面添加你的第一本小说吧'}
-                </div>
+                    : '前往管理页面添加你的第一本小说吧'} action={<>
+
+
+
                 {!hasFilter && (
-                  <Link to="/admin" className="btn btn--primary empty-state-btn">
+                  <Button asChild variant="default"><Link to="/admin" className="empty-state-btn">
                     前往管理
-                  </Link>
+                  </Link></Button>
                 )}
                 {hasFilter && (
-                  <button
-                    className="btn btn--secondary empty-state-btn"
+                  <Button variant="secondary"
+                    className="empty-state-btn"
                     onClick={() => {
                       setQuery('')
                       setActiveCategories([])
@@ -588,48 +575,19 @@ export default function Home() {
                     }}
                   >
                     清除筛选
-                  </button>
+                  </Button>
                 )}
-              </div>
+              </>} />
             )
           )}
 
           {totalPages > 1 && (
-            <div className="home-pagination">
-              <button className="btn btn--secondary btn--sm" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
-                上一页
-              </button>
-              <span className="home-pagination__info">
-                第 {currentPage} / {totalPages} 页
-              </span>
-              <span className="home-pagination__jump">
-                跳转{' '}
-                <input
-                  type="number"
-                  className="form-input"
-                  min={1}
-                  value={currentPage}
-                  aria-label="跳转到指定页"
-                  onChange={(e) => {
-                    const p = Math.min(Math.max(parseInt(e.target.value) || 1, 1), totalPages)
-                    setCurrentPage(p)
-                  }}
-                />{' '}
-                页
-              </span>
-              <button
-                className="btn btn--secondary btn--sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              >
-                下一页
-              </button>
-            </div>
+            <Pagination variant="plain" ariaLabel="书库分页" page={currentPage} totalPages={totalPages} onPage={setCurrentPage} />
           )}
 
           {loading && (
             <div className="loading-center">
-              <div className="spinner spinner--lg" role="status" aria-label="正在加载小说"></div>
+              <Spinner size="lg" role="status" aria-label="正在加载小说" />
             </div>
           )}
         </div>

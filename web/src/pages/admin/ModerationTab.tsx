@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner'
 /**
  * 内容审核 tab —— 想法 / 评论 / 举报（单一数据驱动组件）。
  * 由 Novel-KV js/admin-moderation.js + admin.html #tab-moderation 平移。
@@ -7,16 +8,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { adminApi, thoughtsApi } from '../../lib/api'
 import ThoughtImage from '../../components/reader/ThoughtImage'
-import { UserAvatar } from '@/components/ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
-import { ErrorState } from '@/components/admin/AsyncStates'
+import { ErrorState } from "@/components/shared/AsyncStates"
 import AdminRowActions from '@/components/admin/AdminRowActions'
-import CustomSelect from '../../components/admin/CustomSelect'
-import Pagination from '../../components/admin/Pagination'
-import { AdminDataPanel, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import SearchSelect from "@/components/shared/SearchSelect"
+import Pagination from "@/components/shared/Pagination"
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { SearchField } from '@/components/shared/SearchField'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import EmptyState from "@/components/shared/EmptyState"
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -678,32 +681,32 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
 
       {/* Claude 全要素胶囊筛选轨道（以小说管理为基准，严格单行、紧凑对齐） */}
       <AdminToolbar layout="inline" className="admin-filter-rail moderation-filter-rail" ariaLive="polite">
-        <AdminSearch
+        <SearchField
           id="moderation-search"
           label="搜索审核内容"
           type="search"
-          data-admin-search
+          data-search-field
           placeholder={cfg.searchPlaceholder}
           value={searchInput}
           onChange={handleSearchChange}
         />
-        <div className="admin-filter-chips">
-          <CustomSelect
+        <div className="select-filter-chips">
+          <SearchSelect
             compact
             chip
             filterChip
-            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
             aria-label="按状态筛选"
             options={cfg.statusOptions.map(([value, label]) => ({ value, label }))}
             value={status}
             onChange={handleStatusChange}
           />
           {cfg.showReason && (
-            <CustomSelect
+            <SearchSelect
               compact
               chip
               filterChip
-              leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+              leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
               aria-label="按举报原因筛选"
               options={REASON_OPTIONS.map(([value, label]) => ({ value, label }))}
               value={reason}
@@ -732,8 +735,8 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
       {/* 数据实体直接作为卡片 */}
       <AdminDataPanel className="overflow-hidden moderation-data-panel" ariaLabel={`${cfg.label}列表`} columns={cfg.columns} density="comfortable">
         {loading && rows.length === 0 ? (
-          <AdminEmptyState
-            icon={<span className="job-spinner" aria-hidden="true" />}
+          <EmptyState
+            icon={<Spinner size="sm" aria-hidden="true" />}
             message="正在读取审核内容…"
             hint="正在同步当前筛选结果，请稍候。"
           />
@@ -754,7 +757,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
             <TableBody>{renderRows()}</TableBody>
           </Table>
         ) : (
-          <AdminEmptyState
+          <EmptyState
             icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
             message={listStateTitle}
             hint={listStateDescription}

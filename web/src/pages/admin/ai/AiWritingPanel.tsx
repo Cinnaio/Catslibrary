@@ -5,22 +5,23 @@ import type { AiWritingBrief } from '@/lib/api'
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
 import type { Novel } from '@shared/types'
 import { parseAiTextProgress, type AiTextProgress } from '@shared/ai-text-progress'
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { aiApi, chaptersApi, newOperationId, novelsApi, type AiEffectiveProfile, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { PanelHeading } from '@/components/shared/PanelHeading'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import CustomSelect from '@/components/admin/CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { kindLabel as taskKindLabel, taskStatusLabel } from './labels'
 import ProfileOverrideEditor from './ProfileOverrideEditor'
 import MemoryRebuildDialog from './MemoryRebuildDialog'
@@ -1329,7 +1330,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               <Label id="ai-writing-consent-tier-label" className="text-xs">
                 同意规则档位
               </Label>
-              <CustomSelect
+              <SearchSelect
                 options={[
                   { value: 'default', label: '严格（默认，适用于绝大多数作品）' },
                   { value: 'fictional_nonconsent', label: '虚构题材分级（原作主线即含强迫/下药等情节时使用）' },
@@ -1349,7 +1350,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   const continuationAnalysisDialog = (
     <Dialog open={analysisDialogOpen} onOpenChange={setAnalysisDialogOpen}>
-      <AdminDialogContent size="wide" className="sm:max-w-[780px] max-h-[85vh] flex flex-col p-0 ai-service">
+      <DialogFrame size="wide" className="sm:max-w-[780px] max-h-[85vh] flex flex-col p-0 ai-service">
         <DialogHeader className="shrink-0">
           <DialogTitle id="ai-writing-analysis-title">
             小说分析
@@ -1374,7 +1375,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           )}
         </DialogHeader>
 
-        <AdminDialogBody className="px-6 py-4 overflow-y-auto space-y-4">
+        <DialogBody className="px-6 py-4 overflow-y-auto space-y-4">
           <div className="ai-writing-profile-list space-y-3">
             <ProfileSection
               label="风格画像"
@@ -1495,8 +1496,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               }
             />
           </div>
-        </AdminDialogBody>
-      </AdminDialogContent>
+        </DialogBody>
+      </DialogFrame>
     </Dialog>
   )
 
@@ -1519,7 +1520,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   return (
     <div className="ai-writing-panel">
       <Card className="admin-panel-card ai-writing-card">
-        <AdminPanelHeading
+        <PanelHeading
           title="创作工作台"
           actions={
             <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>
@@ -1533,10 +1534,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         <CardContent className="ai-writing-workspace">
           <section className="ai-writing-identity" aria-label="创作目标">
             <div className={`ai-form-grid ai-writing-basics${mode === 'new' ? ' grid gap-3 sm:grid-cols-2' : ''}`}>
-              <AdminFormField label="目标小说" labelId="ai-writing-novel-label">
-                {/* CustomSelect 渲染的是 button[role=combobox]，不接受 id，故用
-                  aria-labelledby 指向标签，保留可见文案作为可访问名称。 */}
-                <CustomSelect
+              <FormField label="目标小说" labelId="ai-writing-novel-label">
+                {/* 保留显式标签关联，字段容器同时提供主控件 id 与说明。 */}
+                <SearchSelect
                   options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
                   value={novelId}
                   onChange={setNovelId}
@@ -1547,16 +1547,16 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   className="ai-writing-novel-select"
                   aria-labelledby="ai-writing-novel-label"
                 />
-              </AdminFormField>
+              </FormField>
               {mode === 'new' && (
-                <AdminFormField label="作品标题" htmlFor="ai-writing-title">
+                <FormField label="作品标题" htmlFor="ai-writing-title">
                   <Input
                     id="ai-writing-title"
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
                     placeholder="例如：雾城来信"
                   />
-                </AdminFormField>
+                </FormField>
               )}
             </div>
             {selectedNovel && (
@@ -1656,19 +1656,19 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               </div>
             )}
             {mode === 'new' && (
-              <AdminFormField label="章节标题" htmlFor="ai-writing-chapter-title" className="ai-writing-chapter-title">
+              <FormField label="章节标题" htmlFor="ai-writing-chapter-title" className="ai-writing-chapter-title">
                 <Input
                   id="ai-writing-chapter-title"
                   value={chapterTitle}
                   onChange={(event) => setChapterTitle(event.target.value)}
                   placeholder="例如：第一章 雾中来客"
                 />
-              </AdminFormField>
+              </FormField>
             )}
             {mode === 'new' && (
               <div className="ai-form-grid">
                 {' '}
-                <AdminFormField label="目标字数" htmlFor="ai-writing-target-words">
+                <FormField label="目标字数" htmlFor="ai-writing-target-words">
                   <div className="ai-writing-number-input">
                     <Input
                       id="ai-writing-target-words"
@@ -1682,7 +1682,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     />
                     <span>字</span>
                   </div>
-                </AdminFormField>
+                </FormField>
               </div>
             )}
           </section>
@@ -1696,34 +1696,23 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   </span>
                 </div>
                 {isContinuationMode && (
-                  <div className="ai-writing-run-scale__choices shrink-0" role="group" aria-label="续写策略">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      aria-pressed={!isMultiChapter}
-                      disabled={busy || taskActive}
-                      onClick={() => chapterCountInput.setCommittedValue(1)}
-                    >
+                  <ToggleGroup type="single" className="ai-writing-run-scale__choices shrink-0" aria-label="续写策略" value={isMultiChapter ? 'multiple' : 'single'} disabled={busy || taskActive} onValueChange={value => {
+                    if (value === 'single') chapterCountInput.setCommittedValue(1)
+                    else if (value === 'multiple') chapterCountInput.setCommittedValue(Math.max(2, chapterCount))
+                  }}>
+                    <ToggleGroupItem value="single">
                       单章精写
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      aria-pressed={isMultiChapter}
-                      disabled={busy || taskActive}
-                      onClick={() => chapterCountInput.setCommittedValue(Math.max(2, chapterCount))}
-                    >
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="multiple">
                       多章规划
-                    </Button>
-                  </div>
+                    </ToggleGroupItem>
+                  </ToggleGroup>
                 )}
               </div>
               <div className="ai-form-grid ai-writing-baseline-fields">
                 {chapterOptions.length > 1 && (
-                  <AdminFormField label="续写起点" labelId="ai-writing-after-chapter-label" className="ai-writing-continuation-start">
-                    <CustomSelect
+                  <FormField label="续写起点" labelId="ai-writing-after-chapter-label" className="ai-writing-continuation-start">
+                    <SearchSelect
                       options={chapterOptions}
                       value={afterChapterId}
                       onChange={setAfterChapterId}
@@ -1733,7 +1722,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       dropdownSide="bottom"
                       aria-labelledby="ai-writing-after-chapter-label"
                     />
-                  </AdminFormField>
+                  </FormField>
                 )}
                 {chapterOptions.length <= 1 && (
                   <p className="ai-writing-continuation-start__status">
@@ -1742,7 +1731,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 )}
                 <div className="ai-writing-baseline-scale-fields grid grid-cols-2 gap-3 items-start">
                   {isMultiChapter && (
-                    <AdminFormField label="续写章节数" htmlFor="ai-writing-chapter-count">
+                    <FormField label="续写章节数" htmlFor="ai-writing-chapter-count">
                       <div className="ai-writing-number-input">
                         <Input
                           id="ai-writing-chapter-count"
@@ -1755,9 +1744,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                         />
                         <span>章</span>
                       </div>
-                    </AdminFormField>
+                    </FormField>
                   )}
-                  <AdminFormField
+                  <FormField
                     label={isMultiChapter ? '每章目标字数' : '目标字数'}
                     htmlFor="ai-writing-target-words"
                     className={isMultiChapter ? '' : 'col-span-2'}
@@ -1775,7 +1764,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       />
                       <span>字</span>
                     </div>
-                  </AdminFormField>
+                  </FormField>
                 </div>
               </div>
               {continuationContentScale}
@@ -2165,7 +2154,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       <Label id="ai-writing-consent-tier-label" className="text-xs">
                         同意规则档位
                       </Label>
-                      <CustomSelect
+                      <SearchSelect
                         options={[
                           { value: 'default', label: '严格（默认，适用于绝大多数作品）' },
                           { value: 'fictional_nonconsent', label: '虚构题材分级（原作主线即含强迫/下药等情节时使用）' },

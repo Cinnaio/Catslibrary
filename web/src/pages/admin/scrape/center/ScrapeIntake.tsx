@@ -1,9 +1,9 @@
 import { ArrowRight, Flame, Globe, Link2, Search, Sparkles } from 'lucide-react'
-import CustomSelect from '@/components/admin/CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AdminDataPanel } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel } from '@/components/admin/AdminDataPanel'
 import { RANKING_SITES } from '../utils'
 
 export type IntakeMode = 'link' | 'search' | 'ranking'
@@ -89,7 +89,7 @@ export default function ScrapeIntake({
             <div className="scrape-intake-card__control-row">
               <Input
                 id="scrape-source-url"
-                data-admin-search
+                data-search-field
                 type="url"
                 placeholder="https://wap.po18x.vip/book/10075/"
                 value={sourceUrl}
@@ -127,7 +127,7 @@ export default function ScrapeIntake({
             <div className="scrape-intake-card__control-row scrape-intake-card__control-row--search">
               <Input
                 id="scrape-search-input"
-                data-admin-search
+                data-search-field
                 type="search"
                 placeholder="输入书名或作者"
                 value={searchInput}
@@ -172,7 +172,7 @@ export default function ScrapeIntake({
           <div className="scrape-intake-card__field">
             <label htmlFor="scrape-ranking-url" className="scrape-intake-card__label">榜单来源</label>
             <div className="scrape-intake-card__ranking-row">
-              <CustomSelect
+              <SearchSelect
                 className="scrape-intake-card__site"
                 options={RANKING_SITES}
                 value={siteValue}

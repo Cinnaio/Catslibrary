@@ -1,3 +1,4 @@
+import '@/styles/admin/components/selection.css'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'

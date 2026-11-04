@@ -3,7 +3,7 @@
    ========================================================================== */
 
 /* 弹窗容器尺寸与纸面 */
-[data-slot='dialog-content'].admin-dialog.novel-followup-dialog {
+[data-slot='dialog-content'].dialog-frame.novel-followup-dialog {
   width: min(calc(100% - 2rem), 40rem);
   max-height: min(44rem, calc(100svh - 2rem));
   border-radius: var(--admin-radius-dialog, 18px);

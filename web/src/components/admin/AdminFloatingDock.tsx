@@ -1,3 +1,4 @@
+import '@/styles/admin/components/floating-dock.css'
 import { useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef, type CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
 

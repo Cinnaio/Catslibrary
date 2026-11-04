@@ -1,3 +1,4 @@
+import '@/styles/account-menu.css'
 import { useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -5,7 +6,7 @@ import { useSession } from '../context/SessionContext'
 import { useToast } from './feedback'
 import { cn } from '../lib/utils'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
-import { UserAvatar } from './ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import { ChevronIcon, UserIcon } from './icons'
 import { useExclusiveMenu } from '../hooks/useExclusiveMenu'
 import { useSiteBranding } from '../lib/site-branding'

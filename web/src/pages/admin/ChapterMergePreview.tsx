@@ -74,7 +74,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
       {(preview.unmatchedSource.length > 0 || preview.unmatchedLocal.length > 0) && <details className="chapter-merge-dialog__unmatched">
         <summary><ChevronDown size={16} aria-hidden="true" /><span className="chapter-merge-dialog__unmatched-title">未匹配章节</span><span>源站 {preview.unmatchedSource.length} 章 · 本地 {preview.unmatchedLocal.length} 节</span></summary>
         <div className="chapter-merge-dialog__unmatched-content">
-          <p className="admin-dialog-hint">以下章节保持原样，不参与本次更新。</p>
+          <p className="dialog-frame-hint">以下章节保持原样，不参与本次更新。</p>
           {preview.unmatchedSource.length > 0 && <UnmatchedChapterList label="源站章节" chapters={preview.unmatchedSource.map((chapter) => ({ ...chapter, id: chapter.key }))} />}
           {preview.unmatchedLocal.length > 0 && <UnmatchedChapterList label="本地章节" chapters={preview.unmatchedLocal} />}
         </div>
@@ -140,7 +140,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
 
     <details className="chapter-merge-dialog__metadata chapter-merge-dialog__preview-section">
       <summary>同步小说信息<span>{selected} 项已选 · 按勾选字段更新</span></summary>
-      <p className="admin-dialog-hint">勾选即用源站值更新该字段，已有内容也会替换；未勾选字段保持原样。</p>
+      <p className="dialog-frame-hint">勾选即用源站值更新该字段，已有内容也会替换；未勾选字段保持原样。</p>
       <div className="chapter-merge-dialog__metadata-actions">
         <Button variant="ghost" disabled={disabled} onClick={() => onFieldsChange(metadata.filter(([, , value]) => value).map(([field]) => field))}>全选可用字段</Button>
         <Button variant="ghost" disabled={disabled || !selected} onClick={() => onFieldsChange([])}>清空选择</Button>

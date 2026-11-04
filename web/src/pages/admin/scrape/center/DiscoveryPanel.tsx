@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
-import Pagination from '@/components/admin/Pagination'
+import Pagination from "@/components/shared/Pagination"
 import type { BatchState, DiscoverNovel } from '../types'
 import { FALLBACK_COVER, coverOnError } from '../utils'
 import { isDefaultCoverSource } from '@shared/covers'

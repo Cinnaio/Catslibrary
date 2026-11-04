@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import PageState from './PageState'
 import { isPageResourceError, recoverPageResource } from '../lib/page-recovery'
@@ -27,8 +28,8 @@ export default class AppErrorBoundary extends Component<
         ? '可能是网络中断或站点更新导致。请检查网络后重新加载页面。'
         : '页面出现了异常，请重新加载；如果仍无法打开，可以先返回首页。'}
       actions={<>
-        <button type="button" className="btn btn--primary" onClick={() => window.location.reload()}>重新加载</button>
-        <a className="btn btn--secondary" href="/">返回首页</a>
+        <Button variant="default" type="button"  onClick={() => window.location.reload()}>重新加载</Button>
+        <Button asChild variant="secondary"><a  href="/">返回首页</a></Button>
       </>}
     />
   }

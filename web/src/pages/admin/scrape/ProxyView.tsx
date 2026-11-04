@@ -1,5 +1,5 @@
 import '../../../styles/admin/pages/proxy-settings.css'
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronRight, CircleAlert, Info, LoaderCircle } from 'lucide-react'
@@ -8,7 +8,7 @@ import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { PanelHeading } from '@/components/shared/PanelHeading'
 
 type ProxyConfig = { proxyBase: string; proxyBypass: string }
 type ProxySource = 'environment' | 'runtime' | 'none'
@@ -187,7 +187,7 @@ export default function ProxyView() {
       <div className="proxy-settings-grid">
         {/* 左栏：出站代理配置 */}
         <Card className="admin-panel-card proxy-config-panel" aria-labelledby="proxy-config-title">
-          <AdminPanelHeading
+          <PanelHeading
             title="出站代理配置"
             titleId="proxy-config-title"
             status={
@@ -301,10 +301,10 @@ export default function ProxyView() {
 
         {/* 右栏：路由与连通性 */}
         <Card className="admin-panel-card proxy-test-panel" aria-labelledby="proxy-test-title">
-          <AdminPanelHeading title="路由与连通性" titleId="proxy-test-title" />
+          <PanelHeading title="路由与连通性" titleId="proxy-test-title" />
 
           <div className="proxy-test-body">
-            <AdminFormField label="测试目标网址" htmlFor="proxy-test-url">
+            <FormField label="测试目标网址" htmlFor="proxy-test-url">
               <div className="proxy-target-row">
                 <Input
                   id="proxy-test-url"
@@ -340,7 +340,7 @@ export default function ProxyView() {
                   </Button>
                 </div>
               </div>
-            </AdminFormField>
+            </FormField>
 
             <p className="proxy-hint" id="proxy-test-hint">
               检查路由按已生效配置判断；连接测试强制使用代理，不受跳过规则影响。

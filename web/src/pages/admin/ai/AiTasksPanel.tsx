@@ -2,22 +2,24 @@
 import { TaskDetails } from '../TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'
-import { AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogFrame } from "@/components/shared/DialogFrame"
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { aiApi, newOperationId, type AiTaskInfo } from '@/lib/api'
 import { parsePromptView } from '@/lib/prompt-view'
 import { useToast, useConfirm } from '@/components/feedback'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import Pagination from '@/components/admin/Pagination'
+import EmptyState from "@/components/shared/EmptyState"
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
-import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import { SearchField } from '@/components/shared/SearchField'
 import { kindLabel as taskKindLabel, retryMode, taskStatusLabel, taskStepText } from './labels'
-import CustomSelect, { type SelectOption } from '@/components/admin/CustomSelect'
+import SearchSelect, { type SelectOption } from "@/components/shared/SearchSelect"
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -239,21 +241,21 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   return (
     <>
       <AdminToolbar layout="inline" className="task-workspace-toolbar admin-filter-rail" ariaLive="polite">
-        <AdminSearch
+        <SearchField
           id="ai-tasks-search"
           label="搜索 AI 任务"
           type="search"
-          data-admin-search
+          data-search-field
           placeholder="搜索作品标题、任务类型或 Prompt…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="admin-filter-chips">
-          <CustomSelect
+        <div className="select-filter-chips">
+          <SearchSelect
             compact
             chip
             filterChip
-            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size,1rem)]" />}
+            leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size,1rem)]" />}
             aria-label="按 AI 任务状态筛选"
             options={statusOptions}
             value={filterStatus}
@@ -303,7 +305,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
         ) : error && tasks.length === 0 ? (
           <ErrorState message={`AI 任务加载失败：${error}`} />
         ) : tasks.length === 0 && filterStatus !== 'all' ? (
-          <AdminEmptyState
+          <EmptyState
             message={`当前筛选条件下暂无${taskStatusLabel(filterStatus)}任务`}
             icon={<ListFilter className="size-8 opacity-40" aria-hidden="true" />}
             action={
@@ -329,7 +331,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
             hint="在「AI 创作」或「封面生成」里发起任务后，这里会显示进度与失败原因。"
           />
         ) : displayTasks.length === 0 ? (
-          <AdminEmptyState
+          <EmptyState
             message={`未找到与「${search.trim()}」相关的 AI 任务`}
             icon={<ListFilter className="size-8 opacity-40" aria-hidden="true" />}
             action={
@@ -504,7 +506,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           }
         }}
       >
-        <AdminDialogContent variant="reading">
+        <DialogFrame variant="reading">
           <DialogHeader>
             <DialogTitle>{viewingPrompt ? `${taskKindLabel(viewingPrompt.kind)} · 输入 Prompt` : '输入 Prompt'}</DialogTitle>
             <DialogDescription>
@@ -519,7 +521,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                   没有解析出材料块（封面图像 prompt、选段改写、旧版编译器输出）时
                   不提供切换按钮，但仍保留区段标签，与其它弹窗的读法一致。 */}
               <div className="ai-prompt-view__switch shrink-0">
-                <div className="admin-dialog-section-label">
+                <div className="dialog-frame-section-label">
                   {promptView.structured ? (showRawPrompt ? '原始文本' : `材料块 · ${promptView.blockCount} 块`) : '输入 Prompt'}
                 </div>
                 {promptView.structured && (
@@ -570,7 +572,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
               </div>
             </div>
           )}
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
     </>
   )

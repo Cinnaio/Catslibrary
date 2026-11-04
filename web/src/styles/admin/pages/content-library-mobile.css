@@ -115,7 +115,7 @@
     align-items: stretch;
   }
 
-  .admin-redesign-page--novels .novels-filter-rail > .admin-search {
+  .admin-redesign-page--novels .novels-filter-rail > .search-field {
     width: 100%;
     max-width: none;
     min-width: 0;
@@ -151,7 +151,7 @@
   }
 
   /* 胶囊内部文字给足宽度，短标签不再被 8rem 下限撑成一整行。 */
-  .admin-redesign-page--novels .novels-filter-chips [data-slot='popover-trigger'].admin-filter-chip {
+  .admin-redesign-page--novels .novels-filter-chips [data-slot='popover-trigger'].select-filter-chip {
     min-width: 0;
     width: auto;
     height: var(--admin-table-action-size-mobile);
@@ -467,14 +467,14 @@
     margin-top: -0.25rem;
   }
 
-  .admin-redesign-page--novels > .novels-pagination .admin-pagination__summary,
-  .admin-redesign-page--chapters > .chapters-pagination .admin-pagination__summary {
+  .admin-redesign-page--novels > .novels-pagination .pagination__summary,
+  .admin-redesign-page--chapters > .chapters-pagination .pagination__summary {
     font-size: 0.75rem;
     color: var(--text-muted);
   }
 
-  .admin-redesign-page--novels > .novels-pagination .admin-pagination__controls,
-  .admin-redesign-page--chapters > .chapters-pagination .admin-pagination__controls {
+  .admin-redesign-page--novels > .novels-pagination .pagination__controls,
+  .admin-redesign-page--chapters > .chapters-pagination .pagination__controls {
     display: flex;
     width: 100%;
     align-items: center;
@@ -482,13 +482,13 @@
     gap: 0.5rem;
   }
 
-  .admin-redesign-page--novels > .novels-pagination .admin-pagination__page-size,
-  .admin-redesign-page--chapters > .chapters-pagination .admin-pagination__page-size {
+  .admin-redesign-page--novels > .novels-pagination .pagination__page-size,
+  .admin-redesign-page--chapters > .chapters-pagination .pagination__page-size {
     order: 1;
   }
 
-  .admin-redesign-page--novels > .novels-pagination .admin-pagination__info,
-  .admin-redesign-page--chapters > .chapters-pagination .admin-pagination__info {
+  .admin-redesign-page--novels > .novels-pagination .pagination__info,
+  .admin-redesign-page--chapters > .chapters-pagination .pagination__info {
     order: 3;
   }
 
@@ -506,8 +506,8 @@
   /* 极窄屏收起「首页 / 末页 / 跳转」：它们都由数字读数与上下页覆盖，
      保留只会把控件挤成第二行。 */
   @media (max-width: 767px) {
-    .admin-redesign-page--novels > .novels-pagination :is([aria-label='第一页'], [aria-label='最后一页'], .admin-pagination__jump),
-    .admin-redesign-page--chapters > .chapters-pagination :is([aria-label='第一页'], [aria-label='最后一页'], .admin-pagination__jump) {
+    .admin-redesign-page--novels > .novels-pagination :is([aria-label='第一页'], [aria-label='最后一页'], .pagination__jump),
+    .admin-redesign-page--chapters > .chapters-pagination :is([aria-label='第一页'], [aria-label='最后一页'], .pagination__jump) {
       display: none;
     }
   }
@@ -523,10 +523,6 @@
     width: 3rem;
     height: 3rem;
     border-radius: var(--admin-radius);
-  }
-
-  .admin-redesign-page--chapters .chapter-empty-container .admin-empty-state__message {
-    font-size: 1.05rem;
   }
 }
 

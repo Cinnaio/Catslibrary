@@ -1,20 +1,21 @@
+import '@/styles/input-fields.css'
 /** AI 封面生成工作台：选小说 → 生成封面（落候选，不覆盖）→ 预览候选 → 采纳/弃用/上传替换。 */
-import { ErrorState } from '@/components/admin/AsyncStates'
+import { ErrorState } from "@/components/shared/AsyncStates"
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
-import { AdminDialogContent } from '@/components/admin/AdminDialog'
-import AdminFormField from '@/components/admin/AdminFormField'
+import { DialogFrame } from "@/components/shared/DialogFrame"
+import FormField from "@/components/shared/FormField"
 import { coverUrl as novelCoverUrl } from '@/lib/cover-url'
 import { useEffect, useRef, useState } from 'react'
 import { aiApi, newOperationId, novelsApi, url, type AiCoverCandidate, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { PanelHeading } from '@/components/shared/PanelHeading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import CustomSelect from '@/components/admin/CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import CoverHistory from './CoverHistory'
 import CoverStyleGallery from './CoverStyleGallery'
 import { taskStatusLabel } from './labels'
@@ -608,9 +609,9 @@ export default function AiCoverPanel({
         {!selected ? (
           <div className="ai-cover-workspace grid items-start gap-8">
             <section className="ai-cover-controls grid gap-5">
-              <AdminPanelHeading title="封面工作台" />{' '}
-              <AdminFormField label="目标小说" labelId="cover-start-novel-label">
-                <CustomSelect
+              <PanelHeading title="封面工作台" />{' '}
+              <FormField label="目标小说" labelId="cover-start-novel-label">
+                <SearchSelect
                   options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
                   value={novelId}
                   onChange={selectNovel}
@@ -621,7 +622,7 @@ export default function AiCoverPanel({
                   dropdownSide="bottom"
                   aria-labelledby="cover-start-novel-label"
                 />
-              </AdminFormField>
+              </FormField>
               <p className="text-xs text-muted-foreground">选择作品后设置视觉方向和描述词。</p>{' '}
               {!novelsLoading && recentNovels.length > 0 && (
                 <div className="grid gap-2">
@@ -663,7 +664,7 @@ export default function AiCoverPanel({
             </section>
             <div className="ai-cover-results grid gap-5">
               <section>
-                <AdminPanelHeading title="封面候选" />
+                <PanelHeading title="封面候选" />
                 <div className="ai-cover-empty">
                   <p>选择作品后查看封面候选</p>
                   <p>生成结果先保存为候选，采纳后再替换当前封面。</p>
@@ -675,9 +676,9 @@ export default function AiCoverPanel({
           <>
             <div className="ai-cover-workspace grid items-start gap-8">
               <div className="ai-cover-controls grid min-w-0 content-start gap-5">
-                <AdminPanelHeading title="封面工作台" />{' '}
-                <AdminFormField label="目标小说" labelId="cover-change-novel-label">
-                  <CustomSelect
+                <PanelHeading title="封面工作台" />{' '}
+                <FormField label="目标小说" labelId="cover-change-novel-label">
+                  <SearchSelect
                     options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
                     value={novelId}
                     onChange={selectNovel}
@@ -688,7 +689,7 @@ export default function AiCoverPanel({
                     dropdownSide="bottom"
                     aria-labelledby="cover-change-novel-label"
                   />
-                </AdminFormField>
+                </FormField>
                 <details className="ai-cover-book-disclosure">
                   <summary>作品资料与内容分级</summary>{' '}
                   <section className="ai-cover-book-details grid gap-4" aria-labelledby="cover-book-title">
@@ -771,8 +772,8 @@ export default function AiCoverPanel({
                     )}
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <AdminFormField label="主视觉风格" labelId="cover-style-label">
-                      <CustomSelect
+                    <FormField label="主视觉风格" labelId="cover-style-label">
+                      <SearchSelect
                         options={STYLE_OPTIONS}
                         value={stylePreset}
                         onChange={setStylePreset}
@@ -781,9 +782,9 @@ export default function AiCoverPanel({
                         dropdownSide="bottom"
                         aria-labelledby="cover-style-label"
                       />
-                    </AdminFormField>
-                    <AdminFormField label="构图方向" labelId="cover-composition-label">
-                      <CustomSelect
+                    </FormField>
+                    <FormField label="构图方向" labelId="cover-composition-label">
+                      <SearchSelect
                         options={COMPOSITION_OPTIONS}
                         value={composition}
                         onChange={setComposition}
@@ -792,7 +793,7 @@ export default function AiCoverPanel({
                         dropdownSide="bottom"
                         aria-labelledby="cover-composition-label"
                       />
-                    </AdminFormField>
+                    </FormField>
                   </div>
 
                   <p className="text-xs leading-relaxed text-muted-foreground">
@@ -986,8 +987,8 @@ export default function AiCoverPanel({
                       </div>
                     )}
                   </div>
-                  <AdminFormField label="目标平台版式" labelId="cover-platform-label">
-                    <CustomSelect
+                  <FormField label="目标平台版式" labelId="cover-platform-label">
+                    <SearchSelect
                       options={PLATFORM_OPTIONS}
                       value={platform}
                       onChange={setPlatform}
@@ -997,7 +998,7 @@ export default function AiCoverPanel({
                       aria-labelledby="cover-platform-label"
                     />
                     <p className="text-xs leading-relaxed text-muted-foreground">调整平台版式与文字安全区，不决定主视觉画风。</p>
-                  </AdminFormField>
+                  </FormField>
                 </div>
                 <div className="flex items-center justify-between gap-3 ai-cover-render-toggle">
                   <div className="grid gap-0.5">
@@ -1219,12 +1220,12 @@ export default function AiCoverPanel({
       </CardContent>
 
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <AdminDialogContent variant="preview">
+        <DialogFrame variant="preview">
           <DialogHeader>
             <DialogTitle>{previewImage?.title || '封面预览'}</DialogTitle>
           </DialogHeader>
           {previewImage && <img src={previewImage.src} alt={previewImage.title} className="mx-auto max-h-[78vh] max-w-full object-contain" />}
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
     </Card>
   )

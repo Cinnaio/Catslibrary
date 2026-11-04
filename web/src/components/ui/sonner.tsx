@@ -1,14 +1,9 @@
-import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react"
-import { useTheme } from "@/context/ThemeContext"
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+import '@/styles/toast-feedback.css'
+import { CircleCheckIcon, InfoIcon, Loader2Icon, OctagonXIcon, TriangleAlertIcon } from 'lucide-react'
+import { useTheme } from '@/context/ThemeContext'
+import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
-const Toaster = ({ position = "top-center", ...props }: ToasterProps) => {
+const Toaster = ({ position = 'top-center', ...props }: ToasterProps) => {
   const { theme } = useTheme()
 
   return (
@@ -25,10 +20,10 @@ const Toaster = ({ position = "top-center", ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "var(--toast-background)",
-          "--normal-text": "var(--toast-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--toast-radius)",
+          '--normal-bg': 'var(--toast-background)',
+          '--normal-text': 'var(--toast-foreground)',
+          '--normal-border': 'var(--border)',
+          '--border-radius': 'var(--toast-radius)',
         } as React.CSSProperties
       }
       {...props}

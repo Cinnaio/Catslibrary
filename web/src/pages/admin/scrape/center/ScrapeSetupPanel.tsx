@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { ArrowRight, Check, ChevronDown, ExternalLink, FlaskConical, RefreshCw, RotateCcw } from 'lucide-react'
 import type { ContentRating } from '@shared/types'
-import CustomSelect from '@/components/admin/CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -268,7 +268,7 @@ export default function ScrapeSetupPanel({
           </ScrapeField>
           <ScrapeField label="状态">
             {({ labelId }) => (
-              <CustomSelect
+              <SearchSelect
                 aria-labelledby={labelId}
                 options={STATUS_OPTIONS}
                 value={preview.status}
@@ -279,7 +279,7 @@ export default function ScrapeSetupPanel({
           </ScrapeField>
           <ScrapeField label="内容分级">
             {({ labelId }) => (
-              <CustomSelect
+              <SearchSelect
                 aria-labelledby={labelId}
                 options={CONTENT_RATING_OPTIONS}
                 value={preview.contentRating}

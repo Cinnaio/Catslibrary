@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import Pagination from './Pagination'
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 
 if (!globalThis.ResizeObserver) {
@@ -17,11 +17,11 @@ Element.prototype.scrollIntoView = () => undefined
 Element.prototype.hasPointerCapture = () => false
 
 describe('admin Pagination（后台统一分页）', () => {
-  it('容器只使用 .admin-pagination 命名空间，不复用前台类名', () => {
+  it('容器只使用 .pagination 命名空间，不复用前台类名', () => {
     // 回归护栏：复用 .home-pagination 会让 home.css 的卡片表面规则漏进后台，
     // 表现为后台分页拿到前台 20px 圆角。两套必须分开。
     render(<Pagination page={2} totalPages={5} onPage={() => {}} />)
-    const root = document.querySelector('.admin-pagination')
+    const root = document.querySelector('.pagination')
     expect(root).not.toBeNull()
     expect(document.querySelector('.home-pagination')).toBeNull()
     expect(root?.className).not.toContain('home-pagination')
@@ -74,10 +74,10 @@ describe('admin Pagination（后台统一分页）', () => {
 
   it('有多页时渲染计数与翻页控件，并对齐为单一页脚形态', () => {
     render(<Pagination page={1} totalPages={3} onPage={() => {}} summary="共 30 条" />)
-    const root = document.querySelector('.admin-pagination')
+    const root = document.querySelector('.pagination')
     expect(root).not.toBeNull()
     // 单一形态：不再有任何 --align-* / --footer 变体类
-    expect(root?.className).toBe('admin-pagination')
+    expect(root?.className).toBe('pagination')
     expect(screen.getByText('共 30 条')).toBeTruthy()
     expect(screen.getByText('第 1 / 3 页')).toBeTruthy()
   })
@@ -95,7 +95,7 @@ describe('admin Pagination（后台统一分页）', () => {
 
   it('单页且无计数/每页条数时整块不渲染', () => {
     const { container } = render(<Pagination page={1} totalPages={1} onPage={() => {}} />)
-    expect(container.querySelector('.admin-pagination')).toBeNull()
+    expect(container.querySelector('.pagination')).toBeNull()
   })
 
   it('单页但有计数时仍渲染（页脚需要显示总数与每页条数）', () => {

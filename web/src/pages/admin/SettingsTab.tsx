@@ -1,3 +1,4 @@
+import '@/styles/input-fields.css'
 import '../../styles/admin/pages/accounts.css'
 /**
  * 账户与注册 tab —— 当前管理员、注册设置、用户管理、邀请码管理。
@@ -27,10 +28,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import AdminPage from '@/components/admin/AdminPage'
 import UserManagementPanel from './UserManagementPanel'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
-import CustomSelect from '@/components/admin/CustomSelect'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { PanelHeading } from '@/components/shared/PanelHeading'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import { SearchField } from '@/components/shared/SearchField'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { cn } from '@/lib/utils'
-import Pagination from '@/components/admin/Pagination'
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { usePersistentState } from '@/hooks/usePersistentState'
 
@@ -665,7 +669,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       {currentAccountTab === 'registration' && (
         <>
           <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters account-invite-filters" ariaLive="polite">
-            <AdminSearch
+            <SearchField
               id="account-invite-search"
               label="搜索邀请码"
               placeholder="搜索邀请码"
@@ -675,12 +679,12 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                 setInvitePage(1)
               }}
             />
-            <div className="admin-filter-chips">
-              <CustomSelect
+            <div className="select-filter-chips">
+              <SearchSelect
                 compact
                 chip
                 filterChip
-                leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                 aria-label="邀请码状态"
                 value={inviteStatus}
                 onChange={(value) => {

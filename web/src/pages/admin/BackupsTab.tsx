@@ -1,3 +1,4 @@
+import '@/styles/input-fields.css'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Download, RotateCcw, Pin, Trash2, RefreshCw, Plus } from 'lucide-react'
@@ -5,15 +6,16 @@ import type { BackupEvent, BackupOverview, BackupPage, BackupSettingsPage, Backu
 import { backupsApi, saveBlob } from '@/lib/backups-api'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel } from '@/components/admin/AdminDataPanel'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminRowActions from '@/components/admin/AdminRowActions'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { LoadingState } from '@/components/admin/AsyncStates'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
-import AdminFormField from '@/components/admin/AdminFormField'
-import Pagination from '@/components/admin/Pagination'
-import CustomSelect from '@/components/admin/CustomSelect'
+import EmptyState from "@/components/shared/EmptyState"
+import { LoadingState } from "@/components/shared/AsyncStates"
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import FormField from "@/components/shared/FormField"
+import Pagination from "@/components/shared/Pagination"
+import SearchSelect from "@/components/shared/SearchSelect"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -412,7 +414,7 @@ export default function BackupsTab() {
                     ))}
                   </TableBody>
                 </Table>
-                {!list.items.length && <AdminEmptyState message="还没有备份版本" hint="完成部署准备后，可以立即备份或设置自动备份。" />}
+                {!list.items.length && <EmptyState message="还没有备份版本" hint="完成部署准备后，可以立即备份或设置自动备份。" />}
               </AdminDataPanel>
               <Pagination
                 page={page}
@@ -539,7 +541,7 @@ export default function BackupsTab() {
           {view === 'logs' && (
             <>
               <AdminToolbar>
-                <CustomSelect
+                <SearchSelect
                   compact
                   aria-label="日志级别"
                   value={level}
@@ -606,7 +608,7 @@ export default function BackupsTab() {
                     ))}
                   </TableBody>
                 </Table>
-                {!logs.items.length && <AdminEmptyState message="没有匹配的操作日志" />}
+                {!logs.items.length && <EmptyState message="没有匹配的操作日志" />}
               </AdminDataPanel>
               <Pagination
                 page={page}
@@ -626,12 +628,12 @@ export default function BackupsTab() {
           if (!open) setTargetEditor(undefined)
         }}
       >
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>{targetEditor ? '编辑服务器' : '添加服务器'}</DialogTitle>
             <DialogDescription>通过 SFTP 保存加密副本，认证材料不会回显。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             {targetEditor !== undefined && (
               <TargetForm
                 key={targetEditor?.id || 'new'}
@@ -643,20 +645,20 @@ export default function BackupsTab() {
                 }}
               />
             )}
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
       <Dialog open={backupOpen} onOpenChange={setBackupOpen}>
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>立即备份</DialogTitle>
             <DialogDescription>生成一个可独立恢复的全量版本。本地与所选远程位置将保存同一份加密归档。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             <div className="backup-fields">
-              <AdminFormField label="版本备注">
+              <FormField label="版本备注">
                 {({ id }) => <Input id={id} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="例如：升级前备份" />}
-              </AdminFormField>
+              </FormField>
               <label className="backup-check">
                 <input type="checkbox" checked disabled />
                 本地存储
@@ -686,8 +688,8 @@ export default function BackupsTab() {
                 {busy ? '提交中…' : '开始备份'}
               </Button>
             </div>
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
       <Dialog
         open={Boolean(selectedVersion)}
@@ -695,12 +697,12 @@ export default function BackupsTab() {
           if (!open) setSelectedVersion(null)
         }}
       >
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>备份版本详情</DialogTitle>
             <DialogDescription>检查副本、下载归档或预检恢复。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             {selectedVersion && (
               <div className="backup-fields">
                 <p className="backup-id">{selectedVersion.id}</p>
@@ -756,8 +758,8 @@ export default function BackupsTab() {
                 </Button>
               </div>
             )}
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
       <Dialog
         open={Boolean(taskId)}
@@ -765,12 +767,12 @@ export default function BackupsTab() {
           if (!open) setTaskId('')
         }}
       >
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>{task ? kinds[task.kind] : '任务详情'}</DialogTitle>
             <DialogDescription>查看任务阶段和执行日志。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             {task ? (
               <div className="backup-fields">
                 <Status state={task.state} />
@@ -812,8 +814,8 @@ export default function BackupsTab() {
             ) : (
               <LoadingState label="正在读取任务" />
             )}
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
       {impactTask && (
         <BackupImpactDialog
@@ -852,12 +854,12 @@ export default function BackupsTab() {
           }
         }}
       >
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>回滚到指定版本</DialogTitle>
             <DialogDescription>站点将暂时进入维护模式。系统先创建保护备份，再覆盖业务数据；恢复成功后所有用户需重新登录。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             {restoreTask && (
               <form
                 className="backup-fields"
@@ -890,12 +892,12 @@ export default function BackupsTab() {
                     </label>
                   </>
                 )}
-                <AdminFormField label="输入完整目标版本标识">
+                <FormField label="输入完整目标版本标识">
                   {({ id }) => (
                     <Input id={id} required value={confirmVersion} disabled={busy} onChange={(e) => setConfirmVersion(e.target.value)} autoComplete="off" />
                   )}
-                </AdminFormField>
-                <AdminFormField label="当前管理员密码">
+                </FormField>
+                <FormField label="当前管理员密码">
                   {({ id }) => (
                     <Input
                       id={id}
@@ -907,7 +909,7 @@ export default function BackupsTab() {
                       autoComplete="current-password"
                     />
                   )}
-                </AdminFormField>
+                </FormField>
                 {error && (
                   <p role="alert" className="backup-error">
                     {error}
@@ -929,8 +931,8 @@ export default function BackupsTab() {
                 </Button>
               </form>
             )}
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
     </AdminPage>
   )

@@ -1,3 +1,5 @@
+import { Spinner } from '@/components/ui/spinner'
+import { Panel } from '@/components/ui/panel'
 // ============================================================
 // 抓取中心 · 第一步 —— 智能分析小说
 // consumers: scrape/CenterView.tsx
@@ -18,7 +20,7 @@ interface StepAnalyzeProps {
 
 export default function StepAnalyze({ sourceUrl, onSourceUrlChange, analyzing, result, checks, onAnalyze }: StepAnalyzeProps) {
   return (
-    <section className="admin-panel-card scrape-step">
+    <Panel asChild><section className="admin-panel-card scrape-step">
       <span className="scrape-step__label">第一步</span>
       <h3 className="m-0 text-base font-semibold tracking-tight text-foreground md:text-lg">智能分析小说</h3>
 
@@ -43,7 +45,7 @@ export default function StepAnalyze({ sourceUrl, onSourceUrlChange, analyzing, r
         <div className="scrape-feedback text-sm" role="status">
           {analyzing ? (
             <div className="flex items-center gap-2">
-              <div className="spinner"></div>
+              <Spinner  />
               <span className="text-muted-foreground">正在获取页面信息，识别书名、作者…</span>
             </div>
           ) : (
@@ -53,6 +55,6 @@ export default function StepAnalyze({ sourceUrl, onSourceUrlChange, analyzing, r
       )}
 
       <ScrapeChecks items={checks} />
-    </section>
+    </section></Panel>
   )
 }

@@ -8,29 +8,16 @@
 @import './admin/pages/jobs.css';
 @import './admin/components/subtabs-and-progress.css';
 @import './admin/components/panels.css';
-@import './admin/components/pagination.css';
 @import './admin/pages/content-toolbars.css';
 @import './admin/components/controls.css';
 @import './admin/components/page-header.css';
-@import './admin/components/table-motion.css';
-@import './admin/components/control-states.css';
 @import './admin/pages/content-lists.css';
-@import './admin/components/dialogs.css';
 @import './admin/pages/content-dialogs.css';
-@import './admin/components/toolbar.css';
 @import './admin/pages/catalog-toolbars.css';
 @import './admin/components/workspace.css';
 @import './admin/pages/jobs-toolbar.css';
 @import './admin/components/workspace-responsive.css';
-@import './admin/components/tables.css';
 @import './admin/pages/moderation-responsive.css';
-@import './admin/components/row-actions.css';
-@import './admin/components/floating-dock.css';
-@import './admin/components/selection.css';
-@import './admin/components/readability.css';
-@import './admin/components/form-fields.css';
-@import './admin/components/status-badges.css';
-@import './admin/components/dialog-variants.css';
 @import './admin/pages/monitoring.css';
 
 /* AI 服务布局在共享组件之后声明，尺寸仍取共享 token。 */

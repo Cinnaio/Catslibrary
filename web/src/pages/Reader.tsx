@@ -1,3 +1,8 @@
+import { Spinner } from '@/components/ui/spinner'
+import '@/styles/reader-responsive.css'
+import '@/styles/input-fields.css'
+import { scrollBehavior } from '@/lib/motion'
+import { Button } from '@/components/ui/button'
 import styles from './reader.module.css'
 import '../styles/reader-highlights.css'
 import '../styles/bookmarks.css'
@@ -29,7 +34,6 @@ import {
   jumpScrollTo,
   resolveSelectionParagraph,
   thoughtQuoteRanges,
-  scrollBehavior,
 } from '../lib/reader-utils'
 import { useSession } from '../context/SessionContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
@@ -51,7 +55,7 @@ import { ThemeMenu } from '../components/ThemeMenu'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
 import ContentPolicyStatus from '../components/ContentPolicyStatus'
-import FloatingPageTools from '../components/FloatingPageTools'
+import FloatingPageTools from "@/components/shared/FloatingPageTools"
 
 const CHAPTER_ROW_H = 34
 const CHAPTER_CACHE_MAX = 6
@@ -1196,11 +1200,11 @@ export default function Reader() {
 
   if (checking || policyError) return <ContentPolicyStatus />
 
-  if (loadError) return <PageState title="加载失败" description={loadError} actions={<button type="button" className="btn btn--primary" onClick={() => setRetry(value => value + 1)}>重试</button>} />
+  if (loadError) return <PageState title="加载失败" description={loadError} actions={<Button variant="default" type="button"  onClick={() => setRetry(value => value + 1)}>重试</Button>} />
 
   if (notFound) {
     return (
-      <PageState title="章节未找到" description="该章节不存在或已被移除" icon={<BookOpen strokeWidth={1.5} />} actions={<Link to="/" className="btn btn--primary">返回首页</Link>} />
+      <PageState title="章节未找到" description="该章节不存在或已被移除" icon={<BookOpen strokeWidth={1.5} />} actions={<Button asChild variant="default"><Link to="/" >返回首页</Link></Button>} />
     )
   }
 
@@ -1211,7 +1215,7 @@ export default function Reader() {
   if (loading || !chapter) {
     return (
       <div className="loading-center" style={{ minHeight: '60vh' }}>
-        <div className="spinner spinner--lg"></div>
+        <Spinner size="lg"  />
       </div>
     )
   }
@@ -1362,7 +1366,7 @@ export default function Reader() {
           <ChapterRecap prevChapterId={prevChapter?.id || ''} prevChapterTitle={prevChapter ? chapterLabel(prevChapter, currentIdx - 1) : ''} />
           <ChapterIllustrations key={`${chapter.id}:${user?.id || 'guest'}:${mode}`} chapterId={chapter.id} content={chapter.content} bodyRef={bodyRef} canManage={canManageIllustrations} managing={illustrationMode} onExit={() => setIllustrationMode(false)} visible={settings.readerIllustrations !== 'off'} shortcut={illustrationShortcut} />
           <div ref={bodyRef} className="reader-body" dangerouslySetInnerHTML={bodyHtml} />
-          {!!thoughtsByParagraph['-1']?.length && <button className="btn btn--secondary btn--sm" onClick={() => openThoughtPanel(-1)}>查看原段落已变更的想法（{thoughtsByParagraph['-1'].length}）</button>}
+          {!!thoughtsByParagraph['-1']?.length && <Button variant="secondary" size="sm"  onClick={() => openThoughtPanel(-1)}>查看原段落已变更的想法（{thoughtsByParagraph['-1'].length}）</Button>}
         </article>
 
         {/* Bottom nav */}

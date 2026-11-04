@@ -1,3 +1,6 @@
+import '@/styles/content-policy.css'
+import '@/styles/input-fields.css'
+import { Button } from '@/components/ui/button'
 import { useEffect, useRef, useState } from 'react'
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog'
 import '../styles/adult-unlock-dialog.css'
@@ -74,8 +77,8 @@ export default function AdultUnlockDialog({ siteKey, onUnlock, onCancel }: {
       {siteKey ? <div ref={container} data-action="r18_unlock" /> : <p role="alert" className="adult-unlock-dialog__notice">成人模式验证尚未配置，请联系管理员。</p>}
       {error && <p role="alert" className="adult-unlock-dialog__error">{error}</p>}
       <AlertDialogFooter>
-        <button type="button" className="btn btn--secondary" onClick={onCancel}>取消</button>
-        <button type="button" className="btn btn--primary" disabled={!token || !confirmed || busy} onClick={() => void submit()}>{busy ? '正在验证…' : '确认开启'}</button>
+        <Button variant="secondary" type="button"  onClick={onCancel}>取消</Button>
+        <Button variant="default" type="button"  disabled={!token || !confirmed || busy} onClick={() => void submit()}>{busy ? '正在验证…' : '确认开启'}</Button>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>

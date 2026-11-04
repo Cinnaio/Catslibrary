@@ -5,7 +5,7 @@ import { novelsApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 
 interface NovelDeleteDialogProps {
   open: boolean
@@ -53,7 +53,7 @@ export default function NovelDeleteDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !busy && onClose()}>
-      <AdminDialogContent variant="form" className="novel-delete-dialog sm:max-w-[500px]">
+      <DialogFrame variant="form" className="novel-delete-dialog sm:max-w-[500px]">
         <DialogHeader>
           <div className="novel-delete-icon-wrap">
             <AlertTriangle className="size-5 text-destructive" />
@@ -65,7 +65,7 @@ export default function NovelDeleteDialog({
               : `你即将彻底移除《${single.title}》及其包含的全部 ${(single.chapterCount || 0).toLocaleString('zh-CN')} 章正文。`}
           </DialogDescription>
         </DialogHeader>
-        <AdminDialogBody>
+        <DialogBody>
           <div className="novel-delete-warning-panel">
             <p className="novel-delete-warning-text">
               此操作不可逆，作品的本地与云端章节、阅读进度与缓存均将被清理。
@@ -83,7 +83,7 @@ export default function NovelDeleteDialog({
               <p className="novel-delete-more-hint">…以及其余 {novels.length - 5} 部作品</p>
             )}
           </div>
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
             取消
@@ -93,7 +93,7 @@ export default function NovelDeleteDialog({
             {busy ? '正在删除…' : isBatch ? `确认删除这 ${novels.length} 部小说` : '确认删除'}
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }

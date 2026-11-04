@@ -58,10 +58,10 @@
 }
 
 /* 章节融合沿用共享三段式纸面，来源与可选信息折叠，标题对照优先。 */
-[data-slot='dialog-content'].admin-dialog.chapter-merge-dialog {
+[data-slot='dialog-content'].dialog-frame.chapter-merge-dialog {
   max-width: 47.5rem;
 }
-[data-slot='dialog-content'].admin-dialog.chapter-merge-dialog--review {
+[data-slot='dialog-content'].dialog-frame.chapter-merge-dialog--review {
   width: min(calc(100% - 2rem), var(--admin-reading-dialog-wide-width));
   max-width: var(--admin-reading-dialog-wide-width);
 }
@@ -164,7 +164,7 @@
 .chapter-merge-dialog__manual-choice [data-slot='checkbox'] { flex-shrink: 0; }
 .chapter-merge-dialog__comparison-head,
 .chapter-merge-dialog__changes > li { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) 1rem minmax(0, 1.35fr); align-items: baseline; gap: var(--admin-space-2); }
-.chapter-merge-dialog__comparison-head { padding: var(--admin-space-2) 0; color: var(--text-muted); font-size: var(--admin-dialog-label-size); }
+.chapter-merge-dialog__comparison-head { padding: var(--admin-space-2) 0; color: var(--text-muted); font-size: var(--dialog-frame-label-size); }
 .chapter-merge-dialog__changes { list-style: none; margin: 0; padding: 0; }
 .chapter-merge-dialog__changes > li { border-top: 1px solid var(--admin-border); padding-block: var(--admin-space-3); }
 .chapter-merge-dialog__changes > li > span { min-width: 0; overflow-wrap: anywhere; }
@@ -267,27 +267,27 @@
     flex: 1 1 8rem;
   }
 
-  .admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
+  .admin-redesign-page--moderation .moderation-toolbar__search-field .search-field {
     max-width: none;
   }
 
-  [data-slot='dialog-content'].admin-dialog,
-  [data-slot='dialog-content'].admin-dialog.chapter-editor-dialog,
-  [data-slot='dialog-content'].admin-dialog.chapter-merge-dialog {
+  [data-slot='dialog-content'].dialog-frame,
+  [data-slot='dialog-content'].dialog-frame.chapter-editor-dialog,
+  [data-slot='dialog-content'].dialog-frame.chapter-merge-dialog {
     width: calc(100% - 1rem);
     max-height: calc(100svh - 1rem);
     border-radius: var(--admin-radius-dialog);
   }
 
-  .admin-dialog [data-slot='dialog-header'] {
+  .dialog-frame [data-slot='dialog-header'] {
     padding: 1.25rem 1rem 0;
   }
 
-  .admin-dialog__body {
+  .dialog-frame__body {
     padding: 1rem 1rem 1.25rem;
   }
 
-  .admin-dialog [data-slot='dialog-footer'] {
+  .dialog-frame [data-slot='dialog-footer'] {
     flex-wrap: wrap;
     padding: 0 1rem 1.25rem;
   }
@@ -296,21 +296,21 @@
      正文仍可滚动，但窗口不占满视口，保存与取消始终保持同一行。 */
   [data-slot='dialog-content'].novel-editor-dialog,
   [data-slot='dialog-content'].chapter-merge-dialog {
-    max-height: var(--admin-dialog-mobile-max-height);
+    max-height: var(--dialog-frame-mobile-max-height);
   }
 
   .novel-editor-dialog [data-slot='dialog-footer'],
   .chapter-merge-dialog [data-slot='dialog-footer'] {
-    flex-direction: var(--admin-dialog-mobile-footer-direction);
-    flex-wrap: var(--admin-dialog-mobile-footer-wrap);
-    gap: var(--admin-dialog-mobile-footer-gap);
-    padding-block: var(--admin-dialog-mobile-footer-padding);
+    flex-direction: var(--dialog-frame-mobile-footer-direction);
+    flex-wrap: var(--dialog-frame-mobile-footer-wrap);
+    gap: var(--dialog-frame-mobile-footer-gap);
+    padding-block: var(--dialog-frame-mobile-footer-padding);
   }
 
   .novel-editor-dialog [data-slot='dialog-footer'] [data-slot='button'],
   .chapter-merge-dialog [data-slot='dialog-footer'] [data-slot='button'] {
-    min-width: var(--admin-dialog-mobile-action-min-width);
-    min-height: var(--admin-dialog-mobile-action-min-height);
+    min-width: var(--dialog-frame-mobile-action-min-width);
+    min-height: var(--dialog-frame-mobile-action-min-height);
   }
 
   .chapter-editor-dialog [data-slot='dialog-header'],
@@ -585,3 +585,149 @@
 .novel-visibility-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; color: var(--color-danger); }
 .novel-visibility-audit summary { cursor: pointer; }
 .novel-visibility-audit ol { padding-inline-start: 1rem; margin-block: 0.5rem; }
+
+/* 业务编辑器与身份确认的专用呈现，通用 DialogFrame 不持有业务选择器。 */
+
+.ai-generation-dialog [data-slot='label'],
+.dialog-frame .novel-editor__field label,
+.dialog-frame .chapter-dialog-field > label,
+.dialog-frame .chapter-dialog-section__heading [data-slot='label'],
+.dialog-frame .chapter-dialog-section__heading > label,
+.dialog-frame .chapter-dialog-context > span:first-child,
+.dialog-frame .chapter-dialog-context > div > span,
+.dialog-frame .chapter-merge-dialog__info-grid span {
+  color: var(--dialog-frame-label-color);
+  font-size: var(--dialog-frame-label-size);
+  font-weight: var(--dialog-frame-label-weight);
+  line-height: var(--dialog-frame-label-line-height);
+  letter-spacing: var(--dialog-frame-label-letter-spacing);
+  text-transform: none;
+}
+.dialog-frame .novel-editor__field > p,
+.dialog-frame .chapter-dialog-section__heading > span,
+.dialog-frame .chapter-dialog-section__heading .text-muted-foreground,
+.dialog-frame .chapter-merge-dialog__footer-note {
+  color: var(--dialog-frame-hint-color);
+  font-size: var(--dialog-frame-hint-size);
+  font-weight: var(--dialog-frame-hint-weight);
+  line-height: var(--dialog-frame-hint-line-height);
+}
+
+[data-slot='dialog-content'].dialog-frame.chapter-editor-dialog {
+  width: min(calc(100% - 2rem), 42rem);
+}
+
+[data-slot='dialog-content'].dialog-frame.chapter-merge-dialog {
+  width: min(calc(100% - 2rem), 47.5rem);
+}
+:is(.dialog-frame, [data-slot='dialog-content'].dialog-frame, .dialog-frame-reading, .ai-generation-modal),
+:is(.dialog-frame, [data-slot='dialog-content'].dialog-frame, .dialog-frame-reading, .ai-generation-modal) > .dialog-frame__body,
+:is(.dialog-frame, [data-slot='dialog-content'].dialog-frame, .dialog-frame-reading, .ai-generation-modal) > .ai-generation-modal__body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+:is(.dialog-frame, [data-slot='dialog-content'].dialog-frame, .dialog-frame-reading, .ai-generation-modal)::-webkit-scrollbar,
+:is(.dialog-frame, [data-slot='dialog-content'].dialog-frame, .dialog-frame-reading, .ai-generation-modal) > .dialog-frame__body::-webkit-scrollbar,
+:is(.dialog-frame, [data-slot='dialog-content'].dialog-frame, .dialog-frame-reading, .ai-generation-modal) > .ai-generation-modal__body::-webkit-scrollbar {
+  display: none;
+}
+:is(.dialog-frame, .dialog-frame-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+) {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--admin-border, #e5e3dc) 85%, transparent) transparent;
+}
+
+:is(.dialog-frame, .dialog-frame-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+)::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+  height: 6px;
+}
+
+:is(.dialog-frame, .dialog-frame-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:is(.dialog-frame, .dialog-frame-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+)::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--admin-border, #e5e3dc) 85%, transparent);
+  border-radius: 9999px;
+}
+
+:is(.dialog-frame, .dialog-frame-reading, .ai-generation-modal) :is(
+  pre,
+  textarea,
+  .ai-generation-reading-paper,
+  .ai-prompt-view__block-text,
+  .ai-prompt-view__raw,
+  .dashboard-event-log,
+  code,
+  .admin-code-block,
+  [data-inner-scroll],
+  .ai-generation-prompt-card__pre
+)::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+.admin-reauth-dialog {
+  border-radius: var(--radius-2xl, 1.25rem) !important;
+  background: var(--admin-surface, #ffffff) !important;
+  border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08)) !important;
+  box-shadow: 0 20px 48px -12px rgba(35, 30, 24, 0.18), 0 4px 16px rgba(35, 30, 24, 0.08) !important;
+}
+
+:root[data-theme='dark'] .admin-reauth-dialog,
+.dark .admin-reauth-dialog {
+  background: var(--admin-panel, #1a1a19) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.5) !important;
+}
+
+.admin-reauth-dialog [data-slot='dialog-title'] {
+  font-family: var(--admin-font-serif), "Newsreader", "Georgia", "Source Han Serif SC", "Noto Serif SC", serif !important;
+  font-size: 1.125rem !important;
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+  letter-spacing: -0.015em !important;
+}
