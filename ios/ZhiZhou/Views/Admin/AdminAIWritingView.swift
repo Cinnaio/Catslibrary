@@ -141,6 +141,7 @@ struct AdminAIWritingView: View {
     @State private var pendingContinuationScope: ContinuationScope?
 
     // 画像
+    @State private var profileSummaries: [String: AiProfileSummary] = [:]
     @State private var styleProfile = ""
     @State private var styleEligibility = ""
     @State private var styleEffectiveContent = ""
@@ -177,6 +178,7 @@ struct AdminAIWritingView: View {
     @State private var profileEditorRevision = 0
     @State private var profileEditorBaseRevision = ""
     @State private var profileEditorBusy = false
+    @State private var profileEditorLoadingKind = ""
     @State private var showingProfileEditor = false
     @State private var pendingProfileRefreshScope = ""
     @State private var pendingProfileRefreshNovelID = ""
@@ -797,10 +799,10 @@ struct AdminAIWritingView: View {
                 label: "风格画像",
                 value: styleEffectiveContent.isEmpty ? styleProfile : styleEffectiveContent,
                 status: styleEligibility,
-                origin: profileOrigin(for: styleManualOverride, effective: styleEffectiveContent),
+                origin: profileOrigin(kind: "style", for: styleManualOverride, effective: styleEffectiveContent),
                 busy: profileBusy == "style",
                 action: { Task { await refreshProfile("style") } },
-                edit: { beginProfileEdit(kind: "style", content: styleEffectiveContent.isEmpty ? styleProfile : styleEffectiveContent, override: styleManualOverride, baseRevision: styleBaseProfileRevision) },
+                edit: { Task { await loadProfileForEditing(kind: "style") } },
                 empty: "未提取 · 提取后续写自动注入"
             )
             profileRow(
@@ -808,10 +810,10 @@ struct AdminAIWritingView: View {
                 label: "情节状态",
                 value: plotEffectiveContent.isEmpty ? plotState : plotEffectiveContent,
                 status: plotEligibility,
-                origin: profileOrigin(for: plotManualOverride, effective: plotEffectiveContent),
+                origin: profileOrigin(kind: "plot", for: plotManualOverride, effective: plotEffectiveContent),
                 busy: profileBusy == "plot",
                 action: { Task { await refreshProfile("plot") } },
-                edit: { beginProfileEdit(kind: "plot", content: plotEffectiveContent.isEmpty ? plotState : plotEffectiveContent, override: plotManualOverride, baseRevision: plotBaseProfileRevision) },
+                edit: { Task { await loadProfileForEditing(kind: "plot") } },
                 empty: plotSummary
             )
             profileRow(
@@ -819,10 +821,10 @@ struct AdminAIWritingView: View {
                 label: "关系画像",
                 value: relationshipEffectiveContent.isEmpty ? relationshipProfile : relationshipEffectiveContent,
                 status: relationshipEligibility,
-                origin: profileOrigin(for: relationshipManualOverride, effective: relationshipEffectiveContent),
+                origin: profileOrigin(kind: "relationship", for: relationshipManualOverride, effective: relationshipEffectiveContent),
                 busy: profileBusy == "relationship",
                 action: { Task { await refreshProfile("relationship") } },
-                edit: { beginProfileEdit(kind: "relationship", content: relationshipEffectiveContent.isEmpty ? relationshipProfile : relationshipEffectiveContent, override: relationshipManualOverride, baseRevision: relationshipBaseProfileRevision) },
+                edit: { Task { await loadProfileForEditing(kind: "relationship") } },
                 empty: "未提取 · 提取后续写自动注入"
             )
             if let profileReadError {
@@ -1040,14 +1042,27 @@ struct AdminAIWritingView: View {
     }
 
     private var profileInjectionCount: Int {
-        [styleEffectiveContent, plotEffectiveContent, relationshipEffectiveContent]
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .count
+        profileSummaries.values.filter { $0.hasEffectiveContent }.count
     }
 
     private func profileRow(kind: String, label: String, value: String, status: String = "", origin: String = "", busy: Bool, action: @escaping () -> Void, edit: @escaping () -> Void, empty: String) -> some View {
-        AdminAIProfileRow(
-            label: label, value: value, status: status,
+        let selectedID = novelId
+        let anchorID = afterChapterId
+        let ownerID = appState.user?.id
+        let token = APIClient.shared.token
+        let baseRevision = kind == "style" ? styleBaseProfileRevision : kind == "plot" ? plotBaseProfileRevision : relationshipBaseProfileRevision
+        let updatedAt = kind == "style" ? styleUpdatedAt : kind == "plot" ? plotUpdatedAt : relationshipUpdatedAt
+        let manual = kind == "style" ? styleManualOverride : kind == "plot" ? plotManualOverride : relationshipManualOverride
+        let documentID = "\(ownerID ?? "")|\(selectedID)|\(anchorID)|\(kind)|\(baseRevision)|\(updatedAt)|\(manual?.revision ?? 0)|\(manual?.updatedAt ?? 0)|\(status)|\(origin)"
+        return AdminAIProfileRow(
+            label: label, hasContent: profileSummaries[kind]?.hasContent ?? !value.isEmpty,
+            documentID: documentID,
+            loadDocument: {
+                let document = try await AdminAPI.aiReadProfile(kind: kind, novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID)
+                guard !Task.isCancelled, appState.user?.id == ownerID, APIClient.shared.token == token else { throw CancellationError() }
+                return document
+            },
+            status: status,
             statusNote: profileStatusText(status), origin: origin,
             busy: busy || (kind == "style" && pendingProfileRefreshScope == "style"),
             progress: kind == "plot" ? plotProgress : kind == "relationship" ? relationshipProgress : nil,
@@ -1055,11 +1070,13 @@ struct AdminAIWritingView: View {
             startedAt: kind == "style" ? profileStartedAt : nil,
             pausing: profilePausing == kind,
             error: profileErrors[kind],
-            disabled: !profileBusy.isEmpty || !profilePausing.isEmpty || selectionRequests.isLoading,
+            disabled: !profileBusy.isEmpty || !profilePausing.isEmpty || profileEditorBusy || selectionRequests.isLoading,
+            editing: profileEditorLoadingKind == kind,
             action: action,
             pause: kind == "style" ? nil : { Task { await pauseMemoryProfile(kind) } },
             edit: edit, empty: empty
         )
+        .id("\(ownerID ?? "")|\(selectedID)|\(anchorID)|\(kind)")
     }
 
     // MARK: - 数据
@@ -1129,6 +1146,7 @@ struct AdminAIWritingView: View {
         afterChapterId = ""
         let profileTicket = profileRequests.begin("\(id)|")
         defer { profileRequests.finish(profileTicket) }
+        profileSummaries = [:]
         styleProfile = ""
         styleEligibility = ""
         styleEffectiveContent = ""
@@ -1161,9 +1179,9 @@ struct AdminAIWritingView: View {
         defer { selectionRequests.finish(ticket) }
         // 载入章节列表与已提取画像（并行发起，分别容错）
         async let chaptersTask = AdminAPI.chapters(novelId: id)
-        async let styleTask = AdminAPI.aiGetStyleProfile(novelId: id)
-        async let plotTask = AdminAPI.aiGetPlotState(novelId: id)
-        async let relationTask = AdminAPI.aiGetRelationshipProfile(novelId: id)
+        async let styleTask = AdminAPI.aiGetStyleProfile(novelId: id, summaryOnly: true)
+        async let plotTask = AdminAPI.aiGetPlotState(novelId: id, summaryOnly: true)
+        async let relationTask = AdminAPI.aiGetRelationshipProfile(novelId: id, summaryOnly: true)
         let chaptersResult = try? await chaptersTask
         let chapters = chaptersResult ?? []
         let style = try? await styleTask
@@ -1173,30 +1191,9 @@ struct AdminAIWritingView: View {
         chapterOptions = chapters
         chapterLoadFailed = chaptersResult == nil
         if profileRequests.accepts(profileTicket, query: "\(id)|") {
-            styleProfile = style?.profile ?? ""
-            styleEffectiveContent = style?.effectiveContent ?? style?.profile ?? ""
-            styleManualOverride = style?.manualOverride
-            styleBaseProfileRevision = style?.baseProfileRevision ?? ""
-            styleUpdatedAt = style?.updatedAt ?? 0
-            plotState = plot?.state ?? ""
-            plotEffectiveContent = plot?.effectiveContent ?? plot?.state ?? ""
-            plotManualOverride = plot?.manualOverride
-            plotBaseProfileRevision = plot?.baseProfileRevision ?? ""
-            plotUpdatedAt = plot?.updatedAt ?? 0
-            plotChaptersThrough = plot?.chaptersThrough ?? 0
-            plotChapterCount = plot?.chapterCount ?? 0
-            plotProgress = plot?.progress
-            plotMemoryTask = plot?.memoryTask
-            relationshipProfile = relation?.profile ?? ""
-            relationshipEffectiveContent = relation?.effectiveContent ?? relation?.profile ?? ""
-            relationshipManualOverride = relation?.manualOverride
-            relationshipBaseProfileRevision = relation?.baseProfileRevision ?? ""
-            relationshipUpdatedAt = relation?.updatedAt ?? 0
-            relationshipProgress = relation?.progress
-            relationshipMemoryTask = relation?.memoryTask
-            styleEligibility = style?.eligibility ?? ""
-            plotEligibility = plot?.eligibility ?? ""
-            relationshipEligibility = relation?.eligibility ?? ""
+            if let style { applyStyleProfile(style) }
+            if let plot { applyPlotProfile(plot) }
+            if let relation { applyRelationshipProfile(relation) }
         }
     }
 
@@ -1345,9 +1342,9 @@ struct AdminAIWritingView: View {
         let query = "\(novelID)|\(anchorID ?? "")"
         let ticket = profileRequests.begin(query)
         defer { profileRequests.finish(ticket) }
-        async let styleTask = AdminAPI.aiGetStyleProfile(novelId: novelID, afterChapterId: anchorID)
-        async let plotTask = AdminAPI.aiGetPlotState(novelId: novelID, afterChapterId: anchorID)
-        async let relationTask = AdminAPI.aiGetRelationshipProfile(novelId: novelID, afterChapterId: anchorID)
+        async let styleTask = AdminAPI.aiGetStyleProfile(novelId: novelID, afterChapterId: anchorID, summaryOnly: true)
+        async let plotTask = AdminAPI.aiGetPlotState(novelId: novelID, afterChapterId: anchorID, summaryOnly: true)
+        async let relationTask = AdminAPI.aiGetRelationshipProfile(novelId: novelID, afterChapterId: anchorID, summaryOnly: true)
         let style = try? await styleTask
         let plot = try? await plotTask
         let relation = try? await relationTask
@@ -1400,6 +1397,10 @@ struct AdminAIWritingView: View {
     }
 
     private func applyStyleProfile(_ profile: AiProfileGetResponse) {
+        profileSummaries["style"] = AiProfileSummary(
+            hasContent: profile.hasContent, hasEffectiveContent: profile.hasEffectiveContent,
+            content: profile.profile, effective: profile.effectiveContent, origin: profile.effectiveOrigin
+        )
         if let value = profile.profile {
             styleProfile = value
         }
@@ -1415,6 +1416,10 @@ struct AdminAIWritingView: View {
     }
 
     private func applyPlotProfile(_ profile: AiPlotStateGetResponse) {
+        profileSummaries["plot"] = AiProfileSummary(
+            hasContent: profile.hasContent, hasEffectiveContent: profile.hasEffectiveContent,
+            content: profile.state, effective: profile.effectiveContent, origin: profile.effectiveOrigin
+        )
         plotProgress = profile.progress
         plotMemoryTask = profile.memoryTask
         plotChapterCount = profile.chapterCount ?? plotChapterCount
@@ -1434,6 +1439,10 @@ struct AdminAIWritingView: View {
     }
 
     private func applyRelationshipProfile(_ profile: AiProfileGetResponse) {
+        profileSummaries["relationship"] = AiProfileSummary(
+            hasContent: profile.hasContent, hasEffectiveContent: profile.hasEffectiveContent,
+            content: profile.profile, effective: profile.effectiveContent, origin: profile.effectiveOrigin
+        )
         relationshipProgress = profile.progress
         relationshipMemoryTask = profile.memoryTask
         if let value = profile.profile {
@@ -1455,6 +1464,10 @@ struct AdminAIWritingView: View {
             styleProfile = value
             styleEffectiveContent = styleManualOverride?.content ?? value
         }
+        profileSummaries["style"] = AiProfileSummary(
+            hasContent: !styleProfile.isEmpty, hasEffectiveContent: !styleEffectiveContent.isEmpty,
+            content: nil, effective: nil, origin: "automatic"
+        )
         styleEligibility = "usable"
         if let updatedAt = response.updatedAt {
             styleUpdatedAt = max(styleUpdatedAt, updatedAt)
@@ -1482,8 +1495,8 @@ struct AdminAIWritingView: View {
         let revision = profilePollRevision
         var failures = 0
         repeat {
-            async let plotRequest = AdminAPI.aiGetPlotState(novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID)
-            async let relationRequest = AdminAPI.aiGetRelationshipProfile(novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID)
+            async let plotRequest = AdminAPI.aiGetPlotState(novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID, summaryOnly: true)
+            async let relationRequest = AdminAPI.aiGetRelationshipProfile(novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID, summaryOnly: true)
             let plot = try? await plotRequest
             let relation = try? await relationRequest
             guard !Task.isCancelled, novelId == selectedID, afterChapterId == anchorID,
@@ -2127,13 +2140,43 @@ struct AdminAIWritingView: View {
         .presentationDetents([.medium, .large])
     }
 
-    private func profileOrigin(for manual: AiManualProfileOverride?, effective: String) -> String {
+    private func profileOrigin(kind: String, for manual: AiManualProfileOverride?, effective: String) -> String {
+        if let summary = profileSummaries[kind] {
+            if summary.effectiveOrigin == "manual" { return "最终使用：人工校正（第 \(manual?.revision ?? 0) 版）" }
+            if summary.hasEffectiveContent { return "最终使用：自动画像" }
+            return manual != nil ? "人工校正存在，但当前起点未采用" : "当前起点未采用画像"
+        }
         if let manual, let manualContent = manual.content, !manualContent.isEmpty, manualContent == effective {
             return "最终使用：人工校正（第 \(manual.revision ?? 0) 版）"
         }
         if !effective.isEmpty { return "最终使用：自动画像" }
         if manual != nil { return "人工校正存在，但当前起点未采用" }
         return "当前起点未采用画像"
+    }
+
+    @MainActor
+    private func loadProfileForEditing(kind: String) async {
+        guard profileBusy.isEmpty, profilePausing.isEmpty, !profileEditorBusy, !selectionRequests.isLoading else { return }
+        let selectedID = novelId
+        let anchorID = afterChapterId
+        let ownerID = appState.user?.id
+        let token = APIClient.shared.token
+        profileEditorBusy = true
+        profileEditorLoadingKind = kind
+        defer {
+            profileEditorBusy = false
+            profileEditorLoadingKind = ""
+        }
+        do {
+            let document = try await AdminAPI.aiReadProfile(kind: kind, novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID)
+            guard !Task.isCancelled, novelId == selectedID, afterChapterId == anchorID,
+                  appState.user?.id == ownerID, APIClient.shared.token == token else { return }
+            beginProfileEdit(kind: kind, content: document.content, override: document.manualOverride, baseRevision: document.baseRevision)
+        } catch {
+            guard !Task.isCancelled, novelId == selectedID, afterChapterId == anchorID,
+                  appState.user?.id == ownerID, APIClient.shared.token == token else { return }
+            actionError = AppCopy.friendlyError(error)
+        }
     }
 
     private func beginProfileEdit(kind: String, content: String, override: AiManualProfileOverride?, baseRevision: String) {

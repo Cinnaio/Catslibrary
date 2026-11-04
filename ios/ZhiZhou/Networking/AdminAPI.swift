@@ -1057,8 +1057,8 @@ enum AdminAPI {
         try await postAiProfile("style-profile", novelId: novelId, sampleChapters: sampleChapters, afterChapterId: afterChapterId)
     }
 
-    static func aiGetStyleProfile(novelId: String, afterChapterId: String? = nil) async throws -> AiProfileGetResponse {
-        try await getAiProfile("style-profile", novelId: novelId, afterChapterId: afterChapterId)
+    static func aiGetStyleProfile(novelId: String, afterChapterId: String? = nil, summaryOnly: Bool = false) async throws -> AiProfileGetResponse {
+        try await getAiProfile("style-profile", novelId: novelId, afterChapterId: afterChapterId, summaryOnly: summaryOnly)
     }
 
     static func aiRefreshPlotState(novelId: String, sampleChapters: Int? = nil, afterChapterId: String? = nil) async throws -> AiPlotStateResponse {
@@ -1068,16 +1068,32 @@ enum AdminAPI {
         return try await APIClient.shared.post("/api/ai/writing/plot-state", body: try jsonBody(payload), auth: true)
     }
 
-    static func aiGetPlotState(novelId: String, afterChapterId: String? = nil) async throws -> AiPlotStateGetResponse {
-        try await getAiPlotState(novelId: novelId, afterChapterId: afterChapterId)
+    static func aiGetPlotState(novelId: String, afterChapterId: String? = nil, summaryOnly: Bool = false) async throws -> AiPlotStateGetResponse {
+        try await getAiPlotState(novelId: novelId, afterChapterId: afterChapterId, summaryOnly: summaryOnly)
     }
 
     static func aiRefreshRelationshipProfile(novelId: String, sampleChapters: Int? = nil, afterChapterId: String? = nil) async throws -> AiProfileResponse {
         try await postAiProfile("relationship-profile", novelId: novelId, sampleChapters: sampleChapters, afterChapterId: afterChapterId)
     }
 
-    static func aiGetRelationshipProfile(novelId: String, afterChapterId: String? = nil) async throws -> AiProfileGetResponse {
-        try await getAiProfile("relationship-profile", novelId: novelId, afterChapterId: afterChapterId)
+    static func aiGetRelationshipProfile(novelId: String, afterChapterId: String? = nil, summaryOnly: Bool = false) async throws -> AiProfileGetResponse {
+        try await getAiProfile("relationship-profile", novelId: novelId, afterChapterId: afterChapterId, summaryOnly: summaryOnly)
+    }
+
+    static func aiReadProfile(kind: String, novelId: String, afterChapterId: String?) async throws -> AiProfileDocument {
+        if kind == "plot" {
+            let response = try await aiGetPlotState(novelId: novelId, afterChapterId: afterChapterId)
+            let effective = response.effectiveContent ?? ""
+            return AiProfileDocument(content: effective.isEmpty ? response.state ?? "" : effective,
+                manualOverride: response.manualOverride, baseRevision: response.baseProfileRevision ?? "",
+                effectiveOrigin: response.effectiveOrigin)
+        }
+        let response = try await getAiProfile(kind == "style" ? "style-profile" : "relationship-profile",
+            novelId: novelId, afterChapterId: afterChapterId, summaryOnly: false)
+        let effective = response.effectiveContent ?? ""
+        return AiProfileDocument(content: effective.isEmpty ? response.profile ?? "" : effective,
+            manualOverride: response.manualOverride, baseRevision: response.baseProfileRevision ?? "",
+            effectiveOrigin: response.effectiveOrigin)
     }
 
     /// 只提交后台任务；查询现有画像接口即可恢复进度，重复提交由服务端复用活动任务。
@@ -1190,15 +1206,17 @@ enum AdminAPI {
         )
     }
 
-    private static func getAiProfile(_ scope: String, novelId: String, afterChapterId: String?) async throws -> AiProfileGetResponse {
+    private static func getAiProfile(_ scope: String, novelId: String, afterChapterId: String?, summaryOnly: Bool) async throws -> AiProfileGetResponse {
         var path = "/api/ai/writing/\(scope)/\(encodePathSegment(novelId))"
         if let afterChapterId, !afterChapterId.isEmpty { path += "?afterChapterId=\(encodeQueryValue(afterChapterId))" }
+        if summaryOnly { path += path.contains("?") ? "&summary=1" : "?summary=1" }
         return try await APIClient.shared.get(path, auth: true)
     }
 
-    private static func getAiPlotState(novelId: String, afterChapterId: String?) async throws -> AiPlotStateGetResponse {
+    private static func getAiPlotState(novelId: String, afterChapterId: String?, summaryOnly: Bool) async throws -> AiPlotStateGetResponse {
         var path = "/api/ai/writing/plot-state/\(encodePathSegment(novelId))"
         if let afterChapterId, !afterChapterId.isEmpty { path += "?afterChapterId=\(encodeQueryValue(afterChapterId))" }
+        if summaryOnly { path += path.contains("?") ? "&summary=1" : "?summary=1" }
         return try await APIClient.shared.get(path, auth: true)
     }
 
