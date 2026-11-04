@@ -110,7 +110,7 @@ export const entries: GalleryEntry[] = [
     '提示、确认与进度',
     'ui',
     'Alert / AlertDialog / Sonner / Progress / Skeleton，含撤销提示。',
-    [ui('alert'), ui('alert-dialog'), ui('sonner'), ui('progress'), ui('skeleton'), 'components/feedback.tsx', 'styles/toast-feedback.css'],
+    [ui('alert'), ui('alert-dialog'), ui('sonner'), ui('progress'), ui('skeleton'), 'components/shared/ConfirmationDialog.tsx', 'components/feedback.tsx', 'styles/toast-feedback.css'],
     '全站反馈',
     Feedback,
     ['default', 'loading', 'error'],

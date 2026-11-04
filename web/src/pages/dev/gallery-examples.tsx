@@ -535,7 +535,7 @@ export function Disclosure() {
     </div>
   )
 }
-export function Feedback({ state }: ExampleProps) {
+export function Feedback({ state, boundary }: ExampleProps) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const [value, setValue] = useState(48)
@@ -568,6 +568,18 @@ export function Feedback({ state }: ExampleProps) {
           }}
         >
           打开确认弹窗
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => void confirm({
+            title: '批量删除章节',
+            message: '确认删除以下章节？此操作不可撤销。此处仅演示，不会更改书库。',
+            items: Array.from({ length: boundary ? 40 : 4 }, (_, index) => `第${index + 1}章 · ${boundary ? longTitle : '山海来信'}`),
+            danger: true,
+            okText: '确认删除',
+          })}
+        >
+          打开清单确认弹窗
         </Button>
         <Button variant="outline" onClick={() => toast('已移除示例', 'default', { action: { label: '撤销', onClick: () => toast('已撤销示例操作') } })}>
           带撤销的提示

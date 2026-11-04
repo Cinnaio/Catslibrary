@@ -8,16 +8,7 @@ import { createContext, useCallback, useContext, useRef, useState, type ReactNod
 import { toast as sonnerToast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { ControlAppearance, useControlAppearance, type ControlAppearanceName } from '@/components/ui/control-appearance'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 
 // ---------- Toast ----------
 
@@ -106,55 +97,24 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     r?.(result)
   }
 
-  // danger 默认 false：只有显式传入 danger: true 的调用点（删除等破坏性操作）显示红色
-  const danger = state?.danger === true
-
   return (
     <ConfirmContext.Provider value={{ confirm }}>
       {children}
-      <ControlAppearance appearance={state?.appearance ?? 'default'}><AlertDialog
-        // 必须给布尔而不是 undefined：首帧 state 为 null 时 open=undefined
-        // 会让 Radix 按「非受控」初始化，第二帧传入 true 再切成受控——
-        // React 会就此告警，且非受控初值在部分版本下会让关闭回调不可靠。
-        open={state?.visible === true}
-        onOpenChange={(open) => {
-          if (!open) close(false) // Esc / 遮罩点击（按钮路径已由 resolveRef 去重）
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{state?.title || '确认操作'}</AlertDialogTitle>
-            {state?.message && <AlertDialogDescription>{state.message}</AlertDialogDescription>}
-          </AlertDialogHeader>
-          {state?.items && state.items.length > 0 && (
-            <div className="max-h-[240px] overflow-y-auto rounded-md border bg-muted/50 p-2 text-sm">
-              {state.items.map((item, i) => (
-                <div key={i} className="rounded px-2 py-1 text-foreground">
-                  {item}
-                </div>
-              ))}
-            </div>
-          )}
-          <AlertDialogFooter>
-            {/* 危险操作显式把初始焦点钉在「取消」。
-                Radix 的 AlertDialog 默认会把焦点给 Cancel，但这是实现细节、
-                不是契约；本条显式声明它，让「危险确认框的初始焦点绝不落在
-                执行键上」成为可读、可测的约定而不是顺带得到的行为。
-                这样即使日后替换弹窗原语或调整 Radix 版本，误触 Enter
-                （键盘场景下最廉价的按键，操作员刚点完行内删除、手还在原位）
-                也只会安全关闭确认框，而不是直接执行不可逆操作。 */}
-            <AlertDialogCancel autoFocus={danger} onClick={() => close(false)}>
-              {state?.cancelText || '取消'}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              variant={danger ? 'destructive' : 'default'}
-              onClick={() => close(true)}
-            >
-              {state?.okText || '确认'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog></ControlAppearance>
+      <ControlAppearance appearance={state?.appearance ?? 'default'}>
+        <ConfirmationDialog
+          open={state?.visible === true}
+          onOpenChange={(open) => {
+            if (!open) close(false)
+          }}
+          title={state?.title || '确认操作'}
+          description={state?.message}
+          items={state?.items}
+          confirmText={state?.okText || '确认'}
+          cancelText={state?.cancelText || '取消'}
+          danger={state?.danger}
+          onConfirm={() => close(true)}
+        />
+      </ControlAppearance>
     </ConfirmContext.Provider>
   )
 }
@@ -163,10 +123,13 @@ export function useConfirm(): ConfirmContextValue {
   const ctx = useContext(ConfirmContext)
   const request = ctx?.confirm
   const appearance = useControlAppearance()['data-ui']
-  const confirm = useCallback((opts?: ConfirmOptions) => {
-    if (!request) throw new Error('useConfirm must be used within ConfirmProvider')
-    return request(opts, appearance)
-  }, [request, appearance])
+  const confirm = useCallback(
+    (opts?: ConfirmOptions) => {
+      if (!request) throw new Error('useConfirm must be used within ConfirmProvider')
+      return request(opts, appearance)
+    },
+    [request, appearance],
+  )
   if (!ctx) throw new Error('useConfirm must be used within ConfirmProvider')
   return { confirm }
 }
