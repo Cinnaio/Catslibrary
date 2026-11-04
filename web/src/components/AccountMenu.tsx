@@ -49,10 +49,7 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
     variant === 'site' ? (
       avatar
     ) : (
-      <span
-        className={cn('account-menu__avatar', variant === 'admin' && 'admin-shell__account-avatar', variant === 'mobile' && 'mobile-drawer__avatar')}
-        aria-hidden="true"
-      >
+      <span className="account-menu__avatar" aria-hidden="true">
         {avatar}
       </span>
     )
@@ -67,14 +64,13 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
               'account-menu__trigger',
               `account-menu__trigger--${variant}`,
               variant === 'site' && 'account-avatar',
-              variant === 'admin' && 'admin-shell__account',
               className,
             )}
             aria-label={triggerLabel}
             title={`打开${name}账户菜单`}
           >
             {triggerAvatar}
-            {showName && <span className="account-menu__name admin-shell__account-name">{name}</span>}
+            {showName && <span className="account-menu__name">{name}</span>}
             {showName && <ChevronIcon className="account-menu__chevron" aria-hidden="true" />}
           </button>
         </DropdownMenuTrigger>

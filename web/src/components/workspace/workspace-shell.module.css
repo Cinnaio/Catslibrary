@@ -148,11 +148,13 @@
   color: var(--accent);
 }
 .secondary {
+  flex: 0 0 auto;
   padding: 10px;
   border-top: 1px solid var(--border);
 }
 .account {
   display: flex;
+  flex: 0 0 auto;
   justify-content: space-between;
   align-items: center;
   gap: 4px;
@@ -163,10 +165,9 @@
   min-width: 0;
   flex: 1;
 }
-.account :global(.account-menu__trigger) {
+.account :global(.account-menu__trigger--admin) {
   width: 100%;
   justify-content: flex-start;
-  background: transparent;
 }
 .waiting {
   font-size: 11px;

@@ -8,6 +8,10 @@
 .account-menu__trigger {
   outline: none;
 }
+.account-menu__trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
 
 .account-menu__trigger--site {
   min-width: 44px;
@@ -54,13 +58,45 @@
 }
 
 .account-menu__trigger--admin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
   cursor: pointer;
 }
 
+.account-menu__trigger--admin:hover,
 .account-menu__trigger--admin[data-state='open'] {
   border-color: var(--accent);
-  background: var(--admin-panel-muted);
+  background: var(--bg-hover);
   color: var(--accent);
+}
+
+.account-menu__avatar {
+  display: inline-flex;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.account-menu__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .account-menu__chevron {
@@ -79,7 +115,8 @@
 }
 
 .account-menu__content {
-  z-index: 200;
+  /* 账户入口也在 z-index: 301 的移动导航抽屉中，portal 菜单需位于其上。 */
+  z-index: 400;
 }
 
 .account-menu__content[data-state='open'] {
