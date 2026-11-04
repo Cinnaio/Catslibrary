@@ -40,10 +40,11 @@ Require-LifecyclePattern "profile GETs apply only successful, current-or-newer r
     $writing -match 'if let plot,\s*shouldApplyProfileResponse' -and
     $writing -match 'if let relation,\s*shouldApplyProfileResponse'
 )
-Require-LifecyclePattern "profile POST response is applied before status reconciliation" (
+Require-LifecyclePattern "style POST and memory background submissions reconcile status independently" (
     $writing -match 'applyStyleRefreshResponse\(r\)' -and
-    $writing -match 'applyPlotRefreshResponse\(r\)' -and
-    $writing -match 'applyRelationshipRefreshResponse\(r\)'
+    $writing -match 'AdminAPI\.aiStartMemoryProfile\(' -and
+    $writing.Contains('plotMemoryTask = result.task') -and
+    $writing.Contains('relationshipMemoryTask = result.task')
 )
 Require-LifecyclePattern "interrupted profile refresh is reconciled by bounded foreground reads" (
     $writing.Contains('pendingProfileRefreshScope') -and

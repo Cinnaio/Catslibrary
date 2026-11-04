@@ -1080,6 +1080,23 @@ enum AdminAPI {
         try await getAiProfile("relationship-profile", novelId: novelId, afterChapterId: afterChapterId)
     }
 
+    /// 只提交后台任务；查询现有画像接口即可恢复进度，重复提交由服务端复用活动任务。
+    static func aiStartMemoryProfile(kind: String, novelId: String, afterChapterId: String?) async throws -> AiMemoryStartResponse {
+        var payload: [String: Any] = [:]
+        if let afterChapterId, !afterChapterId.isEmpty { payload["afterChapterId"] = afterChapterId }
+        return try await APIClient.shared.post(
+            "/api/ai/writing/memory/\(encodePathSegment(kind))/\(encodePathSegment(novelId))/start",
+            body: try jsonBody(payload), auth: true
+        )
+    }
+
+    static func aiPauseMemoryProfile(kind: String, novelId: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.post(
+            "/api/ai/writing/memory/\(encodePathSegment(kind))/\(encodePathSegment(novelId))/pause",
+            body: try jsonBody([:]), auth: true
+        )
+    }
+
     /// PUT/DELETE /api/ai/writing/profiles/:kind/:novelId/override：人工画像校正。
     static func aiSaveProfileOverride(kind: String, novelId: String, content: String, expectedRevision: Int, baseProfileRevision: String, afterChapterId: String? = nil, operationID: String) async throws -> AiProfileOverrideResponse {
         var payload: [String: Any] = [
