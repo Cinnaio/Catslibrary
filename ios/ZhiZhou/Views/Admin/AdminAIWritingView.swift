@@ -10,6 +10,7 @@ struct AdminAIWritingView: View {
     @Environment(AppState.self) private var appState
     @State private var draftOwnerID: String?
     @State private var draftReady = false
+    @State private var draftSaveFeedbackID: UUID?
     @State private var restoredSelection: [String: String]?
     @State private var lastSubmittedValues: [String: String]?
     @State private var workflowStep = 0
@@ -242,6 +243,12 @@ struct AdminAIWritingView: View {
             await resumeWritingTask()
         }
         .onChange(of: inputDraftValues) { _, _ in saveInputDraft() }
+        .task(id: draftSaveFeedbackID) {
+            guard let feedbackID = draftSaveFeedbackID else { return }
+            do { try await Task.sleep(nanoseconds: 2_000_000_000) }
+            catch { return }
+            if draftSaveFeedbackID == feedbackID { draftSaveFeedbackID = nil }
+        }
         .sheet(isPresented: $showInstructionEditor) {
             NavigationStack {
                 TextEditor(text: $instruction)
@@ -251,13 +258,6 @@ struct AdminAIWritingView: View {
                     .toolbar { ToolbarItem(placement: .confirmationAction) {
                         Button("完成") { showInstructionEditor = false }
                     } }
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if draftReady {
-                Text("创作输入自动保存到本机 · 按账号与作品隔离")
-                    .font(.footnote).foregroundStyle(AppTheme.textSecondary)
-                    .frame(maxWidth: .infinity).padding(10).background(AppTheme.background)
             }
         }
     }
@@ -475,6 +475,8 @@ struct AdminAIWritingView: View {
             Section {
                 Button("下一步：填写要求", systemImage: "arrow.right") { workflowStep = 1 }
                     .accessibilityIdentifier("admin.writing.next")
+            } footer: {
+                draftAutosaveFooter
             }
         } else if workflowStep == 1 {
             if mode == .continueWriting { continueSection } else { newSection }
@@ -492,6 +494,8 @@ struct AdminAIWritingView: View {
                 Button("下一步：检查并生成", systemImage: "arrow.right") { workflowStep = 2 }
                     .accessibilityIdentifier("admin.writing.review")
                     .disabled(!canStart)
+            } footer: {
+                draftAutosaveFooter
             }
         } else {
             Section("本次创作") {
@@ -509,6 +513,16 @@ struct AdminAIWritingView: View {
         ["novelId": novelId, "mode": mode.rawValue, "anchor": afterChapterId,
          "scope": continuationScope.rawValue, "adult": adultContentMode.rawValue,
          "intimacy": intimacyWeight.rawValue, "consent": consentRuleTier.rawValue, "focus": suggestionFocus]
+    }
+
+    @ViewBuilder
+    private var draftAutosaveFooter: some View {
+        if draftReady {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(draftSaveFeedbackID == nil ? "创作输入自动保存到本机" : "已自动保存到本机")
+                Text("按账号与作品分别保留")
+            }
+        }
     }
 
     private var inputDraftValues: [String: String] {
@@ -531,15 +545,18 @@ struct AdminAIWritingView: View {
         let values = inputDraftValues
         guard values != lastSubmittedValues else {
             store.removeDraft(contextID: draftContextID, userID: owner)
+            draftSaveFeedbackID = nil
             return
         }
         let textKeys = ["title", "continuationTitle", "instruction", "outline", "context", "viewpoint", "pace", "objective", "facts", "forbidden", "goals"]
         guard textKeys.contains(where: { !(values[$0] ?? "").isEmpty }) || targetWords != 2000 || chapterCount != 1 else {
             store.removeDraft(contextID: draftContextID, userID: owner)
+            draftSaveFeedbackID = nil
             return
         }
         store.save(AdminWritingDraft(id: draftContextID, values: values,
             updatedAt: Int64(Date().timeIntervalSince1970 * 1000)), userID: owner)
+        draftSaveFeedbackID = UUID()
     }
 
     private func restoreInputDraft(_ values: [String: String]) {
@@ -955,7 +972,10 @@ struct AdminAIWritingView: View {
         } header: {
             Text("生成回执")
         } footer: {
-            Text("任务完成后，草稿会出现在「已生成内容」中，可编辑后发布为正式章节。")
+            VStack(alignment: .leading, spacing: 8) {
+                Text("任务完成后，草稿会出现在「已生成内容」中，可编辑后发布为正式章节。")
+                draftAutosaveFooter
+            }
         }
     }
 
