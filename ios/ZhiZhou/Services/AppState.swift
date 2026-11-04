@@ -246,9 +246,13 @@ final class AppState {
     }
 
     private func activateAccount(_ user: User) async {
-        ContentAccessStore.shared.activate(token: APIClient.shared.token)
+        let activationToken = APIClient.shared.token
+        ContentAccessStore.shared.activate(token: activationToken)
         await APIClient.shared.setChapterCacheScope(userID: user.id)
-        OfflineReadingStore.shared.activate(userID: user.id, token: APIClient.shared.token)
+        guard APIClient.shared.token == activationToken else { return }
+        OfflineReadingStore.shared.activate(userID: user.id, token: activationToken)
+        try? await OfflineReadingStore.shared.migrateLegacyDownloads()
+        guard APIClient.shared.token == activationToken else { return }
         ReaderSettingsStore.shared.activate(userID: user.id)
         ReaderProgressStore.shared.activate(userID: user.id)
         ReadingStatsStore.shared.activate(userID: user.id)

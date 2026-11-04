@@ -6,6 +6,7 @@ struct ChapterListView: View {
     let novel: Novel
     let currentOrder: Int
     var initialChapters: [ChapterMeta] = []
+    var offlineOnly = false
     let onSelect: (Int) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -16,6 +17,21 @@ struct ChapterListView: View {
     @State private var errorMessage: String?
     @State private var hasScrolledToCurrent = false
     @State private var isShowingOffline = false
+    @State private var search = ""
+    @State private var descending = false
+    @State private var showJump = false
+    @State private var jumpOrder = ""
+
+    private var visibleChapters: [ChapterMeta] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matches = chapters.filter { query.isEmpty || $0.title.localizedStandardContains(query) || String($0.order) == query }
+        return descending ? Array(matches.reversed()) : matches
+    }
+
+    private var jumpTarget: ChapterMeta? {
+        guard let order = Int(jumpOrder) else { return nil }
+        return chapters.first { $0.order == order }
+    }
 
     var body: some View {
         NavigationStack {
@@ -36,7 +52,7 @@ struct ChapterListView: View {
                     ContentUnavailableView("暂无章节", systemImage: "list.bullet", description: Text("这本书尚未发布章节"))
                 } else {
                     ScrollViewReader { proxy in
-                        List(chapters) { chapter in
+                        List(visibleChapters) { chapter in
                             Button {
                                 dismiss()
                                 onSelect(chapter.order)
@@ -70,6 +86,10 @@ struct ChapterListView: View {
                         }
                         .appListStyle(.browsing)
                         .listRowSeparatorTint(AppTheme.border)
+                        .overlay {
+                            if visibleChapters.isEmpty { ContentUnavailableView.search(text: search) }
+                        }
+                        .refreshable { await load(refresh: true) }
                         .onAppear {
                             scrollToCurrent(proxy)
                         }
@@ -81,9 +101,31 @@ struct ChapterListView: View {
                 }
             }
             .pageBackground(.browsing)
+            .safeAreaInset(edge: .bottom) {
+                if let errorMessage, !chapters.isEmpty, !isShowingOffline {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await load(refresh: true) }
+                    }
+                    .padding()
+                    .background(AppTheme.canvas)
+                }
+            }
             .navigationTitle("目录")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $search, prompt: "搜索章节名或章号")
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Toggle("倒序排列", isOn: $descending)
+                        Button("跳转章节", systemImage: "number") {
+                            jumpOrder = ""
+                            showJump = true
+                        }
+                    } label: {
+                        Label("目录选项", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                    .disabled(chapters.isEmpty)
+                }
                 if isShowingOffline {
                     ToolbarItem(placement: .topBarLeading) {
                         Label("离线", systemImage: "wifi.slash")
@@ -96,24 +138,41 @@ struct ChapterListView: View {
                 }
             }
             .task(id: ContentAccessStore.shared.mode) { await load() }
+            .alert("跳转章节", isPresented: $showJump) {
+                TextField("章号", text: $jumpOrder).keyboardType(.numberPad)
+                Button("开始阅读") {
+                    guard let chapter = jumpTarget else { return }
+                    dismiss()
+                    onSelect(chapter.order)
+                }
+                .disabled(jumpTarget == nil)
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("输入目录中已有的章号，直接打开该章节。")
+            }
         }
         .presentationBackground(AppTheme.canvas)
         .presentationDragIndicator(.visible)
         .readerContentAccess(isRestricted: novel.isRestricted)
     }
 
-    private func load() async {
+    private func load(refresh: Bool = false) async {
         guard !isLoading else { return }
-        if chapters.isEmpty, !initialChapters.isEmpty {
-            chapters = initialChapters
+        if offlineOnly {
+            await offlineStore.refresh()
+            chapters = offlineStore.chapters(for: novel.id)
+            isShowingOffline = true
+            errorMessage = nil
             return
         }
-        if !chapters.isEmpty { return }
+        if !refresh, chapters.isEmpty, !initialChapters.isEmpty {
+            chapters = initialChapters
+        }
         isLoading = true
         defer { isLoading = false }
         do {
             let r: ChaptersResponse = try await APIClient.shared.getReader(
-                "/api/chapters?novelId=\(novel.id)"
+                "/api/chapters?novelId=\(novel.id)", refresh: refresh
             )
             chapters = r.chapters
             isShowingOffline = false

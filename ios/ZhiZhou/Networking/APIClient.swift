@@ -89,8 +89,14 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     #endif
 
     /// 阅读器章节数据内存缓存：避免切回已读章节时重复下载（Data 按 URL 缓存）。
-    private let chapterDataCache: NSCache<NSString, NSData> = {
-        let cache = NSCache<NSString, NSData>()
+    private final class ChapterMemoryEntry {
+        let data: Data
+        let savedAt = Date()
+        init(_ data: Data) { self.data = data }
+    }
+
+    private let chapterDataCache: NSCache<NSString, ChapterMemoryEntry> = {
+        let cache = NSCache<NSString, ChapterMemoryEntry>()
         cache.countLimit = 20
         cache.totalCostLimit = 16 * 1024 * 1024
         return cache
@@ -253,7 +259,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         contentType: String? = nil,
         idempotencyKey: String? = nil,
         expectedToken: String? = nil,
-        timeout: TimeInterval = 30
+        timeout: TimeInterval = 30,
+        refresh: Bool = false
     ) async throws -> T {
         try await requestInternal(
             method,
@@ -263,7 +270,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             contentType: contentType,
             idempotencyKey: idempotencyKey,
             expectedToken: expectedToken,
-            timeout: timeout
+            timeout: timeout,
+            refresh: refresh
         )
     }
 
@@ -276,7 +284,9 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         idempotencyKey: String? = nil,
         expectedToken: String? = nil,
         expectedReaderCacheScope: ChapterCacheScope.Snapshot? = nil,
-        timeout: TimeInterval = 30
+        timeout: TimeInterval = 30,
+        refresh: Bool = false,
+        offlineOnly: Bool = false
     ) async throws -> T {
         let url = try makeURL(path)
         // Check the captured identity before returning any authenticated cached data.
@@ -300,14 +310,27 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         let cacheKey = cacheScope.map { chapterCacheKey(for: url, scope: $0) }
 
         // 阅读器章节列表/正文优先走内存缓存：切章和打开目录时不重复下载。
-        if let cacheScope,
+        let isCatalog = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == "api/chapters"
+        let maxAge: TimeInterval = isCatalog ? 60 : 300
+        if !refresh, let cacheScope,
            let cacheKey,
            let cached = chapterDataCache.object(forKey: cacheKey),
-           let decoded = decode(cached as Data, as: T.self) {
+           (offlineOnly || Date().timeIntervalSince(cached.savedAt) < maxAge),
+           let decoded = decode(cached.data, as: T.self) {
             guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
-            // 内存缓存可能仍在，但磁盘缓存已因容量淘汰；离线下载需补回持久副本。
+            // Restore an evicted automatic disk copy; downloads have their own persistent copy.
             if !(await ChapterDiskCache.shared.contains(url.absoluteString, scope: cacheScope.userID)) {
-                await ChapterDiskCache.shared.store(cached as Data, for: url.absoluteString, scope: cacheScope.userID)
+                await ChapterDiskCache.shared.store(cached.data, for: url.absoluteString, scope: cacheScope.userID)
+            }
+            guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
+            return decoded
+        }
+
+        if offlineOnly {
+            guard let cacheScope,
+                  let data = await ChapterDiskCache.shared.data(for: url.absoluteString, scope: cacheScope.userID),
+                  let decoded = decode(data, as: T.self) else {
+                throw APIError.network("这一章尚未下载，请联网后下载。")
             }
             guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
             return decoded
@@ -400,7 +423,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
         if let cacheScope, let cacheKey {
             chapterDataCache.setObject(
-                data as NSData,
+                ChapterMemoryEntry(data),
                 forKey: cacheKey,
                 cost: data.count
             )
@@ -436,7 +459,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         }
         guard let decoded = decode(data, as: type) else { throw APIError.invalidResponse }
         if let cacheScope, let cacheKey {
-            chapterDataCache.setObject(data as NSData, forKey: cacheKey, cost: data.count)
+            chapterDataCache.setObject(ChapterMemoryEntry(data), forKey: cacheKey, cost: data.count)
             await ChapterDiskCache.shared.store(data, for: url.absoluteString, scope: cacheScope.userID)
             guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
         }
@@ -508,7 +531,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     }
 
     @MainActor
-    func getReader<T: Decodable>(_ path: String, auth: Bool = false, offline: Bool = false) async throws -> T {
+    func getReader<T: Decodable>(_ path: String, auth: Bool = false, offline: Bool = false, refresh: Bool = false) async throws -> T {
         let access = ContentAccessStore.shared
         let revision = access.revision
         let mode = offline ? "safe" : access.mode
@@ -516,8 +539,9 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         let tokenAtStart = token
         let readerPath = ContentPolicy.readerPath(path, mode: mode)
         do {
-            let result: T = try await request("GET", readerPath, auth: authenticated,
-                                              expectedToken: authenticated ? tokenAtStart : nil)
+            let result: T = try await requestInternal("GET", readerPath, auth: authenticated,
+                                              expectedToken: authenticated ? tokenAtStart : nil,
+                                              refresh: refresh, offlineOnly: offline)
             guard !Task.isCancelled, revision == access.revision, token == tokenAtStart else { throw CancellationError() }
             return result
         } catch let error as APIError {
@@ -590,6 +614,23 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         let exists = await ChapterDiskCache.shared.contains(url.absoluteString, scope: cacheScope.userID)
         guard await chapterCacheScope.isCurrent(cacheScope) else { return false }
         return exists
+    }
+
+    func downloadChapter(id: String, userID: String) async throws {
+        guard let scope = await chapterCacheScope.snapshot(), scope.userID == userID else { throw CancellationError() }
+        let path = ContentPolicy.safePath("/api/chapters/\(id)")
+        let url = try makeURL(path)
+        let response: ChapterResponse = try await requestInternal("GET", path, expectedReaderCacheScope: scope)
+        guard response.chapter.id == id, !Task.isCancelled,
+              await chapterCacheScope.isCurrent(scope) else { throw CancellationError() }
+        try await ChapterDiskCache.shared.storeOffline(JSONEncoder().encode(response), for: url.absoluteString, scope: userID)
+        guard await chapterCacheScope.isCurrent(scope) else { throw CancellationError() }
+    }
+
+    /// Legacy manifests already contain the owning account; migration never sends a request.
+    func preserveOfflineChapter(id: String, userID: String) async throws -> Bool {
+        let url = try makeURL(ContentPolicy.safePath("/api/chapters/\(id)"))
+        return try await ChapterDiskCache.shared.preserveOffline(url.absoluteString, scope: userID)
     }
 
     func removeCachedChapter(id: String, userID: String? = nil) async {

@@ -18,6 +18,9 @@ struct NovelDetailView: View {
     @State private var inBookshelf = false
     @State private var errorMessage: String?
     @State private var progress: ReadingProgress?
+    @State private var isLoadingProgress = false
+    @State private var chapterSearch = ""
+    @State private var chaptersDescending = false
     @State private var displayNovel: Novel?
     @State private var bookshelfBusy = false
     @State private var showBookshelfError = false
@@ -55,6 +58,7 @@ struct NovelDetailView: View {
             selectionRowFrames = frames
         }
         .pageBackground(.browsing)
+        .refreshable { await load(refresh: true) }
         .navigationTitle(currentNovel.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
@@ -144,7 +148,10 @@ struct NovelDetailView: View {
                     chapterEmptyState
                         .listRowSeparator(.hidden)
                 }
-                ForEach(chapters) { chapter in
+                if !chapters.isEmpty && visibleChapters.isEmpty {
+                    ContentUnavailableView.search(text: chapterSearch)
+                }
+                ForEach(visibleChapters) { chapter in
                     chapterRow(chapter)
                         .id(chapter.id)
                         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
@@ -182,6 +189,13 @@ struct NovelDetailView: View {
     }
 
     private var currentNovel: Novel { displayNovel ?? novel }
+
+    private var visibleChapters: [ChapterMeta] {
+        guard !isSelectingOffline else { return chapters }
+        let query = chapterSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matches = chapters.filter { query.isEmpty || $0.title.localizedStandardContains(query) || String($0.order) == query }
+        return chaptersDescending ? Array(matches.reversed()) : matches
+    }
 
     private var continueChapter: ChapterMeta? {
         if let progress, let match = chapters.first(where: { $0.id == progress.chapterId }) {
@@ -227,6 +241,9 @@ struct NovelDetailView: View {
                             Text("已处理 \(offlineStore.batchCompleted) / \(offlineStore.batchTotal) 章")
                                 .font(.footnote)
                                 .foregroundStyle(AppTheme.textSecondary)
+                            Text("已保存 \(offlineStore.batchCompleted - offlineStore.batchFailed) 章 · 失败 \(offlineStore.batchFailed) 章")
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
                         Button("停止下载", systemImage: "stop.circle") {
                             offlineStore.cancelBatch()
@@ -256,6 +273,13 @@ struct NovelDetailView: View {
                 } header: {
                     Text(currentNovel.title)
                         .textCase(nil)
+                }
+                if let failed = offlineStore.failedBatch, failed.novel.id == currentNovel.id, !offlineStore.isBatchDownloading {
+                    Section {
+                        Button("重试失败的 \(failed.chapters.count) 章", systemImage: "arrow.clockwise") {
+                            Task { await offlineStore.retryFailed() }
+                        }
+                    }
                 }
                 if let error = offlineStore.lastError {
                     Section {
@@ -673,7 +697,7 @@ struct NovelDetailView: View {
                 primaryActionLabel(
                     continueTitle,
                     systemImage: "book.fill",
-                    subtitle: readingSubtitle(for: chapter)
+                    subtitle: isLoadingProgress ? "正在读取阅读位置…" : readingSubtitle(for: chapter)
                 )
             }
             .buttonStyle(AppGlassButtonStyle(
@@ -682,6 +706,7 @@ struct NovelDetailView: View {
             ))
             .accessibilityHint("从第 \(chapter.order) 章开始，\(chapter.title)")
             .accessibilityIdentifier("detail.read")
+            .disabled(isLoadingProgress)
         } else {
             Button {} label: {
                 primaryActionLabel(
@@ -876,15 +901,35 @@ struct NovelDetailView: View {
     }
 
     private var chapterSectionHeader: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(isSelectingOffline ? "选择章节" : "目录")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 12)
-            Text(isLoading && chapters.isEmpty ? "加载中" : "\(chapters.count) 章")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(isSelectingOffline ? "选择章节" : "目录")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 12)
+                Text(isLoading && chapters.isEmpty ? "加载中" : "\(chapters.count) 章")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                if !isSelectingOffline {
+                    Button {
+                        chaptersDescending.toggle()
+                    } label: {
+                        Label(chaptersDescending ? "倒序" : "正序", systemImage: chaptersDescending ? "arrow.up" : "arrow.down")
+                    }
+                    .font(.subheadline)
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
+                    .accessibilityLabel(chaptersDescending ? "目录倒序，点按改为正序" : "目录正序，点按改为倒序")
+                }
+            }
+            if !isSelectingOffline && !chapters.isEmpty {
+                TextField("搜索章节名或章号", text: $chapterSearch)
+                    .font(.body)
+                    .textFieldStyle(.roundedBorder)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("detail.chapterSearch")
+            }
         }
     }
 
@@ -918,19 +963,20 @@ struct NovelDetailView: View {
         }
     }
 
-    private func load() async {
+    private func load(refresh: Bool = false) async {
         isLoading = true
+        isLoadingProgress = appState.user != nil
         defer { isLoading = false }
         // 核心数据并行加载；详情失败静默回退列表数据
         async let detailRequest: Void = loadDetail()
-        async let chaptersRequest: Void = loadChapters()
-        _ = await (detailRequest, chaptersRequest)
-        // 进度/收藏状态为次要数据，失败不影响章节展示
+        async let chaptersRequest: Void = loadChapters(refresh: refresh)
+        // Load progress alongside content so the continue action settles sooner.
         if appState.user != nil {
             async let progressRequest: Void = loadProgress()
             async let bookshelfRequest: Void = loadBookshelf()
             _ = await (progressRequest, bookshelfRequest)
         }
+        _ = await (detailRequest, chaptersRequest)
     }
 
     private func loadDetail() async {
@@ -941,10 +987,10 @@ struct NovelDetailView: View {
         }
     }
 
-    private func loadChapters() async {
+    private func loadChapters(refresh: Bool = false) async {
         do {
             let r: ChaptersResponse = try await APIClient.shared.getReader(
-                "/api/chapters?novelId=\(novel.id)"
+                "/api/chapters?novelId=\(novel.id)", refresh: refresh
             )
             chapters = r.chapters
             isSelectingOffline = false
@@ -968,16 +1014,22 @@ struct NovelDetailView: View {
     }
 
     private func loadProgress() async {
+        defer { isLoadingProgress = false }
         if let p: ProgressResponse = try? await APIClient.shared.get(
             "/api/progress?novelId=\(novel.id)", auth: true
         ) {
             progress = p.progress
         }
+        if let pending = ReaderProgressStore.shared.pendingBody(for: novel.id),
+           pending.clientUpdatedAt >= (progress?.updatedAt ?? 0) {
+            progress = ReadingProgress(novelId: novel.id, chapterId: pending.chapterId,
+                                       scrollPercent: pending.scrollPercent, updatedAt: pending.clientUpdatedAt)
+        }
     }
 
     private func loadBookshelf() async {
         if let b: BookshelfResponse = try? await APIClient.shared.getReader(
-                "/api/bookshelf", auth: true
+                "/api/bookshelf?" + ReaderQuery.encode(["novelId": novel.id, "limit": "1"]), auth: true
         ) {
             inBookshelf = b.favorites.contains { $0.novelId == novel.id }
         }

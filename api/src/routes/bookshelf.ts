@@ -15,10 +15,29 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
   const db = getDb()
   const userId = c.get('user').id
   const access = await resolveContentAccess(c)
-  const ratingFilter = ` AND ${visibleNovelSql(c)}` + (access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'")
+  const ratingFilter =
+    ` AND ${visibleNovelSql(c)}` +
+    (access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'")
   const limit = Math.min(50, Math.max(1, Math.floor(Number(c.req.query('limit')) || 50)))
   const offset = Math.max(0, Math.min(100000, Math.floor(Number(c.req.query('offset')) || 0)))
   const novelId = cleanId(c.req.query('novelId'))
+  const search = String(c.req.query('search') || '')
+    .trim()
+    .toLowerCase()
+    .slice(0, 200)
+  const reading = c.req.query('reading') || ''
+  const progressJoin = `LEFT JOIN reading_progress rp ON rp.user_id = b.user_id AND rp.novel_id = b.novel_id AND COALESCE(rp.deleted_at, 0) = 0
+    AND EXISTS(SELECT 1 FROM chapters valid WHERE valid.id=rp.chapter_id AND valid.novel_id=rp.novel_id)`
+  const favoriteFilter = `b.user_id = $1${ratingFilter} AND ($2 = '' OR n.id = $2)
+    AND ($3 = '' OR STRPOS(LOWER(n.title), $3) > 0 OR STRPOS(LOWER(n.author), $3) > 0)
+    AND ($4 = '' OR ($4 = 'unread' AND rp.chapter_id IS NULL) OR ($4 = 'started' AND rp.chapter_id IS NOT NULL))`
+  const readingFilter = reading === 'unread' || reading === 'started' ? reading : ''
+  const orderBy =
+    new Map([
+      ['recent_read', 'COALESCE(rp.updated_at, 0) DESC, b.updated_at DESC, b.novel_id'],
+      ['updated', 'n.updated_at DESC, b.novel_id'],
+      ['title', 'n.title ASC, b.novel_id'],
+    ]).get(c.req.query('sort') || '') || 'b.updated_at DESC, b.novel_id'
 
   const [favRows, recentRows, thoughtRows] = await Promise.all([
     all<Record<string, unknown>>(
@@ -30,13 +49,12 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
               c.title AS chapter_title, c.sort_order AS chapter_order
        FROM user_bookshelf b
        JOIN novels n ON n.id = b.novel_id
-       LEFT JOIN reading_progress rp ON rp.user_id = b.user_id AND rp.novel_id = b.novel_id AND COALESCE(rp.deleted_at, 0) = 0
-         AND EXISTS(SELECT 1 FROM chapters valid WHERE valid.id=rp.chapter_id AND valid.novel_id=rp.novel_id)
+       ${progressJoin}
        LEFT JOIN chapters c ON c.id = rp.chapter_id AND c.novel_id = rp.novel_id
-       WHERE b.user_id = $1${ratingFilter} AND ($4 = '' OR n.id = $4)
-       ORDER BY b.updated_at DESC, b.novel_id
-       LIMIT $2 OFFSET $3`,
-      [userId, limit, offset, novelId],
+       WHERE ${favoriteFilter}
+       ORDER BY ${orderBy}
+       LIMIT $5 OFFSET $6`,
+      [userId, novelId, search, readingFilter, limit, offset],
     ),
     all<Record<string, unknown>>(
       db,
@@ -68,8 +86,9 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
   const [favoritesCount, thoughtsCount] = await Promise.all([
     first<{ total: number }>(
       db,
-      `SELECT COUNT(*) AS total FROM user_bookshelf b JOIN novels n ON n.id=b.novel_id WHERE b.user_id=$1${ratingFilter} AND ($2 = '' OR n.id = $2)`,
-      [userId, novelId],
+      `SELECT COUNT(*) AS total FROM user_bookshelf b JOIN novels n ON n.id=b.novel_id ${progressJoin}
+       WHERE ${favoriteFilter}`,
+      [userId, novelId, search, readingFilter],
     ),
     first<{ total: number }>(
       db,
@@ -97,7 +116,11 @@ bookshelfRoutes.post('/', requireUser(), async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const novelId = cleanId(body.novelId)
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
-  const novel = await all<{ id: string; content_rating: string }>(db, `SELECT id, content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
+  const novel = await all<{ id: string; content_rating: string }>(
+    db,
+    `SELECT id, content_rating FROM novels WHERE id = $1 AND ${visibleNovelSql(c, 'novels')}`,
+    [novelId],
+  )
   if (!novel.length) return c.json({ error: '小说不存在' }, 404)
   if (novel[0]!.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
@@ -118,7 +141,11 @@ bookshelfRoutes.delete('/', requireUser(), async (c) => {
   const userId = c.get('user').id
   const novelId = cleanId(c.req.query('novelId'))
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
-  await run(db, `DELETE FROM user_bookshelf b WHERE user_id = $1 AND novel_id = $2 AND EXISTS (SELECT 1 FROM novels n WHERE n.id=b.novel_id AND ${visibleNovelSql(c)})`, [userId, novelId])
+  await run(
+    db,
+    `DELETE FROM user_bookshelf b WHERE user_id = $1 AND novel_id = $2 AND EXISTS (SELECT 1 FROM novels n WHERE n.id=b.novel_id AND ${visibleNovelSql(c)})`,
+    [userId, novelId],
+  )
   return c.json({ success: true, novelId })
 })
 

@@ -259,7 +259,8 @@ struct ReaderView: View {
             ChapterListView(
                 novel: novel,
                 currentOrder: chapterOrder,
-                initialChapters: chapterMetas
+                initialChapters: chapterMetas,
+                offlineOnly: offlineOnly
             ) { order in
                 go(to: order)
             }
@@ -1338,7 +1339,7 @@ struct ReaderView: View {
                     return
                 }
                 let list: ChaptersResponse = try await APIClient.shared.getReader(
-                    "/api/chapters?novelId=\(novel.id)", offline: offlineOnly
+                    "/api/chapters?novelId=\(novel.id)", offline: offlineOnly, refresh: !offlineOnly
                 )
                 chapterMetas = list.chapters
                 chapterCount = list.chapters.count
@@ -1611,7 +1612,7 @@ struct ReaderView: View {
     }
 
     private func prefetchNextChapter() {
-        guard ContentAccessStore.shared.mode == "safe", !novel.isRestricted else { return }
+        guard !offlineOnly, ContentAccessStore.shared.mode == "safe", !novel.isRestricted else { return }
         guard let next = chapterMetas.first(where: { $0.order == chapterOrder + 1 }) else { return }
         let nextID = next.id
         Task {
