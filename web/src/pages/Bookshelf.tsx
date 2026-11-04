@@ -115,6 +115,7 @@ export default function Bookshelf() {
     setViewParams(next)
   }
   const loadRevision = useRef(0)
+  const activeLoad = useRef<number | null>(null)
   const contextRevision = useRef(0)
   const pendingMutations = useRef(new Set<string>())
   const [pending, setPending] = useState(new Set<string>())
@@ -142,13 +143,15 @@ export default function Bookshelf() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading, safeMode])
 
-  const loadAll = useCallback(async () => {
-    const seq = ++loadRevision.current
+  const loadAll = useCallback(async (background = false) => {
+    if (background && (pendingMutations.current.size > 0 || activeLoad.current === loadRevision.current)) return
     const token = getToken()
     const scope = getStorageScope()
-    const current = () => seq === loadRevision.current && token === getToken() && scope === getStorageScope()
     if (!token || scope === 'pending') return
-    setSyncing(true)
+    const seq = ++loadRevision.current
+    activeLoad.current = seq
+    const current = () => seq === loadRevision.current && token === getToken() && scope === getStorageScope()
+    if (!background) setSyncing(true)
     try {
       const [bookmarkData, shelfData, progressData] = await Promise.all([
         bookmarksApi.list(safeMode ? 'safe' : 'adult'), bookshelfApi.get({ limit: 50, contentMode: safeMode ? 'safe' : 'adult' }), progressApi.recent(8, safeMode ? 'safe' : 'adult'),
@@ -183,24 +186,19 @@ export default function Bookshelf() {
       setLoadedMode(safeMode)
       setSyncStatus(`上次同步 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`)
     } catch (err) {
-      if (current()) setSyncStatus(`同步失败：${(err as Error).message || '请稍后重试'}`)
+      if (current() && !background) setSyncStatus(`同步失败：${(err as Error).message || '请稍后重试'}`)
     } finally {
-      if (current()) setSyncing(false)
+      if (activeLoad.current === seq) activeLoad.current = null
+      if (current() && !background) setSyncing(false)
     }
   }, [safeMode])
-  useVisibleRefresh(loadAll, !!user && !loading)
+  const refreshShelf = useCallback(() => loadAll(true), [loadAll])
+  useVisibleRefresh(refreshShelf, !!user && !loading)
 
 
   async function manualSync() {
-    setSyncing(true)
     setSyncStatus('正在同步…')
-    try {
-      await loadAll()
-    } catch {
-      /* loadAll 已设失败信息 */
-    } finally {
-      setSyncing(false)
-    }
+    await loadAll()
   }
 
   function beginMutation(novelId: string) {

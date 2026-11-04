@@ -72,6 +72,7 @@ export default function Home() {
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   // 响应序号守卫：丢弃乱序返回的过期响应（与 NovelsTab 相同模式）
   const loadSeq = useRef(0)
+  const activeLoad = useRef<number | null>(null)
   const previousSafeMode = useRef(safeMode)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const sortTabsRef = useRef<HTMLDivElement>(null)
@@ -156,9 +157,12 @@ export default function Home() {
     [activeCategories, activeStatus, currentPage, debouncedQuery, sort, safeMode, isAllowed],
   )
 
-  const loadNovels = useCallback(async () => {
+  const loadNovels = useCallback(async (background = false) => {
+    // 自动同步不抢占首次加载、筛选或翻页中的请求。
+    if (background && activeLoad.current === loadSeq.current) return
     const seq = ++loadSeq.current
-    setLoading(true)
+    activeLoad.current = seq
+    if (!background) setLoading(true)
     const isPinyin = isPinyinQueryText(debouncedQuery)
     const params: Record<string, string | number> = {
       page: isPinyin ? 1 : currentPage,
@@ -206,18 +210,21 @@ export default function Home() {
       setCategories(visibleCategories)
       setHiddenRestricted(Boolean(data.hiddenRestricted) || restrictedInPage || visibleCategories.length !== availableCategories.length)
       setApiFailed(false)
-      setLoading(false)
     } catch {
       if (seq !== loadSeq.current) return
+      // 后台请求失败保留当前列表，不替换成演示数据或切换加载提示。
+      if (background) return
       // API 不可用 → 演示数据 + 重试横幅
       console.warn('API unavailable, using demo data.')
       setApiFailed(true)
       await loadDemo(isPinyin, seq)
-      if (seq !== loadSeq.current) return
-      setLoading(false)
+    } finally {
+      if (activeLoad.current === seq) activeLoad.current = null
+      if (!background && seq === loadSeq.current) setLoading(false)
     }
   }, [currentPage, debouncedQuery, activeCategories, activeStatus, sort, loadDemo, safeMode, isAllowed])
-  useVisibleRefresh(loadNovels, !sessionLoading)
+  const refreshNovels = useCallback(() => loadNovels(true), [loadNovels])
+  useVisibleRefresh(refreshNovels, !sessionLoading)
   useLayoutEffect(() => {
     loadSeq.current++
     setNovels([]); setCategories([]); setCurrentPage(1)
