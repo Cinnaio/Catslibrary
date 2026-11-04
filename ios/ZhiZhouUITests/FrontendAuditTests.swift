@@ -63,6 +63,77 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    private func openBookWorkspace(_ bookID: String, app: XCUIApplication) {
+        let book = app.buttons["catalog.\(bookID)"]
+        reveal(book, app: app)
+        tap(book)
+        tap(app.buttons["detail.manage"])
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "admin.workspace.book").firstMatch.waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testWorkspaceRestoresBookDraftOutsideFirstIndexPageAndIsolatesAccounts() {
+        let app = launch("admin-workspace")
+        openBookWorkspace("audit-book-4", app: app)
+        tap(app.buttons["admin.workspace.writing"])
+        let input = app.descendants(matching: .any).matching(identifier: "admin.writing.instruction").firstMatch
+        tap(input)
+        let text = "保留山里的邮局，补充人物动机。"
+        input.typeText(text)
+        capture("admin-writing-book-input", app: app)
+        app.terminate()
+        app.launch()
+        openBookWorkspace("audit-book-4", app: app)
+        tap(app.buttons["admin.workspace.writing"])
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        XCTAssertEqual(input.value as? String, text)
+        app.terminate()
+        var environment = app.launchEnvironment
+        environment["ZHIZHOU_UI_ACCOUNT"] = UUID().uuidString
+        app.launchEnvironment = environment
+        app.launch()
+        openBookWorkspace("audit-book-4", app: app)
+        tap(app.buttons["admin.workspace.writing"])
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        XCTAssertNotEqual(input.value as? String, text)
+    }
+
+    @MainActor
+    func testReaderWorkspaceCarriesCurrentChapterIntoWriting() {
+        let app = launch("admin-workspace")
+        let book = app.buttons["catalog.audit-book-4"]
+        reveal(book, app: app); tap(book)
+        tap(app.buttons["detail.read"])
+        tap(app.buttons["更多阅读操作"])
+        tap(app.buttons["管理这本书"])
+        tap(app.buttons["admin.workspace.writing"])
+        let anchor = app.descendants(matching: .any).matching(identifier: "admin.writing.anchor").firstMatch
+        XCTAssertTrue(anchor.waitForExistence(timeout: 15))
+        let value = anchor.label + " " + (anchor.value as? String ?? "")
+        XCTAssertTrue(value.contains("一封没有寄出的信"))
+        capture("admin-writing-current-chapter", app: app)
+    }
+
+    @MainActor
+    func testUnifiedTaskInboxOpensExactTaskResults() {
+        let app = launch("admin-workspace")
+        openAdminModule("tasks", app: app)
+        tap(app.buttons["admin.inbox.ai.audit-workspace-task"])
+        let results = app.buttons["admin.task.results.audit-workspace-task"]
+        reveal(results, app: app); tap(results)
+        XCTAssertTrue(app.staticTexts["新的来信"].firstMatch.waitForExistence(timeout: 15))
+        capture("admin-task-draft-results", app: app)
+    }
+
+    @MainActor
+    func testReaderAccountDoesNotExposeBookManagement() {
+        let app = launch("reader-role")
+        tap(app.buttons["catalog.audit-book-1"])
+        XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["detail.manage"].exists)
+    }
+
+    @MainActor
     func testBookshelfCanReachFiftyFirstFavoriteAndDetailKnowsItIsSaved() {
         let app = launch("bookshelf-many")
         selectTab("书架", app: app)
@@ -639,6 +710,11 @@ final class FrontendAuditTests: XCTestCase {
         reveal(app.buttons["管理后台"], app: app)
         tap(app.buttons["管理后台"])
         let module = app.buttons["admin.module.\(id)"]
+        if !module.exists {
+            let all = app.buttons["admin.allModules"]
+            reveal(all, app: app)
+            tap(all)
+        }
         reveal(module, app: app)
         tap(module)
     }

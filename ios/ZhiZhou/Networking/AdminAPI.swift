@@ -959,11 +959,11 @@ enum AdminAPI {
 
     /// kind：all | summary | catchup | continue | write_outline | write_chapter
     /// scope：all | reader | writing；status：all | published | draft | rejected
-    static func aiGenerations(kind: String = "all", scope: String = "all", status: String = "all", limit: Int = 50, offset: Int = 0) async throws -> AiGenerationsResponse {
-        var path = "/api/ai/generations?limit=\(limit)&offset=\(offset)"
+    static func aiGenerations(kind: String = "all", scope: String = "all", status: String = "all", limit: Int = 50, offset: Int = 0, novelId: String = "") async throws -> AiGenerationsResponse {
+        var path = "/api/ai/generations?limit=\(limit)&offset=\(offset)&status=\(encodeQueryValue(status))"
         if kind != "all" { path += "&kind=\(encodeQueryValue(kind))" }
         if scope != "all" { path += "&scope=\(encodeQueryValue(scope))" }
-        if status != "all" { path += "&status=\(encodeQueryValue(status))" }
+        if !novelId.isEmpty { path += "&novelId=\(encodeQueryValue(novelId))" }
         return try await APIClient.shared.get(path, auth: true)
     }
 

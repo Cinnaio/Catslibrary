@@ -103,7 +103,22 @@ struct AdminRootView: View {
     private var moduleList: some View {
         List {
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                moduleSections
+                AdminWorkspaceHomeSections()
+                Section("常用操作") {
+                    ForEach(moduleGroups.flatMap(\.modules).filter {
+                        ["novels", "tasks", "book-import", "discover", "ai-service", "moderation", "users"].contains($0.id)
+                    }) { module in moduleLink(module) }
+                }
+                Section {
+                    NavigationLink {
+                        List { moduleSections }
+                            .appListStyle(.settings)
+                            .navigationTitle("全部管理功能")
+                    } label: { AppIconLabel("全部管理功能", systemImage: "square.grid.2x2") }
+                    .accessibilityIdentifier("admin.allModules")
+                } footer: {
+                    Text("书源、代理、供应商、站点配置及完整审计记录可在全部功能中找到。")
+                }
             } else {
                 searchSections
             }

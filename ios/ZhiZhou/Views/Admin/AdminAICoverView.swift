@@ -22,6 +22,15 @@ private struct AdminCoverPromptDraftSnapshot {
 /// AI 封面生成：选书 → 生成描述词 → 生成封面（后台任务）→ 轮询 → 候选采纳/弃用/上传。
 /// 对齐 Web 端 admin ai AiCoverPanel（/api/ai/cover/*）。
 struct AdminAICoverView: View {
+    private let initialNovel: Novel?
+    init(initialNovel: Novel? = nil) {
+        self.initialNovel = initialNovel
+        _selectedNovelId = State(initialValue: initialNovel?.id ?? "")
+        if let novel = initialNovel {
+            _novelOptions = State(initialValue: [AdminNovelSummary(id: novel.id, title: novel.title,
+                author: novel.author, chapterCount: novel.chapterCount, updatedAt: novel.updatedAt)])
+        }
+    }
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -354,9 +363,11 @@ struct AdminAICoverView: View {
                             .foregroundStyle(AppTheme.textSecondary)
                     }
                     Spacer()
-                    Button("换一本") { showNovelPicker = true }
-                        .font(.subheadline)
-                        .disabled(promptTaskInFlight || coverTaskInFlight || uploading)
+                    if initialNovel == nil {
+                        Button("换一本") { showNovelPicker = true }
+                            .font(.subheadline)
+                            .disabled(promptTaskInFlight || coverTaskInFlight || uploading)
+                    }
                 }
 
                 HStack(alignment: .top, spacing: 12) {
@@ -1051,12 +1062,20 @@ struct AdminAICoverView: View {
         do {
             let index = try await AdminAPI.novelIndex(limit: 200)
             novelOptions = index.novels
+            if let novel = initialNovel, !novelOptions.contains(where: { $0.id == novel.id }) {
+                novelOptions.insert(AdminNovelSummary(id: novel.id, title: novel.title, author: novel.author,
+                    chapterCount: novel.chapterCount, updatedAt: novel.updatedAt), at: 0)
+            }
             if let settings = try? await AdminAPI.aiSettings(), let configuredLimit = settings.settings?.coverPromptMaxChars {
                 coverPromptMaxCharacters = normalizedCoverPromptLimit(configuredLimit)
                 prompt = String(prompt.prefix(coverPromptMaxCharacters))
             }
         } catch {
             actionError = AppCopy.friendlyError(error)
+        }
+        if !selectedNovelId.isEmpty {
+            await loadCandidates()
+            await loadHistory()
         }
     }
 
@@ -1084,6 +1103,7 @@ struct AdminAICoverView: View {
                 key: AdminAITaskCoordinator.OperationKey.coverPrompt,
                 recoveryAttempts: 5
             ) else { return }
+            guard selectedNovelId.isEmpty || task.novelId == selectedNovelId else { return }
             activeTask = task
             if let novelId = task.novelId, !novelId.isEmpty {
                 selectedNovelId = novelId
@@ -1335,6 +1355,7 @@ struct AdminAICoverView: View {
                 key: AdminAITaskCoordinator.OperationKey.coverImage,
                 recoveryAttempts: 5
             ) else { return }
+            guard selectedNovelId.isEmpty || task.novelId == selectedNovelId else { return }
             activeTask = task
             if let novelID = task.novelId, !novelID.isEmpty {
                 selectedNovelId = novelID

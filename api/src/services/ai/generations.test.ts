@@ -39,6 +39,35 @@ afterAll(async () => {
 })
 
 describe('generation directory search', () => {
+  it('filters exact novel before totals, pagination and grouping even when batch labels match', async () => {
+    await testDb.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES ('workspace-a','同名作品',1,1),('workspace-b','同名作品',1,1)")
+    for (let index = 0; index < 13; index++) {
+      await saveGeneration(testDb.db, {
+        novelId: index < 12 ? 'workspace-a' : 'workspace-b',
+        chapterId: '',
+        kind: 'continue',
+        model: 'test',
+        paramsJson: JSON.stringify({ batchId: 'workspace-shared', batchIndex: index + 1 }),
+        prompt: '',
+        result: `WORKSPACE-${index}`,
+        status: 'draft',
+        createdBy: '',
+      })
+    }
+    const options = { novelId: 'workspace-a', status: 'draft', kind: 'continue', limit: 10 }
+    const first = await listGenerationDetails(testDb.db, options)
+    const second = await listGenerationDetails(testDb.db, { ...options, offset: 10 })
+    expect(first.total).toBe(12)
+    expect(first.items).toHaveLength(10)
+    expect(second.total).toBe(12)
+    expect(second.items).toHaveLength(2)
+    expect([...first.items, ...second.items].every((item) => item.novelId === 'workspace-a')).toBe(true)
+    const grouped = await listGenerationDetails(testDb.db, { ...options, groupBatches: true })
+    expect(grouped.total).toBe(1)
+    expect(grouped.items).toHaveLength(12)
+    expect((await listGenerationDetails(testDb.db, { novelId: 'workspace-b' })).total).toBe(1)
+    expect((await listGenerationDetails(testDb.db, { novelId: "' OR 1=1 --" })).total).toBe(0)
+  })
   it('searches associated titles before pagination and keeps count and status consistent', async () => {
     const first = await listGenerationDetails(testDb.db, { q: '雨夜', status: 'draft', kinds: ['continue'], limit: 10 })
     const second = await listGenerationDetails(testDb.db, { q: '雨夜', status: 'draft', kinds: ['continue'], limit: 10, offset: 10 })
@@ -131,8 +160,22 @@ describe('generation directory batch pagination', () => {
 
 describe('continuation plot preview', () => {
   it('prefers the saved direction and recovers legacy directions through exact task or batch associations', async () => {
-    const original = await createAiTask(testDb.db, { userId: '', novelId: 'search-book', kind: 'continue', batchId: 'plot-legacy', prompt: 'CREATIVE_TASK_PIPELINE 完整提示词', params: JSON.stringify({ instruction: '原始选定情节' }) })
-    const resumed = await createAiTask(testDb.db, { userId: '', novelId: 'search-book', kind: 'continue', batchId: 'plot-legacy', prompt: 'CREATIVE_TASK_PIPELINE 完整提示词', params: JSON.stringify({ instruction: '恢复任务的情节' }) })
+    const original = await createAiTask(testDb.db, {
+      userId: '',
+      novelId: 'search-book',
+      kind: 'continue',
+      batchId: 'plot-legacy',
+      prompt: 'CREATIVE_TASK_PIPELINE 完整提示词',
+      params: JSON.stringify({ instruction: '原始选定情节' }),
+    })
+    const resumed = await createAiTask(testDb.db, {
+      userId: '',
+      novelId: 'search-book',
+      kind: 'continue',
+      batchId: 'plot-legacy',
+      prompt: 'CREATIVE_TASK_PIPELINE 完整提示词',
+      params: JSON.stringify({ instruction: '恢复任务的情节' }),
+    })
     await testDb.db.query('UPDATE ai_tasks SET created_at = $1 WHERE id = $2', [1, original.id])
     await testDb.db.query('UPDATE ai_tasks SET created_at = $1 WHERE id = $2', [2, resumed.id])
     const metadata = [

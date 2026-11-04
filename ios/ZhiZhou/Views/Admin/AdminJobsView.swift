@@ -4,6 +4,8 @@ import ZhiZhouCore
 /// 任务管理：抓取任务列表（过滤 / 终止 / 整本重试 / 重试失败章节 / 清理已完成）+ 下载日志。
 /// 对齐 Web 端 admin JobsTab：运行中任务每 4 秒自动刷新，空闲每 20 秒。
 struct AdminJobsView: View {
+    private let focusedJobID: String?
+    init(jobID: String? = nil) { focusedJobID = jobID }
     @State private var requests = ListRequestGuard<Bool>()
     @Environment(\.scenePhase) private var scenePhase
     @State private var jobs: [AdminJobItem] = []
@@ -82,7 +84,7 @@ struct AdminJobsView: View {
                     }
                 }
 
-                if !logs.isEmpty {
+                if focusedJobID == nil && !logs.isEmpty {
                     Section("下载日志") {
                         ForEach(logs) { log in
                             logRow(log)
@@ -111,7 +113,7 @@ struct AdminJobsView: View {
                         Label("更多", systemImage: "ellipsis.circle")
                     }
                 }
-                .disabled(isBusy)
+                .disabled(isBusy || focusedJobID != nil)
             }
         }
         .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
@@ -137,6 +139,7 @@ struct AdminJobsView: View {
     // MARK: - 列表
 
     private var filteredJobs: [AdminJobItem] {
+        if let focusedJobID { return jobs.filter { $0.id == focusedJobID } }
         switch filter {
         case .all: return jobs
         case .running: return jobs.filter { AdminFormat.isJobRunning($0.status) }

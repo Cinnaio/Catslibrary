@@ -46,9 +46,13 @@ export interface Generation {
 export function generationWritingQuality(kind: string, result: string, paramsJson: string): WritingQualityReport | undefined {
   if (kind !== 'continue' && kind !== 'write_chapter') return undefined
   let params: Record<string, unknown> = {}
-  try { params = JSON.parse(paramsJson || '{}') || {} } catch { /* Legacy records may lack valid metadata. */ }
+  try {
+    params = JSON.parse(paramsJson || '{}') || {}
+  } catch {
+    /* Legacy records may lack valid metadata. */
+  }
   const raw = params.writingQuality
-  const audit = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+  const audit = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const boundary = params.chapterBoundaryTruncation
   return assessWritingQuality({
     text: result,
@@ -82,12 +86,7 @@ export function cacheKey(params: { version: number; model: string; prompt?: stri
   return JSON.stringify({ version: params.version, model: params.model, ...(params.prompt ? { prompt: params.prompt } : {}) })
 }
 
-export async function findPublished(
-  db: Db,
-  kind: GenerationKind,
-  chapterId: string,
-  paramsJson: string,
-): Promise<Generation | undefined> {
+export async function findPublished(db: Db, kind: GenerationKind, chapterId: string, paramsJson: string): Promise<Generation | undefined> {
   const row = await first<GenerationRow>(
     db,
     `SELECT * FROM ai_generations
@@ -149,7 +148,7 @@ export async function saveGeneration(db: DbClient, input: SaveGenerationInput): 
 export async function listGenerations(db: Db, opts: { status?: string; limit?: number } = {}): Promise<Generation[]> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 200)
   const rows = opts.status
-    ? await all<GenerationRow>(db, "SELECT * FROM ai_generations WHERE status = $1 AND deleted_at = 0 ORDER BY created_at DESC LIMIT $2", [opts.status, limit])
+    ? await all<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE status = $1 AND deleted_at = 0 ORDER BY created_at DESC LIMIT $2', [opts.status, limit])
     : await all<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE deleted_at = 0 ORDER BY created_at DESC LIMIT $1', [limit])
   return rows.map(rowToGeneration)
 }
@@ -170,7 +169,9 @@ export interface GenerationDetail extends Generation {
 }
 
 export function generationContentRevision(result: string): string {
-  return createHash('sha256').update(String(result || ''), 'utf8').digest('hex')
+  return createHash('sha256')
+    .update(String(result || ''), 'utf8')
+    .digest('hex')
 }
 
 function batchFields(paramsJson: string): { batchId: string; batchIndex: number; batchCount: number; draftTitle: string; plotDirection: string } {
@@ -212,7 +213,6 @@ export async function listBatchDrafts(db: Db, batchId: string): Promise<BatchDra
     .map((row) => ({ ...rowToGeneration(row), ...batchFields(row.params_json) }))
     .filter((d) => d.batchId === batchId && d.batchIndex > 0)
     .sort((a, b) => a.batchIndex - b.batchIndex)
-
 }
 
 /** 断点恢复使用的完整批次结果：已发布章节也算已生成，拒绝态保留以便路由拒绝不确定恢复。 */
@@ -226,11 +226,13 @@ export async function listBatchResults(db: Db, batchId: string, opts: { includeD
        AND params_json LIKE $1 ORDER BY created_at ASC, id ASC`,
     [`%\"batchId\":\"${batchId.replace(/[%_\\]/g, '\\$&')}\"%`],
   )
-  return rows
-    .map((row) => ({ ...rowToGeneration(row), ...batchFields(row.params_json), deletedAt: Number(row.deleted_at) || 0 }))
-    // 保留空结果与 rejected 记录：它们代表同批的不确定产物，恢复路由必须拒绝静默续跑。
-    .filter((d) => d.batchId === batchId && d.batchIndex > 0)
-    .sort((a, b) => a.batchIndex - b.batchIndex || a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+  return (
+    rows
+      .map((row) => ({ ...rowToGeneration(row), ...batchFields(row.params_json), deletedAt: Number(row.deleted_at) || 0 }))
+      // 保留空结果与 rejected 记录：它们代表同批的不确定产物，恢复路由必须拒绝静默续跑。
+      .filter((d) => d.batchId === batchId && d.batchIndex > 0)
+      .sort((a, b) => a.batchIndex - b.batchIndex || a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+  )
 }
 
 /** 按任务精确关联生成结果；只接受 params_json 中解析后的 taskId，不能用时间接近猜测。 */
@@ -271,13 +273,17 @@ export async function listTaskGenerations(db: Db, taskId: string): Promise<Gener
 /** 「已生成内容」管理列表：带小说/章节标题、行数与分页。 */
 export async function listGenerationDetails(
   db: Db,
-  opts: { q?: string; kind?: string; kinds?: string[]; status?: string; limit?: number; offset?: number; groupBatches?: boolean } = {},
+  opts: { q?: string; novelId?: string; kind?: string; kinds?: string[]; status?: string; limit?: number; offset?: number; groupBatches?: boolean } = {},
 ): Promise<{ items: GenerationDetail[]; total: number }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
   const offset = Math.max(Math.trunc(opts.offset || 0), 0)
 
   const conditions: string[] = []
   const params: unknown[] = []
+  if (opts.novelId) {
+    params.push(opts.novelId)
+    conditions.push(`g.novel_id = $${params.length}`)
+  }
   if (opts.kind) {
     params.push(opts.kind)
     conditions.push(`g.kind = $${params.length}`)
@@ -395,7 +401,9 @@ async function continuationDirections(db: Db, rows: GenerationRow[]): Promise<Ma
     try {
       const params = JSON.parse(row.params_json) as Record<string, unknown>
       taskId = typeof params.taskId === 'string' ? params.taskId : ''
-    } catch { /* 无效旧元数据不猜测任务关联。 */ }
+    } catch {
+      /* 无效旧元数据不猜测任务关联。 */
+    }
     if (taskId || fields.batchId) pending.push({ row, taskId, batchId: fields.batchId })
   }
   if (!pending.length) return directions
@@ -412,14 +420,16 @@ async function continuationDirections(db: Db, rows: GenerationRow[]): Promise<Ma
     try {
       const request = JSON.parse(task.params) as Record<string, unknown>
       if (typeof request.instruction === 'string' && request.instruction.trim()) directions.set(item.row.id, request.instruction.trim())
-    } catch { /* 不从任务 prompt 猜情节：该字段可能已被完整模型提示词覆盖。 */ }
+    } catch {
+      /* 不从任务 prompt 猜情节：该字段可能已被完整模型提示词覆盖。 */
+    }
   }
   return directions
 }
 
 /** 软删除某条生成记录并顺带清理过期软删；返回是否真的标记成功。 */
 export async function deleteGeneration(db: Db, id: string): Promise<boolean> {
-  const affected = await run(db, "UPDATE ai_generations SET deleted_at = $1 WHERE id = $2 AND deleted_at = 0", [Date.now(), id])
+  const affected = await run(db, 'UPDATE ai_generations SET deleted_at = $1 WHERE id = $2 AND deleted_at = 0', [Date.now(), id])
   await purgeExpiredDeletions(db)
   return affected > 0
 }
@@ -430,11 +440,7 @@ export async function deleteGenerations(db: Db, ids: string[]): Promise<number> 
   if (!uniqueIds.length) return 0
   // $1 是删除时间戳，id 占位符从 $2 开始，避免与参数顺序冲突
   const placeholders = uniqueIds.map((_, index) => `$${index + 2}`).join(', ')
-  const affected = await run(
-    db,
-    `UPDATE ai_generations SET deleted_at = $1 WHERE id IN (${placeholders}) AND deleted_at = 0`,
-    [Date.now(), ...uniqueIds],
-  )
+  const affected = await run(db, `UPDATE ai_generations SET deleted_at = $1 WHERE id IN (${placeholders}) AND deleted_at = 0`, [Date.now(), ...uniqueIds])
   await purgeExpiredDeletions(db)
   return affected
 }
@@ -446,11 +452,7 @@ export async function restoreGenerations(db: Db, ids: string[]): Promise<number>
   // $1 是撤销窗口截止时间，id 占位符从 $2 开始
   const placeholders = uniqueIds.map((_, index) => `$${index + 2}`).join(', ')
   const cutoff = Date.now() - UNDO_WINDOW_MS
-  return run(
-    db,
-    `UPDATE ai_generations SET deleted_at = 0 WHERE id IN (${placeholders}) AND deleted_at > 0 AND deleted_at > $1`,
-    [cutoff, ...uniqueIds],
-  )
+  return run(db, `UPDATE ai_generations SET deleted_at = 0 WHERE id IN (${placeholders}) AND deleted_at > 0 AND deleted_at > $1`, [cutoff, ...uniqueIds])
 }
 
 /** 物理清理超过撤销窗口的软删记录，防止表无限膨胀；删除/恢复时顺带调用。 */
@@ -468,16 +470,18 @@ export async function getGeneration(db: Db, id: string): Promise<GenerationRow |
  * 另一请求可能已经发布或软删除了它，迟到的保存不能把已发布内容降回 draft。
  */
 export async function updateGenerationResult(db: Db, id: string, result: string): Promise<boolean> {
-  return (await run(
-    db,
-    `UPDATE ai_generations
+  return (
+    (await run(
+      db,
+      `UPDATE ai_generations
      SET result = $1
      WHERE id = $2
        AND status = 'draft'
        AND deleted_at = 0
        AND kind IN ('write_chapter', 'continue', 'write_outline')`,
-    [result, id],
-  )) > 0
+      [result, id],
+    )) > 0
+  )
 }
 
 /** 读取一条未软删除的管理端生成详情，供发布结果核对和任务结果页复用。 */
@@ -504,8 +508,5 @@ export async function getGenerationDetail(db: Db, id: string): Promise<Generatio
 
 /** 作废某章的缓存（重新生成 / 章节内容更新后调用）。 */
 export async function invalidateChapter(db: Db, kind: GenerationKind, chapterId: string): Promise<number> {
-  return run(db, `UPDATE ai_generations SET status = 'rejected' WHERE kind = $1 AND chapter_id = $2 AND status = 'published'`, [
-    kind,
-    chapterId,
-  ])
+  return run(db, `UPDATE ai_generations SET status = 'rejected' WHERE kind = $1 AND chapter_id = $2 AND status = 'published'`, [kind, chapterId])
 }

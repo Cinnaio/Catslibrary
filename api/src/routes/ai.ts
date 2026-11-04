@@ -115,29 +115,41 @@ function presetErrorResponse(c: Context, err: unknown) {
 aiRoutes.get('/provider-presets', requireAdmin(), (c) => {
   try {
     return c.json({ presets: listProviderPresets() }, 200, { 'Cache-Control': 'no-store' })
-  } catch (err) { return presetErrorResponse(c, err) }
+  } catch (err) {
+    return presetErrorResponse(c, err)
+  }
 })
 aiRoutes.post('/provider-presets', requireAdmin(), async (c) => {
   try {
     const body = await c.req.json()
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AiError('invalid', '配置格式无效', 400)
     return c.json({ presets: saveProviderPreset(body) })
-  } catch (err) { return presetErrorResponse(c, err) }
+  } catch (err) {
+    return presetErrorResponse(c, err)
+  }
 })
 aiRoutes.put('/provider-presets/:id', requireAdmin(), async (c) => {
   try {
     const body = await c.req.json()
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AiError('invalid', '配置格式无效', 400)
     return c.json({ presets: saveProviderPreset(body, c.req.param('id')) })
-  } catch (err) { return presetErrorResponse(c, err) }
+  } catch (err) {
+    return presetErrorResponse(c, err)
+  }
 })
 aiRoutes.delete('/provider-presets/:id', requireAdmin(), (c) => {
-  try { return c.json({ presets: deleteProviderPreset(c.req.param('id')) }) }
-  catch (err) { return presetErrorResponse(c, err) }
+  try {
+    return c.json({ presets: deleteProviderPreset(c.req.param('id')) })
+  } catch (err) {
+    return presetErrorResponse(c, err)
+  }
 })
 aiRoutes.post('/provider-presets/:id/activate', requireAdmin(), (c) => {
-  try { return c.json({ presets: activateProviderPreset(c.req.param('id')) }) }
-  catch (err) { return presetErrorResponse(c, err) }
+  try {
+    return c.json({ presets: activateProviderPreset(c.req.param('id')) })
+  } catch (err) {
+    return presetErrorResponse(c, err)
+  }
 })
 
 aiRoutes.get('/writing/story-graph/:novelId', requireAdmin(), async (c) => {
@@ -155,8 +167,10 @@ aiRoutes.post('/writing/story-graph/:novelId', requireAdmin(), async (c) => {
   try {
     const db = getDb()
     const result = await generateStoryGraph(db, {
-      novelId: c.req.param('novelId'), afterChapterId: String(body.afterChapterId || '').trim() || undefined,
-      userId: c.get('user').id, ...(await auditRequestContext(c, db)),
+      novelId: c.req.param('novelId'),
+      afterChapterId: String(body.afterChapterId || '').trim() || undefined,
+      userId: c.get('user').id,
+      ...(await auditRequestContext(c, db)),
     })
     return c.json(result, 200, { 'Cache-Control': 'no-store' })
   } catch (err) {
@@ -670,14 +684,30 @@ async function buildContinuationSnapshot(
   use('relationship', relationship)
   use('plot', plot)
   const memorySettings = await getAiSettings(db)
-  if (memorySettings.storyMemoryEngine === 'incremental' && [plot, relationship].some(p => p.eligibility !== 'usable' || p.source?.memoryEngine !== 'incremental')) {
+  if (
+    memorySettings.storyMemoryEngine === 'incremental' &&
+    [plot, relationship].some((p) => p.eligibility !== 'usable' || p.source?.memoryEngine !== 'incremental')
+  ) {
     throw new AiError('invalid', '章节增量记忆尚未完整覆盖此续写起点，请先更新或继续故事记忆后再预览和续写', 422)
   }
-  const ledgerMaterials = memorySettings.storyMemoryEngine === 'incremental' ? await selectLedgerMaterials(db, novelId, loaded.anchor.chapterId,
-    [loaded.context, instruction, brief?.objective, brief?.requiredFacts, ...(brief?.characters || []), ...(brief?.chapterGoals.map(g => g.goal) || [])].filter(Boolean).join('\n'), { plot, relationship }, {
-      context: loaded.context,
-      instruction: [instruction, brief?.objective, brief?.requiredFacts, ...(brief?.characters || []), ...(brief?.chapterGoals.map(g => g.goal) || [])].filter(Boolean).join('\n'),
-    }) : undefined
+  const ledgerMaterials =
+    memorySettings.storyMemoryEngine === 'incremental'
+      ? await selectLedgerMaterials(
+          db,
+          novelId,
+          loaded.anchor.chapterId,
+          [loaded.context, instruction, brief?.objective, brief?.requiredFacts, ...(brief?.characters || []), ...(brief?.chapterGoals.map((g) => g.goal) || [])]
+            .filter(Boolean)
+            .join('\n'),
+          { plot, relationship },
+          {
+            context: loaded.context,
+            instruction: [instruction, brief?.objective, brief?.requiredFacts, ...(brief?.characters || []), ...(brief?.chapterGoals.map((g) => g.goal) || [])]
+              .filter(Boolean)
+              .join('\n'),
+          },
+        )
+      : undefined
   if (ledgerMaterials) Object.assign(profiles, ledgerMaterials.selected)
   return {
     version: 1,
@@ -692,11 +722,20 @@ async function buildContinuationSnapshot(
     contentPreferences,
     excludedProfiles,
     historicalPassages: await retrieveWritingHistory(db, novelId, loaded.anchor, brief, instruction),
-    ...(ledgerMaterials ? { memorySelection: {
-      revision: ledgerMaterials.revision, retrievedFacts: ledgerMaterials.retrievedFacts, totalFacts: ledgerMaterials.totalFacts,
-      selectionVersion: ledgerMaterials.selectionVersion, omittedFacts: ledgerMaterials.omittedFacts,
-      projectedSupersededFacts: ledgerMaterials.projectedSupersededFacts, materialCharacters: ledgerMaterials.materialCharacters, overBudget: ledgerMaterials.overBudget,
-    } } : {}),
+    ...(ledgerMaterials
+      ? {
+          memorySelection: {
+            revision: ledgerMaterials.revision,
+            retrievedFacts: ledgerMaterials.retrievedFacts,
+            totalFacts: ledgerMaterials.totalFacts,
+            selectionVersion: ledgerMaterials.selectionVersion,
+            omittedFacts: ledgerMaterials.omittedFacts,
+            projectedSupersededFacts: ledgerMaterials.projectedSupersededFacts,
+            materialCharacters: ledgerMaterials.materialCharacters,
+            overBudget: ledgerMaterials.overBudget,
+          },
+        }
+      : {}),
   }
 }
 
@@ -805,7 +844,14 @@ async function startWritingJob(
   let snapshot = internalSnapshot
   if (!snapshot) {
     try {
-      snapshot = await buildContinuationSnapshot(db, novelId, String(body.afterChapterId || '').trim() || undefined, contentPreferences, writingBrief, finalInstruction)
+      snapshot = await buildContinuationSnapshot(
+        db,
+        novelId,
+        String(body.afterChapterId || '').trim() || undefined,
+        contentPreferences,
+        writingBrief,
+        finalInstruction,
+      )
     } catch (err) {
       if (err instanceof AiError && (err.status === 404 || err.code === 'invalid')) {
         return { ok: false, status: err.status === 404 ? 404 : 422, error: err.message }
@@ -814,7 +860,12 @@ async function startWritingJob(
     }
   }
   if (!snapshot) return { ok: false, status: 422, error: '此书暂无已发布章节，请先使用新写' }
-  if (!internalSnapshot && body.materialRevision && String(body.materialRevision) !== writingMaterialRevision(snapshot, writingBrief, instruction, String(body.outline || '').trim())) return { ok: false, status: 409, error: '创作材料或要求已变化，请重新预览上下文' }
+  if (
+    !internalSnapshot &&
+    body.materialRevision &&
+    String(body.materialRevision) !== writingMaterialRevision(snapshot, writingBrief, instruction, String(body.outline || '').trim())
+  )
+    return { ok: false, status: 409, error: '创作材料或要求已变化，请重新预览上下文' }
   const effectiveContentPreferences = snapshot.contentPreferences || contentPreferences
 
   const existing = resume?.drafts || []
@@ -1363,12 +1414,24 @@ aiRoutes.get('/writing/drafts/:id/review', requireAdmin(), async (c) => {
   const db = getDb()
   const draft = await first<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE id = $1 AND deleted_at = 0', [c.req.param('id')])
   if (!draft || !['continue', 'write_chapter'].includes(draft.kind)) return c.json({ error: '草稿不存在' }, 404)
-  const latest = await first<{ report_json: string }>(db, "SELECT report_json FROM ai_writing_reviews WHERE draft_id = $1 AND status = 'completed' ORDER BY created_at DESC LIMIT 1", [draft.id])
+  const latest = await first<{ report_json: string }>(
+    db,
+    "SELECT report_json FROM ai_writing_reviews WHERE draft_id = $1 AND status = 'completed' ORDER BY created_at DESC LIMIT 1",
+    [draft.id],
+  )
   if (!latest) return c.json({ report: null }, 200, { 'Cache-Control': 'no-store' })
   const report = JSON.parse(latest.report_json) as WritingReview
   let sourcesCurrent = false
-  try { sourcesCurrent = await reviewSourcesCurrent(db, draft.novel_id, report.sources, report.anchorId) } catch { sourcesCurrent = false }
-  return c.json({ report: { ...report, stale: draft.status !== 'draft' || report.draftRevision !== generationContentRevision(draft.result) || !sourcesCurrent } }, 200, { 'Cache-Control': 'no-store' })
+  try {
+    sourcesCurrent = await reviewSourcesCurrent(db, draft.novel_id, report.sources, report.anchorId)
+  } catch {
+    sourcesCurrent = false
+  }
+  return c.json(
+    { report: { ...report, stale: draft.status !== 'draft' || report.draftRevision !== generationContentRevision(draft.result) || !sourcesCurrent } },
+    200,
+    { 'Cache-Control': 'no-store' },
+  )
 })
 
 aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), async (c) => {
@@ -1378,16 +1441,37 @@ aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), async (c) => {
   const body = await c.req.json().catch(() => ({}))
   try {
     let params: Record<string, any> = {}
-    try { params = JSON.parse(draft.params_json || '{}') } catch { /* legacy draft */ }
+    try {
+      params = JSON.parse(draft.params_json || '{}')
+    } catch {
+      /* legacy draft */
+    }
     const task = params.taskId ? await getAiTask(db, String(params.taskId)) : undefined
     let taskParams: Record<string, any> = {}
-    try { taskParams = JSON.parse(task?.params || '{}') } catch { /* legacy task */ }
+    try {
+      taskParams = JSON.parse(task?.params || '{}')
+    } catch {
+      /* legacy task */
+    }
     const frozen = parseContinuationSnapshot(taskParams.continuationSnapshot)
     const brief = validateWritingBrief(taskParams.writingBrief, Number(taskParams.chapterCount) || 1).brief
-    const snapshot = await buildContinuationSnapshot(db, draft.novel_id, frozen?.anchor.chapterId || String(taskParams.afterChapterId || '').trim() || undefined, frozen?.contentPreferences, brief, [String(taskParams.instruction || ''), draft.result].join('\n'))
-    const report = await reviewWritingDraft(db, draft, snapshot, { userId: c.get('user').id, expectedRevision: String(body.expectedRevision || ''), ...(await auditRequestContext(c, db)) })
+    const snapshot = await buildContinuationSnapshot(
+      db,
+      draft.novel_id,
+      frozen?.anchor.chapterId || String(taskParams.afterChapterId || '').trim() || undefined,
+      frozen?.contentPreferences,
+      brief,
+      [String(taskParams.instruction || ''), draft.result].join('\n'),
+    )
+    const report = await reviewWritingDraft(db, draft, snapshot, {
+      userId: c.get('user').id,
+      expectedRevision: String(body.expectedRevision || ''),
+      ...(await auditRequestContext(c, db)),
+    })
     return c.json({ report }, 200, { 'Cache-Control': 'no-store' })
-  } catch (err) { return aiErrorResponse(c, err) }
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
 })
 
 aiRoutes.post('/writing/materials', requireAdmin(), async (c) => {
@@ -1403,43 +1487,99 @@ aiRoutes.post('/writing/materials', requireAdmin(), async (c) => {
   try {
     const instruction = String(body.instruction || '').trim()
     const outline = String(body.outline || '').trim()
-    const snapshot = await buildContinuationSnapshot(db, novelId, String(body.afterChapterId || '').trim() || undefined, preferences.preferences, brief.brief, instruction || String(body.title || '').trim() || '自然推进剧情，完成一个有悬念的章节段落')
+    const snapshot = await buildContinuationSnapshot(
+      db,
+      novelId,
+      String(body.afterChapterId || '').trim() || undefined,
+      preferences.preferences,
+      brief.brief,
+      instruction || String(body.title || '').trim() || '自然推进剧情，完成一个有悬念的章节段落',
+    )
     if (!snapshot) return c.json({ error: '此书暂无已发布章节' }, 422)
     const settings = await getAiSettings(db)
-    const compiled = compileWritingPrompt({ kind: 'continue', title: novel.title, instruction: instruction || String(body.title || '').trim() || '自然推进剧情，完成一个有悬念的章节段落', outline, context: snapshot.context, writingBrief: brief.brief, targetWords: Number(body.targetWords) || undefined, chapterCount: Number(body.chapterCount) || 1,
-      plotState: { state: snapshot.profiles.plot }, styleProfile: snapshot.profiles.style, relationshipProfile: snapshot.profiles.relationship,
-      continuationSnapshot: snapshot, profileOrigins: snapshot.profileOrigins, contentPreferences: snapshot.contentPreferences, writingSystemPrompt: settings.writingSystemPrompt })
-    return c.json({ revision: writingMaterialRevision(snapshot, brief.brief, instruction, outline), anchor: snapshot.anchor, plan: compiled.plan,
-      historicalPassages: snapshot.historicalPassages || [], excludedProfiles: snapshot.excludedProfiles,
-      characterCount: compiled.system.length + compiled.user.length, ...(snapshot.memorySelection ? { memorySelection: snapshot.memorySelection } : {}), recentContextPolicy: snapshot.memorySelection ? '最近三章尾部；自动记忆按当前人物、目标及线索关联检索，保留正文依据和相关历史；人工校正完整保留。' : '最近三章尾部，总上限 12000 字符；历史原文按匹配片段补充，情节和关系档案完整保留。' }, 200, { 'Cache-Control': 'no-store' })
-  } catch (err) { return aiErrorResponse(c, err) }
+    const compiled = compileWritingPrompt({
+      kind: 'continue',
+      title: novel.title,
+      instruction: instruction || String(body.title || '').trim() || '自然推进剧情，完成一个有悬念的章节段落',
+      outline,
+      context: snapshot.context,
+      writingBrief: brief.brief,
+      targetWords: Number(body.targetWords) || undefined,
+      chapterCount: Number(body.chapterCount) || 1,
+      plotState: { state: snapshot.profiles.plot },
+      styleProfile: snapshot.profiles.style,
+      relationshipProfile: snapshot.profiles.relationship,
+      continuationSnapshot: snapshot,
+      profileOrigins: snapshot.profileOrigins,
+      contentPreferences: snapshot.contentPreferences,
+      writingSystemPrompt: settings.writingSystemPrompt,
+    })
+    return c.json(
+      {
+        revision: writingMaterialRevision(snapshot, brief.brief, instruction, outline),
+        anchor: snapshot.anchor,
+        plan: compiled.plan,
+        historicalPassages: snapshot.historicalPassages || [],
+        excludedProfiles: snapshot.excludedProfiles,
+        characterCount: compiled.system.length + compiled.user.length,
+        ...(snapshot.memorySelection ? { memorySelection: snapshot.memorySelection } : {}),
+        recentContextPolicy: snapshot.memorySelection
+          ? '最近三章尾部；自动记忆按当前人物、目标及线索关联检索，保留正文依据和相关历史；人工校正完整保留。'
+          : '最近三章尾部，总上限 12000 字符；历史原文按匹配片段补充，情节和关系档案完整保留。',
+      },
+      200,
+      { 'Cache-Control': 'no-store' },
+    )
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
 })
 
 // ---------- 情节状态：从小说已发布章节提取结构化角色处境/伏笔/冲突，续写时拼进 user 消息 ----------
 
 aiRoutes.post('/writing/memory/:novelId/rebuild/preview', requireAdmin(), async (c) => {
   try {
-    const body = await c.req.json().catch(() => ({})) as MemoryRebuildRequest
+    const body = (await c.req.json().catch(() => ({}))) as MemoryRebuildRequest
     return c.json(await planMemoryRebuild(getDb(), c.req.param('novelId'), body), 200, { 'Cache-Control': 'no-store' })
-  } catch (err) { return aiErrorResponse(c, err) }
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
 })
 
 aiRoutes.post('/writing/memory/:novelId/rebuild', requireAdmin(), async (c) => {
-  const db = getDb(), novelId = c.req.param('novelId')
+  const db = getDb(),
+    novelId = c.req.param('novelId')
   const raw = await c.req.json().catch(() => ({}))
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return c.json({ error: '重新分析参数无效' }, 422)
   const body = raw as MemoryRebuildRequest & { expectedRevision?: string; operationId?: string }
   const operationKey = idempotencyKeyFromRequest(c, body)
-  return withIdempotency(db, { scope: `ai.memory.rebuild.${novelId}.${c.get('user').id}`, operationKey, payload: body,
-    audit: { actorUserId: c.get('user').id, action: 'ai.memory.rebuild', targetCount: Array.isArray(body.kinds) ? body.kinds.length : 0 } }, async () => {
-    try {
-      // Only the range settings enter the preview fingerprint, never transport/idempotency fields.
-      const request: MemoryRebuildRequest = { kinds: body.kinds, range: body.range, startChapterId: body.startChapterId, endChapterId: body.endChapterId, followThrough: body.followThrough, sampleChapters: body.sampleChapters }
-      const result = await startMemoryRebuild(db, novelId, request, String(body.expectedRevision || ''), c.get('user').id, await auditRequestContext(c, db))
-      for (const task of result.tasks) void runStoryMemoryTask(db, task.taskId, task.kind).catch(err => console.error('[ai] 档案重建任务失败', err))
-      return c.json({ ok: true, plan: result.plan, tasks: result.tasks }, 202, { 'Cache-Control': 'no-store' })
-    } catch (err) { return aiErrorResponse(c, err) }
-  })
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.memory.rebuild.${novelId}.${c.get('user').id}`,
+      operationKey,
+      payload: body,
+      audit: { actorUserId: c.get('user').id, action: 'ai.memory.rebuild', targetCount: Array.isArray(body.kinds) ? body.kinds.length : 0 },
+    },
+    async () => {
+      try {
+        // Only the range settings enter the preview fingerprint, never transport/idempotency fields.
+        const request: MemoryRebuildRequest = {
+          kinds: body.kinds,
+          range: body.range,
+          startChapterId: body.startChapterId,
+          endChapterId: body.endChapterId,
+          followThrough: body.followThrough,
+          sampleChapters: body.sampleChapters,
+        }
+        const result = await startMemoryRebuild(db, novelId, request, String(body.expectedRevision || ''), c.get('user').id, await auditRequestContext(c, db))
+        for (const task of result.tasks) void runStoryMemoryTask(db, task.taskId, task.kind).catch((err) => console.error('[ai] 档案重建任务失败', err))
+        return c.json({ ok: true, plan: result.plan, tasks: result.tasks }, 202, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return aiErrorResponse(c, err)
+      }
+    },
+  )
 })
 
 aiRoutes.get('/writing/memory/:kind/:novelId/history', requireAdmin(), async (c) => {
@@ -1467,7 +1607,8 @@ aiRoutes.post('/writing/memory/:kind/:novelId/start', requireAdmin(), async (c) 
   const body = await c.req.json().catch(() => ({}))
   try {
     const { taskId, created } = await createStoryMemoryTask(db, kind, {
-      userId: c.get('user').id, novelId,
+      userId: c.get('user').id,
+      novelId,
       ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}),
       ...(Number(body.sampleChapters) ? { sampleChapters: Number(body.sampleChapters) } : {}),
       ...(await auditRequestContext(c, db)),
@@ -1519,24 +1660,28 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
       getEffectiveProfileForAnchor(db, { kind: 'plot', novelId, afterChapterId }),
       first<{ chapter_count: number }>(db, 'SELECT chapter_count FROM novels WHERE id = $1', [novelId]),
     ])
-    return c.json({
-      state: plotState.profile,
-      memoryNeedsInitialization: (await getAiSettings(db)).storyMemoryEngine === 'incremental' && plotState.source?.memoryEngine !== 'incremental',
-      memoryTask: await getStoryMemoryTask(db, novelId, 'plot'),
-      lastAttempt: await getMemoryAttempt(db, novelId, 'plot'),
-      progress: await getStoryMemoryProgress(db, novelId, 'plot'),
-      chaptersThrough: Number(plotState.source?.chapterOrdinal) || 0,
-      chapterCount: Number(novel?.chapter_count) || 0,
-      source: plotState.source,
-      updatedAt: plotState.updatedAt,
-      eligibility: plotState.eligibility,
-      isOlderThanAnchor: plotState.isOlderThanAnchor,
-      manualOverride: plotState.manualOverride,
-      effectiveContent: plotState.effectiveContent,
-      effectiveOrigin: plotState.effectiveOrigin,
-      exclusionReason: plotState.exclusionReason,
-      baseProfileRevision: plotState.baseProfileRevision,
-    }, 200, { 'Cache-Control': 'no-store' })
+    return c.json(
+      {
+        state: plotState.profile,
+        memoryNeedsInitialization: (await getAiSettings(db)).storyMemoryEngine === 'incremental' && plotState.source?.memoryEngine !== 'incremental',
+        memoryTask: await getStoryMemoryTask(db, novelId, 'plot'),
+        lastAttempt: await getMemoryAttempt(db, novelId, 'plot'),
+        progress: await getStoryMemoryProgress(db, novelId, 'plot'),
+        chaptersThrough: Number(plotState.source?.chapterOrdinal) || 0,
+        chapterCount: Number(novel?.chapter_count) || 0,
+        source: plotState.source,
+        updatedAt: plotState.updatedAt,
+        eligibility: plotState.eligibility,
+        isOlderThanAnchor: plotState.isOlderThanAnchor,
+        manualOverride: plotState.manualOverride,
+        effectiveContent: plotState.effectiveContent,
+        effectiveOrigin: plotState.effectiveOrigin,
+        exclusionReason: plotState.exclusionReason,
+        baseProfileRevision: plotState.baseProfileRevision,
+      },
+      200,
+      { 'Cache-Control': 'no-store' },
+    )
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -1577,22 +1722,26 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
   const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
   try {
     const result = await getEffectiveProfileForAnchor(db, { kind: 'relationship', novelId, afterChapterId })
-    return c.json({
-      profile: result.profile,
-      memoryNeedsInitialization: (await getAiSettings(db)).storyMemoryEngine === 'incremental' && result.source?.memoryEngine !== 'incremental',
-      memoryTask: await getStoryMemoryTask(db, novelId, 'relationship'),
-      lastAttempt: await getMemoryAttempt(db, novelId, 'relationship'),
-      progress: await getStoryMemoryProgress(db, novelId, 'relationship'),
-      source: result.source,
-      updatedAt: result.updatedAt,
-      eligibility: result.eligibility,
-      isOlderThanAnchor: result.isOlderThanAnchor,
-      manualOverride: result.manualOverride,
-      effectiveContent: result.effectiveContent,
-      effectiveOrigin: result.effectiveOrigin,
-      exclusionReason: result.exclusionReason,
-      baseProfileRevision: result.baseProfileRevision,
-    }, 200, { 'Cache-Control': 'no-store' })
+    return c.json(
+      {
+        profile: result.profile,
+        memoryNeedsInitialization: (await getAiSettings(db)).storyMemoryEngine === 'incremental' && result.source?.memoryEngine !== 'incremental',
+        memoryTask: await getStoryMemoryTask(db, novelId, 'relationship'),
+        lastAttempt: await getMemoryAttempt(db, novelId, 'relationship'),
+        progress: await getStoryMemoryProgress(db, novelId, 'relationship'),
+        source: result.source,
+        updatedAt: result.updatedAt,
+        eligibility: result.eligibility,
+        isOlderThanAnchor: result.isOlderThanAnchor,
+        manualOverride: result.manualOverride,
+        effectiveContent: result.effectiveContent,
+        effectiveOrigin: result.effectiveOrigin,
+        exclusionReason: result.exclusionReason,
+        baseProfileRevision: result.baseProfileRevision,
+      },
+      200,
+      { 'Cache-Control': 'no-store' },
+    )
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -1703,7 +1852,11 @@ aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {
   const before = await getGeneration(getDb(), id)
   const updated = await updateGenerationResult(getDb(), id, result)
   if (!updated) return c.json({ error: '草稿不存在、已发布、已删除或不可编辑' }, 409)
-  return c.json({ ok: true, id, result, contentRevision: generationContentRevision(result),
+  return c.json({
+    ok: true,
+    id,
+    result,
+    contentRevision: generationContentRevision(result),
     ...(before ? { quality: generationWritingQuality(before.kind, result, before.params_json) } : {}),
   })
 })
@@ -1879,7 +2032,9 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
       await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
       return { order: nextOrder, title }
     })
-    void preparePublishedMemory(db, { userId: c.get('user').id, novelId, afterChapterId: chapterId }).catch(err => console.error('[ai] 发布后记忆准备失败', err))
+    void preparePublishedMemory(db, { userId: c.get('user').id, novelId, afterChapterId: chapterId }).catch((err) =>
+      console.error('[ai] 发布后记忆准备失败', err),
+    )
     return c.json({ ok: true, chapter: { id: chapterId, novelId, title: order.title, order: order.order } })
   } catch (err) {
     if (err instanceof PublishError) return c.json({ error: err.message, ...(err.code ? { code: err.code } : {}) }, err.httpStatus)
@@ -1999,7 +2154,9 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
       await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
       return results
     })
-    void preparePublishedMemory(db, { userId: c.get('user').id, novelId, afterChapterId: published.at(-1)!.id }).catch(err => console.error('[ai] 发布后记忆准备失败', err))
+    void preparePublishedMemory(db, { userId: c.get('user').id, novelId, afterChapterId: published.at(-1)!.id }).catch((err) =>
+      console.error('[ai] 发布后记忆准备失败', err),
+    )
     return c.json({ ok: true, published, novelId })
   } catch (err) {
     if (err instanceof PublishError) return c.json({ error: err.message, ...(err.code ? { code: err.code } : {}) }, err.httpStatus)
@@ -2086,7 +2243,16 @@ aiRoutes.get('/usage', requireAdmin(), async (c) => {
 })
 
 const TASK_STATUSES = new Set(['queued', 'running', 'completed', 'failed', 'cancelled'])
-const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter', 'rewrite_selection', 'cover', 'cover_prompt', 'plot_state', 'relationship_profile'])
+const RETRIABLE_TASK_KINDS = new Set([
+  'continue',
+  'write_outline',
+  'write_chapter',
+  'rewrite_selection',
+  'cover',
+  'cover_prompt',
+  'plot_state',
+  'relationship_profile',
+])
 
 aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const limit = Number.parseInt(c.req.query('limit') || '50', 10) || 50
@@ -2223,7 +2389,8 @@ aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {
       const ok = await cancelAiTask(db, id)
       if (!ok) return c.json({ error: '任务不存在或已经结束' }, 404)
       const task = await getAiTask(db, id)
-      if (task?.kind === 'plot_state' || task?.kind === 'relationship_profile') await pauseStoryMemory(db, task.novelId, task.kind === 'plot_state' ? 'plot' : 'relationship')
+      if (task?.kind === 'plot_state' || task?.kind === 'relationship_profile')
+        await pauseStoryMemory(db, task.novelId, task.kind === 'plot_state' ? 'plot' : 'relationship')
       return c.json({ ok: true })
     },
   )
@@ -2275,8 +2442,10 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
       if (source.kind === 'plot_state' || source.kind === 'relationship_profile') {
         const kind = source.kind === 'plot_state' ? 'plot' : 'relationship'
         const { taskId, created } = await createStoryMemoryTask(db, kind, {
-          userId: c.get('user').id, novelId: source.novelId,
-          afterChapterId: String(body.afterChapterId || ''), sampleChapters: Number(body.sampleChapters) || undefined,
+          userId: c.get('user').id,
+          novelId: source.novelId,
+          afterChapterId: String(body.afterChapterId || ''),
+          sampleChapters: Number(body.sampleChapters) || undefined,
           ...(await auditRequestContext(c, db)),
         })
         if (created) void runStoryMemoryTask(db, taskId, kind).catch((err) => console.error('[ai] 档案后台重试失败', err))
@@ -2656,8 +2825,9 @@ aiRoutes.get('/generations', requireAdmin(), async (c) => {
   const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
 
   const groupBatches = c.req.query('groupBatches') === 'true'
-  const { items, total } = await listGenerationDetails(db, { q: c.req.query('q'), kind, kinds: scopedKinds, status, limit, offset, groupBatches })
-  return c.json({ items, total, limit, offset }, 200, { 'Cache-Control': 'no-store' })
+  const novelId = c.req.query('novelId')?.trim().slice(0, 200)
+  const { items, total } = await listGenerationDetails(db, { q: c.req.query('q'), novelId, kind, kinds: scopedKinds, status, limit, offset, groupBatches })
+  return c.json({ items, total, limit, offset, novelId: novelId || null }, 200, { 'Cache-Control': 'no-store' })
 })
 
 /** 单条管理端生成详情：用于编辑页刷新和发布响应丢失后的精确核对。 */
@@ -2711,7 +2881,16 @@ aiRoutes.post('/generations/restore', requireAdmin(), async (c) => {
 /** AiError → HTTP：客户端只拿到 code 与可展示文案，上游细节留在服务端日志。 */
 function aiErrorResponse(c: Context, err: unknown) {
   if (err instanceof AiError) {
-    const status = err.code === 'disabled' ? 503 : err.code === 'invalid' || err.code === 'truncated' ? 422 : err.code === 'conflict' ? 409 : err.code === 'timeout' ? 504 : 502
+    const status =
+      err.code === 'disabled'
+        ? 503
+        : err.code === 'invalid' || err.code === 'truncated'
+          ? 422
+          : err.code === 'conflict'
+            ? 409
+            : err.code === 'timeout'
+              ? 504
+              : 502
     return c.json({ error: err.message, code: err.code }, status)
   }
   console.error('[ai]', err)

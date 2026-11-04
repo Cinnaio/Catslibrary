@@ -122,6 +122,7 @@ struct ReaderView: View {
     @State private var isSelectingBodyText = false
     @State private var showBookmark = false
     @State private var showRecap = false
+    @State private var showAdminWorkspace = false
     @State private var recapEnabled = false
     @State private var autoScrollPaused = true
 
@@ -249,6 +250,9 @@ struct ReaderView: View {
             if let chapter {
                 BookmarkEditorView(novelID: novel.id, chapterID: chapter.id, chapterTitle: chapter.title)
             }
+        }
+        .sheet(isPresented: $showAdminWorkspace) {
+            AdminNovelWorkspaceSheet(novel: novel, afterChapterID: chapter?.id)
         }
         .sheet(isPresented: $showRecap) {
             if let previousChapter {
@@ -1068,6 +1072,10 @@ struct ReaderView: View {
 
     private var readerMoreMenu: some View {
         Menu {
+            if !offlineOnly, appState.user?.role == "admin" {
+                Button("管理这本书", systemImage: "slider.horizontal.3") { showAdminWorkspace = true }
+                Divider()
+            }
             if !offlineOnly {
                 Button("当前段评", systemImage: "text.bubble") { openCurrentThoughtPanel() }
                     .disabled(currentReadingParagraphIndex == nil)

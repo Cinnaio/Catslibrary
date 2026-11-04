@@ -4,6 +4,24 @@ import ZhiZhouCore
 /// AI 创作：新写 / 续写，大纲 / 章节 / 多章续写后台任务，画像提取（风格/情节/关系）与标题生成。
 /// 对齐 Web 端 admin ai AiWritingPanel（/api/ai/writing/*）。
 struct AdminAIWritingView: View {
+    private let initialNovel: Novel?
+    private let initialAfterChapterID: String?
+    private let draftContextID: String
+    @Environment(AppState.self) private var appState
+    @State private var draftOwnerID: String?
+    @State private var draftReady = false
+    @State private var restoredSelection: [String: String]?
+    @State private var lastSubmittedValues: [String: String]?
+    @State private var workflowStep = 0
+    @State private var showAdvancedOptions = false
+    @State private var showInstructionEditor = false
+
+    init(initialNovel: Novel? = nil, afterChapterID: String? = nil, draftContextID: String? = nil) {
+        self.initialNovel = initialNovel
+        self.initialAfterChapterID = afterChapterID
+        self.draftContextID = draftContextID ?? initialNovel.map { "book:\($0.id)" } ?? "general"
+        _novelId = State(initialValue: initialNovel?.id ?? "")
+    }
     @Environment(\.scenePhase) private var scenePhase
 
     enum Mode: String, CaseIterable, Identifiable {
@@ -191,19 +209,7 @@ struct AdminAIWritingView: View {
                         .listRowBackground(Color.clear)
                 }
             } else {
-                modeSection
-                novelSection
-                if mode == .continueWriting {
-                    continueSection
-                } else {
-                    newSection
-                }
-                contentPreferencesSection
-                profileSection
-                if mode == .continueWriting {
-                    continuationAssistSection
-                }
-                launchSection
+                workflowSections
                 taskProgressSection
             }
         }
@@ -214,6 +220,25 @@ struct AdminAIWritingView: View {
         .task {
             await initialLoad()
             await resumeWritingTask()
+        }
+        .onChange(of: inputDraftValues) { _, _ in saveInputDraft() }
+        .sheet(isPresented: $showInstructionEditor) {
+            NavigationStack {
+                TextEditor(text: $instruction)
+                    .font(.body).padding()
+                    .accessibilityIdentifier("admin.writing.instructionEditor")
+                    .navigationTitle("创作要求")
+                    .toolbar { ToolbarItem(placement: .confirmationAction) {
+                        Button("完成") { showInstructionEditor = false }
+                    } }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if draftReady {
+                Text("创作输入自动保存到本机 · 按账号与作品隔离")
+                    .font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                    .frame(maxWidth: .infinity).padding(10).background(AppTheme.background)
+            }
         }
         .sheet(isPresented: $showNovelPicker) {
             AdminNovelPickerSheet(
@@ -309,6 +334,7 @@ struct AdminAIWritingView: View {
             Task { await cancelWritingTask(taskID: taskID, operationID: operation.operationID) }
         }
         .onDisappear {
+            saveInputDraft()
             pollTask?.cancel()
             pollTask = nil
         }
@@ -316,6 +342,7 @@ struct AdminAIWritingView: View {
             if phase == .active {
                 Task { await refreshAfterBecomingActive() }
             } else if phase == .background {
+                saveInputDraft()
                 // `.inactive` 只是切换过程中的短暂状态，不能在这里提前
                 // 丢掉恢复上下文；真正进入后台后只暂停前台轮询。
                 pollTask?.cancel()
@@ -324,11 +351,13 @@ struct AdminAIWritingView: View {
             }
         }
         .onChange(of: afterChapterId) { _, anchorID in
+            guard restoredSelection != selectionSnapshot else { return }
             guard mode == .continueWriting, !novelId.isEmpty else { return }
             resetContinuationAssistState(clearOutline: true)
             Task { await loadProfileStatuses(novelID: novelId, anchorID: anchorID.isEmpty ? nil : anchorID) }
         }
         .onChange(of: continuationScope) { _, value in
+            guard restoredSelection != selectionSnapshot else { return }
             if value == .single, chapterCount > 1 {
                 let hasExtraGoals = chapterGoalsText
                     .components(separatedBy: .newlines)
@@ -350,9 +379,11 @@ struct AdminAIWritingView: View {
             resetContinuationAssistState(clearOutline: true)
         }
         .onChange(of: mode) { _, _ in
+            guard restoredSelection != selectionSnapshot else { return }
             resetContinuationAssistState(clearOutline: true)
         }
         .onChange(of: adultContentMode) { _, value in
+            guard restoredSelection != selectionSnapshot else { return }
             if value == .off {
                 intimacyWeight = .none
                 consentRuleTier = .standard
@@ -360,14 +391,122 @@ struct AdminAIWritingView: View {
             resetContinuationAssistState(clearOutline: true)
         }
         .onChange(of: intimacyWeight) { _, _ in
+            guard restoredSelection != selectionSnapshot else { return }
             resetContinuationAssistState(clearOutline: true)
         }
         .onChange(of: consentRuleTier) { _, _ in
+            guard restoredSelection != selectionSnapshot else { return }
             resetContinuationAssistState(clearOutline: true)
         }
         .onChange(of: suggestionFocus) { _, _ in
+            guard restoredSelection != selectionSnapshot else { return }
             resetContinuationAssistState()
         }
+    }
+
+    @ViewBuilder
+    private var workflowSections: some View {
+        Section {
+            Picker("创作步骤", selection: $workflowStep) {
+                Text("1 作品").tag(0)
+                Text("2 要求").tag(1)
+                Text("3 生成").tag(2)
+            }
+            .accessibleSegmentedPicker()
+            .accessibilityIdentifier("admin.writing.steps")
+        }
+        if workflowStep == 0 {
+            modeSection
+            novelSection
+            Section {
+                Button("下一步：填写要求", systemImage: "arrow.right") { workflowStep = 1 }
+                    .accessibilityIdentifier("admin.writing.next")
+            }
+        } else if workflowStep == 1 {
+            if mode == .continueWriting { continueSection } else { newSection }
+            Section {
+                Button(showAdvancedOptions ? "收起高级创作选项" : "高级创作选项", systemImage: "slider.horizontal.3") {
+                    showAdvancedOptions.toggle()
+                }
+            }
+            if showAdvancedOptions {
+                contentPreferencesSection
+                profileSection
+                if mode == .continueWriting { continuationAssistSection }
+            }
+            Section {
+                Button("下一步：检查并生成", systemImage: "arrow.right") { workflowStep = 2 }
+                    .accessibilityIdentifier("admin.writing.review")
+                    .disabled(!canStart)
+            }
+        } else {
+            Section("本次创作") {
+                LabeledContent("作品", value: selectedNovel?.title ?? title)
+                LabeledContent("类型", value: mode == .continueWriting ? "续写" : taskKind.rawValue)
+                LabeledContent("目标字数", value: String(targetWords))
+                if !instruction.isEmpty { Text(instruction).font(.subheadline).textSelection(.enabled) }
+                Button("返回修改要求") { workflowStep = 1 }
+            }
+            launchSection
+        }
+    }
+
+    private var selectionSnapshot: [String: String] {
+        ["novelId": novelId, "mode": mode.rawValue, "anchor": afterChapterId,
+         "scope": continuationScope.rawValue, "adult": adultContentMode.rawValue,
+         "intimacy": intimacyWeight.rawValue, "consent": consentRuleTier.rawValue, "focus": suggestionFocus]
+    }
+
+    private var inputDraftValues: [String: String] {
+        ["novelId": novelId, "novelTitle": selectedNovel?.title ?? initialNovel?.title ?? "",
+         "mode": mode.rawValue, "taskKind": taskKind.rawValue, "scope": continuationScope.rawValue,
+         "title": title, "continuationTitle": continuationTitle, "instruction": instruction,
+         "outline": outline, "context": context, "targetWords": String(targetWords),
+         "chapterCount": String(chapterCount), "anchor": afterChapterId,
+         "adult": adultContentMode.rawValue, "intimacy": intimacyWeight.rawValue,
+         "consent": consentRuleTier.rawValue, "focus": suggestionFocus,
+         "viewpoint": briefViewpoint, "pace": briefPace, "objective": briefObjective,
+         "facts": briefRequiredFacts, "forbidden": briefForbiddenEvents, "goals": chapterGoalsText,
+         "detailed": String(showDetailedBrief), "step": String(workflowStep)]
+    }
+
+    private func saveInputDraft() {
+        guard draftReady, let owner = draftOwnerID, appState.user?.id == owner,
+              appState.user?.role == "admin" else { return }
+        let store = AdminWorkspaceLocalStore()
+        let values = inputDraftValues
+        guard values != lastSubmittedValues else {
+            store.removeDraft(contextID: draftContextID, userID: owner)
+            return
+        }
+        let textKeys = ["title", "continuationTitle", "instruction", "outline", "context", "viewpoint", "pace", "objective", "facts", "forbidden", "goals"]
+        guard textKeys.contains(where: { !(values[$0] ?? "").isEmpty }) || targetWords != 2000 || chapterCount != 1 else {
+            store.removeDraft(contextID: draftContextID, userID: owner)
+            return
+        }
+        store.save(AdminWritingDraft(id: draftContextID, values: values,
+            updatedAt: Int64(Date().timeIntervalSince1970 * 1000)), userID: owner)
+    }
+
+    private func restoreInputDraft(_ values: [String: String]) {
+        mode = Mode(rawValue: values["mode"] ?? "") ?? .continueWriting
+        taskKind = TaskKind(rawValue: values["taskKind"] ?? "") ?? .chapter
+        continuationScope = ContinuationScope(rawValue: values["scope"] ?? "") ?? .single
+        title = values["title"] ?? ""; continuationTitle = values["continuationTitle"] ?? ""
+        instruction = values["instruction"] ?? ""; outline = values["outline"] ?? ""; context = values["context"] ?? ""
+        targetWords = min(mode == .new ? 8000 : 30000, max(mode == .new ? 500 : 300, Int(values["targetWords"] ?? "") ?? 2000))
+        chapterCount = min(20, max(1, Int(values["chapterCount"] ?? "") ?? 1))
+        adultContentMode = AdultContentMode(rawValue: values["adult"] ?? "") ?? .off
+        intimacyWeight = IntimacyWeight(rawValue: values["intimacy"] ?? "") ?? .none
+        consentRuleTier = ConsentRuleTier(rawValue: values["consent"] ?? "") ?? .standard
+        if adultContentMode == .off { intimacyWeight = .none; consentRuleTier = .standard }
+        suggestionFocus = values["focus"] ?? ""
+        briefViewpoint = values["viewpoint"] ?? ""; briefPace = values["pace"] ?? ""
+        briefObjective = values["objective"] ?? ""; briefRequiredFacts = values["facts"] ?? ""
+        briefForbiddenEvents = values["forbidden"] ?? ""; chapterGoalsText = values["goals"] ?? ""
+        showDetailedBrief = values["detailed"] == "true"
+        workflowStep = min(2, max(0, Int(values["step"] ?? "") ?? 1))
+        restoredSelection = selectionSnapshot
     }
 
     // MARK: - 模式与选书
@@ -416,9 +555,11 @@ struct AdminAIWritingView: View {
                             .foregroundStyle(AppTheme.textSecondary)
                     }
                     Spacer()
-                    Button("换一本") { showNovelPicker = true }
-                        .font(.subheadline)
-                        .disabled(!profileBusy.isEmpty)
+                    if draftContextID == "general" {
+                        Button("换一本") { showNovelPicker = true }
+                            .font(.subheadline)
+                            .disabled(!profileBusy.isEmpty)
+                    }
                 }
                 .listRowBackground(Color.clear)
             } else {
@@ -455,6 +596,7 @@ struct AdminAIWritingView: View {
                     .lineLimit(2...4)
             }
             detailedBriefSection
+            Button("展开编辑创作要求", systemImage: "arrow.up.left.and.arrow.down.right") { showInstructionEditor = true }
             Stepper("目标字数：\(targetWords)", value: $targetWords, in: 500...8000, step: 500)
         }
     }
@@ -470,6 +612,7 @@ struct AdminAIWritingView: View {
                         Text(chapter.title).tag(chapter.id)
                     }
                 }
+                .accessibilityIdentifier("admin.writing.anchor")
             } else {
                 Text(chapterLoadFailed ? "章节列表加载失败，请重试后再选择续写起点。" : "此书暂无已发布章节，续写需要先有章节；可切换到新写。")
                     .font(.caption)
@@ -487,6 +630,8 @@ struct AdminAIWritingView: View {
                 .autocorrectionDisabled()
             TextField("续写要求（可选）", text: $instruction, axis: .vertical)
                 .lineLimit(2...4)
+                .accessibilityIdentifier("admin.writing.instruction")
+            Button("展开编辑创作要求", systemImage: "arrow.up.left.and.arrow.down.right") { showInstructionEditor = true }
             Picker("写作范围", selection: $continuationScope) {
                 ForEach(ContinuationScope.allCases) { scope in
                     Text(scope.rawValue).tag(scope)
@@ -885,18 +1030,53 @@ struct AdminAIWritingView: View {
     private func initialLoad() async {
         isLoading = true
         defer { isLoading = false }
+        guard let owner = appState.user?.id, appState.user?.role == "admin", let token = APIClient.shared.token else { return }
+        draftOwnerID = owner
+        draftReady = false
+        let saved = AdminWorkspaceLocalStore().draft(contextID: draftContextID, userID: owner)
         do {
-            let index = try await AdminAPI.novelIndex(limit: 200)
+            let index: NovelIndexResponse = try await AdminAPI.parityRequest("GET", "/api/admin/novel-index?limit=200", token: token)
+            guard !Task.isCancelled, APIClient.shared.token == token else { return }
             novelOptions = index.novels
         } catch {
-            actionError = AppCopy.friendlyError(error)
+            if APIClient.shared.token == token { actionError = AppCopy.friendlyError(error) }
         }
+        guard !Task.isCancelled, APIClient.shared.token == token, appState.user?.id == owner else { return }
+        let selectedID = initialNovel?.id ?? saved?.values["novelId"] ?? ""
+        if let novel = initialNovel, !novelOptions.contains(where: { $0.id == novel.id }) {
+            novelOptions.insert(AdminNovelSummary(id: novel.id, title: novel.title, author: novel.author,
+                chapterCount: novel.chapterCount, updatedAt: novel.updatedAt), at: 0)
+        } else if !selectedID.isEmpty, !novelOptions.contains(where: { $0.id == selectedID }) {
+            do {
+                let response: NovelResponse = try await AdminAPI.parityRequest("GET", "/api/novels/\(ReaderMediaAPI.pathSegment(selectedID))", token: token)
+                guard !Task.isCancelled, APIClient.shared.token == token else { return }
+                let novel = response.novel
+                novelOptions.insert(AdminNovelSummary(id: novel.id, title: novel.title, author: novel.author,
+                    chapterCount: novel.chapterCount, updatedAt: novel.updatedAt), at: 0)
+            } catch { if APIClient.shared.token == token { actionError = AppCopy.friendlyError(error) } }
+        }
+        if let saved { restoreInputDraft(saved.values) }
+        novelId = selectedID
+        if !selectedID.isEmpty {
+            await onNovelSelected(selectedID, resetInput: false)
+            guard !Task.isCancelled, APIClient.shared.token == token, appState.user?.id == owner else { return }
+            let anchor = initialAfterChapterID ?? saved?.values["anchor"] ?? ""
+            if anchor.isEmpty || chapterOptions.contains(where: { $0.id == anchor }) {
+                afterChapterId = anchor
+                if !anchor.isEmpty { await loadProfileStatuses(novelID: selectedID, anchorID: anchor) }
+            }
+            guard !Task.isCancelled, APIClient.shared.token == token, appState.user?.id == owner else { return }
+        }
+        if let saved { restoreInputDraft(saved.values) }
+        else if initialNovel != nil { workflowStep = 1 }
+        restoredSelection = selectionSnapshot
+        draftReady = true
     }
 
-    private func onNovelSelected(_ id: String) async {
+    private func onNovelSelected(_ id: String, resetInput: Bool = true) async {
         guard id == novelId else { return }
-        resetContinuationAssistState(clearOutline: true)
-        if mode == .continueWriting {
+        resetContinuationAssistState(clearOutline: resetInput)
+        if resetInput && mode == .continueWriting {
             continuationTitle = ""
             instruction = ""
             suggestionFocus = ""
@@ -1406,11 +1586,21 @@ struct AdminAIWritingView: View {
                 key: AdminAITaskCoordinator.OperationKey.writing,
                 recoveryAttempts: 5
             ) else { return }
+            if !novelId.isEmpty, let taskNovelID = task.novelId, taskNovelID != novelId {
+                if task.isRunning {
+                    activeTask = task
+                    taskStatusText = "另一本书有创作任务正在处理，可先查看任务结果。"
+                    pollWritingTask(task.id)
+                }
+                return
+            }
             activeTask = task
             starting = false
             if let taskNovelID = task.novelId, !taskNovelID.isEmpty {
-                novelId = taskNovelID
-                await onNovelSelected(taskNovelID)
+                if taskNovelID != novelId {
+                    novelId = taskNovelID
+                    await onNovelSelected(taskNovelID, resetInput: false)
+                }
             }
             if task.isRunning {
                 taskStatusText = "已恢复正在处理的创作任务"
@@ -1508,6 +1698,8 @@ struct AdminAIWritingView: View {
                 kind: kind,
                 novelId: resourceID
             )
+            lastSubmittedValues = inputDraftValues
+            saveInputDraft()
             activeTask = task
             if task.isRunning {
                 taskStatusText = launch.reusedExistingOperation ? "已恢复正在处理的创作任务" : nil
