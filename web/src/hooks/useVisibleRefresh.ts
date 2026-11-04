@@ -6,10 +6,16 @@ export function useVisibleRefresh(refresh: () => Promise<unknown>, enabled = tru
     if (!enabled) return
     let busy = false
     let disposed = false
+    let lastFinished = -Infinity
     const check = () => {
       if (disposed || busy || document.visibilityState === 'hidden') return
+      // 返回标签页常连续触发 visibilitychange 和 focus；快速请求完成后也不重复刷新。
+      if (performance.now() - lastFinished < 1000) return
       busy = true
-      void refresh().catch(() => {}).finally(() => { busy = false })
+      void refresh().catch(() => {}).finally(() => {
+        lastFinished = performance.now()
+        busy = false
+      })
     }
     window.addEventListener('focus', check)
     window.addEventListener('online', check)
