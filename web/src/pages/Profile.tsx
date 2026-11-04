@@ -3,7 +3,7 @@ import styles from './account.module.css'
  * Profile 页 —— 头像、资料编辑、密码、会话管理、退出（由 Novel-KV js/profile.js 平移）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi, type PasskeyItem } from '../lib/api'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { useSession } from '../context/SessionContext'
@@ -522,11 +522,6 @@ export default function Profile() {
                 </div>
               </div>
             </section>
-          </div>
-          <div className="profile-account-footnote">
-            <span>注册 {formatDate(user.createdAt) || '—'}</span>
-            <span>最近登录 {formatDate(user.lastLoginAt) || '—'}</span>
-            {user.role === 'admin' && <Link to="/admin">进入管理面板</Link>}
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ReadingDataPreview, ReadingDataResult } from '@shared/reading-data'
 import { readingDataApi, getToken } from '../lib/api'
 import { readLegacyReadingData } from '../lib/legacy-reading-data'
@@ -9,10 +9,12 @@ import { formatDate } from '../lib/format'
 
 const labels = { bookmark: '书签', progress: '阅读进度', bookshelf: '书架' }
 function Preview({ preview }: { preview: ReadingDataPreview }) {
+  const listId = useId()
+  const [visible, setVisible] = useState(true)
   const [expanded, setExpanded] = useState(false)
   return (
     <>
-      <ul className="reading-data-list">
+      <ul id={listId} className="reading-data-list reading-data-list--preview" hidden={!visible} tabIndex={0} aria-label="阅读数据预览明细">
         {preview.items.slice(0, expanded ? undefined : 20).map((item, i) => (
           <li key={`${item.kind}:${item.novelId}:${item.chapterId}:${i}`}>
             <strong>
@@ -23,9 +25,23 @@ function Preview({ preview }: { preview: ReadingDataPreview }) {
           </li>
         ))}
       </ul>
-      {!expanded && preview.items.length > 20 && (
-        <button className="btn btn--secondary btn--sm" onClick={() => setExpanded(true)}>
+      {visible && !expanded && preview.items.length > 20 && (
+        <button type="button" className="btn btn--secondary btn--sm" aria-controls={listId} onClick={() => setExpanded(true)}>
           查看全部 {preview.items.length} 项
+        </button>
+      )}
+      {preview.items.length > 0 && (
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          aria-expanded={visible}
+          aria-controls={listId}
+          onClick={() => {
+            setVisible(!visible)
+            setExpanded(false)
+          }}
+        >
+          {visible ? '折起' : `展开明细 ${preview.items.length} 项`}
         </button>
       )}
       {preview.hasMore && <p className="profile-empty-note">每次最多修复 100 项；完成后可再次检查剩余数据。</p>}
