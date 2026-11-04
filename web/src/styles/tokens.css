@@ -21,7 +21,7 @@
   --font-ui-body: 14px;
   --font-display: 29px;
   --font-headline: 21px;
-  --workspace-sidebar-width: 216px;
+  --workspace-sidebar-width: 240px;
   --workspace-page-gutter: 38px;
   --workspace-page-padding: 34px 38px 44px;
   --glass-nav: color-mix(in srgb, var(--bg-primary) 90%, transparent);
@@ -233,7 +233,7 @@ html[data-accent][data-theme='dark'] {
   :root { --workspace-page-gutter: 52px; --workspace-page-padding: 42px 52px; }
 }
 @media (max-width: 1250px) {
-  :root { --workspace-sidebar-width: 192px; --workspace-page-gutter: 28px; --workspace-page-padding: 28px; }
+  :root { --workspace-sidebar-width: 216px; --workspace-page-gutter: 28px; --workspace-page-padding: 28px; }
 }
 @media (max-width: 700px) {
   :root { --workspace-sidebar-width: 0px; --workspace-page-gutter: 20px; --workspace-page-padding: 25px 20px 32px; --control-height: 48px; --control-height-compact: 48px; --button-height: 48px; }

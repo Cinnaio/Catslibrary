@@ -80,12 +80,6 @@
   .admin-shell__topbar {
     padding-inline: 0.75rem;
   }
-  .admin-shell__account {
-    padding-right: 0.3rem;
-  }
-  .admin-shell__account-name {
-    display: none;
-  }
   .admin-shell__status {
     display: none;
   }
