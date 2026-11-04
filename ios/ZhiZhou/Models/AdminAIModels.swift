@@ -511,6 +511,8 @@ struct AiProfileResponse: Codable {
 }
 
 struct AiProfileGetResponse: Codable {
+    let hasContent: Bool?
+    let hasEffectiveContent: Bool?
     let profile: String?
     let source: AiProfileSource?
     let updatedAt: Int64?
@@ -598,6 +600,8 @@ struct AiPlotStateResponse: Codable {
 }
 
 struct AiPlotStateGetResponse: Codable {
+    let hasContent: Bool?
+    let hasEffectiveContent: Bool?
     let state: String?
     let chaptersThrough: Int?
     let chapterCount: Int?
@@ -612,6 +616,26 @@ struct AiPlotStateGetResponse: Codable {
     let baseProfileRevision: String?
     let progress: AiMemoryProgress?
     let memoryTask: AiMemoryTask?
+}
+
+/// Metadata is sufficient for the writing form; full text is read only by the reader/editor.
+struct AiProfileSummary {
+    let hasContent: Bool
+    let hasEffectiveContent: Bool
+    let effectiveOrigin: String
+
+    init(hasContent: Bool?, hasEffectiveContent: Bool?, content: String?, effective: String?, origin: String?) {
+        self.hasContent = hasContent ?? (!(content ?? "").isEmpty || !(effective ?? "").isEmpty)
+        self.hasEffectiveContent = hasEffectiveContent ?? !(effective ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        self.effectiveOrigin = origin ?? (self.hasEffectiveContent ? "automatic" : "none")
+    }
+}
+
+struct AiProfileDocument {
+    let content: String
+    let manualOverride: AiManualProfileOverride?
+    let baseRevision: String
+    let effectiveOrigin: String?
 }
 
 /// POST /api/ai/writing/titles 的返回。

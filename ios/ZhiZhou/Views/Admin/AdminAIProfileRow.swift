@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// 画像内容默认收起，任务进度常显；完整画像、阶段内容与当前注入资格各自表达。
+/// 主表单只展示元信息；完整画像在独立阅读页按需加载。
 struct AdminAIProfileRow: View {
     let label: String
-    let value: String
+    let hasContent: Bool
+    let documentID: String
+    let loadDocument: () async throws -> AiProfileDocument
     let status: String
     let statusNote: String
     let origin: String
@@ -14,13 +16,15 @@ struct AdminAIProfileRow: View {
     let pausing: Bool
     let error: String?
     let disabled: Bool
+    let editing: Bool
     let action: () -> Void
     let pause: (() -> Void)?
     let edit: () -> Void
     let empty: String
 
-    @State private var expanded = false
     @State private var showDetails = false
+    @State private var cachedReading: AdminAIProfileReadingContent?
+    @State private var cachedDocumentID = ""
 
     private var running: Bool {
         if busy { return true }
@@ -29,7 +33,7 @@ struct AdminAIProfileRow: View {
     }
     private var paused: Bool { !running && (task?.status == "cancelled" || progress?.paused == true) }
     private var failed: Bool { !running && task?.status == "failed" }
-    private var usable: Bool { status == "usable" && !value.isEmpty }
+    private var usable: Bool { status == "usable" && hasContent }
     private var total: Int {
         // 新任务刚排队时，进度 GET 可能仍带着上一轮的完整检查点。
         if task?.isRunning == true, (task?.total ?? 0) == 0, progress?.complete == true { return 0 }
@@ -46,13 +50,13 @@ struct AdminAIProfileRow: View {
         if paused { return "已暂停" }
         if usable { return "✓ 可用于续写" }
         if progress?.complete == false { return "部分完成" }
-        return value.isEmpty ? "未提取" : "待更新"
+        return hasContent ? "待更新" : "未提取"
     }
 
     private var actionLabel: String {
         if failed { return "重试剩余章节" }
         if paused || progress?.complete == false { return "继续分析" }
-        return value.isEmpty ? "提取画像" : "更新画像"
+        return hasContent ? "更新画像" : "提取画像"
     }
 
     private var step: String {
@@ -85,17 +89,24 @@ struct AdminAIProfileRow: View {
                 Text(statusNote).font(.caption).foregroundStyle(AppTheme.warning)
             }
 
-            if !running && !value.isEmpty {
-                DisclosureGroup(isExpanded: $expanded) {
-                    Text(value).font(.caption).foregroundStyle(AppTheme.textSecondary)
-                        .textSelection(.enabled)
+            if hasContent {
+                NavigationLink {
+                    AdminAIProfileDetailView(
+                        title: label, documentID: documentID,
+                        cached: cachedDocumentID == documentID ? cachedReading : nil,
+                        loadDocument: loadDocument
+                    ) { content in
+                        cachedReading = content
+                        cachedDocumentID = documentID
+                    }
                 } label: {
                     Text("查看画像").font(.caption)
                 }
+                .buttonStyle(.borderless)
                 if !origin.isEmpty {
                     Text(origin).font(.caption2).foregroundStyle(AppTheme.textSecondary)
                 }
-            } else if !hasProgress && value.isEmpty {
+            } else if !hasProgress {
                 Text(empty).font(.caption).foregroundStyle(AppTheme.textSecondary)
             }
 
@@ -113,6 +124,7 @@ struct AdminAIProfileRow: View {
                     Button(actionLabel, action: action).disabled(disabled)
                     Spacer(minLength: 12)
                     Button("人工校正", action: edit).disabled(disabled)
+                    if editing { ProgressView().controlSize(.small).accessibilityLabel("正在加载画像") }
                 }
             }
             .font(.caption)
@@ -157,10 +169,10 @@ struct AdminAIProfileRow: View {
                         Text("完整档案：\(usable ? (running ? "现有画像仍可使用，新画像更新中" : "可用于续写") : "尚未就绪")")
                         if let preview = task?.livePreview?.preview, !preview.isEmpty {
                             Text("正在生成的内容 · 尚未保存").foregroundStyle(AppTheme.primary)
-                            Text(preview).appTextLineLimit(8).textSelection(.enabled)
+                            Text(shortPreview(preview)).lineLimit(4).textSelection(.enabled)
                         } else if let preview = progress?.previewContent, !preview.isEmpty, !usable {
                             Text("阶段内容 · 尚非完整画像").foregroundStyle(AppTheme.primary)
-                            Text(preview).appTextLineLimit(8).textSelection(.enabled)
+                            Text(shortPreview(preview)).lineLimit(4).textSelection(.enabled)
                         }
                     }
                     .foregroundStyle(AppTheme.textSecondary)
@@ -168,5 +180,10 @@ struct AdminAIProfileRow: View {
                 .font(.caption)
             }
         }
+    }
+
+    private func shortPreview(_ value: String) -> String {
+        let end = value.index(value.startIndex, offsetBy: 300, limitedBy: value.endIndex) ?? value.endIndex
+        return String(value[..<end]) + (end < value.endIndex ? "…" : "")
     }
 }

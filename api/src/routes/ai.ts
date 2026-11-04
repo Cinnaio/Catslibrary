@@ -1,3 +1,4 @@
+import { profileReadResponse, memoryProgressResponse, memoryTaskResponse } from '../services/ai/profile-read-response'
 import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/ai —— AI 能力入口。
@@ -1390,20 +1391,12 @@ aiRoutes.get('/writing/style-profile/:novelId', requireAdmin(), async (c) => {
   const novelId = String(c.req.param('novelId') || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
+  const summaryOnly = c.req.query('summary') === '1'
   try {
     const result = await getEffectiveProfileForAnchor(db, { kind: 'style', novelId, afterChapterId })
     return c.json({
-      profile: result.profile,
-      source: result.source,
-      updatedAt: result.updatedAt,
-      eligibility: result.eligibility,
-      isOlderThanAnchor: result.isOlderThanAnchor,
-      manualOverride: result.manualOverride,
-      effectiveContent: result.effectiveContent,
-      effectiveOrigin: result.effectiveOrigin,
-      exclusionReason: result.exclusionReason,
-      baseProfileRevision: result.baseProfileRevision,
-    })
+      ...profileReadResponse(result, summaryOnly),
+    }, 200, { 'Cache-Control': 'no-store' })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -1655,6 +1648,7 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
   const novelId = String(c.req.param('novelId') || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
+  const summaryOnly = c.req.query('summary') === '1'
   try {
     const [plotState, novel] = await Promise.all([
       getEffectiveProfileForAnchor(db, { kind: 'plot', novelId, afterChapterId }),
@@ -1662,22 +1656,15 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
     ])
     return c.json(
       {
-        state: plotState.profile,
+        ...profileReadResponse(plotState, summaryOnly),
+        profile: undefined,
+        state: summaryOnly ? undefined : plotState.profile,
         memoryNeedsInitialization: (await getAiSettings(db)).storyMemoryEngine === 'incremental' && plotState.source?.memoryEngine !== 'incremental',
-        memoryTask: await getStoryMemoryTask(db, novelId, 'plot'),
+        memoryTask: memoryTaskResponse(await getStoryMemoryTask(db, novelId, 'plot'), summaryOnly),
         lastAttempt: await getMemoryAttempt(db, novelId, 'plot'),
-        progress: await getStoryMemoryProgress(db, novelId, 'plot'),
+        progress: memoryProgressResponse(await getStoryMemoryProgress(db, novelId, 'plot'), summaryOnly),
         chaptersThrough: Number(plotState.source?.chapterOrdinal) || 0,
         chapterCount: Number(novel?.chapter_count) || 0,
-        source: plotState.source,
-        updatedAt: plotState.updatedAt,
-        eligibility: plotState.eligibility,
-        isOlderThanAnchor: plotState.isOlderThanAnchor,
-        manualOverride: plotState.manualOverride,
-        effectiveContent: plotState.effectiveContent,
-        effectiveOrigin: plotState.effectiveOrigin,
-        exclusionReason: plotState.exclusionReason,
-        baseProfileRevision: plotState.baseProfileRevision,
       },
       200,
       { 'Cache-Control': 'no-store' },
@@ -1720,24 +1707,16 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
   const novelId = String(c.req.param('novelId') || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
+  const summaryOnly = c.req.query('summary') === '1'
   try {
     const result = await getEffectiveProfileForAnchor(db, { kind: 'relationship', novelId, afterChapterId })
     return c.json(
       {
-        profile: result.profile,
+        ...profileReadResponse(result, summaryOnly),
         memoryNeedsInitialization: (await getAiSettings(db)).storyMemoryEngine === 'incremental' && result.source?.memoryEngine !== 'incremental',
-        memoryTask: await getStoryMemoryTask(db, novelId, 'relationship'),
+        memoryTask: memoryTaskResponse(await getStoryMemoryTask(db, novelId, 'relationship'), summaryOnly),
         lastAttempt: await getMemoryAttempt(db, novelId, 'relationship'),
-        progress: await getStoryMemoryProgress(db, novelId, 'relationship'),
-        source: result.source,
-        updatedAt: result.updatedAt,
-        eligibility: result.eligibility,
-        isOlderThanAnchor: result.isOlderThanAnchor,
-        manualOverride: result.manualOverride,
-        effectiveContent: result.effectiveContent,
-        effectiveOrigin: result.effectiveOrigin,
-        exclusionReason: result.exclusionReason,
-        baseProfileRevision: result.baseProfileRevision,
+        progress: memoryProgressResponse(await getStoryMemoryProgress(db, novelId, 'relationship'), summaryOnly),
       },
       200,
       { 'Cache-Control': 'no-store' },

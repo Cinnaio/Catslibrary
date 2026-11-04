@@ -32,8 +32,10 @@ if ($profileRowMatch.Success) {
     Require-ProfilePattern "profile action buttons use independent borderless hit regions" (
         $profileComponent -match '\.buttonStyle\(\.borderless\)'
     )
-    Require-ProfilePattern "profile body expands for reading without implicit extraction or editing" (
-        $profileComponent.Contains('DisclosureGroup(isExpanded: $expanded)') -and
+    Require-ProfilePattern "profile body opens a read-only destination without inline full text" (
+        $profileComponent.Contains('AdminAIProfileDetailView(') -and
+        $profileComponent.Contains('NavigationLink') -and
+        $profileComponent -notmatch 'Text\(value\)' -and
         $profileComponent -notmatch '\.onTapGesture'
     )
 }
@@ -42,4 +44,4 @@ if ($failures.Count -gt 0) {
     throw "AI writing profile smoke failed:`n - $($failures -join "`n - ")"
 }
 
-Write-Output "AI writing profile smoke passed (separate actions and read-only content expansion)."
+Write-Output "AI writing profile smoke passed (separate actions and read-only detail navigation)."
