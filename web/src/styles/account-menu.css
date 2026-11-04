@@ -22,7 +22,7 @@
   height: 44px;
   flex: 0 0 auto;
   place-items: center;
-  padding: 7px;
+  padding: 9px;
   overflow: hidden;
   border: 1px solid transparent;
   border-radius: 50%;
@@ -32,27 +32,23 @@
   font-size: 0.86rem;
   font-weight: 700;
   cursor: pointer;
-  transition:
-    color 0.16s ease,
-    background 0.16s ease,
-    border-color 0.16s ease,
-    transform 0.16s ease;
+  transition: transform 0.16s ease;
 }
 
-.account-menu__trigger--site:hover,
-.account-menu__trigger--site[data-state='open'] {
-  background: var(--accent-light);
-  border-color: var(--accent);
+.account-menu__trigger--site:hover > .shared-user-avatar,
+.account-menu__trigger--site[data-state='open'] > .shared-user-avatar {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-muted) 8%, transparent);
 }
 
 .account-menu__trigger--site:active {
-  transform: scale(0.96);
+  transform: scale(0.98);
 }
 
 .account-menu__trigger--site > .shared-user-avatar {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
+  transition: box-shadow 0.16s ease;
 }
 
 .account-menu__trigger--admin {
@@ -72,9 +68,7 @@
 
 .account-menu__trigger--admin:hover,
 .account-menu__trigger--admin[data-state='open'] {
-  border-color: var(--accent);
-  background: var(--bg-hover);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
 }
 
 .account-menu__avatar {
@@ -108,7 +102,6 @@
 }
 
 .account-menu__trigger--admin[data-state='open'] .account-menu__chevron {
-  color: var(--accent);
   transform: rotate(180deg);
 }
 
@@ -195,6 +188,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .account-menu__trigger--site,
+  .account-menu__trigger--site > .shared-user-avatar,
   .account-menu__chevron,
   .account-menu__item {
     transition: none;

@@ -242,14 +242,14 @@ export default function WorkspaceShell({
       ) : user ? (
         <>
           <AccountMenu variant="admin" onNavigate={() => setMenuOpen(false)} />
-          <ThemeMenu className={styles.iconButton} />
+          <ThemeMenu className={`${styles.iconButton} ${styles.themeButton}`} />
         </>
       ) : (
         <>
           <Link to="/auth" state={{ from: location.pathname + location.search }} className={styles.login}>
             登录阅读空间
           </Link>
-          <ThemeMenu className={styles.iconButton} />
+          <ThemeMenu className={`${styles.iconButton} ${styles.themeButton}`} />
         </>
       )}
     </div>
@@ -345,7 +345,7 @@ export default function WorkspaceShell({
                 )}
                 <div className={styles.topbarAccount}>
                   {user && <AccountMenu />}
-                  <ThemeMenu className={styles.iconButton} />
+                  <ThemeMenu className={`${styles.iconButton} ${styles.themeButton}`} />
                 </div>
               </div>
             </header>
