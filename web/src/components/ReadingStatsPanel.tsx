@@ -139,7 +139,7 @@ export function ReadingStatsPanel() {
     return result
   }, [data])
   return (
-    <section ref={panelRef} className="reading-stats" aria-label="阅读统计" aria-busy={loading} data-updating={loading && !!data}>
+    <section ref={panelRef} className="profile-section reading-stats" aria-label="阅读统计" aria-busy={loading} data-updating={loading && !!data}>
       <div className="reading-stats__heading">
         <div>
           <h2 className="profile-section-heading">阅读统计</h2>

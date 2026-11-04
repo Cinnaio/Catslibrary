@@ -239,7 +239,6 @@
   gap: 12px;
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px solid var(--border);
   font-size: 12px;
 }
 .page :global(.home-pagination__jump) {
@@ -250,22 +249,6 @@
 .page :global(.home-pagination__jump input) {
   width: 60px;
   min-height: 36px;
-}
-.page :global(.home-footer) {
-  margin-top: 40px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 11px;
-}
-.page :global(.home-footer__signature) {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.page :global(.home-footer__flower) {
-  display: none;
 }
 .page :global(.retry-banner) {
   display: flex;

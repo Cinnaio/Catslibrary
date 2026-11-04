@@ -241,24 +241,6 @@
 :global(.profile-hero__actions) {
   margin-top: 20px;
 }
-:global(.profile-account-footnote) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  margin-top: 0;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  line-height: 1.8;
-}
-:global(.profile-account-footnote) a {
-  color: var(--text-secondary);
-  margin-left: auto;
-}
-:global(.profile-account-footnote) a:hover {
-  color: var(--accent);
-}
 :global(.profile-edit-grid) {
   display: grid;
   gap: 28px;
@@ -708,12 +690,6 @@
   :global(.profile-badges) {
     margin-top: 8px;
   }
-  :global(.profile-account-footnote) {
-    gap: 8px 16px;
-  }
-  :global(.profile-account-footnote) a {
-    margin-left: 0;
-  }
   :global(.account-stats--cards) {
     gap: 16px 24px;
   }
@@ -844,8 +820,23 @@
   list-style: none;
   display: grid;
 }
-:global(.reading-data-list):empty {
+:global(.reading-data-list):empty,
+:global(.reading-data-list)[hidden] {
   display: none;
+}
+:global(.reading-data-list--preview) {
+  min-width: 0;
+  max-height: min(360px, 50vh);
+  max-height: min(360px, 50dvh);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  align-content: start;
+}
+:global(.reading-data-list--preview):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
 }
 :global(.reading-data-list) li {
   display: grid;
