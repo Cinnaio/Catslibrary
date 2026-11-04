@@ -21,7 +21,7 @@ enum VisualAudit {
     }
 
     static var user: User {
-        User(id: userID, username: "reader", displayName: "林间读者", role: "admin", status: "active",
+        User(id: userID, username: "reader", displayName: "林间读者", role: scenario == "reader-role" ? "reader" : "admin", status: "active",
              createdAt: timestamp, updatedAt: timestamp, lastLoginAt: timestamp,
              bio: "读到一段喜欢的文字，就多停留一会儿。", avatarUrl: nil)
     }
@@ -68,6 +68,16 @@ enum VisualAudit {
                 ])
             }
         }
+    }
+
+    static var workspaceTask: [String: Any] {
+        ["id": "audit-workspace-task", "novelId": "audit-book-4", "kind": "write_chapter", "status": "completed",
+         "current": 1, "total": 1, "step": "草稿已生成", "createdAt": timestamp, "updatedAt": timestamp]
+    }
+
+    static var workspaceGeneration: [String: Any] {
+        ["id": "audit-workspace-draft", "novelId": "audit-book-4", "novelTitle": "春山可望", "kind": "write_chapter",
+         "status": "draft", "chapterTitle": "新的来信", "result": "她推开门，看见一封新的来信。", "createdAt": timestamp]
     }
 }
 
@@ -198,8 +208,25 @@ private final class VisualAuditProtocol: URLProtocol {
             body = ["recap": "她沿着旧信上的地址回到山里，找到了那间多年未开的邮局。", "cached": false]
         case ("GET", "/api/ai/settings"):
             body = ["settings": ["recapEnabled": true, "dailyQuota": 10]]
+        case ("GET", "/api/admin/novel-index"):
+            let books = VisualAudit.scenario == "admin-workspace" ? Array(VisualAudit.books.prefix(1)) : VisualAudit.books
+            body = ["novels": books.map(Self.json), "capped": VisualAudit.scenario == "admin-workspace"]
         case ("GET", "/api/ai/tasks"):
-            body = ["items": [], "total": 0]
+            let items = VisualAudit.scenario == "admin-workspace" ? [VisualAudit.workspaceTask] : []
+            body = ["items": items, "total": items.count]
+        case ("GET", let path) where path.hasPrefix("/api/ai/tasks/") && path.hasSuffix("/generations"):
+            body = ["items": [VisualAudit.workspaceGeneration], "linkage": "exact"]
+        case ("GET", let path) where path.hasPrefix("/api/ai/tasks/"):
+            body = ["task": VisualAudit.workspaceTask]
+        case ("GET", "/api/ai/generations"):
+            let matches = queryValue("novelId") == nil || queryValue("novelId") == "audit-book-4"
+            let items = VisualAudit.scenario == "admin-workspace" && matches ? [VisualAudit.workspaceGeneration] : []
+            body = ["items": items, "total": items.count, "limit": 50, "offset": 0,
+                    "novelId": queryValue("novelId").map { $0 as Any } ?? NSNull()] as [String: Any]
+        case ("GET", let path) where path.hasPrefix("/api/ai/generations/"):
+            body = ["item": VisualAudit.workspaceGeneration]
+        case ("GET", let path) where path.hasPrefix("/api/ai/writing/"):
+            body = [:] as [String: Any]
         case ("GET", "/api/novels"):
             Self.catalogRequests += 1
             let search = queryValue("search") ?? ""
@@ -299,8 +326,6 @@ private final class VisualAuditProtocol: URLProtocol {
                               "target": "https://example.com/catalog", "proxySource": "none", "durationMs": 120, "status": 200, "ok": true]]]
         case ("GET", "/api/scrape") where queryValue("action") == "jobs":
             body = ["jobs": []]
-        case ("GET", "/api/ai/tasks"):
-            body = ["items": [], "total": 0]
         case ("GET", "/api/download-logs"):
             body = ["logs": [["id": "audit-download", "type": "novel", "targetId": "audit-book-1",
                               "targetTitle": "山中来信下载记录", "itemCount": 12, "createdAt": VisualAudit.timestamp]]]

@@ -4,6 +4,14 @@ import ZhiZhouCore
 /// 章节管理：选择小说 → 章节列表（搜索 / 编辑 / 新建 / 删除）。
 /// 对齐 Web 端 admin ChaptersTab（/api/chapters 系列接口）。
 struct AdminChaptersView: View {
+    init(initialNovel: Novel? = nil) {
+        if let novel = initialNovel {
+            let summary = AdminNovelSummary(id: novel.id, title: novel.title, author: novel.author,
+                                           chapterCount: novel.chapterCount, updatedAt: novel.updatedAt)
+            _selectedNovel = State(initialValue: summary)
+            _novelOptions = State(initialValue: [summary])
+        }
+    }
     @State private var requests = ListRequestGuard<String?>()
     @State private var novelOptions: [AdminNovelSummary] = []
     @State private var selectedNovel: AdminNovelSummary?
@@ -126,6 +134,16 @@ struct AdminChaptersView: View {
             NovelPickerSheet(options: novelOptions) { novel in
                 selectedNovel = novel
                 Task { await loadChapters() }
+            }
+            .task {
+                guard let token = APIClient.shared.token else { return }
+                if let index: NovelIndexResponse = try? await AdminAPI.parityRequest("GET", "/api/admin/novel-index?limit=2000", token: token),
+                   !Task.isCancelled, APIClient.shared.token == token {
+                    novelOptions = index.novels
+                    if let selectedNovel, !novelOptions.contains(where: { $0.id == selectedNovel.id }) {
+                        novelOptions.insert(selectedNovel, at: 0)
+                    }
+                }
             }
         }
         .sheet(isPresented: $showSourceSync) {

@@ -223,7 +223,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const previous = process.env.RUNTIME_CONFIG_DIR
     process.env.RUNTIME_CONFIG_DIR = tmp
     try {
-      for (const [method, endpoint] of [['GET', ''], ['POST', ''], ['PUT', '/missing'], ['DELETE', '/missing'], ['POST', '/missing/activate']] as const) {
+      for (const [method, endpoint] of [
+        ['GET', ''],
+        ['POST', ''],
+        ['PUT', '/missing'],
+        ['DELETE', '/missing'],
+        ['POST', '/missing/activate'],
+      ] as const) {
         expect((await req(`/api/ai/provider-presets${endpoint}`, json(method, method === 'GET' ? undefined : {}, readerToken))).status).toBe(403)
       }
       const body = { scope: 'text', name: 'route-preset', baseUrl: 'https://preset.test/v1', model: 'preset-model', apiKey: 'preset-route-secret' }
@@ -541,9 +547,27 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
   it('审计返回用户现有头像地址，并可分别筛选辅助生成类型', async () => {
     const readerId = await userIdByUsername(t, 'reader')
-    const types = ['import_review', 'style_profile', 'relationship_profile', 'plot_state', 'plot_suggestion', 'plot_outline', 'rewrite_selection', 'content-rating-llm', 'selection_image']
+    const types = [
+      'import_review',
+      'style_profile',
+      'relationship_profile',
+      'plot_state',
+      'plot_suggestion',
+      'plot_outline',
+      'rewrite_selection',
+      'content-rating-llm',
+      'selection_image',
+    ]
     for (const generationType of types) {
-      await recordUsage(t.db, { userId: readerId, model: 'audit-types', provider: 'ai.test', promptTokens: 10, completionTokens: 2, costMillicents: 0, generationType })
+      await recordUsage(t.db, {
+        userId: readerId,
+        model: 'audit-types',
+        provider: 'ai.test',
+        promptTokens: 10,
+        completionTokens: 2,
+        costMillicents: 0,
+        generationType,
+      })
     }
     for (const type of types) {
       const response = await req(`/api/ai/audit/calls?type=${type}&userId=${readerId}`, json('GET', undefined, adminToken))
@@ -558,10 +582,29 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
   it('审计与趋势保留小数金额及上游账单追溯字段', async () => {
     const before = await jsonOf<{ trend: Array<{ costMillicents: number }> }>(await req('/api/ai/audit/trend?days=7', json('GET', undefined, adminToken)))
     const readerId = await userIdByUsername(t, 'reader')
-    await recordUsage(t.db, { userId: readerId, model: 'precision-test', provider: 'ai.test', promptTokens: 246, completionTokens: 67,
-      costMillicents: 0.4, costReported: true, generationType: 'precision-test', upstreamRequestId: 'precise-billing-id', costSource: 'newapi-log', costCurrency: 'USD' })
-    const calls = await jsonOf<{ calls: Array<Record<string, unknown>> }>(await req('/api/ai/audit/calls?type=precision-test', json('GET', undefined, adminToken)))
-    expect(calls.calls[0]).toMatchObject({ costMillicents: 0.4, costReported: true, upstreamRequestId: 'precise-billing-id', costSource: 'newapi-log', costCurrency: 'USD' })
+    await recordUsage(t.db, {
+      userId: readerId,
+      model: 'precision-test',
+      provider: 'ai.test',
+      promptTokens: 246,
+      completionTokens: 67,
+      costMillicents: 0.4,
+      costReported: true,
+      generationType: 'precision-test',
+      upstreamRequestId: 'precise-billing-id',
+      costSource: 'newapi-log',
+      costCurrency: 'USD',
+    })
+    const calls = await jsonOf<{ calls: Array<Record<string, unknown>> }>(
+      await req('/api/ai/audit/calls?type=precision-test', json('GET', undefined, adminToken)),
+    )
+    expect(calls.calls[0]).toMatchObject({
+      costMillicents: 0.4,
+      costReported: true,
+      upstreamRequestId: 'precise-billing-id',
+      costSource: 'newapi-log',
+      costCurrency: 'USD',
+    })
     const after = await jsonOf<{ trend: Array<{ costMillicents: number }> }>(await req('/api/ai/audit/trend?days=7', json('GET', undefined, adminToken)))
     expect(after.trend.reduce((sum, d) => sum + d.costMillicents, 0) - before.trend.reduce((sum, d) => sum + d.costMillicents, 0)).toBeCloseTo(0.4, 8)
   })
@@ -766,7 +809,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
     // 列表可见这条内容，且带小说/章节标题
     const list = await req('/api/ai/generations', json('GET', undefined, adminToken))
-    const listBody = await jsonOf<{ items: Array<{ id: string; novelTitle: string; chapterTitle: string; kind: string; status: string }>; total: number }>(list)
+    const listBody = await jsonOf<{
+      items: Array<{ id: string; novelId: string; novelTitle: string; chapterTitle: string; kind: string; status: string }>
+      total: number
+    }>(list)
     expect(list.status).toBe(200)
     expect(listBody.total).toBeGreaterThan(0)
     const mine = listBody.items.find((i) => i.id === id)
@@ -775,6 +821,14 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(mine?.chapterTitle).toBe('第二章')
     expect(mine?.kind).toBe('summary')
     expect(mine?.status).toBe('published')
+    const byBook = await req(`/api/ai/generations?novelId=${encodeURIComponent(mine!.novelId)}`, json('GET', undefined, adminToken))
+    const bookItems = await jsonOf<{ items: Array<{ novelId: string }>; total: number; novelId: string }>(byBook)
+    expect(byBook.status).toBe(200)
+    expect(bookItems.total).toBeGreaterThan(0)
+    expect(bookItems.novelId).toBe(mine!.novelId)
+    expect(bookItems.items.every((item) => item.novelId === mine!.novelId)).toBe(true)
+    const missingBook = await req('/api/ai/generations?novelId=missing-workspace-book', json('GET', undefined, adminToken))
+    expect((await jsonOf<{ total: number }>(missingBook)).total).toBe(0)
 
     // 删除后：再删 404，且只读缓存不再命中
     const del = await req(`/api/ai/generations/${id}`, json('DELETE', undefined, adminToken))
@@ -921,17 +975,50 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     fetchMock.mockImplementation(async (_input, init) => {
       const body = JSON.parse(String(init?.body || '{}'))
       observed = (body.messages || []).map((message: { content: string }) => message.content).join('\n')
-      return new Response(JSON.stringify({
-        model: 'test-model',
-        choices: [{ message: { content: chapterCount ? '第1章 信任\n初识。\n第2章 试探\n同行。' : '[{"direction":"两人在客栈交谈，逐渐建立信任。","effect":"关系推进"}]' }, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 10, completion_tokens: 20 },
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      return new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [
+            {
+              message: {
+                content: chapterCount ? '第1章 信任\n初识。\n第2章 试探\n同行。' : '[{"direction":"两人在客栈交谈，逐渐建立信任。","effect":"关系推进"}]',
+              },
+              finish_reason: 'stop',
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 20 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
     })
     try {
-      const writingBrief = { version: 1, objective: '建立初步信任', viewpoint: '第三人称', pace: '舒缓', characters: ['沈砚'], requiredFacts: '沈砚尚未暴露身份', forbiddenEvents: '不得揭露真实身份', chapterGoals: [{ index: 1, goal: '交换线索' }, { index: 2, goal: '约定同行' }] }
+      const writingBrief = {
+        version: 1,
+        objective: '建立初步信任',
+        viewpoint: '第三人称',
+        pace: '舒缓',
+        characters: ['沈砚'],
+        requiredFacts: '沈砚尚未暴露身份',
+        forbiddenEvents: '不得揭露真实身份',
+        chapterGoals: [
+          { index: 1, goal: '交换线索' },
+          { index: 2, goal: '约定同行' },
+        ],
+      }
       const res = await req('/api/ai/writing/plot-suggestions', json('POST', { novelId, chapterCount, writingBrief }, adminToken))
       expect(res.status).toBe(200)
-      for (const text of ['建立初步信任', '第三人称', '舒缓', '沈砚', '沈砚尚未暴露身份', '不得揭露真实身份', '交换线索', '约定同行', '不要推荐或安排被禁止的事件']) expect(observed).toContain(text)
+      for (const text of [
+        '建立初步信任',
+        '第三人称',
+        '舒缓',
+        '沈砚',
+        '沈砚尚未暴露身份',
+        '不得揭露真实身份',
+        '交换线索',
+        '约定同行',
+        '不要推荐或安排被禁止的事件',
+      ])
+        expect(observed).toContain(text)
     } finally {
       if (previousFetch) fetchMock.mockImplementation(previousFetch)
     }
@@ -968,7 +1055,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
     try {
       const direction = '夭夜在寝宫与他独处，借双修稳固修为。'
-      const res = await req('/api/ai/writing/plot-suggestions', json('POST', { novelId, chapterCount: 2, plotDirection: direction, timeoutSeconds: 300 }, adminToken))
+      const res = await req(
+        '/api/ai/writing/plot-suggestions',
+        json('POST', { novelId, chapterCount: 2, plotDirection: direction, timeoutSeconds: 300 }, adminToken),
+      )
       expect(res.status).toBe(200)
       expect(timeoutSpy).toHaveBeenCalledWith(300_000)
       const data = await jsonOf<{ outline?: string }>(res)
@@ -1204,7 +1294,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         expect(progress.processedChapters).toBe(1)
         expect(progress.targetChapterId).toBe(ids[2])
         for (let batch = 0; batch < 2; batch++) {
-          const next = await req(`/api/ai/writing/${endpoint}`, json('POST', { novelId, afterChapterId: progress.targetChapterId, sampleChapters: 1 }, adminToken))
+          const next = await req(
+            `/api/ai/writing/${endpoint}`,
+            json('POST', { novelId, afterChapterId: progress.targetChapterId, sampleChapters: 1 }, adminToken),
+          )
           expect(next.status).toBe(200)
           progress = await jsonOf<typeof progress>(next)
         }
@@ -1248,7 +1341,9 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(status.progress).toMatchObject({ paused: true, running: false, processedChapters: 1 })
       expect(fetchMock).toHaveBeenCalledTimes(calls)
       let entered!: () => void
-      const started = new Promise<void>((resolve) => { entered = resolve })
+      const started = new Promise<void>((resolve) => {
+        entered = resolve
+      })
       fetchMock.mockImplementationOnce((_input, init) => {
         entered()
         return new Promise<Response>((_resolve, reject) => {
@@ -1278,10 +1373,22 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
     const ids: string[] = []
     for (let i = 0; i < 5; i++) {
-      const chapter = await req('/api/chapters', json('POST', { novelId, title: `第${i + 1}章`, content: i === 0 ? `${LONG_CONTENT}林舟曾答应沈月归还钥匙。` : `${LONG_CONTENT}最近正文${i}。` }, adminToken))
+      const chapter = await req(
+        '/api/chapters',
+        json(
+          'POST',
+          { novelId, title: `第${i + 1}章`, content: i === 0 ? `${LONG_CONTENT}林舟曾答应沈月归还钥匙。` : `${LONG_CONTENT}最近正文${i}。` },
+          adminToken,
+        ),
+      )
       ids.push((await jsonOf<{ chapter: { id: string } }>(chapter)).chapter.id)
     }
-    const body = { novelId, afterChapterId: ids[4], instruction: '林舟与沈月重逢', writingBrief: { version: 1, characters: ['林舟', '沈月'], objective: '履行承诺', chapterGoals: [] } }
+    const body = {
+      novelId,
+      afterChapterId: ids[4],
+      instruction: '林舟与沈月重逢',
+      writingBrief: { version: 1, characters: ['林舟', '沈月'], objective: '履行承诺', chapterGoals: [] },
+    }
     expect((await req('/api/ai/writing/materials', json('POST', body))).status).toBe(401)
     expect((await req('/api/ai/writing/materials', json('POST', body, readerToken))).status).toBe(403)
     const beforeCalls = fetchMock.mock.calls.length
@@ -1301,13 +1408,25 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const novel = await req('/api/novels', json('POST', { title: '质量检查验证', author: '作者' }, adminToken))
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
     await req('/api/chapters', json('POST', { novelId, title: '来源章节', content: LONG_CONTENT }, adminToken))
-    await t.db.query("INSERT INTO ai_generations (id, novel_id, kind, result, status, created_at) VALUES ('review-route-draft', $1, 'continue', '可检查的正文', 'draft', 1)", [novelId])
+    await t.db.query(
+      "INSERT INTO ai_generations (id, novel_id, kind, result, status, created_at) VALUES ('review-route-draft', $1, 'continue', '可检查的正文', 'draft', 1)",
+      [novelId],
+    )
     const path = '/api/ai/writing/drafts/review-route-draft/review'
     const body = { expectedRevision: generationContentRevision('可检查的正文') }
     expect((await req(path, json('GET', undefined, readerToken))).status).toBe(403)
     expect((await req(path, json('POST', body, readerToken))).status).toBe(403)
     const original = fetchMock.getMockImplementation()
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ model: 'test', choices: [{ message: { content: '{"findings":[]}' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 5 } }), { headers: { 'Content-Type': 'application/json' } }))
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          model: 'test',
+          choices: [{ message: { content: '{"findings":[]}' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
     try {
       const count = fetchMock.mock.calls.length
       expect((await req(path, json('POST', body, adminToken))).status).toBe(200)
@@ -1318,7 +1437,9 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(result.report.stale).toBe(true)
       expect((await req(path, json('POST', body, adminToken))).status).toBe(409)
       expect(fetchMock.mock.calls.length).toBe(count + 1)
-    } finally { if (original) fetchMock.mockImplementation(original) }
+    } finally {
+      if (original) fetchMock.mockImplementation(original)
+    }
   })
 
   it('人工画像：绑定自动来源、按 revision 冲突保护，刷新自动层不覆盖人工层', async () => {
@@ -1967,7 +2088,9 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const afterBlockedChapters = await t.db.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id = $1', [novelId])
     expect(Number(afterBlockedChapters.rows[0]?.count)).toBe(Number(before.rows[0]?.count))
 
-    const currentRevision = (await jsonOf<{ novel: { contentRatingRevision: number } }>(await req(`/api/novels/${novelId}`, json('GET', undefined, adminToken)))).novel.contentRatingRevision
+    const currentRevision = (
+      await jsonOf<{ novel: { contentRatingRevision: number } }>(await req(`/api/novels/${novelId}`, json('GET', undefined, adminToken)))
+    ).novel.contentRatingRevision
     const converted = await req(`/api/novels/${novelId}`, json('PUT', { contentRating: 'restricted', contentRatingRevision: currentRevision }, adminToken))
     expect(converted.status).toBe(200)
     expect((await jsonOf<{ novel: { contentRating: string } }>(converted)).novel.contentRating).toBe('restricted')
@@ -2074,7 +2197,8 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(Number(chapterCount.rows[0]?.count)).toBe(0)
 
       // 改为 restricted 后同一份草稿可以正常发布。
-      const revision = (await jsonOf<{ novel: { contentRatingRevision: number } }>(await req(`/api/novels/${novelId}`, json('GET', undefined, adminToken)))).novel.contentRatingRevision
+      const revision = (await jsonOf<{ novel: { contentRatingRevision: number } }>(await req(`/api/novels/${novelId}`, json('GET', undefined, adminToken))))
+        .novel.contentRatingRevision
       expect((await req(`/api/novels/${novelId}`, json('PUT', { contentRating: 'restricted', contentRatingRevision: revision }, adminToken))).status).toBe(200)
       expect((await req(`/api/ai/writing/drafts/${draft.id}/publish`, json('POST', { novelId }, adminToken))).status).toBe(200)
     } finally {
@@ -3426,9 +3550,18 @@ describe('后台故事档案提交', () => {
     const login = await req('/api/auth/login', json('POST', { username: 'admin', password: 'adminpass123' }))
     token = (await jsonOf<{ token: string }>(login)).token
     await t.db.query("INSERT INTO novels (id,title,created_at,updated_at) VALUES ('async-memory','后台档案',1,1)")
-    for (let i = 1; i <= 2; i++) await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,$5,1)', [`async-c${i}`, 'async-memory', `第${i}章`, LONG_CONTENT, i])
+    for (let i = 1; i <= 2; i++)
+      await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,$5,1)', [
+        `async-c${i}`,
+        'async-memory',
+        `第${i}章`,
+        LONG_CONTENT,
+        i,
+      ])
     let resolve!: (value: Response) => void
-    const stalled = new Promise<Response>((next) => { resolve = next })
+    const stalled = new Promise<Response>((next) => {
+      resolve = next
+    })
     fetchMock.mockImplementationOnce(() => stalled)
     const submission = await req('/api/ai/writing/memory/plot/async-memory/start', json('POST', { sampleChapters: 1 }, token))
     expect(submission.status).toBe(202)
@@ -3437,13 +3570,26 @@ describe('后台故事档案提交', () => {
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
       const duplicate = await req('/api/ai/writing/memory/plot/async-memory/start', json('POST', { sampleChapters: 8 }, token))
       expect((await jsonOf<{ task: { id: string } }>(duplicate)).task.id).toBe(task.id)
-      await t.db.query("INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ('async-c3','async-memory','新增章',$1,3,1)", [LONG_CONTENT])
+      await t.db.query("INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ('async-c3','async-memory','新增章',$1,3,1)", [
+        LONG_CONTENT,
+      ])
     } finally {
-      resolve(new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '第一章档案' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { 'Content-Type': 'application/json' } }))
+      resolve(
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '第一章档案' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 100, completion_tokens: 20 },
+          }),
+          { headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
     }
     expect((await waitForTask(task.id, token)).status).toBe('completed')
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    const state = await jsonOf<{ chaptersThrough: number; memoryTask: { id: string; status: string } }>(await req('/api/ai/writing/plot-state/async-memory', json('GET', undefined, token)))
+    const state = await jsonOf<{ chaptersThrough: number; memoryTask: { id: string; status: string } }>(
+      await req('/api/ai/writing/plot-state/async-memory', json('GET', undefined, token)),
+    )
     expect(state.chaptersThrough).toBe(2)
     expect(state.memoryTask).toMatchObject({ id: task.id, status: 'completed' })
   })
@@ -3451,26 +3597,53 @@ describe('后台故事档案提交', () => {
   it.each(['plot', 'relationship'])('%s 暂停会取消挂起请求、保留检查点，之后可恢复', async (kind) => {
     const novelId = `paused-${kind}`
     await t.db.query('INSERT INTO novels (id,title,created_at,updated_at) VALUES ($1,$2,1,1)', [novelId, '暂停档案'])
-    for (let i = 1; i <= 2; i++) await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,$5,1)', [`${novelId}-${i}`, novelId, `第${i}章`, LONG_CONTENT, i])
-    const reply = () => new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '已保存的第一章档案' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { 'Content-Type': 'application/json' } })
-    fetchMock.mockImplementationOnce(async () => reply()).mockImplementationOnce(async (_input, init) => new Promise<Response>((_resolve, reject) => {
-      const signal = init?.signal
-      if (signal?.aborted) reject(signal.reason)
-      else signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
-    }))
+    for (let i = 1; i <= 2; i++)
+      await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,$5,1)', [
+        `${novelId}-${i}`,
+        novelId,
+        `第${i}章`,
+        LONG_CONTENT,
+        i,
+      ])
+    const reply = () =>
+      new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [{ message: { content: '已保存的第一章档案' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 100, completion_tokens: 20 },
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      )
+    fetchMock
+      .mockImplementationOnce(async () => reply())
+      .mockImplementationOnce(
+        async (_input, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            const signal = init?.signal
+            if (signal?.aborted) reject(signal.reason)
+            else signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          }),
+      )
     const start = await req(`/api/ai/writing/memory/${kind}/${novelId}/start`, json('POST', { sampleChapters: 1 }, token))
     const { task } = await jsonOf<{ task: { id: string } }>(start)
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     expect((await req(`/api/ai/writing/memory/${kind}/${novelId}/pause`, json('POST', {}, token))).status).toBe(200)
     await vi.waitFor(async () => {
-      const { rows } = await t.db.query<{ lease_until: number }>('SELECT lease_until FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2', [novelId, kind])
+      const { rows } = await t.db.query<{ lease_until: number }>('SELECT lease_until FROM novel_story_memory_builds WHERE novel_id = $1 AND kind = $2', [
+        novelId,
+        kind,
+      ])
       expect(Number(rows[0]?.lease_until)).toBe(0)
     })
     expect((await waitForTask(task.id, token)).status).toBe('cancelled')
     const path = kind === 'plot' ? 'plot-state' : 'relationship-profile'
-    const saved = await jsonOf<{ progress: { processedChapters: number; previewContent: string } }>(await req(`/api/ai/writing/${path}/${novelId}`, json('GET', undefined, token)))
+    const saved = await jsonOf<{ progress: { processedChapters: number; previewContent: string } }>(
+      await req(`/api/ai/writing/${path}/${novelId}`, json('GET', undefined, token)),
+    )
     expect(saved.progress).toMatchObject({ processedChapters: 1, previewContent: '已保存的第一章档案' })
-    const resumed = await jsonOf<{ task: { id: string } }>(await req(`/api/ai/writing/memory/${kind}/${novelId}/start`, json('POST', { sampleChapters: 1 }, token)))
+    const resumed = await jsonOf<{ task: { id: string } }>(
+      await req(`/api/ai/writing/memory/${kind}/${novelId}/start`, json('POST', { sampleChapters: 1 }, token)),
+    )
     expect((await waitForTask(resumed.task.id, token)).status).toBe('completed')
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
@@ -3478,9 +3651,25 @@ describe('后台故事档案提交', () => {
   it('后台失败保留用量和错误，不自动重试，可从任务中心手动恢复', async () => {
     const novelId = 'failed-memory'
     await t.db.query('INSERT INTO novels (id,title,created_at,updated_at) VALUES ($1,$2,1,1)', [novelId, '失败档案'])
-    await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,1,1)', ['failed-c1', novelId, '第1章', LONG_CONTENT])
-    fetchMock.mockImplementationOnce(async () => new Response(JSON.stringify({ choices: [{ message: { content: '', refusal: 'policy' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }), { headers: { 'Content-Type': 'application/json' } }))
-    const { task } = await jsonOf<{ task: { id: string } }>(await req(`/api/ai/writing/memory/plot/${novelId}/start`, json('POST', { sampleChapters: 1 }, token)))
+    await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,1,1)', [
+      'failed-c1',
+      novelId,
+      '第1章',
+      LONG_CONTENT,
+    ])
+    fetchMock.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '', refusal: 'policy' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 100, completion_tokens: 20 },
+          }),
+          { headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+    const { task } = await jsonOf<{ task: { id: string } }>(
+      await req(`/api/ai/writing/memory/plot/${novelId}/start`, json('POST', { sampleChapters: 1 }, token)),
+    )
     const failed = await waitForTask(task.id, token)
     expect(failed.status).toBe('failed')
     expect(failed.error).toContain('拒绝生成')

@@ -2,18 +2,7 @@ import SwiftUI
 
 struct AdminTaskCenterView: View {
     var body: some View {
-        List {
-            Section("任务") {
-                NavigationLink { AdminJobsView() } label: { AppIconLabel("抓取任务", systemImage: "shippingbox") }
-                NavigationLink { AdminAITasksView() } label: { AppIconLabel("AI 任务", systemImage: "sparkles") }
-            }
-            Section("记录与内容") {
-                NavigationLink { AdminDownloadRecordsView() } label: { AppIconLabel("下载记录", systemImage: "arrow.down.doc") }
-                NavigationLink { AdminAIGenerationsView() } label: { AppIconLabel("已生成内容", systemImage: "doc.text.magnifyingglass") }
-            }
-        }
-        .appListStyle(.settings)
-        .navigationTitle("任务中心")
+        AdminTaskInboxView()
     }
 }
 

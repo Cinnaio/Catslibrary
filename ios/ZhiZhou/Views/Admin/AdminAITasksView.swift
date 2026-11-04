@@ -3,6 +3,8 @@ import ZhiZhouCore
 
 /// AI 任务：任务列表（过滤 / 取消 / 重试 / 删除记录）。
 struct AdminAITasksView: View {
+    @State private var focusedTaskID: String?
+    init(taskID: String? = nil) { _focusedTaskID = State(initialValue: taskID) }
     @State private var requests = ListRequestGuard<Bool>()
     @Environment(\.scenePhase) private var scenePhase
     @State private var tasks: [AiTaskInfo] = []
@@ -133,6 +135,13 @@ struct AdminAITasksView: View {
     private func taskRow(_ task: AiTaskInfo) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             AdminAITaskProgressView(task: task, compact: true)
+            if ["continue", "write_chapter", "write_outline"].contains(task.kind ?? "") {
+                NavigationLink("查看本次草稿与发布", destination: AdminAIGenerationsView(taskID: task.id))
+                    .accessibilityIdentifier("admin.task.results.\(task.id)")
+            }
+            if let novelID = task.novelId, !novelID.isEmpty {
+                NavigationLink("管理关联作品") { AdminNovelWorkspaceLoader(novelID: novelID) }
+            }
             if let prompt = task.prompt, !prompt.isEmpty {
                 Text(prompt)
                     .font(.caption2)
@@ -209,7 +218,13 @@ struct AdminAITasksView: View {
             }
         }
         do {
-            let r = try await AdminAPI.aiTasks(status: "all", limit: 200, offset: 0)
+            let r: AiTasksResponse
+            if let focusedTaskID {
+                let detail = try await AdminAPI.aiTask(id: focusedTaskID)
+                r = AiTasksResponse(items: [detail.task], total: 1, limit: 1, offset: 0)
+            } else {
+                r = try await AdminAPI.aiTasks(status: "all", limit: 200, offset: 0)
+            }
             guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
             tasks = r.items
             AdminAITaskCoordinator.shared.reconcile(tasks)
@@ -250,7 +265,7 @@ struct AdminAITasksView: View {
         busyId = task.id
         defer { busyId = nil }
         do {
-            _ = try await AdminAITaskCoordinator.shared.start(
+            let launch = try await AdminAITaskCoordinator.shared.start(
                 key: AdminAITaskCoordinator.OperationKey.retry(taskID: task.id),
                 kind: task.kind ?? "retry",
                 resourceID: task.novelId,
@@ -263,6 +278,7 @@ struct AdminAITasksView: View {
                 )
                 return result.jobId ?? ""
             }
+            if focusedTaskID != nil { focusedTaskID = launch.taskID }
             await load()
         } catch {
             actionError = AppCopy.friendlyError(error)

@@ -31,6 +31,7 @@ struct NovelDetailView: View {
     @State private var interactionFeedback = 0
     @State private var isShowingOffline = false
     @State private var showOfflineOptions = false
+    @State private var showAdminWorkspace = false
     @State private var isSelectingOffline = false
     @State private var selectedChapterIDs: Set<String> = []
     @State private var selectionRowFrames: [String: CGRect] = [:]
@@ -63,6 +64,13 @@ struct NovelDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
         .toolbar {
+            if appState.user?.role == "admin" {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("管理这本书", systemImage: "slider.horizontal.3") { showAdminWorkspace = true }
+                        .labelStyle(.iconOnly)
+                        .accessibilityIdentifier("detail.manage")
+                }
+            }
             if showsCloseButton {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭", systemImage: "xmark") { dismiss() }
@@ -81,6 +89,9 @@ struct NovelDetailView: View {
         }
         .sheet(isPresented: $showOfflineOptions) {
             offlineDownloadSheet
+        }
+        .sheet(isPresented: $showAdminWorkspace, onDismiss: { Task { await load(refresh: true) } }) {
+            AdminNovelWorkspaceSheet(novel: currentNovel)
         }
         .task(id: ContentAccessStore.shared.mode) {
             await offlineStore.refresh()

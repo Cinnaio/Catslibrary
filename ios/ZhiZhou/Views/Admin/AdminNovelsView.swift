@@ -14,6 +14,7 @@ struct AdminNovelsView: View {
     @State private var loadedTotal = 0
     @State private var editorDestination: NovelEditorDestination?
     @State private var followupNovel: Novel?
+    @State private var workspaceNovel: Novel?
     @State private var deleteTarget: Novel?
     @State private var actionError: String?
     @State private var busyNovelId: String?
@@ -120,6 +121,9 @@ struct AdminNovelsView: View {
                     } }
             }
         }
+        .sheet(item: $workspaceNovel, onDismiss: { Task { await reload() } }) { novel in
+            AdminNovelWorkspaceSheet(novel: novel)
+        }
         .sheet(item: $editorDestination) { destination in
             NovelEditSheet(novel: destination.novel) { saved in
                 if destination.novel == nil {
@@ -217,6 +221,7 @@ struct AdminNovelsView: View {
                 AdminInlineProgress()
             } else {
                 Menu {
+                    Button("管理这本书", systemImage: "slider.horizontal.3") { workspaceNovel = novel }
                     Button("编辑", systemImage: "pencil") {
                         editorDestination = NovelEditorDestination(novel: novel)
                     }
@@ -237,6 +242,7 @@ struct AdminNovelsView: View {
             }
         }
         .contextMenu {
+            Button("管理这本书", systemImage: "slider.horizontal.3") { workspaceNovel = novel }
             Button("编辑", systemImage: "pencil") {
                 editorDestination = NovelEditorDestination(novel: novel)
             }
@@ -344,7 +350,7 @@ private struct NovelEditorDestination: Identifiable {
     let novel: Novel?
 }
 
-private struct NovelEditSheet: View {
+struct NovelEditSheet: View {
     let novel: Novel?
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""

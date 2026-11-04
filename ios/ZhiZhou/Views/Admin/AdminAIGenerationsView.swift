@@ -7,9 +7,13 @@ import ZhiZhouCore
 struct AdminAIGenerationsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let taskID: String?
+    private let novelID: String?
 
-    init(taskID: String? = nil) {
+    init(taskID: String? = nil, novelID: String? = nil, initialStatus: String = "all") {
         self.taskID = taskID
+        self.novelID = novelID
+        _statusFilter = State(initialValue: initialStatus)
+        _scopeFilter = State(initialValue: novelID != nil || initialStatus == "draft" ? "writing" : "all")
     }
 
     private struct GenerationDisplayGroup: Identifiable {
@@ -62,7 +66,7 @@ struct AdminAIGenerationsView: View {
     @State private var loadingMore = false
     @State private var requests = ListRequestGuard<[String]>()
 
-    private var query: [String] { [taskID ?? "", kindFilter, scopeFilter, statusFilter] }
+    private var query: [String] { [taskID ?? "", kindFilter, scopeFilter, statusFilter, novelID ?? ""] }
 
     // 批量
     @State private var selectionMode = false
@@ -623,10 +627,14 @@ struct AdminAIGenerationsView: View {
                     scope: ticket.query[2],
                     status: ticket.query[3],
                     limit: pageSize,
-                    offset: 0
+                    offset: 0,
+                    novelId: ticket.query[4]
                 )
             }
             guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            if let novelID, result.novelId != novelID {
+                throw APIError.http(status: 409, message: "当前服务端不支持按作品查看草稿，请更新服务端后重试。")
+            }
             items = result.items
             selectedIds.formIntersection(items.map(\.id))
             totalCount = result.total ?? items.count
@@ -657,9 +665,13 @@ struct AdminAIGenerationsView: View {
                 scope: ticket.query[2],
                 status: ticket.query[3],
                 limit: pageSize,
-                offset: next
+                offset: next,
+                novelId: ticket.query[4]
             )
             guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            if let novelID, result.novelId != novelID {
+                throw APIError.http(status: 409, message: "服务端未确认作品筛选，请刷新后重试。")
+            }
             let existing = Set(items.map(\.id))
             items += result.items.filter { !existing.contains($0.id) }
             offset = next

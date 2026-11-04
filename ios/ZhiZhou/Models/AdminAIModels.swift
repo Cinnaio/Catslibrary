@@ -429,6 +429,7 @@ struct AiGenerationsResponse: Codable {
     let total: Int?
     let limit: Int?
     let offset: Int?
+    var novelId: String? = nil
 }
 
 /// GET /api/ai/tasks/:id/generations：按真实任务关联的结果。
