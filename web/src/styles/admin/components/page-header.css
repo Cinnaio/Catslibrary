@@ -47,7 +47,7 @@
 .admin-redesign-page--content-policy .admin-tab-header__actions,
 .admin-redesign-page--site-operations .admin-tab-header__actions,
 .admin-redesign-page--ai .admin-tab-header__actions {
-  gap: 0.5rem;
+  gap: var(--action-gap);
 }
 
 @media (min-width: 901px) {

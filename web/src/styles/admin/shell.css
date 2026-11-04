@@ -1,3 +1,10 @@
 /* The shared WorkspaceShell owns navigation, positioning and scrolling. */
 .admin-layout { min-width: 0; font-family: var(--font-body); }
 .admin-layout h1, .admin-layout h2 { font-family: var(--font-serif); font-weight: 500; }
+/* 局部继承也覆盖 Radix 弹窗；前台按钮继续使用组件默认尺寸。 */
+:where(.admin-layout, .admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) {
+  --button-height: var(--admin-control-height);
+  --button-padding-block: 6px;
+  --button-padding-inline: 12px;
+  --button-icon-size: var(--management-control-icon-size);
+}

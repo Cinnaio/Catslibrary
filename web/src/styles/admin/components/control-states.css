@@ -1,17 +1,20 @@
-.admin-layout [data-slot='button'] {
+:is(.admin-layout, .admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='button'] {
   min-height: var(--admin-control-height);
 }
 
-.admin-layout [data-slot='button'][data-size^='icon'] {
-  min-height: 0;
+:is(.admin-layout, .admin-dialog, .admin-dialog-reading, .ai-generation-dialog, .ai-generation-modal) [data-slot='button'][data-size^='icon'] {
+  width: var(--admin-control-height);
+  min-width: var(--admin-control-height);
+  min-height: var(--admin-control-height);
 }
 
 .admin-layout [data-slot='button'][role='combobox'] {
   height: var(--admin-control-height);
 }
 
-.admin-layout [data-slot='input'] {
+:is(.admin-layout, .admin-dialog, .ai-generation-dialog) [data-slot='input'] {
   height: var(--admin-control-height);
+  font-size: var(--field-control-font-size);
   border-color: var(--input-border);
   background: var(--input-background);
 }

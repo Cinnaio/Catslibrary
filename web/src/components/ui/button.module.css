@@ -5,7 +5,7 @@
   justify-content: center;
   gap: var(--control-gap);
   min-height: var(--button-height);
-  padding: 8px 15px;
+  padding: var(--button-padding-block, 8px) var(--button-padding-inline, 15px);
   border: 1px solid transparent;
   border-radius: var(--radius-control);
   font-family: var(--font-body);
@@ -22,8 +22,8 @@
     transform 140ms var(--ease);
 }
 .button > svg {
-  width: 16px;
-  height: 16px;
+  width: var(--button-icon-size, 16px);
+  height: var(--button-icon-size, 16px);
   flex-shrink: 0;
   pointer-events: none;
 }

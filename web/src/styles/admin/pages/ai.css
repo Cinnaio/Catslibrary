@@ -12,7 +12,7 @@
 
 @media (max-width: 900px) {
   .ai-service-tabs {
-    gap: 0.75rem;
+    gap: var(--admin-page-section-gap);
   }
 
   .ai-workbench-nav-track {

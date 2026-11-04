@@ -1,14 +1,14 @@
 .page {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
+  gap: var(--admin-page-section-gap);
   min-width: 0;
   width: 100%;
   margin: 0;
 }
 .page:global(.admin-redesign-page) {
   max-width: none;
-  gap: 24px;
+  gap: var(--admin-page-section-gap);
 }
 .heading:global(.admin-tab-header) {
   display: flex;
@@ -27,7 +27,7 @@
 .title {
   margin: 0;
   color: var(--text-primary);
-  font: 500 var(--font-display) / 1.4 var(--font-serif);
+  font: 500 var(--admin-page-title-size) / 1.4 var(--font-serif);
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 }
@@ -62,11 +62,11 @@
 }
 @media (max-width: 700px) {
   .title {
-    font-size: 25px;
+    font-size: var(--admin-page-title-size);
   }
   .page,
   .page:global(.admin-redesign-page) {
-    gap: 20px;
+    gap: var(--admin-page-section-gap);
   }
   .actions {
     gap: 8px;
