@@ -2,11 +2,9 @@
  * 会话 —— DB 操作层（由 Novel-KV createSession/getUser/deleteSession 平移）。
  */
 import type { Db } from '../db/pool'
-import { deviceName, hashToken, newToken, SESSION_TTL, ADMIN_SESSION_TTL, ADMIN_IDLE_TTL, type UserRow } from './auth'
+import { deviceName, hashToken, newToken, SESSION_TTL, type UserRow } from './auth'
 
 export async function createSession(db: Db, userId: string, userAgent: string, salt: string, ttl = SESSION_TTL): Promise<string> {
-  const role = (await db.query<{ role: string }>('SELECT role FROM users WHERE id=$1', [userId])).rows[0]?.role
-  if (role === 'admin') ttl = Math.min(ttl, ADMIN_SESSION_TTL)
   const token = newToken()
   const tokenHash = await hashToken(token, salt)
   const now = Date.now()
@@ -27,9 +25,8 @@ export async function getUserByToken(db: Db, token: string, salt: string): Promi
   const { rows } = await db.query<UserRow>(
     `SELECT u.* FROM user_sessions s
      JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.status = 'active'
-       AND (u.role<>'admin' OR (s.created_at>$3 AND s.last_seen_at>$4))`,
-    [tokenHash, Date.now(), Date.now() - ADMIN_SESSION_TTL, Date.now() - ADMIN_IDLE_TTL],
+     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.status = 'active'`,
+    [tokenHash, Date.now()],
   )
   if (rows[0]?.role === 'admin')
     await db.query('UPDATE user_sessions SET last_seen_at=GREATEST(last_seen_at,$2) WHERE token_hash=$1 AND last_seen_at<$3', [

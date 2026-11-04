@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
-import { REMEMBER_TTL, ADMIN_SESSION_TTL } from '../services/auth'
+import { REMEMBER_TTL } from '../services/auth'
 let t: TestDb
 let token = ''
 let userId = ''
@@ -123,19 +123,19 @@ it('书架搜索按字面匹配书名作者，筛选与总数一致且排序参�
     await t.db.query("DELETE FROM reading_progress WHERE user_id=$1 AND novel_id='full-1'", [userId])
   }
 })
-it('管理员记住登录及改密码的服务端会话有效期最多八小时', async () => {
+it('管理员记住登录及改密码的服务端会话有效期为一百八十天', async () => {
   const login = (await (await call('/api/auth/login', 'POST', { username: 'completion', password: 'password123', remember: true })).json()) as any
   token = login.token
   const sessions = (await (await call('/api/auth/sessions')).json()) as any
   const current = sessions.sessions.find((x: { current: boolean }) => x.current)
-  expect(Number(current.expiresAt) - Number(current.createdAt)).toBe(ADMIN_SESSION_TTL)
+  expect(Number(current.expiresAt) - Number(current.createdAt)).toBe(REMEMBER_TTL)
   const changed = (await (
     await call('/api/auth/change-password', 'POST', { currentPassword: 'password123', newPassword: 'password456', remember: true })
   ).json()) as any
   token = changed.token
   const after = (await (await call('/api/auth/sessions')).json()) as any
   expect(after.sessions).toHaveLength(1)
-  expect(Number(after.sessions[0].expiresAt) - Number(after.sessions[0].createdAt)).toBe(ADMIN_SESSION_TTL)
+  expect(Number(after.sessions[0].expiresAt) - Number(after.sessions[0].createdAt)).toBe(REMEMBER_TTL)
 })
 it('普通读者记住登录及改密码仍保持 180 天', async () => {
   await t.db.query(

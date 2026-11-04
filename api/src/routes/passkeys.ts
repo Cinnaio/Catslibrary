@@ -5,19 +5,7 @@ import { getDb, type Db, type DbClient } from '../db/pool'
 import { first, run, withTx } from '../db/query'
 import { requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { requestSession, sessionResponse } from '../services/browser-session'
-import {
-  ADMIN_SESSION_TTL,
-  REMEMBER_TTL,
-  REAUTH_TTL,
-  SESSION_TTL,
-  cleanUsername,
-  deviceName,
-  hashToken,
-  newId,
-  publicUser,
-  type UserRow,
-  verifyPassword,
-} from '../services/auth'
+import { REMEMBER_TTL, REAUTH_TTL, SESSION_TTL, cleanUsername, deviceName, hashToken, newId, publicUser, type UserRow, verifyPassword } from '../services/auth'
 import { createSession } from '../services/sessions'
 import { getPasskeyRuntimeConfig, getPasskeySettings } from '../services/passkey-settings'
 import { loadConfig } from '../config'
@@ -187,7 +175,7 @@ passkeyRoutes.post('/login/verify', async (c) => {
     })
     return c.json({
       user: publicUser(result.user),
-      ...sessionResponse(c, result.token, result.user.role === 'admin' ? ADMIN_SESSION_TTL : remember ? REMEMBER_TTL : SESSION_TTL, remember),
+      ...sessionResponse(c, result.token, remember ? REMEMBER_TTL : SESSION_TTL, remember),
     })
   } catch (error) {
     if (error instanceof Error && (error.message === 'challenge_consumed' || error.message === 'user_missing'))
