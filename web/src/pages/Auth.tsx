@@ -1,3 +1,4 @@
+import styles from './auth.module.css'
 /**
  * Auth 页 —— 登录 / 注册（shadcn 版）。
  * 首个管理员引导已拆到独立 /install 页：本页探测到 needsBootstrap 时跳转过去。
@@ -153,7 +154,7 @@ export default function Auth() {
   }
 
   return (
-    <main className="auth-page auth-page--reader">
+    <main className={`${styles.page} auth-page auth-page--reader`}>
       <div className="auth-shell">
           <section ref={modeMotionRef} className="auth-panel" aria-labelledby="auth-title">
             <div className="auth-panel__head">

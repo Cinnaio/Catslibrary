@@ -1,3 +1,5 @@
+import styles from './novel.module.css'
+import NovelWorkspaceLinks from '../components/workspace/NovelWorkspaceLinks'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 /**
  * Novel 详情页 —— hero 信息、章节目录、本地书签、评分与评论。
@@ -369,7 +371,7 @@ export default function Novel() {
   if (loadError) return <PageState title="加载失败" description={loadError} actions={<button type="button" className="btn btn--primary" onClick={() => void load()}>重试</button>} />
   if (loading) {
     return (
-      <main className="detail-page">
+      <main className={`${styles.page} detail-page`}>
         <div className="container detail-shell">
           <div className="loading-center">
             <div className="spinner spinner--lg"></div>
@@ -406,7 +408,7 @@ export default function Novel() {
   }
 
   return (
-    <main className="detail-page">
+    <main className={`${styles.page} detail-page`}>
       <div className="container detail-shell">
         <Link to="/" className="detail-back"><ArrowLeft size={14} aria-hidden="true" />返回书库</Link>
         {/* Hero */}
@@ -468,6 +470,8 @@ export default function Novel() {
             </div>
           </div>
         </div>
+
+        {user?.role === 'admin' && <NovelWorkspaceLinks novelId={novel.id} title={novel.title} />}
 
         {/* 回来接着读：隔了很久才回来时，用已缓存的提要合成连贯回顾（进书之前） */}
         <CatchupRecap novelId={novel.id} novelTitle={novel.title} lastReadAt={lastReadAt(progress)} />

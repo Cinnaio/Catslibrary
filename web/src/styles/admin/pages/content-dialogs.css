@@ -486,7 +486,7 @@
   justify-content: center;
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
   margin-bottom: 0.5rem;
 }

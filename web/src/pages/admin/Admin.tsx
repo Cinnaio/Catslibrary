@@ -1,3 +1,7 @@
+import '../../styles/_admin.css'
+import '../../styles/_admin-ui.css'
+import '../../styles/admin-operations.css'
+import '../../styles/book-import.css'
 /**
  * 管理后台外壳 —— 薄编排器。
  * 职责已拆出：鉴权门 AdminGate、布局 AdminShell（含侧边栏/顶栏）、
@@ -10,7 +14,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AdminGate from './AdminGate'
 import { monitoringRedirect } from './monitoring-routes'
 import AdminShell from './AdminShell'
-import { adminTabPath, getTabLabel, isAdminTab, TAB_COMPONENTS, TAB_KEY } from './admin-registry'
+import { adminTabPath, getAdminViewLabel, isAdminTab, TAB_COMPONENTS, TAB_KEY } from './admin-registry'
 
 export default function Admin() {
   const navigate = useNavigate()
@@ -76,7 +80,7 @@ export default function Admin() {
   if (redirect) return <Navigate to={redirect} replace />
 
   const TabComponent = TAB_COMPONENTS[active]
-  const activeLabel = getTabLabel(active)
+  const activeLabel = getAdminViewLabel(active, location.search)
 
   return (
     <AdminGate>

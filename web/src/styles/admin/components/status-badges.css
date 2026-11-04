@@ -2,7 +2,7 @@
    Claude (Anthropic) Aesthetic: low saturation, delicate border, calm humanist tones */
 .admin-status-badge {
   border: 1px solid transparent;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-tag);
   padding: 0.15rem 0.65rem;
   font-size: var(--badge-label-size);
   font-weight: 500;

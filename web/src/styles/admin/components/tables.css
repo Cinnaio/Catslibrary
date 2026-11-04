@@ -154,7 +154,7 @@
 }
 
 .admin-cell-tags__tag {
-  border-radius: var(--radius-full) !important;
+  border-radius: var(--radius-tag) !important;
   font-size: 0.72rem !important;
   padding: 0.1rem 0.55rem !important;
   border: 1px solid var(--admin-border) !important;
@@ -248,7 +248,7 @@
 .admin-icon-button {
   width: var(--admin-table-action-size);
   height: var(--admin-table-action-size);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   color: var(--text-secondary);
   transition:
     background-color var(--admin-table-row-interaction),

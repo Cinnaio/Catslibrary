@@ -82,6 +82,7 @@ export default function AiGenerationsPanel(props: {
   status?: 'all' | 'published' | 'draft' | 'rejected'
   search?: string
   focusBatchId?: string
+  novelId?: string
 }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -133,6 +134,7 @@ export default function AiGenerationsPanel(props: {
     try {
       const res = await aiApi.generations({
         groupBatches: true,
+        novelId: props.novelId || undefined,
         kind: filterKind === 'all' ? undefined : filterKind,
         scope: props.scope,
         status: props.status === 'all' ? filterStatus : props.status,
@@ -141,6 +143,7 @@ export default function AiGenerationsPanel(props: {
         offset,
       })
       if (version !== requestVersion.current) return
+      if (props.novelId && res.novelId !== props.novelId) throw new Error('当前服务端尚不支持按作品查看草稿，请更新 API 后重试。')
       if (offset > 0 && offset >= res.total) {
         setTotal(res.total)
         setOffset(Math.max(0, Math.ceil(res.total / limit) - 1) * limit)
@@ -184,7 +187,7 @@ export default function AiGenerationsPanel(props: {
     } finally {
       if (version === requestVersion.current) setLoading(false)
     }
-  }, [filterKind, filterStatus, query, limit, offset, props.scope, props.status])
+  }, [filterKind, filterStatus, query, limit, offset, props.scope, props.status, props.novelId])
 
   useEffect(() => {
     void load()

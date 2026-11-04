@@ -65,7 +65,7 @@
 }
 
 .admin-redesign-page--scrape .po18-claude-dot.is-neutral {
-  background: #d97757;
+  background: var(--accent);
   box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.2);
 }
 
@@ -129,7 +129,7 @@
 
 .admin-redesign-page--scrape .po18-claude-input:focus-visible,
 .admin-redesign-page--scrape .po18-claude-textarea:focus-visible {
-  border-color: #d97757 !important;
+  border-color: var(--accent) !important;
   outline: none !important;
   box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.15) !important;
 }
@@ -148,8 +148,8 @@
 .admin-redesign-page--scrape .po18-claude-primary-btn {
   height: 2.25rem !important;
   border-radius: 8px !important;
-  background: #d97757 !important;
-  color: #ffffff !important;
+  background: var(--accent) !important;
+  color: var(--accent-ink) !important;
   font-weight: 500 !important;
   padding-inline: 1rem !important;
   font-size: 0.8rem !important;
@@ -159,8 +159,8 @@
 }
 
 .admin-redesign-page--scrape .po18-claude-primary-btn:hover:not(:disabled) {
-  background: #c56344 !important;
-  border-color: #c56344 !important;
+  background: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
 }
 
 .admin-redesign-page--scrape .po18-claude-secondary-btn {
@@ -293,7 +293,7 @@
 .admin-redesign-page--scrape .scrape-intake-card__tab[data-state='active'] {
   background: var(--admin-panel, #ffffff) !important;
   color: var(--text-primary) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+  box-shadow: none !important;
   font-weight: 600 !important;
 }
 
@@ -340,19 +340,19 @@
 .admin-redesign-page--scrape .scrape-intake-card__btn-primary {
   height: 2.375rem !important;
   border-radius: 8px !important;
-  background: #d97757 !important;
-  color: #ffffff !important;
+  background: var(--accent) !important;
+  color: var(--accent-ink) !important;
   font-weight: 500 !important;
   padding-inline: 1.15rem !important;
   font-size: 0.825rem !important;
   border: 1px solid #d97757 !important;
-  box-shadow: 0 1px 2px rgba(217, 119, 87, 0.2) !important;
+  box-shadow: none !important;
   transition: all 0.15s ease !important;
 }
 
 .admin-redesign-page--scrape .scrape-intake-card__btn-primary:hover:not(:disabled) {
-  background: #c56344 !important;
-  border-color: #c56344 !important;
+  background: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
 }
 
 .admin-redesign-page--scrape .scrape-intake-card__hint {
@@ -368,7 +368,7 @@
   border: 1px solid var(--admin-border, #e6e4dc);
   border-radius: 14px;
   padding: 1.25rem 1.5rem;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -438,7 +438,7 @@
 
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-test-btn {
   background: #22221f !important;
-  border-color: #333330 !important;
+  border-color: var(--bg-hover) !important;
   color: #eeece3 !important;
 }
 
@@ -450,7 +450,7 @@
 
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-intake-card__mode-tabs {
   background: #252522 !important;
-  border-color: #333330 !important;
+  border-color: var(--bg-hover) !important;
 }
 
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-intake-card__tab[data-state='active'] {
@@ -464,7 +464,7 @@
 
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-queue-empty-calm {
   background: #22221f;
-  border-color: #333330;
+  border-color: var(--bg-hover);
 }
 
 .admin-redesign-page--scrape :is(.scrape-discovery, .scrape-setup) {
@@ -636,7 +636,7 @@
   align-items: center;
   padding: 0.3rem 0.55rem;
   border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted);
   color: var(--text-muted);
   font-size: 0.72rem;
@@ -870,11 +870,11 @@
 /* Dark Mode Overrides for Discovery Panel */
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-discovery-toolbar {
   background: #22221f;
-  border-color: #333330;
+  border-color: var(--bg-hover);
 }
 
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-discovery-item:hover {
-  background: #242320;
+  background: var(--bg-secondary);
   border-color: rgba(217, 119, 87, 0.3);
 }
 
@@ -1009,7 +1009,7 @@
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-setup-advanced-box,
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-setup-run-card {
   background: #22221f;
-  border-color: #333330;
+  border-color: var(--bg-hover);
 }
 
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-setup-hero__cover {
@@ -1019,6 +1019,6 @@
 
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-setup__description {
   background: #1c1c1a !important;
-  border-color: #333330 !important;
+  border-color: var(--bg-hover) !important;
 }
 

@@ -1,3 +1,4 @@
+import styles from './account.module.css'
 /**
  * Profile 页 —— 头像、资料编辑、密码、会话管理、退出（由 Novel-KV js/profile.js 平移）。
  */
@@ -274,7 +275,7 @@ export default function Profile() {
   }
 
   return (
-    <main className="profile-page">
+    <main className={`${styles.profile} profile-page`}>
       <div className="container profile-shell">
         <div className="account-page-heading">
           <h1>个人中心</h1>

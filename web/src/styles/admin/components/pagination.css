@@ -114,7 +114,7 @@
   min-width: var(--admin-pagination-control-size);
   height: var(--admin-pagination-control-size);
   padding: 0;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   transition: all 0.15s ease;
 }
 

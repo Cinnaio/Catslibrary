@@ -599,12 +599,12 @@ export default function NovelsTab({
                       ) : (
                         <>
                           {n.categories!.slice(0, 2).map((c) => (
-                            <Badge key={c} variant="outline" className="text-xs rounded-full px-2 py-0.5">
+                            <Badge key={c} variant="outline" className="text-xs rounded-[6px] px-2 py-0.5">
                               {c}
                             </Badge>
                           ))}
                           {n.categories!.length > 2 && (
-                            <Badge variant="outline" className="text-xs rounded-full px-1.5 py-0.5 text-muted-foreground">
+                            <Badge variant="outline" className="text-xs rounded-[6px] px-1.5 py-0.5 text-muted-foreground">
                               +{n.categories!.length - 2}
                             </Badge>
                           )}
@@ -657,6 +657,11 @@ export default function NovelsTab({
                           label: '融合章节名',
                           icon: GitMerge,
                           onSelect: () => setMergeNovel(n),
+                        },
+                        {
+                          label: '续写与创作',
+                          icon: BookOpen,
+                          onSelect: () => navigate(`/admin/ai?sub=writing&novel=${encodeURIComponent(n.id)}`),
                         },
                         {
                           label: '生成 AI 封面',

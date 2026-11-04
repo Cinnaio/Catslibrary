@@ -1,3 +1,4 @@
+import '../../styles/admin/pages/accounts.css'
 /**
  * 账户与注册 tab —— 当前管理员、注册设置、用户管理、邀请码管理。
  * 由 Novel-KV js/admin-users.js + admin.html #tab-settings 平移。

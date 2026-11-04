@@ -74,7 +74,7 @@
   align-items: center;
   flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--admin-border));
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   background: var(--admin-panel);
   padding: 0.2rem 0.6rem;
   color: var(--accent-hover);

@@ -1,13 +1,13 @@
-import { lazy } from 'react'
+import { lazy, type ReactNode } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
 import Layout from './Layout'
 
-vi.mock('./SiteHeader', () => ({ default: () => <header>固定页头</header> }))
+vi.mock('./workspace/WorkspaceShell', () => ({ default: ({ children }: { children: ReactNode }) => <><header>固定页头</header><aside>站点公告</aside>{children}</> }))
 vi.mock('./SiteNotice', () => ({ default: () => <aside>站点公告</aside> }))
 
-it.each(['/novel/book', '/bookshelf', '/profile'])('%s 懒加载时隐藏页头与公告，完成后恢复布局', async (path) => {
+it.each(['/novel/book', '/bookshelf', '/profile'])('%s 懒加载时保留工作区导航，并在内容区域显示等待态', async (path) => {
   let resolve!: (module: { default: () => React.JSX.Element }) => void
   const Page = lazy(
     () =>
@@ -24,9 +24,9 @@ it.each(['/novel/book', '/bookshelf', '/profile'])('%s 懒加载时隐藏页头�
       </Routes>
     </MemoryRouter>,
   )
-  expect(screen.queryByText('固定页头')).not.toBeInTheDocument()
-  expect(screen.queryByText('站点公告')).not.toBeInTheDocument()
-  expect(document.querySelector('.route-loading--embedded')).not.toBeInTheDocument()
+  expect(screen.getByText('固定页头')).toBeVisible()
+  expect(screen.getByText('站点公告')).toBeVisible()
+  expect(document.querySelector('.route-loading--embedded')).toBeInTheDocument()
   expect(screen.getByRole('status')).toHaveTextContent('正在加载')
   await act(async () => resolve({ default: () => <main>小说详情已加载</main> }))
   expect(await screen.findByText('小说详情已加载')).toBeInTheDocument()
@@ -35,7 +35,7 @@ it.each(['/novel/book', '/bookshelf', '/profile'])('%s 懒加载时隐藏页头�
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })
 
-it('从已加载页面跳转到懒加载页面时隐藏旧页头，完成后恢复', async () => {
+it('从已加载页面跳转到懒加载页面时保留工作区导航', async () => {
   let resolve!: (module: { default: () => React.JSX.Element }) => void
   const Page = lazy(() => new Promise<{ default: () => React.JSX.Element }>((done) => {
     resolve = done
@@ -53,11 +53,11 @@ it('从已加载页面跳转到懒加载页面时隐藏旧页头，完成后恢�
   expect(screen.getByText('固定页头')).toBeVisible()
   fireEvent.click(screen.getByText('打开小说'))
   expect(screen.getByRole('status')).toHaveTextContent('正在加载')
-  // React 在暂停时可能保留旧 DOM，但它不应继续可见。
+  // 导航属于持续存在的外壳，路由等待只替换内容区域。
   const header = screen.queryByText('固定页头')
-  if (header) expect(header).not.toBeVisible()
+  if (header) expect(header).toBeVisible()
   const notice = screen.queryByText('站点公告')
-  if (notice) expect(notice).not.toBeVisible()
+  if (notice) expect(notice).toBeVisible()
   await act(async () => resolve({ default: () => <main>小说详情已加载</main> }))
   expect(await screen.findByText('小说详情已加载')).toBeVisible()
   expect(screen.getByText('固定页头')).toBeVisible()

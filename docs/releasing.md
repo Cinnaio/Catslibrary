@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `0.2.0 / 17` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
 | API | `api/package.json` | `0.4.0` | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `0.3.0`，本次未改 | 修改时同步锁文件对应 workspace |
+| Web | `web/package.json` | `0.4.0` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `0.5.0`，本次未改 | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。
@@ -39,3 +39,11 @@
 `9b5b8adc`、`8864d3d7`、`645ebc27`、`732addab` 均只有 Header，没有 Body 清单，且 `ios` scope 不够具体。新增补记无法改变这些已推送消息；本次保留它们的 SHA 和远端历史，后续提交按规范执行。
 
 这些提交中的 iOS 功能和编译修复仍声明 `0.1.0 / build 16`，API 仍声明 `0.3.0`。本次候选元数据补齐为 iOS `0.2.0 / build 17` 和 API `0.4.0`；之前已触发的工作流仍使用各自提交里的旧版本，新版本需要提交后重新构建/部署。
+
+## Web 全站重构候选（2026-11-04）
+
+Web `0.4.0` 对应本条所在的 Web 工作区重构提交，分支 `codex/web-design-and-workspace-refactor`，基于 `d2dbb3c5`；实际源码 SHA 以该提交为准。版本唯一来源为 `web/package.json`，已同步锁文件对应 workspace；根包、API 和 iOS 版本保持不变。
+
+本书草稿依赖现有 API 0.4.0 候选的 `novelId` 精确筛选与响应回传字段。旧 API 忽略筛选时，新 Web 拒绝展示不确定范围的结果并提示升级；全局草稿查询不受此兼容检查影响。此次没有数据库迁移。
+
+本地 Web 类型检查、生产构建与 49 项定向回归通过，详细验证记录见 `frontend-refactor-progress.md`。浏览器检查使用现有本地 Vite 与隔离的合成/失败响应，不执行真实 AI 生成、发布、抓取、恢复或账户操作，不代替完整业务验收。生产构建、真实部署和真实业务验收分别记录；本次没有请求远程构建或部署。此次按用户授权执行本地提交，未推送；不能用基线提交代表本次源码。

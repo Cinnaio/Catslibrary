@@ -12,7 +12,7 @@ import './gallery.css'
 // File inventory is generated from the project, so additions remain visible even
 // before an interactive example is written. Raw source is fetched only on demand.
 const sourceModules = import.meta.glob<string>(
-  ['/src/components/**/*.tsx', '/src/pages/**/*.tsx', '/src/styles/**/*.css', '!/src/**/*.test.tsx', '!/src/pages/dev/**'],
+  ['/src/components/**/*.tsx', '/src/pages/**/*.tsx', '/src/styles/**/*.css', '/src/components/**/*.module.css', '/src/pages/**/*.module.css', '!/src/**/*.test.tsx', '!/src/pages/dev/**'],
   { query: '?raw', import: 'default' },
 )
 const sources = Object.fromEntries(Object.entries(sourceModules).map(([path, loader]) => [path.replace('/src/', ''), loader]))

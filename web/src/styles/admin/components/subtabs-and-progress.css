@@ -231,7 +231,7 @@
 .admin-shell__status {
   width: fit-content;
   border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-tag);
   background: var(--admin-panel-muted);
   padding: 0.2rem 0.5rem;
   font-variant-numeric: tabular-nums;

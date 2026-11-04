@@ -1,3 +1,4 @@
+import '../../../styles/admin/pages/proxy-settings.css'
 import AdminFormField from '@/components/admin/AdminFormField'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useState } from 'react'

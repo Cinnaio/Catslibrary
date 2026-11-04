@@ -103,89 +103,7 @@
 }
 
 /* --- Novel card — cover left, text right ------------------------ */
-.novel-card {
-  display: flex;
-  gap: 16px;
-  min-width: 0;
-}
-
-.novel-card__cover {
-  position: relative;
-  width: 104px;
-  height: 140px;
-  flex-shrink: 0;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--bg-secondary);
-  box-shadow: var(--novel-cover-shadow);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.novel-card__cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s var(--ease);
-}
 @media (hover: hover) and (pointer: fine) {
-  .novel-card:hover .novel-card__cover img {
-    transform: scale(1.04);
-  }
-}
-.novel-card__cover--placeholder {
-  background: var(--bg-secondary);
-}
-.novel-card__cover-char {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.novel-card__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 2px;
-}
-
-.novel-card__title {
-  font-size: var(--novel-card-title-size);
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: color 0.15s ease;
-}
-.novel-card:hover .novel-card__title {
-  color: var(--accent);
-}
-
-.novel-card__meta {
-  font-size: var(--novel-card-meta-size);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novel-card__desc {
-  font-size: var(--novel-card-description-size);
-  color: var(--text-muted);
-  line-height: 1.6;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.novel-card__time {
-  margin-top: auto;
-  font-size: var(--novel-card-footer-size);
-  color: var(--text-muted);
 }
 
 /* Status badge — plain text */
@@ -264,7 +182,7 @@
   font-size: 0.78rem;
   color: var(--text-secondary);
   border: 1px solid var(--border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-tag);
   padding: 2px 11px;
   background: var(--bg-card);
 }
@@ -375,10 +293,10 @@
 }
 .auth-page {
   min-height: 100vh;
-  background: radial-gradient(1100px 520px at 50% -8%, color-mix(in srgb, var(--accent-light) 60%, transparent), transparent 72%), var(--bg-secondary);
+  background: var(--bg-primary);
 }
 [data-theme='dark'] .auth-page {
-  background: radial-gradient(1100px 520px at 50% -8%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 72%), var(--bg-secondary);
+  background: var(--bg-primary);
 }
 .auth-page::before {
   content: none;
@@ -423,11 +341,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 20px;
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
-  font-weight: 600;
+  gap: var(--control-gap);
+  padding: 8px 15px;
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  font-weight: 500;
   border: 1px solid transparent;
   transition:
     background 0.2s var(--ease),
@@ -435,6 +353,7 @@
     box-shadow 0.2s var(--ease),
     color 0.2s var(--ease);
   white-space: nowrap;
+  min-height: var(--button-height);
 }
 
 .btn--primary {
@@ -466,38 +385,43 @@
 }
 
 .btn--danger {
-  background: #fee2e2;
-  color: #dc2626;
-  border-color: #fecaca;
+  background: var(--bg-card);
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, var(--border));
 }
 .btn--danger:hover {
-  background: #fecaca;
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--bg-card));
 }
 [data-theme='dark'] .btn--danger {
-  background: #3d1f1f;
-  color: #ef4444;
-  border-color: #5c2828;
+  background: var(--bg-card);
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, var(--border));
 }
 [data-theme='dark'] .btn--danger:hover {
-  background: #5c2828;
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--bg-card));
 }
 
 .btn--sm {
   padding: 6px 12px;
   font-size: 0.8rem;
-}
+
+  min-height: var(--control-height-compact);
+  border-radius: var(--radius-compact);}
 
 .btn--lg {
-  padding: 14px 28px;
-  font-size: 1rem;
+  padding: 8px 18px;
+  font-size: 13px;
+  min-height: var(--button-height);
 }
 
 .btn--icon {
   width: 36px;
   height: 36px;
   padding: 0;
-  border-radius: var(--radius-sm);
-}
+  border-radius: var(--radius-control);
+
+  min-width: var(--button-height);
+  min-height: var(--button-height);}
 
 .btn--block {
   width: 100%;
@@ -780,7 +704,7 @@ select.native-select-hidden {
 .modal {
   display: flex;
   flex-direction: column;
-  background: radial-gradient(circle at 12% 0%, rgba(240, 230, 214, 0.72), transparent 15rem), linear-gradient(180deg, var(--bg-card), var(--accent-subtle));
+  background: var(--bg-primary);
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: var(--radius-xl);
   box-shadow: 0 24px 70px rgba(40, 32, 24, 0.18);
@@ -829,7 +753,7 @@ select.native-select-hidden {
 
 /* Shared confirm modal — used by admin and account pages */
 .confirm-overlay {
-  background: radial-gradient(circle at 50% 42%, rgba(248, 243, 236, 0.34), transparent 24rem), rgba(33, 30, 26, 0.48);
+  background: var(--bg-primary);
 }
 
 .confirm-modal {
@@ -857,7 +781,7 @@ select.native-select-hidden {
   width: 220px;
   height: 220px;
   pointer-events: none;
-  background: radial-gradient(circle, rgba(190, 18, 60, 0.1), transparent 68%);
+  background: var(--bg-primary);
   filter: blur(2px);
 }
 
@@ -981,7 +905,7 @@ select.native-select-hidden {
 }
 
 [data-theme='dark'] .confirm-overlay {
-  background: radial-gradient(circle at 50% 42%, rgba(191, 143, 82, 0.12), transparent 24rem), rgba(0, 0, 0, 0.64);
+  background: var(--bg-primary);
 }
 
 [data-theme='dark'] .confirm-modal {
@@ -1312,4 +1236,9 @@ select.native-select-hidden {
   color: var(--text-muted);
   font-size: 0.75rem;
   white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .btn, .btn--sm, .btn--icon { min-height: 48px; }
+  .btn--icon { min-width: 48px; }
 }

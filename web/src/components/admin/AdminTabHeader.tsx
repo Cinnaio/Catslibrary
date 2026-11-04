@@ -9,6 +9,7 @@
  */
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import styles from './admin-page.module.css'
 
 interface AdminTabHeaderProps {
   title: string
@@ -17,28 +18,14 @@ interface AdminTabHeaderProps {
   className?: string
 }
 
-export default function AdminTabHeader({
-  title,
-  description,
-  actions,
-  className,
-}: AdminTabHeaderProps) {
+export default function AdminTabHeader({ title, description, actions, className }: AdminTabHeaderProps) {
   return (
-    <div
-      className={cn(
-        'admin-tab-header mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4',
-        className,
-      )}
-    >
-      <div className="min-w-0">
-        <h2 className="text-2xl font-medium tracking-tight text-foreground font-serif">{title}</h2>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+    <header className={cn(styles.heading, 'admin-tab-header', className)}>
+      <div className={styles.identity}>
+        <h1 className={styles.title}>{title}</h1>
+        {description && <p className={styles.description}>{description}</p>}
       </div>
-      {actions && (
-        <div className="admin-tab-header__actions flex min-w-0 max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
-          {actions}
-        </div>
-      )}
-    </div>
+      {actions && <div className={cn(styles.actions, 'admin-tab-header__actions')}>{actions}</div>}
+    </header>
   )
 }

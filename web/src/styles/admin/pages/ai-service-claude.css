@@ -14,8 +14,6 @@
 .ai-service {
   --ai-workspace-gap: 1.5rem;
   --ai-context-width: 20rem;
-  --admin-accent: #d97757;
-  --admin-accent-hover: #c86646;
   width: 100%;
 }
 .ai-service.ai-admin-page {
@@ -31,7 +29,7 @@
   border: 1px solid var(--admin-border, #e5e3dc);
   border-radius: 1.25rem;
   background: var(--admin-panel, #ffffff);
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
+  box-shadow: none;
   transition: border-color 0.15s ease;
 }
 
@@ -42,9 +40,9 @@
   box-shadow: none;
 }
 
-/* 控件几何：输入框、主次按钮、筛选器统一采用全圆角胶囊药丸（border-radius: 9999px） */
+/* 控件几何：输入框、主次按钮、筛选器统一采用共享控件圆角（border-radius: 9999px） */
 .ai-service :is([data-slot='input'], input:not([type='checkbox']):not([type='radio']):not([type='range'])) {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   border: 1px solid var(--admin-border, #e5e3dc);
   background: var(--admin-panel, #ffffff);
   height: 2.5rem;
@@ -60,14 +58,14 @@
 }
 
 .ai-service :is([data-slot='input'], input:not([type='checkbox']):not([type='radio']):not([type='range'])):focus {
-  border-color: #d97757 !important;
+  border-color: var(--accent) !important;
   outline: none;
   box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.3) !important;
 }
 
 /* 下拉与选择器胶囊 */
 .ai-service :is([data-slot='select-trigger'], button[role='combobox'], .custom-select__trigger) {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   border: 1px solid var(--admin-border, #e5e3dc);
   background: var(--admin-panel, #ffffff);
   min-height: 2.5rem;
@@ -82,23 +80,23 @@
 }
 
 .ai-service :is([data-slot='select-trigger'], button[role='combobox'], .custom-select__trigger):focus-visible {
-  border-color: #d97757 !important;
+  border-color: var(--accent) !important;
   outline: none;
   box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.3) !important;
 }
 
 /* 按钮胶囊统一 */
 .ai-service [data-slot='button'] {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   transition: all 0.15s ease;
 }
 
 .ai-service [data-slot='tabs-list'] {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
 }
 
 .ai-service [data-slot='tabs-trigger'] {
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
 }
 
 /* Textarea 保持 1rem 优雅圆角，保证长文本排版自然 */
@@ -118,7 +116,7 @@
 
 .ai-service textarea:focus,
 .ai-service textarea:focus-visible {
-  border-color: #d97757 !important;
+  border-color: var(--accent) !important;
   outline: none;
   box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.3) !important;
 }
@@ -243,7 +241,7 @@
   font-size: 0.75rem !important;
   line-height: 1 !important;
   padding: 0 0.75rem !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   font-weight: 550 !important;
   border: 1px solid var(--admin-border, #e5e3dc) !important;
   background: var(--admin-panel, #ffffff) !important;
@@ -368,7 +366,7 @@
   border-radius: 1.25rem;
   background: var(--admin-panel, #ffffff);
   padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
+  box-shadow: none;
 }
 
 :root[data-theme='dark'] .ai-service .ai-cover-controls,
@@ -409,7 +407,7 @@
 
 .ai-service .ai-cover-controls .divide-y > button .shrink-0:last-child {
   padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted, #f8f7f3);
   border: 1px solid var(--admin-border, #e5e3dc);
   color: var(--text-secondary);
@@ -426,9 +424,9 @@
 }
 
 .ai-service .ai-cover-controls .divide-y > button:hover .shrink-0:last-child {
-  background: #d97757;
-  border-color: #d97757;
-  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .ai-service .ai-cover-workspace {
@@ -703,7 +701,7 @@
 .ai-service .ai-writing-chapter-count-inline [data-slot='input'] {
   height: 2rem;
   min-height: 2rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   font-size: 0.8125rem;
 }
 .ai-service .ai-writing-strategy-hint {
@@ -734,7 +732,7 @@
 }
 :root[data-theme='dark'] .ai-service .ai-writing-content-scope__toggle,
 [data-theme='dark'] .ai-service .ai-writing-content-scope__toggle {
-  background: #23221f;
+  background: var(--bg-secondary);
   border-color: var(--admin-border, #2a2825);
   box-shadow: none;
 }
@@ -759,7 +757,7 @@
 }
 :root[data-theme='dark'] .ai-service .ai-writing-consent,
 [data-theme='dark'] .ai-service .ai-writing-consent {
-  background: #23221f;
+  background: var(--bg-secondary);
   border-color: var(--admin-border, #2a2825);
   border-left-color: var(--accent, #d97757);
   box-shadow: none;
@@ -870,7 +868,7 @@
   width: 3.5rem;
   min-height: 1.75rem;
   height: 1.75rem;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   text-align: center;
 }
 :is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'] {
@@ -881,17 +879,17 @@
   padding: 0 0.75rem !important;
   font-size: 0.75rem;
   font-weight: 550;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
 }
 :is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'].ai-analysis-btn-primary {
   background: var(--admin-accent, #D97757) !important;
   border-color: var(--admin-accent, #D97757) !important;
-  color: #ffffff !important;
+  color: var(--accent-ink) !important;
 }
 :is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'].ai-analysis-btn-primary:hover {
-  background: #c56344 !important;
-  border-color: #c56344 !important;
-  color: #ffffff !important;
+  background: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
+  color: var(--accent-ink) !important;
 }
 :is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'].ai-analysis-btn-icon {
   width: 1.75rem !important;
@@ -910,7 +908,7 @@
   height: 1.75rem;
   min-height: 1.75rem;
   padding: 0 0.5rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted, #F6F4ED);
   border: 1px solid var(--admin-border, #ECE8E2);
   font-size: 0.75rem;
@@ -954,7 +952,7 @@
 }
 :is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button']:hover {
   border-color: rgba(217, 119, 87, 0.4);
-  color: #d97757;
+  color: var(--accent);
 }
 :is(.ai-service, .admin-dialog) .ai-analysis-row > .flex > .flex:last-child {
   gap: 0.375rem;
@@ -1182,7 +1180,7 @@
 :root[data-theme='dark'] .ai-service .ai-writing-submit-preview .ai-writing-launch-summary,
 [data-theme='dark'] .ai-service .ai-writing-submit-preview .ai-writing-launch-summary {
   border-color: var(--admin-border, #2a2825);
-  background: #23221f;
+  background: var(--bg-secondary);
   color: #a8a299;
 }
 .ai-service .ai-context-book {
@@ -1409,7 +1407,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--admin-border, #e5e3dc);
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   box-shadow: 0 4px 20px rgba(35, 30, 24, 0.08);
 }
 :root[data-theme='dark'] .ai-service .ai-config-save,
@@ -1676,7 +1674,7 @@
   transition: color 0.15s ease;
 }
 .ai-service .ai-generation-row .ai-generation-related__title:hover {
-  color: #d97757;
+  color: var(--accent);
 }
 /* 展开按钮胶囊：Claude 风格温润药丸与微型展开指示 */
 .ai-service .ai-generation-expand {
@@ -1686,7 +1684,7 @@
   padding: 0.15rem 0.55rem;
   height: 1.5rem;
   min-height: 1.5rem;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   background: var(--admin-panel-muted, #f8f7f3);
   border: 1px solid var(--admin-border, #e5e3dc);
   color: var(--text-muted, #736d65);
@@ -1747,7 +1745,7 @@
 }
 :root[data-theme='dark'] .ai-service .ai-generation-delete,
 [data-theme='dark'] .ai-service .ai-generation-delete {
-  color: #a8a39b;
+  color: var(--text-muted);
 }
 .ai-service .ai-generation-row .admin-cell-actions {
   justify-content: flex-end;
@@ -1851,7 +1849,7 @@
 
 :root[data-theme='dark'] .ai-service .ai-generation-child-index,
 [data-theme='dark'] .ai-service .ai-generation-child-index {
-  background: #23221f;
+  background: var(--bg-secondary);
   border-color: #2e2c28;
   color: #9a938a;
 }
@@ -1878,7 +1876,7 @@
 
 :root[data-theme='dark'] .ai-service .ai-generation-preview--child,
 [data-theme='dark'] .ai-service .ai-generation-preview--child {
-  color: #a8a39b;
+  color: var(--text-muted);
 }
 
 /* 子行第 4 列：字数指示 + 模型时间 */
@@ -1997,7 +1995,7 @@
   height: 2.375rem;
   padding: 0 1rem;
   font-size: 0.8125rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--admin-border, #e5e3dc);
   background: var(--admin-panel-muted, #f8f7f3);
   color: var(--text-primary);
@@ -2009,9 +2007,9 @@
   background: var(--admin-panel-muted, #23221f);
 }
 .ai-service.ai-admin-page .ai-config-panel input:not([type='checkbox']):not([type='radio']):focus-visible {
-  border-color: #d97757 !important;
+  border-color: var(--accent) !important;
   background: var(--admin-panel, #ffffff);
-  box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.3) !important;
+  box-shadow: none !important;
 }
 :root[data-theme='dark'] .ai-service.ai-admin-page .ai-config-panel input:not([type='checkbox']):not([type='radio']):focus-visible,
 [data-theme='dark'] .ai-service.ai-admin-page .ai-config-panel input:not([type='checkbox']):not([type='radio']):focus-visible {
@@ -2022,7 +2020,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0.875rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--admin-border, #e5e3dc);
   background: var(--admin-panel-muted, #f8f7f3);
   font-size: 0.8125rem;
@@ -2038,7 +2036,7 @@
 .ai-service .ai-role-pill[data-active='true'] {
   border-color: rgba(217, 119, 87, 0.4);
   background: rgba(217, 119, 87, 0.08);
-  color: #D97757;
+  color: var(--accent);
   font-weight: 500;
 }
 :root[data-theme='dark'] .ai-service .ai-role-pill,
@@ -2206,7 +2204,7 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 .ai-service .ai-parameter-tabs button:hover {
-  color: #d97757;
+  color: var(--accent);
 }
 .ai-service .ai-parameter-tabs button:focus-visible {
   outline: 2px solid #d97757;
@@ -2216,7 +2214,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #d97757;
+  background: var(--accent);
   flex-shrink: 0;
 }
 .ai-service .ai-params-card {
@@ -2224,7 +2222,7 @@
   border: 1px solid var(--admin-border, #e5e3dc);
   border-radius: 1.25rem;
   background: var(--admin-panel, #ffffff);
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02);
+  box-shadow: none;
 }
 :root[data-theme='dark'] .ai-service .ai-params-card,
 [data-theme='dark'] .ai-service .ai-params-card {
@@ -2248,7 +2246,7 @@
   line-height: 1.6;
 }
 .ai-service .ai-parameter-count {
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   background: var(--admin-panel-muted, #f8f7f3);
   border: 1px solid var(--admin-border, #e5e3dc);
   color: var(--text-muted);
@@ -2288,7 +2286,7 @@
   min-height: 2.375rem;
   padding: 0 1rem;
   font-size: 0.8125rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--admin-border, #e5e3dc);
   background: var(--admin-panel-muted, #f8f7f3);
   color: var(--text-primary);
@@ -2300,9 +2298,9 @@
   background: var(--admin-panel-muted, #23221f);
 }
 .ai-service.ai-admin-page .ai-params-panel input:not([type='range']):not([type='checkbox']):not([type='radio']):focus-visible {
-  border-color: #d97757 !important;
+  border-color: var(--accent) !important;
   background: var(--admin-panel, #ffffff);
-  box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.3) !important;
+  box-shadow: none !important;
 }
 :root[data-theme='dark'] .ai-service.ai-admin-page .ai-params-panel input:not([type='range']):not([type='checkbox']):not([type='radio']):focus-visible,
 [data-theme='dark'] .ai-service.ai-admin-page .ai-params-panel input:not([type='range']):not([type='checkbox']):not([type='radio']):focus-visible {
@@ -2312,7 +2310,7 @@
   width: 100%;
   min-height: 2.375rem;
   height: 2.375rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--admin-border, #e5e3dc);
   background: var(--admin-panel-muted, #f8f7f3);
 }
@@ -2322,10 +2320,10 @@
   background: var(--admin-panel-muted, #23221f);
 }
 .ai-service .ai-params-panel .ai-temperature-field output {
-  color: #d97757;
+  color: var(--accent);
   background: rgba(217, 119, 87, 0.1);
   padding: 2px 8px;
-  border-radius: 9999px;
+  border-radius: var(--radius-control);
   font-size: 0.75rem;
   font-weight: 600;
   top: -3px;
@@ -2422,7 +2420,7 @@
 
 :root[data-theme='dark'] [data-slot='dialog-content'].ai-generation-modal,
 [data-theme='dark'] [data-slot='dialog-content'].ai-generation-modal {
-  border-color: #2c2a26 !important;
+  border-color: var(--bg-secondary) !important;
   background: #1c1b18 !important;
   box-shadow: 0 14px 56px -12px rgba(0, 0, 0, 0.6) !important;
 }
@@ -2518,8 +2516,8 @@
 
 :root[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card,
 [data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card {
-  border-color: #2c2a26;
-  background: #23221f;
+  border-color: var(--bg-secondary);
+  background: var(--bg-secondary);
 }
 
 .ai-generation-modal .ai-generation-prompt-card[open] {
@@ -2571,7 +2569,7 @@
 
 :root[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__content,
 [data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__content {
-  border-top-color: #2c2a26;
+  border-top-color: var(--bg-secondary);
 }
 
 .ai-generation-modal .ai-generation-prompt-card__pre {
@@ -2588,7 +2586,7 @@
 
 :root[data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__pre,
 [data-theme='dark'] .ai-generation-modal .ai-generation-prompt-card__pre {
-  color: #a8a39b;
+  color: var(--text-muted);
 }
 
 /* 正文工作台工具栏：章节标签 + 字数胶囊 + 操作药丸 */
@@ -2622,7 +2620,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0.1rem 0.5rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-tag);
   background: var(--admin-panel-muted, #f8f7f3);
   border: 1px solid var(--admin-border, #e5e3dc);
   color: var(--text-muted, #736d65);
@@ -2633,7 +2631,7 @@
 
 :root[data-theme='dark'] .ai-generation-modal .ai-generation-body-toolbar__badge,
 [data-theme='dark'] .ai-generation-modal .ai-generation-body-toolbar__badge {
-  background: #23221f;
+  background: var(--bg-secondary);
   border-color: #2e2c28;
   color: #9a938a;
 }
@@ -2701,8 +2699,8 @@
 
 :root[data-theme='dark'] .ai-generation-modal .ai-rewrite,
 [data-theme='dark'] .ai-generation-modal .ai-rewrite {
-  border-color: #2c2a26;
-  background: #23221f;
+  border-color: var(--bg-secondary);
+  background: var(--bg-secondary);
 }
 
 /* 底部发布工作区：Claude 药丸单行对齐 */
@@ -2718,7 +2716,7 @@
 
 .ai-generation-modal .ai-generation-publish input {
   height: 2.375rem !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   border: 1px solid var(--admin-border, #e5e3dc) !important;
   background: var(--admin-panel-muted, #f8f7f3) !important;
   padding-inline: 1.125rem !important;
@@ -2727,14 +2725,14 @@
 
 :root[data-theme='dark'] .ai-generation-modal .ai-generation-publish input,
 [data-theme='dark'] .ai-generation-modal .ai-generation-publish input {
-  border-color: #2c2a26 !important;
-  background: #23221f !important;
+  border-color: var(--bg-secondary) !important;
+  background: var(--bg-secondary) !important;
   color: var(--dark-text, #ede8e1) !important;
 }
 
 .ai-generation-modal .ai-generation-title-candidate {
   height: 1.75rem;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   border: 1px solid var(--admin-border, #e5e3dc);
   background: var(--admin-panel, #ffffff);
   font-size: 0.725rem;
@@ -2744,7 +2742,7 @@
 
 :root[data-theme='dark'] .ai-generation-modal .ai-generation-title-candidate,
 [data-theme='dark'] .ai-generation-modal .ai-generation-title-candidate {
-  background: #23221f;
+  background: var(--bg-secondary);
   border-color: #2e2c28;
   color: #9a938a;
 }
@@ -2756,10 +2754,10 @@
 
 .ai-generation-modal .ai-generation-publish__submit {
   height: 2.375rem !important;
-  border-radius: 9999px !important;
+  border-radius: var(--radius-control) !important;
   padding-inline: 1.5rem !important;
   background: var(--admin-accent, #d97757) !important;
-  color: #ffffff !important;
+  color: var(--accent-ink) !important;
   font-size: 0.8125rem !important;
   font-weight: 550 !important;
   border: 0 !important;

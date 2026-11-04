@@ -1,3 +1,4 @@
+import '../../styles/admin/pages/content-policy.css'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { adminApi } from '@/lib/api'

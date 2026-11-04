@@ -41,7 +41,7 @@
 
 .admin-redesign-page [data-slot='tabs-trigger'] {
   min-height: calc(var(--admin-control-height) - 0.5rem);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   color: var(--text-muted);
   transition: all 0.15s ease;
 }

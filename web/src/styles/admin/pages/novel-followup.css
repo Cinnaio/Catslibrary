@@ -113,7 +113,7 @@
   font-weight: 500;
   line-height: 1.5;
   border: 1px solid var(--admin-border-strong);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-tag);
   background: var(--admin-panel);
 }
 
@@ -226,7 +226,7 @@
   background: transparent;
   box-shadow: none;
   color: var(--text-muted);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
 }
 
 .novel-followup-dialog [data-slot='dialog-close']:hover {
@@ -347,7 +347,7 @@
   padding: 0.15rem 0.55rem;
   background: var(--admin-panel);
   border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   font-variant-numeric: tabular-nums;
 }
 
@@ -409,7 +409,7 @@
   min-height: 2.5rem;
   min-width: 0;
   padding-inline: 1.1rem;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   font-size: 0.8125rem;
   font-weight: 550;
 }

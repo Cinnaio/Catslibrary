@@ -1,9 +1,11 @@
+import cardStyles from '../components/novel-card.module.css'
+import styles from './account.module.css'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 /**
  * 书架页 —— 收藏、最近阅读、书签、想法、手动同步（由 Novel-KV js/bookshelf.js 平移）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { ReadingHistoryEntry, Thought } from '@shared/types'
 import { bookmarksApi, bookshelfApi, getToken, progressApi } from '../lib/api'
 import { applyProgressState } from '../lib/progress-state'
@@ -88,6 +90,7 @@ function mergeRecent(local: ReadingHistoryEntry[], server: ServerRecent[], limit
 
 export default function Bookshelf() {
   const navigate = useNavigate()
+  const [viewParams, setViewParams] = useSearchParams()
   const { user, loading } = useSession()
   const { safeMode } = useContentPolicy()
   const { toast } = useToast()
@@ -100,7 +103,14 @@ export default function Bookshelf() {
   const [syncStatus, setSyncStatus] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [loadedMode, setLoadedMode] = useState<boolean | null>(null)
-  const [activeShelf, setActiveShelf] = useState('favorites')
+  const shelfView = viewParams.get('view') || 'favorites'
+  const activeShelf = ['favorites', 'recent', 'bookmarks', 'thoughts'].includes(shelfView) ? shelfView : 'favorites'
+  const setActiveShelf = (view: string) => {
+    const next = new URLSearchParams(viewParams)
+    if (view === 'favorites') next.delete('view')
+    else next.set('view', view)
+    setViewParams(next)
+  }
   const loadRevision = useRef(0)
   const [pages, setPages] = useState<Record<string, number>>({})
   const page = pages[activeShelf] || 1
@@ -108,7 +118,7 @@ export default function Bookshelf() {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/auth', { replace: true, state: { from: '/bookshelf' } })
+      navigate('/auth', { replace: true, state: { from: `/bookshelf${viewParams.size ? '?' + viewParams.toString() : ''}` } })
       return
     }
     setFavorites([])
@@ -243,11 +253,11 @@ export default function Bookshelf() {
   const start = (visiblePage - 1) * pageSize
 
   return (
-    <main className="bookshelf-page">
+    <main className={`${styles.shelf} bookshelf-page`}>
       <div className="container bookshelf-shell">
         <section className="bookshelf-hero">
           <div>
-            <h1>我的书架</h1>
+            <h1>{activeShelf === 'recent' ? '阅读记录' : '我的书架'}</h1>
             <p className="text-muted">收藏、继续阅读、书签与想法都收在这里。</p>
           </div>
           <div className="profile-sync-card">
@@ -286,7 +296,7 @@ export default function Bookshelf() {
               ) : (
                 favorites.slice(start, start + pageSize).map((f) => (
                   <div className="bookshelf-novel-card" key={f.novelId}>
-                    <Link to={`/novel/${encodeURIComponent(f.novelId)}`} className="novel-card">
+                    <Link to={`/novel/${encodeURIComponent(f.novelId)}`} className={`${cardStyles.card} novel-card`}>
                       <CoverOrPlaceholder novelId={f.novelId} title={f.title || f.novelTitle || f.novelId} updatedAt={f.updatedAt} favorite />
                       <div className="novel-card__body">
                         <div className="novel-card__title">{f.title || f.novelTitle || f.novelId}</div>
@@ -318,7 +328,7 @@ export default function Bookshelf() {
                   <div className="bookshelf-novel-card" key={h.novelId}>
                     <Link
                       to={h.chapterId ? `/read/${encodeURIComponent(h.novelId)}/${encodeURIComponent(h.chapterId)}` : `/novel/${encodeURIComponent(h.novelId)}`}
-                      className="novel-card"
+                      className={`${cardStyles.card} novel-card`}
                     >
                       <CoverOrPlaceholder novelId={h.novelId} title={h.novelTitle || h.novelId} updatedAt={h.timestamp} read favorite={favorites.some((item) => item.novelId === h.novelId)} />
                       <div className="novel-card__body">

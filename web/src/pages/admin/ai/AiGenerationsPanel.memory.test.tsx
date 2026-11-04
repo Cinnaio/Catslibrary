@@ -91,3 +91,18 @@ it('shows chapter warnings in a batch and keeps publication available after insp
   expect(screen.getByLabelText('生成质量提示')).toHaveTextContent('不足目标')
   expect(screen.getByRole('button', { name: '发布为正式章节' })).toBeEnabled()
 })
+
+it('keeps the selected novel in the draft query', async () => {
+  mocks.generations.mockResolvedValue({ items: [chapter('first')], total: 1, novelId: 'book' })
+  render(<MemoryRouter><AiGenerationsPanel scope="all" status="all" novelId="book" /></MemoryRouter>)
+  expect(await screen.findByRole('button', { name: '审阅' })).toBeInTheDocument()
+  expect(mocks.generations).toHaveBeenCalledWith(expect.objectContaining({ novelId: 'book' }))
+})
+
+it('does not show unrelated drafts when an older server ignores the novel filter', async () => {
+  mocks.generations.mockResolvedValue({ items: [{ ...chapter('other'), novelId: 'other', novelTitle: '其他作品' }], total: 1 })
+  render(<MemoryRouter><AiGenerationsPanel scope="all" status="all" novelId="book" /></MemoryRouter>)
+  expect(await screen.findByText(/当前服务端尚不支持按作品查看草稿/)).toBeInTheDocument()
+  expect(screen.queryByText('其他作品')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '审阅' })).not.toBeInTheDocument()
+})

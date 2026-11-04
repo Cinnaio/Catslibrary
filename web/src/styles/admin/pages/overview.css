@@ -27,7 +27,7 @@
   background: var(--admin-panel);
   border: 1px solid var(--admin-border);
   border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.03), 0 4px 12px rgba(35, 30, 24, 0.02);
+  box-shadow: none;
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   min-width: 0;
 }
@@ -35,7 +35,7 @@
 .dashboard-metric-card:hover {
   transform: translateY(-2px);
   border-color: var(--admin-border-strong);
-  box-shadow: 0 6px 20px rgba(35, 30, 24, 0.06);
+  box-shadow: none;
 }
 
 .dashboard-metric-card--alert {
@@ -101,7 +101,7 @@
   background: var(--admin-panel);
   border: 1px solid var(--admin-border);
   border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02), 0 4px 16px rgba(35, 30, 24, 0.03);
+  box-shadow: none;
 }
 
 .dashboard-panel-link {
@@ -150,9 +150,9 @@
   min-width: 1.15rem;
   height: 1.15rem;
   padding: 0 0.35rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-tag);
   background: var(--admin-accent);
-  color: #FFFFFF;
+  color: var(--accent-ink);
   font-size: 0.68rem;
   font-weight: 600;
   line-height: 1;
