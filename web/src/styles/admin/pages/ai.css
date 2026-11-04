@@ -1644,3 +1644,123 @@
   border: 1px solid var(--admin-border, #e6e4dc);
   box-shadow: 0 8px 30px rgba(35, 30, 24, 0.08);
 }
+
+/* 6. AI 创作协同台 (Outline & Idea Deck) */
+.ai-writing-deck-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  border-radius: var(--radius-lg, 0.75rem);
+  border: 1px solid var(--admin-border, #e5e3dc);
+  background: var(--admin-panel, #ffffff);
+  padding: 0.875rem 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+}
+
+:root[data-theme='dark'] .ai-writing-deck-block,
+[data-theme='dark'] .ai-writing-deck-block {
+  border-color: var(--admin-border, #2a2825);
+  background: var(--admin-panel, #242320);
+}
+
+.ai-writing-deck-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 1.75rem;
+  border-bottom: 1px solid var(--admin-line, #edebe6);
+  padding-bottom: 0.625rem;
+}
+
+:root[data-theme='dark'] .ai-writing-deck-head,
+[data-theme='dark'] .ai-writing-deck-head {
+  border-bottom-color: var(--admin-border, #2a2825);
+}
+
+.ai-writing-deck-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem;
+  border-radius: 9999px;
+  background: var(--admin-panel-muted, #faf9f6);
+  border: 1px solid var(--admin-line, #edebe6);
+}
+
+:root[data-theme='dark'] .ai-writing-deck-tabs,
+[data-theme='dark'] .ai-writing-deck-tabs {
+  background: var(--admin-panel-muted, #1e1d1a);
+  border-color: var(--admin-border, #2a2825);
+}
+
+.ai-writing-deck-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted, #8c857b);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.ai-writing-deck-tab:hover {
+  color: var(--text-primary, #1e1d1a);
+}
+
+.ai-writing-deck-tab.is-active {
+  color: #d97757;
+  background: var(--admin-panel, #ffffff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+}
+
+:root[data-theme='dark'] .ai-writing-deck-tab.is-active,
+[data-theme='dark'] .ai-writing-deck-tab.is-active {
+  background: var(--admin-panel, #2b2a26);
+  color: #e58869;
+}
+
+.ai-writing-deck-badge {
+  font-size: 0.6875rem;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, #d97757 15%, transparent);
+  color: #d97757;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-writing-deck-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.125rem 1.25rem;
+  border: 1px dashed var(--admin-border, #e5e3dc);
+  border-radius: var(--radius-lg, 0.75rem);
+  background: var(--admin-panel-muted, #faf9f6);
+  color: var(--text-muted, #8c857b);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+:root[data-theme='dark'] .ai-writing-deck-empty,
+[data-theme='dark'] .ai-writing-deck-empty {
+  border-color: var(--admin-border, #2a2825);
+  background: var(--admin-panel-muted, #1e1d1a);
+}
+
+.ai-writing-deck-empty__title {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e1d1a);
+}

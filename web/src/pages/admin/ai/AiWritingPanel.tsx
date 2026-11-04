@@ -27,7 +27,7 @@ import MemoryRebuildDialog from './MemoryRebuildDialog'
 import { Textarea } from '@/components/ui/textarea'
 import { url } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { Sparkles, ArrowRight, ChevronRight, Network, Pause, BookOpen, Cpu, SlidersHorizontal } from 'lucide-react'
+import { Sparkles, ArrowRight, ChevronRight, Network, Pause, BookOpen, Cpu, SlidersHorizontal, FileText, Check, ListChecks } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000
@@ -100,6 +100,35 @@ function countOutlineChapters(outline: string): number {
     if (match) seen.add(match[0].trim())
   }
   return seen.size
+}
+
+/** 解析大纲中的章节段落（提取章节标记、标题与段落内容）供快速填入本次情节 */
+function parseOutlineSections(outline: string): Array<{ chapter: string; title: string; content: string }> {
+  const result: Array<{ chapter: string; title: string; content: string }> = []
+  const lines = String(outline || '').replace(/\r\n?/g, '\n').split('\n')
+  const marker = /^\s*(?:#{1,6}\s*)?((?:第\s*[0-9一二三四五六七八九十百零两]+\s*[章节回]|[0-9]+\s*[.、)）:]))\s*(.*)$/
+  let currentChapter = ''
+  let currentTitle = ''
+  let contentLines: string[] = []
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    const match = marker.exec(trimmed)
+    if (match) {
+      if (currentChapter) {
+        result.push({ chapter: currentChapter, title: currentTitle, content: contentLines.join('\n').trim() })
+      }
+      currentChapter = (match[1] || '').trim()
+      currentTitle = (match[2] || '').trim()
+      contentLines = []
+    } else if (trimmed) {
+      contentLines.push(trimmed)
+    }
+  }
+  if (currentChapter) {
+    result.push({ chapter: currentChapter, title: currentTitle, content: contentLines.join('\n').trim() })
+  }
+  return result
 }
 
 /** 任务状态圆点：排队琥珀、运行中主色呼吸、完成绿、失败红、取消灰。 */
@@ -603,7 +632,35 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [chapterTitle, setChapterTitle] = useState('')
   const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false)
   const [instruction, setInstruction] = useState('')
-  const [outline, setOutline] = useState('')
+  const [novelOutlines, setNovelOutlines] = useState<Record<string, string>>({})
+  const [novelUseOutline, setNovelUseOutline] = useState<Record<string, boolean>>({})
+  const [outline, setOutlineState] = useState('')
+  const [useOutline, setUseOutlineState] = useState(true)
+  /** 协同台当前标签页：大纲推演 vs 灵感候选 */
+  const [deckTab, setDeckTab] = useState<'outline' | 'suggestions'>('outline')
+
+  const setOutline = useCallback(
+    (val: string | ((prev: string) => string)) => {
+      setOutlineState((prev) => {
+        const next = typeof val === 'function' ? val(prev) : val
+        if (novelId) {
+          setNovelOutlines((all) => ({ ...all, [novelId]: next }))
+        }
+        return next
+      })
+    },
+    [novelId],
+  )
+
+  const setUseOutline = useCallback(
+    (val: boolean) => {
+      setUseOutlineState(val)
+      if (novelId) {
+        setNovelUseOutline((all) => ({ ...all, [novelId]: val }))
+      }
+    },
+    [novelId],
+  )
   /** 目标字数与章节数的文字态/数值态分离：编辑期允许为空，失焦或提交时归一化。
    *  目标字数的数值本身只在提交时通过 commit() 取用（展示走 text），故不单独解构 value。
    *  章数的数值参与 UI 判断（批量确认阈值、大纲章数对比），需要保留。 */
@@ -864,6 +921,12 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     setRelationshipBusy(false)
     setPlotPausing(false)
     setRelationshipPausing(false)
+    const rememberedOutline = novelOutlines[novelId] || ''
+    setOutlineState(rememberedOutline)
+    setUseOutlineState(novelUseOutline[novelId] ?? true)
+    if (rememberedOutline.trim()) {
+      setDeckTab('outline')
+    }
     if (!novelId) {
       setChapterOptions([])
       setStyleProfile('')
@@ -1018,6 +1081,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     if (!novelId) return toast('请选择小说', 'error')
     const words = targetWordsInput.commit()
     const count = chapterCountInput.commit()
+    const effectiveOutline = useOutline && outline.trim() ? outline.trim() : undefined
     // 批量续写是连续 N 次模型调用，超过阈值先确认，避免误触烧钱
     if (count > CONFIRM_CHAPTER_COUNT) {
       const ok = await confirm({
@@ -1039,7 +1103,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           contentPreferences: buildContentPreferences(),
           writingBrief: currentWritingBrief,
           ...(materialPreview?.key === materialKey ? { materialRevision: materialPreview.revision } : {}),
-          ...(outline.trim() ? { outline } : {}),
+          ...(effectiveOutline ? { outline: effectiveOutline } : {}),
           ...(afterChapterId ? { afterChapterId } : {}),
           operationId: newOperationId('ai-writing-continue'),
         }),
@@ -1072,6 +1136,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     const seq = ++suggestionSeq.current
     const requestedNovelId = novelId
     setSuggestBusy(true)
+    setDeckTab('suggestions')
+    setSuggestCollapsed(false)
     try {
       const res = await aiApi.writing.plotSuggestions({
         novelId,
@@ -1099,9 +1165,12 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
    * 按当前章节数生成多章大纲，填进大纲框。
    * 大纲会被后端按章拆分后逐章下发，因此要按「第N章」逐段给出。
    */
-  async function generateOutlineForContinuation() {
+  async function generateOutlineForContinuation(overrideDirection?: string) {
     if (!novelId) return toast('请选择小说', 'error')
+    const direction = (overrideDirection ?? instruction).trim()
     setOutlineBusy(true)
+    setDeckTab('outline')
+    setSuggestCollapsed(false)
     try {
       const res = await aiApi.writing.plotSuggestions({
         novelId,
@@ -1109,17 +1178,19 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         chapterCount,
         ...(afterChapterId ? { afterChapterId } : {}),
         ...(focus.trim() ? { focus: focus.trim() } : {}),
-        // 创作要求里往往就是「推荐情节」里选定的那一条。不传下去的话，
-        // 大纲会绕开这条方向按最近章节自行规划，与用户的选定脱节。
-        ...(instruction.trim() ? { plotDirection: instruction.trim() } : {}),
+        // 创作要求里往往就是「推荐情节」里选定的那一条，或作者手写的剧情设想
+        ...(direction ? { plotDirection: direction } : {}),
         contentPreferences: buildContentPreferences(),
         writingBrief: currentWritingBrief,
       })
       if (!res.outline) return toast('未返回可用的大纲', 'error')
       setOutline(res.outline)
+      setUseOutline(true)
       const parsed = countOutlineChapters(res.outline)
       toast(
-        parsed >= chapterCount ? `已生成 ${parsed} 章大纲，可编辑后直接续写` : `已生成 ${parsed} 章大纲，不足 ${chapterCount} 章，建议补足或调小续写章数`,
+        parsed >= chapterCount
+          ? `已生成 ${parsed} 章大纲，已启用为续写大纲`
+          : `已生成 ${parsed} 章大纲，不足 ${chapterCount} 章，建议补足或调小续写章数`,
         parsed >= chapterCount ? 'success' : 'error',
       )
     } catch (err) {
@@ -1431,11 +1502,12 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   const rawBrief = briefs[novelId] || emptyWritingBrief()
   const currentWritingBrief = { ...rawBrief, chapterGoals: rawBrief.chapterGoals.filter((goal) => goal.index <= chapterCount) }
+  const parsedOutlineSections = parseOutlineSections(outline)
   const materialRequest = {
     novelId,
     title: chapterTitle,
     instruction,
-    outline,
+    outline: useOutline ? outline : '',
     afterChapterId,
     chapterCount,
     targetWords: Number(targetWordsInput.text) || 2000,
@@ -1720,7 +1792,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
                 左列创作要求因此收窄到约半幅：原来整幅宽 1248px 时一行可容
                 上百个全角字，远超舒适阅读宽度，分栏后自然落到可读区间。 */}
-            <div className={`ai-writing-brief-layout${suggestions.length === 0 ? ' is-aside-empty' : ''}`}>
+            <div className={`ai-writing-brief-layout${suggestions.length === 0 && !outline.trim() && !outlineBusy && !suggestBusy ? ' is-aside-empty' : ''}`}>
               <div className="ai-writing-brief-layout__main">
                 <section className="ai-writing-brief">
                   <div className="ai-writing-brief__head">
@@ -1735,14 +1807,14 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     value={instruction}
                     onChange={(event) => setInstruction(event.target.value)}
                     aria-describedby="ai-writing-instruction-hint"
-                    placeholder={'说清这一章发生什么、谁参与、推进哪条线。\n例如：苏越在朝堂以斗宗身份现身，当众治愈加刑天，逼云山表态。'}
+                    placeholder={'说清这一章发生什么，或写下你的剧情设想与走向（可据此生成大纲）。\n例如：苏越在朝堂以斗宗身份现身，当众治愈加刑天，逼云山表态。'}
                   />
                   <p id="ai-writing-instruction-hint" className="ai-writing-brief__hint">
                     {instruction.trim()
                       ? mode === 'continue' && chapterCount > 1
-                        ? `本要求会原样下发给这 ${chapterCount} 章的每一章。多章建议只写整体方向与尺度，逐章内容交给下方大纲。`
-                        : '本要求会随生成请求下发给模型；可先「推荐情节」挑一条，再按需改写。'
-                      : '留空时模型自行发挥，情节走向随机——同一本书同一起点，两批结果可能完全不同。建议先「推荐情节」挑一条。'}
+                        ? `本要求会随续写任务下发。可点击下方「按情节推荐生成大纲」推演各章安排，确认后开启按纲续写。`
+                        : '本要求会随生成请求下发；可先「推荐情节」挑选方向，或点击「按情节推荐生成大纲」推演剧情细纲。'
+                      : '留空时模型自行发挥。建议先在下方「推荐情节」挑一条，或写下设想后「按情节推荐生成大纲」。'}
                   </p>
                 </section>
                 <div className="ai-writing-assist-bar mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
@@ -1771,90 +1843,275 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       </>
                     )}
                   </Button>
+                  {mode === 'continue' && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-3.5 text-xs shrink-0 font-medium rounded-full bg-background hover:bg-accent border-border/80 hover:border-[#D97757]/40 hover:text-[#D97757]"
+                      disabled={busy || taskActive || outlineBusy || !novelId}
+                      onClick={() => void generateOutlineForContinuation()}
+                      aria-label={isMultiChapter ? '按情节推荐生成大纲（多章）' : '按情节推荐生成大纲（单章）'}
+                    >
+                      {outlineBusy ? (
+                        '生成中…'
+                      ) : (
+                        <>
+                          <FileText className="size-3.5 mr-1" aria-hidden="true" />
+                          {isMultiChapter ? '按情节推荐生成大纲（多章）' : '按情节推荐生成大纲（单章）'}
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="ai-writing-brief-layout__aside">
-                {suggestions.length > 0 ? (
-                  <div className="ai-writing-suggest-block">
-                    <div className="ai-writing-suggest-block__head">
-                      <p className="text-xs text-muted-foreground">
-                        {suggestCollapsed ? `已取回 ${suggestions.length} 条方向，展开后可填入本次情节` : '点选方向填入本次情节，填入后可继续编辑'}
-                      </p>
-                      {/* 只切换显示，不丢弃数据：收起后仍可展开回来，不必重新请求 */}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        aria-expanded={!suggestCollapsed}
-                        aria-controls="ai-writing-suggest-list"
-                        onClick={() => setSuggestCollapsed((value) => !value)}
-                      >
-                        {suggestCollapsed ? '展开' : '收起'}
-                      </Button>
-                    </div>
-                    {!suggestCollapsed && (
-                      <div id="ai-writing-suggest-list" className="ai-writing-suggest">
-                        {suggestions.map((item, index) => (
+                {mode === 'continue' ? (
+                  suggestions.length > 0 || outline.trim() || outlineBusy || suggestBusy ? (
+                    <div className="ai-writing-deck-block">
+                      {/* 头部 Tab 切换与控制 */}
+                      <div className="ai-writing-deck-head">
+                        <div className="ai-writing-deck-tabs">
                           <button
-                            key={`${index}-${item.direction.slice(0, 12)}`}
                             type="button"
-                            className="ai-writing-suggest__item"
-                            // 让读屏知道当前框里的内容是否就是这一条
-                            aria-pressed={instruction === item.direction}
+                            className={`ai-writing-deck-tab${deckTab === 'outline' ? ' is-active' : ''}`}
                             onClick={() => {
-                              // 整段覆盖，先留下原文以便撤销；同一条重复点不覆盖撤销记录
-                              if (instruction !== item.direction) {
-                                setSuggestionFill({ applied: item.direction, previous: instruction })
-                              }
-                              setInstruction(item.direction)
+                              setDeckTab('outline')
+                              setSuggestCollapsed(false)
                             }}
                           >
-                            <span className="ai-writing-suggest__index" aria-hidden="true">
-                              {index + 1}
-                            </span>
-                            <span className="ai-writing-suggest__body">
-                              <span className="ai-writing-suggest__direction">{item.direction}</span>
-                              {item.effect && (
-                                <span className="ai-writing-suggest__effect">
-                                  <ArrowRight className="size-3" aria-hidden="true" />
-                                  <span>{item.effect}</span>
-                                </span>
-                              )}
-                            </span>
+                            <FileText className="size-3" aria-hidden="true" />
+                            <span>续写大纲</span>
+                            {outline.trim() && (
+                              <span className="ai-writing-deck-badge">
+                                {countOutlineChapters(outline) || 1}章
+                              </span>
+                            )}
                           </button>
-                        ))}
+                          <button
+                            type="button"
+                            className={`ai-writing-deck-tab${deckTab === 'suggestions' ? ' is-active' : ''}`}
+                            onClick={() => {
+                              setDeckTab('suggestions')
+                              setSuggestCollapsed(false)
+                            }}
+                          >
+                            <Sparkles className="size-3" aria-hidden="true" />
+                            <span>灵感候选</span>
+                            {suggestions.length > 0 && (
+                              <span className="ai-writing-deck-badge">{suggestions.length}</span>
+                            )}
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-muted-foreground"
+                            aria-expanded={!suggestCollapsed}
+                            onClick={() => setSuggestCollapsed((v) => !v)}
+                          >
+                            {suggestCollapsed ? '展开' : '收起'}
+                          </Button>
+                        </div>
                       </div>
-                    )}
-                    {/* 填入是整段覆盖，且用户可能已经手写过内容——给一次后悔的机会。
-                        只在「当前要求确实还是那条候选」时显示，避免撤销按钮指向过期状态。 */}
-                    {!suggestCollapsed && suggestionFill && instruction === suggestionFill.applied && (
-                      <div className="ai-writing-suggest-undo">
-                        <span>已填入该条候选，原内容已被替换</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => {
-                            setInstruction(suggestionFill.previous)
-                            setSuggestionFill(null)
-                          }}
-                        >
-                          撤销填入
-                        </Button>
+
+                      {!suggestCollapsed && (
+                        <div className="ai-writing-deck-body pt-2 space-y-3">
+                          {deckTab === 'outline' ? (
+                            /* 大纲推演视图 */
+                            <div className="grid gap-2.5">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <Label htmlFor="ai-writing-outline" className="text-xs font-medium text-foreground/90">
+                                  {isMultiChapter ? '多章续写大纲' : '本章大纲（可选）'}
+                                </Label>
+                                <div className="flex items-center gap-3">
+                                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs select-none">
+                                    <Switch
+                                      checked={useOutline && Boolean(outline.trim())}
+                                      disabled={!outline.trim()}
+                                      onCheckedChange={(checked) => setUseOutline(checked)}
+                                    />
+                                    <span className={useOutline && outline.trim() ? 'font-medium text-foreground' : 'text-muted-foreground'}>
+                                      续写时采用此大纲
+                                    </span>
+                                  </label>
+                                  {outline.trim() && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-destructive"
+                                      onClick={() => {
+                                        setOutline('')
+                                        setUseOutline(false)
+                                      }}
+                                    >
+                                      清空
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <Textarea
+                                id="ai-writing-outline"
+                                className="field-sizing-fixed min-h-[140px] shadow-none text-xs leading-relaxed"
+                                value={outline}
+                                onChange={(event) => setOutline(event.target.value)}
+                                placeholder={
+                                  isMultiChapter
+                                    ? '点击左下方「按情节推荐生成大纲」，或直接在此编写/粘贴：\n第1章 重返皇城\n苏越带夭夜入城面见加刑天。\n第2章 婚夜\n两人在寝宫独处，约定共进退。'
+                                    : '可留空。单章建议优先写清本次情节；若有详细分镜头或剧情转折，可在此补充提纲。'
+                                }
+                              />
+
+                              {outlineBusy && (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                                  <div className="size-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                  <span>正在基于你的设想与前文脉络生成大纲…</span>
+                                </div>
+                              )}
+
+                              {/* 识别章节段落快速填入胶囊 */}
+                              {parsedOutlineSections.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                  <span className="text-[11px] text-muted-foreground shrink-0">点击填入本次情节：</span>
+                                  {parsedOutlineSections.map((sec, idx) => (
+                                    <Button
+                                      key={idx}
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[11px] rounded-full bg-muted/40 hover:bg-muted text-foreground/85 border border-border/60"
+                                      title={`点击将「${sec.chapter}${sec.title ? ` ${sec.title}` : ''}」内容填入左侧本次情节`}
+                                      onClick={() => {
+                                        const textToFill = `${sec.chapter}${sec.title ? ` ${sec.title}` : ''}\n${sec.content}`.trim()
+                                        setSuggestionFill({ applied: textToFill, previous: instruction })
+                                        setInstruction(textToFill)
+                                        toast(`已将「${sec.chapter}」大纲填入本次情节`)
+                                      }}
+                                    >
+                                      <span>{sec.chapter}{sec.title ? ` · ${sec.title}` : ''}</span>
+                                    </Button>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* 大纲章数状态对比 */}
+                              {isMultiChapter && outline.trim() && (
+                                <div className={`ai-writing-outline-status${countOutlineChapters(outline) >= chapterCount ? ' is-ok' : ' is-short'}`}>
+                                  <span className="ai-writing-outline-status__figure">
+                                    {countOutlineChapters(outline)}
+                                    <span aria-hidden="true"> / </span>
+                                    {chapterCount}
+                                  </span>
+                                  <span className="ai-writing-outline-status__text">
+                                    {countOutlineChapters(outline) >= chapterCount
+                                      ? `已识别 ${countOutlineChapters(outline)} 个章节段落，够这 ${chapterCount} 章逐章下发。${useOutline ? '（已启用续写下发）' : '（当前未勾选采用，仅作备忘）'}`
+                                      : `已识别 ${countOutlineChapters(outline)} 个章节段落，不足 ${chapterCount} 章：多出的续写章会按创作要求生成，可能与已写内容重复。建议补足大纲或调小续写章数。`}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            /* 灵感候选视图 */
+                            <div className="ai-writing-suggest-block">
+                              <p className="text-xs text-muted-foreground">点选方向填入本次情节，填入后可继续编辑或以此生成大纲</p>
+                              <div id="ai-writing-suggest-list" className="ai-writing-suggest">
+                                {suggestions.map((item, index) => (
+                                  <div
+                                    key={`${index}-${item.direction.slice(0, 12)}`}
+                                    className="flex items-start gap-1"
+                                  >
+                                    <button
+                                      type="button"
+                                      className="ai-writing-suggest__item flex-1"
+                                      aria-pressed={instruction === item.direction}
+                                      onClick={() => {
+                                        if (instruction !== item.direction) {
+                                          setSuggestionFill({ applied: item.direction, previous: instruction })
+                                        }
+                                        setInstruction(item.direction)
+                                      }}
+                                    >
+                                      <span className="ai-writing-suggest__index" aria-hidden="true">
+                                        {index + 1}
+                                      </span>
+                                      <span className="ai-writing-suggest__body">
+                                        <span className="ai-writing-suggest__direction">{item.direction}</span>
+                                        {item.effect && (
+                                          <span className="ai-writing-suggest__effect">
+                                            <ArrowRight className="size-3" aria-hidden="true" />
+                                            <span>{item.effect}</span>
+                                          </span>
+                                        )}
+                                      </span>
+                                    </button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-[11px] rounded-md text-muted-foreground hover:text-[#D97757] hover:bg-[#D97757]/10 shrink-0 self-center border border-transparent hover:border-[#D97757]/30"
+                                      title="以此方向作为设想，直接生成分章大纲"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setInstruction(item.direction)
+                                        void generateOutlineForContinuation(item.direction)
+                                      }}
+                                    >
+                                      <FileText className="size-3 mr-1" />
+                                      生大纲
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                              {suggestionFill && instruction === suggestionFill.applied && (
+                                <div className="ai-writing-suggest-undo">
+                                  <span>已填入该条候选，原内容已被替换</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-xs"
+                                    onClick={() => {
+                                      setInstruction(suggestionFill.previous)
+                                      setSuggestionFill(null)
+                                    }}
+                                  >
+                                    撤销填入
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* 尚未取候选或大纲时的空态提示 */
+                    <div className="ai-writing-deck-empty">
+                      <div className="ai-writing-deck-empty__title">
+                        <Sparkles className="size-3.5 text-[#D97757]" aria-hidden="true" />
+                        <span>大纲与灵感协同台</span>
                       </div>
-                    )}
-                  </div>
+                      <p>
+                        在左侧写清你的走向设想，点击「按情节推荐生成大纲」，AI 将结合作品最新章节与伏笔推演分章大纲，并可一键开启按纲续写。
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/80">
+                        若缺少想法，也可点击「推荐情节」挑选 5 条不同分支作为灵感起点。
+                      </p>
+                    </div>
+                  )
                 ) : (
-                  /* 尚未取候选时的占位。此前是一整块虚线空态，与左列等高后右下方
-                     会空出一大片（实测约 400px），既浪费空间又把视线拖走。
-                     改为一条与「侧重点」行等高的内联提示：既能说明候选从哪来，
-                     又不占据左列正文的高度，右列多余的空白随之收起。 */
-                  <p className="ai-writing-suggest-placeholder">
-                    <Sparkles className="size-3.5" aria-hidden="true" />
-                    <span>点左侧「推荐情节」，这里会列出可直接填入的续写方向（取自最新章节，需已发布章节）。</span>
-                  </p>
+                  /* 新写小说模式下的侧栏占位 */
+                  <div className="ai-writing-deck-empty">
+                    <div className="ai-writing-deck-empty__title">
+                      <BookOpen className="size-3.5 text-[#D97757]" aria-hidden="true" />
+                      <span>新写小说创作</span>
+                    </div>
+                    <p>在左侧填写本次章节设想，并在下方编写或生成全书大纲后开始创作。</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -1943,57 +2200,25 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 onBlur: commitPlotTimeout,
               }}
             />
-            <details className="ai-writing-outline-details" open={isMultiChapter || undefined}>
-              <summary>
-                大纲与补充要求 <span>可选</span>
-              </summary>
-              <div className="grid gap-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label htmlFor="ai-writing-outline">{mode === 'new' ? '大纲（生成章节时使用）' : isMultiChapter ? '多章续写大纲' : '本章大纲（可选）'}</Label>
-                  {mode === 'continue' && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      // outlineBusy 必须进禁用条件：否则生成期间可重复点击，重复发起同一批大纲请求
-                      disabled={busy || taskActive || outlineBusy || !novelId}
-                      onClick={() => void generateOutlineForContinuation()}
-                    >
-                      {outlineBusy ? '生成中…' : isMultiChapter ? '按情节推荐生成大纲（多章）' : '按情节推荐生成大纲（单章）'}
-                    </Button>
-                  )}
-                </div>
-                <Textarea
-                  id="ai-writing-outline"
-                  className="field-sizing-fixed min-h-[140px] shadow-none text-sm"
-                  value={outline}
-                  onChange={(event) => setOutline(event.target.value)}
-                  placeholder={
-                    mode === 'new'
-                      ? '先生成大纲，或直接粘贴已有大纲'
-                      : isMultiChapter
-                        ? '每章一行、以「第N章」开头，例如：\n第1章 重返皇城\n苏越带夭夜入城面见加刑天。\n第2章 婚夜\n两人在寝宫独处，约定共进退。'
-                        : '可留空。单章建议优先写清本次情节；需要更细致安排时，可在此补一段本章提纲。'
-                  }
-                />
-                {mode === 'continue' && isMultiChapter && outline.trim() && (
-                  /* 大纲章数与续写章数必须对得上才有意义，此前只报「识别到 N 段」，
-                   用户得自己心算够不够；现直接给出对比结论与差值。 */
-                  <div className={`ai-writing-outline-status${countOutlineChapters(outline) >= chapterCount ? ' is-ok' : ' is-short'}`}>
-                    <span className="ai-writing-outline-status__figure">
-                      {countOutlineChapters(outline)}
-                      <span aria-hidden="true"> / </span>
-                      {chapterCount}
-                    </span>
-                    <span className="ai-writing-outline-status__text">
-                      {countOutlineChapters(outline) >= chapterCount
-                        ? `已识别 ${countOutlineChapters(outline)} 个章节段落，够这 ${chapterCount} 章逐章下发，同一段内容不会在每章重复。`
-                        : `已识别 ${countOutlineChapters(outline)} 个章节段落，不足 ${chapterCount} 章：多出的续写章会按创作要求生成，可能与已写内容重复。建议补足大纲或调小续写章数。`}
-                    </span>
+            {mode === 'new' && (
+              <details className="ai-writing-outline-details" open={true}>
+                <summary>
+                  大纲 <span>生成章节时使用</span>
+                </summary>
+                <div className="grid gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label htmlFor="ai-writing-outline-new">大纲（生成章节时使用）</Label>
                   </div>
-                )}
-              </div>
-            </details>
+                  <Textarea
+                    id="ai-writing-outline-new"
+                    className="field-sizing-fixed min-h-[140px] shadow-none text-sm"
+                    value={outline}
+                    onChange={(event) => setOutline(event.target.value)}
+                    placeholder="先生成大纲，或直接粘贴已有大纲"
+                  />
+                </div>
+              </details>
+            )}
           </div>
           {/* 执行区总结本次上下文；任务进度与草稿提醒由右侧回执区承担。 */}
           <div className="ai-writing-actions grid gap-3 border-t pt-5">
@@ -2008,6 +2233,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       将续写《{selectedNovelTitle || '当前小说'}》{afterChapterId ? '指定章节之后' : '最新已发布章节之后'} ·{' '}
                       {isMultiChapter ? `${chapterCount} 章规划` : '单章精写'} · {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
                       {activeProfileLabels.length > 0 ? ` · 已注入：${activeProfileLabels.join('、')}` : ' · 尚无可用小说分析'}
+                      {useOutline && outline.trim() ? ` · 已挂载大纲(${countOutlineChapters(outline)}章)` : outline.trim() ? ' · 大纲未勾选采用(自由发挥)' : ''}
                     </>
                   ) : (
                     '先选择小说；续写基线会随所选作品加载。'
@@ -2040,9 +2266,20 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   className="rounded-full h-11 px-7 text-sm font-semibold bg-[#D97757] hover:bg-[#c86646] text-white shadow-sm transition-all"
                   disabled={busy || taskActive}
                   onClick={() => void continueNovel()}
+                  aria-label={
+                    taskActive && task?.kind === 'continue'
+                      ? '生成中…'
+                      : useOutline && outline.trim()
+                        ? (isMultiChapter ? `按大纲批量续写 ${chapterCount} 章` : '生成续写（按大纲）')
+                        : (isMultiChapter ? `批量续写 ${chapterCount} 章` : '生成续写')
+                  }
                 >
                   <Sparkles className="size-4 mr-1.5" />
-                  {taskActive && task?.kind === 'continue' ? '生成中…' : '生成续写'}
+                  {taskActive && task?.kind === 'continue'
+                    ? '生成中…'
+                    : useOutline && outline.trim()
+                      ? (isMultiChapter ? `按大纲续写 ${chapterCount} 章` : '按大纲生成续写')
+                      : (isMultiChapter ? `批量续写 ${chapterCount} 章` : '生成续写')}
                 </Button>
               )}
               <span className="ai-writing-draft-note text-xs text-muted-foreground ml-1">
