@@ -89,23 +89,17 @@ struct AdminAITaskProgressView: View {
     }
 
     private var progressIndicator: some View {
-        Group {
-            if let fraction = progressFraction {
-                ProgressView(value: fraction, total: 1)
-            } else if task.isRunning {
-                ProgressView()
-            } else {
-                ProgressView(value: 0, total: 1)
-            }
-        }
-        .progressViewStyle(.linear)
-        .tint(statusTint)
+        AdminAIProgressBar(
+            fraction: progressFraction,
+            isRunning: task.isRunning,
+            tint: statusTint,
+            label: "\(AdminFormat.aiTaskKind(task.kind ?? ""))进度"
+        )
     }
 
     private var progressFraction: Double? {
         if task.status == "completed" { return 1 }
         guard let total = task.total, total > 0, let current = task.current else { return nil }
-        if task.isRunning && current <= 0 { return nil }
         return min(1, max(0, Double(current) / Double(total)))
     }
 

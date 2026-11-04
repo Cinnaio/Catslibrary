@@ -521,6 +521,42 @@ struct AiProfileGetResponse: Codable {
     let effectiveOrigin: String?
     let exclusionReason: String?
     let baseProfileRevision: String?
+    let progress: AiMemoryProgress?
+    let memoryTask: AiMemoryTask?
+}
+
+/// 已保存的章节覆盖与本轮任务分开解码，阶段预览不能当作完整画像注入。
+struct AiMemoryProgress: Codable {
+    let processedChapters: Int?
+    let totalChapters: Int?
+    let targetChapterId: String?
+    let complete: Bool?
+    let paused: Bool?
+    let running: Bool?
+    let previewContent: String?
+}
+
+struct AiMemoryTask: Codable {
+    let id: String
+    let status: String?
+    let current: Int?
+    let total: Int?
+    let step: String?
+    let error: String?
+    let updatedAt: Int64?
+    let livePreview: AiMemoryLivePreview?
+
+    var isRunning: Bool { status == "queued" || status == "running" }
+}
+
+struct AiMemoryLivePreview: Codable {
+    let phase: String?
+    let preview: String?
+    let startedAt: Int64?
+}
+
+struct AiMemoryStartResponse: Codable {
+    let task: AiMemoryTask?
 }
 
 struct AiManualProfileOverride: Codable, Hashable {
@@ -574,6 +610,8 @@ struct AiPlotStateGetResponse: Codable {
     let effectiveOrigin: String?
     let exclusionReason: String?
     let baseProfileRevision: String?
+    let progress: AiMemoryProgress?
+    let memoryTask: AiMemoryTask?
 }
 
 /// POST /api/ai/writing/titles 的返回。
