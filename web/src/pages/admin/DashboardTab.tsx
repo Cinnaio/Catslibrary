@@ -10,9 +10,10 @@ import { adminApi } from '@/lib/api'
 import { formatBytes, formatDateTime, timeAgo } from '@/lib/format'
 import { jobStatusLabel } from '@/lib/admin'
 import AdminPage from '@/components/admin/AdminPage'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import EmptyState from "@/components/shared/EmptyState"
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
+import { AdminDataPanel } from '@/components/admin/AdminDataPanel'
+import { PanelHeading } from '@/components/shared/PanelHeading'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import NovelFollowupDialog from '@/components/admin/NovelFollowupDialog'
@@ -221,7 +222,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
           <div className="dashboard-main-grid">
             <div className="dashboard-column dashboard-column--primary">
               <AdminDataPanel ariaLabel="自动追更调度" className="dashboard-followups">
-                <AdminPanelHeading
+                <PanelHeading
                   title="自动追更调度"
                   actions={
                     <Link className="dashboard-panel-link" to="/admin/novels">
@@ -252,12 +253,12 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                     <p className="dashboard-panel-note">展示最多 6 本。到期书籍按队列自动调度，检查时间会随爬虫占用和重试间隔动态平衡。</p>
                   </>
                 ) : (
-                  <AdminEmptyState message="追更概况暂不可用" hint="请确认 API 已更新后刷新总览。" />
+                  <EmptyState message="追更概况暂不可用" hint="请确认 API 已更新后刷新总览。" />
                 )}
               </AdminDataPanel>
 
               <AdminDataPanel ariaLabel="最近抓取任务" className="dashboard-jobs">
-                <AdminPanelHeading
+                <PanelHeading
                   title="最近抓取任务"
                   actions={
                     <Link className="dashboard-panel-link" to="/admin/tasks?view=scrape">
@@ -268,7 +269,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                 />
                 <div className="dashboard-rows">
                   {!data.recentJobs.length ? (
-                    <AdminEmptyState message="暂无抓取任务" hint="在抓取中心添加任务后，此处将实时展示进度。" />
+                    <EmptyState message="暂无抓取任务" hint="在抓取中心添加任务后，此处将实时展示进度。" />
                   ) : (
                     data.recentJobs.map((job) => (
                       <button
@@ -296,7 +297,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
 
             <div className="dashboard-column dashboard-column--secondary">
               <AdminDataPanel ariaLabel="运营事项" className="dashboard-operations">
-                <AdminPanelHeading title="运营与治理事项" />
+                <PanelHeading title="运营与治理事项" />
                 <div className="dashboard-operation-links">
                   <Link to="/admin/tasks?view=scrape" className="dashboard-op-item">
                     <div>
@@ -324,7 +325,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
               </AdminDataPanel>
 
               <AdminDataPanel ariaLabel="书库全景动态" className="dashboard-library">
-                <AdminPanelHeading
+                <PanelHeading
                   title="书库全景动态"
                   status={
                     <span className="dashboard-heading-status">
@@ -334,7 +335,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                 />
                 <div className="dashboard-rows">
                   {!data.recentNovels.length ? (
-                    <AdminEmptyState message="书库还是空的" hint="导入书籍后将在此展示最新入库记录。" />
+                    <EmptyState message="书库还是空的" hint="导入书籍后将在此展示最新入库记录。" />
                   ) : (
                     data.recentNovels.map((book) => (
                       <Link key={book.id} to={manageNovel(book.id)} className="dashboard-row">

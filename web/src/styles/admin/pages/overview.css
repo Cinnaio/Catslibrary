@@ -1,5 +1,5 @@
 /* 分级管理：搜索的是标题/作者/理由三项短文本，搜索框刻意窄于小说管理。 */
-.admin-redesign-page--content-ratings .admin-tab-header__actions .admin-search {
+.admin-redesign-page--content-ratings .admin-tab-header__actions .search-field {
   width: min(18rem, 100%);
   max-width: 18rem;
   flex: 0 1 18rem;
@@ -474,7 +474,7 @@
     flex-wrap: nowrap;
   }
 
-  .admin-redesign-page--novels .admin-tab-header__actions .admin-search {
+  .admin-redesign-page--novels .admin-tab-header__actions .search-field {
     width: auto;
     max-width: none;
     flex: 1 1 auto;

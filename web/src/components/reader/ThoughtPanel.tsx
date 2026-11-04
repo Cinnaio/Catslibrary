@@ -1,3 +1,6 @@
+import '@/styles/thoughts.css'
+import '@/styles/input-fields.css'
+import { Button } from '@/components/ui/button'
 /**
  * 段评想法面板 —— 由 read.js thought-panel 结构平移。
  * 展示某段落的想法列表 + 发布/删除。
@@ -6,7 +9,7 @@ import { useRef, useState } from 'react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { ArrowUp, ImagePlus, X } from 'lucide-react'
 import type { Thought } from '@shared/types'
-import { UserAvatar } from '../ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import { timeText } from '../../lib/format'
 import ThoughtImage from './ThoughtImage'
 
@@ -130,9 +133,9 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
             {selectedText ? `划选：${selectedText}` : ''}
           </div>
           {canGenerateImage && selectedText && <div className="thought-image-action">
-            <button type="button" className="btn btn--secondary btn--sm" disabled={submitting || imageGenerating} onClick={() => void generate()}>
+            <Button variant="secondary" size="sm" type="button"  disabled={submitting || imageGenerating} onClick={() => void generate()}>
               <ImagePlus size={16} aria-hidden="true" />{imageGenerating ? '插画生成中…' : '生成图片并发布想法'}
-            </button>
+            </Button>
             <p>根据划选文字生成插画，填写的想法会作为配文；留空也可生成。</p>
           </div>}
           <div className="thought-editor">

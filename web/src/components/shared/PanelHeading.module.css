@@ -1,0 +1,51 @@
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 24px;
+  padding: var(--ui-panel-padding, 28px) var(--ui-panel-padding, 28px) 24px;
+}
+.copy {
+  min-width: 0;
+}
+.copy h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font: 500 var(--ui-section-title-size, 21px) / 1.35 var(--font-serif);
+  letter-spacing: -0.015em;
+}
+.copy .description {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+  gap: var(--action-gap);
+  flex: 0 0 auto;
+}
+:where(.actions) > * {
+  min-width: 0;
+}
+@media (max-width: 700px) {
+  .heading {
+    padding: var(--ui-panel-padding, 20px) var(--ui-panel-padding, 20px) 20px;
+  }
+}
+@media (max-width: 640px) {
+  .heading {
+    flex-direction: column;
+  }
+  .actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

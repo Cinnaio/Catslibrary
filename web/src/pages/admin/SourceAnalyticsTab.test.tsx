@@ -5,7 +5,7 @@ import type { SourceAnalyticsBook, SourceAnalyticsResponse } from '@shared/sourc
 const mocks = vi.hoisted(() => ({ analytics: vi.fn(), fetch: vi.fn(), success: vi.fn(), error: vi.fn() }))
 vi.mock('@/lib/api', () => ({ adminApi: { sourceAnalytics: mocks.analytics }, url: (path: string) => path, authHeaders: (headers: unknown) => headers }))
 vi.mock('sonner', () => ({ toast: { success: mocks.success, error: mocks.error } }))
-vi.mock('@/components/admin/CustomSelect', () => ({
+vi.mock("@/components/shared/SearchSelect", () => ({
   default: ({ options, value, onChange, ...props }: any) => (
     <select aria-label={props['aria-label']} value={value} onChange={(event) => onChange(event.target.value)}>
       {options.map((o: any) => (

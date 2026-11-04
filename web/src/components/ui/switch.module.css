@@ -1,0 +1,73 @@
+.switch {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  width: 36px;
+  height: 20px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-secondary);
+  box-shadow: none;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+.switch[data-state='checked'] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.thumb {
+  box-sizing: border-box;
+  display: block;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--accent-ink);
+  translate: 0 0;
+  transform: translateX(0);
+  transition: transform 160ms ease;
+}
+.switch[data-state='checked'] .thumb {
+  transform: translateX(16px);
+}
+.switch[data-size='sm'] {
+  width: 28px;
+  height: 16px;
+}
+.switch[data-size='sm'] .thumb {
+  width: 10px;
+  height: 10px;
+}
+.switch[data-size='sm'][data-state='checked'] .thumb {
+  transform: translateX(12px);
+}
+.switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .thumb {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .switch {
+    border-color: ButtonText;
+  }
+  .switch[data-state='checked'] {
+    background: Highlight;
+  }
+  .thumb {
+    background: ButtonText;
+  }
+}

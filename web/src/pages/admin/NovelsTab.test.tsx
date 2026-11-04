@@ -4,7 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 const mocks = vi.hoisted(() => ({ list: vi.fn(), exportBooks: vi.fn(), update: vi.fn(), toast: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn() }))
 vi.mock('../../lib/api', () => ({ adminApi: {}, novelsApi: { list: mocks.list, exportBooks: mocks.exportBooks, update: mocks.update, visibility: vi.fn().mockResolvedValue({ visibility: 'public', revision: 0, users: [], audit: [] }) }, scrapeApi: { sourceBindings: async () => ({ bindings: [] }), sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply }, authHeaders: () => ({}), url: (x: string) => x, newOperationId: () => 'test' }))
 vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }) }))
-vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, value, onChange, ...props }: any) => <select aria-labelledby={props['aria-labelledby']} value={value} onChange={e => onChange(e.target.value)}>{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
+vi.mock("@/components/shared/SearchSelect", () => ({ default: ({ options, value, onChange, ...props }: any) => <select aria-labelledby={props['aria-labelledby']} value={value} onChange={e => onChange(e.target.value)}>{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 vi.mock('../../components/admin/BookImportDialog', () => ({ default: () => null }))
 import NovelsTab from './NovelsTab'
 

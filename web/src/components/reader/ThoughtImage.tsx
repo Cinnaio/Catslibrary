@@ -1,3 +1,4 @@
+import '@/styles/thoughts.css'
 import { useEffect, useState } from 'react'
 import { Dialog } from 'radix-ui'
 import { X } from 'lucide-react'

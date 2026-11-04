@@ -8,16 +8,18 @@ import { coverUrl as novelCoverUrl } from '@/lib/cover-url'
 import { formatDateTime } from '@/lib/format'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import { SearchField } from '@/components/shared/SearchField'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import CustomSelect from '@/components/admin/CustomSelect'
-import Pagination from '@/components/admin/Pagination'
+import EmptyState from "@/components/shared/EmptyState"
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
+import SearchSelect from "@/components/shared/SearchSelect"
+import Pagination from "@/components/shared/Pagination"
 import NovelFollowupDialog from '@/components/admin/NovelFollowupDialog'
 import BatchNovelFollowupDialog from '@/components/admin/BatchNovelFollowupDialog'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -86,7 +88,7 @@ function BookDetails({
         if (!open) onClose()
       }}
     >
-      <AdminDialogContent
+      <DialogFrame
         className="source-book-dialog"
         onCloseAutoFocus={(event) => {
           if (returnFocus?.isConnected) {
@@ -99,7 +101,7 @@ function BookDetails({
           <DialogTitle>书源与追更详情</DialogTitle>
           <DialogDescription>{book.title}</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody>
+        <DialogBody>
           <div className="source-book-details-grid">
             <div className="source-book-details-item">
               <span className="source-book-details-label">作者 / 状态</span>
@@ -136,7 +138,7 @@ function BookDetails({
           </div>
 
           <section className="source-book-sources" aria-label="来源记录" style={{ marginTop: '1.25rem' }}>
-            <h3 className="admin-dialog-section-label">来源记录</h3>
+            <h3 className="dialog-frame-section-label">来源记录</h3>
             {book.sources.length ? (
               <div className="source-book-sources-list">
                 {book.sources.map((source) => (
@@ -152,7 +154,7 @@ function BookDetails({
                 ))}
               </div>
             ) : (
-              <p className="admin-dialog-hint">未找到有效的 HTTP/HTTPS 来源。</p>
+              <p className="dialog-frame-hint">未找到有效的 HTTP/HTTPS 来源。</p>
             )}
           </section>
 
@@ -170,16 +172,16 @@ function BookDetails({
               <Link to={`/admin/novels?novelId=${encodeURIComponent(book.id)}`}>管理小说</Link>
             </Button>
           </div>
-          <p className="admin-dialog-hint" style={{ marginTop: '0.75rem' }}>
+          <p className="dialog-frame-hint" style={{ marginTop: '0.75rem' }}>
             统计读取于 {formatDateTime(snapshotAt)}。配置完整不代表源站当前可访问；进入追更详情可读取最新结果。
           </p>
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose}>
             关闭
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
       {followup && <NovelFollowupDialog variant="event" novel={book} onClose={() => setFollowup(false)} />}
       {merge && (
         <Suspense fallback={<span role="status">正在打开融合弹窗…</span>}>
@@ -364,40 +366,40 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
             <TabsContent value="list" forceMount className={cn('source-analytics-list-view', activeTab !== 'list' && 'hidden')}>
               {/* 单层控制流：筛选工具栏直接平铺 */}
               <AdminToolbar layout="inline" className="admin-filter-rail source-analytics-filters" ariaLive="polite">
-                <AdminSearch
+                <SearchField
                   id="source-analytics-search"
                   label="搜索小说"
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   placeholder="搜索书名或作者"
                 />
-                <div className="admin-filter-chips">
-                  <CustomSelect
+                <div className="select-filter-chips">
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="源站筛选"
                     value={filters.site}
                     onChange={(v) => setFilter('site', v)}
                     searchable
                     options={[{ value: '', label: '全部源站' }, ...data.groups.map((g) => ({ value: g.site, label: siteLabel(g.site) }))]}
                   />
-                  <CustomSelect
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="来源配置筛选"
                     value={filters.source}
                     onChange={(v) => setFilter('source', v)}
                     options={[{ value: '', label: '全部来源配置' }, ...Object.entries(SOURCE_LABELS).map(([value, label]) => ({ value, label }))]}
                   />
-                  <CustomSelect
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="追更状态筛选"
                     value={filters.followup}
                     onChange={(v) => setFilter('followup', v)}
@@ -407,11 +409,11 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                       { value: 'attention', label: '仅看检查异常' },
                     ]}
                   />
-                  <CustomSelect
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="连载状态筛选"
                     value={filters.status}
                     onChange={(v) => setFilter('status', v)}
@@ -421,21 +423,21 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                       { value: 'completed', label: '已完结' },
                     ]}
                   />
-                  <CustomSelect
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="检查结果筛选"
                     value={filters.result}
                     onChange={(v) => setFilter('result', v)}
                     options={[{ value: '', label: '全部检查结果' }, ...Object.entries(results).map(([value, label]) => ({ value, label }))]}
                   />
-                  <CustomSelect
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="明细排序"
                     value={filters.sort}
                     onChange={(v) => setFilter('sort', v)}
@@ -491,7 +493,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
               <AdminDataPanel ariaLabel="小说明细" columns={columns} density="comfortable" className="source-analytics-table-panel">
                 {!matches ? (
                   error ? (
-                    <AdminEmptyState message="筛选结果尚未读取成功" />
+                    <EmptyState message="筛选结果尚未读取成功" />
                   ) : (
                     <LoadingState label="正在更新小说明细" />
                   )
@@ -518,7 +520,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                       {!data.books.length ? (
                         <TableRow>
                           <TableCell colSpan={7}>
-                            <AdminEmptyState message="当前筛选没有匹配的小说" />
+                            <EmptyState message="当前筛选没有匹配的小说" />
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -649,7 +651,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
             <TabsContent value="distribution" forceMount className={cn('flex flex-col gap-4', activeTab !== 'distribution' && 'hidden')}>
               {/* 大盘口径与快照指示栏 */}
               <div className="source-analytics-scope-bar">
-                <CustomSelect
+                <SearchSelect
                   aria-label="来源统计口径"
                   compact
                   chip
@@ -721,7 +723,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
               {/* 各源站透视微卡网格 */}
               <div className="source-insight-cards-grid" aria-busy={loading}>
                 {!data.groups.length ? (
-                  <AdminEmptyState message="暂无站点统计数据" />
+                  <EmptyState message="暂无站点统计数据" />
                 ) : (
                   data.groups.map((group) => {
                     const sharePercent = ((group.total / Math.max(data.total, 1)) * 100).toFixed(1)

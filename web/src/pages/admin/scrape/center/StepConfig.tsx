@@ -1,3 +1,5 @@
+import { Spinner } from '@/components/ui/spinner'
+import { Panel } from '@/components/ui/panel'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 // ============================================================
 // 抓取中心 · 第三步 —— 抓取配置（折叠摘要 / 高级配置 / 选择器测试）
@@ -73,7 +75,7 @@ export default function StepConfig({
   const links: Array<{ text?: string; href: string }> = testResult.data?.links || []
 
   return (
-    <section className="admin-panel-card scrape-step">
+    <Panel asChild><section className="admin-panel-card scrape-step">
       <span className="scrape-step__label">第三步</span>
       <h3 className="m-0 text-base font-semibold tracking-tight text-foreground md:text-lg">抓取配置</h3>
 
@@ -142,7 +144,7 @@ export default function StepConfig({
         <div className="scrape-feedback text-sm" role="status">
           {testResult.loading ? (
             <div className="flex items-center gap-2">
-              <div className="spinner"></div>
+              <Spinner  />
               <span className="text-muted-foreground">正在测试选择器…</span>
             </div>
           ) : links.length > 0 ? (
@@ -166,6 +168,6 @@ export default function StepConfig({
       )}
 
       <ScrapeChecks items={testChecks} />
-    </section>
+    </section></Panel>
   )
 }

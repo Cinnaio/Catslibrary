@@ -5,17 +5,17 @@ import { Button } from '@/components/ui/button'
 import { aiApi } from '@/lib/api'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { cn } from '@/lib/utils'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import Pagination from '@/components/admin/Pagination'
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
-import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminWorkspace'
-import CustomSelect from '@/components/admin/CustomSelect'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'
-import { UserAvatar } from '@/components/ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import { formatCost } from './shared'
 
 const AUDIT_COLUMNS: readonly AdminColumn[] = [
@@ -155,12 +155,12 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
       <div className="calls-flat-toolbar" aria-live="polite">
         <div className="calls-flat-toolbar__leading">
           <h3 className="calls-flat-toolbar__title">调用记录明细</h3>
-          <div className="admin-filter-chips">
-            <CustomSelect
+          <div className="select-filter-chips">
+            <SearchSelect
               compact
               chip
               filterChip
-              leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+              leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
               aria-label="类型"
               value={filterType}
               onChange={(v) => {

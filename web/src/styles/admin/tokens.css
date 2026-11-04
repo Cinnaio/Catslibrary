@@ -50,19 +50,19 @@
   --admin-selection-primary-foreground: var(--admin-dock-primary-foreground);
 
 
-  --admin-filter-chip-height: var(--management-control-height);
-  --admin-filter-chip-min-width: 8rem;
-  --admin-filter-chip-radius: var(--radius-control);
-  --admin-filter-chip-border: var(--input-border);
-  --admin-filter-chip-border-style: solid;
-  --admin-filter-chip-background: var(--input-background);
-  --admin-filter-chip-foreground: var(--text-primary);
-  --admin-filter-chip-hover-background: var(--input-background);
-  --admin-filter-chip-padding-inline: 0.75rem;
-  --admin-filter-chip-gap: 0.5rem;
-  --admin-filter-chip-icon-size: var(--management-control-icon-size);
-  --admin-filter-chip-font-size: var(--management-control-label-size);
-  --admin-filter-chip-font-weight: 400;
+  --select-filter-chip-height: var(--management-control-height);
+  --select-filter-chip-min-width: 8rem;
+  --select-filter-chip-radius: var(--radius-control);
+  --select-filter-chip-border: var(--input-border);
+  --select-filter-chip-border-style: solid;
+  --select-filter-chip-background: var(--input-background);
+  --select-filter-chip-foreground: var(--text-primary);
+  --select-filter-chip-hover-background: var(--input-background);
+  --select-filter-chip-padding-inline: 0.75rem;
+  --select-filter-chip-gap: 0.5rem;
+  --select-filter-chip-icon-size: var(--management-control-icon-size);
+  --select-filter-chip-font-size: var(--management-control-label-size);
+  --select-filter-chip-font-weight: 400;
 
 
   --admin-sidebar-nav-height: 2.375rem;
@@ -76,13 +76,6 @@
   --admin-sidebar-footer-fade-height: 1.5rem;
 
 
-  --admin-pagination-gap: 0.75rem;
-  --admin-pagination-padding-block: 1.25rem;
-  --admin-pagination-padding-inline: var(--management-panel-padding);
-  --admin-pagination-font-size: 0.825rem;
-  --admin-pagination-jump-width: 4rem;
-  --admin-pagination-page-size-width: 5.5rem;
-  --admin-pagination-control-size: var(--management-control-height);
 
 
   --admin-page-title-size: var(--management-page-title-size);
@@ -133,23 +126,6 @@
   --admin-data-panel-toolbar-padding-inline: var(--management-panel-padding);
 
 
-  --admin-dialog-title-size: var(--management-dialog-title-size);
-  --admin-dialog-mobile-max-height: min(47.5rem, calc(100svh - 4rem));
-  --admin-dialog-mobile-footer-direction: row;
-  --admin-dialog-mobile-footer-wrap: nowrap;
-  --admin-dialog-mobile-footer-gap: 0.5rem;
-  --admin-dialog-mobile-footer-padding: 0.75rem;
-  --admin-dialog-mobile-action-min-width: 4.5rem;
-  --admin-dialog-mobile-action-min-height: 48px;
-  --admin-dialog-label-size: 0.785rem;
-  --admin-dialog-label-weight: 500;
-  --admin-dialog-label-color: var(--text-secondary);
-  --admin-dialog-label-line-height: 1.5;
-  --admin-dialog-label-letter-spacing: 0;
-  --admin-dialog-hint-size: 0.75rem;
-  --admin-dialog-hint-weight: 400;
-  --admin-dialog-hint-color: var(--text-muted);
-  --admin-dialog-hint-line-height: 1.5;
 
   --admin-table-head-size: 0.74rem;
   --admin-table-cell-size: 0.835rem;
@@ -190,18 +166,6 @@
   --admin-field-gap: 0.5rem;
   --admin-status-tint: 12%;
 
-  --admin-reading-dialog-inset: 1.5rem;
-  --admin-reading-dialog-viewport-inset: 2rem;
-  --admin-reading-dialog-gap: 0.75rem;
-  --admin-reading-dialog-gap-desktop: 1rem;
-  --admin-reading-dialog-padding: 1rem;
-  --admin-reading-dialog-padding-desktop: 1.5rem;
-  --admin-reading-dialog-width: 48rem;
-  --admin-reading-dialog-wide-width: 56rem;
-  --admin-reading-dialog-height: min(85svh, 900px);
-  --admin-preview-dialog-height: 94vh;
-  --admin-preview-dialog-width: 64rem;
-  --admin-preview-dialog-width-desktop: 32rem;
 }
 
 [data-theme='dark'] {

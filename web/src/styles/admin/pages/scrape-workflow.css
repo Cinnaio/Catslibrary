@@ -620,7 +620,7 @@
   pointer-events: none;
 }
 
-/* 发现小说详情弹窗（外壳用 .admin-dialog 三段式，这里只留内容区样式） */
+/* 发现小说详情弹窗（外壳用 .dialog-frame 三段式，这里只留内容区样式） */
 .discover-detail__header {
   align-items: flex-start;
   justify-content: flex-start;
@@ -777,7 +777,7 @@
   margin-right: auto;
 }
 
-/* 批量抓取日志弹窗（shadcn Dialog 三段式，.admin-dialog 提供外壳） */
+/* 批量抓取日志弹窗（shadcn Dialog 三段式，.dialog-frame 提供外壳） */
 .scrape-discover__log-entries {
   display: grid;
   gap: var(--admin-space-1);

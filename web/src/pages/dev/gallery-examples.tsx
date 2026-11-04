@@ -1,3 +1,6 @@
+import { FilterChip } from '@/components/ui/filter-chip'
+import { ControlAppearance, ControlSurface } from '@/components/ui/control-appearance'
+import '@/styles/catalog-controls.css'
 import { useState } from 'react'
 import { BookOpen, Copy, LoaderCircle, MoreHorizontal, Settings, Trash2 } from 'lucide-react'
 import type { Novel } from '@shared/types'
@@ -28,7 +31,7 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { InitialAvatar } from '@/components/ui/initial-avatar'
-import { UserAvatar } from '@/components/ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import {
   Sidebar,
   SidebarContent,
@@ -45,16 +48,17 @@ import NovelCoverStatus from '@/components/NovelCoverStatus'
 import PageState from '@/components/PageState'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import AdminFormField from '@/components/admin/AdminFormField'
+import EmptyState from "@/components/shared/EmptyState"
+import FormField from "@/components/shared/FormField"
 import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
-import { AdminSearch, AdminToolbar } from '@/components/admin/AdminWorkspace'
-import { AdminDialogContent, AdminDialogBody } from '@/components/admin/AdminDialog'
-import { LoadingState, ErrorState, InlineError } from '@/components/admin/AsyncStates'
-import Pagination from '@/components/admin/Pagination'
-import CustomSelect from '@/components/admin/CustomSelect'
-import CustomTimePicker from '@/components/admin/CustomTimePicker'
+import { SearchField } from '@/components/shared/SearchField'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import { DialogFrame, DialogBody } from "@/components/shared/DialogFrame"
+import { LoadingState, ErrorState, InlineError } from "@/components/shared/AsyncStates"
+import Pagination from "@/components/shared/Pagination"
+import SearchSelect from "@/components/shared/SearchSelect"
+import TimeField from "@/components/shared/TimeField"
 import { SettingsControls } from '@/components/reader/SettingsControls'
 import type { ExampleProps } from './gallery-types'
 
@@ -675,9 +679,9 @@ export function BusinessFields({ state, boundary }: ExampleProps) {
   const [time, setTime] = useState('03:00')
   return (
     <div className="gallery-fields">
-      <AdminFormField label="分类" hint="可搜索；包含不可选项。">
+      <FormField label="分类" hint="可搜索；包含不可选项。">
         {({ id, labelId }) => (
-          <CustomSelect
+          <SearchSelect
             id={id}
             aria-labelledby={labelId}
             options={
@@ -696,10 +700,10 @@ export function BusinessFields({ state, boundary }: ExampleProps) {
             aria-invalid={state === 'error'}
           />
         )}
-      </AdminFormField>
-      <AdminFormField label="执行时间" hint="只修改此处的示例时间。">
-        {({ id, labelId }) => <CustomTimePicker id={id} aria-labelledby={labelId} value={time} onChange={setTime} disabled={state === 'disabled'} />}
-      </AdminFormField>
+      </FormField>
+      <FormField label="执行时间" hint="只修改此处的示例时间。">
+        {({ id, labelId }) => <TimeField presets={['00:00', '02:00', '03:00', '04:00', '12:00']} id={id} aria-labelledby={labelId} value={time} onChange={setTime} disabled={state === 'disabled'} />}
+      </FormField>
     </div>
   )
 }
@@ -714,7 +718,7 @@ export function AsyncExample({ state }: ExampleProps) {
       </div>
     )
   return (
-    <AdminEmptyState
+    <EmptyState
       message="暂无示例书目"
       hint="添加书目后将在这里显示。"
       action={
@@ -743,18 +747,18 @@ export function AccessExample({ boundary }: ExampleProps) {
 }
 export function AdminDialogExample() {
   return (
-    <div className="gallery-row">
+    <ControlAppearance appearance="management"><ControlSurface className="gallery-row">
       {(['form', 'editor', 'reading', 'preview'] as const).map((variant) => (
         <Dialog key={variant}>
           <DialogTrigger asChild>
             <Button variant="outline">{variant} 弹窗</Button>
           </DialogTrigger>
-          <AdminDialogContent variant={variant}>
+          <DialogFrame variant={variant}>
             <DialogHeader>
               <DialogTitle>后台弹窗 · {variant}</DialogTitle>
               <DialogDescription>真实外观变体，使用虚构内容。</DialogDescription>
             </DialogHeader>
-            <AdminDialogBody>
+            <DialogBody>
               {variant === 'reading' ? (
                 <p>夜色慢慢落在山间，远处的灯塔亮了起来。她展开信纸，读到第一句话。</p>
               ) : variant === 'preview' ? (
@@ -762,18 +766,18 @@ export function AdminDialogExample() {
                   <BookOpen />
                 </div>
               ) : (
-                <AdminFormField label="示例名称">{({ id }) => <Input id={id} defaultValue="山海来信" />}</AdminFormField>
+                <FormField label="示例名称">{({ id }) => <Input id={id} defaultValue="山海来信" />}</FormField>
               )}
-            </AdminDialogBody>
+            </DialogBody>
             <DialogFooter>
               <DialogClose asChild>
                 <Button variant="outline">关闭示例</Button>
               </DialogClose>
             </DialogFooter>
-          </AdminDialogContent>
+          </DialogFrame>
         </Dialog>
       ))}
-    </div>
+    </ControlSurface></ControlAppearance>
   )
 }
 export function RowActionsExample() {
@@ -802,16 +806,13 @@ export function HomeFilters({ state }: ExampleProps) {
           <span className="filter-row__label">分类</span>
           <div className="category-filter gallery-row">
             {['全部', '幻想', '历史', '都市'].map((v) => (
-              <button
-                key={v}
-                type="button"
-                className={`filter-btn${category === v ? ' filter-btn--active' : ''}`}
-                aria-pressed={category === v}
-                disabled={state === 'disabled'}
-                onClick={() => setCategory(v)}
-              >
+              <FilterChip selected={category === v}  key={v}
+type="button"
+aria-pressed={category === v}
+disabled={state === 'disabled'}
+onClick={() => setCategory(v)}>
                 {v}
-              </button>
+              </FilterChip>
             ))}
           </div>
         </div>
@@ -828,14 +829,14 @@ export function HomeFilters({ state }: ExampleProps) {
     </div>
   )
 }
-export function LegacyButtons({ state }: ExampleProps) {
+export function ActionButtons({ state }: ExampleProps) {
   const { toast } = useToast()
   return (
     <div className="gallery-row">
-      {['primary', 'secondary', 'ghost', 'danger'].map((variant) => (
-        <button type="button" key={variant} className={`btn btn--${variant}`} disabled={state === 'disabled'} onClick={() => toast(`页面按钮 ${variant}`)}>
+      {(['default', 'secondary', 'ghost', 'destructive'] as const).map((variant) => (
+        <Button type="button" key={variant} variant={variant} disabled={state === 'disabled'} onClick={() => toast(`页面按钮 ${variant}`)}>
           {variant}
-        </button>
+        </Button>
       ))}
     </div>
   )
@@ -846,7 +847,7 @@ export function AdminScaffold({ boundary }: ExampleProps) {
   return (
     <AdminPage title="小说管理" description="后台页头与工具栏的真实组合。" actions={<Button onClick={() => toast('这是示例导入入口')}>导入示例</Button>}>
       <AdminToolbar>
-        <AdminSearch id="sample-admin-search" label="搜索示例书目" placeholder="搜索书名或作者…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <SearchField id="sample-search-field" label="搜索示例书目" placeholder="搜索书名或作者…" value={query} onChange={(e) => setQuery(e.target.value)} />
         <Badge variant="secondary">{boundary ? '999,999 本' : '128 本'}</Badge>
       </AdminToolbar>
       <p className="gallery-note">{query ? `当前示例搜索：${query}` : '输入文字可检查搜索控件状态。'}</p>

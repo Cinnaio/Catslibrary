@@ -20,16 +20,16 @@
   background: transparent;
 }
 
-.admin-filter-rail > .admin-search,
-.novels-filter-rail > .admin-search,
-.novels-rating-toolbar > .admin-search,
-.ai-generations-filter-rail > .admin-search {
+.admin-filter-rail > .search-field,
+.novels-filter-rail > .search-field,
+.novels-rating-toolbar > .search-field,
+.ai-generations-filter-rail > .search-field {
   width: min(22rem, 100%);
   max-width: 22rem;
   flex: 1 1 18rem;
 }
 
-.admin-filter-chips,
+.select-filter-chips,
 .novels-filter-chips,
 .novels-rating-toolbar__filter {
   display: flex;
@@ -71,12 +71,12 @@
     min-height: 0;
   }
 
-  .admin-filter-rail > .admin-search,
-  .novels-filter-rail > .admin-search,
-  .novels-rating-toolbar > .admin-search,
-  .ai-generations-filter-rail > .admin-search,
-  .source-analytics-filters > .admin-search,
-  .task-workspace-toolbar > .admin-search {
+  .admin-filter-rail > .search-field,
+  .novels-filter-rail > .search-field,
+  .novels-rating-toolbar > .search-field,
+  .ai-generations-filter-rail > .search-field,
+  .source-analytics-filters > .search-field,
+  .task-workspace-toolbar > .search-field {
     width: 100%;
     max-width: none;
     min-width: 0;
@@ -84,25 +84,25 @@
     height: var(--admin-control-height, 2.5rem);
   }
 
-  .admin-filter-rail > .admin-search .admin-search__input,
-  .novels-filter-rail > .admin-search .admin-search__input,
-  .novels-rating-toolbar > .admin-search .admin-search__input,
-  .ai-generations-filter-rail > .admin-search .admin-search__input,
-  .source-analytics-filters > .admin-search .admin-search__input,
-  .task-workspace-toolbar > .admin-search .admin-search__input,
-  .admin-filter-rail > .admin-search [data-slot='input'],
-  .novels-filter-rail > .admin-search [data-slot='input'],
-  .novels-rating-toolbar > .admin-search [data-slot='input'],
-  .ai-generations-filter-rail > .admin-search [data-slot='input'],
-  .source-analytics-filters > .admin-search [data-slot='input'],
-  .task-workspace-toolbar > .admin-search [data-slot='input'] {
+  .admin-filter-rail > .search-field .search-field__input,
+  .novels-filter-rail > .search-field .search-field__input,
+  .novels-rating-toolbar > .search-field .search-field__input,
+  .ai-generations-filter-rail > .search-field .search-field__input,
+  .source-analytics-filters > .search-field .search-field__input,
+  .task-workspace-toolbar > .search-field .search-field__input,
+  .admin-filter-rail > .search-field [data-slot='input'],
+  .novels-filter-rail > .search-field [data-slot='input'],
+  .novels-rating-toolbar > .search-field [data-slot='input'],
+  .ai-generations-filter-rail > .search-field [data-slot='input'],
+  .source-analytics-filters > .search-field [data-slot='input'],
+  .task-workspace-toolbar > .search-field [data-slot='input'] {
     width: 100%;
     max-width: none;
     height: var(--admin-control-height, 2.5rem);
     flex: 1 1 auto;
   }
 
-  .admin-filter-chips,
+  .select-filter-chips,
   .novels-filter-chips,
   .novels-rating-toolbar__filter {
     display: flex;
@@ -122,20 +122,20 @@
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   }
 
-  .admin-filter-chips::-webkit-scrollbar,
+  .select-filter-chips::-webkit-scrollbar,
   .novels-filter-chips::-webkit-scrollbar,
   .novels-rating-toolbar__filter::-webkit-scrollbar {
     display: none;
   }
 
-  .admin-filter-chips > *,
+  .select-filter-chips > *,
   .novels-filter-chips > *,
   .novels-rating-toolbar__filter > * {
     flex: 0 0 auto;
   }
 
-  .admin-filter-chips [data-slot='popover-trigger'].admin-filter-chip,
-  .novels-filter-chips [data-slot='popover-trigger'].admin-filter-chip {
+  .select-filter-chips [data-slot='popover-trigger'].select-filter-chip,
+  .novels-filter-chips [data-slot='popover-trigger'].select-filter-chip {
     min-width: 0;
     width: auto;
     height: var(--admin-table-action-size-mobile, 2.25rem);
@@ -149,7 +149,7 @@
 }
 
 /* 分页移到表格外但仍属于列表的连续操作区；在默认区块间距基础上再收紧一档（以小说管理为基准）。 */
-.admin-redesign-page > :is(.pagination, .novels-pagination, .chapters-pagination, .moderation-pagination, .admin-pagination, [data-slot='pagination']),
+.admin-redesign-page > :is(.pagination, .novels-pagination, .chapters-pagination, .moderation-pagination, .pagination, [data-slot='pagination']),
 .admin-redesign-page--novels > .novels-pagination,
 .admin-redesign-page--chapters > .chapters-pagination {
   margin-top: calc(-1 * var(--admin-space-2));

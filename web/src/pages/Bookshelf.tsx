@@ -1,3 +1,7 @@
+import { Spinner } from '@/components/ui/spinner'
+import '@/styles/account-content.css'
+import { Button } from '@/components/ui/button'
+import Pagination from '@/components/shared/Pagination'
 import cardStyles from '../components/novel-card.module.css'
 import styles from './account.module.css'
 import shelfStyles from './bookshelf.module.css'
@@ -310,7 +314,7 @@ export default function Bookshelf() {
   if (loading) {
     return (
       <div className="loading-center" style={{ minHeight: '50vh' }}>
-        <div className="spinner spinner--lg"></div>
+        <Spinner size="lg"  />
       </div>
     )
   }
@@ -333,9 +337,9 @@ export default function Bookshelf() {
             <span className="text-sm text-muted" id="syncStatusText" role="status" aria-live="polite">
               {syncStatus}
             </span>
-            <button className="btn btn--secondary btn--sm" id="btnSyncNow" disabled={syncing || pending.size > 0} onClick={() => void manualSync()}>
+            <Button variant="secondary" size="sm"  id="btnSyncNow" disabled={syncing || pending.size > 0} onClick={() => void manualSync()}>
               {syncing ? '同步中…' : '立即同步'}
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -440,11 +444,7 @@ export default function Bookshelf() {
             )}
           </div>
         </section>
-        {totalPages > 1 && <nav className="home-pagination" aria-label="书架分页">
-          <button className="btn btn--secondary" disabled={visiblePage <= 1 || syncing} onClick={() => setPages(p => ({ ...p, [activeShelf]: visiblePage - 1 }))}>上一页</button>
-          <span>第 {visiblePage} / {totalPages} 页 · 共 {total} 条</span>
-          <button className="btn btn--secondary" disabled={visiblePage >= totalPages || syncing} onClick={() => setPages(p => ({ ...p, [activeShelf]: visiblePage + 1 }))}>下一页</button>
-        </nav>}
+        {totalPages > 1 && <Pagination variant="plain" ariaLabel="书架分页" page={visiblePage} totalPages={totalPages} busy={syncing} jump={false} summary={`共 ${total} 条`} onPage={page => setPages(current => ({ ...current, [activeShelf]: page }))} />}
       </div>
     </main>
   )
@@ -476,7 +476,7 @@ function ShelfBookCard({ novelId, title, author, coverUpdatedAt, reading, favori
       {recentView && <p className={shelfStyles.meta} title={time}>{time}</p>}
       <div className={shelfStyles.footer}>
         {recentView ? favorite ? <span className={shelfStyles.meta}>已收藏</span> : <button type="button" className={shelfStyles.favorite} disabled={pending} onClick={onFavorite}>加入收藏</button> : <span className={shelfStyles.meta} title={time || '收藏时间未知'}>{time || '收藏时间未知'}</span>}
-        <Link to={resume} className={`btn btn--sm ${reading.chapterId ? 'btn--primary' : 'btn--secondary'}`} aria-label={`${reading.chapterId ? '继续阅读' : '查看作品'}《${title}》`}>{reading.chapterId ? '继续阅读' : '查看作品'}</Link>
+        <Button asChild size="sm" variant={reading.chapterId ? 'default' : 'secondary'}><Link to={resume} aria-label={`${reading.chapterId ? '继续阅读' : '查看作品'}《${title}》`}>{reading.chapterId ? '继续阅读' : '查看作品'}</Link></Button>
       </div>
     </div>
   </article>

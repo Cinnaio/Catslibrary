@@ -86,10 +86,10 @@
 }
 
 /* Keep labels, controls, and helper copy on one predictable left edge. */
-.ai-admin-page :is(.admin-form-field, div.grid.gap-1\.5):has(> [data-slot='input']),
-.ai-admin-page :is(.admin-form-field, div.grid.gap-1\.5):has(> textarea),
-.ai-admin-page :is(.admin-form-field, div.grid.gap-1\.5):has(> [data-slot='select-trigger']),
-.ai-generation-dialog :is(.admin-form-field, div.grid.gap-1\.5):has(> [data-slot='input']) {
+.ai-admin-page :is(.form-field, div.grid.gap-1\.5):has(> [data-slot='input']),
+.ai-admin-page :is(.form-field, div.grid.gap-1\.5):has(> textarea),
+.ai-admin-page :is(.form-field, div.grid.gap-1\.5):has(> [data-slot='select-trigger']),
+.ai-generation-dialog :is(.form-field, div.grid.gap-1\.5):has(> [data-slot='input']) {
   min-width: 0;
   align-content: start;
 }
@@ -103,8 +103,8 @@
   align-items: flex-start;
 }
 
-.ai-admin-page :is(.admin-form-field, div.grid.gap-1\.5) > p.text-xs,
-.ai-generation-dialog :is(.admin-form-field, div.grid.gap-1\.5) > p.text-xs {
+.ai-admin-page :is(.form-field, div.grid.gap-1\.5) > p.text-xs,
+.ai-generation-dialog :is(.form-field, div.grid.gap-1\.5) > p.text-xs {
   max-width: 28rem;
 }
 
@@ -116,7 +116,7 @@
   justify-content: start;
 }
 
-.ai-admin-page .ai-form-grid > :is(.admin-form-field, .grid.gap-1\.5) {
+.ai-admin-page .ai-form-grid > :is(.form-field, .grid.gap-1\.5) {
   min-width: 0;
 }
 
@@ -152,7 +152,7 @@
   max-width: none;
 }
 
-.ai-config-panel .ai-provider-section > :is(.admin-form-field, .grid.gap-1\.5) [data-slot='input'] {
+.ai-config-panel .ai-provider-section > :is(.form-field, .grid.gap-1\.5) [data-slot='input'] {
   max-width: 42rem;
 }
 
@@ -213,8 +213,8 @@
 }
 
 /* AI 创作是连续工作流：模式靠近标题，字段与创作说明按层级排开。
-   标题条已由 AdminPanelHeading 承担，模式选择器位于其 actions 槽位。 */
-.ai-writing-panel .admin-panel-heading [data-slot='tabs-list'] {
+   标题条已由 PanelHeading 承担，模式选择器位于其 actions 槽位。 */
+.ai-writing-panel .panel-heading [data-slot='tabs-list'] {
   height: 2.25rem;
 }
 

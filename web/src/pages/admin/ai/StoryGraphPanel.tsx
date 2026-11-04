@@ -297,7 +297,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
         <div className="story-graph-workbench">
           <div className="story-graph-toolbar">
             <label className="story-graph-search">
-              <Input data-admin-search aria-label="搜索人物或别名" placeholder="搜索人物或别名…" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <Input data-search-field aria-label="搜索人物或别名" placeholder="搜索人物或别名…" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
             <label>
               <Checkbox checked={showThreads} onCheckedChange={(v) => setShowThreads(v === true)} />

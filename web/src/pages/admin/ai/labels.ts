@@ -4,7 +4,7 @@
  * 为什么是 .ts 而不是 shared.tsx：`react-refresh/only-export-components` 只对
  * 含组件的文件报警——在 shared.tsx 里导出工具函数会让该模块无法 fast refresh
  * （改一个映射常量就整块重载，已挂载面板的状态全丢）。同理见
- * `lib/admin-pagination.ts`。shared.tsx 只保留真正的组件。
+ * `lib/pagination.ts`。shared.tsx 只保留真正的组件。
  *
  * 这里的映射是唯一来源。此前 `AiTasksPanel`、`AiWritingPanel` 各自维护一份
  * taskKindLabel/taskStatusLabel，三份枚举表互不一致，导致 `rewrite_selection`

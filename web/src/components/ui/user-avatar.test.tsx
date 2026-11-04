@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { UserAvatar } from './user-avatar'
+import { UserAvatar } from '@/components/identity/UserAvatar'
 
 describe('UserAvatar', () => {
   it('优先显示用户图片并解析 API 相对地址', () => {

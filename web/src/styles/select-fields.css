@@ -1,22 +1,13 @@
 /* Selection fields share Input material. Geometry comes from their surrounding
    controls; widths stay with each consumer. data-slot can be replaced by Radix
-   Slot (CustomSelect becomes popover-trigger), so data-field is the stable hook. */
-:where(.admin-layout, .admin-dialog, .ai-generation-dialog) {
-  --input-radius: var(--admin-input-radius);
-  --field-control-height: var(--admin-control-height);
-  --field-control-padding-inline: 0.75rem;
-  --field-control-font-size: var(--management-control-label-size);
-}
+   Slot (SearchSelect becomes popover-trigger), so data-field is the stable hook. */
 
 /* The shared control radius belongs to single-line fields, including native ones. */
-:where(.admin-layout, .admin-dialog, .ai-generation-dialog) textarea {
-  --input-radius: var(--radius-lg);
-}
 
-.admin-pagination {
-  --field-control-height: var(--admin-pagination-control-size);
+.pagination {
+  --field-control-height: var(--pagination-control-size);
   --field-control-padding-inline: 0.75rem;
-  --field-control-font-size: var(--admin-pagination-font-size);
+  --field-control-font-size: var(--pagination-font-size);
 }
 
 .admin-floating-dock {
@@ -78,7 +69,7 @@
 }
 
 /* Portal surfaces carry an explicit class. No ancestor-dependent admin rules:
-   both Radix Select and searchable CustomSelect keep the same paper/menu scale. */
+   both Radix Select and searchable SearchSelect keep the same paper/menu scale. */
 .shared-select-content {
   max-width: min(var(--radix-select-content-available-width, var(--radix-popover-content-available-width, calc(100vw - 2rem))), calc(100vw - 2rem));
   border: 1px solid var(--input-border);
@@ -163,13 +154,6 @@
 }
 
 @media (max-width: 767px) {
-  :where(.admin-layout, .admin-dialog, .ai-generation-dialog) {
-    --field-control-font-size: 1rem;
-  }
-
-  :root :is(.admin-layout, .admin-dialog, .ai-generation-dialog) [data-slot='input'] {
-    font-size: var(--field-control-font-size);
-  }
 }
 
 @media (max-width: 900px), (pointer: coarse) {

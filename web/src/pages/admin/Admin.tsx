@@ -1,3 +1,4 @@
+import '@/styles/admin-action-layout.css'
 import '../../styles/_admin.css'
 import '../../styles/_admin-ui.css'
 import '../../styles/admin-operations.css'
@@ -39,7 +40,7 @@ export default function Admin() {
       const t = e.target as HTMLElement | null
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       if (typing) return
-      const search = document.querySelector<HTMLElement>('.tab-content [data-admin-search]')
+      const search = document.querySelector<HTMLElement>('.tab-content [data-search-field]')
       if (!search) return
       e.preventDefault()
       search.focus()

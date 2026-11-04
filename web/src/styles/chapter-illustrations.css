@@ -519,15 +519,6 @@
   font-size: 14px;
   font-weight: 500;
 }
-.illustration-manager-heading .btn {
-  min-height: 32px;
-  padding: 5px 12px;
-  border: 1px solid var(--illustration-line);
-  border-radius: 7px;
-  background: var(--bg-card);
-  box-shadow: none;
-  font-size: 12px;
-}
 .illustration-manager > span {
   color: var(--illustration-muted);
 }
@@ -652,22 +643,6 @@
   flex: 1;
   color: var(--illustration-muted);
   font-size: 11px;
-}
-.illustration-editor-footer .btn {
-  min-height: 38px;
-  padding: 8px 15px;
-  border-radius: 8px;
-  box-shadow: none;
-  font-size: 13px;
-}
-.illustration-editor-footer .btn--secondary {
-  border: 1px solid var(--illustration-line);
-  background: var(--bg-card);
-}
-.illustration-editor-footer .btn--primary {
-  border: 1px solid transparent;
-  background: var(--accent);
-  color: var(--accent-ink, #fff);
 }
 .illustration-editor-body > [role='alert'] {
   padding: 10px 12px;

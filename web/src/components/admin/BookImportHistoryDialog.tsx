@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BookImportHistoryItem, BookImportRollbackResult } from '@shared/types'
 import { bookImportApi, newOperationId } from '@/lib/api'
 import { useConfirm } from '@/components/feedback'
-import { AdminDialogBody, AdminDialogContent } from './AdminDialog'
-import Pagination from './Pagination'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import Pagination from "@/components/shared/Pagination"
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import AdminStatusBadge from './AdminStatusBadge'
@@ -97,12 +97,12 @@ export default function BookImportHistoryDialog({
         if (!rollbackLock.current) onOpenChange(value)
       }}
     >
-      <AdminDialogContent className="book-import-history-dialog">
+      <DialogFrame className="book-import-history-dialog">
         <DialogHeader>
           <DialogTitle>导入历史</DialogTitle>
           <DialogDescription>查看当前账号的导入记录，并撤回仍可恢复的变更。</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody className="book-import-history__body" aria-busy={loading || !!busyId}>
+        <DialogBody className="book-import-history__body" aria-busy={loading || !!busyId}>
           {error && (
             <p className="book-import-history__error" role="alert">
               {error}
@@ -166,7 +166,7 @@ export default function BookImportHistoryDialog({
               </article>
             ))
           )}
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter className="book-import-history__footer">
           <Pagination
             variant="dialog"
@@ -180,7 +180,7 @@ export default function BookImportHistoryDialog({
             <RefreshCw aria-hidden="true" />
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }

@@ -1,7 +1,8 @@
+import '@/styles/select-fields.css'
 import { useEffect, useState } from 'react'
 import { aiApi, type AiProviderConfig, type AiProviderPreset } from '@/lib/api'
 import { useToast } from '@/components/feedback'
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -119,7 +120,7 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
     <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-44 flex-1">
-          <AdminFormField label="已保存端点" htmlFor={`ai-${scope}-preset`}>
+          <FormField label="已保存端点" htmlFor={`ai-${scope}-preset`}>
             <select
               id={`ai-${scope}-preset`}
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -135,7 +136,7 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                 </option>
               ))}
             </select>
-          </AdminFormField>
+          </FormField>
         </div>
         {loadError ? (
           <Button
@@ -206,7 +207,7 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                 void act('save')
               }}
             >
-              <AdminFormField label="预设名称" htmlFor={`preset-${scope}-name`}>
+              <FormField label="预设名称" htmlFor={`preset-${scope}-name`}>
                 <Input
                   id={`preset-${scope}-name`}
                   required
@@ -216,8 +217,8 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                   onChange={(e) => setEditor({ ...editor, name: e.target.value })}
                   placeholder="例如：自建 NewAPI"
                 />
-              </AdminFormField>
-              <AdminFormField label="接口地址" htmlFor={`preset-${scope}-url`}>
+              </FormField>
+              <FormField label="接口地址" htmlFor={`preset-${scope}-url`}>
                 <Input
                   id={`preset-${scope}-url`}
                   type="url"
@@ -228,8 +229,8 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                   onChange={(e) => setEditor({ ...editor, baseUrl: e.target.value })}
                   placeholder="https://api.example.com/v1"
                 />
-              </AdminFormField>
-              <AdminFormField label="模型名称" htmlFor={`preset-${scope}-model`}>
+              </FormField>
+              <FormField label="模型名称" htmlFor={`preset-${scope}-model`}>
                 <Input
                   id={`preset-${scope}-model`}
                   required
@@ -238,8 +239,8 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                   value={editor.model}
                   onChange={(e) => setEditor({ ...editor, model: e.target.value })}
                 />
-              </AdminFormField>
-              <AdminFormField
+              </FormField>
+              <FormField
                 label="密钥"
                 htmlFor={`preset-${scope}-key`}
                 hint={dialog === 'edit' ? '留空保留此预设原有密钥。' : copyCurrentKey ? '留空使用当前服务已保存的密钥。' : '密钥仅保存在服务端。'}
@@ -253,7 +254,7 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                   value={editor.apiKey}
                   onChange={(e) => setEditor({ ...editor, apiKey: e.target.value })}
                 />
-              </AdminFormField>
+              </FormField>
             </form>
           )}
           <DialogFooter>

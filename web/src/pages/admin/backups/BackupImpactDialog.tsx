@@ -3,11 +3,11 @@ import type { BackupImpactReport, BackupImpactSummary, BackupTask } from '@share
 import { BACKUP_IMPACT_GROUPS } from '@shared/backups'
 import { backupsApi } from '@/lib/backups-api'
 import { useToast } from '@/components/feedback'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import CustomSelect from '@/components/admin/CustomSelect'
-import Pagination from '@/components/admin/Pagination'
-import { LoadingState } from '@/components/admin/AsyncStates'
+import SearchSelect from "@/components/shared/SearchSelect"
+import Pagination from "@/components/shared/Pagination"
+import { LoadingState } from "@/components/shared/AsyncStates"
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
@@ -115,7 +115,7 @@ export default function BackupImpactDialog({
         if (!open && !checking) onClose()
       }}
     >
-      <AdminDialogContent
+      <DialogFrame
         variant="editor"
         className="backup-impact-dialog"
         onEscapeKeyDown={(event) => {
@@ -129,7 +129,7 @@ export default function BackupImpactDialog({
           <DialogTitle>回滚影响预览</DialogTitle>
           <DialogDescription>比较当前线上数据与所选备份，以下变化描述回滚后的结果。</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody className="backup-fields">
+        <DialogBody className="backup-fields">
           {report && (
             <>
               <p className="backup-id">
@@ -165,7 +165,7 @@ export default function BackupImpactDialog({
             </>
           )}
           <div className="backup-actions">
-            <CustomSelect
+            <SearchSelect
               aria-label="差异类型"
               value={group}
               disabled={checking}
@@ -177,7 +177,7 @@ export default function BackupImpactDialog({
                 setPage(1)
               }}
             />
-            <CustomSelect
+            <SearchSelect
               aria-label="变化方向"
               value={change}
               disabled={checking}
@@ -250,7 +250,7 @@ export default function BackupImpactDialog({
             </p>
           )}
           <p className="backup-hint">继续前会检查报告是否仍有效；执行恢复前会在停写状态下再次检查，业务变化时必须重新预检。</p>
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           <Button type="button" variant="secondary" disabled={checking} onClick={onClose}>
             关闭
@@ -270,7 +270,7 @@ export default function BackupImpactDialog({
             {checking ? '正在核对业务数据…' : '继续确认回滚'}
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }

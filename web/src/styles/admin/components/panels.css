@@ -5,57 +5,18 @@
 
 /* 后台面板表面。scrape 步进卡 / 任务卡通过组合 .admin-panel-card 复用，不再另立覆写。
    注意：本文件无 @layer，故这条压过 Tailwind 的 @layer utilities —— 调 import 顺序会静默失效。 */
-.admin-panel-card {
-  border: 0;
-  border-radius: var(--radius-2xl); /* 20px — 与章节目录范本的大卡片一致 */
-  background: var(--admin-panel);
-  box-shadow: none;
-}
-
-.admin-panel-card {
-  padding: var(--management-panel-padding);
-}
 
 /* 后台卡片统一采用无分割线的标题行，卡片正文沿用自身留白与内部结构。 */
-.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] {
-  min-height: 0;
-  padding: var(--management-panel-padding) var(--management-panel-padding) 1.5rem;
-  border-bottom: 0;
-  gap: 0;
-}
-
-.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] [data-slot='card-title'],
-.admin-panel-card [data-slot='card-title'] {
-  font-family: var(--admin-font-serif), "Newsreader", "Georgia", "Source Han Serif SC", "Noto Serif SC", serif;
-  color: var(--text-primary);
-  font-size: var(--admin-section-title-size);
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  line-height: 1.35;
-}
-
-.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-content'] {
-  padding: var(--management-panel-padding);
-}
-
-.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] [data-slot='card-action'] {
-  align-self: center;
-  margin-top: 0;
-}
 
 /* Card 自带的 py-6 只适合无标题的轻量表面；带 header/content 的卡片让内边距
    由两个槽位各自管理，标题区才能像附件一样从卡片边缘铺到边缘。
-   AdminPanelHeading 已逐步取代 CardHeader 承担标题条职责（代理设置、AI 各面板），
+   PanelHeading 已逐步取代 CardHeader 承担标题条职责（代理设置、AI 各面板），
    故同样纳入归零条件；否则换标题后卡片会重新拿到 padding，与 CardContent 叠加。
 
    同样必须归零 gap：Card 自身的类名是 `flex flex-col gap-6`（card.tsx），
    gap 与 padding 相互独立，只清 padding 会在标题条与内容区之间留下 24px
    死留白——表现为标题条下方一段无来由的空白。两个槽位各自已有内边距，
    gap 恒应为 0。 */
-.admin-redesign-page :is(.admin-panel-card, [data-slot='card']):has(> [data-slot='card-header'], > .admin-panel-heading) {
-  padding: 0;
-  gap: 0;
-}
 
 .action-row,
 .input-row {

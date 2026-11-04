@@ -9,7 +9,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-control);
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: var(--button-label-size, 13px);
   line-height: 1.5;
   font-weight: 500;
   white-space: nowrap;
@@ -89,7 +89,7 @@
 .small {
   min-height: var(--control-height-compact);
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--button-label-size, 12px);
   border-radius: var(--radius-compact);
 }
 .large {

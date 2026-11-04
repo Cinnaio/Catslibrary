@@ -1,3 +1,4 @@
+import '@/styles/input-fields.css'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Dialog, Switch } from 'radix-ui'
@@ -8,7 +9,7 @@ import { useSiteBranding } from '../../lib/site-branding'
 import { useToast } from '../feedback'
 import { AccountMenu } from '../AccountMenu'
 import { ThemeMenu } from '../ThemeMenu'
-import { UserAvatar } from '../ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import SiteNotice from '../SiteNotice'
 import styles from './workspace-shell.module.css'
 

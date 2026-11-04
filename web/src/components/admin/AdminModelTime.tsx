@@ -1,3 +1,4 @@
+import './AdminModelTime.css'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 

@@ -114,26 +114,6 @@
   gap: 4px;
   min-height: 36px;
 }
-.page :global(.filter-btn) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 5px 11px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-compact);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-}
-.page :global(.filter-btn:hover) {
-  color: var(--accent);
-  background: var(--accent-subtle);
-}
-.page :global(.filter-btn--active) {
-  background: var(--accent-light);
-  color: var(--accent);
-}
 .page :global(.home-category-groups) {
   display: grid;
   gap: 16px;
@@ -372,7 +352,6 @@
   .page :global(.filter-row__label) {
     padding: 4px 0;
   }
-  .page :global(.filter-btn),
   .page :global(.sort-tab) {
     min-height: 44px;
   }

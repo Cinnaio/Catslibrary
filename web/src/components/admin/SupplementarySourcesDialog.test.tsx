@@ -13,9 +13,9 @@ const mocks = vi.hoisted(() => ({
   novelIndex: vi.fn(),
 }))
 vi.mock('@/lib/api', () => ({ supplementarySourceApi: mocks, adminApi: { novelIndex: mocks.novelIndex } }))
-// 共享下拉（CustomSelect）是 Popover + Command，jsdom 下弹层渲染不稳定；
+// 共享下拉（SearchSelect）是 Popover + Command，jsdom 下弹层渲染不稳定；
 // 用原生 select 承接同一套 props，验证调用方的取值与无障碍标签。
-vi.mock('./CustomSelect', () => ({
+vi.mock("@/components/shared/SearchSelect", () => ({
   default: ({ options, value, onChange, ...props }: { options: Array<{ value: string; label: string }>; value: string; onChange: (value: string) => void; [key: string]: unknown }) => (
     <select
       aria-labelledby={props['aria-labelledby'] as string}

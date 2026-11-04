@@ -1,3 +1,4 @@
+import '@/styles/novel-indicators.css'
 /** 封面共用状态：只读提示，不在书目链接内嵌套操作按钮。 */
 export default function NovelCoverStatus({ updates = 0, read = false, favorite = false }: { updates?: number; read?: boolean; favorite?: boolean }) {
   return (

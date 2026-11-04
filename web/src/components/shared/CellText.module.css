@@ -1,0 +1,14 @@
+.text {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.strong {
+  font-size: var(--ui-row-title-size, 14px);
+  font-weight: 650;
+  color: var(--text-primary);
+}

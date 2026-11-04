@@ -13,7 +13,7 @@
 }
 
 /* 账户四视图统一到共享数据面板后，页脚沿用同一套面板语言。
-   分页页脚由 .admin-pagination 承担；本类现在只服务邀请码那一处
+   分页页脚由 .pagination 承担；本类现在只服务邀请码那一处
    （有统计文案 + 清理按钮，没有分页）。 */
 .account-settings-panel__footer {
   display: flex;
@@ -147,8 +147,8 @@
   min-height: 0;
 }
 
-.account-users-filters .admin-search,
-.account-record-filters .admin-search {
+.account-users-filters .search-field,
+.account-record-filters .search-field {
   width: min(22rem, 100%);
   max-width: 22rem;
   flex: 1 1 16rem;
@@ -168,9 +168,9 @@
   justify-content: flex-start;
 }
 
-.account-users-filters .admin-filter-chips,
-.account-audit-filters .admin-filter-chips,
-.account-invite-filters .admin-filter-chips {
+.account-users-filters .select-filter-chips,
+.account-audit-filters .select-filter-chips,
+.account-invite-filters .select-filter-chips {
   margin-left: 0;
 }
 
@@ -254,7 +254,7 @@
 .account-password-dialog > form {
   display: contents;
 }
-.account-password-dialog .admin-dialog__body {
+.account-password-dialog .dialog-frame__body {
   display: grid;
   gap: 1rem;
 }
@@ -326,7 +326,7 @@
     flex-wrap: wrap;
   }
   .admin-redesign-page--settings .admin-tab-header__actions:has(#account-user-search),
-  .admin-redesign-page--settings .admin-tab-header__actions:has(#account-user-search) .admin-search {
+  .admin-redesign-page--settings .admin-tab-header__actions:has(#account-user-search) .search-field {
     width: 100%;
   }
   .account-users-filters__label {
@@ -583,7 +583,7 @@
 }
 @media (max-width: 480px) {
   .admin-redesign-page--settings .admin-tab-header__actions,
-  .admin-redesign-page--settings .admin-tab-header__actions .admin-search {
+  .admin-redesign-page--settings .admin-tab-header__actions .search-field {
     width: 100%;
   }
 }

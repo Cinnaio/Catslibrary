@@ -1,3 +1,4 @@
+import '@/styles/input-fields.css'
 /**
  * 草稿选段改写：在正文里选中一段，交给 AI 润色 / 扩写 / 精简 / 按自定义要求改写。
  *

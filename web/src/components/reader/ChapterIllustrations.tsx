@@ -1,3 +1,6 @@
+import '@/styles/select-fields.css'
+import '@/styles/input-fields.css'
+import { Button } from '@/components/ui/button'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Dialog } from 'radix-ui'
@@ -349,9 +352,9 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
               <ImagePlus size={18} aria-hidden="true" />
               <strong>章节插图</strong>
             </div>
-            <button type="button" className="btn btn--secondary btn--sm" disabled={busy} onClick={onExit}>
+            <Button variant="secondary" size="sm" type="button"  disabled={busy} onClick={onExit}>
               完成
-            </button>
+            </Button>
           </div>
           {!data ? (
             <span role="status">正在加载插图…</span>
@@ -629,17 +632,17 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
             </div>
             <div className="illustration-editor-footer">
               <span className="illustration-save-note">保存后所有读者可见</span>
-              <button className="btn btn--secondary" type="button" disabled={busy} onClick={() => setEditor(null)}>
+              <Button variant="secondary"  type="button" disabled={busy} onClick={() => setEditor(null)}>
                 取消
-              </button>
-              <button
-                className="btn btn--primary"
+              </Button>
+              <Button variant="default"
+
                 type="button"
                 disabled={busy || !fresh || (!file && !editor?.item)}
                 onClick={() => editor && void commit(editor.item, editor.index, { caption, size }, file)}
               >
                 {busy ? '保存中…' : '保存插图'}
-              </button>
+              </Button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

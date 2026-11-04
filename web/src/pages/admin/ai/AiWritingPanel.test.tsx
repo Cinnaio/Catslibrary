@@ -53,7 +53,7 @@ vi.mock('@/components/feedback', () => ({
   useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }),
 }))
 
-vi.mock('@/components/admin/CustomSelect', () => ({
+vi.mock("@/components/shared/SearchSelect", () => ({
   default: (props: { options: Array<{ value: string; label: string }>; value: string; onChange: (value: string) => void }) => (
     <select aria-label="目标小说" value={props.value} onChange={(event) => props.onChange(event.target.value)}>
       <option value="">请选择小说</option>
@@ -387,11 +387,11 @@ describe('AiWritingPanel', () => {
     await selectNovel()
     switchToContinue()
 
-    fireEvent.click(screen.getByRole('button', { name: '多章规划' }))
+    fireEvent.click(screen.getByRole('radio', { name: '多章规划' }))
 
     const count = screen.getByLabelText('续写章节数') as HTMLInputElement
     expect(count.value).toBe('2')
-    expect(screen.getByText('多章续写大纲')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /按情节推荐生成大纲/ })).toBeEnabled()
   })
 
   it('重新提取完成后不应被在途的旧风格画像读取覆盖', async () => {
@@ -419,6 +419,7 @@ describe('AiWritingPanel', () => {
 
   it('点击候选项把情节方向填入创作要求', async () => {
     await selectNovel()
+    switchToContinue()
 
     fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
@@ -431,6 +432,7 @@ describe('AiWritingPanel', () => {
 
   it('填入候选后可以撤销，恢复被覆盖的原文', async () => {
     await selectNovel()
+    switchToContinue()
 
     // 先手写一段内容
     const textarea = screen.getByLabelText('本次情节') as HTMLTextAreaElement
@@ -468,7 +470,7 @@ describe('AiWritingPanel', () => {
     })
     await selectNovel()
     switchToContinue()
-    fireEvent.click(screen.getByRole('button', { name: '多章规划' }))
+    fireEvent.click(screen.getByRole('radio', { name: '多章规划' }))
 
     const textarea = screen.getByLabelText('本次情节') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '夭夜在寝宫与他独处，借双修稳固修为。' } })
@@ -491,7 +493,7 @@ describe('AiWritingPanel', () => {
     })
     await selectNovel()
     switchToContinue()
-    fireEvent.click(screen.getByRole('button', { name: '多章规划' }))
+    fireEvent.click(screen.getByRole('radio', { name: '多章规划' }))
     fireEvent.click(screen.getByRole('button', { name: /按情节推荐生成大纲/ }))
 
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
@@ -548,7 +550,7 @@ describe('AiWritingPanel', () => {
     })
     await selectNovel()
     switchToContinue()
-    fireEvent.click(screen.getByRole('button', { name: '多章规划' }))
+    fireEvent.click(screen.getByRole('radio', { name: '多章规划' }))
 
     fireEvent.click(screen.getByRole('button', { name: /按情节推荐生成大纲/ }))
 
@@ -600,10 +602,11 @@ describe('AiWritingPanel', () => {
 
   it('未取候选时右列显示内联提示，取回后替换为候选列表', async () => {
     await selectNovel()
+    switchToContinue()
 
     // 未取候选时不占一整块空态：改为一行提示，且此时不分栏（左列独占整幅）
     const aside = document.querySelector('.ai-writing-brief-layout__aside')
-    expect(aside?.querySelector('.ai-writing-suggest-placeholder')).toBeTruthy()
+    expect(aside?.querySelector('.ai-writing-deck-empty')).toBeTruthy()
     expect(aside?.querySelector('.ai-writing-suggest__item')).toBeNull()
     expect(document.querySelector('.ai-writing-brief-layout')?.classList.contains('is-aside-empty')).toBe(true)
 
@@ -611,7 +614,7 @@ describe('AiWritingPanel', () => {
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
 
     await waitFor(() => {
-      expect(document.querySelector('.ai-writing-suggest-placeholder')).toBeNull()
+      expect(document.querySelector('.ai-writing-deck-empty')).toBeNull()
       expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2)
     })
     // 取回候选后进入分栏，候选与创作要求同处一个容器，点选无需滚动即可看到左侧变化
@@ -621,6 +624,7 @@ describe('AiWritingPanel', () => {
 
   it('切换小说时立即清空上一本的候选与撤销记录', async () => {
     await selectNovel()
+    switchToContinue()
 
     fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
     await waitFor(() => expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2))
@@ -628,7 +632,7 @@ describe('AiWritingPanel', () => {
     // 候选属于某一部小说，切书后留在右列会被误认成新书的方向
     fireEvent.change(screen.getByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_2' } })
     await waitFor(() => expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(0))
-    expect(document.querySelector('.ai-writing-suggest-placeholder')).toBeTruthy()
+    expect(document.querySelector('.ai-writing-deck-empty')).toBeTruthy()
     expect(document.querySelector('.ai-writing-brief-layout')?.classList.contains('is-aside-empty')).toBe(true)
   })
 
@@ -640,6 +644,7 @@ describe('AiWritingPanel', () => {
     api.plotSuggestions.mockReturnValue(pending.promise)
 
     await selectNovel()
+    switchToContinue()
     fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
 
@@ -660,7 +665,7 @@ describe('AiWritingPanel', () => {
 
     expect(screen.queryByText('这是上一本书的情节方向')).toBeNull()
     expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(0)
-    expect(document.querySelector('.ai-writing-suggest-placeholder')).toBeTruthy()
+    expect(document.querySelector('.ai-writing-deck-empty')).toBeTruthy()
     // 在途请求返回时 finally 的守卫会拦住对 busy 的复位，故切书必须自己归零；
     // 否则按钮永久停在「推荐中…」，而新书其实没有任何在途请求。
     expect(screen.getByRole('button', { name: '推荐情节' })).toBeEnabled()
@@ -668,6 +673,7 @@ describe('AiWritingPanel', () => {
 
   it('候选收起后列表隐藏但数据保留，可再次展开', async () => {
     await selectNovel()
+    switchToContinue()
 
     fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
     await waitFor(() => expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2))
@@ -677,10 +683,10 @@ describe('AiWritingPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '收起' }))
     expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(0)
     // 关键：不得回到「尚未取候选」的空态，也不得退出分栏
-    expect(document.querySelector('.ai-writing-suggest-placeholder')).toBeNull()
+    expect(document.querySelector('.ai-writing-deck-empty')).toBeNull()
     expect(document.querySelector('.ai-writing-brief-layout')?.classList.contains('is-aside-empty')).toBe(false)
     // 收起后要交代「有什么被收起来了」
-    expect(screen.getByText(/已取回 2 条方向/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /灵感候选.*2/ })).toBeInTheDocument()
 
     // 无需重新请求即可展开回来
     fireEvent.click(screen.getByRole('button', { name: '展开' }))

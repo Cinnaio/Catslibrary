@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
-// jsdom 不实现 ResizeObserver，而 cmdk（CustomSelect 的下拉）在挂载时就会构造它。
+// jsdom 不实现 ResizeObserver，而 cmdk（SearchSelect 的下拉）在挂载时就会构造它。
 // 不补这个桩，任何打开过下拉的用例都会以 ReferenceError 崩掉。
 if (!('ResizeObserver' in globalThis)) {
   class ResizeObserverStub {

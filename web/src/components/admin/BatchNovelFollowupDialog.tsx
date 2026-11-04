@@ -4,8 +4,8 @@ import { url, authHeaders } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AdminDialogBody, AdminDialogContent } from './AdminDialog'
-import CustomSelect from './CustomSelect'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import SearchSelect from "@/components/shared/SearchSelect"
 import '@/styles/admin/pages/novel-followup.css'
 
 export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: Array<{ id: string; title: string }>; onClose: () => void }) {
@@ -48,7 +48,7 @@ export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: 
         if (!open && !busy) onClose()
       }}
     >
-      <AdminDialogContent
+      <DialogFrame
         className="novel-followup-dialog batch-followup-dialog"
         onOpenAutoFocus={(event) => {
           event.preventDefault()
@@ -61,20 +61,20 @@ export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: 
           </DialogTitle>
           <DialogDescription>将设置应用到选中的 {novels.length} 本作品。</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody className="novel-followup-dialog__body">
+        <DialogBody className="novel-followup-dialog__body">
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}
             </p>
           )}
           {tooMany && (
-            <p role="alert" className="admin-dialog-hint">
+            <p role="alert" className="dialog-frame-hint">
               单次最多设置 {MAX_BATCH_FOLLOWUPS} 本，请减少选择后重试。
             </p>
           )}
           <div className="novel-followup-dialog__frequency">
             <Label id="batch-followup-mode">追更操作</Label>
-            <CustomSelect
+            <SearchSelect
               aria-labelledby="batch-followup-mode"
               disabled={busy}
               value={mode}
@@ -89,7 +89,7 @@ export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: 
                 { value: 'frequency', label: '只调整检查频率' },
               ]}
             />
-            <p className="admin-dialog-hint">
+            <p className="dialog-frame-hint">
               {mode === 'pause'
                 ? '保留原有检查频率，正在执行的任务仍会完成。'
                 : mode === 'frequency'
@@ -100,7 +100,7 @@ export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: 
           {mode !== 'pause' && (
             <div className="novel-followup-dialog__frequency">
               <Label id="batch-followup-frequency">检查频率</Label>
-              <CustomSelect
+              <SearchSelect
                 aria-labelledby="batch-followup-frequency"
                 disabled={busy}
                 value={hours}
@@ -111,7 +111,7 @@ export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: 
                 }}
                 options={FOLLOWUP_INTERVAL_HOURS.map((h) => ({ value: String(h), label: `每 ${h} 小时` }))}
               />
-              <p className="admin-dialog-hint">下次检查从保存时重新安排；无新章时逐步降频，失败后自动重试。</p>
+              <p className="dialog-frame-hint">下次检查从保存时重新安排；无新章时逐步降频，失败后自动重试。</p>
             </div>
           )}
           <details className="batch-followup-dialog__selection">
@@ -134,15 +134,15 @@ export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: 
                     .map((item) => (
                       <li key={item.novelId}>
                         <span>{novels.find((novel) => novel.id === item.novelId)?.title || item.title}</span>
-                        <span className="admin-dialog-hint">{item.reason}</span>
+                        <span className="dialog-frame-hint">{item.reason}</span>
                       </li>
                     ))}
                 </ul>
               )}
-              {result.saved > 0 && <p className="admin-dialog-hint">设置已保存，可在每本作品的「追更设置」中查看。</p>}
+              {result.saved > 0 && <p className="dialog-frame-hint">设置已保存，可在每本作品的「追更设置」中查看。</p>}
             </section>
           )}
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
             {result ? '关闭' : '取消'}
@@ -151,7 +151,7 @@ export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: 
             {busy ? '正在保存…' : result ? '已应用' : '应用设置'}
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }

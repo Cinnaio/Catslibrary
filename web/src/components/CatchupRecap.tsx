@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 /**
  * 回来接着读 —— 小说详情页的「隔了很久回来」回顾入口。
  * 过期天数阈值由后端设置下发（/ai/status 的 catchupStaleDays），前端不再自带一份；
@@ -86,9 +87,9 @@ export default function CatchupRecap({ novelId, novelTitle, lastReadAt = 0 }: Ca
           <div className="catchup-card__status catchup-card__status--error">
             <span>{error}</span>
             {!quotaExhausted && (
-              <button type="button" className="btn btn--secondary btn--sm" onClick={() => void generate()}>
+              <Button variant="secondary" size="sm" type="button"  onClick={() => void generate()}>
                 重试
-              </button>
+              </Button>
             )}
           </div>
         ) : empty ? (
@@ -100,13 +101,13 @@ export default function CatchupRecap({ novelId, novelTitle, lastReadAt = 0 }: Ca
                 : '还没有找到这本书的阅读进度。'}
           </p>
         ) : (
-          <button type="button" className="btn btn--primary" onClick={() => void generate()} disabled={loading || quotaExhausted}>
+          <Button variant="default" type="button"  onClick={() => void generate()} disabled={loading || quotaExhausted}>
             {loading
               ? '正在回顾…'
               : quotaExhausted
                 ? '今日 AI 次数已用完'
                 : `AI 回顾这段剧情${remaining !== null ? `（今日剩 ${remaining} 次）` : ''}`}
-          </button>
+          </Button>
         )}
       </div>
     </section>

@@ -300,14 +300,14 @@
   gap: 1.25rem;
 }
 
-.ai-service :is(.ai-writing-workspace, .ai-config-panel, .ai-params-panel) .ai-form-grid > .admin-form-field {
+.ai-service :is(.ai-writing-workspace, .ai-config-panel, .ai-params-panel) .ai-form-grid > .form-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 0.5rem;
 }
 
-.ai-service .ai-params-panel .ai-form-grid > .admin-form-field > :is([data-slot], p) {
+.ai-service .ai-params-panel .ai-form-grid > .form-field > :is([data-slot], p) {
   grid-column: auto;
   grid-row: auto;
 }
@@ -356,7 +356,7 @@
 .ai-service .ai-cover-card:has(.ai-cover-workspace) > [data-slot='card-content'] {
   padding: 0;
 }
-.ai-service .ai-cover-card:has(.ai-cover-workspace) > .admin-panel-heading {
+.ai-service .ai-cover-card:has(.ai-cover-workspace) > .panel-heading {
   padding: 0;
 }
 .ai-service .ai-cover-card:has(.ai-cover-workspace) > [data-slot='card-content'] > section,
@@ -438,7 +438,7 @@
   background: transparent;
   padding: 0;
 }
-.ai-service .ai-config-providers-card > .admin-panel-heading {
+.ai-service .ai-config-providers-card > .panel-heading {
   padding: 0;
 }
 .ai-service.ai-admin-page .ai-config-providers-card > [data-slot='card-content'] {
@@ -530,7 +530,7 @@
 .ai-service .ai-prompt-details[open] summary {
   margin-bottom: 1rem;
 }
-.ai-service .ai-generations-toolbar .admin-search {
+.ai-service .ai-generations-toolbar .search-field {
   flex: 1 1 17.5rem;
   max-width: 22rem;
 }
@@ -543,8 +543,8 @@
   gap: 0.5rem;
   min-width: 0;
 }
-.ai-service .ai-generations-card > :is(.admin-empty-state, .admin-async-state),
-.ai-service .ai-generations-card .ai-list-body > :is(.admin-empty-state, .admin-async-state) {
+.ai-service .ai-generations-card > :is(.empty-state, .admin-async-state),
+.ai-service .ai-generations-card .ai-list-body > :is(.empty-state, .admin-async-state) {
   padding: 2.5rem 1.25rem;
 }
 .ai-service .ai-generations-card .ai-list-body {
@@ -574,16 +574,16 @@
     min-height: 0;
     gap: 0.5rem;
   }
-  .ai-service .ai-generations-filter-rail > .admin-search,
-  .ai-service .ai-generations-filter-rail > .admin-filter-chips {
+  .ai-service .ai-generations-filter-rail > .search-field,
+  .ai-service .ai-generations-filter-rail > .select-filter-chips {
     width: 100%;
     flex: 0 0 auto;
   }
-  .ai-service .ai-generations-filter-rail > .admin-search {
+  .ai-service .ai-generations-filter-rail > .search-field {
     height: var(--admin-control-height, 2.5rem);
     max-width: none;
   }
-  .ai-service .ai-generations-filter-rail > .admin-filter-chips {
+  .ai-service .ai-generations-filter-rail > .select-filter-chips {
     justify-content: flex-start;
     margin-left: 0;
     /* 筛选胶囊按内容宽度换行，避免全宽表单规则把横向轨道撑出手机视口。 */
@@ -593,7 +593,7 @@
     mask-image: none;
     -webkit-mask-image: none;
   }
-  .ai-service .ai-generations-filter-rail .admin-filter-chip {
+  .ai-service .ai-generations-filter-rail .select-filter-chip {
     width: auto !important;
     max-width: 100% !important;
   }
@@ -620,7 +620,7 @@
   .ai-service .ai-cover-results > section {
     padding: 1rem;
   }
-  .ai-service :is(.ai-generations-toolbar, .ai-generations-filter-rail) .admin-search {
+  .ai-service :is(.ai-generations-toolbar, .ai-generations-filter-rail) .search-field {
     max-width: none;
     width: 100%;
     flex: 0 0 auto;
@@ -656,13 +656,13 @@
   gap: 1.25rem 1rem;
   align-items: start;
 }
-.ai-service .ai-writing-baseline-fields .admin-form-field {
+.ai-service .ai-writing-baseline-fields .form-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 0.5rem;
 }
-.ai-service .ai-writing-baseline-fields .admin-form-field > label {
+.ai-service .ai-writing-baseline-fields .form-field > label {
   height: 1.25rem;
   line-height: 1.25rem;
   margin: 0;
@@ -861,17 +861,17 @@
 .ai-service .ai-writing-profile-list > .ai-analysis-row:hover {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--admin-border));
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-row > .flex {
+:is(.ai-service, .dialog-frame) .ai-analysis-row > .flex {
   align-items: center;
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='input'] {
+:is(.ai-service, .dialog-frame) .ai-analysis-row [data-slot='input'] {
   width: 3.5rem;
   min-height: 1.75rem;
   height: 1.75rem;
   border-radius: var(--radius-control) !important;
   text-align: center;
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'] {
+:is(.ai-service, .dialog-frame) .ai-analysis-row [data-slot='button'] {
   border: 1px solid var(--admin-border, #e5e3dc);
   background: var(--admin-panel);
   min-height: 1.75rem !important;
@@ -881,17 +881,17 @@
   font-weight: 550;
   border-radius: var(--radius-control) !important;
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'].ai-analysis-btn-primary {
+:is(.ai-service, .dialog-frame) .ai-analysis-row [data-slot='button'].ai-analysis-btn-primary {
   background: var(--admin-accent, #D97757) !important;
   border-color: var(--admin-accent, #D97757) !important;
   color: var(--accent-ink) !important;
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'].ai-analysis-btn-primary:hover {
+:is(.ai-service, .dialog-frame) .ai-analysis-row [data-slot='button'].ai-analysis-btn-primary:hover {
   background: var(--accent-hover) !important;
   border-color: var(--accent-hover) !important;
   color: var(--accent-ink) !important;
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'].ai-analysis-btn-icon {
+:is(.ai-service, .dialog-frame) .ai-analysis-row [data-slot='button'].ai-analysis-btn-icon {
   width: 1.75rem !important;
   min-width: 1.75rem !important;
   height: 1.75rem !important;
@@ -901,7 +901,7 @@
   align-items: center;
   justify-content: center;
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-sample-pill {
+:is(.ai-service, .dialog-frame) .ai-analysis-sample-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -917,12 +917,12 @@
   flex-shrink: 0;
   box-sizing: border-box;
 }
-:root[data-theme='dark'] :is(.ai-service, .admin-dialog) .ai-analysis-sample-pill,
-[data-theme='dark'] :is(.ai-service, .admin-dialog) .ai-analysis-sample-pill {
+:root[data-theme='dark'] :is(.ai-service, .dialog-frame) .ai-analysis-sample-pill,
+[data-theme='dark'] :is(.ai-service, .dialog-frame) .ai-analysis-sample-pill {
   background: var(--admin-panel-muted, #242320);
   border-color: var(--admin-border, #2C2B28);
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-sample-pill [data-slot='input'] {
+:is(.ai-service, .dialog-frame) .ai-analysis-sample-pill [data-slot='input'] {
   width: 1.75rem !important;
   height: 1.25rem !important;
   min-height: 1.25rem !important;
@@ -937,24 +937,24 @@
   color: var(--text-primary);
   -moz-appearance: textfield;
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-sample-pill [data-slot='input']::-webkit-inner-spin-button,
-:is(.ai-service, .admin-dialog) .ai-analysis-sample-pill [data-slot='input']::-webkit-outer-spin-button {
+:is(.ai-service, .dialog-frame) .ai-analysis-sample-pill [data-slot='input']::-webkit-inner-spin-button,
+:is(.ai-service, .dialog-frame) .ai-analysis-sample-pill [data-slot='input']::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-sample-pill [data-slot='input']:focus-visible {
+:is(.ai-service, .dialog-frame) .ai-analysis-sample-pill [data-slot='input']:focus-visible {
   background: var(--admin-panel) !important;
   outline: 1px solid var(--admin-accent, #D97757) !important;
 }
-:root[data-theme='dark'] :is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'],
-[data-theme='dark'] :is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button'] {
+:root[data-theme='dark'] :is(.ai-service, .dialog-frame) .ai-analysis-row [data-slot='button'],
+[data-theme='dark'] :is(.ai-service, .dialog-frame) .ai-analysis-row [data-slot='button'] {
   border-color: var(--admin-border, #2a2825);
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-row [data-slot='button']:hover {
+:is(.ai-service, .dialog-frame) .ai-analysis-row [data-slot='button']:hover {
   border-color: rgba(217, 119, 87, 0.4);
   color: var(--accent);
 }
-:is(.ai-service, .admin-dialog) .ai-analysis-row > .flex > .flex:last-child {
+:is(.ai-service, .dialog-frame) .ai-analysis-row > .flex > .flex:last-child {
   gap: 0.375rem;
 }
 .ai-service .ai-analysis-help {
@@ -1246,7 +1246,7 @@
 .ai-service .ai-cover-workspace {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
 }
-.ai-service .ai-cover-controls > .admin-panel-heading {
+.ai-service .ai-cover-controls > .panel-heading {
   padding: 0 0 0.25rem;
 }
 .ai-service .ai-cover-book-disclosure,
@@ -1354,7 +1354,7 @@
   font-size: 0.75rem;
   color: var(--text-muted);
 }
-.ai-service .ai-config-providers-card > .admin-panel-heading {
+.ai-service .ai-config-providers-card > .panel-heading {
   display: none;
 }
 .ai-service.ai-admin-page .ai-config-providers .ai-form-grid {
@@ -1466,7 +1466,7 @@
 .ai-service .ai-form-grid {
   display: grid;
 }
-.ai-service .admin-panel-heading {
+.ai-service .panel-heading {
   align-items: center;
   padding-bottom: 1rem;
 }
@@ -1513,7 +1513,7 @@
 .ai-service .ai-config-panel .ai-provider-section {
   gap: 1.25rem;
 }
-.ai-service .admin-form-field > [data-slot='label'] {
+.ai-service .form-field > [data-slot='label'] {
   font-size: 0.8125rem;
   font-weight: 400;
   color: var(--text-muted);
@@ -1544,7 +1544,7 @@
 .ai-service .ai-writing-workspace [role='combobox'] {
   max-width: none;
 }
-.ai-service .ai-cover-results .admin-panel-heading {
+.ai-service .ai-cover-results .panel-heading {
   padding: 0 0 1rem;
 }
 .ai-service .ai-cover-controls [data-slot='input'],
@@ -1981,10 +1981,10 @@
   background: currentColor;
   flex-shrink: 0;
 }
-.ai-service .ai-config-panel .admin-form-field {
+.ai-service .ai-config-panel .form-field {
   gap: 0.375rem;
 }
-.ai-service .ai-config-panel .admin-form-field label {
+.ai-service .ai-config-panel .form-field label {
   font-size: 0.8125rem;
   color: var(--text-muted);
 }
@@ -2230,10 +2230,10 @@
   background: var(--admin-panel, #1c1b18);
   box-shadow: none;
 }
-.ai-service .ai-params-card > :is(.admin-panel-heading, .ai-parameter-heading) {
+.ai-service .ai-params-card > :is(.panel-heading, .ai-parameter-heading) {
   padding: 24px 28px 16px;
 }
-.ai-service .ai-params-card > :is(.admin-panel-heading, .ai-parameter-heading) h3 {
+.ai-service .ai-params-card > :is(.panel-heading, .ai-parameter-heading) h3 {
   font-family: var(--font-serif);
   font-size: 1.125rem;
   font-weight: 600;
@@ -2272,10 +2272,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
-.ai-service .ai-params-panel .admin-form-field {
+.ai-service .ai-params-panel .form-field {
   gap: 6px;
 }
-.ai-service .ai-params-panel .admin-form-field label {
+.ai-service .ai-params-panel .form-field label {
   font-size: 0.8125rem;
   color: var(--text-muted);
 }
@@ -2384,11 +2384,11 @@
     padding: 0 8px;
     font-size: 0.75rem;
   }
-  .ai-service .ai-params-card > .admin-panel-heading,
+  .ai-service .ai-params-card > .panel-heading,
   .ai-service .ai-params-card > .ai-parameter-heading {
     padding: 18px 16px 12px;
   }
-  .ai-service .ai-params-card > .admin-panel-heading h3 {
+  .ai-service .ai-params-card > .panel-heading h3 {
     font-size: 1rem;
   }
   .ai-service.ai-admin-page .ai-params-card > [data-slot='card-content'] {

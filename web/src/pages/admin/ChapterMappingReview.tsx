@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import CustomSelect from '@/components/admin/CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { MATCH_REASON_LABELS } from './source-sync-labels'
 
 const CONFIDENCE_LABELS = { high: '高', medium: '中', low: '低' }
@@ -199,7 +199,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
       const detail = `${shiftedSegments.length} 段 · ${orderChanges.size} 个序号可修复 · ${blockedIds.size} 章受阻`
       return <details className="chapter-merge-dialog__shift-summary">
         <summary>序号偏移分段<span>{detail}</span></summary>
-        <p className="admin-dialog-hint">序号不同的章节可勾选按源站排序，未勾选保持原样。移动依赖其他章节让位时需一并选择；受阻项先核对占位章节。</p>
+        <p className="dialog-frame-hint">序号不同的章节可勾选按源站排序，未勾选保持原样。移动依赖其他章节让位时需一并选择；受阻项先核对占位章节。</p>
         <ul>
           {shiftedSegments.map(segment => {
             const gap = isGapSegment(segment)
@@ -220,7 +220,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
     })()}
     {!!blockers.size && <details className="chapter-merge-dialog__shift-summary">
       <summary>序号修复受阻汇总<span>{blockers.size} 个阻塞源 · {(preview.orderRepairBlockers || []).reduce((total, row) => total + row.affectedChapterIds.length, 0)} 项待处理</span></summary>
-      <p className="admin-dialog-hint">修复目标序号被以下本地章节占用。请先核对阻塞源，再重新生成修复方案。</p>
+      <p className="dialog-frame-hint">修复目标序号被以下本地章节占用。请先核对阻塞源，再重新生成修复方案。</p>
       <ul>
         {(preview.orderRepairBlockers || []).map(row => <li key={row.blockingChapterIds.join('|')}>
           <strong>阻塞源 {row.blockingChapterIds.map(id => `本地 ${locals.find(local => local.id === id)?.order ?? id}`).join('、')}</strong>
@@ -247,7 +247,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
       <Input aria-label="搜索本地章节映射" placeholder="搜索本地标题或序号" value={query} onChange={event => { setQuery(event.target.value); setPage(1); setEditingId('') }} />
     </div>
     <div className="chapter-merge-dialog__mapping-guidance">
-      <details><summary>核对说明</summary><p className="admin-dialog-hint">可以先暂存多条调整，再统一保存并重新预览。未受影响的确认与勾选会保留，变化的映射需重新确认。选择已占用的源站章节可交换对应关系；拆分组保持原样。</p></details>
+      <details><summary>核对说明</summary><p className="dialog-frame-hint">可以先暂存多条调整，再统一保存并重新预览。未受影响的确认与勾选会保留，变化的映射需重新确认。选择已占用的源站章节可交换对应关系；拆分组保持原样。</p></details>
       <Button variant="ghost" size="sm" disabled={disabled || !preview.manualMappings?.length || !!drafts.length} onClick={() => void onRemap([])}>恢复自动匹配</Button>
     </div>
     {!!drafts.length && <div className="chapter-merge-dialog__mapping-selection">
@@ -271,8 +271,8 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
         <Button variant="secondary" disabled={disabled || !filtered.length} onClick={() => selectMappings(new Set([...selectedIds, ...filtered.map(local => local.id)]))}>全选当前筛选结果 {filtered.length} 项</Button>
         <Button variant="ghost" disabled={disabled || !selectedLocals.length} onClick={() => selectMappings(new Set())}>清空映射选择</Button>
       </div>
-      <p className="admin-dialog-hint">全选包含当前筛选结果的所有页。勾选将确认对应标题及可修复序号；自动更新的标题不受映射勾选影响，本次全部变化以底部数量为准。</p>
-      {selectedSkipped > 0 && <p className="admin-dialog-hint" role="status">所选映射中 {selectedSkipped} 项暂不修复序号，原因见对应章节；其余可修复序号按底部数量同步。</p>}
+      <p className="dialog-frame-hint">全选包含当前筛选结果的所有页。勾选将确认对应标题及可修复序号；自动更新的标题不受映射勾选影响，本次全部变化以底部数量为准。</p>
+      {selectedSkipped > 0 && <p className="dialog-frame-hint" role="status">所选映射中 {selectedSkipped} 项暂不修复序号，原因见对应章节；其余可修复序号按底部数量同步。</p>}
     </div>
     <ol className="chapter-merge-dialog__mapping-list" aria-label="全部章节映射">
       {filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map(local => {
@@ -334,10 +334,10 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
           <Button variant="ghost" size="sm" className="chapter-merge-dialog__mapping-adjust" aria-label={`调整映射：本地 ${local.order}`} aria-expanded={editingId === local.id} aria-controls={editingId === local.id ? 'chapter-mapping-editor' : undefined} disabled={disabled || mapping?.relation === 'split' || /[（(]\s*\d+\s*[/／]\s*\d+\s*[)）]$/.test(local.title)} onClick={() => { if (editingId === local.id) revealEditor(); setEditingId(local.id); setTargetKey(effectiveMappings.get(local.id) || 'unmatched'); setSourceQuery('') }}>调整映射</Button>
           {editingId === local.id && editing && <section id="chapter-mapping-editor" className="chapter-merge-dialog__mapping-editor" aria-label="人工映射编辑">
             <h4 ref={editorHeading} tabIndex={-1}>调整本地 {editing.order} · {editing.title}</h4>
-            <p className="admin-dialog-hint">本地前章：{locals[editingIndex - 1]?.title || '无'}；后章：{locals[editingIndex + 1]?.title || '无'}</p>
+            <p className="dialog-frame-hint">本地前章：{locals[editingIndex - 1]?.title || '无'}；后章：{locals[editingIndex + 1]?.title || '无'}</p>
             {onInspect && <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onInspect(editing.id)}>预览此章正文</Button>}
             {!!sameTitleCandidates.length && <div className="chapter-merge-dialog__mapping-candidates" aria-label="同名源站候选">
-              <p className="admin-dialog-hint">找到 {sameTitleCandidates.length} 个同名候选，仅供核对，不会自动匹配。请选择候选查看源站邻章，并结合正文确认。</p>
+              <p className="dialog-frame-hint">找到 {sameTitleCandidates.length} 个同名候选，仅供核对，不会自动匹配。请选择候选查看源站邻章，并结合正文确认。</p>
               {sameTitleCandidates.map(source => <Button key={source.key} variant="secondary" size="sm" disabled={disabled || locals.some(local => local.id !== editingId && effectiveMappings.get(local.id) === source.key && (byLocal.get(local.id)?.relation === 'split' || /[（(]\s*\d+\s*[/／]\s*\d+\s*[)）]$/.test(local.title)))} aria-pressed={targetKey === source.key} onClick={() => setTargetKey(source.key)}>核对源站 {source.order} · {source.title}</Button>)}
             </div>}
             <div className="chapter-merge-dialog__mapping-fields">
@@ -347,7 +347,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
               </div>
               <div className="chapter-dialog-field">
                 <Label htmlFor="chapter-mapping-target">对应的源站章节</Label>
-                <CustomSelect
+                <SearchSelect
                   options={[
                     { value: 'unmatched', label: '解除匹配，保持本地章节原样' },
                     ...shownSources.map(source => {
@@ -359,7 +359,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
                   value={targetKey}
                   onChange={setTargetKey}
                   // 页面上已有「查找源站章节」输入并负责过滤 shownSources，
-                  // 交给 CustomSelect 受控搜索，浮层里不再出现第二个搜索框。
+                  // 交给 SearchSelect 受控搜索，浮层里不再出现第二个搜索框。
                   search={sourceQuery}
                   onSearchChange={setSourceQuery}
                   emptyText="没有匹配的源站章节"
@@ -374,8 +374,8 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
                 />
               </div>
             </div>
-            {sourceMatches.length > 100 && <p className="admin-dialog-hint">找到 {sourceMatches.length} 章，展示前 100 章；输入标题或序号缩小范围。</p>}
-            {selected && <p className="admin-dialog-hint">源站前章：{sources[sourceIndex - 1]?.title || '无'}；后章：{sources[sourceIndex + 1]?.title || '无'}</p>}
+            {sourceMatches.length > 100 && <p className="dialog-frame-hint">找到 {sourceMatches.length} 章，展示前 100 章；输入标题或序号缩小范围。</p>}
+            {selected && <p className="dialog-frame-hint">源站前章：{sources[sourceIndex - 1]?.title || '无'}；后章：{sources[sourceIndex + 1]?.title || '无'}</p>}
             {selected && Math.abs(selected.order - editing.order) > 20 && <p className="chapter-merge-dialog__warning">两侧相距 {Math.abs(selected.order - editing.order)} 个序号，位置差异较大；同名不足以证明对应，请结合邻章与正文核实。</p>}
             {occupant && <p className="chapter-merge-dialog__warning">将与本地 {occupant.order} · {occupant.title} 交换对应关系；双方都会加入暂存调整。</p>}
             <div className="chapter-merge-dialog__metadata-actions"><Button disabled={disabled} onClick={save}>暂存映射调整</Button><Button variant="ghost" disabled={disabled} onClick={() => setEditingId('')}>取消调整</Button></div>

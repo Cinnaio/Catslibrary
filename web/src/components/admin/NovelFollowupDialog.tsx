@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AdminDialogBody, AdminDialogContent } from './AdminDialog'
-import CustomSelect from './CustomSelect'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import SearchSelect from "@/components/shared/SearchSelect"
 import NovelRelatedSources from './NovelRelatedSources'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -169,7 +169,7 @@ export default function NovelFollowupDialog({
         if (!open && !busy) onClose()
       }}
     >
-      <AdminDialogContent
+      <DialogFrame
         className={`novel-followup-dialog${variant === 'event' ? ' novel-followup-dialog--event' : ' novel-followup-dialog--sources'}`}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
@@ -188,7 +188,7 @@ export default function NovelFollowupDialog({
           </DialogTitle>
           <DialogDescription className="novel-followup-dialog__book">{novel.title}</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody className="novel-followup-dialog__body">
+        <DialogBody className="novel-followup-dialog__body">
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}
@@ -209,9 +209,9 @@ export default function NovelFollowupDialog({
                         {state.hasConfig ? (state.enabled ? `每 ${state.intervalHours} 小时` : '已暂停') : '未配置来源'}
                       </span>
                     </div>
-                    <p className="admin-dialog-hint">从网页目录检查新章，并通过正文抓取任务入库。</p>
+                    <p className="dialog-frame-hint">从网页目录检查新章，并通过正文抓取任务入库。</p>
                     {state.importSourceLabel && state.hasConfig && (
-                      <p className="admin-dialog-hint">文件导入的书籍首次接入网页追更时，请先用下方参考目录核对章节对应关系。</p>
+                      <p className="dialog-frame-hint">文件导入的书籍首次接入网页追更时，请先用下方参考目录核对章节对应关系。</p>
                     )}
                     {state.sourceUrl ? (
                       <div className="novel-followup-dialog__entry">
@@ -255,7 +255,7 @@ export default function NovelFollowupDialog({
                             setEncoding('')
                           }}
                         />
-                        <p className="admin-dialog-hint">支持站点自动使用内置规则。保存来源后，可另行开启自动追更。</p>
+                        <p className="dialog-frame-hint">支持站点自动使用内置规则。保存来源后，可另行开启自动追更。</p>
                         <details>
                           <summary>高级配置：自定义选择器</summary>
                           <Label htmlFor="novel-web-encoding">网页编码（留空使用站点规则）</Label>
@@ -296,7 +296,7 @@ export default function NovelFollowupDialog({
                       <div className="novel-followup-dialog__setting">
                         <div>
                           <Label htmlFor="followup-enabled">自动追更</Label>
-                          <p className="admin-dialog-hint">定期检查目录，有新章节时自动入库。</p>
+                          <p className="dialog-frame-hint">定期检查目录，有新章节时自动入库。</p>
                         </div>
                         <Checkbox
                           id="followup-enabled"
@@ -305,24 +305,24 @@ export default function NovelFollowupDialog({
                           onCheckedChange={(value) => setEnabled(value === true)}
                         />
                       </div>
-                      {!state.hasConfig && <p className="admin-dialog-hint">尚未绑定可抓取正文的网页来源，请在小说管理的「更新与来源」中配置。</p>}
-                      {!state.ongoing && <p className="admin-dialog-hint">已完结作品默认不追更；如需继续检查，可手动开启。</p>}
+                      {!state.hasConfig && <p className="dialog-frame-hint">尚未绑定可抓取正文的网页来源，请在小说管理的「更新与来源」中配置。</p>}
+                      {!state.ongoing && <p className="dialog-frame-hint">已完结作品默认不追更；如需继续检查，可手动开启。</p>}
                       <div className="novel-followup-dialog__frequency">
                         <Label id="followup-frequency">检查频率</Label>
-                        <CustomSelect
+                        <SearchSelect
                           aria-labelledby="followup-frequency"
                           value={hours}
                           onChange={setHours}
                           disabled={busy}
                           options={[1, 3, 6, 12, 24].map((h) => ({ value: String(h), label: `每 ${h} 小时` }))}
                         />
-                        <p className="admin-dialog-hint">无新章时逐步降低频率，失败后自动重试。</p>
+                        <p className="dialog-frame-hint">无新章时逐步降低频率，失败后自动重试。</p>
                       </div>
                     </>
                   )}
                   <section className="novel-followup-dialog__result" aria-label="最近检查">
                     <div className="novel-followup-dialog__section-head">
-                      <span className="admin-dialog-section-label">{variant === 'event' ? '最新检查结果' : '最近检查'}</span>
+                      <span className="dialog-frame-section-label">{variant === 'event' ? '最新检查结果' : '最近检查'}</span>
                       <span className="novel-followup-dialog__badge" data-tone={state.result === 'failed' || state.result === 'partial' ? 'failed' : state.result === 'running' ? 'partial' : undefined}>
                         {state.result === 'running' ? '更新中' : state.result === 'failed' ? '检查失败' : state.result === 'partial' ? '部分完成' : '已就绪'}
                       </span>
@@ -344,7 +344,7 @@ export default function NovelFollowupDialog({
                       </div>
                     )}
                     {pending && pending.protectedCount > 0 && (
-                      <p className="admin-dialog-hint">受保护不代表无法抓取；请确认源站账号与购买权限，权限变化后重新检查。</p>
+                      <p className="dialog-frame-hint">受保护不代表无法抓取；请确认源站账号与购买权限，权限变化后重新检查。</p>
                     )}
                     {variant === 'event' && (
                       <dl className="novel-followup-dialog__times">
@@ -376,7 +376,7 @@ export default function NovelFollowupDialog({
                     )}
                     {variant === 'event' && (
                       <div className="dashboard-event-source">
-                        <span className="admin-dialog-section-label">当前来源</span>
+                        <span className="dialog-frame-section-label">当前来源</span>
                         <p>{state.sourceUrl || '未记录来源地址'}</p>
                       </div>
                     )}
@@ -391,7 +391,7 @@ export default function NovelFollowupDialog({
                       </div>
                     </dl>
                   </section>
-                  {showSettings && <p className="admin-dialog-hint">暂停追更后，正在执行的任务仍会完成。</p>}
+                  {showSettings && <p className="dialog-frame-hint">暂停追更后，正在执行的任务仍会完成。</p>}
                 </>
               )}
               {variant === 'settings' && (
@@ -419,7 +419,7 @@ export default function NovelFollowupDialog({
               )}
             </>
           )}
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           {variant === 'settings' && (
             <Button variant="outline" disabled={busy} onClick={onClose}>
@@ -462,7 +462,7 @@ export default function NovelFollowupDialog({
             </Button>
           )}
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
       {taskId && <ScrapeTaskDetailsDialog key={taskId} jobId={taskId} title={novel.title} onClose={() => setTaskId(null)} />}
     </Dialog>
   )

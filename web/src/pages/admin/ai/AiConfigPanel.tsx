@@ -1,11 +1,12 @@
+import '@/styles/input-fields.css'
 /** 配置面板：供应商信息、开关、配额（分组确认后保存）。 */
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
 import { useEffect, useState } from 'react'
 import { aiApi, type AiSettings, type AiUsageSummary, type AiProviderConfig } from '@/lib/api'
 import { useToast } from '@/components/feedback'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { PanelHeading } from '@/components/shared/PanelHeading'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -245,7 +246,7 @@ export default function AiConfigPanel(props: {
           aria-labelledby="ai-config-tab-providers"
           className={cn('admin-panel-card ai-params-card', activeTab !== 'providers' && 'hidden')}
         >
-          <AdminPanelHeading
+          <PanelHeading
             title="模型供应商"
             description="配置文本创作与图像绘制的后端模型服务端点与密钥。"
             actions={
@@ -276,7 +277,7 @@ export default function AiConfigPanel(props: {
               </div>
               <AiProviderPresets scope="text" config={props.providerConfig} draft={providerDraft} disabled={saving || props.loading || testing} dirty={providerDirty} onBusy={setSaving} onApplied={() => { setTestResult(''); props.onReload() }} />
               <div className="grid gap-3 sm:grid-cols-2">
-                <AdminFormField label="Base URL" htmlFor="ai-base-url" hint="OpenAI 兼容端点。">
+                <FormField label="Base URL" htmlFor="ai-base-url" hint="OpenAI 兼容端点。">
                   <Input
                     id="ai-base-url"
                     placeholder="https://api.deepseek.com/v1"
@@ -284,8 +285,8 @@ export default function AiConfigPanel(props: {
                     disabled={savingProvider || props.loading}
                     onChange={(e) => setProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
                   />
-                </AdminFormField>
-                <AdminFormField label="模型" htmlFor="ai-model">
+                </FormField>
+                <FormField label="模型" htmlFor="ai-model">
                   <Input
                     id="ai-model"
                     placeholder="deepseek-v4-flash"
@@ -293,9 +294,9 @@ export default function AiConfigPanel(props: {
                     disabled={savingProvider || props.loading}
                     onChange={(e) => setProviderDraft((p) => ({ ...p, model: e.target.value }))}
                   />
-                </AdminFormField>
+                </FormField>
               </div>
-              <AdminFormField label="API Key" htmlFor="ai-api-key" hint="留空保留当前密钥；如需清空，填入一个空格后保存">
+              <FormField label="API Key" htmlFor="ai-api-key" hint="留空保留当前密钥；如需清空，填入一个空格后保存">
                 <Input
                   id="ai-api-key"
                   type="password"
@@ -309,7 +310,7 @@ export default function AiConfigPanel(props: {
                     e.target.select()
                   }}
                 />
-              </AdminFormField>
+              </FormField>
               <div className="flex items-center justify-between gap-3 pt-2 text-xs text-muted-foreground">
                 <span aria-live="polite">{testResult || '尚未进行本次检查 · 使用已保存配置'}</span>
                 <Button
@@ -340,7 +341,7 @@ export default function AiConfigPanel(props: {
               </div>
               <AiProviderPresets scope="image" config={imageProviderConfig} draft={imageProviderDraft} disabled={saving || props.loading || testing} dirty={imageProviderDirty} onBusy={setSaving} onApplied={props.onReload} />
               <div className="grid gap-3 sm:grid-cols-2">
-                <AdminFormField label="图像 Base URL" htmlFor="ai-image-base-url" hint="OpenAI 兼容图像接口。">
+                <FormField label="图像 Base URL" htmlFor="ai-image-base-url" hint="OpenAI 兼容图像接口。">
                   <Input
                     id="ai-image-base-url"
                     placeholder="https://api.example.com/v1"
@@ -348,8 +349,8 @@ export default function AiConfigPanel(props: {
                     disabled={savingImageProvider || props.loading || !imageProviderConfig}
                     onChange={(e) => setImageProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
                   />
-                </AdminFormField>
-                <AdminFormField label="图像模型" htmlFor="ai-image-model">
+                </FormField>
+                <FormField label="图像模型" htmlFor="ai-image-model">
                   <Input
                     id="ai-image-model"
                     placeholder="mimo-v2.5"
@@ -357,9 +358,9 @@ export default function AiConfigPanel(props: {
                     disabled={savingImageProvider || props.loading || !imageProviderConfig}
                     onChange={(e) => setImageProviderDraft((p) => ({ ...p, model: e.target.value }))}
                   />
-                </AdminFormField>
+                </FormField>
               </div>
-              <AdminFormField label="图像 API Key" htmlFor="ai-image-api-key" hint="留空保留当前密钥；如需清空，填入一个空格后保存">
+              <FormField label="图像 API Key" htmlFor="ai-image-api-key" hint="留空保留当前密钥；如需清空，填入一个空格后保存">
                 <Input
                   id="ai-image-api-key"
                   type="password"
@@ -373,7 +374,7 @@ export default function AiConfigPanel(props: {
                     e.target.select()
                   }}
                 />
-              </AdminFormField>
+              </FormField>
               <div className="flex items-center justify-between gap-3 pt-2 text-xs text-muted-foreground">
                 <span>图像连接由封面生成任务进行端到端验证</span>
                 <Button variant="secondary" size="sm" className="shrink-0 rounded-full" asChild>
@@ -391,7 +392,7 @@ export default function AiConfigPanel(props: {
           aria-labelledby="ai-config-tab-reader"
           className={cn('admin-panel-card ai-params-card', activeTab !== 'reader' && 'hidden')}
         >
-          <AdminPanelHeading
+          <PanelHeading
             title="读者生成策略"
             description="管理读者端在阅读小说时触发前情提要、回顾与划选插画的权限与消耗限额。"
           />
@@ -428,7 +429,7 @@ export default function AiConfigPanel(props: {
                   })}
                 </div>
                 <div className="pt-1">
-                  <AdminFormField
+                  <FormField
                     label="每人每日图片生成上限"
                     htmlFor="ai-selection-image-quota"
                     hint="独立于文本配额；管理员和读者均受此限制，失败任务也计入。0 表示关闭。"
@@ -442,7 +443,7 @@ export default function AiConfigPanel(props: {
                       disabled={!settings || saving || props.loading}
                       onChange={(event) => setImageQuotaDraft(event.target.value)}
                     />
-                  </AdminFormField>
+                  </FormField>
                 </div>
               </fieldset>
             </section>
@@ -468,7 +469,7 @@ export default function AiConfigPanel(props: {
                 />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <AdminFormField label="每人每日生成上限" htmlFor="ai-daily-quota" hint="命中缓存不计数；0 表示禁止读者触发。">
+                <FormField label="每人每日生成上限" htmlFor="ai-daily-quota" hint="命中缓存不计数；0 表示禁止读者触发。">
                   <Input
                     id="ai-daily-quota"
                     type="number"
@@ -478,8 +479,8 @@ export default function AiConfigPanel(props: {
                     disabled={!settings || props.loading || saving}
                     onChange={(e) => setDailyQuotaDraft(e.target.value)}
                   />
-                </AdminFormField>
-                <AdminFormField label="送入模型的正文字数" htmlFor="ai-max-chars" hint="超出部分截断，影响单次调用成本。">
+                </FormField>
+                <FormField label="送入模型的正文字数" htmlFor="ai-max-chars" hint="超出部分截断，影响单次调用成本。">
                   <Input
                     id="ai-max-chars"
                     type="number"
@@ -489,7 +490,7 @@ export default function AiConfigPanel(props: {
                     disabled={!settings || props.loading || saving}
                     onChange={(e) => setMaxCharsDraft(e.target.value)}
                   />
-                </AdminFormField>
+                </FormField>
               </div>
             </section>
           </CardContent>
@@ -502,7 +503,7 @@ export default function AiConfigPanel(props: {
           aria-labelledby="ai-config-tab-service"
           className={cn('admin-panel-card ai-params-card', activeTab !== 'service' && 'hidden')}
         >
-          <AdminPanelHeading
+          <PanelHeading
             title="服务监控与用量"
             description="监控后端模型服务就绪状态，统计今日与近 30 天实际 Token 消耗与成本。"
             actions={

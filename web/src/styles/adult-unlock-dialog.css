@@ -78,29 +78,6 @@
   padding-top: 0.25rem;
 }
 
-.adult-unlock-dialog .btn {
-  min-height: 2.75rem;
-  padding: 0.625rem 1rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.5;
-  box-shadow: none;
-  white-space: nowrap;
-}
-
-.adult-unlock-dialog .btn--secondary {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text-secondary);
-}
-
-.adult-unlock-dialog .btn--secondary:hover {
-  border-color: transparent;
-  background: var(--bg-hover);
-}
-.adult-unlock-dialog .btn--primary:hover { box-shadow: none; transform: none; }
-
 @media (max-width: 480px) {
   .adult-unlock-dialog[data-slot='alert-dialog-content'] { padding: 1.5rem; }
 }

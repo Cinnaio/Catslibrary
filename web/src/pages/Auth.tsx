@@ -1,3 +1,5 @@
+import '@/styles/identity-layout.css'
+import '@/styles/input-fields.css'
 import styles from './auth.module.css'
 /**
  * Auth 页 —— 登录 / 注册（shadcn 版）。

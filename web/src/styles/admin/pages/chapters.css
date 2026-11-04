@@ -62,13 +62,13 @@
 .source-sync-history__record-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--admin-space-3); }
 .source-sync-history__record-heading strong { color: var(--text-primary); font-size: 0.9375rem; font-weight: 500; }
 .source-sync-history__status,
-.source-sync-history__time { color: var(--text-muted); font-size: var(--admin-dialog-hint-size); }
+.source-sync-history__time { color: var(--text-muted); font-size: var(--dialog-frame-hint-size); }
 .source-sync-history__record p { margin: var(--admin-space-2) 0 0; }
 .source-sync-history__counts { display: flex; flex-wrap: wrap; gap: var(--admin-space-4) var(--admin-space-6); margin: var(--admin-space-4) 0; }
-.source-sync-history__counts dt { color: var(--text-muted); font-size: var(--admin-dialog-label-size); }
+.source-sync-history__counts dt { color: var(--text-muted); font-size: var(--dialog-frame-label-size); }
 .source-sync-history__counts dd { margin: var(--admin-space-1) 0 0; color: var(--text-primary); font-size: 1.125rem; font-variant-numeric: tabular-nums; }
-.source-sync-history__counts dd > span { color: var(--text-muted); font-size: var(--admin-dialog-hint-size); }
-.source-sync-history__source { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--admin-space-2); color: var(--text-muted); font-size: var(--admin-dialog-hint-size); }
+.source-sync-history__counts dd > span { color: var(--text-muted); font-size: var(--dialog-frame-hint-size); }
+.source-sync-history__source { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--admin-space-2); color: var(--text-muted); font-size: var(--dialog-frame-hint-size); }
 .source-sync-history__result { padding: var(--admin-space-4); background: var(--admin-panel-muted); border-radius: var(--admin-radius); overflow-wrap: anywhere; }
 .source-sync-history__detail { grid-column: 1 / -1; min-width: 0; padding: var(--admin-space-5); border-radius: var(--admin-radius); background: var(--admin-panel-muted); }
 .source-sync-history__detail h3 { margin: 0 0 var(--admin-space-4); color: var(--text-primary); font-size: 0.875rem; font-weight: 500; scroll-margin-block-start: var(--admin-space-4); }
@@ -139,7 +139,7 @@
 .chapter-merge-dialog__mapping-guidance > button { flex-shrink: 0; }
 .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-guidance summary {
   color: var(--text-muted);
-  font-size: var(--admin-dialog-hint-size);
+  font-size: var(--dialog-frame-hint-size);
 }
 
 .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-list > li {
@@ -158,7 +158,7 @@
 }
 .chapter-merge-dialog__mapping-selection > div { display: flex; flex-wrap: wrap; gap: var(--admin-space-2); }
 .chapter-merge-dialog__mapping-selection > p { margin: 0; }
-.chapter-merge-dialog__mapping-selection > .admin-dialog-hint { flex-basis: 100%; }
+.chapter-merge-dialog__mapping-selection > .dialog-frame-hint { flex-basis: 100%; }
 .chapter-merge-dialog__mapping-checkbox { margin-top: var(--admin-space-1); }
 
 .chapter-merge-dialog__mapping-comparison {
@@ -174,7 +174,7 @@
   display: block;
   margin-bottom: var(--admin-space-2);
   color: var(--text-muted);
-  font-size: var(--admin-dialog-label-size);
+  font-size: var(--dialog-frame-label-size);
 }
 
 .chapter-merge-dialog__mapping-meta {
@@ -184,7 +184,7 @@
   gap: var(--admin-space-2) var(--admin-space-4);
   margin-top: var(--admin-space-3);
   color: var(--text-muted);
-  font-size: var(--admin-dialog-hint-size);
+  font-size: var(--dialog-frame-hint-size);
   line-height: 1.65;
 }
 
@@ -212,7 +212,7 @@ p.chapter-merge-dialog__shift-summary {
   gap: var(--admin-space-2) var(--admin-space-3);
   margin: 0 0 var(--admin-space-3);
   color: var(--text-muted);
-  font-size: var(--admin-dialog-hint-size);
+  font-size: var(--dialog-frame-hint-size);
   line-height: 1.65;
 }
 p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
@@ -228,7 +228,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--admin-space-2) var(--admin-space-4);
-  font-size: var(--admin-dialog-hint-size);
+  font-size: var(--dialog-frame-hint-size);
   line-height: 1.65;
 }
 .chapter-merge-dialog__shift-summary > ul > li > strong { font-weight: 500; color: var(--text-primary); }
@@ -255,7 +255,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   .source-sync-history__detail { padding: var(--admin-space-4); }
   .source-sync-history__counts { gap: var(--admin-space-5); }
   .source-sync-history__pagination { flex-basis: 10rem; }
-  .source-sync-history-dialog .chapter-merge-dialog__history-actions > button { min-height: var(--admin-dialog-mobile-action-min-height); }
+  .source-sync-history-dialog .chapter-merge-dialog__history-actions > button { min-height: var(--dialog-frame-mobile-action-min-height); }
   .chapter-merge-dialog__mapping-list > li {
     flex-direction: column;
   }
@@ -266,7 +266,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   .chapter-merge-dialog__mapping-fields { grid-template-columns: minmax(0, 1fr); gap: var(--admin-space-4); }
   .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-list > li { gap: var(--admin-space-2); }
   .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-editor { padding: var(--admin-space-4); }
-  .chapter-merge-dialog__mapping-adjust { grid-column: 2 / -1; margin-top: 0; justify-self: start; padding-inline: var(--admin-space-2); min-height: var(--admin-dialog-mobile-action-min-height); }
+  .chapter-merge-dialog__mapping-adjust { grid-column: 2 / -1; margin-top: 0; justify-self: start; padding-inline: var(--admin-space-2); min-height: var(--dialog-frame-mobile-action-min-height); }
   .chapter-merge-dialog__mapping-meta { row-gap: var(--admin-space-2); }
   .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-meta summary { min-height: 2.75rem; padding-block: var(--admin-space-2); }
 }
@@ -313,7 +313,7 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   min-width: 0;
 }
 
-/* 章节目录页脚：页脚表面与内边距由 .admin-pagination 统一提供，此处无覆盖。 */
+/* 章节目录页脚：页脚表面与内边距由 .pagination 统一提供，此处无覆盖。 */
 
 .chapter-work-note {
   display: grid;
@@ -421,19 +421,12 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
   color: #E58B70;
 }
 
-.chapter-empty-container .admin-empty-state__message {
-  font-family: var(--font-serif);
-  font-size: 1.15rem;
-  font-weight: 600;
-  color: var(--text-primary);
+.chapter-empty-container .empty-state__message {
   margin: 0;
 }
 
-.chapter-empty-container .admin-empty-state__hint {
-  font-size: 0.875rem;
-  color: var(--text-muted);
+.chapter-empty-container .empty-state__hint {
   max-width: 440px;
-  line-height: 1.6;
   margin: 0;
 }
 

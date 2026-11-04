@@ -4,7 +4,7 @@
 // ============================================================
 import { Download, FileUp, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { AdminDataPanel } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel } from '@/components/admin/AdminDataPanel'
 import type { JobCard as JobCardData } from '../types'
 import JobCard from './JobCard'
 

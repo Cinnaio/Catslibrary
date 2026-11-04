@@ -217,7 +217,7 @@ describe('ContentRatingsTab', () => {
     expect(header?.querySelector('.admin-tab-header__meta')).toBeNull()
     expect(screen.getByRole('button', { name: /刷新账本/ })).toBeInTheDocument()
     // 搜索框收纳在统一胶囊筛选轨道（Filter Rail）内
-    expect(document.querySelector('.content-ratings-filter-rail .admin-search')).not.toBeNull()
+    expect(document.querySelector('.content-ratings-filter-rail .search-field')).not.toBeNull()
   })
 
   it('工作视图写入 URL 并保留其他参数、账本搜索和当前视图刷新', async () => {
@@ -690,7 +690,7 @@ describe('ContentRatingsTab', () => {
     // 工具条被撑成三行。宽度上限必须由控件自身提供。
     for (const name of ['分级', '按来源筛选']) {
       const trigger = screen.getByLabelText(name)
-      expect(trigger.className).toContain('max-w-[var(--admin-filter-width)]')
+      expect(trigger.className).toContain('max-w-[var(--select-compact-width,11rem)]')
       expect(trigger.className).not.toContain('max-w-none')
     }
   })

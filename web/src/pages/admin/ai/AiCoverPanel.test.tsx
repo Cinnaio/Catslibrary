@@ -23,7 +23,7 @@ vi.mock('@/components/feedback', () => ({
   useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }),
 }))
 
-vi.mock('@/components/admin/CustomSelect', () => ({
+vi.mock("@/components/shared/SearchSelect", () => ({
   default: (props: { options: Array<{ value: string; label: string }>; value: string; onChange: (value: string) => void }) => (
     <select aria-label="目标小说" value={props.value} onChange={(event) => props.onChange(event.target.value)}>
       <option value="">请选择小说</option>

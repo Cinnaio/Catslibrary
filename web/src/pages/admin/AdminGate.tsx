@@ -1,3 +1,5 @@
+import '@/styles/identity-layout.css'
+import { Button } from '@/components/ui/button'
 /**
  * AdminGate — 后台鉴权门。
  * 会话解析中显示加载态；未登录或非管理员显示整页门禁；其余渲染 children。
@@ -87,10 +89,10 @@ export default function AdminGate({ children }: { children: ReactNode }) {
         icon={<ShieldAlert strokeWidth={1.5} />}
         description={user ? `当前账号「${user.displayName || user.username}」没有管理权限，请切换到管理员账号。` : '需要管理员账号才能进入运营台。'}
         actions={<>
-          <button type="button" className="btn btn--primary" disabled={switching} onClick={() => void goToAuth()}>
+          <Button variant="default" type="button"  disabled={switching} onClick={() => void goToAuth()}>
             {switching ? '正在退出…' : user ? '切换账号' : '前往登录'}
-          </button>
-          <Link to="/" className="btn btn--secondary">返回首页</Link>
+          </Button>
+          <Button asChild variant="secondary"><Link to="/" >返回首页</Link></Button>
         </>}
       >
         <p className="page-state__hint">这是受限区域，登录后会自动回到你刚才打开的页面。</p>

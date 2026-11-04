@@ -3,9 +3,9 @@ import { ChevronRight } from 'lucide-react'
 import type { BackupDeployment, BackupSettingsPage, BackupToolName } from '@shared/backups'
 import { useToast } from '@/components/feedback'
 import { backupsApi, saveBlob } from '@/lib/backups-api'
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -184,7 +184,7 @@ export default function BackupDeploymentPanel({
             if (!value) close()
           }}
         >
-          <AdminDialogContent
+          <DialogFrame
             onCloseAutoFocus={(event) => {
               event.preventDefault()
               trigger.current?.focus()
@@ -204,10 +204,10 @@ export default function BackupDeploymentPanel({
                   : '填写运行 API 的服务器或容器中已安装工具的绝对路径；留空使用部署路径或自动检测。'}
               </DialogDescription>
             </DialogHeader>
-            <AdminDialogBody className="backup-fields">
+            <DialogBody className="backup-fields">
               {editor === 'key' ? (
                 <>
-                  <AdminFormField
+                  <FormField
                     label="备份主密钥"
                     htmlFor="backup-master-key"
                     hint={keyConfigured ? '已配置，密钥不回显。' : '输入 32 字节随机数据的 Base64，或在下方一键生成并导出。'}
@@ -222,7 +222,7 @@ export default function BackupDeploymentPanel({
                       onChange={(event) => setMasterKey(event.target.value)}
                       placeholder={keyConfigured ? '已配置 · 不回显密钥' : '输入已有主密钥'}
                     />
-                  </AdminFormField>
+                  </FormField>
                   {runtime?.keySource === 'environment' && (
                     <Button type="button" variant="secondary" disabled={locked} onClick={() => setPersistCurrentKey((value) => !value)}>
                       {persistCurrentKey ? '取消迁入本地' : '将现有密钥保存到本地'}
@@ -234,7 +234,7 @@ export default function BackupDeploymentPanel({
                 activeTools.map((name) => {
                   const status = (detected || runtime)?.tools[name]
                   return (
-                    <AdminFormField key={name} label={tools[name][0]} htmlFor={'backup-tool-' + name} hint={'服务器上的 ' + tools[name][1] + ' 路径'}>
+                    <FormField key={name} label={tools[name][0]} htmlFor={'backup-tool-' + name} hint={'服务器上的 ' + tools[name][1] + ' 路径'}>
                       <Input
                         id={'backup-tool-' + name}
                         value={paths[name]}
@@ -253,7 +253,7 @@ export default function BackupDeploymentPanel({
                             : status.error}
                         </p>
                       )}
-                    </AdminFormField>
+                    </FormField>
                   )
                 })
               )}
@@ -281,7 +281,7 @@ export default function BackupDeploymentPanel({
                   {error}
                 </p>
               )}
-            </AdminDialogBody>
+            </DialogBody>
             <DialogFooter>
               <Button type="button" variant="secondary" disabled={busy} onClick={close}>
                 取消
@@ -290,7 +290,7 @@ export default function BackupDeploymentPanel({
                 {busy ? '处理中…' : '保存配置'}
               </Button>
             </DialogFooter>
-          </AdminDialogContent>
+          </DialogFrame>
         </Dialog>
       </Body>
     </Panel>

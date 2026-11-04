@@ -1,0 +1,120 @@
+/* 迁移保留的 account 场景规则，由使用方显式加载；不参与全局外观覆盖。 */
+.account-panel {
+  position: fixed;
+  top: calc(var(--header-height) + 8px);
+  right: 24px;
+  z-index: 900;
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.account-panel__head,
+.bookshelf .section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bookshelf {
+  margin-bottom: 28px;
+}
+
+.bookshelf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bookshelf-card {
+  min-width: 0;
+  padding: 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.bookshelf-card h3 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+}
+
+.bookshelf-card h3 span {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.bookshelf-item {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.bookshelf-item-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--border-light);
+}
+
+.bookshelf-item-wrap:first-child {
+  border-top: 0;
+}
+
+.bookshelf-item__delete,
+.bookshelf-item__continue {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.bookshelf-item__continue {
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.bookshelf-item__delete:hover {
+  background: var(--bg-secondary);
+  color: #dc2626;
+}
+
+.bookshelf-item__continue:hover {
+  background: var(--bg-secondary);
+  color: var(--accent);
+}
+
+.bookshelf-item:hover strong {
+  color: var(--accent);
+}
+
+.bookshelf-item strong,
+.bookshelf-item span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookshelf-item span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 2px;
+}

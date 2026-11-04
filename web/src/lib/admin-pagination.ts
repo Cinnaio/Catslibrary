@@ -18,4 +18,4 @@
 export const ADMIN_DEFAULT_PAGE_SIZE = 15
 
 /** 每页条数下拉档位；默认值必须在其列，否则 Select 显示空白。 */
-export const ADMIN_PAGE_SIZE_OPTIONS = [15, 20, 50, 100] as const
+export { DEFAULT_PAGE_SIZE_OPTIONS as ADMIN_PAGE_SIZE_OPTIONS } from './pagination'

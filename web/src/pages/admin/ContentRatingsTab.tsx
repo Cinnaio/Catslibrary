@@ -1,6 +1,6 @@
 import '../../styles/admin/pages/content-ratings.css'
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bot, CheckCircle2, CirclePlus, Eye, History, Info, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
@@ -29,14 +29,17 @@ import type { ContentRating } from '@shared/types'
 import { RESTRICTED_BODY_KEYWORDS } from '@shared/restricted-patterns'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/feedback'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import EmptyState from "@/components/shared/EmptyState"
 import AdminPage from '@/components/admin/AdminPage'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import CustomSelect, { type SelectOption } from '@/components/admin/CustomSelect'
-import Pagination from '@/components/admin/Pagination'
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
+import SearchSelect, { type SelectOption } from "@/components/shared/SearchSelect"
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
-import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { PanelHeading } from '@/components/shared/PanelHeading'
+import { SearchField } from '@/components/shared/SearchField'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import AiSuggestionBulkReview from './AiSuggestionBulkReview'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
@@ -245,8 +248,8 @@ function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
   if (!body.hasBody) {
     return (
       <div className="content-ratings-review-section content-ratings-body-empty">
-        <h3 className="admin-dialog-section-label">正文采样</h3>
-        <p className="admin-dialog-hint">
+        <h3 className="dialog-frame-section-label">正文采样</h3>
+        <p className="dialog-frame-hint">
           该书尚未抓取到正文，本次建议只能依据标题、简介与分类。置信度天然偏低，不足以据此确认“非限制级”。
         </p>
       </div>
@@ -257,9 +260,9 @@ function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
   return (
     <div className="content-ratings-review-section content-ratings-body-samples">
       <div className="content-ratings-review-section-head">
-        <h3 className="admin-dialog-section-label">正文采样</h3>
+        <h3 className="dialog-frame-section-label">正文采样</h3>
       </div>
-      <p className="admin-dialog-hint">
+      <p className="dialog-frame-hint">
         已读 {formatNumber(body.chapterCount)} 章 · {formatNumber(body.scannedCharacters)} 字 · 成人词命中 {formatNumber(body.matchedChapterCount)} 章（{Math.round(body.matchedChapterRatio * 100)}%）
       </p>
       {topKeywords.length > 0 && (
@@ -271,7 +274,7 @@ function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
           ))}
         </div>
       )}
-      <p className="admin-dialog-hint content-ratings-keyword-hint">
+      <p className="dialog-frame-hint content-ratings-keyword-hint">
         {strongHitCount > 0
           ? `红色为直白词（性器官、性行为、体液），几乎只出现在成人向正文；灰色为语境依赖词，正常剧情同样常见，命中不代表限制级。本次命中 ${strongHitCount} 个直白词。`
           : '本次只命中语境依赖词（灰色），它们在正常剧情里同样常见。是否属于限制级必须读下面的原文片段判断。'}
@@ -283,7 +286,7 @@ function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
             const weak = excerpt.weakKeywords || []
             return (
               <details key={`${excerpt.chapter}-${index}`} className="content-ratings-excerpt" open={index === 0 ? true : undefined}>
-                <summary className="content-ratings-excerpt-summary admin-dialog-hint">
+                <summary className="content-ratings-excerpt-summary dialog-frame-hint">
                   {excerpt.chapter} · {excerpt.origin === 'match' ? '成人词命中定位' : '全书均匀抽样'} ·{' '}
                   {strong.length > 0 ? (
                     <span className="text-destructive">本段含直白描写：{strong.slice(0, 8).join('、')}</span>
@@ -299,7 +302,7 @@ function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
           })}
         </div>
       ) : (
-        <p className="admin-dialog-hint">正文里没有采样到片段，请以元数据证据为准。</p>
+        <p className="dialog-frame-hint">正文里没有采样到片段，请以元数据证据为准。</p>
       )}
     </div>
   )
@@ -400,7 +403,7 @@ function RuleCandidatePanel({
       ) : loading ? (
         <LoadingState label="正在加载规则候选" rows={2} />
       ) : !data || data.items.length === 0 ? (
-        <AdminEmptyState message="还没有待审核的规则候选" />
+        <EmptyState message="还没有待审核的规则候选" />
       ) : (
         <div className="content-ratings-queue">
           {data.items.map((candidate) => (
@@ -602,7 +605,7 @@ function AiSuggestionPanel({
     <>
       {/* 独立外置工具条与全局操作区（位于表格之外） */}
       <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-ai-rail" ariaLive="polite">
-        <CustomSelect
+        <SearchSelect
           aria-label="LLM 建议状态"
           value={status}
           options={[
@@ -621,7 +624,7 @@ function AiSuggestionPanel({
           <Label id="content-rating-reasoning-label" className="text-xs text-muted-foreground">
             思考
           </Label>
-          <CustomSelect
+          <SearchSelect
             options={[
               { value: 'inherit', label: '跟随默认' },
               { value: 'disabled', label: '关闭思考' },
@@ -637,7 +640,7 @@ function AiSuggestionPanel({
           <Label id="content-rating-batch-label" className="text-xs text-muted-foreground">
             单批
           </Label>
-          <CustomSelect
+          <SearchSelect
             options={AI_BATCH_LIMIT_OPTIONS}
             value={String(batchLimit)}
             onChange={(value) => onBatchLimit(Math.min(AI_BATCH_LIMIT_MAX, Math.max(1, Number(value) || DEFAULT_AI_BATCH_LIMIT)))}
@@ -696,7 +699,7 @@ function AiSuggestionPanel({
         ) : loading && !data ? (
           <LoadingState label="正在加载 LLM 分级建议" rows={2} />
         ) : !data || data.items.length === 0 ? (
-          <AdminEmptyState message={history ? '没有已过期的 LLM 分级建议。' : '还没有待审核的 LLM 分级建议；分析任务只会读取未标注作品。'} />
+          <EmptyState message={history ? '没有已过期的 LLM 分级建议。' : '还没有待审核的 LLM 分级建议；分析任务只会读取未标注作品。'} />
         ) : (
           <Table className={cn('admin-data-table admin-data-table--animated', (loading || bulkBusy) && 'admin-data-table--transitioning')}>
             <TableHeader>
@@ -1494,7 +1497,7 @@ export default function ContentRatingsTab() {
             <>
               {/* 统一全要素胶囊筛选轨道（Filter Rail） */}
               <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-toolbar content-ratings-filter-rail" ariaLive="polite">
-                <AdminSearch
+                <SearchField
                   id="content-rating-search"
                   type="search"
                   label="搜索作品分级记录"
@@ -1502,12 +1505,12 @@ export default function ContentRatingsTab() {
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
                 />
-                <div className="admin-filter-chips">
-                  <CustomSelect
+                <div className="select-filter-chips">
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="分级"
                     options={RATING_OPTIONS}
                     value={ratingFilter}
@@ -1516,11 +1519,11 @@ export default function ContentRatingsTab() {
                       setPage(1)
                     }}
                   />
-                  <CustomSelect
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="按来源筛选"
                     options={sourceOptions}
                     value={sourceFilter}
@@ -1553,7 +1556,7 @@ export default function ContentRatingsTab() {
               <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS} className="content-ratings-panel content-ratings-ledger" density="comfortable">
 
               {data.items.length === 0 ? (
-                <AdminEmptyState message={query || ratingFilter || sourceFilter ? '当前筛选条件下没有作品' : '暂无内容分级记录'} />
+                <EmptyState message={query || ratingFilter || sourceFilter ? '当前筛选条件下没有作品' : '暂无内容分级记录'} />
               ) : (
                 <Table className={cn('admin-data-table admin-data-table--animated', (loading || refreshing) && 'admin-data-table--transitioning')}>
                   <TableHeader>
@@ -1701,12 +1704,12 @@ export default function ContentRatingsTab() {
       </Tabs>
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <AdminDialogContent className="content-ratings-dialog sm:max-w-xl">
+        <DialogFrame className="content-ratings-dialog sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>修改分级 · {editing?.title || '作品'}</DialogTitle>
             <DialogDescription>人工修改会记录操作人、理由和当前版本。提交前请确认你看到的是最新记录。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="space-y-4">
+          <DialogBody className="space-y-4">
             {editing && (
               <div className="grid gap-4">
                 <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
@@ -1727,7 +1730,7 @@ export default function ContentRatingsTab() {
 
                 <div className="grid gap-2">
                   <Label htmlFor="content-rating-draft">新的分级</Label>
-                  <CustomSelect
+                  <SearchSelect
                     options={EDIT_RATING_OPTIONS}
                     value={draftRating}
                     onChange={(value) => setDraftRating(ratingValue(value))}
@@ -1756,7 +1759,7 @@ export default function ContentRatingsTab() {
                 )}
               </div>
             )}
-          </AdminDialogBody>
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setEditing(null)} disabled={saving}>
               取消
@@ -1765,16 +1768,16 @@ export default function ContentRatingsTab() {
               {saving ? '保存中…' : '保存分级'}
             </Button>
           </DialogFooter>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
 
       <Dialog open={!!candidateNovel} onOpenChange={(open) => !open && setCandidateNovel(null)}>
-        <AdminDialogContent className="content-ratings-dialog sm:max-w-xl">
+        <DialogFrame className="content-ratings-dialog sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>沉淀规则候选 · {candidateNovel?.title || '作品'}</DialogTitle>
             <DialogDescription>这里只记录人工经验，等后续预览和批准后才会影响新作品；本次操作不会立即修改其他作品的分级。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="space-y-4">
+          <DialogBody className="space-y-4">
             {candidateNovel && (
               <div className="grid gap-4">
                 <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
@@ -1792,7 +1795,7 @@ export default function ContentRatingsTab() {
 
                 <div className="grid gap-2">
                   <Label>候选类型</Label>
-                  <CustomSelect
+                  <SearchSelect
                     options={CANDIDATE_KIND_OPTIONS}
                     value={candidateKind}
                     onChange={(value) => setCandidateKind(value as AdminContentRatingRuleCandidateKind)}
@@ -1836,7 +1839,7 @@ export default function ContentRatingsTab() {
                 )}
               </div>
             )}
-          </AdminDialogBody>
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCandidateNovel(null)} disabled={candidateSaving}>
               取消
@@ -1845,16 +1848,16 @@ export default function ContentRatingsTab() {
               {candidateSaving ? '保存中…' : '保存待审核候选'}
             </Button>
           </DialogFooter>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
 
       <Dialog open={!!candidatePreviewCandidate} onOpenChange={(open) => !open && !candidateReviewSaving && closeCandidatePreview()}>
-        <AdminDialogContent className="content-ratings-dialog max-h-[min(86vh,800px)] sm:max-w-3xl">
+        <DialogFrame className="content-ratings-dialog max-h-[min(86vh,800px)] sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>预览规则影响 · {candidatePreviewCandidate?.value || '规则候选'}</DialogTitle>
             <DialogDescription>批准会把命中的未标注作品改为限制级，并把规则版本写入分级审计；一般作品和已人工确认的作品不会被覆盖。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="space-y-4">
+          <DialogBody className="space-y-4">
             {candidatePreviewLoading ? (
               <LoadingState label="正在计算未标注作品的影响范围" rows={4} />
             ) : candidatePreviewError ? (
@@ -1884,7 +1887,7 @@ export default function ContentRatingsTab() {
                 </div>
 
                 {candidatePreview.items.length === 0 ? (
-                  <AdminEmptyState message="当前没有命中的未标注作品；批准后仍会对后续新作品生效。" />
+                  <EmptyState message="当前没有命中的未标注作品；批准后仍会对后续新作品生效。" />
                 ) : (
                   <div className="rounded-md border border-border">
                     <div className="border-b border-border px-4 py-3 text-sm font-medium text-foreground">将被改为限制级的未标注作品</div>
@@ -1936,7 +1939,7 @@ export default function ContentRatingsTab() {
                 )}
               </div>
             ) : null}
-          </AdminDialogBody>
+          </DialogBody>
           <DialogFooter>
             {!candidateReviewDecision ? (
               <>
@@ -1968,11 +1971,11 @@ export default function ContentRatingsTab() {
               </>
             )}
           </DialogFooter>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
 
       <Dialog open={!!aiReviewSuggestion} onOpenChange={(open) => !open && closeAiReview()}>
-        <AdminDialogContent
+        <DialogFrame
           className="content-ratings-dialog content-ratings-review-dialog"
           onCloseAutoFocus={(event) => {
             if (aiReviewTrigger.current?.isConnected) {
@@ -1986,26 +1989,26 @@ export default function ContentRatingsTab() {
             <p className="content-ratings-review-work">{aiReviewSuggestion?.title || '作品'}{aiReviewSuggestion?.author && <span> / {aiReviewSuggestion.author}</span>}</p>
             <DialogDescription>核对模型证据与原文后，再决定是否采纳。建议须经人工确认才会生效。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="space-y-4">
+          <DialogBody className="space-y-4">
             {aiReviewSuggestion && (
               <div className="content-ratings-review-content">
                 <section className="content-ratings-review-verdict" aria-label="AI 建议">
                   <div className="content-ratings-review-section-head">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="admin-dialog-section-label">AI 建议</h3>
+                      <h3 className="dialog-frame-section-label">AI 建议</h3>
                       <AdminStatusBadge tone={aiReviewSuggestion.suggestedRating === 'restricted' ? 'danger' : 'muted'}>
                         {aiReviewSuggestion.suggestedRating === 'restricted' ? '限制级' : '继续未标注'}
                       </AdminStatusBadge>
                     </div>
-                    <span className="content-ratings-review-confidence admin-dialog-hint">模型置信度 <strong>{Math.round(aiReviewSuggestion.confidence * 100)}%</strong></span>
+                    <span className="content-ratings-review-confidence dialog-frame-hint">模型置信度 <strong>{Math.round(aiReviewSuggestion.confidence * 100)}%</strong></span>
                   </div>
                   <p className="content-ratings-review-reason">{aiReviewSuggestion.reason || '未记录 AI 理由'}</p>
                 </section>
 
                 <section className="content-ratings-review-section" aria-label="模型提取的证据">
                   <div className="content-ratings-review-section-head">
-                    <h3 className="admin-dialog-section-label">模型提取的证据</h3>
-                    <span className="admin-dialog-hint">{aiReviewSuggestion.evidence.length} 条</span>
+                    <h3 className="dialog-frame-section-label">模型提取的证据</h3>
+                    <span className="dialog-frame-hint">{aiReviewSuggestion.evidence.length} 条</span>
                   </div>
                   {aiReviewSuggestion.evidence.length > 0 ? (
                     <ol className="content-ratings-review-evidence">
@@ -2016,15 +2019,15 @@ export default function ContentRatingsTab() {
                         </li>
                       ))}
                     </ol>
-                  ) : <p className="admin-dialog-hint">暂无模型证据，请核对元数据与原文。</p>}
+                  ) : <p className="dialog-frame-hint">暂无模型证据，请核对元数据与原文。</p>}
                 </section>
 
                 <BodySamplePanel body={aiReviewSuggestion.inputSnapshot.body} />
 
                 <section className="content-ratings-review-section content-ratings-review-boundary" aria-label="审核边界">
-                  <h3 className="admin-dialog-section-label">审核边界</h3>
-                  <p className="admin-dialog-hint">当前分级 <AdminContentRatingBadge rating={aiReviewSuggestion.currentRating} />。批准“限制级”将修改分级并记录人工审核；批准“继续未标注”不会将作品标为一般。作品已变化时，本次建议不能批准。</p>
-                  <details className="content-ratings-review-metadata admin-dialog-hint">
+                  <h3 className="dialog-frame-section-label">审核边界</h3>
+                  <p className="dialog-frame-hint">当前分级 <AdminContentRatingBadge rating={aiReviewSuggestion.currentRating} />。批准“限制级”将修改分级并记录人工审核；批准“继续未标注”不会将作品标为一般。作品已变化时，本次建议不能批准。</p>
+                  <details className="content-ratings-review-metadata dialog-frame-hint">
                     <summary>模型与版本信息</summary>
                     <dl>
                       <div><dt>模型</dt><dd>{aiReviewSuggestion.model || '未记录'}</dd></div>
@@ -2073,7 +2076,7 @@ export default function ContentRatingsTab() {
                 )}
               </div>
             )}
-          </AdminDialogBody>
+          </DialogBody>
           <DialogFooter>
             {!aiReviewDecision ? (
               <>
@@ -2100,22 +2103,22 @@ export default function ContentRatingsTab() {
               </>
             )}
           </DialogFooter>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
 
       <Dialog open={!!historyNovel} onOpenChange={(open) => !open && setHistoryNovel(null)}>
-        <AdminDialogContent className="content-ratings-dialog max-h-[min(80vh,720px)] sm:max-w-2xl">
+        <DialogFrame className="content-ratings-dialog max-h-[min(80vh,720px)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>分级历史 · {historyNovel?.title || '作品'}</DialogTitle>
             <DialogDescription>这里保留自动判定、预填和人工修改的完整变更轨迹，便于复核结果从哪里来。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="space-y-4">
+          <DialogBody className="space-y-4">
             {historyLoading ? (
               <LoadingState label="正在加载分级历史" rows={3} />
             ) : historyError ? (
               <ErrorState message={historyError} onRetry={() => historyNovel && void openHistory(historyNovel)} />
             ) : history.length === 0 ? (
-              <AdminEmptyState message="暂无分级历史记录" />
+              <EmptyState message="暂无分级历史记录" />
             ) : (
               <div aria-live="polite">
                 {history.map((entry) => (
@@ -2123,19 +2126,19 @@ export default function ContentRatingsTab() {
                 ))}
               </div>
             )}
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
 
       <Dialog open={!!evidenceNovel} onOpenChange={(open) => !open && setEvidenceNovel(null)}>
-        <AdminDialogContent className="content-ratings-dialog sm:max-w-lg">
+        <DialogFrame className="content-ratings-dialog sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>判定证据链 · {evidenceNovel?.title || '作品'}</DialogTitle>
             <DialogDescription>
               {evidenceNovel?.author ? `${evidenceNovel.author} · ` : ''}{formatNumber(evidenceNovel?.chapterCount || 0)} 章
             </DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="space-y-4 pt-1">
+          <DialogBody className="space-y-4 pt-1">
             {evidenceNovel && (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-muted/35 text-xs">
@@ -2200,13 +2203,13 @@ export default function ContentRatingsTab() {
                 </div>
               </>
             )}
-          </AdminDialogBody>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEvidenceNovel(null)} className="rounded-full px-5 h-8 text-xs font-medium border-border/80 hover:bg-muted/50">
               关闭
             </Button>
           </DialogFooter>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
     </AdminPage>
   )

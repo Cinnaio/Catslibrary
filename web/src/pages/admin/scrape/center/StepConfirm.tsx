@@ -1,9 +1,10 @@
+import { Panel } from '@/components/ui/panel'
 // ============================================================
 // 抓取中心 · 第二步 —— 确认小说信息并创建
 // consumers: scrape/CenterView.tsx
 // ============================================================
 import { useState } from 'react'
-import CustomSelect from '@/components/admin/CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -38,7 +39,7 @@ export default function StepConfirm({ preview, onPreviewChange, coverUrl, confir
   const showCover = !!coverUrl && !coverBroken
 
   return (
-    <section className="admin-panel-card scrape-step">
+    <Panel asChild><section className="admin-panel-card scrape-step">
       <span className="scrape-step__label">第二步</span>
       <h3 className="m-0 text-base font-semibold tracking-tight text-foreground md:text-lg">确认信息并抓取</h3>
 
@@ -71,7 +72,7 @@ export default function StepConfirm({ preview, onPreviewChange, coverUrl, confir
 
           <ScrapeField label="状态">
             {({ labelId }) => (
-              <CustomSelect
+              <SearchSelect
                 compact
                 aria-labelledby={labelId}
                 options={STATUS_OPTIONS}
@@ -108,6 +109,6 @@ export default function StepConfirm({ preview, onPreviewChange, coverUrl, confir
           )}
         </div>
       </div>
-    </section>
+    </section></Panel>
   )
 }

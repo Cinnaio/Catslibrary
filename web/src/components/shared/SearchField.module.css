@@ -1,0 +1,27 @@
+.field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: var(--search-field-width, 280px);
+  max-width: 100%;
+}
+.icon {
+  position: absolute;
+  left: 12px;
+  width: var(--ui-control-icon-size, 16px);
+  height: var(--ui-control-icon-size, 16px);
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: color 160ms ease;
+}
+.field .input {
+  padding-left: 36px;
+  box-shadow: none;
+}
+.field:focus-within .icon {
+  color: var(--accent);
+}
+.input::-webkit-search-cancel-button {
+  margin-right: 4px;
+}

@@ -1,3 +1,7 @@
+import { Spinner } from '@/components/ui/spinner'
+import '@/styles/account-content.css'
+import '@/styles/input-fields.css'
+import { Button } from '@/components/ui/button'
 import styles from './account.module.css'
 /**
  * Profile 页 —— 头像、资料编辑、密码、会话管理、退出（由 Novel-KV js/profile.js 平移）。
@@ -5,7 +9,7 @@ import styles from './account.module.css'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi, type PasskeyItem } from '../lib/api'
-import { UserAvatar } from '@/components/ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import { useSession } from '../context/SessionContext'
 import { useConfirm } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -119,7 +123,7 @@ export default function Profile() {
   if (loading || !user) {
     return (
       <div className="loading-center" style={{ minHeight: '50vh' }}>
-        <div className="spinner spinner--lg"></div>
+        <Spinner size="lg"  />
       </div>
     )
   }
@@ -357,19 +361,19 @@ export default function Profile() {
                         }
                       }}
                     />
-                    <button type="button" className="btn btn--secondary" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}>
+                    <Button variant="secondary" type="button"  onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}>
                       <ImagePlus size={16} aria-hidden="true" />
                       更换头像
-                    </button>
+                    </Button>
                     {(avatarFile || avatarUploading) && (
-                      <button type="button" className="btn btn--primary" onClick={() => void uploadAvatar()} disabled={!avatarFile || avatarUploading}>
+                      <Button variant="default" type="button"  onClick={() => void uploadAvatar()} disabled={!avatarFile || avatarUploading}>
                         {avatarUploading ? '上传中…' : '上传头像'}
-                      </button>
+                      </Button>
                     )}
-                    <button type="button" className="btn btn--ghost" onClick={() => void deleteAvatar()} disabled={avatarUploading}>
+                    <Button variant="ghost" type="button"  onClick={() => void deleteAvatar()} disabled={avatarUploading}>
                       <Trash2 size={16} aria-hidden="true" />
                       移除头像
-                    </button>
+                    </Button>
                   </div>
                   <p className="profile-avatar-note">支持 JPG、PNG、WebP、GIF，最大 1 MB。头像以圆形显示。</p>
                 </div>
@@ -396,9 +400,9 @@ export default function Profile() {
                 </label>
               </div>
               <div className="profile-edit-panel__actions">
-                <button className="btn btn--primary" onClick={() => void saveProfile()}>
+                <Button variant="default"  onClick={() => void saveProfile()}>
                   保存修改
-                </button>
+                </Button>
               </div>
             </section>
 
@@ -419,7 +423,7 @@ export default function Profile() {
                         {editingPasskeyId === item.id ? <input className="form-input profile-passkey-name-input" aria-label="Passkey 名称" value={editingPasskeyName} maxLength={80} onChange={e => setEditingPasskeyName(e.target.value)} /> : <strong className="profile-session-title">{item.name}</strong>}
                         <span className="profile-session-detail">注册于 {formatDate(item.createdAt)}{item.lastUsedAt ? ` · 最近使用 ${timeAgo(item.lastUsedAt)}` : ''}{item.deviceName ? ` · ${item.deviceName}` : ''}</span>
                       </div>
-                      {editingPasskeyId === item.id ? <div className="profile-passkey-actions"><button className="btn btn--secondary btn--sm" disabled={passkeyBusy} onClick={() => void savePasskeyName(item.id)}>保存</button><button className="btn btn--ghost btn--sm" disabled={passkeyBusy} onClick={() => setEditingPasskeyId('')}>取消</button></div> : <div className="profile-passkey-actions"><button className="btn btn--ghost btn--sm" disabled={passkeyBusy} onClick={() => beginRenamePasskey(item)}>改名</button><button className="btn btn--ghost btn--sm profile-passkey-remove" disabled={passkeyBusy} onClick={() => void deletePasskey(item.id)}>移除</button></div>}
+                      {editingPasskeyId === item.id ? <div className="profile-passkey-actions"><Button variant="secondary" size="sm"  disabled={passkeyBusy} onClick={() => void savePasskeyName(item.id)}>保存</Button><Button variant="ghost" size="sm"  disabled={passkeyBusy} onClick={() => setEditingPasskeyId('')}>取消</Button></div> : <div className="profile-passkey-actions"><Button variant="ghost" size="sm"  disabled={passkeyBusy} onClick={() => beginRenamePasskey(item)}>改名</Button><Button variant="ghost" size="sm" className="profile-passkey-remove" disabled={passkeyBusy} onClick={() => void deletePasskey(item.id)}>移除</Button></div>}
                     </div>
                   ))}
                 </div>
@@ -434,7 +438,7 @@ export default function Profile() {
                       <input type="text" className="form-input" id="passkeyNameInput" maxLength={80} placeholder="例如：我的 MacBook" value={passkeyName} disabled={passkeyBusy} onChange={e => setPasskeyName(e.target.value)} />
                     </label>
                   </div>
-                  <div className="profile-edit-panel__actions"><button className="btn btn--primary" disabled={passkeyBusy || !passkeyPassword.trim()} onClick={() => void registerPasskey()}>{passkeyBusy ? '处理中…' : '注册 Passkey'}</button></div>
+                  <div className="profile-edit-panel__actions"><Button variant="default"  disabled={passkeyBusy || !passkeyPassword.trim()} onClick={() => void registerPasskey()}>{passkeyBusy ? '处理中…' : '注册 Passkey'}</Button></div>
                 </> : <p className="profile-section-note">管理员暂时关闭了新的 Passkey 注册；已有凭据仍按站点策略处理。</p>}
               </div>
             </section>
@@ -472,9 +476,9 @@ export default function Profile() {
                   </label>
                 </div>
                 <div className="profile-edit-panel__actions">
-                  <button className="btn btn--primary" onClick={() => void changePassword()}>
+                  <Button variant="default"  onClick={() => void changePassword()}>
                     修改密码
-                  </button>
+                  </Button>
                 </div>
               </div>
             </section>
@@ -505,20 +509,20 @@ export default function Profile() {
                             登录 {timeAgo(s.createdAt)} · 到期 {formatDate(s.expiresAt)}
                           </span>
                         </div>
-                        <button className="btn btn--secondary btn--sm btn-session-delete" disabled={s.current} onClick={() => void deleteSession(s.id)}>
+                        <Button variant="secondary" size="sm" className="btn-session-delete" disabled={s.current} onClick={() => void deleteSession(s.id)}>
                           移除
-                        </button>
+                        </Button>
                       </div>
                     ))
                   )}
                 </div>
                 <div className="profile-session-actions">
-                  <button className="btn btn--secondary" onClick={() => void logout()}>
+                  <Button variant="secondary"  onClick={() => void logout()}>
                     退出登录
-                  </button>
-                  <button className="btn btn--secondary" onClick={() => void logoutAll()}>
+                  </Button>
+                  <Button variant="secondary"  onClick={() => void logoutAll()}>
                     退出所有设备
-                  </button>
+                  </Button>
                 </div>
               </div>
             </section>

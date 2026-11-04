@@ -476,7 +476,7 @@
 }
 
 /* .scrape-discovery__pagination 已随收敛删除：该类消费者归零，
-   分页由 .admin-pagination 统一承担。 */
+   分页由 .pagination 统一承担。 */
 
 .scrape-batch {
   display: grid;
@@ -989,13 +989,13 @@
   min-width: 0;
 }
 
-.scrape-workbench__aside .admin-panel-heading {
+.scrape-workbench__aside .panel-heading {
   padding: 0 0 0.85rem;
   border-bottom: 1px solid var(--admin-border, #eae6df);
   margin-bottom: 0.25rem;
 }
 
-.scrape-workbench__aside .admin-panel-heading__title {
+.scrape-workbench__aside .panel-heading__title {
   font-family: var(--font-serif, Georgia, "Noto Serif SC", serif);
   font-size: 1.15rem;
   font-weight: 600;
@@ -1589,7 +1589,7 @@
   box-shadow: none;
 }
 
-.scrape-config-card .admin-panel-heading {
+.scrape-config-card .panel-heading {
   padding: 0 0 0.85rem;
   border-bottom: 1px solid var(--admin-border, #eae6df);
   margin-bottom: 0.85rem;

@@ -333,7 +333,7 @@
   gap: 0.75rem;
 }
 
-/* 抓取入口字段只保留上方布局契约；Input 与榜单 CustomSelect 的尺寸、
+/* 抓取入口字段只保留上方布局契约；Input 与榜单 SearchSelect 的尺寸、
    纸面、圆角与焦点统一由 input-fields.css / select-fields.css 提供。
    不再用页面级 !important 皮肤覆盖共享规则。 */
 
@@ -743,7 +743,7 @@
     padding: 0.4rem 0.7rem;
   }
 
-  .admin-redesign-page--scrape .scrape-workbench__aside .admin-panel-heading,
+  .admin-redesign-page--scrape .scrape-workbench__aside .panel-heading,
   .admin-redesign-page--scrape .scrape-job {
     padding-inline: 1rem;
   }

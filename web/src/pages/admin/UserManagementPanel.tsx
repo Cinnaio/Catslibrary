@@ -1,3 +1,4 @@
+import '@/styles/input-fields.css'
 import { useEffect, useRef, useState } from 'react'
 import { CirclePlus, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { adminApi, authApi, type AdminDirectoryUser } from '@/lib/api'
@@ -6,19 +7,21 @@ import { useDebouncedValue } from '@/hooks/useDebounce'
 import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { UserAvatar } from '@/components/ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
-import CustomSelect from '@/components/admin/CustomSelect'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import { SearchField } from '@/components/shared/SearchField'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { cn } from '@/lib/utils'
-import Pagination from '@/components/admin/Pagination'
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE } from '@/lib/admin-pagination'
 
 const COLUMNS: readonly AdminColumn[] = [
@@ -155,7 +158,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
     <>
       <AdminToolbar layout="inline" className="admin-filter-rail account-users-filters" ariaLive="polite">
         {onSearchChange !== undefined && (
-          <AdminSearch
+          <SearchField
             id="account-user-search"
             label="搜索用户"
             placeholder="搜索昵称或用户名"
@@ -163,12 +166,12 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
             onChange={(e) => onSearchChange(e.target.value)}
           />
         )}
-        <div className="admin-filter-chips">
-          <CustomSelect
+        <div className="select-filter-chips">
+          <SearchSelect
             compact
             chip
             filterChip
-            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
             aria-label="用户角色"
             value={role}
             onChange={(value) => {
@@ -177,11 +180,11 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
             }}
             options={roleOptions}
           />
-          <CustomSelect
+          <SearchSelect
             compact
             chip
             filterChip
-            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
             aria-label="用户状态"
             value={status}
             onChange={(value) => {
@@ -335,7 +338,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
           if (!open && !savingRef.current) clearDialog()
         }}
       >
-        <AdminDialogContent
+        <DialogFrame
           className="account-password-dialog"
           onEscapeKeyDown={(event) => {
             if (savingRef.current) event.preventDefault()
@@ -349,7 +352,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
               <DialogTitle>{own ? '修改我的密码' : '修改用户密码'}</DialogTitle>
               <DialogDescription>{own ? '验证当前密码后，为自己的账号设置新密码。' : '直接设置新密码，无需用户提供原密码。'}</DialogDescription>
             </DialogHeader>
-            <AdminDialogBody>
+            <DialogBody>
               <div className="account-password-target">
                 <UserAvatar className="account-user-avatar" name={target?.displayName || target?.username || ''} src={target?.avatarUrl} />
                 <div>
@@ -409,7 +412,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                   {error}
                 </p>
               )}
-            </AdminDialogBody>
+            </DialogBody>
             <DialogFooter>
               <Button type="button" variant="secondary" disabled={saving} onClick={clearDialog}>
                 取消
@@ -419,7 +422,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
               </Button>
             </DialogFooter>
           </form>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
     </>
   )

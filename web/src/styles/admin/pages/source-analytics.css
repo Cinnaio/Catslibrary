@@ -382,7 +382,7 @@
   padding: 0;
 }
 
-.source-analytics-filters .admin-search {
+.source-analytics-filters .search-field {
   flex: 1 1 14rem;
 }
 
@@ -395,7 +395,7 @@
     min-height: 0 !important;
   }
 
-  .source-analytics-filters .admin-search {
+  .source-analytics-filters .search-field {
     width: 100% !important;
     max-width: none !important;
     min-width: 0 !important;

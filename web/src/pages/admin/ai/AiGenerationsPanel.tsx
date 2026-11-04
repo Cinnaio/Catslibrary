@@ -3,22 +3,24 @@ import WritingQualityNotice from './WritingQualityNotice'
 import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import PublishedMemoryUpdate from './PublishedMemoryUpdate'
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
-import AdminFormField from '@/components/admin/AdminFormField'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import FormField from "@/components/shared/FormField"
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronDown, CirclePlus, CornerDownRight, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import Pagination from '@/components/admin/Pagination'
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import DraftRewrite from './DraftRewrite'
 import { useAiConfigured } from './useAiConfigured'
-import { AdminDataPanel, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { SearchField } from '@/components/shared/SearchField'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
-import CustomSelect from '@/components/admin/CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { cn } from '@/lib/utils'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminModelTime from '@/components/admin/AdminModelTime'
@@ -428,7 +430,7 @@ export default function AiGenerationsPanel(props: {
       {memoryUpdate && <PublishedMemoryUpdate key={memoryUpdate.key} novelId={memoryUpdate.novelId} novelTitle={memoryUpdate.novelTitle} autoStart={memoryUpdate.autoStart} onClose={() => setMemoryUpdate(null)} />}
       {/* Claude 风格单层控制流：搜索框与多维状态/类型胶囊外置于统一胶囊轨道 */}
       <AdminToolbar layout="inline" className="admin-filter-rail ai-generations-filter-rail" ariaLive="polite">
-        <AdminSearch
+        <SearchField
           id="ai-generation-search"
           label="搜索生成内容"
           type="search"
@@ -440,13 +442,13 @@ export default function AiGenerationsPanel(props: {
             setOffset(0)
           }}
         />
-        <div className="admin-filter-chips">
+        <div className="select-filter-chips">
           {props.status === 'all' && (
-            <CustomSelect
+            <SearchSelect
               compact
               chip
               filterChip
-              leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+              leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
               aria-label="按状态筛选生成内容"
               value={filterStatus}
               onChange={(value) => {
@@ -456,11 +458,11 @@ export default function AiGenerationsPanel(props: {
               options={statusOptions}
             />
           )}
-          <CustomSelect
+          <SearchSelect
             compact
             chip
             filterChip
-            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
             aria-label="按类型筛选生成内容"
             value={filterKind}
             onChange={(v) => {
@@ -866,7 +868,7 @@ export default function AiGenerationsPanel(props: {
           }
         }}
       >
-        <AdminDialogContent
+        <DialogFrame
           variant="reading"
           size="wide"
           fixedHeight
@@ -879,7 +881,7 @@ export default function AiGenerationsPanel(props: {
           {viewing && (
             <>
               {/* 中间区是唯一的滚动所有者，发布区常驻可见 */}
-              <AdminDialogBody className="ai-generation-modal__body flex min-h-0 flex-1 flex-col gap-3.5 pr-0.5">
+              <DialogBody className="ai-generation-modal__body flex min-h-0 flex-1 flex-col gap-3.5 pr-0.5">
                 {editingText === null && <WritingQualityNotice quality={viewing.quality} />}
                 {viewing.prompt && (
                   <details className="ai-generation-prompt-card group shrink-0">
@@ -974,12 +976,12 @@ export default function AiGenerationsPanel(props: {
                     />
                   </>
                 )}
-              </AdminDialogBody>
+              </DialogBody>
 
               {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
                 <div className="ai-generation-publish shrink-0">
                   <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                    <AdminFormField label="发布章节标题" htmlFor="generation-publish-title" className="ai-generation-publish__field min-w-0 flex-1">
+                    <FormField label="发布章节标题" htmlFor="generation-publish-title" className="ai-generation-publish__field min-w-0 flex-1">
                       <Input
                         id="generation-publish-title"
                         className="h-10 rounded-full"
@@ -1013,7 +1015,7 @@ export default function AiGenerationsPanel(props: {
                           </Button>
                         ))}
                       </div>
-                    </AdminFormField>
+                    </FormField>
                     <Button
                       className="ai-generation-publish__submit h-10 w-full shrink-0 md:w-auto"
                       disabled={publishing || !publishTitle.trim()}
@@ -1026,7 +1028,7 @@ export default function AiGenerationsPanel(props: {
               )}
             </>
           )}
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
     </div>
   )

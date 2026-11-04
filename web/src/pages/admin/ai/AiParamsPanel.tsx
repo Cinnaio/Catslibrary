@@ -1,10 +1,11 @@
+import { Panel } from '@/components/ui/panel'
 /** 参数调优：前情提要 / 回顾总结 / AI 创作参数与审计配置。 */
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
 import { useEffect, useRef, useState } from 'react'
 import { aiApi, type AiSettings } from '@/lib/api'
 import { useToast } from '@/components/feedback'
-import { LoadingState } from '@/components/admin/AsyncStates'
+import { LoadingState } from "@/components/shared/AsyncStates"
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -115,9 +116,9 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
   if (!localSettings) {
     return (
-      <div className="admin-panel-card rounded-xl border border-border bg-card p-6">
+      <Panel asChild><div className="admin-panel-card rounded-xl border border-border bg-card p-6">
         <LoadingState label="正在加载参数设置" />
-      </div>
+      </div></Panel>
     )
   }
 
@@ -175,8 +176,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           id="ai-params-recap"
           className="admin-panel-card ai-params-card ai-params-card--recap"
         >
-          <div className="admin-panel-heading ai-parameter-heading">
-            <div className="admin-panel-heading__copy">
+          <div className="panel-heading ai-parameter-heading">
+            <div className="panel-heading__copy">
               <h3>前情提要参数</h3>
               <p>简短回顾当前章节之前的主要信息。</p>
             </div>
@@ -184,7 +185,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </div>
           <CardContent className="grid gap-4">
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
-              <AdminFormField label="创意度（Temperature）" className="ai-temperature-field" htmlFor="recap-temp">
+              <FormField label="创意度（Temperature）" className="ai-temperature-field" htmlFor="recap-temp">
                 <Input
                   id="recap-temp"
                   type="range"
@@ -200,8 +201,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   <span>更稳定 · 0</span>
                   <span>更灵活 · 1</span>
                 </div>
-              </AdminFormField>
-              <AdminFormField label="最大输出 Token" htmlFor="recap-tokens" hint="限制生成长度，防止过长。推荐 500">
+              </FormField>
+              <FormField label="最大输出 Token" htmlFor="recap-tokens" hint="限制生成长度，防止过长。推荐 500">
                 <Input
                   id="recap-tokens"
                   required
@@ -212,13 +213,13 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, recapMaxTokens: Number(e.target.value) })}
                 />
-              </AdminFormField>
+              </FormField>
             </div>
             <details className="ai-prompt-details">
               <summary>
                 系统提示词 <span>按需展开编辑</span>
               </summary>
-              <AdminFormField label="系统提示词" htmlFor="recap-prompt" hint="定义 AI 的角色和输出风格">
+              <FormField label="系统提示词" htmlFor="recap-prompt" hint="定义 AI 的角色和输出风格">
                 <Textarea
                   id="recap-prompt"
                   className="field-sizing-fixed min-h-[160px] shadow-none text-sm"
@@ -226,7 +227,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, recapSystemPrompt: e.target.value })}
                 />
-              </AdminFormField>
+              </FormField>
             </details>
           </CardContent>
         </Card>
@@ -239,8 +240,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           id="ai-params-catchup"
           className="admin-panel-card ai-params-card"
         >
-          <div className="admin-panel-heading ai-parameter-heading">
-            <div className="admin-panel-heading__copy">
+          <div className="panel-heading ai-parameter-heading">
+            <div className="panel-heading__copy">
               <h3>回顾总结参数</h3>
               <p>为一段时间未阅读的读者恢复故事上下文。</p>
             </div>
@@ -248,7 +249,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </div>
           <CardContent className="grid gap-4">
             <div className="ai-form-grid grid gap-3 sm:grid-cols-3">
-              <AdminFormField label="隔多少天算「很久没读」" htmlFor="catchup-stale-days" hint="距上次阅读超过该天数才显示回顾入口，1-90 天">
+              <FormField label="隔多少天算「很久没读」" htmlFor="catchup-stale-days" hint="距上次阅读超过该天数才显示回顾入口，1-90 天">
                 <Input
                   id="catchup-stale-days"
                   required
@@ -259,8 +260,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, catchupStaleDays: Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField label="最多回顾章节数" htmlFor="catchup-chapters" hint="1-10 章">
+              </FormField>
+              <FormField label="最多回顾章节数" htmlFor="catchup-chapters" hint="1-10 章">
                 <Input
                   id="catchup-chapters"
                   required
@@ -271,8 +272,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, catchupMaxChapters: Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField label="创意度" className="ai-temperature-field" htmlFor="catchup-temp">
+              </FormField>
+              <FormField label="创意度" className="ai-temperature-field" htmlFor="catchup-temp">
                 <Input
                   id="catchup-temp"
                   type="range"
@@ -288,8 +289,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   <span>更稳定 · 0</span>
                   <span>更灵活 · 1</span>
                 </div>
-              </AdminFormField>
-              <AdminFormField label="最大输出 Token" htmlFor="catchup-tokens" hint="推荐 800">
+              </FormField>
+              <FormField label="最大输出 Token" htmlFor="catchup-tokens" hint="推荐 800">
                 <Input
                   id="catchup-tokens"
                   required
@@ -300,7 +301,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, catchupMaxTokens: Number(e.target.value) })}
                 />
-              </AdminFormField>
+              </FormField>
             </div>
             <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
               <span className="min-w-0">
@@ -323,8 +324,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           id="ai-params-writing"
           className="admin-panel-card ai-params-card ai-params-card--writing"
         >
-          <div className="admin-panel-heading ai-parameter-heading">
-            <div className="admin-panel-heading__copy">
+          <div className="panel-heading ai-parameter-heading">
+            <div className="panel-heading__copy">
               <h3>AI 创作参数</h3>
               <p>控制大纲、章节与续写的生成长度和变化程度。</p>
             </div>
@@ -332,7 +333,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </div>
           <CardContent className="grid gap-4">
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
-              <AdminFormField label="创意度（Temperature）" className="ai-temperature-field" htmlFor="writing-temp">
+              <FormField label="创意度（Temperature）" className="ai-temperature-field" htmlFor="writing-temp">
                 <Input
                   id="writing-temp"
                   type="range"
@@ -348,8 +349,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   <span>更稳定 · 0</span>
                   <span>更灵活 · 1</span>
                 </div>
-              </AdminFormField>
-              <AdminFormField label="最大输出 Token" htmlFor="writing-tokens" hint="控制大纲、章节和续写的最大长度，最高 1,000,000 Token">
+              </FormField>
+              <FormField label="最大输出 Token" htmlFor="writing-tokens" hint="控制大纲、章节和续写的最大长度，最高 1,000,000 Token">
                 <Input
                   id="writing-tokens"
                   required
@@ -360,18 +361,18 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, writingMaxTokens: Number(e.target.value) })}
                 />
-              </AdminFormField>
+              </FormField>
             </div>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
               {([
                 ['writingReasoningMode', '正文、推荐情节与大纲思考模式', '控制正文续写、推荐情节和大纲规划的思考强度。跟随供应商保持原行为；关闭、低强度和高强度适用于 DeepSeek 兼容模型。'],
                 ['storyMemoryReasoningMode', '关系与情节档案思考模式', '跟随供应商保持原行为。关闭、低强度和高强度适用于 DeepSeek 兼容模型；更换其他模型前请改回跟随供应商。'],
-              ] as const).map(([key, label, hint]) => <AdminFormField key={key} label={label} htmlFor={key} hint={hint}>
+              ] as const).map(([key, label, hint]) => <FormField key={key} label={label} htmlFor={key} hint={hint}>
                 <Select value={localSettings[key] ?? 'inherit'} onValueChange={(value) => setLocalSettings({ ...localSettings, [key]: value as 'inherit' | 'disabled' | 'low' | 'high' })} disabled={props.loading || saving}>
                   <SelectTrigger id={key}><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="inherit">跟随供应商</SelectItem><SelectItem value="disabled">关闭思考</SelectItem><SelectItem value="low">低强度思考</SelectItem><SelectItem value="high">高强度思考</SelectItem></SelectContent>
                 </Select>
-              </AdminFormField>)}
+              </FormField>)}
               {([
                 ['writingStreamEnabled', '正文与大纲实时预览'],
                 ['storyMemoryStreamEnabled', '关系与情节档案实时预览'],
@@ -379,19 +380,19 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             </div>
             <h4 className="ai-parameter-subtitle">分析与辅助生成</h4>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
-              <AdminFormField label="故事记忆模式" htmlFor="story-memory-engine" hint="增量模式每章提取一次，关系、情节和星图共用可追溯记录。首次使用须从首章建立记录；原档案保留至新结果完整完成。切回原模式后，下次更新沿用完整档案流程。">
+              <FormField label="故事记忆模式" htmlFor="story-memory-engine" hint="增量模式每章提取一次，关系、情节和星图共用可追溯记录。首次使用须从首章建立记录；原档案保留至新结果完整完成。切回原模式后，下次更新沿用完整档案流程。">
                 <Select value={localSettings.storyMemoryEngine ?? 'legacy'} onValueChange={value => setLocalSettings({ ...localSettings, storyMemoryEngine: value as 'legacy' | 'incremental' })} disabled={props.loading || saving}>
                   <SelectTrigger id="story-memory-engine"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="legacy">完整档案（原模式）</SelectItem><SelectItem value="incremental">章节增量记忆（试验）</SelectItem></SelectContent>
                 </Select>
-              </AdminFormField>
+              </FormField>
               <label className="flex items-start justify-between gap-3 text-sm"><span>发布后后台准备记忆<span className="mt-1 block text-xs leading-5 text-muted-foreground">仅增量模式生效。发布正式章节后自动分析，会产生模型用量；失败保留进度，可手动继续。</span></span><Switch checked={localSettings.storyMemoryAutoUpdate ?? false} onCheckedChange={value => setLocalSettings({ ...localSettings, storyMemoryAutoUpdate: value })} disabled={props.loading || saving} /></label>
             </div>
             <div className="ai-form-grid ai-parameter-analysis grid gap-3 sm:grid-cols-2">
-              <AdminFormField label="章节增量记忆 Token" htmlFor="chapter-memory-tokens" hint="仅增量模式使用，默认 16,000；用于单章变化、正文依据及模型思考。不会限制检索输入，截断时保留旧档案并提示重试。">
+              <FormField label="章节增量记忆 Token" htmlFor="chapter-memory-tokens" hint="仅增量模式使用，默认 16,000；用于单章变化、正文依据及模型思考。不会限制检索输入，截断时保留旧档案并提示重试。">
                 <Input id="chapter-memory-tokens" required type="number" min={1000} max={1000000} value={localSettings.storyMemoryChapterMaxTokens ?? 16000} disabled={props.loading || saving} onChange={e => setLocalSettings({ ...localSettings, storyMemoryChapterMaxTokens: Number(e.target.value) })} />
-              </AdminFormField>
-              <AdminFormField label="故事图谱 Token" htmlFor="story-graph-tokens" hint="图谱的独立输出预算，默认 16,000；包含思考与最终结果。截断后可提高，实际用量取决于模型。">
+              </FormField>
+              <FormField label="故事图谱 Token" htmlFor="story-graph-tokens" hint="图谱的独立输出预算，默认 16,000；包含思考与最终结果。截断后可提高，实际用量取决于模型。">
                 <Input
                   id="story-graph-tokens"
                   required
@@ -402,14 +403,14 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, storyGraphMaxTokens: e.target.value === '' ? Number.NaN : Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField label="故事图谱思考模式" htmlFor="storyGraphReasoningMode" hint="默认关闭 DeepSeek 思考，让预算用于完整图谱；其他模型在此选项下跟随供应商。低、高强度仅支持 DeepSeek 兼容模型。">
+              </FormField>
+              <FormField label="故事图谱思考模式" htmlFor="storyGraphReasoningMode" hint="默认关闭 DeepSeek 思考，让预算用于完整图谱；其他模型在此选项下跟随供应商。低、高强度仅支持 DeepSeek 兼容模型。">
                 <Select value={localSettings.storyGraphReasoningMode ?? 'disabled'} onValueChange={(value) => setLocalSettings({ ...localSettings, storyGraphReasoningMode: value as 'inherit' | 'disabled' | 'low' | 'high' })} disabled={props.loading || saving}>
                   <SelectTrigger id="storyGraphReasoningMode"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="inherit">跟随供应商</SelectItem><SelectItem value="disabled">关闭思考</SelectItem><SelectItem value="low">低强度思考</SelectItem><SelectItem value="high">高强度思考</SelectItem></SelectContent>
                 </Select>
-              </AdminFormField>
-              <AdminFormField label="风格画像 Token" htmlFor="style-tokens" hint="风格画像提取的最大输出，推理模型需留足思考余量，推荐 1500">
+              </FormField>
+              <FormField label="风格画像 Token" htmlFor="style-tokens" hint="风格画像提取的最大输出，推理模型需留足思考余量，推荐 1500">
                 <Input
                   id="style-tokens"
                   required
@@ -420,8 +421,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, styleProfileMaxTokens: Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField label="情节状态 Token" htmlFor="plot-tokens" hint="完整档案模式的情节输出预算；增量模式使用独立的章节增量记忆预算。">
+              </FormField>
+              <FormField label="情节状态 Token" htmlFor="plot-tokens" hint="完整档案模式的情节输出预算；增量模式使用独立的章节增量记忆预算。">
                 <Input
                   id="plot-tokens"
                   required
@@ -432,8 +433,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, plotStateMaxTokens: Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField label="关系画像 Token" htmlFor="relationship-tokens" hint="完整档案模式的关系输出预算；增量模式与情节共用一次章节提取。">
+              </FormField>
+              <FormField label="关系画像 Token" htmlFor="relationship-tokens" hint="完整档案模式的关系输出预算；增量模式与情节共用一次章节提取。">
                 <Input
                   id="relationship-tokens"
                   required
@@ -444,8 +445,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, relationshipProfileMaxTokens: Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField label="档案分析超时（秒）" htmlFor="memory-timeout" hint="关系与情节档案每次模型请求的等待上限，默认 300 秒，范围 30–600 秒；超时后停止自动重试，保留检查点供手动继续。">
+              </FormField>
+              <FormField label="档案分析超时（秒）" htmlFor="memory-timeout" hint="关系与情节档案每次模型请求的等待上限，默认 300 秒，范围 30–600 秒；超时后停止自动重试，保留检查点供手动继续。">
                 <Input
                   id="memory-timeout"
                   required
@@ -456,8 +457,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, storyMemoryTimeoutSeconds: e.target.value === '' ? Number.NaN : Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField label="质量检查 Token" htmlFor="review-tokens" hint="单次草稿质量检查的输出预算；被截断时可提高后重试。">
+              </FormField>
+              <FormField label="质量检查 Token" htmlFor="review-tokens" hint="单次草稿质量检查的输出预算；被截断时可提高后重试。">
                 <Input
                   id="review-tokens"
                   required
@@ -468,8 +469,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, reviewMaxTokens: Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField label="章节标题 Token" htmlFor="title-tokens" hint="章节标题生成的最大输出，推荐 200">
+              </FormField>
+              <FormField label="章节标题 Token" htmlFor="title-tokens" hint="章节标题生成的最大输出，推荐 200">
                 <Input
                   id="title-tokens"
                   required
@@ -480,13 +481,13 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, titleMaxTokens: Number(e.target.value) })}
                 />
-              </AdminFormField>
+              </FormField>
             </div>
             <details className="ai-prompt-details">
               <summary>
                 创作系统提示词 <span>按需展开编辑</span>
               </summary>
-              <AdminFormField label="创作系统提示词" htmlFor="writing-prompt" hint="定义 AI 创作的角色、文风和输出约束">
+              <FormField label="创作系统提示词" htmlFor="writing-prompt" hint="定义 AI 创作的角色、文风和输出约束">
                 <Textarea
                   id="writing-prompt"
                   className="field-sizing-fixed min-h-[160px] shadow-none text-sm"
@@ -494,7 +495,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })}
                 />
-              </AdminFormField>
+              </FormField>
             </details>
           </CardContent>
         </Card>
@@ -506,15 +507,15 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           id="ai-params-image"
           className="admin-panel-card ai-params-card"
         >
-          <div className="admin-panel-heading ai-parameter-heading">
-            <div className="admin-panel-heading__copy">
+          <div className="panel-heading ai-parameter-heading">
+            <div className="panel-heading__copy">
               <h3>AI 生图与封面参数</h3>
               <p>为封面工作台提供默认图像设置。</p>
             </div>
             <span className="ai-parameter-count">4 项参数</span>
           </div>
           <CardContent className="ai-form-grid grid gap-4 sm:grid-cols-3">
-            <AdminFormField label="图像尺寸" htmlFor="image-size">
+            <FormField label="图像尺寸" htmlFor="image-size">
               <Select
                 value={localSettings.imageSize}
                 disabled={props.loading || saving}
@@ -530,8 +531,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   <SelectItem value="512x512">512 × 512</SelectItem>
                 </SelectContent>
               </Select>
-            </AdminFormField>
-            <AdminFormField label="图像质量" htmlFor="image-quality">
+            </FormField>
+            <FormField label="图像质量" htmlFor="image-quality">
               <Select
                 value={localSettings.imageQuality}
                 disabled={props.loading || saving}
@@ -545,8 +546,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   <SelectItem value="hd">高清（HD）</SelectItem>
                 </SelectContent>
               </Select>
-            </AdminFormField>
-            <AdminFormField label="返回格式" htmlFor="image-response-format">
+            </FormField>
+            <FormField label="返回格式" htmlFor="image-response-format">
               <Select
                 value={localSettings.imageResponseFormat}
                 disabled={props.loading || saving}
@@ -560,8 +561,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   <SelectItem value="url">URL</SelectItem>
                 </SelectContent>
               </Select>
-            </AdminFormField>
-            <AdminFormField
+            </FormField>
+            <FormField
               label="封面描述词上限"
               htmlFor="cover-prompt-max-chars"
               className="sm:col-span-2"
@@ -577,7 +578,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 disabled={props.loading || saving}
                 onChange={(e) => setLocalSettings({ ...localSettings, coverPromptMaxChars: Number(e.target.value) })}
               />
-            </AdminFormField>
+            </FormField>
           </CardContent>
         </Card>
 
@@ -589,8 +590,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           id="ai-params-import"
           className="admin-panel-card ai-params-card"
         >
-          <div className="admin-panel-heading ai-parameter-heading">
-            <div className="admin-panel-heading__copy">
+          <div className="panel-heading ai-parameter-heading">
+            <div className="panel-heading__copy">
               <h3>导入复核</h3>
               <p>用模型裁决章节边界的少数疑难行，减少手工修规则。</p>
             </div>
@@ -611,7 +612,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               />
             </label>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
-              <AdminFormField label="单次复核候选行上限" htmlFor="import-ai-candidates" hint="只送证据不足的行，超出部分不送模型，10-300 行">
+              <FormField label="单次复核候选行上限" htmlFor="import-ai-candidates" hint="只送证据不足的行，超出部分不送模型，10-300 行">
                 <Input
                   id="import-ai-candidates"
                   required
@@ -622,8 +623,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, importAiMaxCandidates: Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField label="复核输出 Token 上限" htmlFor="import-ai-tokens" hint="只需返回行号数组，200-8000">
+              </FormField>
+              <FormField label="复核输出 Token 上限" htmlFor="import-ai-tokens" hint="只需返回行号数组，200-8000">
                 <Input
                   id="import-ai-tokens"
                   required
@@ -634,13 +635,13 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, importAiMaxTokens: Number(e.target.value) })}
                 />
-              </AdminFormField>
+              </FormField>
             </div>
             <details className="ai-prompt-details">
               <summary>
                 复核提示词 <span>按需展开编辑</span>
               </summary>
-              <AdminFormField
+              <FormField
                 label="系统提示词"
                 htmlFor="import-ai-prompt"
                 hint="必须保留「只输出 JSON 行号数组」的约定，模型回结构化长文会让解析变成新的失败点"
@@ -652,7 +653,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, importAiSystemPrompt: e.target.value })}
                 />
-              </AdminFormField>
+              </FormField>
             </details>
           </CardContent>
         </Card>
@@ -665,8 +666,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           id="ai-params-contentRating"
           className="admin-panel-card ai-params-card"
         >
-          <div className="admin-panel-heading ai-parameter-heading">
-            <div className="admin-panel-heading__copy">
+          <div className="panel-heading ai-parameter-heading">
+            <div className="panel-heading__copy">
               <h3>内容分级</h3>
               <p>控制未标注作品 LLM 内容分级建议的 Token 预算与思考推理强度。</p>
             </div>
@@ -674,7 +675,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </div>
           <CardContent className="space-y-4">
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
-              <AdminFormField
+              <FormField
                 label="分级输出 Token 上限"
                 htmlFor="content-rating-tokens"
                 hint="单本分级分析的最大输出 Token。包含模型思考过程与 JSON 判定结果；面对 DeepSeek 等推理模型，建议保持在 2000 以上避免截断。"
@@ -689,8 +690,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, contentRatingMaxTokens: e.target.value === '' ? Number.NaN : Number(e.target.value) })}
                 />
-              </AdminFormField>
-              <AdminFormField
+              </FormField>
+              <FormField
                 label="分级分析思考模式"
                 htmlFor="contentRatingReasoningMode"
                 hint="控制内容分级分析的思考推理强度。分级判定以结构化规则输出为主，若上游推理模型频繁超时或产生截断，可选择关闭思考或降低强度。"
@@ -710,7 +711,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                     <SelectItem value="high">高强度思考</SelectItem>
                   </SelectContent>
                 </Select>
-              </AdminFormField>
+              </FormField>
             </div>
           </CardContent>
         </Card>
@@ -723,15 +724,15 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           id="ai-params-tasks"
           className="admin-panel-card ai-params-card"
         >
-          <div className="admin-panel-heading ai-parameter-heading">
-            <div className="admin-panel-heading__copy">
+          <div className="panel-heading ai-parameter-heading">
+            <div className="panel-heading__copy">
               <h3>任务与运维</h3>
               <p>管理任务运行数量与操作性记录保留时间。</p>
             </div>
             <span className="ai-parameter-count">2 项参数</span>
           </div>
           <CardContent className="ai-form-grid grid gap-3 sm:grid-cols-2">
-            <AdminFormField label="创作任务并发上限" htmlFor="max-concurrent-tasks" hint="同时运行的大纲/章节/续写任务数上限，超出时新任务被拒绝，1-10 个">
+            <FormField label="创作任务并发上限" htmlFor="max-concurrent-tasks" hint="同时运行的大纲/章节/续写任务数上限，超出时新任务被拒绝，1-10 个">
               <Input
                 id="max-concurrent-tasks"
                 required
@@ -742,8 +743,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 disabled={props.loading || saving}
                 onChange={(e) => setLocalSettings({ ...localSettings, maxConcurrentWritingTasks: Number(e.target.value) })}
               />
-            </AdminFormField>
-            <AdminFormField
+            </FormField>
+            <FormField
               label="已结束任务保留天数"
               htmlFor="task-retention-days"
               hint="服务启动时清理更早的已完成/失败/取消任务，用量审计不受影响，7-365 天"
@@ -758,7 +759,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 disabled={props.loading || saving}
                 onChange={(e) => setLocalSettings({ ...localSettings, taskRetentionDays: Number(e.target.value) })}
               />
-            </AdminFormField>
+            </FormField>
           </CardContent>
         </Card>
 
@@ -770,8 +771,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           id="ai-params-audit"
           className="admin-panel-card ai-params-card ai-params-card--audit"
         >
-          <div className="admin-panel-heading ai-parameter-heading">
-            <div className="admin-panel-heading__copy">
+          <div className="panel-heading ai-parameter-heading">
+            <div className="panel-heading__copy">
               <h3>审计配置</h3>
               <p>决定调用审计记录的内容范围。</p>
             </div>

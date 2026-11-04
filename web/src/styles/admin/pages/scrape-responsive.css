@@ -85,17 +85,17 @@
   }
   /* .home-pagination 已从此组合选择器移除（2026-09-23）：前台分页由
      .home-page .home-pagination 独立承担，无条件复用后台断点规则。 */
-  .admin-pagination {
+  .pagination {
     justify-content: center;
     flex-wrap: wrap;
   }
-  [data-slot='dialog-content'].admin-dialog {
+  [data-slot='dialog-content'].dialog-frame {
     max-height: calc(100svh - 1rem);
     border-radius: var(--admin-radius-dialog);
   }
-  .admin-dialog [data-slot='dialog-header'],
-  .admin-dialog__body,
-  .admin-dialog [data-slot='dialog-footer'] {
+  .dialog-frame [data-slot='dialog-header'],
+  .dialog-frame__body,
+  .dialog-frame [data-slot='dialog-footer'] {
     padding-inline: 1rem;
   }
   .novel-editor__grid {
@@ -117,11 +117,6 @@
   .admin-action-row {
     align-items: stretch;
     flex-direction: column;
-  }
-  .input-row .btn,
-  .admin-action-row .btn {
-    width: 100%;
-    justify-content: center;
   }
 
   .discover-toolbar {

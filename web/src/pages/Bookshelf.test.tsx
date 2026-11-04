@@ -21,7 +21,9 @@ beforeEach(() => {
   mocks.recent.mockResolvedValue({ progress: [], tombstones: [] })
 })
 async function removeFromCard(label: string) {
-  await userEvent.click(screen.getAllByRole('button', { name: /更多操作/ })[0])
+  const [trigger] = screen.getAllByRole('button', { name: /更多操作/ })
+  if (!trigger) throw new Error('书架操作按钮缺失')
+  await userEvent.click(trigger)
   await userEvent.click(screen.getByRole('menuitem', { name: label }))
 }
 it('收藏读取第二个云端批次，翻页可以访问第 51 本及第 13 条书签/想法', async () => {
