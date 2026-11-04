@@ -8,21 +8,21 @@
   }
 
   .admin-panel-heading {
-    padding: 1.125rem 1rem 1rem;
+    padding: var(--management-panel-padding) var(--management-panel-padding) 1.25rem;
   }
 
   .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] {
     min-height: 0;
-    padding: 1.125rem 1rem 1rem;
+    padding: var(--management-panel-padding) var(--management-panel-padding) 1.25rem;
   }
 
   .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-content'] {
-    padding: 1rem;
+    padding: var(--management-panel-padding);
   }
 
-  /* 带独立标题栏的卡片内容区顶内边距归零，由标题栏底内边距接续，左右边距严格保持 1rem 对齐 */
+  /* 标题与正文共用纸面边距，由标题下留白接续内容，避免重复叠加。 */
   .admin-redesign-page :is(.admin-panel-card, [data-slot='card']):has(> [data-slot='card-header'], > .admin-panel-heading) > [data-slot='card-content'] {
-    padding: 0 1rem 1rem;
+    padding: 0 var(--management-panel-padding) var(--management-panel-padding);
   }
 
   /* 全后台移动端统一卡片内控件全宽契约 (Mobile Card Form Baseline & Full-Width Contract)

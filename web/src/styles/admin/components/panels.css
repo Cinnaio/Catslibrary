@@ -13,13 +13,13 @@
 }
 
 .admin-panel-card {
-  padding: var(--admin-space-5);
+  padding: var(--management-panel-padding);
 }
 
 /* 后台卡片统一采用无分割线的标题行，卡片正文沿用自身留白与内部结构。 */
 .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] {
   min-height: 0;
-  padding: 1.5rem 1.5rem 1.25rem;
+  padding: var(--management-panel-padding) var(--management-panel-padding) 1.5rem;
   border-bottom: 0;
   gap: 0;
 }
@@ -29,13 +29,13 @@
   font-family: var(--admin-font-serif), "Newsreader", "Georgia", "Source Han Serif SC", "Noto Serif SC", serif;
   color: var(--text-primary);
   font-size: var(--admin-section-title-size);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.015em;
   line-height: 1.35;
 }
 
 .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-content'] {
-  padding: 1.5rem;
+  padding: var(--management-panel-padding);
 }
 
 .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] [data-slot='card-action'] {
@@ -61,7 +61,8 @@
 .input-row {
   display: flex;
   align-items: center;
-  gap: var(--admin-space-2);
+  flex-wrap: wrap;
+  gap: var(--action-gap);
 }
 
 /* 空态/加载态单元格。此前带 !important 是层叠战争产物：需要压过 Tailwind

@@ -14,7 +14,7 @@
 .admin-redesign-page [data-slot='card-title'] {
   color: var(--text-primary);
   font-size: var(--admin-section-title-size);
-  font-weight: 750;
+  font-weight: 500;
   letter-spacing: -0.03em;
   line-height: 1.3;
 }

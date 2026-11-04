@@ -22,7 +22,7 @@
 
 .chapter-editor-dialog__body,
 .chapter-merge-dialog__body {
-  gap: var(--admin-space-4);
+  gap: var(--management-form-gap);
 }
 
 .chapter-merge-dialog__body {
@@ -33,7 +33,7 @@
 .chapter-editor-dialog__fields {
   display: grid;
   grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr);
-  gap: 0.875rem;
+  gap: 1.25rem;
 }
 
 .chapter-dialog-field,
@@ -361,7 +361,7 @@
 .novel-editor-workbench {
   display: grid;
   grid-template-columns: 160px minmax(0, 1fr);
-  gap: 1.5rem;
+  gap: var(--admin-page-section-gap);
   align-items: start;
 }
 
@@ -460,7 +460,7 @@
 .novel-editor-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.875rem 1rem;
+  gap: var(--management-form-gap) 1.25rem;
 }
 
 .novel-editor-form-grid .novel-editor__field--wide {
@@ -470,7 +470,7 @@
 .novel-editor-form-grid .form-group {
   margin-bottom: 0;
   display: grid;
-  gap: 0.35rem;
+  gap: var(--admin-field-gap);
 }
 
 .novel-editor-form-grid label {

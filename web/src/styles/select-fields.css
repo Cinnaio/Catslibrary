@@ -4,8 +4,8 @@
 :where(.admin-layout, .admin-dialog, .ai-generation-dialog) {
   --input-radius: var(--admin-input-radius);
   --field-control-height: var(--admin-control-height);
-  --field-control-padding-inline: 1rem;
-  --field-control-font-size: 0.875rem;
+  --field-control-padding-inline: 0.75rem;
+  --field-control-font-size: var(--management-control-label-size);
 }
 
 /* The shared control radius belongs to single-line fields, including native ones. */
@@ -163,11 +163,11 @@
 }
 
 @media (max-width: 767px) {
-  :where(.admin-dialog, .ai-generation-dialog) {
+  :where(.admin-layout, .admin-dialog, .ai-generation-dialog) {
     --field-control-font-size: 1rem;
   }
 
-  :root :is(.admin-dialog, .ai-generation-dialog) [data-slot='input'] {
+  :root :is(.admin-layout, .admin-dialog, .ai-generation-dialog) [data-slot='input'] {
     font-size: var(--field-control-font-size);
   }
 }

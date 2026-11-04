@@ -21,6 +21,17 @@
   --font-ui-body: 14px;
   --font-display: 29px;
   --font-headline: 21px;
+  /* 后台：控件小一档，分区与纸面留白独立加宽，不压缩正文和数据行。 */
+  --management-control-height: 40px;
+  --management-control-label-size: 13px;
+  --management-control-icon-size: 14px;
+  --management-page-title-size: 26px;
+  --management-section-title-size: 16px;
+  --management-dialog-title-size: 18px;
+  --management-stat-size: 21px;
+  --management-section-gap: 32px;
+  --management-panel-padding: 28px;
+  --management-form-gap: 24px;
   --workspace-sidebar-width: 240px;
   --workspace-page-gutter: 38px;
   --workspace-page-padding: 34px 38px 44px;
@@ -236,5 +247,16 @@ html[data-accent][data-theme='dark'] {
   :root { --workspace-sidebar-width: 216px; --workspace-page-gutter: 28px; --workspace-page-padding: 28px; }
 }
 @media (max-width: 700px) {
-  :root { --workspace-sidebar-width: 0px; --workspace-page-gutter: 20px; --workspace-page-padding: 25px 20px 32px; --control-height: 48px; --control-height-compact: 48px; --button-height: 48px; }
+  :root {
+    --workspace-sidebar-width: 0px;
+    --workspace-page-gutter: 20px;
+    --workspace-page-padding: 25px 20px 32px;
+    --control-height: 48px;
+    --control-height-compact: 48px;
+    --button-height: 48px;
+    --management-control-height: 48px;
+    --management-page-title-size: 23px;
+    --management-section-gap: 24px;
+    --management-panel-padding: 20px;
+  }
 }

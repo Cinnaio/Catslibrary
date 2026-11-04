@@ -11,18 +11,18 @@
   --admin-font-serif: var(--font-serif);
   --admin-font-sans: var(--font-body);
 
-  --admin-button-primary-label-size: 0.875rem;
-  --admin-button-secondary-label-size: 0.8125rem;
-  --admin-button-tertiary-label-size: 0.8125rem;
-  --admin-button-label-weight: 550;
+  --admin-button-primary-label-size: var(--management-control-label-size);
+  --admin-button-secondary-label-size: var(--management-control-label-size);
+  --admin-button-tertiary-label-size: var(--management-control-label-size);
+  --admin-button-label-weight: 500;
   --admin-field-label-weight: 400;
 
 
-  --admin-dock-control-height: 44px;
+  --admin-dock-control-height: var(--management-control-height);
   --admin-dock-touch-height: 48px;
   --admin-dock-padding-inline: 0.875rem;
-  --admin-dock-icon-size: 1rem;
-  --admin-dock-gap: 0.5rem;
+  --admin-dock-icon-size: var(--management-control-icon-size);
+  --admin-dock-gap: 0.75rem;
   --admin-dock-inset: 0.5rem;
   --admin-dock-mobile-radius: 1.5rem;
   --admin-dock-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
@@ -50,7 +50,7 @@
   --admin-selection-primary-foreground: var(--admin-dock-primary-foreground);
 
 
-  --admin-filter-chip-height: 2.5rem;
+  --admin-filter-chip-height: var(--management-control-height);
   --admin-filter-chip-min-width: 8rem;
   --admin-filter-chip-radius: var(--radius-control);
   --admin-filter-chip-border: var(--input-border);
@@ -58,10 +58,10 @@
   --admin-filter-chip-background: var(--input-background);
   --admin-filter-chip-foreground: var(--text-primary);
   --admin-filter-chip-hover-background: var(--input-background);
-  --admin-filter-chip-padding-inline: 1rem;
+  --admin-filter-chip-padding-inline: 0.75rem;
   --admin-filter-chip-gap: 0.5rem;
-  --admin-filter-chip-icon-size: 1rem;
-  --admin-filter-chip-font-size: 0.875rem;
+  --admin-filter-chip-icon-size: var(--management-control-icon-size);
+  --admin-filter-chip-font-size: var(--management-control-label-size);
   --admin-filter-chip-font-weight: 400;
 
 
@@ -76,16 +76,16 @@
   --admin-sidebar-footer-fade-height: 1.5rem;
 
 
-  --admin-pagination-gap: 0.5rem;
-  --admin-pagination-padding-block: 0.75rem;
-  --admin-pagination-padding-inline: 1.25rem;
+  --admin-pagination-gap: 0.75rem;
+  --admin-pagination-padding-block: 1.25rem;
+  --admin-pagination-padding-inline: var(--management-panel-padding);
   --admin-pagination-font-size: 0.825rem;
   --admin-pagination-jump-width: 4rem;
   --admin-pagination-page-size-width: 5.5rem;
-  --admin-pagination-control-size: 2.125rem;
+  --admin-pagination-control-size: var(--management-control-height);
 
 
-  --admin-page-title-size: var(--font-display);
+  --admin-page-title-size: var(--management-page-title-size);
   --admin-table-panel-radius: var(--radius-container);
   --admin-table-background: var(--bg-card);
   --admin-table-border: var(--border);
@@ -106,34 +106,34 @@
   --admin-table-row-highlight: 1.8s var(--ease-out);
   --admin-table-reduced-fade: 140ms var(--ease-out);
   --admin-table-tag-gap: 0.35rem;
-  --admin-table-action-gap: 0.5rem;
+  --admin-table-action-gap: 0.75rem;
   --admin-table-action-gap-mobile: 1.5rem;
-  --admin-table-action-size: 44px;
+  --admin-table-action-size: var(--management-control-height);
   --admin-table-action-size-mobile: 48px;
-  --admin-table-icon-size: 1.125rem;
-  --admin-table-icon-size-mobile: 1.25rem;
+  --admin-table-icon-size: var(--management-control-icon-size);
+  --admin-table-icon-size-mobile: 1rem;
   --admin-table-mobile-card-radius: var(--radius-control);
   --admin-table-mobile-stack-gap: 0px;
   --admin-table-mobile-stack-divider: var(--admin-table-border);
   --admin-table-sort-gap: 0.5rem;
   --admin-table-sort-caret-size: 0.875rem;
 
-  --admin-page-section-gap: 24px;
-  --admin-control-to-card-gap: 1rem;
+  --admin-page-section-gap: var(--management-section-gap);
+  --admin-control-to-card-gap: 1.5rem;
   --admin-context-panel-background: var(--admin-panel);
   --admin-context-panel-border: var(--admin-border);
   --admin-context-panel-border-width: 1px;
   --admin-context-panel-radius: var(--radius-container);
-  --admin-context-panel-padding: 1.25rem;
-  --admin-context-panel-gap: 1.5rem;
+  --admin-context-panel-padding: var(--management-panel-padding);
+  --admin-context-panel-gap: 2rem;
   --admin-data-panel-background: var(--admin-table-background);
   --admin-data-panel-radius: var(--admin-table-panel-radius);
   --admin-data-panel-toolbar-background: transparent;
-  --admin-data-panel-toolbar-padding-block: 0.75rem;
-  --admin-data-panel-toolbar-padding-inline: 1.25rem;
+  --admin-data-panel-toolbar-padding-block: 1.25rem;
+  --admin-data-panel-toolbar-padding-inline: var(--management-panel-padding);
 
 
-  --admin-dialog-title-size: 1.25rem;
+  --admin-dialog-title-size: var(--management-dialog-title-size);
   --admin-dialog-mobile-max-height: min(47.5rem, calc(100svh - 4rem));
   --admin-dialog-mobile-footer-direction: row;
   --admin-dialog-mobile-footer-wrap: nowrap;
@@ -154,8 +154,8 @@
   --admin-table-head-size: 0.74rem;
   --admin-table-cell-size: 0.835rem;
   --admin-table-title-size: 0.885rem;
-  --admin-section-title-size: 1.05rem;
-  --admin-stat-size: 1.5rem;
+  --admin-section-title-size: var(--management-section-title-size);
+  --admin-stat-size: var(--management-stat-size);
 
 
   --admin-surface: var(--bg-card);
@@ -169,7 +169,7 @@
   --admin-sidebar: var(--bg-secondary);
   --admin-border: var(--border);
   --admin-border-strong: color-mix(in srgb, var(--border) 85%, var(--text-muted));
-  --admin-control-height: var(--control-height);
+  --admin-control-height: var(--management-control-height);
   --admin-filter-width: 11rem;
 
   --admin-radius: var(--radius-container);
@@ -187,7 +187,7 @@
   --admin-button-radius: var(--radius-control);
   --admin-motion-ease-out: var(--ease-out);
   --admin-hairline-highlight: rgba(255, 255, 255, 0.4);
-  --admin-field-gap: 0.375rem;
+  --admin-field-gap: 0.5rem;
   --admin-status-tint: 12%;
 
   --admin-reading-dialog-inset: 1.5rem;

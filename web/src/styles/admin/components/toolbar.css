@@ -21,7 +21,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 /* 筛选胶囊保留前置图标与宽度；纸面、描边和焦点由 select-fields.css 共享。 */
@@ -69,17 +69,10 @@
   flex-direction: column;
   align-items: stretch;
   gap: 0;
-  /* 与上方 .admin-panel-heading 的 padding-inline 对齐（实测标题文字在
-     x=300、工具栏在 x=280，两者错开 20px 是「不协调」的结构性来源）。
-     表格本身贴面板边缘，因此面板内出现两条对齐基线：标题与工具条走
-     同一条（内缩 1.25rem），表格走自己的单元格内边距。 */
-  padding-inline: 1.25rem;
-  /* 上下留白对称：此前上 0px、下 16px，搜索框贴在标题区分隔线上，看起来
-     被挤在线边。0.875rem 与下方 1rem 近似，视觉上均衡。 */
-  padding-top: 0.875rem;
-  /* 工具栏与下方内容必须留出间距：此前紧贴首张卡片（实测 0px），搜索框
-     看起来像卡片的标题栏而非独立控件。 */
-  margin-bottom: 1rem;
+  /* 与面板标题共用对齐线，控件缩小后仍保留独立的操作层留白。 */
+  padding-inline: var(--management-panel-padding);
+  padding-top: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 /* 搜索框：相对定位容器承载内嵌图标。
@@ -97,8 +90,8 @@
 .admin-search__icon {
   position: absolute;
   left: 0.75rem;
-  width: 1rem;
-  height: 1rem;
+  width: var(--management-control-icon-size);
+  height: var(--management-control-icon-size);
   color: var(--text-muted);
   pointer-events: none;
   transition: color 0.15s ease;

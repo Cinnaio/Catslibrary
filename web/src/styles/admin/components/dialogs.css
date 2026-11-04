@@ -60,7 +60,7 @@
 }
 
 [data-slot='dialog-content'].admin-dialog {
-  width: min(calc(100% - 2rem), 47.5rem);
+  width: min(calc(100% - 2rem), 50rem);
   max-height: min(calc(100dvh - 3rem), 47.5rem);
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0;
@@ -73,7 +73,7 @@
 }
 
 [data-slot='dialog-content'].admin-dialog.chapter-editor-dialog {
-  width: min(calc(100% - 2rem), 38.75rem);
+  width: min(calc(100% - 2rem), 42rem);
 }
 
 [data-slot='dialog-content'].admin-dialog.chapter-merge-dialog {
@@ -86,9 +86,9 @@
    被 Tailwind 输出顺序压掉（.text-center 在 utilities 层出现两次且晚于 sm 变体），
    故居中才是页头的既有事实；此处与之对齐，不再单独把后台弹窗拉成左对齐。 */
 .admin-dialog [data-slot='dialog-header'] {
-  gap: 0.375rem;
+  gap: 0.625rem;
   border-bottom: 0 !important;
-  padding: 1.625rem 1.75rem 0.25rem;
+  padding: var(--management-panel-padding) var(--management-panel-padding) 0.75rem;
   text-align: center;
 }
 
@@ -98,7 +98,7 @@
   color: var(--text-primary);
   font-family: var(--font-serif);
   font-size: var(--admin-dialog-title-size);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.01em;
   line-height: 1.25;
 }
@@ -133,7 +133,7 @@
 .admin-dialog__body {
   min-height: 0;
   overflow-y: auto;
-  padding: 1.25rem 1.75rem 1.5rem;
+  padding: 1.5rem var(--management-panel-padding) var(--management-panel-padding);
 }
 
 /* 弹窗外层主体默认隐藏垂直滚动条：
@@ -242,19 +242,20 @@
 .admin-dialog [data-slot='dialog-footer'] {
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 1rem;
   border-top: 0 !important;
   background: transparent;
-  padding: 0.25rem 1.75rem 1.625rem;
+  padding: 0.5rem var(--management-panel-padding) var(--management-panel-padding);
 }
 
 .admin-dialog [data-slot='dialog-footer'] [data-slot='button'] {
   min-width: 4.5rem;
 }
 
-/* 小说与章节编辑共用的紧凑首尾留白，由 editor 变体统一提供。 */
+/* 编辑弹窗的标题、正文与操作区各自保留留白，长表单仍在正文内滚动。 */
 [data-slot='dialog-content'].admin-dialog--editor {
-  row-gap: var(--admin-space-3);
+  row-gap: 0;
 }
 
 .admin-dialog--editor [data-slot='dialog-header'] {
@@ -262,11 +263,11 @@
   z-index: 1;
   justify-content: center;
   background: var(--admin-panel);
-  padding-block: var(--admin-space-4);
+  padding-block: var(--management-panel-padding) 0.75rem;
 }
 
 .admin-dialog--editor .admin-dialog__body {
-  padding-block: var(--admin-space-3) var(--admin-space-4);
+  padding-block: 1.5rem var(--management-panel-padding);
 }
 
 .admin-dialog--editor [data-slot='dialog-footer'] {
@@ -275,7 +276,7 @@
   align-items: center;
   border-top: 0;
   background: transparent;
-  padding-block: var(--admin-space-3);
+  padding-block: 0.5rem var(--management-panel-padding);
 }
 
 /* 管理员近期身份再认证弹窗 (ReauthenticationDialog) */
