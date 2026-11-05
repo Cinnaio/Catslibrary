@@ -9,6 +9,7 @@ import { ErrorState, InlineError } from "@/components/shared/AsyncStates"
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import styles from './calls.module.css'
 type ProxySource = 'environment' | 'runtime' | 'none'
 type ProxyLog = Awaited<ReturnType<typeof scrapeApi.proxyLogs>>['logs'][number]
 
@@ -57,17 +58,16 @@ export default function OutboundLogsPanel() {
 
   return (
     <>
-      {/* 单层控制流：左侧标题与链路分布，右侧状态计数与刷新 */}
-      <div className="calls-flat-toolbar" aria-live="polite">
-        <div className="calls-flat-toolbar__leading">
-          <h3 className="calls-flat-toolbar__title">出站请求明细</h3>
+      <div className={styles.toolbar} aria-live="polite">
+        <div className={styles.toolbarLeading}>
+          <h3>出站请求明细</h3>
           {logs.length > 0 && (
-            <span className="admin-panel-status text-xs">
+            <span className={styles.count}>
               直连 {directCount} · 代理 {proxyCount}
             </span>
           )}
         </div>
-        <div className="calls-flat-toolbar__trailing">
+        <div className={styles.toolbarTrailing}>
           <AdminStatusBadge tone={error && !logs.length ? 'danger' : 'muted'}>
             {logsLoading ? '读取中' : error && !logs.length ? '读取失败' : logs.length ? `显示 ${logs.length} 条` : '暂无内容'}
           </AdminStatusBadge>
