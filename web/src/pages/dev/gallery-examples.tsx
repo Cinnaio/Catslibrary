@@ -56,6 +56,7 @@ import AdminRowActions from '@/components/admin/AdminRowActions'
 import { SearchField } from '@/components/shared/SearchField'
 import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import { DialogFrame, DialogBody } from "@/components/shared/DialogFrame"
+import { ReadingDialog, ReadingDialogDisclosure, ReadingDialogEditor, ReadingDialogText, ReadingDialogToolbar } from '@/components/shared/ReadingDialog'
 import { LoadingState, ErrorState, InlineError } from "@/components/shared/AsyncStates"
 import Pagination from "@/components/shared/Pagination"
 import SearchSelect from "@/components/shared/SearchSelect"
@@ -802,6 +803,31 @@ export function AdminDialogExample() {
     </ControlSurface></ControlAppearance>
   )
 }
+export function ReadingDialogExample({ boundary, state }: ExampleProps) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState('夜色慢慢落在山间，远处的灯塔亮了起来。她展开信纸，读到第一句话。')
+  const content = state === 'empty' ? '' : boundary ? Array.from({ length: 30 }, () => text).join('\n\n') : text
+  return (
+    <Dialog onOpenChange={() => setEditing(false)}>
+      <DialogTrigger asChild><Button variant="outline">打开阅读优先弹窗</Button></DialogTrigger>
+      <ReadingDialog
+        title={boundary ? longTitle : '山海来信'}
+        description="第十二章 · 灯塔来信（虚构示例）"
+        eyebrow={<><span>内容预览</span><Badge>示例</Badge></>}
+        footer={<DialogClose asChild><Button variant="outline">关闭示例</Button></DialogClose>}
+      >
+        <ReadingDialogToolbar
+          label="正文"
+          meta={`${content.length.toLocaleString()} 字`}
+          actions={<Button size="sm" variant="outline" onClick={() => setEditing(!editing)}>{editing ? '结束编辑' : '编辑示例'}</Button>}
+        />
+        {editing ? <ReadingDialogEditor aria-label="示例正文" value={text} onChange={(event) => setText(event.target.value)} /> : <ReadingDialogText>{content || '暂无内容'}</ReadingDialogText>}
+        <ReadingDialogDisclosure label="生成依据" hint="Prompt">请根据已有章节整理回顾，保留关键事件，不添加原文没有的信息。</ReadingDialogDisclosure>
+      </ReadingDialog>
+    </Dialog>
+  )
+}
+
 export function RowActionsExample() {
   const { toast } = useToast()
   return (

@@ -27,6 +27,7 @@ import {
   AsyncExample,
   AccessExample,
   AdminDialogExample,
+  ReadingDialogExample,
   RowActionsExample,
   HomeFilters,
   ActionButtons,
@@ -170,6 +171,7 @@ export const entries: GalleryEntry[] = [
     AccessExample,
   ),
   entry('dialog-frame', '后台弹窗变体', 'business', '表单、编辑、阅读和预览四种样式。', ['components/shared/DialogFrame.tsx'], '后台弹窗', AdminDialogExample),
+  entry('reading-dialog', '阅读优先弹窗', 'ui', '自然收高、长文滚动、辅助长文折叠与底部操作；使用真实共享组件。', ['components/shared/ReadingDialog.tsx', 'components/shared/ReadingDialog.module.css'], '生成内容 / 通用长文预览', ReadingDialogExample, ['default', 'empty']),
   entry('row-actions', '后台行内操作', 'business', '主操作、更多菜单和危险项。', [admin('AdminRowActions')], '后台表格', RowActionsExample),
   entry(
     'home-filters',
