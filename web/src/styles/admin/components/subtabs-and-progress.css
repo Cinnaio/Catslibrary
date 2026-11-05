@@ -5,15 +5,6 @@
   .ai-generation-dialog [data-slot='input'][type='number'] {
     width: 100%;
   }
-
-  .ai-writing-panel .ai-writing-basics {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.75rem;
-  }
-
-  .ai-writing-number-input [data-slot='input'] {
-    width: 100%;
-  }
 }
 
 .ai-generation-dialog {
@@ -51,9 +42,6 @@
    后台共享胶囊切换栏 (Claude Capsule Segmented Tabs)
    复用于分级管理工作视图、AI 服务导航等主子页切换 (Image 2 标准规范)
    -------------------------------------------------------------------------- */
-
-@media (max-width: 640px) {
-}
 
 .ai-service-tabs__list {
   scrollbar-width: none;

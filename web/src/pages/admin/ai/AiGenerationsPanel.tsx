@@ -85,6 +85,8 @@ export default function AiGenerationsPanel(props: {
   search?: string
   focusBatchId?: string
   novelId?: string
+  /** 任务结束后刷新列表，保留正在审阅或编辑的草稿。 */
+  refreshToken?: string
 }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -196,7 +198,7 @@ export default function AiGenerationsPanel(props: {
     return () => {
       requestVersion.current += 1
     }
-  }, [load])
+  }, [load, props.refreshToken])
 
   /** 撤销删除：10 秒窗口内恢复软删的生成记录。 */
   async function restoreDeleted(ids: string[]) {
