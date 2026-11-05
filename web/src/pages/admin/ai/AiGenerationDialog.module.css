@@ -1,4 +1,52 @@
-/* 仅保留草稿发布的业务布局；阅读窗口外观由 shared/ReadingDialog 持有。 */
+/* 续写集合目录与草稿发布的业务布局；阅读窗口外观由 shared/ReadingDialog 持有。 */
+.batchChapters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.batchChapter {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-block: 16px;
+}
+
+.batchChapter + .batchChapter {
+  border-top: 1px solid var(--border);
+}
+
+.batchChapterContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.batchChapterHeading,
+.batchChapterMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.batchChapterIndex,
+.batchChapterMeta {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.batchChapterTitle {
+  color: var(--text-primary);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.batchChapterMeta {
+  align-items: center;
+  margin-top: 8px;
+}
+
 .publishRow {
   display: flex;
   align-items: flex-end;

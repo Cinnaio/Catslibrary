@@ -1,5 +1,5 @@
 import { MemoryRouter } from 'react-router-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import AiGenerationsPanel from './AiGenerationsPanel'
@@ -60,11 +60,25 @@ it('batch publish surfaces the update prompt without automatically starting paid
   expect(await screen.findByTestId('memory-update')).toHaveTextContent('book:prompt')
 })
 it('published batches retain the one-click action on a fresh visit', async () => {
-  open([chapter('first', 'published'), chapter('second', 'published')])
+  open([
+    { ...chapter('second', 'published'), draftTitle: '第二章标题', result: '第二章的完整正文' },
+    { ...chapter('first', 'published'), draftTitle: '第一章标题', result: '第一章的完整正文' },
+  ])
   await userEvent.click(await screen.findByRole('button', { name: /更多操作/ }))
   const item = await screen.findByRole('menuitem', { name: /更新故事档案/ })
   await userEvent.click(item)
   expect(screen.getByTestId('memory-update')).toHaveTextContent('book:start')
+  await userEvent.click(screen.getByRole('button', { name: '查看' }))
+  const directory = screen.getByRole('list', { name: '续写章节目录' })
+  expect(within(directory).getAllByRole('listitem').map(row => row.textContent)).toEqual([
+    expect.stringContaining('第一章标题'),
+    expect.stringContaining('第二章标题'),
+  ])
+  expect(within(screen.getByRole('dialog')).queryByText('第一章的完整正文')).not.toBeInTheDocument()
+  await userEvent.click(within(directory).getByRole('button', { name: '查看第 2 章：第二章标题' }))
+  expect(within(screen.getByRole('region', { name: '生成内容' })).getByText('第二章的完整正文')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: '返回集合' }))
+  expect(screen.getByRole('list', { name: '续写章节目录' })).toBeInTheDocument()
 })
 it('unpublished drafts have no formal-memory update action', async () => {
   open([chapter('first')])
@@ -87,7 +101,10 @@ it('single-chapter publication also surfaces the update prompt', async () => {
 it('shows chapter warnings in a batch and keeps publication available after inspection', async () => {
   open([{ ...chapter('first'), quality: assessWritingQuality({ text: '正文', targetWords: 2000 }) }, chapter('second')])
   expect(await screen.findByText('1 章需检查')).toBeInTheDocument()
-  fireEvent.click(await screen.findByRole('button', { name: '审阅' }))
+  fireEvent.click(screen.getByRole('button', { name: '查看' }))
+  expect(screen.getByRole('list', { name: '续写章节目录' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '发布为正式章节' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '审阅第 1 章：新章节' }))
   expect(screen.getByLabelText('生成质量提示')).toHaveTextContent('不足目标')
   expect(screen.getByRole('button', { name: '发布为正式章节' })).toBeEnabled()
 })
