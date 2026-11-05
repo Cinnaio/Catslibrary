@@ -1,3 +1,6 @@
+import '@/styles/select-fields.css'
+import '@/styles/input-fields.css'
+import { Button } from '@/components/ui/button'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -139,7 +142,7 @@ export function ReadingStatsPanel() {
     return result
   }, [data])
   return (
-    <section ref={panelRef} className="reading-stats" aria-label="阅读统计" aria-busy={loading} data-updating={loading && !!data}>
+    <section ref={panelRef} className="profile-section reading-stats" aria-label="阅读统计" aria-busy={loading} data-updating={loading && !!data}>
       <div className="reading-stats__heading">
         <div>
           <h2 className="profile-section-heading">阅读统计</h2>
@@ -220,15 +223,15 @@ export function ReadingStatsPanel() {
       {error && (
         <div className="reading-stats__notice" role="alert">
           <p>{error}</p>
-          <button
-            className="btn btn--secondary btn--sm"
+          <Button variant="secondary" size="sm"
+
             onClick={() => {
               setNow(Date.now())
               setRetry((v) => v + 1)
             }}
           >
             重试
-          </button>
+          </Button>
         </div>
       )}
       {range && data && (
@@ -253,9 +256,9 @@ export function ReadingStatsPanel() {
           {data.milliseconds === 0 ? (
             <div className="reading-stats__empty">
               <p>{data.recordedSince ? '这个时间范围还没有阅读记录。' : '开始阅读后，你的统计会出现在这里。'}</p>
-              <Link className="btn btn--secondary btn--sm" to="/bookshelf">
+              <Button asChild variant="secondary" size="sm"><Link  to="/bookshelf">
                 去书架看看
-              </Link>
+              </Link></Button>
             </div>
           ) : (
             <>
@@ -337,9 +340,9 @@ export function ReadingStatsPanel() {
                 ))}
               </ul>
               {!expanded && data.novels.length > 5 && (
-                <button className="btn btn--secondary btn--sm" onClick={() => setExpanded(true)}>
+                <Button variant="secondary" size="sm"  onClick={() => setExpanded(true)}>
                   查看全部 {data.novels.length} 本
-                </button>
+                </Button>
               )}
             </>
           )}

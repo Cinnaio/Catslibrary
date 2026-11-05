@@ -3,23 +3,26 @@ import WritingQualityNotice from './WritingQualityNotice'
 import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import PublishedMemoryUpdate from './PublishedMemoryUpdate'
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
-import AdminFormField from '@/components/admin/AdminFormField'
+import { ReadingDialog, ReadingDialogDisclosure, ReadingDialogEditor, ReadingDialogText, ReadingDialogToolbar } from '@/components/shared/ReadingDialog'
+import FormField from "@/components/shared/FormField"
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, CirclePlus, CornerDownRight, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronDown, CirclePlus, CornerDownRight, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import Pagination from '@/components/admin/Pagination'
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import DraftRewrite from './DraftRewrite'
 import { useAiConfigured } from './useAiConfigured'
-import { AdminDataPanel, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { SearchField } from '@/components/shared/SearchField'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
-import CustomSelect from '@/components/admin/CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { cn } from '@/lib/utils'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminModelTime from '@/components/admin/AdminModelTime'
 import AdminRowActions from '@/components/admin/AdminRowActions'
@@ -27,10 +30,10 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
+import { Dialog } from '@/components/ui/dialog'
 import { kindLabel } from './labels'
 import { useDebouncedValue } from '@/hooks/useDebounce'
+import styles from './AiGenerationDialog.module.css'
 
 interface AiGenerationListItem {
   id: string
@@ -73,6 +76,7 @@ const AI_GENERATION_COLUMNS: readonly AdminColumn[] = [
 ]
 
 const generationStatusLabel = (status: string) => ({ draft: '待审草稿', published: '已发布', rejected: '已拒绝' })[status] || status
+const generationWordCount = (text: string) => Array.from(text.replace(/<[^>]*>/g, '')).length
 const qualityCount = (item: AiGenerationListItem) => item.groupItems
   ? item.groupItems.filter(chapter => chapter.status === 'draft' && chapter.quality?.warnings.length).length
   : item.status === 'draft' && item.quality?.warnings.length ? 1 : 0
@@ -82,6 +86,9 @@ export default function AiGenerationsPanel(props: {
   status?: 'all' | 'published' | 'draft' | 'rejected'
   search?: string
   focusBatchId?: string
+  novelId?: string
+  /** 任务结束后刷新列表，保留正在审阅或编辑的草稿。 */
+  refreshToken?: string
 }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -100,6 +107,8 @@ export default function AiGenerationsPanel(props: {
   const requestVersion = useRef(0)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [viewing, setViewing] = useState<AiGenerationListItem | null>(null)
+  const [viewingBatch, setViewingBatch] = useState<AiGenerationListItem | null>(null)
+  const readingDialogRef = useRef<HTMLDivElement>(null)
   const [publishTitle, setPublishTitle] = useState('')
   const [publishing, setPublishing] = useState(false)
   const [titleCandidates, setTitleCandidates] = useState<string[]>([])
@@ -117,6 +126,32 @@ export default function AiGenerationsPanel(props: {
     setMemoryUpdate({ novelId: item.novelId, novelTitle: item.novelTitle, autoStart, key: Date.now() })
   }
 
+  function openGeneration(item: AiGenerationListItem, batch: AiGenerationListItem | null = null) {
+    // 集合先进入目录，只有明确选择章节后才进入单章审阅与发布。
+    setViewing(item.groupItems ? null : item)
+    setViewingBatch(item.groupItems ? item : batch)
+    setPublishTitle(item.groupItems ? '' : item.draftTitle || item.chapterTitle || '')
+    setTitleCandidates([])
+    setEditingText(null)
+  }
+
+  function updateViewing(id: string, update: Partial<AiGenerationListItem>) {
+    setViewing(current => current?.id === id ? { ...current, ...update } : current)
+    setViewingBatch(current => current ? {
+      ...current,
+      groupItems: current.groupItems?.map(chapter => chapter.id === id ? { ...chapter, ...update } : chapter),
+    } : current)
+  }
+
+  useEffect(() => {
+    // 同一弹窗切换目录和正文时，从顶部阅读，并把键盘焦点移到标题。
+    if (!viewing?.id && !viewingBatch?.id) return
+    const dialog = readingDialogRef.current
+    const body = dialog?.querySelector<HTMLElement>('[role="region"]')
+    if (body) body.scrollTop = 0
+    dialog?.querySelector<HTMLElement>('[data-slot="dialog-title"]')?.focus()
+  }, [viewing?.id, viewingBatch?.id])
+
   // 从任务面板 / 创作页跳转过来时，自动展开对应批次并滚动到可见位置
   useEffect(() => {
     if (!props.focusBatchId) return
@@ -133,6 +168,7 @@ export default function AiGenerationsPanel(props: {
     try {
       const res = await aiApi.generations({
         groupBatches: true,
+        novelId: props.novelId || undefined,
         kind: filterKind === 'all' ? undefined : filterKind,
         scope: props.scope,
         status: props.status === 'all' ? filterStatus : props.status,
@@ -141,6 +177,7 @@ export default function AiGenerationsPanel(props: {
         offset,
       })
       if (version !== requestVersion.current) return
+      if (props.novelId && res.novelId !== props.novelId) throw new Error('当前服务端尚不支持按作品查看草稿，请更新 API 后重试。')
       if (offset > 0 && offset >= res.total) {
         setTotal(res.total)
         setOffset(Math.max(0, Math.ceil(res.total / limit) - 1) * limit)
@@ -184,14 +221,14 @@ export default function AiGenerationsPanel(props: {
     } finally {
       if (version === requestVersion.current) setLoading(false)
     }
-  }, [filterKind, filterStatus, query, limit, offset, props.scope, props.status])
+  }, [filterKind, filterStatus, query, limit, offset, props.scope, props.status, props.novelId])
 
   useEffect(() => {
     void load()
     return () => {
       requestVersion.current += 1
     }
-  }, [load])
+  }, [load, props.refreshToken])
 
   /** 撤销删除：10 秒窗口内恢复软删的生成记录。 */
   async function restoreDeleted(ids: string[]) {
@@ -312,6 +349,7 @@ export default function AiGenerationsPanel(props: {
       showMemoryUpdate(item, false)
       toast('已发布为正式章节', 'success', { action: { label: '撤销发布', onClick: () => void undoPublish(item.id) } })
       setViewing(null)
+      setViewingBatch(null)
       setPublishTitle('')
       void load()
     } catch (err) {
@@ -354,7 +392,7 @@ export default function AiGenerationsPanel(props: {
       // 保存后正文版本必变；把新的 contentRevision 一并写回，
       // 否则紧接着的选段改写会拿着旧版本号提交，被服务端 409 拒绝。
       const saved = await aiApi.writing.updateDraft(item.id, text)
-      setViewing((current) => (current ? { ...current, result: text, contentRevision: saved.contentRevision, quality: saved.quality } : current))
+      updateViewing(item.id, { result: text, contentRevision: saved.contentRevision, quality: saved.quality })
       setEditingText(null)
       toast('草稿已保存', 'success')
       void load()
@@ -373,7 +411,7 @@ export default function AiGenerationsPanel(props: {
     if (!id) return
     try {
       const { item } = await aiApi.generation(id)
-      setViewing((current) => (current && current.id === id ? { ...current, ...item } : current))
+      updateViewing(id, item)
       setEditingText(null)
     } catch (err) {
       toast((err as Error).message || '重新读取草稿失败', 'error')
@@ -419,13 +457,14 @@ export default function AiGenerationsPanel(props: {
   ]
 
   const hasActiveFilter = Boolean(search || (props.status === 'all' && filterStatus !== 'all') || filterKind !== 'all')
+  const batchChapters = viewingBatch?.groupItems || []
 
   return (
     <div className="ai-service-stack">
       {memoryUpdate && <PublishedMemoryUpdate key={memoryUpdate.key} novelId={memoryUpdate.novelId} novelTitle={memoryUpdate.novelTitle} autoStart={memoryUpdate.autoStart} onClose={() => setMemoryUpdate(null)} />}
       {/* Claude 风格单层控制流：搜索框与多维状态/类型胶囊外置于统一胶囊轨道 */}
       <AdminToolbar layout="inline" className="admin-filter-rail ai-generations-filter-rail" ariaLive="polite">
-        <AdminSearch
+        <SearchField
           id="ai-generation-search"
           label="搜索生成内容"
           type="search"
@@ -437,13 +476,13 @@ export default function AiGenerationsPanel(props: {
             setOffset(0)
           }}
         />
-        <div className="admin-filter-chips">
+        <div className="select-filter-chips">
           {props.status === 'all' && (
-            <CustomSelect
+            <SearchSelect
               compact
               chip
               filterChip
-              leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+              leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
               aria-label="按状态筛选生成内容"
               value={filterStatus}
               onChange={(value) => {
@@ -453,11 +492,11 @@ export default function AiGenerationsPanel(props: {
               options={statusOptions}
             />
           )}
-          <CustomSelect
+          <SearchSelect
             compact
             chip
             filterChip
-            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
             aria-label="按类型筛选生成内容"
             value={filterKind}
             onChange={(v) => {
@@ -517,7 +556,7 @@ export default function AiGenerationsPanel(props: {
       </AdminSelectionBar>
 
       <AdminDataPanel
-        className="content-ratings-panel content-ratings-ledger ai-generations-card"
+        className="ai-generations-card"
         ariaLabel="已生成内容列表"
         columns={AI_GENERATION_COLUMNS}
         density="comfortable"
@@ -565,10 +604,10 @@ export default function AiGenerationsPanel(props: {
                   <TableHead scope="col" className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                  {items.map((item) => (
+              <TableBody key={limit}>
+                  {items.map((item, index) => (
                     <Fragment key={item.id}>
-                      <TableRow className="ai-generation-row" data-focus-batch={item.groupItems ? item.batchId : undefined}>
+                      <TableRow style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, items.length)}ms` }} className="ai-generation-row" data-focus-batch={item.groupItems ? item.batchId : undefined}>
                         <TableCell data-primary="" data-label="关联内容">
                           <div className="ai-generation-identity">
                             <Checkbox
@@ -701,16 +740,9 @@ export default function AiGenerationsPanel(props: {
                                   variant="secondary"
                                   size="sm"
                                   className="content-ratings-edit-button shrink-0"
-                                  onClick={() => {
-                                    const chapter = item.groupItems?.find((entry) => entry.status === 'draft') || item.groupItems?.[0]
-                                    if (chapter) {
-                                      setViewing(chapter)
-                                      setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
-                                      setTitleCandidates([])
-                                    }
-                                  }}
+                                  onClick={() => openGeneration(item)}
                                 >
-                                  {item.groupItems.some((chapter) => chapter.status === 'draft') ? '审阅' : '查看'}
+                                  查看
                                 </Button>
                               </>
                             ) : (
@@ -719,11 +751,7 @@ export default function AiGenerationsPanel(props: {
                                 variant="secondary"
                                 size="sm"
                                 className="content-ratings-edit-button shrink-0"
-                                onClick={() => {
-                                  setViewing(item)
-                                  setPublishTitle(item.draftTitle || item.chapterTitle || '')
-                                  setTitleCandidates([])
-                                }}
+                                onClick={() => openGeneration(item)}
                               >
                                 {item.status === 'draft' ? '审阅' : '查看'}
                               </Button>
@@ -732,12 +760,13 @@ export default function AiGenerationsPanel(props: {
                         </TableCell>
                       </TableRow>
                       {item.groupItems && expandedBatchId === item.id &&
-                        item.groupItems.map((chapter) => {
-                          const wordCount = chapter.result ? Array.from(chapter.result).length : 0
+                        item.groupItems.map((chapter, chapterIndex) => {
+                          const wordCount = generationWordCount(chapter.result)
                           const isChapterChecked = selectedIds.has(chapter.id)
                           return (
                             <TableRow
                               key={chapter.id}
+                              style={{ animationDelay: `${getAdminTableRowStaggerDelay(chapterIndex, item.groupItems!.length)}ms` }}
                               className="ai-generation-row ai-generation-row--child"
                               data-child-of={item.id}
                             >
@@ -808,11 +837,7 @@ export default function AiGenerationsPanel(props: {
                                     variant="secondary"
                                     size="sm"
                                     className="content-ratings-edit-button shrink-0"
-                                    onClick={() => {
-                                      setViewing(chapter)
-                                      setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
-                                      setTitleCandidates([])
-                                    }}
+                                    onClick={() => openGeneration(chapter, item)}
                                   >
                                     {chapter.status === 'draft' ? '审阅' : '查看'}
                                   </Button>
@@ -852,10 +877,12 @@ export default function AiGenerationsPanel(props: {
       )}
       <p className="ai-generation-help">草稿经审阅后发布；删除生成记录前，会提示对应内容及影响。</p>
       <Dialog
-        open={!!viewing}
+        open={!!viewing || !!viewingBatch}
         onOpenChange={(open) => {
           if (!open) {
+            if (savingEdit || publishing || generatingTitles) return
             setViewing(null)
+            setViewingBatch(null)
             setPublishTitle('')
             setTitleCandidates([])
             setGeneratingTitles(false)
@@ -863,167 +890,219 @@ export default function AiGenerationsPanel(props: {
           }
         }}
       >
-        <AdminDialogContent
-          variant="reading"
-          size="wide"
-          fixedHeight
-          className="content-ratings-dialog ai-generation-modal sm:max-w-3xl"
+        <ReadingDialog
+          ref={readingDialogRef}
+          showCloseButton={!savingEdit && !publishing && !generatingTitles}
+          title={viewing?.novelTitle || viewingBatch?.novelTitle || '未关联作品'}
+          description={viewing ? viewing.draftTitle || viewing.chapterTitle || '未关联章节' : `${batchChapters.length} 章续写集合`}
+          bodyLabel={viewing ? '生成内容' : '续写集合'}
+          eyebrow={viewing ? (
+            <>
+              <span>{kindLabel(viewing.kind)}</span>
+              <AdminStatusBadge tone={viewing.status === 'draft' ? 'accent' : viewing.status === 'published' ? 'success' : 'muted'}>
+                {generationStatusLabel(viewing.status)}
+              </AdminStatusBadge>
+            </>
+          ) : viewingBatch && (
+            <>
+              <span>续写集合</span>
+              {[...new Set(batchChapters.map(chapter => chapter.status))].map(status => (
+                <AdminStatusBadge key={status} tone={status === 'draft' ? 'accent' : status === 'published' ? 'success' : 'muted'}>
+                  {batchChapters.filter(chapter => chapter.status === status).length} 章{generationStatusLabel(status)}
+                </AdminStatusBadge>
+              ))}
+            </>
+          )}
+          footer={viewing && viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
+            <div className={styles.publishRow}>
+              <FormField label="发布章节标题" htmlFor="generation-publish-title" className={styles.publishField}>
+                <Input
+                  id="generation-publish-title"
+                  value={publishTitle}
+                  disabled={publishing}
+                  onChange={(event) => setPublishTitle(event.target.value)}
+                  placeholder="例如：第十二章 暴雨前夜"
+                />
+                <div className={styles.titleOptions}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={generatingTitles || publishing}
+                    onClick={() => void generateTitles(viewing)}
+                  >
+                    <Sparkles className="size-3 mr-1 text-accent" aria-hidden="true" />
+                    {generatingTitles ? '生成中…' : 'AI 生成标题'}
+                  </Button>
+                  {titleCandidates.map((candidate) => (
+                    <Button
+                      key={candidate}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className={styles.titleCandidate}
+                      disabled={publishing}
+                      onClick={() => setPublishTitle(candidate)}
+                      title={`使用标题：${candidate}`}
+                    >
+                      {candidate}
+                    </Button>
+                  ))}
+                </div>
+              </FormField>
+              <Button
+                className={styles.publishSubmit}
+                disabled={publishing || generatingTitles || !publishTitle.trim()}
+                onClick={() => void publish(viewing)}
+              >
+                {publishing ? '发布中…' : '发布为正式章节'}
+              </Button>
+            </div>
+          )}
         >
-          <DialogHeader>
-            <DialogTitle>{viewing ? `${kindLabel(viewing.kind)} · 完整内容` : '完整内容'}</DialogTitle>
-            <DialogDescription>仅管理员可查看 AI 生成的完整内容。</DialogDescription>
-          </DialogHeader>
+          {viewingBatch && !viewing && (
+            <>
+              {viewingBatch.plotDirection && (
+                <>
+                  <ReadingDialogToolbar label="选定情节" />
+                  <ReadingDialogText>{viewingBatch.plotDirection}</ReadingDialogText>
+                </>
+              )}
+              <ReadingDialogToolbar
+                label="章节目录"
+                meta={`共 ${batchChapters.length} 章 · 约 ${batchChapters.reduce((total, chapter) => total + generationWordCount(chapter.result), 0).toLocaleString()} 字`}
+              />
+              <ol className={styles.batchChapters} aria-label="续写章节目录">
+                {batchChapters.map(chapter => {
+                  const title = chapter.draftTitle || chapter.chapterTitle || '待命名章节'
+                  const action = chapter.status === 'draft' ? '审阅' : '查看'
+                  return (
+                    <li key={chapter.id} className={styles.batchChapter}>
+                      <div className={styles.batchChapterContent}>
+                        <div className={styles.batchChapterHeading}>
+                          <span className={styles.batchChapterIndex}>第 {chapter.batchIndex} 章</span>
+                          <span className={styles.batchChapterTitle}>{title}</span>
+                        </div>
+                        <div className={styles.batchChapterMeta}>
+                          <AdminStatusBadge tone={chapter.status === 'draft' ? 'accent' : chapter.status === 'published' ? 'success' : 'muted'}>
+                            {generationStatusLabel(chapter.status)}
+                          </AdminStatusBadge>
+                          <span>约 {generationWordCount(chapter.result).toLocaleString()} 字</span>
+                          {qualityCount(chapter) > 0 && <AdminStatusBadge tone="warning">需检查</AdminStatusBadge>}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`${action}第 ${chapter.batchIndex} 章：${title}`}
+                        onClick={() => openGeneration(chapter, viewingBatch)}
+                      >
+                        {action}
+                      </Button>
+                    </li>
+                  )
+                })}
+              </ol>
+            </>
+          )}
           {viewing && (
             <>
               {/* 中间区是唯一的滚动所有者，发布区常驻可见 */}
-              <AdminDialogBody className="ai-generation-modal__body flex min-h-0 flex-1 flex-col gap-3.5 pr-0.5">
-                {editingText === null && <WritingQualityNotice quality={viewing.quality} />}
-                {viewing.prompt && (
-                  <details className="ai-generation-prompt-card group shrink-0">
-                    <summary className="ai-generation-prompt-card__summary">
-                      <div className="ai-generation-prompt-card__title">
-                        <Sparkles className="size-3.5 text-accent" aria-hidden="true" />
-                        <span>本次生成 Prompt</span>
-                      </div>
-                      <ChevronDown
-                        className="size-3.5 text-muted-foreground transition-transform duration-200 group-open:rotate-180"
-                        aria-hidden="true"
-                      />
-                    </summary>
-                    <div className="ai-generation-prompt-card__content">
-                      <pre className="ai-generation-prompt-card__pre">
-                        {viewing.prompt}
-                      </pre>
-                    </div>
-                  </details>
-                )}
+              {viewingBatch && (
+                <ReadingDialogToolbar
+                  label={`集合第 ${viewing.batchIndex} 章 · 共 ${batchChapters.length} 章`}
+                  actions={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={editingText !== null || savingEdit || publishing || generatingTitles}
+                      onClick={() => openGeneration(viewingBatch)}
+                    >
+                      <ArrowLeft aria-hidden="true" />
+                      返回集合
+                    </Button>
+                  }
+                />
+              )}
+              {editingText === null && <WritingQualityNotice quality={viewing.quality} />}
 
-                <div className="ai-generation-body-toolbar shrink-0">
-                  <div className="ai-generation-body-toolbar__lead">
-                    <span className="ai-generation-body-toolbar__title">生成正文</span>
-                    <span className="ai-generation-body-toolbar__badge">
-                      约 {(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length.toLocaleString()} 字
-                    </span>
-                  </div>
-                  {viewing.status === 'draft' &&
-                    EDITABLE_KINDS.has(viewing.kind) &&
-                    (editingText === null ? (
+              <ReadingDialogToolbar
+                label="生成内容"
+                meta={`约 ${generationWordCount(editingText ?? viewing.result).toLocaleString()} 字`}
+                actions={viewing.status === 'draft' &&
+                  EDITABLE_KINDS.has(viewing.kind) &&
+                  (editingText === null ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingText(viewing.result)}
+                    >
+                      编辑正文
+                    </Button>
+                  ) : (
+                    <>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="h-7 rounded-full px-3 text-xs border-admin-border text-muted-foreground hover:border-accent hover:text-accent"
-                        onClick={() => setEditingText(viewing.result)}
+                        disabled={savingEdit}
+                        onClick={() => setEditingText(null)}
                       >
-                        编辑正文
+                        取消
                       </Button>
-                    ) : (
-                      <div className="ai-generation-body-toolbar__actions">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                          disabled={savingEdit}
-                          onClick={() => setEditingText(null)}
-                        >
-                          取消
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="content-ratings-edit-button h-7 rounded-full px-3 text-xs"
-                          disabled={savingEdit || !editingText.trim()}
-                          onClick={() => void saveEdit(viewing)}
-                        >
-                          {savingEdit ? '保存中…' : '保存草稿'}
-                        </Button>
-                      </div>
-                    ))}
-                </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={savingEdit || !editingText.trim()}
+                        onClick={() => void saveEdit(viewing)}
+                      >
+                        {savingEdit ? '保存中…' : '保存草稿'}
+                      </Button>
+                    </>
+                  ))}
+              />
 
-                {editingText === null ? (
-                  <div className="ai-generation-reading-paper">
-                    {viewing.result || '暂无内容'}
-                  </div>
-                ) : (
-                  <Textarea
-                    className="ai-generation-reading-textarea field-sizing-fixed resize-y shadow-none"
-                    value={editingText}
-                    onChange={(event) => setEditingText(event.target.value)}
-                    disabled={savingEdit}
+              {editingText === null ? (
+                <ReadingDialogText>
+                  {viewing.result || '暂无内容'}
+                </ReadingDialogText>
+              ) : (
+                <ReadingDialogEditor
+                  aria-label="编辑生成正文"
+                  value={editingText}
+                  onChange={(event) => setEditingText(event.target.value)}
+                  disabled={savingEdit}
+                />
+              )}
+
+              {viewing.prompt && (
+                <ReadingDialogDisclosure key={viewing.id} label="生成依据" hint="Prompt">
+                  {viewing.prompt}
+                </ReadingDialogDisclosure>
+              )}
+
+              {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
+                <>
+                  <DraftReview draftId={viewing.id} contentRevision={viewing.contentRevision || ''} disabled={publishing} />
+                  <DraftRewrite
+                    draftId={viewing.id}
+                    content={viewing.result}
+                    contentRevision={viewing.contentRevision || ''}
+                    onApplied={({ result, contentRevision }) => {
+                      updateViewing(viewing.id, { result, contentRevision })
+                      void refreshViewing()
+                      void load()
+                    }}
+                    onStale={() => void refreshViewing()}
                   />
-                )}
-
-                {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
-                  <>
-                    <DraftReview draftId={viewing.id} contentRevision={viewing.contentRevision || ''} disabled={publishing} />
-                    <DraftRewrite
-                      draftId={viewing.id}
-                      content={viewing.result}
-                      contentRevision={viewing.contentRevision || ''}
-                      onApplied={({ result, contentRevision }) => {
-                        setViewing((current) => (current ? { ...current, result, contentRevision } : current))
-                        void refreshViewing()
-                        void load()
-                      }}
-                      onStale={() => void refreshViewing()}
-                    />
-                  </>
-                )}
-              </AdminDialogBody>
-
-              {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
-                <div className="ai-generation-publish shrink-0">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                    <AdminFormField label="发布章节标题" htmlFor="generation-publish-title" className="ai-generation-publish__field min-w-0 flex-1">
-                      <Input
-                        id="generation-publish-title"
-                        className="h-10 rounded-full"
-                        value={publishTitle}
-                        onChange={(event) => setPublishTitle(event.target.value)}
-                        placeholder="例如：第十二章 暴雨前夜"
-                      />
-                      <div className="ai-generation-title-options flex flex-wrap items-center gap-1.5 pt-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 rounded-full px-2.5 text-xs border-admin-border text-muted-foreground hover:border-accent hover:text-accent"
-                          disabled={generatingTitles}
-                          onClick={() => void generateTitles(viewing)}
-                        >
-                          <Sparkles className="size-3 mr-1 text-accent" aria-hidden="true" />
-                          {generatingTitles ? '生成中…' : 'AI 生成标题'}
-                        </Button>
-                        {titleCandidates.map((candidate) => (
-                          <Button
-                            key={candidate}
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="ai-generation-title-candidate max-w-full"
-                            onClick={() => setPublishTitle(candidate)}
-                            title={`使用标题：${candidate}`}
-                          >
-                            {candidate}
-                          </Button>
-                        ))}
-                      </div>
-                    </AdminFormField>
-                    <Button
-                      className="ai-generation-publish__submit h-10 w-full shrink-0 md:w-auto"
-                      disabled={publishing || !publishTitle.trim()}
-                      onClick={() => void publish(viewing)}
-                    >
-                      {publishing ? '发布中…' : '发布为正式章节'}
-                    </Button>
-                  </div>
-                </div>
+                </>
               )}
             </>
           )}
-        </AdminDialogContent>
+        </ReadingDialog>
       </Dialog>
     </div>
   )

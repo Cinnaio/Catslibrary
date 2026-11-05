@@ -1,4 +1,4 @@
-[data-slot='dialog-content'].admin-dialog.supplementary-dialog {
+[data-slot='dialog-content'].dialog-frame.supplementary-dialog {
   width: min(60rem, calc(100vw - 2rem));
   max-width: calc(100vw - 2rem);
   border-radius: var(--admin-radius-dialog);
@@ -62,7 +62,7 @@
 }
 
 .supplementary-source-picker__label {
-  color: var(--admin-dialog-label-color, var(--text-secondary));
+  color: var(--dialog-frame-label-color, var(--text-secondary));
   font-size: 0.785rem;
   font-weight: 500;
   line-height: 1.5;
@@ -610,14 +610,14 @@
 }
 
 /* 常驻底栏加一层纸面遮挡，滚动内容不再从页脚缝隙透出。 */
-[data-slot='dialog-content'].admin-dialog.supplementary-dialog [data-slot='dialog-footer'] {
+[data-slot='dialog-content'].dialog-frame.supplementary-dialog [data-slot='dialog-footer'] {
   position: relative;
   z-index: 1;
   background: var(--admin-panel);
 }
 
 @media (max-width: 640px) {
-  [data-slot='dialog-content'].admin-dialog.supplementary-dialog {
+  [data-slot='dialog-content'].dialog-frame.supplementary-dialog {
     width: calc(100vw - 1.25rem);
     max-width: calc(100vw - 1.25rem);
   }

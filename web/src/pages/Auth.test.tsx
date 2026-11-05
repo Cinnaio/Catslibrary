@@ -31,6 +31,10 @@ vi.mock('../context/SessionContext', () => ({
   }),
 }))
 
+vi.mock('../components/ThemeMenu', () => ({
+  ThemeMenu: () => <button type="button">主题设置</button>,
+}))
+
 describe('Auth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -67,7 +71,7 @@ describe('Auth', () => {
     await user.type(screen.getByLabelText('账号'), ' reader ')
     await user.type(screen.getByLabelText('密码'), 'secret')
     await user.click(screen.getByRole('checkbox', { name: '保持登录' }))
-    await user.click(screen.getByRole('button', { name: /^登录$/ }))
+    await user.click(screen.getByRole('button', { name: '进入阅读空间' }))
     await waitFor(() => expect(mocks.login).toHaveBeenCalledWith('reader', 'secret', false))
     expect(screen.getByText('/novel/test?source=reader')).toBeInTheDocument()
   })
@@ -80,7 +84,7 @@ describe('Auth', () => {
     await user.click(screen.getByRole('button', { name: '去注册' }))
     expect(screen.getByLabelText('密码')).toHaveAttribute('type', 'password')
     expect(screen.getByLabelText('密码')).toHaveAttribute('autocomplete', 'new-password')
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('创建账号后继续阅读')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('创建你的阅读空间')
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 
@@ -103,12 +107,12 @@ describe('Auth', () => {
     render(<MemoryRouter><Auth /></MemoryRouter>)
     await user.type(screen.getByLabelText('账号'), 'reader')
     await user.type(screen.getByLabelText('密码'), 'wrong')
-    await user.click(screen.getByRole('button', { name: /^登录$/ }))
+    await user.click(screen.getByRole('button', { name: '进入阅读空间' }))
     expect(screen.getByRole('button', { name: '处理中…' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '去注册' })).toBeDisabled()
     fail(new Error('账号或密码错误，请重新输入'))
     expect(await screen.findByRole('alert')).toHaveTextContent('账号或密码错误，请重新输入')
-    expect(screen.getByRole('button', { name: /^登录$/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '进入阅读空间' })).toBeEnabled()
     expect(screen.getByLabelText('密码')).toHaveAttribute('aria-describedby', 'auth-message')
   })
   it('反复切换保留输入节点和值，键盘操作保持切换按钮焦点', async () => {

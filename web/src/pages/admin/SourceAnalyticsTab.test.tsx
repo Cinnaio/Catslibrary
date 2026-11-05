@@ -5,7 +5,7 @@ import type { SourceAnalyticsBook, SourceAnalyticsResponse } from '@shared/sourc
 const mocks = vi.hoisted(() => ({ analytics: vi.fn(), fetch: vi.fn(), success: vi.fn(), error: vi.fn() }))
 vi.mock('@/lib/api', () => ({ adminApi: { sourceAnalytics: mocks.analytics }, url: (path: string) => path, authHeaders: (headers: unknown) => headers }))
 vi.mock('sonner', () => ({ toast: { success: mocks.success, error: mocks.error } }))
-vi.mock('@/components/admin/CustomSelect', () => ({
+vi.mock("@/components/shared/SearchSelect", () => ({
   default: ({ options, value, onChange, ...props }: any) => (
     <select aria-label={props['aria-label']} value={value} onChange={(event) => onChange(event.target.value)}>
       {options.map((o: any) => (
@@ -93,9 +93,11 @@ const show = () =>
       <SourceAnalyticsTab />
     </MemoryRouter>,
   )
-it('图表色块联动源站和追更筛选，明细跟随更新', async () => {
+it('源站分类联动源站和追更筛选，明细跟随更新', async () => {
   show()
   await screen.findByText('连载的作品')
+  fireEvent.click(screen.getByRole('tab', { name: '书源与追更透视' }))
+  fireEvent.click(screen.getByRole('button', { name: 'site.example：展开分类明细' }))
   fireEvent.click(screen.getByRole('button', { name: 'site.example：手动暂停 1 本' }))
   await waitFor(() =>
     expect(mocks.analytics).toHaveBeenLastCalledWith(expect.objectContaining({ site: 'site.example', followup: 'paused', source: '', page: '1' })),
@@ -109,9 +111,11 @@ it('全部来源口径、排序和分页参数贯通接口，统计保持全库�
   mocks.analytics.mockImplementation(async (params) => ({ ...response(params), filteredTotal: 31, totalPages: 3 }))
   show()
   await screen.findByText('连载的作品')
+  fireEvent.click(screen.getByRole('tab', { name: '书源与追更透视' }))
   fireEvent.change(screen.getByLabelText('来源统计口径'), { target: { value: 'all' } })
   await waitFor(() => expect(mocks.analytics).toHaveBeenLastCalledWith(expect.objectContaining({ view: 'all', site: '', page: '1' })))
   await screen.findByText(/同一本书在不同站点分别计入/)
+  fireEvent.click(screen.getByRole('tab', { name: /小说明细/ }))
   fireEvent.change(screen.getByLabelText('明细排序'), { target: { value: 'next' } })
   await waitFor(() => expect(mocks.analytics).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'next' })))
   await waitFor(() => expect(screen.getByRole('button', { name: '下一页' })).toBeEnabled())
@@ -138,6 +142,7 @@ it('新筛选失败时不把旧列表当成匹配结果，重试后恢复', asyn
   show()
   await screen.findByText('连载的作品')
   mocks.analytics.mockRejectedValueOnce(new Error('offline'))
+  fireEvent.click(screen.getByRole('button', { name: '更多筛选' }))
   fireEvent.change(screen.getByLabelText('追更状态筛选'), { target: { value: 'paused' } })
   expect(await screen.findByRole('alert')).toHaveTextContent('offline')
   expect(screen.queryByText('连载的作品')).not.toBeInTheDocument()
@@ -148,6 +153,7 @@ it('新筛选失败时不把旧列表当成匹配结果，重试后恢复', asyn
 it('旧筛选响应晚到时不覆盖新筛选结果', async () => {
   show()
   await screen.findByText('连载的作品')
+  fireEvent.click(screen.getByRole('button', { name: '更多筛选' }))
   let finish!: (data: SourceAnalyticsResponse) => void
   mocks.analytics.mockImplementationOnce(
     () =>
@@ -177,17 +183,19 @@ it('读取失败可重试，空书库显示真实空状态', async () => {
     followups: { enabled: 0, paused: 0, completed: 0, unconfigured: 0, available: 0 },
   })
   fireEvent.click(screen.getByRole('button', { name: '重试' }))
-  expect(await screen.findByText('书库还是空的')).toBeVisible()
-  expect(screen.getByText('当前筛选没有匹配的小说')).toBeVisible()
+  expect(await screen.findByText('当前筛选没有匹配的小说')).toBeVisible()
+  fireEvent.click(screen.getByRole('tab', { name: '书源与追更透视' }))
+  expect(screen.getByText('书库还是空的')).toBeVisible()
 })
-it('书名搜索有可访问标签并防抖提交，点击图表会清除旧搜索', async () => {
+it('书名搜索有可访问标签并防抖提交，点击源站指标会清除旧搜索', async () => {
   show()
   await screen.findByText('连载的作品')
-  fireEvent.change(screen.getByRole('textbox', { name: '搜索小说' }), { target: { value: '作者' } })
+  fireEvent.change(screen.getByRole('searchbox', { name: '搜索小说' }), { target: { value: '作者' } })
   await waitFor(() => expect(mocks.analytics).toHaveBeenLastCalledWith(expect.objectContaining({ search: '作者', page: '1' })))
+  fireEvent.click(screen.getByRole('tab', { name: '书源与追更透视' }))
   fireEvent.click(screen.getByRole('button', { name: 'site.example：已开启 1 本' }))
   await waitFor(() => expect(mocks.analytics).toHaveBeenLastCalledWith(expect.objectContaining({ search: '', followup: 'enabled', site: 'site.example' })))
-  expect(screen.getByRole('textbox', { name: '搜索小说' })).toHaveValue('')
+  expect(screen.getByRole('searchbox', { name: '搜索小说' })).toHaveValue('')
 })
 it('融合更新后刷新统计并保留详情和融合弹窗，支持连续核对', async () => {
   show()

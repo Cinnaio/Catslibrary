@@ -1,8 +1,9 @@
+import '@/styles/input-fields.css'
 import { useEffect, useRef, useState } from 'react'
 import type { BookImportPreview } from '@shared/types'
 import type { SupplementaryBinding, SupplementaryFile, SupplementaryOverview, SupplementarySource, SupplementaryCatalog } from '@shared/supplementary-source'
 import { adminApi, supplementarySourceApi as api } from '@/lib/api'
-import { AdminDialogContent } from './AdminDialog'
+import { DialogFrame } from "@/components/shared/DialogFrame"
 import BookImportDialog from './BookImportDialog'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
-import CustomSelect from './CustomSelect'
+import SearchSelect from "@/components/shared/SearchSelect"
 import { LoaderCircle, Plus, RefreshCw, ExternalLink, Upload } from 'lucide-react'
 import '@/styles/supplementary-sources.css'
 
@@ -182,7 +183,7 @@ export default function SupplementarySourcesDialog({
         if (!open && !lock.current) onClose()
       }}
     >
-      <AdminDialogContent
+      <DialogFrame
         size="wide"
         variant="editor"
         className="supplementary-dialog"
@@ -206,7 +207,7 @@ export default function SupplementarySourcesDialog({
             )}
           </DialogDescription>
         </DialogHeader>
-        <div className="admin-dialog__body supplementary-body" aria-busy={busy}>
+        <div className="dialog-frame__body supplementary-body" aria-busy={busy}>
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -240,7 +241,7 @@ export default function SupplementarySourcesDialog({
                 <Label id="supp-source-label" className="supplementary-source-picker__label">
                   共享目录
                 </Label>
-                <CustomSelect
+                <SearchSelect
                   aria-labelledby="supp-source-label"
                   className="supplementary-source-picker__select"
                   value={sourceId}
@@ -454,7 +455,7 @@ export default function SupplementarySourcesDialog({
                                     <div className="supplementary-fact--control">
                                       <dt id={`supp-version-label-${b.id}`}>候选版本</dt>
                                       <dd className="supplementary-control">
-                                        <CustomSelect
+                                        <SearchSelect
                                           aria-labelledby={`supp-version-label-${b.id}`}
                                           className="supplementary-version-picker"
                                           value={file.key}
@@ -672,7 +673,7 @@ export default function SupplementarySourcesDialog({
                           {novelError && <p role="alert">{novelError}</p>}
                           <div className="supplementary-field">
                             <Label id="supp-novel-label">选择对应作品</Label>
-                            <CustomSelect
+                            <SearchSelect
                               aria-labelledby="supp-novel-label"
                               className="supplementary-novel-picker"
                               value={novelId}
@@ -740,7 +741,7 @@ export default function SupplementarySourcesDialog({
             关闭
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }

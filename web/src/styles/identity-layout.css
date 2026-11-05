@@ -1,0 +1,39 @@
+/* 迁移保留的 identity 场景规则，由使用方显式加载；不参与全局外观覆盖。 */
+.auth-page {
+  min-height: 100vh;
+  background: var(--bg-primary);
+}
+
+[data-theme='dark'] .auth-page {
+  background: var(--bg-primary);
+}
+
+.auth-page::before {
+  content: none;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  position: relative;
+}
+
+@media (max-width: 640px) {
+  .auth-shell {
+    padding: 16px;
+  }
+}
+
+.admin-gate-loading {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-gate-loading svg {
+    animation-duration: 2.4s;
+  }
+}

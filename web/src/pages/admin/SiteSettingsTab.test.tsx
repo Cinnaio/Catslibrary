@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SITE_BRANDING } from '@shared/site-settings'
@@ -7,8 +8,9 @@ import type { PasskeyAdminSettings, TurnstileSettings } from '@shared/site-setti
 const mock = vi.hoisted(() => ({
   branding: vi.fn(), turnstile: vi.fn(), passkey: vi.fn(), saveBranding: vi.fn(), saveTurnstile: vi.fn(), savePasskey: vi.fn(),
   upload: vi.fn(), resetAsset: vi.fn(), testTurnstile: vi.fn(), refreshPolicy: vi.fn(), toast: vi.fn(), confirm: vi.fn(),
+  contentPolicySettings: vi.fn(),
 }))
-vi.mock('@/lib/api', () => ({ siteSettingsApi: mock, url: (path: string) => `/api${path}` }))
+vi.mock('@/lib/api', () => ({ siteSettingsApi: mock, adminApi: { contentPolicy: { settings: mock.contentPolicySettings } }, url: (path: string) => `/api${path}` }))
 vi.mock('@/context/ContentPolicyContext', () => ({ useContentPolicy: () => ({ refreshPolicy: mock.refreshPolicy }) }))
 vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: mock.toast }), useConfirm: () => ({ confirm: mock.confirm }) }))
 vi.mock('@/components/TurnstileTestWidget', () => ({ default: ({ onToken }: { onToken: (token: string) => void }) => <button type="button" onClick={() => onToken('test-token')}>完成小组件</button> }))
@@ -26,8 +28,26 @@ beforeEach(() => {
   mock.turnstile.mockResolvedValue({ ...settings })
   mock.passkey.mockResolvedValue({ ...passkeySettings })
   mock.refreshPolicy.mockResolvedValue(undefined)
+  mock.contentPolicySettings.mockResolvedValue({ adultContentEnabled: true, turnstileConfigured: true })
 })
 describe('SiteSettingsTab', () => {
+  it('往返内容安全复用导航节点并保留键盘焦点与站点信息草稿', async () => {
+    await show()
+    fireEvent.change(screen.getByLabelText('站点名称'), { target: { value: '未保存名称' } })
+    const navigation = screen.getByRole('tablist', { name: '站点设置视图切换' })
+    const policyTab = screen.getByRole('tab', { name: '内容安全' })
+    await userEvent.click(policyTab)
+    await screen.findByRole('switch')
+    expect(screen.getByRole('tablist', { name: '站点设置视图切换' })).toBe(navigation)
+    expect(policyTab).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}')
+    await userEvent.keyboard('{Enter}')
+    await screen.findByLabelText('站点名称')
+    expect(screen.getByRole('tablist', { name: '站点设置视图切换' })).toBe(navigation)
+    expect(screen.getByRole('tab', { name: '站点信息' })).toHaveFocus()
+    expect(screen.getByLabelText('站点名称')).toHaveValue('未保存名称')
+    expect(mock.branding).toHaveBeenCalledTimes(1)
+  })
   it('保存文字并更新预览；失败保留草稿', async () => {
     await show()
     const name = screen.getByLabelText('站点名称')
@@ -88,14 +108,53 @@ describe('SiteSettingsTab', () => {
     await screen.findByLabelText('Passkey 显示名称')
     expect(screen.getByText('localhost')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Passkey 显示名称'), { target: { value: '书灯' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: '启用 Passkey 登录' }))
+    fireEvent.click(screen.getByRole('switch', { name: /启用 Passkey 登录/ }))
+    expect(screen.getByText('已保存状态：已开启 Passkey 登录。')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
     await waitFor(() => expect(mock.savePasskey).toHaveBeenCalledWith({ enabled: false, registrationEnabled: true, rpName: '书灯' }))
   })
   it('加载失败提供重试', async () => {
     mock.branding.mockRejectedValueOnce(new Error('读取失败'))
     render(<MemoryRouter><SiteSettingsTab /></MemoryRouter>)
-    fireEvent.click(await screen.findByRole('button', { name: '重新加载' }))
+    fireEvent.click(await screen.findByRole('button', { name: '重试' }))
     await screen.findByLabelText('站点名称')
+  })
+  it('配置按页读取，安全验证失败不阻塞 Passkey，重试不清除站点信息草稿', async () => {
+    await show()
+    expect(mock.turnstile).not.toHaveBeenCalled()
+    expect(mock.passkey).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('站点名称'), { target: { value: '保留草稿' } })
+    mock.turnstile.mockRejectedValueOnce(new Error('验证配置读取失败'))
+    await userEvent.click(screen.getByRole('tab', { name: '安全验证' }))
+    await screen.findByRole('alert')
+    await userEvent.click(screen.getByRole('tab', { name: 'Passkey' }))
+    await screen.findByLabelText('Passkey 显示名称')
+    await userEvent.click(screen.getByRole('tab', { name: '安全验证' }))
+    await userEvent.click(screen.getByRole('button', { name: '重试' }))
+    await screen.findByLabelText('Site Key')
+    await userEvent.click(screen.getByRole('tab', { name: '站点信息' }))
+    expect(screen.getByLabelText('站点名称')).toHaveValue('保留草稿')
+    expect(mock.branding).toHaveBeenCalledTimes(1)
+  })
+  it('修改验证配置后清除旧测试结果，配置齐全不等同于测试通过', async () => {
+    mock.testTurnstile.mockResolvedValue({ ok: true, message: '本次服务端测试通过' })
+    await show(true)
+    expect(screen.getByText(/实际可用性请通过右侧验证测试确认/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '开始 / 重新验证' }))
+    fireEvent.click(screen.getByRole('button', { name: '完成小组件' }))
+    fireEvent.click(screen.getByRole('button', { name: '检查服务端验证' }))
+    await screen.findByText('本次服务端测试通过')
+    fireEvent.change(screen.getByLabelText('Site Key'), { target: { value: 'new-site-key' } })
+    expect(screen.queryByText('本次服务端测试通过')).not.toBeInTheDocument()
+    expect(screen.getByText('尚未完成验证测试。')).toBeInTheDocument()
+  })
+  it('恢复焦点不重新选择旧页面，键盘 Enter 才激活页签', async () => {
+    await show(true)
+    const branding = screen.getByRole('tab', { name: '站点信息' })
+    branding.focus()
+    expect(screen.getByRole('tab', { name: '安全验证' })).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{Enter}')
+    await screen.findByLabelText('站点名称')
+    expect(branding).toHaveAttribute('aria-selected', 'true')
   })
 })

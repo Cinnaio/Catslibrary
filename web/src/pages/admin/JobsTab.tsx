@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner'
 /**
  * 任务管理 tab —— 抓取任务列表 + 下载日志。
  * 由 Novel-KV js/admin-jobs.js 的 Task Management 部分 + admin.html #tab-jobs 平移。
@@ -9,23 +10,27 @@
  * - 原版的重试在成功后切换到「爬虫」tab 并创建任务卡；本 tab 无 tab 切换能力，
  *   故仅 toast + 重载列表（偏离点）。
  */
-import { TaskDetails } from './TaskWorkspace'
+import { TaskDetails, TaskDetailsFact, TaskDetailsFacts, TaskDetailsIdentifier, TaskDetailsResult, TaskDetailsSection, TaskDetailsSummary } from './TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import CustomSelect, { type SelectOption } from '@/components/admin/CustomSelect'
+import SearchSelect, { type SelectOption } from "@/components/shared/SearchSelect"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CircleMinus, Check, AlertCircle, RefreshCw, CirclePlus } from 'lucide-react'
+import { Download, ListTodo, SearchX, Check, AlertCircle, RefreshCw, CirclePlus } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { ErrorState } from '@/components/admin/AsyncStates'
+import EmptyState from "@/components/shared/EmptyState"
+import { ErrorState } from "@/components/shared/AsyncStates"
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import { SearchField } from '@/components/shared/SearchField'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import styles from './TaskWorkspace.module.css'
 
 // ---------- Types ----------
 
@@ -49,6 +54,44 @@ interface Job {
   speed?: number
   etaSeconds?: number
   summary?: { successCount?: number; failedCount?: number; skippedCount?: number; speed?: number; etaSeconds?: number }
+}
+
+function jobSummaryCount(job: Job, key: 'successCount' | 'failedCount' | 'skippedCount'): number | undefined {
+  return job[key] ?? job.summary?.[key] ?? (key === 'successCount' ? job.chapterCount : undefined)
+}
+
+function jobProcessedHint(job: Job, showZeroCounts = false): string {
+  const success = jobSummaryCount(job, 'successCount')
+  const failed = jobSummaryCount(job, 'failedCount')
+  const skipped = jobSummaryCount(job, 'skippedCount')
+  if (!showZeroCounts && (success ?? 0) + (failed ?? 0) + (skipped ?? 0) === 0) return '处理数量未提供'
+  const counts = [success !== undefined ? `成功 ${success}` : '', failed !== undefined ? `失败 ${failed}` : '', skipped !== undefined ? `跳过 ${skipped}` : ''].filter(Boolean)
+  if (!counts.length) return '处理数量未提供'
+  const total = success !== undefined && failed !== undefined && skipped !== undefined ? `已处理 ${success + failed + skipped} 章 · ` : ''
+  return `${total}${counts.join(' · ')}${total ? '' : ' 章'}`
+}
+
+function jobProgressText(job: Job): string {
+  return job.total && job.total > 0 ? `${job.current ?? 0} / ${job.total} 章`
+    : job.current && job.current > 0 ? `已处理 ${job.current} 章 · 总数未提供` : '处理数量未提供'
+}
+
+function jobResultText(job: Job): string {
+  const kind = job.updateMode ? '更新' : '抓取'
+  if (job.status === 'completed') return `${kind}完成`
+  if (job.status === 'partial') return `${kind}部分完成`
+  if (job.status === 'failed') return `${kind}失败`
+  if (job.status === 'cancelled') return '任务已终止'
+  if (job.status === 'queued') return '等待调度'
+  return (job.total ?? 0) > 0 || (job.current ?? 0) > 0 ? jobProgressText(job) : job.step || jobStatusLabel(job.status)
+}
+
+function jobDurationText(job: Job): string {
+  const start = job.startedAt
+  const end = isJobTerminal(job.status) ? job.updatedAt : Date.now()
+  if (!start || !end || !Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start) return '耗时未记录'
+  if (end - start < 1000) return '耗时小于 1 秒'
+  return `耗时 ${getJobDuration(start, end)}`
 }
 
 const JOB_COLUMNS: readonly AdminColumn[] = [
@@ -414,7 +457,7 @@ export default function JobsTab({
     if (isJobRunning(j.status)) {
       return (
         <AdminStatusBadge variant="secondary" tone="info">
-          <span className="job-spinner"></span>
+          <Spinner size="sm"  />
           {label}
         </AdminStatusBadge>
       )
@@ -484,21 +527,21 @@ export default function JobsTab({
       {view !== 'downloads' && (
         <>
           <AdminToolbar layout="inline" className="admin-filter-rail task-workspace-toolbar" ariaLive="polite">
-            <AdminSearch
+            <SearchField
               id="scrape-jobs-search"
               label="搜索抓取任务"
               type="search"
-              data-admin-search
+              data-search-field
               placeholder="搜索作品标题、任务 ID 或类型…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <div className="admin-filter-chips">
-              <CustomSelect
+            <div className="select-filter-chips">
+              <SearchSelect
                 compact
                 chip
                 filterChip
-                leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size,1rem)]" />}
+                leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size,1rem)]" />}
                 aria-label="按抓取任务状态筛选"
                 options={statusOptions}
                 value={filter}
@@ -568,22 +611,27 @@ export default function JobsTab({
                       <TableCell data-label="进度 / 结果">
                         <div className="task-workspace-cell">
                           <span className="tabular-nums">
-                            {j.current ?? 0} / {j.total ?? '?'} 章
+                            {jobResultText(j)}
                           </span>
                           <span className="task-workspace-meta">
-                            成功 {j.successCount ?? j.summary?.successCount ?? j.chapterCount ?? 0} · 失败 {j.failedCount ?? j.summary?.failedCount ?? 0} · 跳过{' '}
-                            {j.skippedCount ?? j.summary?.skippedCount ?? 0}
+                            {jobProcessedHint(j, !isJobTerminal(j.status))}
                           </span>
-                          {j.error && <span className="task-workspace-error">{j.error}</span>}
+                          {j.error && <span className={cn('task-workspace-error', styles.listError)} title={j.error}>{j.error}</span>}
                         </div>
                       </TableCell>
                       <TableCell data-label="速度 / 耗时">
                         <div className="task-workspace-cell">
-                          <span>{formatJobSpeed(j.speed ?? j.summary?.speed)}</span>
-                          <span className="task-workspace-meta">
-                            耗时 {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'} · 剩余{' '}
-                            {formatEta(j.etaSeconds ?? j.summary?.etaSeconds)}
-                          </span>
+                          {isJobRunning(j.status) ? (
+                            <>
+                              <span>{(j.speed ?? j.summary?.speed ?? 0) > 0 ? formatJobSpeed(j.speed ?? j.summary?.speed) : '速度统计中'}</span>
+                              <span className="task-workspace-meta">
+                                {jobDurationText(j)}
+                                {(j.etaSeconds ?? j.summary?.etaSeconds ?? 0) > 0 && ` · 预计剩余 ${formatEta(j.etaSeconds ?? j.summary?.etaSeconds)}`}
+                              </span>
+                            </>
+                          ) : (
+                            <span>{j.status === 'queued' ? '等待开始' : jobDurationText(j)}</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell data-actions="">
@@ -594,14 +642,16 @@ export default function JobsTab({
                 </TableBody>
               </Table>
             ) : jobsLoading ? (
-              <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取任务队列…" />
+              <EmptyState icon={<Spinner size="sm" aria-hidden="true" />} message="正在读取任务队列…" />
             ) : jobsError ? (
               <ErrorState message={`任务队列加载失败：${jobsError}`} />
             ) : (
-              <AdminEmptyState
-                className="jobs-empty"
-                icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
+              <EmptyState
+                icon={search.trim() || filter !== 'all' ? <SearchX aria-hidden="true" /> : <ListTodo aria-hidden="true" />}
                 message={search.trim() ? `未找到与「${search.trim()}」相关的抓取任务` : FILTER_EMPTY_LABEL[filter]}
+                hint={search.trim() || filter !== 'all'
+                  ? '调整搜索关键词或任务状态后再试。'
+                  : '在抓取中心启动任务后，这里会显示执行进度。'}
                 action={
                   search.trim() || filter !== 'all' ? (
                     <Button variant="outline" size="sm" onClick={() => { setSearch(''); setFilter('all') }}>
@@ -617,21 +667,21 @@ export default function JobsTab({
       {view !== 'scrape' && (
         <>
           <AdminToolbar layout="inline" className="task-workspace-toolbar admin-filter-rail" ariaLive="polite">
-            <AdminSearch
+            <SearchField
               id="download-logs-search"
               label="搜索下载记录"
               type="search"
-              data-admin-search
+              data-search-field
               placeholder="搜索下载对象或类型…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <div className="admin-filter-chips">
-              <CustomSelect
+            <div className="select-filter-chips">
+              <SearchSelect
                 compact
                 chip
                 filterChip
-                leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size,1rem)]" />}
+                leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size,1rem)]" />}
                 aria-label="按下载类型筛选"
                 options={downloadTypeOptions}
                 value={downloadType}
@@ -651,18 +701,20 @@ export default function JobsTab({
           </AdminToolbar>
           <AdminDataPanel className="jobs-data-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS} density="comfortable">
           {logsLoading ? (
-            <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
+            <EmptyState icon={<Spinner size="sm" aria-hidden="true" />} message="正在读取下载日志…" />
           ) : logsError ? (
             <ErrorState message={`下载日志加载失败：${logsError}`} />
           ) : filteredDownloads.length === 0 ? (
-            <AdminEmptyState
-              className="jobs-empty"
-              icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
+            <EmptyState
+              icon={search.trim() || downloadType !== 'all' ? <SearchX aria-hidden="true" /> : <Download aria-hidden="true" />}
               message={
                 search.trim() || downloadType !== 'all'
                   ? '未找到符合条件的下载记录'
                   : '暂无下载记录'
               }
+              hint={search.trim() || downloadType !== 'all'
+                ? '调整搜索关键词或下载类型后再试。'
+                : '导出内容或下载书源配置后，记录会显示在这里。'}
               action={
                 search.trim() || downloadType !== 'all' ? (
                   <Button
@@ -720,7 +772,6 @@ export default function JobsTab({
               {isJobRunning(detailJob.status) && (
                 <Button
                   variant="destructive"
-                  className="rounded-full h-8 px-4 text-xs font-semibold"
                   onClick={() => {
                     setDetailsId(null)
                     void cancelJob(detailJob)
@@ -732,7 +783,6 @@ export default function JobsTab({
               {['failed', 'cancelled', 'partial'].includes(detailJob.status) && (
                 <Button
                   variant="outline"
-                  className="rounded-full h-8 px-4 text-xs font-medium"
                   onClick={() => {
                     setDetailsId(null)
                     void retryJob(detailJob)
@@ -741,29 +791,61 @@ export default function JobsTab({
                   整本重试
                 </Button>
               )}
+              {['failed', 'cancelled', 'partial'].includes(detailJob.status) && (jobSummaryCount(detailJob, 'failedCount') ?? 0) > 0 && (
+                <Button variant="outline" onClick={() => {
+                  setDetailsId(null)
+                  void retryFailedJob(detailJob)
+                }}>
+                  重试失败章节
+                </Button>
+              )}
+              {detailJob.novelId && (
+                <Button asChild>
+                  <Link to={`/novel/${encodeURIComponent(detailJob.novelId)}`}>查看作品</Link>
+                </Button>
+              )}
             </>
           )
         }
       >
         {detailJob ? (
-          <dl className="task-workspace-details">
-            <dt>任务 ID</dt>
-            <dd className="task-workspace-id">{detailJob.id}</dd>
-            <dt>作品</dt>
-            <dd>{renderNovelTitle(detailJob)}</dd>
-            <dt>类型</dt>
-            <dd>{detailJob.updateMode ? '更新' : '抓取'}</dd>
-            <dt>状态</dt>
-            <dd>{renderStatus(detailJob)}</dd>
-            <dt>执行阶段</dt>
-            <dd>{detailJob.step || '—'}</dd>
-            <dt>进度</dt>
-            <dd>
-              {detailJob.current ?? 0} / {detailJob.total ?? '?'}
-            </dd>
-            <dt>错误</dt>
-            <dd>{detailJob.error || '未记录错误'}</dd>
-          </dl>
+          <>
+            <TaskDetailsSummary
+              title={renderNovelTitle(detailJob)}
+              meta={`${detailJob.updateMode ? '更新' : '抓取'}任务${detailJob.localMode ? ' · 本地模式' : ''}`}
+              status={renderStatus(detailJob)}
+            />
+            <TaskDetailsSection label={isJobTerminal(detailJob.status) ? '执行结果' : '执行进度'}>
+              <TaskDetailsResult
+                value={['failed', 'cancelled'].includes(detailJob.status) ? jobStatusLabel(detailJob.status) : detailJob.step || jobStatusLabel(detailJob.status)}
+                hint={isJobTerminal(detailJob.status) ? jobProcessedHint(detailJob) : jobProgressText(detailJob)}
+              />
+            </TaskDetailsSection>
+            {detailJob.error && (
+              <TaskDetailsSection label="错误原因" tone="danger">{detailJob.error}</TaskDetailsSection>
+            )}
+            <TaskDetailsSection label="执行记录">
+              <TaskDetailsFacts>
+                {['failed', 'cancelled'].includes(detailJob.status) && detailJob.step && (
+                  <TaskDetailsFact label="最后阶段">{detailJob.step}</TaskDetailsFact>
+                )}
+                <TaskDetailsFact label="开始时间">{formatDateTime(detailJob.startedAt) || '未记录'}</TaskDetailsFact>
+                <TaskDetailsFact label={isJobTerminal(detailJob.status) ? '结束时间' : '最近更新'}>
+                  {formatDateTime(detailJob.updatedAt) || '未记录'}
+                </TaskDetailsFact>
+                <TaskDetailsFact label="耗时">
+                  {jobDurationText(detailJob).replace(/^耗时/, '')}
+                </TaskDetailsFact>
+                {isJobRunning(detailJob.status) && (
+                  <>
+                    <TaskDetailsFact label="处理速度">{formatJobSpeed(detailJob.speed ?? detailJob.summary?.speed)}</TaskDetailsFact>
+                    <TaskDetailsFact label="预计剩余">{formatEta(detailJob.etaSeconds ?? detailJob.summary?.etaSeconds)}</TaskDetailsFact>
+                  </>
+                )}
+              </TaskDetailsFacts>
+            </TaskDetailsSection>
+            <TaskDetailsIdentifier id={detailJob.id} />
+          </>
         ) : (
           <p>任务记录已不在当前列表，请刷新后查看。</p>
         )}

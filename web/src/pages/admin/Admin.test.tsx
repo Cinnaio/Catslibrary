@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./AdminGate', () => ({
@@ -17,11 +17,14 @@ vi.mock('./AdminShell', () => ({
 }))
 
 vi.mock('./admin-registry', () => {
-  const ids = ['dashboard', 'novels', 'scrape'] as const
+  const ids = ['dashboard', 'novels', 'scrape', 'content-policy', 'site-settings', 'ai'] as const
   const labels: Record<(typeof ids)[number], string> = {
     dashboard: '总览',
     novels: '小说管理',
     scrape: '爬虫抓取',
+    'content-policy': '内容安全',
+    'site-settings': '站点设置',
+    ai: '创作工作区',
   }
   const component = (name: string) => () => <div>{name}</div>
   return {
@@ -32,10 +35,14 @@ vi.mock('./admin-registry', () => {
         <div>novels-content<output data-testid="highlight">{highlightNovelId}</output><button onClick={onHighlightConsumed}>消耗高亮</button></div>
       ),
       scrape: component('scrape-content'),
+      'content-policy': component('legacy-policy-content'),
+      'site-settings': component('site-settings-content'),
+      ai: component('ai-content'),
     },
     isAdminTab: (id: string | undefined) => !!id && ids.includes(id as (typeof ids)[number]),
     adminTabPath: (id: string) => `/admin/${encodeURIComponent(id)}`,
     getTabLabel: (id: string) => labels[id as (typeof ids)[number]] || '',
+    getAdminViewLabel: (id: string, search: string) => new URLSearchParams(search).get('view') === 'content-policy' ? '内容安全' : labels[id as (typeof ids)[number]] || '',
   }
 })
 
@@ -43,7 +50,8 @@ import Admin from './Admin'
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="location">{location.pathname}{location.search}</output>
+  const navigate = useNavigate()
+  return <><output data-testid="location">{location.pathname}{location.search}{location.hash}</output><button onClick={() => navigate('/admin/ai?sub=config&keep=1#models')}>打开旧 AI 设置地址</button><button onClick={() => navigate('/admin/site-settings?view=branding')}>返回站点信息</button></>
 }
 
 function renderAdmin(entry: string) {
@@ -61,6 +69,26 @@ describe('Admin URL navigation', () => {
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
+  })
+  it('跨旧 AI 配置地址保留同一个站点设置容器，AI 创作仍独立呈现', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+    renderAdmin('/admin/site-settings?view=branding')
+    const settings = await screen.findByText('site-settings-content')
+    await user.click(screen.getByRole('button', { name: '打开旧 AI 设置地址' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin/ai?sub=config&keep=1#models')
+    expect(screen.getByText('site-settings-content')).toBe(settings)
+    expect(screen.queryByText('ai-content')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '返回站点信息' }))
+    expect(screen.getByText('site-settings-content')).toBe(settings)
+  })
+
+  it('旧内容安全地址进入站点设置，保留其他参数与锚点并更新上次位置', async () => {
+    renderAdmin('/admin/content-policy?keep=1#access')
+    await screen.findByText('site-settings-content')
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin/site-settings?keep=1&view=content-policy#access')
+    expect(screen.getByTestId('admin-shell')).toHaveAttribute('data-active', 'site-settings')
+    expect(screen.getByRole('heading', { name: '内容安全' })).toBeInTheDocument()
+    await waitFor(() => expect(localStorage.getItem('admin_active_tab')).toBe('site-settings'))
   })
 
   it('可通过深链接直接打开指定模块并记住位置', async () => {

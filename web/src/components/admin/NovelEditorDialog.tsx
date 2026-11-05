@@ -10,8 +10,8 @@ import { Dialog, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import CustomSelect from '@/components/admin/CustomSelect'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import SearchSelect from "@/components/shared/SearchSelect"
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
 
 export type ContentRating = 'general' | 'restricted' | 'unknown'
@@ -177,11 +177,11 @@ export default function NovelEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !saving && onClose()}>
-      <AdminDialogContent variant="editor" className="novel-editor-dialog sm:max-w-[680px]">
+      <DialogFrame variant="editor" className="novel-editor-dialog sm:max-w-[680px]">
         <DialogHeader>
           <DialogTitle className="editor-modal__title">{editing ? '编辑小说信息' : '添加新小说'}</DialogTitle>
         </DialogHeader>
-        <AdminDialogBody>
+        <DialogBody>
           <div className="novel-editor-workbench">
             {/* 左侧：实体书影封面展台 */}
             <div className="novel-editor-sidebar">
@@ -233,7 +233,7 @@ export default function NovelEditorDialog({
 
               <div className="form-group novel-editor__field">
                 <Label id="novel-status-label">连载状态</Label>
-                <CustomSelect
+                <SearchSelect
                   aria-labelledby="novel-status-label"
                   options={STATUS_OPTIONS}
                   value={draft.status}
@@ -243,7 +243,7 @@ export default function NovelEditorDialog({
 
               <div className="form-group novel-editor__field">
                 <Label id="novel-rating-label">内容分级</Label>
-                <CustomSelect
+                <SearchSelect
                   aria-labelledby="novel-rating-label"
                   options={CONTENT_RATING_OPTIONS}
                   value={draft.contentRating}
@@ -299,7 +299,7 @@ export default function NovelEditorDialog({
               </div>
             </div>
           </div>
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose} disabled={saving}>
             取消
@@ -308,7 +308,7 @@ export default function NovelEditorDialog({
             {saving ? '保存中…' : '保存'}
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }

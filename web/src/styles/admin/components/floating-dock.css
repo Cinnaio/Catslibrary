@@ -198,7 +198,7 @@
   display: inline-block;
   width: 6px;
   height: 6px;
-  border-radius: 9999px;
+  border-radius: var(--radius-tag);
   background: var(--admin-border-strong, #8e8c85);
   flex-shrink: 0;
   transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;

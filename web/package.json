@@ -1,13 +1,14 @@
 {
   "name": "@zhi-zhou/web",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "check:components": "node ../scripts/check-web-components.mjs",
+    "typecheck": "npm run check:components && tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

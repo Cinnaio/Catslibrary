@@ -1,0 +1,2 @@
+/* 通用加载容器布局；旋转图形由 ui/Spinner 自行加载。 */
+.loading-center { display: flex; align-items: center; justify-content: center; padding: 48px; }

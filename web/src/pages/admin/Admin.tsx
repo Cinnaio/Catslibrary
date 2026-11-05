@@ -1,3 +1,8 @@
+import '@/styles/admin-action-layout.css'
+import '../../styles/_admin.css'
+import '../../styles/_admin-ui.css'
+import '../../styles/admin-operations.css'
+import '../../styles/book-import.css'
 /**
  * 管理后台外壳 —— 薄编排器。
  * 职责已拆出：鉴权门 AdminGate、布局 AdminShell（含侧边栏/顶栏）、
@@ -9,8 +14,9 @@ import RouteLoading from '../../components/RouteLoading'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AdminGate from './AdminGate'
 import { monitoringRedirect } from './monitoring-routes'
+import { getSiteSettingsView } from './site-settings-views'
 import AdminShell from './AdminShell'
-import { adminTabPath, getTabLabel, isAdminTab, TAB_COMPONENTS, TAB_KEY } from './admin-registry'
+import { adminTabPath, getAdminViewLabel, isAdminTab, TAB_COMPONENTS, TAB_KEY } from './admin-registry'
 
 export default function Admin() {
   const navigate = useNavigate()
@@ -35,7 +41,7 @@ export default function Admin() {
       const t = e.target as HTMLElement | null
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       if (typing) return
-      const search = document.querySelector<HTMLElement>('.tab-content [data-admin-search]')
+      const search = document.querySelector<HTMLElement>('.tab-content [data-search-field]')
       if (!search) return
       e.preventDefault()
       search.focus()
@@ -72,16 +78,26 @@ export default function Admin() {
     return <Navigate to={adminTabPath(fallbackTab)} replace />
   }
 
+  // 内容安全归入站点设置，旧书签及上次访问位置仍可到达同一设置。
+  if (active === 'content-policy') {
+    const params = new URLSearchParams(location.search)
+    params.set('view', 'content-policy')
+    return <Navigate to={{ pathname: adminTabPath('site-settings'), search: params.toString(), hash: location.hash }} replace />
+  }
+
   const redirect = monitoringRedirect(active, location.search, localStorage.getItem('ai_active_subtab'))
   if (redirect) return <Navigate to={redirect} replace />
 
-  const TabComponent = TAB_COMPONENTS[active]
-  const activeLabel = getTabLabel(active)
+  const settingsView = getSiteSettingsView(location.pathname, location.search, localStorage.getItem('ai_active_subtab'))
+  const TabComponent = settingsView ? TAB_COMPONENTS['site-settings'] : TAB_COMPONENTS[active]
+  const activeLabel = settingsView === 'config' || settingsView === 'params'
+    ? getAdminViewLabel('ai', `?sub=${settingsView}`)
+    : getAdminViewLabel(active, location.search)
 
   return (
     <AdminGate>
       <AdminShell active={active} activeLabel={activeLabel}>
-        <Suspense key={active} fallback={<RouteLoading embedded />}>
+        <Suspense key={settingsView ? 'site-settings' : active} fallback={<RouteLoading embedded />}>
           <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => {
             setLegacyHighlightNovelId('')
             const params = new URLSearchParams(location.search)

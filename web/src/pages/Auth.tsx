@@ -1,8 +1,11 @@
+import '@/styles/identity-layout.css'
+import '@/styles/input-fields.css'
+import styles from './auth.module.css'
 /**
  * Auth 页 —— 登录 / 注册（shadcn 版）。
  * 首个管理员引导已拆到独立 /install 页：本页探测到 needsBootstrap 时跳转过去。
  *
- * 独立暖纸单列表单：auth-page--reader 限定页面外观，不改变安装向导。
+ * 独立阅读氛围双栏：auth-page--reader 限定页面外观，不改变安装向导。
  */
 import { useEffect, useState, type FormEvent, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -15,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useSiteBranding } from '../lib/site-branding'
 import { useStateChangeMotion } from '../hooks/useStateChangeMotion'
+import { ThemeMenu } from '../components/ThemeMenu'
 
 type Mode = 'login' | 'register'
 
@@ -153,15 +157,28 @@ export default function Auth() {
   }
 
   return (
-    <main className="auth-page auth-page--reader">
+    <main className={`${styles.page} auth-page auth-page--reader`}>
+      <aside className={styles.visual} aria-label="自己的阅读空间">
+        <div className={styles.visualCopy}>
+          <p className={styles.visualHeading}>留一点时间，<br />读自己的故事。</p>
+          <p className={styles.visualDescription}>收藏喜欢的书，接着上次读。</p>
+        </div>
+        <p className={styles.visualSignature}>{branding.name} · 自己的阅读空间</p>
+      </aside>
       <div className="auth-shell">
+          <div className={styles.toolbar}>
+            <Link to="/" className={styles.backLink}><ArrowLeft size={16} aria-hidden="true" />返回书库</Link>
+            <ThemeMenu className={styles.themeButton} />
+          </div>
+          <div className={styles.formViewport}>
           <section ref={modeMotionRef} className="auth-panel" aria-labelledby="auth-title">
             <div className="auth-panel__head">
               <div className="auth-panel__brand">
                 <img src={branding.logoUrl} alt="" className="auth-panel__mark" aria-hidden="true" />
                 <span>{branding.name}</span>
               </div>
-              <h1 id="auth-title" className="auth-panel__title">{isLogin ? '请登录后继续阅读' : '创建账号后继续阅读'}</h1>
+              <h1 id="auth-title" className="auth-panel__title">{isLogin ? '欢迎回来' : '创建你的阅读空间'}</h1>
+              <p className={styles.subtitle}>{isLogin ? '登录后，同步你的书架与阅读进度。' : '创建账号，把喜欢的故事收进书架。'}</p>
             </div>
 
             <form className="auth-form" onSubmit={onSubmit} noValidate>
@@ -172,6 +189,7 @@ export default function Auth() {
                     id="auth-username"
                     autoComplete={isLogin ? 'username webauthn' : 'username'}
                     required
+                    placeholder="输入你的账号"
                     disabled={fieldsDisabled}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
@@ -187,6 +205,7 @@ export default function Auth() {
                       type={showPassword ? 'text' : 'password'}
                       autoComplete={isLogin ? 'current-password' : 'new-password'}
                       required
+                      placeholder={isLogin ? '输入你的密码' : '设置登录密码'}
                       disabled={fieldsDisabled}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -238,7 +257,7 @@ export default function Auth() {
               </div>
 
               {msg && (
-                <p id="auth-message" className="auth-alert" role="alert">
+                <p id="auth-message" className="auth-alert" role="alert" title={msg}>
                   <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
                   <span>{msg}</span>
                 </p>
@@ -254,13 +273,13 @@ export default function Auth() {
               <div className="auth-actions">
                 <Button type="submit" disabled={fieldsDisabled}>
                   {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
-                  {busy ? '处理中…' : isLogin ? '登录' : '创建账号'}
+                  {busy ? '处理中…' : isLogin ? '进入阅读空间' : '创建账号'}
                 </Button>
 
                 {isLogin && passkeyAvailable && (
                   <Button type="button" variant="secondary" disabled={fieldsDisabled} onClick={() => void doPasskeyLogin()}>
                     <KeyRound className="size-4" aria-hidden="true" />
-                    {passkeyBusy ? '等待设备验证…' : '使用 Passkey 登录'}
+                    {passkeyBusy ? '等待设备验证…' : '通行密钥登录'}
                   </Button>
                 )}
 
@@ -273,16 +292,8 @@ export default function Auth() {
               </div>
             </form>
 
-            {/* 独立路由保留明确且可触控的返回入口。 */}
-            <div className="auth-panel__foot">
-              <Button asChild variant="ghost">
-                <Link to="/">
-                  <ArrowLeft className="size-4" aria-hidden="true" />
-                  返回首页
-                </Link>
-              </Button>
-            </div>
           </section>
+          </div>
       </div>
     </main>
   )

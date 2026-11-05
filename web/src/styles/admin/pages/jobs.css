@@ -8,13 +8,6 @@
   border-bottom: 0;
 }
 
-.admin-redesign-page--jobs > .admin-data-panel {
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-data-panel-radius);
-  background: var(--admin-table-background);
-  box-shadow: none;
-}
-
 .admin-redesign-page--jobs > .admin-queue-summary--jobs {
   margin: 0;
   border: 0;

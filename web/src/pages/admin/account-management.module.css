@@ -1,0 +1,123 @@
+.registration,
+.invites {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.registration > .heading,
+.invites > .heading {
+  padding: 0;
+}
+.modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  min-height: 48px;
+  cursor: pointer;
+}
+.mode > button {
+  margin-top: 4px;
+}
+.mode:has(button:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}
+.modeLabel {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.hint {
+  display: block;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.save,
+.cleanup,
+.generatedHeader,
+.generatedActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+.save > span,
+.cleanup > span {
+  flex: 1 1 16rem;
+}
+.generate {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.count {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.count input {
+  width: 84px;
+}
+.generated {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.generatedHeader {
+  justify-content: space-between;
+  font-size: 13px;
+}
+.codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 12px 24px;
+  max-height: min(240px, 40vh);
+  overflow: auto;
+  padding: 4px;
+}
+.codes code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.codes:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--color-danger);
+}
+@media (max-width: 900px) {
+  .modes {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+@media (max-width: 700px) {
+  .generate {
+    width: 100%;
+  }
+  .mode {
+    align-items: center;
+  }
+  .mode > button {
+    margin-top: 0;
+  }
+}

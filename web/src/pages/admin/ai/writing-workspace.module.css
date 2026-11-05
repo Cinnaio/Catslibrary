@@ -1,0 +1,534 @@
+.root {
+  min-width: 0;
+  width: 100%;
+  color: var(--text-primary);
+}
+
+.workbench {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+  background: var(--bg-card);
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  align-items: end;
+  gap: 24px;
+  padding: var(--management-panel-padding);
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar > *,
+.anchor,
+.editor,
+.context,
+.newFields > * {
+  min-width: 0;
+}
+
+.mode {
+  display: grid;
+  gap: 8px;
+}
+.viewTabs {
+  gap: 0;
+}
+
+.caption {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.navigation {
+  padding-inline: var(--management-panel-padding);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.navigation::-webkit-scrollbar {
+  display: none;
+}
+.navigation [data-slot='tabs-list'] {
+  gap: 20px;
+}
+.navigation [data-slot='tabs-trigger'] {
+  flex: none;
+  min-height: 48px;
+  padding-inline: 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+  align-items: start;
+}
+
+.editor {
+  display: grid;
+  gap: 24px;
+  padding: var(--management-panel-padding);
+}
+.sectionHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sectionHeading h2 {
+  margin: 0;
+  font: 500 21px / 1.6 var(--font-serif);
+}
+.sectionHeading h3,
+.context > h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.newFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.newWords {
+  grid-column: 1 / -1;
+}
+.root .newFields [data-slot='input'] {
+  width: 100%;
+}
+.root .newWords [data-slot='input'] {
+  width: 140px;
+}
+
+.assist {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.root .assist .focusInput {
+  width: min(100%, 260px);
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.assist > span {
+  width: 100%;
+  color: var(--text-muted);
+}
+
+.outline {
+  min-width: 0;
+}
+.outline > summary,
+.contextDetails > summary,
+.root :global(.ai-writing-outline-details) > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-block: 10px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13px;
+  list-style: none;
+}
+
+.outline > summary::before,
+.contextDetails > summary::before,
+.root :global(.ai-writing-outline-details) > summary::before {
+  content: '+';
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+.outline[open] > summary::before,
+.contextDetails[open] > summary::before,
+.root :global(.ai-writing-outline-details)[open] > summary::before {
+  content: '−';
+}
+.outline > summary span,
+.contextDetails > summary span {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.scale {
+  display: grid;
+  gap: 20px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.root :global(.ai-writing-number-input) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.root :global(.ai-writing-number-input) span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.root :global(.ai-writing-number-input) [data-slot='input'] {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: 180px;
+}
+
+.context {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 24px;
+  border-left: 1px solid var(--border);
+  padding: var(--management-panel-padding);
+  overflow-wrap: anywhere;
+}
+
+/* 长选项不能用最小内容宽度撑开上下文区及其嵌套表单网格。 */
+.context > *,
+.contextDetails,
+.contextDetails :global(.grid),
+.contextDetails :global(.ai-writing-content-scope),
+.contextDetails :global(.grid) > *,
+.contextDetails :global(.ai-writing-content-scope) > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.contextDetails :global(.grid),
+.contextDetails :global(.ai-writing-content-scope) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.root .contextSelect {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.contextSection {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+.book {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-wrap: anywhere;
+}
+.book p {
+  margin: 0;
+  font-size: 14px;
+}
+.cover {
+  position: relative;
+  flex: 0 0 40px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+.cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.profileStatus {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  font-size: 12px;
+}
+.profileStatus > div {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.profileStatus dt {
+  color: var(--text-muted);
+}
+.profileStatus dd {
+  margin: 0;
+}
+.draftNotice {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.draftNotice p {
+  margin: 0;
+}
+.model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.model svg {
+  flex-shrink: 0;
+}
+.context :global([class~='sm:grid-cols-2']) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.results {
+  min-width: 0;
+  padding: var(--management-panel-padding);
+}
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px var(--management-panel-padding);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.footer > div {
+  display: flex;
+  gap: 20px;
+}
+.footer a {
+  color: var(--accent);
+}
+
+/* The writing module owns its reused business sections; controls keep their shared skins. */
+.root :global(.ai-writing-brief),
+.root :global(.ai-writing-suggest-block),
+.root :global(.ai-writing-deck-block) {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+.root :global(.ai-writing-brief__head),
+.root :global(.ai-writing-deck-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.root :global(.ai-writing-brief__count),
+.root :global(.ai-writing-brief__hint) {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.root :global(.ai-writing-brief) textarea {
+  min-height: 180px;
+  line-height: 1.9;
+}
+.root textarea {
+  min-width: 0;
+  width: 100%;
+}
+.root :global(.ai-writing-deck-block) {
+  padding-top: 12px;
+}
+.root :global(.ai-writing-suggest) {
+  display: grid;
+  gap: 8px;
+}
+.root :global(.ai-writing-suggest__item) {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  padding: 14px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: background 160ms;
+}
+.root :global(.ai-writing-suggest__item):hover,
+.root :global(.ai-writing-suggest__item)[aria-pressed='true'] {
+  background: var(--bg-secondary);
+}
+.root :global(.ai-writing-suggest__index) {
+  color: var(--accent);
+  font-size: 12px;
+}
+.root :global(.ai-writing-suggest__body) {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.root :global(.ai-writing-suggest__direction) {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.root :global(.ai-writing-suggest__effect) {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.root :global(.ai-writing-suggest__effect) svg {
+  flex-shrink: 0;
+}
+.root :global(.ai-writing-suggest-undo) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.root :global(.ai-writing-outline-status) {
+  display: grid;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.root :global(.ai-writing-outline-status__figure) {
+  color: var(--text-primary);
+}
+.root :global(.ai-writing-actions) {
+  min-width: 0;
+}
+.root :global(.ai-writing-actions) > .flex {
+  justify-content: flex-end;
+}
+.root :global(.ai-writing-draft-note) {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+}
+.root :global(.ai-writing-launch-summary) {
+  margin: 12px 0 0;
+  line-height: 1.8;
+}
+.root :global(.ai-writing-recent-drawer) {
+  margin: 0 var(--management-panel-padding) 24px;
+}
+.root :global(.ai-writing-content-scope) {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0 0;
+  margin: 0;
+  border: 0;
+}
+.root :global(.ai-writing-content-scope__toggle) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+.root :global(.ai-writing-content-scope__toggle) > button {
+  flex-shrink: 0;
+}
+.root :global(.ai-writing-section-heading) {
+  display: none;
+}
+.root :global(.ai-writing-continuation-start__status) {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.analysis :global(.ai-writing-profile-list) {
+  display: grid;
+  gap: 24px;
+}
+
+@media (max-width: 1100px) {
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .mode {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .context {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .context > h2 {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .mode {
+    grid-column: auto;
+  }
+  .context,
+  .newFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .editor {
+    gap: 20px;
+  }
+  .sectionHeading h2 {
+    font-size: 19px;
+  }
+  .navigation [data-slot='tabs-list'] {
+    gap: 16px;
+  }
+  .assist {
+    align-items: stretch;
+  }
+  .root .assist .focusInput {
+    flex-basis: 100%;
+    width: 100%;
+  }
+  .root :global(.ai-writing-suggest) > div {
+    flex-wrap: wrap;
+  }
+  .root :global(.ai-writing-number-input) [data-slot='input'] {
+    max-width: none;
+  }
+  .root :global(.ai-writing-suggest__item) {
+    min-height: 48px;
+  }
+  .root :global(.ai-writing-actions) > .flex {
+    justify-content: flex-start;
+  }
+  .root :global(.ai-writing-draft-note) {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root :global(.ai-writing-suggest__item) {
+    transition: none;
+  }
+}

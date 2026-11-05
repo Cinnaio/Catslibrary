@@ -1,5 +1,5 @@
 /* 分级管理：搜索的是标题/作者/理由三项短文本，搜索框刻意窄于小说管理。 */
-.admin-redesign-page--content-ratings .admin-tab-header__actions .admin-search {
+.admin-redesign-page--content-ratings .admin-tab-header__actions .search-field {
   width: min(18rem, 100%);
   max-width: 18rem;
   flex: 0 1 18rem;
@@ -8,7 +8,7 @@
 /* 总览：暖纸面工作区，追更与运营事项优先，规模读数贴近书库。 */
 .dashboard-workspace {
   display: grid;
-  gap: 1.5rem;
+  gap: var(--admin-page-section-gap);
   min-width: 0;
 }
 
@@ -16,18 +16,18 @@
 .dashboard-hero-metrics {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 1.5rem;
   min-width: 0;
 }
 
 .dashboard-metric-card {
   display: grid;
-  gap: 0.35rem;
-  padding: 1.125rem 1.25rem;
+  gap: 0.625rem;
+  padding: var(--management-panel-padding);
   background: var(--admin-panel);
   border: 1px solid var(--admin-border);
   border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.03), 0 4px 12px rgba(35, 30, 24, 0.02);
+  box-shadow: none;
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   min-width: 0;
 }
@@ -35,7 +35,7 @@
 .dashboard-metric-card:hover {
   transform: translateY(-2px);
   border-color: var(--admin-border-strong);
-  box-shadow: 0 6px 20px rgba(35, 30, 24, 0.06);
+  box-shadow: none;
 }
 
 .dashboard-metric-card--alert {
@@ -57,8 +57,8 @@
   align-items: baseline;
   gap: 0.25rem;
   font-family: var(--admin-font-serif), Georgia, serif !important;
-  font-size: 1.85rem;
-  font-weight: 600;
+  font-size: var(--admin-stat-size);
+  font-weight: 500;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
@@ -84,14 +84,14 @@
 .dashboard-main-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(19rem, 1fr);
-  gap: 1.5rem;
+  gap: var(--admin-page-section-gap);
   align-items: start;
   min-width: 0;
 }
 
 .dashboard-column {
   display: grid;
-  gap: 1.5rem;
+  gap: var(--admin-page-section-gap);
   min-width: 0;
 }
 
@@ -101,7 +101,7 @@
   background: var(--admin-panel);
   border: 1px solid var(--admin-border);
   border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.02), 0 4px 16px rgba(35, 30, 24, 0.03);
+  box-shadow: none;
 }
 
 .dashboard-panel-link {
@@ -150,9 +150,9 @@
   min-width: 1.15rem;
   height: 1.15rem;
   padding: 0 0.35rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-tag);
   background: var(--admin-accent);
-  color: #FFFFFF;
+  color: var(--accent-ink);
   font-size: 0.68rem;
   font-weight: 600;
   line-height: 1;
@@ -474,7 +474,7 @@
     flex-wrap: nowrap;
   }
 
-  .admin-redesign-page--novels .admin-tab-header__actions .admin-search {
+  .admin-redesign-page--novels .admin-tab-header__actions .search-field {
     width: auto;
     max-width: none;
     flex: 1 1 auto;

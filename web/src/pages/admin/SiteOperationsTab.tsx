@@ -1,3 +1,5 @@
+import '@/styles/input-fields.css'
+import '../../styles/admin/pages/site-operations.css'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -5,8 +7,8 @@ import { Download, RefreshCw, Globe2, ChevronDown } from 'lucide-react'
 import { adminApi } from '@/lib/api'
 import { trafficCsv, type SiteTraffic, type TrafficDays } from '@/lib/site-traffic'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { PanelHeading } from '@/components/shared/PanelHeading'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -183,7 +185,7 @@ export default function SiteOperationsTab() {
           </div>
         )}
         <Card className="traffic-panel" aria-busy={loading}>
-          <AdminPanelHeading
+          <PanelHeading
             title="访问趋势"
             status={
               current && (
@@ -363,7 +365,7 @@ export default function SiteOperationsTab() {
         </Card>
         <div className="traffic-dimensions">
           <Card className="traffic-panel">
-            <AdminPanelHeading title="访问地区" status={active && <span className="traffic-coverage">识别率 {percent(active.region.coverage)}</span>} />
+            <PanelHeading title="访问地区" status={active && <span className="traffic-coverage">识别率 {percent(active.region.coverage)}</span>} />
             <CardContent>
               {active && !active.region.knownVisits && current?.pageViews ? (
                 <div className="traffic-region-empty">
@@ -380,11 +382,11 @@ export default function SiteOperationsTab() {
             </CardContent>
           </Card>
           <Card className="traffic-panel">
-            <AdminPanelHeading title="设备构成" />
+            <PanelHeading title="设备构成" />
             <CardContent>{rows('设备', active?.devices || [], DEVICE_NAMES)}</CardContent>
           </Card>
           <Card className="traffic-panel">
-            <AdminPanelHeading title="访问来源" />
+            <PanelHeading title="访问来源" />
             <CardContent>{rows('来源', active?.sources || [], SOURCE_NAMES)}</CardContent>
           </Card>
         </div>
@@ -407,12 +409,12 @@ export default function SiteOperationsTab() {
           if (!open) setDimension(null)
         }}
       >
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>{dimension?.title}</DialogTitle>
             <DialogDescription>当前时间范围内的匿名聚合统计</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             <div className="traffic-dialog-total">
               <strong>
                 {number(dimension?.visits || 0)} <small>PV</small>
@@ -420,8 +422,8 @@ export default function SiteOperationsTab() {
               <span>占全部浏览量 {percent(current?.pageViews ? (dimension?.visits || 0) / current.pageViews : 0)}</span>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">{dimension?.definition}</p>
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
     </AdminPage>
   )

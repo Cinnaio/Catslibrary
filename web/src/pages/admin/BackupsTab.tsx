@@ -1,19 +1,22 @@
+import '@/styles/input-fields.css'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Download, RotateCcw, Pin, Trash2, RefreshCw, Plus } from 'lucide-react'
+import { Pin, Trash2, RefreshCw, Plus } from 'lucide-react'
 import type { BackupEvent, BackupOverview, BackupPage, BackupSettingsPage, BackupTarget, BackupTask, BackupVersion, BackupImpactReport } from '@shared/backups'
 import { backupsApi, saveBlob } from '@/lib/backups-api'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel } from '@/components/admin/AdminDataPanel'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminRowActions from '@/components/admin/AdminRowActions'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { LoadingState } from '@/components/admin/AsyncStates'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
-import AdminFormField from '@/components/admin/AdminFormField'
-import Pagination from '@/components/admin/Pagination'
-import CustomSelect from '@/components/admin/CustomSelect'
+import EmptyState from "@/components/shared/EmptyState"
+import { LoadingState } from "@/components/shared/AsyncStates"
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import FormField from "@/components/shared/FormField"
+import Pagination from "@/components/shared/Pagination"
+import SearchSelect from "@/components/shared/SearchSelect"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -23,43 +26,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import BackupImpactDialog, { BackupImpactSummaryView } from './backups/BackupImpactDialog'
 import BackupSettingsForm from './backups/BackupSettingsForm'
 import { TargetForm, PolicyForm } from './backups/BackupForms'
+import { BackupStatus as Status, BackupCopySummary, BackupTaskPanel, BackupVersionDialog, date, size, states, taskLabels as kinds, versionLabel } from './backups/BackupVersionViews'
+import styles from './backups/backup-versions.module.css'
 import '@/styles/admin/pages/backups.css'
 
-const states: Record<string, string> = {
-  queued: '等待执行',
-  running: '执行中',
-  completed: '全部完成',
-  partial: '部分完成',
-  failed: '失败',
-  interrupted: '已中断',
-  available: '已校验',
-  pending: '等待传输',
-  uploading: '传输中',
-  deleted: '已清理',
-  delete_pending: '待清理',
-}
-const kinds: Record<string, string> = { backup: '备份', test: '连接测试', retry: '副本重试', preview: '恢复预检', restore: '版本回滚', delete: '删除版本' }
-const date = (value: number) => (value ? new Date(value).toLocaleString('zh-CN') : '—')
-const size = (value: number) =>
-  value >= 1073741824 ? `${(value / 1073741824).toFixed(2)} GB` : value >= 1048576 ? `${(value / 1048576).toFixed(1)} MB` : `${(value / 1024).toFixed(1)} KB`
 const titles: Record<string, string> = { versions: '备份版本', targets: '存储目标', schedule: '自动备份', logs: '操作日志', settings: '备份设置' }
-function Status({ state }: { state: string }) {
-  return (
-    <AdminStatusBadge
-      tone={
-        ['completed', 'available'].includes(state)
-          ? 'success'
-          : ['failed', 'interrupted'].includes(state)
-            ? 'danger'
-            : state === 'partial'
-              ? 'warning'
-              : 'neutral'
-      }
-    >
-      {states[state] || state}
-    </AdminStatusBadge>
-  )
-}
 
 export default function BackupsTab() {
   const [params, setParams] = useSearchParams()
@@ -69,6 +40,10 @@ export default function BackupsTab() {
   const [overview, setOverview] = useState<BackupOverview | null>(null),
     [list, setList] = useState<BackupPage<BackupVersion>>({ items: [], total: 0 }),
     [logs, setLogs] = useState<BackupPage<BackupEvent>>({ items: [], total: 0 })
+  const [observedTasks, setObservedTasks] = useState<BackupTask[]>([])
+  const [policyDirty, setPolicyDirty] = useState(false)
+  const [settingsDirty, setSettingsDirty] = useState(false)
+  const [policyVisited, setPolicyVisited] = useState(view === 'schedule')
   const [settings, setSettings] = useState<BackupSettingsPage | null>(null)
   const [page, setPage] = useState(1),
     [level, setLevel] = useState(''),
@@ -91,11 +66,21 @@ export default function BackupsTab() {
   const [restoreImpact, setRestoreImpact] = useState<BackupImpactReport | null>(null)
   const [impactAcknowledged, setImpactAcknowledged] = useState(false)
   const [restoreNow, setRestoreNow] = useState(Date.now)
+  useEffect(() => { if (view !== 'versions') setSelectedVersion(null) }, [view])
   useEffect(() => {
     if (!restoreTask) return
     const timer = setInterval(() => setRestoreNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [restoreTask])
+  useEffect(() => {
+    if (!policyDirty && !settingsDirty) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [policyDirty, settingsDirty])
+  const pendingRequest = useRef(false)
+  const backgroundQueued = useRef(false)
+  const refreshAfterTask = useRef<() => void>(() => {})
   const requestSequence = useRef(0)
   const loadError = useRef('')
   const taskError = useRef('')
@@ -104,10 +89,18 @@ export default function BackupsTab() {
     (value: BackupTask) => {
       const previous = taskStates.current.get(value.id)
       const active = value.state === 'queued' || value.state === 'running'
-      if (previous === value.state || (previous && previous !== 'queued' && previous !== 'running')) return
+      if (previous && previous !== 'queued' && previous !== 'running') return
+      if (previous || active) setObservedTasks(current => {
+        const existing = current.find(item => item.id === value.id)
+        if (existing && JSON.stringify(existing) === JSON.stringify(value)) return current
+        const next = [value, ...current.filter(item => item.id !== value.id)]
+        return [...next.filter(item => item.state === 'queued' || item.state === 'running'), ...next.filter(item => item.state !== 'queued' && item.state !== 'running').slice(0, 3)]
+      })
+      if (previous === value.state) return
       // 历史已结束任务只展示详情；本次观察到的任务结束后仅提示一次。
       if (previous === 'queued' || previous === 'running') {
         if (!active) {
+          refreshAfterTask.current()
           const label = kinds[value.kind] || '任务'
           const message =
             value.state === 'completed'
@@ -124,44 +117,52 @@ export default function BackupsTab() {
   useEffect(() => {
     setPage(1)
   }, [view, level])
-  useEffect(() => {
+  useEffect(() => { if (view === 'schedule') setPolicyVisited(true) }, [view])
+  const load = useCallback(async function load(background = false) {
+    if (background && pendingRequest.current) { backgroundQueued.current = true; return }
     const sequence = ++requestSequence.current
-    setLoading(true)
-    void Promise.all([
-      backupsApi.overview(),
-      view === 'versions' ? backupsApi.versions(page) : Promise.resolve(null),
-      view === 'logs' ? backupsApi.logs(page, '', level) : Promise.resolve(null),
-      view === 'settings' ? backupsApi.settings() : Promise.resolve(null),
-    ])
-      .then(([data, versions, events, settingsPage]) => {
-        if (sequence !== requestSequence.current) return
-        setOverview(data)
-        data.tasks.forEach(reportTask)
-        loadError.current = ''
-        if (versions) setList(versions)
-        if (events) setLogs(events)
-        if (settingsPage) setSettings(settingsPage)
-        setError('')
-      })
-      .catch((e) => {
-        if (sequence !== requestSequence.current) return
-        const message = e instanceof Error ? e.message : '加载失败'
-        setError(message)
-        if (loadError.current !== message) toast(message, 'error')
-        loadError.current = message
-      })
-      .finally(() => {
-        if (sequence === requestSequence.current) setLoading(false)
-      })
-    return () => {
-      requestSequence.current++
+    pendingRequest.current = true
+    if (!background) setLoading(true)
+    try {
+      const [data, versions, events, settingsPage] = await Promise.all([
+        backupsApi.overview(),
+        view === 'versions' ? backupsApi.versions(page) : Promise.resolve(null),
+        view === 'logs' ? backupsApi.logs(page, '', level) : Promise.resolve(null),
+        view === 'settings' && !background ? backupsApi.settings() : Promise.resolve(null),
+      ])
+      if (sequence !== requestSequence.current) return
+      setOverview(data)
+      data.tasks.forEach(reportTask)
+      if (versions) setList(versions)
+      if (events) setLogs(events)
+      if (settingsPage) setSettings(settingsPage)
+      loadError.current = ''
+      setError('')
+    } catch (cause) {
+      if (sequence !== requestSequence.current) return
+      const message = cause instanceof Error ? cause.message : '加载失败'
+      setError(message)
+      if (loadError.current !== message) toast(message, 'error')
+      loadError.current = message
+    } finally {
+      if (sequence === requestSequence.current) {
+        pendingRequest.current = false
+        setLoading(false)
+        if (backgroundQueued.current) { backgroundQueued.current = false; void load(true) }
+      }
     }
-  }, [view, page, level, reload, toast, reportTask])
+  }, [view, page, level, toast, reportTask])
   useEffect(() => {
-    if (!overview?.tasks.some((item) => item.state === 'queued' || item.state === 'running')) return
-    const timer = setInterval(refresh, 4000)
+    void load()
+    return () => { requestSequence.current++; pendingRequest.current = false; backgroundQueued.current = false }
+  }, [load, reload])
+  useEffect(() => { refreshAfterTask.current = () => void load(true) }, [load])
+  const hasActiveTasks = observedTasks.some(item => item.state === 'queued' || item.state === 'running')
+  useEffect(() => {
+    if (!hasActiveTasks) return
+    const timer = setInterval(() => void load(true), 4000)
     return () => clearInterval(timer)
-  }, [overview])
+  }, [hasActiveTasks, load])
   useEffect(() => {
     if (!taskId) {
       setTask(null)
@@ -212,7 +213,7 @@ export default function BackupsTab() {
   async function queued(work: () => Promise<BackupTask>) {
     await action(async () => {
       const value = await work()
-      taskStates.current.set(value.id, value.state)
+      reportTask(value)
       setTask(null)
       setTaskId(value.id)
       setSelectedVersion(null)
@@ -250,13 +251,13 @@ export default function BackupsTab() {
                 ? '管理服务器访问、恢复演练与任务保留设置。'
                 : '查看备份、传输、预检与回滚的执行记录。'
       }
-      className="backup-page"
+      className={`backup-page ${styles.workspace}`}
       actions={
         <>
-          <Button variant="secondary" disabled={busy || loading} onClick={refresh}>
+          {view !== 'versions' && <Button variant="secondary" disabled={busy || loading} onClick={refresh}>
             <RefreshCw size={16} />
             刷新
-          </Button>
+          </Button>}
           {view === 'versions' && (
             <Button
               disabled={!ready || busy}
@@ -282,6 +283,7 @@ export default function BackupsTab() {
       {/* Claude 共享工作视图胶囊 Tabs */}
       <Tabs
         value={view}
+        activationMode="manual"
         className="admin-capsule-tabs backup-tabs"
         onValueChange={(next) => {
           const nextParams = new URLSearchParams(params)
@@ -297,6 +299,8 @@ export default function BackupsTab() {
           ))}
         </TabsList>
       </Tabs>
+      {(policyDirty || settingsDirty) && <p className={styles.draftHint} role="status">{[policyDirty && '自动备份', settingsDirty && '备份设置'].filter(Boolean).join('、')}有未保存的修改。切换分区保留草稿，重新加载页面前请保存。</p>}
+      <BackupTaskPanel tasks={observedTasks} onOpen={id => { setTask(null); setTaskId(id) }} />
       {error && (
         <div role="alert" className="backup-error">
           <span>{error}</span>
@@ -326,55 +330,45 @@ export default function BackupsTab() {
                 <p className="backup-hint">
                   {overview.policy.enabled ? `自动备份已启用 · 下次 ${date(overview.policy.nextRunAt)}` : '自动备份已关闭'} · 共 {list.total} 个版本
                 </p>
+                <Button variant="secondary" disabled={busy || loading} onClick={refresh}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} />刷新</Button>
               </AdminToolbar>
               <AdminDataPanel
                 density="comfortable"
                 columns={[
                   { key: 'version', label: '版本', primary: true },
-                  { key: 'time', label: '备份时间', width: '12rem' },
+                  { key: 'time', label: '备份时间', width: '10.5rem' },
+                  { key: 'state', label: '执行结果', width: '7rem' },
                   { key: 'copies', label: '副本状态', width: '12rem' },
                   { key: 'size', label: '大小', width: '7rem' },
                   { key: 'actions', label: '操作', actions: true, width: '9rem' },
                 ]}
                 ariaLabel="备份版本"
               >
-                <Table className="admin-data-table">
+                <Table className={`admin-data-table admin-data-table--animated ${loading ? 'admin-data-table--transitioning' : ''}`}>
                   <TableHeader>
                     <TableRow>
-                      {['版本', '备份时间', '副本状态', '大小', '操作'].map((text) => (
+                      {['版本', '备份时间', '执行结果', '副本状态', '大小', '操作'].map((text) => (
                         <TableHead key={text}>{text}</TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {list.items.map((version) => (
-                      <TableRow key={version.id}>
+                  <TableBody key={page}>
+                    {list.items.map((version, index) => (
+                      <TableRow key={version.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, list.items.length)}ms` }}>
                         <TableCell data-primary data-label="版本">
                           <div className="backup-cell">
-                            <strong>
-                              {version.note || (version.protection ? '回滚前保护备份' : version.trigger === 'scheduled' ? '自动备份' : '手动备份')}
-                            </strong>
-                            <span className="backup-id" title={version.id}>
-                              {version.id}
-                            </span>
-                            {version.pinned && <span className="backup-hint">{version.protection ? '保护版本' : '固定保留'}</span>}
+                            <strong className={styles.versionName}>{versionLabel(version)}</strong>
+                            <span className={styles.versionMeta}>{version.protection ? '保护备份' : version.trigger === 'scheduled' ? '自动备份' : '手动备份'}{version.pinned ? ' · 固定保留' : ''}</span>
                           </div>
                         </TableCell>
                         <TableCell data-label="备份时间">
                           <div className="backup-cell">
                             <span>{date(version.createdAt)}</span>
-                            <Status state={version.state} />
                           </div>
                         </TableCell>
+                        <TableCell data-label="执行结果"><Status state={version.state} /></TableCell>
                         <TableCell data-label="副本状态">
-                          <div className="backup-cell">
-                            {version.copies.map((copy) => (
-                              <span className="backup-copy" key={copy.targetId}>
-                                <span>{copy.name}</span>
-                                <Status state={copy.state} />
-                              </span>
-                            ))}
-                          </div>
+                          <BackupCopySummary version={version} />
                         </TableCell>
                         <TableCell data-label="大小">{version.size ? size(version.size) : '—'}</TableCell>
                         <TableCell data-actions>
@@ -412,7 +406,7 @@ export default function BackupsTab() {
                     ))}
                   </TableBody>
                 </Table>
-                {!list.items.length && <AdminEmptyState message="还没有备份版本" hint="完成部署准备后，可以立即备份或设置自动备份。" />}
+                {!list.items.length && <EmptyState message="还没有备份版本" hint="完成部署准备后，可以立即备份或设置自动备份。" />}
               </AdminDataPanel>
               <Pagination
                 page={page}
@@ -515,31 +509,31 @@ export default function BackupsTab() {
               ))}
             </div>
           )}
-          {view === 'schedule' && (
+          {policyVisited && <div hidden={view !== 'schedule'}>
             <PolicyForm
-              key={overview.policy.revision}
               policy={overview.policy}
               targets={overview.targets}
-              onSaved={() => {
-                refresh()
-              }}
-            />
-          )}
-          {view === 'settings' && settings && (
-            <BackupSettingsForm
-              key={`${settings.settings.revision}:${settings.deployment.runtime?.revision || 0}`}
-              page={settings}
               disabled={overview.maintenance}
+              onDirtyChange={setPolicyDirty}
+              onSaved={refresh}
+            />
+          </div>}
+          {settings && <div hidden={view !== 'settings'}>
+            <BackupSettingsForm
+              page={settings}
+              active={view === 'settings'}
+              disabled={overview.maintenance}
+              onDirtyChange={setSettingsDirty}
               onSaved={(value) => {
-                setSettings((previous) => (previous ? { ...previous, settings: value } : previous))
+                setSettings(previous => previous ? { ...previous, settings: value } : previous)
                 refresh()
               }}
             />
-          )}
+          </div>}
           {view === 'logs' && (
             <>
               <AdminToolbar>
-                <CustomSelect
+                <SearchSelect
                   compact
                   aria-label="日志级别"
                   value={level}
@@ -606,7 +600,7 @@ export default function BackupsTab() {
                     ))}
                   </TableBody>
                 </Table>
-                {!logs.items.length && <AdminEmptyState message="没有匹配的操作日志" />}
+                {!logs.items.length && <EmptyState message="没有匹配的操作日志" />}
               </AdminDataPanel>
               <Pagination
                 page={page}
@@ -626,12 +620,12 @@ export default function BackupsTab() {
           if (!open) setTargetEditor(undefined)
         }}
       >
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>{targetEditor ? '编辑服务器' : '添加服务器'}</DialogTitle>
             <DialogDescription>通过 SFTP 保存加密副本，认证材料不会回显。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             {targetEditor !== undefined && (
               <TargetForm
                 key={targetEditor?.id || 'new'}
@@ -643,20 +637,20 @@ export default function BackupsTab() {
                 }}
               />
             )}
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
       <Dialog open={backupOpen} onOpenChange={setBackupOpen}>
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>立即备份</DialogTitle>
             <DialogDescription>生成一个可独立恢复的全量版本。本地与所选远程位置将保存同一份加密归档。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             <div className="backup-fields">
-              <AdminFormField label="版本备注">
+              <FormField label="版本备注">
                 {({ id }) => <Input id={id} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="例如：升级前备份" />}
-              </AdminFormField>
+              </FormField>
               <label className="backup-check">
                 <input type="checkbox" checked disabled />
                 本地存储
@@ -686,91 +680,34 @@ export default function BackupsTab() {
                 {busy ? '提交中…' : '开始备份'}
               </Button>
             </div>
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
-      <Dialog
-        open={Boolean(selectedVersion)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedVersion(null)
-        }}
-      >
-        <AdminDialogContent>
-          <DialogHeader>
-            <DialogTitle>备份版本详情</DialogTitle>
-            <DialogDescription>检查副本、下载归档或预检恢复。</DialogDescription>
-          </DialogHeader>
-          <AdminDialogBody>
-            {selectedVersion && (
-              <div className="backup-fields">
-                <p className="backup-id">{selectedVersion.id}</p>
-                <Status state={selectedVersion.state} />
-                <p className="backup-hint">
-                  {date(selectedVersion.createdAt)} · {size(selectedVersion.size)} · 迁移版本 {selectedVersion.migrationVersion}
-                </p>
-                <p className="backup-id">SHA-256：{selectedVersion.digest || '尚未生成'}</p>
-                {selectedVersion.copies.map((copy) => (
-                  <div key={copy.targetId} className="backup-fields">
-                    <div className="backup-copy">
-                      <span>{copy.name}</span>
-                      <Status state={copy.state} />
-                    </div>
-                    {copy.error && <p className="backup-error">{copy.error}</p>}
-                  </div>
-                ))}
-                <div className="backup-actions">
-                  <Button
-                    variant="secondary"
-                    disabled={busy || !selectedVersion.digest}
-                    onClick={() => void action(() => backupsApi.download(selectedVersion.id), '归档已下载')}
-                  >
-                    <Download size={16} />
-                    下载归档
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy || !selectedVersion.digest}
-                    onClick={() =>
-                      void action(
-                        async () =>
-                          saveBlob(
-                            new Blob([JSON.stringify(await backupsApi.manifest(selectedVersion.id), null, 2)], { type: 'application/json' }),
-                            `${selectedVersion.id}.manifest.json`,
-                          ),
-                        '恢复清单已下载',
-                      )
-                    }
-                  >
-                    下载恢复清单
-                  </Button>
-                </div>
-                <p className="backup-hint">
-                  异机灾备需要同时保存加密归档、恢复清单与单独保管的主密钥。在线回滚保留当前部署配置，数据与用户账户会恢复到该版本。
-                </p>
-                <Button
-                  disabled={busy || !selectedVersion.digest || !overview?.capabilities.rehearsal || !overview.capabilities.restore}
-                  onClick={() => void queued(() => backupsApi.preview(selectedVersion.id))}
-                >
-                  <RotateCcw size={16} />
-                  预检恢复此版本
-                </Button>
-              </div>
-            )}
-          </AdminDialogBody>
-        </AdminDialogContent>
-      </Dialog>
+      <BackupVersionDialog
+        open={!!selectedVersion}
+        version={selectedVersion ? list.items.find(item => item.id === selectedVersion.id) || null : null}
+        busy={busy}
+        refreshing={loading}
+        error={loadError.current}
+        canPreview={!!overview?.capabilities.rehearsal && !!overview?.capabilities.restore && !overview?.maintenance}
+        onClose={() => setSelectedVersion(null)}
+        onRefresh={refresh}
+        onDownload={version => void action(() => backupsApi.download(version.id), '归档已下载')}
+        onManifest={version => void action(async () => saveBlob(new Blob([JSON.stringify(await backupsApi.manifest(version.id), null, 2)], { type: 'application/json' }), `${version.id}.manifest.json`), '恢复清单已下载')}
+        onPreview={version => void queued(() => backupsApi.preview(version.id))}
+      />
       <Dialog
         open={Boolean(taskId)}
         onOpenChange={(open) => {
           if (!open) setTaskId('')
         }}
       >
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>{task ? kinds[task.kind] : '任务详情'}</DialogTitle>
             <DialogDescription>查看任务阶段和执行日志。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             {task ? (
               <div className="backup-fields">
                 <Status state={task.state} />
@@ -812,8 +749,8 @@ export default function BackupsTab() {
             ) : (
               <LoadingState label="正在读取任务" />
             )}
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
       {impactTask && (
         <BackupImpactDialog
@@ -852,12 +789,12 @@ export default function BackupsTab() {
           }
         }}
       >
-        <AdminDialogContent>
+        <DialogFrame>
           <DialogHeader>
             <DialogTitle>回滚到指定版本</DialogTitle>
             <DialogDescription>站点将暂时进入维护模式。系统先创建保护备份，再覆盖业务数据；恢复成功后所有用户需重新登录。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody>
+          <DialogBody>
             {restoreTask && (
               <form
                 className="backup-fields"
@@ -890,12 +827,12 @@ export default function BackupsTab() {
                     </label>
                   </>
                 )}
-                <AdminFormField label="输入完整目标版本标识">
+                <FormField label="输入完整目标版本标识">
                   {({ id }) => (
                     <Input id={id} required value={confirmVersion} disabled={busy} onChange={(e) => setConfirmVersion(e.target.value)} autoComplete="off" />
                   )}
-                </AdminFormField>
-                <AdminFormField label="当前管理员密码">
+                </FormField>
+                <FormField label="当前管理员密码">
                   {({ id }) => (
                     <Input
                       id={id}
@@ -907,7 +844,7 @@ export default function BackupsTab() {
                       autoComplete="current-password"
                     />
                   )}
-                </AdminFormField>
+                </FormField>
                 {error && (
                   <p role="alert" className="backup-error">
                     {error}
@@ -929,8 +866,8 @@ export default function BackupsTab() {
                 </Button>
               </form>
             )}
-          </AdminDialogBody>
-        </AdminDialogContent>
+          </DialogBody>
+        </DialogFrame>
       </Dialog>
     </AdminPage>
   )

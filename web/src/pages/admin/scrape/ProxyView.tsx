@@ -1,13 +1,14 @@
-import AdminFormField from '@/components/admin/AdminFormField'
+import styles from './proxy.module.css'
+import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useState } from 'react'
-import { Check, ChevronRight, CircleAlert, Info, LoaderCircle } from 'lucide-react'
+import { Check, ChevronRight, CircleAlert, Info, Network, ArrowRight } from 'lucide-react'
 import { scrapeApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { Spinner } from '@/components/ui/spinner'
+import { PanelHeading } from '@/components/shared/PanelHeading'
 
 type ProxyConfig = { proxyBase: string; proxyBypass: string }
 type ProxySource = 'environment' | 'runtime' | 'none'
@@ -16,10 +17,10 @@ type ProxyResult = { tone: 'success' | 'muted' | 'error'; title: string; detail:
 function ProxyResultRow({ label, result }: { label: string; result: ProxyResult }) {
   const Icon = result.tone === 'success' ? Check : result.tone === 'error' ? CircleAlert : Info
   return (
-    <div className={`proxy-result-row proxy-result-row--${result.tone}`}>
-      <span className="proxy-result-row__label">{label}</span>
-      <div className="proxy-result-row__content">
-        <div className={`proxy-result-row__title proxy-result-row__title--${result.tone}`}>
+    <div className={styles.resultRow}>
+      <span className={styles.resultLabel}>{label}</span>
+      <div className={styles.resultContent}>
+        <div className={styles.resultTitle} data-tone={result.tone}>
           <Icon className="size-4 shrink-0" aria-hidden="true" />
           {result.title}
         </div>
@@ -182,218 +183,230 @@ export default function ProxyView() {
   const unavailable = !loaded || Boolean(loadError)
 
   return (
-    <div className="proxy-settings-page">
-      <div className="proxy-settings-grid">
-        {/* 左栏：出站代理配置 */}
-        <Card className="admin-panel-card proxy-config-panel" aria-labelledby="proxy-config-title">
-          <AdminPanelHeading
-            title="出站代理配置"
-            titleId="proxy-config-title"
-            status={
+    <div className={styles.page}>
+      <div className={styles.statusCard}>
+        <div className={styles.effective} aria-busy={loading}>
+          <Network className={styles.effectiveIcon} aria-hidden="true" />
+          <div className={styles.effectiveCopy}>
+            <div className={styles.effectiveTop}>
+              <span className={styles.eyebrow}>当前生效配置</span>
               <AdminStatusBadge tone={loaded && !loading && !loadError && enabled ? 'success' : 'muted'}>
                 {loading ? '读取中' : loadError ? '读取失败' : enabled ? '已启用' : '未启用'}
               </AdminStatusBadge>
-            }
-          />
-
-          <div className="proxy-panel-content">
-            {/* 当前生效配置卡 */}
-            <div className="proxy-effective" aria-busy={loading}>
-              <div className="proxy-effective__top">
-                <span className="proxy-effective__label">当前生效配置</span>
-                {loaded && !loading && !loadError && (
-                  <span className="proxy-effective__source">来源：{sourceLabel(source)}</span>
-                )}
-              </div>
-              <div className="proxy-effective__value">
-                <code>
-                  {loading
-                    ? '正在读取配置…'
-                    : loadError
-                      ? '配置读取失败，请重新读取'
-                      : effective.proxyBase || effectiveHost || '未配置 · 出站请求直连'}
-                </code>
-              </div>
-              {loaded && !loading && !loadError && enabled && (
-                <div className="proxy-effective__rules">
-                  {effective.proxyBypass && <span>管理端跳过：{effective.proxyBypass}</span>}
-                  {noProxy && <span>NO_PROXY：{noProxy}</span>}
-                  {!effective.proxyBypass && !noProxy && <span>跳过规则：未设置</span>}
-                </div>
-              )}
             </div>
-
-            {/* 环境变量覆盖提示 */}
-            {environmentOverride && (
-              <div className="proxy-override">
-                <Info aria-hidden="true" className="proxy-override__icon" />
-                <span>环境变量优先。管理端配置仍可保存；出站请求按部署环境中的代理与跳过规则执行。</span>
+            <code className={styles.effectiveValue}>
+              {loading
+                ? '正在读取配置…'
+                : loadError
+                  ? '配置读取失败，请重新读取'
+                  : effective.proxyBase || effectiveHost || '未配置 · 出站请求直连'}
+            </code>
+            {loaded && !loading && !loadError && (
+              <div className={styles.effectiveMeta}>
+                <span>来源：{sourceLabel(source)}</span>
+                {enabled && <span>{effective.proxyBypass || noProxy ? '已设置跳过规则' : '跳过规则：未设置'}</span>}
               </div>
             )}
+          </div>
+          {loaded && !loading && !loadError && enabled && (effective.proxyBypass || noProxy) && (
+            <details className={styles.effectiveRules}>
+              <summary>查看跳过规则<ChevronRight aria-hidden="true" /></summary>
+              <div>
+                {effective.proxyBypass && <p>管理端跳过：{effective.proxyBypass}</p>}
+                {noProxy && <p>NO_PROXY：{noProxy}</p>}
+              </div>
+            </details>
+          )}
+        </div>
 
-            {/* 表单 */}
+        {environmentOverride && (
+          <div className={styles.notice}>
+            <Info aria-hidden="true" />
+            <p>环境变量优先。管理端配置仍可保存；出站请求按部署环境中的代理与跳过规则执行。</p>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.workbench}>
+        <div className={styles.columns}>
+          <section className={styles.configSection} aria-labelledby="proxy-config-title">
+            <PanelHeading
+              className={styles.sectionHeading}
+              title="出站代理配置"
+              titleId="proxy-config-title"
+              description="设置请求出口，保存后对后续请求生效。"
+            />
             <form
-              className="proxy-config-form"
+              className={styles.configForm}
               onSubmit={(event) => {
                 event.preventDefault()
                 if (!busy && !unavailable && dirty) void save()
               }}
             >
-              <div className="proxy-setting-row">
-                <div className="proxy-setting-row__copy">
-                  <label htmlFor="proxy-base">代理地址</label>
-                  <p>保存后，后续出站请求立即生效。留空可关闭管理端代理。</p>
-                </div>
-                <div className="proxy-setting-row__control">
-                  <Input
-                    id="proxy-base"
-                    type="url"
-                    placeholder="http://127.0.0.1:7890"
-                    value={draft.proxyBase}
-                    disabled={busy || unavailable}
-                    aria-describedby="proxy-base-hint"
-                    onChange={(event) => setDraft((current) => ({ ...current, proxyBase: event.target.value }))}
-                  />
-                  <p className="proxy-hint" id="proxy-base-hint">
-                    Clash / Mihomo mixed-port 通常填写 http://，目标网站为 HTTPS 也一样。
-                  </p>
-                </div>
-              </div>
+              <FormField
+                label="代理地址"
+                htmlFor="proxy-base"
+                hint="填写代理监听地址；留空可关闭管理端代理。"
+              >
+                <Input
+                  id="proxy-base"
+                  className={styles.addressInput}
+                  type="url"
+                  placeholder="http://127.0.0.1:7890"
+                  value={draft.proxyBase}
+                  disabled={busy || unavailable}
+                  onChange={(event) => setDraft((current) => ({ ...current, proxyBase: event.target.value }))}
+                />
+              </FormField>
 
-              <div className="proxy-setting-row">
-                <div className="proxy-setting-row__copy">
-                  <label htmlFor="proxy-bypass">跳过代理</label>
-                  <p>匹配的目标直接连接。</p>
-                </div>
-                <div className="proxy-setting-row__control">
-                  <Input
-                    id="proxy-bypass"
-                    placeholder="localhost,127.0.0.1,::1,.internal.example.com"
-                    value={draft.proxyBypass}
-                    disabled={busy || unavailable}
-                    aria-describedby="proxy-bypass-hint"
-                    onChange={(event) => setDraft((current) => ({ ...current, proxyBypass: event.target.value }))}
-                  />
-                  <p className="proxy-hint" id="proxy-bypass-hint">
-                    主机、域名、IP 或 host:port，以逗号分隔。环境中的 NO_PROXY 同时生效。
-                  </p>
-                </div>
-              </div>
+              <FormField
+                label="跳过代理"
+                htmlFor="proxy-bypass"
+                hint="匹配的目标直接连接，以逗号分隔。环境中的 NO_PROXY 同时生效。"
+              >
+                <Input
+                  id="proxy-bypass"
+                  className={styles.addressInput}
+                  placeholder="localhost,127.0.0.1,::1,.internal.example.com"
+                  value={draft.proxyBypass}
+                  disabled={busy || unavailable}
+                  onChange={(event) => setDraft((current) => ({ ...current, proxyBypass: event.target.value }))}
+                />
+              </FormField>
 
-              <div className="proxy-config-actions">
-                <div className="proxy-config-actions__buttons">
-                  <Button type="submit" disabled={busy || unavailable || !dirty}>
-                    {saving && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
-                    {saving ? '保存中' : '保存配置'}
-                  </Button>
-                  <Button type="button" variant="ghost" onClick={() => void load()} disabled={busy}>
-                    {loading && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}重新读取
-                  </Button>
-                </div>
-                <span className="proxy-save-feedback" role="status">
+              <div className={styles.configActions}>
+                <span className={styles.saveFeedback} role="status">
                   {loading ? '正在读取配置' : loadError ? loadError : dirty ? '有未保存的修改' : saveFeedback}
                 </span>
+                <div className={styles.actionButtons}>
+                  <Button type="button" variant="ghost" onClick={() => void load()} disabled={busy}>
+                    {loading && <Spinner size="sm" aria-hidden="true" />}重新读取
+                  </Button>
+                  <Button type="submit" disabled={busy || unavailable || !dirty}>
+                    {saving && <Spinner size="sm" aria-hidden="true" />}
+                    {saving ? '保存中' : '保存配置'}
+                  </Button>
+                </div>
               </div>
             </form>
-          </div>
-        </Card>
+          </section>
 
-        {/* 右栏：路由与连通性 */}
-        <Card className="admin-panel-card proxy-test-panel" aria-labelledby="proxy-test-title">
-          <AdminPanelHeading title="路由与连通性" titleId="proxy-test-title" />
-
-          <div className="proxy-test-body">
-            <AdminFormField label="测试目标网址" htmlFor="proxy-test-url">
-              <div className="proxy-target-row">
+          <section className={styles.testSection} aria-labelledby="proxy-test-title">
+            <PanelHeading
+              className={styles.sectionHeading}
+              title="路由与连通性"
+              titleId="proxy-test-title"
+              description="确认请求走向，再检查代理是否可用。"
+            />
+            <div className={styles.testBody}>
+              <FormField label="测试目标网址" htmlFor="proxy-test-url">
                 <Input
                   id="proxy-test-url"
+                  className={styles.addressInput}
                   type="url"
                   placeholder="https://czbooks.net"
                   value={targetUrl}
                   disabled={busy || unavailable}
-                  aria-describedby="proxy-test-hint"
                   onChange={(event) => {
                     setTargetUrl(event.target.value)
                     setRouteResult(null)
                     setTestResult(null)
                   }}
                 />
-                <div className="proxy-target-actions">
+              </FormField>
+
+              <div className={styles.diagnostics}>
+                <div className={styles.diagnosticRow}>
+                  <div>
+                    <span className={styles.diagnosticLabel}>请求路由</span>
+                    <p id="proxy-route-hint">按生效配置判断，包含跳过规则。</p>
+                  </div>
                   <Button
                     type="button"
                     variant="outline"
+                    aria-describedby="proxy-route-hint"
                     onClick={() => void checkRoute()}
                     disabled={busy || unavailable}
                   >
-                    {routeChecking && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
+                    {routeChecking && <Spinner size="sm" aria-hidden="true" />}
                     {routeChecking ? '检查中' : '检查路由'}
                   </Button>
+                </div>
+                <div className={styles.diagnosticRow}>
+                  <div>
+                    <span className={styles.diagnosticLabel}>代理连接</span>
+                    <p id="proxy-connection-hint">强制使用代理，不受跳过规则影响。{!unavailable && !enabled && '启用代理后可测试。'}</p>
+                  </div>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="outline"
+                    aria-describedby="proxy-connection-hint"
                     onClick={() => void test()}
                     disabled={busy || unavailable || !enabled}
                   >
-                    {testing && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
+                    {testing && <Spinner size="sm" aria-hidden="true" />}
                     {testing ? '测试中' : '测试代理连接'}
                   </Button>
                 </div>
               </div>
-            </AdminFormField>
 
-            <p className="proxy-hint" id="proxy-test-hint">
-              检查路由按已生效配置判断；连接测试强制使用代理，不受跳过规则影响。
-            </p>
+              {dirty && <p className={styles.draftWarning}>配置尚未保存，检查仍使用上方“当前生效配置”。</p>}
 
-            {dirty && <p className="proxy-hint proxy-hint--warning">配置尚未保存，下面的检查仍使用上方“当前生效配置”。</p>}
-
-            <div
-              className="proxy-results"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-              aria-busy={testing || routeChecking}
-            >
-              {!routeResult && !testResult && (
-                <div className="proxy-results__empty">
-                  <p className="proxy-hint">
+              <div
+                className={styles.results}
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                aria-busy={testing || routeChecking}
+              >
+                {(testing || routeChecking || (!routeResult && !testResult)) && (
+                  <p className={styles.resultHint}>
+                    {testing || routeChecking
+                      ? <Spinner size="sm" aria-hidden="true" />
+                      : <ArrowRight aria-hidden="true" />}
                     {unavailable
-                      ? '配置读取成功后，可以检查路由与连接。'
+                      ? '读取配置后即可开始诊断。'
                       : routeChecking
                         ? '正在检查目标的请求路由…'
                         : testing
                           ? '正在通过代理请求目标网址…'
-                          : '尚未检查。先确认目标是否走代理，再测试代理连接。'}
+                          : '填写目标网址，选择上方操作开始检查。'}
                   </p>
-                </div>
-              )}
-              {routeResult && <ProxyResultRow label="请求路由" result={routeResult} />}
-              {testResult && <ProxyResultRow label="代理连接" result={testResult} />}
+                )}
+                {routeResult && <ProxyResultRow label="请求路由" result={routeResult} />}
+                {testResult && <ProxyResultRow label="代理连接" result={testResult} />}
+              </div>
             </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* 底部折叠说明 */}
-      <details className="proxy-help">
-        <summary>
-          <ChevronRight aria-hidden="true" />
-          代理协议与部署说明
-        </summary>
-        <div className="proxy-help__content">
-          <p>
-            <strong>代理协议：</strong>这里的 <code>http://</code> / <code>https://</code> 描述代理监听端口的协议，和目标网站是否为 HTTPS
-            无关。只有代理端口本身提供 TLS，才填写 <code>https://</code>。
-          </p>
-          <p>
-            <strong>Docker 部署：</strong>代理运行在宿主机上时，Docker Desktop 一般使用 <code>http://host.docker.internal:7890</code>
-            ，并确认代理允许来自容器的连接。
-          </p>
-          <p>
-            <strong>排查失败：</strong>代理端口可达不等于目标可访问。连接失败时结合出站请求记录检查 CONNECT、目标 TLS、超时和目标站点权限。
-          </p>
+          </section>
         </div>
-      </details>
+
+        <details className={styles.help}>
+          <summary>
+            <ChevronRight aria-hidden="true" />
+            代理协议与部署说明
+          </summary>
+          <div className={styles.helpContent}>
+            <p>
+              <strong>代理协议</strong>
+              Clash / Mihomo mixed-port 通常填写 <code>http://</code>，目标网站为 HTTPS 也一样。
+              这里的协议描述代理监听端口，只有该端口本身提供 TLS，才填写 <code>https://</code>。
+            </p>
+            <p>
+              <strong>Docker 部署</strong>
+              代理运行在宿主机上时，Docker Desktop 一般使用 <code>http://host.docker.internal:7890</code>，并确认代理允许来自容器的连接。
+            </p>
+            <p>
+              <strong>跳过规则</strong>
+              支持主机、域名、IP 或 host:port，以逗号分隔，例如 <code>localhost,127.0.0.1,::1,.internal.example.com</code>。
+              环境中的 NO_PROXY 同时生效。
+            </p>
+            <p>
+              <strong>排查失败</strong>
+              代理端口可达不等于目标可访问。连接失败时结合出站请求记录检查 CONNECT、目标 TLS、超时和目标站点权限。
+            </p>
+          </div>
+        </details>
+      </div>
     </div>
   )
 }

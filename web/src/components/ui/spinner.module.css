@@ -1,0 +1,36 @@
+.spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+.large {
+  width: 40px;
+  height: 40px;
+  border-width: 3px;
+}
+.small {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .spinner {
+    border-color: CanvasText;
+    border-top-color: Highlight;
+  }
+}

@@ -5,7 +5,7 @@
   min-height: 100vh;
   min-height: 100dvh;
   padding: max(2rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right)) max(2rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   color: var(--text-primary);
 }
 
@@ -28,7 +28,7 @@
 .page-state__title {
   margin: 0;
   font-size: var(--page-state-title-size);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.5;
   letter-spacing: -0.02em;
   text-wrap: balance;
@@ -54,7 +54,7 @@
 .page-state__actions :is(.btn, [data-slot='button']) {
   min-height: 2.75rem;
   padding: 0.625rem 1rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.5;
@@ -62,20 +62,6 @@
   height: auto;
   box-shadow: none;
 }
-
-.page-state__actions .btn--secondary {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-secondary);
-}
-
-.page-state__actions .btn--secondary:hover {
-  border-color: transparent;
-  background: var(--bg-hover);
-}
-
-.page-state__actions .btn--primary:hover { box-shadow: none; }
-.page-state__actions .btn:hover { transform: none; }
 .page-state__actions :is(a, button):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;

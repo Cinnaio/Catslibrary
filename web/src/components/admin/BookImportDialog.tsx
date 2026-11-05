@@ -1,4 +1,5 @@
-import { AdminDialogContent } from '@/components/admin/AdminDialog'
+import '@/styles/input-fields.css'
+import { DialogFrame } from "@/components/shared/DialogFrame"
 import BookImportChapterResolver, { type ChapterResolutionChoice } from './BookImportChapterResolver'
 import { planImportInsertions } from '@shared/book-import-resolution'
 import ImportDiagnosticsPanel from '@/components/admin/ImportDiagnosticsPanel'
@@ -465,7 +466,7 @@ export default function BookImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !operationBusy && onOpenChange(nextOpen)}>
-      <AdminDialogContent className="book-import-dialog" aria-describedby="book-import-description" data-step={step}>
+      <DialogFrame className="book-import-dialog" aria-describedby="book-import-description" data-step={step}>
         <DialogHeader className="book-import__header">
           <DialogTitle>{STEP_TITLES[step]}</DialogTitle>
           <DialogDescription id="book-import-description">{STEP_DESCRIPTIONS[step]}</DialogDescription>
@@ -485,7 +486,7 @@ export default function BookImportDialog({
           </ol>
         </DialogHeader>
 
-        <div ref={bodyRef} className="admin-dialog__body book-import__body" aria-busy={operationBusy}>
+        <div ref={bodyRef} className="dialog-frame__body book-import__body" aria-busy={operationBusy}>
           {archiveTotal > 0 && step !== 'source' && <p className="book-import__safe-note" role="status">ZIP 逐本导入 · 第 {archiveTotal - archiveRemaining.length} / {archiveTotal} 本 · 每本单独确认，可在导入历史中撤回。</p>}
           {error && (
             <Alert variant="destructive" className="book-import__alert" role="alert">
@@ -1038,7 +1039,7 @@ export default function BookImportDialog({
             )}
           </div>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }

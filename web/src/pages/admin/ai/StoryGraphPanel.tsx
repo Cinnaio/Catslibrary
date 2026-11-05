@@ -90,8 +90,8 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
       <div className="story-graph-empty">
         <Network />
         <h2>先选择一本小说</h2>
-        <p>从创作工作台或小说管理打开本书的故事图谱。</p>
-        <Link to="/admin/novels">前往小说管理</Link>
+        <p>从作品库选择一本小说，或在创作工作区打开当前作品的故事档案。</p>
+        <Link to="/admin/novels">选择作品</Link>
       </div>
     )
   const graph = data?.graph
@@ -297,7 +297,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
         <div className="story-graph-workbench">
           <div className="story-graph-toolbar">
             <label className="story-graph-search">
-              <Input data-admin-search aria-label="搜索人物或别名" placeholder="搜索人物或别名…" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <Input data-search-field aria-label="搜索人物或别名" placeholder="搜索人物或别名…" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
             <label>
               <Checkbox checked={showThreads} onCheckedChange={(v) => setShowThreads(v === true)} />

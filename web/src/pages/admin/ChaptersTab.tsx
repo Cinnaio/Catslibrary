@@ -1,13 +1,15 @@
+import { Spinner } from '@/components/ui/spinner'
+import '../../styles/admin/pages/chapters.css'
 /**
  * 章节管理 tab —— 选书下拉（全库索引）、章节 CRUD、批量删除、按源站映射融合章节名。
  * 由 Novel-KV js/admin-chapters.js 平移。
  */
-import { AdminDialogContent, AdminDialogBody } from '@/components/admin/AdminDialog'
+import { DialogFrame, DialogBody } from "@/components/shared/DialogFrame"
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useToast, useConfirm } from '../../components/feedback'
-import CustomSelect from '../../components/admin/CustomSelect'
-import Pagination from '../../components/admin/Pagination'
+import SearchSelect from "@/components/shared/SearchSelect"
+import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
@@ -23,7 +25,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2, BookOpen, ArrowUpDown, Eye } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import EmptyState from "@/components/shared/EmptyState"
 import ChapterMergePreview from './ChapterMergePreview'
 import SourceSyncHistoryDialog from './SourceSyncHistoryDialog'
 import TitleSourceSearchResults from './TitleSourceSearchResults'
@@ -35,7 +37,10 @@ import ChapterIllustrations from '@/components/reader/ChapterIllustrations'
 import { formatContent } from '@/lib/reader-utils'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
-import { AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { CellText } from '@/components/shared/CellText'
+import { SearchField } from '@/components/shared/SearchField'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
 
 const CHAPTER_COLUMNS: readonly AdminColumn[] = [
   { key: 'check', width: '8%' },
@@ -644,12 +649,12 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       open={renameModal}
       onOpenChange={(open) => { if (!open) closeRenameModal() }}
     >
-      <AdminDialogContent variant="editor" className="chapter-merge-dialog chapter-merge-dialog--review" onInteractOutside={(event) => { if (mergeBusy.current) event.preventDefault() }} onEscapeKeyDown={(event) => { if (mergeBusy.current) event.preventDefault() }}>
+      <DialogFrame variant="editor" className="chapter-merge-dialog chapter-merge-dialog--review" onInteractOutside={(event) => { if (mergeBusy.current) event.preventDefault() }} onEscapeKeyDown={(event) => { if (mergeBusy.current) event.preventDefault() }}>
         <DialogHeader>
           <DialogTitle className="editor-modal__title">融合章节名</DialogTitle>
           <DialogDescription>从原作者源站补全章节名，先核对变化，再应用更新。</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody className="chapter-merge-dialog__body">
+        <DialogBody className="chapter-merge-dialog__body">
           <div className="chapter-merge-dialog__context">
             <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
             <span>{selectedNovelInfo?.author || '未知作者'} · {selectedNovelInfo?.chapterCount || chapters.length} 章</span>
@@ -657,7 +662,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
           </div>
           <details className="chapter-merge-dialog__source" open={sourceExpanded} onToggle={(event) => setSourceExpanded(event.currentTarget.open)}>
             <summary>原作者源站<span>{sourcePreview ? '已读取 · 更换来源' : '搜索作品或粘贴链接'}</span></summary>
-            <p className="admin-dialog-hint">支持晋江与 PO18.tw。选择搜索结果后会直接读取并生成预览。</p>
+            <p className="dialog-frame-hint">支持晋江与 PO18.tw。选择搜索结果后会直接读取并生成预览。</p>
             <div className="chapter-merge-dialog__source-grid grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
               <Input aria-label="搜索书名" placeholder="书名" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchTitle} onChange={(e) => setSourceSearchTitle(e.target.value)} />
               <Input aria-label="搜索作者" placeholder="作者（可选）" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchAuthor} onChange={(e) => setSourceSearchAuthor(e.target.value)} />
@@ -690,14 +695,14 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
             </div>
           </details>
           {sourceError && <p role="alert" className="chapter-merge-dialog__error">{sourceError}</p>}
-          {renaming && !sourcePreview && <p role="status" className="admin-dialog-hint">正在读取源站并匹配本地章节，请稍候…</p>}
+          {renaming && !sourcePreview && <p role="status" className="dialog-frame-hint">正在读取源站并匹配本地章节，请稍候…</p>}
           {sourcePreview && <>
             <Button variant="secondary" disabled={renaming || !!pendingMappings || (!!pendingDeletion && !previewStale)} onClick={() => void refreshLocalPreview()}>按本地最新目录重新匹配</Button>
-            {!!pendingMappings && <p className="admin-dialog-hint">请先保存或放弃暂存的映射调整，再应用更新或重新匹配。</p>}
-            {!!pendingDeletion && <p className="admin-dialog-hint">请先确认删除或清空删除选择，再应用标题及序号更新。</p>}
+            {!!pendingMappings && <p className="dialog-frame-hint">请先保存或放弃暂存的映射调整，再应用更新或重新匹配。</p>}
+            {!!pendingDeletion && <p className="dialog-frame-hint">请先确认删除或清空删除选择，再应用标题及序号更新。</p>}
             <ChapterMergePreview preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} onRemap={remapSource} onSelectedMappingsChange={selectMappings} selectedMappingIds={selectedMappingIds} onPendingMappingsChange={setPendingMappings} onInspect={setMergeInspection} onDelete={ids => void deleteMergeChapters(ids)} onPendingDeletionChange={setPendingDeletion} disabled={renaming || previewStale} />
           </>}
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter className="chapter-merge-dialog__footer">
           <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${updateCount} 个标题待更新 · ${orderUpdateCount} 个序号修复 · ${availableMetadataFields.length} 项信息同步${missingOrderDependencies.size ? ` · 尚缺 ${missingOrderDependencies.size} 项关联映射` : ''}` : '读取后可预览全部变化'}</span>
           <Button variant="secondary" disabled={renaming} onClick={closeRenameModal}>
@@ -710,7 +715,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
           )}
           {sourcePreview && <Button className="chapter-merge-dialog__continue" variant="secondary" disabled={renaming || previewStale || !!pendingMappings || !!pendingDeletion || !!missingOrderDependencies.size || (!updateCount && !orderUpdateCount && !availableMetadataFields.length)} onClick={() => void applyRename(true)}>应用后继续核对</Button>}
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
   const inspectedChapter = sourcePreview?.localChapters?.find(chapter => chapter.id === mergeInspection)
@@ -727,7 +732,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       description="按作品维护目录与正文，搜索和批量操作只作用于当前作品。"
       actions={
         <div className="chapter-page-actions flex items-center gap-2">
-          <CustomSelect
+          <SearchSelect
             className="chapter-novel-select"
             searchable
             searchPlaceholder="搜索或切换小说…"
@@ -750,22 +755,18 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       }
     >
       {!selectedNovel ? (
-        <div className="chapter-empty-container">
-          <AdminEmptyState
-            icon={
-              <div className="chapter-empty-container__icon-wrap">
-                <BookOpen className="size-7" />
-              </div>
-            }
-            message="请选择需要维护的小说"
-            hint="在右上方下拉菜单选择或搜索一部小说，即可查看和编排其章节目录、编辑正文或融合章节名。"
+        <AdminDataPanel ariaLabel="章节管理引导">
+          <EmptyState
+            icon={<BookOpen aria-hidden="true" />}
+            message="请先选择作品"
+            hint="从上方选择作品后，即可管理目录与正文。"
           />
-        </div>
+        </AdminDataPanel>
       ) : (
         <>
           <AdminToolbar layout="inline" className="chapter-toolbar" ariaLive="polite">
             <div className="chapter-toolbar__search">
-              <AdminSearch
+              <SearchField
                 id="chapter-search"
                 label="搜索章节"
                 type="text"
@@ -859,7 +860,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                           {extractVolumeTag(c.title) && (
                             <span className="chapter-volume-tag">{extractVolumeTag(c.title)!}</span>
                           )}
-                          <AdminCellText strong>
+                          <CellText strong>
                             <button
                               type="button"
                               className="text-left hover:text-primary transition-colors cursor-pointer"
@@ -868,7 +869,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                             >
                               {c.title || '—'}
                             </button>
-                          </AdminCellText>
+                          </CellText>
                         </div>
                       </TableCell>
                       <TableCell data-label="字数">
@@ -948,14 +949,14 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
           if (!open) closeChapterModal()
         }}
       >
-        <AdminDialogContent variant="editor" className="chapter-editor-dialog sm:max-w-[620px]">
+        <DialogFrame variant="editor" className="chapter-editor-dialog sm:max-w-[620px]">
           <DialogHeader>
             <DialogTitle>{modal.chapter ? '编辑章节' : '添加章节'}</DialogTitle>
             <DialogDescription>
               {modal.chapter ? '修改章节标题或正文，保存后会保留原有顺序与阅读进度。' : '填写新章节内容，保存后会追加到当前小说。'}
             </DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="chapter-editor-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
+          <DialogBody className="chapter-editor-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
             <div className="chapter-dialog-context">
               <span>当前小说</span>
               <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
@@ -982,7 +983,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                 </div>
               ) : modal.loading ? (
                 <div className="loading-center">
-                  <div className="spinner"></div>
+                  <Spinner  />
                 </div>
               ) : (
                 <Textarea
@@ -998,10 +999,10 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
               <div className="chapter-dialog-section__heading"><Label>章节插图</Label>
                 {modal.chapter && <Button type="button" variant="secondary" onClick={() => setShowIllustrations(value => !value)}>{showIllustrations ? '收起预览' : '预览与管理插图'}</Button>}
               </div>
-              {!modal.chapter && <span className="admin-dialog-hint">创建章节并保存正文后，即可添加共享插图。</span>}
+              {!modal.chapter && <span className="dialog-frame-hint">创建章节并保存正文后，即可添加共享插图。</span>}
               {modal.chapter && showIllustrations && <IllustrationAdminPreview chapterId={modal.chapter.id} content={draft.content} bodyRef={illustrationBodyRef} />}
             </section>}
-          </AdminDialogBody>
+          </DialogBody>
           <DialogFooter>
             <Button variant="secondary" onClick={closeChapterModal} disabled={chapterSaving}>
               取消
@@ -1010,7 +1011,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
               {chapterSaving ? '保存中…' : '保存'}
             </Button>
           </DialogFooter>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
 
       {renameDialog}
@@ -1039,6 +1040,6 @@ function IllustrationAdminPreview({ chapterId, content, bodyRef }: { chapterId: 
     {!managing && <Button type="button" variant="secondary" onClick={() => setManaging(true)}>管理插图</Button>}
     <ChapterIllustrations key={chapterId} chapterId={chapterId} content={content} bodyRef={bodyRef} canManage managing={managing} onExit={() => setManaging(false)} />
     <div ref={bodyRef} className="chapter-illustration-preview" dangerouslySetInnerHTML={html} />
-    <span className="admin-dialog-hint">插图单独保存，保存后所有读者可见。</span>
+    <span className="dialog-frame-hint">插图单独保存，保存后所有读者可见。</span>
   </>
 }

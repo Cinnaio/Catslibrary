@@ -1,3 +1,4 @@
+import '@/styles/page-state.css'
 import { useContext, useId, useLayoutEffect, type ReactNode } from 'react'
 import { PageLayoutContext } from '../context/PageLayoutContext'
 

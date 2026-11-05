@@ -1,3 +1,11 @@
+import { Spinner } from '@/components/ui/spinner'
+import '@/styles/reader-responsive.css'
+import '@/styles/input-fields.css'
+import { scrollBehavior } from '@/lib/motion'
+import { Button } from '@/components/ui/button'
+import styles from './reader.module.css'
+import '../styles/reader-highlights.css'
+import '../styles/bookmarks.css'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 /**
  * Reader 阅读器 —— 沉浸式阅读（由 Novel-KV js/read.js 2723 行平移为 React）。
@@ -26,7 +34,6 @@ import {
   jumpScrollTo,
   resolveSelectionParagraph,
   thoughtQuoteRanges,
-  scrollBehavior,
 } from '../lib/reader-utils'
 import { useSession } from '../context/SessionContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
@@ -48,6 +55,7 @@ import { ThemeMenu } from '../components/ThemeMenu'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
 import ContentPolicyStatus from '../components/ContentPolicyStatus'
+import FloatingPageTools from "@/components/shared/FloatingPageTools"
 
 const CHAPTER_ROW_H = 34
 const CHAPTER_CACHE_MAX = 6
@@ -1192,11 +1200,11 @@ export default function Reader() {
 
   if (checking || policyError) return <ContentPolicyStatus />
 
-  if (loadError) return <PageState title="加载失败" description={loadError} actions={<button type="button" className="btn btn--primary" onClick={() => setRetry(value => value + 1)}>重试</button>} />
+  if (loadError) return <PageState title="加载失败" description={loadError} actions={<Button variant="default" type="button"  onClick={() => setRetry(value => value + 1)}>重试</Button>} />
 
   if (notFound) {
     return (
-      <PageState title="章节未找到" description="该章节不存在或已被移除" icon={<BookOpen strokeWidth={1.5} />} actions={<Link to="/" className="btn btn--primary">返回首页</Link>} />
+      <PageState title="章节未找到" description="该章节不存在或已被移除" icon={<BookOpen strokeWidth={1.5} />} actions={<Button asChild variant="default"><Link to="/" >返回首页</Link></Button>} />
     )
   }
 
@@ -1207,7 +1215,7 @@ export default function Reader() {
   if (loading || !chapter) {
     return (
       <div className="loading-center" style={{ minHeight: '60vh' }}>
-        <div className="spinner spinner--lg"></div>
+        <Spinner size="lg"  />
       </div>
     )
   }
@@ -1215,7 +1223,7 @@ export default function Reader() {
   const nid = chapter.novelId || novelId
 
   return (
-    <div ref={readerAppRef} className={`reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme} data-mobile-toolbar={mobileBarHidden ? 'collapsed' : 'expanded'}>
+    <div ref={readerAppRef} className={`${styles.page} reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme} data-mobile-toolbar={mobileBarHidden ? 'collapsed' : 'expanded'}>
       <div className="reader-shell">
         {/* Top bar */}
         <div className="reader-top">
@@ -1358,7 +1366,7 @@ export default function Reader() {
           <ChapterRecap prevChapterId={prevChapter?.id || ''} prevChapterTitle={prevChapter ? chapterLabel(prevChapter, currentIdx - 1) : ''} />
           <ChapterIllustrations key={`${chapter.id}:${user?.id || 'guest'}:${mode}`} chapterId={chapter.id} content={chapter.content} bodyRef={bodyRef} canManage={canManageIllustrations} managing={illustrationMode} onExit={() => setIllustrationMode(false)} visible={settings.readerIllustrations !== 'off'} shortcut={illustrationShortcut} />
           <div ref={bodyRef} className="reader-body" dangerouslySetInnerHTML={bodyHtml} />
-          {!!thoughtsByParagraph['-1']?.length && <button className="btn btn--secondary btn--sm" onClick={() => openThoughtPanel(-1)}>查看原段落已变更的想法（{thoughtsByParagraph['-1'].length}）</button>}
+          {!!thoughtsByParagraph['-1']?.length && <Button variant="secondary" size="sm"  onClick={() => openThoughtPanel(-1)}>查看原段落已变更的想法（{thoughtsByParagraph['-1'].length}）</Button>}
         </article>
 
         {/* Bottom nav */}
@@ -1491,14 +1499,7 @@ export default function Reader() {
         />
       )}
 
-      <div className="reader-footer-actions">
-        <Link to="/" className="float-top float-top--home visible" aria-label="回到首页" title="回到首页">
-          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7.5l7-5.5 7 5.5" /><path d="M4.5 8.5v6h3v-4h3v4h3v-6" /></svg>
-        </Link>
-        <button className="float-top visible" aria-label="回到顶部" title="回到顶部" onClick={() => window.scrollTo({ top: 0, behavior: scrollBehavior() })}>
-          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="12 11 9 7 6 11" /><line x1="4" y1="14" x2="14" y2="14" /></svg>
-        </button>
-      </div>
+      <FloatingPageTools reader />
     </div>
   )
 }

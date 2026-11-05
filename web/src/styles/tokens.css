@@ -4,64 +4,136 @@
    ============================================================ */
 
 :root {
+  /* Shared roles: reader and management use the same design system. */
+  --radius-tag: 6px;
+  --radius-compact: 10px;
+  --radius-control: 14px;
+  --radius-poster: 16px;
+  --radius-container: 20px;
+  --radius-dialog: 24px;
+  --radius-feature: 28px;
+  --control-height: 42px;
+  --control-height-compact: 36px;
+  --button-height: 44px;
+  --control-gap: 8px;
+  --action-gap: 12px;
+  --section-gap: 32px;
+  --pagination-gap: 0.75rem;
+  --pagination-padding-block: 1.25rem;
+  --pagination-padding-inline: var(--ui-panel-padding, 20px);
+  --pagination-font-size: 0.825rem;
+  --pagination-jump-width: 4rem;
+  --pagination-page-size-width: 5.5rem;
+  --pagination-control-size: var(--control-height);
+  --dialog-frame-title-size: 20px;
+  --dialog-frame-mobile-max-height: min(47.5rem, calc(100svh - 4rem));
+  --dialog-frame-mobile-footer-direction: row;
+  --dialog-frame-mobile-footer-wrap: nowrap;
+  --dialog-frame-mobile-footer-gap: 0.5rem;
+  --dialog-frame-mobile-footer-padding: 0.75rem;
+  --dialog-frame-mobile-action-min-width: 4.5rem;
+  --dialog-frame-mobile-action-min-height: 48px;
+  --dialog-frame-label-size: 0.785rem;
+  --dialog-frame-label-weight: 500;
+  --dialog-frame-label-color: var(--text-secondary);
+  --dialog-frame-label-line-height: 1.5;
+  --dialog-frame-label-letter-spacing: 0;
+  --dialog-frame-hint-size: 0.75rem;
+  --dialog-frame-hint-weight: 400;
+  --dialog-frame-hint-color: var(--text-muted);
+  --dialog-frame-hint-line-height: 1.5;
+  --reading-dialog-inset: 1.5rem;
+  --reading-dialog-viewport-inset: 2rem;
+  --reading-dialog-gap: 0.75rem;
+  --reading-dialog-gap-desktop: 1rem;
+  --reading-dialog-padding: 1rem;
+  --reading-dialog-padding-desktop: 1.5rem;
+  --reading-dialog-width: 48rem;
+  --reading-dialog-wide-width: 56rem;
+  --reading-dialog-height: min(85svh, 900px);
+  --preview-dialog-height: 94vh;
+  --preview-dialog-width: 64rem;
+  --preview-dialog-width-desktop: 32rem;
+  --font-ui-body: 14px;
+  --font-display: 29px;
+  --font-headline: 21px;
+  /* 后台：控件小一档，分区与纸面留白独立加宽，不压缩正文和数据行。 */
+  --management-control-height: 40px;
+  --management-control-label-size: 13px;
+  --management-control-icon-size: 14px;
+  --management-page-title-size: 26px;
+  --management-section-title-size: 16px;
+  --management-dialog-title-size: 18px;
+  --management-stat-size: 21px;
+  --management-section-gap: 32px;
+  --management-panel-padding: 28px;
+  --management-form-gap: 24px;
+  --workspace-sidebar-width: 240px;
+  --workspace-page-gutter: 38px;
+  --workspace-page-padding: 34px 38px 44px;
+  --glass-nav: color-mix(in srgb, var(--bg-primary) 90%, transparent);
+  --glass-overlay: color-mix(in srgb, var(--bg-card) 94%, transparent);
+  --motion-shell: 280ms;
+  --ease-shell: cubic-bezier(0.32, 0.72, 0, 1);
+
   /* 页尾保留纸面呼吸空间与设备安全区，不预留浏览器工具栏。 */
   --page-end-space: calc(24px + env(safe-area-inset-bottom, 0px));
   color-scheme: light;
 
   /* Light theme — clean white, warm neutrals, milk-tea brown */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f6f4f1;
-  --bg-card: #ffffff;
-  --bg-hover: #f5f2ee;
-  --text-primary: #211e1a;
-  --text-secondary: #5b554e;
-  --text-muted: #736d65; /* 弱化文字 — AA 对比度 ≥4.5:1（白底 5.11 / 奶油底 4.66） */
-  --accent: #8b6045;
-  --accent-hover: #74503a;
-  --accent-light: #f0e6d6;
-  --accent-subtle: #f8f3ec;
-  --accent-ink: var(--accent-ink-light, #ffffff);
-  --border: #ece8e2;
-  --border-light: #f3f0eb;
+  --bg-primary: #faf9f6;
+  --bg-secondary: #f0eee8;
+  --bg-card: #fffefa;
+  --bg-hover: #efede6;
+  --text-primary: #302e2a;
+  --text-secondary: #625e57;
+  --text-muted: #736e65; /* 弱化文字 — AA 对比度 ≥4.5:1（白底 5.11 / 奶油底 4.66） */
+  --accent: #a64d32;
+  --accent-hover: #8f3f28;
+  --accent-light: #eee2d9;
+  --accent-subtle: #f5ebe3;
+  --accent-ink: var(--accent-ink-light, #fffaf5);
+  --border: #dedbd3;
+  --border-light: #e9e5dd;
   /* 全站单行输入框：白色纸面、细暖灰边框、无静态阴影。随主题继承。 */
   --input-background: var(--bg-card);
   --input-border: var(--border);
-  --input-radius: var(--radius-lg);
+  --input-radius: var(--radius-control);
   --input-focus-border: var(--accent);
   --input-focus-shadow: 0 0 0 2px var(--focus-ring);
   --select-default-font-size: 1rem;
-  --focus-ring: rgba(139, 96, 69, 0.24);
-  --selection-bg: rgba(212, 184, 150, 0.5);
-  --overlay-bg: rgba(33, 30, 26, 0.45);
-  --color-success: #4f7a52;
-  --color-warning: #b07c2f;
-  --color-danger: #be123c;
-  --color-info: #8b6045;
+  --focus-ring: rgba(166, 77, 50, 0.24);
+  --selection-bg: #e9cdbb;
+  --overlay-bg: rgba(48, 40, 30, 0.38);
+  --color-success: #426450;
+  --color-warning: #956628;
+  --color-danger: #a03929;
+  --color-info: var(--accent);
   --color-seal: #b8453a; /* "已收录" collector's seal — vermilion stamp */
   --color-seal-ink: #fce8e4; /* 印章上的文字：与朱砂底 4.51:1，恰好过 AA */
-  --shadow: 0 1px 2px rgba(40, 32, 24, 0.04), 0 1px 3px rgba(40, 32, 24, 0.05);
-  --shadow-md: 0 6px 16px rgba(40, 32, 24, 0.08);
-  --shadow-lg: 0 16px 40px rgba(40, 32, 24, 0.12);
-  --shadow-popover: 0 8px 28px rgba(40, 32, 24, 0.12);
+  --shadow: none;
+  --shadow-md: none;
+  --shadow-lg: 0 12px 36px rgba(48, 40, 30, 0.12);
+  --shadow-popover: 0 10px 36px rgba(48, 40, 30, 0.16);
   /* Shared transient feedback — Claude paper capsule, restrained elevation and hairline border. */
   --toast-background: color-mix(in srgb, var(--bg-card) 95%, var(--accent-subtle) 5%);
   --toast-foreground: var(--text-primary);
-  --toast-radius: var(--radius-full);
+  --toast-radius: var(--radius-control);
   --toast-shadow: 0 4px 18px rgba(35, 30, 24, 0.08), 0 1px 3px rgba(35, 30, 24, 0.04);
   --toast-border: var(--border);
   --toast-font-size: 0.8125rem;
-  --toast-padding-block: 0.5rem;
+  --toast-padding-block: 0.875rem;
   --toast-padding-inline: 1.125rem;
   --toast-gap: 0.625rem;
-  --radius: 8px;
+  --radius: 20px;
   --radius-sm: 6px;
-  --radius-lg: 12px;
+  --radius-lg: 14px;
   --radius-full: 9999px;
   --radius-md: 10px; /* compact controls / cards */
-  --radius-xl: 16px; /* nested surfaces / dialogs */
+  --radius-xl: 20px; /* nested surfaces / dialogs */
   --page-state-width: 32rem;
-  --page-state-title-size: 1.25rem;
-  --radius-2xl: 20px; /* large surfaces / panels */
+  --page-state-title-size: var(--font-display);
+  --radius-2xl: 28px; /* large surfaces / panels */
 
   /* Compact identity primitives shared by lists and account controls. */
   --avatar-size: 2.25rem; /* 36px */
@@ -71,10 +143,10 @@
   --badge-padding-inline: 0.5rem;
   --panel-count-label-size: 0.75rem;
   /* Public novel cards: shared compact typography for Home and Bookshelf. */
-  --novel-card-title-size: 0.875rem; /* 14px */
-  --novel-card-meta-size: 0.75rem; /* 12px */
+  --novel-card-title-size: 0.8125rem; /* 14px */
+  --novel-card-meta-size: 0.6875rem; /* 12px */
   --novel-card-description-size: 0.75rem; /* 12px */
-  --novel-card-footer-size: 0.7rem; /* 11.2px */
+  --novel-card-footer-size: 0.6875rem; /* 11.2px */
   /* Covers are objects resting on paper; card containers stay flat. */
   --novel-cover-status-size: 20px;
   --novel-cover-status-radius: var(--radius-sm);
@@ -83,16 +155,16 @@
   --novel-cover-status-gap: 3px;
   --novel-cover-status-background: var(--bg-card);
   --novel-cover-status-foreground: var(--text-secondary);
-  --novel-cover-shadow: 0 2px 4px rgba(40, 32, 24, 0.08), 0 8px 18px rgba(40, 32, 24, 0.12);
-  --admin-search-width: 17.5rem;
+  --novel-cover-shadow: none;
+  --search-field-width: 17.5rem;
 
   /* Shared dropdown menus — spacious paper surface, portal-safe across themes. */
   --menu-min-width: 11rem;
   --menu-padding: 0.25rem;
-  --menu-radius: var(--radius-lg);
+  --menu-radius: var(--radius-container);
   --menu-item-height: 2.25rem;
   --menu-item-padding-inline: 0.75rem;
-  --menu-item-radius: var(--radius-sm);
+  --menu-item-radius: var(--radius-compact);
   --menu-item-font-size: 0.8125rem;
   --menu-separator-margin: 0.25rem;
   --menu-shadow: var(--shadow-popover);
@@ -102,7 +174,7 @@
      the geometry and transition stay consistent across themes and pages. */
   --tabs-segmented-inset: 0.1875rem; /* 3px */
   --tabs-segmented-gap: var(--tabs-segmented-inset);
-  --tabs-segmented-radius: var(--radius-lg); /* 12px track */
+  --tabs-segmented-radius: var(--radius-control); /* 12px track */
   --tabs-segmented-inner-radius: calc(var(--tabs-segmented-radius) - var(--tabs-segmented-inset)); /* 9px active surface */
   --tabs-segmented-track-background: var(--bg-secondary);
   --tabs-segmented-track-border: var(--border);
@@ -121,11 +193,11 @@
   --tabs-segmented-transition: var(--tabs-segmented-duration) var(--tabs-segmented-ease);
 
   /* Shared modal elevation. */
-  --shadow-modal: 0 24px 70px rgba(40, 32, 24, 0.18);
+  --shadow-modal: 0 24px 80px rgba(48, 40, 30, 0.18);
 
   /* Typography — system sans UI, serif reserved for reading */
-  --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-heading: var(--font-serif);
+  --font-body: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-serif:
     'Noto Serif SC', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Source Han Serif CN', 'Songti SC', 'STSongti-SC-Regular', 'STSongti SC', 'Songti TC',
     'Hiragino Mincho ProN', 'Hiragino Mincho Pro', 'STSong', 'SimSun', ui-serif, serif;
@@ -133,11 +205,11 @@
 
   /* Sizing */
   --max-width-reader: 680px;
-  --max-width-content: 1200px;
-  --header-height: 64px;
+  --max-width-content: none;
+  --header-height: 78px;
 
   /* Transition */
-  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   /* Low-frequency disclosure / form-mode changes; never page or list refreshes. */
   --motion-state-enter: 180ms;
@@ -149,36 +221,36 @@
 /* Dark theme — moonlit paper */
 [data-theme='dark'] {
   color-scheme: dark;
-  --bg-primary: #1b1c20;
-  --bg-secondary: #24252a;
-  --bg-card: #2a2b31;
-  --bg-hover: #34353c;
-  --text-primary: #e7e0d6;
-  --text-secondary: #aea597;
-  --text-muted: #a79e92; /* 暗色弱化文字 — 提亮至 AA 对比度 ≥4.5:1（卡片底 5.38:1） */
-  --accent: #bf8f52;
-  --accent-hover: #d0a064;
-  --accent-light: #3d2f20;
-  --accent-subtle: #2c261e;
-  --accent-ink: var(--accent-ink-dark, #1d1510);
-  --border: #3b3c43;
-  --border-light: #33343a;
-  --focus-ring: rgba(191, 143, 82, 0.3);
+  --bg-primary: #1c1c1a;
+  --bg-secondary: #242420;
+  --bg-card: #282824;
+  --bg-hover: #33332d;
+  --text-primary: #e9e7df;
+  --text-secondary: #c5bfb3;
+  --text-muted: #b6b0a5; /* 暗色弱化文字 — 提亮至 AA 对比度 ≥4.5:1（卡片底 5.38:1） */
+  --accent: #d58c70;
+  --accent-hover: #e6a083;
+  --accent-light: #4c3329;
+  --accent-subtle: #332923;
+  --accent-ink: var(--accent-ink-dark, #271a14);
+  --border: #45433b;
+  --border-light: #36362f;
+  --focus-ring: rgba(213, 140, 112, 0.3);
   --selection-bg: rgba(191, 143, 82, 0.22);
   --overlay-bg: rgba(0, 0, 0, 0.58);
-  --color-success: #8fbe92;
+  --color-success: #93bc9a;
   --color-warning: #d8a657;
-  --color-danger: #e86a86;
-  --color-info: #bf8f52;
+  --color-danger: #e59a86;
+  --color-info: var(--accent);
   /* 暗底上朱砂 #b8453a 对卡片底仅 2.65:1，提到 3:1 图形基准以上 */
   --color-seal: #d4574a;
   --color-seal-ink: #1f0a07;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.28);
-  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.34);
+  --shadow: none;
+  --shadow-md: none;
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.46);
   --shadow-popover: 0 8px 28px rgba(0, 0, 0, 0.46);
   --shadow-modal: 0 30px 86px rgba(0, 0, 0, 0.52);
-  --novel-cover-shadow: 0 2px 5px rgba(0, 0, 0, 0.24), 0 8px 20px rgba(0, 0, 0, 0.32);
+  --novel-cover-shadow: none;
 }
 
 /* ============================================================
@@ -202,4 +274,25 @@ html[data-accent] {
 html[data-accent][data-theme='dark'] {
   --accent: color-mix(in oklch, var(--accent-base) 78%, #fff);
   --accent-hover: color-mix(in oklch, var(--accent) 88%, #fff);
+}
+
+@media (min-width: 1600px) {
+  :root { --workspace-page-gutter: 52px; --workspace-page-padding: 42px 52px; }
+}
+@media (max-width: 1250px) {
+  :root { --workspace-sidebar-width: 216px; --workspace-page-gutter: 28px; --workspace-page-padding: 28px; }
+}
+@media (max-width: 700px) {
+  :root {
+    --workspace-sidebar-width: 0px;
+    --workspace-page-gutter: 20px;
+    --workspace-page-padding: 25px 20px 32px;
+    --control-height: 48px;
+    --control-height-compact: 48px;
+    --button-height: 48px;
+    --management-control-height: 48px;
+    --management-page-title-size: 23px;
+    --management-section-gap: 24px;
+    --management-panel-padding: 20px;
+  }
 }

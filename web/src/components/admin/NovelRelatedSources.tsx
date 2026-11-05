@@ -84,7 +84,7 @@ export default function NovelRelatedSources({ novel, onUpdated }: { novel: Novel
             {overview ? `${fileBindings.length} 个绑定` : '读取中'}
           </span>
         </div>
-        <p className="admin-dialog-hint">检查 TXT／EPUB 文件版本，下载并预览实际章节差异后确认入库。</p>
+        <p className="dialog-frame-hint">检查 TXT／EPUB 文件版本，下载并预览实际章节差异后确认入库。</p>
         {fileError && (
           <div role="alert" className="novel-followup-dialog__inline-alert">
             <p>{fileError}</p>
@@ -106,7 +106,7 @@ export default function NovelRelatedSources({ novel, onUpdated }: { novel: Novel
                   {statusText(source.status)}
                 </span>
               </div>
-              <p className="admin-dialog-hint">{source.enabled ? `跟随来源设置 · 每 ${source.intervalHours} 小时自动检查文件更新` : '来源的自动检查已暂停'}</p>
+              <p className="dialog-frame-hint">{source.enabled ? `跟随来源设置 · 每 ${source.intervalHours} 小时自动检查文件更新` : '来源的自动检查已暂停'}</p>
               {source.error && <p role="status">{source.error}</p>}
               <dl className="novel-followup-dialog__facts">
                 <div>
@@ -139,7 +139,7 @@ export default function NovelRelatedSources({ novel, onUpdated }: { novel: Novel
             绑定附加源
           </Button>
         </div>
-        <p className="admin-dialog-hint">文件名进度仅作线索。共享目录共用检查频率；解除本书绑定不会暂停其他书籍。</p>
+        <p className="dialog-frame-hint">文件名进度仅作线索。共享目录共用检查频率；解除本书绑定不会暂停其他书籍。</p>
       </section>
       <section className="novel-followup-dialog__section" aria-labelledby="novel-reference-title">
         <div className="novel-followup-dialog__section-head">
@@ -148,7 +148,7 @@ export default function NovelRelatedSources({ novel, onUpdated }: { novel: Novel
             {bindings ? `${bindings.length} 个参考目录` : '读取中'}
           </span>
         </div>
-        <p className="admin-dialog-hint">使用参考目录核对章节名和顺序，保留已确认的对应关系。</p>
+        <p className="dialog-frame-hint">使用参考目录核对章节名和顺序，保留已确认的对应关系。</p>
         {referenceError && (
           <div role="alert" className="novel-followup-dialog__inline-alert">
             <p>{referenceError}</p>
@@ -183,7 +183,7 @@ export default function NovelRelatedSources({ novel, onUpdated }: { novel: Novel
             读取参考目录并预览
           </Button>
         </div>
-        <p className="admin-dialog-hint">新增章节可继续融合；暂未匹配时保留 TXT 标题。正文版本、插章与映射冲突需要确认，打赏章等有效章节继续保留。</p>
+        <p className="dialog-frame-hint">新增章节可继续融合；暂未匹配时保留 TXT 标题。正文版本、插章与映射冲突需要确认，打赏章等有效章节继续保留。</p>
       </section>
       {filesOpen && (
         <SupplementarySourcesDialog

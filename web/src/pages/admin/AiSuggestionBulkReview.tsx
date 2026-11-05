@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { adminApi, type AdminContentRatingAiSuggestion } from '@/lib/api'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -60,14 +60,14 @@ export default function AiSuggestionBulkReview({ items, disabled, onCompleted, o
   return <>
     <Button variant="secondary" size="sm" disabled={disabled || saving || !items.length} onClick={() => open('approve')}>批量批准</Button>
     <Button variant="secondary" size="sm" disabled={disabled || saving || !items.length} onClick={() => open('reject')}>批量拒绝</Button>
-    {!decision && message && <span role="status" className="admin-dialog-hint">{message}</span>}
+    {!decision && message && <span role="status" className="dialog-frame-hint">{message}</span>}
     <Dialog open={!!decision} onOpenChange={open => { if (!open && !saving) setDecision(null) }}>
-      <AdminDialogContent className="content-ratings-dialog sm:max-w-2xl" onEscapeKeyDown={event => { if (saving) event.preventDefault() }} onInteractOutside={event => { if (saving) event.preventDefault() }}>
+      <DialogFrame className="content-ratings-dialog sm:max-w-2xl" onEscapeKeyDown={event => { if (saving) event.preventDefault() }} onInteractOutside={event => { if (saving) event.preventDefault() }}>
         <DialogHeader>
           <DialogTitle>批量{decision === 'approve' ? '批准' : '拒绝'} LLM 建议</DialogTitle>
           <DialogDescription>本次审核 {items.length} 条。批准限制级建议会修改作品分级；批准“继续未标注”仍保持未标注。拒绝建议不修改作品分级。</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody>
+        <DialogBody>
           <ul className="content-ratings-bulk-preview" aria-label="所选 LLM 建议">
             {items.map(item => <li key={item.id}>
               <strong>{item.title || '未命名作品'}</strong>
@@ -77,14 +77,14 @@ export default function AiSuggestionBulkReview({ items, disabled, onCompleted, o
           </ul>
           <Label htmlFor="ai-bulk-review-reason">批量审核理由</Label>
           <Textarea ref={reasonInput} aria-invalid={!!message && !reason.trim()} id="ai-bulk-review-reason" value={reason} onChange={event => setReason(event.target.value)} maxLength={500} rows={3} disabled={saving} placeholder="说明本次人工审核的共同依据；该理由将逐条写入审核记录。" />
-          {message && <p role="status" className="admin-dialog-hint">{message}</p>}
+          {message && <p role="status" className="dialog-frame-hint">{message}</p>}
           {!!failures.length && <ul role="alert" className="content-ratings-bulk-preview">{failures.map((failure, index) => <li key={index}>{failure}</li>)}</ul>}
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           <Button variant="secondary" disabled={saving} onClick={() => setDecision(null)}>取消</Button>
           <Button disabled={saving || !items.length} onClick={() => void submit()}>{saving ? '审核中…' : `确认${decision === 'approve' ? '批准' : '拒绝'}所选建议`}</Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   </>
 }

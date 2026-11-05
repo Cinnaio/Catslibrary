@@ -1,0 +1,12 @@
+.site-notice {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 40;
+  padding: 8px max(16px, calc((100% - 1180px) / 2));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: color-mix(in srgb, var(--accent-subtle) 78%, var(--bg-card));
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  text-align: center;
+}

@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BackupOverview } from '@shared/backups'
+import type { BackupOverview, BackupSettingsPage, BackupTask, BackupVersion } from '@shared/backups'
 
 const mock = vi.hoisted(() => ({
   overview: vi.fn(),
@@ -217,10 +218,10 @@ describe('备份后台', () => {
     mock.savePolicy.mockRejectedValue(new Error('保存失败'))
     show('schedule')
     await screen.findByLabelText('本地保留版本数量')
-    expect(screen.getByRole('button', { name: '保存计划' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '保存计划' })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('本地保留版本数量'), { target: { value: '12' } })
     fireEvent.click(screen.getByRole('button', { name: '保存计划' }))
-    await screen.findByText('保存失败')
+    await screen.findByRole('alert')
     expect(mock.toast).toHaveBeenCalledWith('保存失败', 'error')
     expect(screen.getByLabelText('本地保留版本数量')).toHaveValue(12)
     expect(mock.savePolicy).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, localRetention: 12 }))
@@ -293,7 +294,7 @@ describe('前端备份设置', () => {
     mock.saveSettings.mockRejectedValue(new Error('设置已更新，请重新加载'))
     show('settings')
     await screen.findByLabelText('远程失败自动重试次数')
-    expect(screen.getByRole('button', { name: '保存设置' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '保存设置' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('允许连接的服务器')).toBeDisabled()
     expect(screen.getByText('/data/backups')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('远程失败自动重试次数'), { target: { value: '0' } })
@@ -304,13 +305,144 @@ describe('前端备份设置', () => {
     expect(screen.getByLabelText('常规日志保留天数')).toHaveValue(90)
     fireEvent.click(screen.getByRole('button', { name: '撤销修改' }))
     expect(screen.getByLabelText('常规日志保留天数')).toHaveValue(180)
-    expect(screen.getByRole('button', { name: '保存设置' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '保存设置' })).not.toBeInTheDocument()
   })
   it('维护期间禁用设置保存', async () => {
     mock.overview.mockResolvedValue({ ...overview, maintenance: true })
     show('settings')
-    await screen.findByText('本地与运行环境')
+    await screen.findByLabelText('常规日志保留天数')
     expect(screen.getByLabelText('常规日志保留天数')).toBeDisabled()
-    expect(screen.getByRole('button', { name: '保存设置' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '保存设置' })).not.toBeInTheDocument()
+  })
+})
+
+const draftSettings: BackupSettingsPage = {
+  settings: { revision: 0, hostSource: 'environment', allowedHosts: [], rehearsalSource: 'disabled', rehearsalConfigured: false, rehearsalLabel: '', retryLimit: 3, logRetentionDays: 180 },
+  deployment: { localDirectory: '/data/backups', environmentAllowedHosts: [], keyId: 'test', encryption: true, dump: true, restore: true, transfer: true },
+}
+const liveVersion: BackupVersion = {
+  id: 'version-live', note: '测试备份', createdAt: 1, snapshotAt: 1, state: 'partial', size: 1024, digest: 'fixture-digest', pinned: false, protection: false, trigger: 'manual', migrationVersion: 1,
+  copies: [{ targetId: 'local', name: '本地', state: 'available', verifiedAt: 1, error: '' }, { targetId: 'remote', name: '远程 A', state: 'uploading', verifiedAt: 0, error: '' }],
+}
+function HistoryBack() {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate(-1)}>历史后退</button>
+}
+
+describe('备份工作台连续操作', () => {
+  it('计划与设置草稿跨分区和历史返回保留，刷新页面前提示未保存', async () => {
+    const user = userEvent.setup()
+    mock.settings.mockResolvedValue(draftSettings)
+    render(<MemoryRouter initialEntries={['/admin/backups?view=schedule']}><BackupsTab /><HistoryBack /></MemoryRouter>)
+    await screen.findByLabelText('本地保留版本数量')
+    fireEvent.change(screen.getByLabelText('本地保留版本数量'), { target: { value: '12' } })
+    await user.click(screen.getByRole('tab', { name: '备份设置' }))
+    await screen.findByLabelText('常规日志保留天数')
+    fireEvent.change(screen.getByLabelText('常规日志保留天数'), { target: { value: '90' } })
+    await user.click(screen.getByRole('button', { name: '历史后退' }))
+    expect(screen.getByLabelText('本地保留版本数量')).toHaveValue(12)
+    expect(screen.getByLabelText('本地保留版本数量')).toBeVisible()
+    expect(screen.getByLabelText('常规日志保留天数')).not.toBeVisible()
+    await user.click(screen.getByRole('tab', { name: '备份设置' }))
+    expect(screen.getByLabelText('常规日志保留天数')).toHaveValue(90)
+    const event = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(mock.savePolicy).not.toHaveBeenCalled()
+    expect(mock.saveSettings).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '撤销修改' }))
+    await user.click(screen.getByRole('tab', { name: '自动备份' }))
+    fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    const cleanEvent = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(cleanEvent)
+    expect(cleanEvent.defaultPrevented).toBe(false)
+  })
+
+  it('刷新后的新版计划不会覆盖草稿或替换其修订号，撤销读取新版', async () => {
+    mock.savePolicy.mockRejectedValue(new Error('修订冲突'))
+    show('schedule')
+    await screen.findByLabelText('本地保留版本数量')
+    fireEvent.change(screen.getByLabelText('本地保留版本数量'), { target: { value: '12' } })
+    mock.overview.mockResolvedValue({ ...overview, policy: { ...overview.policy, revision: 1, localRetention: 30 } })
+    fireEvent.click(screen.getByRole('button', { name: '刷新' }))
+    await screen.findByText(/计划已更新，当前草稿保留原修订号/)
+    expect(screen.getByLabelText('本地保留版本数量')).toHaveValue(12)
+    fireEvent.click(screen.getByRole('button', { name: '保存计划' }))
+    await waitFor(() => expect(mock.savePolicy).toHaveBeenCalledWith(expect.objectContaining({ revision: 0, localRetention: 12 })))
+    fireEvent.click(screen.getByRole('button', { name: '撤销' }))
+    expect(screen.getByLabelText('本地保留版本数量')).toHaveValue(30)
+    expect(screen.queryByRole('button', { name: '保存计划' })).not.toBeInTheDocument()
+  })
+
+  it('关闭任务详情后仍能从当前任务重新进入，不展示历史完成任务', async () => {
+    const running: BackupTask = { id: 'active-task', kind: 'backup', versionId: liveVersion.id, state: 'running', stage: '正在传输', actor: '管理员', createdAt: 1, finishedAt: 0, error: '', result: null }
+    mock.overview.mockResolvedValue({ ...overview, tasks: [running, { ...running, id: 'old-task', state: 'completed', stage: '旧任务' }] })
+    mock.task.mockResolvedValue(running)
+    show()
+    const panel = await screen.findByRole('region', { name: '当前备份任务' })
+    expect(within(panel).getByText('正在传输')).toBeInTheDocument()
+    expect(screen.queryByText('旧任务')).not.toBeInTheDocument()
+    fireEvent.click(within(panel).getByRole('button', { name: '查看备份任务' }))
+    await screen.findByRole('dialog', { name: '备份' })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(within(panel).getByRole('button', { name: '查看备份任务' })).toBeEnabled()
+  })
+
+  it('设置刷新保留草稿与原修订号，撤销后使用最新设置', async () => {
+    mock.settings.mockResolvedValue(draftSettings)
+    mock.saveSettings.mockRejectedValue(new Error('设置修订冲突'))
+    show('settings')
+    await screen.findByLabelText('常规日志保留天数')
+    fireEvent.change(screen.getByLabelText('常规日志保留天数'), { target: { value: '90' } })
+    mock.settings.mockResolvedValue({ ...draftSettings, settings: { ...draftSettings.settings, revision: 1, logRetentionDays: 365 } })
+    fireEvent.click(screen.getByRole('button', { name: '刷新' }))
+    await screen.findByText(/设置已更新，当前草稿保留原修订号/)
+    expect(screen.getByLabelText('常规日志保留天数')).toHaveValue(90)
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+    await waitFor(() => expect(mock.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ revision: 0, logRetentionDays: 90 })))
+    fireEvent.click(screen.getByRole('button', { name: '撤销修改' }))
+    expect(screen.getByLabelText('常规日志保留天数')).toHaveValue(365)
+    expect(screen.queryByRole('button', { name: '保存设置' })).not.toBeInTheDocument()
+  })
+
+  it('版本详情按当前列表同步副本，移出当前页后不保留旧恢复入口', async () => {
+    mock.versions.mockResolvedValue({ items: [liveVersion], total: 1 })
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: '详情' }))
+    const dialog = await screen.findByRole('dialog', { name: '测试备份' })
+    expect(within(dialog).getByText('传输中')).toBeInTheDocument()
+    mock.versions.mockResolvedValue({ items: [{ ...liveVersion, state: 'completed', copies: liveVersion.copies.map(copy => ({ ...copy, state: 'available', verifiedAt: 2 })) }], total: 1 })
+    fireEvent.click(within(dialog).getByRole('button', { name: '刷新详情' }))
+    await waitFor(() => expect(within(dialog).queryByText('传输中')).not.toBeInTheDocument())
+    expect(within(dialog).getAllByText('已校验')).toHaveLength(2)
+    mock.versions.mockResolvedValue({ items: [], total: 0 })
+    fireEvent.click(within(dialog).getByRole('button', { name: '刷新详情' }))
+    await screen.findByText('该版本已移出当前页，请返回列表重新定位。')
+    expect(screen.getByRole('button', { name: '预检恢复此版本' })).toBeDisabled()
+    expect(mock.preview).not.toHaveBeenCalled()
+  })
+
+  it('后台轮询保持控件可用并同步打开的详情，任务完成后停止概览轮询', async () => {
+    const running: BackupTask = { id: 'poll-task', kind: 'backup', versionId: liveVersion.id, state: 'running', stage: '正在传输', actor: '管理员', createdAt: 1, finishedAt: 0, error: '', result: null }
+    mock.overview.mockResolvedValue({ ...overview, tasks: [running] })
+    mock.versions.mockResolvedValue({ items: [liveVersion], total: 1 })
+    vi.useFakeTimers()
+    await act(async () => { show() })
+    fireEvent.click(screen.getByRole('button', { name: '详情' }))
+    const dialog = screen.getByRole('dialog', { name: '测试备份' })
+    let resolveVersions!: (value: { items: BackupVersion[]; total: number }) => void
+    mock.versions.mockImplementationOnce(() => new Promise(resolve => { resolveVersions = resolve }))
+    mock.overview.mockResolvedValue({ ...overview, tasks: [{ ...running, state: 'completed', stage: '副本已完成', finishedAt: 2 }] })
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000) })
+    expect(within(dialog).getByRole('button', { name: '刷新详情' })).toBeEnabled()
+    const completed: BackupVersion = { ...liveVersion, state: 'completed', copies: liveVersion.copies.map(copy => ({ ...copy, state: 'available', verifiedAt: 2 })) }
+    mock.versions.mockResolvedValue({ items: [completed], total: 1 })
+    await act(async () => { resolveVersions({ items: [completed], total: 1 }) })
+    expect(within(dialog).queryByText('传输中')).not.toBeInTheDocument()
+    expect(within(dialog).getAllByText('已校验')).toHaveLength(2)
+    const calls = mock.overview.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(8000) })
+    expect(mock.overview).toHaveBeenCalledTimes(calls)
   })
 })

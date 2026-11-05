@@ -1,0 +1,6 @@
+/* 迁移保留的 admin 场景规则，由使用方显式加载；不参与全局外观覆盖。 */
+@media (max-width: 640px) {
+  .action-row {
+    flex-direction: column;
+  }
+}

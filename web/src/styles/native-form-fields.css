@@ -1,0 +1,9 @@
+/* 仍使用原生语义的页面字段：仅提供布局；边框、主题和焦点由 input-fields/select-fields 负责。 */
+.form-group { display: grid; gap: 8px; margin-bottom: 24px; }
+.form-label { display: block; margin: 0; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.form-input { width: 100%; padding: 8px 12px; font-size: var(--field-control-font-size, 14px); line-height: 1.5; }
+input.form-input, select.form-input { min-height: var(--field-control-height, var(--control-height)); }
+textarea.form-input { min-height: 120px; resize: vertical; line-height: 1.6; }
+select.form-input { appearance: auto; cursor: pointer; }
+select.native-select-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+@media (max-width: 767px) { .form-input { font-size: 16px; } }

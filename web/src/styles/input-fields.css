@@ -18,7 +18,7 @@
     input[type='time'],
     input[type='month'],
     input[type='week']
-  ):not([data-slot='command-input']) {
+  ):not([data-slot='command-input']):not([data-inline-search]) {
   border: 1px solid var(--input-border);
   border-radius: var(--input-radius);
   background: var(--input-background);
@@ -41,7 +41,7 @@
     input[type='time'],
     input[type='month'],
     input[type='week']
-  ):not([data-slot='command-input'])::placeholder {
+  ):not([data-slot='command-input']):not([data-inline-search])::placeholder {
   color: var(--text-muted);
   opacity: 1;
 }
@@ -61,7 +61,7 @@
     input[type='time'],
     input[type='month'],
     input[type='week']
-  ):not([data-slot='command-input']):focus-visible {
+  ):not([data-slot='command-input']):not([data-inline-search]):focus-visible {
   outline: none;
   border-color: var(--input-focus-border);
   box-shadow: var(--input-focus-shadow);
@@ -82,7 +82,7 @@
     input[type='time'],
     input[type='month'],
     input[type='week']
-  ):not([data-slot='command-input'])[aria-invalid='true'] {
+  ):not([data-slot='command-input']):not([data-inline-search])[aria-invalid='true'] {
   border-color: var(--color-danger);
 }
 :root
@@ -101,7 +101,7 @@
     input[type='time'],
     input[type='month'],
     input[type='week']
-  ):not([data-slot='command-input'])[aria-invalid='true']:focus-visible {
+  ):not([data-slot='command-input']):not([data-inline-search])[aria-invalid='true']:focus-visible {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-danger) 20%, transparent);
 }
 :root [data-slot='command-input-wrapper'] {

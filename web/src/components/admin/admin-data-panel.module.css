@@ -1,0 +1,9 @@
+.panel {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-data-panel-radius);
+  background: var(--admin-table-background);
+  box-shadow: none;
+}

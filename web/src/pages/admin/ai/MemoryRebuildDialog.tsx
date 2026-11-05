@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MemoryKind, MemoryRebuildPlan, MemoryRebuildRequest } from '@shared/story-memory-rebuild'
 import { aiApi, newOperationId } from '@/lib/api'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
-import AdminFormField from '@/components/admin/AdminFormField'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import FormField from "@/components/shared/FormField"
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -158,7 +158,7 @@ export default function MemoryRebuildDialog({
           if (!busy) setOpen(value)
         }}
       >
-        <AdminDialogContent
+        <DialogFrame
           onEscapeKeyDown={(event) => {
             if (busy) event.preventDefault()
           }}
@@ -170,8 +170,8 @@ export default function MemoryRebuildDialog({
             <DialogTitle>重新分析小说档案</DialogTitle>
             <DialogDescription>指定需要重新核对的章节。后续累计档案依赖旧结果，实际重建范围会在提交前列出。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="grid gap-5">
-            <p className="admin-dialog-hint">当前选择：{labels[kind]}。旧档案会保留；确认重建后暂不用于续写，完整结果通过来源校验后再替换。</p>
+          <DialogBody className="grid gap-5">
+            <p className="dialog-frame-hint">当前选择：{labels[kind]}。旧档案会保留；确认重建后暂不用于续写，完整结果通过来源校验后再替换。</p>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={both}
@@ -183,7 +183,7 @@ export default function MemoryRebuildDialog({
               />
               同时重新分析关系画像与情节状态
             </label>
-            <AdminFormField label="分析范围" htmlFor={`memory-range-${kind}`}>
+            <FormField label="分析范围" htmlFor={`memory-range-${kind}`}>
               <Select
                 value={range}
                 disabled={busy}
@@ -201,10 +201,10 @@ export default function MemoryRebuildDialog({
                   <SelectItem value="all">全部已分析章节</SelectItem>
                 </SelectContent>
               </Select>
-            </AdminFormField>
+            </FormField>
             {range !== 'all' && (
               <div className="grid gap-4 sm:grid-cols-2">
-                <AdminFormField label={range === 'single' ? '指定章节' : '起始章节'} htmlFor={`memory-start-${kind}`}>
+                <FormField label={range === 'single' ? '指定章节' : '起始章节'} htmlFor={`memory-start-${kind}`}>
                   <Select
                     value={start}
                     disabled={busy}
@@ -224,9 +224,9 @@ export default function MemoryRebuildDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                </AdminFormField>
+                </FormField>
                 {range === 'range' && (
-                  <AdminFormField label="结束章节" htmlFor={`memory-end-${kind}`}>
+                  <FormField label="结束章节" htmlFor={`memory-end-${kind}`}>
                     <Select
                       value={end}
                       disabled={busy}
@@ -246,11 +246,11 @@ export default function MemoryRebuildDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                  </AdminFormField>
+                  </FormField>
                 )}
               </div>
             )}
-            <AdminFormField label="后续处理" htmlFor={`memory-follow-${kind}`}>
+            <FormField label="后续处理" htmlFor={`memory-follow-${kind}`}>
               <Select
                 value={followThrough ? 'follow' : 'stop'}
                 disabled={busy}
@@ -267,8 +267,8 @@ export default function MemoryRebuildDialog({
                   <SelectItem value="stop">只建立截至所选结束章节的档案</SelectItem>
                 </SelectContent>
               </Select>
-            </AdminFormField>
-            <AdminFormField label="每批最多章节数" htmlFor={`memory-batch-${kind}`} hint="重建在后台分批进行，离开页面仍会继续，可暂停后恢复。">
+            </FormField>
+            <FormField label="每批最多章节数" htmlFor={`memory-batch-${kind}`} hint="重建在后台分批进行，离开页面仍会继续，可暂停后恢复。">
               <Input
                 id={`memory-batch-${kind}`}
                 type="number"
@@ -281,7 +281,7 @@ export default function MemoryRebuildDialog({
                   changed()
                 }}
               />
-            </AdminFormField>
+            </FormField>
             {plan && (
               <div ref={impact} role="status" className="grid gap-4 border-y border-border py-4">
                 {plan.items.map((item) => (
@@ -290,17 +290,17 @@ export default function MemoryRebuildDialog({
                     <p>
                       选择第 {item.selectedStart}–{item.selectedEnd} 章；实际重建第 {item.actualStart}–{item.targetOrdinal} 章。
                     </p>
-                    <p className="admin-dialog-hint">
+                    <p className="dialog-frame-hint">
                       {item.actualStart > 1 ? `从截至第 ${item.actualStart - 1} 章的有效记录恢复。` : '没有可复用的前置快照或章节记录，需要从第 1 章重建。'}
                       {item.targetOrdinal > item.selectedEnd ? '后续档案依赖所选章节，将一并重建。' : ''}
                     </p>
                     {!followThrough && item.previousThrough > item.targetOrdinal && (
-                      <p className="admin-dialog-hint">完成后仅覆盖至第 {item.targetOrdinal} 章，后续章节需继续分析。</p>
+                      <p className="dialog-frame-hint">完成后仅覆盖至第 {item.targetOrdinal} 章，后续章节需继续分析。</p>
                     )}
-                    {item.hasManualOverride && <p className="admin-dialog-hint">人工校正保留，重建后需复核并重新保存才能生效。</p>}
+                    {item.hasManualOverride && <p className="dialog-frame-hint">人工校正保留，重建后需复核并重新保存才能生效。</p>}
                   </div>
                 ))}
-                <p className="admin-dialog-hint">确认后会调用模型并计入用量。增量模式的两类档案共用章节记录，会一并更新，星图自动派生；原模式图谱需重新生成。已有草稿与发布章节不会被改写。</p>
+                <p className="dialog-frame-hint">确认后会调用模型并计入用量。增量模式的两类档案共用章节记录，会一并更新，星图自动派生；原模式图谱需重新生成。已有草稿与发布章节不会被改写。</p>
               </div>
             )}
             <div>
@@ -319,7 +319,7 @@ export default function MemoryRebuildDialog({
               >
                 查看保留的旧档案
               </Button>
-              <p className="admin-dialog-hint">每类最多保留 8 份旧档案，只读查看；不会自动恢复旧结果或人工校正。</p>
+              <p className="dialog-frame-hint">每类最多保留 8 份旧档案，只读查看；不会自动恢复旧结果或人工校正。</p>
               {history &&
                 (history.length ? (
                   history.map((item) => (
@@ -331,7 +331,7 @@ export default function MemoryRebuildDialog({
                     </details>
                   ))
                 ) : (
-                  <p className="admin-dialog-hint">暂无历史备份；开始重建时会保留当前档案。</p>
+                  <p className="dialog-frame-hint">暂无历史备份；开始重建时会保留当前档案。</p>
                 ))}
             </div>
             {error && (
@@ -339,7 +339,7 @@ export default function MemoryRebuildDialog({
                 {error}
               </p>
             )}
-          </AdminDialogBody>
+          </DialogBody>
           <DialogFooter>
             <Button variant="secondary" disabled={busy} onClick={() => setOpen(false)}>
               取消
@@ -359,7 +359,7 @@ export default function MemoryRebuildDialog({
               </Button>
             )}
           </DialogFooter>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
     </>
   )

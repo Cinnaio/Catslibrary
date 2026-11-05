@@ -4,7 +4,7 @@ import type { BackupRehearsalInfo, BackupSettings } from '@shared/backups'
 import { backupsApi } from '@/lib/backups-api'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
@@ -15,11 +15,13 @@ const date = (value: number) => new Date(value).toLocaleString('zh-CN')
 export default function BackupRehearsalPanel({
   settings,
   disabled,
+  active = true,
   onBusyChange,
   onRemoved,
 }: {
   settings: BackupSettings
   disabled: boolean
+  active?: boolean
   onBusyChange: (busy: boolean) => void
   onRemoved: (settings: BackupSettings) => void
 }) {
@@ -33,26 +35,26 @@ export default function BackupRehearsalPanel({
   const [pending, setPending] = useState<'check' | 'remove' | null>(null)
   useEffect(() => {
     const sequence = ++requestSequence.current
-    if (!open || !settings.rehearsalConfigured) return
-    let active = true
+    if (!active || !open || !settings.rehearsalConfigured) return
+    let mounted = true
     void backupsApi
       .rehearsalInfo()
       .then((value) => {
-        if (active && sequence === requestSequence.current) {
+        if (mounted && sequence === requestSequence.current) {
           setInfo(value)
           setError('')
         }
       })
       .catch((cause) => {
-        if (!active || sequence !== requestSequence.current) return
+        if (!mounted || sequence !== requestSequence.current) return
         const message = cause instanceof Error ? cause.message : '演练库信息读取失败'
         setError(message)
         toast(message, 'error')
       })
     return () => {
-      active = false
+      mounted = false
     }
-  }, [open, settings.revision, settings.rehearsalConfigured, toast])
+  }, [active, open, settings.revision, settings.rehearsalConfigured, toast])
   const current = info?.revision === settings.revision ? info : null
   async function check() {
     const sequence = ++requestSequence.current
@@ -120,12 +122,12 @@ export default function BackupRehearsalPanel({
         </span>
       </button>
       <Dialog
-        open={open}
+        open={open && active}
         onOpenChange={(value) => {
           if (!pending) setOpen(value)
         }}
       >
-        <AdminDialogContent
+        <DialogFrame
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             trigger.current?.focus()
@@ -141,7 +143,7 @@ export default function BackupRehearsalPanel({
             <DialogTitle>演练库信息</DialogTitle>
             <DialogDescription>查看当前演练库信息，检查连接或移除连接配置。</DialogDescription>
           </DialogHeader>
-          <AdminDialogBody className="backup-fields">
+          <DialogBody className="backup-fields">
             <dl className="backup-environment-list" aria-label="演练库信息">
               <div>
                 <dt>配置来源</dt>
@@ -201,7 +203,7 @@ export default function BackupRehearsalPanel({
               </Button>
             </div>
             <p className="backup-hint">连接检查只读取数据库身份和保护标记，不执行恢复。检查状态以显示时间为准；移除配置会保留数据库。</p>
-          </AdminDialogBody>
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="secondary" disabled={Boolean(pending)} onClick={() => setOpen(false)}>
               关闭
@@ -210,7 +212,7 @@ export default function BackupRehearsalPanel({
               {pending === 'check' ? '正在检查连接…' : '检查连接'}
             </Button>
           </DialogFooter>
-        </AdminDialogContent>
+        </DialogFrame>
       </Dialog>
     </>
   )

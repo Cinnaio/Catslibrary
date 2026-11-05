@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { scrapeApi, newOperationId, type SourceSyncAppliedChange, type SourceSyncHistoryItem, type SourceSyncRollbackResult } from '@/lib/api'
 import { useConfirm } from '@/components/feedback'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
-import Pagination from '@/components/admin/Pagination'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import Pagination from "@/components/shared/Pagination"
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { timeAgo } from '@/lib/format'
@@ -74,9 +74,9 @@ export default function SourceSyncHistoryDialog({ open, novelId, onOpenChange, o
     finally { lock.current = false; setBusyId('') }
   }
   return <Dialog open={open} onOpenChange={value => { if (!lock.current) onOpenChange(value) }}>
-    <AdminDialogContent variant="editor" className="chapter-merge-dialog source-sync-history-dialog" onInteractOutside={event => { if (lock.current) event.preventDefault() }} onEscapeKeyDown={event => { if (lock.current) event.preventDefault() }}>
+    <DialogFrame variant="editor" className="chapter-merge-dialog source-sync-history-dialog" onInteractOutside={event => { if (lock.current) event.preventDefault() }} onEscapeKeyDown={event => { if (lock.current) event.preventDefault() }}>
       <DialogHeader><DialogTitle>融合历史</DialogTitle><DialogDescription>查看当前作品的实际变化，撤回仍可安全恢复的内容。</DialogDescription></DialogHeader>
-      <AdminDialogBody className="source-sync-history__body">
+      <DialogBody className="source-sync-history__body">
         {error && <p role="alert" className="chapter-merge-dialog__error">{error}</p>}
         {result && <div className="source-sync-history__result" role="status"><p>已恢复 {result.restored} 项，保留 {result.conflicts.length} 项冲突。</p>{result.conflicts.map(conflict => <p key={conflict.id}>{conflict.title}：{conflict.reason}</p>)}</div>}
         {loading ? <p role="status">正在读取融合历史…</p> : !items.length ? <p>当前作品暂无已应用的融合记录。</p> : <ol className="source-sync-history__list" aria-label="融合历史记录">{items.map(item => <li key={item.runId}>
@@ -91,17 +91,17 @@ export default function SourceSyncHistoryDialog({ open, novelId, onOpenChange, o
             {item.summary.sourceUrl && <p className="source-sync-history__source"><span>来源</span>{item.summary.sourceUrl}</p>}
             {item.rollback && <p>已恢复 {item.rollback.restored} 项，保留 {item.rollback.conflicts.length} 项冲突。</p>}
             {!!item.rollback?.conflicts.length && <details><summary>查看保留的冲突</summary>{item.rollback.conflicts.map(conflict => <p key={conflict.id}>{conflict.title}：{conflict.reason}</p>)}</details>}
-            {!item.canRollback && item.status === 'applied' && <p className="admin-dialog-hint">没有可撤回的实际变化快照；旧记录不推断恢复值。</p>}
+            {!item.canRollback && item.status === 'applied' && <p className="dialog-frame-hint">没有可撤回的实际变化快照；旧记录不推断恢复值。</p>}
           </div>
           <div className="chapter-merge-dialog__history-actions"><Button variant="ghost" aria-expanded={detail?.runId === item.runId} aria-controls={detail?.runId === item.runId ? 'source-sync-history-detail' : undefined} disabled={!!busyId || loading} onClick={() => void readDetail(item.runId)}>查看变化</Button><Button variant="secondary" disabled={!item.canRollback || !!busyId || loading} onClick={() => void rollback(item)}>撤回此次融合</Button></div>
           {detail?.runId === item.runId && <HistoryChanges key={detail.runId} changes={detail.changes} />}
         </li>)}</ol>}
-      </AdminDialogBody>
+      </DialogBody>
       <DialogFooter>
         <Pagination className="source-sync-history__pagination" page={page} totalPages={Math.max(1, Math.ceil(total / 20))} onPage={value => { setDetail(null); setPage(value) }} busy={loading || !!busyId} summary={`共 ${total} 次融合`} />
         <Button variant="secondary" disabled={loading || !!busyId} onClick={() => void load()}>刷新历史</Button>
       </DialogFooter>
-    </AdminDialogContent>
+    </DialogFrame>
   </Dialog>
 }
 

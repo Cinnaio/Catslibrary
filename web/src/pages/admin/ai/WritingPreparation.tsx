@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { aiApi, type AiWritingBrief, type AiWritingMaterials } from '@/lib/api'
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
@@ -70,7 +70,7 @@ export default function WritingPreparation(props: {
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <AdminFormField label="本章目标" htmlFor="writing-objective">            <Textarea
+          <FormField label="本章目标" htmlFor="writing-objective">            <Textarea
               id="writing-objective"
               maxLength={1000}
               rows={2}
@@ -78,8 +78,8 @@ export default function WritingPreparation(props: {
               disabled={props.disabled}
               onChange={(e) => change('objective', e.target.value)}
             />
-          </AdminFormField>
-          <AdminFormField label="出场人物" htmlFor="writing-characters" hint="用顿号、逗号或换行分隔；人物姓名用于检索相关历史。">
+          </FormField>
+          <FormField label="出场人物" htmlFor="writing-characters" hint="用顿号、逗号或换行分隔；人物姓名用于检索相关历史。">
             <Textarea
               id="writing-characters"
               maxLength={1600}
@@ -97,8 +97,8 @@ export default function WritingPreparation(props: {
                 )
               }}
             />
-          </AdminFormField>
-          <AdminFormField label="叙事视角" htmlFor="writing-viewpoint">
+          </FormField>
+          <FormField label="叙事视角" htmlFor="writing-viewpoint">
             <Input
               id="writing-viewpoint"
               maxLength={200}
@@ -106,11 +106,11 @@ export default function WritingPreparation(props: {
               disabled={props.disabled}
               onChange={(e) => change('viewpoint', e.target.value)}
             />
-          </AdminFormField>
-          <AdminFormField label="叙事节奏" htmlFor="writing-pace">
+          </FormField>
+          <FormField label="叙事节奏" htmlFor="writing-pace">
             <Input id="writing-pace" maxLength={200} value={brief.pace} disabled={props.disabled} onChange={(e) => change('pace', e.target.value)} />
-          </AdminFormField>
-          <AdminFormField label="必须保留的事实" htmlFor="writing-required">
+          </FormField>
+          <FormField label="必须保留的事实" htmlFor="writing-required">
             <Textarea
               id="writing-required"
               maxLength={3000}
@@ -119,8 +119,8 @@ export default function WritingPreparation(props: {
               disabled={props.disabled}
               onChange={(e) => change('requiredFacts', e.target.value)}
             />
-          </AdminFormField>
-          <AdminFormField label="本次禁止发生的事件" htmlFor="writing-forbidden">
+          </FormField>
+          <FormField label="本次禁止发生的事件" htmlFor="writing-forbidden">
             <Textarea
               id="writing-forbidden"
               maxLength={3000}
@@ -129,7 +129,7 @@ export default function WritingPreparation(props: {
               disabled={props.disabled}
               onChange={(e) => change('forbiddenEvents', e.target.value)}
             />
-          </AdminFormField>
+          </FormField>
         </div>
         {props.plotTimeout && (
           <div className="flex items-center gap-2 pt-1 border-t border-border/40">
@@ -156,7 +156,7 @@ export default function WritingPreparation(props: {
             <summary className="cursor-pointer text-sm">分别指定 {props.chapterCount} 章的目标</summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {Array.from({ length: props.chapterCount }, (_, i) => (
-                <AdminFormField key={i} label={`第 ${i + 1} 章目标`} htmlFor={`writing-goal-${i}`}>
+                <FormField key={i} label={`第 ${i + 1} 章目标`} htmlFor={`writing-goal-${i}`}>
                   <Textarea
                     id={`writing-goal-${i}`}
                     rows={2}
@@ -170,7 +170,7 @@ export default function WritingPreparation(props: {
                       )
                     }
                   />
-                </AdminFormField>
+                </FormField>
               ))}
             </div>
           </details>

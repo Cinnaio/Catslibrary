@@ -1,0 +1,271 @@
+.content {
+  display: grid;
+  gap: 28px;
+  min-width: 0;
+}
+
+.workMeta,
+.workMeta > span,
+.sectionHead,
+.verdict,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.workMeta {
+  column-gap: 20px;
+  color: var(--text-muted);
+}
+
+.section,
+.confirmation {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sectionHead {
+  justify-content: space-between;
+}
+
+.sectionHead h3,
+.disclosureHeading {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.reason {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hint,
+.meta,
+.evidenceField {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  font-variant-numeric: tabular-nums;
+}
+
+.disclosure {
+  min-width: 0;
+}
+
+.disclosure > summary,
+.excerpt > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+  list-style: none;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.disclosure > summary::-webkit-details-marker,
+.excerpt > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure > summary:focus-visible,
+.excerpt > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-tag);
+}
+
+.disclosure > summary svg,
+.excerpt > summary svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  transition: transform 160ms ease;
+}
+
+.disclosure[open] > summary svg,
+.excerpt[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.disclosureHeading .meta {
+  margin-left: 8px;
+}
+
+.evidence {
+  display: grid;
+  gap: 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evidence li {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 12px;
+}
+
+.evidence p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.keywordGroups,
+.keywordGroup {
+  display: grid;
+  gap: 10px;
+  padding-block: 6px;
+}
+
+.keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keyword {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-weight: 400;
+}
+
+.keyword[data-strong='true'] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--accent-subtle);
+}
+
+.excerpts {
+  min-width: 0;
+}
+
+.excerpt {
+  padding-block: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.excerptHeading {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.excerptContent {
+  display: grid;
+  gap: 12px;
+  padding-block: 12px;
+}
+
+.excerptContent blockquote {
+  margin: 0;
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.95;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.confirmation {
+  padding-block: 20px;
+  border-block: 1px solid var(--border);
+}
+
+.reasonInput {
+  field-sizing: fixed;
+  min-height: 96px;
+  max-height: 200px;
+  resize: vertical;
+}
+
+.metadata {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.metadata > div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 12px;
+}
+
+.metadata dt {
+  color: var(--text-muted);
+}
+
+.metadata dd {
+  margin: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  display: grid;
+  gap: 12px;
+}
+
+.actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 700px) {
+  .content {
+    gap: 24px;
+  }
+
+  .disclosure > summary,
+  .excerpt > summary {
+    min-height: 48px;
+  }
+
+  .evidence li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .reasonInput {
+    font-size: 16px;
+  }
+
+  .actions > button {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure > summary svg,
+  .excerpt > summary svg {
+    transition: none;
+  }
+}

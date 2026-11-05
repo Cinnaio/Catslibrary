@@ -8,13 +8,12 @@
  *   2. 无数据：配置正常，只是该范围内确实没有记录 —— 空是结果本身，
  *      给动作反而误导（点过去也没有更多可做的）。
  *
- * 两者还必须在视觉上可区分（图标 + 色调），否则读屏与视觉用户都要靠读文字才能
- * 分辨，属于审计 P3「空状态缺少引导与层级」的实质问题。
+ * 两者通过场景图标、说明与可执行动作区分，字号、颜色与间距由共享空状态维护。
  */
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Inbox, Settings2 } from 'lucide-react'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import EmptyState from "@/components/shared/EmptyState"
 import { Button } from '@/components/ui/button'
 import { adminTabPath } from '../admin-registry'
 
@@ -29,7 +28,7 @@ interface AiPanelEmptyStateProps {
   icon?: ReactNode
   /** 无数据时追加的说明 */
   hint?: string
-  /** 未配置时按钮下方的说明；各面板语义不同，不共用一句话 */
+  /** 未配置时的引导说明；各面板语义不同，不共用一句话 */
   unconfiguredHint?: string
 }
 
@@ -43,26 +42,24 @@ export default function AiPanelEmptyState({
 }: AiPanelEmptyStateProps) {
   if (configured === false) {
     return (
-      <AdminEmptyState
+      <EmptyState
         message={unconfiguredMessage}
-        icon={<Settings2 className="size-8 text-primary/60" aria-hidden="true" />}
+        hint={unconfiguredHint}
+        icon={<Settings2 aria-hidden="true" />}
         action={
-          <div className="flex flex-col items-center gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link to={`${adminTabPath('ai')}?sub=config`}>前往 AI 配置</Link>
-            </Button>
-            <p className="text-xs text-muted-foreground">{unconfiguredHint}</p>
-          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link to={`${adminTabPath('ai')}?sub=config`}>前往 AI 配置</Link>
+          </Button>
         }
       />
     )
   }
 
   return (
-    <AdminEmptyState
+    <EmptyState
       message={emptyMessage}
-      icon={icon ?? <Inbox className="size-8 opacity-40" aria-hidden="true" />}
-      action={hint ? <p className="text-xs text-muted-foreground">{hint}</p> : undefined}
+      icon={icon ?? <Inbox aria-hidden="true" />}
+      hint={hint}
     />
   )
 }

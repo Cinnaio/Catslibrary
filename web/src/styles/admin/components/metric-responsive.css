@@ -20,10 +20,6 @@
        align-items: stretch + width: 100% 承担，不需要弹性增长。 */
     flex: 0 0 auto;
   }
-
-  .proxy-settings-page .proxy-logs-panel [data-slot='table'] {
-    min-width: 0;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

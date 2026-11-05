@@ -1,3 +1,4 @@
+import '@/styles/site-notice.css'
 import { useEffect, useState } from 'react'
 import { siteApi } from '@/lib/api'
 

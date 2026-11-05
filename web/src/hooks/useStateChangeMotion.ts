@@ -1,3 +1,4 @@
+import '@/styles/state-motion.css'
 import { useEffect, useLayoutEffect, useRef, type MouseEvent } from 'react'
 
 export function inputMotion(event: Pick<MouseEvent, 'detail'>): 'animated' | 'instant' {

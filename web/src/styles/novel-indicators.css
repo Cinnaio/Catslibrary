@@ -1,0 +1,76 @@
+/* 迁移保留的 novel 场景规则，由使用方显式加载；不参与全局外观覆盖。 */
+.novel-cover-status {
+  position: absolute;
+  inset-inline-end: var(--novel-cover-status-inset);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--novel-cover-status-size);
+  padding-inline: 6px;
+  border: 0;
+  border-radius: var(--novel-cover-status-radius);
+  background: var(--novel-cover-status-background);
+  color: var(--novel-cover-status-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--novel-cover-status-font-size);
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.novel-cover-status--update {
+  inset-block-start: var(--novel-cover-status-inset);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.novel-cover-status--reading {
+  inset-block-end: var(--novel-cover-status-inset);
+  padding-inline: 4px;
+  gap: var(--novel-cover-status-gap);
+}
+
+.novel-cover-status-label + .novel-cover-status-label {
+  border-inline-start: 1px solid var(--border);
+  padding-inline-start: var(--novel-cover-status-gap);
+}
+
+@media (max-width: 640px) {
+  .chapter-list {
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .chapter-list__item--last-read {
+    padding-left: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .chapter-list__title {
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+.badge {
+  display: inline;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.tag {
+  display: inline-block;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tag);
+  padding: 2px 11px;
+  background: var(--bg-card);
+}

@@ -1,0 +1,22 @@
+.management {
+  --control-height: var(--management-control-height);
+  --control-height-compact: var(--management-control-height);
+  --button-height: var(--management-control-height);
+  --button-padding-block: 6px;
+  --button-padding-inline: 12px;
+  --button-icon-size: var(--management-control-icon-size);
+  --button-label-size: var(--management-control-label-size);
+  --field-control-height: var(--management-control-height);
+  --field-control-padding-inline: 12px;
+  --field-control-font-size: var(--management-control-label-size);
+  --ui-control-icon-size: var(--management-control-icon-size);
+  --ui-section-title-size: var(--management-section-title-size);
+  --ui-panel-padding: var(--management-panel-padding);
+  --ui-row-title-size: 14px;
+  --dialog-frame-title-size: var(--management-dialog-title-size);
+}
+@media (max-width: 767px) {
+  .management {
+    --field-control-font-size: 16px;
+  }
+}

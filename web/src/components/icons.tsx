@@ -1,4 +1,5 @@
 /** 内联 SVG 图标（与 Novel-KV 页面 inline SVG 一致，stroke=currentColor）。 */
+import { SunMoon } from 'lucide-react'
 
 interface IconProps {
   className?: string
@@ -40,15 +41,7 @@ export function MoonIcon({ className, width = 12, height = 12 }: IconProps) {
 }
 
 export function AutoIcon({ className, width = 16, height = 16 }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 18 18" width={width} height={height} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 3h5a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H9Z" fill="currentColor" fillOpacity="0.18" stroke="none" />
-      <rect x="2.5" y="3" width="13" height="9" rx="1.5" />
-      <line x1="9" y1="3" x2="9" y2="12" />
-      <line x1="7" y1="15.5" x2="11" y2="15.5" />
-      <line x1="9" y1="12" x2="9" y2="15.5" />
-    </svg>
-  )
+  return <SunMoon className={className} width={width} height={height} strokeWidth={1.5} aria-hidden="true" />
 }
 
 export function RefreshIcon({ className }: IconProps) {
@@ -60,18 +53,18 @@ export function RefreshIcon({ className }: IconProps) {
   )
 }
 
-export function HomeIcon({ className }: IconProps) {
+export function HomeIcon({ className, width = 18, height = 18 }: IconProps) {
   return (
-    <svg className={className} viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width={width} height={height} aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 7.5l7-5.5 7 5.5" />
       <path d="M4.5 8.5v6h3v-4h3v4h3v-6" />
     </svg>
   )
 }
 
-export function BackToTopIcon({ className }: IconProps) {
+export function BackToTopIcon({ className, width = 18, height = 18 }: IconProps) {
   return (
-    <svg className={className} viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width={width} height={height} aria-hidden="true" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="12 11 9 7 6 11" />
       <line x1="4" y1="14" x2="14" y2="14" />
     </svg>

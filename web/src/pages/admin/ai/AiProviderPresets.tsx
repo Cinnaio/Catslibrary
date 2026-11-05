@@ -1,10 +1,14 @@
+import '@/styles/select-fields.css'
 import { useEffect, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { aiApi, type AiProviderConfig, type AiProviderPreset } from '@/lib/api'
 import { useToast } from '@/components/feedback'
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import styles from './ai-config.module.css'
 
 interface Props {
   scope: 'text' | 'image'
@@ -116,26 +120,44 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-44 flex-1">
-          <AdminFormField label="已保存端点" htmlFor={`ai-${scope}-preset`}>
-            <select
-              id={`ai-${scope}-preset`}
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              value={selectedId}
-              disabled={locked || loadError}
-              onChange={(e) => setSelectedId(e.target.value)}
-            >
-              <option value="">{loading ? '加载中…' : loadError ? '加载失败' : '选择端点预设'}</option>
-              {presets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.active ? ' · 当前使用' : ''}
-                </option>
-              ))}
-            </select>
-          </AdminFormField>
+    <div className={styles.presets}>
+      <dl className={styles.effectiveConfig} aria-label={`当前生效的${label}配置`}>
+        <div className={styles.effectiveModel}><dt>当前模型</dt><dd title={config?.model}>{config?.model || '尚未配置模型'}</dd></div>
+        <div className={styles.effectiveEndpoint}><dt className="sr-only">接口地址</dt><dd title={config?.baseUrl}>{config?.baseUrl || '尚未配置接口地址'}</dd></div>
+      </dl>
+      <div className={styles.presetHeading}>
+        <label htmlFor={`ai-${scope}-preset`}>切换预设</label>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" disabled={locked || loadError}>管理预设<ChevronDown aria-hidden="true" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => openEditor('new')}>新增预设</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openEditor('copy')}>保存当前为预设</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={!selected} onSelect={() => openEditor('edit')}>编辑所选预设</DropdownMenuItem>
+            <DropdownMenuItem disabled={!selected} variant="destructive" onSelect={() => setDialog('delete')}>删除所选预设</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className={styles.presetPicker}>
+        <div className={styles.presetSelect}>
+          <select
+            id={`ai-${scope}-preset`}
+            aria-label="已保存预设"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            value={selectedId}
+            disabled={locked || loadError}
+            onChange={(e) => setSelectedId(e.target.value)}
+          >
+            <option value="">{loading ? '加载中…' : loadError ? '加载失败' : '选择端点预设'}</option>
+            {presets.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.active ? ' · 当前生效' : ''}
+              </option>
+            ))}
+          </select>
         </div>
         {loadError ? (
           <Button
@@ -149,37 +171,19 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
           >
             重新加载
           </Button>
-        ) : (
-          <>
-            <Button variant="secondary" size="sm" disabled={locked} onClick={() => openEditor('new')}>
-              新增
-            </Button>
-            <Button variant="secondary" size="sm" disabled={locked} onClick={() => openEditor('copy')}>
-              保存当前为预设
-            </Button>
-          </>
-        )}
+        ) : selected && !selected.active && <Button size="sm" disabled={locked || dirty} onClick={() => void act('activate')}>
+          应用预设
+        </Button>}
       </div>
-      {selected && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="min-w-0 flex-1 break-all text-xs text-muted-foreground">
-            {selected.baseUrl} · {selected.model}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="ghost" size="sm" disabled={locked} onClick={() => openEditor('edit')}>
-              编辑
-            </Button>
-            <Button variant="ghost" size="sm" disabled={locked} onClick={() => setDialog('delete')}>
-              删除
-            </Button>
-            <Button size="sm" disabled={locked || dirty} onClick={() => void act('activate')}>
-              应用此端点
-            </Button>
+      {selected && !selected.active && (
+        <div className={styles.presetPreview}>
+          <div className={styles.presetDetails}>
+            <p>{selected.baseUrl} · {selected.model}</p>
           </div>
         </div>
       )}
-      <p className="text-xs text-muted-foreground">
-        {dirty ? '请先保存或撤销下方配置的修改，再应用其他端点。' : '选择后点击应用才会切换；保存或编辑预设不会改变当前服务。'}
+      <p className={styles.hint}>
+        {dirty ? '请先保存或撤销修改，再切换预设。' : selected && !selected.active ? '此预设尚未应用。' : '管理预设不会改变当前连接。'}
       </p>
       <Dialog
         open={dialog !== null}
@@ -206,7 +210,7 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                 void act('save')
               }}
             >
-              <AdminFormField label="预设名称" htmlFor={`preset-${scope}-name`}>
+              <FormField label="预设名称" htmlFor={`preset-${scope}-name`}>
                 <Input
                   id={`preset-${scope}-name`}
                   required
@@ -216,8 +220,8 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                   onChange={(e) => setEditor({ ...editor, name: e.target.value })}
                   placeholder="例如：自建 NewAPI"
                 />
-              </AdminFormField>
-              <AdminFormField label="接口地址" htmlFor={`preset-${scope}-url`}>
+              </FormField>
+              <FormField label="接口地址" htmlFor={`preset-${scope}-url`}>
                 <Input
                   id={`preset-${scope}-url`}
                   type="url"
@@ -228,8 +232,8 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                   onChange={(e) => setEditor({ ...editor, baseUrl: e.target.value })}
                   placeholder="https://api.example.com/v1"
                 />
-              </AdminFormField>
-              <AdminFormField label="模型名称" htmlFor={`preset-${scope}-model`}>
+              </FormField>
+              <FormField label="模型名称" htmlFor={`preset-${scope}-model`}>
                 <Input
                   id={`preset-${scope}-model`}
                   required
@@ -238,8 +242,8 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                   value={editor.model}
                   onChange={(e) => setEditor({ ...editor, model: e.target.value })}
                 />
-              </AdminFormField>
-              <AdminFormField
+              </FormField>
+              <FormField
                 label="密钥"
                 htmlFor={`preset-${scope}-key`}
                 hint={dialog === 'edit' ? '留空保留此预设原有密钥。' : copyCurrentKey ? '留空使用当前服务已保存的密钥。' : '密钥仅保存在服务端。'}
@@ -253,7 +257,7 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
                   value={editor.apiKey}
                   onChange={(e) => setEditor({ ...editor, apiKey: e.target.value })}
                 />
-              </AdminFormField>
+              </FormField>
             </form>
           )}
           <DialogFooter>

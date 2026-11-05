@@ -1,0 +1,16 @@
+.select-filter-chip {
+  --select-filter-padding-inline: 12px;
+  --select-filter-min-width: 8rem;
+  --select-label-weight: 400;
+}
+.select-filter-chip {
+  --field-control-height: var(--select-filter-chip-height);
+  --field-control-padding-inline: var(--select-filter-chip-padding-inline);
+  width: auto;
+  min-width: var(--select-filter-chip-min-width);
+  max-width: none;
+  height: var(--select-filter-chip-height);
+  gap: var(--select-filter-chip-gap);
+  font-size: var(--select-filter-chip-font-size);
+  font-weight: var(--select-filter-chip-font-weight);
+}

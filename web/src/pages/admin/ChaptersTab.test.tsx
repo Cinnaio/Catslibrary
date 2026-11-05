@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), novelGet: vi.fn(), history: vi.fn(), rollback: vi.fn(), update: vi.fn(), batchDelete: vi.fn(), toast: vi.fn(), illustrations: vi.fn(), saveIllustration: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn(), sourceRefresh: vi.fn(), sourceRemap: vi.fn(), confirm: vi.fn() }))
 vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, novelsApi: { get: mocks.novelGet }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update, batchDelete: mocks.batchDelete }, illustrationsApi: { list: mocks.illustrations, save: mocks.saveIllustration, imageBlob: async () => new Blob() }, scrapeApi: { sourceSyncHistory: mocks.history, sourceSyncRollback: mocks.rollback, sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply, sourceSyncRefresh: mocks.sourceRefresh, sourceSyncRemap: mocks.sourceRemap }, newOperationId: () => 'test' }))
 vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: mocks.confirm }) }))
-vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, value, onChange }: any) => <select aria-label="选择小说" value={value} onChange={e => onChange(e.target.value)}><option value="" />{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
+vi.mock("@/components/shared/SearchSelect", () => ({ default: ({ options, value, onChange }: any) => <select aria-label="选择小说" value={value} onChange={e => onChange(e.target.value)}><option value="" />{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 import ChaptersTab from './ChaptersTab'
 import { hashParagraphText } from '@shared/thought-anchor'
 
@@ -381,8 +381,8 @@ it('暂存映射未保存时禁止应用，放弃暂存后恢复原有更新', a
 
 it('未选择小说时呈现统一的空状态，不渲染章节表格与冗余虚线卡片', async () => {
   renderChapters()
-  expect(screen.getByText('请选择需要维护的小说')).toBeInTheDocument()
-  expect(screen.getByText(/在右上方下拉菜单选择或搜索一部小说/)).toBeInTheDocument()
+  expect(screen.getByText('请先选择作品')).toBeInTheDocument()
+  expect(screen.getByText('从上方选择作品后，即可管理目录与正文。')).toBeInTheDocument()
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: '添加章节' })).toBeDisabled()
 })

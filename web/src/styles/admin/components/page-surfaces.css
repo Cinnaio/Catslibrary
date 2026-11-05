@@ -10,46 +10,11 @@
   margin-bottom: 0.25rem;
 }
 
-.admin-redesign-page [data-slot='card'],
 .admin-redesign-page > .overflow-hidden.rounded-xl.border {
   border: 0;
   border-color: transparent;
   border-radius: var(--radius-2xl);
   box-shadow: none;
-}
-
-.admin-redesign-page > .admin-data-panel {
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-data-panel-radius);
-  background: var(--admin-table-background);
-  box-shadow: var(--admin-shadow-soft);
-  overflow: hidden;
-}
-
-.admin-redesign-page [data-slot='card-header'] {
-  border-color: var(--admin-border);
-}
-
-.admin-redesign-page [data-slot='tabs-list'] {
-  height: var(--admin-control-height);
-  min-height: var(--admin-control-height);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-button-radius);
-  padding: 0.1875rem;
-  background: var(--admin-panel-muted);
-}
-
-.admin-redesign-page [data-slot='tabs-trigger'] {
-  min-height: calc(var(--admin-control-height) - 0.5rem);
-  border-radius: var(--radius-full);
-  color: var(--text-muted);
-  transition: all 0.15s ease;
-}
-
-.admin-redesign-page [data-slot='tabs-trigger'][data-state='active'] {
-  background: var(--admin-panel);
-  color: var(--admin-accent);
-  box-shadow: var(--admin-shadow-soft);
 }
 
 .novel-directory-panel__sort {

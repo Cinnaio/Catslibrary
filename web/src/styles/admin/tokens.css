@@ -1,34 +1,28 @@
-/* 后台语义变量统一定义在根节点，供页面与 Radix portal 共同继承。
-   遵循 Claude (Anthropic) 设计语言体系：
-   - 核心陶土红 Terracotta (#D97757) 品牌强调色
-   - 暖橄榄炭黑 (#141413) 与象牙羊皮纸 (#FAF9F5) 双主题底色
-   - 全圆角胶囊药丸 (Pill shape) 控件几何
-   - 舒展透气的数据表格行距与温润漫反射 Hover
-*/
+/* Compatibility aliases for existing business components; no independent admin palette. */
 :root {
-  /* Claude 品牌强调色 */
-  --admin-accent: #D97757;
-  --admin-accent-hover: #C56344;
-  --admin-accent-light: rgba(217, 119, 87, 0.12);
-  --admin-accent-subtle: rgba(217, 119, 87, 0.05);
-  --admin-accent-ink: #FFFFFF;
 
-  /* Claude 人文书卷感衬线与无衬线字体栈（针对 Windows/macOS 深度优化） */
-  --admin-font-serif: "Newsreader", "Georgia", "Cambria", "Source Han Serif SC", "Noto Serif SC", "STSong", "SimSun", serif;
-  --admin-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --admin-accent: var(--accent);
+  --admin-accent-hover: var(--accent-hover);
+  --admin-accent-light: var(--accent-light);
+  --admin-accent-subtle: var(--accent-subtle);
+  --admin-accent-ink: var(--accent-ink);
 
-  --admin-button-primary-label-size: 0.875rem;
-  --admin-button-secondary-label-size: 0.8125rem;
-  --admin-button-tertiary-label-size: 0.8125rem;
-  --admin-button-label-weight: 550;
+
+  --admin-font-serif: var(--font-serif);
+  --admin-font-sans: var(--font-body);
+
+  --admin-button-primary-label-size: var(--management-control-label-size);
+  --admin-button-secondary-label-size: var(--management-control-label-size);
+  --admin-button-tertiary-label-size: var(--management-control-label-size);
+  --admin-button-label-weight: 500;
   --admin-field-label-weight: 400;
 
-  /* 悬浮胶囊岛：选择操作与表单保存共用外壳、按钮及材质。 */
-  --admin-dock-control-height: 2.25rem;
-  --admin-dock-touch-height: 2.75rem;
+
+  --admin-dock-control-height: var(--management-control-height);
+  --admin-dock-touch-height: 48px;
   --admin-dock-padding-inline: 0.875rem;
-  --admin-dock-icon-size: 1rem;
-  --admin-dock-gap: 0.5rem;
+  --admin-dock-icon-size: var(--management-control-icon-size);
+  --admin-dock-gap: 0.75rem;
   --admin-dock-inset: 0.5rem;
   --admin-dock-mobile-radius: 1.5rem;
   --admin-dock-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
@@ -38,12 +32,12 @@
   --admin-dock-shadow: 0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.08);
   --admin-dock-enter-duration: 280ms;
   --admin-dock-exit-duration: 220ms;
-  --admin-dock-enter-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --admin-dock-enter-ease: var(--ease);
   --admin-dock-exit-ease: cubic-bezier(0.4, 0, 0.2, 1);
-  --admin-dock-primary-background: color-mix(in srgb, var(--admin-accent) 72%, var(--text-primary));
-  --admin-dock-primary-foreground: var(--admin-accent-ink);
+  --admin-dock-primary-background: var(--accent);
+  --admin-dock-primary-foreground: var(--accent-ink);
   --admin-dock-status-foreground: color-mix(in srgb, var(--admin-accent) 60%, var(--text-primary));
-  /* 保留选择岛 token 接口，计数随所在岛的触屏尺寸继承。 */
+
   --admin-selection-control-height: var(--admin-dock-control-height);
   --admin-selection-touch-height: var(--admin-dock-touch-height);
   --admin-selection-padding-inline: var(--admin-dock-padding-inline);
@@ -55,24 +49,24 @@
   --admin-selection-primary-background: var(--admin-dock-primary-background);
   --admin-selection-primary-foreground: var(--admin-dock-primary-foreground);
 
-  /* 筛选胶囊 (Filter Chip) - 全药丸圆角 */
-  --admin-filter-chip-height: 2.5rem;
-  --admin-filter-chip-min-width: 8rem;
-  --admin-filter-chip-radius: var(--radius-full);
-  --admin-filter-chip-border: var(--input-border);
-  --admin-filter-chip-border-style: solid;
-  --admin-filter-chip-background: var(--input-background);
-  --admin-filter-chip-foreground: var(--text-primary);
-  --admin-filter-chip-hover-background: var(--input-background);
-  --admin-filter-chip-padding-inline: 1rem;
-  --admin-filter-chip-gap: 0.5rem;
-  --admin-filter-chip-icon-size: 1rem;
-  --admin-filter-chip-font-size: 0.875rem;
-  --admin-filter-chip-font-weight: 400;
 
-  /* 侧栏导航 (Sidebar) */
+  --select-filter-chip-height: var(--management-control-height);
+  --select-filter-chip-min-width: 8rem;
+  --select-filter-chip-radius: var(--radius-control);
+  --select-filter-chip-border: var(--input-border);
+  --select-filter-chip-border-style: solid;
+  --select-filter-chip-background: var(--input-background);
+  --select-filter-chip-foreground: var(--text-primary);
+  --select-filter-chip-hover-background: var(--input-background);
+  --select-filter-chip-padding-inline: 0.75rem;
+  --select-filter-chip-gap: 0.5rem;
+  --select-filter-chip-icon-size: var(--management-control-icon-size);
+  --select-filter-chip-font-size: var(--management-control-label-size);
+  --select-filter-chip-font-weight: 400;
+
+
   --admin-sidebar-nav-height: 2.375rem;
-  --admin-sidebar-nav-radius: var(--radius-full);
+  --admin-sidebar-nav-radius: var(--radius-control);
   --admin-sidebar-nav-padding-inline: 0.875rem;
   --admin-sidebar-nav-gap: 0.75rem;
   --admin-sidebar-group-gap: 0.75rem;
@@ -81,28 +75,21 @@
   --admin-sidebar-sub-active-background: var(--admin-accent-subtle);
   --admin-sidebar-footer-fade-height: 1.5rem;
 
-  /* 分页 (Pagination) */
-  --admin-pagination-gap: 0.5rem;
-  --admin-pagination-padding-block: 0.75rem;
-  --admin-pagination-padding-inline: 1.25rem;
-  --admin-pagination-font-size: 0.825rem;
-  --admin-pagination-jump-width: 4rem;
-  --admin-pagination-page-size-width: 5.5rem;
-  --admin-pagination-control-size: 2.125rem;
 
-  /* 页面标题与面板 */
-  --admin-page-title-size: 1.65rem;
-  --admin-table-panel-radius: 16px;
-  --admin-table-background: #FFFFFF;
-  --admin-table-border: #E6E4DC;
-  --admin-table-header-background: #F6F4ED;
-  --admin-table-header-foreground: #6B6860;
+
+
+  --admin-page-title-size: var(--management-page-title-size);
+  --admin-table-panel-radius: var(--radius-container);
+  --admin-table-background: var(--bg-card);
+  --admin-table-border: var(--border);
+  --admin-table-header-background: var(--bg-secondary);
+  --admin-table-header-foreground: var(--text-secondary);
   --admin-table-row-height: 3.5rem;
   --admin-table-comfortable-row-height: 4.75rem;
   --admin-table-comfortable-padding-block: 1rem;
   --admin-table-comfortable-padding-inline: 1.25rem;
   --admin-table-comfortable-mobile-gap: 0.5rem;
-  --admin-table-row-hover-background: #F8F6F0;
+  --admin-table-row-hover-background: var(--bg-hover);
   --admin-table-row-interaction: 160ms var(--ease);
   --admin-table-surface-enter: 220ms var(--ease-out);
   --admin-table-row-enter: 180ms var(--ease-out);
@@ -112,75 +99,58 @@
   --admin-table-row-highlight: 1.8s var(--ease-out);
   --admin-table-reduced-fade: 140ms var(--ease-out);
   --admin-table-tag-gap: 0.35rem;
-  --admin-table-action-gap: 0.5rem;
+  --admin-table-action-gap: 0.75rem;
   --admin-table-action-gap-mobile: 1.5rem;
-  --admin-table-action-size: 2.125rem;
-  --admin-table-action-size-mobile: 2.75rem;
-  --admin-table-icon-size: 1.125rem;
-  --admin-table-icon-size-mobile: 1.25rem;
-  --admin-table-mobile-card-radius: 14px;
+  --admin-table-action-size: var(--management-control-height);
+  --admin-table-action-size-mobile: 48px;
+  --admin-table-icon-size: var(--management-control-icon-size);
+  --admin-table-icon-size-mobile: 1rem;
+  --admin-table-mobile-card-radius: var(--radius-control);
   --admin-table-mobile-stack-gap: 0px;
   --admin-table-mobile-stack-divider: var(--admin-table-border);
   --admin-table-sort-gap: 0.5rem;
   --admin-table-sort-caret-size: 0.875rem;
 
-  --admin-page-section-gap: 1.25rem;
-  --admin-control-to-card-gap: 1rem;
+  --admin-page-section-gap: var(--management-section-gap);
+  --admin-control-to-card-gap: 1.5rem;
   --admin-context-panel-background: var(--admin-panel);
   --admin-context-panel-border: var(--admin-border);
   --admin-context-panel-border-width: 1px;
-  --admin-context-panel-radius: 16px;
-  --admin-context-panel-padding: 1.25rem;
-  --admin-context-panel-gap: 1.5rem;
+  --admin-context-panel-radius: var(--radius-container);
+  --admin-context-panel-padding: var(--management-panel-padding);
+  --admin-context-panel-gap: 2rem;
   --admin-data-panel-background: var(--admin-table-background);
   --admin-data-panel-radius: var(--admin-table-panel-radius);
   --admin-data-panel-toolbar-background: transparent;
-  --admin-data-panel-toolbar-padding-block: 0.75rem;
-  --admin-data-panel-toolbar-padding-inline: 1.25rem;
+  --admin-data-panel-toolbar-padding-block: 1.25rem;
+  --admin-data-panel-toolbar-padding-inline: var(--management-panel-padding);
 
-  /* 对话框与排版 */
-  --admin-dialog-title-size: 1.25rem;
-  --admin-dialog-mobile-max-height: min(47.5rem, calc(100svh - 4rem));
-  --admin-dialog-mobile-footer-direction: row;
-  --admin-dialog-mobile-footer-wrap: nowrap;
-  --admin-dialog-mobile-footer-gap: 0.5rem;
-  --admin-dialog-mobile-footer-padding: 0.75rem;
-  --admin-dialog-mobile-action-min-width: 4.5rem;
-  --admin-dialog-mobile-action-min-height: 2.75rem;
-  --admin-dialog-label-size: 0.785rem;
-  --admin-dialog-label-weight: 500;
-  --admin-dialog-label-color: var(--text-secondary);
-  --admin-dialog-label-line-height: 1.5;
-  --admin-dialog-label-letter-spacing: 0;
-  --admin-dialog-hint-size: 0.75rem;
-  --admin-dialog-hint-weight: 400;
-  --admin-dialog-hint-color: var(--text-muted);
-  --admin-dialog-hint-line-height: 1.5;
+
 
   --admin-table-head-size: 0.74rem;
   --admin-table-cell-size: 0.835rem;
   --admin-table-title-size: 0.885rem;
-  --admin-section-title-size: 1.05rem;
-  --admin-stat-size: 1.5rem;
+  --admin-section-title-size: var(--management-section-title-size);
+  --admin-stat-size: var(--management-stat-size);
 
-  /* 亮色模式底色与纸面 */
-  --admin-surface: #FFFFFF;
-  --admin-inset: #F8F6F0;
-  --admin-line: #E6E4DC;
-  --admin-shadow: 0 16px 40px rgba(35, 30, 24, 0.06);
-  --admin-shadow-soft: 0 8px 20px rgba(35, 30, 24, 0.04);
-  --admin-canvas: #FAF9F5;
-  --admin-panel: #FFFFFF;
-  --admin-panel-muted: #F6F4ED;
-  --admin-sidebar: #F5F3EC;
-  --admin-border: #E6E4DC;
-  --admin-border-strong: #D5D2C7;
-  --admin-control-height: 2.5rem;
+
+  --admin-surface: var(--bg-card);
+  --admin-inset: var(--bg-hover);
+  --admin-line: var(--border);
+  --admin-shadow: none;
+  --admin-shadow-soft: none;
+  --admin-canvas: var(--bg-primary);
+  --admin-panel: var(--bg-card);
+  --admin-panel-muted: var(--bg-secondary);
+  --admin-sidebar: var(--bg-secondary);
+  --admin-border: var(--border);
+  --admin-border-strong: color-mix(in srgb, var(--border) 85%, var(--text-muted));
+  --admin-control-height: var(--management-control-height);
   --admin-filter-width: 11rem;
 
-  --admin-radius: 12px;
-  --admin-radius-sm: 8px;
-  --admin-radius-dialog: 18px;
+  --admin-radius: var(--radius-container);
+  --admin-radius-sm: var(--radius-compact);
+  --admin-radius-dialog: var(--radius-dialog);
   --admin-space-1: 0.25rem;
   --admin-space-2: 0.5rem;
   --admin-space-3: 0.75rem;
@@ -188,51 +158,39 @@
   --admin-space-5: 1.5rem;
   --admin-space-6: 2rem;
 
-  /* 控件药丸全圆角 (Pill Shape) */
-  --admin-input-radius: var(--radius-full);
-  --admin-button-radius: var(--radius-full);
+
+  --admin-input-radius: var(--radius-control);
+  --admin-button-radius: var(--radius-control);
   --admin-motion-ease-out: var(--ease-out);
   --admin-hairline-highlight: rgba(255, 255, 255, 0.4);
-  --admin-field-gap: 0.375rem;
+  --admin-field-gap: 0.5rem;
   --admin-status-tint: 12%;
 
-  --admin-reading-dialog-inset: 1.5rem;
-  --admin-reading-dialog-viewport-inset: 2rem;
-  --admin-reading-dialog-gap: 0.75rem;
-  --admin-reading-dialog-gap-desktop: 1rem;
-  --admin-reading-dialog-padding: 1rem;
-  --admin-reading-dialog-padding-desktop: 1.5rem;
-  --admin-reading-dialog-width: 48rem;
-  --admin-reading-dialog-wide-width: 56rem;
-  --admin-reading-dialog-height: min(85svh, 900px);
-  --admin-preview-dialog-height: 94vh;
-  --admin-preview-dialog-width: 64rem;
-  --admin-preview-dialog-width-desktop: 32rem;
 }
 
 [data-theme='dark'] {
-  --admin-accent: #D97757;
-  --admin-accent-hover: #E08264;
-  --admin-accent-light: rgba(217, 119, 87, 0.16);
-  --admin-accent-subtle: rgba(217, 119, 87, 0.08);
-  --admin-dock-primary-background: var(--admin-accent);
-  --admin-dock-primary-foreground: var(--admin-canvas);
+  --admin-accent: var(--accent);
+  --admin-accent-hover: var(--accent-hover);
+  --admin-accent-light: var(--accent-light);
+  --admin-accent-subtle: var(--accent-subtle);
+  --admin-dock-primary-background: var(--accent);
+  --admin-dock-primary-foreground: var(--accent-ink);
   --admin-dock-background: color-mix(in srgb, var(--admin-panel) 92%, transparent);
   --admin-dock-border: color-mix(in srgb, var(--admin-border-strong) 40%, transparent);
   --admin-dock-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.5), 0 6px 16px -2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.06);
 
-  --admin-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-  --admin-shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.28);
+  --admin-shadow: none;
+  --admin-shadow-soft: none;
 
-  --admin-canvas: #141413;
-  --admin-sidebar: #191917;
-  --admin-panel: #1D1D1B;
-  --admin-panel-muted: #242320;
-  --admin-table-background: #1D1D1B;
-  --admin-table-header-background: #232220;
-  --admin-table-header-foreground: #8E8A80;
-  --admin-border: #2C2B28;
-  --admin-border-strong: #383733;
-  --admin-table-border: #242321;
-  --admin-table-row-hover-background: rgba(217, 119, 87, 0.05);
+  --admin-canvas: var(--bg-primary);
+  --admin-sidebar: var(--bg-secondary);
+  --admin-panel: var(--bg-card);
+  --admin-panel-muted: var(--bg-secondary);
+  --admin-table-background: var(--bg-card);
+  --admin-table-header-background: var(--bg-secondary);
+  --admin-table-header-foreground: var(--text-secondary);
+  --admin-border: var(--border);
+  --admin-border-strong: color-mix(in srgb, var(--border) 85%, var(--text-muted));
+  --admin-table-border: var(--border);
+  --admin-table-row-hover-background: var(--bg-hover);
 }

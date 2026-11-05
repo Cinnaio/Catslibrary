@@ -1,0 +1,13 @@
+.panel {
+  min-width: 0;
+  border: var(--ui-panel-border-width, 1px) solid var(--border);
+  border-radius: var(--radius-container);
+  background: var(--bg-card);
+  padding: var(--panel-padding, var(--ui-panel-padding, 24px));
+  box-shadow: none;
+}
+@media (forced-colors: active) {
+  .panel {
+    border: 1px solid CanvasText;
+  }
+}

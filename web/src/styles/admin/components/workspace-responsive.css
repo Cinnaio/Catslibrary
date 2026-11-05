@@ -2,115 +2,22 @@
   .admin-layout__content {
     padding: 1rem !important;
   }
-
-  .admin-context-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-panel-heading {
-    padding: 1.125rem 1rem 1rem;
-  }
-
-  .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] {
-    min-height: 0;
-    padding: 1.125rem 1rem 1rem;
-  }
-
-  .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-content'] {
-    padding: 1rem;
-  }
-
-  /* 带独立标题栏的卡片内容区顶内边距归零，由标题栏底内边距接续，左右边距严格保持 1rem 对齐 */
-  .admin-redesign-page :is(.admin-panel-card, [data-slot='card']):has(> [data-slot='card-header'], > .admin-panel-heading) > [data-slot='card-content'] {
-    padding: 0 1rem 1rem;
-  }
-
-  /* 全后台移动端统一卡片内控件全宽契约 (Mobile Card Form Baseline & Full-Width Contract)
-     废除 28rem / 18rem 等桌面端防过宽限制在窄屏造成的参差不对齐与右侧死留白 */
   .admin-redesign-page :is([data-slot='input'], [data-slot='select-trigger'], button[role='combobox'], [data-field='select'], .custom-select__trigger) {
     width: 100% !important;
     max-width: 100% !important;
     justify-self: stretch !important;
   }
 
-  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5):has(> [data-slot='input']),
-  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5):has(> textarea),
-  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5):has(> [data-slot='select-trigger']),
-  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5):has(> button[role='combobox']) {
+  .admin-redesign-page :is(.form-field, .grid.gap-1\.5):has(> [data-slot='input']),
+  .admin-redesign-page :is(.form-field, .grid.gap-1\.5):has(> textarea),
+  .admin-redesign-page :is(.form-field, .grid.gap-1\.5):has(> [data-slot='select-trigger']),
+  .admin-redesign-page :is(.form-field, .grid.gap-1\.5):has(> button[role='combobox']) {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
   }
 
-  .admin-redesign-page :is(.admin-form-field, .grid.gap-1\.5) > p.text-xs {
+  .admin-redesign-page :is(.form-field, .grid.gap-1\.5) > p.text-xs {
     max-width: 100% !important;
-  }
-
-  .admin-queue-summary {
-    grid-template-columns: repeat(var(--admin-queue-columns, 3), minmax(0, 1fr));
-  }
-
-  .admin-queue-summary__lead {
-    grid-column: 1 / -1;
-    border-bottom: 1px solid var(--admin-border);
-  }
-
-  .admin-queue-summary > * + * {
-    border-left: 0;
-  }
-
-  .admin-queue-summary > *:not(.admin-queue-summary__lead) + * {
-    border-left: 1px solid var(--admin-border);
-  }
-}
-
-@media (max-width: 640px) {
-  /* 指标卡此前在窄屏压成单列纵向堆叠，3-4 项会吃掉近半屏高度，而这些数字
-     在手机上只是概览信息。改为 2×2 网格（4 项时）或单行（≤3 项），
-     纵向占用减半且仍可读。
-     基础类名已覆盖全部页面变体，此前的 --dashboard/--account 列举是冗余。 */
-  .admin-metric-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .admin-queue-summary {
-    grid-template-columns: 1fr;
-  }
-
-  /* 奇数项时最后一项跨满整行，避免留半格空位 */
-  .admin-metric-strip > .admin-metric-strip__item:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-  }
-
-  /* 2 列网格下用「左邻项」+「奇偶」组合还原正确的分隔线：
-     第 2n 项右侧无边框，第 3 项起需要上边框。 */
-  .admin-metric-strip__item + .admin-metric-strip__item {
-    border-left: 1px solid var(--admin-border);
-  }
-
-  .admin-metric-strip__item:nth-child(odd) {
-    border-left: 0;
-  }
-
-  .admin-metric-strip__item:nth-child(n + 3) {
-    border-top: 1px solid var(--admin-border);
-  }
-
-  .admin-panel-heading {
-    flex-direction: column;
-  }
-
-  .admin-panel-heading__actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .admin-queue-summary__lead {
-    grid-column: auto;
-  }
-
-  .admin-queue-summary > *:not(.admin-queue-summary__lead) + * {
-    border-top: 1px solid var(--admin-border);
-    border-left: 0;
   }
 }

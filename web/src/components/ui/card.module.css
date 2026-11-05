@@ -1,0 +1,47 @@
+.card {
+  --panel-padding: var(--ui-panel-padding, 24px) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.card:has(> [data-slot='card-header'], > :global(.panel-heading)) {
+  --panel-padding: 0;
+  gap: 0;
+}
+.header {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-items: start;
+  min-width: 0;
+  gap: 8px;
+  padding: var(--ui-panel-padding, 24px) var(--ui-panel-padding, 24px) 24px;
+}
+.header:has([data-slot='card-action']) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.title {
+  color: var(--text-primary);
+  font: 500 var(--ui-section-title-size, 21px) / 1.35 var(--font-serif);
+  letter-spacing: -0.015em;
+}
+.description {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.content {
+  min-width: 0;
+  padding: var(--ui-panel-padding, 24px);
+}
+.footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--action-gap);
+  padding: var(--ui-panel-padding, 24px);
+}
+@media (max-width: 900px) {
+  .card:has(> [data-slot='card-header'], > :global(.panel-heading)) > .content {
+    padding-top: 0;
+  }
+}

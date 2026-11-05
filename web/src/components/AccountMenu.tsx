@@ -1,3 +1,4 @@
+import '@/styles/account-menu.css'
 import { useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -5,7 +6,7 @@ import { useSession } from '../context/SessionContext'
 import { useToast } from './feedback'
 import { cn } from '../lib/utils'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
-import { UserAvatar } from './ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import { ChevronIcon, UserIcon } from './icons'
 import { useExclusiveMenu } from '../hooks/useExclusiveMenu'
 import { useSiteBranding } from '../lib/site-branding'
@@ -49,10 +50,7 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
     variant === 'site' ? (
       avatar
     ) : (
-      <span
-        className={cn('account-menu__avatar', variant === 'admin' && 'admin-shell__account-avatar', variant === 'mobile' && 'mobile-drawer__avatar')}
-        aria-hidden="true"
-      >
+      <span className="account-menu__avatar" aria-hidden="true">
         {avatar}
       </span>
     )
@@ -67,14 +65,13 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
               'account-menu__trigger',
               `account-menu__trigger--${variant}`,
               variant === 'site' && 'account-avatar',
-              variant === 'admin' && 'admin-shell__account',
               className,
             )}
             aria-label={triggerLabel}
             title={`打开${name}账户菜单`}
           >
             {triggerAvatar}
-            {showName && <span className="account-menu__name admin-shell__account-name">{name}</span>}
+            {showName && <span className="account-menu__name">{name}</span>}
             {showName && <ChevronIcon className="account-menu__chevron" aria-hidden="true" />}
           </button>
         </DropdownMenuTrigger>

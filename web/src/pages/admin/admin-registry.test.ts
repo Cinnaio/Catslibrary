@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { adminTabPath, getTabLabel, isAdminTab, NAV_GROUPS } from './admin-registry'
+import { adminTabPath, getAdminViewLabel, getTabLabel, isAdminTab, NAV_GROUPS } from './admin-registry'
+import { getSiteSettingsView } from './site-settings-views'
 
 describe('admin registry routes', () => {
-  it('站点设置提供品牌、安全验证与 Passkey 三个稳定入口', () => {
+  it('站点设置提供品牌、内容安全、验证、模型、参数与 Passkey 稳定入口', () => {
     expect(isAdminTab('site-settings')).toBe(true)
     const settings = NAV_GROUPS.flatMap(group => group.items).find(item => item.id === 'site-settings')
-    expect(settings?.children?.map(child => child.to)).toEqual(['/admin/site-settings?view=branding', '/admin/site-settings?view=security', '/admin/site-settings?view=passkey'])
+    expect(settings?.children?.map(child => child.to)).toEqual(['/admin/site-settings?view=branding', '/admin/site-settings?view=content-policy', '/admin/site-settings?view=security', '/admin/site-settings?view=passkey', '/admin/ai?sub=config', '/admin/ai?sub=params'])
+    expect(getAdminViewLabel('site-settings', '?view=content-policy')).toBe('内容安全')
+    expect(getSiteSettingsView('/admin/ai', '?sub=config&keep=1')).toBe('config')
+    expect(getSiteSettingsView('/admin/ai', '?sub=params&group=writing')).toBe('params')
+    expect(getSiteSettingsView('/admin/ai', '', 'params')).toBe('params')
+    expect(getSiteSettingsView('/admin/ai', '?sub=writing', 'config')).toBeNull()
   })
   it('站点运营导航只保留流量分析', () => {
     const operations = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === 'site-operations')
@@ -20,7 +26,7 @@ describe('admin registry routes', () => {
     expect(isAdminTab('missing')).toBe(false)
     expect(isAdminTab(undefined)).toBe(false)
     expect(adminTabPath('content-policy')).toBe('/admin/content-policy')
-    expect(getTabLabel('novels')).toBe('小说管理')
+    expect(getTabLabel('novels')).toBe('作品库')
     expect(getTabLabel('content-ratings')).toBe('分级管理')
   })
 
@@ -28,7 +34,7 @@ describe('admin registry routes', () => {
     const items = NAV_GROUPS.flatMap((group) => group.items)
     const moderation = items.find((item) => item.id === 'moderation')
 
-    expect(moderation?.children?.map((child) => child.label)).toEqual(['审核队列', '内容安全', '分级管理'])
+    expect(moderation?.children?.map((child) => child.label)).toEqual(['审核队列', '分级管理'])
     expect(items.flatMap((item) => item.children || []).every((child) => !('group' in child))).toBe(true)
   })
 
@@ -39,7 +45,7 @@ describe('admin registry routes', () => {
     expect(scrape?.children?.map((child) => child.label)).toContain('抓取中心')
   })
   it('将监控入口收拢为任务中心和调用与用量', () => {
-    const group = NAV_GROUPS.find((item) => item.label === '运行监控')
+    const group = NAV_GROUPS.find((item) => item.label === '运行')
     expect(group?.items.map((item) => item.label)).toEqual(['任务中心', '调用与用量', '书源与追更'])
     const children = NAV_GROUPS.flatMap((item) => item.items.flatMap((entry) => entry.children || []))
     for (const id of ['ai-tasks', 'ai-usage', 'ai-audit', 'jobs']) expect(children.map((item) => item.id)).not.toContain(id)

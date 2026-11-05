@@ -1,11 +1,12 @@
-import { useState, type FormEvent } from 'react'
+import '@/styles/input-fields.css'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { BackupPolicy, BackupTarget, BackupTargetInput } from '@shared/backups'
 import { useToast } from '@/components/feedback'
 import { backupsApi } from '@/lib/backups-api'
-import AdminFormField from '@/components/admin/AdminFormField'
+import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import CustomSelect from '@/components/admin/CustomSelect'
-import CustomTimePicker from '@/components/admin/CustomTimePicker'
+import SearchSelect from "@/components/shared/SearchSelect"
+import TimeField from "@/components/shared/TimeField"
 import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,10 +53,10 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
   return (
     <form onSubmit={(event) => void save(event)} className="backup-fields">
       <div className="backup-field-pair">
-        <AdminFormField label="目标名称">
+        <FormField label="目标名称">
           {({ id }) => <Input id={id} required maxLength={80} value={draft.name} disabled={busy} onChange={(e) => change('name', e.target.value)} />}
-        </AdminFormField>
-        <AdminFormField label="保留版本数量">
+        </FormField>
+        <FormField label="保留版本数量">
           {({ id }) => (
             <Input
               id={id}
@@ -68,15 +69,15 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
               onChange={(e) => change('retention', Number(e.target.value))}
             />
           )}
-        </AdminFormField>
+        </FormField>
       </div>
       <div className="backup-field-pair">
-        <AdminFormField label="服务器主机" hint="填写域名或 IP，需在「备份设置」的服务器允许列表中。">
+        <FormField label="服务器主机" hint="填写域名或 IP，需在「备份设置」的服务器允许列表中。">
           {({ id }) => (
             <Input id={id} required value={draft.host} disabled={busy} onChange={(e) => change('host', e.target.value)} placeholder="backup.example.com" />
           )}
-        </AdminFormField>
-        <AdminFormField label="SSH 端口">
+        </FormField>
+        <FormField label="SSH 端口">
           {({ id }) => (
             <Input
               id={id}
@@ -89,17 +90,17 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
               onChange={(e) => change('port', Number(e.target.value))}
             />
           )}
-        </AdminFormField>
+        </FormField>
       </div>
-      <AdminFormField label="远程备份目录" hint="使用绝对路径，建议为备份账号设置独立目录。">
+      <FormField label="远程备份目录" hint="使用绝对路径，建议为备份账号设置独立目录。">
         {({ id }) => <Input id={id} required value={draft.path} disabled={busy} onChange={(e) => change('path', e.target.value)} />}
-      </AdminFormField>
-      <AdminFormField label="用户名">
+      </FormField>
+      <FormField label="用户名">
         {({ id }) => <Input id={id} required autoComplete="off" value={draft.username} disabled={busy} onChange={(e) => change('username', e.target.value)} />}
-      </AdminFormField>
-      <AdminFormField label="认证方式">
+      </FormField>
+      <FormField label="认证方式">
         {({ labelId }) => (
-          <CustomSelect
+          <SearchSelect
             aria-labelledby={labelId}
             disabled={busy}
             value={auth}
@@ -113,9 +114,9 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
             }}
           />
         )}
-      </AdminFormField>
+      </FormField>
       {auth === 'password' ? (
-        <AdminFormField label="登录密码" hint={target?.credentialSet ? '已设置；留空保留原认证材料。' : '保存后不会回显原值。'}>
+        <FormField label="登录密码" hint={target?.credentialSet ? '已设置；留空保留原认证材料。' : '保存后不会回显原值。'}>
           {({ id }) => (
             <Input
               id={id}
@@ -127,9 +128,9 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
               placeholder={target?.credentialSet ? '已设置 · 留空保留' : '输入密码'}
             />
           )}
-        </AdminFormField>
+        </FormField>
       ) : (
-        <AdminFormField label="SSH 私钥" hint="填写未设置口令的专用私钥；留空保留已有认证材料。">
+        <FormField label="SSH 私钥" hint="填写未设置口令的专用私钥；留空保留已有认证材料。">
           {({ id }) => (
             <Textarea
               id={id}
@@ -140,9 +141,9 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
               onChange={(e) => change('privateKey', e.target.value)}
             />
           )}
-        </AdminFormField>
+        </FormField>
       )}
-      <AdminFormField label="服务器公钥" hint="从可信渠道获取完整公钥，例如 ssh-ed25519 AAAA…；保存后严格校验服务器身份。">
+      <FormField label="服务器公钥" hint="从可信渠道获取完整公钥，例如 ssh-ed25519 AAAA…；保存后严格校验服务器身份。">
         {({ id }) => (
           <Textarea
             id={id}
@@ -154,7 +155,7 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
             placeholder="ssh-ed25519 AAAAC3…"
           />
         )}
-      </AdminFormField>
+      </FormField>
       <label className="backup-check">
         <input type="checkbox" checked={draft.enabled} disabled={busy} onChange={(e) => change('enabled', e.target.checked)} />
         启用此目标
@@ -179,19 +180,31 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
     </form>
   )
 }
-export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy; targets: BackupTarget[]; onSaved: () => void }) {
+export function PolicyForm({ policy, targets, disabled = false, onDirtyChange, onSaved }: { policy: BackupPolicy; targets: BackupTarget[]; disabled?: boolean; onDirtyChange?: (dirty: boolean) => void; onSaved: () => void }) {
   const { toast } = useToast()
+  const [saved, setSaved] = useState(policy)
   const [draft, setDraft] = useState(policy),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
-  const dirty = JSON.stringify(draft) !== JSON.stringify(policy)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
+  const locked = busy || disabled
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => {
+    if (!dirty && policy.revision >= saved.revision && JSON.stringify(policy) !== JSON.stringify(saved)) {
+      setSaved(policy)
+      setDraft(policy)
+    }
+  }, [policy, saved, dirty])
   const change = (key: keyof BackupPolicy, value: unknown) => setDraft((previous) => ({ ...previous, [key]: value }))
   async function save(event: FormEvent) {
     event.preventDefault()
+    if (locked) return
     setBusy(true)
     setError('')
     try {
-      await backupsApi.savePolicy(draft)
+      const value = await backupsApi.savePolicy(draft)
+      setSaved(value)
+      setDraft(value)
       toast('自动备份计划已保存', 'success')
       onSaved()
     } catch (e) {
@@ -216,7 +229,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
             <input
               type="checkbox"
               checked={draft.enabled}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => change('enabled', e.target.checked)}
             />
             <div className="backup-schedule-toggle__info">
@@ -230,11 +243,11 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
             </AdminStatusBadge>
           </label>
 
-          <AdminFormField label="执行频率">
+          <FormField label="执行频率">
             {({ labelId }) => (
-              <CustomSelect
+              <SearchSelect
                 aria-labelledby={labelId}
-                disabled={busy}
+                disabled={locked}
                 value={draft.schedule}
                 options={[
                   { value: 'daily', label: '每天' },
@@ -244,10 +257,10 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                 onChange={(value) => change('schedule', value)}
               />
             )}
-          </AdminFormField>
+          </FormField>
 
           {draft.schedule === 'interval' ? (
-            <AdminFormField label="间隔小时">
+            <FormField label="间隔小时">
               {({ id }) => (
                 <Input
                   id={id}
@@ -256,45 +269,45 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                   min={1}
                   max={720}
                   value={draft.intervalHours}
-                  disabled={busy}
+                  disabled={locked}
                   onChange={(e) => change('intervalHours', Number(e.target.value))}
                 />
               )}
-            </AdminFormField>
+            </FormField>
           ) : (
             <>
               <div className="backup-field-pair">
-                <AdminFormField label="执行时间">
+                <FormField label="执行时间">
                   {({ id, labelId }) => (
-                    <CustomTimePicker
+                    <TimeField presets={['00:00', '02:00', '03:00', '04:00', '12:00']}
                       id={id}
                       aria-labelledby={labelId}
                       value={draft.time}
-                      disabled={busy}
+                      disabled={locked}
                       onChange={(value) => change('time', value)}
                     />
                   )}
-                </AdminFormField>
-                <AdminFormField label="时区">
+                </FormField>
+                <FormField label="时区">
                   {({ id }) => (
                     <Input
                       id={id}
                       required
                       value={draft.timezone}
-                      disabled={busy}
+                      disabled={locked}
                       onChange={(e) => change('timezone', e.target.value)}
                       placeholder="Asia/Shanghai"
                     />
                   )}
-                </AdminFormField>
+                </FormField>
               </div>
               {draft.schedule === 'weekly' && (
-                <AdminFormField label="执行日">
+                <FormField label="执行日">
                   {({ labelId }) => (
-                    <CustomSelect
+                    <SearchSelect
                       aria-labelledby={labelId}
                       value={String(draft.weekday)}
-                      disabled={busy}
+                      disabled={locked}
                       options={['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'].map((label, value) => ({
                         label,
                         value: String(value),
@@ -302,12 +315,12 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                       onChange={(value) => change('weekday', Number(value))}
                     />
                   )}
-                </AdminFormField>
+                </FormField>
               )}
             </>
           )}
 
-          <AdminFormField label="本地保留版本数量" hint="固定版本和回滚前保护版本不会自动清理。">
+          <FormField label="本地保留版本数量" hint="固定版本和回滚前保护版本不会自动清理。">
             {({ id }) => (
               <Input
                 id={id}
@@ -316,11 +329,11 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                 min={1}
                 max={365}
                 value={draft.localRetention}
-                disabled={busy}
+                disabled={locked}
                 onChange={(e) => change('localRetention', Number(e.target.value))}
               />
             )}
-          </AdminFormField>
+          </FormField>
         </CardContent>
       </Card>
 
@@ -360,7 +373,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          disabled={busy}
+                          disabled={locked}
                           onChange={(e) =>
                             change(
                               'targetIds',
@@ -408,20 +421,22 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
         </p>
       )}
 
-      {/* Claude 标准悬浮胶囊保存操作岛 */}
+      {dirty && policy.revision > saved.revision && <p role="status" className="backup-error">计划已更新，当前草稿保留原修订号。请撤销修改读取最新计划后再编辑。</p>}
+      {/* 只有未保存修改时显示保存动作。 */}
+      {dirty ?
       <AdminFloatingDock reserveSpace role="region" aria-label="自动备份计划保存" data-state="open">
         <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
           {dirty ? '有未保存的计划修改' : '已与当前配置同步'}
         </span>
         <div className="admin-floating-dock__actions">
-          <Button type="button" variant="outline" disabled={!dirty || busy} onClick={() => setDraft(policy)}>
+          <Button type="button" variant="outline" disabled={!dirty || locked} onClick={() => { setSaved(policy); setDraft(policy); setError('') }}>
             撤销
           </Button>
-          <Button type="submit" disabled={!dirty || busy}>
+          <Button type="submit" disabled={!dirty || locked}>
             {busy ? '保存中…' : '保存计划'}
           </Button>
         </div>
-      </AdminFloatingDock>
+      </AdminFloatingDock> : <p className="backup-hint">计划已与当前配置同步。</p>}
     </form>
   )
 }

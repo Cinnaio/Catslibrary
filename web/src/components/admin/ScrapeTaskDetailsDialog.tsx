@@ -5,8 +5,8 @@ import { formatDateTime } from '@/lib/format'
 import { isJobRunning, jobStatusLabel } from '@/lib/admin'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { AdminDialogBody, AdminDialogContent } from './AdminDialog'
-import { ErrorState, InlineError, LoadingState } from './AsyncStates'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
 import AdminStatusBadge from './AdminStatusBadge'
 
 interface JobDetail {
@@ -57,7 +57,7 @@ export default function ScrapeTaskDetailsDialog({ jobId, title, onClose }: { job
         if (!open) onClose()
       }}
     >
-      <AdminDialogContent
+      <DialogFrame
         variant="form"
         className="dashboard-task-dialog"
         onOpenAutoFocus={(event) => {
@@ -77,7 +77,7 @@ export default function ScrapeTaskDetailsDialog({ jobId, title, onClose }: { job
           </DialogTitle>
           <DialogDescription>{title || '查看执行进度、完整错误与最近日志。'}</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody>
+        <DialogBody>
           {error &&
             (job ? (
               <InlineError message={`详情刷新失败：${error}`} onRetry={() => setRefresh((r) => r + 1)} />
@@ -114,7 +114,7 @@ export default function ScrapeTaskDetailsDialog({ jobId, title, onClose }: { job
               </dl>
               {!!job.failedItems?.length && (
                 <section aria-label="失败章节">
-                  <h3 className="admin-dialog-section-label">失败章节（最近 12 条）</h3>
+                  <h3 className="dialog-frame-section-label">失败章节（最近 12 条）</h3>
                   <ul className="dashboard-event-log">
                     {job.failedItems.map((item) => (
                       <li key={item.id}>
@@ -126,7 +126,7 @@ export default function ScrapeTaskDetailsDialog({ jobId, title, onClose }: { job
                 </section>
               )}
               <section aria-label="任务日志">
-                <h3 className="admin-dialog-section-label">最近日志（最多 30 条）</h3>
+                <h3 className="dialog-frame-section-label">最近日志（最多 30 条）</h3>
                 {job.recentLogs?.length ? (
                   <ol className="dashboard-event-log">
                     {job.recentLogs.map((log) => (
@@ -138,12 +138,12 @@ export default function ScrapeTaskDetailsDialog({ jobId, title, onClose }: { job
                     ))}
                   </ol>
                 ) : (
-                  <p className="admin-dialog-hint">暂无日志记录。</p>
+                  <p className="dialog-frame-hint">暂无日志记录。</p>
                 )}
               </section>
             </div>
           )}
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" asChild>
             <Link to="/admin/tasks?view=scrape">进入任务中心处理</Link>
@@ -152,7 +152,7 @@ export default function ScrapeTaskDetailsDialog({ jobId, title, onClose }: { job
             关闭
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
     </Dialog>
   )
 }

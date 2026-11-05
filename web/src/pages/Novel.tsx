@@ -1,3 +1,10 @@
+import { Spinner } from '@/components/ui/spinner'
+import '@/styles/novel-indicators.css'
+import '@/styles/select-fields.css'
+import '@/styles/input-fields.css'
+import { Button } from '@/components/ui/button'
+import styles from './novel.module.css'
+import NovelWorkspaceLinks from '../components/workspace/NovelWorkspaceLinks'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 /**
  * Novel 详情页 —— hero 信息、章节目录、本地书签、评分与评论。
@@ -8,7 +15,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, BookOpen, Star, X } from 'lucide-react'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
 import { chaptersApi, commentsApi, isRestrictedContentError, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
-import { UserAvatar } from '@/components/ui/user-avatar'
+import { UserAvatar } from "@/components/identity/UserAvatar"
 import { getNovelBookmarks, getNovelHistory, getStorageScope } from '../lib/storage'
 import { applyProgressState } from '../lib/progress-state'
 import { getDemoNovel } from '../lib/demo'
@@ -18,7 +25,9 @@ import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useBookshelf } from '../hooks/useBookshelf'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useToast, useConfirm } from '../components/feedback'
-import { BackToTopIcon, HomeIcon, SearchIcon } from '../components/icons'
+import { SearchIcon } from '../components/icons'
+import FloatingPageTools from "@/components/shared/FloatingPageTools"
+import EmptyState from '@/components/shared/EmptyState'
 import CatchupRecap from '../components/CatchupRecap'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
@@ -366,13 +375,13 @@ export default function Novel() {
 
   // ---------- 渲染 ----------
   if (checking || policyError) return <ContentPolicyStatus />
-  if (loadError) return <PageState title="加载失败" description={loadError} actions={<button type="button" className="btn btn--primary" onClick={() => void load()}>重试</button>} />
+  if (loadError) return <PageState title="加载失败" description={loadError} actions={<Button variant="default" type="button"  onClick={() => void load()}>重试</Button>} />
   if (loading) {
     return (
-      <main className="detail-page">
+      <main className={`${styles.page} detail-page`}>
         <div className="container detail-shell">
           <div className="loading-center">
-            <div className="spinner spinner--lg"></div>
+            <Spinner size="lg"  />
           </div>
         </div>
       </main>
@@ -385,7 +394,7 @@ export default function Novel() {
 
   if (notFound || !novel) {
     return (
-      <PageState title="小说未找到" description="请检查链接是否正确，或返回首页浏览其他小说" icon={<BookOpen size={32} />} actions={<Link to="/" className="btn btn--primary">返回首页</Link>} />
+      <PageState title="小说未找到" description="请检查链接是否正确，或返回首页浏览其他小说" icon={<BookOpen size={32} />} actions={<Button asChild variant="default"><Link to="/" >返回首页</Link></Button>} />
     )
   }
 
@@ -406,7 +415,7 @@ export default function Novel() {
   }
 
   return (
-    <main className="detail-page">
+    <main className={`${styles.page} detail-page`}>
       <div className="container detail-shell">
         <Link to="/" className="detail-back"><ArrowLeft size={14} aria-hidden="true" />返回书库</Link>
         {/* Hero */}
@@ -452,22 +461,24 @@ export default function Novel() {
             )}
             <div className="novel-hero__actions">
               {chapters.length > 0 && (
-                <button className="btn btn--primary" onClick={() => startTargetId && navigate(`/read/${encodeURIComponent(novel.id)}/${encodeURIComponent(startTargetId)}`)}>
+                <Button variant="default"  onClick={() => startTargetId && navigate(`/read/${encodeURIComponent(novel.id)}/${encodeURIComponent(startTargetId)}`)}>
                   {lastReadChapter ? '继续阅读' : '开始阅读'}
-                </button>
+                </Button>
               )}
-              <button
-                className={`btn ${inShelf ? 'btn--primary' : 'btn--secondary'}`}
+              <Button
+                variant={inShelf ? 'default' : 'secondary'}
                 onClick={() => void toggle(novel)}
               >
                 {inShelf ? '已在书架' : '加入书架'}
-              </button>
+              </Button>
               {(user || isLocalDev()) && (
-                <Link to={`/admin/novels?novelId=${encodeURIComponent(novel.id)}`} className="btn btn--secondary admin-jump-btn">管理</Link>
+                <Button asChild variant="secondary"><Link to={`/admin/novels?novelId=${encodeURIComponent(novel.id)}`} className="admin-jump-btn">管理</Link></Button>
               )}
             </div>
           </div>
         </div>
+
+        {user?.role === 'admin' && <NovelWorkspaceLinks novelId={novel.id} title={novel.title} />}
 
         {/* 回来接着读：隔了很久才回来时，用已缓存的提要合成连贯回顾（进书之前） */}
         <CatchupRecap novelId={novel.id} novelTitle={novel.title} lastReadAt={lastReadAt(progress)} />
@@ -662,9 +673,9 @@ export default function Novel() {
                   <label className="comment-spoiler-check">
                     <input type="checkbox" checked={spoiler} onChange={(e) => setSpoiler(e.target.checked)} /> 含剧透
                   </label>
-                  <button className="btn btn--primary btn--sm" onClick={() => void submitComment(commentBox, spoiler)}>
+                  <Button variant="default" size="sm"  onClick={() => void submitComment(commentBox, spoiler)}>
                     发布评论
-                  </button>
+                  </Button>
                   </div>
                 </div>
               </div>
@@ -677,34 +688,23 @@ export default function Novel() {
             {/* 评论列表 */}
             <div className="comments-list">
               {comments.length === 0 ? (
-                <div className="empty-state compact">暂无评论，来写第一条吧。</div>
+                <EmptyState message="暂无评论，来写第一条吧。" />
               ) : (
                 comments.map((c) => <CommentCard key={c.id} comment={c} onLike={likeComment} onReport={reportComment} onDelete={deleteComment} onReply={(text, parentId) => void submitComment(text, false, parentId)} />)
               )}
             </div>
             {commentsOffset < commentsTotal && (
               <div className="comments-more">
-                <button className="btn btn--secondary btn--sm" onClick={() => void loadComments(id, false, sort)}>
+                <Button variant="secondary" size="sm"  onClick={() => void loadComments(id, false, sort)}>
                   加载更多
-                </button>
+                </Button>
               </div>
             )}
           </section>
         )}
       </div>
 
-      {/* 浮动按钮 */}
-      <Link to="/" className="float-top float-top--home visible" aria-label="回到首页" title="回到首页">
-        <HomeIcon />
-      </Link>
-      <button
-        className="float-top visible"
-        aria-label="回到顶部"
-        title="回到顶部"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      >
-        <BackToTopIcon />
-      </button>
+      <FloatingPageTools />
     </main>
   )
 }
@@ -761,22 +761,22 @@ function CommentCard({ comment, onLike, onReport, onDelete, onReply }: CommentCa
           {replying && (
             <div className="comment-form">
               <textarea className="form-input" rows={2} maxLength={500} placeholder="回复…" value={replyText} onChange={(e) => setReplyText(e.target.value)}></textarea>
-              <button className="btn btn--primary btn--sm" onClick={() => { void onReply(replyText, comment.id); setReplyText(''); setReplying(false) }}>
+              <Button variant="default" size="sm"  onClick={() => { void onReply(replyText, comment.id); setReplyText(''); setReplying(false) }}>
                 发布回复
-              </button>
+              </Button>
             </div>
           )}
           {reporting && (
             <div className="comment-report-box">
               {([['spam', '垃圾信息'], ['offensive', '冒犯内容'], ['spoiler', '未标注剧透'], ['other', '其他']] as const).map(([r, label]) => (
-                <button
+                <Button variant="secondary" size="sm"
                   type="button"
-                  className="btn btn--secondary btn--sm"
+
                   key={r}
                   onClick={() => { void onReport(comment, r); setReporting(false) }}
                 >
                   {label}
-                </button>
+                </Button>
               ))}
             </div>
           )}

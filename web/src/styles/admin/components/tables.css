@@ -79,8 +79,7 @@
 }
 
 .admin-redesign-page--novels .novels-data-panel > [data-slot='table-container'],
-.admin-redesign-page--chapters .chapter-directory-panel > [data-slot='table-container'],
-.admin-redesign-page--source-analytics .source-analytics-table-panel > [data-slot='table-container'] {
+.admin-redesign-page--chapters .chapter-directory-panel > [data-slot='table-container'] {
   border-radius: var(--admin-data-panel-radius);
 }
 
@@ -154,7 +153,7 @@
 }
 
 .admin-cell-tags__tag {
-  border-radius: var(--radius-full) !important;
+  border-radius: var(--radius-tag) !important;
   font-size: 0.72rem !important;
   padding: 0.1rem 0.55rem !important;
   border: 1px solid var(--admin-border) !important;
@@ -248,7 +247,7 @@
 .admin-icon-button {
   width: var(--admin-table-action-size);
   height: var(--admin-table-action-size);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-control);
   color: var(--text-secondary);
   transition:
     background-color var(--admin-table-row-interaction),
@@ -478,6 +477,20 @@
 
   .admin-toolbar__batch-actions > button {
     flex: 1 1 calc(50% - 0.25rem);
+  }
+}
+
+/* 展开详情跨越全部列；共用表格的留白、边线与窄屏行布局。 */
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr[data-details] > td[colspan] {
+  width: auto;
+  height: auto;
+  white-space: normal;
+}
+
+@media (max-width: 900px) {
+  .admin-data-panel--grid table > tbody > tr[data-details] > td[colspan] {
+    display: block;
+    width: 100%;
   }
 }
 

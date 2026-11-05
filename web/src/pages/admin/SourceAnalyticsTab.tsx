@@ -2,29 +2,36 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Link } from 'react-router-dom'
 import { CirclePlus, LockKeyhole, RefreshCw, Settings2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { FOLLOWUP_LABELS, SOURCE_LABELS, type FollowupCategory, type SourceAnalyticsBook, type SourceAnalyticsResponse } from '@shared/source-analytics'
+import { FOLLOWUP_LABELS, SOURCE_LABELS, type SourceCategory, type SourceAnalyticsBook, type SourceAnalyticsResponse } from '@shared/source-analytics'
 import { adminApi, url, authHeaders } from '@/lib/api'
 import { coverUrl as novelCoverUrl } from '@/lib/cover-url'
 import { formatDateTime } from '@/lib/format'
+import type { AdminStatusTone } from '@/lib/admin-status'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import { SearchField } from '@/components/shared/SearchField'
+import FormField from '@/components/shared/FormField'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import CustomSelect from '@/components/admin/CustomSelect'
-import Pagination from '@/components/admin/Pagination'
+import EmptyState from "@/components/shared/EmptyState"
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
+import SearchSelect from "@/components/shared/SearchSelect"
+import Pagination from "@/components/shared/Pagination"
 import NovelFollowupDialog from '@/components/admin/NovelFollowupDialog'
 import BatchNovelFollowupDialog from '@/components/admin/BatchNovelFollowupDialog'
-import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
+import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import SourceDistribution, { type SourceBookFilter } from './SourceDistribution'
 import '@/styles/admin/pages/source-analytics.css'
+import styles from './source-analytics.module.css'
 
 const MergeDialog = lazy(() => import('./ChaptersTab'))
 const siteLabel = (site: string) => (site === '__none__' ? '无有效来源' : site)
@@ -43,14 +50,37 @@ const results: Record<string, string> = {
 }
 
 const columns: readonly AdminColumn[] = [
-  { key: 'select', width: '4.5%' },
-  { key: 'book', label: '作品', width: '22%', primary: true },
-  { key: 'source', label: '主要来源', width: '18%' },
-  { key: 'followup', label: '追更状态', width: '17%' },
-  { key: 'check', label: '最近检查 / 下次安排', width: '22%' },
-  { key: 'pending', label: '待入库', width: '10%' },
-  { key: 'actions', label: '操作', width: '6.5%', actions: true },
+  { key: 'select', width: '3rem' },
+  { key: 'book', label: '作品', primary: true },
+  { key: 'source', label: '主要来源', width: '14%' },
+  { key: 'followup', label: '检查结果', width: '15%' },
+  { key: 'check', label: '检查时间', width: '16%' },
+  { key: 'pending', label: '待入库', width: '12%' },
+  { key: 'actions', label: '操作', width: '7.5rem', actions: true },
 ]
+
+function resultTone(result: string): AdminStatusTone {
+  if (result === 'failed') return 'danger'
+  if (['partial', 'pending', 'protected'].includes(result)) return 'warning'
+  if (result === 'running') return 'info'
+  if (result === 'updated') return 'success'
+  return 'neutral'
+}
+
+function compactDateTime(timestamp: number, snapshotAt: number): string {
+  const date = new Date(timestamp)
+  const reference = new Date(snapshotAt)
+  const sameYear = date.getFullYear() === reference.getFullYear()
+  const sameDay = sameYear && date.getMonth() === reference.getMonth() && date.getDate() === reference.getDate()
+  const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const options: Intl.DateTimeFormatOptions = { month: '2-digit', day: '2-digit' }
+  if (!sameYear) options.year = 'numeric'
+  return sameDay ? `今天 ${time}` : `${date.toLocaleDateString('zh-CN', options)} ${time}`
+}
+
+function CheckTime({ timestamp, snapshotAt }: { timestamp: number; snapshotAt: number }) {
+  return <time dateTime={new Date(timestamp).toISOString()} title={formatDateTime(timestamp)}>{compactDateTime(timestamp, snapshotAt)}</time>
+}
 
 async function triggerNovelUpdate(novelId: string): Promise<Record<string, unknown>> {
   const res = await fetch(url('/scrape'), {
@@ -86,7 +116,7 @@ function BookDetails({
         if (!open) onClose()
       }}
     >
-      <AdminDialogContent
+      <DialogFrame
         className="source-book-dialog"
         onCloseAutoFocus={(event) => {
           if (returnFocus?.isConnected) {
@@ -99,7 +129,7 @@ function BookDetails({
           <DialogTitle>书源与追更详情</DialogTitle>
           <DialogDescription>{book.title}</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody>
+        <DialogBody>
           <div className="source-book-details-grid">
             <div className="source-book-details-item">
               <span className="source-book-details-label">作者 / 状态</span>
@@ -136,7 +166,7 @@ function BookDetails({
           </div>
 
           <section className="source-book-sources" aria-label="来源记录" style={{ marginTop: '1.25rem' }}>
-            <h3 className="admin-dialog-section-label">来源记录</h3>
+            <h3 className="dialog-frame-section-label">来源记录</h3>
             {book.sources.length ? (
               <div className="source-book-sources-list">
                 {book.sources.map((source) => (
@@ -152,7 +182,7 @@ function BookDetails({
                 ))}
               </div>
             ) : (
-              <p className="admin-dialog-hint">未找到有效的 HTTP/HTTPS 来源。</p>
+              <p className="dialog-frame-hint">未找到有效的 HTTP/HTTPS 来源。</p>
             )}
           </section>
 
@@ -170,16 +200,16 @@ function BookDetails({
               <Link to={`/admin/novels?novelId=${encodeURIComponent(book.id)}`}>管理小说</Link>
             </Button>
           </div>
-          <p className="admin-dialog-hint" style={{ marginTop: '0.75rem' }}>
+          <p className="dialog-frame-hint" style={{ marginTop: '0.75rem' }}>
             统计读取于 {formatDateTime(snapshotAt)}。配置完整不代表源站当前可访问；进入追更详情可读取最新结果。
           </p>
-        </AdminDialogBody>
+        </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose}>
             关闭
           </Button>
         </DialogFooter>
-      </AdminDialogContent>
+      </DialogFrame>
       {followup && <NovelFollowupDialog variant="event" novel={book} onClose={() => setFollowup(false)} />}
       {merge && (
         <Suspense fallback={<span role="status">正在打开融合弹窗…</span>}>
@@ -195,6 +225,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'list' | 'distribution'>('list')
+  const listTabRef = useRef<HTMLButtonElement>(null)
   const [filters, setFilters] = useState({
     view: 'primary',
     site: '',
@@ -214,6 +245,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
   const [batchFollowupNovels, setBatchFollowupNovels] = useState<Array<{ id: string; title: string }> | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchBusy, setBatchBusy] = useState(false)
+  const moreFilterCount = [filters.source, filters.followup, filters.status].filter(Boolean).length
 
   const hasActiveFilters = Boolean(
     input.trim() ||
@@ -268,7 +300,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
     setFilters((f) => ({ ...f, [name]: value, page: '1' }))
   }
 
-  function chartFilter(site: string, category?: FollowupCategory, source?: string) {
+  function selectSourceBooks(site: string, category?: SourceBookFilter, source?: SourceCategory) {
     setInput('')
     setFilters((f) => ({
       ...f,
@@ -281,6 +313,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
       page: '1',
     }))
     setActiveTab('list')
+    listTabRef.current?.focus()
   }
 
   const matches = loadedKey === key
@@ -328,7 +361,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
 
   return (
     <AdminPage
-      className="admin-redesign-page--source-analytics"
+      className={cn('admin-redesign-page--source-analytics', styles.page)}
       title="书源与追更"
       description="了解书源分布、追更覆盖情况，并找到需要处理的作品。"
       actions={
@@ -349,104 +382,107 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
           {error && <InlineError message={`读取失败：${error}。统计保留上次快照，未更新的筛选明细暂不显示。`} onRetry={() => void load()} />}
 
           {/* 横向滑动胶囊切换组件：分离「小说明细」与「书源与追更透视」 */}
-          <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as 'list' | 'distribution')} className="source-analytics-tabs admin-capsule-tabs">
-            <div className="source-analytics-workspace-nav">
+          <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as 'list' | 'distribution')} className={styles.tabs}>
+            <div className={styles.navigation}>
               <TabsList aria-label="工作视图">
-                <TabsTrigger value="list">
+                <TabsTrigger value="list" ref={listTabRef}>
                   小说明细
-                  <span className="source-analytics-tab-count">{matches ? n(data.filteredTotal) : '…'}</span>
+                  <span className={styles.tabCount}>{matches ? n(data.filteredTotal) : '…'}</span>
                 </TabsTrigger>
                 <TabsTrigger value="distribution">书源与追更透视</TabsTrigger>
               </TabsList>
             </div>
 
             {/* 视图一：去容器化小说明细 (Uncontainerized List) */}
-            <TabsContent value="list" forceMount className={cn('source-analytics-list-view', activeTab !== 'list' && 'hidden')}>
+            <TabsContent value="list" forceMount className={cn(styles.list, activeTab !== 'list' && 'hidden')}>
               {/* 单层控制流：筛选工具栏直接平铺 */}
-              <AdminToolbar layout="inline" className="admin-filter-rail source-analytics-filters" ariaLive="polite">
-                <AdminSearch
+              <AdminToolbar layout="inline" className={styles.toolbar}>
+                <SearchField
                   id="source-analytics-search"
                   label="搜索小说"
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   placeholder="搜索书名或作者"
                 />
-                <div className="admin-filter-chips">
-                  <CustomSelect
+                <div className={styles.filters}>
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="源站筛选"
                     value={filters.site}
                     onChange={(v) => setFilter('site', v)}
                     searchable
                     options={[{ value: '', label: '全部源站' }, ...data.groups.map((g) => ({ value: g.site, label: siteLabel(g.site) }))]}
                   />
-                  <CustomSelect
+                  <SearchSelect
                     compact
                     chip
                     filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
-                    aria-label="来源配置筛选"
-                    value={filters.source}
-                    onChange={(v) => setFilter('source', v)}
-                    options={[{ value: '', label: '全部来源配置' }, ...Object.entries(SOURCE_LABELS).map(([value, label]) => ({ value, label }))]}
-                  />
-                  <CustomSelect
-                    compact
-                    chip
-                    filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
-                    aria-label="追更状态筛选"
-                    value={filters.followup}
-                    onChange={(v) => setFilter('followup', v)}
-                    options={[
-                      { value: '', label: '全部追更状态' },
-                      ...Object.entries(FOLLOWUP_LABELS).map(([value, label]) => ({ value, label })),
-                      { value: 'attention', label: '仅看检查异常' },
-                    ]}
-                  />
-                  <CustomSelect
-                    compact
-                    chip
-                    filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
-                    aria-label="连载状态筛选"
-                    value={filters.status}
-                    onChange={(v) => setFilter('status', v)}
-                    options={[
-                      { value: '', label: '全部连载状态' },
-                      { value: 'ongoing', label: '连载中' },
-                      { value: 'completed', label: '已完结' },
-                    ]}
-                  />
-                  <CustomSelect
-                    compact
-                    chip
-                    filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
                     aria-label="检查结果筛选"
                     value={filters.result}
                     onChange={(v) => setFilter('result', v)}
                     options={[{ value: '', label: '全部检查结果' }, ...Object.entries(results).map(([value, label]) => ({ value, label }))]}
                   />
-                  <CustomSelect
-                    compact
-                    chip
-                    filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
-                    aria-label="明细排序"
-                    value={filters.sort}
-                    onChange={(v) => setFilter('sort', v)}
-                    options={[
-                      { value: 'checked', label: '最近检查优先' },
-                      { value: 'next', label: '下次检查最早' },
-                      { value: 'pending', label: '章节缺口最多' },
-                      { value: 'updated', label: '最近更新优先' },
-                      { value: 'title', label: '按书名排序' },
-                    ]}
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant={moreFilterCount ? 'secondary' : 'ghost'} size="sm" aria-label={`更多筛选${moreFilterCount ? `，已选 ${moreFilterCount} 项` : ''}`}>
+                        <Settings2 aria-hidden="true" />
+                        更多筛选{moreFilterCount > 0 && <span className={styles.filterCount}>{moreFilterCount}</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className={styles.moreFilters} aria-label="更多筛选">
+                      <div className={styles.filterHeader}>
+                        <p className={styles.filterHeading}>更多筛选</p>
+                        <Button variant="ghost" size="sm" aria-label="重置更多筛选" disabled={!moreFilterCount} onClick={() => setFilters((f) => ({ ...f, source: '', followup: '', status: '', page: '1' }))}>
+                          重置
+                        </Button>
+                      </div>
+                      <FormField label="来源配置">
+                        <SearchSelect
+                          compact
+                          className={styles.filterSelect}
+                          matchTriggerWidth
+                          aria-label="来源配置筛选"
+                          value={filters.source}
+                          onChange={(v) => setFilter('source', v)}
+                          options={[{ value: '', label: '全部来源配置' }, ...Object.entries(SOURCE_LABELS).map(([value, label]) => ({ value, label }))]}
+                        />
+                      </FormField>
+                      <FormField label="追更状态">
+                        <SearchSelect
+                          compact
+                          className={styles.filterSelect}
+                          matchTriggerWidth
+                          aria-label="追更状态筛选"
+                          value={filters.followup}
+                          onChange={(v) => setFilter('followup', v)}
+                          options={[
+                            { value: '', label: '全部追更状态' },
+                            ...Object.entries(FOLLOWUP_LABELS).map(([value, label]) => ({ value, label })),
+                            { value: 'attention', label: '仅看检查异常' },
+                          ]}
+                        />
+                      </FormField>
+                      <FormField label="连载状态">
+                        <SearchSelect
+                          compact
+                          className={styles.filterSelect}
+                          matchTriggerWidth
+                          aria-label="连载状态筛选"
+                          value={filters.status}
+                          onChange={(v) => setFilter('status', v)}
+                          options={[
+                            { value: '', label: '全部连载状态' },
+                            { value: 'ongoing', label: '连载中' },
+                            { value: 'completed', label: '已完结' },
+                          ]}
+                        />
+                      </FormField>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 {hasActiveFilters && (
                   <Button
@@ -470,6 +506,22 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                     清除筛选
                   </Button>
                 )}
+                <div className={styles.sort}>
+                  <SearchSelect
+                    compact
+                    chip
+                    aria-label="明细排序"
+                    value={filters.sort}
+                    onChange={(v) => setFilter('sort', v)}
+                    options={[
+                      { value: 'checked', label: '最近检查优先' },
+                      { value: 'next', label: '下次检查最早' },
+                      { value: 'pending', label: '章节缺口最多' },
+                      { value: 'updated', label: '最近更新优先' },
+                      { value: 'title', label: '按书名排序' },
+                    ]}
+                  />
+                </div>
               </AdminToolbar>
 
               {/* 批量操作浮动胶囊岛 */}
@@ -488,10 +540,10 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
               </AdminSelectionBar>
 
               {/* 纸白作业台：复用共享库列表套件 */}
-              <AdminDataPanel ariaLabel="小说明细" columns={columns} density="comfortable" className="source-analytics-table-panel">
+              <AdminDataPanel ariaLabel="小说明细" columns={columns} density="comfortable" className={styles.tablePanel}>
                 {!matches ? (
                   error ? (
-                    <AdminEmptyState message="筛选结果尚未读取成功" />
+                    <EmptyState message="筛选结果尚未读取成功" />
                   ) : (
                     <LoadingState label="正在更新小说明细" />
                   )
@@ -508,17 +560,17 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                         </TableHead>
                         <TableHead>作品</TableHead>
                         <TableHead>主要来源</TableHead>
-                        <TableHead>追更状态</TableHead>
-                        <TableHead>最近检查 / 下次安排</TableHead>
+                        <TableHead>检查结果</TableHead>
+                        <TableHead>检查时间</TableHead>
                         <TableHead>待入库</TableHead>
                         <TableHead className="text-right pr-6">操作</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <TableBody key={data.limit}>
                       {!data.books.length ? (
                         <TableRow>
                           <TableCell colSpan={7}>
-                            <AdminEmptyState message="当前筛选没有匹配的小说" />
+                            <EmptyState message="当前筛选没有匹配的小说" />
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -549,7 +601,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                                   <span className="novel-book-cover__spine" aria-hidden="true" />
                                 </div>
                                 <div className="novel-book-info">
-                                  <button className="novel-book-title text-left" onClick={() => setSelectedBook(book)}>
+                                  <button className={cn('novel-book-title text-left', styles.bookTitle)} title={book.title} onClick={() => setSelectedBook(book)}>
                                     {book.title}
                                   </button>
                                   <span className="novel-book-sub">
@@ -567,33 +619,33 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                                 </span>
                               </div>
                             </TableCell>
-                            <TableCell data-label="追更状态">
+                            <TableCell data-label="检查结果">
                               <div className="flex flex-col gap-1 items-start">
-                                <AdminStatusBadge tone={book.followupCategory === 'enabled' ? 'success' : 'neutral'}>
-                                  {FOLLOWUP_LABELS[book.followupCategory]}
+                                <AdminStatusBadge tone={resultTone(book.result)}>
+                                  {results[book.result] || book.result || '尚未检查'}
                                 </AdminStatusBadge>
                                 <span className="text-xs text-muted-foreground">
-                                  {book.attention ? '需要处理 · ' : ''}
-                                  {results[book.result] || book.result}
+                                  {book.followupCategory === 'enabled' ? '自动追更已开启' : FOLLOWUP_LABELS[book.followupCategory]}
                                 </span>
+                                {book.attention && <span className={styles.attention}>{book.sourceCategory !== 'configured' ? '需补全抓取配置' : '需要处理'}</span>}
                               </div>
                             </TableCell>
-                            <TableCell data-label="最近检查 / 下次安排">
+                            <TableCell data-label="检查时间">
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-medium tabular-nums">{book.checkedAt ? formatDateTime(book.checkedAt) : '尚未检查'}</span>
+                                <span className="text-sm font-medium tabular-nums">{book.checkedAt ? <CheckTime timestamp={book.checkedAt} snapshotAt={data.snapshotAt} /> : '尚未检查'}</span>
                                 <span className="text-xs text-muted-foreground">
-                                  {book.followupCategory !== 'enabled'
-                                    ? '未安排自动检查'
-                                    : book.active
-                                      ? '正在执行'
+                                  {book.active
+                                    ? '正在执行'
+                                    : book.followupCategory !== 'enabled'
+                                      ? '未安排自动检查'
                                       : !book.nextCheckAt || book.nextCheckAt <= data.snapshotAt
                                         ? '等待调度'
-                                        : `下次 ${formatDateTime(book.nextCheckAt)}`}
+                                        : <>下次 <CheckTime timestamp={book.nextCheckAt} snapshotAt={data.snapshotAt} /></>}
                                 </span>
                               </div>
                             </TableCell>
                             <TableCell data-label="待入库">
-                              <div className="source-pending-cell flex flex-col items-start gap-1 justify-center">
+                              <div className="flex flex-col items-start gap-1 justify-center">
                                 <span className="text-sm font-semibold tabular-nums text-foreground">
                                   {book.pending == null ? '未核对' : `${n(book.pending)} 章`}
                                 </span>
@@ -607,15 +659,14 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                             </TableCell>
                             <TableCell data-actions="" data-label="操作" className="text-right pr-6">
                               <div className="admin-cell-actions justify-end">
-                                <button
-                                  type="button"
-                                  className="admin-icon-button"
-                                  title="更新与来源"
-                                  aria-label={`《${book.title}》更新与来源`}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label={`《${book.title}》追更设置`}
                                   onClick={() => setQuickFollowupNovel({ id: book.id, title: book.title })}
                                 >
-                                  <Settings2 className="size-4" />
-                                </button>
+                                  追更设置
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -645,211 +696,14 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
               />
             </TabsContent>
 
-            {/* 视图二：统一书源与追更透视账本 (Claude Unified Site Ledger) */}
-            <TabsContent value="distribution" forceMount className={cn('flex flex-col gap-4', activeTab !== 'distribution' && 'hidden')}>
-              {/* 大盘口径与快照指示栏 */}
-              <div className="source-analytics-scope-bar">
-                <CustomSelect
-                  aria-label="来源统计口径"
-                  compact
-                  chip
-                  className="source-scope-select"
-                  value={filters.view}
-                  onChange={(value) => setFilters((f) => ({ ...f, view: value, site: '', page: '1' }))}
-                  options={[
-                    { value: 'primary', label: '主要来源 · 每本书计一次' },
-                    { value: 'all', label: '全部来源 · 按站点去重' },
-                  ]}
-                />
-                <span className="source-analytics-snapshot-tag">统计于 {formatDateTime(data.snapshotAt)}</span>
-              </div>
-
-              {/* 大盘宏观概览横条 */}
-              <div className="source-insight-macro-strip">
-                <div className="source-insight-macro-item">
-                  <span className="source-insight-macro-label">全库作品规模</span>
-                  <span className="source-insight-macro-value tabular-nums">
-                    {n(data.total)} <span className="source-insight-macro-unit">本</span>
-                  </span>
-                </div>
-                <div className="source-insight-macro-divider" aria-hidden="true" />
-                <div className="source-insight-macro-item">
-                  <span className="source-insight-macro-label">有效书源覆盖</span>
-                  <span className="source-insight-macro-value tabular-nums">
-                    {n(data.withSource)} <span className="source-insight-macro-sub">({((data.withSource / Math.max(data.total, 1)) * 100).toFixed(1)}%)</span>
-                  </span>
-                </div>
-                <div className="source-insight-macro-divider" aria-hidden="true" />
-                <div className="source-insight-macro-item">
-                  <span className="source-insight-macro-label">已开启追更</span>
-                  <span className="source-insight-macro-value tabular-nums">
-                    {n(data.followups.enabled)} <span className="source-insight-macro-sub">({((data.followups.enabled / Math.max(data.total, 1)) * 100).toFixed(1)}%)</span>
-                  </span>
-                </div>
-                <div className="source-insight-macro-divider" aria-hidden="true" />
-                <div className="source-insight-macro-item">
-                  <span className="source-insight-macro-label">健康状态</span>
-                  {data.attention > 0 ? (
-                    <button
-                      type="button"
-                      className="source-insight-attention-pill"
-                      onClick={() => {
-                        setInput('')
-                        setFilters((f) => ({
-                          ...f,
-                          followup: 'attention',
-                          source: '',
-                          site: '',
-                          status: '',
-                          result: '',
-                          search: '',
-                          page: '1',
-                        }))
-                        setActiveTab('list')
-                      }}
-                      title="点击快筛需要处理的异常作品"
-                    >
-                      <span className="source-attention-dot" aria-hidden="true" />
-                      {n(data.attention)} 部异常需处理
-                    </button>
-                  ) : (
-                    <span className="source-insight-healthy-badge">全库运行健康</span>
-                  )}
-                </div>
-              </div>
-
-              {/* 各源站透视微卡网格 */}
-              <div className="source-insight-cards-grid" aria-busy={loading}>
-                {!data.groups.length ? (
-                  <AdminEmptyState message="暂无站点统计数据" />
-                ) : (
-                  data.groups.map((group) => {
-                    const sharePercent = ((group.total / Math.max(data.total, 1)) * 100).toFixed(1)
-                    return (
-                      <div className="source-insight-card" key={group.site}>
-                        {/* 卡片头部 */}
-                        <div className="source-insight-card-header">
-                          <button
-                            type="button"
-                            className="source-insight-card-site"
-                            onClick={() => chartFilter(group.site)}
-                            title={`点击查看 ${siteLabel(group.site)} 下的全部作品`}
-                          >
-                            {siteLabel(group.site)}
-                          </button>
-                          <div className="flex items-center gap-2">
-                            <span className="source-insight-card-share-pill tabular-nums">
-                              {n(group.total)} 本 · {sharePercent}%
-                            </span>
-                            {group.attention > 0 && (
-                              <button
-                                type="button"
-                                className="source-ledger-attention-pill"
-                                onClick={() => {
-                                  setInput('')
-                                  setFilters((f) => ({
-                                    ...f,
-                                    site: group.site,
-                                    followup: 'attention',
-                                    source: '',
-                                    status: '',
-                                    result: '',
-                                    search: '',
-                                    page: '1',
-                                  }))
-                                  setActiveTab('list')
-                                }}
-                                title={`该站点有 ${group.attention} 部作品检查异常，点击快筛`}
-                              >
-                                <span className="source-attention-dot" aria-hidden="true" />
-                                {group.attention} 异常
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* 卡片主体：核心指标 2x2 象限 */}
-                        <div className="source-insight-card-metrics">
-                          {/* 书源配置 */}
-                          <div className="source-insight-metric-box">
-                            <span className="source-insight-metric-label">配置完整</span>
-                            <button
-                              type="button"
-                              className="source-insight-metric-btn"
-                              title={`配置完整 ${group.configured} 本`}
-                              aria-label={`${siteLabel(group.site)}：配置完整 ${group.configured} 本`}
-                              onClick={() => chartFilter(group.site, undefined, 'configured')}
-                            >
-                              <span className="tabular-nums font-semibold text-base text-foreground">{n(group.configured)}</span>
-                              <span className="text-xs text-muted-foreground ml-1">本</span>
-                            </button>
-                          </div>
-
-                          <div className="source-insight-metric-box">
-                            <span className="source-insight-metric-label">仅链接 / 未配置</span>
-                            <button
-                              type="button"
-                              className="source-insight-metric-btn"
-                              title={`仅有来源链接 ${group.link} 本，无有效来源 ${group.none} 本`}
-                              aria-label={`${siteLabel(group.site)}：仅有来源链接 ${group.link} 本`}
-                              onClick={() => chartFilter(group.site, undefined, group.link ? 'link' : 'none')}
-                            >
-                              <span className="tabular-nums font-semibold text-base text-foreground">{n(group.link + group.none)}</span>
-                              <span className="text-xs text-muted-foreground ml-1">本</span>
-                            </button>
-                          </div>
-
-                          {/* 追更状态 */}
-                          <div className="source-insight-metric-box">
-                            <span className="source-insight-metric-label">已开启追更</span>
-                            <button
-                              type="button"
-                              className="source-insight-metric-btn"
-                              title={`已开启 ${group.followups.enabled} 本`}
-                              aria-label={`${siteLabel(group.site)}：已开启 ${group.followups.enabled} 本`}
-                              onClick={() => chartFilter(group.site, 'enabled')}
-                            >
-                              <span className="tabular-nums font-semibold text-base text-foreground">{n(group.followups.enabled)}</span>
-                              <span className="text-xs text-muted-foreground ml-1">本</span>
-                            </button>
-                          </div>
-
-                          <div className="source-insight-metric-box">
-                            <span className="source-insight-metric-label">暂停 / 完结关闭</span>
-                            <button
-                              type="button"
-                              className="source-insight-metric-btn"
-                              title={`手动暂停 ${group.followups.paused} 本，完结默认关闭 ${group.followups.completed} 本`}
-                              aria-label={`${siteLabel(group.site)}：手动暂停 ${group.followups.paused} 本`}
-                              onClick={() => chartFilter(group.site, group.followups.paused ? 'paused' : 'completed')}
-                            >
-                              <span className="tabular-nums font-semibold text-base text-foreground">
-                                {n(group.followups.paused + group.followups.completed)}
-                              </span>
-                              <span className="text-xs text-muted-foreground ml-1">本</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* 卡片底部操作栏 */}
-                        <div className="source-insight-card-footer">
-                          <span className="text-xs text-muted-foreground">
-                            {group.attention > 0 ? `存在 ${group.attention} 部作品需要处理` : '运行良好，同步正常'}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="source-site-view-btn text-xs text-muted-foreground hover:text-foreground"
-                            onClick={() => chartFilter(group.site)}
-                          >
-                            查看作品明细 →
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
+            <TabsContent value="distribution" forceMount className={activeTab !== 'distribution' ? 'hidden' : undefined}>
+              <SourceDistribution
+                data={data}
+                view={filters.view}
+                loading={loading}
+                onViewChange={(view) => setFilters((f) => ({ ...f, view, site: '', page: '1' }))}
+                onSelectBooks={selectSourceBooks}
+              />
             </TabsContent>
           </Tabs>
         </>

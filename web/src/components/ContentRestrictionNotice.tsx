@@ -1,3 +1,5 @@
+import '@/styles/content-policy.css'
+import { Button } from '@/components/ui/button'
 import { ShieldIcon } from './icons'
 import type { ContentMode } from '../context/ContentPolicyContext'
 import { Link, useLocation } from 'react-router-dom'
@@ -36,9 +38,9 @@ export default function ContentRestrictionNotice({
       description={!compact && !canUnlock ? '站点当前未开放成人内容模式，限制级作品暂不可阅读。你仍可返回首页浏览其他小说。' : description}
       actions={(!compact || canUnlock && mode === 'safe') ? <>
         {canUnlock && (!compact || mode === 'safe') && (!session?.user
-          ? <Link to="/auth" state={{ from: `${location.pathname}${location.search}` }} className="btn btn--primary">登录后开启</Link>
-          : <button type="button" className="btn btn--primary" onClick={unlock}>{mode === 'adult' ? '重新验证' : '查看限制级内容'}</button>)}
-        {!compact && <Link to="/" className={`btn ${canUnlock ? 'btn--secondary' : 'btn--primary'}`}>返回首页</Link>}
+          ? <Button asChild variant="default"><Link to="/auth" state={{ from: `${location.pathname}${location.search}` }} >登录后开启</Link></Button>
+          : <Button variant="default" type="button"  onClick={unlock}>{mode === 'adult' ? '重新验证' : '查看限制级内容'}</Button>)}
+        {!compact && <Button asChild variant={canUnlock ? 'secondary' : 'default'}><Link to="/">返回首页</Link></Button>}
       </> : undefined}
     />
   )

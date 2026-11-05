@@ -184,7 +184,7 @@ describe('monitoring navigation', () => {
     vi.mocked(scrapeApi.jobs).mockRejectedValue(new Error('需要管理员登录'))
     mount(<TaskCenterTab />, '/admin/tasks?view=ai')
     const aiError = await screen.findByRole('alert')
-    expect(aiError).toHaveClass('admin-read-error', 'admin-empty-state')
+    expect(aiError).toHaveClass('admin-read-error', 'empty-state')
     expect(aiError).toHaveTextContent('AI 任务加载失败：需要管理员登录')
     expect(screen.getByText('需要管理员登录', { selector: '.task-workspace-summary p' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^重试$/ })).not.toBeInTheDocument()
@@ -193,7 +193,7 @@ describe('monitoring navigation', () => {
     fireEvent.mouseDown(screen.getByRole('tab', { name: '抓取任务' }))
     fireEvent.click(screen.getByRole('tab', { name: '抓取任务' }))
     const scrapeError = await screen.findByRole('alert')
-    expect(scrapeError).toHaveClass('admin-read-error', 'admin-empty-state')
+    expect(scrapeError).toHaveClass('admin-read-error', 'empty-state')
     expect(scrapeError).toHaveTextContent('任务队列加载失败：需要管理员登录')
   })
 

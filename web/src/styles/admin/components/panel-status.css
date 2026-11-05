@@ -1,4 +1,4 @@
-/* 面板标题旁的状态胶囊。AdminPanelHeading 的 status 槽位在任务、账户、审核、
+/* 面板标题旁的状态胶囊。PanelHeading 的 status 槽位在任务、账户、审核、
    监控与 AI 各面板都有消费，先前每页各写一份逐字相同的规则；现统一为
    .admin-panel-status，页面只保留各自需要的变体。 */
 .admin-panel-status {
@@ -7,7 +7,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-tag);
   background: var(--bg-secondary);
   padding: 0.2rem 0.6rem;
   color: var(--text-muted);

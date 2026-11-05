@@ -4,7 +4,7 @@
 import React from 'react'
 import { authHeaders, operationHeaders, url } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
-import type { SelectOption } from '@/components/admin/CustomSelect'
+import type { SelectOption } from "@/components/shared/SearchSelect"
 import { DEFAULT_COVER_PATH } from '@shared/covers'
 
 // ---------- helpers ----------

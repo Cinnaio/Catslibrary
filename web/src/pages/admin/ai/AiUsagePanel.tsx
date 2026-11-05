@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ChevronRight, RefreshCw } from 'lucide-react'
-import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useEffect, useId, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
+import { Area, Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { aiApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
+import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
 import { Button } from '@/components/ui/button'
 import { formatCost } from './shared'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import styles from '../calls.module.css'
 import { chartAxisLine, chartGrid, chartLegendStyle, chartTick, chartTooltipLabelStyle, chartTooltipStyle } from './chart-theme'
 
 interface TrendPoint {
@@ -39,303 +41,145 @@ export function formatTokenCount(n: number): string {
   return n.toLocaleString()
 }
 
-/** 补齐缺失日期，让趋势曲线连续；按 days 范围生成完整日期序列。 */
+/** 以服务端日期键补齐空档，并保留滚动时间范围首尾的所有真实数据。 */
 function buildChartSeries(trend: TrendPoint[], days: number): TrendPoint[] {
-  const map = new Map(trend.map((d) => [d.date, d]))
-  const result: TrendPoint[] = []
-  const today = new Date()
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(d.getDate() - i)
-    const dateStr = d.toISOString().slice(0, 10)
-    const existing = map.get(dateStr)
-    result.push({
-      date: dateStr,
-      calls: existing?.calls || 0,
-      promptTokens: existing?.promptTokens || 0,
-      completionTokens: existing?.completionTokens || 0,
-      costMillicents: existing?.costMillicents || 0,
-      costReportedCalls: existing?.costReportedCalls ?? existing?.calls ?? 0,
-    })
+  const map = new Map(trend.map((point) => [point.date, point]))
+  const end = new Date().toISOString().slice(0, 10)
+  const dates = new Set(trend.map((point) => point.date))
+  for (let i = 0; i < days; i++) {
+    dates.add(new Date(Date.parse(`${end}T00:00:00Z`) - i * 86_400_000).toISOString().slice(0, 10))
   }
-  return result
+  return [...dates].sort().map((date) => map.get(date) ?? {
+    date, calls: 0, promptTokens: 0, completionTokens: 0, costMillicents: 0, costReportedCalls: 0,
+  })
 }
 
-export default function AiUsagePanel({ days: selectedDays }: { days?: number } = {}) {
+type Metric = 'cost' | 'calls' | 'tokens'
+interface AiUsagePanelProps {
+  days?: number
+  refreshKey?: number
+  onLoadingChange?: (loading: boolean) => void
+}
+
+export default function AiUsagePanel({ days = 30, refreshKey = 0, onLoadingChange }: AiUsagePanelProps = {}) {
   const [trend, setTrend] = useState<TrendPoint[]>([])
-  const [localDays] = useState(30)
-  const days = selectedDays ?? localDays
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [isOpen, setIsOpen] = useState(true)
+  const [retryKey, setRetryKey] = useState(0)
+  const [isOpen, setIsOpen] = useState(false)
+  const [metric, setMetric] = useState<Metric>('cost')
   const configured = useAiConfigured()
-
-  const loadTrend = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await aiApi.audit.trend(days)
-      setTrend(res.trend)
-      setError('')
-    } catch (err) {
-      setError((err as Error).message || '加载趋势失败')
-    } finally {
-      setLoading(false)
-    }
-  }, [days])
+  const chartId = useId()
 
   useEffect(() => {
-    void loadTrend()
-  }, [loadTrend])
+    let active = true
+    setLoading(true)
+    void aiApi.audit.trend(days).then((res) => {
+      if (!active) return
+      setTrend(res.trend)
+      setError('')
+    }).catch((err: unknown) => {
+      if (active) setError(err instanceof Error ? err.message : '加载用量失败')
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => { active = false }
+  }, [days, refreshKey, retryKey])
 
-  const totalCalls = trend.reduce((sum, d) => sum + d.calls, 0)
-  const totalCost = trend.reduce((sum, d) => sum + d.costMillicents, 0)
-  const totalTokens = trend.reduce((sum, d) => sum + d.promptTokens + d.completionTokens, 0)
-  const costReportedCalls = trend.reduce((sum, d) => sum + (d.costReportedCalls ?? d.calls), 0)
-  const totalCacheRead = trend.reduce((sum, d) => sum + (d.cacheReadTokens ?? 0), 0)
-  const totalCacheWrite = trend.reduce((sum, d) => sum + (d.cacheWriteTokens ?? 0), 0)
-  const cacheReadReportedCalls = trend.reduce((sum, d) => sum + (d.cacheReadReportedCalls ?? 0), 0)
-  const cacheWriteReportedCalls = trend.reduce((sum, d) => sum + (d.cacheWriteReportedCalls ?? 0), 0)
-  const avgCost = costReportedCalls > 0 ? totalCost / costReportedCalls : 0
+  useEffect(() => { onLoadingChange?.(loading) }, [loading, onLoadingChange])
 
-  // 图表数据：补齐缺失日期，让曲线连续
+  const retry = () => setRetryKey((value) => value + 1)
+  const totalCalls = trend.reduce((sum, point) => sum + point.calls, 0)
+  const totalCost = trend.reduce((sum, point) => sum + point.costMillicents, 0)
+  const totalTokens = trend.reduce((sum, point) => sum + point.promptTokens + point.completionTokens, 0)
+  const reportedCalls = trend.reduce((sum, point) => sum + (point.costReportedCalls ?? point.calls), 0)
+  const cacheRead = trend.reduce((sum, point) => sum + (point.cacheReadTokens ?? 0), 0)
+  const cacheWrite = trend.reduce((sum, point) => sum + (point.cacheWriteTokens ?? 0), 0)
+  const cacheReadReports = trend.reduce((sum, point) => sum + (point.cacheReadReportedCalls ?? 0), 0)
+  const cacheWriteReports = trend.reduce((sum, point) => sum + (point.cacheWriteReportedCalls ?? 0), 0)
+  const hasData = trend.length > 0
+  const unavailable = !hasData && (loading || Boolean(error))
+  const costMissing = totalCalls > 0 && reportedCalls === 0
+  const compactCost = totalCost > 0 && totalCost < 10 ? '<0.0001' : (totalCost / 100_000).toLocaleString('en-US', { maximumFractionDigits: 4 })
   const chartData = buildChartSeries(trend, days).map((point) => ({
     ...point,
     costMillicents: point.calls > 0 && point.costReportedCalls === 0 ? null : point.costMillicents,
   }))
 
-  const hasData = trend.length > 0
-  const isInitialFailed = !hasData && Boolean(error)
-  const isInitialLoading = !hasData && loading
-
   return (
-    <section className="calls-summary-card" aria-label="用量趋势与消耗总账">
-      {/* 暖纸总账卡卡头：支持整行轻触展开/折叠，右侧聚合大盘读数胶囊 */}
-      <div
-        className="calls-summary-card__header"
-        onClick={() => setIsOpen((prev) => !prev)}
-        role="button"
-        tabIndex={0}
-        aria-expanded={isOpen}
-        aria-controls="calls-summary-body"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setIsOpen((prev) => !prev)
-          }
-        }}
-      >
-        <div className="calls-summary-card__title-group">
-          <ChevronRight className={cn('calls-summary-card__chevron', isOpen && 'is-open')} aria-hidden="true" />
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="calls-summary-card__title">用量趋势与消耗</h3>
-              <span className="text-[11px] text-muted-foreground">
-                {isOpen ? '点击收起' : '点击展开'}
-              </span>
-            </div>
-            <p className="calls-summary-card__subtitle">最近 {days} 天大盘消耗分析与支出总账</p>
-          </div>
+    <section className={styles.summary} aria-label="AI 用量概览" aria-busy={loading}>
+      <div className={styles.summaryHeading}>
+        <div>
+          <h3>用量概览</h3>
+          <p>最近 {days} 天 · 全部调用{loading && hasData ? ' · 正在更新…' : ''}</p>
         </div>
-
-        <div
-          className="calls-summary-badges"
-          onClick={(e) => {
-            // 点击读数与操作区域阻止冒泡，避免误触卡片折叠
-            e.stopPropagation()
-          }}
-        >
-          {hasData && (
-            <>
-              <span className="calls-summary-badge">
-                调用 <strong>{totalCalls.toLocaleString()}</strong>
-              </span>
-              <span className="calls-summary-badge">
-                成本 <strong>{totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(totalCost)}</strong>
-              </span>
-              <span className="calls-summary-badge" title={`${totalTokens.toLocaleString()} Token`}>
-                Token <strong>{formatTokenCount(totalTokens)}</strong>
-              </span>
-            </>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 rounded-full"
-            onClick={(e) => {
-              e.stopPropagation()
-              void loadTrend()
-            }}
-            disabled={loading}
-            aria-label="刷新用量趋势"
-            title="刷新用量趋势"
-          >
-            <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} aria-hidden="true" />
-          </Button>
-        </div>
+        <Button variant="ghost" size="sm" disabled={!hasData} aria-expanded={isOpen} aria-controls={chartId} onClick={() => setIsOpen((value) => !value)}>
+          {isOpen ? '收起趋势' : '查看趋势'}
+          <ChevronRight className={cn(styles.chevron, isOpen && styles.rotated)} aria-hidden="true" />
+        </Button>
       </div>
-
-      {isOpen && (
-        <div id="calls-summary-body" className="calls-summary-card__body">
-          {isInitialLoading ? (
-            <LoadingState label="正在加载用量趋势" className="calls-chart-state" />
-          ) : isInitialFailed ? (
-            <ErrorState message={`用量趋势加载失败：${error}`} onRetry={() => void loadTrend()} className="calls-chart-state" />
-          ) : !hasData ? (
-            <AiPanelEmptyState
-              configured={configured}
-              unconfiguredMessage="尚未配置文本 AI 供应商，暂时没有用量可统计"
-              unconfiguredHint="配置文本供应商后，这里会显示调用次数、Token 与成本趋势。"
-              emptyMessage="所选范围内没有 AI 调用记录"
-              hint={`最近 ${days} 天内没有调用；可切换到 90 天再看看。`}
-            />
-          ) : (
-            <>
-              {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
-              <div className="calls-trend-grid">
-                {/* 成本与调用趋势 */}
-                <div className="calls-sub-card">
-                  <div className="calls-sub-card__header">
-                    <h4 className="calls-sub-card__title">成本与调用趋势</h4>
-                  </div>
-                  <div className="ai-usage-totals">
-                    <span>
-                      总调用次数 <strong>{totalCalls.toLocaleString()}</strong>
-                    </span>
-                    <span>
-                      {costReportedCalls < totalCalls ? '已回传成本' : '总预估成本'}{' '}
-                      <strong>{totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(totalCost)}</strong>
-                    </span>
-                    <span>
-                      平均单次成本 <strong>{totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(avgCost)}</strong>
-                    </span>
-                    {costReportedCalls < totalCalls && (
-                      <span className="ai-usage-totals__note">金额已回传 {costReportedCalls} / {totalCalls} 次</span>
-                    )}
-                  </div>
-                  <div className="calls-chart-body">
-                    <div className="calls-chart">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                          <CartesianGrid {...chartGrid} />
-                          <XAxis
-                            dataKey="date"
-                            tickFormatter={(date: string) => date.slice(5).replace('-', '/')}
-                            tick={chartTick}
-                            tickLine={false}
-                            axisLine={chartAxisLine}
-                            minTickGap={24}
-                          />
-                          <YAxis yAxisId="calls" orientation="right" tick={chartTick} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
-                          <YAxis yAxisId="cost" tick={chartTick} tickLine={false} axisLine={false} width={60} tickFormatter={(v: number) => formatCost(v)} />
-                          <Tooltip
-                            contentStyle={chartTooltipStyle}
-                            labelStyle={chartTooltipLabelStyle}
-                            formatter={(value, name) => {
-                              if (name === '成本') return [formatCost(Number(value)), name as string]
-                              return [Number(value).toLocaleString(), name as string]
-                            }}
-                          />
-                          <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
-                          <Bar yAxisId="calls" dataKey="calls" name="调用次数" fill="var(--admin-accent, #d97757)" radius={[3, 3, 0, 0]} opacity={0.16} />
-                          <Line yAxisId="cost" type="monotone" dataKey="costMillicents" name="成本" stroke="var(--admin-accent, #d97757)" strokeWidth={2} dot={false} />
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Token 消耗趋势 */}
-                <div className="calls-sub-card">
-                  <div className="calls-sub-card__header">
-                    <h4 className="calls-sub-card__title">Token 消耗趋势</h4>
-                  </div>
-                  <div className="ai-usage-totals">
-                    <span>
-                      总 Token <strong title={`${totalTokens.toLocaleString()} Token`}>{formatTokenCount(totalTokens)}</strong>
-                    </span>
-                    <span>
-                      缓存读取{' '}
-                      <strong title={totalCacheRead > 0 ? `${totalCacheRead.toLocaleString()} Token` : undefined}>
-                        {cacheReadReportedCalls === 0 && totalCalls > 0 ? '未回传' : formatTokenCount(totalCacheRead)}
-                      </strong>
-                    </span>
-                    <span>
-                      缓存写入{' '}
-                      <strong title={totalCacheWrite > 0 ? `${totalCacheWrite.toLocaleString()} Token` : undefined}>
-                        {cacheWriteReportedCalls === 0 && totalCalls > 0 ? '未回传' : formatTokenCount(totalCacheWrite)}
-                      </strong>
-                    </span>
-                    {totalCalls > 0 && (
-                      <span className="ai-usage-totals__note" title="仅汇总已回传字段的调用，缓存计数已包含在输入 Token 中">
-                        读取已回传 {cacheReadReportedCalls} / {totalCalls} 次 · 写入已回传 {cacheWriteReportedCalls} / {totalCalls} 次
-                      </span>
-                    )}
-                  </div>
-                  <div className="calls-chart-body">
-                    <div className="calls-chart">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="promptGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#4F7A52" stopOpacity={0.25} />
-                              <stop offset="95%" stopColor="#4F7A52" stopOpacity={0} />
-                            </linearGradient>
-                            <linearGradient id="completionGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#D97757" stopOpacity={0.25} />
-                              <stop offset="95%" stopColor="#D97757" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid {...chartGrid} />
-                          <XAxis
-                            dataKey="date"
-                            tickFormatter={(date: string) => date.slice(5).replace('-', '/')}
-                            tick={chartTick}
-                            tickLine={false}
-                            axisLine={chartAxisLine}
-                            minTickGap={24}
-                          />
-                          <YAxis
-                            tick={chartTick}
-                            tickLine={false}
-                            axisLine={false}
-                            width={50}
-                            tickFormatter={formatTokenCount}
-                          />
-                          <Tooltip
-                            contentStyle={chartTooltipStyle}
-                            labelStyle={chartTooltipLabelStyle}
-                            formatter={(value, name) => [Number(value).toLocaleString(), name as string]}
-                          />
-                          <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
-                          <Area
-                            type="monotone"
-                            dataKey="promptTokens"
-                            name="输入 Token"
-                            stroke="#4F7A52"
-                            strokeWidth={2}
-                            fill="url(#promptGradient)"
-                            stackId="tokens"
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="completionTokens"
-                            name="输出 Token"
-                            stroke="#D97757"
-                            strokeWidth={2}
-                            fill="url(#completionGradient)"
-                            stackId="tokens"
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+      <dl className={styles.metrics}>
+        <div>
+          <dt>调用次数</dt>
+          <dd>{unavailable ? '—' : totalCalls.toLocaleString()}<small>次</small></dd>
+          <p>所选时段的全部类型</p>
         </div>
-      )}
+        <div>
+          <dt>已回传成本</dt>
+          <dd title={costMissing ? undefined : formatCost(totalCost)} aria-label={unavailable ? '暂不可用' : costMissing ? '未回传' : `已回传成本 ${formatCost(totalCost)}`}>
+            {unavailable ? '—' : costMissing ? '未回传' : compactCost}
+          </dd>
+          <p>{unavailable ? '等待读取费用记录' : `金额已回传 ${reportedCalls} / ${totalCalls} 次`}</p>
+        </div>
+        <div>
+          <dt>Token 消耗</dt>
+          <dd title={totalTokens.toLocaleString()}>{unavailable ? '—' : formatTokenCount(totalTokens)}</dd>
+          <p>输入与输出合计</p>
+        </div>
+      </dl>
+      <p className={styles.note}>金额按上游回传值汇总，未统一币种；请在调用详情中核对币种与费用来源。</p>
+      {!hasData && loading ? <LoadingState label="正在加载用量" />
+        : !hasData && error ? <ErrorState message={`用量加载失败：${error}`} onRetry={retry} />
+        : !hasData ? <AiPanelEmptyState configured={configured} unconfiguredMessage="尚未配置文本 AI 供应商，暂时没有用量可统计" unconfiguredHint="配置文本供应商后，这里会显示调用次数、Token 与成本趋势。" emptyMessage="所选范围内没有 AI 调用记录" hint={`最近 ${days} 天内没有调用；可切换其他时间范围。`} />
+        : error ? <InlineError message={`用量更新失败，保留上次结果：${error}`} onRetry={retry} /> : null}
+      <div id={chartId} hidden={!isOpen}>
+        {isOpen && hasData && (
+          <Tabs value={metric} onValueChange={(value) => setMetric(value as Metric)} className={styles.trend}>
+            <div className={styles.trendHeading}>
+              <h4>每日用量趋势</h4>
+              <TabsList aria-label="用量趋势指标">
+                <TabsTrigger value="cost">成本</TabsTrigger>
+                <TabsTrigger value="calls">调用</TabsTrigger>
+                <TabsTrigger value="tokens">Token</TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value={metric}>
+              <div className={styles.chart} role="group" aria-label={`最近 ${days} 天的${metric === 'cost' ? '已回传成本' : metric === 'calls' ? '调用次数' : '输入与输出 Token'}趋势图，可用键盘方向键浏览每日数据`}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={chartData} accessibilityLayer margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid {...chartGrid} />
+                    <XAxis dataKey="date" tickFormatter={(date: string) => date.slice(5).replace('-', '/')} tick={chartTick} tickLine={false} axisLine={chartAxisLine} minTickGap={28} />
+                    <YAxis tick={chartTick} tickLine={false} axisLine={false} width={metric === 'cost' ? 76 : 52} allowDecimals={metric === 'cost'} tickFormatter={metric === 'cost' ? formatCost : formatTokenCount} />
+                    <Tooltip contentStyle={chartTooltipStyle} labelStyle={chartTooltipLabelStyle} formatter={(value, name) => [metric === 'cost' ? formatCost(Number(value)) : Number(value).toLocaleString(), name as string]} />
+                    {metric === 'cost' && <Area type="monotone" dataKey="costMillicents" name="已回传成本" stroke="var(--accent)" fill="var(--accent)" fillOpacity={0.08} strokeWidth={2} connectNulls={false} isAnimationActive={false} />}
+                    {metric === 'calls' && <Bar dataKey="calls" name="调用次数" fill="var(--accent)" fillOpacity={0.55} radius={[3, 3, 0, 0]} isAnimationActive={false} />}
+                    {metric === 'tokens' && <>
+                      <Legend wrapperStyle={chartLegendStyle} iconType="plainline" />
+                      <Area type="monotone" dataKey="promptTokens" name="输入 Token" stroke="var(--accent)" fill="var(--accent)" fillOpacity={0.1} strokeWidth={2} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="completionTokens" name="输出 Token" stroke="var(--text-muted)" strokeDasharray="4 3" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    </>}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              <p className={styles.note}>{metric === 'cost'
+                ? `仅统计已回传金额，平均每次 ${reportedCalls ? formatCost(totalCost / reportedCalls) : '未回传'}；币种以单条详情为准。`
+                : metric === 'tokens'
+                  ? `缓存读取 ${cacheReadReports ? formatTokenCount(cacheRead) : '未回传'}（${cacheReadReports} 次回传） · 缓存写入 ${cacheWriteReports ? formatTokenCount(cacheWrite) : '未回传'}（${cacheWriteReports} 次回传）。缓存已包含在输入 Token 中。`
+                  : '按日汇总全部类型调用，记录列表可进一步按类型筛选。'}</p>
+            </TabsContent>
+          </Tabs>
+        )}
+      </div>
     </section>
   )
 }
-

@@ -4,26 +4,11 @@
    ============================================================ */
 
 /* --- 单元格文本：单行截断 + 完整值可达 -------------------------------
-   消费者：AdminCellText 组件（AdminWorkspace）。
+   消费者：CellText 组件（AdminWorkspace）。
    td 是 overflow: hidden，长书名会被静默裁掉；这里让文本自己承担截断，
    至少给出省略号。min-width: 0 是必须的：td 在 table-layout: fixed 下
    仍会给内容 min-content 下限，不加这一条长英文串（无空格）会把列撑开，
    百分比列宽的契约随即失效。 */
-.admin-cell-text {
-  display: inline-block;
-  max-width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
-}
-
-.admin-cell-text--strong {
-  font-size: var(--admin-table-title-size);
-  font-weight: 650;
-  color: var(--text-primary);
-}
 
 /* --- 字阶层级落地 ----------------------------------------------------
    引用 tokens.css 的 --admin-table-* 档位。此前表头、单元格、行标题的
@@ -44,7 +29,7 @@
 /* 行主字段：比单元格大一档并加粗。主字段是「这一行是什么」的答案，
    必须能在纵向扫读第一列时被立刻抓住。 */
 :is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td[data-primary] strong,
-:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td[data-primary] > .admin-cell-text--strong {
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr > td[data-primary] > .cell-text--strong {
   font-size: var(--admin-table-title-size);
 }
 
@@ -59,7 +44,7 @@
      布局、宽度充足，继续截断只会白丢信息——操作员在手机上恰好最需要
      看清完整书名。td 本身在该断点已是 height:auto + overflow:visible
      （见上方卡片规则），这里只需放开文本自己的 nowrap。 */
-  .admin-data-panel--grid tbody td .admin-cell-text {
+  .admin-data-panel--grid tbody td .cell-text {
     display: block;
     overflow: visible;
     white-space: normal;
@@ -82,115 +67,16 @@
    hint 比 message 再弱一档（更小、更淡），保证结论先被读到。
    最宽 32rem：空状态文案经常是整句中文，不设上限在宽面板里会拉成超长单行，
    眼睛要横穿 1400px 才能读完。 */
-.admin-empty-state__message {
-  font-family: var(--font-serif);
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-
-.admin-empty-state > svg {
-  color: var(--admin-accent);
-  opacity: 0.65;
-  filter: drop-shadow(0 2px 8px rgba(217, 119, 87, 0.15));
-}
 
 /* 首屏读取失败与抓取任务使用同一居中空态；原因文字保持次级色，仅图标表达错误。 */
-.admin-read-error {
-  min-height: 14rem;
-  padding: 2.5rem 1.25rem;
-  color: var(--color-danger);
-}
-
-.admin-read-error > svg {
-  color: var(--color-danger);
-  opacity: 0.7;
-  filter: none;
-}
-
-.admin-read-error .admin-empty-state__message {
-  max-width: 48rem;
-  overflow-wrap: anywhere;
-  color: var(--text-primary);
-}
-
-.admin-empty-state__hint {
-  max-width: 32rem;
-  margin-top: -0.25rem;
-  font-size: var(--admin-table-cell-size);
-  line-height: 1.65;
-  color: var(--text-muted);
-}
 
 /* 紧凑工具面板：适用于配置导入/导出等少量次级操作。桌面端让工作对象与
    操作留在同一行；区块间距由 AdminPage 父级网格负责，面板本身不叠加外边距。 */
-.admin-redesign-page .admin-utility-panel {
-  display: flex;
-  min-height: 4.75rem;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--admin-space-4);
-  margin: 0;
-  padding: var(--admin-space-3) var(--admin-space-5);
-}
-
-.admin-redesign-page .admin-utility-panel > .admin-panel-heading {
-  flex: 0 0 auto;
-  padding: 0;
-}
-
-.admin-redesign-page .admin-utility-panel__actions {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: var(--admin-space-2);
-  margin: 0;
-  padding: 0;
-}
 
 @media (max-width: 640px) {
-  .admin-redesign-page .admin-utility-panel {
-    min-height: 0;
-    align-items: stretch;
-    flex-direction: column;
-    gap: var(--admin-space-3);
-    padding: var(--admin-space-4);
-  }
-
-  .admin-redesign-page .admin-utility-panel__actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
 }
 
 /* ——— 骨架屏：Claude 象牙暖光微呼吸渐变 ——— */
-.admin-loading-skeleton__bar {
-  background: linear-gradient(
-    90deg,
-    var(--admin-panel-muted) 0%,
-    color-mix(in srgb, var(--admin-panel-muted) 65%, var(--admin-accent-subtle)) 50%,
-    var(--admin-panel-muted) 100%
-  );
-  background-size: 200% 100%;
-  animation: admin-shimmer 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes admin-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .admin-loading-skeleton__bar {
-    animation: none;
-    background: var(--admin-panel-muted);
-  }
 }
