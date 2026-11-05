@@ -1,5 +1,5 @@
 import userEvent from '@testing-library/user-event'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,6 +53,13 @@ describe('WorkspaceShell account and navigation', () => {
     mocks.useContentPolicy.mockReturnValue({ mode: 'safe', setMode: vi.fn(), adultContentEnabled: false })
     mocks.useToast.mockReturnValue({ toast: vi.fn() })
     mocks.useConfirm.mockReturnValue({ confirm: vi.fn() })
+  })
+
+  it('登录后的手机页头同时保留主题和导航入口', () => {
+    const { container } = render(<MemoryRouter><WorkspaceShell><main>内容</main></WorkspaceShell></MemoryRouter>)
+    const mobileHeader = container.querySelector('header')!
+    expect(within(mobileHeader).getByRole('button', { name: '主题设置' })).toBeInTheDocument()
+    expect(within(mobileHeader).getByRole('button', { name: '打开导航' })).toBeInTheDocument()
   })
 
   it('站点页头的头像也打开共享账户菜单', async () => {

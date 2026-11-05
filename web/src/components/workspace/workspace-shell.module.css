@@ -418,6 +418,12 @@
 .quicknav {
   display: none;
 }
+.mobileHeaderActions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
+}
 .skip {
   position: fixed;
   left: 20px;
@@ -546,6 +552,8 @@
   }
   .mobileHeader .brand {
     min-height: 0;
+    min-width: 0;
+    flex: 1 1 auto;
     padding: 0;
   }
   .mobileHeader .brand small {
