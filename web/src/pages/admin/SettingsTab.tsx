@@ -37,6 +37,7 @@ import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import { SearchField } from '@/components/shared/SearchField'
 import SearchSelect from '@/components/shared/SearchSelect'
 import { cn } from '@/lib/utils'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import Pagination from '@/components/shared/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -824,7 +825,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                   <TableHead scope="col">操作</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody key={inviteLimit}>
                 {pageInvites.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5}>
@@ -836,11 +837,11 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pageInvites.map((i) => {
+                  pageInvites.map((i, index) => {
                     const used = i.usedAt > 0
                     const disabled = i.disabledAt > 0
                     return (
-                      <TableRow key={i.code}>
+                      <TableRow key={i.code} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, pageInvites.length)}ms` }}>
                         <TableCell data-primary="" data-label="邀请码">
                           <code className="account-record-code">{i.code}</code>
                         </TableCell>

@@ -22,6 +22,7 @@ import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import { SearchField } from '@/components/shared/SearchField'
 import SearchSelect from '@/components/shared/SearchSelect'
 import { cn } from '@/lib/utils'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import Pagination from '@/components/shared/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE } from '@/lib/admin-pagination'
 
@@ -230,7 +231,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
               ))}
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody key={limit}>
             {!users.length ? (
               <TableRow>
                 <TableCell colSpan={5}>
@@ -244,11 +245,11 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((user) => {
+              users.map((user, index) => {
                 const self = user.id === selfId
                 const busy = pendingUsers.has(user.id) || (saving && target?.id === user.id)
                 return (
-                  <TableRow key={user.id}>
+                  <TableRow key={user.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, users.length)}ms` }}>
                     <TableCell data-primary="" data-label="用户">
                       <div className="account-user-identity">
                         <UserAvatar className="account-user-avatar" name={user.displayName || user.username} src={user.avatarUrl} />

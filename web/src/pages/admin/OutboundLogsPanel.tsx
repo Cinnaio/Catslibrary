@@ -100,7 +100,7 @@ export default function OutboundLogsPanel() {
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody key={logs.length}>
+            <TableBody>
               {logs.map((log, index) => (
                 <TableRow key={log.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, logs.length)}ms` }}>
                   <TableCell data-label="时间" className="whitespace-nowrap text-xs text-muted-foreground">

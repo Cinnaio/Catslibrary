@@ -361,7 +361,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
               </TableHeader>
               <TableBody key={limit}>
                 {displayTasks.map((task, index) => (
-                  <TableRow key={task.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, tasks.length)}ms` }}>
+                  <TableRow key={task.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, displayTasks.length)}ms` }}>
                     <TableCell data-primary="" data-label="作品 / 类型">
                       <strong className="task-workspace-title font-medium">
                         {task.novelTitle || taskKindLabel(task.kind)}

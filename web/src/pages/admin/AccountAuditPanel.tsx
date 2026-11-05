@@ -15,6 +15,7 @@ import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import { SearchField } from '@/components/shared/SearchField'
 import SearchSelect from '@/components/shared/SearchSelect'
 import { cn } from '@/lib/utils'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import Pagination from '@/components/shared/Pagination'
 import { ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 
@@ -261,7 +262,7 @@ export default function AccountAuditPanel({
               ))}
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody key={limit}>
             {!records.length ? (
               <TableRow>
                 <TableCell colSpan={columns.length}>
@@ -279,12 +280,12 @@ export default function AccountAuditPanel({
                 </TableCell>
               </TableRow>
             ) : (
-              records.map((record) => {
+              records.map((record, index) => {
                 const operation = 'operationId' in record
                 const name = operation ? record.actorDisplayName || record.actorUsername || '未知管理员' : record.displayName || record.username || '未知用户'
                 const username = operation ? record.actorUsername : record.username
                 return (
-                  <TableRow key={record.id}>
+                  <TableRow key={record.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, records.length)}ms` }}>
                     <TableCell data-primary="" data-label={operation ? '操作人' : '用户'}>
                       <div className="account-user-identity">
                         <UserAvatar name={name} src={operation ? record.actorAvatarUrl : record.avatarUrl} />

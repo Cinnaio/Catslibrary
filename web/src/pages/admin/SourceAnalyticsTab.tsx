@@ -566,7 +566,7 @@ export default function SourceAnalyticsTab(_props: { highlightNovelId?: string; 
                         <TableHead className="text-right pr-6">操作</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <TableBody key={data.limit}>
                       {!data.books.length ? (
                         <TableRow>
                           <TableCell colSpan={7}>

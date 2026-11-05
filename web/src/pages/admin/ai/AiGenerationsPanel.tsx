@@ -22,6 +22,7 @@ import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import SearchSelect from "@/components/shared/SearchSelect"
 import { cn } from '@/lib/utils'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminModelTime from '@/components/admin/AdminModelTime'
 import AdminRowActions from '@/components/admin/AdminRowActions'
@@ -603,10 +604,10 @@ export default function AiGenerationsPanel(props: {
                   <TableHead scope="col" className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                  {items.map((item) => (
+              <TableBody key={limit}>
+                  {items.map((item, index) => (
                     <Fragment key={item.id}>
-                      <TableRow className="ai-generation-row" data-focus-batch={item.groupItems ? item.batchId : undefined}>
+                      <TableRow style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, items.length)}ms` }} className="ai-generation-row" data-focus-batch={item.groupItems ? item.batchId : undefined}>
                         <TableCell data-primary="" data-label="关联内容">
                           <div className="ai-generation-identity">
                             <Checkbox
@@ -759,12 +760,13 @@ export default function AiGenerationsPanel(props: {
                         </TableCell>
                       </TableRow>
                       {item.groupItems && expandedBatchId === item.id &&
-                        item.groupItems.map((chapter) => {
+                        item.groupItems.map((chapter, chapterIndex) => {
                           const wordCount = generationWordCount(chapter.result)
                           const isChapterChecked = selectedIds.has(chapter.id)
                           return (
                             <TableRow
                               key={chapter.id}
+                              style={{ animationDelay: `${getAdminTableRowStaggerDelay(chapterIndex, item.groupItems!.length)}ms` }}
                               className="ai-generation-row ai-generation-row--child"
                               data-child-of={item.id}
                             >

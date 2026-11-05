@@ -1,4 +1,5 @@
 import '@/styles/input-fields.css'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Pin, Trash2, RefreshCw, Plus } from 'lucide-react'
@@ -352,8 +353,8 @@ export default function BackupsTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody key={page}>
-                    {list.items.map((version) => (
-                      <TableRow key={version.id}>
+                    {list.items.map((version, index) => (
+                      <TableRow key={version.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, list.items.length)}ms` }}>
                         <TableCell data-primary data-label="版本">
                           <div className="backup-cell">
                             <strong className={styles.versionName}>{versionLabel(version)}</strong>
