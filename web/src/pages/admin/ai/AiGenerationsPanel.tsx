@@ -3,7 +3,7 @@ import WritingQualityNotice from './WritingQualityNotice'
 import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import PublishedMemoryUpdate from './PublishedMemoryUpdate'
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
-import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import { ReadingDialog, ReadingDialogDisclosure, ReadingDialogEditor, ReadingDialogText, ReadingDialogToolbar } from '@/components/shared/ReadingDialog'
 import FormField from "@/components/shared/FormField"
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -29,10 +29,10 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
+import { Dialog } from '@/components/ui/dialog'
 import { kindLabel } from './labels'
 import { useDebouncedValue } from '@/hooks/useDebounce'
+import styles from './AiGenerationDialog.module.css'
 
 interface AiGenerationListItem {
   id: string
@@ -862,6 +862,7 @@ export default function AiGenerationsPanel(props: {
         open={!!viewing}
         onOpenChange={(open) => {
           if (!open) {
+            if (savingEdit || publishing || generatingTitles) return
             setViewing(null)
             setPublishTitle('')
             setTitleCandidates([])
@@ -870,167 +871,146 @@ export default function AiGenerationsPanel(props: {
           }
         }}
       >
-        <DialogFrame
-          variant="reading"
-          size="wide"
-          fixedHeight
-          className="content-ratings-dialog ai-generation-modal sm:max-w-3xl"
+        <ReadingDialog
+          showCloseButton={!savingEdit && !publishing && !generatingTitles}
+          title={viewing?.novelTitle || '未关联作品'}
+          description={viewing?.draftTitle || viewing?.chapterTitle || '未关联章节'}
+          bodyLabel="生成内容"
+          eyebrow={viewing && (
+            <>
+              <span>{kindLabel(viewing.kind)}</span>
+              <AdminStatusBadge tone={viewing.status === 'draft' ? 'accent' : viewing.status === 'published' ? 'success' : 'muted'}>
+                {generationStatusLabel(viewing.status)}
+              </AdminStatusBadge>
+            </>
+          )}
+          footer={viewing && viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
+            <div className={styles.publishRow}>
+              <FormField label="发布章节标题" htmlFor="generation-publish-title" className={styles.publishField}>
+                <Input
+                  id="generation-publish-title"
+                  value={publishTitle}
+                  disabled={publishing}
+                  onChange={(event) => setPublishTitle(event.target.value)}
+                  placeholder="例如：第十二章 暴雨前夜"
+                />
+                <div className={styles.titleOptions}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={generatingTitles || publishing}
+                    onClick={() => void generateTitles(viewing)}
+                  >
+                    <Sparkles className="size-3 mr-1 text-accent" aria-hidden="true" />
+                    {generatingTitles ? '生成中…' : 'AI 生成标题'}
+                  </Button>
+                  {titleCandidates.map((candidate) => (
+                    <Button
+                      key={candidate}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className={styles.titleCandidate}
+                      disabled={publishing}
+                      onClick={() => setPublishTitle(candidate)}
+                      title={`使用标题：${candidate}`}
+                    >
+                      {candidate}
+                    </Button>
+                  ))}
+                </div>
+              </FormField>
+              <Button
+                className={styles.publishSubmit}
+                disabled={publishing || generatingTitles || !publishTitle.trim()}
+                onClick={() => void publish(viewing)}
+              >
+                {publishing ? '发布中…' : '发布为正式章节'}
+              </Button>
+            </div>
+          )}
         >
-          <DialogHeader>
-            <DialogTitle>{viewing ? `${kindLabel(viewing.kind)} · 完整内容` : '完整内容'}</DialogTitle>
-            <DialogDescription>仅管理员可查看 AI 生成的完整内容。</DialogDescription>
-          </DialogHeader>
           {viewing && (
             <>
               {/* 中间区是唯一的滚动所有者，发布区常驻可见 */}
-              <DialogBody className="ai-generation-modal__body flex min-h-0 flex-1 flex-col gap-3.5 pr-0.5">
-                {editingText === null && <WritingQualityNotice quality={viewing.quality} />}
-                {viewing.prompt && (
-                  <details className="ai-generation-prompt-card group shrink-0">
-                    <summary className="ai-generation-prompt-card__summary">
-                      <div className="ai-generation-prompt-card__title">
-                        <Sparkles className="size-3.5 text-accent" aria-hidden="true" />
-                        <span>本次生成 Prompt</span>
-                      </div>
-                      <ChevronDown
-                        className="size-3.5 text-muted-foreground transition-transform duration-200 group-open:rotate-180"
-                        aria-hidden="true"
-                      />
-                    </summary>
-                    <div className="ai-generation-prompt-card__content">
-                      <pre className="ai-generation-prompt-card__pre">
-                        {viewing.prompt}
-                      </pre>
-                    </div>
-                  </details>
-                )}
+              {editingText === null && <WritingQualityNotice quality={viewing.quality} />}
 
-                <div className="ai-generation-body-toolbar shrink-0">
-                  <div className="ai-generation-body-toolbar__lead">
-                    <span className="ai-generation-body-toolbar__title">生成正文</span>
-                    <span className="ai-generation-body-toolbar__badge">
-                      约 {(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length.toLocaleString()} 字
-                    </span>
-                  </div>
-                  {viewing.status === 'draft' &&
-                    EDITABLE_KINDS.has(viewing.kind) &&
-                    (editingText === null ? (
+              <ReadingDialogToolbar
+                label="生成内容"
+                meta={`约 ${(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length.toLocaleString()} 字`}
+                actions={viewing.status === 'draft' &&
+                  EDITABLE_KINDS.has(viewing.kind) &&
+                  (editingText === null ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingText(viewing.result)}
+                    >
+                      编辑正文
+                    </Button>
+                  ) : (
+                    <>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="h-7 rounded-full px-3 text-xs border-admin-border text-muted-foreground hover:border-accent hover:text-accent"
-                        onClick={() => setEditingText(viewing.result)}
+                        disabled={savingEdit}
+                        onClick={() => setEditingText(null)}
                       >
-                        编辑正文
+                        取消
                       </Button>
-                    ) : (
-                      <div className="ai-generation-body-toolbar__actions">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 rounded-full px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                          disabled={savingEdit}
-                          onClick={() => setEditingText(null)}
-                        >
-                          取消
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="content-ratings-edit-button h-7 rounded-full px-3 text-xs"
-                          disabled={savingEdit || !editingText.trim()}
-                          onClick={() => void saveEdit(viewing)}
-                        >
-                          {savingEdit ? '保存中…' : '保存草稿'}
-                        </Button>
-                      </div>
-                    ))}
-                </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={savingEdit || !editingText.trim()}
+                        onClick={() => void saveEdit(viewing)}
+                      >
+                        {savingEdit ? '保存中…' : '保存草稿'}
+                      </Button>
+                    </>
+                  ))}
+              />
 
-                {editingText === null ? (
-                  <div className="ai-generation-reading-paper">
-                    {viewing.result || '暂无内容'}
-                  </div>
-                ) : (
-                  <Textarea
-                    className="ai-generation-reading-textarea field-sizing-fixed resize-y shadow-none"
-                    value={editingText}
-                    onChange={(event) => setEditingText(event.target.value)}
-                    disabled={savingEdit}
+              {editingText === null ? (
+                <ReadingDialogText>
+                  {viewing.result || '暂无内容'}
+                </ReadingDialogText>
+              ) : (
+                <ReadingDialogEditor
+                  aria-label="编辑生成正文"
+                  value={editingText}
+                  onChange={(event) => setEditingText(event.target.value)}
+                  disabled={savingEdit}
+                />
+              )}
+
+              {viewing.prompt && (
+                <ReadingDialogDisclosure key={viewing.id} label="生成依据" hint="Prompt">
+                  {viewing.prompt}
+                </ReadingDialogDisclosure>
+              )}
+
+              {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
+                <>
+                  <DraftReview draftId={viewing.id} contentRevision={viewing.contentRevision || ''} disabled={publishing} />
+                  <DraftRewrite
+                    draftId={viewing.id}
+                    content={viewing.result}
+                    contentRevision={viewing.contentRevision || ''}
+                    onApplied={({ result, contentRevision }) => {
+                      setViewing((current) => (current ? { ...current, result, contentRevision } : current))
+                      void refreshViewing()
+                      void load()
+                    }}
+                    onStale={() => void refreshViewing()}
                   />
-                )}
-
-                {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
-                  <>
-                    <DraftReview draftId={viewing.id} contentRevision={viewing.contentRevision || ''} disabled={publishing} />
-                    <DraftRewrite
-                      draftId={viewing.id}
-                      content={viewing.result}
-                      contentRevision={viewing.contentRevision || ''}
-                      onApplied={({ result, contentRevision }) => {
-                        setViewing((current) => (current ? { ...current, result, contentRevision } : current))
-                        void refreshViewing()
-                        void load()
-                      }}
-                      onStale={() => void refreshViewing()}
-                    />
-                  </>
-                )}
-              </DialogBody>
-
-              {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
-                <div className="ai-generation-publish shrink-0">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                    <FormField label="发布章节标题" htmlFor="generation-publish-title" className="ai-generation-publish__field min-w-0 flex-1">
-                      <Input
-                        id="generation-publish-title"
-                        className="h-10 rounded-full"
-                        value={publishTitle}
-                        onChange={(event) => setPublishTitle(event.target.value)}
-                        placeholder="例如：第十二章 暴雨前夜"
-                      />
-                      <div className="ai-generation-title-options flex flex-wrap items-center gap-1.5 pt-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 rounded-full px-2.5 text-xs border-admin-border text-muted-foreground hover:border-accent hover:text-accent"
-                          disabled={generatingTitles}
-                          onClick={() => void generateTitles(viewing)}
-                        >
-                          <Sparkles className="size-3 mr-1 text-accent" aria-hidden="true" />
-                          {generatingTitles ? '生成中…' : 'AI 生成标题'}
-                        </Button>
-                        {titleCandidates.map((candidate) => (
-                          <Button
-                            key={candidate}
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="ai-generation-title-candidate max-w-full"
-                            onClick={() => setPublishTitle(candidate)}
-                            title={`使用标题：${candidate}`}
-                          >
-                            {candidate}
-                          </Button>
-                        ))}
-                      </div>
-                    </FormField>
-                    <Button
-                      className="ai-generation-publish__submit h-10 w-full shrink-0 md:w-auto"
-                      disabled={publishing || !publishTitle.trim()}
-                      onClick={() => void publish(viewing)}
-                    >
-                      {publishing ? '发布中…' : '发布为正式章节'}
-                    </Button>
-                  </div>
-                </div>
+                </>
               )}
             </>
           )}
-        </DialogFrame>
+        </ReadingDialog>
       </Dialog>
     </div>
   )

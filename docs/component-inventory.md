@@ -1,6 +1,8 @@
 # 生产组件归属清单
 
-由 `node scripts/check-web-components.mjs --inventory` 从当前源码生成；104 个组件文件，248 个生产源码模块。使用方数量包含开发展厅，不包含测试。表格记录保留或迁移依据，不表示所有控件需要重写；组件内部页面级子组件按所属页面／工作流保留。
+2026-11-05 阅读优先布局归入 `shared/ReadingDialog` 及其 CSS Module，集中维护标题、工具栏、正文／编辑框、辅助长文折叠和底部插槽，AI 生成内容与组件展厅直接使用同一生产实现；AI 模块只保留发布表单布局和业务状态。共享层不引用 AI、后台数据或业务接口，退出旧 AI 全局弹窗皮肤。
+
+基于 `node scripts/check-web-components.mjs --inventory` 的清单补充阅读弹窗归属；105 个组件文件，249 个生产源码模块。使用方数量包含开发展厅，不包含测试。表格记录保留或迁移依据，不表示所有控件需要重写；组件内部页面级子组件按所属页面／工作流保留。
 
 2026-11-05 代理设置页面的布局、诊断结果与帮助区域由 `pages/admin/scrape/proxy.module.css` 持有，字段、按钮、加载反馈和分区标题继续复用生产共享组件；移除旧代理页面样式及全局兼容选择器。
 
@@ -66,6 +68,7 @@
 | `components/shared/FormField.tsx` | 通用组合 | 18 | `components/shared/FormField.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/Pagination.tsx` | 通用组合 | 19 | `components/shared/Pagination.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/PanelHeading.tsx` | 通用组合 | 8 | `components/shared/PanelHeading.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/ReadingDialog.tsx` | 通用组合 | 2 | `components/shared/ReadingDialog.module.css` | 共享：正文优先的阅读窗及工具栏、正文、编辑框、辅助折叠；业务由调用方传入 |
 | `components/shared/SearchField.tsx` | 通用组合 | 12 | `components/shared/SearchField.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/SearchSelect.tsx` | 通用组合 | 30 | `styles/select-fields.css`、`components/shared/SearchSelect.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/TimeField.tsx` | 通用组合 | 2 | `components/shared/TimeField.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
