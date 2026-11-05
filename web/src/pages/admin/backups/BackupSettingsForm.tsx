@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { BackupSettings, BackupSettingsInput, BackupSettingsPage } from '@shared/backups'
 import { useToast } from '@/components/feedback'
 import { backupsApi } from '@/lib/backups-api'
@@ -15,10 +15,14 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 export default function BackupSettingsForm({
   page,
   disabled,
+  active = true,
+  onDirtyChange,
   onSaved,
 }: {
   page: BackupSettingsPage
   disabled: boolean
+  active?: boolean
+  onDirtyChange?: (dirty: boolean) => void
   onSaved: (value: BackupSettings) => void
 }) {
   const { toast } = useToast()
@@ -48,17 +52,21 @@ export default function BackupSettingsForm({
     (draft.rehearsalSource === 'custom' && Boolean(connection))
   const dirty = policyDirty
   const locked = busy || disabled
-  function reset() {
-    setDraft({
-      revision: settings.revision,
-      hostSource: settings.hostSource,
-      allowedHosts: settings.allowedHosts,
-      rehearsalSource: settings.rehearsalSource,
-      retryLimit: settings.retryLimit,
-      logRetentionDays: settings.logRetentionDays,
-    })
-    setHosts(settings.allowedHosts.join('\n'))
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => {
+    if (!dirty && initialSettings.revision >= settings.revision && JSON.stringify(initialSettings) !== JSON.stringify(settings)) {
+      applySettings(initialSettings)
+    }
+  }, [initialSettings, settings, dirty])
+  useEffect(() => { setEncryptionReady(deployment.encryption) }, [deployment.encryption])
+  function applySettings(value: BackupSettings) {
+    setSettings(value)
+    setDraft({ revision: value.revision, hostSource: value.hostSource, allowedHosts: value.allowedHosts, rehearsalSource: value.rehearsalSource, retryLimit: value.retryLimit, logRetentionDays: value.logRetentionDays })
+    setHosts(value.allowedHosts.join('\n'))
     setConnection('')
+  }
+  function reset() {
+    applySettings(initialSettings.revision >= settings.revision ? initialSettings : settings)
     setError('')
     setNotice('')
   }
@@ -87,6 +95,7 @@ export default function BackupSettingsForm({
   }
   async function save(event: FormEvent) {
     event.preventDefault()
+    if (locked) return
     setBusy(true)
     setError('')
     try {
@@ -98,7 +107,7 @@ export default function BackupSettingsForm({
           .filter(Boolean),
         ...(draft.rehearsalSource === 'custom' && connection ? { rehearsalUrl: connection } : {}),
       })
-      setConnection('')
+      applySettings(value)
       toast('备份设置已保存', 'success')
       onSaved(value)
     } catch (error) {
@@ -206,6 +215,7 @@ export default function BackupSettingsForm({
           {/* 上半部：底层运行环境与工具链（嵌入模式） */}
           <BackupDeploymentPanel
             embedded
+            active={active}
             deployment={deployment}
             disabled={locked}
             onSaved={(value) => {
@@ -213,9 +223,6 @@ export default function BackupSettingsForm({
               if (!policyDirty) onSaved(settings)
             }}
           />
-
-          {/* 优雅细分割线 */}
-          <div className="backup-section-divider" />
 
           {/* 下半部：灾备恢复演练沙箱 */}
           <div className="backup-rehearsal-section">
@@ -227,6 +234,7 @@ export default function BackupSettingsForm({
             <div className="backup-fields">
               <BackupRehearsalPanel
                 settings={settings}
+                active={active}
                 disabled={locked}
                 onBusyChange={setBusy}
                 onRemoved={(value) => {
@@ -312,7 +320,9 @@ export default function BackupSettingsForm({
         </p>
       )}
 
-      {/* Claude 标准悬浮胶囊保存操作岛 */}
+      {dirty && initialSettings.revision > settings.revision && <p role="status" className="backup-error">设置已更新，当前草稿保留原修订号。请撤销修改读取最新设置后再编辑。</p>}
+      {/* 只有未保存修改时显示保存动作。 */}
+      {dirty ?
       <AdminFloatingDock reserveSpace role="region" aria-label="备份设置保存" data-state="open">
         <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
           {disabled ? '恢复期间暂时不能修改设置' : dirty ? '有未保存的修改' : '设置已保存；新任务使用当前配置'}
@@ -325,7 +335,7 @@ export default function BackupSettingsForm({
             {busy ? '验证并保存中…' : '保存设置'}
           </Button>
         </div>
-      </AdminFloatingDock>
+      </AdminFloatingDock> : <p className="backup-hint">{disabled ? '恢复期间暂时不能修改设置' : '设置已保存；新任务使用当前配置'}</p>}
     </form>
   )
 }

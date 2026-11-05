@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { BackupDeployment, BackupSettingsPage, BackupToolName } from '@shared/backups'
 import { useToast } from '@/components/feedback'
@@ -25,10 +25,12 @@ export default function BackupDeploymentPanel({
   deployment,
   disabled,
   embedded = false,
+  active = true,
   onSaved,
 }: {
   deployment: BackupSettingsPage['deployment']
   disabled: boolean
+  active?: boolean
   embedded?: boolean
   onSaved: (value: BackupDeployment) => void
 }) {
@@ -47,6 +49,12 @@ export default function BackupDeploymentPanel({
   const locked = busy || disabled
   const dirty =
     Boolean(masterKey.trim()) || persistCurrentKey || Object.entries(paths).some(([name, path]) => path !== pathsOf(runtime)[name as BackupToolName])
+  useEffect(() => {
+    if (!dirty && !busy && !editor && (deployment.runtime?.revision ?? -1) > (runtime?.revision ?? -1)) {
+      setRuntime(deployment.runtime)
+      setPaths(pathsOf(deployment.runtime))
+    }
+  }, [deployment.runtime, runtime, dirty, busy, editor])
   const activeTools: BackupToolName[] = editor === 'restore' ? ['restore', 'psql'] : editor && editor !== 'key' ? [editor] : []
   const input = () => ({
     revision: runtime?.revision || 0,
@@ -179,7 +187,7 @@ export default function BackupDeploymentPanel({
           </p>
         )}
         <Dialog
-          open={editor !== null}
+          open={editor !== null && active}
           onOpenChange={(value) => {
             if (!value) close()
           }}

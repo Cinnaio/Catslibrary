@@ -1,5 +1,5 @@
 import '@/styles/input-fields.css'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { BackupPolicy, BackupTarget, BackupTargetInput } from '@shared/backups'
 import { useToast } from '@/components/feedback'
 import { backupsApi } from '@/lib/backups-api'
@@ -180,19 +180,31 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
     </form>
   )
 }
-export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy; targets: BackupTarget[]; onSaved: () => void }) {
+export function PolicyForm({ policy, targets, disabled = false, onDirtyChange, onSaved }: { policy: BackupPolicy; targets: BackupTarget[]; disabled?: boolean; onDirtyChange?: (dirty: boolean) => void; onSaved: () => void }) {
   const { toast } = useToast()
+  const [saved, setSaved] = useState(policy)
   const [draft, setDraft] = useState(policy),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
-  const dirty = JSON.stringify(draft) !== JSON.stringify(policy)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
+  const locked = busy || disabled
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => {
+    if (!dirty && policy.revision >= saved.revision && JSON.stringify(policy) !== JSON.stringify(saved)) {
+      setSaved(policy)
+      setDraft(policy)
+    }
+  }, [policy, saved, dirty])
   const change = (key: keyof BackupPolicy, value: unknown) => setDraft((previous) => ({ ...previous, [key]: value }))
   async function save(event: FormEvent) {
     event.preventDefault()
+    if (locked) return
     setBusy(true)
     setError('')
     try {
-      await backupsApi.savePolicy(draft)
+      const value = await backupsApi.savePolicy(draft)
+      setSaved(value)
+      setDraft(value)
       toast('自动备份计划已保存', 'success')
       onSaved()
     } catch (e) {
@@ -217,7 +229,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
             <input
               type="checkbox"
               checked={draft.enabled}
-              disabled={busy}
+              disabled={locked}
               onChange={(e) => change('enabled', e.target.checked)}
             />
             <div className="backup-schedule-toggle__info">
@@ -235,7 +247,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
             {({ labelId }) => (
               <SearchSelect
                 aria-labelledby={labelId}
-                disabled={busy}
+                disabled={locked}
                 value={draft.schedule}
                 options={[
                   { value: 'daily', label: '每天' },
@@ -257,7 +269,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                   min={1}
                   max={720}
                   value={draft.intervalHours}
-                  disabled={busy}
+                  disabled={locked}
                   onChange={(e) => change('intervalHours', Number(e.target.value))}
                 />
               )}
@@ -271,7 +283,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                       id={id}
                       aria-labelledby={labelId}
                       value={draft.time}
-                      disabled={busy}
+                      disabled={locked}
                       onChange={(value) => change('time', value)}
                     />
                   )}
@@ -282,7 +294,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                       id={id}
                       required
                       value={draft.timezone}
-                      disabled={busy}
+                      disabled={locked}
                       onChange={(e) => change('timezone', e.target.value)}
                       placeholder="Asia/Shanghai"
                     />
@@ -295,7 +307,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                     <SearchSelect
                       aria-labelledby={labelId}
                       value={String(draft.weekday)}
-                      disabled={busy}
+                      disabled={locked}
                       options={['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'].map((label, value) => ({
                         label,
                         value: String(value),
@@ -317,7 +329,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                 min={1}
                 max={365}
                 value={draft.localRetention}
-                disabled={busy}
+                disabled={locked}
                 onChange={(e) => change('localRetention', Number(e.target.value))}
               />
             )}
@@ -361,7 +373,7 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          disabled={busy}
+                          disabled={locked}
                           onChange={(e) =>
                             change(
                               'targetIds',
@@ -409,20 +421,22 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
         </p>
       )}
 
-      {/* Claude 标准悬浮胶囊保存操作岛 */}
+      {dirty && policy.revision > saved.revision && <p role="status" className="backup-error">计划已更新，当前草稿保留原修订号。请撤销修改读取最新计划后再编辑。</p>}
+      {/* 只有未保存修改时显示保存动作。 */}
+      {dirty ?
       <AdminFloatingDock reserveSpace role="region" aria-label="自动备份计划保存" data-state="open">
         <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
           {dirty ? '有未保存的计划修改' : '已与当前配置同步'}
         </span>
         <div className="admin-floating-dock__actions">
-          <Button type="button" variant="outline" disabled={!dirty || busy} onClick={() => setDraft(policy)}>
+          <Button type="button" variant="outline" disabled={!dirty || locked} onClick={() => { setSaved(policy); setDraft(policy); setError('') }}>
             撤销
           </Button>
-          <Button type="submit" disabled={!dirty || busy}>
+          <Button type="submit" disabled={!dirty || locked}>
             {busy ? '保存中…' : '保存计划'}
           </Button>
         </div>
-      </AdminFloatingDock>
+      </AdminFloatingDock> : <p className="backup-hint">计划已与当前配置同步。</p>}
     </form>
   )
 }

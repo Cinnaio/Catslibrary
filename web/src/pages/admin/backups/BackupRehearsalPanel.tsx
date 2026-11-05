@@ -15,11 +15,13 @@ const date = (value: number) => new Date(value).toLocaleString('zh-CN')
 export default function BackupRehearsalPanel({
   settings,
   disabled,
+  active = true,
   onBusyChange,
   onRemoved,
 }: {
   settings: BackupSettings
   disabled: boolean
+  active?: boolean
   onBusyChange: (busy: boolean) => void
   onRemoved: (settings: BackupSettings) => void
 }) {
@@ -33,26 +35,26 @@ export default function BackupRehearsalPanel({
   const [pending, setPending] = useState<'check' | 'remove' | null>(null)
   useEffect(() => {
     const sequence = ++requestSequence.current
-    if (!open || !settings.rehearsalConfigured) return
-    let active = true
+    if (!active || !open || !settings.rehearsalConfigured) return
+    let mounted = true
     void backupsApi
       .rehearsalInfo()
       .then((value) => {
-        if (active && sequence === requestSequence.current) {
+        if (mounted && sequence === requestSequence.current) {
           setInfo(value)
           setError('')
         }
       })
       .catch((cause) => {
-        if (!active || sequence !== requestSequence.current) return
+        if (!mounted || sequence !== requestSequence.current) return
         const message = cause instanceof Error ? cause.message : '演练库信息读取失败'
         setError(message)
         toast(message, 'error')
       })
     return () => {
-      active = false
+      mounted = false
     }
-  }, [open, settings.revision, settings.rehearsalConfigured, toast])
+  }, [active, open, settings.revision, settings.rehearsalConfigured, toast])
   const current = info?.revision === settings.revision ? info : null
   async function check() {
     const sequence = ++requestSequence.current
@@ -120,7 +122,7 @@ export default function BackupRehearsalPanel({
         </span>
       </button>
       <Dialog
-        open={open}
+        open={open && active}
         onOpenChange={(value) => {
           if (!pending) setOpen(value)
         }}
