@@ -119,10 +119,18 @@ export default function AiTab() {
       description={currentMeta.description}
       className={`admin-redesign-page admin-redesign-page--ai ai-admin-page${currentSubTab === 'writing' ? '' : ' ai-service'}`}
       actions={
-        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-          <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
-          {loading ? '刷新中…' : '刷新'}
-        </Button>
+        (currentSubTab === 'config' || currentSubTab === 'params') && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void load()}
+            disabled={loading}
+            aria-label={currentSubTab === 'config' ? '刷新 AI 配置' : '刷新生成参数'}
+          >
+            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+            {loading ? '刷新中…' : '刷新'}
+          </Button>
+        )
       }
     >
       <Tabs
