@@ -1,101 +1,12 @@
-/* ==========================================================================
-   知舟 Admin — 内容治理 · 分级管理 (Content Ratings)
-   Claude (Anthropic) 视觉设计语言规范重构：
-   - 严禁居中限制：100% 全宽自适应延展，自然贴合后台侧边栏向右铺开
-   - 纯净纸白表面与温润炭黑底色，细柔 Hairline 边界 (#E6E4DC / #2C2B28)
-   - 核心聚焦与主强调按钮采用陶土红 (#D97757)，分层圆角控件 (border-radius: 9999px)
-   - 纯粹克制的人文排版与考究留白，拒绝多余装饰与假预设芯片
-   ========================================================================== */
-
-/* --------------------------------------------------------------------------
-   页面全局容器与头部适配 (Page Scaffold & Header)
-   -------------------------------------------------------------------------- */
-.admin-redesign-page--content-ratings {
-  width: 100% !important;
-  max-width: none !important;
-  min-width: 0;
-  display: grid;
-  gap: var(--admin-page-section-gap, 1.25rem);
+/* 分级管理：页面仅持有布局，共享控件负责尺寸、圆角与主题。 */
+main.admin-redesign-page.admin-redesign-page--content-ratings > .admin-tab-header {
+  padding-bottom: 0;
+  margin-bottom: 0;
 }
 
-.admin-redesign-page--content-ratings > .admin-tab-header {
-  border-bottom: 0;
-  padding-bottom: 1rem;
-  margin-bottom: 0.25rem;
-}
-
-/* 顶部搜索框：全圆角药丸几何、舒展宽度与 Claude 细线 */
-.admin-redesign-page--content-ratings .admin-tab-header__actions .search-field {
-  width: 20rem !important;
-  min-width: 20rem !important;
-  max-width: 22rem !important;
-  flex: 0 0 20rem !important;
-}
-
-.admin-redesign-page--content-ratings .search-field input[type='search'],
-.admin-redesign-page--content-ratings .search-field input {
-  height: var(--admin-control-height, 2.5rem);
-  border-radius: var(--radius-full, 9999px) !important;
-  border: 1px solid var(--admin-border, #e6e4dc);
-  background: var(--admin-panel, #ffffff);
-  padding-left: 2.25rem !important;
-  padding-right: 1rem !important;
-  font-size: 0.8125rem;
-  color: var(--text-primary, #211e1a);
-  box-shadow: 0 1px 2px rgba(35, 30, 24, 0.02);
-  transition: all 0.15s ease;
-}
-
-:root[data-theme='dark'] .admin-redesign-page--content-ratings .search-field input[type='search'],
-:root[data-theme='dark'] .admin-redesign-page--content-ratings .search-field input,
-[data-theme='dark'] .admin-redesign-page--content-ratings .search-field input[type='search'],
-[data-theme='dark'] .admin-redesign-page--content-ratings .search-field input {
-  border-color: var(--admin-border, #2c2b28);
-  background: var(--admin-canvas, #141413);
-  color: var(--dark-text, #e7e0d6);
-  box-shadow: none;
-}
-
-.admin-redesign-page--content-ratings .search-field input:focus-visible {
-  border-color: var(--admin-accent, #d97757) !important;
-  box-shadow: 0 0 0 3px var(--admin-accent-light, rgba(217, 119, 87, 0.16)) !important;
-  outline: none;
-}
-
-/* 顶部同步刷新胶囊按钮 */
-.admin-redesign-page--content-ratings .admin-tab-header__actions > button {
-  height: var(--admin-control-height, 2.5rem);
-  padding-inline: 1.125rem;
-  border-radius: var(--radius-full, 9999px) !important;
-  border: 1px solid var(--admin-border, #e6e4dc);
-  background: var(--admin-panel, #ffffff);
-  color: var(--text-primary, #211e1a);
-  font-size: 0.8125rem;
-  font-weight: 550;
-  transition: all 0.15s ease;
-  box-shadow: 0 1px 2px rgba(35, 30, 24, 0.02);
-}
-
-:root[data-theme='dark'] .admin-redesign-page--content-ratings .admin-tab-header__actions > button,
-[data-theme='dark'] .admin-redesign-page--content-ratings .admin-tab-header__actions > button {
-  border-color: var(--admin-border, #2c2b28);
-  background: var(--admin-panel, #1d1d1b);
-  color: var(--dark-text, #e7e0d6);
-  box-shadow: none;
-}
-
-.admin-redesign-page--content-ratings .admin-tab-header__actions > button:hover:not(:disabled) {
-  border-color: var(--admin-accent, #d97757);
-  color: var(--admin-accent, #d97757);
-  background: rgba(217, 119, 87, 0.04);
-}
-
-/* --------------------------------------------------------------------------
-   工作视图胶囊切换栏与口径说明 (Workspace Tabs & Policy)
-   -------------------------------------------------------------------------- */
 .content-ratings-tabs {
   display: grid;
-  gap: var(--admin-page-section-gap, 1.25rem);
+  gap: 24px;
   width: 100%;
   min-width: 0;
 }
@@ -104,82 +15,24 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
   flex-wrap: wrap;
-  width: 100%;
-}
-
-.content-ratings-tabs [data-slot='tabs-list'] {
-  display: inline-flex;
-  align-items: center;
-  height: 2.75rem;
-  padding: 4px;
-  border: 1px solid var(--admin-border, #e6e4dc);
-  border-radius: var(--radius-full, 9999px);
-  background: var(--admin-panel-muted, #f8f7f3);
-  box-shadow: none;
-}
-
-:root[data-theme='dark'] .content-ratings-tabs [data-slot='tabs-list'],
-[data-theme='dark'] .content-ratings-tabs [data-slot='tabs-list'] {
-  border-color: var(--admin-border, #2c2b28);
-  background: var(--admin-panel-muted, #23221f);
-}
-
-.content-ratings-tabs [data-slot='tabs-trigger'] {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  height: calc(100% - 2px);
-  padding-inline: 1.25rem;
-  border-radius: var(--radius-full, 9999px);
-  border: 0;
-  color: var(--text-muted, #736d65);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  transition: all 0.15s ease;
-  cursor: pointer;
-  background: transparent;
-}
-
-.content-ratings-tabs [data-slot='tabs-trigger']:hover:not([data-state='active']) {
-  color: var(--admin-accent, #d97757);
-}
-
-.content-ratings-tabs [data-slot='tabs-trigger'][data-state='active'] {
-  background: var(--admin-panel, #ffffff);
-  color: var(--text-primary, #211e1a);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(35, 30, 24, 0.05), 0 0 0 1px rgba(35, 30, 24, 0.02);
-}
-
-:root[data-theme='dark'] .content-ratings-tabs [data-slot='tabs-trigger'][data-state='active'],
-[data-theme='dark'] .content-ratings-tabs [data-slot='tabs-trigger'][data-state='active'] {
-  background: #2a2926;
-  color: var(--dark-text, #e7e0d6);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  gap: 12px;
+  min-width: 0;
 }
 
 .content-ratings-tab-count {
-  font-size: 0.725rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  padding: 1px 7px;
-  border-radius: var(--radius-full, 9999px);
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-muted, #736d65);
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-:root[data-theme='dark'] .content-ratings-tab-count,
-[data-theme='dark'] .content-ratings-tab-count {
-  background: rgba(255, 255, 255, 0.08);
+  padding-inline: 6px;
+  border-radius: var(--radius-tag, 6px);
+  background: var(--bg-secondary);
   color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
-.content-ratings-tabs [data-slot='tabs-trigger'][data-state='active'] .content-ratings-tab-count {
-  background: rgba(217, 119, 87, 0.1);
-  color: var(--admin-accent, #d97757);
+.content-ratings-ledger-view[data-state='active'] {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
 }
 
 /* 分级与审核口径（固定悬浮浮层，避免点击展开时跳动换行） */
@@ -577,118 +430,38 @@
   color: var(--text-muted);
 }
 
-.content-ratings-ledger[data-slot='table-container'],
-.content-ratings-ledger > [data-slot='table-container'] {
-  border-radius: var(--admin-table-panel-radius, 1rem);
+/* 搜索、筛选与刷新共用列表控制行，纵向间距由视图网格负责。 */
+.admin-filter-rail.content-ratings-filter-rail {
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
 }
 
-/* --------------------------------------------------------------------------
-   工具栏与全圆角药丸下拉 (Toolbar & Filter Controls)
-   -------------------------------------------------------------------------- */
-.content-ratings-toolbar {
-  padding: 0.75rem 1.5rem;
-  background: var(--admin-panel, #ffffff);
-  border-bottom: 1px solid var(--admin-border, #e6e4dc);
-  border-top: 0;
-  margin-bottom: 0;
+.content-ratings-filters,
+.content-ratings-toolbar-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 12px;
+  min-width: 0;
 }
 
-:root[data-theme='dark'] .content-ratings-toolbar,
-[data-theme='dark'] .content-ratings-toolbar {
-  border-bottom-color: var(--admin-border, #2c2b28);
-  background: var(--admin-panel, #1d1d1b);
+.content-ratings-filters > [data-field='select'] {
+  width: auto;
 }
 
-/* 统一透明胶囊筛选轨道（外置无边框，与小说管理完全对齐） */
-.content-ratings-filter-rail {
-  padding: 0 !important;
-  background: transparent !important;
-  border: 0 !important;
-  margin-bottom: var(--admin-page-section-gap, 1.25rem);
-}
-
-.content-ratings-filter-rail .select-filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.625rem;
+.content-ratings-toolbar-actions {
   margin-left: auto;
 }
 
-.content-ratings-filter-rail .content-ratings-filter-counts {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.625rem;
-  border-radius: var(--radius-full, 9999px);
-  background: var(--admin-panel-muted, #f8f7f3);
-  border: 1px solid var(--admin-border, #e6e4dc);
-  color: var(--text-muted, #736d65);
-  font-size: 0.75rem;
+.content-ratings-result-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-:root[data-theme='dark'] .content-ratings-filter-rail .content-ratings-filter-counts,
-[data-theme='dark'] .content-ratings-filter-rail .content-ratings-filter-counts {
-  background: var(--bg-secondary);
-  border-color: var(--admin-border, #2c2b28);
-  color: var(--text-muted);
-}
-
-.content-ratings-toolbar .admin-toolbar__filters {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  flex-wrap: wrap;
-}
-
-.content-ratings-toolbar .admin-toolbar__filters label {
-  font-size: 0.8125rem;
-  font-weight: 550;
-  color: var(--text-secondary, #534f48);
-}
-
-:root[data-theme='dark'] .content-ratings-toolbar .admin-toolbar__filters label,
-[data-theme='dark'] .content-ratings-toolbar .admin-toolbar__filters label {
-  color: var(--text-muted);
-}
-
-.content-ratings-panel [data-slot='select-trigger'],
-.content-ratings-toolbar [data-slot='select-trigger'],
-.content-ratings-tabs [data-slot='select-trigger'] {
-  height: 2.25rem;
-  border-radius: var(--radius-full, 9999px) !important;
-  border: 1px solid var(--admin-border, #e6e4dc);
-  background: var(--admin-panel, #ffffff);
-  font-size: 0.8125rem;
-  padding-inline: 0.875rem;
-  color: var(--text-primary, #211e1a);
-  transition: all 0.15s ease;
-  box-shadow: none;
-}
-
-:root[data-theme='dark'] .content-ratings-panel [data-slot='select-trigger'],
-:root[data-theme='dark'] .content-ratings-toolbar [data-slot='select-trigger'],
-:root[data-theme='dark'] .content-ratings-tabs [data-slot='select-trigger'],
-[data-theme='dark'] .content-ratings-panel [data-slot='select-trigger'],
-[data-theme='dark'] .content-ratings-toolbar [data-slot='select-trigger'],
-[data-theme='dark'] .content-ratings-tabs [data-slot='select-trigger'] {
-  border-color: var(--admin-border, #2c2b28);
-  background: var(--bg-secondary);
-  color: var(--dark-text, #e7e0d6);
-  box-shadow: none;
-}
-
-.content-ratings-panel [data-slot='select-trigger']:focus-visible,
-.content-ratings-toolbar [data-slot='select-trigger']:focus-visible,
-.content-ratings-tabs [data-slot='select-trigger']:focus-visible {
-  border-color: var(--admin-accent, #d97757) !important;
-  box-shadow: none !important;
-  outline: none;
 }
 
 .content-ratings-filter-counts {
@@ -710,22 +483,6 @@
   border-color: var(--admin-border, #2c2b28);
   background: var(--bg-secondary);
   color: var(--dark-text, #e7e0d6);
-}
-
-.content-ratings-clear {
-  margin-left: auto;
-  height: 2.125rem;
-  padding-inline: 0.875rem;
-  border-radius: var(--radius-full, 9999px) !important;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted, #736d65);
-  transition: all 0.15s ease;
-}
-
-.content-ratings-clear:hover {
-  color: var(--admin-accent, #d97757);
-  background: rgba(217, 119, 87, 0.06);
 }
 
 /* --------------------------------------------------------------------------
@@ -1564,9 +1321,26 @@
   .content-ratings-ledger .admin-data-table thead {
     display: none !important;
   }
+}
 
-  .content-ratings-filter-rail {
-    margin-bottom: 0.625rem !important;
-    min-height: 0 !important;
+@media (max-width: 700px) {
+  .content-ratings-workspace-nav > [data-slot='tabs-list'] {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .content-ratings-filters {
+    flex: 1 1 100%;
+  }
+
+  .content-ratings-filters > [data-field='select'] {
+    flex: 1 1 8rem;
+    max-width: 100%;
+  }
+
+  .content-ratings-toolbar-actions {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
   }
 }
