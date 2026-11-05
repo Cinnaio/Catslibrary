@@ -14,7 +14,7 @@ import { TaskDetails } from './TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import SearchSelect, { type SelectOption } from "@/components/shared/SearchSelect"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CircleMinus, Check, AlertCircle, RefreshCw, CirclePlus } from 'lucide-react'
+import { Download, ListTodo, SearchX, Check, AlertCircle, RefreshCw, CirclePlus } from 'lucide-react'
 import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
@@ -597,14 +597,16 @@ export default function JobsTab({
                 </TableBody>
               </Table>
             ) : jobsLoading ? (
-              <EmptyState className="jobs-empty" icon={<Spinner size="sm" aria-hidden="true" />} message="正在读取任务队列…" />
+              <EmptyState icon={<Spinner size="sm" aria-hidden="true" />} message="正在读取任务队列…" />
             ) : jobsError ? (
               <ErrorState message={`任务队列加载失败：${jobsError}`} />
             ) : (
               <EmptyState
-                className="jobs-empty"
-                icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
+                icon={search.trim() || filter !== 'all' ? <SearchX aria-hidden="true" /> : <ListTodo aria-hidden="true" />}
                 message={search.trim() ? `未找到与「${search.trim()}」相关的抓取任务` : FILTER_EMPTY_LABEL[filter]}
+                hint={search.trim() || filter !== 'all'
+                  ? '调整搜索关键词或任务状态后再试。'
+                  : '在抓取中心启动任务后，这里会显示执行进度。'}
                 action={
                   search.trim() || filter !== 'all' ? (
                     <Button variant="outline" size="sm" onClick={() => { setSearch(''); setFilter('all') }}>
@@ -654,18 +656,20 @@ export default function JobsTab({
           </AdminToolbar>
           <AdminDataPanel className="jobs-data-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS} density="comfortable">
           {logsLoading ? (
-            <EmptyState className="jobs-empty" icon={<Spinner size="sm" aria-hidden="true" />} message="正在读取下载日志…" />
+            <EmptyState icon={<Spinner size="sm" aria-hidden="true" />} message="正在读取下载日志…" />
           ) : logsError ? (
             <ErrorState message={`下载日志加载失败：${logsError}`} />
           ) : filteredDownloads.length === 0 ? (
             <EmptyState
-              className="jobs-empty"
-              icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
+              icon={search.trim() || downloadType !== 'all' ? <SearchX aria-hidden="true" /> : <Download aria-hidden="true" />}
               message={
                 search.trim() || downloadType !== 'all'
                   ? '未找到符合条件的下载记录'
                   : '暂无下载记录'
               }
+              hint={search.trim() || downloadType !== 'all'
+                ? '调整搜索关键词或下载类型后再试。'
+                : '导出内容或下载书源配置后，记录会显示在这里。'}
               action={
                 search.trim() || downloadType !== 'all' ? (
                   <Button

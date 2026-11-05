@@ -75,7 +75,9 @@ colors:
 
 - `components/ui` 负责原生／Radix 控件与纯视觉原语；`components/shared` 负责无业务取数的组合。公共层不得导入页面、后台／阅读器场景、会话、业务 API 或存储。主题与控件外观 context 属于设计基础。
 - 通用字段、搜索选择、时间、面板空态、异步状态、分页和弹窗分别使用 `FormField`、`SearchField`／`SearchSelect`、`TimeField`、`EmptyState`、`AsyncStates`、`Pagination`、`DialogFrame`。数据、权限、导航与事件由调用方提供；整页 `PageState`、后台数据表面和阅读器专用控制保留各自场景语义。
+- 面板空状态统一由 `EmptyState` 呈现：26px 中性色线性图标，不添加彩色图标底块；标题 16px、说明 13px，文案最大宽度 360px，内容间距 12px。默认最小高度桌面 224px、手机 200px，垂直内边距分别为 40px／32px，长文案按内容自然增高；图表等固定空间可保留实际布局高度。章节未选作品、无记录和筛选无结果分别提供明确文案及场景图标，说明使用 `hint`，可执行动作放入 `action`；读取失败保留错误语义与重试入口。页面不再单独覆盖图标透明度、字号、内边距或叠加大块留白，后台空列表表面复用 `AdminDataPanel`。
 - 同一外观使用一份生产实现和一个样式所有者；组件导入自己的样式，页面只维护布局与业务状态。按钮、加载图形和筛选片使用 `Button`、`Spinner`、`FilterChip`，不复制旧 `.btn`、spinner 或筛选片皮肤。不创建只服务展厅的替代实现，不保留旧路径转发层。
+- 搜索图标预留间距由 `SearchField` 维护，页面不得用整片输入框的 `padding`／`padding-inline` 覆盖该间距。后台数据面板的边框、圆角、背景和溢出裁切由 `AdminDataPanel` 自带 CSS Module 维护，嵌套工作台与页面直属面板外观一致，不借用其他业务页的表格样式类。
 - 后台尺寸通过 `ControlAppearance`／`ControlSurface` 传递，portal 内容及应用级确认框继承调用处的外观；禁止靠后台祖先选择器给通用弹窗补尺寸。字段标签、说明、错误由 `FormField` 与控件语义协作，显式设置 id 的辅助控件保留独立关联。
 - `npm run check:components --workspace web` 检查依赖、旧入口、样式引用与分类，并纳入 Web 类型检查；新增或迁移组件时同步使用方、展厅及归属清单。保留表达真实业务差异的薄包装，不以统一外观为由把业务流程并入万能组件。
 

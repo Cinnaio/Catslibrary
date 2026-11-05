@@ -43,7 +43,7 @@ export function ErrorState({ message, onRetry, className }: ErrorStateProps) {
     <EmptyState
       role="alert"
       className={cn(styles.error, className)}
-      icon={<Ban className="size-8 opacity-40" aria-hidden="true" />}
+      icon={<Ban aria-hidden="true" />}
       message={message}
       action={
         onRetry ? (

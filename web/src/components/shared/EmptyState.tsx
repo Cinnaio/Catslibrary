@@ -1,5 +1,5 @@
 /**
- * EmptyState —— 后台统一的空状态。
+ * EmptyState —— 共享面板空状态，页面只提供文案、场景图标与操作。
  *
  * 三档信息，按需给：
  *   message —— 发生了什么（「没有待审核的规则候选」）；
@@ -34,7 +34,7 @@ export default function EmptyState({ message, hint, icon, action, className, rol
       </div>
       <p className={cn(styles.message, 'empty-state__message')}>{message}</p>
       {hint && <p className={cn(styles.hint, 'empty-state__hint')}>{hint}</p>}
-      {action}
+      {action && <div className={styles.actions}>{action}</div>}
     </div>
   )
 }

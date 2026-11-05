@@ -80,11 +80,11 @@ export default function OutboundLogsPanel() {
       <AdminDataPanel className="overflow-hidden" ariaLabel="出站请求日志" columns={LOG_COLUMNS}>
         {error && logs.length > 0 && <InlineError message={`出站请求记录加载失败：${error}`} onRetry={() => void loadLogs()} className="mx-5 my-3" />}
         {logsLoading && !logs.length ? (
-          <EmptyState icon={<LoaderCircle className="size-8 animate-spin opacity-40" aria-hidden="true" />} message="正在读取出站请求记录…" />
+          <EmptyState icon={<LoaderCircle className="animate-spin" aria-hidden="true" />} message="正在读取出站请求记录…" />
         ) : error && !logs.length ? (
           <ErrorState message={`出站请求记录加载失败：${error}`} />
         ) : !logs.length ? (
-          <EmptyState icon={<ScrollText className="size-8 opacity-40" aria-hidden="true" />} message="暂无出站请求记录" />
+          <EmptyState icon={<ScrollText aria-hidden="true" />} message="暂无出站请求记录" />
         ) : (
           <Table className={cn('admin-data-table admin-data-table--animated', logsLoading && 'admin-data-table--transitioning')}>
             <TableCaption className="sr-only">出站请求记录，含时间、范围、目标、代理链路、结果与耗时</TableCaption>

@@ -758,7 +758,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           </Table>
         ) : (
           <EmptyState
-            icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
+            icon={<CircleMinus aria-hidden="true" />}
             message={listStateTitle}
             hint={listStateDescription}
             action={
