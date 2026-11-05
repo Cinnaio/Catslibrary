@@ -325,11 +325,14 @@ export default function WorkspaceShell({
           <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}>
             <header className={styles.mobileHeader}>
               {brand}
-              <Dialog.Trigger asChild>
-                <button type="button" className={styles.iconButton} aria-label="打开导航">
-                  <Menu size={22} />
-                </button>
-              </Dialog.Trigger>
+              <div className={styles.mobileHeaderActions}>
+                <ThemeMenu className={`${styles.iconButton} ${styles.themeButton}`} />
+                <Dialog.Trigger asChild>
+                  <button type="button" className={styles.iconButton} aria-label="打开导航">
+                    <Menu size={22} />
+                  </button>
+                </Dialog.Trigger>
+              </div>
             </header>
             <Dialog.Portal>
               <Dialog.Overlay className={styles.scrim} />
