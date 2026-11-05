@@ -17,11 +17,13 @@ vi.mock('./AdminShell', () => ({
 }))
 
 vi.mock('./admin-registry', () => {
-  const ids = ['dashboard', 'novels', 'scrape'] as const
+  const ids = ['dashboard', 'novels', 'scrape', 'content-policy', 'site-settings'] as const
   const labels: Record<(typeof ids)[number], string> = {
     dashboard: '总览',
     novels: '小说管理',
     scrape: '爬虫抓取',
+    'content-policy': '内容安全',
+    'site-settings': '站点设置',
   }
   const component = (name: string) => () => <div>{name}</div>
   return {
@@ -32,10 +34,13 @@ vi.mock('./admin-registry', () => {
         <div>novels-content<output data-testid="highlight">{highlightNovelId}</output><button onClick={onHighlightConsumed}>消耗高亮</button></div>
       ),
       scrape: component('scrape-content'),
+      'content-policy': component('legacy-policy-content'),
+      'site-settings': component('site-settings-content'),
     },
     isAdminTab: (id: string | undefined) => !!id && ids.includes(id as (typeof ids)[number]),
     adminTabPath: (id: string) => `/admin/${encodeURIComponent(id)}`,
     getTabLabel: (id: string) => labels[id as (typeof ids)[number]] || '',
+    getAdminViewLabel: (id: string, search: string) => new URLSearchParams(search).get('view') === 'content-policy' ? '内容安全' : labels[id as (typeof ids)[number]] || '',
   }
 })
 
@@ -43,7 +48,7 @@ import Admin from './Admin'
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="location">{location.pathname}{location.search}</output>
+  return <output data-testid="location">{location.pathname}{location.search}{location.hash}</output>
 }
 
 function renderAdmin(entry: string) {
@@ -61,6 +66,15 @@ describe('Admin URL navigation', () => {
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
+  })
+
+  it('旧内容安全地址进入站点设置，保留其他参数与锚点并更新上次位置', async () => {
+    renderAdmin('/admin/content-policy?keep=1#access')
+    await screen.findByText('site-settings-content')
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin/site-settings?keep=1&view=content-policy#access')
+    expect(screen.getByTestId('admin-shell')).toHaveAttribute('data-active', 'site-settings')
+    expect(screen.getByRole('heading', { name: '内容安全' })).toBeInTheDocument()
+    await waitFor(() => expect(localStorage.getItem('admin_active_tab')).toBe('site-settings'))
   })
 
   it('可通过深链接直接打开指定模块并记住位置', async () => {

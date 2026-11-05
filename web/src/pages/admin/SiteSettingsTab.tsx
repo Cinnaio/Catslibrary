@@ -1,6 +1,6 @@
 import '@/styles/input-fields.css'
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import type { PasskeyAdminSettings, SiteBranding, TurnstileSettings } from '@shared/site-settings'
 import { siteSettingsApi } from '@/lib/api'
 import { brandingAssetUrl, setSiteBranding } from '@/lib/site-branding'
@@ -9,13 +9,14 @@ import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
 import FormField from "@/components/shared/FormField"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { LoadingState } from "@/components/shared/AsyncStates"
 import TurnstileTestWidget from '@/components/TurnstileTestWidget'
 import '@/styles/admin/pages/site-settings.css'
+import ContentPolicyTab from './ContentPolicyTab'
+import SiteSettingsNavigation from './SiteSettingsNavigation'
 
 function announceBranding(value: SiteBranding) {
   setSiteBranding(value)
@@ -25,9 +26,10 @@ function announceBranding(value: SiteBranding) {
 const sourceLabel = { environment: '环境变量', database: '后台配置', default: '未设置 / 默认' } as const
 
 export default function SiteSettingsTab() {
-  const navigate = useNavigate()
   const [params] = useSearchParams()
   const requestedView = params.get('view')
+  const contentPolicyView = requestedView === 'content-policy'
+  const [configurationVisited, setConfigurationVisited] = useState(!contentPolicyView)
   const view = requestedView === 'security' || requestedView === 'passkey' ? requestedView : 'branding'
   const security = view === 'security'
   const passkeyView = view === 'passkey'
@@ -57,7 +59,13 @@ export default function SiteSettingsTab() {
   const passkeyDirty = Boolean(passkey && savedPasskey && JSON.stringify(passkey) !== JSON.stringify(savedPasskey))
   const dirty = security ? securityDirty : passkeyView ? passkeyDirty : brandDirty
 
+  // 访问内容安全时不预取其他配置；进入后保留其草稿，往返内容安全不重置输入。
   useEffect(() => {
+    if (!contentPolicyView) setConfigurationVisited(true)
+  }, [contentPolicyView])
+
+  useEffect(() => {
+    if (!configurationVisited) return
     let active = true
     setLoading(true); setError('')
     void Promise.all([siteSettingsApi.branding(), siteSettingsApi.turnstile(), siteSettingsApi.passkey()]).then(([brand, settings, passkeySettings]) => {
@@ -66,7 +74,7 @@ export default function SiteSettingsTab() {
       setSiteKey(settings.siteKey); setHostnames(settings.hostnames.join('\n')); setSecretKey(''); setClearSecret(false)
     }).catch(e => { if (active) setError(e instanceof Error ? e.message : '设置加载失败') }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [reload])
+  }, [reload, configurationVisited])
 
   function acceptChallenge(value: TurnstileSettings) {
     setChallenge(value); setSiteKey(value.siteKey); setHostnames(value.hostnames.join('\n')); setSecretKey(''); setClearSecret(false)
@@ -115,6 +123,8 @@ export default function SiteSettingsTab() {
     finally { setTestToken(''); setWidgetRound(v => v + 1); setBusy(false) }
   }
 
+  if (contentPolicyView) return <ContentPolicyTab />
+
   const title = security ? '安全验证' : passkeyView ? 'Passkey' : '站点信息'
   const description = security
     ? '配置 Cloudflare Turnstile，当前用于开启 R18 成人内容模式。'
@@ -123,13 +133,7 @@ export default function SiteSettingsTab() {
       : '统一主站的名称、介绍、浏览器标题与品牌图片。'
 
   return <AdminPage title={title} description={description} className="admin-redesign-page admin-redesign-page--site-settings site-settings">
-    <Tabs value={view} className="admin-capsule-tabs site-settings-tabs" onValueChange={val => navigate(`/admin/site-settings?view=${val}`)}>
-      <TabsList aria-label="站点设置视图切换">
-        <TabsTrigger value="branding">站点信息</TabsTrigger>
-        <TabsTrigger value="security">安全验证</TabsTrigger>
-        <TabsTrigger value="passkey">Passkey</TabsTrigger>
-      </TabsList>
-    </Tabs>
+    <SiteSettingsNavigation view={view} />
     {loading && <LoadingState label="正在读取站点设置…" rows={4} className="py-8" />}
     {error && <div role="alert" className="site-settings__error"><p>{error}</p>{!branding && <Button variant="secondary" onClick={() => setReload(v => v + 1)}>重新加载</Button>}</div>}
     {!loading && branding && challenge && passkey && <form onSubmit={event => void save(event)} className="site-settings__layout">
