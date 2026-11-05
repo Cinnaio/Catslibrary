@@ -3,7 +3,7 @@
 // consumers: scrape/center/JobQueue.tsx
 // ============================================================
 import { useId } from 'react'
-import { AlertTriangle, Check, CircleMinus, MinusCircle, RefreshCw, RotateCcw, X, XCircle } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, MinusCircle, RefreshCw, XCircle } from 'lucide-react'
 import { formatEta, formatJobSpeed, isJobRunning, isJobTerminal, jobStatusLabel } from '@/lib/admin'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import type { JobCard as JobCardData } from '../types'
 import { fmtLogTime } from '../utils'
-import ScrapeDisclosure from './ScrapeDisclosure'
+import styles from '../workbench.module.css'
 
 interface JobCardProps {
   job: JobCardData
@@ -21,8 +21,6 @@ interface JobCardProps {
   onDismiss: (jobId: string) => void
   onToggleLog: (jobId: string) => void
 }
-
-const ICON = 'size-3.5'
 
 /** 状态 → 徽章配色与图标。 */
 function statusBadge(status: string): { tone: AdminStatusTone; Icon: typeof Check | null } {
@@ -41,115 +39,74 @@ function statusBadge(status: string): { tone: AdminStatusTone; Icon: typeof Chec
 }
 
 export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismiss, onToggleLog }: JobCardProps) {
-  const logId = useId()
-  const running = isJobRunning(job.status)
+  const detailId = useId()
+  const running = isJobRunning(job.status) || job.status === 'queued'
   const terminal = isJobTerminal(job.status)
   const { tone: statusTone, Icon: StatusIcon } = statusBadge(job.status)
-
-  let pct = job.progress != null ? job.progress * 100 : 5
-  if (job.total > 0 && job.current != null) pct = Math.min((job.current / job.total) * 95, 95)
-  if (terminal) pct = 100
-
-  const fillCls =
-    job.status === 'failed'
-      ? '[&_[data-slot=progress-indicator]]:bg-destructive'
-      : job.status === 'cancelled'
-        ? '[&_[data-slot=progress-indicator]]:bg-muted-foreground'
-        : '[&_[data-slot=progress-indicator]]:bg-gradient-to-r [&_[data-slot=progress-indicator]]:from-[#D97757] [&_[data-slot=progress-indicator]]:to-[#E58C6E]'
+  const pct = job.status === 'completed' ? 100 : Math.max(0, Math.min(100, job.total > 0 ? (job.current / job.total) * 100 : job.progress * 100))
 
   return (
-    <article className="scrape-job scrape-job-card--claude">
-      <div className="scrape-job__head">
-        <span className="scrape-job__name text-sm font-medium font-serif" title={job.novelTitle}>
-          {job.novelTitle}
-        </span>
-        <AdminStatusBadge tone={statusTone}>
-          {running ? (
-            <RefreshCw className="size-3 animate-spin" aria-hidden="true" />
-          ) : StatusIcon ? (
-            <StatusIcon className="size-3" aria-hidden="true" />
-          ) : null}
-          {jobStatusLabel(job.status)}
-        </AdminStatusBadge>
-      </div>
-
-      <Progress
-        value={pct}
-        className={fillCls}
-        aria-label={`${job.novelTitle} 抓取进度`}
-        aria-valuetext={job.total > 0 ? `${job.current || 0} / ${job.total} 章` : `${Math.round(pct)}%`}
-      />
-
-      <div className="scrape-job-card__metrics-pill-group">
-        <span className="scrape-job-card__metric-pill">
-          进度 <strong>{job.current || 0}/{job.total || 0}</strong>
-        </span>
-        <span className="scrape-job-card__metric-pill">
-          成功 <strong>{job.successCount}</strong>
-          {job.failedCount > 0 && <span className="text-destructive font-semibold">· 失败 {job.failedCount}</span>}
-          {job.skippedCount > 0 && <span className="text-muted-foreground">· 跳过 {job.skippedCount}</span>}
-        </span>
-        <span className="scrape-job-card__metric-pill">
-          {formatJobSpeed(job.speed)} · ETA {formatEta(job.etaSeconds)}
-        </span>
-      </div>
-
-      <p className="m-0 mt-1.5 text-xs text-muted-foreground" aria-live="polite">
-        {job.step}
-        {job.total > 0 ? ` (${job.current || 0}/${job.total})` : ''}
-      </p>
-
-      {job.failedItems.length > 0 && (
-        <div className="mt-2 p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-xs">
-          <p className="scrape-job__failures-title m-0 mb-1 font-semibold text-destructive">失败章节 ({job.failedItems.length})</p>
-          <ul className="scrape-job__failures space-y-1">
-            {job.failedItems.map((item, i) => (
-              <li className="scrape-job__failure flex items-center justify-between text-[11px]" key={i}>
-                <span className="font-mono truncate max-w-[140px] text-foreground/80">{item.chapterTitle || item.chapterUrl || '未知章节'}</span>
-                <em className="text-destructive/90 not-italic">{item.error || '抓取失败'}</em>
-              </li>
-            ))}
-          </ul>
+    <article className={styles.task} aria-label={`${job.novelTitle} 抓取任务`}>
+      <div className={styles.taskHead}>
+        <div className={styles.taskInfo}>
+          <div className={styles.connectionSummary}>
+            <span className={styles.taskName}>{job.novelTitle}</span>
+            <AdminStatusBadge tone={statusTone}>
+              {StatusIcon && <StatusIcon className="size-3" aria-hidden="true" />}
+              {jobStatusLabel(job.status)}
+            </AdminStatusBadge>
+          </div>
+          <div className={styles.taskSummary}>
+            <span>{job.total > 0 ? `${job.current || 0} / ${job.total} 章` : job.step || '正在准备'}</span>
+            {terminal && <span>成功 {job.successCount} 章</span>}
+            {job.failedCount > 0 && <span className={styles.danger}>失败 {job.failedCount} 章</span>}
+          </div>
+          {(job.total > 0 || job.progress > 0) && <Progress
+            value={pct} className={styles.taskProgress}
+            data-failed={job.status === 'failed'} data-cancelled={job.status === 'cancelled'}
+            aria-label={`${job.novelTitle} 抓取进度`}
+            aria-valuetext={job.total > 0 ? `${job.current || 0} / ${job.total} 章` : `${Math.round(pct)}%`}
+          />}
         </div>
-      )}
-
-      <div className="scrape-job__foot mt-3 pt-2 border-t border-border/60 flex items-center justify-between">
-        <ScrapeDisclosure open={job.logOpen} onToggle={() => onToggleLog(job.jobId)} controls={logId}>
-          日志
-        </ScrapeDisclosure>
-        <div className="scrape-job__actions flex items-center gap-1">
-          {job.failedCount > 0 && (
-            <Button variant="ghost" size="icon-sm" className="size-7 rounded-full text-muted-foreground hover:text-foreground" title="重试失败章节" aria-label="重试失败章节" onClick={() => onRetryFailed(job.jobId)}>
-              <RotateCcw className={ICON} />
-            </Button>
-          )}
-          {!running && (job.status === 'failed' || job.status === 'cancelled' || job.status === 'partial') && (
-            <Button variant="ghost" size="icon-sm" className="size-7 rounded-full text-muted-foreground hover:text-foreground" title="整本重试" aria-label="整本重试" onClick={() => onRetry(job.jobId)}>
-              <RefreshCw className={ICON} />
-            </Button>
-          )}
-          {terminal ? (
-            <Button variant="ghost" size="icon-sm" className="size-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="清除" aria-label="清除任务卡" onClick={() => onDismiss(job.jobId)}>
-              <X className={ICON} />
-            </Button>
-          ) : (
-            <Button variant="ghost" size="icon-sm" className="size-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="终止" aria-label="终止任务" onClick={() => onCancel(job.jobId)}>
-              <CircleMinus className={ICON} />
-            </Button>
-          )}
-        </div>
+        <Button variant="ghost" onClick={() => onToggleLog(job.jobId)} aria-expanded={job.logOpen} aria-controls={detailId}>
+          {job.logOpen ? '收起详情' : job.failedCount > 0 || job.status === 'failed' ? '查看失败原因' : '查看详情'}
+          <ChevronDown className={`${styles.chevron} ${job.logOpen ? styles.chevronOpen : ''}`} aria-hidden="true" />
+        </Button>
       </div>
-
       {job.logOpen && (
-        <ul id={logId} className="scrape-job__logs mt-2.5 p-3 rounded-xl bg-muted/50 border border-border text-xs font-mono max-h-48 overflow-y-auto space-y-1.5">
-          {job.recentLogs.map((log, i) => (
-            <li className={`scrape-job__log scrape-job__log--${log.level || 'info'} leading-relaxed`} key={i}>
-              <span className="text-muted-foreground/70 mr-1.5">{fmtLogTime(log.createdAt)}</span>
-              <strong className="font-medium text-foreground">{log.message}</strong>
-              {log.detail ? <em className="block text-[11px] text-muted-foreground/90 not-italic break-all">{String(log.detail).slice(0, 160)}</em> : null}
-            </li>
-          ))}
-        </ul>
+        <div id={detailId} className={styles.taskDetails}>
+          <p className={styles.hint}>{job.step || '暂无执行说明'}</p>
+          <div className={styles.taskSummary}>
+            <span>成功 {job.successCount} · 失败 {job.failedCount} · 跳过 {job.skippedCount}</span>
+            {running && <span>{formatJobSpeed(job.speed)} · 预计剩余 {formatEta(job.etaSeconds)}</span>}
+          </div>
+          {job.failedItems.length > 0 && (
+            <div>
+              <p className={`${styles.hint} ${styles.danger}`}>失败章节（{job.failedItems.length}）</p>
+              <ul className={styles.failureList} tabIndex={0} aria-label="失败章节">
+                {job.failedItems.map((item, index) => <li key={index}>
+                  <strong>{item.chapterTitle || item.chapterUrl || '未知章节'}</strong>
+                  <span className={styles.danger}>{item.error || '抓取失败'}</span>
+                </li>)}
+              </ul>
+            </div>
+          )}
+          <div>
+            <p className={styles.hint}>近期日志</p>
+            {job.recentLogs.length > 0 ? <ul className={styles.logs} tabIndex={0} aria-label="近期任务日志">
+              {job.recentLogs.map((log, index) => <li key={index}>
+                <time>{fmtLogTime(log.createdAt)}</time>
+                <strong className={log.level === 'error' ? styles.danger : undefined}>{log.message}</strong>
+                {log.detail && <span>{String(log.detail).slice(0, 160)}</span>}
+              </li>)}
+            </ul> : <p className={styles.hint}>暂无日志，完整记录可到任务中心查看。</p>}
+          </div>
+          <div className={styles.taskActions}>
+            {job.failedCount > 0 && <Button variant="outline" onClick={() => onRetryFailed(job.jobId)}>重试失败章节</Button>}
+            {!running && ['failed', 'cancelled', 'partial'].includes(job.status) && <Button variant="outline" onClick={() => onRetry(job.jobId)}>整本重试</Button>}
+            {terminal ? <Button variant="ghost" onClick={() => onDismiss(job.jobId)}>移除此记录</Button> : <Button variant="ghost" onClick={() => onCancel(job.jobId)}>终止任务</Button>}
+          </div>
+        </div>
       )}
     </article>
   )

@@ -2,11 +2,14 @@ import '@/styles/input-fields.css'
 // ============================================================
 // 抓取中心 — 统一入口、发现、校验与任务追踪
 // ============================================================
-import { useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { Archive, RefreshCw, SearchX } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { ArrowLeft, SearchX } from 'lucide-react'
 import { novelsApi, scrapeApi } from '@/lib/api'
 import { useConfirm, useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
+import JobQueue from './center/JobQueue'
+import styles from './workbench.module.css'
 import type { CheckItem, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
 import { scrapePost, parseCategories, po18CoverFallback, resolveRankingSource } from './utils'
 import Po18AccountPanel from './Po18AccountPanel'
@@ -38,7 +41,8 @@ export default function CenterView() {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const setupRef = useRef<HTMLDivElement>(null)
-  const { track } = useScrapeJobs()
+  const intakeRef = useRef<HTMLDivElement>(null)
+  const { jobs, track, cancel, retry, retryFailed, dismiss, toggleLog, restoring, restoreError } = useScrapeJobs()
 
   // 统一入口
   const [intakeMode, setIntakeMode] = useState<IntakeMode>('link')
@@ -65,6 +69,8 @@ export default function CenterView() {
   const [activeCandidate, setActiveCandidate] = useState<ActiveCandidate | null>(null)
   const [preview, setPreview] = useState<SetupPreview>(EMPTY_PREVIEW)
   const [confirming, setConfirming] = useState(false)
+  const [starting, setStarting] = useState(false)
+  const [started, setStarted] = useState(false)
   const [currentScrapeNovelId, setCurrentScrapeNovelId] = useState('')
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [sitePreset, setSitePreset] = useState('custom')
@@ -87,6 +93,7 @@ export default function CenterView() {
   }, [preview.coverUrl])
 
   function resetSetup() {
+    setStarted(false)
     setActiveCandidate(null)
     setPreview(EMPTY_PREVIEW)
     setCurrentScrapeNovelId('')
@@ -96,6 +103,7 @@ export default function CenterView() {
     setActiveEncoding('')
     setTestResult({ loading: false, data: null })
     setTestChecks([])
+    window.setTimeout(() => intakeRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true }), 0)
   }
 
   function hydrateFromMeta(item: DiscoverNovel, data: DetectedMeta) {
@@ -140,13 +148,14 @@ export default function CenterView() {
   async function loadCandidate(item: DiscoverNovel) {
     setSourceUrl(item.url)
     setCurrentScrapeNovelId('')
+    setStarted(false)
     setActiveCandidate({ item, loading: true, error: '', meta: null })
     try {
       const data = (await scrapePost({ action: 'detect-meta', sourceUrl: item.url })) as DetectedMeta
       if (!data.novel) throw new Error(data.error || '源站没有返回小说信息')
       hydrateFromMeta(item, data)
       setActiveCandidate({ item, loading: false, error: '', meta: data })
-      window.setTimeout(() => setupRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+      window.setTimeout(() => setupRef.current?.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' }), 0)
       toast('作品信息已载入，请确认后继续', 'success')
     } catch (err) {
       setActiveCandidate({ item, loading: false, error: (err as Error).message, meta: null })
@@ -159,6 +168,9 @@ export default function CenterView() {
       toast('请先粘贴小说源站链接', 'error')
       return
     }
+    if (intakeLoading) return
+    setStarted(false)
+    setCurrentScrapeNovelId('')
     setIntakeLoading(true)
     setDiscoveryError('')
     setActiveCandidate({ item: { title: '正在分析…', author: '', url: value }, loading: true, error: '', meta: null })
@@ -195,7 +207,8 @@ export default function CenterView() {
       const data = await scrapePost(body)
       const result = Array.isArray(data.novels) ? (data.novels as DiscoverNovel[]) : []
       if (result.length === 0) {
-        setDiscoveryError(data.error || emptyMessage)
+        if (data.error) setDiscoveryError(data.error)
+        else setDiscoveryInfo(emptyMessage)
         return
       }
       setNovels(result)
@@ -272,6 +285,7 @@ export default function CenterView() {
   }
 
   function applySitePreset(key: string) {
+    clearSelectorTest()
     setSitePreset(key)
     if (key === 'custom') return
     setSelectors(PO18_PRESET.selectors)
@@ -279,7 +293,13 @@ export default function CenterView() {
     toast(`已应用 ${PO18_PRESET.name} 预设`, 'success')
   }
 
+  function clearSelectorTest() {
+    setTestResult({ loading: false, data: null })
+    setTestChecks([])
+  }
+
   async function confirmNovel() {
+    if (confirming || currentScrapeNovelId) return
     const title = preview.title.trim()
     const author = preview.author.trim()
     if (!title || !author) {
@@ -360,25 +380,30 @@ export default function CenterView() {
       toast('请先填写章节列表页 URL、章节链接和章节正文选择器', 'error')
       return
     }
-    const ok = await confirm({
-      title: '启动抓取任务',
-      message: '确认后会创建一个后台任务，页面可以继续处理其他作品。',
-      okText: '启动任务',
-      items: [
-        `作品：${preview.title || '未命名'}`,
-        `章节来源：${src}`,
-        `章节链接：${currentSelectors.chapterList}`,
-        `章节正文：${currentSelectors.chapterContent}`,
-      ],
-    })
-    if (!ok) return
+    if (starting || started) return
+    setStarting(true)
     try {
+      const ok = await confirm({
+        title: '启动抓取任务',
+        message: '确认后会创建一个后台任务，页面可以继续处理其他作品。',
+        okText: '启动任务',
+        items: [
+          `作品：${preview.title || '未命名'}`,
+          `章节来源：${src}`,
+          `章节链接：${currentSelectors.chapterList}`,
+          `章节正文：${currentSelectors.chapterContent}`,
+        ],
+      })
+      if (!ok) return
       const result = await scrapeApi.start({ novelId: currentScrapeNovelId, sourceUrl: src, encoding: activeEncoding || null, selectors: currentSelectors })
       if (!result.jobId) throw new Error((result as { error?: string }).error || '没有返回任务 ID')
       track(result.jobId, preview.title || '抓取任务')
-      toast('抓取任务已启动并在侧边栏追踪', 'success')
+      setStarted(true)
+      toast('抓取任务已启动，可在下方查看进度', 'success')
     } catch (err) {
       toast('启动失败：' + (err as Error).message, 'error')
+    } finally {
+      setStarting(false)
     }
   }
 
@@ -495,112 +520,136 @@ export default function CenterView() {
 
   const setupState = activeCandidate?.loading ? 'loading' : activeCandidate?.error ? 'error' : activeCandidate?.meta ? 'ready' : 'none'
 
+  useEffect(() => {
+    if (setupState === 'ready' || setupState === 'error') setupRef.current?.focus({ preventScroll: true })
+  }, [setupState])
+
   return (
-    <div className="scrape-center scrape-claude-frame">
+    <div className={styles.center}>
       <Po18AccountPanel active />
-
-      <ScrapeIntake
-        mode={intakeMode}
-        onModeChange={setIntakeMode}
-        sourceUrl={sourceUrl}
-        onSourceUrlChange={setSourceUrl}
-        searchInput={searchInput}
-        onSearchInputChange={setSearchInput}
-        searchType={searchType}
-        onSearchTypeChange={setSearchType}
-        siteValue={siteValue}
-        onSiteChange={(value) => {
-          setSiteValue(value)
-          // 输入框展示真实请求地址；POPO 的 15 个榜单共用 /rank/index，靠 kind/type 区分。
-          setDiscoverUrl(resolveRankingSource(value)?.listUrl || value)
-        }}
-        discoverUrl={discoverUrl}
-        onDiscoverUrlChange={setDiscoverUrl}
-        loading={intakeLoading || discoveryLoading}
-        onSubmit={submitIntake}
-      />
-
-      <DiscoveryPanel
-        novels={novels}
-        selected={selected}
-        loading={discoveryLoading}
-        error={discoveryError}
-        info={discoveryInfo}
-        page={page}
-        totalPages={totalPages}
-        batch={batch}
-        onToggleAll={toggleAll}
-        onToggleSelect={toggleSelect}
-        onClearSelect={() => setSelected(new Set())}
-        onInspect={(index) => {
-          const item = novels[index]
-          if (item) void loadCandidate(item)
-        }}
-        onBatchScrape={() => void batchScrapeDiscovered()}
-        onPage={(nextPage) => void goPage(nextPage)}
-        onClearBatch={() => setBatch(null)}
-      />
-
-      {activeCandidate && (
-        <div ref={setupRef} className="w-full">
-          {setupState === 'loading' && (
-            <div className="scrape-intake scrape-setup-card rounded-2xl border border-border/80 bg-stone-50/50 dark:bg-stone-900/30 p-8 flex flex-col items-center justify-center gap-3 text-center" role="status">
-              <RefreshCw className="size-6 animate-spin text-[#D97757]" aria-hidden="true" />
-              <div className="space-y-1">
-                <strong className="font-serif text-base font-semibold text-foreground block">正在分析源站</strong>
-                <span className="text-xs text-muted-foreground">读取书名、章节目录和页面结构，请稍候…</span>
-              </div>
-            </div>
-          )}
-          {setupState === 'error' && (
-            <div className="scrape-intake scrape-setup-card rounded-2xl border border-rose-200/80 bg-rose-50/30 dark:bg-rose-950/20 dark:border-rose-900/40 p-8 flex flex-col items-center justify-center text-center gap-3" role="alert">
-              <SearchX className="size-7 text-rose-500" aria-hidden="true" />
-              <div className="space-y-1">
-                <strong className="font-serif text-base font-semibold text-foreground block">这本书暂时无法继续</strong>
-                <span className="text-xs text-muted-foreground">{activeCandidate.error}</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-lg text-xs font-medium px-4 border-[#dedcd5] hover:border-[#d97757]/60 hover:text-[#c15f3d] dark:border-[#38352f] transition-all cursor-pointer"
-                onClick={() => void loadCandidate(activeCandidate.item)}
-              >
-                重新分析
-              </Button>
-            </div>
-          )}
-          {setupState === 'ready' && activeCandidate.meta && (
-            <ScrapeSetupPanel
-              item={activeCandidate.item}
-              preview={preview}
-              onPreviewChange={setPreview}
-              coverUrl={effectiveCover}
-              novelId={currentScrapeNovelId}
-              confirming={confirming}
-              advancedOpen={advancedOpen}
-              onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
-              chapterCount={activeCandidate.meta.chapterCount || 0}
-              hasMoreChapters={Boolean(activeCandidate.meta.hasMoreChapters)}
-              protectedChapterCount={activeCandidate.meta.protectedChapterCount || 0}
-              sitePreset={sitePreset}
-              onSitePresetChange={applySitePreset}
-              chapterListUrl={chapterListUrl}
-              onChapterListUrlChange={setChapterListUrl}
-              encoding={activeEncoding}
-              onEncodingChange={setActiveEncoding}
-              selectors={selectors}
-              onSelectorsChange={setSelectors}
-              testResult={testResult}
-              testChecks={testChecks}
-              onTest={() => void testSelectors()}
-              onConfirm={() => void confirmNovel()}
-              onStart={() => void startScrape()}
-              onReset={resetSetup}
-            />
-          )}
+      <section className={styles.panel} aria-labelledby="scrape-workbench-title">
+        <div className={styles.heading}>
+          <h2 id="scrape-workbench-title" className={styles.title}>导入作品</h2>
+          <ol className={styles.steps} aria-label="抓取步骤">
+            <li aria-current={!activeCandidate ? 'step' : undefined}>选择来源</li>
+            <li aria-current={activeCandidate && !currentScrapeNovelId ? 'step' : undefined}>核对作品</li>
+            <li aria-current={currentScrapeNovelId ? 'step' : undefined}>{started ? '任务已启动' : '启动抓取'}</li>
+          </ol>
         </div>
-      )}
+        {!activeCandidate && <div ref={intakeRef}>
+            <ScrapeIntake
+              mode={intakeMode}
+              onModeChange={setIntakeMode}
+              sourceUrl={sourceUrl}
+              onSourceUrlChange={setSourceUrl}
+              searchInput={searchInput}
+              onSearchInputChange={setSearchInput}
+              searchType={searchType}
+              onSearchTypeChange={setSearchType}
+              siteValue={siteValue}
+              onSiteChange={(value) => {
+                setSiteValue(value)
+                // 输入框展示真实请求地址；POPO 的 15 个榜单共用 /rank/index，靠 kind/type 区分。
+                setDiscoverUrl(resolveRankingSource(value)?.listUrl || value)
+              }}
+              discoverUrl={discoverUrl}
+              onDiscoverUrlChange={setDiscoverUrl}
+              loading={intakeLoading || discoveryLoading}
+              disabled={Boolean(batch && !batch.done)}
+              onSubmit={submitIntake}
+            />
 
+            <div className={styles.results} aria-busy={discoveryLoading}>
+              <DiscoveryPanel
+                novels={novels}
+                selected={selected}
+                loading={discoveryLoading}
+                error={discoveryError}
+                info={discoveryInfo}
+                page={page}
+                totalPages={totalPages}
+                batch={batch}
+                onToggleAll={toggleAll}
+                onToggleSelect={toggleSelect}
+                onClearSelect={() => setSelected(new Set())}
+                onInspect={(index) => {
+                  const item = novels[index]
+                  if (item) void loadCandidate(item)
+                }}
+                onBatchScrape={() => void batchScrapeDiscovered()}
+                onPage={(nextPage) => void goPage(nextPage)}
+                onClearBatch={() => setBatch(null)}
+                onRetry={submitIntake}
+              />
+            </div>
+        </div>}
+        {activeCandidate && (
+          <div ref={setupRef} tabIndex={-1} role="region" aria-label="当前作品核对" className={styles.currentStep}>
+            {setupState === 'loading' && (
+              <div className={styles.state} role="status">
+                <Spinner aria-hidden="true" />
+                <strong>正在分析源站</strong>
+                <p className={styles.hint}>读取作品信息、章节目录和页面结构…</p>
+              </div>
+            )}
+            {setupState === 'error' && (
+              <div className={styles.state} role="alert">
+                <SearchX className="size-5" aria-hidden="true" />
+                <strong>暂时无法分析这部作品</strong>
+                <p className={`${styles.hint} ${styles.danger}`}>{activeCandidate.error}</p>
+                <div className={styles.controls}>
+                  <Button variant="outline" onClick={() => void loadCandidate(activeCandidate.item)}>重新分析</Button>
+                  <Button variant="ghost" onClick={resetSetup}><ArrowLeft aria-hidden="true" />返回导入</Button>
+                </div>
+              </div>
+            )}
+            {setupState === 'ready' && activeCandidate.meta && (
+              <ScrapeSetupPanel
+                item={activeCandidate.item}
+                preview={preview}
+                onPreviewChange={setPreview}
+                coverUrl={effectiveCover}
+                novelId={currentScrapeNovelId}
+                confirming={confirming}
+                starting={starting}
+                started={started}
+                advancedOpen={advancedOpen}
+                onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
+                chapterCount={activeCandidate.meta.chapterCount || 0}
+                hasMoreChapters={Boolean(activeCandidate.meta.hasMoreChapters)}
+                protectedChapterCount={activeCandidate.meta.protectedChapterCount || 0}
+                sitePreset={sitePreset}
+                onSitePresetChange={applySitePreset}
+                chapterListUrl={chapterListUrl}
+                onChapterListUrlChange={(value) => { setChapterListUrl(value); clearSelectorTest() }}
+                encoding={activeEncoding}
+                onEncodingChange={(value) => { setActiveEncoding(value); clearSelectorTest() }}
+                selectors={selectors}
+                onSelectorsChange={(value) => { setSelectors(value); clearSelectorTest() }}
+                testResult={testResult}
+                testChecks={testChecks}
+                onTest={() => void testSelectors()}
+                onConfirm={() => void confirmNovel()}
+                onStart={() => void startScrape()}
+                onReset={resetSetup}
+              />
+            )}
+          </div>
+        )}
+      </section>
+      <JobQueue
+        jobs={jobs}
+        restoring={restoring}
+        restoreError={restoreError}
+        onCancel={(jobId) => void cancel(jobId)}
+        onRetry={(jobId) => void retry(jobId)}
+        onRetryFailed={(jobId) => void retryFailed(jobId)}
+        onDismiss={dismiss}
+        onToggleLog={toggleLog}
+        onExportConfigs={() => void exportConfigs()}
+        onImportConfigs={() => configFileRef.current?.click()}
+        configImportStatus={configImportStatus}
+      />
       <input ref={configFileRef} type="file" accept=".json" hidden onChange={(event) => void handleConfigFileSelected(event)} />
     </div>
   )

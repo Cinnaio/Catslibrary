@@ -1,8 +1,3 @@
-import '../../../styles/admin/pages/po18-account.css'
-import '../../../styles/admin/pages/scrape-panels.css'
-import '../../../styles/admin/pages/scrape-responsive.css'
-import '../../../styles/admin/pages/scrape-workflow.css'
-import '../../../styles/admin/pages/scrape-center.css'
 // ============================================================
 // ScrapeTab — coordinator for the two scrape sub-views.
 // ============================================================
@@ -19,7 +14,7 @@ const SCRAPE_VIEWS = ['center', 'proxy'] as const
 type ScrapeView = (typeof SCRAPE_VIEWS)[number]
 
 const SCRAPE_VIEW_META: Record<ScrapeView, { title: string; description: string }> = {
-  center: { title: '抓取中心', description: '从链接、搜索或榜单进入，管理 PO18.tw 登录，并完成作品确认、章节校验和任务追踪。' },
+  center: { title: '抓取中心', description: '找到作品，核对内容，交给后台抓取。' },
   proxy: { title: '代理设置', description: '配置出站代理，检查请求路由与连通性。' },
 }
 
