@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-05 书源与追更明细的导航、筛选布局、书名与时间呈现由 `pages/admin/SourceAnalyticsTab.tsx` 和 `source-analytics.module.css` 持有，次要筛选使用共享 Popover、FormField 与 SearchSelect，结果使用 AdminStatusBadge，数据面板表面归 AdminDataPanel。透视统计拆为同场景的 `pages/admin/SourceDistribution.tsx`，四项摘要与分类内容共用书源模块 CSS，源站表格完整使用共享 AdminDataPanel 列定义及 Table 原语，跨列展开行由共享表格的 data-details 规则处理，移除旧透视卡片及明细皮肤、跨页工具栏覆盖；来源详情仍沿用所属模块样式。未新增公共组件或反向业务依赖。
+
 2026-11-05 任务中心详情由 `pages/admin/TaskWorkspace.tsx` 及其 CSS Module 持有，共享摘要、结果、错误、时间和 ID 复制布局；抓取与 AI 页面提供真实数据及业务动作。该组合保留在后台任务场景层，不新增通用层反向依赖；其他抓取日志详情继续保留各自的完整日志与失败章节流程。
 
 2026-11-05 阅读优先布局归入 `shared/ReadingDialog` 及其 CSS Module，集中维护标题、工具栏、正文／编辑框、辅助长文折叠和底部插槽，AI 生成内容与组件展厅直接使用同一生产实现；AI 模块只保留发布表单布局和业务状态。共享层不引用 AI、后台数据或业务接口，退出旧 AI 全局弹窗皮肤。
