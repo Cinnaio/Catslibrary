@@ -11,6 +11,13 @@ import { setPageSeo } from '../lib/seo'
 function Brand() { const value = useSiteBranding(); return <span>{value.name}</span> }
 beforeEach(() => { vi.resetAllMocks(); setSiteBranding(DEFAULT_SITE_BRANDING) })
 describe('品牌同步边界', () => {
+  it('标签栏使用圆形图标版本，旧默认图片也切换到圆形资源', () => {
+    act(() => setSiteBranding({ ...DEFAULT_SITE_BRANDING, faviconUrl: '/api/site-settings/assets/favicon?v=saved' }))
+    const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')!
+    expect(icon.getAttribute('href')).toBe('/api/site-settings/assets/favicon?v=saved&shape=circle-v1')
+    act(() => setSiteBranding({ ...DEFAULT_SITE_BRANDING, faviconUrl: '/images/logo.png' }))
+    expect(icon.getAttribute('href')).toBe(DEFAULT_SITE_BRANDING.faviconUrl)
+  })
   it.each(['文字', '图片'])('旧读取不能覆盖刚保存的%s', async kind => {
     let resolve!: (value: SiteBranding) => void
     api.publicBranding.mockReturnValue(new Promise<SiteBranding>(done => { resolve = done }))

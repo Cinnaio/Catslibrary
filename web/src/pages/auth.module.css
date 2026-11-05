@@ -110,7 +110,7 @@
   font: 500 21px / 1.4 var(--font-serif);
   overflow-wrap: anywhere;
 }
-.page :global(.auth-panel__mark) { width: 28px; height: 28px; flex: 0 0 28px; object-fit: contain; }
+.page :global(.auth-panel__mark) { width: 28px; height: 28px; flex: 0 0 28px; }
 .page :global(.auth-panel__title) { margin: 0; font: 500 25px / 1.5 var(--font-serif); letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .subtitle { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.7; }
 .page :global(.auth-form), .page :global(.auth-fields) { display: flex; flex-direction: column; gap: 16px; min-width: 0; }

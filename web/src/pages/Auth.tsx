@@ -1,4 +1,5 @@
 import '@/styles/identity-layout.css'
+import '@/styles/site-branding.css'
 import '@/styles/input-fields.css'
 import styles from './auth.module.css'
 /**
@@ -174,7 +175,7 @@ export default function Auth() {
           <section ref={modeMotionRef} className="auth-panel" aria-labelledby="auth-title">
             <div className="auth-panel__head">
               <div className="auth-panel__brand">
-                <img src={branding.logoUrl} alt="" className="auth-panel__mark" aria-hidden="true" />
+                <img src={branding.logoUrl} alt="" className="auth-panel__mark site-logo" aria-hidden="true" />
                 <span>{branding.name}</span>
               </div>
               <h1 id="auth-title" className="auth-panel__title">{isLogin ? '欢迎回来' : '创建你的阅读空间'}</h1>

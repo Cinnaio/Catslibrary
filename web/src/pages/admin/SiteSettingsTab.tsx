@@ -1,7 +1,9 @@
 import '@/styles/input-fields.css'
+import '@/styles/site-branding.css'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import type { PasskeyAdminSettings, SiteBranding, TurnstileSettings } from '@shared/site-settings'
+import { BRANDING_IMAGE_ACCEPT, BRANDING_IMAGE_SIZE_HINT, BRANDING_IMAGE_UPLOAD, DEFAULT_SITE_BRANDING } from '@shared/site-settings'
 import { siteSettingsApi } from '@/lib/api'
 import { brandingAssetUrl, setSiteBranding } from '@/lib/site-branding'
 import { useContentPolicy } from '@/context/ContentPolicyContext'
@@ -169,7 +171,11 @@ export default function SiteSettingsTab() {
   async function asset(kind: 'logo' | 'favicon', file?: File) {
     if (operation.current || loading) return
     if (!file && !await confirm({ title: '恢复默认图片', message: `将${kind === 'logo' ? 'Logo' : '浏览器图标'}恢复为默认图片。`, okText: '恢复默认' })) return
-    if (file && (file.size > 1024 * 1024 || !['image/png', 'image/webp'].includes(file.type))) { reportError('branding', new Error('请选择不超过 1MB 的 PNG 或 WebP 图片')); return }
+    if (file) {
+      const extension = `.${file.name.split('.').pop()?.toLowerCase()}`
+      const supported = BRANDING_IMAGE_UPLOAD.mimeTypes.some(type => type === file.type) || BRANDING_IMAGE_UPLOAD.extensions.some(value => value === extension)
+      if (!file.size || file.size > BRANDING_IMAGE_UPLOAD.maxBytes || !supported) { reportError('branding', new Error(`请选择有效的 ${BRANDING_IMAGE_UPLOAD.formatLabel} 图片，${BRANDING_IMAGE_SIZE_HINT}`)); return }
+    }
     if (!beginOperation('branding')) return
     try {
       const value = file ? await siteSettingsApi.upload(kind, file) : await siteSettingsApi.resetAsset(kind)
@@ -223,9 +229,9 @@ export default function SiteSettingsTab() {
               {([['name', '站点名称', 32], ['tagline', '站点简介', 100], ['homeTitle', '首页浏览器标题', 100]] as const).map(([key, label, limit]) => <FormField key={key} label={label}>{({ id }) => <Input id={id} required value={branding[key]} maxLength={limit} disabled={busy} onChange={event => setBranding({ ...branding, [key]: event.target.value })} />}</FormField>)}
               <FormField label="SEO 描述" hint="用于页面描述，最多 300 个字符。">{({ id }) => <Textarea id={id} required rows={3} value={branding.description} maxLength={300} disabled={busy} onChange={event => setBranding({ ...branding, description: event.target.value })} />}</FormField>
               <div className={styles.assets}>{(['logo', 'favicon'] as const).map(kind => <div key={kind} className={styles.asset}>
-                <img src={brandingAssetUrl(branding[`${kind}Url`])} width={48} height={48} alt={`${kind === 'logo' ? 'Logo' : '浏览器图标'}预览`} />
-                <FormField label={kind === 'logo' ? 'Logo' : '浏览器图标 Favicon'} hint="PNG / WebP，最大 1MB；上传后立即生效。">{({ id }) => <Input id={id} type="file" accept="image/png,image/webp" disabled={busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void asset(kind, file) }} />}</FormField>
-                <Button type="button" variant="ghost" disabled={busy || branding[`${kind}Url`] === '/images/logo.png'} onClick={() => void asset(kind)}>恢复默认</Button>
+                <img src={brandingAssetUrl(branding[`${kind}Url`])} width={48} height={48} className="site-logo" alt={`${kind === 'logo' ? 'Logo' : '浏览器图标'}预览`} />
+                <FormField label={kind === 'logo' ? 'Logo' : '浏览器图标 Favicon'} hint={`${BRANDING_IMAGE_UPLOAD.formatLabel}；${BRANDING_IMAGE_SIZE_HINT}。动图取首帧，SVG 转为位图；居中裁为圆形，直径最高 ${kind === 'logo' ? 512 : 128}px，上传后立即生效。`}>{({ id }) => <Input id={id} type="file" accept={BRANDING_IMAGE_ACCEPT} disabled={busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void asset(kind, file) }} />}</FormField>
+                <Button type="button" variant="ghost" disabled={busy || brandingAssetUrl(branding[`${kind}Url`]) === brandingAssetUrl(DEFAULT_SITE_BRANDING[`${kind}Url`])} onClick={() => void asset(kind)}>恢复默认</Button>
               </div>)}</div>
             </>}
             {saveError && <InlineError message={saveError} />}
@@ -251,9 +257,9 @@ export default function SiteSettingsTab() {
               </dl>
             </> : branding && <>
               <p className={styles.hint}>文字为当前草稿预览，保存后生效；上传的品牌图片立即生效。</p>
-              <div className={styles.brandPreview}><img src={brandingAssetUrl(branding.logoUrl)} alt="" width={40} height={40} /><span><strong>{branding.name}</strong><span className={styles.hint}>{branding.tagline}</span></span></div>
-              <div className={styles.loginPreview}><img src={brandingAssetUrl(branding.logoUrl)} alt="" width={28} height={28} /><span>{branding.name}</span><p>欢迎回来</p><span className={styles.hint}>登录后继续你的阅读与创作</span></div>
-              <div className={styles.browserPreview}><img src={brandingAssetUrl(branding.faviconUrl)} alt="" width={20} height={20} /><span>{branding.homeTitle}</span></div>
+              <div className={styles.brandPreview}><img src={brandingAssetUrl(branding.logoUrl)} alt="" width={40} height={40} className="site-logo" /><span><strong>{branding.name}</strong><span className={styles.hint}>{branding.tagline}</span></span></div>
+              <div className={styles.loginPreview}><img src={brandingAssetUrl(branding.logoUrl)} alt="" width={28} height={28} className="site-logo" /><span>{branding.name}</span><p>欢迎回来</p><span className={styles.hint}>登录后继续你的阅读与创作</span></div>
+              <div className={styles.browserPreview}><img src={brandingAssetUrl(branding.faviconUrl)} alt="" width={20} height={20} className="site-logo" /><span>{branding.homeTitle}</span></div>
               <p className={styles.hint}>小说和章节的浏览器标题仍以作品为主，站点名称作为后缀。</p>
             </>}
           </CardContent>

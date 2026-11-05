@@ -1,0 +1,9 @@
+/* One presentation for site marks in navigation, authentication and branding previews. */
+.site-logo {
+  display: inline-block;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
+  flex-shrink: 0;
+}

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { createHash } from 'node:crypto'
 import sharp from 'sharp'
-import { DEFAULT_SITE_BRANDING } from '@shared/site-settings'
+import { brandingDisplayUrl, BRANDING_IMAGE_SIZE_HINT, BRANDING_IMAGE_UPLOAD, DEFAULT_SITE_BRANDING } from '@shared/site-settings'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { run } from '../db/query'
 import { BRANDING_KEY, TURNSTILE_KEY, encryptSiteSecret, getSiteBranding, readSetting, updateSiteSettings, validateBranding, writeSetting } from '../services/site-settings'
@@ -14,8 +14,11 @@ import { startAdminOperationAudit, finishAdminOperationAudit } from '../services
 import { requestHash } from '../services/idempotency'
 import { newId } from '../services/auth'
 import { getDb } from '../db/pool'
+import { circularBrandingAsset } from '../services/site-branding-image'
 
-const MAX_IMAGE_BYTES = 1024 * 1024
+const MAX_IMAGE_BYTES = BRANDING_IMAGE_UPLOAD.maxBytes
+const MAX_IMAGE_DIMENSION = BRANDING_IMAGE_UPLOAD.maxDimension
+const IMAGE_ERROR = `请选择有效的 ${BRANDING_IMAGE_UPLOAD.formatLabel} 图片，${BRANDING_IMAGE_SIZE_HINT}`
 const assetKey = (kind: string) => `site_asset_${kind}`
 const validKind = (kind: string): kind is 'logo' | 'favicon' => kind === 'logo' || kind === 'favicon'
 interface Asset { data: string; hash: string }
@@ -28,14 +31,18 @@ publicSiteSettingsRoutes.get('/assets/:kind', async c => {
   if (!validKind(kind)) return c.notFound()
   const asset = await readSetting<Asset>(assetKey(kind))
   if (!asset) return c.notFound()
-  const headers = { 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=0, must-revalidate', ETag: `"${asset.hash}"` }
+  const rendered = await circularBrandingAsset(kind, asset)
+  const headers = { 'Content-Type': 'image/png', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=0, must-revalidate', ETag: `"circle-v1-${rendered.hash}"` }
   if (c.req.header('If-None-Match') === headers.ETag) return c.body(null, 304, headers)
-  return c.body(new Uint8Array(Buffer.from(asset.data, 'base64')), 200, headers)
+  return c.body(new Uint8Array(rendered.data), 200, headers)
 })
 
 export const adminSiteSettingsRoutes = new Hono<AuthEnv>()
 adminSiteSettingsRoutes.use('*', requireAdmin())
-adminSiteSettingsRoutes.use('*', bodyLimit({ maxSize: MAX_IMAGE_BYTES + 65536, onError: c => c.json({ error: '请求过大，图片不能超过 1MB' }, 413) }))
+adminSiteSettingsRoutes.use('*', (c, next) => bodyLimit({
+  maxSize: (c.req.path.includes('/assets/') ? MAX_IMAGE_BYTES : 1024 * 1024) + 65536,
+  onError: c => c.json({ error: c.req.path.includes('/assets/') ? `图片请求过大，${BRANDING_IMAGE_SIZE_HINT}` : '站点设置请求过大' }, 413),
+})(c, next))
 adminSiteSettingsRoutes.use('*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
 adminSiteSettingsRoutes.get('/branding', async c => c.json(await getSiteBranding()))
 adminSiteSettingsRoutes.put('/branding', async c => {
@@ -55,24 +62,23 @@ adminSiteSettingsRoutes.put('/assets/:kind', async c => {
   const form = await c.req.formData().catch(() => null)
   const file = form?.get('image')
   if (!file || typeof file === 'string') return c.json({ error: '请选择图片文件' }, 400)
-  if (!file.size || file.size > MAX_IMAGE_BYTES) return c.json({ error: '图片不能超过 1MB' }, 400)
+  if (!file.size) return c.json({ error: '图片不能为空' }, 400)
+  if (file.size > MAX_IMAGE_BYTES) return c.json({ error: `图片${BRANDING_IMAGE_SIZE_HINT}` }, 400)
   let data: Buffer
   try {
     const input = Buffer.from(await file.arrayBuffer())
-    // Reject SVG/HTML before decoding, regardless of client-supplied extension/MIME.
-    const png = input.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))
-    const webp = input.subarray(0, 4).toString() === 'RIFF' && input.subarray(8, 12).toString() === 'WEBP'
-    if (!png && !webp) throw new Error('unsupported')
-    const image = sharp(input, { limitInputPixels: 4096 * 4096, failOn: 'warning' })
+    // Decode only the first frame and always rasterize SVG; never serve uploaded source bytes.
+    const image = sharp(input, { limitInputPixels: MAX_IMAGE_DIMENSION * MAX_IMAGE_DIMENSION, failOn: 'warning', animated: false })
     const meta = await image.metadata()
-    if (!['png', 'webp'].includes(meta.format || '') || (meta.pages || 1) > 1 || !meta.width || !meta.height || meta.width > 4096 || meta.height > 4096) throw new Error('unsupported')
+    const supported = ['png', 'jpeg', 'webp', 'gif', 'svg'].includes(meta.format || '') || (meta.format === 'heif' && meta.compression === 'av1')
+    if (!supported || !meta.width || !meta.height || meta.width > MAX_IMAGE_DIMENSION || meta.height > MAX_IMAGE_DIMENSION) throw new Error('unsupported')
     data = await image.rotate().resize(kind === 'favicon' ? 128 : 512, kind === 'favicon' ? 128 : 512, { fit: 'inside', withoutEnlargement: true }).png().toBuffer()
     if (data.length > MAX_IMAGE_BYTES) throw new Error('large')
-  } catch { return c.json({ error: '请选择有效的静态 PNG 或 WebP 图片，尺寸不超过 4096×4096' }, 400) }
+  } catch { return c.json({ error: IMAGE_ERROR }, 400) }
   const hash = createHash('sha256').update(data).digest('hex')
   const branding = await updateSiteSettings(async db => {
     await writeSetting(assetKey(kind), { data: data.toString('base64'), hash }, db)
-    const next = { ...await getSiteBranding(db), [`${kind}Url`]: `/api/site-settings/assets/${kind}?v=${hash.slice(0, 16)}` }
+    const next = { ...await getSiteBranding(db), [`${kind}Url`]: brandingDisplayUrl(`/api/site-settings/assets/${kind}?v=${hash.slice(0, 16)}`) }
     await writeSetting(BRANDING_KEY, next, db)
     return next
   })

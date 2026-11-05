@@ -1,4 +1,5 @@
 import '@/styles/identity-layout.css'
+import '@/styles/site-branding.css'
 /**
  * Install 页 —— 首次安装向导（独立顶层路由，无 Layout）。
  * 三步：① 数据库连接（needsSetup 时）→ ② 可选配置（AI/代理/CORS，可跳过）
@@ -15,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { DEFAULT_SITE_BRANDING } from '@shared/site-settings'
 
 type Step = 'database' | 'options' | 'admin'
 
@@ -181,7 +183,7 @@ export default function Install() {
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col gap-5 p-6">
             <div className="flex flex-col items-center gap-2 text-center">
-              <img src="/images/logo.png" alt="知舟" className="h-9 w-9 object-contain" />
+              <img src={DEFAULT_SITE_BRANDING.logoUrl} alt="知舟" className="site-logo h-9 w-9" />
               <h1 className="text-xl font-semibold">知舟 · 首次安装</h1>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 {STEPS.map((s, i) => (

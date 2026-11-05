@@ -26,7 +26,6 @@
 }
 .brand img {
   flex: 0 0 34px;
-  object-fit: contain;
 }
 .brand > span {
   display: grid;

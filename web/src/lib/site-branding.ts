@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { DEFAULT_SITE_BRANDING, type SiteBranding } from '@shared/site-settings'
+import { brandingDisplayUrl, DEFAULT_SITE_BRANDING, type SiteBranding } from '@shared/site-settings'
 import { url } from './api'
 
 function initialBranding(): SiteBranding {
@@ -14,7 +14,10 @@ export function siteBrandingVersion(): number { return version }
 const listeners = new Set<() => void>()
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 export function useSiteBranding(): SiteBranding { return useSyncExternalStore(subscribe, () => branding, () => DEFAULT_SITE_BRANDING) }
-export function brandingAssetUrl(path: string): string { return path.startsWith('/api/') ? url(path.slice(4)) : path }
+export function brandingAssetUrl(path: string): string {
+  const value = brandingDisplayUrl(path)
+  return value.startsWith('/api/') ? url(value.slice(4)) : value
+}
 export function setSiteBranding(value: SiteBranding) {
   version++
   branding = { ...value, logoUrl: brandingAssetUrl(value.logoUrl), faviconUrl: brandingAssetUrl(value.faviconUrl) }

@@ -5,6 +5,9 @@ import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
 import { createWebRoutes } from './web'
 import { fileURLToPath } from 'node:url'
+import { createHash, randomBytes } from 'node:crypto'
+import { BRANDING_IMAGE_UPLOAD, DEFAULT_SITE_BRANDING } from '@shared/site-settings'
+import { BRANDING_KEY, writeSetting } from '../services/site-settings'
 import { effectiveTurnstile } from '../services/turnstile'
 import type { SiteBranding, TurnstileSettings } from '@shared/site-settings'
 
@@ -13,6 +16,11 @@ const settings = '/api/admin/site-settings'
 const brand = { name: '书灯', tagline: '慢慢阅读', homeTitle: '书灯 — 私家书库', description: '自己的阅读空间' }
 function request(path: string, method = 'GET', body?: unknown, token = admin) {
   return app.request(path, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
+}
+function uploadImage(input: Uint8Array, filename = 'image.png', type = 'image/png') {
+  const form = new FormData()
+  form.set('image', new Blob([new Uint8Array(input)], { type }), filename)
+  return app.request(`${settings}/assets/logo`, { method: 'PUT', headers: { Authorization: `Bearer ${admin}` }, body: form })
 }
 beforeAll(async () => {
   t = await createTestDb(); await t.applyMigrations(); setDbForTests(t.db)
@@ -48,10 +56,11 @@ describe('站点设置管理与公开边界', () => {
     expect((await request(settings + '/branding', 'PUT', { ...brand, name: '' })).status).toBe(400)
     expect((await request(settings + '/branding', 'PUT', { ...brand, name: 'x'.repeat(33) })).status).toBe(400)
     const result = await (await request(settings + '/branding', 'PUT', { ...brand, logoUrl: 'javascript:alert(1)' })).json()
-    expect(result).toMatchObject({ ...brand, logoUrl: '/images/logo.png' })
+    expect(result).toMatchObject({ ...brand, logoUrl: DEFAULT_SITE_BRANDING.logoUrl })
     expect(await (await request('/api/site-settings', 'GET', undefined, '')).json()).toEqual(result)
   })
   it('Logo/Favicon 上传、真实解码、缓存与恢复默认，保留品牌文字', async () => {
+    expect((await request(settings + '/branding', 'PUT', brand)).status).toBe(200)
     const image = await sharp({ create: { width: 24, height: 24, channels: 4, background: '#8b6045' } }).png().toBuffer()
     for (const kind of ['logo', 'favicon'] as const) {
       const form = new FormData(); form.set('image', new Blob([new Uint8Array(image)], { type: 'image/png' }), 'image.png')
@@ -64,21 +73,68 @@ describe('站点设置管理与公开边界', () => {
       expect(asset.headers.get('X-Content-Type-Options')).toBe('nosniff')
       expect((await sharp(Buffer.from(await asset.arrayBuffer())).metadata()).width).toBe(24)
       expect((await app.request(saved[`${kind}Url`], { headers: { 'If-None-Match': asset.headers.get('ETag')! } })).status).toBe(304)
-      expect((await (await request(`${settings}/assets/${kind}`, 'DELETE')).json() as SiteBranding)[`${kind}Url`]).toBe('/images/logo.png')
+      expect((await (await request(`${settings}/assets/${kind}`, 'DELETE')).json() as SiteBranding)[`${kind}Url`]).toBe(DEFAULT_SITE_BRANDING[`${kind}Url`])
       expect((await request(`/api/site-settings/assets/${kind}`)).status).toBe(404)
     }
   })
-  it.each(['<svg xmlns="http://www.w3.org/2000/svg"></svg>', '<html>bad</html>', '\x89PNG fake'])('拒绝伪装为 PNG 的文件 %s', async input => {
+  it.each(['<svg invalid', '<html>bad</html>', '\x89PNG fake'])('拒绝伪装为 PNG 的文件 %s', async input => {
     const form = new FormData(); form.set('image', new Blob([input], { type: 'image/png' }), 'fake.png')
     expect((await app.request(`${settings}/assets/logo`, { method: 'PUT', headers: { Authorization: `Bearer ${admin}` }, body: form })).status).toBe(400)
   })
+  it.each(['png', 'jpeg', 'webp', 'gif', 'avif', 'svg'] as const)('品牌上传支持 %s 并统一输出静态 PNG', async format => {
+    const image = format === 'svg'
+      ? Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="24"><rect width="32" height="24" fill="red"/></svg>')
+      : await sharp({ create: { width: 32, height: 24, channels: 4, background: '#8b6045' } }).toFormat(format).toBuffer()
+    // Generic MIME must not prevent decoding valid content.
+    const res = await uploadImage(image, `image.${format}`, 'application/octet-stream')
+    expect(res.status).toBe(200)
+    const saved = await res.json() as SiteBranding
+    const asset = await request(saved.logoUrl, 'GET', undefined, '')
+    expect(asset.headers.get('Content-Type')).toBe('image/png')
+    expect(await sharp(Buffer.from(await asset.arrayBuffer())).metadata()).toMatchObject({ format: 'png', width: 24, height: 24 })
+  })
+  it('品牌上传接受超过旧 1MB 限制的图片及新的尺寸上限', async () => {
+    const image = await sharp(randomBytes(1024 * 1024 * 3), { raw: { width: 1024, height: 1024, channels: 3 } }).png().toBuffer()
+    expect(image.length).toBeGreaterThan(1024 * 1024)
+    expect((await uploadImage(image)).status).toBe(200)
+    const wide = await sharp({ create: { width: BRANDING_IMAGE_UPLOAD.maxDimension, height: 1, channels: 4, background: '#fff' } }).png().toBuffer()
+    expect((await uploadImage(wide)).status).toBe(200)
+  })
+  it('品牌上传动图只保存首帧', async () => {
+    const image = await sharp(randomBytes(24 * 48 * 4), { raw: { width: 24, height: 48, pageHeight: 24, channels: 4 } }).gif().toBuffer()
+    expect((await sharp(image).metadata()).pages).toBe(2)
+    const saved = await (await uploadImage(image, 'animated.gif', 'image/gif')).json() as SiteBranding
+    const asset = await request(saved.logoUrl, 'GET', undefined, '')
+    const meta = await sharp(Buffer.from(await asset.arrayBuffer())).metadata()
+    expect(meta).toMatchObject({ format: 'png', width: 24, height: 24 })
+    expect(meta.pages || 1).toBe(1)
+  })
   it('超限图片与超大请求拒绝', async () => {
-    const form = new FormData(); form.set('image', new Blob([new Uint8Array(1024 * 1024 + 1)], { type: 'image/png' }), 'big.png')
+    const form = new FormData(); form.set('image', new Blob([new Uint8Array(BRANDING_IMAGE_UPLOAD.maxBytes + 1)], { type: 'image/png' }), 'big.png')
     expect((await app.request(`${settings}/assets/logo`, { method: 'PUT', headers: { Authorization: `Bearer ${admin}` }, body: form })).status).toBe(400)
     expect((await request(`${settings}/branding`, 'PUT', { ...brand, description: 'x'.repeat(1200000) })).status).toBe(413)
-    const wide = await sharp({ create: { width: 4097, height: 1, channels: 4, background: '#fff' } }).png().toBuffer()
+    expect((await uploadImage(new Uint8Array(BRANDING_IMAGE_UPLOAD.maxBytes + 65536))).status).toBe(413)
+    expect((await uploadImage(new Uint8Array())).status).toBe(400)
+    const wide = await sharp({ create: { width: BRANDING_IMAGE_UPLOAD.maxDimension + 1, height: 1, channels: 4, background: '#fff' } }).png().toBuffer()
     const dimensions = new FormData(); dimensions.set('image', new Blob([new Uint8Array(wide)], { type: 'image/png' }), 'wide.png')
     expect((await app.request(`${settings}/assets/logo`, { method: 'PUT', headers: { Authorization: `Bearer ${admin}` }, body: dimensions })).status).toBe(400)
+  })
+  it('已有 Logo/Favicon 无需重新上传即可圆形展示，透明四角与新缓存标识生效', async () => {
+    const image = await sharp({ create: { width: 64, height: 32, channels: 4, background: '#8b6045' } }).png().toBuffer()
+    const oldHash = createHash('sha256').update(image).digest('hex')
+    for (const kind of ['logo', 'favicon'] as const) {
+      await writeSetting(`site_asset_${kind}`, { data: image.toString('base64'), hash: oldHash })
+      const asset = await app.request(`/api/site-settings/assets/${kind}?v=old`, { headers: { 'If-None-Match': `"${oldHash}"` } })
+      expect(asset.status).toBe(200)
+      expect(asset.headers.get('ETag')).toMatch(/^"circle-v1-/)
+      const { data, info } = await sharp(Buffer.from(await asset.arrayBuffer())).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+      expect(info).toMatchObject({ width: 32, height: 32, channels: 4 })
+      for (const [x, y] of [[0, 0], [31, 0], [0, 31], [31, 31]]) expect(data[(y! * 32 + x!) * 4 + 3]).toBe(0)
+      expect(Array.from(data.subarray((16 * 32 + 16) * 4, (16 * 32 + 16) * 4 + 4))).toEqual([139, 96, 69, 255])
+      expect((await app.request(`/api/site-settings/assets/${kind}`, { headers: { 'If-None-Match': asset.headers.get('ETag')! } })).status).toBe(304)
+    }
+    await writeSetting(BRANDING_KEY, { ...brand, logoUrl: '/api/site-settings/assets/logo?v=old', faviconUrl: '/images/logo.png' })
+    expect(await (await request('/api/site-settings', 'GET', undefined, '')).json()).toMatchObject({ logoUrl: '/api/site-settings/assets/logo?v=old&shape=circle-v1', faviconUrl: DEFAULT_SITE_BRANDING.faviconUrl })
   })
   it('未配置加密主密钥时禁止存储私钥；保存后数据库无明文且所有响应脱敏', async () => {
     const body = { siteKey: 'site-fixture', secretKey: 'private-fixture', hostnames: ['READ.EXAMPLE.COM'] }

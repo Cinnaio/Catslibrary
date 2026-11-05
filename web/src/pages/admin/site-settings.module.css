@@ -77,7 +77,6 @@
 .brandPreview img,
 .loginPreview img,
 .browserPreview img {
-  object-fit: contain;
   flex: 0 0 auto;
 }
 .asset input {

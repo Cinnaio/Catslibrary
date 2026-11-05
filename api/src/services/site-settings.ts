@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
-import { DEFAULT_SITE_BRANDING, type SiteBranding } from '@shared/site-settings'
+import { brandingDisplayUrl, DEFAULT_SITE_BRANDING, type SiteBranding } from '@shared/site-settings'
 import { getDb, type DbClient } from '../db/pool'
 import { first, run, withTx } from '../db/query'
 
@@ -23,7 +23,8 @@ export async function updateSiteSettings<T>(work: (db: DbClient) => Promise<T>):
 }
 export async function getSiteBranding(db: DbClient = getDb()): Promise<SiteBranding> {
   const saved = await readSetting<Partial<SiteBranding>>(BRANDING_KEY, db)
-  return { ...DEFAULT_SITE_BRANDING, ...saved }
+  const branding = { ...DEFAULT_SITE_BRANDING, ...saved }
+  return { ...branding, logoUrl: brandingDisplayUrl(branding.logoUrl), faviconUrl: brandingDisplayUrl(branding.faviconUrl) }
 }
 export function validateBranding(body: Record<string, unknown>): Pick<SiteBranding, 'name' | 'tagline' | 'homeTitle' | 'description'> {
   const result = {} as Pick<SiteBranding, 'name' | 'tagline' | 'homeTitle' | 'description'>

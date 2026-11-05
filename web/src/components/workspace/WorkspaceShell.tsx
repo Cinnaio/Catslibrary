@@ -1,4 +1,5 @@
 import '@/styles/input-fields.css'
+import '@/styles/site-branding.css'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Dialog, Switch } from 'radix-ui'
@@ -199,7 +200,7 @@ export default function WorkspaceShell({
   }, [location.pathname, standalone])
   const brand = (
     <Link to="/" className={styles.brand} onClick={() => setMenuOpen(false)}>
-      <img src={branding.logoUrl} alt="" width={34} height={34} />
+      <img src={branding.logoUrl} alt="" width={34} height={34} className="site-logo" />
       <span>
         <strong>{branding.name}</strong>
         <small>{admin ? '作品与创作管理' : '自己的阅读空间'}</small>
