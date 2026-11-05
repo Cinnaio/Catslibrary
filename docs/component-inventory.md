@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-05 备份版本摘要、状态、当前任务与版本详情由 `pages/admin/backups/BackupVersionViews.tsx` 和 `backup-versions.module.css` 持有场景呈现；版本详情复用共享 ReadingDialog，列表表面仍归 AdminDataPanel。`BackupsTab.tsx` 持有视图、列表、任务观测与静默同步，PolicyForm／BackupSettingsForm 持有草稿和保存基线，跨分区保留挂载并按外部修订协调刷新；运行环境与演练弹窗接受分区可见性，不将场景状态引入共享层。
+
 2026-11-05 AI 分级建议审核由 `pages/admin/ContentRatingAiReview.tsx` 与 `content-rating-ai-review.module.css` 持有模型证据、正文采样和审核确认布局；复用共享 `ReadingDialog`、`FormField` 与 UI 控件，弹窗尺寸、左对齐页头、中间滚动及底部插槽继续归共享阅读弹窗。`ContentRatingsTab.tsx` 保留建议、理由、保存与修订审核请求状态；旧审核弹窗的专属全局样式移除，不影响其他分级弹窗。
 
 2026-11-05 站点设置由 `pages/admin/SiteSettingsTab.tsx` 与 `site-settings.module.css` 持有布局及各页独立读取状态；`SiteSettingsNavigation.tsx` 复用注册表元数据和共享 Tabs，统一六个视图与窄屏滚动。`site-settings-views.ts` 解析站点与旧 AI 设置地址，Admin 对这些地址复用同一个持久挂载的工作区；`ai/AiSettingsWorkspace.tsx` 按需加载并保留模型与参数两页的独立快照、草稿，复用实际 AiConfigPanel 与 AiParamsPanel，AiTab 仅负责创作。旧站点设置全局 CSS 退出运行时，卡片、按钮、开关、勾选、异步状态仍归共享层；内容安全仅呈现策略卡片，布局继续归 `content-policy.module.css`。共享 Tabs 首次直接定位，后续选择平移；不新增公共层业务依赖。

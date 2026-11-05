@@ -1,0 +1,140 @@
+.workspace:global(.backup-page.admin-redesign-page) > header {
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+.sectionHead,
+.taskLead,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sectionHead {
+  justify-content: space-between;
+}
+.sectionHead h2,
+.detailSection h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+.tasks {
+  min-width: 0;
+}
+.task {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding-block: 16px;
+}
+.taskLead strong,
+.copy strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.taskCopy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.taskCopy p {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+.muted {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.failure {
+  margin: 0;
+  color: var(--color-danger, var(--destructive));
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.copySummary,
+.detailSection,
+.detailFooter {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.copySummary {
+  gap: 4px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.copy {
+  display: grid;
+  gap: 4px;
+  padding-block: 12px;
+}
+.detailSection > p,
+.detailFooter > p {
+  margin: 0;
+}
+.detailFooter {
+  gap: 16px;
+}
+.detailFooter .actions {
+  justify-content: flex-end;
+}
+.metadata summary {
+  min-height: 40px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.metadata summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.metadata dl {
+  display: grid;
+  gap: 12px;
+  font-size: 12px;
+}
+.metadata dl > div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 12px;
+}
+.metadata dt {
+  color: var(--text-muted);
+}
+.metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.versionName {
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.versionMeta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.draftHint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+@media (max-width: 700px) {
+  .task {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .taskLead {
+    grid-column: 1 / -1;
+  }
+  .detailFooter .actions > button {
+    flex: 1 1 auto;
+  }
+  .metadata summary {
+    min-height: 48px;
+  }
+}
