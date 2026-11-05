@@ -755,17 +755,13 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       }
     >
       {!selectedNovel ? (
-        <div className="chapter-empty-container">
+        <AdminDataPanel ariaLabel="章节管理引导">
           <EmptyState
-            icon={
-              <div className="chapter-empty-container__icon-wrap">
-                <BookOpen className="size-7" />
-              </div>
-            }
-            message="请选择需要维护的小说"
-            hint="在右上方下拉菜单选择或搜索一部小说，即可查看和编排其章节目录、编辑正文或融合章节名。"
+            icon={<BookOpen aria-hidden="true" />}
+            message="请先选择作品"
+            hint="从上方选择作品后，即可管理目录与正文。"
           />
-        </div>
+        </AdminDataPanel>
       ) : (
         <>
           <AdminToolbar layout="inline" className="chapter-toolbar" ariaLive="polite">

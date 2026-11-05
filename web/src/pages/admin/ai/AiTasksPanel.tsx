@@ -307,7 +307,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
         ) : tasks.length === 0 && filterStatus !== 'all' ? (
           <EmptyState
             message={`当前筛选条件下暂无${taskStatusLabel(filterStatus)}任务`}
-            icon={<ListFilter className="size-8 opacity-40" aria-hidden="true" />}
+            icon={<ListFilter aria-hidden="true" />}
             action={
               <Button
                 variant="outline"
@@ -333,7 +333,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
         ) : displayTasks.length === 0 ? (
           <EmptyState
             message={`未找到与「${search.trim()}」相关的 AI 任务`}
-            icon={<ListFilter className="size-8 opacity-40" aria-hidden="true" />}
+            icon={<ListFilter aria-hidden="true" />}
             action={
               <Button
                 variant="outline"

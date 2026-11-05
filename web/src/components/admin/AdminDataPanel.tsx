@@ -3,6 +3,7 @@ import '@/styles/admin/components/table-motion.css'
 import '@/styles/admin/components/tables.css'
 import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import styles from './admin-data-panel.module.css'
 
 /**
  * 数据表格列定义。
@@ -46,6 +47,7 @@ export function AdminDataPanel({ children, ariaLabel, className, columns, densit
   return (
     <section
       className={cn(
+        styles.panel,
         'admin-data-panel',
         columns && (responsive === 'scroll' ? 'admin-data-panel--scroll' : 'admin-data-panel--grid'),
         `admin-data-panel--${density}`,

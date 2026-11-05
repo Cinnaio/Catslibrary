@@ -2,7 +2,7 @@ import { FilterChip } from '@/components/ui/filter-chip'
 import { ControlAppearance, ControlSurface } from '@/components/ui/control-appearance'
 import '@/styles/catalog-controls.css'
 import { useState } from 'react'
-import { BookOpen, Copy, LoaderCircle, MoreHorizontal, Settings, Trash2 } from 'lucide-react'
+import { BookOpen, Copy, Download, LoaderCircle, MoreHorizontal, Settings, Trash2 } from 'lucide-react'
 import type { Novel } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,6 +51,7 @@ import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import EmptyState from "@/components/shared/EmptyState"
 import FormField from "@/components/shared/FormField"
 import AdminPage from '@/components/admin/AdminPage'
+import { AdminDataPanel } from '@/components/admin/AdminDataPanel'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import { SearchField } from '@/components/shared/SearchField'
 import { AdminToolbar } from '@/components/admin/AdminToolbar'
@@ -719,7 +720,7 @@ export function BusinessFields({ state, boundary }: ExampleProps) {
     </div>
   )
 }
-export function AsyncExample({ state }: ExampleProps) {
+export function AsyncExample({ state, boundary }: ExampleProps) {
   const { toast } = useToast()
   if (state === 'loading') return <LoadingState label="正在加载示例书目" />
   if (state === 'error')
@@ -729,13 +730,22 @@ export function AsyncExample({ state }: ExampleProps) {
         <InlineError message="示例更新失败，保留已有内容" onRetry={() => toast('已触发示例重试')} />
       </div>
     )
+  if (state === 'empty')
+    return (
+      <EmptyState
+        icon={<Download aria-hidden="true" />}
+        message="暂无下载记录"
+        hint="导出内容或下载书源配置后，记录会显示在这里。"
+      />
+    )
   return (
     <EmptyState
-      message="暂无示例书目"
-      hint="添加书目后将在这里显示。"
+      icon={<BookOpen aria-hidden="true" />}
+      message="请先选择作品"
+      hint={boundary ? longTitle.repeat(3) : '从上方选择作品后，即可管理目录与正文。'}
       action={
         <Button variant="outline" onClick={() => toast('此处演示空状态操作')}>
-          添加示例
+          选择示例作品
         </Button>
       }
     />
@@ -862,7 +872,15 @@ export function AdminScaffold({ boundary }: ExampleProps) {
         <SearchField id="sample-search-field" label="搜索示例书目" placeholder="搜索书名或作者…" value={query} onChange={(e) => setQuery(e.target.value)} />
         <Badge variant="secondary">{boundary ? '999,999 本' : '128 本'}</Badge>
       </AdminToolbar>
-      <p className="gallery-note">{query ? `当前示例搜索：${query}` : '输入文字可检查搜索控件状态。'}</p>
+      <div className="gallery-stack">
+        <p className="gallery-note">{query ? `当前示例搜索：${query}` : '输入文字可检查搜索控件状态；下方为嵌套布局中的共享数据面板。'}</p>
+        <AdminDataPanel ariaLabel="示例作品列表" columns={[{ key: 'title', label: '作品', primary: true, width: '75%' }, { key: 'status', label: '状态', width: '25%' }]} density="comfortable">
+          <Table className="admin-data-table">
+            <TableHeader><TableRow><TableHead scope="col">作品</TableHead><TableHead scope="col">状态</TableHead></TableRow></TableHeader>
+            <TableBody><TableRow><TableCell data-primary="" data-label="作品"><strong>{boundary ? longTitle : fixture.title}</strong></TableCell><TableCell data-label="状态"><AdminStatusBadge tone="success">已发布</AdminStatusBadge></TableCell></TableRow></TableBody>
+          </Table>
+        </AdminDataPanel>
+      </div>
     </AdminPage>
   )
 }

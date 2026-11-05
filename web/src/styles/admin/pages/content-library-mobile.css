@@ -512,18 +512,6 @@
     }
   }
 
-  /* ——— 章节空态：手机上不留 400px 的纸面留白 ——— */
-  .admin-redesign-page--chapters .chapter-empty-container {
-    min-height: 0;
-    padding: 2.5rem 1.25rem;
-    border-radius: var(--admin-data-panel-radius);
-  }
-
-  .admin-redesign-page--chapters .chapter-empty-container__icon-wrap {
-    width: 3rem;
-    height: 3rem;
-    border-radius: var(--admin-radius);
-  }
 }
 
 /* 手机档（≤640px，与全站手机断点一致）：主操作独占首行，其余三枚等宽一行。

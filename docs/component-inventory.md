@@ -10,7 +10,7 @@
 | --- | --- | ---: | --- | --- |
 | `components/AccountMenu.tsx` | 应用／业务 | 1 | `styles/account-menu.css` | 保留：账户导航与会话动作 |
 | `components/admin/AdminContentRatingBadge.tsx` | 后台场景 | 4 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留／拆分：管理操作、数据表面或具体作品流程 |
-| `components/admin/AdminDataPanel.tsx` | 后台场景 | 15 | `styles/admin/components/readability.css`、`styles/admin/components/table-motion.css`、`styles/admin/components/tables.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/AdminDataPanel.tsx` | 后台场景 | 16 | `styles/admin/components/readability.css`、`styles/admin/components/table-motion.css`、`styles/admin/components/tables.css`、`components/admin/admin-data-panel.module.css` | 保留／拆分：管理操作、数据表面或具体作品流程；表面由组件自身维护，不依赖页面层级 |
 | `components/admin/AdminFloatingDock.tsx` | 后台场景 | 5 | `styles/admin/components/floating-dock.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/AdminModelTime.tsx` | 后台场景 | 1 | `components/admin/AdminModelTime.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/AdminPage.tsx` | 后台场景 | 17 | `components/admin/admin-page.module.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |

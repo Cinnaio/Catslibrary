@@ -21,9 +21,6 @@
     background-position: -200% 0;
   }
 }
-.error {
-  min-height: 224px;
-}
 .error svg {
   color: var(--color-danger);
 }

@@ -1,11 +1,3 @@
-.admin-data-panel {
-  border: 0;
-  border-color: transparent;
-  border-radius: var(--admin-data-panel-radius);
-  background: var(--admin-data-panel-background);
-  box-shadow: none;
-}
-
 /* 管理数据表格的统一动效：只表达进入与状态反馈，不参与布局计算。 */
 @keyframes admin-tab-surface-enter {
   from {

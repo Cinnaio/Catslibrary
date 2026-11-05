@@ -524,7 +524,7 @@ export default function AiGenerationsPanel(props: {
       </AdminSelectionBar>
 
       <AdminDataPanel
-        className="content-ratings-panel content-ratings-ledger ai-generations-card"
+        className="ai-generations-card"
         ariaLabel="已生成内容列表"
         columns={AI_GENERATION_COLUMNS}
         density="comfortable"

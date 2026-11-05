@@ -107,18 +107,6 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-/* 列表状态胶囊：与审核列表同构，任务与日志两个面板各有一枚。 */
-/* 空态/加载态/失败态共用一块竖直居中的纸面区，取代此前拼在表格里的空行。 */
-.admin-redesign-page--jobs .jobs-empty {
-  min-height: 14rem;
-  padding: 2.5rem 1.25rem;
-}
-
-.admin-redesign-page--jobs .jobs-empty .job-spinner {
-  width: 1.75rem;
-  height: 1.75rem;
-  border-width: 2px;
-}
 
 @media (max-width: 900px) {
   .admin-redesign-page--jobs .jobs-toolbar__filters {

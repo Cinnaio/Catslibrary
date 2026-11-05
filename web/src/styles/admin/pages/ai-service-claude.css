@@ -40,29 +40,6 @@
   box-shadow: none;
 }
 
-/* 控件几何：输入框、主次按钮、筛选器统一采用共享控件圆角（border-radius: 9999px） */
-.ai-service :is([data-slot='input'], input:not([type='checkbox']):not([type='radio']):not([type='range'])) {
-  border-radius: var(--radius-control) !important;
-  border: 1px solid var(--admin-border, #e5e3dc);
-  background: var(--admin-panel, #ffffff);
-  height: 2.5rem;
-  padding-inline: 1rem;
-  font-size: 0.85rem;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-:root[data-theme='dark'] .ai-service :is([data-slot='input'], input:not([type='checkbox']):not([type='radio']):not([type='range'])),
-[data-theme='dark'] .ai-service :is([data-slot='input'], input:not([type='checkbox']):not([type='radio']):not([type='range'])) {
-  border-color: var(--admin-border, #2a2825);
-  background: var(--admin-panel, #1c1b18);
-}
-
-.ai-service :is([data-slot='input'], input:not([type='checkbox']):not([type='radio']):not([type='range'])):focus {
-  border-color: var(--accent) !important;
-  outline: none;
-  box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.3) !important;
-}
-
 /* 下拉与选择器胶囊 */
 .ai-service :is([data-slot='select-trigger'], button[role='combobox'], .custom-select__trigger) {
   border-radius: var(--radius-control) !important;
@@ -349,8 +326,8 @@
   gap: 0.5rem;
   min-width: 0;
 }
-.ai-service .ai-generations-card > :is(.empty-state, .admin-async-state),
-.ai-service .ai-generations-card .ai-list-body > :is(.empty-state, .admin-async-state) {
+.ai-service .ai-generations-card > .admin-async-state,
+.ai-service .ai-generations-card .ai-list-body > .admin-async-state {
   padding: 2.5rem 1.25rem;
 }
 .ai-service .ai-generations-card .ai-list-body {
