@@ -1,0 +1,203 @@
+.listControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+.tabs {
+  min-width: 0;
+}
+
+.toolbar:global(.admin-toolbar) {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.toolbar > :global(.search-field) {
+  flex: 0 1 320px;
+  width: min(320px, 100%);
+}
+
+.filters,
+.listActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.listActions {
+  margin-inline-start: auto;
+}
+
+.filters .statusSelect {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+}
+
+.meta {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.65;
+  font-variant-numeric: tabular-nums;
+}
+
+.listActions .meta {
+  white-space: nowrap;
+}
+
+.dataPanel table td.contentCell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.contentPreview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  min-height: 40px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-tag);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.7;
+  text-align: start;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+.contentPreview:hover {
+  color: var(--accent);
+}
+
+.contentPreview:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.contentText,
+.quote,
+.source > :is(a, span),
+.reason .meta {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.contentText {
+  -webkit-line-clamp: 3;
+}
+
+.quote {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.source,
+.reason {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-weight: 400;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.source a {
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.source a:hover {
+  color: var(--accent);
+}
+
+.source a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-tag);
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.avatar {
+  display: inline-flex;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.userNames {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-weight: 400;
+}
+
+.userNames > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spoiler {
+  margin-top: 6px;
+}
+
+@media (min-width: 901px) {
+  .dataPanel table td[data-actions] {
+    height: auto;
+    overflow: visible;
+  }
+
+  .dataPanel table td[data-actions] > :global(.admin-cell-actions) {
+    flex-wrap: wrap;
+  }
+}
+
+/* 中等桌面继续使用共享表格的横向滚动，避免宽侧栏挤碎七列内容。 */
+@media (min-width: 901px) and (max-width: 1250px) {
+  .dataPanel table {
+    min-width: 880px;
+  }
+}
+
+@media (max-width: 900px) {
+  .listActions {
+    flex: 1 1 100%;
+    justify-content: space-between;
+    margin-inline-start: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .contentPreview {
+    min-height: 48px;
+  }
+
+  .filters {
+    flex: 1 1 100%;
+  }
+}

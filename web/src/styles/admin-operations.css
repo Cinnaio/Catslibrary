@@ -17,7 +17,6 @@
 @import './admin/components/workspace.css';
 @import './admin/pages/jobs-toolbar.css';
 @import './admin/components/workspace-responsive.css';
-@import './admin/pages/moderation-responsive.css';
 @import './admin/pages/monitoring.css';
 
 /* AI 服务布局在共享组件之后声明，尺寸仍取共享 token。 */
