@@ -1,27 +1,28 @@
 import '@/styles/input-fields.css'
 import { useEffect, useRef, useState } from 'react'
-import { CirclePlus, MoreHorizontal, RefreshCw } from 'lucide-react'
+import { CirclePlus, MoreHorizontal, RefreshCw, Users } from 'lucide-react'
 import { adminApi, authApi, type AdminDirectoryUser } from '@/lib/api'
 import { formatDate, formatDateTime, timeAgo } from '@/lib/format'
 import { useDebouncedValue } from '@/hooks/useDebounce'
 import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { UserAvatar } from "@/components/identity/UserAvatar"
+import { UserAvatar } from '@/components/identity/UserAvatar'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import EmptyState from '@/components/shared/EmptyState'
+import { ErrorState, InlineError, LoadingState } from '@/components/shared/AsyncStates'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import { DialogBody, DialogFrame } from '@/components/shared/DialogFrame'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
 import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import { SearchField } from '@/components/shared/SearchField'
-import SearchSelect from "@/components/shared/SearchSelect"
+import SearchSelect from '@/components/shared/SearchSelect'
 import { cn } from '@/lib/utils'
-import Pagination from "@/components/shared/Pagination"
+import Pagination from '@/components/shared/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE } from '@/lib/admin-pagination'
 
 const COLUMNS: readonly AdminColumn[] = [
@@ -98,6 +99,10 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
+  const pendingRef = useRef(new Set<string>())
+  const [pendingUsers, setPendingUsers] = useState<Set<string>>(new Set())
+  const openingPassword = useRef(false)
+  const passwordReturnFocus = useRef<HTMLButtonElement | null>(null)
   const own = !!target && target.id === selfId
   function clearDialog() {
     setTarget(null)
@@ -109,7 +114,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
   }
   async function savePassword(event: React.FormEvent) {
     event.preventDefault()
-    if (!target || savingRef.current) return
+    if (!target || savingRef.current || pendingRef.current.has(target.id)) return
     if (own && !currentPassword) {
       setError('请输入当前密码')
       return
@@ -139,8 +144,18 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
     }
   }
   async function runAction(action: Props['onRole'], user: AdminDirectoryUser) {
-    await action(user)
-    setRevision((value) => value + 1)
+    if (pendingRef.current.has(user.id) || (savingRef.current && target?.id === user.id)) return
+    pendingRef.current.add(user.id)
+    setPendingUsers(new Set(pendingRef.current))
+    try {
+      await action(user)
+      setRevision((value) => value + 1)
+    } catch (err) {
+      toast((err as Error).message || '操作失败，请重试', 'error')
+    } finally {
+      pendingRef.current.delete(user.id)
+      setPendingUsers(new Set(pendingRef.current))
+    }
   }
   const users = result?.users || []
   const total = result?.total || 0
@@ -195,24 +210,14 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
           />
         </div>
         <div className="account-users-filters__actions">
-          <span className="account-users-filters__count">
-            {!result && loading ? '读取中…' : `共 ${total} 人`}
-          </span>
+          <span className="account-users-filters__count">{!result ? (loadError ? '读取失败' : '读取中…') : `共 ${total} 人`}</span>
           <Button variant="secondary" size="sm" disabled={loading} onClick={() => setRevision((value) => value + 1)}>
             <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
             刷新
           </Button>
         </div>
       </AdminToolbar>
-      {loadError && (
-        <div className="account-users-error" role="alert">
-          {loadError}
-          {result ? '，当前保留上次读取的数据。' : ''}
-          <Button variant="ghost" size="sm" onClick={() => setRevision((value) => value + 1)} disabled={loading}>
-            重试
-          </Button>
-        </div>
-      )}
+      {loadError && result && <InlineError message={`${loadError}，当前保留上次读取的数据。`} onRetry={() => setRevision((value) => value + 1)} />}
       <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={COLUMNS} density="comfortable">
         <Table aria-busy={loading} className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
           <TableCaption className="sr-only">站点用户目录，含权限、状态、注册与登录时间、想法及账号操作</TableCaption>
@@ -228,13 +233,20 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
           <TableBody>
             {!users.length ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                  {loading ? '加载中…' : loadError ? '用户目录暂时无法读取' : '没有匹配的用户，请调整搜索或筛选条件'}
+                <TableCell colSpan={5}>
+                  {loadError && !result ? (
+                    <ErrorState message={loadError} onRetry={() => setRevision((value) => value + 1)} />
+                  ) : loading ? (
+                    <LoadingState label="读取用户目录" />
+                  ) : (
+                    <EmptyState icon={<Users />} message="没有匹配的用户" hint="调整昵称、用户名或筛选条件，查看其他用户。" />
+                  )}
                 </TableCell>
               </TableRow>
             ) : (
               users.map((user) => {
                 const self = user.id === selfId
+                const busy = pendingUsers.has(user.id) || (saving && target?.id === user.id)
                 return (
                   <TableRow key={user.id}>
                     <TableCell data-primary="" data-label="用户">
@@ -267,29 +279,78 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                         </span>
                         <span>
                           <em>登录</em>
-                          {user.lastLoginAt ? timeAgo(user.lastLoginAt) : '尚未登录'}
+                          {user.lastLoginAt ? (
+                            <time dateTime={new Date(user.lastLoginAt).toISOString()} title={formatDateTime(user.lastLoginAt)}>
+                              {timeAgo(user.lastLoginAt)}
+                            </time>
+                          ) : (
+                            '尚未登录'
+                          )}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell data-label="想法">{user.thoughtCount || 0}</TableCell>
                     <TableCell data-actions="">
                       <div className="admin-cell-actions account-user-actions">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="rounded-full h-7 px-3 text-xs"
-                          disabled={!selfId}
-                          onClick={() => {
-                            clearDialog()
-                            setTarget(user)
-                          }}
-                        >
-                          {self ? '修改我的密码' : '修改密码'}
-                        </Button>
+                        {busy ? (
+                          <span className="account-record-secondary" role="status">
+                            处理中…
+                          </span>
+                        ) : null}
+                        {self ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!selfId || busy}
+                            onClick={(event) => {
+                              passwordReturnFocus.current = event.currentTarget
+                              clearDialog()
+                              setTarget(user)
+                            }}
+                          >
+                            修改我的密码
+                          </Button>
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={!selfId || busy}
+                                aria-label={`密码管理：${user.username}`}
+                                onClick={(event) => {
+                                  passwordReturnFocus.current = event.currentTarget
+                                }}
+                              >
+                                密码管理
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              onCloseAutoFocus={(event) => {
+                                if (openingPassword.current) {
+                                  event.preventDefault()
+                                  openingPassword.current = false
+                                }
+                              }}
+                            >
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  clearDialog()
+                                  openingPassword.current = true
+                                  setTarget(user)
+                                }}
+                              >
+                                设置新密码
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => void runAction(onReset, user)}>生成临时密码</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                         {!self && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="rounded-full size-7" aria-label={`更多操作：${user.username}`} disabled={!selfId}>
+                              <Button variant="ghost" size="icon" aria-label={`更多操作：${user.username}`} disabled={!selfId || busy}>
                                 <MoreHorizontal />
                               </Button>
                             </DropdownMenuTrigger>
@@ -297,7 +358,6 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                               <DropdownMenuItem onSelect={() => void runAction(onRole, user)}>
                                 {user.role === 'admin' ? '设为读者' : '设为管理员'}
                               </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => void runAction(onReset, user)}>生成临时密码</DropdownMenuItem>
                               <DropdownMenuItem onSelect={() => void runAction(onStatus, user)}>
                                 {user.status === 'disabled' ? '恢复账号' : '禁用账号'}
                               </DropdownMenuItem>
@@ -330,7 +390,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
             setPage(1)
           },
         }}
-        summary={total ? `共 ${total} 人，显示 ${(page - 1) * limit + 1}–${Math.min(page * limit, total)}` : '共 0 人'}
+        summary={!result ? '尚未读取用户目录' : total ? `共 ${total} 人，显示 ${(page - 1) * limit + 1}–${Math.min(page * limit, total)}` : '共 0 人'}
       />
       <Dialog
         open={!!target}
@@ -340,6 +400,10 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
       >
         <DialogFrame
           className="account-password-dialog"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            passwordReturnFocus.current?.focus()
+          }}
           onEscapeKeyDown={(event) => {
             if (savingRef.current) event.preventDefault()
           }}
@@ -369,6 +433,8 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                     autoComplete="current-password"
                     value={currentPassword}
                     disabled={saving}
+                    aria-invalid={!!error}
+                    aria-describedby={error ? 'account-password-error' : undefined}
                     onChange={(event) => setCurrentPassword(event.target.value)}
                   />
                 </div>
@@ -381,7 +447,8 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                   autoComplete="new-password"
                   value={password}
                   disabled={saving}
-                  aria-describedby="account-password-policy"
+                  aria-describedby={`account-password-policy${error ? ' account-password-error' : ''}`}
+                  aria-invalid={!!error}
                   onChange={(event) => setPassword(event.target.value)}
                 />
                 <span id="account-password-policy">至少 8 位，建议包含字母、数字和符号。</span>
@@ -394,6 +461,8 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                   autoComplete="new-password"
                   value={confirmation}
                   disabled={saving}
+                  aria-invalid={!!error}
+                  aria-describedby={error ? 'account-password-error' : undefined}
                   onChange={(event) => setConfirmation(event.target.value)}
                 />
               </div>
@@ -408,7 +477,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                 {target?.status === 'disabled' && ' 此账号仍保持禁用状态。'}
               </p>
               {error && (
-                <p className="account-password-error" role="alert">
+                <p id="account-password-error" className="account-password-error" role="alert">
                   {error}
                 </p>
               )}

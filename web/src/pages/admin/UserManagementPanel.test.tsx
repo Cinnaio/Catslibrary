@@ -31,7 +31,8 @@ function fill(element: HTMLElement, value: string) {
   fireEvent.change(element, { target: { value } })
 }
 async function openReader() {
-  await userEvent.click(await screen.findByRole('button', { name: '修改密码' }))
+  await userEvent.click(await screen.findByRole('button', { name: '密码管理：reader' }))
+  await userEvent.click(screen.getByRole('menuitem', { name: '设置新密码' }))
   return within(screen.getByRole('dialog'))
 }
 beforeEach(() => {
@@ -41,6 +42,23 @@ beforeEach(() => {
   mocks.changePassword.mockResolvedValue({ token: 'new-token' })
 })
 describe('用户目录与直接修改密码', () => {
+  it('用户操作等待确认与请求时锁定同一行，完成后恢复操作', async () => {
+    let finish!: () => void
+    const onRole = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        }),
+    )
+    render(<UserManagementPanel search="" selfId="self" onRole={onRole} onStatus={vi.fn()} onReset={vi.fn()} onDelete={vi.fn()} />)
+    await userEvent.click(await screen.findByRole('button', { name: '更多操作：reader' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: '设为管理员' }))
+    await waitFor(() => expect(onRole).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('button', { name: '更多操作：reader' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '密码管理：reader' })).toBeDisabled()
+    finish()
+    await waitFor(() => expect(screen.getByRole('button', { name: '更多操作：reader' })).toBeEnabled())
+  })
   it('校验短密码和确认不一致，保存成功后关闭并清空表单', async () => {
     mount()
     const dialog = await openReader()
@@ -56,6 +74,7 @@ describe('用户目录与直接修改密码', () => {
     fill(dialog.getByLabelText('确认新密码'), 'Reader-new-123')
     await userEvent.click(dialog.getByRole('button', { name: '保存新密码' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: '密码管理：reader' })).toHaveFocus())
     expect(mocks.setPassword).toHaveBeenCalledWith('reader', 'Reader-new-123')
     expect((await openReader()).getByLabelText('新密码', { exact: true })).toHaveValue('')
   })

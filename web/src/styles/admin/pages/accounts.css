@@ -12,126 +12,6 @@
   min-width: 0;
 }
 
-/* 账户四视图统一到共享数据面板后，页脚沿用同一套面板语言。
-   分页页脚由 .pagination 承担；本类现在只服务邀请码那一处
-   （有统计文案 + 清理按钮，没有分页）。 */
-.account-settings-panel__footer {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--admin-space-3);
-  border-top: 1px solid var(--admin-border);
-  padding: var(--admin-space-3) 1.25rem;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-.account-invites-generated {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--admin-space-3);
-  margin: var(--admin-space-3) 1.25rem var(--admin-space-4);
-  border-radius: 14px;
-  border: 1px solid rgba(217, 119, 87, 0.25);
-  background: rgba(217, 119, 87, 0.04);
-  padding: var(--admin-space-4) var(--admin-space-5);
-}
-
-.account-invites-generated__content {
-  min-width: 0;
-  flex: 1 1 12rem;
-}
-
-.account-invites-generated__summary {
-  margin: 0 0 var(--admin-space-2);
-  color: var(--text-primary);
-  font-size: 0.8125rem;
-  font-weight: 550;
-}
-
-.account-invites-generated__codes {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--admin-space-2);
-}
-
-.account-invites-generated__codes code {
-  border-radius: var(--radius-full, 9999px);
-  background: var(--admin-surface, #ffffff);
-  border: 1px solid rgba(217, 119, 87, 0.2);
-  padding: 0.375rem 0.75rem;
-  color: var(--admin-terracotta, #D97757);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  overflow-wrap: anywhere;
-}
-
-.account-invites-generated__copy[data-slot='button'] {
-  background: var(--admin-panel);
-}
-
-.account-invite-header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-2, 0.5rem);
-}
-
-.account-invite-count-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  height: var(--admin-control-height, 2.5rem);
-  padding: 0 0.875rem;
-  border-radius: var(--radius-full, 9999px);
-  border: 1px solid var(--admin-border);
-  background: var(--admin-panel, #ffffff);
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: border-color 0.15s ease;
-}
-
-.account-invite-count-group:focus-within {
-  border-color: var(--admin-terracotta, #D97757);
-}
-
-.account-invite-count-group span {
-  color: var(--text-muted);
-  user-select: none;
-  font-size: 0.75rem;
-}
-
-.account-invite-count-group input {
-  width: 2.25rem;
-  height: 1.5rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  text-align: center;
-  font-weight: 600;
-  font-size: 0.8125rem;
-  color: var(--text-primary);
-  outline: none;
-  -moz-appearance: textfield;
-}
-
-.account-invite-count-group input::-webkit-outer-spin-button,
-.account-invite-count-group input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.admin-redesign-page--settings .admin-input--invite-count {
-  width: 5.75rem;
-  flex: 0 0 auto;
-}
 /* 用户目录与记录采用共享 Filter Rail、控件和移动端表格。
    间距归共享轨道（pages/catalog-toolbars.css 的 .admin-filter-rail），此处不再
    复写 gap / padding / margin-bottom：此前三者各写一份，rail 的 0.75rem 与
@@ -142,8 +22,6 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--admin-space-3);
-  /* 控件自身已是 40px 胶囊；容器再占 rail 的 40px min-height，只会在其下方
-     留下看不见的空白，把"轨道 → 面板"的真实视觉间距吃掉。 */
   min-height: 0;
 }
 
@@ -180,6 +58,8 @@
   align-items: center;
   gap: 0.75rem;
   margin-left: auto;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .account-users-filters__count,
@@ -190,8 +70,7 @@
 }
 
 .account-users-filters__label,
-.account-users-filters__hint,
-.account-record-filters__hint {
+.account-users-filters__hint {
   color: var(--text-muted);
   font-size: 0.8125rem;
   white-space: nowrap;
@@ -246,11 +125,7 @@
   color: var(--admin-accent);
   white-space: nowrap;
 }
-.account-users-error {
-  padding: 0.75rem 1.25rem;
-  color: var(--color-danger);
-  font-size: 0.875rem;
-}
+
 .account-password-dialog > form {
   display: contents;
 }
@@ -319,6 +194,12 @@
     flex-direction: column;
     align-items: stretch;
   }
+  .account-users-filters .search-field,
+  .account-record-filters .search-field {
+    flex: 0 1 auto;
+    width: 100%;
+    max-width: none;
+  }
 }
 @media (max-width: 480px) {
   .account-users-panel .account-users-filters {
@@ -339,159 +220,6 @@
   }
 }
 
-/* Account registration policy card (Claude Warm Paper Summary Card) */
-.account-registration-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--admin-space-4, 1rem);
-  padding: 1rem 1.375rem;
-  border-radius: var(--admin-radius-card, 16px);
-  border: 1px solid var(--admin-border);
-  background: var(--admin-panel, #ffffff);
-  box-shadow: none;
-  margin-bottom: var(--admin-page-section-gap, 1.25rem);
-}
-
-.account-registration-card__info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-  flex: 1 1 18rem;
-}
-
-.account-registration-card__header {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.625rem;
-}
-
-.account-registration-card__title {
-  font-size: 0.875rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-}
-
-.account-registration-card__hint {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-
-.account-registration-card__mode-hint {
-  color: var(--text-secondary);
-  margin-left: 0.375rem;
-}
-
-.account-registration-card__controls {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.625rem;
-  flex: 0 0 auto;
-}
-
-/* Claude 极简胶囊分段单选组 (Segmented Control) */
-.account-register-segmented {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: var(--radius-full, 9999px);
-  background: var(--admin-panel-muted, rgba(0, 0, 0, 0.04));
-  border: 1px solid var(--admin-border-subtle, rgba(0, 0, 0, 0.05));
-}
-
-.account-register-segment {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  height: 2rem;
-  padding: 0 0.875rem;
-  border-radius: var(--radius-full, 9999px);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.account-register-segment:hover {
-  color: var(--text-primary);
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.account-register-segment--active {
-  background: var(--admin-panel, #ffffff);
-  color: var(--text-primary);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--admin-border-subtle, rgba(0, 0, 0, 0.04));
-}
-
-.account-register-segment__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: var(--text-muted);
-  opacity: 0.35;
-  transition: all 0.16s ease;
-}
-
-.account-register-segment--active .account-register-segment__dot {
-  background: var(--admin-terracotta, #D97757);
-  opacity: 1;
-  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.2);
-}
-
-.account-register-segment__label {
-  line-height: 1;
-}
-
-.account-register-save-btn {
-  border-radius: var(--radius-full, 9999px);
-  height: 2.25rem;
-  padding: 0 1rem;
-  font-size: 0.75rem;
-  font-weight: 550;
-  transition: all 0.18s ease;
-}
-
-.account-register-save-btn--active:not(:disabled) {
-  background: var(--admin-terracotta, #D97757) !important;
-  color: var(--accent-ink) !important;
-  box-shadow: 0 1px 4px rgba(217, 119, 87, 0.25);
-}
-
-.account-register-save-btn--active:not(:disabled):hover {
-  background: var(--admin-terracotta-hover, #c56344) !important;
-}
-
-@media (max-width: 860px) {
-  .account-registration-card {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 1rem 1.125rem;
-  }
-  .account-registration-card__controls {
-    justify-content: space-between;
-    width: 100%;
-  }
-  .account-register-segmented {
-    flex: 1 1 auto;
-  }
-  .account-register-segment {
-    flex: 1 1 0;
-    justify-content: center;
-    padding: 0 0.5rem;
-  }
-}
 .account-record-secondary {
   display: block;
   margin-top: 0.2rem;
@@ -510,6 +238,7 @@
   margin-left: auto;
   color: var(--text-muted);
   font-size: 0.75rem;
+  white-space: normal;
 }
 .account-record-date {
   display: block;
@@ -521,17 +250,7 @@
   font-size: 0.75rem;
   overflow-wrap: anywhere;
 }
-.account-record-code--truncate {
-  display: block;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.account-record-empty {
-  height: 8rem !important;
-  text-align: center;
-  color: var(--text-muted);
-}
+
 .account-record-detail {
   margin: 0;
   display: grid;
@@ -553,7 +272,7 @@
   font-size: 0.8125rem;
 }
 .account-record-note {
-  margin: 1.5rem 1.25rem;
+  margin: 0;
   color: var(--text-muted);
   font-size: 0.75rem;
 }
@@ -563,18 +282,10 @@
 .account-record-note p {
   max-width: 48rem;
 }
-@media (max-width: 1100px) {
-  .account-register-modes {
-    grid-template-columns: 1fr;
-  }
-}
 @media (max-width: 900px) {
   .account-record-filters__hint {
     width: 100%;
     margin-left: 0;
-  }
-  .account-register-footer {
-    align-items: flex-start;
   }
   .account-record-detail > div {
     grid-template-columns: 4.75rem minmax(0, 1fr);

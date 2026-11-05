@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { adminApi, authApi, newOperationId } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
-import { CirclePlus, Plus, RefreshCw } from 'lucide-react'
+import { CirclePlus, Plus, RefreshCw, Ticket } from 'lucide-react'
 import AccountAuditPanel, {
   AccountRecordDate,
   AccountRecordDetails,
@@ -24,7 +24,10 @@ import { useDebouncedValue } from '@/hooks/useDebounce'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Panel } from '@/components/ui/panel'
+import FormField from '@/components/shared/FormField'
+import EmptyState from '@/components/shared/EmptyState'
+import { ErrorState, InlineError, LoadingState } from '@/components/shared/AsyncStates'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import AdminPage from '@/components/admin/AdminPage'
 import UserManagementPanel from './UserManagementPanel'
@@ -32,11 +35,12 @@ import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPa
 import { PanelHeading } from '@/components/shared/PanelHeading'
 import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import { SearchField } from '@/components/shared/SearchField'
-import SearchSelect from "@/components/shared/SearchSelect"
+import SearchSelect from '@/components/shared/SearchSelect'
 import { cn } from '@/lib/utils'
-import Pagination from "@/components/shared/Pagination"
+import Pagination from '@/components/shared/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { usePersistentState } from '@/hooks/usePersistentState'
+import styles from './account-management.module.css'
 
 interface AdminUser {
   id: string
@@ -97,14 +101,21 @@ const INVITE_COLUMNS: readonly AdminColumn[] = [
 export default function SettingsTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const urlTab = searchParams.get('view')
 
   const [userSearch, setUserSearch] = useState('')
   const [data, setData] = useState<SettingsData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const settingsRequest = useRef(0)
+  const settingsLoading = useRef(false)
   const [meUser, setMeUser] = useState<{ id: string; username: string; displayName: string; role: string } | null>(null)
-  const [registerMode, setRegisterMode] = useState<'open' | 'invite' | 'closed'>('invite')
+  const [registerDraft, setRegisterDraft] = useState<SettingsData['settings']['registerMode'] | null>(null)
+  const registerMode = registerDraft ?? data?.settings.registerMode
+  const [registerError, setRegisterError] = useState('')
+  const inviteCountRef = useRef<HTMLInputElement>(null)
+  const focusInviteCount = useRef(false)
   const [inviteCount, setInviteCount] = useState('1')
   const [inviteSearch, setInviteSearch] = useState('')
   const [inviteStatus, setInviteStatus] = useState('all')
@@ -112,9 +123,11 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [inviteLimit, setInviteLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [inviteDetail, setInviteDetail] = useState<AccountRecordDetail | null>(null)
   const [registerSaving, setRegisterSaving] = useState(false)
+  const registerSavingRef = useRef(false)
   const [inviteBusy, setInviteBusy] = useState(false)
 
   const [generatedCodes, setGeneratedCodes] = useState<string[] | null>(null)
+  const [codesExpanded, setCodesExpanded] = useState(true)
   const loginAuditRequest = useRef(0)
   const operationAuditRequest = useRef(0)
   const [loginAudits, setLoginAudits] = useState<LoginAudit[]>([])
@@ -126,6 +139,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [loginAuditOffset, setLoginAuditOffset] = useState(0)
   const [loginAuditLimit, setLoginAuditLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [loginAuditLoading, setLoginAuditLoading] = useState(false)
+  const [loginAuditError, setLoginAuditError] = useState('')
+  const [loginAuditLoaded, setLoginAuditLoaded] = useState(false)
   const [operationAudits, setOperationAudits] = useState<AdminOperationAudit[]>([])
   const [operationAuditTotal, setOperationAuditTotal] = useState(0)
   const [operationAuditStatus, setOperationAuditStatus] = useState('all')
@@ -134,6 +149,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [operationAuditOffset, setOperationAuditOffset] = useState(0)
   const [operationAuditLimit, setOperationAuditLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [operationAuditLoading, setOperationAuditLoading] = useState(false)
+  const [operationAuditError, setOperationAuditError] = useState('')
+  const [operationAuditLoaded, setOperationAuditLoaded] = useState(false)
   // 子标签持久化：刷新后停留在上次选的子页
   const [accountTab, setAccountTab] = usePersistentState<string>('settings_active_tab', 'users', (v) =>
     ['users', 'registration', 'audit', 'operation-audit'].includes(v),
@@ -154,18 +171,35 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }, [accountTab, setAccountTab, urlTab])
 
   const load = useCallback(async () => {
+    if (registerSavingRef.current) return
+    const request = ++settingsRequest.current
+    settingsLoading.current = true
     setLoading(true)
+    setLoadError('')
     try {
       const res = (await adminApi.users.list()) as unknown as SettingsData
+      if (request !== settingsRequest.current) return
       setData(res)
-      setRegisterMode(res.settings?.registerMode || 'invite')
     } catch (err) {
-      setData({ settings: { registerMode: 'invite' }, invites: [], users: [] })
-      toast((err as Error).message || '账户设置加载失败', 'error')
+      if (request === settingsRequest.current) setLoadError((err as Error).message || '账户设置加载失败')
     } finally {
-      setLoading(false)
+      if (request === settingsRequest.current) {
+        settingsLoading.current = false
+        setLoading(false)
+      }
     }
-  }, [toast])
+  }, [])
+
+  useEffect(() => {
+    if (currentAccountTab === 'registration') void load()
+  }, [currentAccountTab, load])
+
+  useEffect(() => {
+    if (currentAccountTab === 'registration' && data && !loading && !registerSaving && !settingsLoading.current && focusInviteCount.current) {
+      focusInviteCount.current = false
+      inviteCountRef.current?.focus()
+    }
+  }, [currentAccountTab, data, loading, registerSaving])
 
   // 当前登录管理员（用于「本人」标记与角色卡；失败仅影响标记）
   const loadMe = useCallback(async () => {
@@ -178,7 +212,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }, [])
 
   useEffect(() => {
-    void load()
     void loadMe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -186,6 +219,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const loadLoginAudit = useCallback(async () => {
     const request = ++loginAuditRequest.current
     setLoginAuditLoading(true)
+    setLoginAuditError('')
     try {
       const result = await adminApi.users.loginAudit({
         status: loginAuditStatus === 'all' ? undefined : loginAuditStatus,
@@ -196,20 +230,22 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       if (request !== loginAuditRequest.current) return
       setLoginAudits(result.audits)
       setLoginAuditTotal(result.total)
+      setLoginAuditLoaded(true)
     } catch (err) {
-      if (request === loginAuditRequest.current) toast((err as Error).message || '登录审计加载失败', 'error')
+      if (request === loginAuditRequest.current) setLoginAuditError((err as Error).message || '登录审计加载失败')
     } finally {
       if (request === loginAuditRequest.current) setLoginAuditLoading(false)
     }
-  }, [loginAuditOffset, loginAuditLimit, loginAuditStatus, debouncedLoginAuditUsername, toast])
+  }, [loginAuditOffset, loginAuditLimit, loginAuditStatus, debouncedLoginAuditUsername])
 
   useEffect(() => {
-    void loadLoginAudit()
-  }, [loadLoginAudit])
+    if (currentAccountTab === 'audit') void loadLoginAudit()
+  }, [currentAccountTab, loadLoginAudit])
 
   const loadOperationAudit = useCallback(async () => {
     const request = ++operationAuditRequest.current
     setOperationAuditLoading(true)
+    setOperationAuditError('')
     try {
       const result = await adminApi.operationAudit.list({
         status: operationAuditStatus === 'all' ? undefined : operationAuditStatus,
@@ -220,34 +256,39 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       if (request !== operationAuditRequest.current) return
       setOperationAudits(result.operations)
       setOperationAuditTotal(result.total)
+      setOperationAuditLoaded(true)
     } catch (err) {
-      if (request === operationAuditRequest.current) toast((err as Error).message || '操作审计加载失败', 'error')
+      if (request === operationAuditRequest.current) setOperationAuditError((err as Error).message || '操作审计加载失败')
     } finally {
       if (request === operationAuditRequest.current) setOperationAuditLoading(false)
     }
-  }, [operationAuditOffset, operationAuditLimit, operationAuditStatus, debouncedOperationAuditUsername, toast])
+  }, [operationAuditOffset, operationAuditLimit, operationAuditStatus, debouncedOperationAuditUsername])
 
   useEffect(() => {
     if (currentAccountTab === 'operation-audit') void loadOperationAudit()
   }, [currentAccountTab, loadOperationAudit])
 
   async function saveRegisterSettings() {
-    if (registerSaving || !data) return
+    if (registerSavingRef.current || settingsLoading.current || inviteBusy || !data || !registerMode || registerMode === data.settings.registerMode) return
     const mode = registerMode
+    registerSavingRef.current = true
     setRegisterSaving(true)
+    setRegisterError('')
     try {
       await adminApi.users.setRegisterMode(mode)
       setData((previous) => (previous ? { ...previous, settings: { ...previous.settings, registerMode: mode } } : previous))
+      setRegisterDraft(null)
       toast('注册设置已保存', 'success')
     } catch (err) {
-      toast((err as Error).message || '保存失败', 'error')
+      setRegisterError((err as Error).message || '保存失败，请重试')
     } finally {
+      registerSavingRef.current = false
       setRegisterSaving(false)
     }
   }
 
   async function createInvite() {
-    if (inviteBusy) return
+    if (inviteBusy || loading || registerSaving || !data) return
     const count = Number(inviteCount)
     if (!Number.isInteger(count) || count < 1 || count > 50) {
       toast('请输入 1–50 的整数', 'error')
@@ -258,6 +299,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       const res = (await adminApi.users.createInvites(count)) as { code?: string; codes?: string[] }
       const codes = res.codes || (res.code ? [res.code] : [])
       setGeneratedCodes(codes)
+      setCodesExpanded(true)
       setInviteSearch('')
       setInviteStatus('all')
       setInvitePage(1)
@@ -350,7 +392,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     try {
       await adminApi.users.setRole(u.id, promote ? 'admin' : 'reader')
       toast('已更新用户角色', 'success')
-      void load()
     } catch (err) {
       toast((err as Error).message || '操作失败', 'error')
     }
@@ -369,7 +410,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     try {
       await adminApi.users.setStatus(u.id, disable ? 'disabled' : 'active')
       toast('已更新用户状态', 'success')
-      void load()
     } catch (err) {
       toast((err as Error).message || '操作失败', 'error')
     }
@@ -386,7 +426,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     if (!ok) return
     try {
       const res = (await adminApi.users.resetPassword(u.id)) as { tempPassword?: string; username?: string }
-      void load()
       const tempPassword = res.tempPassword || ''
       if (!tempPassword) {
         toast('未获取到临时密码', 'error')
@@ -422,7 +461,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     try {
       await adminApi.users.deleteUser(u.id, u.username)
       toast('用户已删除', 'success')
-      void load()
     } catch (err) {
       toast((err as Error).message || '删除失败', 'error')
     }
@@ -493,29 +531,19 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       description={currentAccountMeta.description}
       actions={
         currentAccountTab === 'users' ? (
-          <Button onClick={() => setAccountTab('registration')}>
+          <Button
+            onClick={() => {
+              focusInviteCount.current = true
+              setSearchParams((previous) => {
+                const next = new URLSearchParams(previous)
+                next.set('view', 'registration')
+                return next
+              })
+            }}
+          >
             <Plus size={16} />
             生成邀请码
           </Button>
-        ) : currentAccountTab === 'registration' ? (
-          <div className="account-invite-header-actions flex items-center gap-2">
-            <div className="account-invite-count-group">
-              <span>数量</span>
-              <input
-                disabled={loading || inviteBusy}
-                type="number"
-                min={1}
-                max={50}
-                value={inviteCount}
-                aria-label="生成邀请码数量"
-                onChange={(e) => setInviteCount(e.target.value)}
-              />
-            </div>
-            <Button disabled={loading || inviteBusy} onClick={() => void createInvite()}>
-              <Plus size={16} />
-              生成邀请码
-            </Button>
-          </div>
         ) : null
       }
     >
@@ -526,65 +554,82 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         </div>
       )}
       {currentAccountTab === 'registration' && (
-        <section className="account-registration-card" aria-label="注册设置">
-          <div className="account-registration-card__info">
-            <div className="account-registration-card__header">
-              <span className="account-registration-card__title">注册设置</span>
-              <AdminStatusBadge tone="info">
-                当前：{REGISTER_MODES.find((mode) => mode.value === data?.settings.registerMode)?.label || '读取中'}
-              </AdminStatusBadge>
-              {data && registerMode !== data.settings.registerMode && (
-                <AdminStatusBadge tone="warning">未保存修改</AdminStatusBadge>
-              )}
-            </div>
-            <p className="account-registration-card__hint">
-              控制新用户如何加入本站。已有用户登录不受影响。
-              <span className="account-registration-card__mode-hint">
-                （当前选中：{REGISTER_MODES.find((mode) => mode.value === registerMode)?.hint}）
-              </span>
-            </p>
-          </div>
-
-          <div className="account-registration-card__controls">
-            <RadioGroup
-              value={registerMode}
-              onValueChange={(value) => setRegisterMode(value as typeof registerMode)}
-              className="account-register-segmented"
-              aria-label="注册方式"
-              disabled={loading || registerSaving}
-            >
-              {REGISTER_MODES.map((mode) => (
-                <label
-                  key={mode.value}
-                  className={cn(
-                    'account-register-segment',
-                    registerMode === mode.value && 'account-register-segment--active'
-                  )}
+        <>
+          {loadError &&
+            (data ? (
+              <InlineError
+                message={`${loadError}，保留上次读取的数据与未保存修改。`}
+                onRetry={!loading && !inviteBusy && !registerSaving ? () => void load() : undefined}
+              />
+            ) : (
+              <ErrorState message={loadError} onRetry={!loading ? () => void load() : undefined} />
+            ))}
+          {!data && !loadError && <LoadingState label="读取注册设置与邀请码" />}
+          {data && (
+            <Panel asChild>
+              <section className={styles.registration} aria-labelledby="account-registration-title">
+                <PanelHeading
+                  className={styles.heading}
+                  title="注册方式"
+                  titleId="account-registration-title"
+                  description="控制新用户如何加入本站，已有用户登录不受影响。"
+                  status={
+                    <AdminStatusBadge tone="neutral">当前：{REGISTER_MODES.find((mode) => mode.value === data.settings.registerMode)?.label}</AdminStatusBadge>
+                  }
+                />
+                <RadioGroup
+                  value={registerMode || ''}
+                  onValueChange={(value) => {
+                    setRegisterDraft(value as SettingsData['settings']['registerMode'])
+                    setRegisterError('')
+                  }}
+                  className={styles.modes}
+                  aria-label="注册方式"
+                  disabled={loading || registerSaving || inviteBusy}
                 >
-                  <RadioGroupItem
-                    value={mode.value}
-                    aria-label={`${mode.label} ${mode.hint}`}
-                    className="sr-only"
-                  />
-                  <span className="account-register-segment__dot" aria-hidden="true" />
-                  <span className="account-register-segment__label">{mode.label}</span>
-                </label>
-              ))}
-            </RadioGroup>
-
-            <Button
-              size="sm"
-              disabled={!data || loading || registerSaving || registerMode === data.settings.registerMode}
-              onClick={() => void saveRegisterSettings()}
-              className={cn(
-                'account-register-save-btn',
-                data && registerMode !== data.settings.registerMode && 'account-register-save-btn--active'
-              )}
-            >
-              {registerSaving ? '保存中…' : '保存设置'}
-            </Button>
-          </div>
-        </section>
+                  {REGISTER_MODES.map((mode) => (
+                    <label key={mode.value} className={styles.mode} htmlFor={`register-mode-${mode.value}`}>
+                      <RadioGroupItem id={`register-mode-${mode.value}`} value={mode.value} aria-label={`${mode.label} ${mode.hint}`} />
+                      <span>
+                        <span className={styles.modeLabel}>{mode.label}</span>
+                        <span className={styles.hint}>{mode.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </RadioGroup>
+                {registerError && (
+                  <p className={styles.error} role="alert">
+                    {registerError}
+                  </p>
+                )}
+                <div className={styles.save}>
+                  <span className={styles.hint} role="status">
+                    {registerMode !== data.settings.registerMode ? '未保存修改' : '已与当前生效设置同步'}
+                    {registerMode === 'closed' && ' · 关闭注册后，已有邀请码也不能用于注册。'}
+                  </span>
+                  {registerMode !== data.settings.registerMode && (
+                    <Button
+                      variant="secondary"
+                      disabled={loading || registerSaving || inviteBusy}
+                      onClick={() => {
+                        setRegisterDraft(null)
+                        setRegisterError('')
+                      }}
+                    >
+                      取消修改
+                    </Button>
+                  )}
+                  <Button
+                    disabled={loading || registerSaving || inviteBusy || registerMode === data.settings.registerMode}
+                    onClick={() => void saveRegisterSettings()}
+                  >
+                    {registerSaving ? '保存中…' : '保存设置'}
+                  </Button>
+                </div>
+              </section>
+            </Panel>
+          )}
+        </>
       )}
 
       {currentAccountTab === 'users' && (
@@ -605,6 +650,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           records={loginAudits}
           total={loginAuditTotal}
           loading={loginAuditLoading}
+          error={loginAuditError}
+          hasLoaded={loginAuditLoaded}
           status={loginAuditStatus}
           onStatus={(value) => {
             setLoginAuditStatus(value)
@@ -633,6 +680,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           records={operationAudits}
           total={operationAuditTotal}
           loading={operationAuditLoading}
+          error={operationAuditError}
+          hasLoaded={operationAuditLoaded}
           status={operationAuditStatus}
           onStatus={(value) => {
             setOperationAuditStatus(value)
@@ -656,8 +705,43 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         />
       )}
 
-      {currentAccountTab === 'registration' && (
-        <>
+      {currentAccountTab === 'registration' && data && (
+        <section className={styles.invites} aria-labelledby="account-invites-title">
+          <PanelHeading
+            className={styles.heading}
+            title="邀请码管理"
+            titleId="account-invites-title"
+            description="每个邀请码仅可使用一次；开放或关闭注册时，仍可提前准备邀请码。"
+            actions={
+              <form
+                className={styles.generate}
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void createInvite()
+                }}
+              >
+                <FormField label="数量" htmlFor="account-invite-count" className={styles.count}>
+                  <Input
+                    ref={inviteCountRef}
+                    id="account-invite-count"
+                    type="number"
+                    min={1}
+                    max={50}
+                    step={1}
+                    required
+                    value={inviteCount}
+                    aria-label="生成邀请码数量"
+                    disabled={loading || inviteBusy || registerSaving}
+                    onChange={(event) => setInviteCount(event.target.value)}
+                  />
+                </FormField>
+                <Button type="submit" disabled={loading || inviteBusy || registerSaving}>
+                  <Plus aria-hidden="true" />
+                  生成邀请码
+                </Button>
+              </form>
+            }
+          />
           <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters account-invite-filters" ariaLive="polite">
             <SearchField
               id="account-invite-search"
@@ -691,31 +775,45 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </div>
             <div className="account-record-filters__actions">
               <span className="account-record-filters__hint">
-                可用 {available} · 已使用 {invites.filter((i) => i.usedAt > 0).length} · 已停用 {invites.filter((i) => !i.usedAt && i.disabledAt > 0).length}
+                共 {invites.length} 个 · 可用 {available} · 已使用 {invites.filter((i) => i.usedAt > 0).length} · 已停用{' '}
+                {invites.filter((i) => !i.usedAt && i.disabledAt > 0).length}
               </span>
-              <Button variant="secondary" size="sm" disabled={loading || inviteBusy} onClick={() => void load()}>
+              <Button variant="secondary" size="sm" disabled={loading || inviteBusy || registerSaving} onClick={() => void load()}>
                 <RefreshCw className={loading || inviteBusy ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
                 刷新
               </Button>
             </div>
           </AdminToolbar>
-          <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS} density="comfortable">
-            {generatedCodes && generatedCodes.length > 0 && (
-              <div id="tokenStatus" className="account-invites-generated" role="status">
-                <div className="account-invites-generated__content">
-                  <p className="account-invites-generated__summary">本次生成 {generatedCodes.length} 个邀请码</p>
-                  <div className="account-invites-generated__codes">
-                    {generatedCodes.map((c) => (
-                      <code key={c}>{c}</code>
-                    ))}
-                  </div>
+          {generatedCodes && generatedCodes.length > 0 && (
+            <div className={styles.generated}>
+              <div className={styles.generatedHeader}>
+                <span role="status">本次生成 {generatedCodes.length} 个邀请码</span>
+                <div className={styles.generatedActions}>
+                  <Button variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
+                    复制全部
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-expanded={codesExpanded}
+                    aria-controls="account-generated-codes"
+                    onClick={() => setCodesExpanded(!codesExpanded)}
+                  >
+                    {codesExpanded ? '收起' : '展开'}
+                  </Button>
                 </div>
-                <Button className="account-invites-generated__copy" variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
-                  复制全部
-                </Button>
               </div>
-            )}
-            <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
+              {codesExpanded && (
+                <div id="account-generated-codes" className={styles.codes} tabIndex={0} role="region" aria-label="本次生成的邀请码">
+                  {generatedCodes.map((code) => (
+                    <code key={code}>{code}</code>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS} density="comfortable">
+            <Table aria-busy={loading} className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
               <TableCaption className="sr-only">邀请码列表，含状态、使用者与创建时间</TableCaption>
               <TableHeader>
                 <TableRow>
@@ -727,16 +825,14 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading && !data ? (
+                {pageInvites.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                      加载中…
-                    </TableCell>
-                  </TableRow>
-                ) : pageInvites.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                      暂无匹配的邀请码
+                    <TableCell colSpan={5}>
+                      <EmptyState
+                        icon={<Ticket />}
+                        message={inviteSearch || inviteStatus !== 'all' ? '暂无匹配的邀请码' : '尚未生成邀请码'}
+                        hint={inviteSearch || inviteStatus !== 'all' ? '调整搜索或状态筛选，查看其他邀请码。' : '在上方选择数量并生成，再将邀请码交给新用户。'}
+                      />
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -763,14 +859,13 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                         </TableCell>
                         <TableCell data-actions="">
                           <div className="admin-cell-actions flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs" onClick={() => void copyInvite(i.code)}>
+                            <Button variant="ghost" size="sm" onClick={() => void copyInvite(i.code)}>
                               复制
                             </Button>
                             {(used || disabled) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="rounded-full h-7 px-3 text-xs"
                                 onClick={() =>
                                   setInviteDetail({
                                     title: '邀请码详情',
@@ -792,8 +887,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="account-record-danger rounded-full h-7 px-3 text-xs text-destructive hover:bg-destructive/10"
-                                disabled={inviteBusy}
+                                className="account-record-danger"
+                                disabled={inviteBusy || loading || registerSaving}
                                 onClick={() => void disableInvite(i.code)}
                               >
                                 停用
@@ -807,14 +902,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                 )}
               </TableBody>
             </Table>
-            <div className="account-settings-panel__footer">
-              <span id="inviteStats">{invites.length ? `共 ${invites.length} 个 · 可用 ${available} · 失效 ${spent}` : '暂无邀请码'}</span>
-              {spent > 0 && (
-                <Button variant="ghost" size="sm" className="account-record-danger" disabled={inviteBusy} onClick={() => void clearInvites()}>
-                  清理失效邀请码
-                </Button>
-              )}
-            </div>
           </AdminDataPanel>
           <Pagination
             variant="detached"
@@ -822,7 +909,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             totalPages={invitePages}
             onPage={setInvitePage}
             busy={loading || inviteBusy}
-            summary={`共 ${filteredInvites.length} 个邀请码`}
+            summary={`当前结果 ${filteredInvites.length} 个`}
             pageSize={{
               value: inviteLimit,
               onChange: (value) => {
@@ -832,12 +919,26 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               options: ADMIN_PAGE_SIZE_OPTIONS,
             }}
           />
+          {spent > 0 && (
+            <div className={styles.cleanup}>
+              <span className={styles.hint}>可清理 {spent} 个已使用或已停用的邀请码，可用邀请码不受影响。</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="account-record-danger"
+                disabled={inviteBusy || loading || registerSaving}
+                onClick={() => void clearInvites()}
+              >
+                清理失效邀请码
+              </Button>
+            </div>
+          )}
           <details className="account-record-note">
             <summary>注册与邀请说明</summary>
             <p>邀请码一次使用后即失效。停用不影响已有用户，清理仅处理确认时已使用或已停用的邀请码。</p>
           </details>
           <AccountRecordDetails detail={inviteDetail} onClose={() => setInviteDetail(null)} />
-        </>
+        </section>
       )}
     </AdminPage>
   )
