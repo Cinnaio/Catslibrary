@@ -3,13 +3,11 @@ import { Link } from 'react-router-dom'
 import { adminApi } from '@/lib/api'
 import { useContentPolicy } from '@/context/ContentPolicyContext'
 import { useConfirm, useToast } from '@/components/feedback'
-import AdminPage from '@/components/admin/AdminPage'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { ErrorState, InlineError, LoadingState } from '@/components/shared/AsyncStates'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
-import SiteSettingsNavigation from './SiteSettingsNavigation'
 import styles from './content-policy.module.css'
 
 type PolicySettings = Awaited<ReturnType<typeof adminApi.contentPolicy.settings>>
@@ -103,8 +101,6 @@ export default function ContentPolicyTab() {
         : '已允许切换；解锁验证的配置状态暂未确认，请查看安全验证配置。'
 
   return (
-    <AdminPage title="内容安全" description="设置全站限制级内容的访问入口与解锁条件。" className="admin-redesign-page--content-policy">
-      <SiteSettingsNavigation view="content-policy" />
       <Card className={styles.panel} aria-labelledby="content-policy-title">
         <CardHeader>
           <CardTitle id="content-policy-title" role="heading" aria-level={2}>限制级内容访问</CardTitle>
@@ -148,6 +144,5 @@ export default function ContentPolicyTab() {
           </>}
         </CardContent>
       </Card>
-    </AdminPage>
   )
 }

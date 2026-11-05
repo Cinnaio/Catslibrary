@@ -30,6 +30,8 @@ export default function AiConfigPanel(props: {
   imageProvider?: Provider | null
   loading: boolean
   onReload: () => void
+  onBusyChange?: (busy: boolean) => void
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<ConfigTabId>('providers')
@@ -50,6 +52,7 @@ export default function AiConfigPanel(props: {
   // 图像供应商编辑草稿（封面生成用）
   const [imageProviderDraft, setImageProviderDraft] = useState({ baseUrl: '', apiKey: '', model: '' })
   const savingImageProvider = saving
+  const imageRolesKey = JSON.stringify(props.settings?.selectionImageRoles ?? ['admin'])
 
   useEffect(() => {
     setRecapEnabledDraft(!!props.settings?.recapEnabled)
@@ -57,7 +60,7 @@ export default function AiConfigPanel(props: {
     setImageQuotaDraft(String(props.settings?.selectionImageDailyQuota ?? 10))
     setDailyQuotaDraft(props.settings?.dailyQuota !== undefined ? String(props.settings.dailyQuota) : '')
     setMaxCharsDraft(props.settings?.maxChapterChars !== undefined ? String(props.settings.maxChapterChars) : '')
-  }, [props.settings?.dailyQuota, props.settings?.maxChapterChars, props.settings?.recapEnabled, props.settings?.selectionImageRoles, props.settings?.selectionImageDailyQuota])
+  }, [props.settings?.dailyQuota, props.settings?.maxChapterChars, props.settings?.recapEnabled, imageRolesKey, props.settings?.selectionImageDailyQuota])
 
   useEffect(() => {
     setProviderDraft({
@@ -192,6 +195,8 @@ export default function AiConfigPanel(props: {
   const provider = props.provider
   const imageConfigured = props.imageProvider?.configured ?? !!imageProviderConfig?.hasApiKey
   const dirty = providerDirty || imageProviderDirty || readerDirty
+  useEffect(() => props.onBusyChange?.(saving || testing), [props.onBusyChange, saving, testing])
+  useEffect(() => props.onDirtyChange?.(dirty), [props.onDirtyChange, dirty])
 
   const dirtyCount = (providerDirty ? 1 : 0) + (imageProviderDirty ? 1 : 0) + (readerDirty ? 1 : 0)
 
