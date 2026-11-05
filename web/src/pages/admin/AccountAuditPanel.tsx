@@ -1,20 +1,21 @@
 import { useState } from 'react'
 import { isZhiZhouIosApp } from '@shared/device'
-import { CirclePlus, RefreshCw } from 'lucide-react'
+import { CirclePlus, RefreshCw, History } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/format'
-import { UserAvatar } from "@/components/identity/UserAvatar"
+import { UserAvatar } from '@/components/identity/UserAvatar'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import EmptyState from '@/components/shared/EmptyState'
+import { ErrorState, InlineError, LoadingState } from '@/components/shared/AsyncStates'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
+import { DialogBody, DialogFrame } from '@/components/shared/DialogFrame'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
 import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import { SearchField } from '@/components/shared/SearchField'
-import SearchSelect from "@/components/shared/SearchSelect"
+import SearchSelect from '@/components/shared/SearchSelect'
 import { cn } from '@/lib/utils'
-import Pagination from "@/components/shared/Pagination"
+import Pagination from '@/components/shared/Pagination'
 import { ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 
 export interface LoginAudit {
@@ -132,11 +133,10 @@ const LOGIN_COLUMNS: readonly AdminColumn[] = [
   { key: 'actions', label: '操作', width: '10%', actions: true },
 ]
 const OPERATION_COLUMNS: readonly AdminColumn[] = [
-  { key: 'actor', label: '操作人', width: '20%', primary: true },
-  { key: 'action', label: '动作与范围', width: '23%' },
-  { key: 'result', label: '结果', width: '11%' },
-  { key: 'id', label: '操作标识', width: '20%' },
-  { key: 'time', label: '时间', width: '16%' },
+  { key: 'actor', label: '操作人', width: '26%', primary: true },
+  { key: 'action', label: '动作与范围', width: '30%' },
+  { key: 'result', label: '结果', width: '14%' },
+  { key: 'time', label: '时间', width: '20%' },
   { key: 'actions', label: '操作', width: '10%', actions: true },
 ]
 interface Props {
@@ -144,6 +144,8 @@ interface Props {
   records: Array<LoginAudit | AdminOperationAudit>
   total: number
   loading: boolean
+  error?: string
+  hasLoaded?: boolean
   status: string
   onStatus: (status: string) => void
   onRefresh: () => void
@@ -162,6 +164,8 @@ export default function AccountAuditPanel({
   records,
   total,
   loading,
+  error = '',
+  hasLoaded = true,
   status,
   onStatus,
   onRefresh,
@@ -211,10 +215,7 @@ export default function AccountAuditPanel({
           ]
     setDetail({ title: `${title}详情`, fields })
   }
-  const statusSelectOptions = [
-    { value: 'all', label: '全部结果' },
-    ...options.map((value) => ({ value, label: statusLabel(value) })),
-  ]
+  const statusSelectOptions = [{ value: 'all', label: '全部结果' }, ...options.map((value) => ({ value, label: statusLabel(value) }))]
   return (
     <>
       <AdminToolbar layout="inline" className="admin-filter-rail account-record-filters account-audit-filters" ariaLive="polite">
@@ -240,17 +241,16 @@ export default function AccountAuditPanel({
           />
         </div>
         <div className="account-record-filters__actions">
-          <span className="account-record-filters__count">
-            {loading && !records.length ? '读取中…' : `共 ${total} 条`}
-          </span>
+          <span className="account-record-filters__count">{!hasLoaded ? (error ? '读取失败' : '读取中…') : `共 ${total} 条`}</span>
           <Button variant="secondary" size="sm" onClick={onRefresh} disabled={loading}>
             <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
             {loading ? '刷新中…' : '刷新'}
           </Button>
         </div>
       </AdminToolbar>
+      {error && hasLoaded && <InlineError message={`${error}，保留上次读取的结果。`} onRetry={onRefresh} />}
       <AdminDataPanel className="account-records-panel overflow-hidden" ariaLabel={`${title}列表`} columns={columns} density="comfortable">
-        <Table className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
+        <Table aria-busy={loading} className={cn('admin-data-table admin-data-table--animated', loading && 'admin-data-table--transitioning')}>
           <TableCaption className="sr-only">{title}列表，完整信息可在详情查看。</TableCaption>
           <TableHeader>
             <TableRow>
@@ -264,8 +264,18 @@ export default function AccountAuditPanel({
           <TableBody>
             {!records.length ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="account-record-empty">
-                  {loading ? '加载中…' : `暂无匹配的${title}`}
+                <TableCell colSpan={columns.length}>
+                  {error && !hasLoaded ? (
+                    <ErrorState message={error} onRetry={onRefresh} />
+                  ) : loading ? (
+                    <LoadingState label={`读取${title}`} />
+                  ) : (
+                    <EmptyState
+                      icon={<History />}
+                      message={`暂无${status !== 'all' || search?.trim() ? '匹配的' : ''}${title}`}
+                      hint={status !== 'all' || search?.trim() ? '调整用户名或结果筛选，查看其他记录。' : '发生相关操作后，记录会显示在这里。'}
+                    />
+                  )}
                 </TableCell>
               </TableRow>
             ) : (
@@ -289,23 +299,13 @@ export default function AccountAuditPanel({
                         <TableCell data-label="动作与范围">
                           <div>
                             {actionLabel(record.action)}
-                            <span className="account-record-secondary">
-                              目标 {record.targetCount} 个{record.replayCount > 0 ? ` · 重放 ${record.replayCount} 次` : ''}
-                            </span>
+                            <span className="account-record-secondary">目标 {record.targetCount} 个</span>
                           </div>
                         </TableCell>
                         <TableCell data-label="结果">
                           <AdminStatusBadge tone={record.status === 'completed' ? 'success' : record.status === 'failed' ? 'danger' : 'warning'}>
                             {statusLabel(record.status)}
                           </AdminStatusBadge>
-                        </TableCell>
-                        <TableCell data-label="操作标识">
-                          <div>
-                            <code className="account-record-code account-record-code--truncate" title={record.operationId}>
-                              {record.operationId}
-                            </code>
-                            <span className="account-record-secondary">{record.responseStatus ? `HTTP ${record.responseStatus}` : '未记录响应'}</span>
-                          </div>
                         </TableCell>
                       </>
                     ) : (
@@ -315,8 +315,9 @@ export default function AccountAuditPanel({
                             <AdminStatusBadge tone={record.status === 'success' ? 'success' : record.status === 'limited' ? 'warning' : 'danger'}>
                               {statusLabel(record.status)}
                             </AdminStatusBadge>
-                            <span className="account-record-secondary">{reasonLabel(record.reason)}</span>
-                            {record.authMethod === 'passkey' && <span className="account-record-secondary">认证：Passkey</span>}
+                            {record.reason !== 'login' && record.reason !== 'success' && (
+                              <span className="account-record-secondary">{record.reason ? reasonLabel(record.reason) : '未记录原因'}</span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell data-label="访问来源">
@@ -333,7 +334,7 @@ export default function AccountAuditPanel({
                     </TableCell>
                     <TableCell data-actions="">
                       <div className="admin-cell-actions account-user-actions">
-                        <Button variant="ghost" size="sm" className="rounded-full h-7 px-3 text-xs" aria-label={`查看${name}的${title}详情`} onClick={() => showDetail(record)}>
+                        <Button variant="ghost" size="sm" aria-label={`查看${name}的${title}详情`} onClick={() => showDetail(record)}>
                           详情
                         </Button>
                       </div>
@@ -351,7 +352,7 @@ export default function AccountAuditPanel({
         totalPages={Math.max(1, Math.ceil(total / limit))}
         onPage={onPage}
         busy={loading}
-        summary={`共 ${total} 条记录`}
+        summary={hasLoaded ? `共 ${total} 条记录` : '尚未读取记录'}
         pageSize={{ value: limit, onChange: onLimit, options: ADMIN_PAGE_SIZE_OPTIONS }}
       />
       <details className="account-record-note">

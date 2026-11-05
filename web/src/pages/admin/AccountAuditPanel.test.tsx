@@ -45,6 +45,19 @@ const base = {
   statusLabel: (v: string) => ({ limited: '限流', success: '成功', failure: '失败', pending: '处理中', completed: '成功', failed: '失败' })[v] || v,
 }
 describe('账户审计目录', () => {
+  it('Passkey 认证只展示一次，操作列表隐藏技术标识但详情完整保留', () => {
+    const view = render(<AccountAuditPanel {...base} kind="login" records={[{ ...login, authMethod: 'passkey' }]} />)
+    expect(screen.getAllByText('认证：Passkey')).toHaveLength(1)
+    view.rerender(<AccountAuditPanel {...base} kind="operation" records={[operation]} />)
+    expect(screen.queryByText(operation.operationId)).not.toBeInTheDocument()
+    expect(screen.queryByText('HTTP 503')).not.toBeInTheDocument()
+  })
+  it('刷新失败保留上一次记录并标明错误', () => {
+    render(<AccountAuditPanel {...base} kind="login" records={[login]} error="请求失败" hasLoaded />)
+    expect(screen.getByRole('alert')).toHaveTextContent('保留上次读取的结果')
+    expect(screen.getByText('读者')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重试' })).toBeEnabled()
+  })
   it('知舟 iOS App 在登录列表和详情中识别，保留完整原始 UA', async () => {
     const userAgent = 'ZhiZhou/16 CFNetwork/3896.100.1.2.1 Darwin/27.0.0'
     render(<AccountAuditPanel {...base} kind="login" records={[{ ...login, userAgent }]} />)

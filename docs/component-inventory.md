@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-05 账户与注册的注册面板和邀请码工作区由 `pages/admin/SettingsTab.tsx` 与 `account-management.module.css` 持有；复用 Panel、PanelHeading、RadioGroup、FormField、Input、Button 和共享异步／空状态。`UserManagementPanel.tsx` 持有用户行的操作锁及密码菜单，`AccountAuditPanel.tsx` 持有审计摘要与详情，原 `styles/admin/pages/accounts.css` 仅保留账户列表和详情场景样式，移除旧注册胶囊、生成结果皮肤和重复按钮覆盖；未新增公共业务依赖。
+
 2026-11-05 备份版本摘要、状态、当前任务与版本详情由 `pages/admin/backups/BackupVersionViews.tsx` 和 `backup-versions.module.css` 持有场景呈现；版本详情复用共享 ReadingDialog，列表表面仍归 AdminDataPanel。`BackupsTab.tsx` 持有视图、列表、任务观测与静默同步，PolicyForm／BackupSettingsForm 持有草稿和保存基线，跨分区保留挂载并按外部修订协调刷新；运行环境与演练弹窗接受分区可见性，不将场景状态引入共享层。
 
 2026-11-05 AI 分级建议审核由 `pages/admin/ContentRatingAiReview.tsx` 与 `content-rating-ai-review.module.css` 持有模型证据、正文采样和审核确认布局；复用共享 `ReadingDialog`、`FormField` 与 UI 控件，弹窗尺寸、左对齐页头、中间滚动及底部插槽继续归共享阅读弹窗。`ContentRatingsTab.tsx` 保留建议、理由、保存与修订审核请求状态；旧审核弹窗的专属全局样式移除，不影响其他分级弹窗。
