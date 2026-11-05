@@ -516,17 +516,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               生成邀请码
             </Button>
           </div>
-        ) : currentAccountTab === 'audit' ? (
-          <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
-            <RefreshCw className={loginAuditLoading ? 'size-3.5 animate-spin' : 'size-3.5'} />
-            刷新
-          </Button>
-        ) : (
-          <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
-            <RefreshCw className={operationAuditLoading ? 'size-3.5 animate-spin' : 'size-3.5'} />
-            刷新
-          </Button>
-        )
+        ) : null
       }
     >
       {schemaHealth && !schemaHealth.ok && (
