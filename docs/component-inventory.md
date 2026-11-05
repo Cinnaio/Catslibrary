@@ -1,6 +1,6 @@
 # 生产组件归属清单
 
-2026-11-05 内容安全布局归 `pages/admin/ContentPolicyTab.tsx` 与 `content-policy.module.css`，共用 Card、Switch、AdminStatusBadge 和 AsyncStates。`SiteSettingsNavigation.tsx` 与自带 CSS Module 从注册表读取站点设置视图，统一下划线导航及窄屏滚动；该组件保留在站点设置场景层。内容安全入口移入站点设置，旧地址由 Admin 路由替换跳转；移除旧内容安全全局皮肤与站点设置重复导航样式，不新增公共层业务依赖。
+2026-11-05 站点设置由 `pages/admin/SiteSettingsTab.tsx` 与 `site-settings.module.css` 持有布局及各页独立读取状态；`SiteSettingsNavigation.tsx` 复用注册表元数据和共享 Tabs，统一六个视图与窄屏滚动。`site-settings-views.ts` 解析站点与旧 AI 设置地址，Admin 对这些地址复用同一个持久挂载的工作区；`ai/AiSettingsWorkspace.tsx` 按需加载并保留模型与参数两页的独立快照、草稿，复用实际 AiConfigPanel 与 AiParamsPanel，AiTab 仅负责创作。旧站点设置全局 CSS 退出运行时，卡片、按钮、开关、勾选、异步状态仍归共享层；内容安全仅呈现策略卡片，布局继续归 `content-policy.module.css`。共享 Tabs 首次直接定位，后续选择平移；不新增公共层业务依赖。
 
 2026-11-05 审核页由 `pages/admin/ModerationTab.tsx` 与 `moderation.module.css` 持有筛选布局、正文摘要和来源信息；全文与原引用复用 `shared/ReadingDialog`，危险操作复用 `AdminRowActions` 及原确认流程，表格及窄屏记录复用 `AdminDataPanel`／`Table`。移除旧审核响应式文件、全局想法单元格及审核筛选皮肤，不新增公共层业务依赖。
 

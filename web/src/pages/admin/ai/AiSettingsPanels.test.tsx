@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiSettings } from '@/lib/api'
 import AiConfigPanel from './AiConfigPanel'
 import AiParamsPanel from './AiParamsPanel'
+import AiSettingsWorkspace from './AiSettingsWorkspace'
 
-const api = vi.hoisted(() => ({ saveSettings: vi.fn(), saveProviderConfig: vi.fn(), toast: vi.fn() }))
-vi.mock('@/lib/api', () => ({ aiApi: { saveSettings: api.saveSettings, saveProviderConfig: api.saveProviderConfig, providerPresets: vi.fn().mockResolvedValue({ presets: [] }), usage: vi.fn().mockResolvedValue(null) } }))
+const api = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn(), saveProviderConfig: vi.fn(), toast: vi.fn() }))
+vi.mock('@/lib/api', () => ({ aiApi: { settings: api.settings, saveSettings: api.saveSettings, saveProviderConfig: api.saveProviderConfig, providerPresets: vi.fn().mockResolvedValue({ presets: [] }), usage: vi.fn().mockResolvedValue(null) } }))
 vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: api.toast }) }))
 
 const settings: AiSettings = {
@@ -62,9 +63,48 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.saveSettings.mockResolvedValue({})
   api.saveProviderConfig.mockResolvedValue({})
+  api.settings.mockResolvedValue({ settings, provider: null, imageProvider: null, providerConfig, imageProviderConfig: providerConfig })
 })
 
 describe('AI settings confirmation', () => {
+  it('responds to an explicit parameter-group deep link without discarding the current draft', () => {
+    const onReload = vi.fn()
+    const { rerender } = render(<AiParamsPanel settings={settings} loading={false} onReload={onReload} group="recap" />)
+    fireEvent.change(screen.getByLabelText('最大输出 Token', { selector: '#recap-tokens' }), { target: { value: '600' } })
+    rerender(<AiParamsPanel settings={settings} loading={false} onReload={onReload} group="writing" />)
+    expect(screen.getByRole('tab', { name: /AI 创作/ })).toHaveAttribute('aria-selected', 'true')
+    rerender(<AiParamsPanel settings={settings} loading={false} onReload={onReload} group="recap" />)
+    expect(screen.getByLabelText('最大输出 Token', { selector: '#recap-tokens' })).toHaveValue(600)
+  })
+  it('keeps model and parameter drafts across settings views, and saving parameters does not overwrite model drafts', async () => {
+    const onBusyChange = vi.fn()
+    const { rerender } = render(<AiSettingsWorkspace view="config" onBusyChange={onBusyChange} />)
+    fireEvent.change(await screen.findByLabelText('模型', { exact: true }), { target: { value: 'draft-model' } })
+    rerender(<AiSettingsWorkspace view="params" onBusyChange={onBusyChange} />)
+    const tokens = await screen.findByLabelText('最大输出 Token', { selector: '#recap-tokens' })
+    fireEvent.change(tokens, { target: { value: '600' } })
+    rerender(<AiSettingsWorkspace view={null} onBusyChange={onBusyChange} />)
+    expect(screen.queryByRole('button', { name: '保存所有参数' })).not.toBeInTheDocument()
+    rerender(<AiSettingsWorkspace view="config" onBusyChange={onBusyChange} />)
+    expect(screen.getByLabelText('模型', { exact: true })).toHaveValue('draft-model')
+    rerender(<AiSettingsWorkspace view="params" onBusyChange={onBusyChange} />)
+    expect(tokens).toHaveValue(600)
+    api.settings.mockResolvedValue({ settings: { ...settings, recapMaxTokens: 600, dailyQuota: 99 }, provider: null, imageProvider: null, providerConfig, imageProviderConfig: providerConfig })
+    fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ recapMaxTokens: 600 }))
+    await waitFor(() => expect(api.settings).toHaveBeenCalledTimes(3))
+    rerender(<AiSettingsWorkspace view="config" onBusyChange={onBusyChange} />)
+    expect(screen.getByLabelText('模型', { exact: true })).toHaveValue('draft-model')
+  })
+  it('a failed model-settings read does not block the parameter view', async () => {
+    api.settings.mockRejectedValueOnce(new Error('模型配置读取失败'))
+    const onBusyChange = vi.fn()
+    const { rerender } = render(<AiSettingsWorkspace view="config" onBusyChange={onBusyChange} />)
+    await screen.findByRole('alert')
+    rerender(<AiSettingsWorkspace view="params" onBusyChange={onBusyChange} />)
+    await screen.findByRole('button', { name: '保存所有参数' })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
   it('saves independent graph controls and preserves archive settings', async () => {
     render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
     fireEvent.click(screen.getByRole('tab', { name: 'AI 创作' }))
@@ -75,7 +115,7 @@ describe('AI settings confirmation', () => {
     fireEvent.click(screen.getByRole('option', { name: '低强度思考' }))
     expect(api.saveSettings).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
-    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ ...settings, storyGraphMaxTokens: 24000, storyGraphReasoningMode: 'low' }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ storyGraphMaxTokens: 24000, storyGraphReasoningMode: 'low' }))
   })
   it('rejects an empty graph budget before saving', () => {
     render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
@@ -186,7 +226,7 @@ describe('AI settings confirmation', () => {
     expect(api.saveSettings).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText('创作任务并发上限'), { target: { value: '4' } })
     fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
-    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ ...settings, maxConcurrentWritingTasks: 4 }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ maxConcurrentWritingTasks: 4 }))
   })
   it('keeps edits across categories, marks changed groups and submits the combined draft', async () => {
     render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
@@ -198,7 +238,7 @@ describe('AI settings confirmation', () => {
     fireEvent.click(screen.getByRole('tab', { name: /前情提要/ }))
     expect(screen.getByLabelText('最大输出 Token', { selector: '#recap-tokens' })).toHaveValue(600)
     fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
-    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ ...settings, recapMaxTokens: 600, maxConcurrentWritingTasks: 4 }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ recapMaxTokens: 600, maxConcurrentWritingTasks: 4 }))
   })
 
   it('reveals an invalid hidden category before saving and supports keyboard tab navigation', () => {

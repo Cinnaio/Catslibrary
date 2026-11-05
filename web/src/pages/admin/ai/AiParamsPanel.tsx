@@ -56,7 +56,7 @@ const PARAM_GROUPS = [
 ] as const satisfies readonly { id: string; label: string; keys: readonly (keyof AiSettings)[] }[]
 type ParamGroupId = (typeof PARAM_GROUPS)[number]['id']
 
-export default function AiParamsPanel(props: { settings: AiSettings | null; loading: boolean; onReload: () => void }) {
+export default function AiParamsPanel(props: { settings: AiSettings | null; loading: boolean; onReload: () => void; group?: string | null; onBusyChange?: (busy: boolean) => void; onDirtyChange?: (dirty: boolean) => void }) {
   const { toast } = useToast()
   const [localSettings, setLocalSettings] = useState<AiSettings | null>(null)
   const [saving, setSaving] = useState(false)
@@ -68,6 +68,10 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
     return 'recap'
   })
   const pendingInvalid = useRef<HTMLInputElement | null>(null)
+  useEffect(() => {
+    const group = props.group
+    if (group && PARAM_GROUPS.some(item => item.id === group)) setActiveGroup(group as ParamGroupId)
+  }, [props.group])
 
   useEffect(() => {
     setLocalSettings(props.settings)
@@ -75,6 +79,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
   const formRef = useRef<HTMLFormElement>(null)
   const dirty = JSON.stringify(localSettings) !== JSON.stringify(props.settings)
+  useEffect(() => props.onBusyChange?.(saving), [props.onBusyChange, saving])
+  useEffect(() => props.onDirtyChange?.(dirty), [props.onDirtyChange, dirty])
 
   useEffect(() => {
     const invalid = pendingInvalid.current
@@ -104,7 +110,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
     }
     setSaving(true)
     try {
-      await aiApi.saveSettings(localSettings)
+      const changed = PARAM_GROUPS.flatMap(group => group.keys).filter(key => localSettings[key] !== props.settings?.[key])
+      await aiApi.saveSettings(Object.fromEntries(changed.map(key => [key, localSettings[key]])))
       toast('已保存参数设置', 'success')
       props.onReload()
     } catch (err) {

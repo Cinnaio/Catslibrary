@@ -14,6 +14,7 @@ import RouteLoading from '../../components/RouteLoading'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AdminGate from './AdminGate'
 import { monitoringRedirect } from './monitoring-routes'
+import { getSiteSettingsView } from './site-settings-views'
 import AdminShell from './AdminShell'
 import { adminTabPath, getAdminViewLabel, isAdminTab, TAB_COMPONENTS, TAB_KEY } from './admin-registry'
 
@@ -87,13 +88,16 @@ export default function Admin() {
   const redirect = monitoringRedirect(active, location.search, localStorage.getItem('ai_active_subtab'))
   if (redirect) return <Navigate to={redirect} replace />
 
-  const TabComponent = TAB_COMPONENTS[active]
-  const activeLabel = getAdminViewLabel(active, location.search)
+  const settingsView = getSiteSettingsView(location.pathname, location.search, localStorage.getItem('ai_active_subtab'))
+  const TabComponent = settingsView ? TAB_COMPONENTS['site-settings'] : TAB_COMPONENTS[active]
+  const activeLabel = settingsView === 'config' || settingsView === 'params'
+    ? getAdminViewLabel('ai', `?sub=${settingsView}`)
+    : getAdminViewLabel(active, location.search)
 
   return (
     <AdminGate>
       <AdminShell active={active} activeLabel={activeLabel}>
-        <Suspense key={active} fallback={<RouteLoading embedded />}>
+        <Suspense key={settingsView ? 'site-settings' : active} fallback={<RouteLoading embedded />}>
           <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => {
             setLegacyHighlightNovelId('')
             const params = new URLSearchParams(location.search)

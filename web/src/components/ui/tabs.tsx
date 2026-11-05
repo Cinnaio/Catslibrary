@@ -39,6 +39,7 @@ function TabsList({
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> & VariantProps<typeof tabsListVariants>) {
   const listRef = React.useRef<HTMLDivElement>(null)
+  const positioned = React.useRef(false)
   const [indicatorStyle, setIndicatorStyle] = React.useState<React.CSSProperties>({
     opacity: 0,
   })
@@ -49,6 +50,7 @@ function TabsList({
     if (!list) return
     const active = list.querySelector<HTMLElement>('[data-slot="tabs-trigger"][data-state="active"]')
     if (!active) {
+      positioned.current = false
       setIndicatorStyle({ opacity: 0 })
       return
     }
@@ -56,11 +58,15 @@ function TabsList({
     if (active.offsetWidth === 0 && active.offsetHeight === 0) {
       return
     }
+    const firstPlacement = !positioned.current
+    positioned.current = true
     setIndicatorStyle({
       transform: `translate3d(${active.offsetLeft}px, ${active.offsetTop}px, 0)`,
       width: `${active.offsetWidth}px`,
       height: `${active.offsetHeight}px`,
       opacity: 1,
+      // 首次挂载直接落位；后续选择与尺寸变化才从上一个位置平滑过渡。
+      ...(firstPlacement ? { transition: 'none' } : {}),
     })
   }, [])
 
@@ -68,6 +74,7 @@ function TabsList({
     if (variant === 'line') return
     const list = listRef.current
     if (!list) return
+    positioned.current = false
     let frame = 0
     const schedule = () => {
       cancelAnimationFrame(frame)

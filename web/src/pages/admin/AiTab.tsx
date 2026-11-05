@@ -1,32 +1,24 @@
 import '../../styles/admin/pages/ai-service-claude.css'
 import '../../styles/admin/pages/ai.css'
 /**
- * AI 服务 tab —— 薄容器：加载配置并把各子面板挂到分组子 tab 上。
+ * AI 创作容器；模型与服务、创作参数由站点设置工作区统一呈现。
  * 子 tab 支持 URL 深链：/admin/ai?sub=content&batch=... 可复现「任务 → 产出」上下文，
  * 刷新、返回、分享都不会丢；无 URL 参数时退回 localStorage 持久化。
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { RefreshCw } from 'lucide-react'
-import { aiApi, type AiSettings, type AiProviderConfig } from '../../lib/api'
+import { aiApi } from '../../lib/api'
 import { useToast } from '../../components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Provider } from './ai/shared'
 import { usePersistentState } from '@/hooks/usePersistentState'
-import AiConfigPanel from './ai/AiConfigPanel'
 import AiGenerationsPanel from './ai/AiGenerationsPanel'
-import AiParamsPanel from './ai/AiParamsPanel'
 import AiWritingPanel, { type WritingView } from './ai/AiWritingPanel'
 import AiCoverPanel from './ai/AiCoverPanel'
 import StoryGraphPanel from './ai/StoryGraphPanel'
 
-// 兼容旧的导入路径（其它页面若直接引用面板，从 ./ai/* 走新路径）
-export { AiWritingPanel, AiGenerationsPanel, AiParamsPanel }
-
-/** 子 tab 合法值：创作 / 审阅 / 设置，避免 URL 或持久化里混入未知值。 */
-const VALID_SUBS = ['writing', 'cover', 'content', 'config', 'params', 'graph'] as const
+/** 创作视图合法值；旧设置地址由 Admin 路由交给站点设置工作区。 */
+const VALID_SUBS = ['writing', 'cover', 'content', 'graph'] as const
 type SubTab = (typeof VALID_SUBS)[number]
 
 const AI_SUBTAB_META: Record<SubTab, { title: string; description: string }> = {
@@ -34,8 +26,6 @@ const AI_SUBTAB_META: Record<SubTab, { title: string; description: string }> = {
   writing: { title: 'AI 创作', description: '围绕当前作品构思情节、生成章节与审阅草稿。' },
   cover: { title: '封面生成', description: '生成、比较并应用小说封面候选图。' },
   content: { title: '草稿与产出', description: '审阅、编辑和管理 AI 生成的章节与摘要。' },
-  config: { title: 'AI 配置', description: '连接文本与图像服务，管理模型和读者生成策略。' },
-  params: { title: '参数调优', description: '调整摘要、回顾、创作和生图的生成参数。' },
 }
 
 function isSubTab(value: string): value is SubTab {
@@ -44,12 +34,7 @@ function isSubTab(value: string): value is SubTab {
 
 export default function AiTab() {
   const { toast } = useToast()
-  const [settings, setSettings] = useState<AiSettings | null>(null)
   const [provider, setProvider] = useState<Provider | null>(null)
-  const [providerConfig, setProviderConfig] = useState<AiProviderConfig | null>(null)
-  const [imageProvider, setImageProvider] = useState<Provider | null>(null)
-  const [imageProviderConfig, setImageProviderConfig] = useState<AiProviderConfig | null>(null)
-  const [loading, setLoading] = useState(true)
   // URL 深链优先于 localStorage：进入/刷新/返回时按 sub 参数定位子页
   const [searchParams, setSearchParams] = useSearchParams()
   const urlSub = searchParams.get('sub')
@@ -94,18 +79,11 @@ export default function AiTab() {
   )
 
   const load = useCallback(async () => {
-    setLoading(true)
     try {
       const res = await aiApi.settings()
-      setSettings(res.settings)
       setProvider(res.provider)
-      setProviderConfig(res.providerConfig)
-      setImageProviderConfig(res.imageProviderConfig)
-      setImageProvider(res.imageProvider)
     } catch (err) {
       toast((err as Error).message || '加载 AI 设置失败', 'error')
-    } finally {
-      setLoading(false)
     }
   }, [toast])
 
@@ -118,47 +96,8 @@ export default function AiTab() {
       title={currentMeta.title}
       description={currentMeta.description}
       className={`admin-redesign-page admin-redesign-page--ai ai-admin-page${currentSubTab === 'writing' ? '' : ' ai-service'}`}
-      actions={
-        (currentSubTab === 'config' || currentSubTab === 'params') && (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void load()}
-            disabled={loading}
-            aria-label={currentSubTab === 'config' ? '刷新 AI 配置' : '刷新生成参数'}
-          >
-            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
-            {loading ? '刷新中…' : '刷新'}
-          </Button>
-        )
-      }
     >
-      <Tabs
-        value={currentSubTab}
-        onValueChange={(subKey) => {
-          setActiveSubTab(subKey)
-          const next = new URLSearchParams(searchParams)
-          next.set('sub', subKey)
-          setSearchParams(next, { replace: false })
-        }}
-        className="ai-service-tabs admin-capsule-tabs"
-      >
-        {['config', 'params'].includes(currentSubTab) && (
-          <div className="ai-workbench-nav-track flex items-center justify-between">
-            <TabsList className="ai-service-tabs__list" aria-label="AI 服务视图">
-              {VALID_SUBS.filter((subKey) =>
-                ['config', 'params'].includes(currentSubTab)
-                  ? ['config', 'params'].includes(subKey)
-                  : !['config', 'params'].includes(subKey),
-              ).map((subKey) => (
-                <TabsTrigger key={subKey} value={subKey}>
-                  {AI_SUBTAB_META[subKey].title}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-        )}
-
+      <div className="ai-service-tabs">
         <div className="ai-service-tabs__content min-w-0">
           {(writingVisited || currentSubTab === 'writing' || currentSubTab === 'graph') && (
             <div hidden={currentSubTab !== 'writing'}>
@@ -232,21 +171,8 @@ export default function AiTab() {
             />
           )}
 
-          {currentSubTab === 'config' && (
-            <AiConfigPanel
-              settings={settings}
-              provider={provider}
-              providerConfig={providerConfig}
-              imageProviderConfig={imageProviderConfig}
-              imageProvider={imageProvider}
-              loading={loading}
-              onReload={load}
-            />
-          )}
-
-          {currentSubTab === 'params' && <AiParamsPanel settings={settings} loading={loading} onReload={load} />}
         </div>
-      </Tabs>
+      </div>
     </AdminPage>
   )
 }

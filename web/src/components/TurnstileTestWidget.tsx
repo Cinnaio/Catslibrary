@@ -21,5 +21,5 @@ export default function TurnstileTestWidget({ siteKey, onToken, onError }: {
     }).catch(error => { if (active) onError(error instanceof Error ? error.message : '验证组件无法加载') })
     return () => { active = false; remove?.() }
   }, [siteKey, onToken, onError])
-  return <div ref={container} className="site-settings__widget" />
+  return <div ref={container} />
 }
