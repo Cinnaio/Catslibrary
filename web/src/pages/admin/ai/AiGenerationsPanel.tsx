@@ -7,7 +7,7 @@ import { ReadingDialog, ReadingDialogDisclosure, ReadingDialogEditor, ReadingDia
 import FormField from "@/components/shared/FormField"
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, CirclePlus, CornerDownRight, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronDown, CirclePlus, CornerDownRight, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
@@ -75,6 +75,7 @@ const AI_GENERATION_COLUMNS: readonly AdminColumn[] = [
 ]
 
 const generationStatusLabel = (status: string) => ({ draft: '待审草稿', published: '已发布', rejected: '已拒绝' })[status] || status
+const generationWordCount = (text: string) => Array.from(text.replace(/<[^>]*>/g, '')).length
 const qualityCount = (item: AiGenerationListItem) => item.groupItems
   ? item.groupItems.filter(chapter => chapter.status === 'draft' && chapter.quality?.warnings.length).length
   : item.status === 'draft' && item.quality?.warnings.length ? 1 : 0
@@ -105,6 +106,8 @@ export default function AiGenerationsPanel(props: {
   const requestVersion = useRef(0)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [viewing, setViewing] = useState<AiGenerationListItem | null>(null)
+  const [viewingBatch, setViewingBatch] = useState<AiGenerationListItem | null>(null)
+  const readingDialogRef = useRef<HTMLDivElement>(null)
   const [publishTitle, setPublishTitle] = useState('')
   const [publishing, setPublishing] = useState(false)
   const [titleCandidates, setTitleCandidates] = useState<string[]>([])
@@ -121,6 +124,32 @@ export default function AiGenerationsPanel(props: {
   function showMemoryUpdate(item: AiGenerationListItem, autoStart = true) {
     setMemoryUpdate({ novelId: item.novelId, novelTitle: item.novelTitle, autoStart, key: Date.now() })
   }
+
+  function openGeneration(item: AiGenerationListItem, batch: AiGenerationListItem | null = null) {
+    // 集合先进入目录，只有明确选择章节后才进入单章审阅与发布。
+    setViewing(item.groupItems ? null : item)
+    setViewingBatch(item.groupItems ? item : batch)
+    setPublishTitle(item.groupItems ? '' : item.draftTitle || item.chapterTitle || '')
+    setTitleCandidates([])
+    setEditingText(null)
+  }
+
+  function updateViewing(id: string, update: Partial<AiGenerationListItem>) {
+    setViewing(current => current?.id === id ? { ...current, ...update } : current)
+    setViewingBatch(current => current ? {
+      ...current,
+      groupItems: current.groupItems?.map(chapter => chapter.id === id ? { ...chapter, ...update } : chapter),
+    } : current)
+  }
+
+  useEffect(() => {
+    // 同一弹窗切换目录和正文时，从顶部阅读，并把键盘焦点移到标题。
+    if (!viewing?.id && !viewingBatch?.id) return
+    const dialog = readingDialogRef.current
+    const body = dialog?.querySelector<HTMLElement>('[role="region"]')
+    if (body) body.scrollTop = 0
+    dialog?.querySelector<HTMLElement>('[data-slot="dialog-title"]')?.focus()
+  }, [viewing?.id, viewingBatch?.id])
 
   // 从任务面板 / 创作页跳转过来时，自动展开对应批次并滚动到可见位置
   useEffect(() => {
@@ -319,6 +348,7 @@ export default function AiGenerationsPanel(props: {
       showMemoryUpdate(item, false)
       toast('已发布为正式章节', 'success', { action: { label: '撤销发布', onClick: () => void undoPublish(item.id) } })
       setViewing(null)
+      setViewingBatch(null)
       setPublishTitle('')
       void load()
     } catch (err) {
@@ -361,7 +391,7 @@ export default function AiGenerationsPanel(props: {
       // 保存后正文版本必变；把新的 contentRevision 一并写回，
       // 否则紧接着的选段改写会拿着旧版本号提交，被服务端 409 拒绝。
       const saved = await aiApi.writing.updateDraft(item.id, text)
-      setViewing((current) => (current ? { ...current, result: text, contentRevision: saved.contentRevision, quality: saved.quality } : current))
+      updateViewing(item.id, { result: text, contentRevision: saved.contentRevision, quality: saved.quality })
       setEditingText(null)
       toast('草稿已保存', 'success')
       void load()
@@ -380,7 +410,7 @@ export default function AiGenerationsPanel(props: {
     if (!id) return
     try {
       const { item } = await aiApi.generation(id)
-      setViewing((current) => (current && current.id === id ? { ...current, ...item } : current))
+      updateViewing(id, item)
       setEditingText(null)
     } catch (err) {
       toast((err as Error).message || '重新读取草稿失败', 'error')
@@ -426,6 +456,7 @@ export default function AiGenerationsPanel(props: {
   ]
 
   const hasActiveFilter = Boolean(search || (props.status === 'all' && filterStatus !== 'all') || filterKind !== 'all')
+  const batchChapters = viewingBatch?.groupItems || []
 
   return (
     <div className="ai-service-stack">
@@ -708,16 +739,9 @@ export default function AiGenerationsPanel(props: {
                                   variant="secondary"
                                   size="sm"
                                   className="content-ratings-edit-button shrink-0"
-                                  onClick={() => {
-                                    const chapter = item.groupItems?.find((entry) => entry.status === 'draft') || item.groupItems?.[0]
-                                    if (chapter) {
-                                      setViewing(chapter)
-                                      setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
-                                      setTitleCandidates([])
-                                    }
-                                  }}
+                                  onClick={() => openGeneration(item)}
                                 >
-                                  {item.groupItems.some((chapter) => chapter.status === 'draft') ? '审阅' : '查看'}
+                                  查看
                                 </Button>
                               </>
                             ) : (
@@ -726,11 +750,7 @@ export default function AiGenerationsPanel(props: {
                                 variant="secondary"
                                 size="sm"
                                 className="content-ratings-edit-button shrink-0"
-                                onClick={() => {
-                                  setViewing(item)
-                                  setPublishTitle(item.draftTitle || item.chapterTitle || '')
-                                  setTitleCandidates([])
-                                }}
+                                onClick={() => openGeneration(item)}
                               >
                                 {item.status === 'draft' ? '审阅' : '查看'}
                               </Button>
@@ -740,7 +760,7 @@ export default function AiGenerationsPanel(props: {
                       </TableRow>
                       {item.groupItems && expandedBatchId === item.id &&
                         item.groupItems.map((chapter) => {
-                          const wordCount = chapter.result ? Array.from(chapter.result).length : 0
+                          const wordCount = generationWordCount(chapter.result)
                           const isChapterChecked = selectedIds.has(chapter.id)
                           return (
                             <TableRow
@@ -815,11 +835,7 @@ export default function AiGenerationsPanel(props: {
                                     variant="secondary"
                                     size="sm"
                                     className="content-ratings-edit-button shrink-0"
-                                    onClick={() => {
-                                      setViewing(chapter)
-                                      setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
-                                      setTitleCandidates([])
-                                    }}
+                                    onClick={() => openGeneration(chapter, item)}
                                   >
                                     {chapter.status === 'draft' ? '审阅' : '查看'}
                                   </Button>
@@ -859,11 +875,12 @@ export default function AiGenerationsPanel(props: {
       )}
       <p className="ai-generation-help">草稿经审阅后发布；删除生成记录前，会提示对应内容及影响。</p>
       <Dialog
-        open={!!viewing}
+        open={!!viewing || !!viewingBatch}
         onOpenChange={(open) => {
           if (!open) {
             if (savingEdit || publishing || generatingTitles) return
             setViewing(null)
+            setViewingBatch(null)
             setPublishTitle('')
             setTitleCandidates([])
             setGeneratingTitles(false)
@@ -872,16 +889,26 @@ export default function AiGenerationsPanel(props: {
         }}
       >
         <ReadingDialog
+          ref={readingDialogRef}
           showCloseButton={!savingEdit && !publishing && !generatingTitles}
-          title={viewing?.novelTitle || '未关联作品'}
-          description={viewing?.draftTitle || viewing?.chapterTitle || '未关联章节'}
-          bodyLabel="生成内容"
-          eyebrow={viewing && (
+          title={viewing?.novelTitle || viewingBatch?.novelTitle || '未关联作品'}
+          description={viewing ? viewing.draftTitle || viewing.chapterTitle || '未关联章节' : `${batchChapters.length} 章续写集合`}
+          bodyLabel={viewing ? '生成内容' : '续写集合'}
+          eyebrow={viewing ? (
             <>
               <span>{kindLabel(viewing.kind)}</span>
               <AdminStatusBadge tone={viewing.status === 'draft' ? 'accent' : viewing.status === 'published' ? 'success' : 'muted'}>
                 {generationStatusLabel(viewing.status)}
               </AdminStatusBadge>
+            </>
+          ) : viewingBatch && (
+            <>
+              <span>续写集合</span>
+              {[...new Set(batchChapters.map(chapter => chapter.status))].map(status => (
+                <AdminStatusBadge key={status} tone={status === 'draft' ? 'accent' : status === 'published' ? 'success' : 'muted'}>
+                  {batchChapters.filter(chapter => chapter.status === status).length} 章{generationStatusLabel(status)}
+                </AdminStatusBadge>
+              ))}
             </>
           )}
           footer={viewing && viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
@@ -931,14 +958,77 @@ export default function AiGenerationsPanel(props: {
             </div>
           )}
         >
+          {viewingBatch && !viewing && (
+            <>
+              {viewingBatch.plotDirection && (
+                <>
+                  <ReadingDialogToolbar label="选定情节" />
+                  <ReadingDialogText>{viewingBatch.plotDirection}</ReadingDialogText>
+                </>
+              )}
+              <ReadingDialogToolbar
+                label="章节目录"
+                meta={`共 ${batchChapters.length} 章 · 约 ${batchChapters.reduce((total, chapter) => total + generationWordCount(chapter.result), 0).toLocaleString()} 字`}
+              />
+              <ol className={styles.batchChapters} aria-label="续写章节目录">
+                {batchChapters.map(chapter => {
+                  const title = chapter.draftTitle || chapter.chapterTitle || '待命名章节'
+                  const action = chapter.status === 'draft' ? '审阅' : '查看'
+                  return (
+                    <li key={chapter.id} className={styles.batchChapter}>
+                      <div className={styles.batchChapterContent}>
+                        <div className={styles.batchChapterHeading}>
+                          <span className={styles.batchChapterIndex}>第 {chapter.batchIndex} 章</span>
+                          <span className={styles.batchChapterTitle}>{title}</span>
+                        </div>
+                        <div className={styles.batchChapterMeta}>
+                          <AdminStatusBadge tone={chapter.status === 'draft' ? 'accent' : chapter.status === 'published' ? 'success' : 'muted'}>
+                            {generationStatusLabel(chapter.status)}
+                          </AdminStatusBadge>
+                          <span>约 {generationWordCount(chapter.result).toLocaleString()} 字</span>
+                          {qualityCount(chapter) > 0 && <AdminStatusBadge tone="warning">需检查</AdminStatusBadge>}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`${action}第 ${chapter.batchIndex} 章：${title}`}
+                        onClick={() => openGeneration(chapter, viewingBatch)}
+                      >
+                        {action}
+                      </Button>
+                    </li>
+                  )
+                })}
+              </ol>
+            </>
+          )}
           {viewing && (
             <>
               {/* 中间区是唯一的滚动所有者，发布区常驻可见 */}
+              {viewingBatch && (
+                <ReadingDialogToolbar
+                  label={`集合第 ${viewing.batchIndex} 章 · 共 ${batchChapters.length} 章`}
+                  actions={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={editingText !== null || savingEdit || publishing || generatingTitles}
+                      onClick={() => openGeneration(viewingBatch)}
+                    >
+                      <ArrowLeft aria-hidden="true" />
+                      返回集合
+                    </Button>
+                  }
+                />
+              )}
               {editingText === null && <WritingQualityNotice quality={viewing.quality} />}
 
               <ReadingDialogToolbar
                 label="生成内容"
-                meta={`约 ${(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length.toLocaleString()} 字`}
+                meta={`约 ${generationWordCount(editingText ?? viewing.result).toLocaleString()} 字`}
                 actions={viewing.status === 'draft' &&
                   EDITABLE_KINDS.has(viewing.kind) &&
                   (editingText === null ? (
@@ -1000,7 +1090,7 @@ export default function AiGenerationsPanel(props: {
                     content={viewing.result}
                     contentRevision={viewing.contentRevision || ''}
                     onApplied={({ result, contentRevision }) => {
-                      setViewing((current) => (current ? { ...current, result, contentRevision } : current))
+                      updateViewing(viewing.id, { result, contentRevision })
                       void refreshViewing()
                       void load()
                     }}
