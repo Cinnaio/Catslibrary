@@ -31,7 +31,6 @@ const CallsTab = lazy(() => import('./CallsTab'))
 const ModerationTab = lazy(() => import('./ModerationTab'))
 const AiTab = lazy(() => import('./AiTab'))
 const SettingsTab = lazy(() => import('./SettingsTab'))
-const ContentPolicyTab = lazy(() => import('./ContentPolicyTab'))
 const ContentRatingsTab = lazy(() => import('./ContentRatingsTab'))
 const SiteOperationsTab = lazy(() => import('./SiteOperationsTab'))
 const SiteSettingsTab = lazy(() => import('./SiteSettingsTab'))
@@ -109,7 +108,6 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         icon: MessageSquare,
         children: [
           { id: 'moderation-queue', label: '审核队列', to: adminTabPath('moderation') },
-          { id: 'content-policy', label: '内容安全', to: adminTabPath('content-policy') },
           { id: 'content-ratings', label: '分级管理', to: adminTabPath('content-ratings') },
         ],
       },
@@ -153,6 +151,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         icon: Settings,
         children: [
           { id: 'site-settings-branding', label: '站点信息', to: `${adminTabPath('site-settings')}?view=branding` },
+          { id: 'content-policy', label: '内容安全', to: `${adminTabPath('site-settings')}?view=content-policy` },
           { id: 'site-settings-security', label: '安全验证', to: `${adminTabPath('site-settings')}?view=security` },
           { id: 'ai-config', label: '模型与服务', to: `${adminTabPath('ai')}?sub=config` },
           { id: 'ai-params', label: '创作参数', to: `${adminTabPath('ai')}?sub=params` },
@@ -176,7 +175,7 @@ export const TAB_COMPONENTS = {
   calls: CallsTab,
   moderation: ModerationTab,
   ai: AiTab,
-  'content-policy': ContentPolicyTab,
+  'content-policy': SiteSettingsTab,
   'content-ratings': ContentRatingsTab,
   'site-operations': SiteOperationsTab,
   'site-settings': SiteSettingsTab,

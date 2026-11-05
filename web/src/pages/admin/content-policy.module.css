@@ -1,0 +1,92 @@
+.panel {
+  width: 100%;
+  max-width: 48rem;
+}
+
+.panel > .content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 0;
+}
+
+.access,
+.verification {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 0;
+}
+
+.copy {
+  display: block;
+  min-width: 0;
+}
+
+.access {
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.label {
+  display: block;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.hint,
+.effect,
+.saveStatus {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  display: block;
+  margin-top: 4px;
+}
+
+.effect {
+  color: var(--text-secondary);
+}
+
+.verification {
+  margin-top: 8px;
+}
+
+.verificationHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.verificationHeading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.verification > a {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 700px) {
+  .access {
+    gap: 16px;
+  }
+
+  .verification {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}

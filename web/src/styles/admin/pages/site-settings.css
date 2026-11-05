@@ -202,11 +202,6 @@
    Claude (Anthropic) 风格站点设置：标准视图切换与垂直间距规范
    ========================================================================== */
 
-.site-settings-tabs {
-  margin-bottom: 0;
-  width: fit-content;
-}
-
 .site-settings .admin-panel-card {
   background: var(--admin-surface, #ffffff);
   border: 1px solid var(--admin-border, rgba(0, 0, 0, 0.08));

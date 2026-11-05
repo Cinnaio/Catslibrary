@@ -77,6 +77,13 @@ export default function Admin() {
     return <Navigate to={adminTabPath(fallbackTab)} replace />
   }
 
+  // 内容安全归入站点设置，旧书签及上次访问位置仍可到达同一设置。
+  if (active === 'content-policy') {
+    const params = new URLSearchParams(location.search)
+    params.set('view', 'content-policy')
+    return <Navigate to={{ pathname: adminTabPath('site-settings'), search: params.toString(), hash: location.hash }} replace />
+  }
+
   const redirect = monitoringRedirect(active, location.search, localStorage.getItem('ai_active_subtab'))
   if (redirect) return <Navigate to={redirect} replace />
 

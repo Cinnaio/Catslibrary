@@ -1,0 +1,15 @@
+.navigation {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.navigation::-webkit-scrollbar {
+  display: none;
+}
+
+.navigation > [data-slot='tabs-list'] {
+  width: max-content;
+  max-width: none;
+}
