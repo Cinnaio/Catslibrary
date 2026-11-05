@@ -12,7 +12,6 @@
   --ui-control-icon-size: var(--management-control-icon-size);
   --ui-section-title-size: var(--management-section-title-size);
   --ui-panel-padding: var(--management-panel-padding);
-  --ui-panel-border-width: 0px;
   --ui-row-title-size: 14px;
   --dialog-frame-title-size: var(--management-dialog-title-size);
 }
