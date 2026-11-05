@@ -17,7 +17,7 @@ export default function SiteSettingsNavigation({ view }: { view: string }) {
       next.set('view', value)
       navigate({ pathname: adminTabPath('site-settings'), search: next.toString() })
     }}>
-      <TabsList aria-label="站点设置视图切换" variant="line">
+      <TabsList aria-label="站点设置视图切换">
         {views.map(item => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}
       </TabsList>
     </Tabs>
