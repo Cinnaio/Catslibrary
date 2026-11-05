@@ -39,11 +39,11 @@ function SettingsSection({ view, group, onBusyChange }: { view: AiView; group?: 
     ? <ErrorState message={error} onRetry={() => void load()} />
     : <LoadingState label="正在读取 AI 设置…" />
 
-  return <div className="ai-service ai-admin-page">
-    <div className={styles.aiToolbar}>
+  return <div className={view === 'config' ? styles.aiWorkspace : 'ai-service ai-admin-page'}>
+    {view === 'params' && <div className={styles.aiToolbar}>
       {dirty && <span className={styles.hint}>当前页有未保存的修改，切换设置页会保留草稿。</span>}
-      <Button variant="secondary" size="sm" disabled={loading || busy || dirty} onClick={() => void load()} aria-label={view === 'config' ? '刷新 AI 配置' : '刷新生成参数'}>{loading ? '刷新中…' : '刷新'}</Button>
-    </div>
+      <Button variant="secondary" size="sm" disabled={loading || busy || dirty} onClick={() => void load()} aria-label="刷新生成参数">{loading ? '刷新中…' : '刷新'}</Button>
+    </div>}
     {error && <InlineError message={`刷新失败：${error}。当前保留上次读取的配置。`} />}
     {view === 'config'
       ? <AiConfigPanel {...data} loading={loading} onReload={load} onBusyChange={setBusy} onDirtyChange={setDirty} />

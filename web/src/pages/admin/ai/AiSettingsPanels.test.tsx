@@ -126,6 +126,7 @@ describe('AI settings confirmation', () => {
   })
   it('角色和图片配额先编辑后保存，取消全部角色可关闭功能', async () => {
     config()
+    fireEvent.click(screen.getByRole('tab', { name: '读者生成策略' }))
     expect(screen.getByRole('checkbox', { name: '管理员' })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: '读者' })).not.toBeChecked()
     fireEvent.click(screen.getByRole('checkbox', { name: '管理员' }))
@@ -141,6 +142,7 @@ describe('AI settings confirmation', () => {
   })
   it('does not write quota or switch changes until confirmed, supports revert and preserves zero', async () => {
     config()
+    fireEvent.click(screen.getByRole('tab', { name: '读者生成策略' }))
     fireEvent.change(screen.getByLabelText('每人每日生成上限'), { target: { value: '0' } })
     fireEvent.click(screen.getByRole('switch'))
     expect(api.saveSettings).not.toHaveBeenCalled()
@@ -149,6 +151,7 @@ describe('AI settings confirmation', () => {
   })
   it('rejects empty and out-of-range policy fields and keeps drafts on failed save', async () => {
     config()
+    fireEvent.click(screen.getByRole('tab', { name: '读者生成策略' }))
     fireEvent.change(screen.getByLabelText('每人每日生成上限'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
     expect(api.saveSettings).not.toHaveBeenCalled()
