@@ -1,6 +1,5 @@
 .center { display: grid; gap: var(--management-section-gap); min-width: 0; }
-.connection { border-bottom: 1px solid var(--border); padding-bottom: 12px; min-width: 0; }
-.connection[data-expanded='true'] { border-bottom: 0; padding-bottom: 0; }
+.connection { min-width: 0; }
 .connectionHead, .connectionSummary, .connectionActions, .heading, .steps, .actions, .taskHead, .taskActions, .taskSummary, .queueActions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .connectionHead, .heading, .actions, .taskHead { justify-content: space-between; }
 .connectionSummary { gap: 8px; min-width: 0; }
