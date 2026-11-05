@@ -140,13 +140,6 @@
   gap: 24px;
   min-width: 0;
 }
-.aiToolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 16px;
-  margin-bottom: 24px;
-}
 @media (max-width: 1000px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
@@ -159,8 +152,5 @@
   }
   .switchRow {
     gap: 16px;
-  }
-  .aiToolbar {
-    flex-wrap: wrap;
   }
 }

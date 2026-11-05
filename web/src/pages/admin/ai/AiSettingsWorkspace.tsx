@@ -1,8 +1,5 @@
-import '@/styles/admin/pages/ai-service-claude.css'
-import '@/styles/admin/pages/ai.css'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { aiApi } from '@/lib/api'
-import { Button } from '@/components/ui/button'
 import { ErrorState, InlineError, LoadingState } from '@/components/shared/AsyncStates'
 import AiConfigPanel from './AiConfigPanel'
 import AiParamsPanel from './AiParamsPanel'
@@ -17,7 +14,6 @@ function SettingsSection({ view, group, onBusyChange }: { view: AiView; group?: 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [dirty, setDirty] = useState(false)
   const revision = useRef(0)
   const load = useCallback(async () => {
     const request = ++revision.current
@@ -39,15 +35,11 @@ function SettingsSection({ view, group, onBusyChange }: { view: AiView; group?: 
     ? <ErrorState message={error} onRetry={() => void load()} />
     : <LoadingState label="正在读取 AI 设置…" />
 
-  return <div className={view === 'config' ? styles.aiWorkspace : 'ai-service ai-admin-page'}>
-    {view === 'params' && <div className={styles.aiToolbar}>
-      {dirty && <span className={styles.hint}>当前页有未保存的修改，切换设置页会保留草稿。</span>}
-      <Button variant="secondary" size="sm" disabled={loading || busy || dirty} onClick={() => void load()} aria-label="刷新生成参数">{loading ? '刷新中…' : '刷新'}</Button>
-    </div>}
+  return <div className={styles.aiWorkspace}>
     {error && <InlineError message={`刷新失败：${error}。当前保留上次读取的配置。`} />}
     {view === 'config'
-      ? <AiConfigPanel {...data} loading={loading} onReload={load} onBusyChange={setBusy} onDirtyChange={setDirty} />
-      : <AiParamsPanel settings={data.settings} loading={loading} onReload={load} group={group} onBusyChange={setBusy} onDirtyChange={setDirty} />}
+      ? <AiConfigPanel {...data} loading={loading} onReload={load} onBusyChange={setBusy} />
+      : <AiParamsPanel settings={data.settings} loading={loading} onReload={load} group={group} onBusyChange={setBusy} />}
   </div>
 }
 
