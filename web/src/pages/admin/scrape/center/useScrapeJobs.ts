@@ -16,6 +16,8 @@ export function useScrapeJobs() {
   const { confirm } = useConfirm()
 
   const [jobs, setJobs] = useState<JobCard[]>([])
+  const [restoring, setRestoring] = useState(true)
+  const [restoreError, setRestoreError] = useState('')
   const activePolls = useRef(new Set<string>())
   const pollVersions = useRef(new Map<string, number>())
   const appliedPollVersions = useRef(new Map<string, number>())
@@ -103,15 +105,20 @@ export function useScrapeJobs() {
         if (cancelled) return
         const running = (data as { jobs?: JobStatusData[] }).jobs || []
         running.forEach((j) => {
-          if (!isJobRunning(j.status || '')) return
+          if (!isJobRunning(j.status || '') && j.status !== 'queued') return
           const jobId = j.id || ''
           if (!jobId) return
           const novelTitle = j.novelTitle || j.novelId || ''
-          track(jobId, novelTitle ? novelTitle.slice(0, 12) : jobId.slice(0, 12))
+          track(jobId, novelTitle || jobId.slice(0, 12))
           applyStatus(jobId, j)
         })
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setRestoreError('暂时无法恢复进行中的任务，可到任务中心重新查看。')
+      })
+      .finally(() => {
+        if (!cancelled) setRestoring(false)
+      })
     return () => {
       cancelled = true
     }
@@ -211,5 +218,5 @@ export function useScrapeJobs() {
     [toast, track],
   )
 
-  return { jobs, track, dismiss, toggleLog, cancel, retry, retryFailed }
+  return { jobs, track, dismiss, toggleLog, cancel, retry, retryFailed, restoring, restoreError }
 }

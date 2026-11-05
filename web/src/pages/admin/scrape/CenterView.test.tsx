@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
@@ -20,6 +21,10 @@ vi.mock('./utils', async () => {
 
 import CenterView from './CenterView'
 import { POPO_RANKING_LIST_URL, RANKING_SITES } from './utils'
+
+function renderCenter() {
+  return render(<MemoryRouter><CenterView /></MemoryRouter>)
+}
 
 if (!globalThis.ResizeObserver) {
   globalThis.ResizeObserver = class {
@@ -64,7 +69,7 @@ describe('CenterView 榜单入口', () => {
   })
 
   it('选中 POPO 珍珠榜·月时提交 kind=pearl 与 type=monthly', async () => {
-    render(<CenterView />)
+    renderCenter()
 
     await selectRanking('POPO 珍珠榜 · 月')
     fireEvent.click(screen.getByRole('button', { name: '加载榜单' }))
@@ -78,7 +83,7 @@ describe('CenterView 榜单入口', () => {
   })
 
   it('选中 POPO 收藏榜·总时提交 kind=stocked 与 type=total', async () => {
-    render(<CenterView />)
+    renderCenter()
 
     await selectRanking('POPO 收藏榜 · 总')
     fireEvent.click(screen.getByRole('button', { name: '加载榜单' }))
@@ -92,7 +97,7 @@ describe('CenterView 榜单入口', () => {
   })
   it('自定义榜单 URL 不携带榜单参数，按纯地址发现', async () => {
     const user = userEvent.setup()
-    render(<CenterView />)
+    renderCenter()
 
     await user.click(screen.getByRole('tab', { name: '榜单发现' }))
     fireEvent.change(await screen.findByPlaceholderText('也可以粘贴自定义榜单 URL'), { target: { value: 'https://example.com/rank/top' } })
@@ -106,7 +111,7 @@ describe('CenterView 榜单入口', () => {
   })
 
   it('下拉选中后输入框展示 POPO 表单页地址，而非内部标识', async () => {
-    render(<CenterView />)
+    renderCenter()
 
     await selectRanking('POPO 人气榜 · 周')
 
@@ -119,7 +124,7 @@ it('统计页带入来源只预填链接，不自动分析或启动任务', () =
   const previous = window.location.href
   window.history.replaceState({}, '', '/admin/scrape?view=center&source=https%3A%2F%2Fexample.com%2Fbook')
   try {
-    render(<CenterView />)
+    renderCenter()
     expect(screen.getByDisplayValue('https://example.com/book')).toBeInTheDocument()
     expect(mocks.scrapePost).not.toHaveBeenCalled()
   } finally { window.history.replaceState({}, '', previous) }

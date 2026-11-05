@@ -4,18 +4,19 @@
 // ============================================================
 import type { ReactNode } from 'react'
 import FormField from "@/components/shared/FormField"
-import { cn } from '@/lib/utils'
 
 interface ScrapeFieldProps {
   label: string
   className?: string
+  hint?: ReactNode
+  error?: ReactNode
   /** 收到 id（给原生控件用 htmlFor 配对）与 labelId（给 SearchSelect 用 aria-labelledby）。 */
   children: (ids: { id: string; labelId: string }) => ReactNode
 }
 
-export default function ScrapeField({ label, className, children }: ScrapeFieldProps) {
+export default function ScrapeField({ label, className, hint, error, children }: ScrapeFieldProps) {
   return (
-    <FormField label={label} className={cn('scrape-field', className)}>
+    <FormField label={label} className={className} hint={hint} error={error}>
       {children}
     </FormField>
   )
