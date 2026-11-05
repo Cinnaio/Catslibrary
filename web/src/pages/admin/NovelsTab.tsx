@@ -442,32 +442,21 @@ export default function NovelsTab({
         </div>
       </AdminToolbar>
 
-      {/* 浮动岛屿批量操作条 */}
+      {/* 批量操作：常用动作外露，反选和删除收进更多。 */}
       <AdminSelectionBar
         count={selected.size}
-        label={`已选择 ${selected.size} 部作品`}
+        label={<>已选 <strong>{selected.size}</strong> 部</>}
         onClear={() => setSelected(new Set())}
         clearPlacement="actions"
+        actions={[
+          { label: '追更设置', placement: 'responsive', onSelect: () => setBatchFollowupNovels(Array.from(selected, (id) => ({ id, title: titleFor(id) }))) },
+          { label: exporting ? '正在导出…' : '导出 ZIP', icon: Download, placement: 'responsive', disabled: exporting, onSelect: () => void handleExport(Array.from(selected), true) },
+          { label: '反选', placement: 'menu', onSelect: invertSelection },
+          { label: '删除所选', icon: Trash2, placement: 'menu', danger: true, onSelect: handleBatchDeletePrompt },
+        ]}
       >
-        <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
-          批量检查更新
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => setBatchFollowupNovels(Array.from(selected, (id) => ({ id, title: titleFor(id) })))}
-        >
-          批量追更设置
-        </Button>
-        <Button variant="secondary" size="sm" disabled={exporting} onClick={() => void handleExport(Array.from(selected), true)}>
-          <Download aria-hidden="true" />
-          {exporting ? '正在导出…' : '导出所选（ZIP）'}
-        </Button>
-        <Button variant="secondary" size="sm" onClick={invertSelection}>
-          反选
-        </Button>
-        <Button variant="destructive" size="sm" onClick={handleBatchDeletePrompt}>
-          删除所选
+        <Button type="button" variant="ghost" size="sm" onClick={() => void handleBatchUpdate()}>
+          检查更新
         </Button>
       </AdminSelectionBar>
 

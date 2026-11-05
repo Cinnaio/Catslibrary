@@ -1,6 +1,7 @@
 import { FilterChip } from '@/components/ui/filter-chip'
 import { ControlAppearance, ControlSurface } from '@/components/ui/control-appearance'
 import '@/styles/catalog-controls.css'
+import '@/styles/admin/tokens.css'
 import { useState } from 'react'
 import { BookOpen, Copy, Download, LoaderCircle, MoreHorizontal, Settings, Trash2 } from 'lucide-react'
 import type { Novel } from '@shared/types'
@@ -48,6 +49,8 @@ import NovelCoverStatus from '@/components/NovelCoverStatus'
 import PageState from '@/components/PageState'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
+import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
+import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import EmptyState from "@/components/shared/EmptyState"
 import FormField from "@/components/shared/FormField"
 import AdminPage from '@/components/admin/AdminPage'
@@ -844,6 +847,39 @@ export function RowActionsExample() {
     </AdminRowActions>
   )
 }
+export function FloatingActionsExample() {
+  const [mode, setMode] = useState<'selection' | 'save' | null>(null)
+  const { toast } = useToast()
+  return (
+    <ControlAppearance appearance="management"><ControlSurface className="admin-layout">
+      <div className="gallery-row">
+        <Button variant="outline" onClick={() => setMode('selection')}>展示批量操作条</Button>
+        <Button variant="outline" onClick={() => setMode('save')}>展示保存条</Button>
+      </div>
+      <AdminSelectionBar
+        count={mode === 'selection' ? 3 : 0}
+        label={<>已选 <strong>3</strong> 部</>}
+        onClear={() => setMode(null)}
+        actions={[
+          { label: '追更设置', placement: 'responsive', onSelect: () => toast('只演示追更入口') },
+          { label: '导出 ZIP', icon: Download, placement: 'responsive', onSelect: () => toast('只演示导出入口') },
+          { label: '反选', placement: 'menu', onSelect: () => toast('只演示反选入口') },
+          { label: '删除所选', icon: Trash2, danger: true, placement: 'menu', onSelect: () => toast('只演示删除入口，不删除数据') },
+        ]}
+      >
+        <Button variant="ghost" size="sm" onClick={() => toast('只演示检查更新入口')}>检查更新</Button>
+      </AdminSelectionBar>
+      {mode === 'save' && <AdminFloatingDock reserveSpace role="region" aria-label="示例保存操作" data-state="open">
+        <span className="admin-floating-dock__status" data-dirty>有未保存的更改</span>
+        <div className="admin-floating-dock__actions">
+          <Button variant="outline" onClick={() => setMode(null)}>撤销更改</Button>
+          <Button onClick={() => { setMode(null); toast('只演示保存，不写入配置') }}>保存更改</Button>
+        </div>
+      </AdminFloatingDock>}
+    </ControlSurface></ControlAppearance>
+  )
+}
+
 export function HomeFilters({ state }: ExampleProps) {
   const [category, setCategory] = useState('全部')
   const [sort, setSort] = useState('最近更新')

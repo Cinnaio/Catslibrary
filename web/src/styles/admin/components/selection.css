@@ -1,28 +1,76 @@
-/* 批量选择岛的计数与清空分组；悬浮外壳和按钮由 floating-dock.css 统一提供。 */
+/* 选择数量是状态文字；动作与退出选择分别成组。 */
 .admin-selection-bar__selection {
   display: inline-flex;
   align-items: center;
   gap: var(--admin-selection-gap);
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .admin-selection-bar__count {
   display: inline-flex;
-  height: var(--admin-selection-control-height);
-  flex: 0 0 auto;
+  min-width: 0;
+  min-height: var(--admin-selection-control-height);
   align-items: center;
-  border: 1px solid color-mix(in srgb, var(--admin-accent) 28%, transparent);
-  border-radius: var(--admin-button-radius);
-  background: color-mix(in srgb, var(--admin-accent) 12%, transparent);
-  padding: 0 var(--admin-selection-padding-inline);
-  color: var(--admin-selection-count-foreground);
+  gap: 0.25em;
+  padding-inline: var(--admin-selection-padding-inline);
+  color: var(--text-secondary);
   font-size: var(--admin-button-secondary-label-size);
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  font-weight: 400;
   white-space: nowrap;
 }
 
-[data-theme='dark'] .admin-selection-bar__count {
-  background: color-mix(in srgb, var(--admin-accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--admin-accent) 40%, transparent);
+.admin-selection-bar__count strong {
+  color: var(--admin-selection-count-foreground);
+  font-weight: 600;
+}
+
+.admin-selection-bar__clear {
+  margin-left: auto;
+}
+
+.admin-layout .admin-selection-bar .admin-selection-bar__compact-trigger,
+.admin-selection-bar__compact-item[data-slot='dropdown-menu-item'] {
+  display: none;
+}
+
+/* 侧栏占位仍在时也提前收起次要操作，避免中屏操作条溢出内容区。 */
+@media (max-width: 1100px) {
+  .admin-layout .admin-selection-bar .admin-selection-bar__responsive-action {
+    display: none;
+  }
+
+  .admin-layout .admin-selection-bar .admin-selection-bar__compact-trigger,
+  .admin-selection-bar__compact-item[data-slot='dropdown-menu-item'] {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 700px) {
+  .admin-floating-dock.admin-selection-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.25rem;
+  }
+
+  .admin-selection-bar__selection {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+  }
+
+  .admin-selection-bar__actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .admin-selection-bar > .admin-selection-bar__clear {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .admin-selection-bar__count {
+    flex-wrap: wrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }

@@ -29,6 +29,7 @@ import {
   AdminDialogExample,
   ReadingDialogExample,
   RowActionsExample,
+  FloatingActionsExample,
   HomeFilters,
   ActionButtons,
   AdminScaffold,
@@ -50,6 +51,7 @@ const entry = (
 const ui = (name: string) => `components/ui/${name}.tsx`
 const admin = (name: string) => `components/admin/${name}.tsx`
 export const entries: GalleryEntry[] = [
+  entry('floating-actions', '浮动操作条', 'business', '批量计数、响应式更多菜单与表单主次动作，共用生产外壳。', [admin('AdminFloatingDock'), admin('AdminSelectionBar'), 'styles/admin/components/floating-dock.css', 'styles/admin/components/selection.css'], '后台列表 / 设置表单', FloatingActionsExample),
   entry('colors', '语义颜色', 'foundation', '直接读取当前主题的 CSS 变量。', ['styles/tokens.css', 'styles/shadcn.css'], '全站', Colors),
   entry('type', '字体与字阶', 'foundation', '正文、页标题、元信息与阅读衬线。', ['styles/tokens.css', 'styles/base.css'], '全站 / 阅读器', Typography),
   entry('space', '间距、圆角与阴影', 'foundation', '真实圆角与阴影变量，常用间距对照。', ['styles/tokens.css'], '全站', Spacing),

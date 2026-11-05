@@ -1,28 +1,26 @@
-/* 后台共享悬浮胶囊岛：批量选择与持续显示的表单保存操作。 */
+/* 后台共享浮动操作条：外壳分层，按钮沿用共享控件语义。 */
 .admin-floating-dock {
   position: fixed;
   bottom: var(--admin-dock-bottom);
-  left: 50%;
+  left: calc((100% + var(--workspace-content-offset, 0px)) / 2);
   transform: translateX(-50%);
   z-index: 50;
   display: inline-flex;
   min-width: 0;
   width: max-content;
-  max-width: min(calc(100vw - 2.5rem), 54rem);
+  max-width: min(calc(100% - var(--workspace-content-offset, 0px) - 2rem), 64rem);
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--admin-dock-gap);
   padding: var(--admin-dock-inset);
-  border-radius: var(--admin-button-radius);
-  background: var(--admin-dock-background);
-  backdrop-filter: blur(var(--admin-dock-blur));
-  -webkit-backdrop-filter: blur(var(--admin-dock-blur));
+  border-radius: var(--radius-container);
+  background: var(--admin-panel);
   border: 1px solid var(--admin-dock-border);
   box-shadow: var(--admin-dock-shadow);
-  will-change: transform, opacity;
 }
 
-/* 进入动效：平滑上浮弹起 */
+/* 只做短距离淡入，避免操作区整体缩放。 */
 .admin-floating-dock[data-state='open'] {
   animation: adminSelectionDockEnter var(--admin-dock-enter-duration) var(--admin-dock-enter-ease) both;
 }
@@ -35,22 +33,22 @@
 
 @keyframes adminSelectionDockEnter {
   0% {
-    transform: translate(-50%, 28px) scale(0.94);
+    transform: translate(-50%, 12px);
     opacity: 0;
   }
   100% {
-    transform: translate(-50%, 0) scale(1);
+    transform: translate(-50%, 0);
     opacity: 1;
   }
 }
 
 @keyframes adminSelectionDockExit {
   0% {
-    transform: translate(-50%, 0) scale(1);
+    transform: translate(-50%, 0);
     opacity: 1;
   }
   100% {
-    transform: translate(-50%, 24px) scale(0.94);
+    transform: translate(-50%, 8px);
     opacity: 0;
   }
 }
@@ -58,22 +56,16 @@
 @media (prefers-reduced-motion: reduce) {
   .admin-floating-dock[data-state='open'],
   .admin-floating-dock[data-state='closed'] {
-    animation-duration: 0.15s;
-  }
-  @keyframes adminSelectionDockEnter {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
-  }
-  @keyframes adminSelectionDockExit {
-    0% { opacity: 1; }
-    100% { opacity: 0; }
+    animation: none;
   }
 }
 
 .admin-floating-dock__actions {
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: var(--admin-dock-gap);
 }
 
@@ -84,7 +76,7 @@
   min-height: var(--admin-dock-control-height);
   flex: 0 0 auto;
   gap: var(--admin-dock-gap);
-  border-radius: var(--admin-button-radius) !important;
+  border-radius: var(--radius-compact) !important;
   padding: 0 var(--admin-dock-padding-inline) !important;
   font-family: var(--admin-font-sans);
   line-height: 1;
@@ -124,6 +116,19 @@
   color: var(--text-primary);
 }
 
+/* 撤销与批量次要动作共享轻量文字外观，主按钮和危险态仍清晰可辨。 */
+.admin-layout .admin-floating-dock [data-slot='button']:is([data-variant='outline'], [data-variant='secondary']) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text-secondary);
+}
+
+.admin-layout .admin-floating-dock [data-slot='button']:is([data-variant='outline'], [data-variant='secondary']):hover:not(:disabled) {
+  background: var(--admin-panel-muted);
+  color: var(--text-primary);
+}
+
 .admin-layout .admin-floating-dock [data-slot='button'][data-size]:focus-visible {
   outline: 2px solid var(--admin-accent);
   outline-offset: 2px;
@@ -148,7 +153,7 @@
 @media (max-width: 900px) {
   .admin-floating-dock {
     --admin-dock-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-    max-width: calc(100vw - 1.5rem);
+    max-width: calc(100% - var(--workspace-content-offset, 0px) - 1.5rem);
     width: max-content;
     flex-wrap: wrap;
     border-radius: var(--admin-dock-mobile-radius);
@@ -188,30 +193,10 @@
   font-size: var(--admin-button-secondary-label-size);
   line-height: 1.6;
   overflow-wrap: anywhere;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.admin-floating-dock__status::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-tag);
-  background: var(--admin-border-strong, #8e8c85);
-  flex-shrink: 0;
-  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .admin-floating-dock__status[data-dirty] {
-  color: var(--admin-dock-status-foreground);
-  font-weight: 500;
-}
-
-.admin-floating-dock__status[data-dirty]::before {
-  background: var(--admin-accent, #d97757);
-  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--admin-accent) 25%, transparent);
+  color: var(--text-primary);
 }
 
 @media (max-width: 900px) {
@@ -228,5 +213,31 @@
   .admin-floating-dock__status + .admin-floating-dock__actions {
     flex: 1 1 auto;
     justify-content: flex-end;
+  }
+}
+
+@supports (backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px)) {
+  .admin-floating-dock {
+    background: var(--admin-dock-background);
+    backdrop-filter: blur(var(--admin-dock-blur));
+    -webkit-backdrop-filter: blur(var(--admin-dock-blur));
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .admin-floating-dock {
+    background: var(--admin-panel);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .admin-floating-dock {
+    background: Canvas;
+    border-color: CanvasText;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }

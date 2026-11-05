@@ -22,15 +22,15 @@
   --admin-dock-touch-height: 48px;
   --admin-dock-padding-inline: 0.875rem;
   --admin-dock-icon-size: var(--management-control-icon-size);
-  --admin-dock-gap: 0.75rem;
+  --admin-dock-gap: 0.375rem;
   --admin-dock-inset: 0.5rem;
-  --admin-dock-mobile-radius: 1.5rem;
-  --admin-dock-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
-  --admin-dock-blur: 16px;
-  --admin-dock-background: color-mix(in srgb, var(--admin-panel) 88%, transparent);
-  --admin-dock-border: color-mix(in srgb, var(--admin-border-strong) 65%, transparent);
-  --admin-dock-shadow: 0 16px 36px -4px rgba(35, 30, 24, 0.16), 0 6px 16px -2px rgba(35, 30, 24, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.08);
-  --admin-dock-enter-duration: 280ms;
+  --admin-dock-mobile-radius: var(--radius-container);
+  --admin-dock-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  --admin-dock-blur: 12px;
+  --admin-dock-background: color-mix(in srgb, var(--admin-panel) 96%, transparent);
+  --admin-dock-border: var(--admin-border);
+  --admin-dock-shadow: 0 8px 24px rgba(35, 30, 24, 0.12);
+  --admin-dock-enter-duration: 200ms;
   --admin-dock-exit-duration: 220ms;
   --admin-dock-enter-ease: var(--ease);
   --admin-dock-exit-ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -175,9 +175,9 @@
   --admin-accent-subtle: var(--accent-subtle);
   --admin-dock-primary-background: var(--accent);
   --admin-dock-primary-foreground: var(--accent-ink);
-  --admin-dock-background: color-mix(in srgb, var(--admin-panel) 92%, transparent);
-  --admin-dock-border: color-mix(in srgb, var(--admin-border-strong) 40%, transparent);
-  --admin-dock-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.5), 0 6px 16px -2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --admin-dock-background: color-mix(in srgb, var(--admin-panel) 96%, transparent);
+  --admin-dock-border: var(--admin-border);
+  --admin-dock-shadow: 0 8px 28px rgba(0, 0, 0, 0.24);
 
   --admin-shadow: none;
   --admin-shadow-soft: none;

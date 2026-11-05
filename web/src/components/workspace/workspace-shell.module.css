@@ -1,4 +1,5 @@
 .shell {
+  --workspace-content-offset: var(--workspace-sidebar-width);
   min-height: 100dvh;
   color: var(--text-primary);
   background: var(--bg-primary);
@@ -469,6 +470,9 @@
   min-height: 44px;
   display: flex;
   align-items: center;
+}
+.shell[data-standalone] {
+  --workspace-content-offset: 0px;
 }
 .shell[data-standalone] .main {
   margin: 0;

@@ -86,7 +86,7 @@ describe('AdminSelectionBar', () => {
       </AdminSelectionBar>,
     )
 
-    const bar = screen.getByRole('status')
+    const bar = screen.getByRole('region', { name: '批量操作' })
     expect(bar).toHaveTextContent('已选 3 本')
     expect(screen.getByRole('button', { name: '批量删除' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /取消选择/ }))
@@ -100,7 +100,7 @@ describe('AdminSelectionBar', () => {
       </AdminSelectionBar>,
     )
 
-    const bar = screen.getByRole('status')
+    const bar = screen.getByRole('region', { name: '批量操作' })
     expect(bar).toHaveAttribute('data-state', 'open')
     expect(bar).toHaveClass('admin-selection-bar--entering')
 
@@ -118,7 +118,7 @@ describe('AdminSelectionBar', () => {
     // 220ms 退出动画结束后完全卸载
     await waitFor(
       () => {
-        expect(screen.queryByRole('status')).toBeNull()
+        expect(screen.queryByRole('region', { name: '批量操作', hidden: true })).toBeNull()
       },
       { timeout: 500 },
     )
