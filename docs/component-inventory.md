@@ -4,6 +4,8 @@
 
 2026-11-05 代理设置页面的布局、诊断结果与帮助区域由 `pages/admin/scrape/proxy.module.css` 持有，字段、按钮、加载反馈和分区标题继续复用生产共享组件；移除旧代理页面样式及全局兼容选择器。
 
+2026-11-05 AI 作品创作台的布局与创作子区样式由 `pages/admin/ai/writing-workspace.module.css` 持有，退出三份旧样式中的创作选择器。作品、起点、模式、分区导航和生成操作复用共享字段、SearchSelect、Tabs 与 Button；审阅及产出复用 `AiGenerationsPanel`，任务结束通过刷新标记更新列表，保留正在编辑的草稿。未新增公共组件或改变公共层依赖方向。
+
 | 文件 | 层级 | 使用方 | 样式所有权 | 结论 |
 | --- | --- | ---: | --- | --- |
 | `components/AccountMenu.tsx` | 应用／业务 | 1 | `styles/account-menu.css` | 保留：账户导航与会话动作 |
