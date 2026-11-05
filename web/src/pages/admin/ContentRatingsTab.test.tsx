@@ -200,24 +200,54 @@ describe('ContentRatingsTab', () => {
 
     expect(await screen.findByText('潮汐之后')).toBeInTheDocument()
     expect(screen.getByText('规则预填')).toBeInTheDocument()
-    expect(screen.getByText('分类：成人')).toBeInTheDocument()
+    expect(screen.getByText('分类：成人 · 简介命中')).toBeInTheDocument()
     expect(screen.getByText('修订 3')).toBeInTheDocument()
-    // 总数不跟在页名后；判定缺口仍贴着分级筛选器。
+    // 页头不重复显示计数，分级口径保留全库分布。
     expect(document.querySelector('.admin-tab-header__meta')).toBeNull()
     expect(screen.getByText(/待标注 2 · 限制级 1/)).toBeInTheDocument()
   })
 
-  it('页头收在一行：标题单独显示，页面操作在右；账本搜索收在控制行内', async () => {
+  it('账本搜索、筛选与刷新集中在列表工具栏，页头保留标题', async () => {
     renderView()
     await screen.findByText('潮汐之后')
 
     const header = document.querySelector('.admin-tab-header')
     expect(header).not.toBeNull()
-    expect(screen.getByRole('heading', { level: 2, name: /分级管理/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: /分级管理/ })).toBeInTheDocument()
     expect(header?.querySelector('.admin-tab-header__meta')).toBeNull()
-    expect(screen.getByRole('button', { name: /刷新账本/ })).toBeInTheDocument()
-    // 搜索框收纳在统一胶囊筛选轨道（Filter Rail）内
-    expect(document.querySelector('.content-ratings-filter-rail .search-field')).not.toBeNull()
+    const toolbar = document.querySelector('.content-ratings-filter-rail') as HTMLElement
+    expect(within(toolbar).getByRole('button', { name: '刷新账本' })).toBeInTheDocument()
+    expect(within(toolbar).getByRole('searchbox', { name: '搜索作品分级记录' })).toBeInTheDocument()
+    expect(within(toolbar).getByLabelText('分级')).toHaveTextContent('分级：全部')
+    expect(within(toolbar).getByLabelText('按来源筛选')).toHaveTextContent('来源：全部')
+    expect(within(toolbar).getByText('共 1 本')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['title', '标题命中'],
+    ['body', '正文命中'],
+  ])('分类与 %s 同时命中时保留实际证据字段', async (field, label) => {
+    mocks.list.mockResolvedValue({ ...response, items: [{ ...item, evidence: [
+      { type: 'category', value: '成人' },
+      { type: 'text', field },
+    ] }] })
+    renderView()
+
+    const evidence = await screen.findByRole('button', { name: '查看 潮汐之后 的判定依据' })
+    expect(evidence).toHaveTextContent(`分类：成人 · ${label}`)
+    expect(evidence).not.toHaveTextContent('简介命中')
+  })
+
+  it.each(['system', 'manual'] as const)('%s 记录缺少证据时不声称已完成巡检', async (source) => {
+    const user = userEvent.setup()
+    mocks.list.mockResolvedValue({ ...response, items: [{ ...item, source, evidence: [], reason: '', ruleVersion: '' }] })
+    renderView()
+
+    const evidence = await screen.findByRole('button', { name: '查看 潮汐之后 的判定依据' })
+    expect(evidence).toHaveTextContent(source === 'manual' ? '人工指定分级' : '未记录判定证据')
+    expect(evidence).not.toHaveTextContent('巡检')
+    await user.click(evidence)
+    expect(within(screen.getByRole('dialog')).getByText('当前记录未附判定证据，无法据此确认是否执行过规则扫描。')).toBeInTheDocument()
   })
 
   it('工作视图写入 URL 并保留其他参数、账本搜索和当前视图刷新', async () => {

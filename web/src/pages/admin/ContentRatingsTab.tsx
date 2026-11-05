@@ -3,7 +3,7 @@ import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, CheckCircle2, CirclePlus, Eye, History, Info, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Eye, History, Info, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   adminApi,
@@ -58,7 +58,7 @@ function ratingView(value: string | null): RatingView {
 }
 
 const RATING_OPTIONS: SelectOption[] = [
-  { value: '', label: '全部分级' },
+  { value: '', label: '全部' },
   { value: 'unknown', label: '仅看未标注' },
   { value: 'restricted', label: '限制级' },
   { value: 'general', label: '一般' },
@@ -80,7 +80,7 @@ const SOURCE_LABEL: Record<AdminContentRatingSource, string> = {
   legacy: '历史存量',
 }
 
-const SOURCE_OPTIONS: SelectOption[] = [{ value: '', label: '全部来源' }, ...Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label }))]
+const SOURCE_OPTIONS: SelectOption[] = [{ value: '', label: '全部' }, ...Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label }))]
 
 const RATING_COLUMNS: readonly AdminColumn[] = [
   { key: 'work', label: '作品', width: '21%', primary: true },
@@ -162,24 +162,22 @@ function EvidenceCell({ item, onInspect }: { item: AdminContentRatingItem; onIns
     .filter((e) => e.type === 'category' && e.value)
     .map((e) => e.value as string)
   const textMatches = item.evidence.filter((e) => e.type === 'text')
+  const textLabels = [...new Set(textMatches.map(evidenceLabel))].join('、')
 
   let primaryLabel = ''
   let isClean = false
 
   if (categories.length > 0 && textMatches.length > 0) {
-    primaryLabel = `分类：${categories.slice(0, 2).join('、')} · 简介命中`
+    primaryLabel = `分类：${categories.slice(0, 2).join('、')} · ${textLabels}`
   } else if (categories.length > 0) {
     primaryLabel = `分类：${categories.slice(0, 3).join('、')}${categories.length > 3 ? ' 等' : ''}`
   } else if (textMatches.length > 0) {
-    const fields = new Set(textMatches.map((t) => t.field))
-    if (fields.has('title')) primaryLabel = '标题命中敏感词'
-    else if (fields.has('body')) primaryLabel = '正文采样命中敏感词'
-    else primaryLabel = '简介命中敏感词'
+    primaryLabel = textLabels
   } else if (item.evidence.length > 0) {
     primaryLabel = item.evidence.map(evidenceLabel).slice(0, 2).join('、')
   } else {
     isClean = true
-    primaryLabel = item.source === 'manual' ? '人工指定分级' : '未检出敏感特征'
+    primaryLabel = item.source === 'manual' ? '人工指定分级' : '未记录判定证据'
   }
 
   let secondaryLabel = ''
@@ -203,21 +201,23 @@ function EvidenceCell({ item, onInspect }: { item: AdminContentRatingItem; onIns
   } else if (item.source === 'manual') {
     secondaryLabel = '小说编辑手动修改'
   } else {
-    secondaryLabel = '系统巡检'
+    secondaryLabel = '未记录判定方式'
   }
 
   return (
     <button
       type="button"
       onClick={onInspect}
+      aria-label={`查看 ${item.title || '作品'} 的判定依据`}
       className="content-ratings-evidence-cell text-left min-w-0 w-full group rounded-md py-1 px-1.5 -mx-1.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary cursor-pointer"
       title="点击查看完整判定证据链"
     >
       <div className={cn('truncate text-sm font-medium transition-colors group-hover:text-primary', isClean ? 'text-muted-foreground/75' : 'text-foreground')}>
         {primaryLabel}
       </div>
-      <div className="mt-0.5 truncate text-xs text-muted-foreground group-hover:text-foreground/70">
-        {secondaryLabel}
+      <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground group-hover:text-foreground/70">
+        <span className="truncate">{secondaryLabel}</span>
+        <span className="shrink-0 text-primary">查看依据</span>
       </div>
     </button>
   )
@@ -1402,12 +1402,12 @@ export default function ContentRatingsTab() {
       className="admin-redesign-page--content-ratings"
       title="分级管理"
       description="维护作品分级与判定依据，让每一次修改都有据可查。"
-      actions={
+      actions={view !== 'ledger' && (
         <Button variant="secondary" size="sm" onClick={refreshCurrentView} disabled={viewRefreshing}>
           <RefreshCw className={viewRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
           {viewRefreshing ? '同步中…' : refreshLabel}
         </Button>
-      }
+      )}
     >
       <Tabs
         value={view}
@@ -1486,7 +1486,67 @@ export default function ContentRatingsTab() {
             </div>
           </details>
         </div>
-        <TabsContent value="ledger">
+        <TabsContent value="ledger" className="content-ratings-ledger-view">
+          <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-toolbar content-ratings-filter-rail" ariaLive="polite">
+            <SearchField
+              id="content-rating-search"
+              type="search"
+              label="搜索作品分级记录"
+              placeholder="搜索标题、作者或修改理由…"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
+            <div className="content-ratings-filters">
+              <SearchSelect
+                compact
+                leadingIcon={<span>分级：</span>}
+                aria-label="分级"
+                options={RATING_OPTIONS}
+                value={ratingFilter}
+                onChange={(value) => {
+                  setRatingFilter(value as ContentRating | '')
+                  setPage(1)
+                }}
+              />
+              <SearchSelect
+                compact
+                leadingIcon={<span>来源：</span>}
+                aria-label="按来源筛选"
+                options={sourceOptions}
+                value={sourceFilter}
+                onChange={(value) => {
+                  setSourceFilter(value as AdminContentRatingSource | '')
+                  setPage(1)
+                }}
+              />
+              {(searchInput || ratingFilter || sourceFilter) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="content-ratings-clear"
+                  onClick={() => {
+                    setSearchInput('')
+                    setRatingFilter('')
+                    setSourceFilter('')
+                    setPage(1)
+                  }}
+                >
+                  清除筛选
+                </Button>
+              )}
+            </div>
+            <div className="content-ratings-toolbar-actions">
+              <span className="content-ratings-result-count">
+                {loading || refreshing ? '正在更新…' : data ? `共 ${formatNumber(data.total)} 本` : '—'}
+              </span>
+              <Button variant="secondary" size="sm" onClick={refreshCurrentView} disabled={viewRefreshing}>
+                <RefreshCw className={viewRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
+                {viewRefreshing ? '同步中…' : refreshLabel}
+              </Button>
+            </div>
+          </AdminToolbar>
+
           {!data ? (
             loading ? (
               <LoadingState className="admin-panel-card" label="正在加载内容分级账本" />
@@ -1495,62 +1555,6 @@ export default function ContentRatingsTab() {
             )
           ) : (
             <>
-              {/* 统一全要素胶囊筛选轨道（Filter Rail） */}
-              <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-toolbar content-ratings-filter-rail" ariaLive="polite">
-                <SearchField
-                  id="content-rating-search"
-                  type="search"
-                  label="搜索作品分级记录"
-                  placeholder="搜索标题、作者或修改理由…"
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                />
-                <div className="select-filter-chips">
-                  <SearchSelect
-                    compact
-                    chip
-                    filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
-                    aria-label="分级"
-                    options={RATING_OPTIONS}
-                    value={ratingFilter}
-                    onChange={(value) => {
-                      setRatingFilter(value as ContentRating | '')
-                      setPage(1)
-                    }}
-                  />
-                  <SearchSelect
-                    compact
-                    chip
-                    filterChip
-                    leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
-                    aria-label="按来源筛选"
-                    options={sourceOptions}
-                    value={sourceFilter}
-                    onChange={(value) => {
-                      setSourceFilter(value as AdminContentRatingSource | '')
-                      setPage(1)
-                    }}
-                  />
-                  {(searchInput || ratingFilter || sourceFilter) && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="content-ratings-clear"
-                      onClick={() => {
-                        setSearchInput('')
-                        setRatingFilter('')
-                        setSourceFilter('')
-                        setPage(1)
-                      }}
-                    >
-                      清除筛选
-                    </Button>
-                  )}
-                </div>
-              </AdminToolbar>
-
               {loadError && <InlineError message={`分级账本同步失败：${loadError}`} onRetry={() => void load(true)} className="mx-5 my-4" />}
 
               <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS} className="content-ratings-panel content-ratings-ledger" density="comfortable">
@@ -2169,7 +2173,7 @@ export default function ContentRatingsTab() {
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground/80 italic py-0.5">
-                      全库规则巡检完成，未检出限制级敏感特征。
+                      当前记录未附判定证据，无法据此确认是否执行过规则扫描。
                     </p>
                   )}
                 </div>
