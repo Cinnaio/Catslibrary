@@ -26,6 +26,7 @@ import {
 import { formatDateTime, timeAgo } from '@/lib/format'
 import type { ContentRating } from '@shared/types'
 import { cn } from '@/lib/utils'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useToast } from '@/components/feedback'
 import EmptyState from "@/components/shared/EmptyState"
 import AdminPage from '@/components/admin/AdminPage'
@@ -320,8 +321,8 @@ function RuleCandidatePanel({
         <EmptyState message="还没有待审核的规则候选" />
       ) : (
         <div className="content-ratings-queue">
-          {data.items.map((candidate) => (
-            <article className="content-ratings-queue-item" key={candidate.id}>
+          {data.items.map((candidate, index) => (
+            <article className="content-ratings-queue-item" key={candidate.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, data.items.length)}ms` }}>
               <div className="content-ratings-queue-copy">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{candidateKindLabel(candidate.kind)}</Badge>
@@ -646,9 +647,9 @@ function AiSuggestionPanel({
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody key={`${status}-${page}`}>
-              {data.items.map((suggestion) => (
-                <TableRow key={suggestion.id} className={history ? 'content-ratings-queue-item--stale opacity-75' : undefined}>
+            <TableBody key={`${status}-${page}-${pageSize}`}>
+              {data.items.map((suggestion, index) => (
+                <TableRow key={suggestion.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, data.items.length)}ms` }} className={history ? 'content-ratings-queue-item--stale opacity-75' : undefined}>
                   <TableCell data-primary="" data-label="作品">
                     <div className="flex items-start gap-2.5 min-w-0">
                       {!history && (
@@ -1487,9 +1488,9 @@ export default function ContentRatingsTab() {
                       <TableHead className="text-right">操作</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody key={`${query}-${ratingFilter}-${sourceFilter}-${page}`}>
-                    {data.items.map((item) => (
-                      <TableRow key={item.id}>
+                  <TableBody key={`${query}-${ratingFilter}-${sourceFilter}-${page}-${pageSize}`}>
+                    {data.items.map((item, index) => (
+                      <TableRow key={item.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, data.items.length)}ms` }}>
                         <TableCell data-primary="" data-label="作品">
                           <div className="min-w-0">
                             <div className="truncate font-medium text-foreground" title={item.title}>

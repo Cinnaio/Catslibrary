@@ -523,7 +523,7 @@ export default function NovelsTab({
               <TableHead scope="col" className="text-right pr-6">操作</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody key={pageSize}>
             {loading && novels.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={NOVEL_COLUMNS.length} className="text-center py-12 text-muted-foreground">
