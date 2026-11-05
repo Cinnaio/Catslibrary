@@ -79,8 +79,7 @@
 }
 
 .admin-redesign-page--novels .novels-data-panel > [data-slot='table-container'],
-.admin-redesign-page--chapters .chapter-directory-panel > [data-slot='table-container'],
-.admin-redesign-page--source-analytics .source-analytics-table-panel > [data-slot='table-container'] {
+.admin-redesign-page--chapters .chapter-directory-panel > [data-slot='table-container'] {
   border-radius: var(--admin-data-panel-radius);
 }
 
@@ -478,6 +477,20 @@
 
   .admin-toolbar__batch-actions > button {
     flex: 1 1 calc(50% - 0.25rem);
+  }
+}
+
+/* 展开详情跨越全部列；共用表格的留白、边线与窄屏行布局。 */
+:is(.admin-data-panel--grid, .admin-data-panel--scroll) table > tbody > tr[data-details] > td[colspan] {
+  width: auto;
+  height: auto;
+  white-space: normal;
+}
+
+@media (max-width: 900px) {
+  .admin-data-panel--grid table > tbody > tr[data-details] > td[colspan] {
+    display: block;
+    width: 100%;
   }
 }
 

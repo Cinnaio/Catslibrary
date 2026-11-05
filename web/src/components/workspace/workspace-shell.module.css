@@ -477,6 +477,10 @@
   font-size: 12px;
 }
 @media (min-width: 701px) {
+  .topbar[data-floating='true'] {
+    /* Keep scrolling headings from showing through either side of the island. */
+    background: var(--bg-primary);
+  }
   .topbar[data-floating='true'] .topbarInner {
     max-width: 1040px;
     height: 56px;

@@ -1,0 +1,364 @@
+.page:global(.admin-redesign-page) {
+  gap: 24px;
+}
+
+.page > :global(.admin-tab-header) {
+  margin-bottom: 0;
+}
+
+.tabs,
+.list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 16px;
+}
+
+.list[hidden] {
+  display: none;
+}
+
+.navigation,
+.toolbar:global(.admin-toolbar--inline),
+.filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.toolbar:global(.admin-toolbar--inline) {
+  padding: 0;
+}
+
+.toolbar > :global(.search-field) {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+
+.filters {
+  flex: 0 1 auto;
+}
+
+.sort {
+  margin-left: auto;
+  flex: 0 1 160px;
+  min-width: 0;
+}
+
+.tabCount,
+.filterCount {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabCount {
+  margin-left: 4px;
+}
+
+.filterCount {
+  color: var(--accent);
+}
+
+.moreFilters {
+  display: grid;
+  gap: 16px;
+  width: min(288px, calc(100vw - 32px));
+  max-height: var(--radix-popover-content-available-height);
+  overflow-y: auto;
+}
+
+.filterHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.moreFilters .filterSelect {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.filterHeading {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tablePanel :global(.novel-book-title).bookTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.tablePanel :global(.novel-book-title).bookTitle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.attention {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.distribution {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+
+.scopeBar,
+.ledgerHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 8px 16px;
+}
+
+.scopeBar .scopeSelect {
+  width: 260px;
+  max-width: 100%;
+  min-width: 0;
+  justify-content: space-between;
+}
+
+.snapshot,
+.ledgerHeading > span,
+.siteHint,
+.share,
+.scopeNote {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  margin: 0 0 8px;
+  padding: 24px 28px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-container);
+  background: var(--bg-card);
+}
+
+.overview > div {
+  min-width: 0;
+}
+
+.overview dt {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.overview dd {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 0;
+  min-height: 40px;
+  font-size: var(--management-stat-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.overview dd span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.overview .attentionMetric {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0;
+  color: var(--accent);
+  font-size: var(--management-stat-size);
+  font-weight: 500;
+  white-space: normal;
+}
+
+.ledgerHeading h2 {
+  margin: 0;
+  font: 500 var(--management-section-title-size) / 1.5 var(--font-body);
+}
+
+.siteIdentity,
+.siteMetric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.siteIdentity .siteName,
+.siteMetric .metricButton,
+.siteMetric .attentionButton {
+  min-height: 40px;
+  padding-inline: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  white-space: normal;
+}
+
+.siteIdentity .siteName {
+  display: block;
+  max-width: 100%;
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.siteMetric .attentionButton {
+  color: var(--accent);
+}
+
+.share {
+  margin-left: 6px;
+}
+
+.siteActions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.disclosure {
+  transition: transform 160ms ease;
+}
+
+.disclosure[data-expanded='true'] {
+  transform: rotate(180deg);
+}
+
+.breakdown {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 24px;
+}
+
+.breakdownGroup h3 {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.breakdownGroup ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+}
+
+.breakdownGroup .breakdownButton {
+  width: 100%;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 400;
+  text-align: left;
+  white-space: normal;
+}
+
+.breakdownButton > span:last-child {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.scopeNote {
+  margin: 0;
+  max-width: 100ch;
+}
+
+@media (min-width: 901px) {
+  .tablePanel table td {
+    height: auto;
+    padding-block: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .siteActions {
+    flex-wrap: wrap;
+  }
+
+  .toolbar > :global(.search-field) {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .page:global(.admin-redesign-page) {
+    gap: 20px;
+  }
+
+  .filters {
+    flex: 1 1 100%;
+  }
+
+  .sort {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  .overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .scopeBar .scopeSelect {
+    width: 100%;
+  }
+
+  .siteIdentity .siteName,
+  .siteMetric .metricButton,
+  .siteMetric .attentionButton,
+  .overview .attentionMetric {
+    min-height: 48px;
+  }
+
+  .breakdown {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .breakdownGroup ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure {
+    transition: none;
+  }
+}

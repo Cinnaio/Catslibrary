@@ -61,7 +61,6 @@
   .novels-filter-rail,
   .novels-rating-toolbar,
   .ai-generations-filter-rail,
-  .source-analytics-filters,
   .task-workspace-toolbar {
     display: flex;
     flex-direction: column;
@@ -75,7 +74,6 @@
   .novels-filter-rail > .search-field,
   .novels-rating-toolbar > .search-field,
   .ai-generations-filter-rail > .search-field,
-  .source-analytics-filters > .search-field,
   .task-workspace-toolbar > .search-field {
     width: 100%;
     max-width: none;
@@ -88,13 +86,11 @@
   .novels-filter-rail > .search-field .search-field__input,
   .novels-rating-toolbar > .search-field .search-field__input,
   .ai-generations-filter-rail > .search-field .search-field__input,
-  .source-analytics-filters > .search-field .search-field__input,
   .task-workspace-toolbar > .search-field .search-field__input,
   .admin-filter-rail > .search-field [data-slot='input'],
   .novels-filter-rail > .search-field [data-slot='input'],
   .novels-rating-toolbar > .search-field [data-slot='input'],
   .ai-generations-filter-rail > .search-field [data-slot='input'],
-  .source-analytics-filters > .search-field [data-slot='input'],
   .task-workspace-toolbar > .search-field [data-slot='input'] {
     width: 100%;
     max-width: none;
