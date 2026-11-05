@@ -9,7 +9,6 @@ import {
   adminApi,
   aiApi,
   type AdminContentRatingEvidence,
-  type AdminContentRatingBodySnapshot,
   type AdminContentRatingHistoryItem,
   type AdminContentRatingItem,
   type AdminContentRatingAiListResponse,
@@ -26,7 +25,6 @@ import {
 } from '@/lib/api'
 import { formatDateTime, timeAgo } from '@/lib/format'
 import type { ContentRating } from '@shared/types'
-import { RESTRICTED_BODY_KEYWORDS } from '@shared/restricted-patterns'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/feedback'
 import EmptyState from "@/components/shared/EmptyState"
@@ -41,6 +39,7 @@ import { PanelHeading } from '@/components/shared/PanelHeading'
 import { SearchField } from '@/components/shared/SearchField'
 import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import AiSuggestionBulkReview from './AiSuggestionBulkReview'
+import ContentRatingAiReview from './ContentRatingAiReview'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -220,91 +219,6 @@ function EvidenceCell({ item, onInspect }: { item: AdminContentRatingItem; onIns
         <span className="shrink-0 text-primary">查看依据</span>
       </div>
     </button>
-  )
-}
-
-/**
- * 正文采样证据。
- *
- * 为什么审核员必须看到它：模型给「限制级」还是「继续未标注」，取决于它读到了什么正文。
- * 只给结论不给样本，审核员无法判断这次判级是「读了正文后的判断」还是
- * 「没读正文、只看了简介的猜测」—— 后者正是漏判《入红尘》那类作品的成因。
- */
-/**
- * 信号词强度查表。
- *
- * 为什么界面必须区分强弱：弱信号词（「胸口」「湿了」「腰肢」）在正常剧情里同样常见，
- * 命中只代表「这段值得让模型看一眼」。如果强弱在界面上长得一样，审核员会把弱词的
- * 误报读成判级依据——那正是这套采样机制要避免的事。
- */
-const BODY_KEYWORD_WEIGHT = new Map(RESTRICTED_BODY_KEYWORDS.map((item) => [item.keyword, item.weight]))
-
-function isStrongBodyKeyword(keyword: string): boolean {
-  return (BODY_KEYWORD_WEIGHT.get(keyword) ?? 1) >= 3
-}
-
-function BodySamplePanel({ body }: { body?: AdminContentRatingBodySnapshot }) {
-  if (!body) return null
-  if (!body.hasBody) {
-    return (
-      <div className="content-ratings-review-section content-ratings-body-empty">
-        <h3 className="dialog-frame-section-label">正文采样</h3>
-        <p className="dialog-frame-hint">
-          该书尚未抓取到正文，本次建议只能依据标题、简介与分类。置信度天然偏低，不足以据此确认“非限制级”。
-        </p>
-      </div>
-    )
-  }
-  const topKeywords = body.keywordHits.slice(0, 8)
-  const strongHitCount = body.keywordHits.filter((item) => isStrongBodyKeyword(item.keyword)).length
-  return (
-    <div className="content-ratings-review-section content-ratings-body-samples">
-      <div className="content-ratings-review-section-head">
-        <h3 className="dialog-frame-section-label">正文采样</h3>
-      </div>
-      <p className="dialog-frame-hint">
-        已读 {formatNumber(body.chapterCount)} 章 · {formatNumber(body.scannedCharacters)} 字 · 成人词命中 {formatNumber(body.matchedChapterCount)} 章（{Math.round(body.matchedChapterRatio * 100)}%）
-      </p>
-      {topKeywords.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {topKeywords.map((item) => (
-            <Badge key={item.keyword} variant={isStrongBodyKeyword(item.keyword) ? 'destructive' : 'outline'} className="font-normal">
-              {item.keyword} · {item.chapters} 章
-            </Badge>
-          ))}
-        </div>
-      )}
-      <p className="dialog-frame-hint content-ratings-keyword-hint">
-        {strongHitCount > 0
-          ? `红色为直白词（性器官、性行为、体液），几乎只出现在成人向正文；灰色为语境依赖词，正常剧情同样常见，命中不代表限制级。本次命中 ${strongHitCount} 个直白词。`
-          : '本次只命中语境依赖词（灰色），它们在正常剧情里同样常见。是否属于限制级必须读下面的原文片段判断。'}
-      </p>
-      {body.excerpts.length > 0 ? (
-        <div className="content-ratings-excerpts">
-          {body.excerpts.map((excerpt, index) => {
-            const strong = excerpt.strongKeywords || []
-            const weak = excerpt.weakKeywords || []
-            return (
-              <details key={`${excerpt.chapter}-${index}`} className="content-ratings-excerpt" open={index === 0 ? true : undefined}>
-                <summary className="content-ratings-excerpt-summary dialog-frame-hint">
-                  {excerpt.chapter} · {excerpt.origin === 'match' ? '成人词命中定位' : '全书均匀抽样'} ·{' '}
-                  {strong.length > 0 ? (
-                    <span className="text-destructive">本段含直白描写：{strong.slice(0, 8).join('、')}</span>
-                  ) : weak.length > 0 ? (
-                    <span>仅弱信号：{weak.slice(0, 8).join('、')}</span>
-                  ) : (
-                    <span>本段未命中成人词</span>
-                  )}
-                </summary>
-                <blockquote className="content-ratings-excerpt-text">{excerpt.text}</blockquote>
-              </details>
-            )
-          })}
-        </div>
-      ) : (
-        <p className="dialog-frame-hint">正文里没有采样到片段，请以元数据证据为准。</p>
-      )}
-    </div>
   )
 }
 
@@ -1978,137 +1892,19 @@ export default function ContentRatingsTab() {
         </DialogFrame>
       </Dialog>
 
-      <Dialog open={!!aiReviewSuggestion} onOpenChange={(open) => !open && closeAiReview()}>
-        <DialogFrame
-          className="content-ratings-dialog content-ratings-review-dialog"
-          onCloseAutoFocus={(event) => {
-            if (aiReviewTrigger.current?.isConnected) {
-              event.preventDefault()
-              aiReviewTrigger.current.focus({ preventScroll: true })
-            }
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>审核 LLM 分级建议</DialogTitle>
-            <p className="content-ratings-review-work">{aiReviewSuggestion?.title || '作品'}{aiReviewSuggestion?.author && <span> / {aiReviewSuggestion.author}</span>}</p>
-            <DialogDescription>核对模型证据与原文后，再决定是否采纳。建议须经人工确认才会生效。</DialogDescription>
-          </DialogHeader>
-          <DialogBody className="space-y-4">
-            {aiReviewSuggestion && (
-              <div className="content-ratings-review-content">
-                <section className="content-ratings-review-verdict" aria-label="AI 建议">
-                  <div className="content-ratings-review-section-head">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="dialog-frame-section-label">AI 建议</h3>
-                      <AdminStatusBadge tone={aiReviewSuggestion.suggestedRating === 'restricted' ? 'danger' : 'muted'}>
-                        {aiReviewSuggestion.suggestedRating === 'restricted' ? '限制级' : '继续未标注'}
-                      </AdminStatusBadge>
-                    </div>
-                    <span className="content-ratings-review-confidence dialog-frame-hint">模型置信度 <strong>{Math.round(aiReviewSuggestion.confidence * 100)}%</strong></span>
-                  </div>
-                  <p className="content-ratings-review-reason">{aiReviewSuggestion.reason || '未记录 AI 理由'}</p>
-                </section>
-
-                <section className="content-ratings-review-section" aria-label="模型提取的证据">
-                  <div className="content-ratings-review-section-head">
-                    <h3 className="dialog-frame-section-label">模型提取的证据</h3>
-                    <span className="dialog-frame-hint">{aiReviewSuggestion.evidence.length} 条</span>
-                  </div>
-                  {aiReviewSuggestion.evidence.length > 0 ? (
-                    <ol className="content-ratings-review-evidence">
-                      {aiReviewSuggestion.evidence.map((item, index) => (
-                        <li key={`${item.type}-${item.field || ''}-${index}`}>
-                          <span className="content-ratings-review-evidence-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
-                          <p>{evidenceLabel(item)}</p>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : <p className="dialog-frame-hint">暂无模型证据，请核对元数据与原文。</p>}
-                </section>
-
-                <BodySamplePanel body={aiReviewSuggestion.inputSnapshot.body} />
-
-                <section className="content-ratings-review-section content-ratings-review-boundary" aria-label="审核边界">
-                  <h3 className="dialog-frame-section-label">审核边界</h3>
-                  <p className="dialog-frame-hint">当前分级 <AdminContentRatingBadge rating={aiReviewSuggestion.currentRating} />。批准“限制级”将修改分级并记录人工审核；批准“继续未标注”不会将作品标为一般。作品已变化时，本次建议不能批准。</p>
-                  <details className="content-ratings-review-metadata dialog-frame-hint">
-                    <summary>模型与版本信息</summary>
-                    <dl>
-                      <div><dt>模型</dt><dd>{aiReviewSuggestion.model || '未记录'}</dd></div>
-                      <div><dt>提示版本</dt><dd>{aiReviewSuggestion.promptVersion}</dd></div>
-                      <div><dt>作品修订</dt><dd>{aiReviewSuggestion.novelRevision}</dd></div>
-                    </dl>
-                  </details>
-                </section>
-
-                {aiReviewDecision && (
-                  <div className="content-ratings-review-form grid gap-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Label htmlFor="content-rating-ai-review-reason">{aiReviewDecision === 'approve' ? '批准理由' : '拒绝理由'}</Label>
-                      {aiReviewDecision === 'approve' && aiReviewSuggestion.reason.trim() && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-auto px-2 py-1 text-xs"
-                          onClick={() => setAiReviewReason(aiReviewSuggestion.reason.trim().slice(0, 500))}
-                          disabled={aiReviewSaving}
-                        >
-                          复用 AI 建议理由
-                        </Button>
-                      )}
-                    </div>
-                    <Textarea
-                      ref={aiReviewReasonInput}
-                      id="content-rating-ai-review-reason"
-                      value={aiReviewReason}
-                      onChange={(event) => setAiReviewReason(event.target.value)}
-                      placeholder={
-                        aiReviewDecision === 'approve' ? '说明元数据与正文证据为何支持这次人工确认。' : '说明为什么证据不足、存在误判风险或暂不采纳该建议。'
-                      }
-                      rows={4}
-                      maxLength={500}
-                      aria-invalid={!!aiReviewError}
-                    />
-                  </div>
-                )}
-
-                {aiReviewError && (
-                  <p className="text-sm text-destructive" role="alert">
-                    {aiReviewError}
-                  </p>
-                )}
-              </div>
-            )}
-          </DialogBody>
-          <DialogFooter>
-            {!aiReviewDecision ? (
-              <>
-                <Button type="button" variant="outline" onClick={() => closeAiReview()} disabled={aiReviewSaving}>
-                  取消
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setAiReviewDecision('reject')} disabled={aiReviewSaving}>
-                  <XCircle className="size-3.5" aria-hidden="true" />
-                  拒绝建议
-                </Button>
-                <Button type="button" onClick={() => setAiReviewDecision('approve')} disabled={aiReviewSaving}>
-                  <CheckCircle2 className="size-3.5" aria-hidden="true" />
-                  进入批准确认
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button type="button" variant="outline" onClick={() => setAiReviewDecision(null)} disabled={aiReviewSaving}>
-                  返回查看
-                </Button>
-                <Button type="button" onClick={() => void reviewAiSuggestion()} disabled={aiReviewSaving}>
-                  {aiReviewSaving ? '提交中…' : aiReviewDecision === 'approve' ? '确认批准建议' : '确认拒绝建议'}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogFrame>
-      </Dialog>
+      <ContentRatingAiReview
+        suggestion={aiReviewSuggestion}
+        decision={aiReviewDecision}
+        reason={aiReviewReason}
+        error={aiReviewError}
+        saving={aiReviewSaving}
+        reasonInputRef={aiReviewReasonInput}
+        triggerRef={aiReviewTrigger}
+        onDecision={setAiReviewDecision}
+        onReason={setAiReviewReason}
+        onClose={() => closeAiReview()}
+        onSubmit={() => void reviewAiSuggestion()}
+      />
 
       <Dialog open={!!historyNovel} onOpenChange={(open) => !open && setHistoryNovel(null)}>
         <DialogFrame className="content-ratings-dialog max-h-[min(80vh,720px)] sm:max-w-2xl">
