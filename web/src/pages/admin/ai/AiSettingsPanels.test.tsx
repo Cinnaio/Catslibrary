@@ -102,7 +102,7 @@ describe('AI settings confirmation', () => {
     const { rerender } = render(<AiSettingsWorkspace view="config" onBusyChange={onBusyChange} />)
     await screen.findByRole('alert')
     rerender(<AiSettingsWorkspace view="params" onBusyChange={onBusyChange} />)
-    await screen.findByRole('button', { name: '保存所有参数' })
+    await screen.findByLabelText('最大输出 Token', { selector: '#recap-tokens' })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
   it('saves independent graph controls and preserves archive settings', async () => {
@@ -219,7 +219,7 @@ describe('AI settings confirmation', () => {
   })
   it('tracks parameter changes, reverts and submits the effective draft only when valid', async () => {
     render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
-    expect(screen.getByRole('button', { name: '保存所有参数' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '保存所有参数' })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('创作任务并发上限'), { target: { value: '4' } })
     expect(screen.getByRole('button', { name: '保存所有参数' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: '撤销修改' }))
@@ -244,7 +244,7 @@ describe('AI settings confirmation', () => {
     await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ recapMaxTokens: 600, maxConcurrentWritingTasks: 4 }))
   })
 
-  it('reveals an invalid hidden category before saving and supports keyboard tab navigation', () => {
+  it('reveals an invalid hidden category before saving and supports keyboard tab navigation', async () => {
     render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
     fireEvent.click(screen.getByRole('tab', { name: '任务与运维' }))
     fireEvent.change(screen.getByLabelText('创作任务并发上限'), { target: { value: '11' } })
@@ -254,6 +254,6 @@ describe('AI settings confirmation', () => {
     expect(screen.getByRole('tab', { name: /任务与运维/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByLabelText('创作任务并发上限')).toHaveFocus()
     fireEvent.keyDown(screen.getByRole('tab', { name: /任务与运维/ }), { key: 'Home' })
-    expect(screen.getByRole('tab', { name: '前情提要' })).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => expect(screen.getByRole('tab', { name: '前情提要' })).toHaveAttribute('aria-selected', 'true'))
   })
 })
