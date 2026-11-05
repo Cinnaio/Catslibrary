@@ -563,17 +563,7 @@
   font-family: var(--font-mono, monospace);
   font-size: 0.6875rem;
   color: var(--text-muted);
-  background: var(--admin-panel-muted, #f8f7f3);
-  border: 1px solid var(--admin-border, #e5e3dc);
-  padding: 0.0625rem 0.3125rem;
-  border-radius: 4px;
   overflow-wrap: anywhere;
-}
-
-:root[data-theme='dark'] .task-workspace-id,
-[data-theme='dark'] .task-workspace-id {
-  background: var(--admin-panel-muted, #23221f);
-  border-color: var(--admin-border, #2a2825);
 }
 
 .task-workspace-cell {

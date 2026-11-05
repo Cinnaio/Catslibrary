@@ -1,5 +1,5 @@
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
-import { TaskDetails } from '../TaskWorkspace'
+import { TaskDetails, TaskDetailsFact, TaskDetailsFacts, TaskDetailsIdentifier, TaskDetailsResult, TaskDetailsSection, TaskDetailsSummary } from '../TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'
 import { DialogFrame } from "@/components/shared/DialogFrame"
@@ -26,6 +26,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { AlertCircle, CirclePlus, ListFilter, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { adminTabPath } from '../admin-registry'
+import { formatDateTime } from '@/lib/format'
 
 // 有运行中任务时的轮询间隔
 const ACTIVE_POLL_INTERVAL = 4000
@@ -470,29 +471,45 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                   删除记录
                 </Button>
               )}
+              {renderRetry(detailTask)}
+              {detailTask.batchId && detailTask.current > 0 && props.onViewBatch && (
+                <Button onClick={() => {
+                  setDetailsId(null)
+                  props.onViewBatch?.(detailTask.batchId)
+                }}>查看产出</Button>
+              )}
             </>
           )
         }
       >
         {detailTask ? (
-          <dl className="task-workspace-details">
-            <dt>任务 ID</dt>
-            <dd className="task-workspace-id">{detailTask.id}</dd>
-            <dt>作品</dt>
-            <dd>{detailTask.novelTitle || '—'}</dd>
-            <dt>类型</dt>
-            <dd>{taskKindLabel(detailTask.kind)}</dd>
-            <dt>状态</dt>
-            <dd>{taskStatusLabel(detailTask.status)}</dd>
-            <dt>进度</dt>
-            <dd>
-              {detailTask.current} / {detailTask.total}
-            </dd>
-            <dt>结果</dt>
-            <dd>{taskStepText(detailTask)}</dd>
-            <dt>错误</dt>
-            <dd>{detailTask.error || '未记录错误'}</dd>
-          </dl>
+          <>
+            <TaskDetailsSummary
+              title={detailTask.novelTitle || (detailTask.novelId ? '作品标题未提供' : '未关联作品')}
+              meta={taskKindLabel(detailTask.kind)}
+              status={<AdminStatusBadge tone={taskStatusTone(detailTask.status)}>{taskStatusLabel(detailTask.status)}</AdminStatusBadge>}
+            />
+            <TaskDetailsSection label={['queued', 'running'].includes(detailTask.status) ? '执行进度' : '执行结果'}>
+              <TaskDetailsResult
+                value={taskStepText(detailTask)}
+                hint={detailTask.total > 0
+                  ? `已处理 ${detailTask.current} / ${detailTask.total} 个步骤`
+                  : detailTask.current > 0 ? `已处理 ${detailTask.current} 个步骤 · 总数未提供` : '处理数量未提供'}
+              />
+            </TaskDetailsSection>
+            {detailTask.error && (
+              <TaskDetailsSection label="错误原因" tone="danger">{detailTask.error}</TaskDetailsSection>
+            )}
+            <TaskDetailsSection label="执行记录">
+              <TaskDetailsFacts>
+                <TaskDetailsFact label="创建时间">{formatDateTime(detailTask.createdAt) || '未记录'}</TaskDetailsFact>
+                <TaskDetailsFact label={detailTask.finishedAt ? '结束时间' : '最近更新'}>
+                  {formatDateTime(detailTask.finishedAt || detailTask.updatedAt) || '未记录'}
+                </TaskDetailsFact>
+              </TaskDetailsFacts>
+            </TaskDetailsSection>
+            <TaskDetailsIdentifier id={detailTask.id} />
+          </>
         ) : (
           <p>任务记录已不在当前列表，请刷新后查看。</p>
         )}
