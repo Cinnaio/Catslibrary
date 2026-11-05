@@ -212,7 +212,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
   }, [status?.status])
 
   return (
-    <section className={styles.connection} data-expanded={!collapsed} aria-label="PO18 源站连接">
+    <section className={styles.connection} aria-label="PO18 源站连接">
       <div className={styles.connectionHead}>
         <div className={styles.connectionSummary}>
           <span className={styles.connectionTitle}>PO18 连接</span>

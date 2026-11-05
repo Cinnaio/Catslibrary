@@ -184,7 +184,7 @@ export default function ProxyView() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.workbench}>
+      <div className={styles.statusCard}>
         <div className={styles.effective} aria-busy={loading}>
           <Network className={styles.effectiveIcon} aria-hidden="true" />
           <div className={styles.effectiveCopy}>
@@ -225,7 +225,9 @@ export default function ProxyView() {
             <p>环境变量优先。管理端配置仍可保存；出站请求按部署环境中的代理与跳过规则执行。</p>
           </div>
         )}
+      </div>
 
+      <div className={styles.workbench}>
         <div className={styles.columns}>
           <section className={styles.configSection} aria-labelledby="proxy-config-title">
             <PanelHeading
