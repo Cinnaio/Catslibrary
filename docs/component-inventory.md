@@ -2,6 +2,8 @@
 
 由 `node scripts/check-web-components.mjs --inventory` 从当前源码生成；104 个组件文件，248 个生产源码模块。使用方数量包含开发展厅，不包含测试。表格记录保留或迁移依据，不表示所有控件需要重写；组件内部页面级子组件按所属页面／工作流保留。
 
+2026-11-05 代理设置页面的布局、诊断结果与帮助区域由 `pages/admin/scrape/proxy.module.css` 持有，字段、按钮、加载反馈和分区标题继续复用生产共享组件；移除旧代理页面样式及全局兼容选择器。
+
 | 文件 | 层级 | 使用方 | 样式所有权 | 结论 |
 | --- | --- | ---: | --- | --- |
 | `components/AccountMenu.tsx` | 应用／业务 | 1 | `styles/account-menu.css` | 保留：账户导航与会话动作 |
@@ -74,7 +76,7 @@
 | `components/ui/avatar.tsx` | 基础控件 | 1 | `styles/identity.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/badge.tsx` | 基础控件 | 11 | `styles/identity.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/button.tsx` | 基础控件 | 100 | `components/ui/button.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/card.tsx` | 基础控件 | 14 | `components/ui/card.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/card.tsx` | 基础控件 | 13 | `components/ui/card.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/checkbox.tsx` | 基础控件 | 16 | `components/ui/checkbox.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/collapsible.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/command.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
@@ -97,7 +99,7 @@
 | `components/ui/sidebar.tsx` | 基础控件 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/skeleton.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/sonner.tsx` | 基础控件 | 1 | `styles/toast-feedback.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/spinner.tsx` | 基础控件 | 16 | `components/ui/spinner.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/spinner.tsx` | 基础控件 | 17 | `components/ui/spinner.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/switch.tsx` | 基础控件 | 7 | `components/ui/switch.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/table.tsx` | 基础控件 | 15 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/tabs.tsx` | 基础控件 | 16 | `components/ui/tabs.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |

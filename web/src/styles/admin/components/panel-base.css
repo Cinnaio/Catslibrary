@@ -20,23 +20,3 @@
 .ai-service .ai-audit-table {
   min-width: 0;
 }
-
-.proxy-settings-page {
-  min-width: 0;
-}
-
-.proxy-settings-page .proxy-config-panel,
-.proxy-settings-page .proxy-test-panel,
-.proxy-settings-page .proxy-logs-panel {
-  min-width: 0;
-}
-
-/* 日志表在面板内直接贴边，行内边距由表格自身提供。 */
-.proxy-settings-page .proxy-logs-panel [data-slot='table-container'] {
-  scrollbar-width: thin;
-  scrollbar-color: var(--admin-border-strong) transparent;
-}
-
-.proxy-settings-page .proxy-logs-panel [data-slot='table'] {
-  min-width: 48rem;
-}
