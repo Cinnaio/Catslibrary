@@ -71,7 +71,7 @@ const longTitle = '穿过漫长雨季之后，我们终于在那座没有名字�
 const fixture: Novel = {
   id: 'gallery-fiction',
   title: '山海来信',
-  author: '知舟示例作者',
+  author: 'Cat’s Library示例作者',
   description: '灯塔亮起时，她收到一封来自山那边的信。此处为组件预览使用的虚构书目。',
   categories: ['幻想', '冒险'],
   status: 'ongoing',

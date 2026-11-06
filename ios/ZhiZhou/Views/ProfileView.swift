@@ -98,7 +98,7 @@ struct ProfileView: View {
                 NavigationLink {
                     ProfileAboutView()
                 } label: {
-                    AppIconLabel("关于知舟", systemImage: "info.circle")
+                    AppIconLabel("关于 Cat’s Library", systemImage: "info.circle")
                 }
             }
 

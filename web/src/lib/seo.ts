@@ -1,4 +1,4 @@
-export const SEO_DESCRIPTION = '知舟 — 发现精彩小说，享受阅读之美'
+export const SEO_DESCRIPTION = 'Cat’s Library — 发现精彩小说，享受阅读之美'
 
 export function setPageSeo(indexable: boolean, description = SEO_DESCRIPTION, path?: string) {
   const origin = document.querySelector<HTMLMetaElement>('meta[name="zhizhou-seo-origin"]')?.content

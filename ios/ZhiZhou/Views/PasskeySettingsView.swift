@@ -107,7 +107,7 @@ struct PasskeySettingsView: View {
         } header: {
             Text("已注册的 Passkey")
         } footer: {
-            Text("Passkey 由设备或密码管理器保护，知舟不会接触你的生物识别信息。")
+            Text("Passkey 由设备或密码管理器保护，Cat’s Library 不会接触你的生物识别信息。")
         }
     }
 

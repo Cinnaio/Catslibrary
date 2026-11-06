@@ -17,7 +17,7 @@ vi.mock('@/components/TurnstileTestWidget', () => ({ default: ({ onToken }: { on
 import SiteSettingsTab from './SiteSettingsTab'
 
 const settings: TurnstileSettings = { siteKey: 'public-key', hostnames: ['read.example.com'], secretSet: true, configured: true, encryptionReady: true, secretReadable: true, sources: { siteKey: 'database', secret: 'database', hostnames: 'database' } }
-const passkeySettings: PasskeyAdminSettings = { enabled: false, registrationEnabled: true, rpName: '知舟', rpId: 'localhost', origins: ['http://localhost:5173'], configured: true, userVerification: 'required', sources: { rpId: 'default', origins: 'default' } }
+const passkeySettings: PasskeyAdminSettings = { enabled: false, registrationEnabled: true, rpName: 'Cat’s Library', rpId: 'localhost', origins: ['http://localhost:5173'], configured: true, userVerification: 'required', sources: { rpId: 'default', origins: 'default' } }
 async function show(security = false) {
   render(<MemoryRouter initialEntries={[`/admin/site-settings?view=${security ? 'security' : 'branding'}`]}><SiteSettingsTab /></MemoryRouter>)
   await screen.findByRole('button', { name: '保存设置' })

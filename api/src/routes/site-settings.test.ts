@@ -43,7 +43,7 @@ describe('站点设置管理与公开边界', () => {
   })
   it('Passkey 配置只开放最小公开信息，RP ID 与 Origin 由运行环境提供', async () => {
     const publicBefore = await (await request('/api/site-settings/passkey', 'GET', undefined, '')).json()
-    expect(publicBefore).toMatchObject({ enabled: false, registrationEnabled: true, rpName: '知舟' })
+    expect(publicBefore).toMatchObject({ enabled: false, registrationEnabled: true, rpName: 'Cat’s Library' })
     const adminBefore = await (await request(settings + '/passkey')).json()
     expect(adminBefore).toMatchObject({ rpId: 'localhost', origins: ['http://localhost:5173'], configured: true, userVerification: 'required' })
     expect((await request(settings + '/passkey', 'PUT', { enabled: true, registrationEnabled: true, rpName: 'x'.repeat(65) })).status).toBe(400)

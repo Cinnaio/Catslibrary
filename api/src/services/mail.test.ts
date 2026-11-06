@@ -11,7 +11,7 @@ import type { MailSettingsInput } from '@shared/mail-settings'
 let configDirectory: string
 const input = (overrides: Partial<MailSettingsInput> = {}): MailSettingsInput => ({
   revision: 0, host: 'smtp.saved.test', port: 587, security: 'starttls', username: 'saved-user', password: '',
-  from: '知舟 <saved@example.test>', publicOrigin: 'https://saved.example.test', ...overrides,
+  from: 'Cat’s Library <saved@example.test>', publicOrigin: 'https://saved.example.test', ...overrides,
 })
 
 beforeEach(async () => {
@@ -22,14 +22,14 @@ beforeEach(async () => {
   smtp.send.mockReset().mockResolvedValue({ accepted: ['reader@example.test'] })
   vi.stubEnv('NODE_ENV', 'production')
   vi.stubEnv('SMTP_URL', 'smtps://user:password@smtp.example.test:465')
-  vi.stubEnv('MAIL_FROM', '知舟 <account@example.test>')
+  vi.stubEnv('MAIL_FROM', 'Cat’s Library <account@example.test>')
   vi.stubEnv('PUBLIC_WEB_URL', 'https://reader.example.test')
   vi.stubEnv('MAIL_OUTBOX_DIR', '')
 })
 afterEach(async () => { await rm(configDirectory, { recursive: true, force: true }); vi.unstubAllEnvs() })
 describe('SMTP 与开发邮件箱', () => {
   it('状态只返回发件身份与固定网站地址，不回传 SMTP 凭据', () => {
-    expect(publicMailStatus()).toEqual({ ready: true, mode: 'smtp', from: '知舟 <account@example.test>', publicOrigin: 'https://reader.example.test' })
+    expect(publicMailStatus()).toEqual({ ready: true, mode: 'smtp', from: 'Cat’s Library <account@example.test>', publicOrigin: 'https://reader.example.test' })
     expect(JSON.stringify(publicMailStatus())).not.toContain('password')
   })
   it('生产环境拒绝 HTTP 地址、带路径地址和本地邮件箱', () => {

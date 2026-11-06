@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - 管理后台模型
-// 字段与知舟仓库 api/src/routes/admin.ts、admin-users.ts、site.ts、thoughts.ts 的返回一一对应（camelCase）。
+// 字段与Cat’s Library仓库 api/src/routes/admin.ts、admin-users.ts、site.ts、thoughts.ts 的返回一一对应（camelCase）。
 
 // MARK: 总览统计（GET /api/admin/stats）
 

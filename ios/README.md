@@ -1,6 +1,6 @@
-# 知舟 iOS（SwiftUI 原生客户端）
+# Cat’s Library iOS（SwiftUI 原生客户端）
 
-知舟（[zhi-zhou](https://github.com/Cinnaio/zhi-zhou)）的 SwiftUI 原生 iOS 客户端，对接知舟自托管实例的 REST API。源码位于同一仓库的 `ios/`，与 `web/`、`api/` 一起维护，保留独立的 Xcode 构建、版本号和 IPA 发布流程。可在 Windows 上开发，用 GitHub Actions 云端构建，再通过自签（sideload）安装到 iPhone。
+Cat’s Library（[zhi-zhou](https://github.com/Cinnaio/zhi-zhou)）的 SwiftUI 原生 iOS 客户端，对接Cat’s Library自托管实例的 REST API。源码位于同一仓库的 `ios/`，与 `web/`、`api/` 一起维护，保留独立的 Xcode 构建、版本号和 IPA 发布流程。可在 Windows 上开发，用 GitHub Actions 云端构建，再通过自签（sideload）安装到 iPhone。
 
 本文的文件路径和本地构建命令以 `ios/` 为工作目录；先从仓库根目录执行 `cd ios`。工作流统一位于仓库根目录的 [`.github/workflows/`](../.github/workflows/)。迁移来源、跨端开发与发布约定见 [iOS 并仓说明](../docs/ios-monorepo.md)。
 
@@ -8,7 +8,7 @@
 
 - **SwiftUI + iOS 26+（Liquid Glass 液态玻璃）**，XcodeGen 描述工程（`project.yml` → `xcodegen generate` 生成 `.xcodeproj`，无需本地 Mac 也能被 CI 构建）
 - **固定服务器地址**：应用内置硬编码 `https://catrr.uk`，无需用户配置
-- **API 对接**：复用知舟 REST API（`/api/novels`、`/api/chapters`、`/api/auth`、`/api/progress`、`/api/bookshelf`、`/api/auth/reader-settings` 等），字段与仓库 `shared/types.ts` 一一对应
+- **API 对接**：复用Cat’s Library REST API（`/api/novels`、`/api/chapters`、`/api/auth`、`/api/progress`、`/api/bookshelf`、`/api/auth/reader-settings` 等），字段与仓库 `shared/types.ts` 一一对应
 - **鉴权**：Bearer Token 存 Keychain（`ZhiZhou/Networking/Keychain.swift`），登录用 `remember` 长会话
 - **阅读设置同步**：使用 `/api/auth/reader-settings` 的独立 `ios` 分区（LWW 合并），首次迁移由后端继承旧 `mobile` 快照；账号内容模式保持共享
 - **阅读图片**：章节插图按段落锚点展示，支持显示开关、大图缩放、失败重试；图片段评与 Web 互通。分页模式在锚点处使用独立插图页，图片不写入离线下载或封面缓存。实现与验收见 [第一批跨端对齐](docs/web-ios-parity-phase1.md)
@@ -114,7 +114,7 @@ ZhiZhouCore/
 
 > 本 App 固定连接公网 `https://catrr.uk`，正常情况无需处理证书。若你替换为自签名证书的服务器，按以下排查：
 
-知舟服务器若使用**自签名证书**（mkcert/openssl 自签）或证书过期/域名不匹配，iOS 会直接拒绝，登录时报
+Cat’s Library服务器若使用**自签名证书**（mkcert/openssl 自签）或证书过期/域名不匹配，iOS 会直接拒绝，登录时报
 `网络错误：TLS错误导致安全连接失败`。解决：
 
 - **开发期 Debug 构建**：在「我的 → 高级」打开 **“信任无效证书（开发用）”** 开关，App 会跳过证书校验。注意这会使连接可被中间人攻击，仅限自用/开发。
@@ -171,4 +171,4 @@ ZhiZhouCore/
 
 ---
 
-*接口字段如有变动，以知舟仓库 `shared/types.ts` 为准，同步更新 `Models/Models.swift`。*
+*接口字段如有变动，以Cat’s Library仓库 `shared/types.ts` 为准，同步更新 `Models/Models.swift`。*

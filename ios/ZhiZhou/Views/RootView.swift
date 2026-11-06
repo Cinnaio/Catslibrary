@@ -35,7 +35,7 @@ struct BootView: View {
             VStack(spacing: 32) {
                 VStack(spacing: 16) {
                     BrandFlower(width: 192, breathing: true)
-                    Text("知舟")
+                    Text("Cat’s Library")
                         .font(serifFont(.largeTitle, .regular))
                         .foregroundStyle(AppTheme.textPrimary)
                         .accessibilityAddTraits(.isHeader)

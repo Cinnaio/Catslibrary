@@ -98,7 +98,7 @@ struct ProfileAboutView: View {
             Section {
                 HStack(spacing: 16) {
                     BrandMark(size: 48)
-                    Text("知舟")
+                    Text("Cat’s Library")
                         .font(serifFont(.title2, .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
                 }
@@ -126,7 +126,7 @@ struct ProfileAboutView: View {
             #endif
         }
         .appListStyle(.settings)
-        .navigationTitle("关于知舟")
+        .navigationTitle("关于 Cat’s Library")
         .navigationBarTitleDisplayMode(.inline)
     }
 

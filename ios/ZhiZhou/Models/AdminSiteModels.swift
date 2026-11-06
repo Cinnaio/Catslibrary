@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - 站点运营（GET /api/admin/site）
-// 字段与知舟仓库 api/src/routes/site.ts 的 adminSiteRoutes.get('/') 返回一一对应（camelCase）。
+// 字段与Cat’s Library仓库 api/src/routes/site.ts 的 adminSiteRoutes.get('/') 返回一一对应（camelCase）。
 
 /// 站点运营总览：流量指标 + 流量分析 + 内容健康度 + 公告。
 struct SiteOverview: Codable {

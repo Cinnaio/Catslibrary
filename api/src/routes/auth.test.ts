@@ -206,7 +206,7 @@ describe('auth 端到端（pglite）', () => {
     const { token } = await jsonOf<AuthResponse>(login)
 
     const stored = await t.db.query<{ device_name: string }>('SELECT device_name FROM user_sessions WHERE user_agent = $1', ['ZhiZhou/16 CFNetwork/3896.100.1.2.1 Darwin/27.0.0'])
-    expect(stored.rows[0]?.device_name).toBe('知舟 iOS App')
+    expect(stored.rows[0]?.device_name).toBe('Cat’s Library iOS App')
     // 模拟升级前已保存的错误名称，读取列表时应按原始 UA 重新识别。
     await t.db.query('UPDATE user_sessions SET device_name = $1 WHERE user_agent = $2', ['未知系统 · 浏览器', 'ZhiZhou/16 CFNetwork/3896.100.1.2.1 Darwin/27.0.0'])
 
@@ -215,7 +215,7 @@ describe('auth 端到端（pglite）', () => {
     const { sessions } = await jsonOf<{ sessions: Array<{ id: string; current: boolean; deviceName: string }> }>(list)
     expect(Array.isArray(sessions)).toBe(true)
     expect(sessions.some((s) => s.current)).toBe(true)
-    expect(sessions.find((s) => s.current)?.deviceName).toBe('知舟 iOS App')
+    expect(sessions.find((s) => s.current)?.deviceName).toBe('Cat’s Library iOS App')
 
     // 删除当前会话后，token 应失效
     const current = sessions.find((s) => s.current)

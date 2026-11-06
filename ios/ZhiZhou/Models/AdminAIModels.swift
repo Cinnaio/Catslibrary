@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - AI 服务模型
-// 字段与知舟仓库 web/src/lib/api.ts 的 aiApi 返回一一对应（camelCase）。
+// 字段与Cat’s Library仓库 web/src/lib/api.ts 的 aiApi 返回一一对应（camelCase）。
 
 // MARK: 状态与配额（GET /api/ai/status）
 

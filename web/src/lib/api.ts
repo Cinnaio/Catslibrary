@@ -378,7 +378,7 @@ export const novelsApi = {
       throw new Error(data.error || `导出失败（HTTP ${res.status}）`)
     }
     const encoded = res.headers.get('Content-Disposition')?.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
-    const filename = encoded ? decodeURIComponent(encoded) : includeCover || archive || novelIds.length > 1 ? '知舟书籍导出.zip' : '书籍导出.txt'
+    const filename = encoded ? decodeURIComponent(encoded) : includeCover || archive || novelIds.length > 1 ? 'Cat’s Library书籍导出.zip' : '书籍导出.txt'
     return { blob: await res.blob(), filename }
   },
 

@@ -406,7 +406,7 @@ private struct ReaderImagePreview: View {
             guard status == .authorized || status == .limited else {
                 await MainActor.run {
                     isSaving = false
-                    AppFeedback.error("未获得相册权限，请在系统设置中允许知舟写入照片")
+                    AppFeedback.error("未获得相册权限，请在系统设置中允许 Cat’s Library 写入照片")
                 }
                 return
             }

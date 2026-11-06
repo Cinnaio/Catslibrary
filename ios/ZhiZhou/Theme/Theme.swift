@@ -32,7 +32,7 @@ extension UIColor {
     }
 }
 
-/// 知舟设计系统：浏览、编辑与阅读纸面分别管理，语义色跟随系统外观。
+/// Cat’s Library设计系统：浏览、编辑与阅读纸面分别管理，语义色跟随系统外观。
 /// 阅读器纸面由 ReaderSettingsStore 独立管理（可选中夜间/护眼等）。
 enum AppTheme {
     // MARK: 品牌强调色（陶土橙：暖纸上的深色操作，暗底上的柔和强调）
@@ -436,7 +436,7 @@ enum AppCopy {
         }
         if raw.contains("TLS") || raw.contains("安全连接") {
             #if DEBUG
-            return "无法安全连接服务器。若使用自签名证书，请检查「我的 → 关于知舟 → 开发设置」。"
+            return "无法安全连接服务器。若使用自签名证书，请检查「我的 → 关于 Cat’s Library → 开发设置」。"
             #else
             return "无法安全连接服务器，请联系管理员检查服务器证书。"
             #endif

@@ -135,7 +135,7 @@ struct LoginView: View {
             HStack(spacing: 8) {
                 BrandMark(size: 28)
 
-                Text("知舟")
+                Text("Cat’s Library")
                     .font(serifFont(.title3, .regular))
                     .foregroundStyle(AppTheme.textPrimary)
                     .accessibilityAddTraits(.isHeader)
@@ -151,7 +151,7 @@ struct LoginView: View {
 
     private var welcomeCopy: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(mode == .login ? "登录知舟" : "创建知舟账号")
+            Text(mode == .login ? "登录 Cat’s Library" : "创建 Cat’s Library 账号")
                 .font(serifFont(.largeTitle, .regular))
                 .foregroundStyle(AppTheme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)

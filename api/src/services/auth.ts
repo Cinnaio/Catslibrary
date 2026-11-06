@@ -125,7 +125,7 @@ export async function hashToken(token: string, salt: string): Promise<string> {
 
 export function deviceName(ua: string): string {
   if (!ua) return '未知设备'
-  if (isZhiZhouIosApp(ua)) return '知舟 iOS App'
+  if (isZhiZhouIosApp(ua)) return 'Cat’s Library iOS App'
   const browser = /Edg\//i.test(ua)
     ? 'Edge'
     : /Chrome\//i.test(ua)

@@ -7,7 +7,7 @@ export const PASSKEY_KEY = 'site_passkey'
 export const DEFAULT_PASSKEY_SETTINGS: PasskeySettings = {
   enabled: false,
   registrationEnabled: true,
-  rpName: '知舟',
+  rpName: 'Cat’s Library',
 }
 
 export interface PasskeyRuntimeConfig {

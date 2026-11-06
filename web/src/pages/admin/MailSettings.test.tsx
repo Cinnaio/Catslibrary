@@ -7,7 +7,7 @@ vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: mock.toast }
 import MailSettings from './MailSettings'
 
 const settings: Settings = { ready: true, mode: 'smtp', source: 'environment', revision: 0, host: 'smtp.example.test', port: 465,
-  security: 'tls', username: 'user', passwordSet: true, from: '知舟 <account@example.test>', publicOrigin: 'https://reader.example.test' }
+  security: 'tls', username: 'user', passwordSet: true, from: 'Cat’s Library <account@example.test>', publicOrigin: 'https://reader.example.test' }
 beforeEach(() => {
   vi.resetAllMocks()
   mock.mailSettings.mockResolvedValue({ ...settings })

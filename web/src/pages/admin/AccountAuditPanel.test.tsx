@@ -58,17 +58,17 @@ describe('账户审计目录', () => {
     expect(screen.getByText('读者')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重试' })).toBeEnabled()
   })
-  it('知舟 iOS App 在登录列表和详情中识别，保留完整原始 UA', async () => {
+  it('Cat’s Library iOS App 在登录列表和详情中识别，保留完整原始 UA', async () => {
     const userAgent = 'ZhiZhou/16 CFNetwork/3896.100.1.2.1 Darwin/27.0.0'
     render(<AccountAuditPanel {...base} kind="login" records={[{ ...login, userAgent }]} />)
-    expect(screen.getByText('知舟 iOS App')).toBeInTheDocument()
+    expect(screen.getByText('Cat’s Library iOS App')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '查看读者的登录记录详情' }))
     const dialog = within(screen.getByRole('dialog'))
-    expect(dialog.getByText('知舟 iOS App')).toBeInTheDocument()
+    expect(dialog.getByText('Cat’s Library iOS App')).toBeInTheDocument()
     expect(dialog.getByText(userAgent)).toBeInTheDocument()
   })
-  it('原生客户端识别兼容版本变化，不将其他 Apple 客户端或 Safari 误标为知舟 App', () => {
-    expect(accountDeviceSummary('ZhiZhou/42 CFNetwork/4000 Darwin/28.1')).toBe('知舟 iOS App')
+  it('原生客户端识别兼容版本变化，不将其他 Apple 客户端或 Safari 误标为Cat’s Library App', () => {
+    expect(accountDeviceSummary('ZhiZhou/42 CFNetwork/4000 Darwin/28.1')).toBe('Cat’s Library iOS App')
     expect(accountDeviceSummary('OtherApp/16 CFNetwork/3896 Darwin/27.0.0')).toBe('其他浏览器 · 其他设备')
     expect(accountDeviceSummary('ZhiZhou/16')).toBe('其他浏览器 · 其他设备')
     expect(accountDeviceSummary('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile/15E148 Safari/604.1')).toBe('Safari · iOS')

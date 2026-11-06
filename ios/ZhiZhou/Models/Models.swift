@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - 服务端模型
-// 字段与知舟仓库 shared/types.ts 一一对应（API 返回 camelCase，JSONDecoder 直接解码）。
+// 字段与Cat’s Library仓库 shared/types.ts 一一对应（API 返回 camelCase，JSONDecoder 直接解码）。
 
 struct User: Codable, Identifiable, Equatable {
     let id: String

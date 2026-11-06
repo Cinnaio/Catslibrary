@@ -93,5 +93,5 @@ export async function exportNovels(
       entries[`${folder}/封面说明.txt`] = strToU8('当前没有可导出的独立本地封面，已保留完整正文。通用默认封面、历史版本和未采纳候选不包含在书籍包中。')
   })
   const data = await new Promise<Uint8Array>((resolve, reject) => zip(entries, { level: 6 }, (error, output) => (error ? reject(error) : resolve(output))))
-  return { data, filename: `知舟书籍导出_${ids.length}本.zip`, contentType: 'application/zip' }
+  return { data, filename: `Cat’s Library书籍导出_${ids.length}本.zip`, contentType: 'application/zip' }
 }

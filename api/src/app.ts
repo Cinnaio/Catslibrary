@@ -72,7 +72,7 @@ app.onError((err, c) => {
 })
 
 app.get('/api/health', (c) => {
-  return c.json({ ok: true, name: '知舟', esc: escHtml('<b>&</b>') })
+  return c.json({ ok: true, name: 'Cat’s Library', esc: escHtml('<b>&</b>') })
 })
 
 app.route('/api/auth', accountEmailRoutes)

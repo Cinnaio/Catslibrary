@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - 内容分级治理模型
-// 字段与知舟仓库 api/src/routes/content-ratings.ts、
+// 字段与Cat’s Library仓库 api/src/routes/content-ratings.ts、
 // content-rating-rule-candidates.ts、content-rating-ai.ts 的返回一一对应。
 
 enum AdminContentRatingValue: String, Codable, CaseIterable, Identifiable, Hashable {

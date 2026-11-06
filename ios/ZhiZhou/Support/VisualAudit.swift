@@ -140,7 +140,7 @@ private final class VisualAuditProtocol: URLProtocol {
         case ("GET", "/api/auth/register-status"):
             body = ["mode": "open"]
         case ("GET", "/api/auth/passkeys/config"):
-            body = ["enabled": false, "registrationEnabled": true, "configured": false, "rpName": "知舟"]
+            body = ["enabled": false, "registrationEnabled": true, "configured": false, "rpName": "Cat’s Library"]
         case ("GET", "/api/auth/me"):
             Self.restoreRequests += 1
             if VisualAudit.scenario == "restore-error", Self.restoreRequests == 1 {
@@ -349,7 +349,7 @@ private final class VisualAuditProtocol: URLProtocol {
             } : []
             body = ["operations": records, "total": 51]
         case ("GET", "/api/admin/site-settings/branding"):
-            body = ["name": "知舟", "tagline": "安静阅读", "homeTitle": "知舟书库", "description": "站点信息审查数据",
+            body = ["name": "Cat’s Library", "tagline": "安静阅读", "homeTitle": "Cat’s Library书库", "description": "站点信息审查数据",
                     "logoUrl": "/images/logo.png", "faviconUrl": "/images/logo.png"]
         case ("GET", "/api/admin/site-settings/turnstile"):
             body = ["siteKey": "audit-site-key", "hostnames": ["catrr.uk"], "secretSet": true, "configured": true,

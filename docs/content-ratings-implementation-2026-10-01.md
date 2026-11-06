@@ -20,7 +20,7 @@
 
 本页采用暖灰画布、奶茶棕强调色、白色20px圆角主面板，无外描边和静止阴影；内部筛选、表格与队列用细分隔组织。页标题20px、面板标题16px，普通控件与分页继续走共享尺寸，分页控件32px。这里的白色纸面读取 `--bg-card`，主题颜色继续由既有变量控制。
 
-继承 [PRODUCT.md](../PRODUCT.md) 的中文运营场景和管理效率原则，沿用 [DESIGN.md](../DESIGN.md)、[design.json](../.impeccable/design.json) 和 [后台共享契约](admin-style-system.md)。四份文件均保持原样，本次授权未扩展为全站设计系统重写。
+继承 [PRODUCT.md](product.md) 的中文运营场景和管理效率原则，沿用 [DESIGN.md](../DESIGN.md)、[design.json](../.impeccable/design.json) 和 [后台共享契约](admin-style-system.md)。四份文件均保持原样，本次授权未扩展为全站设计系统重写。
 
 | 对照点 | 判断 |
 | --- | --- |

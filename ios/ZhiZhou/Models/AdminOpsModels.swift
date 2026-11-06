@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - 任务管理（GET/POST /api/scrape）
-// 字段与知舟仓库 api/src/routes/scrape.ts、services/scraper/store.ts 的返回一一对应（camelCase）。
+// 字段与Cat’s Library仓库 api/src/routes/scrape.ts、services/scraper/store.ts 的返回一一对应（camelCase）。
 
 /// GET /api/scrape?action=jobs 的任务条目：JobData + getJobSummary 摘要合并后的扁平字段。
 /// 摘要字段可能缺失，全部声明为可选，避免单个缺失字段导致整页解码失败。

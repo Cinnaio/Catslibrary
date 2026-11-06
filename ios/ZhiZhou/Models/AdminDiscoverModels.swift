@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - 爬虫「发现」模型
-// 字段与知舟仓库 web/src/pages/admin/scrape/types.ts 的 DiscoverNovel 及
+// 字段与Cat’s Library仓库 web/src/pages/admin/scrape/types.ts 的 DiscoverNovel 及
 // api/src/routes/scrape.ts 的 discover / po18-search / popo-search 返回一一对应（camelCase）。
 
 /// 「发现」列表中的一部小说（榜单浏览 / PO18 / POPO 搜索共用）。

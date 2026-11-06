@@ -55,7 +55,7 @@ export async function issueAccountEmail(db: Db, userId: string, email: string, p
   })
   try {
     const route = purpose === 'verify-email' ? '/verify-email' : '/reset-password'
-    await sendAccountMail(email, purpose === 'verify-email' ? '验证你的知舟邮箱' : '重置你的知舟密码', `${config.publicOrigin}${route}#token=${token}`)
+    await sendAccountMail(email, purpose === 'verify-email' ? '验证你的 Cat’s Library 邮箱' : '重置你的 Cat’s Library 密码', `${config.publicOrigin}${route}#token=${token}`)
   } catch (error) {
     await withTx(db, async query => {
       await query('DELETE FROM account_email_tokens WHERE token_hash=$1', [tokenHash])

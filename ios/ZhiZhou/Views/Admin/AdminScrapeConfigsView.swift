@@ -127,7 +127,7 @@ struct AdminScrapeConfigsView: View {
         } header: {
             Text("导出")
         } footer: {
-            Text("导出的 JSON 可在其他知舟实例「配置导入导出」中粘贴导入，用于迁移抓取配置。")
+            Text("导出的 JSON 可在其他 Cat’s Library 实例「配置导入导出」中粘贴导入，用于迁移抓取配置。")
         }
     }
 

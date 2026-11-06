@@ -192,7 +192,7 @@ export default function NovelEditorDialog({
                   <div className="novel-editor-cover-placeholder">
                     <span className="novel-editor-cover-serif-initial">{draft.title ? draft.title.charAt(0) : '书'}</span>
                     <span className="novel-editor-cover-spine" />
-                    <span className="novel-editor-cover-meta">{draft.author || '知舟书库'}</span>
+                    <span className="novel-editor-cover-meta">{draft.author || 'Cat’s Library书库'}</span>
                   </div>
                 )}
               </div>

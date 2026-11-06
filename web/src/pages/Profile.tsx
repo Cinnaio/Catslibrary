@@ -520,11 +520,11 @@ export default function Profile() {
                     sessions.map((s) => (
                       <div className={`profile-session-item profile-session-card${s.current ? ' profile-session-card--current' : ''}`} key={s.id}>
                         <div className="profile-session-icon" aria-hidden="true">
-                          {s.deviceName === '知舟 iOS App' ? <Smartphone size={18} /> : <Monitor size={18} />}
+                          {['知舟 iOS App', 'Cat’s Library iOS App'].includes(s.deviceName) ? <Smartphone size={18} /> : <Monitor size={18} />}
                         </div>
                         <div className="profile-session-meta">
                           <div className="profile-session-title-row">
-                            <strong className="profile-session-title">{s.deviceName || (s.current ? '当前设备' : '其他设备')}</strong>
+                            <strong className="profile-session-title">{s.deviceName === '知舟 iOS App' ? 'Cat’s Library iOS App' : s.deviceName || (s.current ? '当前设备' : '其他设备')}</strong>
                             {s.current && <span className="profile-session-status">当前</span>}
                           </div>
                           <span className="profile-session-detail">

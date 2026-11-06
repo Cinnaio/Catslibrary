@@ -48,13 +48,13 @@ Get-Content web/src/components/admin/AdminWorkspace.tsx
 | 6 | `web/src/components/ui/table.tsx`、`dialog.tsx`、`button.tsx` | 自动包装层、`data-slot`、默认样式、Portal |
 | 7 | `web/src/components/admin/AdminPanel.tsx`、`AdminEmptyState.tsx` | 表单面板与空状态的既有封装 |
 | 8 | `web/src/pages/admin/AdminShell.tsx`、`Admin.tsx`、`admin-registry.ts` | 页面滚动所有权、路由与导航；正常情况下只读 |
-| 9 | `PRODUCT.md`、`DESIGN.md` | 背景资料；与当前范本冲突时，按以下证据优先级处理 |
+| 9 | `docs/product.md`、`DESIGN.md` | 背景资料；与当前范本冲突时，按以下证据优先级处理 |
 
 证据优先级：用户指定范本 → 当前范本实际 DOM 与计算样式 → 当前共享组件 → 设计文档 → 旧注释。不要根据旧文档重建一套外观。
 
 ### 2.1 已确认的文档与实现差异
 
-- `PRODUCT.md` 仍描述“8 个后台管理 tab”，不适合用来确定本次范围。以下清单来自当前 `admin-registry.ts`。
+- `docs/product.md` 仍描述“8 个后台管理 tab”，不适合用来确定本次范围。以下清单来自当前 `admin-registry.ts`。
 - `DESIGN.md` 部分高度、圆角和暖色背景描述已落后于当前后台样式。当前 `--admin-control-height` 为 `2.5rem`，按钮和输入圆角变量为 `12px`，弹窗圆角引用 `--radius-xl`；最终效果仍应检查后部 CSS 与计算样式。
 - `AdminWorkspace.tsx` 注释提及 `admin-workspace.css`，当前不存在该文件；表格相关实现位于 `admin-operations.css`。不要新建一个同名文件来“补齐”过时注释。
 - `AdminTabHeader` 的 `kicker`、`variant` 仍可传入，但实现已忽略它们。不要用这两个参数恢复眉题或大幅放大的 Hero 页头。

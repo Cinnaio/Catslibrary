@@ -124,7 +124,7 @@ function GalleryShell() {
   const activeStates = allStates.filter((value) => value === 'default' || selectedEntries.some((entry) => entry.states?.includes(value)))
 
   useEffect(() => {
-    document.title = '组件与样式 · 知舟'
+    document.title = '组件与样式 · Cat’s Library'
   }, [])
 
   function update(values: Record<string, string | null>) {
@@ -156,11 +156,11 @@ function GalleryShell() {
       </a>
       <header className="gallery-topbar">
         <div className="gallery-brand">
-          <Link to="/" aria-label="返回知舟">
+          <Link to="/" aria-label="返回Cat’s Library">
             <ArrowLeft size={18} />
           </Link>
           <span>
-            知舟<span className="gallery-brand-divider">/</span>组件与样式
+            Cat’s Library<span className="gallery-brand-divider">/</span>组件与样式
           </span>
           <span className="gallery-dev-label">开发预览</span>
         </div>

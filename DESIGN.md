@@ -1,5 +1,5 @@
 ---
-name: 知舟 (Zhi Zhou)
+name: Cat’s Library
 description: 暖纸白、陶土色与分层圆角组成的个人阅读与创作空间
 colors:
   background: "#faf9f6"
@@ -13,7 +13,7 @@ colors:
   accent-soft: "#eee2d9"
 ---
 
-# 知舟设计规范
+# Cat’s Library设计规范
 
 ## 设计方向
 

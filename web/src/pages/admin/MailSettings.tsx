@@ -127,7 +127,7 @@ export default function MailSettings({ active = true, onBusyChange }: { active?:
             <Card className={styles.panel} role="region" aria-labelledby={deliveryTitleId}>
               <PanelHeading title="发件与验证" titleId={deliveryTitleId} description="设置收件人看到的身份与账户邮件链接。" />
               <CardContent className={styles.body}>
-                <FormField label="发件身份" hint="可填纯邮箱，或「名称 <邮箱>」；发信域名须已验证。">{({ id }) => <Input id={id} value={draft.from} onChange={e => change('from', e.target.value)} required maxLength={320} disabled={locked} placeholder="知舟 <no-reply@example.com>" />}</FormField>
+                <FormField label="发件身份" hint="可填纯邮箱，或「名称 <邮箱>」；发信域名须已验证。">{({ id }) => <Input id={id} value={draft.from} onChange={e => change('from', e.target.value)} required maxLength={320} disabled={locked} placeholder="Cat’s Library <no-reply@example.com>" />}</FormField>
                 <FormField label="邮件链接站点" hint="填写完整 HTTPS 站点地址，不含路径。">{({ id }) => <Input id={id} type="url" value={draft.publicOrigin} onChange={e => change('publicOrigin', e.target.value)} required maxLength={2048} disabled={locked} placeholder="https://example.com" />}</FormField>
                 <section className={styles.connectionTest} aria-label="连接测试">
                   <div className={styles.testAction}>

@@ -49,7 +49,7 @@ beforeEach(() => {
 describe('Passkey WebAuthn endpoints', () => {
   it('disabled by default and does not expose runtime details in public config', async () => {
     const config = await (await request('/api/auth/passkeys/config', 'GET', undefined, '')).json()
-    expect(config).toEqual({ enabled: false, registrationEnabled: true, configured: true, rpName: '知舟' })
+    expect(config).toEqual({ enabled: false, registrationEnabled: true, configured: true, rpName: 'Cat’s Library' })
     const response = await request('/api/auth/passkeys/login/options', 'POST', {}, '')
     expect(response.status).toBe(403)
     expect(await response.json()).toMatchObject({ code: 'passkey_disabled' })

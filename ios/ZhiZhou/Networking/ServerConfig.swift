@@ -1,6 +1,6 @@
 import Foundation
 
-/// 服务器地址：固定指向官方知舟实例（内置硬编码，无需用户配置）。
+/// 服务器地址：固定指向官方Cat’s Library实例（内置硬编码，无需用户配置）。
 final class ServerConfig {
     static let shared = ServerConfig()
 

@@ -49,7 +49,7 @@ rg --files -g AGENTS.md
 | 7 | `web/src/styles/global.css` | 样式导入顺序与 legacy 层位置 |
 | 8 | `web/src/pages/admin/admin-registry.ts`、`Admin.tsx`、`AdminShell.tsx`、`AdminSidebar.tsx` | 导航契约、路由、滚动所有权；正常情况下只读 |
 | 9 | `web/src/components/admin/CustomSelect.tsx`、`Pagination.tsx`、`AdminEmptyState.tsx`、`feedback.tsx` | 下拉、分页、空状态、toast/confirm |
-| 10 | `PRODUCT.md`、`DESIGN.md`、`.impeccable/surfaces/web-src-pages-admin-admin-tsx.md` | 背景资料；与当前范本冲突时按下述证据优先级处理 |
+| 10 | `docs/product.md`、`DESIGN.md`、`.impeccable/surfaces/web-src-pages-admin-admin-tsx.md` | 背景资料；与当前范本冲突时按下述证据优先级处理 |
 
 证据优先级：用户指定范本 → 当前范本实际 DOM 与计算样式 → 当前共享组件与 CSS → 设计文档 → 旧注释与旧手册。不要根据旧文档重建一套外观。
 
@@ -67,7 +67,7 @@ rg --files -g AGENTS.md
 
 ### 2.2 已确认的文档与实现差异
 
-- `PRODUCT.md` 仍写「8 个后台管理 tab」，实际注册表为 5 个导航分组、9 个一级入口、25 个可导航子页（一级入口：总览、客户端监控、小说管理、章节管理、爬虫抓取、AI 服务、内容审核、站点运营、账户与注册）。不要用 `PRODUCT.md` 确定范围。
+- `docs/product.md` 仍写「8 个后台管理 tab」，实际注册表为 5 个导航分组、9 个一级入口、25 个可导航子页（一级入口：总览、客户端监控、小说管理、章节管理、爬虫抓取、AI 服务、内容审核、站点运营、账户与注册）。不要用 `docs/product.md` 确定范围。
 - `DESIGN.md` 的 `Admin Tab Header (AdminTabHeader)` 一节仍描述「Kicker 0.65rem uppercase、Title clamp(1.25rem~1.6rem)」；`AdminTabHeader.tsx` 实现已退役 kicker 与 hero 变体（props 保留但忽略），标题为 `text-2xl font-bold`。以组件为准。
 - `.impeccable/surfaces/web-src-pages-admin-admin-tsx.md` 的 FIRST VIEWPORT 仍描述默认落在「发现」tab，且 FINISH 一节称 `_admin-discover.css` 已整体删除——该文件当前确实不存在，但 `_admin.css`、`_admin-ui.css` 仍在 `global.css:24-25` 导入。surface 契约不是范围来源。
 - `AdminWorkspace.tsx:176` 的注释写「由 `.admin-data-table` 的 `table-layout: fixed` 消费」；仓库中**不存在** `.admin-data-table` 类，真实选择器是 `.admin-data-panel--grid table`（`admin-operations.css:6770`）。属过期注释，不要据此新建文件或类。
