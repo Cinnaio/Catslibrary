@@ -1,12 +1,20 @@
 # 发布与版本管理
 
+## story 账号安全发布（2026-11-06）
+
+部署前查证：`fb421f0b9b81221320522f81ab3487fef23e220d` 已通过 Deploy run `42135285846` 上线，其 API/Web 版本为 `0.4.0`。因此将账号安全新增功能从此前误记的未发布候选调整为 API/Web `0.5.0`，同步对应 workspace 锁文件；根包 `0.5.0` 和 iOS `0.2.0 / build 17` 不变。功能源码为 `a9ec9e19fde0ff73d4af7b07e7f6c0c03198e0ef`，发布元数据来源为本条所在提交。
+
+本次按手动部署路径在本地构建纯 JavaScript API 与 Web 产物，不在低内存的 story 服务器执行构建；Linux 原生依赖沿用服务器已核对的锁定版本，补齐 Nodemailer `10.3.1`。先备份数据库、配置及旧产物，再停止写入、应用迁移 070，并按站点所有者明确指定恢复 `curiionoo` 为超级管理员，之后切换配套 API/Web。实际备份、产物 SHA、健康与公网验收结果在完成后追加。
+
+story 未配置 `SMTP_URL`、`MAIL_FROM`，邮件功能暂不可用；不发送测试邮件、不变更密码。本次不构建 iOS IPA，原生编译与设备验收仍未完成。下方旧记录中的“候选／未部署”为对应开发阶段记录，以本次发布结果为准。
+
 ## 版本来源
 
 | 组件 | 唯一版本来源 | 本次候选版本 | 同步要求 |
 | --- | --- | --- | --- |
 | iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `0.2.0 / 17` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `0.4.0` | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `0.4.0` | 同步锁文件 `packages.web.version` |
+| API | `api/package.json` | `0.5.0` | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `0.5.0` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `0.5.0`，本次未改 | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。
