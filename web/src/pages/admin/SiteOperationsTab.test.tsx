@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +11,14 @@ import SiteOperationsTab from './SiteOperationsTab'
 
 function RouteState() {
   return <output data-testid="operations-route">{useLocation().search}</output>
+}
+
+async function expectTotals(pageViews = 42, visitors = 8) {
+  await waitFor(() => {
+    const metrics = within(screen.getByRole('region', { name: '访问概览' })).getAllByRole('definition')
+    expect(metrics[0]).toHaveTextContent(new RegExp(`^${pageViews}`))
+    expect(metrics[1]).toHaveTextContent(new RegExp(`^${visitors}`))
+  })
 }
 
 describe('站点运营保留流量分析', () => {
@@ -43,7 +51,7 @@ describe('站点运营保留流量分析', () => {
     expect(screen.getByRole('heading', { name: '访问地区' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '设备构成' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '访问来源' })).toBeInTheDocument()
-    expect(await screen.findByText('42 PV · 8 UV')).toBeInTheDocument()
+    await expectTotals()
     expect(screen.queryByRole('heading', { name: '运营概览' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '内容分析' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '保存公告' })).not.toBeInTheDocument()
@@ -57,7 +65,7 @@ describe('站点运营保留流量分析', () => {
         <SiteOperationsTab />
       </MemoryRouter>,
     )
-    await screen.findByText('42 PV · 8 UV')
+    await expectTotals()
     await user.click(screen.getByRole('button', { name: '刷新' }))
     await waitFor(() => expect(mocks.traffic).toHaveBeenCalledTimes(2))
   })
@@ -70,11 +78,11 @@ describe('站点运营保留流量分析', () => {
         <RouteState />
       </MemoryRouter>,
     )
-    await screen.findByText('42 PV · 8 UV')
-    await user.click(screen.getByRole('button', { name: '近 30 日' }))
+    await expectTotals()
+    await user.click(screen.getByRole('tab', { name: '近 30 日' }))
     await waitFor(() => expect(mocks.traffic).toHaveBeenLastCalledWith(30))
     expect(screen.getByTestId('operations-route')).toHaveTextContent('origin=bookmark&days=30')
-    expect(screen.queryByText('42 PV · 8 UV')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: '访问概览' })).queryByText('42')).not.toBeInTheDocument()
   })
 
   it('刷新失败保留本期数据并提供重试', async () => {
@@ -84,11 +92,11 @@ describe('站点运营保留流量分析', () => {
         <SiteOperationsTab />
       </MemoryRouter>,
     )
-    await screen.findByText('42 PV · 8 UV')
+    await expectTotals()
     mocks.traffic.mockRejectedValueOnce(new Error('网络暂不可用'))
     await user.click(screen.getByRole('button', { name: '刷新' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('当前保留上次成功加载的数据')
-    expect(screen.getByText('42 PV · 8 UV')).toBeInTheDocument()
+    await expectTotals()
     await user.click(screen.getByRole('button', { name: '重试' }))
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
@@ -100,7 +108,7 @@ describe('站点运营保留流量分析', () => {
         <SiteOperationsTab />
       </MemoryRouter>,
     )
-    await screen.findByText('42 PV · 8 UV')
+    await expectTotals()
     expect(screen.getByText('地区未识别')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /未识别地区.*100.0%/ }))
     expect(screen.getByRole('dialog')).toHaveTextContent('占全部浏览量 100.0%')
@@ -121,7 +129,7 @@ describe('站点运营保留流量分析', () => {
         <SiteOperationsTab />
       </MemoryRouter>,
     )
-    await screen.findByText('42 PV · 8 UV')
+    await expectTotals()
     await user.click(screen.getByRole('button', { name: '导出 CSV' }))
     expect(create).toHaveBeenCalledOnce()
     expect(create.mock.calls[0]?.[0]).toBeInstanceOf(Blob)
@@ -130,7 +138,7 @@ describe('站点运营保留流量分析', () => {
     vi.unstubAllGlobals()
   })
 
-  it('零访问时禁用导出，识别率显示零且保留明细', async () => {
+  it('零访问时禁用导出，不把缺少地区样本显示成零识别率', async () => {
     const result = await mocks.traffic()
     result.current.pageViews = 0
     result.current.visitors = 0
@@ -142,9 +150,9 @@ describe('站点运营保留流量分析', () => {
         <SiteOperationsTab />
       </MemoryRouter>,
     )
-    await screen.findByText('0 PV · 0 UV')
+    await expectTotals(0, 0)
     expect(screen.getByRole('button', { name: '导出 CSV' })).toBeDisabled()
-    expect(screen.getByText('识别率 0.0%')).toBeInTheDocument()
+    expect(screen.getByText('暂无地区样本')).toBeInTheDocument()
     expect(screen.queryByText('地区未识别')).not.toBeInTheDocument()
   })
 
@@ -164,12 +172,53 @@ describe('站点运营保留流量分析', () => {
         <SiteOperationsTab />
       </MemoryRouter>,
     )
-    await screen.findByText('42 PV · 8 UV')
-    await user.click(screen.getByRole('button', { name: '近 30 日' }))
-    await user.click(screen.getByRole('button', { name: '近 90 日' }))
-    await screen.findByText('90 PV · 8 UV')
-    resolveOld({ ...result, days: 30 })
-    await waitFor(() => expect(screen.getByText('90 PV · 8 UV')).toBeInTheDocument())
-    expect(screen.queryByText('42 PV · 8 UV')).not.toBeInTheDocument()
+    await expectTotals()
+    await user.click(screen.getByRole('tab', { name: '近 30 日' }))
+    await user.click(screen.getByRole('tab', { name: '近 90 日' }))
+    await expectTotals(90)
+    await act(async () => resolveOld({ ...result, days: 30 }))
+    await expectTotals(90)
+    expect(within(screen.getByRole('region', { name: '访问概览' })).queryByText('42')).not.toBeInTheDocument()
+  })
+
+  it('本期没有访问时仍可对比上期趋势和每日明细', async () => {
+    const user = userEvent.setup()
+    const result = await mocks.traffic()
+    mocks.traffic.mockResolvedValue({
+      ...result,
+      current: { ...result.current, pageViews: 0, visitors: 0, dailyTrend: [{ date: '2026-10-01', pageViews: 0, visitors: 0 }] },
+      previous: { ...result.previous, pageViews: 24, visitors: 6, dailyTrend: [{ date: '2026-09-24', pageViews: 24, visitors: 6 }] },
+      region: { unknownVisits: 0, knownVisits: 0, otherVisits: 0, coverage: 0 },
+    })
+    render(<MemoryRouter><SiteOperationsTab /></MemoryRouter>)
+    await expectTotals(0, 0)
+    await user.click(screen.getByRole('checkbox', { name: '对比上一周期' }))
+    expect(screen.getByRole('group', { name: /近 7 日访问趋势，含上一周期对比/ })).toBeInTheDocument()
+    await user.click(screen.getByText('每日明细'))
+    expect(within(screen.getByRole('region', { name: '每日访问明细' })).getByRole('cell', { name: '24' })).toBeInTheDocument()
+  })
+
+  it('详情使用打开时的统计快照，刷新不会把旧数量除以新总量', async () => {
+    const user = userEvent.setup()
+    const result = await mocks.traffic()
+    render(<MemoryRouter><SiteOperationsTab /></MemoryRouter>)
+    await expectTotals()
+    let resolveRefresh!: (value: typeof result) => void
+    mocks.traffic.mockImplementationOnce(() => new Promise(resolve => { resolveRefresh = resolve }))
+    await user.click(screen.getByRole('button', { name: '刷新' }))
+    await user.click(screen.getByRole('button', { name: /未识别地区.*100.0%/ }))
+    await act(async () => resolveRefresh({ ...result, generatedAt: result.generatedAt + 1000, current: { ...result.current, pageViews: 84 } }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('占全部浏览量 100.0%')
+    expect(screen.getByRole('dialog')).toHaveTextContent('统计快照')
+    await user.keyboard('{Escape}')
+    await expectTotals(84)
+  })
+
+  it('首次读取失败只显示失败与重试，不伪造零访问概览', async () => {
+    mocks.traffic.mockRejectedValueOnce(new Error('统计服务暂不可用'))
+    render(<MemoryRouter><SiteOperationsTab /></MemoryRouter>)
+    expect(await screen.findByRole('alert')).toHaveTextContent('统计服务暂不可用')
+    expect(screen.queryByRole('definition')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
   })
 })
