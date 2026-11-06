@@ -57,6 +57,8 @@ import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
 import ContentPolicyStatus from '../components/ContentPolicyStatus'
 import FloatingPageTools from "@/components/shared/FloatingPageTools"
+import BookSearch from '../components/reader/BookSearch'
+import { useReaderSearch } from '../hooks/useReaderSearch'
 
 const CHAPTER_ROW_H = 34
 const CHAPTER_CACHE_MAX = 6
@@ -113,6 +115,7 @@ export default function Reader() {
 
   // 面板状态
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [bodySearchOpen, setBodySearchOpen] = useState(false)
   const [dropdownQuery, setDropdownQuery] = useState('')
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null)
   const [bookmarkPanelOpen, setBookmarkPanelOpen] = useState(false)
@@ -147,7 +150,7 @@ export default function Reader() {
   useReadingStats({
     userId: user?.id || '', novelId: chapter?.novelId || novelId, chapterId: chapter?.id || '',
     enabled: !loading && !notFound && !loadError && !blocked && !sessionLoading && !checking && !policyBlocked
-      && chapter?.id === chapterId && !dropdownOpen && !bookmarkPanelOpen && !bookmarkNoteOpen
+      && chapter?.id === chapterId && !bodySearchOpen && !dropdownOpen && !bookmarkPanelOpen && !bookmarkNoteOpen
       && !settingsPanelOpen && !mobileSettingsOpen && !mobileLibraryOpen && !thoughtPanelOpen,
     contentMode: mode, ready: statsReady,
   })
@@ -423,6 +426,20 @@ export default function Reader() {
   const html = useMemo(() => (chapter ? formatContent(chapter.content) : ''), [chapter])
   // React 按属性对象引用判断是否更新 innerHTML；只稳定字符串仍会在每次渲染重写正文。
   const bodyHtml = useMemo(() => ({ __html: html }), [html])
+  const bodySearch = useReaderSearch({ body: bodyRef, ready: hasRestoredRef, chapterId: chapter?.id || '', loading, content: html, pageMode,
+    onLocate: range => {
+      const y = window.scrollY + range.getBoundingClientRect().top
+      if (pageMode) {
+        totalPagesRef.current = calcTotalPages()
+        currentPageRef.current = clamp(Math.floor(y / getPageHeight()), 0, Math.max(0, totalPagesRef.current - 1))
+        jumpScrollTo(currentPageRef.current * getPageHeight()); updatePageIndicator()
+      } else jumpScrollTo(Math.max(0, y - 110))
+    },
+  })
+  const openSearchHit = (hit: import('@shared/book-search').BookSearchHit, query: string) => {
+    saveScrollPosition(); flushProgress()
+    navigate(`/read/${encodeURIComponent(novelId)}/${encodeURIComponent(hit.chapterId)}?find=${encodeURIComponent(query)}`)
+  }
   const thoughtsByParagraph = useMemo(() => groupChapterThoughts(chapterThoughts, html), [chapterThoughts, html])
 
   // ---------- 想法划线 ----------
@@ -994,7 +1011,7 @@ export default function Reader() {
     function tick(ts: number) {
       const s = autoScrollRef.current
       if (!s.running) return
-      if (document.hidden || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen) {
+      if (document.hidden || bodySearchOpen || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen) {
         s.frame = requestAnimationFrame(tick)
         return
       }
@@ -1047,7 +1064,7 @@ export default function Reader() {
       stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readerAutoScrollSpeed, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, pageMode])
+  }, [readerAutoScrollSpeed, bodySearchOpen, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, pageMode])
 
   // ---------- Wake Lock ----------
   useEffect(() => {
@@ -1258,6 +1275,7 @@ export default function Reader() {
         <div className="reader-top">
           <Link to={`/novel/${encodeURIComponent(nid)}`} className="reader-novel-title" title="返回小说详情">{novel?.title || ''}</Link>
           <div className="reader-nav-group">
+            <BookSearch novelId={nid} title={novel?.title || ''} className="reader-nav-btn" iconOnly onSelect={openSearchHit} onOpenChange={setBodySearchOpen} />
             <button className="reader-nav-btn" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}>上一章</button>
             <button
               type="button"
@@ -1369,6 +1387,12 @@ export default function Reader() {
         )}
 
         {/* Content */}
+        {bodySearch.query && <div className={styles.searchNavigation} role="region" aria-label="本章搜索定位">
+          <span role="status">{bodySearch.total ? `${bodySearch.index + 1} / ${bodySearch.total}${bodySearch.total === 1000 ? '（最多显示 1000 处）' : ''}` : '本章没有可定位的命中，正文可能已更新'}</span>
+          <Button size="sm" variant="ghost" disabled={!bodySearch.total} onClick={() => bodySearch.locate(bodySearch.index - 1)}>上一处</Button>
+          <Button size="sm" variant="ghost" disabled={!bodySearch.total} onClick={() => bodySearch.locate(bodySearch.index + 1)}>下一处</Button>
+          <Button size="sm" variant="ghost" onClick={bodySearch.close}>结束定位</Button>
+        </div>}
         <article
           ref={contentRef}
           className="reader-paper"

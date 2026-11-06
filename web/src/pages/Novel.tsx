@@ -30,6 +30,7 @@ import { SearchIcon } from '../components/icons'
 import FloatingPageTools from "@/components/shared/FloatingPageTools"
 import EmptyState from '@/components/shared/EmptyState'
 import CatchupRecap from '../components/CatchupRecap'
+import BookSearch from '../components/reader/BookSearch'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
 import ContentPolicyStatus from '../components/ContentPolicyStatus'
@@ -461,6 +462,7 @@ export default function Novel() {
               </button>
             )}
             <div className="novel-hero__actions">
+              <BookSearch novelId={novel.id} title={novel.title} />
               {chapters.length > 0 && (
                 <Button variant="default"  onClick={() => startTargetId && navigate(`/read/${encodeURIComponent(novel.id)}/${encodeURIComponent(startTargetId)}`)}>
                   {lastReadChapter ? '继续阅读' : '开始阅读'}

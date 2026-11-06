@@ -25,6 +25,7 @@
 - [追更与书源](novel-update-sources.md)：来源管理与更新规则
 - [AI 故事记忆](ai-story-memory.md)与[用量统计](ai-upstream-usage.md)：AI 专题
 - [章节插画](chapter-illustrations.md)：图片生成与章节配图
+- [书内正文搜索](book-search.md)：Web／iOS 检索、命中定位与接口边界
 - [内容访问保护](r18-access-protection.md)：访问策略与验证边界
 - [备份与版本回滚设计](backup-and-restore-design-2026-10-08.md)：本地与 SFTP 优先的备份方案、云盘扩展、自动调度、回滚及日志设计
 - [备份功能落地说明](backup-and-restore-implementation-2026-10-08.md)：首版功能、部署配置、灾备工具及验证记录

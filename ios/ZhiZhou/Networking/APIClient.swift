@@ -473,6 +473,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         return (parts.count == 2 || parts.count == 3)
             && parts[0] == "api"
             && parts[1] == "chapters"
+            && (parts.count < 3 || parts[2] != "search")
     }
 
     private func decode<T: Decodable>(_ data: Data, as type: T.Type) -> T? {

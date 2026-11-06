@@ -15,6 +15,7 @@ enum ChapterPaginator {
         let thoughtSelectionsByParagraph: [Int: [String]]
         let thoughtUnderlineColor: UIColor
         var illustrations: [IllustrationPlacement] = []
+        var searchQuery: String = ""
     }
 
     struct IllustrationPlacement: Sendable {
@@ -78,6 +79,7 @@ enum ChapterPaginator {
                     )
                 )
             }
+            BookTextSearch.highlight(renderedParagraph, query: spec.searchQuery)
             result.append(renderedParagraph)
         }
         return result

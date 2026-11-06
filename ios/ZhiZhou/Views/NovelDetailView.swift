@@ -32,6 +32,8 @@ struct NovelDetailView: View {
     @State private var isShowingOffline = false
     @State private var showOfflineOptions = false
     @State private var showAdminWorkspace = false
+    @State private var showBodySearch = false
+    @State private var searchLaunch: BookSearchLaunch?
     @State private var isSelectingOffline = false
     @State private var selectedChapterIDs: Set<String> = []
     @State private var selectionRowFrames: [String: CGRect] = [:]
@@ -64,6 +66,10 @@ struct NovelDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("正文搜索", systemImage: "text.magnifyingglass") { showBodySearch = true }
+                    .labelStyle(.iconOnly)
+            }
             if appState.user?.isAdmin == true {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("管理这本书", systemImage: "slider.horizontal.3") { showAdminWorkspace = true }
@@ -86,6 +92,14 @@ struct NovelDetailView: View {
                 .disabled(chapters.isEmpty || isSelectingOffline || currentNovel.isRestricted)
                 .help(currentNovel.isRestricted ? "限制级作品暂不提供离线下载" : "离线下载")
             }
+        }
+        .sheet(isPresented: $showBodySearch) {
+            BookSearchView(novel: currentNovel) { hit, query in
+                searchLaunch = BookSearchLaunch(hit: hit, query: query)
+            }
+        }
+        .navigationDestination(item: $searchLaunch) { launch in
+            ReaderView(novel: currentNovel, chapterOrder: launch.hit.chapterOrder, searchQuery: launch.query, searchChapterID: launch.hit.chapterId)
         }
         .sheet(isPresented: $showOfflineOptions) {
             offlineDownloadSheet

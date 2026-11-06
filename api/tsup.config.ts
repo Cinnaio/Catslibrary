@@ -9,6 +9,8 @@ export default defineConfig({
   outDir: 'dist',
   sourcemap: true,
   clean: true,
+  // The deploy workflow ships dist only; include this pure JS decoder in the artifact.
+  noExternal: ['entities'],
   alias: {
     '@shared': fileURLToPath(new URL('../shared', import.meta.url)),
   },

@@ -77,6 +77,12 @@ struct ReaderView: View {
     @State private var errorMessage: String?
     @State private var statsOwner = UUID()
     @State private var showTOC = false
+    @State private var showBodySearch = false
+    @State private var searchQuery: String
+    @State private var requestedChapterID: String
+    @State private var searchNeedsJump: Bool
+    @State private var pendingSearchCharacter: Int?
+    @State private var searchLocationMissing = false
     @State private var showSettings = false
     @State private var showChrome = true
     @State private var scrollTapGuard = ReaderTapGuard()
@@ -133,13 +139,13 @@ struct ReaderView: View {
     private var statisticsVisible: Bool {
         !isLoading && chapter != nil && pendingScrollRestore == nil
             && (!novel.isRestricted || (!offlineOnly && ContentAccessStore.shared.mode == "adult"))
-            && !showTOC && !showSettings && !showThoughtPanel && !showBookmark
+            && !showTOC && !showBodySearch && !showSettings && !showThoughtPanel && !showBookmark
             && !showRecap && !showIllustrationsNotice && scenePhase == .active
     }
 
     private var autoScrollActive: Bool {
         !autoScrollPaused && settings.pageMode == "scroll" && !isLoading && chapter != nil
-            && pendingScrollRestore == nil && !showTOC && !showSettings && !showThoughtPanel
+            && pendingScrollRestore == nil && !showTOC && !showBodySearch && !showSettings && !showThoughtPanel
             && !showBookmark && !showRecap && !showIllustrationsNotice && !isSelectingBodyText && scenePhase == .active
     }
 
@@ -147,12 +153,17 @@ struct ReaderView: View {
         novel: Novel,
         chapterOrder: Int,
         preloadedChapters: [ChapterMeta] = [],
-        offlineOnly: Bool = false
+        offlineOnly: Bool = false,
+        searchQuery: String = "",
+        searchChapterID: String = ""
     ) {
         self.novel = novel
         self.preloadedChapters = preloadedChapters
         self.offlineOnly = offlineOnly
         _chapterOrder = State(initialValue: chapterOrder)
+        _searchQuery = State(initialValue: searchQuery)
+        _requestedChapterID = State(initialValue: searchChapterID)
+        _searchNeedsJump = State(initialValue: !searchQuery.isEmpty)
     }
 
     var totalOrderCount: Int {
@@ -251,6 +262,11 @@ struct ReaderView: View {
                 BookmarkEditorView(novelID: novel.id, chapterID: chapter.id, chapterTitle: chapter.title)
             }
         }
+        .alert("搜索位置已变更", isPresented: $searchLocationMissing) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text("当前正文中未找到原搜索关键词，请重新搜索。")
+        }
         .sheet(isPresented: $showAdminWorkspace) {
             AdminNovelWorkspaceSheet(novel: novel, afterChapterID: chapter?.id)
         }
@@ -271,6 +287,22 @@ struct ReaderView: View {
             .preferredColorScheme(scheme)
             .presentationBackground(AppTheme.canvas)
             .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+        }
+        .sheet(isPresented: $showBodySearch) {
+            BookSearchView(novel: novel) { hit, query in
+                autoScrollPaused = true
+                saveProgressNow()
+                searchQuery = query
+                searchNeedsJump = true
+                if chapter?.id == hit.chapterId {
+                    paragraphTextCache.removeAll()
+                    installSearchTarget()
+                } else {
+                    requestedChapterID = hit.chapterId
+                    chapterOrder = hit.chapterOrder
+                }
+            }
+            .preferredColorScheme(scheme)
         }
         .sheet(isPresented: $showSettings) {
             ReaderSettingsView()
@@ -335,7 +367,7 @@ struct ReaderView: View {
         .modifier(ReaderStatisticsModifier(owner: statsOwner, novelID: novel.id,
             chapterID: chapter?.id, mode: offlineOnly ? "safe" : ContentAccessStore.shared.mode,
             visible: statisticsVisible))
-        .task(id: "\(chapterOrder)-\(ContentAccessStore.shared.mode)") { await load() }
+        .task(id: "\(chapterOrder)-\(requestedChapterID)-\(ContentAccessStore.shared.mode)") { await load() }
         .task(id: ContentAccessStore.shared.revision) {
             recapEnabled = false
             guard !offlineOnly, appState.user != nil else { return }
@@ -355,6 +387,9 @@ struct ReaderView: View {
         }
         .onChange(of: chapterOrder) { _, _ in
             resetForNewChapter()
+        }
+        .onChange(of: requestedChapterID) { _, id in
+            if chapter?.id != id { resetForNewChapter() }
         }
         .onChange(of: settings.pageMode) { _, mode in
             autoScrollPaused = true
@@ -573,6 +608,7 @@ struct ReaderView: View {
                 ]
             )
             let indentLength = paragraphIndent.utf16.count
+            BookTextSearch.highlight(renderedText, query: searchQuery)
             for range in ReaderTextHighlight.ranges(
                 in: text,
                 matching: thoughts.map(\.selectedText),
@@ -602,6 +638,7 @@ struct ReaderView: View {
             String(fontRevision),
             settings.themeName,
             systemIsDark ? "dark" : "light",
+            searchQuery,
         ].joined(separator: ":")
     }
 
@@ -744,7 +781,7 @@ struct ReaderView: View {
         let pageSize = CGSize(width: contentWidth, height: contentHeight)
         let thoughtIDs = chapterThoughts.map(\.id).joined(separator: ",")
         let mediaKey = resolvedIllustrations.map { "\($0.item.id):\($0.item.version):\($0.position)" }.joined(separator: ",")
-        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(readerParagraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs):\(mediaKey):\(isLoading)"
+        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(readerParagraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs):\(mediaKey):\(isLoading):\(searchQuery):\(pendingSearchCharacter ?? -1)"
 
         return Group {
             if isLoading && chapter == nil {
@@ -1077,6 +1114,12 @@ struct ReaderView: View {
                 Divider()
             }
             if !offlineOnly {
+                Button("书内正文搜索", systemImage: "text.magnifyingglass") { autoScrollPaused = true; showBodySearch = true }
+                if !searchQuery.isEmpty {
+                    Button("结束搜索定位", systemImage: "xmark.circle") {
+                        searchQuery = ""; pendingSearchCharacter = nil; searchNeedsJump = false
+                    }
+                }
                 Button("当前段评", systemImage: "text.bubble") { openCurrentThoughtPanel() }
                     .disabled(currentReadingParagraphIndex == nil)
                 Button("保存章节书签", systemImage: "bookmark") { showBookmark = true }
@@ -1161,7 +1204,8 @@ struct ReaderView: View {
                 $0.map(\.selectedText)
             },
             thoughtUnderlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78),
-            illustrations: placements
+            illustrations: placements,
+            searchQuery: searchQuery
         )
         let result = await Task.detached(priority: .userInitiated) {
             guard !Task.isCancelled else { return [ChapterPaginator.Page]() }
@@ -1182,7 +1226,14 @@ struct ReaderView: View {
             page.illustration.map { (index, $0) }
         })
         let lastPage = max(result.count - 1, 0)
-        if wasAtStart && anchorImageID == nil {
+        if let target = pendingSearchCharacter,
+           let index = result.firstIndex(where: { $0.illustration == nil && NSLocationInRange(target, $0.range) }) {
+            currentPage = index
+            pendingSearchCharacter = nil
+            pendingScrollRestore = nil
+            suppressPercent = false
+            updatePageProgress(currentPage)
+        } else if wasAtStart && anchorImageID == nil {
             currentPage = 0
         } else if let anchorImageID, let index = result.firstIndex(where: { $0.illustration?.id == anchorImageID }) {
             currentPage = index
@@ -1309,10 +1360,11 @@ struct ReaderView: View {
             return
         }
         isLoading = true
+        let targetID = requestedChapterID
         let order = chapterOrder // 快照：防止慢响应覆盖新章状态
         defer {
             // 仅当前章节仍为目标时清除 loading，避免旧请求把新章节的加载态提前关掉
-            if order == chapterOrder { isLoading = false }
+            if order == chapterOrder && requestedChapterID == targetID { isLoading = false }
         }
         do {
             if chapterMetas.isEmpty {
@@ -1329,7 +1381,7 @@ struct ReaderView: View {
                     } catch {
                         let saved = ContentAccessStore.shared.mode == "adult" || novel.isRestricted ? [] : offlineStore.chapters(for: novel.id)
                         guard !saved.isEmpty else {
-                            guard chapterOrder == order else { return }
+                            guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
                             errorMessage = AppCopy.friendlyError(error)
                             return
                         }
@@ -1339,9 +1391,9 @@ struct ReaderView: View {
             }
             chapterCount = chapterMetas.count
 
-            guard chapterOrder == order else { return } // 用户已切章，丢弃过期结果
+            guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return } // 用户已切章，丢弃过期结果
 
-            guard let meta = chapterMetas.first(where: { $0.order == chapterOrder }) else {
+            guard let meta = chapterMetas.first(where: { requestedChapterID.isEmpty ? $0.order == chapterOrder : $0.id == requestedChapterID }) else {
                 if offlineOnly {
                     errorMessage = "这一章尚未下载，请联网后在详情页下载。"
                     return
@@ -1351,8 +1403,8 @@ struct ReaderView: View {
                 )
                 chapterMetas = list.chapters
                 chapterCount = list.chapters.count
-                guard chapterOrder == order else { return }
-                guard let retry = chapterMetas.first(where: { $0.order == chapterOrder }) else {
+                guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
+                guard let retry = chapterMetas.first(where: { requestedChapterID.isEmpty ? $0.order == chapterOrder : $0.id == requestedChapterID }) else {
                     errorMessage = "未找到第 \(chapterOrder) 章"
                     return
                 }
@@ -1365,23 +1417,24 @@ struct ReaderView: View {
             return
         } catch {
             // 仅当前章节仍为目标时显示错误，避免切章后旧错误串台
-            guard chapterOrder == order else { return }
+            guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
 
     private func loadContent(id: String) async throws {
         let order = chapterOrder
+        let targetID = requestedChapterID
         let r: ChapterResponse = try await APIClient.shared.getReader(
-            "/api/chapters/\(id)", offline: offlineOnly
+            "/api/chapters/\(id)\(searchQuery.isEmpty ? "" : "?format=text")", offline: offlineOnly, refresh: !searchQuery.isEmpty
         )
-        guard chapterOrder == order else { return }
+        guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
         let content = r.chapter.content
         let parsedParagraphs = await Task.detached(priority: .utility) {
             guard !Task.isCancelled else { return [String]() }
             return Self.paragraphs(from: content)
         }.value
-        guard chapterOrder == order, !Task.isCancelled else { return }
+        guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
         paragraphTextCache.removeAll()
         suppressPercent = true
         scrolledParagraph = nil
@@ -1398,7 +1451,7 @@ struct ReaderView: View {
                 let p: ProgressResponse = try await APIClient.shared.get(
                     "/api/progress?novelId=\(novel.id)", auth: true
                 )
-                guard chapterOrder == order else { return }
+                guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
                 if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
                     restore = prog.scrollPercent
                 }
@@ -1406,7 +1459,7 @@ struct ReaderView: View {
                 throw CancellationError()
             } catch {
                 // 正文已经可以从磁盘缓存离线打开；进度失败不应遮挡当前章节。
-                guard chapterOrder == order else { return }
+                guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
             }
         }
         // 网络返回旧快照时，优先使用本地尚未上传的同章进度，避免弱网下回退到旧位置。
@@ -1424,12 +1477,27 @@ struct ReaderView: View {
         // contentSize 已准备好时由 geometry 回调定位；若进度响应更晚，
         // pendingScrollRestore 的 change 回调会走同一条显式 proxy 路径。
         pendingScrollRestore = target
+        installSearchTarget()
         prefetchNextChapter()
         let isSaved = await APIClient.shared.hasCachedChapter(
             id: r.chapter.id, mode: offlineOnly ? "safe" : ContentAccessStore.shared.mode
         )
-        guard chapterOrder == order else { return }
+        guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
         chapterIsSaved = isSaved
+    }
+
+    private func installSearchTarget() {
+        guard searchNeedsJump, !searchQuery.isEmpty, let chapter else { return }
+        searchNeedsJump = false
+        guard let index = paragraphs.firstIndex(where: { !BookTextSearch.ranges(in: $0, query: searchQuery).isEmpty }),
+              let range = BookTextSearch.ranges(in: paragraphs[index], query: searchQuery).first else {
+            searchLocationMissing = true
+            return
+        }
+        pendingScrollRestore = settings.pageMode == "page" ? nil : index
+        let offsets = ChapterPaginator.paragraphOffsets(title: chapter.title, paragraphs: paragraphs)
+        pendingSearchCharacter = offsets[index] + paragraphIndent.utf16.count + range.location
+        if settings.pageMode != "page" { pendingSearchCharacter = nil }
     }
 
     private func openThoughtPanel(for index: Int, selectedText: String = "") {
@@ -1650,6 +1718,10 @@ struct ReaderView: View {
         // 会清空 chapter，旧章节就没有可保存的快照了。
         saveTask?.cancel()
         saveProgressNow()
+        requestedChapterID = ""
+        searchQuery = ""
+        pendingSearchCharacter = nil
+        searchNeedsJump = false
         chapterOrder = order
     }
 

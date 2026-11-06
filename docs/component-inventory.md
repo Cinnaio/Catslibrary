@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-06 书内正文搜索由 `components/reader/BookSearch.tsx` 与自带 CSS Module 持有，供作品详情和阅读器复用；输入、弹窗、错误、空态与加载继续使用共享组件。命中定位由 `hooks/useReaderSearch.ts` 使用 Range／CSS Highlight 维护，不重写正文节点或段评锚点。
+
 2026-11-06 文本与图像供应商预设共用 `pages/admin/ai/AiProviderPresets.tsx`，预设下拉复用生产 Select／SelectTrigger／SelectContent／SelectItem，移除原生下拉皮肤；宽度及连接字段网格对齐由 `ai-config.module.css` 维护，弹层、主题、尺寸和键盘语义继续归共享 Select，不新增公共业务依赖。
 
 2026-11-06 个人中心账户安全的邮箱、Passkey 和修改密码卡片由 `pages/Profile.tsx`／`ProfileEmail.tsx` 持有业务，共用 `profile-security.module.css` 的桌面上方两列、下方通栏及窄屏顺序；标题、字段、操作区、Passkey 凭据和按需新增表单由该场景模块维护。旧 `account.module.css` 的对应列表／表单规则移除，字段、输入、按钮、加载和错误复用 FormField、Input、Button、Spinner、InlineError，无新增公共业务依赖。
@@ -20,7 +22,7 @@
 
 2026-11-05 阅读优先布局归入 `shared/ReadingDialog` 及其 CSS Module，集中维护标题、工具栏、正文／编辑框、辅助长文折叠和底部插槽，AI 生成内容与组件展厅直接使用同一生产实现；AI 模块只保留发布表单布局和业务状态。共享层不引用 AI、后台数据或业务接口，退出旧 AI 全局弹窗皮肤。
 
-基于 `node scripts/check-web-components.mjs --inventory` 的清单补充阅读弹窗归属；105 个组件文件，249 个生产源码模块。使用方数量包含开发展厅，不包含测试。表格记录保留或迁移依据，不表示所有控件需要重写；组件内部页面级子组件按所属页面／工作流保留。
+基于 `node scripts/check-web-components.mjs --inventory` 的清单补充阅读弹窗归属；106 个组件文件，262 个生产源码模块。使用方数量包含开发展厅，不包含测试。表格记录保留或迁移依据，不表示所有控件需要重写；组件内部页面级子组件按所属页面／工作流保留。
 
 2026-11-05 代理设置页面的布局、诊断结果与帮助区域由 `pages/admin/scrape/proxy.module.css` 持有，字段、按钮、加载反馈和分区标题继续复用生产共享组件；移除旧代理页面样式及全局兼容选择器。
 
@@ -65,6 +67,7 @@
 | `components/NovelCoverStatus.tsx` | 应用／业务 | 2 | `styles/novel-indicators.css` | 保留：小说封面业务标记 |
 | `components/PageSeo.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：路由 SEO 与品牌配置 |
 | `components/PageState.tsx` | 应用／业务 | 7 | `styles/page-state.css` | 保留：控制整页外壳的异常呈现，区别于面板空态 |
+| `components/reader/BookSearch.tsx` | 阅读场景 | 2 | `components/reader/BookSearch.module.css` | 保留：书内正文查询、分批检索与章节定位业务 |
 | `components/reader/BookmarkPanel.tsx` | 阅读场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ChapterIllustrations.tsx` | 阅读场景 | 2 | `styles/select-fields.css`、`styles/input-fields.css`、`styles/chapter-illustrations.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ChapterRecap.tsx` | 阅读场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |

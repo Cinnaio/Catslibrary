@@ -14,9 +14,31 @@ import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempote
 import { checkContentRate } from '../services/content-rate-limit'
 import { chapterIllustrationsRoutes } from './chapter-illustrations'
 import { preparePublishedMemory } from '../services/ai/story-memory-tasks'
+import { BOOK_SEARCH_MAX_QUERY } from '@shared/book-search'
+import { parseSearchCursor, searchableChapterText, searchBook } from '../services/book-search'
 
 export const chaptersRoutes = new Hono<AuthEnv>()
 chaptersRoutes.route('/', chapterIllustrationsRoutes)
+
+// Keep the named route ahead of /:id. All snippets use the same visibility/access gate as chapter reads.
+chaptersRoutes.get('/search', optionalUser(), async c => {
+  const novelId = (c.req.query('novelId') || '').trim()
+  const query = (c.req.query('q') || '').trim()
+  const cursor = parseSearchCursor(c.req.query('cursor') || '')
+  if (!novelId || !query || query.length > BOOK_SEARCH_MAX_QUERY || !cursor)
+    return c.json({ error: `请输入 1–${BOOK_SEARCH_MAX_QUERY} 字的关键词和有效作品` }, 400)
+  const db = getDb()
+  const novel = await first<{ content_rating: string }>(db, `SELECT content_rating FROM novels WHERE id=$1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
+  if (!novel) return c.json({ error: '作品不存在或不可访问' }, 404)
+  if (novel.content_rating === 'restricted') {
+    if (c.req.query('contentMode') === 'safe') return restrictedContentResponse(c, 'safe_mode')
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
+  const limited = await checkContentRate(c, 'book-search')
+  if (limited) return limited
+  return c.json(await searchBook(db, novelId, query, cursor, c.req.raw.signal), 200, contentPolicyHeaders())
+})
 
 // ---------- 列表 ----------
 
@@ -83,7 +105,10 @@ chaptersRoutes.get('/:id', optionalUser(), async (c) => {
     const access = await resolveContentAccess(c)
     if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
   }
-  return c.json({ chapter: rowToChapterFull(row) }, 200, contentPolicyHeaders())
+  const chapter = rowToChapterFull(row)!
+  // Native search navigation reads the exact same visible text used by the search service.
+  if (c.req.query('format') === 'text') chapter.content = searchableChapterText(chapter.content)
+  return c.json({ chapter }, 200, contentPolicyHeaders())
 })
 
 chaptersRoutes.put('/:id', requireAdmin(), async (c) => {

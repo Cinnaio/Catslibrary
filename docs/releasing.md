@@ -1,5 +1,13 @@
 # 发布与版本管理
 
+## Web / iOS 书内正文搜索（2026-11-06）
+
+发布前查询 GitHub Actions：上一提交 `34dbf01c1579750ec7fde239252e2cb62b8621a3` 的 [Deploy](https://github.com/Cinnaio/zhi-zhou/actions/runs/42194336301) 与 [iOS 构建](https://github.com/Cinnaio/zhi-zhou/actions/runs/42194357636) 均已成功，覆盖 API/Web `0.6.0` 和 iOS `0.2.0 / build 17`。因此本次新功能将 API/Web 升至 `0.7.0`、iOS 升至 `0.3.0 / build 18`，同步 workspace 锁文件，根包保持 `0.5.0`。新增搜索及原生读取纯文本的可选协议，API 与两端需配套更新，无数据库迁移；新增 entities 8.0.0 运行依赖并通过 tsup 随 API 产物打包，兼容现有只上传 dist 的发布流程。
+
+源码为本条所在的书内搜索提交。用户已授权提交、推送、运行网站部署和 iOS 构建，并明确不等待完成；推送后手动启动 Deploy 与 Build and Test iOS (unsigned IPA)，工作流启动不代表部署成功或 IPA 已生成，亦未完成真机验收。
+
+API 7 项、Web 6 项书内搜索定向回归通过；覆盖权限、限制级内容、HTML／实体、字面匹配、分页、失败保留、请求失效及不重写正文的高亮。API/Web 类型、Web 组件边界和样式检查、差异检查通过；新增搜索源文件定向 ESLint 无错误或警告，既有 Reader／Novel 文件仍有原来的 Hook 风格警告。提交前新增 API 生产构建通过，entities 已包含在产物中；Web 生产构建交由本次 Deploy 工作流执行。Windows 本机没有 Xcode／Swift 编译器，iOS 仅完成源码检查，原生结果另行记录；实现与协议边界见 [书内正文搜索](book-search.md)。
+
 ## 绑定邮箱登录（2026-11-06）
 
 API/Web 继续纳入 `0.6.0` 未发布候选，版本来源及 workspace 锁文件不变，根包与 iOS 源码不变。密码登录与 Passkey 账户选择允许通过已验证的绑定邮箱查找活动账户，继续兼容 `username` 请求字段及用户名登录；邮箱忽略大小写和首尾空格，未验证邮箱及替换后的旧邮箱不可用于密码登录。用户名和邮箱共用账户失败次数限制，审计使用真实用户名，密码校验后在会话事务中复核邮箱归属。无数据库迁移；源码为本条所在的绑定邮箱登录提交，未进行生产构建、部署或原生验收。
@@ -70,9 +78,9 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 本次候选版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `0.2.0 / 17` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `0.6.0` | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `0.6.0` | 同步锁文件 `packages.web.version` |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `0.3.0 / 18` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| API | `api/package.json` | `0.7.0` | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `0.7.0` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `0.5.0`，本次未改 | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。

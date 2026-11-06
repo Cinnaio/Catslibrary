@@ -1,6 +1,6 @@
 {
   "name": "@zhi-zhou/api",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,6 +14,7 @@
   "dependencies": {
     "@hono/node-server": "^1",
     "@simplewebauthn/server": "14.0.3",
+    "entities": "^8.0.0",
     "fflate": "^0.8.3",
     "hono": "^4",
     "iconv-lite": "^0.7",

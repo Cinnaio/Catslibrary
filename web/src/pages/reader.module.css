@@ -2,6 +2,12 @@
    _reader — Immersive paper reader
    ============================================================ */
 
+:global(::highlight(book-search)) { background: var(--accent-light); color: var(--text-primary); }
+.page :global([data-search-match]) { outline: 2px solid var(--accent); outline-offset: 4px; }
+.searchNavigation { position: sticky; top: 84px; z-index: 12; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; color: var(--text-secondary); background: var(--reader-paper); font-size: 12px; }
+.searchNavigation > span { margin-right: auto; }
+@media (max-width: 700px) { .searchNavigation { top: 0; } }
+
 body:has(.page:not(:global(.hidden))) {
   background: var(--bg-secondary);
 }

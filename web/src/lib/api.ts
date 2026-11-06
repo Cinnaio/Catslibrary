@@ -415,6 +415,10 @@ export const novelsApi = {
 // ---------- Chapters ----------
 
 export const chaptersApi = {
+  search(novelId: string, q: string, contentMode: string, cursor = ''): Promise<import('@shared/book-search').BookSearchResponse> {
+    const params = new URLSearchParams({ novelId, q, contentMode, cursor })
+    return request('GET', `/chapters/search?${params}`, null, true)
+  },
   list(novelId: string): Promise<{ chapters: ChapterMeta[] }> {
     return request('GET', `/chapters?novelId=${encodeURIComponent(novelId)}`, null, true)
   },
