@@ -1,4 +1,5 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
+import type { MailSettings, MailSettingsInput } from '@shared/mail-settings'
 import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import type { StoryGraphResponse } from '@shared/story-graph'
 import type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
@@ -963,7 +964,9 @@ export const setupApi = {
 
 export const authApi = {
   mailStatus(): Promise<{ ready: boolean }> { return request('GET', '/auth/mail-status') },
-  mailSettings(): Promise<{ ready: boolean; mode: string; from: string; publicOrigin: string }> { return request('GET', '/auth/mail-settings', null, true) },
+  mailSettings(): Promise<MailSettings> { return request('GET', '/auth/mail-settings', null, true) },
+  saveMailSettings(input: MailSettingsInput): Promise<MailSettings> { return request('PUT', '/auth/mail-settings', input, true) },
+  testMailConnection(revision: number): Promise<{ success: boolean; message: string }> { return request('POST', '/auth/mail-settings/test', { revision }, true) },
   requestEmail(email: string, currentPassword: string): Promise<{ message: string }> { return request('POST', '/auth/email/request', { email, currentPassword }, true) },
   verifyEmail(token: string): Promise<{ success: boolean }> { return request('POST', '/auth/email/verify', { token }) },
   forgotPassword(identifier: string): Promise<{ message: string }> { return request('POST', '/auth/forgot-password', { identifier }) },

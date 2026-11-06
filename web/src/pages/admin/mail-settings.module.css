@@ -1,112 +1,115 @@
-.panel {
+.workspace {
+  display: grid;
+  min-width: 0;
   width: 100%;
-  max-width: 68rem;
+  gap: 24px;
+  font-family: var(--font-body);
+}
+
+.toolbar,
+.summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 12px;
+}
+
+.toolbar {
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.toolbar > button {
+  flex-shrink: 0;
+}
+
+.summary {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.editor {
+  display: grid;
+  min-width: 0;
+  gap: 24px;
+}
+
+.panel {
+  min-width: 0;
 }
 
 .panel > .body {
   display: grid;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--management-form-gap);
   padding-top: 0;
 }
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
-  gap: 32px 48px;
+  gap: 24px;
 }
 
-.configuration,
-.usage {
+.serverFields,
+.fieldPair {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   min-width: 0;
-  gap: 20px;
+  gap: var(--management-form-gap);
 }
 
-.details {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 24px 28px;
-  margin: 0;
+.serverFields {
+  grid-template-columns: minmax(0, 1fr) 112px;
 }
 
-.details > div {
+.fieldPair [data-slot='select-trigger'] {
+  width: 100%;
+}
+
+.passwordField {
   min-width: 0;
 }
 
-.details dt,
-.usage h4 {
-  margin: 0 0 8px;
-  color: var(--text-muted);
-  font: 400 12px / 1.6 var(--font-body);
-}
-
-.details dd {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 13px;
-  line-height: 1.7;
-  overflow-wrap: anywhere;
-}
-
-.sender {
-  grid-column: 1 / -1;
-}
-
-.sender dd {
-  display: grid;
-  gap: 4px;
-}
-
-.senderName {
-  color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 1.45;
-}
-
-.senderAddress {
+.clearPassword {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  margin-top: 8px;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 13px;
 }
 
-.usage {
-  gap: 16px;
-}
-
-.usage h4 {
-  margin-bottom: 0;
-}
-
-.purposes {
+.connectionTest {
   display: grid;
-  gap: 20px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.purposes li {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  align-items: start;
+  min-width: 0;
   gap: 12px;
 }
 
-.purposes li > svg {
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-  color: var(--text-muted);
+.testAction {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.purposes h5 {
-  margin: 0 0 4px;
-  color: var(--text-primary);
-  font: 500 13px / 1.6 var(--font-body);
+.purpose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.purposes p,
+.purpose svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.purpose,
 .notice,
 .helpContent p,
 .updated {
@@ -192,11 +195,6 @@
   .layout {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  .purposes {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24px;
-  }
 }
 
 @media (max-width: 700px) {
@@ -204,10 +202,10 @@
     gap: 24px;
   }
 
-  .details,
-  .purposes {
+  .serverFields,
+  .fieldPair {
     grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
+    gap: var(--management-form-gap);
   }
 
   .footer {
@@ -216,6 +214,10 @@
   }
 
   .help summary {
+    min-height: 48px;
+  }
+
+  .clearPassword {
     min-height: 48px;
   }
 

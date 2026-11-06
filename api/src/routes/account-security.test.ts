@@ -12,7 +12,8 @@ import { assertSuperAdministrator, recoverSuperAdministrator, siteInitialized } 
 import { consumeAccountEmail, issueAccountEmail, limitEmailRequest } from '../services/account-email'
 
 const mail = vi.hoisted(() => ({ send: vi.fn() }))
-vi.mock('../services/mail', () => ({
+vi.mock('../services/mail', async importOriginal => ({
+  ...await importOriginal<typeof import('../services/mail')>(),
   mailConfiguration: () => ({ ready: true, publicOrigin: 'https://reader.example.test' }),
   publicMailStatus: () => ({ ready: true }),
   sendAccountMail: mail.send,
@@ -54,6 +55,20 @@ beforeEach(async () => {
 afterAll(async () => { setDbForTests(null); delete process.env.DATABASE_URL; await t.close() })
 
 describe('三级权限与初始化保护', () => {
+  it('超级管理员可保存并读取即时生效的 SMTP 配置，旧修订不能覆盖且公开状态不泄露字段', async () => {
+    const config = { revision: 0, host: 'smtp.example.test', port: 465, security: 'tls', username: 'smtp-user',
+      password: 'route-fixture-secret', from: 'account@example.test', publicOrigin: 'https://reader.example.test' }
+    expect((await request('/auth/mail-settings', { ...config, password: 'x'.repeat(17000) }, 'root', 'PUT')).status).toBe(413)
+    expect((await request('/auth/mail-settings/test', { revision: 0, padding: 'x'.repeat(2048) }, 'root')).status).toBe(413)
+    const response = await request('/auth/mail-settings', config, 'root', 'PUT')
+    expect(response.status).toBe(200)
+    const result = await response.json()
+    expect(result).toMatchObject({ revision: 1, source: 'local', host: 'smtp.example.test', passwordSet: true, ready: true })
+    expect(JSON.stringify(result)).not.toContain('route-fixture-secret')
+    expect((await request('/auth/mail-settings', config, 'root', 'PUT')).status).toBe(409)
+    expect(await (await request('/auth/mail-status')).json()).toEqual({ ready: true })
+    expect(await (await request('/auth/mail-settings', undefined, 'root')).json()).toEqual(result)
+  })
   it('新安装只创建超级管理员，初始化标记在用户删除后仍生效', async () => {
     await t.db.query('DELETE FROM users')
     const response = await request('/auth/bootstrap-admin', { username: 'founder', password })
@@ -103,6 +118,10 @@ describe('三级权限与初始化保护', () => {
     expect((await request('/ai/settings', {}, 'manager', 'PUT')).status).toBe(403)
     expect((await request('/scrape', { action: 'proxy', proxyBase: '' }, 'manager')).status).toBe(403)
     expect((await request('/admin-users', { action: 'settings', registerMode: 'open' }, 'manager')).status).toBe(403)
+    for (const actor of ['manager', 'reader', undefined]) {
+      expect((await request('/auth/mail-settings', {}, actor, 'PUT')).status).toBe(actor ? 403 : 401)
+      expect((await request('/auth/mail-settings/test', { revision: 0 }, actor)).status).toBe(actor ? 403 : 401)
+    }
   })
   it('普通管理员不能修改其他管理员、授予角色或调用旧设密接口', async () => {
     expect((await mutate('manager', 'root', 'user-status', { status: 'disabled' })).status).toBe(403)

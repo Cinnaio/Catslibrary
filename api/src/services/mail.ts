@@ -3,26 +3,45 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { AccountError } from './account-security'
+import type { MailSettings } from '@shared/mail-settings'
+import { effectiveMailSettings, parseSmtp, validMailOrigin } from './mail-settings'
 
 export function mailConfiguration() {
   const production = process.env.NODE_ENV?.trim().toLowerCase() === 'production'
-  const origin = process.env.PUBLIC_WEB_URL?.trim() || (!production ? 'http://localhost:5173' : '')
-  let publicOrigin = ''
-  try {
-    const url = new URL(origin)
-    if (url.origin === origin.replace(/\/$/, '') && !url.username && !url.password &&
-      (url.protocol === 'https:' || (!production && url.protocol === 'http:'))) publicOrigin = url.origin
-  } catch { /* 未配置时关闭发信，不从请求 Host 生成链接。 */ }
+  const effective = effectiveMailSettings()
+  const publicOrigin = validMailOrigin(effective.publicOrigin)
   const outbox = !production ? process.env.MAIL_OUTBOX_DIR?.trim() || '' : ''
-  const from = process.env.MAIL_FROM?.trim() || ''
-  const smtp = process.env.SMTP_URL?.trim() || ''
-  let smtpValid = false
-  try { const u = new URL(smtp); smtpValid = ['smtp:', 'smtps:'].includes(u.protocol) && !!u.hostname && (!u.pathname || u.pathname === '/') && !u.search && !u.hash } catch { /* 无效配置 */ }
+  const { from, smtp } = effective
+  const smtpValid = Boolean(parseSmtp(smtp))
   return { ready: Boolean(publicOrigin && (smtp ? smtpValid && from && !/[\r\n]/.test(from) : outbox)), publicOrigin, from, smtp, outbox }
+}
+export function adminMailSettings(): MailSettings {
+  const effective = effectiveMailSettings(), url = parseSmtp(effective.smtp)
+  return { ...publicMailStatus(), source: effective.source, revision: effective.revision,
+    host: url?.hostname || '', port: Number(url?.port) || (url?.protocol === 'smtp:' ? 587 : 465),
+    security: url?.protocol === 'smtp:' ? 'starttls' : 'tls',
+    username: url ? decodeURIComponent(url.username) : '', passwordSet: Boolean(url?.password) }
 }
 export function publicMailStatus() {
   const config = mailConfiguration()
-  return { ready: config.ready, mode: config.outbox && !config.smtp ? 'outbox' : 'smtp', from: config.from, publicOrigin: config.publicOrigin }
+  return { ready: config.ready, mode: config.outbox && !config.smtp ? 'outbox' as const : 'smtp' as const, from: config.from, publicOrigin: config.publicOrigin }
+}
+function mailTransport(smtp: string) {
+  const u = new URL(smtp)
+  return nodemailer.createTransport({
+    host: u.hostname.replace(/^\[|\]$/g, ''), port: Number(u.port) || (u.protocol === 'smtps:' ? 465 : 587),
+    secure: u.protocol === 'smtps:', requireTLS: u.protocol !== 'smtps:',
+    auth: u.username ? { user: decodeURIComponent(u.username), pass: decodeURIComponent(u.password) } : undefined,
+    connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
+    disableFileAccess: true, disableUrlAccess: true, logger: false, debug: false,
+  })
+}
+export async function testMailConnection(revision: number) {
+  if (revision !== effectiveMailSettings().revision) throw new AccountError('邮件配置已更新，请刷新后重新测试', 409)
+  const config = mailConfiguration()
+  if (!config.ready || !config.smtp) throw new AccountError('请先保存完整的 SMTP 配置', 400)
+  try { await mailTransport(config.smtp).verify() }
+  catch { throw new AccountError('SMTP 连接或认证失败，请检查服务器、端口、加密方式及账号密码', 503) }
 }
 export async function sendAccountMail(to: string, subject: string, url: string) {
   const config = mailConfiguration()
@@ -30,14 +49,7 @@ export async function sendAccountMail(to: string, subject: string, url: string) 
   const text = `${subject}\n\n请在浏览器中打开以下链接并确认操作：\n${url}\n\n链接会过期且只能使用一次。如果不是你的操作，请忽略此邮件。`
   if (config.smtp) {
     try {
-      const u = new URL(config.smtp)
-      const result = await nodemailer.createTransport({
-        host: u.hostname, port: Number(u.port) || (u.protocol === 'smtps:' ? 465 : 587),
-        secure: u.protocol === 'smtps:', requireTLS: u.protocol !== 'smtps:',
-        auth: u.username ? { user: decodeURIComponent(u.username), pass: decodeURIComponent(u.password) } : undefined,
-        connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
-        disableFileAccess: true, disableUrlAccess: true, logger: false, debug: false,
-      }).sendMail({ from: config.from, to: { address: to, name: '' }, subject, text })
+      const result = await mailTransport(config.smtp).sendMail({ from: config.from, to: { address: to, name: '' }, subject, text })
       if (!result.accepted?.length) throw new Error('rejected')
       return
     } catch { throw new AccountError('邮件暂时发送失败，请稍后重试', 503) }

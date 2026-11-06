@@ -8,9 +8,9 @@ import type { PasskeyAdminSettings, TurnstileSettings } from '@shared/site-setti
 const mock = vi.hoisted(() => ({
   branding: vi.fn(), turnstile: vi.fn(), passkey: vi.fn(), saveBranding: vi.fn(), saveTurnstile: vi.fn(), savePasskey: vi.fn(),
   upload: vi.fn(), resetAsset: vi.fn(), testTurnstile: vi.fn(), refreshPolicy: vi.fn(), toast: vi.fn(), confirm: vi.fn(),
-  contentPolicySettings: vi.fn(),
+  contentPolicySettings: vi.fn(), mailSettings: vi.fn(),
 }))
-vi.mock('@/lib/api', () => ({ siteSettingsApi: mock, adminApi: { contentPolicy: { settings: mock.contentPolicySettings } }, url: (path: string) => `/api${path}` }))
+vi.mock('@/lib/api', () => ({ siteSettingsApi: mock, authApi: mock, adminApi: { contentPolicy: { settings: mock.contentPolicySettings } }, url: (path: string) => `/api${path}` }))
 vi.mock('@/context/ContentPolicyContext', () => ({ useContentPolicy: () => ({ refreshPolicy: mock.refreshPolicy }) }))
 vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: mock.toast }), useConfirm: () => ({ confirm: mock.confirm }) }))
 vi.mock('@/components/TurnstileTestWidget', () => ({ default: ({ onToken }: { onToken: (token: string) => void }) => <button type="button" onClick={() => onToken('test-token')}>完成小组件</button> }))
@@ -31,6 +31,22 @@ beforeEach(() => {
   mock.contentPolicySettings.mockResolvedValue({ adultContentEnabled: true, turnstileConfigured: true })
 })
 describe('SiteSettingsTab', () => {
+  it('账号邮件按需读取，往返分区保留密码草稿并隐藏非当前分区保存条', async () => {
+    mock.mailSettings.mockResolvedValue({ ready: true, mode: 'smtp', source: 'environment', revision: 0,
+      host: 'smtp.example.test', port: 465, security: 'tls', username: 'user', passwordSet: true,
+      from: 'account@example.test', publicOrigin: 'https://reader.example.test' })
+    await show()
+    expect(mock.mailSettings).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('tab', { name: '账号邮件' }))
+    await screen.findByLabelText('SMTP 服务器')
+    fireEvent.change(screen.getByLabelText('SMTP 密码 / 授权码'), { target: { value: 'unsaved-password' } })
+    expect(screen.getByRole('button', { name: '保存配置' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: '站点信息' }))
+    expect(screen.queryByRole('button', { name: '保存配置' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: '账号邮件' }))
+    expect(screen.getByLabelText('SMTP 密码 / 授权码')).toHaveValue('unsaved-password')
+    expect(mock.mailSettings).toHaveBeenCalledTimes(1)
+  })
   it('往返内容安全复用导航节点并保留键盘焦点与站点信息草稿', async () => {
     await show()
     fireEvent.change(screen.getByLabelText('站点名称'), { target: { value: '未保存名称' } })

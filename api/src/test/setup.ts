@@ -9,6 +9,7 @@ const root = mkdtempSync(path.join(tmpdir(), 'zhi-zhou-test-'))
 process.env.ENV_FILE = path.join(root, '.env')
 process.env.RUNTIME_CONFIG_DIR = root
 process.env.BACKUP_CONFIG_FILE = path.join(root, 'backup-config.json')
+process.env.MAIL_CONFIG_FILE = path.join(root, 'mail-config.json')
 process.env.BACKUP_ROOT = path.join(root, 'backups')
 for (const name of [
   'DATABASE_URL',

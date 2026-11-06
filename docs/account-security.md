@@ -48,7 +48,9 @@ node api/dist/recover-super-admin.js --username EXISTING_USERNAME --reason "站�
 
 ## 邮件配置
 
-在服务器私有环境配置以下变量，修改后重启 API。凭据不在后台页面填写或回显。
+API/Web 0.6.0 起，超级管理员可在“站点设置 → 账号邮件”直接填写 SMTP 服务器、端口、TLS／STARTTLS、账号、密码／授权码、发件身份和邮件链接站点。保存后立即供账户邮件使用，无需编辑 `.env` 或重启服务。密码不回显，留空保留当前密码（包括首次保存时的环境密码），勾选清除才移除；输入新密码则替换。
+
+后台保存的整套配置优先于 `SMTP_URL`、`MAIL_FROM`、`PUBLIC_WEB_URL`；尚未保存时继续使用这些环境变量，无需手动迁移原凭据。环境配置方式仍可使用，修改环境变量后须重启 API：
 
 ```dotenv
 NODE_ENV=production
@@ -60,8 +62,12 @@ PUBLIC_WEB_URL=https://read.example.com
 - `SMTP_URL` 支持 `smtps://` 隐式 TLS，或 `smtp://` 强制 STARTTLS；用户名和密码中的特殊字符需 URL 编码。拒绝 URL 查询参数，不允许用其关闭 TLS。
 - `PUBLIC_WEB_URL` 仅为固定 origin，不带路径、参数、账号或密码；生产必须 HTTPS。不会从请求 Host 构造邮件链接。该地址应指向运行配套 Web 的站点，与 SEO 的 `SITE_URL` 分别配置。
 - `MAIL_FROM` 为发送身份；SMTP 服务端及域名发信配置须由部署者配置。
-- 后台“站点设置 → 账号邮件”只显示是否配置齐全、发件身份、链接站点和发送模式。配置齐全、SMTP 接受与邮箱实际收到是不同状态。
+- “测试已保存的连接”只检测 SMTP 连接、TLS 和认证，不发送邮件；有未保存修改时须先保存。配置齐全、连接通过、SMTP 接受与邮箱实际收到是不同状态。测试按超级管理员账号限流，每 15 分钟最多 3 次。
 - SMTP 超时、认证和投递失败均转换为不含凭据的错误，不输出原始 SMTP 调试日志。关闭邮件内容的外部文件和 URL 读取。
+
+后台配置写入服务器私有 `data/mail-config.json`（部署者可用 `MAIL_CONFIG_FILE` 指定持久化位置），含 SMTP 凭据，按部署密钥对待；采用临时文件、原子替换和 `0600` 文件权限，新建目录为 `0700`，Windows 仍须通过目录 ACL 限制访问。它不是加密文件，禁止放到网站静态目录、提交 Git 或上传构建制品。数据库备份不包含此文件，迁移和灾备须单独安全备份并恢复，多个 API 实例须使用同一持久化文件。文件损坏或不可读时拒绝发信，不静默回退旧环境配置；如需恢复环境来源，部署者应在维护期间安全移走该文件。
+
+`GET /api/auth/mail-settings`、`PUT /api/auth/mail-settings` 和 `POST /api/auth/mail-settings/test` 仅超级管理员可用；公开 `/api/auth/mail-status` 仍只返回 `ready`。管理读取只返回非密码字段、来源、修订号及 `passwordSet`。保存通过共享数据库锁串行化并核对修订号，旧修订返回 409，草稿不会自动覆盖较新的配置；撤销后重新读取最新配置。分区切换保留内存草稿，刷新或关闭页面前对未保存修改提示。
 
 本地开发可不配置 SMTP，而设置 `MAIL_OUTBOX_DIR=data/mail-outbox`；默认链接 origin 为 `http://localhost:5173`，也可显式设置。只有非 production 环境启用 outbox，且有 SMTP 配置时优先走 SMTP。outbox 包含可用的一次性链接，必须放在静态目录之外并限制访问，不提交 Git，不上传制品；仓库 `data/` 已忽略。文件创建使用 `0700/0600` 权限，Windows 仍需通过目录 ACL 限制访问。
 

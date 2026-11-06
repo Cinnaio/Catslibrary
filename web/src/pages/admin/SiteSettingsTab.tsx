@@ -27,7 +27,7 @@ import styles from './site-settings.module.css'
 const AiSettingsWorkspace = lazy(() => import('./ai/AiSettingsWorkspace'))
 type LocalView = 'branding' | 'security' | 'passkey'
 const meta: Record<SiteSettingsView, { title: string; description: string }> = {
-  mail: { title: '账号邮件', description: '查看邮箱验证与密码找回的发信配置状态。' },
+  mail: { title: '账号邮件', description: '配置邮箱验证与密码找回的 SMTP 服务，保存后立即生效。' },
   branding: { title: '站点信息', description: '统一主站的名称、介绍、浏览器标题与品牌图片。' },
   'content-policy': { title: '内容安全', description: '设置全站限制级内容的访问入口与解锁条件。' },
   security: { title: '安全验证', description: '配置成人内容解锁验证，并独立测试已保存的配置。' },
@@ -49,6 +49,9 @@ export default function SiteSettingsTab() {
   const localView = view === 'branding' || view === 'security' || view === 'passkey' ? view : null
   const aiView = view === 'config' || view === 'params' ? view : null
   const [aiVisited, setAiVisited] = useState(Boolean(aiView))
+  const [mailVisited, setMailVisited] = useState(view === 'mail')
+  const [mailBusy, setMailBusy] = useState(false)
+  useEffect(() => { if (view === 'mail') setMailVisited(true) }, [view])
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const { refreshPolicy } = useContentPolicy()
@@ -203,8 +206,8 @@ export default function SiteSettingsTab() {
   const widgetError = useCallback((message: string) => { setTestMessage(message); setTestPassed(false); setTestToken('') }, [])
 
   return <AdminPage {...meta[view]} className="admin-redesign-page--site-settings">
-    <SiteSettingsNavigation view={view} disabled={busy || aiBusy} />
-    {view === 'mail' && <MailSettings />}
+    <SiteSettingsNavigation view={view} disabled={busy || aiBusy || mailBusy} />
+    <div hidden={view !== 'mail'}>{mailVisited && <MailSettings active={view === 'mail'} onBusyChange={setMailBusy} />}</div>
     {view === 'content-policy' && <ContentPolicyTab />}
     {localView && <>
       {!hasData && (loadError
