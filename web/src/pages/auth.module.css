@@ -175,7 +175,7 @@
   .toolbar { inset-inline: 20px; }
   .page :global(.auth-panel) { gap: 20px; }
   .page :global(.auth-panel__brand) { margin-bottom: 24px; }
-  .page :global(.auth-field) [data-slot='input'] { font-size: 16px; }
+  .page :global(.auth-field) [data-slot='input'] { font-size: 14px; }
 }
 @media (max-width: 900px) and (max-height: 760px) {
   .page:global(.auth-page--reader) { grid-template-rows: minmax(0, 1fr); }
