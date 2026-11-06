@@ -1,4 +1,5 @@
 import { normalizeImportCover, coverSnapshot, coverFingerprint } from './book-import-cover'
+import { prepareCoverDisplays } from './cover-display'
 import { parseExportText } from './novel-export-text'
 import { createHash } from 'node:crypto'
 import { posix } from 'node:path'
@@ -2041,6 +2042,11 @@ export async function applyImport(
     await q('UPDATE book_import_runs SET target_novel_id=$1, status=$2, changes_json=$3, applied_at=$4, history_summary=$6, source_expires_at=$7 WHERE id=$5', [novelId, status, JSON.stringify(applied), Date.now(), opts.run.id, JSON.stringify({ title: preview.book.title, conflicts: conflicts.length, created, updated }), Date.now() + 30 * 86400000])
   })
 
+  if (applied.some(change => change.kind === 'cover-image') && payload.coverImage) {
+    await prepareCoverDisplays(db, novelId, {
+      data: Buffer.from(payload.coverImage.dataBase64, 'base64'), contentType: payload.coverImage.contentType,
+    })
+  }
   return { runId: opts.run.id, batchId: opts.run.id, novelId, novelCreated, created, updated, skipped, metadataUpdated, conflicts }
 }
 

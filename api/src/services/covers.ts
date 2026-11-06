@@ -1,6 +1,6 @@
 /**
  * 封面图片入库与读取 —— 由 Novel-KV _covers.js 平移。
- * 所有封面数据存 novel_covers 表，前端一律走 /api/cover/:id。
+ * 当前原图存 novel_covers，候选和历史保留原图；展示图由 cover-display 独立缓存。
  */
 import { createHash } from 'node:crypto'
 import type { Db, DbClient } from '../db/pool'
@@ -10,6 +10,7 @@ import { newId } from './auth'
 import { outboundFetch } from './outbound-fetch'
 import { DEFAULT_COVER_PATH, isDefaultCoverSource } from '@shared/covers'
 import { getDefaultCoverImage } from '../default-cover'
+import { getCoverDisplay, prepareCoverDisplays } from './cover-display'
 
 export const DEFAULT_COVER_URL = DEFAULT_COVER_PATH
 export const MAX_COVER_BYTES = 5 * 1024 * 1024
@@ -64,6 +65,7 @@ export async function storeCover(
        updated_at = EXCLUDED.updated_at`,
     [novelId, data, contentType || 'image/jpeg', source || '', String(opts.prompt || ''), metadata, Date.now()],
   )
+  await prepareCoverDisplays(db, novelId, { data, contentType: contentType || 'image/jpeg' })
 }
 
 export interface StoredCover {
@@ -176,7 +178,7 @@ export async function listCoverHistory(db: Db, novelId: string): Promise<CoverHi
 export async function getCoverHistoryImage(db: Db, novelId: string, historyId: string): Promise<{ data: Uint8Array; contentType: string } | undefined> {
   const row = await first<{ data: unknown; content_type: string }>(db, 'SELECT data, content_type FROM novel_cover_history WHERE id = $1 AND novel_id = $2', [historyId, novelId])
   const data = coverDataToBody(row?.data)
-  return row && data ? { data, contentType: row.content_type || 'image/jpeg' } : undefined
+  return row && data ? getCoverDisplay(db, novelId, { data, contentType: row.content_type || 'image/jpeg' }) : undefined
 }
 
 /** pg 的 BYTEA 返回 Buffer（Uint8Array 视图），直接可用作 Response body。 */
@@ -200,6 +202,7 @@ export async function cacheCoverForNovel(
   const coverUrl = (row.cover_url || '').trim()
   const img = isDefaultCoverSource(coverUrl) ? null : await fetchImage(coverUrl)
   const fallback = img ? null : (opts.defaultImage || await getDefaultCoverImage())
+  if (img) await prepareCoverDisplays(db, novelId, img)
 
   // 下载在事务外；写入前同时检查 URL 与图片版本，避免慢请求覆盖后来同步/上传的封面。
   return withTx(db, async q => {
@@ -267,10 +270,11 @@ export async function storeCoverCandidate(
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [id, opts.novelId, opts.data, opts.contentType || 'image/png', opts.prompt || '', opts.taskId || '', JSON.stringify(opts.metadata || {}), Date.now()],
   )
+  await prepareCoverDisplays(db, opts.novelId, { data: opts.data, contentType: opts.contentType || 'image/png' })
   return id
 }
 
-/** 列出一本小说的全部候选（新的在前），含 dataUrl 供前端 <img> 直接展示。 */
+/** 列出一本小说的全部候选（新的在前），含压缩预览 dataUrl；采纳仍使用原图。 */
 export async function listCoverCandidates(db: Db, novelId: string): Promise<Array<CoverCandidate & { dataUrl: string }>> {
   const rows = await db.query<{
     id: string
@@ -284,16 +288,21 @@ export async function listCoverCandidates(db: Db, novelId: string): Promise<Arra
   }>('SELECT id, novel_id, data, content_type, prompt, task_id, metadata, created_at FROM ai_cover_candidates WHERE novel_id = $1 ORDER BY created_at DESC', [
     novelId,
   ])
-  return rows.rows.map((row) => ({
-    id: row.id,
-    novelId: row.novel_id,
-    contentType: row.content_type || 'image/png',
-    prompt: row.prompt,
-    taskId: row.task_id,
-    createdAt: row.created_at,
-    metadata: parseCoverCandidateMetadata(row.metadata),
-    dataUrl: `data:${row.content_type || 'image/png'};base64,${Buffer.from(row.data).toString('base64')}`,
-  }))
+  const items: Array<CoverCandidate & { dataUrl: string }> = []
+  for (const row of rows.rows) {
+    const image = await getCoverDisplay(db, novelId, { data: row.data, contentType: row.content_type || 'image/png' })
+    items.push({
+      id: row.id,
+      novelId: row.novel_id,
+      contentType: image.contentType,
+      prompt: row.prompt,
+      taskId: row.task_id,
+      createdAt: row.created_at,
+      metadata: parseCoverCandidateMetadata(row.metadata),
+      dataUrl: `data:${image.contentType};base64,${Buffer.from(image.data).toString('base64')}`,
+    })
+  }
+  return items
 }
 
 function parseCoverCandidateMetadata(value: unknown): CoverCandidateMetadata | undefined {
@@ -421,6 +430,11 @@ export async function replaceCoverForAdmin(db: Db, input: CoverReplacementInput)
   if (!beforeCover && shouldMaterializeExternalCover(beforeNovel.cover_url)) {
     preparedExternal = (await fetchImage(beforeNovel.cover_url)) || undefined
     if (!preparedExternal) throw new AiError('conflict', '无法在替换前备份现有外部封面，请稍后重试', 409)
+  }
+
+  // 上传先在锁外预热；候选、历史始终按原始字节采纳/恢复，不再次有损转码。
+  if (input.data?.byteLength && input.data.byteLength <= MAX_COVER_BYTES && /^image\//i.test(input.contentType || '')) {
+    await prepareCoverDisplays(db, novelId, { data: input.data, contentType: input.contentType! })
   }
 
   return withTx(db, async (q) => {

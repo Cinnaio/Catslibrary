@@ -1,5 +1,13 @@
 # 发布与版本管理
 
+## 封面压缩展示图（2026-11-06）
+
+发布前已核对上一版本 `152eb3f09af89686e6eef5bca100972781544605` 的 [Deploy](https://github.com/Cinnaio/zhi-zhou/actions/runs/42199380102) 成功。新增原图留存和压缩展示图功能，API/Web 分别从 `0.7.0` 递增至 `0.8.0`，同步 workspace 锁文件；根包 `0.5.0`、iOS `0.3.0 / build 18` 不变，不交付新 IPA。源码为本条所在的封面压缩提交；用户已授权提交、推送并运行网站 Deploy，实际构建与部署结果在工作流完成后单独记录。
+
+上线时 API 在监听请求前按现有启动流程应用新增迁移 071，配套交付 Web 列表的 320px 图片地址。原图、封面版本与历史、ZIP 导入回滚及导出格式保持不变；旧客户端后续下载默认得到 1024px 展示图，旧图按需建立缓存，不批量改写原图。新增展示表纳入现有全库备份，迁移后的备份为 schema 71，恢复仍按既有版本兼容检查执行。实现与缓存清理策略见 [封面原图与压缩展示图](cover-display-images.md)。
+
+验证：API/Web 类型、Web 组件边界、相关 API 与 URL 工具的定向 ESLint、workspace 版本一致性及差异检查通过。API 封面展示 7 项、源站封面同步 9 项、ZIP 导入导出 11 项、AI 准备数据／候选采纳／历史恢复 4 项定向回归通过，共 31 项；覆盖原图字节、尺寸与 MIME、无收益和动画回退、并发补图、缓存替换与条件请求门禁。Web 封面相关 3 项定向用例通过，扩展运行的 18 项中 17 项通过、1 项批量导出按钮名称断言失败；以 HEAD 原始测试副本重跑同一用例复现，未改动无关导出功能或测试。未运行完整测试套件、生产构建、生产迁移或部署，也未进行真实源站／AI 图片的主观画质验收和原生编译。
+
 ## Web / iOS 书内正文搜索（2026-11-06）
 
 发布前查询 GitHub Actions：上一提交 `34dbf01c1579750ec7fde239252e2cb62b8621a3` 的 [Deploy](https://github.com/Cinnaio/zhi-zhou/actions/runs/42194336301) 与 [iOS 构建](https://github.com/Cinnaio/zhi-zhou/actions/runs/42194357636) 均已成功，覆盖 API/Web `0.6.0` 和 iOS `0.2.0 / build 17`。因此本次新功能将 API/Web 升至 `0.7.0`、iOS 升至 `0.3.0 / build 18`，同步 workspace 锁文件，根包保持 `0.5.0`。新增搜索及原生读取纯文本的可选协议，API 与两端需配套更新，无数据库迁移；新增 entities 8.0.0 运行依赖并通过 tsup 随 API 产物打包，兼容现有只上传 dist 的发布流程。
@@ -79,8 +87,8 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 | 组件 | 唯一版本来源 | 本次候选版本 | 同步要求 |
 | --- | --- | --- | --- |
 | iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `0.3.0 / 18` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `0.7.0` | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `0.7.0` | 同步锁文件 `packages.web.version` |
+| API | `api/package.json` | `0.8.0` | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `0.8.0` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `0.5.0`，本次未改 | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。

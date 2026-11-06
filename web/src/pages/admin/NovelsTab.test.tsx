@@ -58,7 +58,7 @@ it('小说列表使用当前封面端点，而不是原始入库封面 URL', asy
   render(<MemoryRouter><NovelsTab /></MemoryRouter>)
 
   const image = await screen.findByAltText('测试书')
-  expect(image.getAttribute('src')).toBe('/cover/n?v=42&cover=4')
+  expect(image.getAttribute('src')).toBe('/cover/n?v=42&cover=5&size=320')
   expect(image.getAttribute('src')).not.toBe('https://source.example/original-cover.jpg')
 })
 

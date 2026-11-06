@@ -9,6 +9,7 @@ import { restrictedContentResponse, resolveContentAccess } from '../services/con
 import { optionalUser, type AuthEnv } from '../middlewares/auth'
 import { getDefaultCoverImage } from '../default-cover'
 import { isDefaultCoverSource } from '@shared/covers'
+import { getCoverDisplay } from '../services/cover-display'
 
 export const coverRoutes = new Hono<AuthEnv>()
 
@@ -37,9 +38,14 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
   }
 
   // 旧库中的缺省图片也展示新版；保留原始存储版本供后台替换并发校验。
-  const image = cover && !isDefaultCoverSource(cover.source)
+  const original = cover && !isDefaultCoverSource(cover.source)
     ? { data: cover.data, contentType: cover.content_type }
     : await getDefaultCoverImage()
+  const size = c.req.query('size')
+  // 旧客户端默认获得较大展示图；原图下载仍遵守上面的作品权限与内容门禁。
+  const image = cover && !isDefaultCoverSource(cover.source) && size !== 'original'
+    ? await getCoverDisplay(db, id, original, size === '320' ? 320 : 1024)
+    : original
   const body = coverDataToBody(image.data)
   if (!body) return c.json({ error: 'Cover not found' }, 404)
 
@@ -52,6 +58,7 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
     'Cache-Control': retrySource || novel.visibility !== 'public' ? 'private, no-store' : 'private, max-age=604800, must-revalidate',
     Vary: 'Cookie, Authorization, X-Content-Access',
     ETag: etag,
+    'X-Content-Type-Options': 'nosniff',
   }
   const ifNoneMatch = c.req.header('If-None-Match')
   if (

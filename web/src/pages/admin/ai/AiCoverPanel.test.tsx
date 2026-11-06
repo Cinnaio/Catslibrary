@@ -70,12 +70,12 @@ describe('AiCoverPanel', () => {
     render(<AiCoverPanel />)
 
     const image = await waitFor(() => {
-      const value = Array.from(document.querySelectorAll('img')).find((item) => item.getAttribute('src') === '/api/cover/novel_1?v=42&cover=4')
+      const value = Array.from(document.querySelectorAll('img')).find((item) => item.getAttribute('src') === '/api/cover/novel_1?v=42&cover=5&size=320')
       if (!value) throw new Error('最近更新封面尚未渲染')
       return value as HTMLImageElement
     })
 
-    expect(image.getAttribute('src')).toBe('/api/cover/novel_1?v=42&cover=4')
+    expect(image.getAttribute('src')).toBe('/api/cover/novel_1?v=42&cover=5&size=320')
     expect(image.src).not.toBe('https://source.example/original-cover.jpg')
   })
 

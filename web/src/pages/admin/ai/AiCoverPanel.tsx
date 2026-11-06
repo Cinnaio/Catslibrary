@@ -254,7 +254,7 @@ export default function AiCoverPanel({
   const [busy, setBusy] = useState(false)
   /** 当前封面生成任务；null 表示未启动过 */
   const [task, setTask] = useState<AiTaskInfo | null>(null)
-  /** 预览图缓存破坏戳：生成完成后 +1 触发重新拉取（/api/cover/:id 公开无鉴权，img 直接拉） */
+  /** 预览图缓存破坏戳：生成完成后 +1 触发重新拉取；端点继续检查作品访问权限。 */
   const [coverVersion, setCoverVersion] = useState(0)
   /** 渲染书名+作者名文字层：默认开（story-cover 认为这是封面必需信息；模型需支持中文渲染，如 gpt-image-2） */
   const [renderTitle, setRenderTitle] = useState(true)
@@ -596,7 +596,7 @@ export default function AiCoverPanel({
   const focusedCandidate = candidates.find((candidate) => candidate.id === focusedCandidateId) || candidates[0]
   const selected = novels.find((n) => n.id === novelId)
   // 与书卡共用本地封面端点，受限封面由服务端校验；coverVersion 用于刷新预览。
-  const previewSrc = novelId ? url(`/cover/${encodeURIComponent(novelId)}?v=${coverVersion}&cover=4`) : ''
+  const previewSrc = novelId ? url(`/cover/${encodeURIComponent(novelId)}?v=${coverVersion}&cover=5&size=1024`) : ''
   const recentNovels = novels.slice(0, 5)
   const hasCurrentGeneratedPrompt = !!prompt.trim() && !!promptSourceSignature && !promptConfigMismatch
   const canGenerateCover = !!novelId && !busy && !taskActive && !generatingPrompt && !promptConfigMismatch && (usesExactPrompt || hasCurrentGeneratedPrompt)
