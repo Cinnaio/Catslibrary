@@ -111,3 +111,6 @@ PGlite 检查不代表真实多连接 PostgreSQL 并发验证。真实 PostgreSQ
 上述本地验证记录之后，已按站点所有者的部署指令及明确账号选择，将 `b02ec830f366eaf2717901e803bcadfe4f5c2f37`（API/Web `0.5.0`）于 09:24:22（Asia/Shanghai）部署到 story。生产 PostgreSQL 迁移 070 成功，`curiionoo` 提升为超级管理员并撤销旧会话，`wynne` 保持普通管理员；未创建账号或修改密码。升级前数据库、配置、旧产物与部署证据已保留，路径及哈希见 [发布记录](releasing.md#story-账号安全发布2026-11-06)。
 
 API/Web 生产构建、Linux 依赖载入、234 个产物／元数据哈希、服务健康、公网首页／三条邮件页面、noindex 和主资源哈希通过。安装引导保持关闭。`PUBLIC_WEB_URL=https://catrr.uk` 已配置，但 `SMTP_URL`、`MAIL_FROM` 未配置，公开状态为 `ready=false`，未进行真实投递。未使用真实账号执行登录或管理交互，未编译 iOS 或进行设备验收；本次单次生产迁移不代表 PostgreSQL 并发测试或备份恢复演练完成。
+
+
+同日 09:41（Asia/Shanghai）已配置 Resend SMTP 和 `cat's reading <no-reply@notify.catrr.uk>` 发件身份，认证通过，服务重启后公网健康正常、邮件接口 `ready=true`。凭据仅保存在 story 的私有环境文件（0600），旧配置已私有备份；未发送测试邮件，实际邮箱投递仍待验证。此次仅调整运行配置，API/Web 保持 0.5.0，无代码构建或账号数据变更。

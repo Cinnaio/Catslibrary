@@ -12,7 +12,7 @@
 
 实测 `curiionoo=super_admin/active`、`wynne=admin/active`；恢复操作已审计，curiionoo 的旧会话为 0，需重新登录，未设置密码。systemd 为 active/running、自动重启计数为 0。公网 `https://catrr.uk` 首页、健康、安装状态、邮件状态均返回 200；安装入口保持关闭，邮件状态 `ready=false`。公网主 JS、CSS 和账号邮件异步 JS 的 SHA-256 与发布包一致，三条邮件页面均返回 200 且带 noindex。生产固定邮件 origin 已设置为 `https://catrr.uk`。
 
-story 未配置 `SMTP_URL`、`MAIL_FROM`，邮件功能暂不可用；不发送测试邮件、不变更密码。本次不构建 iOS IPA，原生编译与设备验收仍未完成。下方旧记录中的“候选／未部署”为对应开发阶段记录，以本次发布结果为准。
+首次部署时 story 未配置 `SMTP_URL`、`MAIL_FROM`，邮件功能暂不可用。2026-11-06 09:41（Asia/Shanghai）按站点所有者提供的凭据及发送身份补齐 Resend SMTP（`smtp.resend.com:465`，TLS），发件人为 `cat's reading <no-reply@notify.catrr.uk>`。SMTP 认证通过，重启后服务 active/running、自动重启计数 0，本地及公网邮件状态均为 `ready=true`，公网健康正常。私有 `.env` 权限收紧为 0600，变更前配置备份位于 `/var/www/zhi-zhou-backups/smtp-2026-11-06T01-41-20-969Z`；凭据未写入仓库。尚未提供测试收件邮箱，因此未发送邮件或验证实际送达，未变更用户密码。本次不构建 iOS IPA，原生编译与设备验收仍未完成。下方旧记录中的“候选／未部署”为对应开发阶段记录，以本次发布结果为准。
 
 ## 版本来源
 
