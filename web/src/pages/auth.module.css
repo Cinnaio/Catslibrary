@@ -119,8 +119,9 @@
 .page :global(.auth-fields) { flex-shrink: 0; }
 .page :global(.auth-field) { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .page :global(.auth-field) [data-slot='label'] { color: var(--text-secondary); font-size: 12px; font-weight: 500; }
-.page :global(.auth-field) [data-slot='input'] { width: 100%; height: var(--auth-control-height); padding-inline: 12px; border-radius: var(--radius-compact); font-size: 13px; }
-.page :global(#auth-username), .page :global(#auth-password) { font-size: 13px; }
+.inputFrame { position: relative; height: var(--auth-control-height); min-width: 0; flex-shrink: 0; }
+.compactInputFrame { --auth-input-font-size: 13px; }
+.page :global(.auth-field) [data-slot='input'] { width: 100%; height: var(--auth-control-height); padding-inline: 12px; border-radius: var(--radius-compact); font-size: var(--auth-input-font-size, 13px); }
 .page :global(.auth-password) { position: relative; display: flex; align-items: center; }
 .passwordHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 24px; }
 .page .passwordHeading .forgotLink { display: inline-flex; align-items: center; min-height: 24px; padding-block: 0; font-size: 12px; }
@@ -176,7 +177,7 @@
   .toolbar { inset-inline: 20px; }
   .page :global(.auth-panel) { gap: 20px; }
   .page :global(.auth-panel__brand) { margin-bottom: 24px; }
-  .page :global(.auth-field) [data-slot='input'] { font-size: 14px; }
+  .page :global(.auth-field) [data-slot='input'] { font-size: var(--auth-input-font-size, 14px); }
 }
 @media (max-width: 900px) and (max-height: 760px) {
   .page:global(.auth-page--reader) { grid-template-rows: minmax(0, 1fr); }
@@ -201,6 +202,28 @@
   .page :global(.auth-remember), .page :global(.auth-fields) > :global(.auth-field):nth-child(3) { grid-column: 1 / -1; }
   .page :global(.auth-actions) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .page :global(.auth-actions) > button:only-of-type, .page :global(.auth-switch) { grid-column: 1 / -1; }
+}
+/* Keep a 16px native font for focus zoom heuristics while preserving the small
+   visual text. The frame reserves the original control size; only the input
+   scales, leaving the password toggle and its hit area unchanged. */
+.page[data-phone-orientation] .inputFrame { --auth-input-scale: 0.875; }
+.page[data-phone-orientation] .compactInputFrame { --auth-input-scale: 0.8125; }
+.page[data-phone-orientation] :global(.auth-field) .inputFrame [data-slot='input'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% / var(--auth-input-scale));
+  max-width: none;
+  height: calc(var(--auth-control-height) / var(--auth-input-scale));
+  padding-inline: calc(12px / var(--auth-input-scale));
+  border-width: calc(1px / var(--auth-input-scale));
+  border-radius: calc(var(--radius-compact) / var(--auth-input-scale));
+  font-size: 16px;
+  transform: scale(var(--auth-input-scale));
+  transform-origin: top left;
+}
+.page[data-phone-orientation] :global(.auth-field) .inputFrame :global(.auth-password__input) {
+  padding-right: calc(42px / var(--auth-input-scale));
 }
 .page[data-phone-orientation='portrait']:global(.auth-page--reader) {
   grid-template-columns: minmax(0, 1fr);
@@ -249,7 +272,7 @@
 .page[data-phone-orientation='landscape'] :global(.auth-form), .page[data-phone-orientation='landscape'] :global(.auth-fields) { gap: var(--auth-landscape-gap); }
 .page[data-phone-orientation='landscape'] :global(.auth-fields), .page[data-phone-orientation='landscape'] :global(.auth-actions) { display: flex; flex-direction: column; }
 .page[data-phone-orientation='landscape'] :global(.auth-field) { gap: 4px; }
-.page[data-phone-orientation='landscape'] :global(.auth-field) [data-slot='input'] { font-size: 14px; }
+.page[data-phone-orientation='landscape'] :global(.auth-field) [data-slot='input'] { font-size: var(--auth-input-font-size, 14px); }
 .page[data-phone-orientation='landscape'] .passwordHeading,
 .page[data-phone-orientation='landscape'] .passwordHeading .forgotLink { min-height: 18px; }
 .page[data-phone-orientation='landscape'] :global(.auth-remember) { min-height: 24px; margin-top: 0; }

@@ -249,17 +249,19 @@ export default function Auth() {
               <div className="auth-fields">
                 <div className="auth-field">
                   <Label htmlFor="auth-username">账号</Label>
-                  <Input
-                    id="auth-username"
-                    ref={loginInput}
-                    autoComplete={isLogin ? 'username webauthn' : 'username'}
-                    required
-                    placeholder={isLogin ? '输入用户名或已验证邮箱' : '输入你的账号'}
-                    disabled={fieldsDisabled}
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    aria-describedby={msg ? 'auth-message' : undefined}
-                  />
+                  <div className={`${styles.inputFrame} ${styles.compactInputFrame}`}>
+                    <Input
+                      id="auth-username"
+                      ref={loginInput}
+                      autoComplete={isLogin ? 'username webauthn' : 'username'}
+                      required
+                      placeholder={isLogin ? '输入用户名或已验证邮箱' : '输入你的账号'}
+                      disabled={fieldsDisabled}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      aria-describedby={msg ? 'auth-message' : undefined}
+                    />
+                  </div>
                 </div>
 
                 <div className="auth-field">
@@ -267,7 +269,7 @@ export default function Auth() {
                     <Label htmlFor="auth-password">密码</Label>
                     {isLogin && <button type="button" className={`auth-switch__link ${styles.forgotLink}`} onClick={event => switchMode(event, 'forgot')} disabled={busy}>忘记密码</button>}
                   </div>
-                  <div className="auth-password">
+                  <div className={`auth-password ${styles.inputFrame} ${styles.compactInputFrame}`}>
                     <Input
                       id="auth-password"
                       type={showPassword ? 'text' : 'password'}
@@ -311,15 +313,17 @@ export default function Auth() {
                 {showInvite && (
                   <div className="auth-field">
                     <Label htmlFor="auth-invite">邀请码</Label>
-                    <Input
-                      id="auth-invite"
-                      autoComplete="off"
-                      required
-                      disabled={fieldsDisabled}
-                      placeholder="注册时填写"
-                      value={invite}
-                      onChange={(e) => setInvite(e.target.value)}
-                    />
+                    <div className={styles.inputFrame}>
+                      <Input
+                        id="auth-invite"
+                        autoComplete="off"
+                        required
+                        disabled={fieldsDisabled}
+                        placeholder="注册时填写"
+                        value={invite}
+                        onChange={(e) => setInvite(e.target.value)}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -368,10 +372,12 @@ export default function Auth() {
                 <div className="auth-fields">
                   <div className="auth-field">
                     <Label htmlFor="auth-recovery-identifier">用户名或邮箱</Label>
-                    <Input id="auth-recovery-identifier" ref={recoveryInput} autoComplete="username" required maxLength={254}
-                      placeholder="输入用户名或已验证邮箱" disabled={busy} value={identifier}
-                      onChange={event => setIdentifier(event.target.value)}
-                      aria-describedby={`auth-recovery-hint${recoveryError ? ' auth-recovery-error' : ''}`} />
+                    <div className={styles.inputFrame}>
+                      <Input id="auth-recovery-identifier" ref={recoveryInput} autoComplete="username" required maxLength={254}
+                        placeholder="输入用户名或已验证邮箱" disabled={busy} value={identifier}
+                        onChange={event => setIdentifier(event.target.value)}
+                        aria-describedby={`auth-recovery-hint${recoveryError ? ' auth-recovery-error' : ''}`} />
+                    </div>
                     <p id="auth-recovery-hint" className={styles.fieldHint}>尚未绑定邮箱的账号，请联系站点管理员。</p>
                   </div>
                 </div>
