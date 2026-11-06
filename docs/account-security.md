@@ -104,3 +104,10 @@ PUBLIC_WEB_URL=https://read.example.com
 扩展执行 `monitoring.test.tsx` 时有 10 项既有失败，涉及账单展示数量、旧错误样式和按钮名称等断言。使用基线 `fb421f0b9b81221320522f81ab3487fef23e220d` 中该测试及 `CallsTab.tsx` 的独立临时副本对照：基线 5 项通过 / 10 项失败，当前 6 项通过 / 相同 10 项失败；失败名称与首行错误逐项一致，新增权限用例通过。临时文件已清理，未改动相关监控业务代码或将整份监控测试记为通过。
 
 PGlite 检查不代表真实多连接 PostgreSQL 并发验证。真实 PostgreSQL 备份集成夹具已随权限协议更新，本次未执行这些需要专用数据库的集成测试。Windows 本机没有 Xcode，仅复核 iOS 源码；未执行 iOS 编译、IPA 打包或真机验收，也未进行浏览器视觉验收、Web 生产构建、部署、真实 SMTP 投递或真实账号变更。
+
+
+## story 部署验收（2026-11-06）
+
+上述本地验证记录之后，已按站点所有者的部署指令及明确账号选择，将 `b02ec830f366eaf2717901e803bcadfe4f5c2f37`（API/Web `0.5.0`）于 09:24:22（Asia/Shanghai）部署到 story。生产 PostgreSQL 迁移 070 成功，`curiionoo` 提升为超级管理员并撤销旧会话，`wynne` 保持普通管理员；未创建账号或修改密码。升级前数据库、配置、旧产物与部署证据已保留，路径及哈希见 [发布记录](releasing.md#story-账号安全发布2026-11-06)。
+
+API/Web 生产构建、Linux 依赖载入、234 个产物／元数据哈希、服务健康、公网首页／三条邮件页面、noindex 和主资源哈希通过。安装引导保持关闭。`PUBLIC_WEB_URL=https://catrr.uk` 已配置，但 `SMTP_URL`、`MAIL_FROM` 未配置，公开状态为 `ready=false`，未进行真实投递。未使用真实账号执行登录或管理交互，未编译 iOS 或进行设备验收；本次单次生产迁移不代表 PostgreSQL 并发测试或备份恢复演练完成。

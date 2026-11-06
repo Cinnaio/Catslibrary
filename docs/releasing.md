@@ -4,7 +4,13 @@
 
 部署前查证：`fb421f0b9b81221320522f81ab3487fef23e220d` 已通过 Deploy run `42135285846` 上线，其 API/Web 版本为 `0.4.0`。因此将账号安全新增功能从此前误记的未发布候选调整为 API/Web `0.5.0`，同步对应 workspace 锁文件；根包 `0.5.0` 和 iOS `0.2.0 / build 17` 不变。功能源码为 `a9ec9e19fde0ff73d4af7b07e7f6c0c03198e0ef`，发布元数据来源为本条所在提交。
 
-本次按手动部署路径在本地构建纯 JavaScript API 与 Web 产物，不在低内存的 story 服务器执行构建；Linux 原生依赖沿用服务器已核对的锁定版本，补齐 Nodemailer `10.3.1`。先备份数据库、配置及旧产物，再停止写入、应用迁移 070，并按站点所有者明确指定恢复 `curiionoo` 为超级管理员，之后切换配套 API/Web。实际备份、产物 SHA、健康与公网验收结果在完成后追加。
+本次按手动部署路径在本地构建纯 JavaScript API 与 Web 产物，不在低内存的 story 服务器执行构建；Linux 原生依赖沿用服务器已核对的锁定版本，补齐 Nodemailer `10.3.1`。先备份数据库、配置及旧产物，再停止写入、应用迁移 070，并按站点所有者明确指定恢复 `curiionoo` 为超级管理员，之后切换配套 API/Web。实际发布已完成，证据如下。
+
+2026-11-06 09:24:22（Asia/Shanghai）已在 story 激活源码 `b02ec830f366eaf2717901e803bcadfe4f5c2f37` 的 API/Web `0.5.0`，包含上述功能提交；本次为本地生产构建与 SSH 手动发布，没有新增 Actions 构建或推送。发布包 SHA-256 为 `7d8acea3b657b0099f7ffe3395e84d7627f07f6ba7c62e316b468bff276f0b3d`，服务器核对 234 个产物／元数据文件及 11 个锁定运行依赖通过。构建保留既有的大分块提醒。
+
+升级前备份保存在 `/var/www/zhi-zhou-backups/account-security-20261106-092348-b02ec830`（私有目录），含 `database.dump`（355325447 bytes）、可读取的 PostgreSQL TOC、旧 API/Web、配置、校验和与部署日志。09:23:48 停止旧服务，迁移 070 和指定账号恢复成功后于 09:24:22 完成健康检查，约 34 秒维护窗口。未触发回滚；若需回滚，必须恢复匹配的数据库和旧产物，不能只切换程序。
+
+实测 `curiionoo=super_admin/active`、`wynne=admin/active`；恢复操作已审计，curiionoo 的旧会话为 0，需重新登录，未设置密码。systemd 为 active/running、自动重启计数为 0。公网 `https://catrr.uk` 首页、健康、安装状态、邮件状态均返回 200；安装入口保持关闭，邮件状态 `ready=false`。公网主 JS、CSS 和账号邮件异步 JS 的 SHA-256 与发布包一致，三条邮件页面均返回 200 且带 noindex。生产固定邮件 origin 已设置为 `https://catrr.uk`。
 
 story 未配置 `SMTP_URL`、`MAIL_FROM`，邮件功能暂不可用；不发送测试邮件、不变更密码。本次不构建 iOS IPA，原生编译与设备验收仍未完成。下方旧记录中的“候选／未部署”为对应开发阶段记录，以本次发布结果为准。
 
