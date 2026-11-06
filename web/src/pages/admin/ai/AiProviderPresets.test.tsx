@@ -33,14 +33,27 @@ beforeEach(() => {
   api.saveProviderPreset.mockResolvedValue({ presets: rows })
 })
 
+// Radix Select 的指针捕获检查在 jsdom 中需要补齐。
+Element.prototype.hasPointerCapture = () => false
+
+async function ready() {
+  await waitFor(() => expect(screen.getByRole('combobox', { name: '已保存预设' })).toBeEnabled())
+}
+
+async function selectPreset(name: string) {
+  await userEvent.click(screen.getByRole('combobox', { name: '已保存预设' }))
+  await userEvent.click(await screen.findByRole('option', { name }))
+}
+
 describe('AI provider preset picker', () => {
   it('filters by scope, previews selection and waits for explicit application', async () => {
     render(<AiProviderPresets {...props} />)
-    const select = await screen.findByRole('option', { name: '主端点 · 当前生效' })
-    expect(select).toBeInTheDocument()
+    await ready()
+    expect(screen.getByRole('combobox')).toHaveTextContent('主端点 · 当前生效')
     expect(screen.queryByRole('button', { name: '应用预设' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('combobox'))
     expect(screen.queryByRole('option', { name: /图像端点/ })).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('已保存预设'), { target: { value: 'b' } })
+    await userEvent.click(screen.getByRole('option', { name: '备用端点' }))
     expect(api.activateProviderPreset).not.toHaveBeenCalled()
     expect(screen.getByLabelText('当前生效的文本配置')).toHaveTextContent(rows[0].baseUrl)
     expect(screen.getByLabelText('当前生效的文本配置')).not.toHaveTextContent(rows[1].baseUrl)
@@ -50,7 +63,7 @@ describe('AI provider preset picker', () => {
   })
   it('saves current config without sending the mask or switching the service', async () => {
     render(<AiProviderPresets {...props} />)
-    await screen.findByRole('option', { name: '主端点 · 当前生效' })
+    await ready()
     await userEvent.click(screen.getByRole('button', { name: '管理预设' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: '保存当前为预设' }))
     fireEvent.change(screen.getByLabelText('预设名称'), { target: { value: '另存端点' } })
@@ -65,8 +78,8 @@ describe('AI provider preset picker', () => {
   })
   it('preserves the selected preset key when editing and reports activation failures', async () => {
     render(<AiProviderPresets {...props} />)
-    await screen.findByRole('option', { name: '主端点 · 当前生效' })
-    fireEvent.change(screen.getByLabelText('已保存预设'), { target: { value: 'b' } })
+    await ready()
+    await selectPreset('备用端点')
     await userEvent.click(screen.getByRole('button', { name: '管理预设' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: '编辑所选预设' }))
     fireEvent.change(screen.getByLabelText('模型名称'), { target: { value: 'updated' } })
@@ -83,15 +96,29 @@ describe('AI provider preset picker', () => {
   it('blocks switching over unsaved edits and requires confirmation to delete', async () => {
     api.deleteProviderPreset.mockResolvedValue({ presets: [rows[1]] })
     render(<AiProviderPresets {...props} dirty />)
-    await screen.findByRole('option', { name: '主端点 · 当前生效' })
-    fireEvent.change(screen.getByLabelText('已保存预设'), { target: { value: 'b' } })
+    await ready()
+    await selectPreset('备用端点')
     expect(screen.getByRole('button', { name: '应用预设' })).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('已保存预设'), { target: { value: 'a' } })
+    await selectPreset('主端点 · 当前生效')
     await userEvent.click(screen.getByRole('button', { name: '管理预设' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: '删除所选预设' }))
     expect(api.deleteProviderPreset).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '确认删除' }))
     await waitFor(() => expect(api.deleteProviderPreset).toHaveBeenCalledWith('a'))
     expect(props.onApplied).not.toHaveBeenCalled()
+  })
+  it('image scope uses the shared picker and supports clearing selection without applying', async () => {
+    render(<AiProviderPresets {...props} scope="image" config={{ baseUrl: rows[2].baseUrl, model: rows[2].model, hasApiKey: true }} />)
+    await ready()
+    const picker = screen.getByRole('combobox', { name: '已保存预设' })
+    expect(picker.tagName).toBe('BUTTON')
+    picker.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByRole('option', { name: '图像端点 · 当前生效' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /主端点|备用端点/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('option', { name: '选择端点预设' }))
+    expect(picker).toHaveTextContent('选择端点预设')
+    expect(api.activateProviderPreset).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: '应用预设' })).not.toBeInTheDocument()
   })
 })

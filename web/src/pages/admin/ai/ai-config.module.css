@@ -137,6 +137,7 @@
 .fieldGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: start;
   gap: var(--management-form-gap);
 }
 .fieldGrid > * {
@@ -217,6 +218,9 @@
 .presetSelect {
   flex: 1 1 160px;
   min-width: 0;
+}
+.presetSelect > [data-slot='select-trigger'] {
+  width: 100%;
 }
 .presetPreview {
   justify-content: space-between;

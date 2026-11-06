@@ -1,4 +1,3 @@
-import '@/styles/select-fields.css'
 import { useEffect, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { aiApi, type AiProviderConfig, type AiProviderPreset } from '@/lib/api'
@@ -6,6 +5,7 @@ import { useToast } from '@/components/feedback'
 import FormField from "@/components/shared/FormField"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import styles from './ai-config.module.css'
@@ -19,6 +19,8 @@ interface Props {
   onApplied: () => void
   onBusy: (busy: boolean) => void
 }
+
+const EMPTY_PRESET = '__empty-provider-preset__'
 
 export default function AiProviderPresets({ scope, draft, config, disabled, dirty, onApplied, onBusy }: Props) {
   const { toast } = useToast()
@@ -142,22 +144,15 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
       </div>
       <div className={styles.presetPicker}>
         <div className={styles.presetSelect}>
-          <select
-            id={`ai-${scope}-preset`}
-            aria-label="已保存预设"
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-            value={selectedId}
-            disabled={locked || loadError}
-            onChange={(e) => setSelectedId(e.target.value)}
-          >
-            <option value="">{loading ? '加载中…' : loadError ? '加载失败' : '选择端点预设'}</option>
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.active ? ' · 当前生效' : ''}
-              </option>
-            ))}
-          </select>
+          <Select value={selectedId} disabled={locked || loadError} onValueChange={value => setSelectedId(value === EMPTY_PRESET ? '' : value)}>
+            <SelectTrigger id={`ai-${scope}-preset`} aria-label="已保存预设" aria-describedby={`ai-${scope}-preset-hint`}>
+              <SelectValue placeholder={loading ? '加载中…' : loadError ? '加载失败' : '选择端点预设'} />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectItem value={EMPTY_PRESET}>选择端点预设</SelectItem>
+              {presets.map(p => <SelectItem key={p.id} value={p.id}>{p.name}{p.active ? ' · 当前生效' : ''}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
         {loadError ? (
           <Button
@@ -182,7 +177,7 @@ export default function AiProviderPresets({ scope, draft, config, disabled, dirt
           </div>
         </div>
       )}
-      <p className={styles.hint}>
+      <p id={`ai-${scope}-preset-hint`} className={styles.hint}>
         {dirty ? '请先保存或撤销修改，再切换预设。' : selected && !selected.active ? '此预设尚未应用。' : '管理预设不会改变当前连接。'}
       </p>
       <Dialog
