@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 /**
  * Profile 页 —— 头像、资料编辑、密码、会话管理、退出（由 Novel-KV js/profile.js 平移）。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi, type PasskeyItem } from '../lib/api'
 import { UserAvatar } from "@/components/identity/UserAvatar"
@@ -22,8 +22,9 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate, timeAgo } from '../lib/format'
 import { ImagePlus, Monitor, Plus, Smartphone, Trash2 } from 'lucide-react'
 import { ReadingDataPanel } from '../components/ReadingDataPanel'
-import { ReadingStatsPanel } from '../components/ReadingStatsPanel'
 import { useContentPolicy } from '../context/ContentPolicyContext'
+
+const ReadingStatsPanel = lazy(() => import('../components/ReadingStatsPanel').then((module) => ({ default: module.ReadingStatsPanel })))
 
 interface SessionItem {
   id: string
@@ -359,7 +360,7 @@ export default function Profile() {
 
           <div className={`profile-edit-grid${activeSettings === 'security' ? ` ${securityStyles.securityLayout}` : ''}`} data-settings={activeSettings}>
             {activeSettings === 'security' && <ProfileEmail key={user.id} user={user} />}
-            {activeSettings === 'stats' && <ReadingStatsPanel key={`${user.id}:${safeMode}`} />}
+            {activeSettings === 'stats' && <Suspense fallback={<Spinner aria-label="正在加载阅读统计" />}><ReadingStatsPanel key={`${user.id}:${safeMode}`} /></Suspense>}
             {activeSettings === 'reading' && <ReadingDataPanel key={`${user.id}:${safeMode}`} userId={user.id} username={user.username} />}
             <section className="profile-section profile-details-card" aria-label="个人资料" hidden={activeSettings !== 'details'}>
               <div className="profile-edit-panel__head">

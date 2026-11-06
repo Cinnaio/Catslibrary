@@ -16,7 +16,7 @@ import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { BookOpen, ImagePlus, Search, X } from 'lucide-react'
-import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
+import type { ChapterFull, ChapterMeta, Novel, Thought } from '@shared/types'
 import { chaptersApi, isRestrictedContentError, type ApiError, novelsApi, thoughtsApi, progressApi } from '../lib/api'
 import { applyProgressState } from '../lib/progress-state'
 import { getNovelHistory, getStorageScope, saveHistory } from '../lib/storage'
@@ -60,6 +60,14 @@ import FloatingPageTools from "@/components/shared/FloatingPageTools"
 
 const CHAPTER_ROW_H = 34
 const CHAPTER_CACHE_MAX = 6
+const CONTEXT_CACHE_MS = 60_000
+
+interface ReaderContext {
+  id: string
+  expiresAt: number
+  novel: Promise<Novel>
+  chapters: Promise<ChapterMeta[]>
+}
 
 export default function Reader() {
   const { novelId = '', chapterId = '' } = useParams()
@@ -83,16 +91,22 @@ export default function Reader() {
   // demo 模式只需触发标记写入，无 UI 读取
   const [, setDemoMode] = useState(false)
   const cacheRef = useRef<Map<string, ChapterFull>>(new Map())
+  const contextRef = useRef<ReaderContext | null>(null)
   const contentGenerationRef = useRef(0)
   useLayoutEffect(() => {
     contentGenerationRef.current++
     cacheRef.current.clear()
+    contextRef.current = null
     setChapter(null)
     setNovel(null)
     setAllChapters([])
     setChapterThoughts([])
     setLoading(true)
-  }, [mode, user?.id, sessionLoading, novelId])
+    return () => {
+      contentGenerationRef.current++
+      contextRef.current = null
+    }
+  }, [mode, isAllowed, adultContentEnabled, user?.id, sessionLoading, novelId])
 
   // 标签页标题跟随当前章节（读者停留最久的页面）
   useDocumentTitle(chapter ? [chapter.title, novel?.title].filter(Boolean).join(' · ') : novel?.title)
@@ -146,6 +160,7 @@ export default function Reader() {
       if (status !== 404 && !isRestrictedContentError(error)) return
       contentGenerationRef.current++
       cacheRef.current.clear()
+      contextRef.current = null
       setChapter(null); setNovel(null); setAllChapters([]); setChapterThoughts([])
       setPendingSelection(null); setPopoverPos(null); setThoughtPanelOpen(false)
       setLoading(false); setLoadError('')
@@ -216,18 +231,35 @@ export default function Reader() {
     [cacheChapter],
   )
 
-  // 初次 / URL 变更加载
+  const loadContext = useCallback((id: string): ReaderContext => {
+    if (contextRef.current?.id === id && contextRef.current.expiresAt > Date.now()) return contextRef.current
+    const context: ReaderContext = {
+      id,
+      expiresAt: Date.now() + CONTEXT_CACHE_MS,
+      novel: novelsApi.get(id).then((data) => data.novel),
+      chapters: chaptersApi.list(id).then((data) => data.chapters || []).catch(() => {
+        if (contextRef.current === context) context.expiresAt = 0
+        return []
+      }),
+    }
+    // 章节与上下文并发加载；在章节请求结束前也必须接住上下文拒绝。
+    void context.novel.catch(() => { if (contextRef.current === context) contextRef.current = null })
+    contextRef.current = context
+    return context
+  }, [])
+
+  // 同一本书短期复用上下文；正文完成权限检查即可显示，不等待目录。
   useEffect(() => {
     let cancelled = false
+    const generation = contentGenerationRef.current
+    const isStale = () => cancelled || generation !== contentGenerationRef.current
     async function load() {
-      if (checking || policyBlocked) return
+      if (sessionLoading || checking || policyBlocked) return
       setLoading(true)
       setNotFound(false)
       setLoadError('')
       setBlocked(false)
       setChapter(null)
-      setNovel(null)
-      setAllChapters([])
       setChapterThoughts([])
       setPopoverPos(null)
       setPendingSelection(null)
@@ -236,13 +268,14 @@ export default function Reader() {
       totalPagesRef.current = 0
       hasRestoredRef.current = false
       try {
+        let context = loadContext(novelId)
         let ch: ChapterFull
         let useDemo = false
         try {
           ch = await loadChapterData(chapterId, false)
         } catch (error) {
           if (isRestrictedContentError(error)) {
-            if (cancelled) return
+            if (isStale()) return
             setBlocked(true)
             setLoading(false)
             return
@@ -252,18 +285,17 @@ export default function Reader() {
           try { ch = await loadChapterData(chapterId, true) } catch { throw error }
           setDemoMode(true)
         }
-        if (cancelled) return
-        // 小说上下文（仅首次加载列表）
+        if (isStale()) return
         const nid = ch.novelId || novelId
+        if (nid !== novelId) context = loadContext(nid)
         let contextNovel: { id: string; title: string; description?: string; categories?: string[] } | null = null
         try {
-          const novelData = await novelsApi.get(nid)
-          contextNovel = novelData.novel || null
+          contextNovel = await context.novel || null
         } catch (error) {
           if (!useDemo) throw error
           contextNovel = null
         }
-        if (cancelled) return
+        if (isStale()) return
         if (contextNovel) {
           if (!isAllowed(contextNovel)) {
             setBlocked(true)
@@ -271,15 +303,12 @@ export default function Reader() {
             return
           }
           setNovel({ id: contextNovel.id, title: contextNovel.title })
-          try {
-            const chaptersData = await chaptersApi.list(nid)
-            if (cancelled) return
-            setAllChapters(chaptersData.chapters || [])
-          } catch {
-            setAllChapters([])
-          }
+          void context.chapters.then((chapters) => {
+            if (!isStale()) setAllChapters(chapters)
+          })
         } else if (useDemo) {
           const { getDemoChapters, getDemoNovelTitle } = await import('../lib/demoReader')
+          if (isStale()) return
           const demoTitle = getDemoNovelTitle(nid)
           if (!isAllowed({ title: demoTitle })) {
             setBlocked(true)
@@ -291,11 +320,11 @@ export default function Reader() {
         } else {
           throw new Error('小说信息暂时无法加载，请重试。')
         }
-        if (cancelled) return
+        if (isStale()) return
         setChapter(ch)
         setLoading(false)
       } catch (error) {
-        if (!cancelled) {
+        if (!isStale()) {
           if (isRestrictedContentError(error)) setBlocked(true)
           else if ((error as ApiError)?.status === 404) setNotFound(true)
           else setLoadError('章节或小说信息加载失败，请检查网络后重试。')
@@ -307,8 +336,7 @@ export default function Reader() {
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [novelId, chapterId, isAllowed, user?.id, sessionLoading, checking, policyBlocked, retry])
+  }, [novelId, chapterId, mode, isAllowed, adultContentEnabled, user?.id, sessionLoading, checking, policyBlocked, retry, loadContext, loadChapterData])
 
   // ---------- 应用设置到 DOM ----------
   useEffect(() => {

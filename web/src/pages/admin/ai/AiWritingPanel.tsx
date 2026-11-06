@@ -28,7 +28,7 @@ import MemoryRebuildDialog from './MemoryRebuildDialog'
 import { Textarea } from '@/components/ui/textarea'
 import { url } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { Sparkles, ArrowRight, ChevronRight, Network, Pause, BookOpen, Cpu, SlidersHorizontal, FileText, Check, ListChecks } from 'lucide-react'
+import { Sparkles, ArrowRight, ChevronRight, Network, Pause, BookOpen, Cpu, FileText } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000

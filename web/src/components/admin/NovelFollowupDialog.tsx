@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom'
 import ScrapeTaskDetailsDialog from './ScrapeTaskDetailsDialog'
 import { LockKeyhole } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { url, authHeaders } from '@/lib/api'
+import { authFetch } from '@/lib/api'
+import { startPolling } from '@/lib/polling'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -37,10 +38,9 @@ interface Followup extends PendingChapterCounts {
   ongoing: boolean
 }
 async function request(novelId: string, body?: Record<string, unknown>): Promise<Followup> {
-  const response = await fetch(url(body ? '/scrape' : `/scrape?action=followup&novelId=${encodeURIComponent(novelId)}`), {
+  const response = await authFetch(body ? '/scrape' : `/scrape?action=followup&novelId=${encodeURIComponent(novelId)}`, {
     method: body ? 'POST' : 'GET',
-    credentials: 'include',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
     ...(body ? { body: JSON.stringify({ novelId, ...body }) } : {}),
   })
   const data = await response.json()
@@ -85,16 +85,26 @@ export default function NovelFollowupDialog({
   const [sourceError, setSourceError] = useState('')
   const [taskId, setTaskId] = useState<string | null>(null)
   const showSettings = variant === 'settings' || editing
+  const readRevision = useRef(0)
   const refresh = useCallback(async () => {
-    const data = await request(novel.id)
-    setState(data)
-    return data
+    const revision = ++readRevision.current
+    try {
+      const data = await request(novel.id)
+      if (revision !== readRevision.current) return null
+      setState(data)
+      return data
+    } catch (error) {
+      if (revision !== readRevision.current) return null
+      throw error
+    }
   }, [novel.id])
   useEffect(() => {
     let active = true
+    const revision = ++readRevision.current
+    setState(null)
     request(novel.id)
       .then((data) => {
-        if (!active) return
+        if (!active || revision !== readRevision.current) return
         setState(data)
         setEnabled(data.enabled)
         setHours(String(data.intervalHours))
@@ -104,14 +114,22 @@ export default function NovelFollowupDialog({
       })
     return () => {
       active = false
+      readRevision.current++
     }
   }, [novel.id])
   useEffect(() => {
     if (state?.result !== 'running') return
-    const timer = setInterval(() => {
-      void refresh().catch((err) => setError(err.message))
-    }, 3000)
-    return () => clearInterval(timer)
+    let active = true
+    const stop = startPolling(async () => {
+      try {
+        const data = await refresh()
+        if (!data) return
+        return active && data.result === 'running'
+      } catch (err) {
+        if (active) setError((err as Error).message)
+      }
+    }, 3000, false)
+    return () => { active = false; stop() }
   }, [state?.result, refresh])
   async function act(save: boolean) {
     setBusy(true)

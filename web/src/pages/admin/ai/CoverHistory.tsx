@@ -56,17 +56,23 @@ export default function CoverHistory(props: {
   // 解构出回调单独做依赖：依赖整个 props 对象会因每轮渲染的新引用而反复触发。
   // 父级直接传 setState，引用天然稳定。
   const { novelId, coverVersion, onRestored, onCurrentVersion } = props
+  const scope = `${novelId}:${coverVersion}`
   const [expanded, setExpanded] = useState(false)
-  const [history, setHistory] = useState<{ items: AiCoverHistoryItem[]; current: AiCurrentCoverState } | null>(null)
+  const [historyState, setHistory] = useState<{ scope: string; items: AiCoverHistoryItem[]; current: AiCurrentCoverState } | null>(null)
+  const history = historyState?.scope === scope ? historyState : null
   const [images, setImages] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState('')
-  const objectUrls = useRef<string[]>([])
+  const objectUrls = useRef(new Map<string, string>())
 
-  // 卸载时释放所有 object URL，避免图片内存常驻
-  useEffect(() => () => {
-    for (const url of objectUrls.current) URL.revokeObjectURL(url)
-    objectUrls.current = []
-  }, [])
+  // 同一版本折叠后复用图片；换书、刷新版本或卸载时释放，不积累被替换的 URL。
+  useEffect(() => {
+    const urls = objectUrls.current
+    setImages({})
+    return () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url)
+      urls.clear()
+    }
+  }, [scope])
 
   // 版本号同步给父级；采纳/上传要靠它做乐观并发校验
   useEffect(() => {
@@ -81,7 +87,12 @@ export default function CoverHistory(props: {
       try {
         const res = await aiApi.coverHistory(novelId)
         if (cancelled) return
-        setHistory({ items: res.items, current: res.current })
+        setHistory({ scope, items: res.items, current: res.current })
+        const ids = new Set(res.items.map(item => item.id))
+        for (const [id, url] of objectUrls.current) {
+          if (!ids.has(id)) { URL.revokeObjectURL(url); objectUrls.current.delete(id) }
+        }
+        setImages(Object.fromEntries(Array.from(objectUrls.current, ([id, url]) => [`${scope}:${id}`, url])))
         if (!expanded) return
         const queue = res.items.map((item) => item.id)
         const load = async () => {
@@ -89,12 +100,13 @@ export default function CoverHistory(props: {
             if (cancelled) return
             const id = queue.shift()
             if (!id) return
+            if (objectUrls.current.has(id)) continue
             try {
               const blob = await aiApi.coverHistoryImage(novelId, id)
               if (cancelled) return
               const objectUrl = URL.createObjectURL(blob)
-              objectUrls.current.push(objectUrl)
-              setImages((prev) => ({ ...prev, [id]: objectUrl }))
+              objectUrls.current.set(id, objectUrl)
+              setImages((prev) => ({ ...prev, [`${scope}:${id}`]: objectUrl }))
             } catch {
               // 单张失败不阻断其余；该格显示占位
             }
@@ -108,7 +120,7 @@ export default function CoverHistory(props: {
     return () => {
       cancelled = true
     }
-  }, [novelId, coverVersion, expanded, toast])
+  }, [novelId, scope, expanded, toast])
 
   async function restore(item: AiCoverHistoryItem) {
     if (!history) return
@@ -183,7 +195,7 @@ export default function CoverHistory(props: {
               </p>
               <div className="flex flex-wrap justify-center gap-4">
                 {items.map((item) => {
-                  const src = images[item.id]
+                  const src = images[`${scope}:${item.id}`]
                   return (
                     <figure key={item.id} className="group grid w-[9rem] gap-2">
                       <div className="ai-cover-frame relative aspect-[2/3] w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] transition-shadow duration-200 group-hover:shadow-md">

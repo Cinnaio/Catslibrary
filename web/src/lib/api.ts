@@ -203,6 +203,25 @@ function timedFetch(input: RequestInfo | URL, opts: RequestInit = {}, timeoutMs 
   return fetch(input, opts)
 }
 
+async function handleAuthResponse(
+  path: string,
+  response: Response,
+  data: { code?: string; reason?: string },
+  requestToken: string,
+  reauthenticated: boolean,
+): Promise<boolean> {
+  if (response.status === 403 && data.code === 'reauth_required' && !reauthenticated) {
+    if (requestToken === getToken() && await requestReauthentication() && requestToken === getToken()) return true
+    throw new Error('已取消身份验证，操作未执行')
+  }
+  if (path !== '/auth/reauthenticate' && requestToken === getToken() &&
+    (response.status === 401 || (response.status === 403 && data.code === 'restricted_content' && data.reason === 'login_required'))) {
+    clearToken()
+    window.dispatchEvent(new Event('zhizhou-session-expired'))
+  }
+  return false
+}
+
 export async function request<T = unknown>(
   method: string,
   path: string,
@@ -240,20 +259,10 @@ export async function request<T = unknown>(
   }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string }
 
-  if (res.status === 403 && (data as { code?: string }).code === 'reauth_required' && !reauthenticated) {
-    if ((await requestReauthentication()) && requestToken === getToken()) return request<T>(method, path, body, useAuth, extraHeaders, timeoutMs, true)
-    throw new Error('已取消身份验证，操作未执行')
+  if (await handleAuthResponse(path, res, data as { code?: string; reason?: string }, requestToken, reauthenticated)) {
+    return request<T>(method, path, body, useAuth, extraHeaders, timeoutMs, true)
   }
   if (!res.ok) {
-    const denied = data as { code?: string; reason?: string }
-    if (
-      path !== '/auth/reauthenticate' &&
-      requestToken === getToken() &&
-      (res.status === 401 || (res.status === 403 && denied.code === 'restricted_content' && denied.reason === 'login_required'))
-    ) {
-      clearToken()
-      window.dispatchEvent(new Event('zhizhou-session-expired'))
-    }
     const err = new Error((data as { error?: string }).error || `HTTP ${res.status}`) as ApiError
     err.status = res.status
     err.data = data
@@ -288,10 +297,17 @@ export const siteSettingsApi = {
 }
 
 /** 非 JSON 直接 fetch（上传表单/keepalive 等），自动携带 Cookie 与写入保护头。 */
-export function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const headers = { ...(init.headers as Record<string, string> | undefined) }
-  const opts: RequestInit = { ...init, headers: authHeaders(headers) }
-  return timedFetch(url(path), opts)
+export async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const requestToken = getToken()
+  const headers = authHeaders(Object.fromEntries(new Headers(init.headers).entries()))
+  const replayable = !(typeof ReadableStream !== 'undefined' && init.body instanceof ReadableStream)
+  for (let attempt = 0; ; attempt++) {
+    // 每次尝试使用独立的默认超时；FormData/Blob 可复用，流式 body 不自动重放。
+    const res = await timedFetch(url(path), { ...init, headers })
+    if (res.ok) return res
+    const data = await res.clone().json().catch(() => ({})) as { code?: string; reason?: string }
+    if (!await handleAuthResponse(path, res, data, requestToken, attempt > 0 || !replayable)) return res
+  }
 }
 
 export const illustrationsApi = {

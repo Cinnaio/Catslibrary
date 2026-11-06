@@ -2,12 +2,14 @@
  * 阅读设置 hook —— 由 read.js 的 reader-settings 逻辑 + 服务端 LWW 合并平移。
  * 每个设置项带 updatedAt 时间戳，本地与服务端按最后写入胜出合并。
  *
- * 阅读习惯按设备端隔离：desktop 与 mobile 使用不同的 localStorage key，
+ * 阅读习惯按账号与设备端隔离：desktop 与 mobile 使用不同的 localStorage key，
  * 同步服务端时也携带 device，避免手机调整字号覆盖电脑端的阅读布局。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReaderDevice } from '@shared/types'
 import { authApi, getToken } from '../lib/api'
+import { getStorageScope } from '../lib/storage'
+import { useOptionalSession } from '../context/SessionContext'
 
 export const FONT_SIZES = ['0.95rem', '1.1rem', '1.25rem', '1.45rem', '1.7rem', '2rem']
 export const FONT_LABELS = ['15', '18', '20', '23', '27', '32']
@@ -59,12 +61,12 @@ export function detectReaderDevice(): ReaderDevice {
   return mobileUserAgent || touchMac || narrowViewport ? 'mobile' : 'desktop'
 }
 
-function scopedSettingKey(device: ReaderDevice, key: string): string {
-  return `readerSettings:${device}:${key}`
+function scopedSettingKey(device: ReaderDevice, key: string, scope: string): string {
+  return `readerSettings:${device}:${key}:${scope}`
 }
 
-function scopedMetaKey(device: ReaderDevice): string {
-  return `${SCOPED_SETTING_META_PREFIX}:${device}`
+function scopedMetaKey(device: ReaderDevice, scope: string): string {
+  return `${SCOPED_SETTING_META_PREFIX}:${device}:${scope}`
 }
 
 function readStorage(key: string): string | null {
@@ -83,17 +85,20 @@ function writeStorage(key: string, value: string): void {
   }
 }
 
-export function readLocalSettings(device: ReaderDevice = detectReaderDevice()): ReaderSettingsMap {
+export function readLocalSettings(device: ReaderDevice = detectReaderDevice(), scope = getStorageScope()): ReaderSettingsMap {
   const settings: ReaderSettingsMap = {}
   for (const key of READER_SETTING_KEYS) {
-    settings[key] = readStorage(scopedSettingKey(device, key)) ?? readStorage(key) ?? DEFAULT_SETTINGS[key]!
+    // 无归属的旧设置仅供访客显示，不能认领为任意登录账号的较新修改。
+    const legacy = scope === 'guest' ? readStorage(`readerSettings:${device}:${key}`) ?? readStorage(key) : null
+    settings[key] = readStorage(scopedSettingKey(device, key, scope)) ?? legacy ?? DEFAULT_SETTINGS[key]!
   }
   return settings
 }
 
-function readLocalMeta(device: ReaderDevice): Record<string, number> {
+function readLocalMeta(device: ReaderDevice, scope: string): Record<string, number> {
   try {
-    const raw = readStorage(scopedMetaKey(device)) ?? readStorage(LEGACY_SETTING_META_KEY) ?? '{}'
+    const legacy = scope === 'guest' ? readStorage(`${SCOPED_SETTING_META_PREFIX}:${device}`) ?? readStorage(LEGACY_SETTING_META_KEY) : null
+    const raw = readStorage(scopedMetaKey(device, scope)) ?? legacy ?? '{}'
     const parsed = JSON.parse(raw)
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
   } catch {
@@ -101,11 +106,8 @@ function readLocalMeta(device: ReaderDevice): Record<string, number> {
   }
 }
 
-function writeLocalMeta(meta: Record<string, number>, device: ReaderDevice): void {
-  const serialized = JSON.stringify(meta)
-  writeStorage(scopedMetaKey(device), serialized)
-  // 桌面端继续镜像旧 key，让旧版本页面在同一浏览器中平滑过渡。
-  if (device === 'desktop') writeStorage(LEGACY_SETTING_META_KEY, serialized)
+function writeLocalMeta(meta: Record<string, number>, device: ReaderDevice, scope: string): void {
+  writeStorage(scopedMetaKey(device, scope), JSON.stringify(meta))
 }
 
 function mergeSettings(
@@ -142,108 +144,79 @@ export interface ReaderSettingsController {
 }
 
 export function useReaderSettings(): ReaderSettingsController {
+  const session = useOptionalSession()
+  const sessionLoading = session?.loading ?? false
+  const scope = getStorageScope()
+  const token = getToken()
+  const identity = `${scope}:${token}`
   const [device] = useState<ReaderDevice>(() => detectReaderDevice())
-  const [settings, setSettings] = useState<ReaderSettingsMap>(() => readLocalSettings(device))
-  const [ready, setReady] = useState(false)
-  const applyingRef = useRef(false)
+  const [state, setState] = useState(() => ({ identity, settings: readLocalSettings(device, scope), ready: false }))
+  const settings = state.identity === identity ? state.settings : readLocalSettings(device, scope)
+  const ready = state.identity === identity && state.ready && !sessionLoading
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const settingsRef = useRef(settings)
-  settingsRef.current = settings
+  const revision = useRef(0)
 
-  // 初始化：当前设备的本地设置 + 当前设备的服务端设置 LWW 合并
+  const applyRemote = useCallback((remote: ReaderSettingsMap, remoteTimes: Record<string, number>) => {
+    const merged = mergeSettings(readLocalSettings(device, scope), readLocalMeta(device, scope), remote, remoteTimes)
+    for (const key of READER_SETTING_KEYS) {
+      if (merged.settings[key] !== undefined) writeStorage(scopedSettingKey(device, key, scope), merged.settings[key])
+    }
+    writeLocalMeta(merged.updatedAt, device, scope)
+    setState({ identity, settings: readLocalSettings(device, scope), ready: true })
+    return merged
+  }, [device, identity, scope])
+
+  // 账号变化或卸载时同时作废响应和防抖任务；响应不能覆盖期间产生的较新本地修改。
   useEffect(() => {
-    if (!getToken()) {
-      setReady(true)
-      return
+    const current = ++revision.current
+    const valid = () => current === revision.current && token === getToken() && scope === getStorageScope()
+    const canSync = !sessionLoading && scope.startsWith('user:') && !!token
+    setState({ identity, settings: readLocalSettings(device, scope), ready: !sessionLoading && scope !== 'pending' && !canSync })
+    if (canSync) {
+      void authApi.readerSettings(device).then(async (data) => {
+        if (!valid()) return
+        const merged = applyRemote(data.settings || {}, data.updatedAt || {})
+        if (newerThanRemote(merged.updatedAt, data.updatedAt || {})) {
+          const result = await authApi.updateReaderSettings({ values: merged.settings, updatedAt: merged.updatedAt }, device)
+          if (valid()) applyRemote(result.settings || {}, result.updatedAt || merged.updatedAt)
+        }
+      }).catch(() => {}).finally(() => {
+        if (valid()) setState((previous) => ({ ...previous, ready: true }))
+      })
     }
-    let cancelled = false
-    void authApi
-      .readerSettings(device)
-      .then((data) => {
-        if (cancelled) return
-        const remote = data.settings || {}
-        const remoteTimes = data.updatedAt || {}
-        const local = readLocalSettings(device)
-        const localTimes = readLocalMeta(device)
-        const merged = mergeSettings(local, localTimes, remote, remoteTimes)
-        writeLocalMeta(merged.updatedAt, device)
-        // 应用合并结果到当前设备的本地存储
-        for (const key of READER_SETTING_KEYS) {
-          if (merged.settings[key] !== undefined) persistSetting(device, key, merged.settings[key])
-        }
-        setSettings((prev) => ({ ...prev, ...merged.settings }))
-        if (newerThanRemote(merged.updatedAt, remoteTimes)) {
-          void authApi
-            .updateReaderSettings({ values: merged.settings, updatedAt: merged.updatedAt }, device)
-            .then((r) => {
-              writeLocalMeta(r.updatedAt || merged.updatedAt, device)
-              setSettings((prev) => ({ ...prev, ...(r.settings || {}) }))
-            })
-            .catch(() => {})
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setReady(true)
-      })
     return () => {
-      cancelled = true
+      revision.current++
+      if (syncTimer.current) clearTimeout(syncTimer.current)
     }
-  }, [device])
-
-  const persist = useCallback(
-    (next: ReaderSettingsMap) => {
-      for (const key of READER_SETTING_KEYS) {
-        if (next[key] !== undefined) persistSetting(device, key, next[key])
-      }
-    },
-    [device],
-  )
-
-  const pushToServer = useCallback(() => {
-    if (!getToken()) return
-    const local = readLocalSettings(device)
-    const meta = readLocalMeta(device)
-    void authApi
-      .updateReaderSettings({ values: local, updatedAt: meta }, device)
-      .then((r) => {
-        writeLocalMeta(r.updatedAt || meta, device)
-        setSettings((prev) => ({ ...prev, ...(r.settings || {}) }))
-      })
-      .catch(() => {})
-  }, [device])
+  }, [applyRemote, device, identity, scope, sessionLoading, token])
 
   const set = useCallback(
     (key: ReaderSettingKey, value: string) => {
-      if (applyingRef.current) return
-      const next = { ...settingsRef.current, [key]: value }
-      setSettings(next)
-      persist(next)
-      // touch meta（应用同步来的设置时不动本地时间戳，避免覆盖服务端）
-      const meta = readLocalMeta(device)
-      meta[key] = Date.now()
-      writeLocalMeta(meta, device)
+      const current = revision.current
+      const valid = () => current === revision.current && token === getToken() && scope === getStorageScope()
+      if (!valid() || sessionLoading || scope === 'pending') return
+      writeStorage(scopedSettingKey(device, key, scope), value)
+      const meta = readLocalMeta(device, scope)
+      meta[key] = Math.max(Date.now(), (Number(meta[key]) || 0) + 1)
+      writeLocalMeta(meta, device, scope)
+      setState({ identity, settings: readLocalSettings(device, scope), ready: true })
       if (syncTimer.current) clearTimeout(syncTimer.current)
-      syncTimer.current = setTimeout(pushToServer, 700)
+      if (!token || !scope.startsWith('user:')) return
+      syncTimer.current = setTimeout(() => {
+        if (!valid()) return
+        const local = readLocalSettings(device, scope)
+        const updatedAt = readLocalMeta(device, scope)
+        void authApi.updateReaderSettings({ values: local, updatedAt }, device).then((result) => {
+          if (valid()) applyRemote(result.settings || {}, result.updatedAt || updatedAt)
+        }).catch(() => {})
+      }, 700)
     },
-    [device, persist, pushToServer],
+    [applyRemote, device, identity, scope, sessionLoading, token],
   )
-
-  useEffect(() => {
-    return () => {
-      if (syncTimer.current) clearTimeout(syncTimer.current)
-    }
-  }, [])
 
   const parsedFontSize = Number.parseInt(settings.fontSize ?? '2', 10)
   const fontSize = Math.min(Math.max(Number.isFinite(parsedFontSize) ? parsedFontSize : 2, 0), FONT_SIZES.length - 1)
   const pageMode = settings.readerPageMode === 'page'
 
   return { settings, ready, device, set, fontSize, pageMode }
-}
-
-function persistSetting(device: ReaderDevice, key: string, value: string): void {
-  writeStorage(scopedSettingKey(device, key), value)
-  // 只让 desktop 镜像旧版 key，避免移动端继续把值写回未分端的存储空间。
-  if (device === 'desktop') writeStorage(key, value)
 }

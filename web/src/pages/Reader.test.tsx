@@ -1,10 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   policy: { mode: 'adult', checking: false, policyError: '', adultContentEnabled: true, isAllowed: () => true, setMode: vi.fn(), refreshPolicy: vi.fn() },
-  chapter: vi.fn(), novel: vi.fn(),
+  chapter: vi.fn(), novel: vi.fn(), chapters: vi.fn(),
 }))
 vi.mock('../context/SessionContext', () => ({ useSession: () => ({ user: null, loading: false }), useOptionalSession: () => ({ user: null }) }))
 vi.mock('../context/ContentPolicyContext', () => ({ useContentPolicy: () => mocks.policy }))
@@ -18,7 +18,7 @@ vi.mock('../hooks/useReaderSettings', () => ({
 }))
 vi.mock('../lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('../lib/api')>(),
-  chaptersApi: { get: mocks.chapter, list: vi.fn().mockResolvedValue({ chapters: [] }) },
+  chaptersApi: { get: mocks.chapter, list: mocks.chapters },
   novelsApi: { get: mocks.novel },
   thoughtsApi: { chapter: vi.fn().mockResolvedValue({ thoughts: [] }), list: vi.fn().mockResolvedValue({ thoughts: [] }) },
 }))
@@ -28,7 +28,7 @@ vi.mock('../components/reader/ThoughtPanel', () => ({ default: () => null }))
 import Reader from './Reader'
 
 function readerTree() {
-  return <MemoryRouter initialEntries={['/read/book/chapter']}><Routes><Route path="/read/:novelId/:chapterId" element={<Reader />} /></Routes></MemoryRouter>
+  return <MemoryRouter initialEntries={['/read/book/chapter']}><Link to="/read/book/second">测试切章</Link><Routes><Route path="/read/:novelId/:chapterId" element={<Reader />} /></Routes></MemoryRouter>
 }
 
 function mount() { return render(readerTree()) }
@@ -40,9 +40,36 @@ beforeEach(() => {
   mocks.policy.policyError = ''
   mocks.chapter.mockResolvedValue({ chapter: { id: 'chapter', novelId: 'book', title: '测试章节', content: '正文', order: 1 } })
   mocks.novel.mockRejectedValue(new TypeError('Failed to fetch'))
+  mocks.chapters.mockReset().mockResolvedValue({ chapters: [] })
 })
 
 describe('阅读器访问状态', () => {
+  it('慢目录不阻塞已授权正文，切章复用小说上下文和目录请求', async () => {
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    let finish!: (data: { chapters: [] }) => void
+    mocks.chapters.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    mount()
+    await screen.findByText('正文')
+    mocks.chapter.mockResolvedValue({ chapter: { id: 'second', novelId: 'book', title: '下一章', content: '第二章正文', order: 2 } })
+    fireEvent.click(screen.getByRole('link', { name: '测试切章' }))
+    await screen.findByText('第二章正文')
+    expect(mocks.novel).toHaveBeenCalledOnce()
+    expect(mocks.chapters).toHaveBeenCalledOnce()
+    await act(async () => finish({ chapters: [] }))
+  })
+
+  it('内容模式变化后不复用之前的访问上下文', async () => {
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    const view = mount()
+    await screen.findByText('正文')
+    mocks.policy.mode = 'safe'
+    mocks.novel.mockRejectedValue(Object.assign(new Error('拒绝'), { status: 403, data: { code: 'restricted_content' } }))
+    view.rerender(readerTree())
+    await screen.findByRole('heading', { name: '内容安全模式已拦截' })
+    expect(mocks.novel).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('正文')).not.toBeInTheDocument()
+  })
+
   it('小说信息网络失败展示加载失败，重试重新请求小说信息', async () => {
     mount()
     await screen.findByRole('heading', { name: '加载失败' })

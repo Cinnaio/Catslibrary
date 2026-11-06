@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import NovelFollowupDialog from './NovelFollowupDialog'
 vi.mock('./NovelRelatedSources', () => ({ default: () => <div>附加文件更新 · 章节名与顺序</div> }))
-vi.mock('@/lib/api', () => ({ url: (value: string) => value, authHeaders: () => ({}) }))
+vi.mock('@/lib/api', () => ({ authFetch: (value: string, init: RequestInit) => fetch(value, init) }))
 vi.mock("@/components/shared/SearchSelect", () => ({
   default: ({ options, value, onChange, ...props }: any) => (
     <select aria-labelledby={props['aria-labelledby']} value={value} onChange={(event) => onChange(event.target.value)}>

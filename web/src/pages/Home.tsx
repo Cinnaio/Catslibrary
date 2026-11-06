@@ -16,8 +16,9 @@ import { useSession } from '../context/SessionContext'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { Novel } from '@shared/types'
-import { novelsApi } from '../lib/api'
+import { getToken, novelsApi } from '../lib/api'
 import { pinyinMatch } from '../lib/pinyin'
+import { createPinyinSearchCache } from '../lib/pinyin-search-cache'
 import { getDemoNovels } from '../lib/demo'
 import { useSearch } from '../context/SearchContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
@@ -46,6 +47,7 @@ async function novelMatches(n: Novel, q: string, usePinyin: boolean): Promise<bo
 
 export default function Home() {
   const { user, loading: sessionLoading } = useSession()
+  const sessionMarker = getToken()
   useDocumentTitle(null)
   const { query, setQuery } = useSearch()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -80,6 +82,7 @@ export default function Home() {
   // 响应序号守卫：丢弃乱序返回的过期响应（与 NovelsTab 相同模式）
   const loadSeq = useRef(0)
   const activeLoad = useRef<number | null>(null)
+  const [pinyinSearch] = useState(() => createPinyinSearchCache(novelsApi.list, (novel, query) => novelMatches(novel, query, true)))
   const previousSafeMode = useRef(safeMode)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const sortTabsRef = useRef<HTMLDivElement>(null)
@@ -184,31 +187,19 @@ export default function Home() {
     if (activeStatus) params.status = activeStatus
 
     try {
-      const data = await novelsApi.list(params)
+      const data = isPinyin
+        ? await pinyinSearch.search(params, JSON.stringify([user?.id, sessionMarker, safeMode, adultContentEnabled, retryCount]), debouncedQuery.toLowerCase())
+        : await novelsApi.list(params)
       if (seq !== loadSeq.current) return
       let items = data.novels
       let pages = data.totalPages || 1
       const availableCategories = data.availableCategories || []
-      let restrictedInPage = safeMode && items.some((n) => !isAllowed(n))
-      // 拼音在客户端匹配，需要读取完整候选集合，不能仅搜索前100本。
-      if (isPinyin) {
-        for (let page = 2; page <= data.totalPages; page++) {
-          const next = await novelsApi.list({ ...params, page, includeCategories: 0 })
-          if (seq !== loadSeq.current) return
-          restrictedInPage ||= safeMode && next.novels.some((n) => !isAllowed(n))
-          items = items.concat(next.novels)
-        }
-      }
+      const restrictedInPage = safeMode && items.some((n) => !isAllowed(n))
       if (safeMode) items = items.filter(isAllowed)
       if (isPinyin) {
-        const q = debouncedQuery.toLowerCase()
-        const matched: Novel[] = []
-        for (const n of items) {
-          if (await novelMatches(n, q, true)) matched.push(n)
-        }
-        pages = Math.ceil(matched.length / PAGE_LIMIT) || 1
+        pages = Math.ceil(items.length / PAGE_LIMIT) || 1
         const start = (currentPage - 1) * PAGE_LIMIT
-        items = matched.slice(start, start + PAGE_LIMIT)
+        items = items.slice(start, start + PAGE_LIMIT)
       }
       if (seq !== loadSeq.current) return
       setTotalPages(pages)
@@ -229,13 +220,15 @@ export default function Home() {
       if (activeLoad.current === seq) activeLoad.current = null
       if (!background && seq === loadSeq.current) setLoading(false)
     }
-  }, [currentPage, debouncedQuery, activeCategories, activeStatus, sort, loadDemo, safeMode, isAllowed])
+  }, [currentPage, debouncedQuery, activeCategories, activeStatus, sort, loadDemo, safeMode, isAllowed, pinyinSearch, user?.id, sessionMarker, adultContentEnabled, retryCount])
   const refreshNovels = useCallback(() => loadNovels(true), [loadNovels])
   useVisibleRefresh(refreshNovels, !sessionLoading)
   useLayoutEffect(() => {
     loadSeq.current++
+    pinyinSearch.clear()
     setNovels([]); setCategories([]); setCurrentPage(1)
-  }, [user?.id, sessionLoading])
+    return () => { loadSeq.current++; pinyinSearch.clear() }
+  }, [user?.id, sessionLoading, sessionMarker, safeMode, adultContentEnabled, isAllowed, pinyinSearch])
 
 
   useEffect(() => {

@@ -3,7 +3,7 @@
 // consumers: scrape/center/JobQueue.tsx
 // ============================================================
 import { useId } from 'react'
-import { AlertTriangle, Check, ChevronDown, MinusCircle, RefreshCw, XCircle } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, MinusCircle, XCircle } from 'lucide-react'
 import { formatEta, formatJobSpeed, isJobRunning, isJobTerminal, jobStatusLabel } from '@/lib/admin'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'

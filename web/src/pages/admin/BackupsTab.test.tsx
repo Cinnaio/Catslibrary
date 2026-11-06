@@ -115,7 +115,7 @@ describe('备份后台', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(6000)
     })
-    expect(mock.task.mock.calls.length).toBeGreaterThanOrEqual(3)
+    expect(mock.task).toHaveBeenCalledOnce()
     expect(mock.toast.mock.calls.filter(([text]) => text === message)).toHaveLength(1)
   })
   it('任务轮询连续读取失败时不重复提示', async () => {

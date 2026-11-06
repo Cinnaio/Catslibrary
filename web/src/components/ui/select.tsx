@@ -1,7 +1,6 @@
 import '@/styles/native-form-fields.css'
 import '@/styles/select-fields.css'
 import { useControlAppearance } from './control-appearance'
-;('use client')
 
 import * as React from 'react'
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react'

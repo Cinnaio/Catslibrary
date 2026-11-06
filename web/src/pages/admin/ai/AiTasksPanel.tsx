@@ -3,7 +3,8 @@ import { TaskDetails, TaskDetailsFact, TaskDetailsFacts, TaskDetailsIdentifier, 
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'
 import { DialogFrame } from "@/components/shared/DialogFrame"
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { startPolling } from '@/lib/polling'
 import { useNavigate } from 'react-router-dom'
 import { aiApi, newOperationId, type AiTaskInfo } from '@/lib/api'
 import { parsePromptView } from '@/lib/prompt-view'
@@ -86,41 +87,56 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
    * 解析失败时 structured 为 false，弹窗退回原文展示。
    */
   const promptView = useMemo(() => parsePromptView(viewingPrompt?.prompt || ''), [viewingPrompt])
+  const requestSequence = useRef(0)
+  const queryKey = `${filterStatus}:${limit}:${offset}`
+  const currentQuery = useRef(queryKey)
+  currentQuery.current = queryKey
+  const inFlight = useRef<{ key: string; promise: Promise<boolean | undefined> } | null>(null)
+  const mounted = useRef(true)
 
-  const load = useCallback(async () => {
-    try {
-      const result = await aiApi.tasks({ limit, offset, status: filterStatus === 'all' ? undefined : filterStatus })
-      setTasks(result.items)
-      setTotal(result.total)
-      setStatusCounts(result.counts || {})
-      setError('')
-    } catch (err) {
-      setError((err as Error).message || '加载 AI 任务失败')
-    } finally {
-      setLoading(false)
+  const load = useCallback(async function load(fresh = false): Promise<boolean | undefined> {
+    if (!mounted.current || currentQuery.current !== queryKey) return
+    const existing = inFlight.current
+    if (existing?.key === queryKey) {
+      const sequence = requestSequence.current
+      const result = await existing.promise
+      if (fresh && sequence === requestSequence.current) return await load()
+      return result
     }
-  }, [filterStatus, limit, offset])
+    const sequence = ++requestSequence.current
+    const pending: { key: string; promise: Promise<boolean | undefined> } = { key: queryKey, promise: Promise.resolve(undefined) }
+    inFlight.current = pending
+    pending.promise = (async () => {
+      try {
+        const result = await aiApi.tasks({ limit, offset, status: filterStatus === 'all' ? undefined : filterStatus })
+        if (sequence !== requestSequence.current || currentQuery.current !== queryKey) return
+        setTasks(result.items)
+        setTotal(result.total)
+        setStatusCounts(result.counts || {})
+        setError('')
+        return result.items.some(task => task.status === 'queued' || task.status === 'running')
+      } catch (err) {
+        if (sequence === requestSequence.current && currentQuery.current === queryKey) setError((err as Error).message || '加载 AI 任务失败')
+      } finally {
+        if (inFlight.current === pending) inFlight.current = null
+        if (sequence === requestSequence.current) setLoading(false)
+      }
+    })()
+    return await pending.promise
+  }, [filterStatus, limit, offset, queryKey])
 
   useEffect(() => {
+    mounted.current = true
+    setLoading(true)
     void load()
+    return () => { mounted.current = false; requestSequence.current++; inFlight.current = null }
   }, [load])
 
   // 有排队/运行中的任务时自动轮询；页面隐藏暂停，恢复可见立即刷新
   const hasActive = tasks.some((task) => task.status === 'queued' || task.status === 'running')
   useEffect(() => {
     if (!hasActive) return
-    const timer = setInterval(() => {
-      if (document.hidden) return
-      void load()
-    }, ACTIVE_POLL_INTERVAL)
-    const onVisibilityChange = () => {
-      if (!document.hidden) void load()
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => {
-      clearInterval(timer)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
+    return startPolling(load, ACTIVE_POLL_INTERVAL, false)
   }, [hasActive, load])
 
   async function cancel(id: string) {
@@ -137,7 +153,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     try {
       await aiApi.cancelTask(id, newOperationId('ai-task-cancel'))
       toast('AI 任务已取消', 'success')
-      void load()
+      void load(true)
     } catch (err) {
       toast((err as Error).message || '取消任务失败', 'error')
     }
@@ -157,7 +173,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     try {
       await aiApi.retryTask(id, newOperationId('ai-task-retry'))
       toast('已按原参数重新发起任务', 'success')
-      void load()
+      void load(true)
     } catch (err) {
       toast((err as Error).message || '重试失败', 'error')
     } finally {
@@ -187,7 +203,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       toast('任务已删除', 'success')
       // 当前页删空时回退一页，避免停在空页（与已生成内容表同构）。
       if (tasks.length === 1 && offset > 0) setOffset(Math.max(0, offset - limit))
-      else void load()
+      else void load(true)
     } catch (err) {
       toast((err as Error).message || '删除任务失败', 'error')
     } finally {
@@ -196,7 +212,6 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   }
 
   const detailTask = tasks.find((task) => task.id === detailsId)
-  const activeCount = (statusCounts.queued ?? 0) + (statusCounts.running ?? 0)
   const failedCount = statusCounts.failed ?? 0
   function renderRetry(task: AiTask) {
     if (!['failed', 'cancelled'].includes(task.status) || !task.params) return null
@@ -292,7 +307,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
             disabled={loading}
             onClick={() => {
               setLoading(true)
-              void load()
+              void load(true)
             }}
           >
             <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} aria-hidden="true" />

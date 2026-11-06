@@ -98,6 +98,25 @@ describe('CoverHistory', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
   })
 
+  it('反复展开复用图片，版本变化立即释放旧图片，卸载释放新图片', async () => {
+    const props = { novelId: 'novel_1', coverVersion: 0, onRestored: vi.fn(), onCurrentVersion: vi.fn() }
+    const view = render(<CoverHistory {...props} />)
+    const toggle = screen.getByRole('button', { name: /封面历史/ })
+    for (let i = 0; i < 3; i++) {
+      fireEvent.click(toggle)
+      await screen.findByRole('img')
+      fireEvent.click(toggle)
+    }
+    expect(api.coverHistoryImage).toHaveBeenCalledOnce()
+    expect(URL.createObjectURL).toHaveBeenCalledOnce()
+    fireEvent.click(toggle)
+    view.rerender(<CoverHistory {...props} coverVersion={1} />)
+    expect(URL.revokeObjectURL).toHaveBeenCalledOnce()
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(2))
+    view.unmount()
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2)
+  })
+
   it('恢复时带上当前封面版本号，成功后通知父级刷新', async () => {
     const { onRestored } = renderHistory()
     await waitFor(() => expect(api.coverHistory).toHaveBeenCalled())

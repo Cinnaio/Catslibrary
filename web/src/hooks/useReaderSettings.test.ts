@@ -1,6 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { detectReaderDevice, readLocalSettings, useReaderSettings } from './useReaderSettings'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { authApi, clearToken, setToken } from '../lib/api'
+import { setStorageUser } from '../lib/storage'
+
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); clearToken() })
 
 describe('useReaderSettings device-scoped storage', () => {
   it('最小字号 0 初始化与切换后均生效', async () => {
@@ -11,6 +15,8 @@ describe('useReaderSettings device-scoped storage', () => {
   })
   beforeEach(() => {
     localStorage.clear()
+    sessionStorage.clear()
+    clearToken()
     window.innerWidth = 1024
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' })
   })
@@ -42,5 +48,51 @@ describe('useReaderSettings device-scoped storage', () => {
 
     expect(readLocalSettings('desktop')).toMatchObject({ fontSize: '4', readerTheme: 'paper' })
     expect(readLocalSettings('mobile')).toMatchObject({ fontSize: '4', readerTheme: 'paper' })
+  })
+
+  it('无归属旧设置不会上传并覆盖新账号', async () => {
+    localStorage.setItem('readerSettings:desktop:fontSize', '5')
+    localStorage.setItem('readerSettingsUpdatedAt:desktop', JSON.stringify({ fontSize: Date.now() }))
+    setToken('b'); setStorageUser('b')
+    vi.spyOn(authApi, 'readerSettings').mockResolvedValue({ settings: { fontSize: '1' }, updatedAt: { fontSize: 1 } })
+    const save = vi.spyOn(authApi, 'updateReaderSettings')
+    const { result } = renderHook(() => useReaderSettings())
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    expect(result.current.fontSize).toBe(1)
+    expect(save).not.toHaveBeenCalled()
+    expect(localStorage.getItem('readerSettings:desktop:fontSize:user:b')).toBe('1')
+    expect(localStorage.getItem('readerSettings:desktop:fontSize')).toBe('5')
+  })
+
+  it('同一阅读器换账号重新加载，旧账号响应不能写回', async () => {
+    setToken('a'); setStorageUser('a')
+    let resolveA!: (value: { settings: Record<string, string>; updatedAt: Record<string, number> }) => void
+    const read = vi.spyOn(authApi, 'readerSettings')
+      .mockImplementationOnce(() => new Promise(resolve => { resolveA = resolve }))
+      .mockResolvedValueOnce({ settings: { fontSize: '1' }, updatedAt: { fontSize: 1 } })
+    const save = vi.spyOn(authApi, 'updateReaderSettings')
+    const { result, rerender } = renderHook(() => useReaderSettings())
+    setToken('b'); setStorageUser('b'); rerender()
+    await waitFor(() => expect(result.current.fontSize).toBe(1))
+    await act(async () => resolveA({ settings: { fontSize: '5' }, updatedAt: { fontSize: 99 } }))
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(result.current.fontSize).toBe(1)
+    expect(save).not.toHaveBeenCalled()
+    expect(localStorage.getItem('readerSettings:desktop:fontSize:user:a')).toBeNull()
+  })
+
+  it('换账号会取消旧设置的防抖上传，并保留该账号自己的本地设置', async () => {
+    setToken('a'); setStorageUser('a')
+    vi.spyOn(authApi, 'readerSettings').mockResolvedValue({ settings: { fontSize: '1' }, updatedAt: { fontSize: 1 } })
+    const save = vi.spyOn(authApi, 'updateReaderSettings')
+    const { result, rerender } = renderHook(() => useReaderSettings())
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    vi.useFakeTimers()
+    act(() => result.current.set('fontSize', '5'))
+    setToken('b'); setStorageUser('b'); rerender()
+    await act(async () => { await vi.advanceTimersByTimeAsync(800) })
+    expect(save).not.toHaveBeenCalled()
+    expect(result.current.fontSize).toBe(1)
+    expect(localStorage.getItem('readerSettings:desktop:fontSize:user:a')).toBe('5')
   })
 })

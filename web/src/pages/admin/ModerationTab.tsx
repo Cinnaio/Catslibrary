@@ -33,12 +33,6 @@ import styles from './moderation.module.css'
 
 type ModerationMode = 'thoughts' | 'comments' | 'reports'
 
-const MODERATION_MODE_INDEX: Record<ModerationMode, number> = {
-  thoughts: 0,
-  comments: 1,
-  reports: 2,
-}
-
 function isModerationMode(value: string | null): value is ModerationMode {
   return value === 'thoughts' || value === 'comments' || value === 'reports'
 }

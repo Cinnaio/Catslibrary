@@ -4,6 +4,7 @@
 // ============================================================
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { scrapeApi } from '@/lib/api'
+import { startPolling } from '@/lib/polling'
 import { isJobRunning, isJobTerminal } from '@/lib/admin'
 import { useConfirm, useToast } from '@/components/feedback'
 import type { JobCard, JobStatusData } from '../types'
@@ -128,12 +129,11 @@ export function useScrapeJobs() {
   // 页面隐藏时暂停（不浪费请求），恢复可见立即刷新一次（与 JobsTab 的策略一致）
   useEffect(() => {
     let alive = true
-    const poll = () => {
-      if (document.hidden) return
-      Array.from(activePolls.current).forEach((jobId) => {
+    const poll = async () => {
+      await Promise.all(Array.from(activePolls.current).map(async (jobId) => {
         const version = (pollVersions.current.get(jobId) || 0) + 1
         pollVersions.current.set(jobId, version)
-        scrapeApi
+        await scrapeApi
           .status(jobId)
           .then((data) => {
             if (!alive || version <= (appliedPollVersions.current.get(jobId) || 0) || !activePolls.current.has(jobId)) return
@@ -144,17 +144,12 @@ export function useScrapeJobs() {
           .catch(() => {
             /* 下个周期重试 */
           })
-      })
+      }))
     }
-    const timer = setInterval(poll, POLL_INTERVAL)
-    const onVisibilityChange = () => {
-      if (!document.hidden) poll()
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange)
+    const stop = startPolling(poll, POLL_INTERVAL, false)
     return () => {
       alive = false
-      clearInterval(timer)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
+      stop()
     }
   }, [applyStatus])
 

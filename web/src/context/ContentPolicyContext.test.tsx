@@ -286,7 +286,7 @@ describe('检查周期及迟到响应', () => {
 
   it('账号切换后旧账号迟到的 refresh 成功不会授权新账号', async () => {
     let finish!: (response: Response) => void
-    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
       if (input.endsWith('/refresh')) {
         const token = localStorage.getItem('user_session_marker') || sessionStorage.getItem('user_session_token')
         if (token === 'reader-token') return new Promise<Response>(resolve => { finish = resolve })

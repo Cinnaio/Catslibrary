@@ -20,19 +20,47 @@ function normalizeDomainToken(text: string): string {
     .toLowerCase()
 }
 
+/** 顺序扫描混淆域名；相邻字符共享空白的重复正则会在缺少域名后缀时指数回溯。 */
+function stripObfuscatedDomains(text: string): string {
+  const nameCharacter = /[a-zA-Z0-9À-ɏͰ-ϿЀ-ӿＡ-Ｚａ-ｚ]/iu
+  const suffixCharacter = /[a-zA-ZÀ-ɏͰ-ϿЀ-ӿＡ-Ｚａ-ｚ]/iu
+  const whitespace = /\s/u
+  const parts: string[] = []
+  let start = 0
+  let letters = 0
+  let copied = 0
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!
+    if (nameCharacter.test(char)) {
+      letters++
+      continue
+    }
+    if (whitespace.test(char)) continue
+    if (letters >= 2 && (char === '.' || char === '。' || char === '．')) {
+      let end = i + 1
+      let suffixLetters = 0
+      // 每个后缀最多扫描两次（前瞻和下一段名称），不会从每个起点重新回溯。
+      while (end < text.length) {
+        if (suffixCharacter.test(text[end]!)) suffixLetters++
+        else if (!whitespace.test(text[end]!)) break
+        end++
+      }
+      if (suffixLetters >= 2 && AD_TLDS.test(normalizeDomainToken(text.slice(i + 1, end)))) {
+        parts.push(text.slice(copied, start))
+        copied = end
+        i = end - 1
+      }
+    }
+    start = i + 1
+    letters = 0
+  }
+  parts.push(text.slice(copied))
+  return parts.join('')
+}
+
 export function removeAdPatterns(text: string | null | undefined): string {
   if (!text) return ''
-  return text
-    // Mixed-script homoglyph domains: ρó18ρóг.ｃóм
-    .replace(/(?:\s*[a-zA-Z0-9À-ɏͰ-ϿЀ-ӿＡ-Ｚａ-ｚ]\s*){2,}[.。．](?:\s*[a-zA-ZÀ-ɏͰ-ϿЀ-ӿＡ-Ｚａ-ｚ]\s*){2,}/giu, (m) => {
-      const tld = normalizeDomainToken(m.slice(Math.max(m.lastIndexOf('.'), m.lastIndexOf('。'), m.lastIndexOf('．')) + 1))
-      return AD_TLDS.test(tld) ? '' : m
-    })
-    // Generic: strip "xxxx . com/net/org" with inserted spaces
-    .replace(/(?:\s*[a-zA-Z0-9À-ɏ]\s*){3,}\.(?:\s*[a-zA-Z]\s*){2,}(?:\s*[a-zA-Z]\s*)?/gi, (m) => {
-      const tld = normalizeDomainToken(m.slice(m.lastIndexOf('.') + 1))
-      return AD_TLDS.test(tld) ? '' : m
-    })
+  return stripObfuscatedDomains(text)
     // PO18 specific
     .replace(/免费精彩在线[：:]?\s*[「『【\[〔【]?\s*po1[⒏8]homes?\s*[」』】\]〕】]?/gi, '')
     .replace(/po18\s*[.·]?\s*co\s*m?\b/gi, '')
@@ -63,7 +91,7 @@ export function removeAdPatterns(text: string | null | undefined): string {
     .replace(/\s*ta\s*ose\s*sh\s*/gi, '')
     .replace(/\s*y[ūü]\s*wan\s*/gi, '')
     // Post-cleanup: orphaned TLDs and brackets
-    .replace(/\s*\.\s*(?:com|net|org|xyz|cc|vip|biz|us|in|co|info|me|top|icu|site)\s*/gi, '')
+    .replace(/\s*\.\s*(?:com|net|org|xyz|cc|vip|biz|us|in|co|info|me|top|icu|site)(?![a-zA-Z0-9À-ɏͰ-ϿЀ-ӿＡ-Ｚａ-ｚ])\s*/giu, '')
     .replace(/[（(]\s*[）)]/g, '')
     .replace(/[（(]\s*[,，、•·\s]+[）)]/g, '')
     .replace(/[（(][^）)]*?[,，、•·]+\s*[）)]/g, (m) => {

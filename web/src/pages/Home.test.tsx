@@ -26,6 +26,7 @@ vi.mock('../context/ContentPolicyContext', () => {
 })
 
 vi.mock('../lib/api', () => ({
+  getToken: () => '',
   url: (path: string) => `/api${path}`,
   novelsApi: {
     list: vi.fn().mockResolvedValue({ novels: [], totalPages: 1, availableCategories: [] }),
@@ -124,10 +125,12 @@ describe('Home hero search', () => {
     await screen.findByText('山间100', {}, { timeout: 5000 })
     expect(document.querySelectorAll('.novel-card')).toHaveLength(20)
     expect(screen.getByText('共 2 页')).toBeInTheDocument()
+    const requests = vi.mocked(novelsApi.list).mock.calls.length
     await userEvent.setup().click(screen.getByRole('button', { name: '下一页' }))
     await screen.findByText('山间120')
     expect(document.querySelectorAll('.novel-card')).toHaveLength(10)
     expect(screen.queryByText('山间100')).not.toBeInTheDocument()
+    expect(novelsApi.list).toHaveBeenCalledTimes(requests)
   })
 
   it('拼音搜索匹配作者与简介，不会被书名匹配的 Promise 短路', async () => {

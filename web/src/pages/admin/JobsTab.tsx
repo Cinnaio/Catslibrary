@@ -120,13 +120,6 @@ interface DownloadLog {
 
 type JobFilter = 'all' | 'running' | 'completed' | 'failed'
 
-const FILTERS: Array<{ value: JobFilter; label: string }> = [
-  { value: 'all', label: '全部' },
-  { value: 'running', label: '运行中' },
-  { value: 'completed', label: '已完成' },
-  { value: 'failed', label: '失败/终止' },
-]
-
 const FILTER_EMPTY_LABEL: Record<JobFilter, string> = {
   all: '暂无任务',
   running: '当前没有运行中的任务',

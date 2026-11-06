@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Pin, Trash2, RefreshCw, Plus } from 'lucide-react'
 import type { BackupEvent, BackupOverview, BackupPage, BackupSettingsPage, BackupTarget, BackupTask, BackupVersion, BackupImpactReport } from '@shared/backups'
 import { backupsApi, saveBlob } from '@/lib/backups-api'
+import { startPolling } from '@/lib/polling'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminDataPanel } from '@/components/admin/AdminDataPanel'
@@ -160,8 +161,7 @@ export default function BackupsTab() {
   const hasActiveTasks = observedTasks.some(item => item.state === 'queued' || item.state === 'running')
   useEffect(() => {
     if (!hasActiveTasks) return
-    const timer = setInterval(() => void load(true), 4000)
-    return () => clearInterval(timer)
+    return startPolling(() => load(true), 4000, false)
   }, [hasActiveTasks, load])
   useEffect(() => {
     if (!taskId) {
@@ -180,6 +180,7 @@ export default function BackupsTab() {
           taskError.current = ''
           setTaskLogs(events.items.reverse())
         }
+        return active && (data.state === 'queued' || data.state === 'running')
       } catch (e) {
         if (!active) return
         const message = e instanceof Error ? e.message : '任务读取失败'
@@ -188,11 +189,10 @@ export default function BackupsTab() {
         taskError.current = message
       }
     }
-    void load()
-    const timer = setInterval(() => void load(), 3000)
+    const stop = startPolling(load, 3000)
     return () => {
       active = false
-      clearInterval(timer)
+      stop()
     }
   }, [taskId, toast, reportTask])
   async function action(work: () => Promise<unknown>, success = '操作已完成') {

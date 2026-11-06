@@ -1,5 +1,4 @@
 import { useControlAppearance } from './control-appearance'
-;('use client')
 
 import * as React from 'react'
 import { XIcon } from 'lucide-react'

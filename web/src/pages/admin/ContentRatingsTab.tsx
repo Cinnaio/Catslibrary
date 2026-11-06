@@ -1,4 +1,5 @@
 import '../../styles/admin/pages/content-ratings.css'
+import { startPolling } from '@/lib/polling'
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
@@ -36,7 +37,6 @@ import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import { AdminDataPanel, type AdminColumn } from '@/components/admin/AdminDataPanel'
-import { PanelHeading } from '@/components/shared/PanelHeading'
 import { SearchField } from '@/components/shared/SearchField'
 import { AdminToolbar } from '@/components/admin/AdminToolbar'
 import AiSuggestionBulkReview from './AiSuggestionBulkReview'
@@ -813,7 +813,7 @@ export default function ContentRatingsTab() {
   const historySeqRef = useRef(0)
   const candidatePreviewSeqRef = useRef(0)
   const aiListSeqRef = useRef(0)
-  const aiProgressRef = useRef<{ taskId: string; done: number } | null>(null)
+  const aiProgressRef = useRef<{ taskId: string; done: number; finished: boolean } | null>(null)
 
   useEffect(() => {
     if (view !== 'ledger') return
@@ -921,9 +921,10 @@ export default function ContentRatingsTab() {
     async (result: AdminContentRatingAiTaskProgress) => {
       const previous = aiProgressRef.current
       const taskId = result.task.id
-      const hasNewResult = previous?.taskId === taskId ? result.done > previous.done : result.done > 0
       const finished = ['completed', 'failed', 'cancelled'].includes(result.task.status)
-      aiProgressRef.current = { taskId, done: result.done }
+      if (previous?.taskId === taskId && (result.done < previous.done || (previous.finished && !finished))) return
+      const hasNewResult = previous?.taskId === taskId ? result.done > previous.done : result.done > 0
+      aiProgressRef.current = { taskId, done: result.done, finished }
       setAiTask(result.task)
       setAiProgress(result)
       if (hasNewResult || finished) await loadAiSuggestions()
@@ -961,7 +962,7 @@ export default function ContentRatingsTab() {
         if (!active || !latest.task) return
         setAiTask(latest.task)
         setAiProgress({ ...latest, task: latest.task })
-        aiProgressRef.current = { taskId: latest.task.id, done: latest.done }
+        aiProgressRef.current = { taskId: latest.task.id, done: latest.done, finished: ['completed', 'failed', 'cancelled'].includes(latest.task.status) }
       } catch {
         // 对齐失败只是拿不到上次的进度，不影响新建任务；不打断审核流程。
       }
@@ -981,16 +982,18 @@ export default function ContentRatingsTab() {
         const result = await adminApi.contentRatingAi.progress(taskId)
         if (!active) return
         await applyAiProgress(result)
-        if (['completed', 'failed', 'cancelled'].includes(result.task.status)) await load(true)
+        if (['completed', 'failed', 'cancelled'].includes(result.task.status)) {
+          await load(true)
+          return false
+        }
       } catch (error) {
         if (active) setAiError(errorMessage(error, 'LLM 任务状态读取失败'))
       }
     }
-    void poll()
-    const timer = window.setInterval(() => void poll(), 1_500)
+    const stop = startPolling(poll, 1_500)
     return () => {
       active = false
-      window.clearInterval(timer)
+      stop()
     }
   }, [aiTask?.id, aiTask?.status, load, loadAiSuggestions])
 

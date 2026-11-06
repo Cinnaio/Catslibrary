@@ -22,6 +22,18 @@ describe('shared ad-cleaner', () => {
     expect(removeAdPatterns(text)).toBe(text)
   })
 
+  it('缺少后缀的空白分隔字母不会触发灾难性回溯', () => {
+    const text = 'a '.repeat(25) + '!'
+    const start = performance.now()
+    expect(removeAdPatterns(text)).toBe(text)
+    expect(performance.now() - start).toBeLessThan(1000)
+  })
+
+  it('保留非广告后缀并继续清洗后续域名', () => {
+    expect(removeAdPatterns('保留 abc.invalid，清除 xyz.com。')).toBe('保留 abc.invalid，清除。')
+    expect(removeAdPatterns('保留 a . b，清除 ａｂ．ｃｏｍ。')).toBe('保留 a . b，清除。')
+  })
+
   it('清理空括号与孤悬括号', () => {
     expect(removeAdPatterns('（）空括号（ ，、 ）也清理')).not.toMatch(/[（(]\s*[）)]/)
   })
