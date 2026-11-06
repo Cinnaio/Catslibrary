@@ -8,6 +8,10 @@
 
 验证：API/Web 类型、Web 组件边界、相关 API 与 URL 工具的定向 ESLint、workspace 版本一致性及差异检查通过。API 封面展示 7 项、源站封面同步 9 项、ZIP 导入导出 11 项、AI 准备数据／候选采纳／历史恢复 4 项定向回归通过，共 31 项；覆盖原图字节、尺寸与 MIME、无收益和动画回退、并发补图、缓存替换与条件请求门禁。Web 封面相关 3 项定向用例通过，扩展运行的 18 项中 17 项通过、1 项批量导出按钮名称断言失败；以 HEAD 原始测试副本重跑同一用例复现，未改动无关导出功能或测试。未运行完整测试套件、生产构建、生产迁移或部署，也未进行真实源站／AI 图片的主观画质验收和原生编译。
 
+实际发布结果：2026-11-06 19:09:40（Asia/Shanghai），[Deploy 42207863513](https://github.com/Cinnaio/zhi-zhou/actions/runs/42207863513) 已在生产激活源码 `af41f1edb9064556953d8f17cfb78d143cf475a4` 的 API/Web `0.8.0`，工作流于 19:09:47 完成且结果为 success。GitHub 托管 runner 的依赖安装、类型检查、生产构建、产物完整性校验、上传、版本切换与重启全部成功；服务器记录备份旧产物并切换配套 API/Web。新增迁移 071 随 API 产物交付，API 按上述启动流程在接收请求前处理迁移。
+
+生产校验：服务存活，服务器本机健康接口、首页及入口资源 `/assets/index-ByugPeYE.js` 均为 200；随后额外从公网访问 `https://catrr.uk/api/health` 与首页均为 200。此次仅运行网站 Deploy，未启动 iOS 构建、生成 IPA 或进行真机验收，也未运行真实 AI 生成或主观画质对比。上一段“未构建／部署”是提交前的本地验证边界，以本段实际发布结果为准；本次后续发布记录提交只修改文档，无需再次部署。
+
 ## Web / iOS 书内正文搜索（2026-11-06）
 
 发布前查询 GitHub Actions：上一提交 `34dbf01c1579750ec7fde239252e2cb62b8621a3` 的 [Deploy](https://github.com/Cinnaio/zhi-zhou/actions/runs/42194336301) 与 [iOS 构建](https://github.com/Cinnaio/zhi-zhou/actions/runs/42194357636) 均已成功，覆盖 API/Web `0.6.0` 和 iOS `0.2.0 / build 17`。因此本次新功能将 API/Web 升至 `0.7.0`、iOS 升至 `0.3.0 / build 18`，同步 workspace 锁文件，根包保持 `0.5.0`。新增搜索及原生读取纯文本的可选协议，API 与两端需配套更新，无数据库迁移；新增 entities 8.0.0 运行依赖并通过 tsup 随 API 产物打包，兼容现有只上传 dist 的发布流程。
