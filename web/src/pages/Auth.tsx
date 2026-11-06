@@ -8,7 +8,7 @@ import styles from './auth.module.css'
  *
  * 独立阅读氛围双栏：auth-page--reader 限定页面外观，不改变安装向导。
  */
-import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, Eye, EyeOff, KeyRound, LoaderCircle, MailCheck } from 'lucide-react'
 import { authApi, getToken } from '../lib/api'
@@ -24,11 +24,37 @@ import { ThemeMenu } from '../components/ThemeMenu'
 type Mode = 'login' | 'register' | 'forgot'
 type AuthLocationState = { mode?: Mode; from?: string }
 
+function getPhoneOrientation(): 'portrait' | 'landscape' | undefined {
+  const shortEdge = Math.min(window.screen.width, window.screen.height)
+  if (shortEdge <= 0 || shortEdge > 700 || !window.matchMedia?.('(pointer: coarse)').matches) return undefined
+  // Use the screen rather than the viewport, which can shrink when the keyboard opens.
+  const orientation = window.screen.orientation?.type
+  if (orientation) return orientation.startsWith('landscape') ? 'landscape' : 'portrait'
+  if (typeof window.orientation === 'number') return Math.abs(window.orientation) === 90 ? 'landscape' : 'portrait'
+  return window.screen.width > window.screen.height ? 'landscape' : 'portrait'
+}
+
+function subscribePhoneOrientation(listener: () => void) {
+  const orientation = window.screen.orientation
+  const pointer = window.matchMedia?.('(pointer: coarse)')
+  window.addEventListener('resize', listener)
+  window.addEventListener('orientationchange', listener)
+  orientation?.addEventListener('change', listener)
+  pointer?.addEventListener('change', listener)
+  return () => {
+    window.removeEventListener('resize', listener)
+    window.removeEventListener('orientationchange', listener)
+    orientation?.removeEventListener('change', listener)
+    pointer?.removeEventListener('change', listener)
+  }
+}
+
 export default function Auth() {
   const branding = useSiteBranding()
   const navigate = useNavigate()
   const location = useLocation()
   const { user, login, refresh } = useSession()
+  const phoneOrientation = useSyncExternalStore(subscribePhoneOrientation, getPhoneOrientation, () => undefined)
 
   const routeState = location.state as AuthLocationState | null
   const requestedMode = new URLSearchParams(location.search).get('mode')
@@ -195,7 +221,7 @@ export default function Auth() {
   }
 
   return (
-    <main className={`${styles.page} auth-page auth-page--reader`}>
+    <main className={`${styles.page} auth-page auth-page--reader`} data-phone-orientation={phoneOrientation}>
       <aside className={styles.visual} aria-label="自己的阅读空间">
         <div className={styles.visualCopy}>
           <p className={styles.visualHeading}>留一点时间，<br />读自己的故事。</p>
