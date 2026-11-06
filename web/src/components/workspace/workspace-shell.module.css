@@ -47,11 +47,75 @@
   letter-spacing: 0.04em;
 }
 .navigation {
+  --navigation-scrollbar-thumb: color-mix(in srgb, var(--text-secondary) 14%, transparent);
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: 12px 10px;
   scrollbar-width: thin;
+  scrollbar-color: var(--navigation-scrollbar-thumb) transparent;
+}
+.navigation:hover {
+  --navigation-scrollbar-thumb: color-mix(in srgb, var(--text-secondary) 26%, transparent);
+}
+.navigation:focus-within {
+  --navigation-scrollbar-thumb: color-mix(in srgb, var(--text-secondary) 42%, transparent);
+}
+/* 支持原生滚动条伪元素时使用同一份颜色，并去掉两端箭头。
+   标准属性保持 auto，避免浏览器优先使用标准皮肤而忽略伪元素。 */
+@supports selector(::-webkit-scrollbar) {
+  .navigation {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+    padding-inline-end: 6px;
+  }
+  .navigation::-webkit-scrollbar {
+    width: 10px;
+  }
+  .navigation::-webkit-scrollbar-track {
+    margin-block: 8px;
+    background: transparent;
+  }
+  .navigation::-webkit-scrollbar-thumb {
+    min-height: 32px;
+    border: 3px solid transparent;
+    border-radius: var(--radius-compact);
+    background-color: var(--navigation-scrollbar-thumb);
+    background-clip: padding-box;
+    transition: background-color 160ms;
+  }
+  .navigation::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--text-secondary) 45%, transparent);
+  }
+  .navigation::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .navigation::-webkit-scrollbar-thumb {
+    transition: none;
+  }
+}
+@media (prefers-contrast: more), (forced-colors: active) {
+  .navigation,
+  .navigation:hover,
+  .navigation:focus-within {
+    --navigation-scrollbar-thumb: var(--text-primary);
+  }
+  .navigation::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-primary);
+  }
+}
+@media (forced-colors: active) {
+  .navigation {
+    scrollbar-color: auto;
+  }
+  .navigation::-webkit-scrollbar-thumb,
+  .navigation::-webkit-scrollbar-thumb:hover {
+    background: CanvasText;
+  }
 }
 .navGroup + .navGroup {
   margin-top: 22px;
