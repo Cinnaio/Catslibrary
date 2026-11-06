@@ -69,7 +69,7 @@
 }
 
 /* 当前页所有数据行均入场；页面按实际数据行数分配 240ms 内的阶梯延迟。
-   空状态和跨列详情不参与数据行入场，避免展开详情影响后续行的顺序。 */
+   data-record 表示使用跨列摘要的真实记录，空状态和跨列详情仍不参与入场。 */
 :is(
     .admin-redesign-page--novels,
     .admin-redesign-page--chapters,
@@ -78,7 +78,7 @@
     .admin-data-table--animated
   )
   [data-slot='table-body']
-  > [data-slot='table-row']:not([data-details]):not(:has(> [data-slot='table-cell'][colspan])) {
+  > [data-slot='table-row']:not([data-details]):is([data-record], :not(:has(> [data-slot='table-cell'][colspan]))) {
   animation: admin-tab-row-enter var(--admin-table-row-enter) both;
 }
 
@@ -139,7 +139,7 @@
       .admin-data-table--animated
     )
     [data-slot='table-body']
-    > [data-slot='table-row'] {
+    > [data-slot='table-row']:not([data-details]):is([data-record], :not(:has(> [data-slot='table-cell'][colspan]))) {
     animation: none;
   }
 

@@ -10,6 +10,7 @@ import SearchSelect from "@/components/shared/SearchSelect"
 import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -32,6 +33,7 @@ import SupplementarySourcesDialog from '@/components/admin/SupplementarySourcesD
 import BookImportHistoryDialog from '@/components/admin/BookImportHistoryDialog'
 import NovelEditorDialog from '@/components/admin/NovelEditorDialog'
 import NovelDeleteDialog from '@/components/admin/NovelDeleteDialog'
+import styles from './novels.module.css'
 
 const ChapterMergeDialog = lazy(() => import('./ChaptersTab'))
 
@@ -63,6 +65,56 @@ const STATUS_FILTER_OPTIONS = [
 const STATUS_LABELS: Record<string, string> = {
   ongoing: '连载中',
   completed: '已完结',
+}
+
+const CONTENT_RATING_LABELS = { general: '一般', restricted: '限制级', unknown: '未标注' }
+
+function MobileNovelSummary({ novel }: { novel: Novel }) {
+  const cover = novelCoverUrl(novel)
+  const categories = novel.categories || []
+  let sourceHost = ''
+  try {
+    if (novel.sourceUrl) sourceHost = new URL(novel.sourceUrl).hostname.replace(/^www\./, '')
+  } catch {
+    // An invalid legacy source URL must not prevent the list from rendering.
+  }
+
+  return (
+    <>
+      <div className={styles.identity}>
+        <div className={styles.cover}>
+          {cover ? <img src={cover} alt={novel.title} loading="lazy" /> : <span aria-hidden="true">{novel.title.charAt(0)}</span>}
+        </div>
+        <div className={styles.info}>
+          <span className={styles.title} title={novel.title}>{novel.title}</span>
+          <span className={styles.author} title={novel.author || '未知作者'}>{novel.author || '未知作者'}</span>
+          {novel.visibility && novel.visibility !== 'public' && (
+            <span className={styles.visibility}>私密 · {novel.visibility === 'admin' ? '仅管理员' : '指定用户'}</span>
+          )}
+          <div className={styles.metadata}>
+            <span className="tabular-nums">{novel.chapterCount || 0} 章</span>
+            <span>{STATUS_LABELS[novel.status || 'ongoing'] || novel.status}</span>
+            <span className={novel.contentRating === 'restricted' ? styles.restricted : undefined}>
+              {CONTENT_RATING_LABELS[novel.contentRating || 'unknown']}
+            </span>
+          </div>
+          <div className={styles.categories} aria-label={`分类：${categories.join('、') || '未分类'}`}>
+            {categories.length === 0 ? <span className={styles.uncategorized}>未分类</span> : <>
+              {categories.slice(0, 2).map(category => <span key={category} className={styles.category} title={category}>{category}</span>)}
+              {categories.length > 2 && <span className={styles.categoryCount} title={categories.slice(2).join('、')}>+{categories.length - 2}</span>}
+            </>}
+          </div>
+        </div>
+      </div>
+      <div className={styles.footer}>
+        <NovelUpdateTag novel={novel} />
+        <div className={styles.provenance}>
+          {sourceHost && <span className={styles.source} title={sourceHost}>{sourceHost}</span>}
+          <span className={styles.updated} title={novel.updatedAt ? new Date(novel.updatedAt).toLocaleString() : ''}>{timeAgo(novel.updatedAt)}</span>
+        </div>
+      </div>
+    </>
+  )
 }
 
 async function scrapeUpdate(novelId: string): Promise<Record<string, unknown>> {
@@ -104,6 +156,7 @@ export default function NovelsTab({
   highlightNovelId?: string
   onHighlightConsumed?: () => void
 }) {
+  const isMobileList = useMediaQuery('(max-width: 700px)')
   const [batchFollowupNovels, setBatchFollowupNovels] = useState<Array<{ id: string; title: string }> | null>(null)
   const novelTitleCache = useRef(new Map<string, string>())
   const [mergeNovel, setMergeNovel] = useState<Novel | null>(null)
@@ -462,7 +515,7 @@ export default function NovelsTab({
 
       {/* 采用 comfortable 舒适行距的数据面板 */}
       <AdminDataPanel
-        className="novels-data-panel"
+        className={`novels-data-panel ${styles.panel}`}
         ariaLabel="作品目录数据"
         columns={NOVEL_COLUMNS}
         density="comfortable"
@@ -538,19 +591,27 @@ export default function NovelsTab({
               novels.map((n, idx) => (
                 <TableRow
                   key={n.id}
+                  data-record=""
                   ref={n.id === highlightId ? highlightRowRef : undefined}
-                  className={n.id === highlightId ? 'novel-row--highlight' : undefined}
+                  className={`${n.id === highlightId ? 'novel-row--highlight ' : ''}${isMobileList ? styles.mobileRow : ''}`}
+                  data-state={isMobileList && selected.has(n.id) ? 'selected' : undefined}
                   style={{
                     animationDelay: `${getAdminTableRowStaggerDelay(idx, novels.length)}ms`,
                   }}
                 >
                   <TableCell data-check="">
                     <Checkbox
+                      className={isMobileList ? styles.selection : undefined}
                       aria-label={`选择小说：${n.title}`}
                       checked={selected.has(n.id)}
                       onCheckedChange={() => toggleRow(n.id)}
                     />
                   </TableCell>
+                  {isMobileList ? (
+                    <TableCell data-primary="" colSpan={NOVEL_COLUMNS.length - 2} className={styles.summary}>
+                      <MobileNovelSummary novel={n} />
+                    </TableCell>
+                  ) : <>
                   <TableCell data-primary="" className="font-medium novel-title-cell">
                     {/* 微型立体书影实体 + 书名 */}
                     <div className="novel-book-entity">
@@ -624,10 +685,12 @@ export default function NovelsTab({
                       {timeAgo(n.updatedAt)}
                     </span>
                   </TableCell>
+                  </>}
                   <TableCell data-actions="">
                     <AdminRowActions
                       label={n.title}
                       items={[
+                        ...(isMobileList ? [{ label: '编辑资料', icon: Pencil, onSelect: () => openModal(n) }] : []),
                         {
                           label: '章节列表',
                           icon: BookOpen,
@@ -683,7 +746,7 @@ export default function NovelsTab({
                       >
                         <RefreshCw className="size-4" />
                       </Button>
-                      <Button
+                      {!isMobileList && <Button
                         variant="ghost"
                         size="icon"
                         className="admin-icon-button"
@@ -692,7 +755,7 @@ export default function NovelsTab({
                         onClick={() => openModal(n)}
                       >
                         <Pencil className="size-4" />
-                      </Button>
+                      </Button>}
                     </AdminRowActions>
                   </TableCell>
                 </TableRow>

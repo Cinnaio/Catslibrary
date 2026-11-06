@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-06 手机作品库条目由 `pages/admin/NovelsTab.tsx` 的内部 `MobileNovelSummary` 与 `novels.module.css` 持有，使用 700px 断点将同一作品记录切换为左封面、右侧身份与元数据、底部更新和来源；701px 以上保留原表格与记录卡。Checkbox、Button、AdminRowActions、NovelUpdateTag 继续复用，编辑入口只在手机移入原行菜单，选择、分页、排序与请求仍归 NovelsTab；跨列手机摘要通过显式 `data-record` 标记继续参与共享阶梯动效，不将空态或详情行纳入入场。
+
 2026-11-06 插图编辑外壳复用共享 DialogFrame／DialogBody，桌面两列预览与配置、手机单列，布局及预览由 `ChapterIllustrations.module.css` 持有。公共 DialogContent 新增可选 `overlayClassName` 用于场景遮罩层级，保持默认调用方不变；图片选择使用共享 Button 唤起原文件输入，位置搜索、字段及操作继续复用 SearchSelect／FormField／Textarea／Button，段落锚点、版本与保存仍归插图组件。
 
 2026-11-06 阅读页统一重构以 `pages/Reader.tsx`／`reader.module.css` 持有稳定顶栏、阅读纸面、目录和移动面板布局，删除 `styles/reader-responsive.css` 与 `styles/bookmarks.css` 的旧覆盖；开发展厅读取同一生产纸面样式。书签列表由 `BookmarkPanel.module.css` 持有，空态与操作复用 EmptyState／Button；手机分区复用 Tabs、目录复用 SearchField，设置继续复用 Button／Switch，想法与插图管理在原样式所有者内统一主题及留白。阅读宽度与工具栏解耦，700px 为阅读器一致断点；数据、缓存、权限、进度、设置同步与原 URL 继续归原所有者。
