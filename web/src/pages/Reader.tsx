@@ -3,11 +3,13 @@ import { Spinner } from '@/components/ui/spinner'
 import '@/styles/input-fields.css'
 import { scrollBehavior } from '@/lib/motion'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { SearchField } from '@/components/shared/SearchField'
+import { InlineError } from '@/components/shared/AsyncStates'
 import styles from './reader.module.css'
-import '@/styles/reader-responsive.css'
 import '../styles/reader-highlights.css'
-import '../styles/bookmarks.css'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
+import { useExclusiveMenu } from '../hooks/useExclusiveMenu'
 /**
  * Reader 阅读器 —— 沉浸式阅读（由 Novel-KV js/read.js 2723 行平移为 React）。
  * 覆盖：章节加载/缓存/预取、滚动+分页双模式、进度保存/恢复（本地+服务端节流）、
@@ -15,7 +17,7 @@ import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { BookOpen, ImagePlus, Search, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bookmark, BookMarked, BookOpen, Check, ImagePlus, Type, X } from 'lucide-react'
 import type { ChapterFull, ChapterMeta, Novel, Thought } from '@shared/types'
 import { chaptersApi, isRestrictedContentError, type ApiError, novelsApi, thoughtsApi, progressApi } from '../lib/api'
 import { applyProgressState } from '../lib/progress-state'
@@ -41,7 +43,6 @@ import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useToast } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useReaderSettings, FONT_SIZES, PAGE_WIDTHS, AUTO_SCROLL_SPEEDS } from '../hooks/useReaderSettings'
-import type { ReaderSettingKey } from '../hooks/useReaderSettings'
 import { useProgressSync } from '../hooks/useProgressSync'
 import { useReadingStats } from '../hooks/useReadingStats'
 import { VirtualList } from '../components/reader/VirtualList'
@@ -60,7 +61,7 @@ import FloatingPageTools from "@/components/shared/FloatingPageTools"
 import BookSearch from '../components/reader/BookSearch'
 import { useReaderSearch } from '../hooks/useReaderSearch'
 
-const CHAPTER_ROW_H = 34
+const CHAPTER_ROW_H = 44
 const CHAPTER_CACHE_MAX = 6
 const CONTEXT_CACHE_MS = 60_000
 
@@ -124,6 +125,11 @@ export default function Reader() {
   // 书签数据从 storage 直读；setState 仅用于变更后强制重渲染面板
   const { bookmarks, busy: bookmarkBusy, error: bookmarkError, change: changeBookmark, reload: reloadBookmarks } = useBookmarks()
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false)
+  const openChapters = useExclusiveMenu('reader-chapters', setDropdownOpen)
+  const openBookmarks = useExclusiveMenu('reader-bookmarks', setBookmarkPanelOpen)
+  const openSettings = useExclusiveMenu('reader-settings', setSettingsPanelOpen)
+  const openBodySearch = useExclusiveMenu('reader-search', setBodySearchOpen)
+  const openBookmarkNote = useExclusiveMenu('reader-bookmark-note', setBookmarkNoteOpen)
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false)
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false)
   const [mobileLibraryTab, setMobileLibraryTab] = useState<'chapters' | 'bookmarks'>('chapters')
@@ -190,6 +196,45 @@ export default function Reader() {
   const canManageIllustrations = isAdministrator(user?.role)
   useEffect(() => { setIllustrationMode(false); setIllustrationShortcut(null) }, [chapterId, user?.id])
   const chapterTriggerRef = useRef<HTMLButtonElement>(null)
+  const settingsTriggerRef = useRef<HTMLButtonElement>(null)
+  const bookmarksTriggerRef = useRef<HTMLButtonElement>(null)
+  const bookmarkTriggerRef = useRef<HTMLButtonElement>(null)
+  const bookmarkReturnFocusRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    const alignSurfaces = () => {
+      if (window.innerWidth <= 700) {
+        setDropdownOpen(false)
+        setBookmarkPanelOpen(false)
+        setSettingsPanelOpen(false)
+      } else {
+        setMobileSettingsOpen(false)
+        setMobileLibraryOpen(false)
+      }
+    }
+    window.addEventListener('resize', alignSurfaces)
+    return () => window.removeEventListener('resize', alignSurfaces)
+  }, [])
+  const closeReaderPanel = useCallback((panel: 'chapters' | 'settings' | 'bookmarks') => {
+    if (panel === 'chapters') { setDropdownOpen(false); chapterTriggerRef.current?.focus({ preventScroll: true }) }
+    if (panel === 'settings') { setSettingsPanelOpen(false); settingsTriggerRef.current?.focus({ preventScroll: true }) }
+    if (panel === 'bookmarks') { setBookmarkPanelOpen(false); bookmarksTriggerRef.current?.focus({ preventScroll: true }) }
+  }, [])
+
+  useEffect(() => {
+    const panel = dropdownOpen ? 'chapters' : settingsPanelOpen ? 'settings' : bookmarkPanelOpen ? 'bookmarks' : null
+    if (!panel) return
+    const container = readerAppRef.current?.querySelector<HTMLElement>(`#reader-${panel}-panel`)
+    const initialFocus = panel === 'chapters' ? container?.querySelector<HTMLElement>('input') : container?.querySelector<HTMLElement>('button')
+    initialFocus?.focus({ preventScroll: true })
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      event.stopPropagation()
+      closeReaderPanel(panel)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [dropdownOpen, settingsPanelOpen, bookmarkPanelOpen, closeReaderPanel])
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -846,7 +891,7 @@ export default function Reader() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.target as HTMLElement).closest('[role="dialog"]') || illustrationMode) return
+      if (e.defaultPrevented || (e.target as HTMLElement).closest('button, a, [role="dialog"], [role="menu"], [role="listbox"]') || illustrationMode) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       if (pageMode) {
@@ -886,12 +931,10 @@ export default function Reader() {
     const trigger = chapterTriggerRef.current
     if (trigger) {
       const r = trigger.getBoundingClientRect()
-      const isMobile = window.matchMedia('(max-width: 768px)').matches
-      const edge = isMobile ? 8 : 12
-      // 与 reader.css 的响应式宽度保持一致：移动端几乎铺满视口，桌面端最多 360px。
-      const dropdownW = isMobile ? Math.max(0, window.innerWidth - edge * 2) : Math.min(360, window.innerWidth - edge * 2)
+      const edge = 12
+      const dropdownW = Math.min(360, window.innerWidth - edge * 2)
       // 左沿与触发按钮左沿对齐，视觉上"挂在"按钮正下方（按钮右侧还有
-      // 下一章/详情，右对齐会让下拉向左飘出很远）；贴边时再向内收。
+      // 下一章，右对齐会让下拉向左飘出很远）；贴边时再向内收。
       let left = r.left
       if (left < edge) left = edge
       if (left + dropdownW > window.innerWidth - edge) left = window.innerWidth - edge - dropdownW
@@ -934,6 +977,15 @@ export default function Reader() {
       window.removeEventListener('resize', onViewportChange)
     }
   }, [settingsPanelOpen])
+
+  useEffect(() => {
+    if (!bookmarkPanelOpen) return
+    const onDocClick = (event: MouseEvent) => {
+      if (!(event.target as HTMLElement).closest('#reader-bookmarks-panel, .reader-controls__bm-list')) setBookmarkPanelOpen(false)
+    }
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
+  }, [bookmarkPanelOpen])
 
   // ---------- 触摸滑动 ----------
   useEffect(() => {
@@ -1011,7 +1063,7 @@ export default function Reader() {
     function tick(ts: number) {
       const s = autoScrollRef.current
       if (!s.running) return
-      if (document.hidden || bodySearchOpen || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen) {
+      if (document.hidden || bodySearchOpen || dropdownOpen || bookmarkPanelOpen || bookmarkNoteOpen || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen) {
         s.frame = requestAnimationFrame(tick)
         return
       }
@@ -1064,7 +1116,7 @@ export default function Reader() {
       stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readerAutoScrollSpeed, bodySearchOpen, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, pageMode])
+  }, [readerAutoScrollSpeed, bodySearchOpen, dropdownOpen, bookmarkPanelOpen, bookmarkNoteOpen, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, pageMode])
 
   // ---------- Wake Lock ----------
   useEffect(() => {
@@ -1104,8 +1156,9 @@ export default function Reader() {
   async function handleBookmarkToggle() {
     if (!chapter || bookmarkBusy) return
     if (!currentBookmarked && !bookmarkNoteOpen) {
+      bookmarkReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       setBookmarkNote('')
-      setBookmarkNoteOpen(true)
+      openBookmarkNote(true)
       return
     }
     try {
@@ -1117,6 +1170,7 @@ export default function Reader() {
       if (!changed) return
       setBookmarkNoteOpen(false)
       setBookmarkNote('')
+      toast(currentBookmarked ? '已移除书签' : '已添加书签', 'success')
     } catch (err) {
       toast((err as Error).message || '书签保存失败，请重试', 'error')
     }
@@ -1125,8 +1179,11 @@ export default function Reader() {
   function handleBookmarkNoteKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter') void handleBookmarkToggle()
     else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
       setBookmarkNoteOpen(false)
       setBookmarkNote('')
+      bookmarkReturnFocusRef.current?.focus({ preventScroll: true })
     }
   }
 
@@ -1267,41 +1324,61 @@ export default function Reader() {
   }
 
   const nid = chapter.novelId || novelId
+  const showChapterNumber = !!chapter.order && !(chapter.title || '').replace(/\s/g, '').startsWith(`第${chapter.order}章`)
 
   return (
     <div ref={readerAppRef} className={`${styles.page} reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme} data-mobile-toolbar={mobileBarHidden ? 'collapsed' : 'expanded'}>
       <div className="reader-shell">
         {/* Top bar */}
         <div className="reader-top">
-          <Link to={`/novel/${encodeURIComponent(nid)}`} className="reader-novel-title" title="返回小说详情">{novel?.title || ''}</Link>
-          <div className="reader-nav-group">
-            <BookSearch novelId={nid} title={novel?.title || ''} className="reader-nav-btn" iconOnly onSelect={openSearchHit} onOpenChange={setBodySearchOpen} />
-            <button className="reader-nav-btn" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}>上一章</button>
-            <button
+          <Link to={`/novel/${encodeURIComponent(nid)}`} className="reader-novel-title" title={`${novel?.title || '作品'} · 返回作品详情`} aria-label={`${novel?.title || '作品'}，返回作品详情`}>
+            <ArrowLeft size={16} aria-hidden="true" />
+            <span><small className="reader-title-context">正在阅读</small><strong>{novel?.title || '作品详情'}</strong></span>
+          </Link>
+          <nav className="reader-nav-group" aria-label="章节导航">
+            <Button variant="ghost" className="reader-nav-btn reader-chapter-step" aria-label="上一章" title={currentIdx <= 0 ? '已是第一章' : '上一章'} disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}><ArrowLeft size={16} aria-hidden="true" /><span>上一章</span></Button>
+            <Button variant="ghost"
               type="button"
               ref={chapterTriggerRef}
               className={`reader-nav-btn reader-chapter-trigger${dropdownOpen ? ' open' : ''}`}
               aria-haspopup="listbox"
               aria-expanded={dropdownOpen}
-              onClick={(e) => { e.stopPropagation(); setDropdownOpen((v) => !v) }}
+              aria-controls={dropdownOpen ? 'reader-chapters-list' : undefined}
+              aria-label={`章节目录，当前${chapter.order ? `第${chapter.order}章` : chapter.title || '章节'}`}
+              onClick={(e) => { e.stopPropagation(); openChapters(!dropdownOpen) }}
             >
-              <span>{chapter.order ? `第${chapter.order}章` : (chapter.title || '章节').slice(0, 12)}</span>
+              <span>目录 · {chapter.order ? `第${chapter.order}章` : (chapter.title || '章节').slice(0, 12)}</span>
               <svg className="chapter-select-arrow" viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polyline points="2 3 5 7 8 3" /></svg>
-            </button>
-            <button className="reader-nav-btn" disabled={currentIdx >= allChapters.length - 1} onClick={() => navigateToChapter('next')}>下一章</button>
-            <Link to={`/novel/${encodeURIComponent(nid)}`} className="reader-nav-btn reader-nav-toc" title="返回详情">详情</Link>
+            </Button>
+            <Button variant="ghost" className="reader-nav-btn reader-chapter-step" aria-label="下一章" title={currentIdx >= allChapters.length - 1 ? '已是最后一章' : '下一章'} disabled={currentIdx >= allChapters.length - 1} onClick={() => navigateToChapter('next')}><span>下一章</span><ArrowRight size={16} aria-hidden="true" /></Button>
+          </nav>
+          <div className="reader-controls" role="group" aria-label="阅读工具">
+            <BookSearch novelId={nid} title={novel?.title || ''} className="reader-tool-btn" iconOnly onSelect={openSearchHit} onOpenChange={openBodySearch} />
+            {canManageIllustrations && <Button variant="ghost" size="icon" type="button" aria-label="管理章节插图" aria-pressed={illustrationMode} title="章节插图" onClick={() => setIllustrationMode(value => !value)}><ImagePlus size={18} /></Button>}
+            <Button variant="ghost" size="icon" type="button" ref={bookmarkTriggerRef} disabled={bookmarkBusy} className={`reader-controls__bookmark${currentBookmarked ? ' bookmarked' : ''}`} aria-label={currentBookmarked ? '移除书签' : '添加书签'} aria-pressed={currentBookmarked} title={currentBookmarked ? '移除书签' : '添加书签'} onClick={handleBookmarkToggle}>
+              <Bookmark className="bookmark-icon" size={18} aria-hidden="true" />
+            </Button>
+            <Button variant="ghost" size="icon" type="button" ref={bookmarksTriggerRef} className={`reader-controls__bm-list${bookmarkPanelOpen ? ' active' : ''}`} aria-label="书签列表" title="书签列表" aria-haspopup="dialog" aria-expanded={bookmarkPanelOpen} aria-controls={bookmarkPanelOpen ? 'reader-bookmarks-panel' : undefined} onClick={(e) => { e.stopPropagation(); openBookmarks(!bookmarkPanelOpen) }}>
+              <BookMarked size={18} aria-hidden="true" /><span className="reader-tool-label">书签</span>
+            </Button>
+            <Button variant="ghost" size="icon" type="button" ref={settingsTriggerRef} className={`reader-controls__settings${settingsPanelOpen ? ' active' : ''}`} aria-label="阅读设置" aria-haspopup="dialog" aria-expanded={settingsPanelOpen} aria-controls={settingsPanelOpen ? 'reader-settings-panel' : undefined} title="排版与阅读设置" onClick={(e) => { e.stopPropagation(); openSettings(!settingsPanelOpen) }}>
+              <Type size={18} aria-hidden="true" /><span className="reader-tool-label">排版</span>
+            </Button>
+            <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置" />
           </div>
-          <div className="reader-controls">
-            {canManageIllustrations && <button type="button" aria-label="管理章节插图" aria-pressed={illustrationMode} title="章节插图" onClick={() => setIllustrationMode(value => !value)}><ImagePlus size={18} /></button>}
-            <button className={`reader-controls__bookmark${currentBookmarked ? ' bookmarked' : ''}`} aria-label={currentBookmarked ? '移除书签' : '添加书签'} aria-pressed={currentBookmarked} title={currentBookmarked ? '移除书签' : '添加书签'} onClick={handleBookmarkToggle}>
-              <svg className="bookmark-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h12v12l-6-4-6 4V2z" /></svg>
-            </button>
+          <div className="reader-mobile-tools" role="group" aria-label="阅读快捷工具">
+            <BookSearch novelId={nid} title={novel?.title || ''} className="reader-tool-btn" iconOnly onSelect={openSearchHit} onOpenChange={openBodySearch} />
+            {canManageIllustrations && <Button variant="ghost" size="icon" type="button" aria-label="管理章节插图" aria-pressed={illustrationMode} title="章节插图" onClick={() => setIllustrationMode(value => !value)}><ImagePlus size={16} aria-hidden="true" /></Button>}
+            <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置" />
+          </div>
+
             {bookmarkNoteOpen && (
-              <div className="bookmark-note-wrap active">
-                <input
+              <div className="bookmark-note-wrap active" role="dialog" aria-label="添加书签备注">
+                <Input
                   type="text"
                   className="bookmark-note-input"
                   placeholder="备注（可选）…"
+                  aria-label="书签备注（可选）"
                   maxLength={60}
                   autoFocus
                   value={bookmarkNote}
@@ -1312,22 +1389,21 @@ export default function Reader() {
                     else setBookmarkNoteOpen(false)
                   }}
                 />
-                <button className="bookmark-note-btn" onMouseDown={(e) => e.preventDefault()} onClick={handleBookmarkToggle}>✓</button>
+                <Button variant="default" size="icon" aria-label="保存书签" className="bookmark-note-btn" onMouseDown={(e) => e.preventDefault()} onClick={handleBookmarkToggle}><Check size={16} aria-hidden="true" /></Button>
               </div>
             )}
-            <button className={`reader-controls__bm-list${bookmarkPanelOpen ? ' active' : ''}`} aria-label="书签列表" title="书签列表" onClick={() => setBookmarkPanelOpen((v) => !v)}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="1" width="12" height="14" rx="2" /><line x1="5" y1="5" x2="11" y2="5" /><line x1="5" y1="8" x2="11" y2="8" /><line x1="5" y1="11" x2="9" y2="11" /></svg>
-            </button>
-            <button className={`reader-controls__settings${settingsPanelOpen ? ' active' : ''}`} aria-label="阅读设置" aria-haspopup="dialog" aria-expanded={settingsPanelOpen} title="阅读设置" onClick={(e) => { e.stopPropagation(); setSettingsPanelOpen((v) => !v) }}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="2" /><path d="M12.6 9.4l1 .7-1.2 2.1-1.2-.4c-.4.3-.8.5-1.2.7L9.8 14H6.2L6 12.5c-.4-.2-.8-.4-1.2-.7l-1.2.4L2.4 10l1-.7a5 5 0 0 1 0-1.4l-1-.7 1.2-2.1 1.2.4c.4-.3.8-.5 1.2-.7L6.2 2h3.6l.2 1.5c.4.2.8.4 1.2.7l1.2-.4 1.2 2.1-1 .7c.1.5.1 1 0 1.4z" /></svg>
-            </button>
-            <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置" />
-          </div>
+
+          {bookmarkPanelOpen && (
+            <div id="reader-bookmarks-panel" role="dialog" aria-modal="false" aria-label="书签列表">
+              {bookmarkError && <InlineError message={`书签加载失败：${bookmarkError}`} onRetry={() => void reloadBookmarks()} />}
+              <BookmarkPanel novelId={nid} currentChapterId={chapter.id} onJump={(cid, bookId) => { closeReaderPanel('bookmarks'); gotoChapter(cid, bookId) }} onDelete={deleteBookmark} onClose={() => closeReaderPanel('bookmarks')} />
+            </div>
+          )}
 
           {/* Desktop settings panel */}
           {settingsPanelOpen && (
-            <section className="reader-settings-panel" role="dialog" aria-modal="false" aria-label="阅读设置" onClick={(e) => e.stopPropagation()}>
-              <div className="reader-popover__head"><h2>阅读设置</h2><button type="button" aria-label="关闭阅读设置" onClick={() => setSettingsPanelOpen(false)}><X size={16} aria-hidden="true" /></button></div>
+            <section id="reader-settings-panel" className="reader-settings-panel" role="dialog" aria-modal="false" aria-label="阅读设置" onClick={(e) => e.stopPropagation()}>
+              <div className="reader-popover__head"><h2>阅读设置</h2><Button variant="ghost" size="icon" type="button" aria-label="关闭阅读设置" onClick={() => closeReaderPanel('settings')}><X size={16} aria-hidden="true" /></Button></div>
               <SettingsControls settings={settings} set={set} wakeLockSupported={wakeLockSupported} />
             </section>
           )}
@@ -1336,18 +1412,18 @@ export default function Reader() {
         {/* Chapter dropdown */}
         {dropdownOpen && (
           <div
+            id="reader-chapters-panel"
             className="chapter-dropdown open"
             style={dropdownPos ? { top: dropdownPos.top, left: dropdownPos.left } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="reader-popover__head"><h2>章节目录</h2><button type="button" aria-label="关闭章节目录" onClick={() => setDropdownOpen(false)}><X size={16} aria-hidden="true" /></button></div>
+            <div className="reader-popover__head"><h2>章节目录</h2><Button variant="ghost" size="icon" type="button" aria-label="关闭章节目录" onClick={() => closeReaderPanel('chapters')}><X size={16} aria-hidden="true" /></Button></div>
             <div className="chapter-dropdown__tools">
-              <Search size={16} aria-hidden="true" />
-              <input type="search" className="chapter-dropdown__filter" placeholder="搜索章节号或标题…" autoComplete="off" aria-label="搜索章节" autoFocus value={dropdownQuery} onChange={(e) => setDropdownQuery(e.target.value)} onKeyDown={(e) => {
-                if (e.key === 'Escape') { e.stopPropagation(); setDropdownOpen(false) }
+              <SearchField className="chapter-dropdown__filter" placeholder="搜索章节号或标题…" autoComplete="off" label="搜索章节" autoFocus value={dropdownQuery} onChange={(e) => setDropdownQuery(e.target.value)} onKeyDown={(e) => {
+                if (e.key === 'Escape') { e.stopPropagation(); closeReaderPanel('chapters') }
                 else if (e.key === 'Enter') {
                   const matches = filterChapters(allChapters, dropdownQuery)
-                  if (matches.length >= 1) gotoChapter(matches[0]!.id, matches[0]!.novelId || novelId)
+                  if (matches.length >= 1) { closeReaderPanel('chapters'); gotoChapter(matches[0]!.id, matches[0]!.novelId || novelId) }
                 }
               }} />
               <span className="chapter-dropdown__count">{dropdownQuery ? `${dropdownMatches.length} / ${allChapters.length}` : `${allChapters.length} 章`}</span>
@@ -1356,6 +1432,7 @@ export default function Reader() {
               <div className="chapter-dropdown__empty">没有匹配的章节</div>
             ) : (
               <VirtualList
+                id="reader-chapters-list"
                 className="chapter-dropdown__scroll"
                 ariaLabel="章节列表"
                 items={dropdownMatches}
@@ -1369,7 +1446,7 @@ export default function Reader() {
                       className={`chapter-dropdown__item${isCurrent ? ' chapter-dropdown__item--current' : ''}`}
                       role="option"
                       aria-selected={isCurrent}
-                      onClick={() => gotoChapter(ch.id, ch.novelId || novelId)}
+                      onClick={() => { closeReaderPanel('chapters'); gotoChapter(ch.id, ch.novelId || novelId) }}
                     >
                       <span className="chapter-dropdown__item-title">{chapterLabel(ch, i)}</span>
                     </button>
@@ -1378,12 +1455,6 @@ export default function Reader() {
               />
             )}
           </div>
-        )}
-
-        {/* Bookmark panel */}
-        {bookmarkError && bookmarkPanelOpen && <div role="alert">书签加载失败：{bookmarkError} <button onClick={() => void reloadBookmarks()}>重试</button></div>}
-        {bookmarkPanelOpen && (
-          <BookmarkPanel novelId={nid} currentChapterId={chapter.id} onJump={gotoChapter} onDelete={deleteBookmark} onClose={() => setBookmarkPanelOpen(false)} />
         )}
 
         {/* Content */}
@@ -1402,7 +1473,7 @@ export default function Reader() {
               setPopoverPos(null)
             }
             // 移动端：点击阅读区切换底部工具栏（分页模式下两侧为翻页热区，不抢）
-            if (window.innerWidth > 640) return
+            if (window.innerWidth > 700) return
             if ((e.target as HTMLElement).closest('button, a, input, textarea, select, .chapter-dropdown, .bookmark-panel, .reader-controls, .thought-panel, .thought-selection-popover')) return
             if (pageMode && readerClickPaging) {
               const rect = contentRef.current?.getBoundingClientRect()
@@ -1414,8 +1485,10 @@ export default function Reader() {
             setMobileBarHidden((v) => !v)
           }}
         >
-          <div className="reader-chapter-num">{chapter.order ? `第 ${chapter.order} 章` : ''}</div>
-          <h1 className="reader-chapter-title">{chapter.title}</h1>
+          <header className="reader-chapter-heading">
+            {showChapterNumber && <div className="reader-chapter-num">第 {chapter.order} 章</div>}
+            <h1 className="reader-chapter-title">{chapter.title || `第 ${chapter.order || 1} 章`}</h1>
+          </header>
           <ChapterRecap prevChapterId={prevChapter?.id || ''} prevChapterTitle={prevChapter ? chapterLabel(prevChapter, currentIdx - 1) : ''} />
           <ChapterIllustrations key={`${chapter.id}:${user?.id || 'guest'}:${mode}`} chapterId={chapter.id} content={chapter.content} bodyRef={bodyRef} canManage={canManageIllustrations} managing={illustrationMode} onExit={() => setIllustrationMode(false)} visible={settings.readerIllustrations !== 'off'} shortcut={illustrationShortcut} />
           <div ref={bodyRef} className="reader-body" dangerouslySetInnerHTML={bodyHtml} />
@@ -1424,7 +1497,7 @@ export default function Reader() {
 
         {/* Bottom nav */}
         <div className="reader-bottom">
-          <button className="reader-nav-btn" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}>上一章</button>
+          <Button variant="ghost" className="reader-nav-btn" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}><ArrowLeft size={16} aria-hidden="true" />上一章</Button>
           <div className="reader-progress">
             <span>{allChapters.length ? `${Math.min(currentIdx + 1, allChapters.length)} / ${allChapters.length} 章` : ''}</span>
             <span className="reader-chapter-progress-text">{chapterProgressText}</span>
@@ -1433,7 +1506,7 @@ export default function Reader() {
               <div className="progress-bar__fill" style={{ width: `${Math.round((currentIdx + 1) / Math.max(allChapters.length, 1) * 100)}%` }} role="progressbar" aria-label="阅读进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((currentIdx + 1) / Math.max(allChapters.length, 1) * 100)}></div>
             </div>
           </div>
-          <button className="reader-nav-btn" disabled={currentIdx >= allChapters.length - 1} onClick={() => navigateToChapter('next')}>下一章</button>
+          <Button variant="ghost" className="reader-nav-btn" disabled={currentIdx >= allChapters.length - 1} onClick={() => navigateToChapter('next')}>下一章<ArrowRight size={16} aria-hidden="true" /></Button>
         </div>
       </div>
 
@@ -1457,23 +1530,21 @@ export default function Reader() {
       <div id="mobile-reader-toolbar" role="toolbar" className={`mobile-reader-bar${mobileBarHidden ? ' is-hidden' : ''}`} aria-label="移动端阅读工具栏" aria-hidden={mobileBarHidden} inert={mobileBarHidden} onClick={() => setMobileBarHidden(true)}>
         <div className="mobile-reader-progress" aria-hidden="true"><div className="mobile-reader-progress__fill" style={{ width: `${chapterProgressPercent}%` }}></div></div>
         <span className="mobile-reader-progress__text">本章 {chapterProgressPercent}%</span>
-        {canManageIllustrations && <button type="button" className="mobile-reader-bar__btn" aria-label="管理章节插图" aria-pressed={illustrationMode} onClick={event => { event.stopPropagation(); setIllustrationMode(value => !value) }}><ImagePlus size={18} /></button>}
-        <button type="button" className="mobile-reader-bar__btn" aria-label="章节目录" onClick={(e) => { e.stopPropagation(); setMobileLibraryOpen(true); setMobileLibraryTab('chapters') }}>
+        <Button variant="ghost" size="icon" type="button" className="mobile-reader-bar__btn" aria-label="章节目录" onClick={(e) => { e.stopPropagation(); setMobileLibraryOpen(true); setMobileLibraryTab('chapters') }}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="4" x2="15" y2="4" /><line x1="5" y1="9" x2="15" y2="9" /><line x1="5" y1="14" x2="15" y2="14" /><circle cx="2.5" cy="4" r="0.5" /><circle cx="2.5" cy="9" r="0.5" /><circle cx="2.5" cy="14" r="0.5" /></svg>
-        </button>
-        <button type="button" className="mobile-reader-bar__btn" aria-label="上一章" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}>
+        </Button>
+        <Button variant="ghost" size="icon" type="button" className="mobile-reader-bar__btn" aria-label="上一章" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 4 6 9 11 14" /></svg>
-        </button>
-        <button type="button" className={`mobile-reader-bar__btn${currentBookmarked ? ' bookmarked' : ''}`} aria-label={currentBookmarked ? '移除书签' : '添加书签'} onClick={handleBookmarkToggle}>
+        </Button>
+        <Button variant="ghost" size="icon" type="button" className={`mobile-reader-bar__btn${currentBookmarked ? ' bookmarked' : ''}`} aria-label={currentBookmarked ? '移除书签' : '添加书签'} onClick={event => { event.stopPropagation(); void handleBookmarkToggle() }}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 3h10v12l-5-3.2L4 15V3z" /></svg>
-        </button>
-        <button type="button" className="mobile-reader-bar__btn" aria-label="下一章" disabled={currentIdx >= allChapters.length - 1} onClick={() => navigateToChapter('next')}>
+        </Button>
+        <Button variant="ghost" size="icon" type="button" className="mobile-reader-bar__btn" aria-label="下一章" disabled={currentIdx >= allChapters.length - 1} onClick={() => navigateToChapter('next')}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 4 12 9 7 14" /></svg>
-        </button>
-        <button type="button" className="mobile-reader-bar__btn" aria-label="阅读设置" aria-expanded={mobileSettingsOpen} onClick={(e) => { e.stopPropagation(); setMobileSettingsOpen(true) }}>
+        </Button>
+        <Button variant="ghost" size="icon" type="button" className="mobile-reader-bar__btn" aria-label="阅读设置" aria-expanded={mobileSettingsOpen} onClick={(e) => { e.stopPropagation(); setMobileSettingsOpen(true) }}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="2.2" /><path d="M14.2 10.6l1.1.8-1.4 2.4-1.3-.5a5.5 5.5 0 0 1-1.4.8L11 15.5H7l-.2-1.4a5.5 5.5 0 0 1-1.4-.8l-1.3.5-1.4-2.4 1.1-.8a5.8 5.8 0 0 1 0-1.6l-1.1-.8 1.4-2.4 1.3.5c.4-.3.9-.6 1.4-.8L7 2.5h4l.2 1.4c.5.2 1 .5 1.4.8l1.3-.5 1.4 2.4-1.1.8c.1.5.1 1.1 0 1.6z" /></svg>
-        </button>
-        <ThemeMenu className="mobile-reader-bar__btn theme-btn" ariaLabel="主题设置" title="主题设置" />
+        </Button>
       </div>
 
       {/* Mobile settings sheet */}
@@ -1481,13 +1552,7 @@ export default function Reader() {
         container={readerAppRef.current}
         open={mobileSettingsOpen}
         settings={settings}
-        set={(key: ReaderSettingKey, value: string) => {
-          set(key, value)
-          // Keep the illustration switch open so readers can compare both layouts.
-          if (key === 'readerIllustrations') return
-          setMobileSettingsOpen(false)
-          setMobileBarHidden(true)
-        }}
+        set={set}
         wakeLockSupported={wakeLockSupported}
         onClose={() => setMobileSettingsOpen(false)}
       />
@@ -1503,7 +1568,7 @@ export default function Reader() {
         onTabChange={setMobileLibraryTab}
         query={mobileChapterQuery}
         onQueryChange={setMobileChapterQuery}
-        onGotoChapter={gotoChapter}
+        onGotoChapter={(cid, bookId) => { setMobileLibraryOpen(false); setMobileBarHidden(true); gotoChapter(cid, bookId) }}
         onDeleteBookmark={deleteBookmark}
         onClose={() => setMobileLibraryOpen(false)}
       />

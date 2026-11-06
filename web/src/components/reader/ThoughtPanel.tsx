@@ -97,7 +97,7 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
             {(readOnly || !selectedText) && <p className="thought-panel__excerpt">{readOnly ? '原段落已修改、删除或无法唯一定位，保留想法与原引用。' : paragraphExcerpt}</p>}
           </div>
           <DialogPrimitive.Close asChild>
-            <button type="button" className="thought-panel__close" aria-label="关闭想法面板"><X size={18} aria-hidden="true" /></button>
+            <Button variant="ghost" size="icon" type="button" className="thought-panel__close" aria-label="关闭想法面板"><X size={16} aria-hidden="true" /></Button>
           </DialogPrimitive.Close>
         </div>
         <div className="thought-list">
@@ -159,10 +159,10 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
             onChange={(e) => setName(e.target.value)}
           />
             <span className="thought-editor__count" aria-label={`已输入 ${text.length} 字，最多 300 字`}>{text.length}<span> / 300</span></span>
-            <button type="submit" className="thought-publish" disabled={submitting}>
+            <Button type="submit" className="thought-publish" disabled={submitting}>
               发布想法
               <ArrowUp size={16} aria-hidden="true" />
-            </button>
+            </Button>
           </div>
           </div>
           <div className="thought-compose__footer">

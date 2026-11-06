@@ -2,6 +2,11 @@ import '@/styles/input-fields.css'
 /** 移动端底部弹层：阅读设置 sheet 与阅读面板（目录/书签）sheet。 */
 import { useRef } from 'react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
+import { Bookmark, BookOpen, Trash2, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SearchField } from '@/components/shared/SearchField'
+import EmptyState from '@/components/shared/EmptyState'
 import type { ChapterMeta } from '@shared/types'
 import { getNovelBookmarks } from '../../lib/storage'
 import { chapterLabel, filterChapters } from '../../lib/reader-utils'
@@ -9,7 +14,7 @@ import { VirtualList } from './VirtualList'
 import { SettingsControls } from './SettingsControls'
 import type { ReaderSettingKey } from '../../hooks/useReaderSettings'
 
-const MOBILE_ROW_H = 46
+const MOBILE_ROW_H = 48
 
 interface MobileSettingsSheetProps {
   container?: HTMLElement | null
@@ -43,7 +48,7 @@ export function MobileSettingsSheet({ container, open, settings, set, wakeLockSu
               <h2>阅读设置</h2>
             </DialogPrimitive.Title>
             <DialogPrimitive.Close asChild>
-              <button type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读设置">×</button>
+              <Button variant="ghost" size="icon" type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读设置"><X size={16} aria-hidden="true" /></Button>
             </DialogPrimitive.Close>
           </div>
           <div className="mobile-settings-sheet__body">
@@ -108,21 +113,22 @@ export function MobileLibrarySheet({
               <h2>阅读面板</h2>
             </DialogPrimitive.Title>
             <DialogPrimitive.Close asChild>
-              <button type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读面板">×</button>
+              <Button variant="ghost" size="icon" type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读面板"><X size={16} aria-hidden="true" /></Button>
             </DialogPrimitive.Close>
           </div>
-          <div className="mobile-library-tabs" role="tablist" aria-label="阅读面板">
-            <button id="mobileLibraryTabChapters" type="button" role="tab" aria-selected={tab === 'chapters'} aria-controls="mobileChapterList" tabIndex={tab === 'chapters' ? 0 : -1} className={tab === 'chapters' ? 'active' : ''} onClick={() => onTabChange('chapters')}>目录</button>
-            <button id="mobileLibraryTabBookmarks" type="button" role="tab" aria-selected={tab === 'bookmarks'} aria-controls="mobileBookmarkList" tabIndex={tab === 'bookmarks' ? 0 : -1} className={tab === 'bookmarks' ? 'active' : ''} onClick={() => onTabChange('bookmarks')}>书签</button>
-          </div>
+          <Tabs className="mobile-library-tabs-root" value={tab} onValueChange={value => onTabChange(value as 'chapters' | 'bookmarks')}>
+          <TabsList className="mobile-library-tabs" aria-label="阅读面板">
+            <TabsTrigger id="mobileLibraryTabChapters" value="chapters" aria-controls="mobileChapterList">目录</TabsTrigger>
+            <TabsTrigger id="mobileLibraryTabBookmarks" value="bookmarks" aria-controls="mobileBookmarkList">书签</TabsTrigger>
+          </TabsList>
           {tab === 'chapters' ? (
             <div id="mobileChapterList" className="mobile-library-panel" role="tabpanel" aria-labelledby="mobileLibraryTabChapters" tabIndex={0}>
               <div className="mobile-library-search">
-                <input type="search" className="mobile-library-search__input" placeholder="搜索章节号或标题…" autoComplete="off" aria-label="搜索章节" value={query} onChange={(e) => onQueryChange(e.target.value)} />
+                <SearchField className="mobile-library-search__input" placeholder="搜索章节号或标题…" autoComplete="off" label="搜索章节" value={query} onChange={(e) => onQueryChange(e.target.value)} />
                 <span className="mobile-library-search__count">{query ? `${matches.length} / ${allChapters.length}` : `${allChapters.length} 章`}</span>
               </div>
               {matches.length === 0 ? (
-                <div className="mobile-library-empty">{allChapters.length === 0 ? '暂无章节' : '没有匹配的章节'}</div>
+                <EmptyState icon={<BookOpen />} message={allChapters.length === 0 ? '暂无章节' : '没有匹配的章节'} hint={allChapters.length === 0 ? '这本作品还没有可阅读的章节。' : '换个章节号或标题再试试。'} />
               ) : (
                 <VirtualList
                   className="mobile-library-scroll"
@@ -151,7 +157,7 @@ export function MobileLibrarySheet({
           ) : (
             <div id="mobileBookmarkList" className="mobile-library-panel" role="tabpanel" aria-labelledby="mobileLibraryTabBookmarks" tabIndex={0}>
               {bookmarks.length === 0 ? (
-                <div className="mobile-library-empty">暂无书签</div>
+                <EmptyState icon={<Bookmark />} message="暂无书签" hint="阅读时添加书签，留下想回来的位置。" />
               ) : (
                 bookmarks.map((bm) => (
                   <div className={`mobile-library-bookmark${bm.chapterId === currentChapterId ? ' mobile-library-item--current' : ''}`} key={bm.id}>
@@ -159,12 +165,13 @@ export function MobileLibrarySheet({
                       <span className="mobile-library-item__title">{bm.chapterTitle || `第${bm.chapterOrder}章`}</span>
                       {bm.note && <span className="mobile-library-item__meta">{bm.note}</span>}
                     </button>
-                    <button type="button" className="mobile-library-bookmark__delete" aria-label="删除书签" onClick={() => onDeleteBookmark(bm.id)}>×</button>
+                    <Button variant="ghost" size="icon" type="button" className="mobile-library-bookmark__delete" aria-label="删除书签" onClick={() => onDeleteBookmark(bm.id)}><Trash2 size={14} aria-hidden="true" /></Button>
                   </div>
                 ))
               )}
             </div>
           )}
+          </Tabs>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

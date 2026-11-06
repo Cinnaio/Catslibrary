@@ -1,0 +1,16 @@
+.panel { min-width: 0; font-family: var(--font-body); }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.header h2 { display: flex; align-items: baseline; gap: 10px; margin: 0; font-size: 16px; font-weight: 600; }
+.header h2 span { color: var(--text-muted); font-size: 12px; font-weight: 400; }
+.list { display: grid; gap: 8px; }
+.item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: var(--radius-control); }
+.item:hover { background: var(--bg-hover); }
+.item[data-current='true'] { background: var(--bg-secondary); }
+.jump { display: grid; flex: 1; gap: 5px; min-width: 0; min-height: 44px; padding: 4px; border: 0; background: transparent; color: var(--text-secondary); text-align: left; font-family: var(--font-body); cursor: pointer; }
+.title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 1.6; }
+.item[data-current='true'] .title { color: var(--accent); }
+.note { color: var(--text-muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.item .remove { flex-shrink: 0; color: var(--text-muted); }
+.item .remove:hover { color: var(--color-danger); }
+.jump:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 700px) { .jump { min-height: 48px; } }

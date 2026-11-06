@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 interface VirtualListProps<T> {
+  id?: string
   items: T[]
   rowHeight: number
   renderRow: (item: T, index: number) => ReactNode
@@ -14,7 +15,7 @@ interface VirtualListProps<T> {
   ariaLabel?: string
 }
 
-export function VirtualList<T>({ items, rowHeight, renderRow, scrollToIndex, className, ariaLabel }: VirtualListProps<T>) {
+export function VirtualList<T>({ id, items, rowHeight, renderRow, scrollToIndex, className, ariaLabel }: VirtualListProps<T>) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [range, setRange] = useState<[number, number]>([0, 0])
   const rafId = useRef(0)
@@ -59,6 +60,7 @@ export function VirtualList<T>({ items, rowHeight, renderRow, scrollToIndex, cla
 
   return (
     <div
+      id={id}
       ref={scrollRef}
       className={className}
       role={ariaLabel ? 'listbox' : undefined}

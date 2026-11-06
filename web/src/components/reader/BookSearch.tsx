@@ -41,7 +41,7 @@ function BookSearchControls({ novelId, title, className, iconOnly = false, onSel
   const [open, setOpen] = useState(false)
   useEffect(() => () => { onOpenChange?.(false) }, [onOpenChange])
   return <Dialog open={open} onOpenChange={value => { setOpen(value); onOpenChange?.(value) }}>
-    <DialogTrigger asChild><Button variant="secondary" className={className} aria-label="书内正文搜索" title="书内正文搜索" onClick={event => event.stopPropagation()}>
+    <DialogTrigger asChild><Button variant="secondary" className={className} aria-label="书内正文搜索" title="搜索本书正文" onClick={event => event.stopPropagation()}>
       <Search size={16} aria-hidden="true" />{!iconOnly && '正文搜索'}
     </Button></DialogTrigger>
     {open && <SearchContents novelId={novelId} title={title} mode={mode} onSelect={(hit, query) => {

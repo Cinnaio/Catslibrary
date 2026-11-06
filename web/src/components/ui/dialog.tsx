@@ -39,15 +39,18 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  overlayClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  /** 场景弹窗可调整遮罩层级，材质及交互仍由共享实现持有。 */
+  overlayClassName?: string
 }) {
   const appearance = useControlAppearance()
 
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-ui={appearance['data-ui']}

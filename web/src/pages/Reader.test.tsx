@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +16,7 @@ vi.mock('../hooks/useThoughtImages', () => ({ useThoughtImages: () => ({ images:
 vi.mock('../hooks/useReaderSettings', () => ({
   useReaderSettings: () => ({ settings: {}, set: vi.fn(), fontSize: 2, pageMode: false }),
   FONT_SIZES: ['1rem', '1rem', '1rem'], PAGE_WIDTHS: { standard: '680px' }, AUTO_SCROLL_SPEEDS: { off: 0 },
+  FONT_LABELS: ['15', '18', '20', '23', '27', '32'],
 }))
 vi.mock('../lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('../lib/api')>(),
@@ -44,6 +46,54 @@ beforeEach(() => {
 })
 
 describe('阅读器访问状态', () => {
+  it('手机书签备注独立于桌面工具组，取消后回到仍可见的工具栏', async () => {
+    const user = userEvent.setup()
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    mount()
+    await screen.findByText('正文')
+    await user.click(screen.getByRole('button', { name: '显示阅读工具栏' }))
+    const toolbar = screen.getByRole('toolbar', { name: '移动端阅读工具栏' })
+    const bookmark = within(toolbar).getByRole('button', { name: '添加书签' })
+    await user.click(bookmark)
+    const note = screen.getByRole('dialog', { name: '添加书签备注' })
+    expect(note.closest('.reader-controls')).toBeNull()
+    expect(toolbar).toHaveAttribute('aria-hidden', 'false')
+    expect(screen.getByLabelText('书签备注（可选）')).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(bookmark).toHaveFocus()
+    expect(screen.queryByRole('dialog', { name: '添加书签备注' })).not.toBeInTheDocument()
+  })
+
+  it('阅读工具面板互斥，Escape 从输入框及设置内关闭并恢复入口焦点', async () => {
+    const user = userEvent.setup()
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    mount()
+    await screen.findByText('正文')
+    const settings = screen.getByRole('button', { name: '阅读设置' })
+    await user.click(settings)
+    expect(screen.getByRole('dialog', { name: '阅读设置' })).toBeInTheDocument()
+    const chapters = screen.getByRole('button', { name: '章节目录，当前第1章' })
+    await user.click(chapters)
+    expect(screen.queryByRole('dialog', { name: '阅读设置' })).not.toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: '搜索章节' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(chapters).toHaveFocus()
+    expect(screen.queryByRole('searchbox', { name: '搜索章节' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '书签列表' }))
+    expect(screen.getByRole('dialog', { name: '书签列表' })).toBeInTheDocument()
+    await user.click(settings)
+    expect(screen.queryByRole('dialog', { name: '书签列表' })).not.toBeInTheDocument()
+    screen.getByRole('switch', { name: '显示插图' }).focus()
+    await user.keyboard('{Escape}')
+    expect(settings).toHaveFocus()
+    expect(screen.queryByRole('dialog', { name: '阅读设置' })).not.toBeInTheDocument()
+    await user.keyboard(' ')
+    expect(screen.getByRole('dialog', { name: '阅读设置' })).toBeInTheDocument()
+    await user.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '书内正文搜索' }))
+    expect(screen.queryByRole('dialog', { name: '阅读设置' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '书内正文搜索' })).toBeInTheDocument()
+  })
+
   it('慢目录不阻塞已授权正文，切章复用小说上下文和目录请求', async () => {
     mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
     let finish!: (data: { chapters: [] }) => void

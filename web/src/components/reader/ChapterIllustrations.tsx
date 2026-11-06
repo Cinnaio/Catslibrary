@@ -1,16 +1,21 @@
 import '@/styles/select-fields.css'
 import '@/styles/input-fields.css'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import FormField from '@/components/shared/FormField'
+import SearchSelect from '@/components/shared/SearchSelect'
+import { DialogBody, DialogFrame } from '@/components/shared/DialogFrame'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Dialog } from 'radix-ui'
-import { ImagePlus, Upload, X } from 'lucide-react'
+import { ChevronDown, ImagePlus, Upload, X } from 'lucide-react'
 import { type ChapterIllustration, resolveIllustrationAnchor } from '@shared/chapter-illustrations'
 import { hashParagraphText } from '@shared/thought-anchor'
 import { illustrationsApi } from '../../lib/api'
 import { makeIllustrationAnchor } from '../../lib/chapter-illustrations'
 import { formatContent, excerptText } from '../../lib/reader-utils'
 import '../../styles/chapter-illustrations.css'
+import styles from './ChapterIllustrations.module.css'
 
 interface Props {
   chapterId: string
@@ -144,6 +149,8 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
   const [size, setSize] = useState<'medium' | 'full'>('medium')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const editorTitleRef = useRef<HTMLHeadingElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const busyRef = useRef(false)
   const [hosts, setHosts] = useState<{ element: HTMLDivElement; index: number }[]>([])
   const [undo, setUndo] = useState<{ before: ChapterIllustration | null; after: ChapterIllustration } | null>(null)
@@ -521,10 +528,14 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
           if (!value && !busy) setEditor(null)
         }}
       >
-        <Dialog.Portal>
-          <Dialog.Overlay className="illustration-overlay" />
-          <Dialog.Content
-            className="illustration-editor"
+          <DialogFrame
+            className={styles.editor}
+            overlayClassName={styles.overlay}
+            showCloseButton={false}
+            onOpenAutoFocus={(event) => {
+              event.preventDefault()
+              editorTitleRef.current?.focus()
+            }}
             onPointerDownOutside={(event) => event.preventDefault()}
             onEscapeKeyDown={(event) => {
               if (busy) event.preventDefault()
@@ -543,53 +554,45 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
               }
             }}
           >
-            <div className="illustration-editor-header">
+            <div className={styles.header}>
               <div>
-                <Dialog.Title>{editor?.item ? '编辑章节插图' : '添加章节插图'}</Dialog.Title>
-                <Dialog.Description>为故事添一张图，先预览，再保存。</Dialog.Description>
+                <Dialog.Title className={styles.title} ref={editorTitleRef} tabIndex={-1}>{editor?.item ? '编辑章节插图' : '添加章节插图'}</Dialog.Title>
+                <Dialog.Description className={styles.description}>为故事添加一张插图，预览后再保存。</Dialog.Description>
               </div>
               <Dialog.Close asChild>
-                <button type="button" className="illustration-editor-close" aria-label="关闭插图编辑" disabled={busy}>
+                <Button variant="ghost" size="icon" type="button" className={styles.close} aria-label="关闭插图编辑" disabled={busy}>
                   <X size={18} aria-hidden="true" />
-                </button>
+                </Button>
               </Dialog.Close>
             </div>
-            <div className="illustration-editor-body">
-              <label>
-                插入位置
-                <select
-                  disabled={busy}
-                  value={editor?.index ?? -1}
-                  onChange={(event) => setEditor((current) => (current ? { ...current, index: Number(event.target.value) } : current))}
-                >
-                  <option value={-1}>章节开头</option>
-                  {paragraphs.map((paragraph, index) => (
-                    <option key={index} value={index}>
-                      第 {index + 1} 段后：{excerptText(paragraph.textContent || '').slice(0, 36)}
-                    </option>
-                  ))}
-                  <option value={paragraphs.length}>章节结尾</option>
-                </select>
-              </label>
-              <div className="illustration-context">
-                <span>
-                  上文：
-                  {editor && editor.index >= 0 && editor.index < paragraphs.length
-                    ? excerptText(paragraphs[editor.index]?.textContent || '')
-                    : editor?.index === paragraphs.length
-                      ? excerptText(paragraphs.at(-1)?.textContent || '')
-                      : '章节开头'}
-                </span>
-                <span>下文：{editor && editor.index + 1 < paragraphs.length ? excerptText(paragraphs[editor.index + 1]?.textContent || '') : '章节结尾'}</span>
-              </div>
-              <label className="illustration-upload">
-                <span className="illustration-upload-icon" aria-hidden="true">
-                  <Upload size={20} />
-                </span>
-                <span>选择图片（也可以在此粘贴）</span>
+            <DialogBody className={styles.body} role="region" aria-label="插图编辑内容" tabIndex={0}>
+              <section className={styles.media} aria-label="插图预览">
+                <div className={styles.mediaHeading}><h3>插图预览</h3><span>预览不会自动保存</span></div>
+                <div className={styles.previewStage}>
+                  {preview ? (
+                    <figure className={`chapter-illustration-picture chapter-illustration-picture--${size}`}>
+                      <img className={styles.previewImage} src={preview} alt="待保存插图预览" />
+                      {caption && <figcaption className={styles.caption}>{caption}</figcaption>}
+                    </figure>
+                  ) : editor?.item ? <IllustrationPicture item={{ ...editor.item, size, caption }} /> : (
+                    <Button type="button" variant="ghost" className={styles.emptyUpload} aria-label="选择图片" disabled={busy} onClick={() => fileInputRef.current?.click()}>
+                      <ImagePlus size={26} aria-hidden="true" />
+                      <span>选择图片</span>
+                      <small>也可以直接在窗口内粘贴图片</small>
+                    </Button>
+                  )}
+                </div>
+                <div className={styles.fileRow}>
+                  <span className={styles.fileName} title={file?.name}>{file ? file.name : editor?.item ? '当前章节插图' : 'JPG、PNG、WebP、AVIF · 最大 10MB'}</span>
+                  {(preview || editor?.item) && <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => fileInputRef.current?.click()}><Upload size={14} aria-hidden="true" />更换图片</Button>}
+                </div>
+                {(preview || editor?.item) && <p className={styles.help}>支持粘贴替换 · JPG、PNG、WebP、AVIF · 最大 10MB</p>}
                 <input
+                  ref={fileInputRef}
                   className="sr-only"
                   type="file"
+                  tabIndex={-1}
+                  aria-label="选择图片（也可以在此粘贴）"
                   accept="image/jpeg,image/png,image/webp,image/avif"
                   disabled={busy}
                   onChange={(event) => {
@@ -597,55 +600,70 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
                     event.target.value = ''
                   }}
                 />
-              </label>
-              <span className="illustration-help">JPG、PNG、WebP、AVIF，最大 10MB</span>
-              {file && <span className="illustration-help">已选择：{file.name}</span>}
-              {preview ? (
-                <figure className={`chapter-illustration-picture chapter-illustration-picture--${size}`}>
-                  <img className="illustration-file-preview" src={preview} alt="待保存插图预览" />
-                </figure>
-              ) : (
-                editor?.item && <IllustrationPicture item={{ ...editor.item, size }} />
-              )}
-              <div className="illustration-editor-fields">
-                <label>
-                  图注（可选）
-                  <textarea
-                    value={caption}
-                    placeholder="写一句简短的图片说明…"
-                    maxLength={500}
-                    rows={2}
+              </section>
+              <div className={styles.details}>
+                <FormField label="插入位置">
+                  <SearchSelect
+                    className={styles.positionSelect}
+                    popoverClassName={styles.positionDropdown}
+                    searchable
+                    matchTriggerWidth
+                    searchPlaceholder="搜索段落编号或正文…"
+                    emptyText="没有匹配的段落"
                     disabled={busy}
-                    onChange={(event) => setCaption(event.target.value)}
+                    value={String(editor?.index ?? -1)}
+                    onChange={(value) => setEditor((current) => (current ? { ...current, index: Number(value) } : current))}
+                    options={[
+                      { value: '-1', label: '章节开头' },
+                      ...paragraphs.map((paragraph, index) => ({ value: String(index), label: `第 ${index + 1} 段后：${excerptText(paragraph.textContent || '')}` })),
+                      { value: String(paragraphs.length), label: '章节结尾' },
+                    ]}
                   />
-                </label>
-                <label>
-                  展示宽度
-                  <select value={size} disabled={busy} onChange={(event) => setSize(event.target.value as 'medium' | 'full')}>
-                    <option value="medium">适中</option>
-                    <option value="full">正文宽度</option>
-                  </select>
-                </label>
+                </FormField>
+                <details className={styles.contextDisclosure}>
+                  <summary>查看插入位置上下文<ChevronDown size={14} aria-hidden="true" /></summary>
+                <dl className={styles.context} aria-label="插入位置上下文">
+                  <div><dt>上文</dt><dd>
+                    {editor && editor.index >= 0 && editor.index < paragraphs.length
+                      ? excerptText(paragraphs[editor.index]?.textContent || '')
+                      : editor?.index === paragraphs.length
+                        ? excerptText(paragraphs.at(-1)?.textContent || '')
+                        : '章节开头'}
+                  </dd></div>
+                  <div><dt>下文</dt><dd>{editor && editor.index + 1 < paragraphs.length ? excerptText(paragraphs[editor.index + 1]?.textContent || '') : '章节结尾'}</dd></div>
+                </dl>
+                </details>
+                <div className={styles.widthField}>
+                  <span>展示宽度</span>
+                  <div className={styles.widthOptions} role="group" aria-label="展示宽度">
+                    <Button type="button" variant="ghost" disabled={busy} aria-pressed={size === 'medium'} onClick={() => setSize('medium')}>适中</Button>
+                    <Button type="button" variant="ghost" disabled={busy} aria-pressed={size === 'full'} onClick={() => setSize('full')}>正文宽度</Button>
+                  </div>
+                </div>
+              <FormField label="图注（可选）">
+                <Textarea
+                  className={styles.captionInput}
+                  value={caption}
+                  placeholder="写一句简短的图片说明…"
+                  maxLength={500}
+                  rows={2}
+                  disabled={busy}
+                  onChange={(event) => setCaption(event.target.value)}
+                />
+              </FormField>
+                {error && <div className={styles.error} role="alert">{error}</div>}
               </div>
-              {caption && <div className="illustration-caption-preview">{caption}</div>}
-              {error && <div role="alert">{error}</div>}
+            </DialogBody>
+            <div className={styles.footer}>
+              <span className={styles.saveNote}>保存后所有读者可见</span>
+              <div className={styles.actions}>
+                <Button variant="secondary" type="button" disabled={busy} onClick={() => setEditor(null)}>取消</Button>
+                <Button variant="default" type="button" disabled={busy || !fresh || (!file && !editor?.item)} onClick={() => editor && void commit(editor.item, editor.index, { caption, size }, file)}>
+                  {busy ? '保存中…' : '保存插图'}
+                </Button>
+              </div>
             </div>
-            <div className="illustration-editor-footer">
-              <span className="illustration-save-note">保存后所有读者可见</span>
-              <Button variant="secondary"  type="button" disabled={busy} onClick={() => setEditor(null)}>
-                取消
-              </Button>
-              <Button variant="default"
-
-                type="button"
-                disabled={busy || !fresh || (!file && !editor?.item)}
-                onClick={() => editor && void commit(editor.item, editor.index, { caption, size }, file)}
-              >
-                {busy ? '保存中…' : '保存插图'}
-              </Button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
+          </DialogFrame>
       </Dialog.Root>
     </>
   )

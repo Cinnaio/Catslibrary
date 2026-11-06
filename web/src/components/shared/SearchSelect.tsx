@@ -65,6 +65,8 @@ interface SearchSelectProps {
   /** 本地无命中时触发服务端补搜（如全库索引未覆盖） */
   onServerSearch?: (query: string) => void
   className?: string
+  /** 浮层的场景布局类名，例如在高层级弹窗内调整堆叠顺序。 */
+  popoverClassName?: string
   disabled?: boolean
   /** 触发器 id：让 <Label htmlFor> 指向按钮本身，而不是包一层 div。 */
   id?: string
@@ -95,6 +97,7 @@ export default function SearchSelect({
   filter,
   onServerSearch,
   className,
+  popoverClassName,
   disabled,
   id,
   dropdownSide = 'bottom',
@@ -225,6 +228,7 @@ export default function SearchSelect({
           ((searchable && !controlled) || collapsed) && 'pt-1',
           compact && 'w-auto',
           matchTriggerWidth && 'w-(--radix-popover-trigger-width)',
+          popoverClassName,
         )}
       >
         <Command shouldFilter={false}>

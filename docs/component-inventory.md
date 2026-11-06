@@ -1,5 +1,15 @@
 # 生产组件归属清单
 
+2026-11-06 插图编辑外壳复用共享 DialogFrame／DialogBody，桌面两列预览与配置、手机单列，布局及预览由 `ChapterIllustrations.module.css` 持有。公共 DialogContent 新增可选 `overlayClassName` 用于场景遮罩层级，保持默认调用方不变；图片选择使用共享 Button 唤起原文件输入，位置搜索、字段及操作继续复用 SearchSelect／FormField／Textarea／Button，段落锚点、版本与保存仍归插图组件。
+
+2026-11-06 阅读页统一重构以 `pages/Reader.tsx`／`reader.module.css` 持有稳定顶栏、阅读纸面、目录和移动面板布局，删除 `styles/reader-responsive.css` 与 `styles/bookmarks.css` 的旧覆盖；开发展厅读取同一生产纸面样式。书签列表由 `BookmarkPanel.module.css` 持有，空态与操作复用 EmptyState／Button；手机分区复用 Tabs、目录复用 SearchField，设置继续复用 Button／Switch，想法与插图管理在原样式所有者内统一主题及留白。阅读宽度与工具栏解耦，700px 为阅读器一致断点；数据、缓存、权限、进度、设置同步与原 URL 继续归原所有者。
+
+2026-11-06 插图插入位置复用共享 SearchSelect 的搜索、选择、焦点及字段语义；组件新增可选 `popoverClassName`，插图模块仅通过自身 CSS Module 持有触发器宽度与浮层堆叠顺序。插入位置与展示宽度统一跟随共享 `--control-height`，移除原生位置下拉。
+
+2026-11-06 章节插图编辑布局由 `components/reader/ChapterIllustrations.module.css` 持有，`ChapterIllustrations.tsx` 继续持有段落锚点、图片请求和版本保存；标题、预览、位置上下文及头尾留白不使用装饰分隔线。图注复用 FormField 与 Textarea，宽度复用 Button 分段选项；`styles/chapter-illustrations.css` 仅保留管理工具、正文插图与大图预览，旧编辑弹窗的样式及覆盖已移除。
+
+2026-11-06 阅读工具栏布局、目录／书签／设置的面板状态与焦点由 `pages/Reader.tsx` 和 `reader.module.css` 持有，菜单互斥复用 `hooks/useExclusiveMenu.ts` 并与主题菜单协作。`components/reader/SettingsControls.tsx` 自带 `SettingsControls.module.css`，供桌面弹层、移动 sheet 和展厅共用；分段选项与字号操作复用 Button，具名开关复用 Switch。移除阅读器页面内旧设置控件皮肤，保留原有设置键、档位与同步所有者，不增加公共层业务依赖。
+
 2026-11-06 书内正文搜索由 `components/reader/BookSearch.tsx` 与自带 CSS Module 持有，供作品详情和阅读器复用；输入、弹窗、错误、空态与加载继续使用共享组件。命中定位由 `hooks/useReaderSearch.ts` 使用 Range／CSS Highlight 维护，不重写正文节点或段评锚点。
 
 2026-11-06 文本与图像供应商预设共用 `pages/admin/ai/AiProviderPresets.tsx`，预设下拉复用生产 Select／SelectTrigger／SelectContent／SelectItem，移除原生下拉皮肤；宽度及连接字段网格对齐由 `ai-config.module.css` 维护，弹层、主题、尺寸和键盘语义继续归共享 Select，不新增公共业务依赖。
@@ -68,11 +78,11 @@
 | `components/PageSeo.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：路由 SEO 与品牌配置 |
 | `components/PageState.tsx` | 应用／业务 | 7 | `styles/page-state.css` | 保留：控制整页外壳的异常呈现，区别于面板空态 |
 | `components/reader/BookSearch.tsx` | 阅读场景 | 2 | `components/reader/BookSearch.module.css` | 保留：书内正文查询、分批检索与章节定位业务 |
-| `components/reader/BookmarkPanel.tsx` | 阅读场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
-| `components/reader/ChapterIllustrations.tsx` | 阅读场景 | 2 | `styles/select-fields.css`、`styles/input-fields.css`、`styles/chapter-illustrations.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
+| `components/reader/BookmarkPanel.tsx` | 阅读场景 | 1 | `components/reader/BookmarkPanel.module.css` | 书签列表布局；按钮与空态复用共享组件 |
+| `components/reader/ChapterIllustrations.tsx` | 阅读场景 | 2 | `styles/select-fields.css`、`styles/input-fields.css`、`styles/chapter-illustrations.css`、`components/reader/ChapterIllustrations.module.css` | 保留：阅读状态、图片与段落锚点；编辑布局由 CSS Module 持有 |
 | `components/reader/ChapterRecap.tsx` | 阅读场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/MobileSheets.tsx` | 阅读场景 | 1 | `styles/input-fields.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
-| `components/reader/SettingsControls.tsx` | 阅读场景 | 3 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
+| `components/reader/SettingsControls.tsx` | 阅读场景 | 3 | `components/reader/SettingsControls.module.css` | 阅读设置控件；Button／Switch 共用，设置键与同步不变 |
 | `components/reader/ThoughtImage.tsx` | 阅读场景 | 2 | `styles/thoughts.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ThoughtPanel.tsx` | 阅读场景 | 1 | `styles/thoughts.css`、`styles/input-fields.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/VirtualList.tsx` | 阅读场景 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |

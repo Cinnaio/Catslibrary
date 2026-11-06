@@ -1,11 +1,10 @@
 /* Warm paper surfaces, quiet borders and compact controls for the illustration workspace. */
 .illustration-manager,
-.illustration-editor,
 .illustration-lightbox,
 .illustration-undo {
-  --illustration-paper: color-mix(in srgb, var(--bg-card) 30%, var(--bg-secondary));
-  --illustration-inset: color-mix(in srgb, var(--bg-secondary) 80%, var(--bg-card));
-  --illustration-line: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --illustration-paper: var(--bg-secondary);
+  --illustration-inset: var(--bg-secondary);
+  --illustration-line: var(--border);
   --illustration-muted: var(--text-muted);
   font-family: var(--font-body);
   color: var(--text-primary);
@@ -14,8 +13,7 @@
   clear: both;
 }
 .illustration-list {
-  margin-top: 16px;
-  border-top: 1px solid var(--illustration-line);
+  margin-top: 20px;
 }
 .illustration-list summary {
   padding: 12px 0 0;
@@ -31,8 +29,8 @@
 .illustration-list li {
   margin: 8px 0 0;
   padding: 14px;
-  border: 1px solid var(--illustration-line);
-  border-radius: 10px;
+  border: 0;
+  border-radius: var(--radius-control);
   background: var(--bg-card);
 }
 .illustration-list li > span {
@@ -99,7 +97,7 @@
   max-height: 70vh;
   overflow: hidden;
   background: color-mix(in srgb, currentColor 4%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
 }
 .chapter-illustration-frame > span {
   font-size: 14px;
@@ -120,8 +118,7 @@
   height: 100%;
   object-fit: contain;
 }
-.chapter-illustration-picture figcaption,
-.illustration-caption-preview {
+.chapter-illustration-picture figcaption {
   margin-top: 10px;
   text-align: center;
   font-size: 14px;
@@ -178,8 +175,8 @@
 .illustration-notice {
   margin: 20px 0;
   padding: 20px;
-  border: 1px solid var(--illustration-line, var(--border));
-  border-radius: 14px;
+  border: 0;
+  border-radius: var(--radius-control);
   background: var(--illustration-paper, var(--bg-secondary));
   font-family: var(--font-body);
   font-size: 13px;
@@ -193,7 +190,6 @@
   margin-bottom: 10px;
 }
 .illustration-manager > span,
-.illustration-context span,
 .illustration-pending > div > span {
   display: block;
 }
@@ -202,7 +198,6 @@
 }
 .illustration-pending > div {
   padding: 12px 0;
-  border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
 }
 .illustration-pending .chapter-illustration-picture {
   max-width: 180px;
@@ -217,108 +212,6 @@
   z-index: 500;
   background: rgb(25 23 20 / 0.46);
   backdrop-filter: blur(3px);
-}
-.illustration-editor {
-  position: fixed;
-  z-index: 510;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  width: min(600px, calc(100vw - 32px));
-  max-height: min(860px, calc(100dvh - 40px));
-  overflow: hidden;
-  padding: 0;
-  border: 1px solid var(--illustration-line);
-  border-radius: 18px;
-  background: var(--illustration-paper);
-  box-shadow:
-    0 24px 80px rgb(20 18 15 / 0.18),
-    0 2px 8px rgb(20 18 15 / 0.05);
-  outline: none;
-}
-.illustration-editor h2 {
-  margin: 0;
-  font-family: var(--font-serif);
-  font-size: 23px;
-  font-weight: 500;
-  line-height: 1.5;
-  letter-spacing: -0.025em;
-}
-.illustration-editor-header p {
-  margin: 0;
-  color: var(--illustration-muted);
-  font-size: 13px;
-  line-height: 1.7;
-}
-.illustration-editor label {
-  display: block;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.6;
-}
-.illustration-editor select,
-.illustration-editor textarea {
-  display: block;
-  width: 100%;
-  min-height: 42px;
-  margin-top: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--illustration-line);
-  border-radius: 9px;
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.6;
-  outline: none;
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.illustration-context {
-  display: grid;
-  gap: 6px;
-  padding: 12px 14px;
-  margin: -6px 0 0;
-  border-left: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
-  border-radius: 0 7px 7px 0;
-  background: var(--illustration-inset);
-  color: var(--illustration-muted);
-  font-size: 12px;
-  line-height: 1.8;
-  overflow-wrap: anywhere;
-}
-.illustration-help {
-  display: block;
-  margin: -8px 0 0;
-  color: var(--illustration-muted);
-  font-size: 11px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-.illustration-file-preview {
-  display: block;
-  width: 100%;
-  max-height: 34vh;
-  border-radius: 9px;
-  object-fit: contain;
-  background: var(--illustration-inset);
-}
-.illustration-editor-footer {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  margin: 0;
-  padding: 16px 24px;
-  border-top: 1px solid var(--illustration-line);
-  background: var(--illustration-paper);
 }
 .illustration-overlay--viewer {
   background: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
@@ -480,11 +373,6 @@
   margin: 1em 0;
 }
 @media (max-width: 640px) {
-  .illustration-editor {
-    width: calc(100vw - 24px);
-    max-height: calc(100dvh - 24px);
-    border-radius: 14px;
-  }
   .illustration-lightbox {
     padding: 0 14px calc(20px + env(safe-area-inset-bottom));
   }
@@ -536,160 +424,28 @@
   color: var(--accent);
 }
 .illustration-pending {
-  padding-top: 12px;
-  border-top: 1px solid var(--illustration-line);
+  padding-top: 20px;
 }
 .illustration-pending > strong {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
 }
-.illustration-editor-header {
-  display: flex;
-  flex: none;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 24px 24px 18px;
-  border-bottom: 1px solid var(--illustration-line);
-}
-.illustration-editor-header p {
-  margin-top: 6px;
-}
-.illustration-editor-close {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 30px;
-  height: 30px;
-  margin-top: 2px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.illustration-editor-close:hover {
-  background: var(--illustration-inset);
-  color: var(--text-primary);
-}
-.illustration-editor-body {
-  display: grid;
-  gap: 16px;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 22px 24px;
-}
-.illustration-editor .illustration-upload {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 106px;
-  padding: 18px;
-  border: 1px dashed color-mix(in srgb, var(--text-primary) 22%, transparent);
-  border-radius: 12px;
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  text-align: center;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-.illustration-upload:hover,
-.illustration-upload:focus-within {
-  background: var(--illustration-inset);
-  border-color: var(--accent);
-}
-.illustration-upload-icon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: var(--illustration-inset);
-  color: var(--text-muted);
-}
-.illustration-editor-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 140px;
-  align-items: start;
-  gap: 16px;
-}
-.illustration-editor textarea {
-  min-height: 88px;
-  resize: vertical;
-}
-.illustration-editor select {
-  padding-right: 24px;
-  text-overflow: ellipsis;
-}
-.illustration-editor select:focus-visible,
-.illustration-editor textarea:focus-visible {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.illustration-editor button:focus-visible,
 .illustration-manager button:focus-visible,
 .illustration-insert:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
-.illustration-save-note {
-  flex: 1;
-  color: var(--illustration-muted);
-  font-size: 11px;
-}
-.illustration-editor-body > [role='alert'] {
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--danger) 8%, var(--bg-card));
-  color: var(--danger);
-  font-size: 12px;
-}
-.illustration-caption-preview {
-  margin-top: 0;
-  color: var(--text-muted);
-  font-size: 12px;
-}
 @media (max-width: 640px) {
   .illustration-manager {
     padding: 16px;
-  }
-  .illustration-editor-header {
-    padding: 20px 18px 16px;
-  }
-  .illustration-editor h2 {
-    font-size: 21px;
-  }
-  .illustration-editor-body {
-    padding: 18px;
-    gap: 14px;
-  }
-  .illustration-editor-fields {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
-  }
-  .illustration-editor-footer {
-    flex-wrap: wrap;
-    padding: 14px 18px;
-  }
-  .illustration-save-note {
-    flex-basis: 100%;
   }
   .illustration-insert {
     min-height: 40px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .illustration-insert,
-  .illustration-editor select,
-  .illustration-editor textarea,
-  .illustration-upload {
+  .illustration-insert {
     transition: none;
   }
   .illustration-overlay--viewer[data-state],

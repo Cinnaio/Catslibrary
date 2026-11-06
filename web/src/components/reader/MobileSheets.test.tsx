@@ -84,7 +84,7 @@ describe('MobileLibrarySheet', () => {
     const dialog = screen.getByRole('dialog', { name: '阅读设置' })
     expect(dialog.closest('.reader-app')).not.toBeNull()
     await waitFor(() => expect(screen.getByRole('button', { name: '关闭阅读设置' })).toHaveFocus())
-    expect(screen.getByRole('button', { name: '18' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('status', { name: '当前字号' })).toHaveTextContent('18')
     await user.tab({ shift: true })
     expect(dialog).toContainElement(document.activeElement as HTMLElement)
 

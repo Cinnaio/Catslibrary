@@ -52,9 +52,16 @@ describe('章节插图交互', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(await screen.findByRole('button', { name: '在第 2 段后插图' }))
+    await user.click(screen.getByRole('combobox', { name: '插入位置' }))
+    await user.type(screen.getByPlaceholderText('搜索段落编号或正文…'), '灯火')
+    await user.click(screen.getByRole('option', { name: /第 3 段后/ }))
+    await user.click(screen.getByText('查看插入位置上下文'))
+    expect(screen.getByLabelText('插入位置上下文')).toBeVisible()
+    expect(screen.getByLabelText('插入位置上下文')).toHaveTextContent('灯火依然亮着。')
     const file = new File(['png'], 'courtyard.png', { type: 'image/png' })
     await user.upload(screen.getByLabelText('选择图片（也可以在此粘贴）'), file)
     await user.type(screen.getByLabelText('图注（可选）'), '雨夜庭院')
+    await user.click(screen.getByRole('button', { name: '正文宽度' }))
     expect(api.save).not.toHaveBeenCalled()
     expect(screen.getByAltText('待保存插图预览')).toBeInTheDocument()
     api.save.mockRejectedValueOnce(new Error('插图已被其他管理员修改，请刷新后重试'))
@@ -68,7 +75,8 @@ describe('章节插图交互', () => {
     expect(api.save.mock.calls[1]?.[2]).toMatchObject({
       chapterRevision: 'revision',
       caption: '雨夜庭院',
-      anchor: { paragraphIndex: 1, paragraphText: '他推开了门。' },
+      size: 'full',
+      anchor: { paragraphIndex: 2, paragraphText: '灯火依然亮着。' },
     })
     expect(api.save.mock.calls[1]?.[3]).toBe(file)
     expect(screen.getByTestId('body').querySelectorAll('p')).toHaveLength(3)

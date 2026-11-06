@@ -4,6 +4,7 @@
  * 有每日配额的读者会看到剩余次数，用尽后按钮禁用（命中缓存不计数）。
  */
 import { useCallback, useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { aiApi, type ApiError } from '../../lib/api'
 import { useAiStatus } from '../../hooks/useAiStatus'
 
@@ -80,20 +81,20 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
         <span className="reader-recap__label">前情提要</span>
         <span className="reader-recap__source">{prevChapterTitle}</span>
         {recap && (
-          <button type="button" className="reader-recap__toggle" onClick={() => setCollapsed((v) => !v)}>
+          <Button variant="ghost" size="sm" type="button" className="reader-recap__toggle" onClick={() => setCollapsed((v) => !v)}>
             {collapsed ? '展开' : '收起'}
-          </button>
+          </Button>
         )}
       </div>
 
       {!recap && !error && (
-        <button type="button" className="reader-recap__action" onClick={() => void generate()} disabled={loading || quotaExhausted}>
+        <Button variant="ghost" size="sm" type="button" className="reader-recap__action" onClick={() => void generate()} disabled={loading || quotaExhausted}>
           {loading
             ? '正在回顾上一章…'
             : quotaExhausted
               ? '今日 AI 次数已用完，明天再来'
               : `AI 回顾上一章${remaining !== null ? `（今日剩 ${remaining} 次）` : ''}`}
-        </button>
+        </Button>
       )}
 
       {recap && !collapsed && <p className="reader-recap__text">{recap}</p>}
@@ -102,9 +103,9 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
         <p className="reader-recap__error" role="status">
           {error}
           {!quotaExhausted && (
-            <button type="button" className="reader-recap__action" onClick={() => void generate()} disabled={loading}>
+            <Button variant="ghost" size="sm" type="button" className="reader-recap__action" onClick={() => void generate()} disabled={loading}>
               重试
-            </button>
+            </Button>
           )}
         </p>
       )}

@@ -65,6 +65,7 @@ import Pagination from "@/components/shared/Pagination"
 import SearchSelect from "@/components/shared/SearchSelect"
 import TimeField from "@/components/shared/TimeField"
 import { SettingsControls } from '@/components/reader/SettingsControls'
+import readerStyles from '../reader.module.css'
 import type { ExampleProps } from './gallery-types'
 
 const longTitle = '穿过漫长雨季之后，我们终于在那座没有名字的海边小城再次相遇'
@@ -967,9 +968,9 @@ export function ReaderSettings() {
 }
 export function ReaderPaper({ boundary }: ExampleProps) {
   return (
-    <div className="reader-app gallery-reader">
+    <div className={`${readerStyles.page} reader-app gallery-reader`}>
       <article className="reader-paper">
-        <h2 className="reader-chapter-title">{boundary ? longTitle : '第十二章 · 远山来信'}</h2>
+        <header className="reader-chapter-heading"><h2 className="reader-chapter-title">{boundary ? longTitle : '第十二章 · 远山来信'}</h2></header>
         <div className="reader-body">
           <p>傍晚，山间的雾散了。她坐在窗前，将那封未曾署名的信读了又读。</p>
           <p>{boundary ? '这是一段用来检查长段落、换行与阅读宽度的虚构文字。'.repeat(18) : '远方的灯塔依次亮起，像有人在夜色中，轻轻翻开一本书。'}</p>
