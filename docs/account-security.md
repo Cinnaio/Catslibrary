@@ -75,6 +75,8 @@ PUBLIC_WEB_URL=https://read.example.com
 
 保持用户名密码注册和登录、Passkey 登录，不把邮箱改为强制注册条件。
 
+Web 找回密码申请整合到 `/auth?mode=forgot-password`，与登录／注册共享图文布局；登录密码标签右侧提供入口，申请后展示服务端统一响应，可返回登录或重新填写。视图切换保留当前页的输入草稿、保持登录选择及来源页，支持浏览器前进／后退；旧 `/forgot-password` 仅作兼容跳转。密码重置邮件中的 `/reset-password#token=...` 与邮箱确认 `/verify-email#token=...` 仍按下述流程显式确认，不因页面整合自动消费令牌。
+
 | 接口（相对 /api/auth） | 身份 | 用途 |
 | --- | --- | --- |
 | GET /mail-status | 公开 | 仅返回 ready |

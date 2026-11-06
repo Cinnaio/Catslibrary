@@ -1,15 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ verify: vi.fn(), reset: vi.fn(), forgot: vi.fn(), refresh: vi.fn() }))
-vi.mock('@/lib/api', () => ({ authApi: { verifyEmail: mocks.verify, resetPassword: mocks.reset, forgotPassword: mocks.forgot } }))
+const mocks = vi.hoisted(() => ({ verify: vi.fn(), reset: vi.fn(), refresh: vi.fn() }))
+vi.mock('@/lib/api', () => ({ authApi: { verifyEmail: mocks.verify, resetPassword: mocks.reset } }))
 vi.mock('@/context/SessionContext', () => ({ useSession: () => ({ refresh: mocks.refresh }) }))
 vi.mock('@/hooks/useDocumentTitle', () => ({ useDocumentTitle: vi.fn() }))
 import AccountEmail from './AccountEmail'
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.verify.mockResolvedValue({ success: true }); mocks.reset.mockResolvedValue({ success: true })
-  mocks.forgot.mockResolvedValue({ message: '如果账号已绑定可用邮箱，你将收到密码重置邮件。' }); mocks.refresh.mockResolvedValue(undefined)
+  mocks.refresh.mockResolvedValue(undefined)
   window.history.replaceState(null, '', '/verify-email#token=fixture-token')
 })
 function mount(entry: string) { return render(<MemoryRouter initialEntries={[entry]}><AccountEmail /></MemoryRouter>) }
@@ -40,15 +40,4 @@ it('密码不一致不能提交；成功后清空表单并提示重新登录', a
   expect(await screen.findByRole('status')).toHaveTextContent('请使用新密码登录')
   expect(mocks.reset).toHaveBeenCalledWith('fixture-token', 'New-password-123')
   expect(screen.queryByLabelText('新密码', { exact: true })).not.toBeInTheDocument()
-})
-it('找回密码使用统一响应，失败保留输入可重试', async () => {
-  mocks.forgot.mockRejectedValueOnce(new Error('请求过于频繁'))
-  mount('/forgot-password')
-  fireEvent.change(screen.getByLabelText('用户名或邮箱'), { target: { value: 'reader' } })
-  fireEvent.click(screen.getByRole('button', { name: '发送重置邮件' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('请求过于频繁')
-  expect(screen.getByLabelText('用户名或邮箱')).toHaveValue('reader')
-  fireEvent.click(screen.getByRole('button', { name: '发送重置邮件' }))
-  expect(await screen.findByRole('status')).toHaveTextContent('如果账号已绑定可用邮箱')
-  expect(mocks.forgot).toHaveBeenLastCalledWith('reader')
 })

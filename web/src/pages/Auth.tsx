@@ -3,14 +3,14 @@ import '@/styles/site-branding.css'
 import '@/styles/input-fields.css'
 import styles from './auth.module.css'
 /**
- * Auth 页 —— 登录 / 注册（shadcn 版）。
+ * Auth 页 —— 登录 / 注册 / 找回密码。
  * 首个管理员引导已拆到独立 /install 页：本页探测到 needsBootstrap 时跳转过去。
  *
  * 独立阅读氛围双栏：auth-page--reader 限定页面外观，不改变安装向导。
  */
-import { useEffect, useState, type FormEvent, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, Eye, EyeOff, KeyRound, LoaderCircle } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Eye, EyeOff, KeyRound, LoaderCircle, MailCheck } from 'lucide-react'
 import { authApi, getToken } from '../lib/api'
 import { useSession } from '../context/SessionContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -21,7 +21,8 @@ import { useSiteBranding } from '../lib/site-branding'
 import { useStateChangeMotion } from '../hooks/useStateChangeMotion'
 import { ThemeMenu } from '../components/ThemeMenu'
 
-type Mode = 'login' | 'register'
+type Mode = 'login' | 'register' | 'forgot'
+type AuthLocationState = { mode?: Mode; from?: string }
 
 export default function Auth() {
   const branding = useSiteBranding()
@@ -29,10 +30,11 @@ export default function Auth() {
   const location = useLocation()
   const { user, login, refresh } = useSession()
 
-  const [mode, setMode] = useState<Mode>(() => {
-    const state = (location.state as { mode?: Mode } | null)?.mode
-    return state === 'register' ? 'register' : 'login'
-  })
+  const routeState = location.state as AuthLocationState | null
+  const requestedMode = new URLSearchParams(location.search).get('mode')
+  const mode: Mode = requestedMode === 'forgot-password' ? 'forgot'
+    : requestedMode === 'register' ? 'register' : requestedMode === 'login' ? 'login'
+    : routeState?.mode === 'register' ? 'register' : 'login'
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [invite, setInvite] = useState('')
@@ -43,14 +45,32 @@ export default function Auth() {
   const [passkeyBusy, setPasskeyBusy] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [passkeyAvailable, setPasskeyAvailable] = useState(false)
-  useDocumentTitle(mode === 'login' ? '登录' : '注册')
+  const [identifier, setIdentifier] = useState('')
+  const [recoveryMessage, setRecoveryMessage] = useState('')
+  const [recoveryError, setRecoveryError] = useState('')
+  const recoveryPending = useRef(false)
+  const recoveryInput = useRef<HTMLInputElement>(null)
+  const loginInput = useRef<HTMLInputElement>(null)
+  const recoveryReturnButton = useRef<HTMLButtonElement>(null)
+  const previousMode = useRef(mode)
+  useDocumentTitle(mode === 'login' ? '登录' : mode === 'register' ? '注册' : '找回密码')
 
   const isLogin = mode === 'login'
+  const isRecovery = mode === 'forgot'
   const { root: modeMotionRef, prepare: prepareModeMotion } = useStateChangeMotion(mode, '.auth-panel__title, .auth-fields, .auth-actions')
   /** 注册关闭时整表单不可用：此前仍可填写并提交，用户填完只等到服务端报错。 */
-  const registerClosed = !isLogin && registerMode === 'closed'
+  const registerClosed = mode === 'register' && registerMode === 'closed'
   const fieldsDisabled = busy || registerClosed
-  const showInvite = !isLogin && registerMode === 'invite'
+  const showInvite = mode === 'register' && registerMode === 'invite'
+
+  useEffect(() => {
+    const previous = previousMode.current
+    previousMode.current = mode
+    if (mode === 'forgot') {
+      if (recoveryMessage) recoveryReturnButton.current?.focus({ preventScroll: true })
+      else recoveryInput.current?.focus({ preventScroll: true })
+    } else if (previous === 'forgot') loginInput.current?.focus({ preventScroll: true })
+  }, [mode, recoveryMessage])
 
   /** 登录/注册成功后的回跳目标：优先来源页（谁带进 /auth 的 from），否则回首页。 */
   function next(): string {
@@ -145,15 +165,32 @@ export default function Auth() {
     }
   }
 
-  function switchMode(event: MouseEvent<HTMLButtonElement>) {
+  function switchMode(event: MouseEvent<HTMLButtonElement>, target: Mode) {
+    if (busy) return
     prepareModeMotion(event)
     setMsg('')
     setShowPassword(false)
-    setMode((m) => (m === 'login' ? 'register' : 'login'))
+    if (target === 'forgot' && !identifier) setIdentifier(username.trim())
+    const params = new URLSearchParams(location.search)
+    if (target === 'login') params.delete('mode')
+    else params.set('mode', target === 'forgot' ? 'forgot-password' : 'register')
+    navigate({ pathname: '/auth', search: params.toString() ? `?${params}` : '' }, { state: { ...routeState, mode: target } })
+  }
+
+  async function recoverPassword(event: FormEvent) {
+    event.preventDefault()
+    if (recoveryPending.current || busy || !identifier.trim() || recoveryMessage) return
+    recoveryPending.current = true; setBusy(true); setRecoveryError('')
+    try {
+      const result = await authApi.forgotPassword(identifier.trim())
+      setRecoveryMessage(result.message)
+    } catch (error) { setRecoveryError((error as Error).message || '请求失败，请稍后重试') }
+    finally { recoveryPending.current = false; setBusy(false) }
   }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
+    if (busy || isRecovery) return
     void (isLogin ? doLogin() : doRegister())
   }
 
@@ -178,16 +215,17 @@ export default function Auth() {
                 <img src={branding.logoUrl} alt="" className="auth-panel__mark site-logo" aria-hidden="true" />
                 <span>{branding.name}</span>
               </div>
-              <h1 id="auth-title" className="auth-panel__title">{isLogin ? '欢迎回来' : '创建你的阅读空间'}</h1>
-              <p className={styles.subtitle}>{isLogin ? '登录后，同步你的书架与阅读进度。' : '创建账号，把喜欢的故事收进书架。'}</p>
+              <h1 id="auth-title" className="auth-panel__title">{isRecovery ? '找回密码' : isLogin ? '欢迎回来' : '创建你的阅读空间'}</h1>
+              <p className={styles.subtitle}>{isRecovery ? '输入用户名或已验证邮箱，申请密码重置。' : isLogin ? '登录后，同步你的书架与阅读进度。' : '创建账号，把喜欢的故事收进书架。'}</p>
             </div>
 
-            <form className="auth-form" onSubmit={onSubmit} noValidate>
+            <form className="auth-form" onSubmit={onSubmit} noValidate hidden={isRecovery}>
               <div className="auth-fields">
                 <div className="auth-field">
                   <Label htmlFor="auth-username">账号</Label>
                   <Input
                     id="auth-username"
+                    ref={loginInput}
                     autoComplete={isLogin ? 'username webauthn' : 'username'}
                     required
                     placeholder="输入你的账号"
@@ -199,7 +237,10 @@ export default function Auth() {
                 </div>
 
                 <div className="auth-field">
-                  <Label htmlFor="auth-password">密码</Label>
+                  <div className={styles.passwordHeading}>
+                    <Label htmlFor="auth-password">密码</Label>
+                    {isLogin && <button type="button" className={`auth-switch__link ${styles.forgotLink}`} onClick={event => switchMode(event, 'forgot')} disabled={busy}>忘记密码</button>}
+                  </div>
                   <div className="auth-password">
                     <Input
                       id="auth-password"
@@ -285,14 +326,44 @@ export default function Auth() {
                 )}
 
                 <p className="auth-switch">
-                  {isLogin && <Link className="auth-switch__link" to="/forgot-password">忘记密码</Link>}
                   <span>{isLogin ? '没有账号？' : '已有账号？'}</span>
-                  <button type="button" className="auth-switch__link" onClick={switchMode} disabled={busy}>
+                  <button type="button" className="auth-switch__link" onClick={event => switchMode(event, isLogin ? 'register' : 'login')} disabled={busy}>
                     {isLogin ? '去注册' : '去登录'}
                   </button>
                 </p>
               </div>
             </form>
+
+            {isRecovery && <form className="auth-form" onSubmit={event => void recoverPassword(event)}>
+              {recoveryMessage ? <div className={styles.recoveryResult} role="status">
+                <MailCheck size={22} aria-hidden="true" />
+                <p>{recoveryMessage}</p>
+              </div> : <>
+                <div className="auth-fields">
+                  <div className="auth-field">
+                    <Label htmlFor="auth-recovery-identifier">用户名或邮箱</Label>
+                    <Input id="auth-recovery-identifier" ref={recoveryInput} autoComplete="username" required maxLength={254}
+                      placeholder="输入用户名或已验证邮箱" disabled={busy} value={identifier}
+                      onChange={event => setIdentifier(event.target.value)}
+                      aria-describedby={`auth-recovery-hint${recoveryError ? ' auth-recovery-error' : ''}`} />
+                    <p id="auth-recovery-hint" className={styles.fieldHint}>尚未绑定邮箱的账号，请联系站点管理员。</p>
+                  </div>
+                </div>
+                {recoveryError && <p id="auth-recovery-error" className="auth-alert" role="alert" title={recoveryError}>
+                  <AlertCircle className="size-4 shrink-0" aria-hidden="true" /><span>{recoveryError}</span>
+                </p>}
+              </>}
+              <div className="auth-actions">
+                {!recoveryMessage && <Button type="submit" disabled={busy}>
+                  {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
+                  {busy ? '正在申请…' : '发送重置邮件'}
+                </Button>}
+                <Button ref={recoveryReturnButton} type="button" variant={recoveryMessage ? 'default' : 'secondary'} onClick={event => switchMode(event, 'login')} disabled={busy}>
+                  <ArrowLeft className="size-4" aria-hidden="true" />返回登录
+                </Button>
+                {recoveryMessage && <p className="auth-switch"><button type="button" className="auth-switch__link" onClick={() => { setRecoveryMessage(''); setRecoveryError('') }}>重新填写</button></p>}
+              </div>
+            </form>}
 
           </section>
           </div>

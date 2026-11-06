@@ -7,7 +7,7 @@ import { ReauthenticationDialog } from './components/ReauthenticationDialog'
  * 管理后台与安装向导按路由懒加载：读者不需要为它们（含 recharts 等重依赖）付出首屏体积。
  */
 import { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import VisitTracker from './components/VisitTracker'
@@ -28,6 +28,11 @@ const ComponentGallery = import.meta.env.DEV ? lazy(() => import('./pages/dev/Co
 
 import { TooltipProvider } from './components/ui/tooltip'
 
+function ForgotPasswordRedirect() {
+  const location = useLocation()
+  return <Navigate to="/auth?mode=forgot-password" state={location.state} replace />
+}
+
 export default function App() {
   return (
     <Suspense fallback={<RouteLoading />}>
@@ -47,7 +52,7 @@ export default function App() {
           <Route path="/read/:novelId/:chapterId" element={<Reader />} />
           {/* 无站点页头：登录页只保留一条出口，与门禁页、安装页一致。 */}
           <Route path="/auth" element={<Auth />} />
-          <Route path="/forgot-password" element={<AccountEmail key="forgot" />} />
+          <Route path="/forgot-password" element={<ForgotPasswordRedirect />} />
           <Route path="/reset-password" element={<AccountEmail key="reset" />} />
           <Route path="/verify-email" element={<AccountEmail key="verify" />} />
           <Route path="/install" element={<Install />} />
