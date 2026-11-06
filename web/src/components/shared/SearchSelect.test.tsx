@@ -12,7 +12,7 @@ if (!globalThis.ResizeObserver) {
 Element.prototype.scrollIntoView = () => undefined
 
 describe('SearchSelect', () => {
-  it('does not mount every searchable option when a large index is opened', () => {
+  it('分批挂载候选，并允许继续浏览完整索引和搜索结果', async () => {
     const options = Array.from({ length: 2000 }, (_, index) => ({
       value: `novel-${index}`,
       label: `小说 ${index}`,
@@ -23,7 +23,13 @@ describe('SearchSelect', () => {
     fireEvent.click(screen.getByRole('combobox'))
 
     expect(screen.getAllByRole('option')).toHaveLength(100)
-    expect(screen.getByText('共 2000 项，请输入关键词继续筛选')).toBeInTheDocument()
+    expect(screen.getByText('已显示 100 项，共 2000 项')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '继续显示 100 项' }))
+    expect(screen.getAllByRole('option')).toHaveLength(200)
+    fireEvent.change(screen.getByPlaceholderText('搜索…'), { target: { value: '小说 1' } })
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(100))
+    fireEvent.click(screen.getByRole('button', { name: '继续显示 100 项' }))
+    expect(screen.getAllByRole('option')).toHaveLength(200)
   })
 
   it('keeps a selected option visible and searches the complete index', async () => {

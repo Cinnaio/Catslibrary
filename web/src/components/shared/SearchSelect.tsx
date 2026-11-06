@@ -22,7 +22,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useFieldControl } from '@/components/ui/field-context'
 import './SearchSelect.css'
 
-const MAX_RENDERED_SEARCH_OPTIONS = 100
+const SEARCH_OPTIONS_PAGE_SIZE = 100
 const COMPACT_NEIGHBOURS = 4
 
 export interface SelectOption {
@@ -110,6 +110,7 @@ export default function SearchSelect({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState(false)
+  const [searchWindow, setSearchWindow] = useState({ query: '', count: SEARCH_OPTIONS_PAGE_SIZE })
   const serverSearched = useRef(new Set<string>())
   const triggerRef = useRef<HTMLButtonElement>(null)
 
@@ -129,15 +130,17 @@ export default function SearchSelect({
     return options.filter((o) => fn(o, q))
   }, [options, activeQuery, controlled, filter])
 
-  // 搜索下拉可能承载全库索引；只挂载首屏所需的候选，搜索仍基于完整 filtered 结果。
+  // 搜索下拉可能承载全库索引；先挂载一批候选，允许继续显示其余匹配项。
+  // 改变搜索词时从首批开始，搜索始终基于完整 filtered 结果。
   // 保留当前选项，避免已选小说不在前 100 项时打开下拉看不到选中态。
+  const renderedCount = searchWindow.query === activeQuery ? searchWindow.count : SEARCH_OPTIONS_PAGE_SIZE
   const visibleOptions = useMemo(() => {
-    if (!searchable || filtered.length <= MAX_RENDERED_SEARCH_OPTIONS) return filtered
-    const initial = filtered.slice(0, MAX_RENDERED_SEARCH_OPTIONS)
+    if (!searchable || filtered.length <= renderedCount) return filtered
+    const initial = filtered.slice(0, renderedCount)
     if (!value || initial.some((option) => option.value === value)) return initial
     const selectedOption = filtered.find((option) => option.value === value)
-    return selectedOption ? [...initial.slice(0, MAX_RENDERED_SEARCH_OPTIONS - 1), selectedOption] : initial
-  }, [filtered, searchable, value])
+    return selectedOption ? [...initial.slice(0, renderedCount - 1), selectedOption] : initial
+  }, [filtered, searchable, value, renderedCount])
 
   // 折叠：只渲染选中项前后各 N 项。没有选中项时从头部开始，保证长列表打开即可见。
   // 阈值必须由调用方显式声明：小说全库索引这类「靠输入收敛」的搜索下拉一旦被折叠，
@@ -172,6 +175,7 @@ export default function SearchSelect({
         setOpen(next)
         if (next) {
           setExpanded(false)
+          setSearchWindow({ query: controlled ? activeQuery : '', count: SEARCH_OPTIONS_PAGE_SIZE })
           if (searchable && !controlled) setQuery('')
         }
       }}
@@ -264,11 +268,20 @@ export default function SearchSelect({
                   </button>
                 )}
                 {visibleOptions.length < filtered.length && (
-                  <p className="px-3 pb-2 text-xs text-muted-foreground" role="status">
-                    {activeQuery.trim()
-                      ? `显示前 ${visibleOptions.length} 项，共 ${filtered.length} 项，请继续输入关键词`
-                      : `共 ${filtered.length} 项，请输入关键词继续筛选`}
-                  </p>
+                  <>
+                    <p className="px-3 pb-2 text-xs text-muted-foreground" role="status">
+                      已显示 {visibleOptions.length} 项，共 {filtered.length} 项
+                    </p>
+                    {!collapsed && (
+                      <button
+                        type="button"
+                        className="custom-select__more"
+                        onClick={() => setSearchWindow({ query: activeQuery, count: renderedCount + SEARCH_OPTIONS_PAGE_SIZE })}
+                      >
+                        继续显示 {Math.min(SEARCH_OPTIONS_PAGE_SIZE, filtered.length - visibleOptions.length)} 项
+                      </button>
+                    )}
+                  </>
                 )}
               </>
             )}

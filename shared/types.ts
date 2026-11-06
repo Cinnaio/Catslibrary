@@ -48,6 +48,24 @@ export interface NovelListResponse {
   hiddenRestricted?: boolean
 }
 
+/** 管理工作台的紧凑书目；不受公开书库的安全模式筛选影响。 */
+export interface AdminNovelIndexItem {
+  id: string
+  title: string
+  author: string
+  chapterCount: number
+  updatedAt: number
+}
+
+export interface AdminNovelIndexResponse {
+  novels: AdminNovelIndexItem[]
+  offset: number
+  limit: number
+  hasMore: boolean
+  /** 兼容旧客户端：本次响应后仍有未返回的书目。 */
+  capped: boolean
+}
+
 export interface RatingCounts {
   general: number
   restricted: number

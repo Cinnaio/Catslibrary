@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-07 小说选择的完整取数由 `lib/admin-novel-index.ts` 分页读取管理员紧凑书目，创作、章节、补充来源绑定与任务标题索引共用，不把公开书库第一页或固定索引上限当成全库。SearchSelect 仍为不取业务数据的共享控件，负责完整候选筛选、首批 100 项及继续显示；AI 写作和封面的选项同时提供作者，章节和写作提供加载／错误与重试。封面原有完整分页取数保留，使用共享继续显示浏览后续匹配；补充来源保留外置搜索框及受控结果，不再重复做标题过滤。
+
 2026-11-06 手机作品库条目由 `pages/admin/NovelsTab.tsx` 的内部 `MobileNovelSummary` 与 `novels.module.css` 持有，使用 700px 断点将同一作品记录切换为左封面、右侧身份与元数据、底部更新和来源；701px 以上保留原表格与记录卡。Checkbox、Button、AdminRowActions、NovelUpdateTag 继续复用，编辑入口只在手机移入原行菜单，选择、分页、排序与请求仍归 NovelsTab；跨列手机摘要通过显式 `data-record` 标记继续参与共享阶梯动效，不将空态或详情行纳入入场。
 
 2026-11-06 插图编辑外壳复用共享 DialogFrame／DialogBody，桌面两列预览与配置、手机单列，布局及预览由 `ChapterIllustrations.module.css` 持有。公共 DialogContent 新增可选 `overlayClassName` 用于场景遮罩层级，保持默认调用方不变；图片选择使用共享 Button 唤起原文件输入，位置搜索、字段及操作继续复用 SearchSelect／FormField／Textarea／Button，段落锚点、版本与保存仍归插图组件。

@@ -37,12 +37,13 @@ vi.mock('@/lib/api', () => ({
   },
   chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [] }) },
   // 两本小说：切书隔离与在途响应回写都需要真的能切到另一部
-  novelsApi: {
-    list: vi.fn().mockResolvedValue({
+  adminApi: {
+    novelIndex: vi.fn().mockResolvedValue({
       novels: [
-        { id: 'novel_1', title: '测试小说' },
-        { id: 'novel_2', title: '第二本书' },
+        { id: 'novel_1', title: '测试小说', author: '甲', chapterCount: 1, updatedAt: 1 },
+        { id: 'novel_2', title: '第二本书', author: '乙', chapterCount: 1, updatedAt: 1 },
       ],
+      hasMore: false,
     }),
   },
   newOperationId: (prefix: string) => `${prefix}-test`,

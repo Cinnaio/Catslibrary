@@ -29,6 +29,7 @@ import type {
   ChapterMeta,
   Comment,
   ContentRating,
+  AdminNovelIndexResponse,
   Novel,
   NovelListResponse,
   ReaderDevice,
@@ -1613,7 +1614,7 @@ export const adminApi = {
   sourceAnalytics(params: Record<string, string>): Promise<import('@shared/source-analytics').SourceAnalyticsResponse> {
     return request('GET', `/admin/source-analytics?${new URLSearchParams(params)}`, null, true)
   },
-  novelIndex(params: Record<string, string> = {}): Promise<Record<string, unknown>> {
+  novelIndex(params: { q?: string; limit?: string; offset?: string } = {}): Promise<AdminNovelIndexResponse> {
     const qs = new URLSearchParams(params).toString()
     return request('GET', `/admin/novel-index${qs ? '?' + qs : ''}`, null, true)
   },

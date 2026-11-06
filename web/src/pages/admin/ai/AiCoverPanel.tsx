@@ -612,12 +612,13 @@ export default function AiCoverPanel({
               <PanelHeading title="封面工作台" />{' '}
               <FormField label="目标小说" labelId="cover-start-novel-label">
                 <SearchSelect
-                  options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
+                  options={novels.map((novel) => ({ value: novel.id, label: novel.title, sub: novel.author || '未知作者' }))}
                   value={novelId}
                   onChange={selectNovel}
                   placeholder={novelsLoading ? '正在加载书库…' : '搜索并选择小说'}
                   searchable
-                  searchPlaceholder="搜索书名…"
+                  searchPlaceholder="搜索书名或作者…"
+                  filter={(option, query) => `${option.label} ${option.sub || ''}`.toLowerCase().includes(query)}
                   disabled={novelsLoading || busy || generatingPrompt || taskActive || !!candidateBusy}
                   dropdownSide="bottom"
                   aria-labelledby="cover-start-novel-label"
@@ -679,12 +680,13 @@ export default function AiCoverPanel({
                 <PanelHeading title="封面工作台" />{' '}
                 <FormField label="目标小说" labelId="cover-change-novel-label">
                   <SearchSelect
-                    options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
+                    options={novels.map((novel) => ({ value: novel.id, label: novel.title, sub: novel.author || '未知作者' }))}
                     value={novelId}
                     onChange={selectNovel}
                     placeholder="搜索并选择小说"
                     searchable
-                    searchPlaceholder="搜索书名…"
+                    searchPlaceholder="搜索书名或作者…"
+                    filter={(option, query) => `${option.label} ${option.sub || ''}`.toLowerCase().includes(query)}
                     disabled={busy || generatingPrompt || taskActive || !!candidateBusy}
                     dropdownSide="bottom"
                     aria-labelledby="cover-change-novel-label"

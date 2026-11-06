@@ -13,7 +13,8 @@ import Pagination from "@/components/shared/Pagination"
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
-import { adminApi, chaptersApi, novelsApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSourceSearchResponse } from '../../lib/api'
+import { chaptersApi, novelsApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSourceSearchResponse } from '../../lib/api'
+import { loadAdminNovelIndex } from '@/lib/admin-novel-index'
 import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
 import { Button } from '@/components/ui/button'
@@ -78,6 +79,9 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
   const deepLinkNovelIdRef = useRef(searchParams.get('novelId') || '')
 
   const [novelOptions, setNovelOptions] = useState<IndexNovel[]>(mergeNovel ? [mergeNovel] : [])
+  const [novelsLoading, setNovelsLoading] = useState(!mergeNovel)
+  const [novelsError, setNovelsError] = useState('')
+  const [novelsReload, setNovelsReload] = useState(0)
   const [selectedNovel, setSelectedNovel] = useState(mergeNovel?.id || '')
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [search, setSearch] = useState('')
@@ -158,24 +162,25 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
   }
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 小说下拉：全库紧凑索引 + 服务端补搜
+  // 完整读取紧凑书目，搜索不再依赖前 2000 本内有无命中。
   useEffect(() => {
     if (mergeNovel) return
     let alive = true
-    adminApi
-      .novelIndex({ limit: '2000' })
-      .then((data) => {
+    setNovelsLoading(true)
+    setNovelsError('')
+    loadAdminNovelIndex('', () => alive)
+      .then((list) => {
         if (!alive) return
-        const list = (data as { novels?: IndexNovel[] }).novels || []
         setNovelOptions(list)
       })
-      .catch(() => {
-        /* 索引失败：下拉留空，走服务端补搜 */
+      .catch((err) => {
+        if (alive) setNovelsError((err as Error).message || '书目加载失败')
       })
+      .finally(() => { if (alive) setNovelsLoading(false) })
     return () => {
       alive = false
     }
-  }, [mergeNovel])
+  }, [mergeNovel, novelsReload])
 
   const novelSelectOptions = useMemo(
     () => novelOptions.map((n) => ({ value: n.id, label: n.title, sub: `${n.author || '未知作者'} · ${n.chapterCount}章` })),
@@ -237,20 +242,6 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     setSearch('')
     if (id) void loadChapters(id)
   }
-
-  // 服务端补搜：本地索引无命中时
-  const handleNovelServerSearch = useCallback(
-    async (q: string) => {
-      try {
-        const data = await adminApi.novelIndex({ q, limit: '50' })
-        const list = ((data as { novels?: IndexNovel[] }).novels || []).filter((n) => !novelOptions.some((x) => x.id === n.id))
-        if (list.length) setNovelOptions((prev) => [...prev, ...list])
-      } catch {
-        /* ignore */
-      }
-    },
-    [novelOptions],
-  )
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -736,12 +727,12 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
             className="chapter-novel-select"
             searchable
             searchPlaceholder="搜索或切换小说…"
-            placeholder="请选择小说"
+            placeholder={novelsLoading ? '正在加载书目…' : '请选择小说'}
+            disabled={novelsLoading || !!novelsError}
             options={novelSelectOptions}
             value={selectedNovel}
             onChange={pickNovel}
             filter={novelFilter}
-            onServerSearch={handleNovelServerSearch}
           />
           <Button
             onClick={() => void openChapterModal(null)}
@@ -754,6 +745,12 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
         </div>
       }
     >
+      {novelsError && (
+        <div role="alert" className="text-sm text-destructive">
+          {novelsError}
+          <Button variant="ghost" size="sm" onClick={() => setNovelsReload((value) => value + 1)}>重新加载书目</Button>
+        </div>
+      )}
       {!selectedNovel ? (
         <AdminDataPanel ariaLabel="章节管理引导">
           <EmptyState

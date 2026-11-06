@@ -140,41 +140,40 @@ const NOVEL_INDEX_SEARCH = 50
 adminRoutes.get('/novel-index', async (c) => {
   const db = getDb()
   const q = (c.req.query('q') || '').trim()
-  const limit = Math.min(Number.parseInt(c.req.query('limit') || String(NOVEL_INDEX_DEFAULT), 10) || NOVEL_INDEX_DEFAULT, NOVEL_INDEX_MAX)
-
-  let rows: Array<Record<string, unknown>>
+  const limit = clampInt(c.req.query('limit'), 1, NOVEL_INDEX_MAX, q ? NOVEL_INDEX_SEARCH : NOVEL_INDEX_DEFAULT)
+  const offset = clampInt(c.req.query('offset'), 0, 2147483647, 0)
+  const params: unknown[] = []
+  let where = ''
   if (q) {
     const like = `%${escapeLike(q.toLowerCase())}%`
-    rows = await all<Record<string, unknown>>(
-      db,
-      `SELECT id, title, author, chapter_count, updated_at
-       FROM novels
-       WHERE LOWER(title) LIKE $1 OR LOWER(author) LIKE $2
-       ORDER BY updated_at DESC
-       LIMIT $3`,
-      [like, like, NOVEL_INDEX_SEARCH],
-    )
-  } else {
-    rows = await all<Record<string, unknown>>(
-      db,
-      `SELECT id, title, author, chapter_count, updated_at
-       FROM novels
-       ORDER BY updated_at DESC
-       LIMIT $1`,
-      [limit],
-    )
+    params.push(like, like)
+    where = 'WHERE LOWER(title) LIKE $1 OR LOWER(author) LIKE $2'
   }
+  // 多取一项判断后续页，搜索与普通索引共用分页，不能再把匹配项截在前 50 本。
+  const rows = await all<Record<string, unknown>>(
+    db,
+    `SELECT id, title, author, chapter_count, updated_at
+     FROM novels
+     ${where}
+     ORDER BY updated_at DESC, id ASC
+     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit + 1, offset],
+  )
+  const hasMore = rows.length > limit
 
   return c.json(
     {
-      novels: rows.map((r) => ({
+      novels: rows.slice(0, limit).map((r) => ({
         id: String(r.id),
         title: String(r.title || ''),
         author: String(r.author || ''),
         chapterCount: Number(r.chapter_count) || 0,
         updatedAt: Number(r.updated_at) || 0,
       })),
-      capped: !q && rows.length >= limit,
+      offset,
+      limit,
+      hasMore,
+      capped: hasMore,
     },
     200,
     { 'Cache-Control': 'no-store' },

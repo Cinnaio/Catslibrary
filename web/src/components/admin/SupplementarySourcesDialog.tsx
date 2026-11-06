@@ -2,7 +2,8 @@ import '@/styles/input-fields.css'
 import { useEffect, useRef, useState } from 'react'
 import type { BookImportPreview } from '@shared/types'
 import type { SupplementaryBinding, SupplementaryFile, SupplementaryOverview, SupplementarySource, SupplementaryCatalog } from '@shared/supplementary-source'
-import { adminApi, supplementarySourceApi as api } from '@/lib/api'
+import { supplementarySourceApi as api } from '@/lib/api'
+import { loadAdminNovelIndex } from '@/lib/admin-novel-index'
 import { DialogFrame } from "@/components/shared/DialogFrame"
 import BookImportDialog from './BookImportDialog'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -53,6 +54,7 @@ export default function SupplementarySourcesDialog({
   const [novels, setNovels] = useState<Array<{ id: string; title: string; author: string; chapterCount: number }>>([])
   const [novelId, setNovelId] = useState(novel?.id || '')
   const [novelError, setNovelError] = useState('')
+  const [novelsLoading, setNovelsLoading] = useState(false)
   const [versions, setVersions] = useState<Record<string, string>>({})
   const [preview, setPreview] = useState<BookImportPreview | null>(null)
   const [uploadContext, setUploadContext] = useState<{ bindingId: string; fileKey: string } | null>(null)
@@ -104,16 +106,18 @@ export default function SupplementarySourcesDialog({
     setNovels([])
     setNovelError('')
     setNovelId(novel?.id || '')
+    setNovelsLoading(false)
     if (!fileToBind || novel?.id) return
+    setNovelsLoading(true)
     const timer = setTimeout(() => {
-      adminApi
-        .novelIndex({ search: novelSearch, limit: '30' })
-        .then((data) => {
-          if (active) setNovels((data.novels || []) as typeof novels)
+      loadAdminNovelIndex(novelSearch.trim(), () => active)
+        .then((items) => {
+          if (active) setNovels(items)
         })
         .catch((e) => {
           if (active) setNovelError(e.message)
         })
+        .finally(() => { if (active) setNovelsLoading(false) })
     }, 200)
     return () => {
       active = false
@@ -677,8 +681,11 @@ export default function SupplementarySourcesDialog({
                               aria-labelledby="supp-novel-label"
                               className="supplementary-novel-picker"
                               value={novelId}
-                              disabled={busy}
-                              placeholder="请选择并核对作者"
+                              disabled={busy || novelsLoading || !!novelError}
+                              placeholder={novelsLoading ? '正在加载书目…' : '请选择并核对作者'}
+                              searchable
+                              search={novelSearch}
+                              onSearchChange={setNovelSearch}
                               onChange={setNovelId}
                               options={novels.map((n) => ({
                                 value: n.id,

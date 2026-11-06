@@ -16,7 +16,8 @@ import SearchSelect, { type SelectOption } from "@/components/shared/SearchSelec
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Download, ListTodo, SearchX, Check, AlertCircle, RefreshCw, CirclePlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
+import { authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
+import { loadAdminNovelIndex } from '@/lib/admin-novel-index'
 import { formatDateTime } from '../../lib/format'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
@@ -281,10 +282,8 @@ export default function JobsTab({
   useEffect(() => {
     let cancelled = false
     if (view === 'downloads') return
-    adminApi
-      .novelIndex({ limit: '500' })
-      .then((data) => {
-        const novels = (data.novels || []) as Array<{ id: string; title: string }>
+    loadAdminNovelIndex('', () => !cancelled)
+      .then((novels) => {
         if (cancelled) return
         setNovelTitles(new Map(novels.map((n) => [n.id, n.title])))
       })

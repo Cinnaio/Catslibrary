@@ -5,12 +5,13 @@ import { emptyWritingBrief } from './writing-brief'
 import { normalizePlotTimeoutSeconds, PLOT_TIMEOUT_MIN_SECONDS, PLOT_TIMEOUT_MAX_SECONDS } from '@shared/ai-plot-timeout'
 import type { AiWritingBrief } from '@/lib/api'
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
-import type { Novel } from '@shared/types'
+import type { AdminNovelIndexItem } from '@shared/types'
 import { parseAiTextProgress, type AiTextProgress } from '@shared/ai-text-progress'
 import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { aiApi, chaptersApi, newOperationId, novelsApi, type AiEffectiveProfile, type AiTaskInfo } from '@/lib/api'
+import { aiApi, chaptersApi, newOperationId, type AiEffectiveProfile, type AiTaskInfo } from '@/lib/api'
+import { loadAdminNovelIndex } from '@/lib/admin-novel-index'
 import { useToast, useConfirm } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -638,7 +639,10 @@ export default function AiWritingPanel(props: {
   // AI 创作的主要使用场景是给既有小说续写；新写仍保留为并列入口，而非默认落点。
   const [mode, setMode] = useState<'new' | 'continue'>('continue')
   const [recentTasks, setRecentTasks] = useState<AiTaskInfo[]>([])
-  const [novels, setNovels] = useState<Novel[]>([])
+  const [novels, setNovels] = useState<AdminNovelIndexItem[]>([])
+  const [novelsLoading, setNovelsLoading] = useState(true)
+  const [novelsError, setNovelsError] = useState('')
+  const [novelsReload, setNovelsReload] = useState(0)
   const [novelId, setNovelId] = useState('')
   const appliedRouteNovel = useRef<string | undefined>(undefined)
   const [localView, setLocalView] = useState<WritingView>('compose')
@@ -811,19 +815,23 @@ export default function AiWritingPanel(props: {
   }
 
   useEffect(() => {
-    void novelsApi
-      .list({ limit: 100, page: 1 })
-      .then((data) => setNovels(data.novels))
-      .catch((err) => toast((err as Error).message, 'error'))
-  }, [toast])
+    let active = true
+    setNovelsLoading(true)
+    setNovelsError('')
+    void loadAdminNovelIndex('', () => active)
+      .then((items) => { if (active) setNovels(items) })
+      .catch((err) => { if (active) setNovelsError((err as Error).message || '书目加载失败') })
+      .finally(() => { if (active) setNovelsLoading(false) })
+    return () => { active = false }
+  }, [novelsReload])
 
   // URL 往返更新所选作品；同一作品内切换审阅不会覆盖编辑中的输入。
   useEffect(() => {
     const id = props.initialNovelId?.trim() || ''
-    if (appliedRouteNovel.current === id || (id && novels.length === 0)) return
+    if (appliedRouteNovel.current === id || novelsLoading || novelsError) return
     appliedRouteNovel.current = id
     if (!id || novels.some((novel) => novel.id === id)) setNovelId(id)
-  }, [novels, props.initialNovelId])
+  }, [novels, novelsLoading, novelsError, props.initialNovelId])
 
   useEffect(() => {
     initialGraphAnchor.current = { novelId: props.initialNovelId, chapterId: props.initialAfterChapterId }
@@ -1581,15 +1589,23 @@ export default function AiWritingPanel(props: {
         <div className={styles.toolbar}>
           <FormField label="当前作品" labelId="ai-writing-novel-label">
             <SearchSelect
-              options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
+              options={novels.map((novel) => ({ value: novel.id, label: novel.title, sub: `${novel.author || '未知作者'} · ${novel.chapterCount} 章` }))}
               value={novelId}
               onChange={selectNovel}
-              placeholder="选择小说"
+              placeholder={novelsLoading ? '正在加载书目…' : '选择小说'}
+              disabled={novelsLoading || !!novelsError}
               searchable
-              searchPlaceholder="搜索小说名称…"
+              searchPlaceholder="搜索书名或作者…"
+              filter={(option, query) => `${option.label} ${option.sub || ''}`.toLowerCase().includes(query)}
               dropdownSide="bottom"
               aria-labelledby="ai-writing-novel-label"
             />
+            {novelsError && (
+              <div role="alert" className="text-sm text-destructive">
+                {novelsError}
+                <Button variant="ghost" size="sm" onClick={() => setNovelsReload((value) => value + 1)}>重新加载书目</Button>
+              </div>
+            )}
           </FormField>
           {mode === 'continue' && (
             <div className={styles.anchor}>
