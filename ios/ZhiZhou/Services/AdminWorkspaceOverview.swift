@@ -58,7 +58,7 @@ final class AdminWorkspaceOverview {
     }
 
     func load(forceMetadata: Bool = false) async {
-        guard AppState.shared.user?.role == "admin", let token = APIClient.shared.token else { return }
+        guard AppState.shared.user?.isAdmin == true, let token = APIClient.shared.token else { return }
         let id = UUID(); requestID = id; loading = true; errors = []
         defer { if requestID == id { loading = false } }
         async let ai: Void = loadAI(id: id, token: token)

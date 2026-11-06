@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/thoughts —— 段评（公开列表 + 创建 + 管理员/本人隐藏 + 审核），由 Novel-KV thoughts.js 平移。
@@ -38,7 +39,7 @@ thoughtsRoutes.get('/image-capabilities', optionalUser(), async (c) => {
   const settings = await getAiSettings(getDb())
   const user = c.get('user')
   return c.json({
-    allowed: Boolean(user && settings.selectionImageRoles.includes(user.role) && settings.selectionImageDailyQuota > 0 && isImageAiConfigured()),
+    allowed: Boolean(user && settings.selectionImageRoles.includes(isAdministrator(user.role) ? 'admin' : user.role) && settings.selectionImageDailyQuota > 0 && isImageAiConfigured()),
     dailyQuota: settings.selectionImageDailyQuota,
   }, 200, contentPolicyHeaders())
 })
@@ -47,7 +48,7 @@ thoughtsRoutes.post('/image', requireUser(), async (c) => {
   const db = getDb()
   const user = c.get('user')
   const settings = await getAiSettings(db)
-  if (!settings.selectionImageRoles.includes(user.role)) return c.json({ error: '当前角色无权使用划选生成图片' }, 403)
+  if (!settings.selectionImageRoles.includes(isAdministrator(user.role) ? 'admin' : user.role)) return c.json({ error: '当前角色无权使用划选生成图片' }, 403)
   if (!settings.selectionImageDailyQuota) return c.json({ error: '划选生成图片已关闭' }, 403)
   if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置' }, 503)
   const raw = await c.req.json().catch(() => ({}))
@@ -124,7 +125,7 @@ thoughtsRoutes.get('/image-task', requireUser(), async (c) => {
 thoughtsRoutes.get('/image/:id', optionalUser(), async (c) => {
   const row = await first<{ data: Uint8Array; content_type: string; content_rating: string; status: string }>(getDb(),
     `SELECT i.data, i.content_type, t.status, n.content_rating FROM thought_images i JOIN thoughts t ON t.id = i.thought_id JOIN novels n ON n.id = t.novel_id WHERE t.id = $1 AND ${visibleNovelSql(c)}`, [c.req.param('id')])
-  if (!row || (row.status !== 'visible' && c.get('user')?.role !== 'admin')) return c.json({ error: '图片不存在' }, 404)
+  if (!row || (row.status !== 'visible' && !isAdministrator(c.get('user')?.role))) return c.json({ error: '图片不存在' }, 404)
   if (row.content_rating === 'restricted') {
     const access = await resolveContentAccess(c)
     if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
@@ -165,7 +166,7 @@ thoughtsRoutes.delete('/', optionalUser(), async (c) => {
   if (c.req.query('hard') === '1') {
     // 管理员硬删
     const admin = c.get('user')
-    if (!admin || admin.role !== 'admin') return c.json({ error: '需要管理员权限' }, 403)
+    if (!admin || !isAdministrator(admin.role)) return c.json({ error: '需要管理员权限' }, 403)
     const changed = await run(db, 'DELETE FROM thoughts WHERE id = $1', [id])
     if (!changed) return c.json({ error: 'Thought not found' }, 404)
     return c.json({ success: true, id, deleted: true })
@@ -175,7 +176,7 @@ thoughtsRoutes.delete('/', optionalUser(), async (c) => {
   // 任何人都能隐藏任意匿名段评。
   const user = c.get('user')
   if (!user) return c.json({ error: '需要登录' }, 401)
-  const isAdmin = user.role === 'admin'
+  const isAdmin = isAdministrator(user.role)
   const visible = await first(db, `SELECT t.id FROM thoughts t JOIN novels n ON n.id=t.novel_id WHERE t.id=$1 AND ${visibleNovelSql(c)}`, [id])
   if (!visible) return c.json({ error: 'Thought not found' }, 404)
   const changed = isAdmin
@@ -246,7 +247,7 @@ async function listMyThoughts(c: Context<AuthEnv>, db: ReturnType<typeof getDb>)
 
 async function listThoughtsAdmin(c: Context<AuthEnv>, db: ReturnType<typeof getDb>) {
   const user = c.get('user')
-  if (!user || user.role !== 'admin') return c.json({ error: '需要管理员权限' }, 403)
+  if (!user || !isAdministrator(user.role)) return c.json({ error: '需要管理员权限' }, 403)
   const status = (c.req.query('status') || 'all').trim()
   const search = (c.req.query('search') || '').trim()
   const userId = (c.req.query('userId') || '').trim()
@@ -383,7 +384,7 @@ async function runThoughtImage(c: Context<AuthEnv>, input: Record<string, unknow
     const data = await sharp(result.data, { limitInputPixels: 25_000_000 }).rotate().resize({ width: 1536, height: 1536, fit: 'inside', withoutEnlargement: true }).webp({ quality: 85 }).toBuffer()
     const currentSettings = await getAiSettings(db)
     const currentUser = await first<{ role: string; status: string }>(db, 'SELECT role, status FROM users WHERE id = $1', [task.userId])
-    if (!currentUser || currentUser.status !== 'active' || !currentSettings.selectionImageRoles.includes(currentUser.role) || !currentSettings.selectionImageDailyQuota) throw new Error('生成权限已变更，图片未发布')
+    if (!currentUser || currentUser.status !== 'active' || !currentSettings.selectionImageRoles.includes(isAdministrator(currentUser.role) ? 'admin' : currentUser.role) || !currentSettings.selectionImageDailyQuota) throw new Error('生成权限已变更，图片未发布')
     c.set('user', { ...c.get('user'), role: currentUser.role })
     const response = await createThought(c, input, { data, taskId: task.id, revision, clientIp })
     if (!response.ok) {

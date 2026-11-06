@@ -21,6 +21,7 @@ export default function VisitTracker() {
 
   useEffect(() => {
     if (import.meta.env.DEV && location.pathname.startsWith('/dev/')) return
+    if (['/forgot-password', '/reset-password', '/verify-email'].includes(location.pathname)) return
     if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/install') || location.pathname.startsWith('/auth')) return
     const id = visitorId()
     if (id) void siteApi.visit(id, location.pathname)

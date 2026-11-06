@@ -197,7 +197,10 @@ struct AdminUser: Codable, Identifiable, Hashable {
     let avatarUrl: String
     let thoughtCount: Int
 
-    var isAdmin: Bool { role == "admin" }
+    var email: String? = nil
+    var emailVerified: Bool? = nil
+    var isAdmin: Bool { role == "admin" || role == "super_admin" }
+    var roleLabel: String { role == "super_admin" ? "超级管理员" : isAdmin ? "管理员" : "读者" }
     var isDisabled: Bool { status == "disabled" }
 }
 
@@ -206,12 +209,6 @@ struct AdminUser: Codable, Identifiable, Hashable {
 struct InviteCreateResponse: Codable {
     let code: String
     let codes: [String]
-}
-
-struct ResetPasswordResponse: Codable {
-    let success: Bool?
-    let username: String
-    let tempPassword: String
 }
 
 // MARK: 内容安全（GET/PUT /api/admin/content-policy）

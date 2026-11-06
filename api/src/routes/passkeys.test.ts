@@ -205,7 +205,7 @@ describe('Passkey WebAuthn endpoints', () => {
         }),
       })
       expect(response.status).toBe(200)
-      expect(await response.json()).toMatchObject({ user: { role: 'admin' }, remember })
+      expect(await response.json()).toMatchObject({ user: { role: 'super_admin' }, remember })
       const cookie = response.headers.get('set-cookie')!
       const ttl = remember ? REMEMBER_TTL : SESSION_TTL
       if (remember) expect(cookie).toContain(`Max-Age=${ttl / 1000}`)
@@ -235,7 +235,7 @@ describe('Passkey WebAuthn endpoints', () => {
     // 夹具只建了与 passkey 相关的表，模拟「记账到 061、后续迁移已跑完」的实例。
     // 62 的修复迁移必须真跑（本用例验证的就是它），63 起的章节记忆表在这里不存在，
     // 记为已应用以免重放时因缺表失败。
-    for (let version = 63; version <= 69; version += 1) {
+    for (let version = 63; version <= 70; version += 1) {
       await t.db.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING', [
         version,
         `${String(version).padStart(3, '0')}_legacy.sql`,

@@ -4,6 +4,7 @@ import Charts
 /// 站点运营：运营概览（指标 / 流量分析 / 内容健康度 / 公告编辑）。
 /// 对齐 Web 端 admin SiteOperationsTab（GET /api/admin/site 一次拉取全部数据）。
 struct AdminSiteOperationsView: View {
+    @Environment(AppState.self) private var appState
     enum SectionTab: String, CaseIterable, Identifiable {
         case overview = "运营概览"
         case traffic = "流量分析"
@@ -115,7 +116,9 @@ struct AdminSiteOperationsView: View {
                     }
                 }
             }
-            announcementSection
+            if appState.user?.isSuperAdmin == true {
+                announcementSection
+            }
         }
     }
 

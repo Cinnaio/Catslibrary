@@ -25,6 +25,8 @@ export interface UserRow {
   created_at: number
   updated_at: number
   last_login_at: number
+  email?: string | null
+  email_verified_at?: number
   reader_settings?: string
 }
 
@@ -39,6 +41,8 @@ export interface PublicUser {
   lastLoginAt: number
   bio: string
   avatarUrl: string
+  email: string | null
+  emailVerified: boolean
 }
 
 export function userAvatarUrl(userId: string, updatedAt: number | string = 0): string {
@@ -57,6 +61,8 @@ export function publicUser(user: UserRow | null | undefined): PublicUser | null 
     updatedAt: user.updated_at,
     lastLoginAt: user.last_login_at || 0,
     bio: user.bio || '',
+    email: user.email || null,
+    emailVerified: Number(user.email_verified_at) > 0,
     avatarUrl: userAvatarUrl(user.id, user.updated_at),
   }
 }

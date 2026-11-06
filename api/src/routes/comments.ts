@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/comments —— 评论/回复/点赞/举报（由 Novel-KV comments.js + like.js + report.js 合并）。
@@ -188,7 +189,7 @@ commentsRoutes.put('/', requireUser(), async (c) => {
   if (!row) return c.json({ error: 'Comment not found' }, 404)
   const accessError = await commentContentAccessError(c, db, id)
   if (accessError) return accessError
-  const isAdmin = user.role === 'admin'
+  const isAdmin = isAdministrator(user.role)
   const now = Date.now()
 
   if (isAdmin && status) {
@@ -215,7 +216,7 @@ commentsRoutes.delete('/', requireUser(), async (c) => {
   if (!id) return c.json({ error: 'id query parameter is required' }, 400)
 
   if (c.req.query('hard') === '1') {
-    if (user.role !== 'admin') return c.json({ error: '需要管理员权限' }, 403)
+    if (!isAdministrator(user.role)) return c.json({ error: '需要管理员权限' }, 403)
     await run(db, 'DELETE FROM novel_comments WHERE id = $1', [id])
     return c.json({ success: true, id, deleted: true })
   }
@@ -224,7 +225,7 @@ commentsRoutes.delete('/', requireUser(), async (c) => {
   if (!row) return c.json({ error: 'Comment not found' }, 404)
   const accessError = await commentContentAccessError(c, db, id)
   if (accessError) return accessError
-  if (row.user_id !== user.id && user.role !== 'admin') return c.json({ error: '只能删除自己的评论' }, 403)
+  if (row.user_id !== user.id && !isAdministrator(user.role)) return c.json({ error: '只能删除自己的评论' }, 403)
   await run(db, "UPDATE novel_comments SET status = 'hidden', updated_at = $1 WHERE id = $2", [Date.now(), id])
   return c.json({ success: true, id, status: 'hidden' })
 })

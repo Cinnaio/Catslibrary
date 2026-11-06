@@ -14,6 +14,10 @@ export interface AdminOperationAuditInput {
 }
 
 export interface AdminOperationAuditRow {
+  account_reason?: string
+  account_target?: string
+  before_state?: unknown
+  after_state?: unknown
   id: string
   operation_id: string
   scope: string
@@ -131,9 +135,11 @@ export async function listAdminOperationAudit(db: Db, options: ListAdminOperatio
     `SELECT a.id, a.operation_id, a.scope, a.actor_user_id,
             u.username AS actor_username, u.display_name AS actor_display_name, u.id AS current_actor_id, u.updated_at AS actor_updated_at,
             a.action, a.target_count, a.request_hash, a.status, a.response_status,
-            a.replay_count, a.error, a.created_at, a.updated_at, a.finished_at
+            a.replay_count, a.error, a.created_at, a.updated_at, a.finished_at,
+            security.reason AS account_reason, security.target_user_id AS account_target, security.before_state, security.after_state
        FROM admin_operation_audit a
        LEFT JOIN users u ON u.id = a.actor_user_id
+       LEFT JOIN account_security_audit security ON security.id = a.id
        ${where}
        ORDER BY a.created_at DESC, a.id DESC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,

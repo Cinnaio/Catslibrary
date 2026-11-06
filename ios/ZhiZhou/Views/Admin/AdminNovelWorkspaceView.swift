@@ -16,7 +16,7 @@ struct AdminNovelWorkspaceView: View {
 
     var body: some View {
         Group {
-            if appState.user?.role == "admin" { workspace }
+            if appState.user?.isAdmin == true { workspace }
             else { ContentUnavailableView("需要管理员权限", systemImage: "lock.shield") }
         }
         .navigationTitle("管理这本书")
@@ -86,13 +86,13 @@ struct AdminNovelWorkspaceView: View {
     }
 
     private func recordRecent(_ novel: Novel) {
-        guard let user = appState.user, user.role == "admin", user.id == ownerID else { return }
+        guard let user = appState.user, user.isAdmin, user.id == ownerID else { return }
         AdminWorkspaceLocalStore().record(AdminRecentBook(id: novel.id, title: novel.title, author: novel.author,
             visitedAt: Int64(Date().timeIntervalSince1970 * 1000)), userID: user.id)
     }
 
     private func refresh() async {
-        guard appState.user?.role == "admin", let token = APIClient.shared.token else { return }
+        guard appState.user?.isAdmin == true, let token = APIClient.shared.token else { return }
         ownerID = appState.user?.id
         do {
             let response: NovelResponse = try await AdminAPI.parityRequest("GET", "/api/novels/\(ReaderMediaAPI.pathSegment(novel.id))", token: token)

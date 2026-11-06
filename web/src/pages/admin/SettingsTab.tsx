@@ -378,95 +378,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     }
   }
 
-  // ---------- 用户操作 ----------
-
-  async function updateUserRole(u: AdminUser) {
-    const promote = u.role !== 'admin'
-    const ok = await confirm({
-      title: promote ? '设为管理员' : '设为读者',
-      message: `确认将 ${u.username} ${promote ? '提升为管理员' : '降级为读者'}？`,
-      items: promote ? ['管理员拥有后台全部权限，包括管理其他用户'] : ['该用户将立即失去后台管理权限'],
-      okText: promote ? '提升' : '降级',
-      danger: !promote,
-    })
-    if (!ok) return
-    try {
-      await adminApi.users.setRole(u.id, promote ? 'admin' : 'reader')
-      toast('已更新用户角色', 'success')
-    } catch (err) {
-      toast((err as Error).message || '操作失败', 'error')
-    }
-  }
-
-  async function updateUserStatus(u: AdminUser) {
-    const disable = u.status !== 'disabled'
-    const ok = await confirm({
-      title: disable ? '禁用用户' : '恢复用户',
-      message: `确认${disable ? '禁用' : '恢复'} ${u.username}？`,
-      items: disable ? ['该用户的所有登录会话将被立即清除', '禁用后该用户无法登录，可随时恢复'] : ['该用户将可以重新登录'],
-      okText: disable ? '禁用' : '恢复',
-      danger: disable,
-    })
-    if (!ok) return
-    try {
-      await adminApi.users.setStatus(u.id, disable ? 'disabled' : 'active')
-      toast('已更新用户状态', 'success')
-    } catch (err) {
-      toast((err as Error).message || '操作失败', 'error')
-    }
-  }
-
-  async function resetUserPassword(u: AdminUser) {
-    const ok = await confirm({
-      title: '重置密码',
-      message: `为 ${u.username} 生成一个新的临时密码？`,
-      items: ['旧密码立即失效，所有登录会话将被清除', '临时密码只显示一次，请复制后转交用户'],
-      okText: '重置',
-      danger: true,
-    })
-    if (!ok) return
-    try {
-      const res = (await adminApi.users.resetPassword(u.id)) as { tempPassword?: string; username?: string }
-      const tempPassword = res.tempPassword || ''
-      if (!tempPassword) {
-        toast('未获取到临时密码', 'error')
-        return
-      }
-      const copy = await confirm({
-        title: '临时密码已生成',
-        message: tempPassword,
-        items: [`请转交给 ${res.username || u.username}，并提醒登录后尽快修改密码`, '关闭后将无法再次查看'],
-        okText: '复制并关闭',
-        cancelText: '关闭',
-        danger: false,
-      })
-      if (copy) {
-        const copied = await copyText(tempPassword)
-        if (copied) toast('已复制临时密码', 'success')
-        else toast('复制失败，请手动复制', 'error')
-      }
-    } catch (err) {
-      toast((err as Error).message || '重置失败', 'error')
-    }
-  }
-
-  async function deleteUser(u: AdminUser) {
-    const ok = await confirm({
-      title: '删除用户',
-      message: `确认永久删除 ${u.username}？`,
-      items: ['该用户的书架、书签、想法和阅读进度将一并删除', '此操作无法撤销'],
-      okText: '永久删除',
-      danger: true,
-    })
-    if (!ok) return
-    try {
-      await adminApi.users.deleteUser(u.id, u.username)
-      toast('用户已删除', 'success')
-    } catch (err) {
-      toast((err as Error).message || '删除失败', 'error')
-    }
-  }
-
   // ---------- 派生数据 ----------
 
   const invites = data?.invites || []
@@ -504,6 +415,16 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
 
   function operationAuditActionLabel(action: string): string {
     const labels: Record<string, string> = {
+      'initialize-site': '初始化超级管理员',
+      'recover-super-admin': '服务器恢复管理权',
+      'user-role': '调整账号角色',
+      'user-status': '调整账号状态',
+      'delete-user': '删除账号',
+      'revoke-sessions': '撤销登录会话',
+      'request-verify-email': '发送邮箱验证邮件',
+      'request-reset-password': '发送密码重置邮件',
+      'verify-email': '确认邮箱绑定',
+      'reset-password': '通过邮件修改密码',
       'set-password': '修改用户密码',
       'clear-invites': '清理邀请码',
       'clear-completed-scrape-jobs': '清理抓取任务',
@@ -586,7 +507,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                   }}
                   className={styles.modes}
                   aria-label="注册方式"
-                  disabled={loading || registerSaving || inviteBusy}
+                  disabled={meUser?.role !== 'super_admin' || loading || registerSaving || inviteBusy}
                 >
                   {REGISTER_MODES.map((mode) => (
                     <label key={mode.value} className={styles.mode} htmlFor={`register-mode-${mode.value}`}>
@@ -611,7 +532,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                   {registerMode !== data.settings.registerMode && (
                     <Button
                       variant="secondary"
-                      disabled={loading || registerSaving || inviteBusy}
+                      disabled={meUser?.role !== 'super_admin' || loading || registerSaving || inviteBusy}
                       onClick={() => {
                         setRegisterDraft(null)
                         setRegisterError('')
@@ -621,7 +542,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                     </Button>
                   )}
                   <Button
-                    disabled={loading || registerSaving || inviteBusy || registerMode === data.settings.registerMode}
+                    disabled={meUser?.role !== 'super_admin' || loading || registerSaving || inviteBusy || registerMode === data.settings.registerMode}
                     onClick={() => void saveRegisterSettings()}
                   >
                     {registerSaving ? '保存中…' : '保存设置'}
@@ -638,10 +559,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           search={userSearch}
           onSearchChange={setUserSearch}
           selfId={meUser?.id}
-          onRole={updateUserRole}
-          onStatus={updateUserStatus}
-          onReset={resetUserPassword}
-          onDelete={deleteUser}
+          selfRole={meUser?.role}
         />
       )}
 

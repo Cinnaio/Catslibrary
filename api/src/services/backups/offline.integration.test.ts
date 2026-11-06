@@ -28,7 +28,7 @@ describe.skipIf(!sourceUrl || !targetUrl)('真实 PostgreSQL 部署侧灾备恢�
     target = new Pool({ connectionString: targetUrl })
     await runMigrations(source as unknown as Db)
     await source.query(
-      "INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('offline-admin','offline-admin','admin','test','test',1,1)",
+      "INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('offline-admin','offline-admin','super_admin','test','test',1,1)",
     )
     await source.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('offline-novel','灾备小说',1,1)")
     await source.query("INSERT INTO chapters(id,novel_id,title,content,created_at) VALUES('offline-chapter','offline-novel','第一章','灾备原始正文',1)")

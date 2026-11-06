@@ -99,24 +99,15 @@ enum AdminAPI {
         ], idempotencyKey: operationID)
     }
 
-    /// status：active | disabled
-    static func setUserStatus(id: String, status: String) async throws {
-        let _: OkEnvelope = try await postAction(["action": "user-status", "id": id, "status": status])
-    }
-
-    /// role：admin | reader
-    static func setUserRole(id: String, role: String) async throws {
-        let _: OkEnvelope = try await postAction(["action": "user-role", "id": id, "role": role])
-    }
-
-    /// 重置密码：返回一次性临时密码，展示给管理员后由对方转交用户。
-    static func resetPassword(id: String) async throws -> ResetPasswordResponse {
-        try await APIClient.shared.post("/api/admin-users", body: try jsonBody(["action": "reset-password", "id": id]), auth: true)
-    }
-
-    /// 删除用户：confirmUsername 必须与目标用户名完全一致。
-    static func deleteUser(id: String, confirmUsername: String) async throws {
-        let _: OkEnvelope = try await postAction(["action": "delete-user", "id": id, "confirmUsername": confirmUsername])
+    /// 每次操作提交界面读取到的角色/状态和明确原因，由服务端重新检查权限。
+    static func mutateAccount(user: AdminUser, action: String, reason: String, values: [String: String] = [:]) async throws {
+        var body = values
+        body["action"] = action
+        body["id"] = user.id
+        body["reason"] = reason
+        body["expectedRole"] = user.role
+        body["expectedStatus"] = user.status
+        let _: OkEnvelope = try await postAction(body)
     }
 
     // MARK: - 内容安全

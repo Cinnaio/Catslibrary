@@ -162,7 +162,7 @@ async function executeRestore(db: Db, task: TaskRow) {
       if ((await getSetting(db, 'restoreCommit', '')) !== task.id) throw error
     }
     committed = true
-    const healthy = await first<{ count: number }>(db, "SELECT count(*)::int AS count FROM public.users WHERE role='admin' AND status='active'")
+    const healthy = await first<{ count: number }>(db, "SELECT count(*)::int AS count FROM public.users WHERE role='super_admin' AND status='active'")
     if (!healthy?.count) throw new BackupError('HEALTH_FAILED', '恢复后业务检查失败')
     await durableJson(path.join(backupRoot(), 'restore-journal.json'), {
       taskId: task.id,

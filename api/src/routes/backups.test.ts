@@ -54,13 +54,13 @@ beforeAll(async () => {
   vi.stubEnv('SESSION_HASH_SALT', 'backup-fixture-salt')
   const salt = '0123456789abcdef',
     hash = await hashPassword('fixture-password', salt, 1000)
-  for (const role of ['admin', 'reader']) {
+  for (const role of ['super_admin', 'reader']) {
     await db.query(
       'INSERT INTO users(id,username,role,password_hash,password_salt,password_iterations,created_at,updated_at) VALUES($1,$1,$2,$3,$4,1000,1,1)',
       [role, role, hash, salt],
     )
     const token = await createSession(db, role, 'fixture', 'backup-fixture-salt')
-    if (role === 'admin') admin = token
+    if (role === 'super_admin') admin = token
     else reader = token
   }
 })

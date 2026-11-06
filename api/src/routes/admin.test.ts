@@ -282,32 +282,32 @@ describe('管理 API 端到端（pglite）', () => {
     const reader = data.users.find((u) => u.username === 'reader')!
     expect(reader).toBeTruthy()
 
-    const disabled = await req('/api/admin-users', json('POST', { action: 'user-status', id: reader.id, status: 'disabled' }, adminToken))
+    const disabled = await req('/api/admin-users', json('POST', { action: 'user-status', id: reader.id, status: 'disabled', reason: '状态测试', expectedRole: 'reader', expectedStatus: 'active' }, adminToken))
     expect((await jsonOf<{ success: boolean }>(disabled)).success).toBe(true)
     // 禁用后旧 token 失效
     const me = await req('/api/auth/me', json('GET', undefined, readerToken))
     expect(me.status).toBe(401)
 
-    const enabled = await req('/api/admin-users', json('POST', { action: 'user-status', id: reader.id, status: 'active' }, adminToken))
+    const enabled = await req('/api/admin-users', json('POST', { action: 'user-status', id: reader.id, status: 'active', reason: '状态测试', expectedRole: 'reader', expectedStatus: 'disabled' }, adminToken))
     expect((await jsonOf<{ success: boolean }>(enabled)).success).toBe(true)
 
-    const promoted = await req('/api/admin-users', json('POST', { action: 'user-role', id: reader.id, role: 'admin' }, adminToken))
-    expect((await jsonOf<{ role: string }>(promoted)).role).toBe('admin')
-    const demoted = await req('/api/admin-users', json('POST', { action: 'user-role', id: reader.id, role: 'reader' }, adminToken))
-    expect((await jsonOf<{ role: string }>(demoted)).role).toBe('reader')
+    const promoted = await req('/api/admin-users', json('POST', { action: 'user-role', id: reader.id, role: 'admin', reason: '角色测试', expectedRole: 'reader', expectedStatus: 'active' }, adminToken))
+    expect((await jsonOf<{ success: boolean }>(promoted)).success).toBe(true)
+    const demoted = await req('/api/admin-users', json('POST', { action: 'user-role', id: reader.id, role: 'reader', reason: '角色测试', expectedRole: 'admin', expectedStatus: 'active' }, adminToken))
+    expect((await jsonOf<{ success: boolean }>(demoted)).success).toBe(true)
 
-    const reset = await req('/api/admin-users', json('POST', { action: 'reset-password', id: reader.id }, adminToken))
-    const { tempPassword } = await jsonOf<{ tempPassword: string }>(reset)
-    expect(tempPassword).toBeTruthy()
+    const reset = await req('/api/admin-users', json('POST', { action: 'reset-password', id: reader.id, reason: '重置测试', expectedRole: 'reader', expectedStatus: 'active' }, adminToken))
+    expect(reset.status).toBe(400)
+    expect(await reset.text()).toContain('尚未绑定已验证邮箱')
   })
 
   it('admin-users：不能禁用/删除自己', async () => {
     const overview = await req('/api/admin-users', json('GET', undefined, adminToken))
     const data = await jsonOf<{ users: Array<{ id: string; username: string }> }>(overview)
     const admin = data.users.find((u) => u.username === 'admin')!
-    const dis = await req('/api/admin-users', json('POST', { action: 'user-status', id: admin.id, status: 'disabled' }, adminToken))
+    const dis = await req('/api/admin-users', json('POST', { action: 'user-status', id: admin.id, status: 'disabled', reason: '本人保护测试', expectedRole: 'super_admin', expectedStatus: 'active' }, adminToken))
     expect(dis.status).toBe(400)
-    const del = await req('/api/admin-users', json('POST', { action: 'delete-user', id: admin.id, confirmUsername: 'admin' }, adminToken))
+    const del = await req('/api/admin-users', json('POST', { action: 'delete-user', id: admin.id, confirmUsername: 'admin', reason: '本人保护测试', expectedRole: 'super_admin', expectedStatus: 'active' }, adminToken))
     expect(del.status).toBe(400)
   })
 
@@ -315,9 +315,9 @@ describe('管理 API 端到端（pglite）', () => {
     const overview = await req('/api/admin-users', json('GET', undefined, adminToken))
     const data = await jsonOf<{ users: Array<{ id: string; username: string }> }>(overview)
     const reader = data.users.find((u) => u.username === 'reader')!
-    const wrong = await req('/api/admin-users', json('POST', { action: 'delete-user', id: reader.id, confirmUsername: 'not-reader' }, adminToken))
+    const wrong = await req('/api/admin-users', json('POST', { action: 'delete-user', id: reader.id, confirmUsername: 'not-reader', reason: '删除测试', expectedRole: 'reader', expectedStatus: 'active' }, adminToken))
     expect(wrong.status).toBe(400)
-    const ok = await req('/api/admin-users', json('POST', { action: 'delete-user', id: reader.id, confirmUsername: 'reader' }, adminToken))
+    const ok = await req('/api/admin-users', json('POST', { action: 'delete-user', id: reader.id, confirmUsername: 'reader', reason: '删除测试', expectedRole: 'reader', expectedStatus: 'active' }, adminToken))
     expect((await jsonOf<{ success: boolean }>(ok)).success).toBe(true)
     // 级联：想法也被删
     const th = await t.db.query('SELECT id FROM thoughts WHERE id = $1', [thoughtId])

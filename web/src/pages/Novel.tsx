@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import { Spinner } from '@/components/ui/spinner'
 import '@/styles/novel-indicators.css'
 import '@/styles/select-fields.css'
@@ -478,7 +479,7 @@ export default function Novel() {
           </div>
         </div>
 
-        {user?.role === 'admin' && <NovelWorkspaceLinks novelId={novel.id} title={novel.title} />}
+        {isAdministrator(user?.role) && <NovelWorkspaceLinks novelId={novel.id} title={novel.title} />}
 
         {/* 回来接着读：隔了很久才回来时，用已缓存的提要合成连贯回顾（进书之前） */}
         <CatchupRecap novelId={novel.id} novelTitle={novel.title} lastReadAt={lastReadAt(progress)} />

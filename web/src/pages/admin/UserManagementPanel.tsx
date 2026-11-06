@@ -1,3 +1,4 @@
+import { isAdministrator, canManageUser, roleLabel, USER_ROLES } from '@shared/roles'
 import '@/styles/input-fields.css'
 import { useEffect, useRef, useState } from 'react'
 import { CirclePlus, MoreHorizontal, RefreshCw, Users } from 'lucide-react'
@@ -37,13 +38,10 @@ interface Props {
   search: string
   onSearchChange?: (value: string) => void
   selfId?: string
-  onRole: (user: AdminDirectoryUser) => Promise<void>
-  onStatus: (user: AdminDirectoryUser) => Promise<void>
-  onReset: (user: AdminDirectoryUser) => Promise<void>
-  onDelete: (user: AdminDirectoryUser) => Promise<void>
+  selfRole?: string
 }
 
-export default function UserManagementPanel({ search, onSearchChange, selfId, onRole, onStatus, onReset, onDelete }: Props) {
+export default function UserManagementPanel({ search, onSearchChange, selfId, selfRole }: Props) {
   const { toast } = useToast()
   const [role, setRole] = useState('all')
   const [status, setStatus] = useState('all')
@@ -100,9 +98,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
-  const pendingRef = useRef(new Set<string>())
   const [pendingUsers, setPendingUsers] = useState<Set<string>>(new Set())
-  const openingPassword = useRef(false)
   const passwordReturnFocus = useRef<HTMLButtonElement | null>(null)
   const own = !!target && target.id === selfId
   function clearDialog() {
@@ -115,7 +111,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
   }
   async function savePassword(event: React.FormEvent) {
     event.preventDefault()
-    if (!target || savingRef.current || pendingRef.current.has(target.id)) return
+    if (!target || savingRef.current) return
     if (own && !currentPassword) {
       setError('请输入当前密码')
       return
@@ -133,9 +129,9 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
     setError('')
     try {
       if (own) await authApi.changePassword(currentPassword, password)
-      else await adminApi.users.setPassword(target.id, password)
+      else return
       clearDialog()
-      toast(own ? '密码已修改，当前登录已更新' : '密码已修改，该用户需要重新登录', 'success')
+      toast('密码已修改，当前登录已更新', 'success')
       setRevision((value) => value + 1)
     } catch (err) {
       setError((err as Error).message || '修改失败，请重试')
@@ -144,24 +140,37 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
       setSaving(false)
     }
   }
-  async function runAction(action: Props['onRole'], user: AdminDirectoryUser) {
-    if (pendingRef.current.has(user.id) || (savingRef.current && target?.id === user.id)) return
-    pendingRef.current.add(user.id)
-    setPendingUsers(new Set(pendingRef.current))
+  const [operation, setOperation] = useState<{ user: AdminDirectoryUser; action: string } | null>(null)
+  const [reason, setReason] = useState('')
+  const [nextRole, setNextRole] = useState('reader')
+  const [confirmUsername, setConfirmUsername] = useState('')
+  const [operationError, setOperationError] = useState('')
+  const operationBusy = useRef(false)
+  function openOperation(user: AdminDirectoryUser, action: string) {
+    setOperation({ user, action }); setReason(''); setConfirmUsername(''); setNextRole(user.role); setOperationError('')
+  }
+  const actionLabels: Record<string, string> = { 'user-role': '调整角色', 'user-status': '调整账号状态', 'reset-password': '发送密码重置邮件', 'revoke-sessions': '撤销登录会话', 'delete-user': '删除用户' }
+  async function submitOperation(event: React.FormEvent) {
+    event.preventDefault()
+    if (!operation || operationBusy.current || !reason.trim()) return
+    const { user, action } = operation
+    operationBusy.current = true; setPendingUsers(new Set([user.id])); setOperationError('')
     try {
-      await action(user)
-      setRevision((value) => value + 1)
-    } catch (err) {
-      toast((err as Error).message || '操作失败，请重试', 'error')
-    } finally {
-      pendingRef.current.delete(user.id)
-      setPendingUsers(new Set(pendingRef.current))
-    }
+      await adminApi.users.mutateAccount(user, action, reason.trim(), {
+        ...(action === 'user-role' ? { role: nextRole } : {}),
+        ...(action === 'user-status' ? { status: user.status === 'disabled' ? 'active' : 'disabled' } : {}),
+        ...(action === 'delete-user' ? { confirmUsername } : {}),
+      })
+      setOperation(null); setRevision(value => value + 1)
+      toast(action === 'reset-password' ? '重置邮件已发送；用户确认后密码才会改变' : '账号操作已完成', 'success')
+    } catch (error) { setOperationError((error as Error).message || '操作失败，请重试') }
+    finally { operationBusy.current = false; setPendingUsers(new Set()) }
   }
   const users = result?.users || []
   const total = result?.total || 0
   const roleOptions = [
     { value: 'all', label: '全部角色' },
+    { value: 'super_admin', label: '超级管理员' },
     { value: 'admin', label: '管理员' },
     { value: 'reader', label: '读者' },
   ]
@@ -259,12 +268,13 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                             {self && <Badge variant="identity">本人</Badge>}
                           </div>
                           <span className="account-user-username">@{user.username}</span>
+                          <span className="account-user-username">{user.emailVerified ? `已验证：${user.email}` : '尚未绑定邮箱'}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell data-label="权限与状态">
                       <div className="account-user-badges">
-                        <AdminStatusBadge tone={user.role === 'admin' ? 'info' : 'neutral'}>{user.role === 'admin' ? '管理员' : '读者'}</AdminStatusBadge>
+                        <AdminStatusBadge tone={isAdministrator(user.role) ? 'info' : 'neutral'}>{roleLabel(user.role)}</AdminStatusBadge>
                         <AdminStatusBadge tone={user.status === 'disabled' ? 'danger' : 'success'}>
                           {user.status === 'disabled' ? '已禁用' : '正常'}
                         </AdminStatusBadge>
@@ -311,64 +321,21 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                           >
                             修改我的密码
                           </Button>
-                        ) : (
+                        ) : canManageUser(selfRole, user.role) ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={!selfId || busy}
-                                aria-label={`密码管理：${user.username}`}
-                                onClick={(event) => {
-                                  passwordReturnFocus.current = event.currentTarget
-                                }}
-                              >
-                                密码管理
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="end"
-                              onCloseAutoFocus={(event) => {
-                                if (openingPassword.current) {
-                                  event.preventDefault()
-                                  openingPassword.current = false
-                                }
-                              }}
-                            >
-                              <DropdownMenuItem
-                                onSelect={() => {
-                                  clearDialog()
-                                  openingPassword.current = true
-                                  setTarget(user)
-                                }}
-                              >
-                                设置新密码
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => void runAction(onReset, user)}>生成临时密码</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                        {!self && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label={`更多操作：${user.username}`} disabled={!selfId || busy}>
-                                <MoreHorizontal />
-                              </Button>
+                              <Button variant="ghost" size="icon" aria-label={`更多操作：${user.username}`} disabled={!selfId || busy} onClick={event => { passwordReturnFocus.current = event.currentTarget }}><MoreHorizontal /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => void runAction(onRole, user)}>
-                                {user.role === 'admin' ? '设为读者' : '设为管理员'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => void runAction(onStatus, user)}>
-                                {user.status === 'disabled' ? '恢复账号' : '禁用账号'}
-                              </DropdownMenuItem>
+                              {selfRole === 'super_admin' && <DropdownMenuItem onSelect={() => openOperation(user, 'user-role')}>调整角色</DropdownMenuItem>}
+                              <DropdownMenuItem onSelect={() => openOperation(user, 'user-status')}>{user.status === 'disabled' ? '恢复账号' : '禁用账号'}</DropdownMenuItem>
+                              <DropdownMenuItem disabled={!user.emailVerified || user.status !== 'active'} onSelect={() => openOperation(user, 'reset-password')}>发送密码重置邮件</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => openOperation(user, 'revoke-sessions')}>撤销登录会话</DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem variant="destructive" onSelect={() => void runAction(onDelete, user)}>
-                                删除用户
-                              </DropdownMenuItem>
+                              <DropdownMenuItem variant="destructive" onSelect={() => openOperation(user, 'delete-user')}>删除用户</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        )}
+                        ) : <span className="account-record-secondary">仅超级管理员可管理</span>}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -393,6 +360,21 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
         }}
         summary={!result ? '尚未读取用户目录' : total ? `共 ${total} 人，显示 ${(page - 1) * limit + 1}–${Math.min(page * limit, total)}` : '共 0 人'}
       />
+      <Dialog open={!!operation} onOpenChange={open => { if (!open && !operationBusy.current) setOperation(null) }}>
+        <DialogFrame className="account-password-dialog" onCloseAutoFocus={event => { event.preventDefault(); passwordReturnFocus.current?.focus() }} onEscapeKeyDown={event => { if (operationBusy.current) event.preventDefault() }} onPointerDownOutside={event => { if (operationBusy.current) event.preventDefault() }}>
+          <form onSubmit={event => void submitOperation(event)}>
+            <DialogHeader><DialogTitle>{actionLabels[operation?.action || ''] || '账号操作'}</DialogTitle><DialogDescription>目标：@{operation?.user.username} · {roleLabel(operation?.user.role)}。提交时会重新检查账号状态。</DialogDescription></DialogHeader>
+            <DialogBody>
+              {operation?.action === 'user-role' && <div className="account-password-field"><Label htmlFor="account-target-role">目标角色</Label><SearchSelect id="account-target-role" value={nextRole} onChange={setNextRole} disabled={operationBusy.current} options={USER_ROLES.map(value => ({ value, label: roleLabel(value) }))} /></div>}
+              <div className="account-password-field"><Label htmlFor="account-action-reason">操作原因</Label><Input id="account-action-reason" value={reason} onChange={event => setReason(event.target.value)} required maxLength={500} disabled={operationBusy.current} /></div>
+              {operation?.action === 'delete-user' && <div className="account-password-field"><Label htmlFor="account-delete-confirm">输入完整用户名确认删除</Label><Input id="account-delete-confirm" value={confirmUsername} onChange={event => setConfirmUsername(event.target.value)} required disabled={operationBusy.current} /></div>}
+              <p className="account-password-impact">{operation?.action === 'reset-password' ? '邮件发送到已验证邮箱。用户打开链接设置新密码后，旧密码和全部登录会话才会失效。' : operation?.action === 'delete-user' ? '用户及其书架、书签、想法和阅读进度将永久删除，无法撤销。' : '操作会撤销目标账号的全部会话和待确认邮件链接。普通管理员管理内容及读者；超级管理员还可调整管理权和站点配置。'}</p>
+              {operationError && <p role="alert" className="account-password-error">{operationError}</p>}
+            </DialogBody>
+            <DialogFooter><Button type="button" variant="secondary" disabled={operationBusy.current} onClick={() => setOperation(null)}>取消</Button><Button type="submit" disabled={operationBusy.current || !reason.trim() || (operation?.action === 'delete-user' && confirmUsername !== operation.user.username) || (operation?.action === 'user-role' && nextRole === operation.user.role)}>{operationBusy.current ? '处理中…' : '确认操作'}</Button></DialogFooter>
+          </form>
+        </DialogFrame>
+      </Dialog>
       <Dialog
         open={!!target}
         onOpenChange={(open) => {
@@ -414,8 +396,8 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
         >
           <form onSubmit={(event) => void savePassword(event)}>
             <DialogHeader>
-              <DialogTitle>{own ? '修改我的密码' : '修改用户密码'}</DialogTitle>
-              <DialogDescription>{own ? '验证当前密码后，为自己的账号设置新密码。' : '直接设置新密码，无需用户提供原密码。'}</DialogDescription>
+              <DialogTitle>修改我的密码</DialogTitle>
+              <DialogDescription>验证当前密码后，为自己的账号设置新密码。</DialogDescription>
             </DialogHeader>
             <DialogBody>
               <div className="account-password-target">
@@ -472,9 +454,7 @@ export default function UserManagementPanel({ search, onSearchChange, selfId, on
                 显示密码
               </label>
               <p className="account-password-impact">
-                {own
-                  ? '保存后，其他登录会话将被清除，当前会话会更新并保持登录。'
-                  : '保存后，旧密码立即失效，该用户的所有登录会话将被清除，需要使用新密码重新登录。'}
+                保存后，其他登录会话与待确认邮件链接将被清除，当前会话会更新并保持登录。
                 {target?.status === 'disabled' && ' 此账号仍保持禁用状态。'}
               </p>
               {error && (

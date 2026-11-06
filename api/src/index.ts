@@ -1,3 +1,4 @@
+import { assertSuperAdministrator } from './services/account-security'
 import { pruneImportSnapshots } from './services/book-import-state'
 import { runFollowupTick } from './services/novel-followup'
 import { runSupplementaryTick } from './services/supplementary-source'
@@ -70,6 +71,7 @@ async function start() {
   if (config.configured) {
     const applied = await migrate({ keepPoolOpen: true })
     if (applied.length) console.log(`[zhi-zhou api] applied migrations: ${applied.join(', ')}`)
+    await assertSuperAdministrator(getDb())
     const recovering = await maintenance(getDb())
     if (recovering) requireBackupGate()
     if (!recovering) {

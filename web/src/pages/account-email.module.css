@@ -1,0 +1,6 @@
+.page { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--color-bg); }
+.panel { width: min(100%, 460px); padding: 32px; display: grid; gap: 24px; }
+.panel h1 { margin: 0; font-size: 25px; }
+.panel p { margin: 0; line-height: 1.7; overflow-wrap: anywhere; }
+.form { display: grid; gap: 24px; }
+@media (max-width: 700px) { .page { padding: 20px; } .panel { padding: 20px; } }

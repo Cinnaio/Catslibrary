@@ -64,7 +64,7 @@ struct NovelDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
         .toolbar {
-            if appState.user?.role == "admin" {
+            if appState.user?.isAdmin == true {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("管理这本书", systemImage: "slider.horizontal.3") { showAdminWorkspace = true }
                         .labelStyle(.iconOnly)

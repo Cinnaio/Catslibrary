@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import { visibleNovelSql } from '../services/novel-visibility'
 import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -73,7 +74,7 @@ chapterIllustrationsRoutes.get('/:chapterId/illustrations/:id/image', optionalUs
     getDb(),
     `SELECT a.data, n.content_rating FROM ${join} JOIN chapters c ON c.id=i.chapter_id JOIN novels n ON n.id=c.novel_id
      WHERE i.id=$1 AND i.chapter_id=$2 AND (i.deleted=FALSE OR $3) AND ${visibleNovelSql(c)}`,
-    [c.req.param('id'), c.req.param('chapterId'), c.get('user')?.role === 'admin'],
+    [c.req.param('id'), c.req.param('chapterId'), isAdministrator(c.get('user')?.role)],
   )
   if (!row) return c.json({ error: '插图不存在' }, 404)
   const denied = await access(c, row.content_rating)

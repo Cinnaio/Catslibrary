@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import { profileReadResponse, memoryProgressResponse, memoryTaskResponse } from '../services/ai/profile-read-response'
 import { visibleNovelSql } from '../services/novel-visibility'
 /**
@@ -221,7 +222,7 @@ aiRoutes.get('/status', optionalUser(), async (c) => {
   const configured = isTextAiConfigured()
   const settings = await getAiSettings(getDb())
   const user = c.get('user')
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = isAdministrator(user?.role)
 
   let quota: { used: number; limit: number; resetAt: number } | null = null
   if (user) {
@@ -267,7 +268,7 @@ aiRoutes.get('/recap', requireUser(), async (c) => {
 aiRoutes.post('/recap', requireUser(), async (c) => {
   const db = getDb()
   const user = c.get('user')
-  const isAdmin = user.role === 'admin'
+  const isAdmin = isAdministrator(user.role)
   const body = (await c.req.json().catch(() => ({}))) as { chapterId?: unknown; force?: unknown }
   const chapterId = String(body.chapterId || '').trim()
   if (!chapterId) return c.json({ error: 'chapterId is required' }, 400)
@@ -319,7 +320,7 @@ aiRoutes.post('/recap', requireUser(), async (c) => {
 aiRoutes.post('/catchup', requireUser(), async (c) => {
   const db = getDb()
   const user = c.get('user')
-  const isAdmin = user.role === 'admin'
+  const isAdmin = isAdministrator(user.role)
   const body = (await c.req.json().catch(() => ({}))) as { novelId?: unknown }
   const novelId = String(body.novelId || '').trim()
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)

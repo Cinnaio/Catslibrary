@@ -17,6 +17,7 @@
     "fflate": "^0.8.3",
     "hono": "^4",
     "iconv-lite": "^0.7",
+    "nodemailer": "^10.3.1",
     "opencc-js": "^1.4",
     "pg": "^8",
     "pinyin-pro": "^3.28",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
     "@types/node": "^22",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8",
     "tsup": "^8",
     "tsx": "^4",

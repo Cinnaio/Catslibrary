@@ -1,3 +1,4 @@
+import { isAdministrator, requiresSuperAdministratorPage } from '@shared/roles'
 import '@/styles/identity-layout.css'
 import { Button } from '@/components/ui/button'
 /**
@@ -14,7 +15,7 @@ import { setupApi } from '../../lib/api'
 import PageState from '../../components/PageState'
 import { useSiteBranding } from '../../lib/site-branding'
 
-export default function AdminGate({ children }: { children: ReactNode }) {
+export default function AdminGate({ children, superOnly = false }: { children: ReactNode; superOnly?: boolean }) {
   const branding = useSiteBranding()
   const { user, loading, logout } = useSession()
   const location = useLocation()
@@ -23,7 +24,7 @@ export default function AdminGate({ children }: { children: ReactNode }) {
   // 未安装时不显示「创建管理员」入口；已就绪的实例上它是误导。
   const [needsBootstrap, setNeedsBootstrap] = useState(false)
 
-  const isAdmin = Boolean(user && user.role === 'admin')
+  const isAdmin = Boolean(user && isAdministrator(user.role))
 
   /**
    * 只在拦截分支写标题，且不设 cleanup。
@@ -101,5 +102,8 @@ export default function AdminGate({ children }: { children: ReactNode }) {
     )
   }
 
+  if (user?.role !== 'super_admin' && (superOnly || requiresSuperAdministratorPage(location.pathname, location.search))) {
+    return <PageState title="需要超级管理员权限" description="站点配置与备份恢复由超级管理员管理。" actions={<Button asChild><Link to="/admin/novels">返回作品管理</Link></Button>} />
+  }
   return <>{children}</>
 }

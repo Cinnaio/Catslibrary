@@ -91,7 +91,7 @@ struct AdminWorkspaceHomeSections: View {
     }
 
     private func refreshLocal() {
-        guard let user = appState.user, user.role == "admin" else { recent = []; drafts = []; return }
+        guard let user = appState.user, user.isAdmin else { recent = []; drafts = []; return }
         let store = AdminWorkspaceLocalStore()
         recent = store.recentBooks(userID: user.id)
         drafts = store.drafts(userID: user.id)

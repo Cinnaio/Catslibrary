@@ -285,6 +285,7 @@ export default function Auth() {
                 )}
 
                 <p className="auth-switch">
+                  {isLogin && <Link className="auth-switch__link" to="/forgot-password">忘记密码</Link>}
                   <span>{isLogin ? '没有账号？' : '已有账号？'}</span>
                   <button type="button" className="auth-switch__link" onClick={switchMode} disabled={busy}>
                     {isLogin ? '去注册' : '去登录'}

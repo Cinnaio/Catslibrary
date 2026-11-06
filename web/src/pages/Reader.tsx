@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import { Spinner } from '@/components/ui/spinner'
 import '@/styles/input-fields.css'
 import { scrollBehavior } from '@/lib/motion'
@@ -168,7 +169,7 @@ export default function Reader() {
   const bodyRef = useRef<HTMLDivElement>(null)
   const [illustrationMode, setIllustrationMode] = useState(false)
   const [illustrationShortcut, setIllustrationShortcut] = useState<{ paragraphIndex: number; nonce: number } | null>(null)
-  const canManageIllustrations = user?.role === 'admin'
+  const canManageIllustrations = isAdministrator(user?.role)
   useEffect(() => { setIllustrationMode(false); setIllustrationShortcut(null) }, [chapterId, user?.id])
   const chapterTriggerRef = useRef<HTMLButtonElement>(null)
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)

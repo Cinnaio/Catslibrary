@@ -6,7 +6,8 @@ import { monitoringRedirect } from './monitoring-routes'
 import TaskCenterTab from './TaskCenterTab'
 import CallsTab from './CallsTab'
 
-const feedback = vi.hoisted(() => ({ confirm: vi.fn(), toast: vi.fn() }))
+const feedback = vi.hoisted(() => ({ confirm: vi.fn(), toast: vi.fn(), role: 'super_admin' }))
+vi.mock('@/context/SessionContext', () => ({ useSession: () => ({ user: { role: feedback.role } }) }))
 vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: feedback.toast }), useConfirm: () => ({ confirm: feedback.confirm }) }))
 vi.mock('@/lib/api', () => ({
   aiApi: { status: vi.fn(), tasks: vi.fn(), cancelTask: vi.fn(), deleteTask: vi.fn(), retryTask: vi.fn(), audit: { calls: vi.fn(), trend: vi.fn() } },
@@ -37,6 +38,7 @@ function mount(element: React.ReactNode, entry: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  feedback.role = 'super_admin'
   feedback.confirm.mockResolvedValue(true)
   vi.mocked(authFetch).mockResolvedValue({ ok: true, json: async () => ({ jobId: 'new-job' }) } as Response)
   vi.mocked(aiApi.status).mockResolvedValue({ configured: true } as never)
@@ -51,6 +53,13 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('monitoring navigation', () => {
+  it('普通管理员不显示出站配置日志，也不发起出站日志请求', async () => {
+    feedback.role = 'admin'
+    mount(<CallsTab />, '/admin/calls?view=outbound')
+    expect(screen.queryByRole('tab', { name: '出站请求' })).not.toBeInTheDocument()
+    await waitFor(() => expect(aiApi.audit.calls).toHaveBeenCalled())
+    expect(scrapeApi.proxyLogs).not.toHaveBeenCalled()
+  })
   it('微小账单金额在记录和趋势中保留精度，详情显示可追溯来源', async () => {
     vi.mocked(aiApi.audit.calls).mockResolvedValue({
       calls: [

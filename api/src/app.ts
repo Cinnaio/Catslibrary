@@ -1,3 +1,5 @@
+import { accountEmailRoutes } from './routes/account-email'
+import { AccountError } from './services/account-security'
 import { Hono } from 'hono'
 import { escHtml } from '@shared/utils'
 import { loadConfig } from './config'
@@ -64,6 +66,7 @@ app.use('/api/*', async (c, next) => {
   return backupMaintenance()(c, next)
 })
 app.onError((err, c) => {
+  if (err instanceof AccountError) return c.json({ error: err.message }, err.status)
   console.error('[api]', err)
   return c.json({ error: '服务器内部错误' }, 500)
 })
@@ -72,6 +75,7 @@ app.get('/api/health', (c) => {
   return c.json({ ok: true, name: '知舟', esc: escHtml('<b>&</b>') })
 })
 
+app.route('/api/auth', accountEmailRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/auth/passkeys', passkeyRoutes)
 app.route('/api/novels', novelsRoutes)

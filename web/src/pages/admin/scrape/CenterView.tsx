@@ -1,3 +1,4 @@
+import { useSession } from '@/context/SessionContext'
 import '@/styles/input-fields.css'
 // ============================================================
 // 抓取中心 — 统一入口、发现、校验与任务追踪
@@ -38,6 +39,8 @@ interface ActiveCandidate {
 }
 
 export default function CenterView() {
+  const { user: sessionUser } = useSession()
+  const sessionUserRole = sessionUser?.role
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const setupRef = useRef<HTMLDivElement>(null)
@@ -526,7 +529,7 @@ export default function CenterView() {
 
   return (
     <div className={styles.center}>
-      <Po18AccountPanel active />
+      {sessionUserRole === 'super_admin' && <Po18AccountPanel active />}
       <section className={styles.panel} aria-labelledby="scrape-workbench-title">
         <div className={styles.heading}>
           <h2 id="scrape-workbench-title" className={styles.title}>导入作品</h2>

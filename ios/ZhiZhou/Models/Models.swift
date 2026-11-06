@@ -15,6 +15,12 @@ struct User: Codable, Identifiable, Equatable {
     let bio: String?
     let avatarUrl: String?
 
+    var email: String? = nil
+    var emailVerified: Bool? = nil
+    var isAdmin: Bool { role == "admin" || role == "super_admin" }
+    var isSuperAdmin: Bool { role == "super_admin" }
+    var roleLabel: String { isSuperAdmin ? "超级管理员" : isAdmin ? "管理员" : "读者" }
+
     var displayBio: String {
         let value = bio ?? ""
         return value.isEmpty ? "这个人很懒，什么都没写。" : value

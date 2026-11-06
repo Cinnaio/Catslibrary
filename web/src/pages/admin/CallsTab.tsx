@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useSession } from '@/context/SessionContext'
 import AdminPage from '@/components/admin/AdminPage'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -9,8 +10,10 @@ import OutboundLogsPanel from './OutboundLogsPanel'
 import styles from './calls.module.css'
 
 export default function CallsTab() {
+  const { user } = useSession()
+  const isSuper = user?.role === 'super_admin'
   const [params, setParams] = useSearchParams()
-  const view = params.get('view') === 'outbound' ? 'outbound' : 'ai'
+  const view = isSuper && params.get('view') === 'outbound' ? 'outbound' : 'ai'
   const requestedDays = Number(params.get('days'))
   const days = [7, 30, 90].includes(requestedDays) ? requestedDays : 30
   const [refreshKey, setRefreshKey] = useState(0)
@@ -27,14 +30,14 @@ export default function CallsTab() {
   return (
     <AdminPage
       title="调用与用量"
-      description="查看 AI 消耗与调用明细，排查出站请求的路由和响应。"
+      description={isSuper ? '查看 AI 消耗与调用明细，排查出站请求的路由和响应。' : '查看 AI 消耗与调用明细。'}
       className={styles.page}
     >
       <Tabs value={view} onValueChange={(next) => update('view', next)} className={styles.tabs}>
         <div className={styles.nav}>
           <TabsList aria-label="调用类型">
             <TabsTrigger value="ai">AI 调用</TabsTrigger>
-            <TabsTrigger value="outbound">出站请求</TabsTrigger>
+            {isSuper && <TabsTrigger value="outbound">出站请求</TabsTrigger>}
           </TabsList>
           {view === 'ai' && (
             <div className={styles.period} role="group" aria-label="调用时间范围">
@@ -64,9 +67,9 @@ export default function CallsTab() {
           />
         </TabsContent>
 
-        <TabsContent value="outbound" className={styles.outbound}>
+        {isSuper && <TabsContent value="outbound" className={styles.outbound}>
           <OutboundLogsPanel />
-        </TabsContent>
+        </TabsContent>}
       </Tabs>
     </AdminPage>
   )

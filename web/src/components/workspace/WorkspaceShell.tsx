@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import '@/styles/input-fields.css'
 import '@/styles/site-branding.css'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -220,7 +221,7 @@ export default function WorkspaceShell({
       setSwitchingMode(false)
     }
   }
-  const showWorkspaceLink = admin || user?.role === 'admin'
+  const showWorkspaceLink = admin || isAdministrator(user?.role)
   const showContentMode = adultContentEnabled && !!user
   const secondary = (showWorkspaceLink || showContentMode) ? (
     <div className={styles.secondary}>

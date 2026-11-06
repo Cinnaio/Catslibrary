@@ -49,21 +49,19 @@ afterAll(async () => {
   delete process.env.DATABASE_URL
   await t.close()
 })
-describe('管理员直接修改密码与完整用户目录', () => {
+describe('停用管理员设密与完整用户目录', () => {
   it('未登录和读者均不能访问目录或修改密码', async () => {
     expect((await request('admin-users/users')).status).toBe(401)
     expect((await request('admin-users/users', readerToken)).status).toBe(403)
     expect((await change('New-test-123', readerId, readerToken)).status).toBe(403)
     expect((await request('admin-users', undefined, { action: 'set-password', id: readerId, newPassword: 'New-test-123' })).status).toBe(401)
   })
-  it('拒绝短密码、非字符串、无目标、未知目标和跳过本人密码验证', async () => {
-    for (const password of ['1234567', null, 123456789, { value: 'Long-pass-123' }]) expect((await change(password)).status).toBe(400)
-    expect((await change('New-test-123', '')).status).toBe(400)
-    expect((await change('New-test-123', 'missing')).status).toBe(404)
-    expect((await change('New-test-123', adminId)).status).toBe(400)
+  it('旧设密接口统一返回 410，不因参数或目标不同重新开放', async () => {
+    for (const value of ['1234567', null, 123456789, { value: 'Long-pass-123' }]) expect((await change(value)).status).toBe(410)
+    for (const id of ['', 'missing', adminId]) expect((await change('New-test-123', id)).status).toBe(410)
     expect((await request('auth/me', readerToken)).status).toBe(200)
   })
-  it('事务中清除会话失败时，密码与审计均回滚', async () => {
+  it('本人改密在清除会话失败时回滚密码', async () => {
     const before = await t.db.query('SELECT password_hash, password_salt FROM users WHERE id = $1', [readerId])
     setDbForTests({
       ...t.db,
@@ -79,7 +77,7 @@ describe('管理员直接修改密码与完整用户目录', () => {
       },
     })
     try {
-      expect((await change('Rollback-test-123')).status).toBe(500)
+      expect((await request('auth/change-password', readerToken, { currentPassword: oldPassword, newPassword: 'Rollback-test-123' })).status).toBe(500)
     } finally {
       setDbForTests(t.db)
     }
@@ -87,30 +85,18 @@ describe('管理员直接修改密码与完整用户目录', () => {
     expect((await request('auth/me', readerToken)).status).toBe(200)
     expect((await t.db.query("SELECT id FROM admin_operation_audit WHERE action = 'set-password'")).rows).toHaveLength(0)
   })
-  it('新密码生效、旧密码失效、目标全部会话清除且管理员保持登录', async () => {
-    await request('auth/login', undefined, { username: 'passwordreader', password: oldPassword })
-    const res = await change('Reader-new-456')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('Cache-Control')).toBe('no-store')
-    expect(await res.json()).toEqual({ success: true })
-    expect((await request('auth/me', readerToken)).status).toBe(401)
+  it('旧设密接口不修改密码、不撤销会话，也不解除禁用', async () => {
+    const before = (await t.db.query('SELECT password_hash FROM users WHERE id=$1', [readerId])).rows
+    const response = await change('Reader-new-456')
+    expect(response.status).toBe(410)
+    expect(response.headers.get('Cache-Control')).toContain('no-store')
+    expect((await request('auth/me', readerToken)).status).toBe(200)
     expect((await request('auth/me', adminToken)).status).toBe(200)
-    expect((await t.db.query('SELECT * FROM user_sessions WHERE user_id = $1', [readerId])).rows).toHaveLength(0)
-    expect((await request('auth/login', undefined, { username: 'passwordreader', password: oldPassword })).status).toBe(401)
-    expect((await request('auth/login', undefined, { username: 'passwordreader', password: 'Reader-new-456' })).status).toBe(200)
-    const audit = (
-      await t.db.query<{ action: string; actor_user_id: string; status: string; request_hash: string; target_count: number }>(
-        "SELECT * FROM admin_operation_audit WHERE action = 'set-password'",
-      )
-    ).rows
-    expect(audit).toHaveLength(1)
-    expect(audit[0]).toMatchObject({ action: 'set-password', actor_user_id: adminId, status: 'completed', request_hash: '', target_count: 1 })
-    expect(JSON.stringify(audit)).not.toContain('Reader-new-456')
-  })
-  it('修改密码不会解除账号禁用', async () => {
-    await t.db.query("UPDATE users SET status = 'disabled' WHERE id = $1", [readerId])
-    expect((await change('Disabled-new-123')).status).toBe(200)
-    expect((await t.db.query<{ status: string }>('SELECT status FROM users WHERE id = $1', [readerId])).rows[0]!.status).toBe('disabled')
+    expect((await request('auth/login', undefined, { username: 'passwordreader', password: oldPassword })).status).toBe(200)
+    expect((await t.db.query('SELECT password_hash FROM users WHERE id=$1', [readerId])).rows).toEqual(before)
+    await t.db.query("UPDATE users SET status='disabled' WHERE id=$1", [readerId])
+    expect((await change('Disabled-new-123')).status).toBe(410)
+    expect((await t.db.query<{ status: string }>('SELECT status FROM users WHERE id=$1', [readerId])).rows[0]!.status).toBe('disabled')
   })
   it('目录包含超过 100 个账号，分页稳定且搜索转义通配符', async () => {
     await t.db.query(
@@ -131,7 +117,7 @@ describe('管理员直接修改密码与完整用户目录', () => {
     expect(search.total).toBe(1)
     expect(search.users[0]!.displayName).toBe('special%name')
     expect(JSON.stringify(data)).not.toContain('password_hash')
-    expect((await jsonOf<DirectoryResult>(await request('admin-users/users?role=admin', adminToken))).total).toBe(1)
+    expect((await jsonOf<DirectoryResult>(await request('admin-users/users?role=super_admin', adminToken))).total).toBe(1)
     expect((await jsonOf<DirectoryResult>(await request('admin-users/users?status=disabled', adminToken))).total).toBe(1)
     expect((await request('admin-users/users?role=owner', adminToken)).status).toBe(400)
   })

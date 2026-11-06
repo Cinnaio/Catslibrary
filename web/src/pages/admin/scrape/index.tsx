@@ -7,6 +7,7 @@ import { ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import AdminPage from '@/components/admin/AdminPage'
 import { usePersistentState } from '@/hooks/usePersistentState'
+import { useSession } from '@/context/SessionContext'
 import CenterView from './CenterView'
 import ProxyView from './ProxyView'
 
@@ -19,19 +20,21 @@ const SCRAPE_VIEW_META: Record<ScrapeView, { title: string; description: string 
 }
 
 export default function ScrapeTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
+  const { user } = useSession()
   const [searchParams] = useSearchParams()
   const urlView = searchParams.get('view')
   // URL 深链优先；没有参数时沿用上次访问的抓取子页。
   const [view, setView] = usePersistentState<ScrapeView>('scrape_active_view', 'center', (v) => SCRAPE_VIEWS.includes(v as ScrapeView))
 
   const requestedView = urlView === 'discover' ? 'center' : urlView
-  const currentView: ScrapeView = requestedView
+  const resolvedView: ScrapeView = requestedView
     ? SCRAPE_VIEWS.includes(requestedView as ScrapeView)
       ? (requestedView as ScrapeView)
       : 'center'
     : SCRAPE_VIEWS.includes(view)
       ? view
       : 'center'
+  const currentView = resolvedView === 'proxy' && user?.role !== 'super_admin' ? 'center' : resolvedView
   const currentMeta = SCRAPE_VIEW_META[currentView]
 
   useEffect(() => {

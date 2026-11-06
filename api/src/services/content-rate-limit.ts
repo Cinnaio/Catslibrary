@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import type { Context } from 'hono'
 import type { AuthEnv } from '../middlewares/auth'
 import { getDb } from '../db/pool'
@@ -8,7 +9,7 @@ import { resolveContentAccess } from './content-access'
 
 /** PG 原子计数，多个 API 实例共享。未知 IP 不以可伪造头部代替。 */
 export async function checkContentRate(c: Context<AuthEnv>, action: 'chapter' | 'unlock' | 'reading-stats') {
-  if (action === 'chapter' && c.get('user')?.role === 'admin') return null
+  if (action === 'chapter' && isAdministrator(c.get('user')?.role)) return null
   const now = Date.now()
   const config = loadConfig()
   const configuredLimit = Number(process.env.CHAPTER_READ_LIMIT_PER_MINUTE || 120)

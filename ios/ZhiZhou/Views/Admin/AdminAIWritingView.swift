@@ -542,7 +542,7 @@ struct AdminAIWritingView: View {
 
     private func saveInputDraft() {
         guard draftReady, let owner = draftOwnerID, appState.user?.id == owner,
-              appState.user?.role == "admin" else { return }
+              appState.user?.isAdmin == true else { return }
         let store = AdminWorkspaceLocalStore()
         let values = inputDraftValues
         guard values != lastSubmittedValues else {
@@ -1084,7 +1084,7 @@ struct AdminAIWritingView: View {
     private func initialLoad() async {
         isLoading = true
         defer { isLoading = false }
-        guard let owner = appState.user?.id, appState.user?.role == "admin", let token = APIClient.shared.token else { return }
+        guard let owner = appState.user?.id, appState.user?.isAdmin == true, let token = APIClient.shared.token else { return }
         draftOwnerID = owner
         draftReady = false
         let saved = AdminWorkspaceLocalStore().draft(contextID: draftContextID, userID: owner)

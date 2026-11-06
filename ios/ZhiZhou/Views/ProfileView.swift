@@ -102,7 +102,7 @@ struct ProfileView: View {
                 }
             }
 
-            if appState.user?.role == "admin" {
+            if appState.user?.isAdmin == true {
                 Section("管理") {
                     NavigationLink {
                         AdminRootView()

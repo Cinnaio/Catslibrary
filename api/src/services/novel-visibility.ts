@@ -14,7 +14,7 @@ export function viewerSql(c: Context<AuthEnv>): string {
 export function novelVisibilitySql(userExpression: string, alias = 'n'): string {
   return `(${alias}.visibility = 'public' OR EXISTS (
     SELECT 1 FROM users privacy_user WHERE privacy_user.id = ${userExpression} AND privacy_user.status = 'active'
-      AND (privacy_user.role = 'admin' OR (${alias}.visibility = 'selected' AND EXISTS (
+      AND (privacy_user.role IN ('admin', 'super_admin') OR (${alias}.visibility = 'selected' AND EXISTS (
         SELECT 1 FROM novel_access_grants privacy_grant
         WHERE privacy_grant.novel_id = ${alias}.id AND privacy_grant.user_id = privacy_user.id
       )))

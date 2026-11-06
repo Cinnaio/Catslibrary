@@ -3,6 +3,7 @@ import ZhiZhouCore
 
 /// AI 服务：模块入口（状态与用量 / 供应商配置 / 运行参数 / 任务 / 审计）。
 struct AdminAIServiceView: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.scenePhase) private var scenePhase
     @State private var activeTasks: [AiTaskInfo] = []
     @State private var requests = ListRequestGuard<String>()
@@ -64,15 +65,17 @@ struct AdminAIServiceView: View {
                 } label: {
                     AppIconLabel("AI 调用与用量", systemImage: "chart.bar.xaxis")
                 }
-                NavigationLink {
-                    AdminAIProviderView()
-                } label: {
-                    AppIconLabel("供应商配置", systemImage: "server.rack")
-                }
-                NavigationLink {
-                    AdminAISettingsView()
-                } label: {
-                    AppIconLabel("运行参数", systemImage: "slider.horizontal.3")
+                if appState.user?.isSuperAdmin == true {
+                    NavigationLink {
+                        AdminAIProviderView()
+                    } label: {
+                        AppIconLabel("供应商配置", systemImage: "server.rack")
+                    }
+                    NavigationLink {
+                        AdminAISettingsView()
+                    } label: {
+                        AppIconLabel("运行参数", systemImage: "slider.horizontal.3")
+                    }
                 }
             }
         }

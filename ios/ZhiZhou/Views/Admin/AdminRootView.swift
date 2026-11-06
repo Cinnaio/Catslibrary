@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 管理后台首页：模块入口列表。入口在「我的」页（仅 role == admin 可见），
+/// 管理后台首页：模块入口列表。入口在「我的」页（管理员与超级管理员可见），
 /// 此处再兜底校验一次权限，防止误入。
 struct AdminRootView: View {
     @Environment(AppState.self) private var appState
@@ -45,7 +45,7 @@ struct AdminRootView: View {
         let modules: [AdminModule]
     }
 
-    private let moduleGroups: [AdminModuleGroup] = [
+    private let allModuleGroups: [AdminModuleGroup] = [
         AdminModuleGroup(id: "monitoring", title: "监控", modules: [
             AdminModule(id: "dashboard", title: "后台总览", systemImage: "gauge", destination: .dashboard),
         ]),
@@ -83,9 +83,18 @@ struct AdminRootView: View {
         ]),
     ]
 
+    private var moduleGroups: [AdminModuleGroup] {
+        guard appState.user?.isSuperAdmin != true else { return allModuleGroups }
+        let restricted = ["popo-account", "proxy", "policy", "site-settings", "backups", "announcement"]
+        return allModuleGroups.compactMap { group in
+            let allowed = group.modules.filter { !restricted.contains($0.id) }
+            return allowed.isEmpty ? nil : AdminModuleGroup(id: group.id, title: group.title, modules: allowed)
+        }
+    }
+
     var body: some View {
         Group {
-            if appState.user?.role == "admin" {
+            if appState.user?.isAdmin == true {
                 moduleList
             } else {
                 ContentUnavailableView {

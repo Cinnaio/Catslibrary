@@ -366,6 +366,8 @@ export interface BookImportHistoryItem {
 }
 
 export interface User {
+  email?: string | null
+  emailVerified?: boolean
   id: string
   username: string
   displayName: string

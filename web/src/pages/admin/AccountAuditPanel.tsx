@@ -33,6 +33,10 @@ export interface LoginAudit {
   createdAt: number
 }
 export interface AdminOperationAudit {
+  accountReason?: string
+  accountTarget?: string
+  beforeState?: unknown
+  afterState?: unknown
   actorAvatarUrl?: string
   id: string
   operationId: string
@@ -197,6 +201,10 @@ export default function AccountAuditPanel({
             ['响应状态', record.responseStatus ? `HTTP ${record.responseStatus}` : '未记录'],
             ['重放次数', record.replayCount],
             ['操作 ID', record.operationId],
+            ...(record.accountReason ? [
+              ['操作原因', record.accountReason], ['目标账号 ID', record.accountTarget || '—'],
+              ['变更前', JSON.stringify(record.beforeState)], ['变更后', JSON.stringify(record.afterState)],
+            ] as Array<[string, string]> : []),
             ['错误信息', record.error],
             ['创建时间', formatDateTime(record.createdAt)],
             ['更新时间', formatDateTime(record.updatedAt)],

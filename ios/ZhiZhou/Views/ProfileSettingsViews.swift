@@ -27,6 +27,9 @@ struct ProfileAccountView: View {
             }
 
             Section {
+                NavigationLink { AccountEmailView(bindingEmail: true) } label: {
+                    AppIconLabel("邮箱与密码找回", systemImage: "envelope")
+                }
                 NavigationLink {
                     AccountSessionsView()
                 } label: {

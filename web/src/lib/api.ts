@@ -962,6 +962,12 @@ export const setupApi = {
 }
 
 export const authApi = {
+  mailStatus(): Promise<{ ready: boolean }> { return request('GET', '/auth/mail-status') },
+  mailSettings(): Promise<{ ready: boolean; mode: string; from: string; publicOrigin: string }> { return request('GET', '/auth/mail-settings', null, true) },
+  requestEmail(email: string, currentPassword: string): Promise<{ message: string }> { return request('POST', '/auth/email/request', { email, currentPassword }, true) },
+  verifyEmail(token: string): Promise<{ success: boolean }> { return request('POST', '/auth/email/verify', { token }) },
+  forgotPassword(identifier: string): Promise<{ message: string }> { return request('POST', '/auth/forgot-password', { identifier }) },
+  resetPassword(token: string, password: string): Promise<{ success: boolean }> { return request('POST', '/auth/reset-password', { token, password }) },
   me(): Promise<{ user: User | null }> {
     const load = async () => {
       const current = getToken()
@@ -1654,9 +1660,6 @@ export const adminApi = {
       })
       return request('GET', `/admin-users/users?${params}`, null, true)
     },
-    setPassword(id: string, newPassword: string): Promise<{ success: boolean }> {
-      return request('POST', '/admin-users', { action: 'set-password', id, newPassword }, true)
-    },
     setRegisterMode(registerMode: string): Promise<{ ok: boolean }> {
       return request('POST', '/admin-users', { action: 'settings', registerMode }, true)
     },
@@ -1669,17 +1672,8 @@ export const adminApi = {
     clearInvites(codes: string[], operationId = newOperationId('clear-invites')): Promise<{ success: boolean; removed: number }> {
       return request('POST', '/admin-users', { action: 'clear-invites', operationId, codes }, true, operationHeaders(operationId))
     },
-    setStatus(id: string, status: string): Promise<{ ok: boolean }> {
-      return request('POST', '/admin-users', { action: 'user-status', id, status }, true)
-    },
-    setRole(id: string, role: string): Promise<{ ok: boolean }> {
-      return request('POST', '/admin-users', { action: 'user-role', id, role }, true)
-    },
-    resetPassword(id: string): Promise<{ success: boolean; username: string; tempPassword: string }> {
-      return request('POST', '/admin-users', { action: 'reset-password', id }, true)
-    },
-    deleteUser(id: string, confirmUsername: string): Promise<{ ok: boolean }> {
-      return request('POST', '/admin-users', { action: 'delete-user', id, confirmUsername }, true)
+    mutateAccount(user: AdminDirectoryUser, action: string, reason: string, values: { role?: string; status?: string; confirmUsername?: string } = {}): Promise<{ success: boolean }> {
+      return request('POST', '/admin-users', { action, id: user.id, expectedRole: user.role, expectedStatus: user.status, reason, ...values }, true)
     },
     loginAudit(filters: { status?: string; username?: string; limit?: number; offset?: number } = {}): Promise<{
       audits: Array<{
@@ -2862,6 +2856,8 @@ export const aiApi = {
 }
 
 export interface AdminDirectoryUser {
+  email?: string | null
+  emailVerified?: boolean
   id: string
   username: string
   displayName: string

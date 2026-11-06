@@ -31,7 +31,7 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
     vi.stubEnv('BACKUP_CONFIG_FILE', path.join(root, 'backup-config.json'))
     await runMigrations(db)
     await db.query(
-      "INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('backup-admin','backup-admin','admin','test','test',1,1)",
+      "INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('backup-admin','backup-admin','super_admin','test','test',1,1)",
     )
     await db.query("INSERT INTO novels(id,title,author,created_at,updated_at) VALUES('backup-novel','备份前的小说','测试',1,1)")
     await db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES('backup-chapter','backup-novel','第一章','原始正文',1,1)")
@@ -129,7 +129,7 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
       expect(await getSetting(db, 'maintenance', true)).toBe(false)
     }
   }, 60000)
-  it('旧版备份在空演练控制区补齐新迁移并生成完整影响报告', async () => {
+  it('旧版备份要求离线恢复并明确迁移超级管理员', async () => {
     const backup = await enqueue(db, 'backup', { operationId: 'migration47-backup', targetIds: [] }, { id: 'backup-admin', name: '管理员' })
     // Build an actual v47 schema, rather than removing only a migration marker
     // from today's schema. This stays valid when later migrations add tables.
@@ -166,16 +166,9 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
     const task = (
       await db.query<{ state: string; error: string; result: string }>('SELECT state,error,result FROM backup_control.tasks WHERE id=$1', [preview.id])
     ).rows[0]!
-    expect(task.error).toBe('')
-    expect(task.state).toBe('completed')
-    expect(JSON.parse(task.result).impact).toBeTruthy()
-    const restored = new Pool({ connectionString: process.env.BACKUP_INTEGRATION_REHEARSAL_URL })
-    try {
-      expect(await currentMigration(restored as unknown as Db)).toBe(await currentMigration(db))
-      expect((await restored.query("SELECT to_regclass('public.chapter_illustrations') AS table")).rows[0].table).toBe('chapter_illustrations')
-    } finally {
-      await restored.end()
-    }
+    expect(task.state).toBe('failed')
+    expect(task.error).toContain('admin:recover')
+    expect(JSON.parse(task.result || '{}').impact).toBeFalsy()
   }, 60000)
   it('损坏归档无法恢复；演练库指向业务库时拒绝操作', async () => {
     const row = await db.query<{ manifest: string }>('SELECT manifest FROM backup_control.versions WHERE protection=TRUE LIMIT 1'),
@@ -225,7 +218,7 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
     let checked = false
     const failing: Db = {
       query: async (sql, params) => {
-        if (sql === "SELECT count(*)::int AS count FROM public.users WHERE role='admin' AND status='active'") {
+        if (sql === "SELECT count(*)::int AS count FROM public.users WHERE role='super_admin' AND status='active'") {
           // Inject only the post-commit health failure; both restores execute real SQL.
           expect(await getSetting(db, 'restoreCommit', '')).toBe(restore.id)
           expect((await db.query<{ title: string }>("SELECT title FROM novels WHERE id='backup-novel'")).rows[0]!.title).not.toBe('补偿必须恢复的当前书名')
@@ -278,7 +271,7 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
       compensationAttempted = false
     const failing: Db = {
       query: async (sql, params) => {
-        if (sql === "SELECT count(*)::int AS count FROM public.users WHERE role='admin' AND status='active'") {
+        if (sql === "SELECT count(*)::int AS count FROM public.users WHERE role='super_admin' AND status='active'") {
           expect(await getSetting(db, 'restoreCommit', '')).toBe(restore.id)
           committed = true
           throw new Error('fixture health failure')

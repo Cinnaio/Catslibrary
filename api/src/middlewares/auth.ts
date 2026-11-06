@@ -1,3 +1,4 @@
+import { isAdministrator, requiresSuperAdministrator } from '@shared/roles'
 /**
  * 认证中间件 —— requireUser / requireAdmin。
  * 挂到需要登录/管理员的子路由上；用户信息写入 context variable `user`。
@@ -49,11 +50,15 @@ export function requireAdmin(): MiddlewareHandler<AuthEnv> {
     const token = requestSession(c)
     const user = await getUserByToken(db, token, loadConfig().sessionHashSalt)
     if (!user) return c.json({ error: '需要管理员登录' }, 401)
-    if (user.role !== 'admin') return c.json({ error: '需要管理员权限' }, 403)
+    if (!isAdministrator(user.role)) return c.json({ error: '需要管理员权限' }, 403)
+    const action = c.req.path.replace(/\/$/, '') === '/api/scrape'
+      ? (c.req.method === 'GET' ? c.req.query('action') : (await c.req.json().catch(() => ({}))).action) : ''
+    const superOnly = requiresSuperAdministrator(c.req.path, c.req.method, typeof action === 'string' ? action : '')
+    if (superOnly && user.role !== 'super_admin') return c.json({ error: '需要超级管理员权限' }, 403)
     if (accountChanged(c, user)) return c.json({ error: '账号已变化，请刷新页面后再操作', code: 'account_changed' }, 409)
     const sensitive =
       !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) &&
-      (/^\/api\/admin-users(?:\/|$)/.test(c.req.path) ||
+      (superOnly || /^\/api\/admin-users(?:\/|$)/.test(c.req.path) ||
         /^\/api\/admin\/backups\/(settings|targets|deployment|policy)(?:\/|$)/.test(c.req.path) ||
         c.req.path === '/api/admin/site-settings/turnstile' ||
         c.req.path === '/api/admin/site-settings/passkey')

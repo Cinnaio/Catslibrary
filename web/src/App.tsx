@@ -22,6 +22,7 @@ const Reader = lazy(() => import('./pages/Reader'))
 const Bookshelf = lazy(() => import('./pages/Bookshelf'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Auth = lazy(() => import('./pages/Auth'))
+const AccountEmail = lazy(() => import('./pages/AccountEmail'))
 // Keep the gallery, fixture data and source browser out of production bundles.
 const ComponentGallery = import.meta.env.DEV ? lazy(() => import('./pages/dev/ComponentGallery')) : null
 
@@ -46,6 +47,9 @@ export default function App() {
           <Route path="/read/:novelId/:chapterId" element={<Reader />} />
           {/* 无站点页头：登录页只保留一条出口，与门禁页、安装页一致。 */}
           <Route path="/auth" element={<Auth />} />
+          <Route path="/forgot-password" element={<AccountEmail key="forgot" />} />
+          <Route path="/reset-password" element={<AccountEmail key="reset" />} />
+          <Route path="/verify-email" element={<AccountEmail key="verify" />} />
           <Route path="/install" element={<Install />} />
           <Route path="/admin/:tab?" element={<Admin />} />
           <Route path="*" element={<Navigate to="/" replace />} />

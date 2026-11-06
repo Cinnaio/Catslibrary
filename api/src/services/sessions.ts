@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 /**
  * 会话 —— DB 操作层（由 Novel-KV createSession/getUser/deleteSession 平移）。
  */
@@ -28,7 +29,7 @@ export async function getUserByToken(db: Db, token: string, salt: string): Promi
      WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.status = 'active'`,
     [tokenHash, Date.now()],
   )
-  if (rows[0]?.role === 'admin')
+  if (isAdministrator(rows[0]?.role))
     await db.query('UPDATE user_sessions SET last_seen_at=GREATEST(last_seen_at,$2) WHERE token_hash=$1 AND last_seen_at<$3', [
       tokenHash,
       Date.now(),

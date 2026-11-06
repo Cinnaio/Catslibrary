@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import { exportNovels, parseExportIds } from '../services/novel-export'
 import { HTTPException } from 'hono/http-exception'
 import { applyNovelVisibility, parseVisibilityInput, visibleNovelSql } from '../services/novel-visibility'
@@ -34,7 +35,7 @@ novelsRoutes.onError((error, c) => {
   return c.json({ error: '服务器内部错误' }, 500)
 })
 function presentNovel(c: Context<AuthEnv>, row: NovelRow) {
-  return { ...rowToNovel(row)!, ...(c.get('user')?.role === 'admin' ? { visibilityRevision: row.visibility_revision || 0 } : {}) }
+  return { ...rowToNovel(row)!, ...(isAdministrator(c.get('user')?.role) ? { visibilityRevision: row.visibility_revision || 0 } : {}) }
 }
 
 const SORT_FIELDS: Record<string, boolean> = {

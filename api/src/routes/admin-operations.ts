@@ -9,7 +9,7 @@ export const adminOperationRoutes = new Hono<AuthEnv>()
 
 adminOperationRoutes.use('*', requireAdmin())
 
-/** 管理员副作用操作审计：返回元数据，不返回请求正文、目标 ID 或请求哈希。 */
+/** 返回操作元数据及账号变更原因/快照，不返回请求正文、凭据或请求哈希。 */
 adminOperationRoutes.get('/', async (c) => {
   const limit = clampInt(c.req.query('limit'), 10, 100, 50)
   const offset = clampInt(c.req.query('offset'), 0, 1_000_000, 0)
@@ -38,6 +38,7 @@ adminOperationRoutes.get('/', async (c) => {
         createdAt: Number(row.created_at) || 0,
         updatedAt: Number(row.updated_at) || 0,
         finishedAt: Number(row.finished_at) || 0,
+        ...(row.account_reason ? { accountReason: row.account_reason, accountTarget: row.account_target, beforeState: row.before_state, afterState: row.after_state } : {}),
       })),
       total: result.total,
       limit,

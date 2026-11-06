@@ -51,7 +51,7 @@ describe('auth 端到端（pglite）', () => {
     const res = await req('/api/auth/bootstrap-admin', json('POST', { username: 'admin', password: 'adminpass123', displayName: '站长' }))
     expect(res.status).toBe(201)
     const data = await jsonOf<AuthResponse>(res)
-    expect(data.user.role).toBe('admin')
+    expect(data.user.role).toBe('super_admin')
     expect(data.user.username).toBe('admin')
     expect(typeof data.token).toBe('string')
 
@@ -71,7 +71,7 @@ describe('auth 端到端（pglite）', () => {
     const ok = await req('/api/auth/login', json('POST', { username: 'admin', password: 'adminpass123' }))
     expect(ok.status).toBe(200)
     const { user, token } = await jsonOf<AuthResponse>(ok)
-    expect(user.role).toBe('admin')
+    expect(user.role).toBe('super_admin')
     expect(typeof token).toBe('string')
 
     const me = await req('/api/auth/me', json('GET', undefined, token))

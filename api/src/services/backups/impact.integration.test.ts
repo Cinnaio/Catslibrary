@@ -30,7 +30,7 @@ describe.skipIf(!url || !shadowUrl)('真实 PostgreSQL 回滚影响报告（仅�
     await runMigrations(target)
     for (const pool of [live, shadow]) {
       await pool.query(
-        "INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('admin','管理员','admin',$1,'private-salt',1,1)",
+        "INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('admin','管理员','super_admin',$1,'private-salt',1,1)",
         [pool === live ? 'current-private-hash' : 'target-private-hash'],
       )
       await pool.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('same',$1,1,1),($2,$3,1,1)", [

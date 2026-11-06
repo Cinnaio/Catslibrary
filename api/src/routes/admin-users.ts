@@ -1,3 +1,7 @@
+import { isUserRole } from '@shared/roles'
+import { AccountError, withManagedAccount, protectLastSuper, accountSnapshot, auditAccount } from '../services/account-security'
+import { issueAccountEmail, limitEmailRequest } from '../services/account-email'
+import { clientIpFromContext } from '../services/ai/audit-context'
 /**
  * /api/admin-users —— 用户管理 + 邀请码 + 注册设置（由 Novel-KV admin-users.js 平移）。
  */
@@ -5,7 +9,7 @@ import { Hono, type Context } from 'hono'
 import { randomInt } from 'node:crypto'
 import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
-import { hashPassword, newSalt, newToken, newId, PASSWORD_ITERATIONS, publicUser, userAvatarUrl, type UserRow } from '../services/auth'
+import { newId, publicUser, userAvatarUrl, type UserRow } from '../services/auth'
 import { escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
@@ -74,7 +78,7 @@ adminUsersRoutes.get('/users', async (c) => {
   const db = getDb()
   const role = c.req.query('role')
   const status = c.req.query('status')
-  if (role && !['admin', 'reader'].includes(role)) return c.json({ error: '角色筛选无效' }, 400)
+  if (role && !isUserRole(role)) return c.json({ error: '角色筛选无效' }, 400)
   if (status && !['active', 'disabled'].includes(status)) return c.json({ error: '状态筛选无效' }, 400)
   const requestedLimit = Number(c.req.query('limit') || 15)
   const requestedOffset = Number(c.req.query('offset') || 0)
@@ -100,7 +104,7 @@ adminUsersRoutes.get('/users', async (c) => {
   const users = await all<Record<string, unknown>>(
     db,
     `
-    SELECT u.id, u.username, u.display_name, u.role, u.status, u.created_at, u.updated_at, u.last_login_at,
+    SELECT u.id, u.username, u.display_name, u.role, u.status, u.email, u.email_verified_at, u.created_at, u.updated_at, u.last_login_at,
       (SELECT COUNT(*)::int FROM thoughts t WHERE t.user_id = u.id) AS thought_count
     FROM users u ${where} ORDER BY u.created_at DESC, u.id DESC
     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -128,7 +132,7 @@ adminUsersRoutes.get('/', async (c) => {
     ),
     all<Record<string, unknown>>(
       db,
-      `SELECT u.id, u.username, u.display_name, u.role, u.status, u.created_at, u.updated_at, u.last_login_at, COUNT(t.id) AS thought_count
+      `SELECT u.id, u.username, u.display_name, u.role, u.status, u.email, u.email_verified_at, u.created_at, u.updated_at, u.last_login_at, COUNT(t.id) AS thought_count
        FROM users u
        LEFT JOIN thoughts t ON t.user_id = u.id
        GROUP BY u.id
@@ -164,17 +168,16 @@ adminUsersRoutes.post('/', async (c) => {
     case 'clear-invites':
       return clearInvites(c, db, body)
     case 'settings':
+      if (self.role !== 'super_admin') return c.json({ error: '需要超级管理员权限' }, 403)
       return updateSettings(c, db, body.registerMode)
-    case 'user-status':
-      return updateUserStatus(c, db, body, self)
-    case 'user-role':
-      return updateUserRole(c, db, body, self)
     case 'set-password':
-      return setPassword(c, db, body, self)
+      return c.json({ error: '请使用邮件重置密码；本人改密请到个人中心' }, 410)
+    case 'user-status':
+    case 'user-role':
     case 'reset-password':
-      return resetPassword(c, db, body, self)
+    case 'revoke-sessions':
     case 'delete-user':
-      return deleteUser(c, db, body, self)
+      return mutateAccount(c, db, body, self)
     default:
       return c.json({ error: 'Method not allowed' }, 405)
   }
@@ -293,110 +296,53 @@ async function updateSettings(c: Ctx, db: ReturnType<typeof getDb>, modeValue: u
   return c.json({ settings: { registerMode: mode } })
 }
 
-async function loadTargetUser(
-  db: ReturnType<typeof getDb>,
-  id: unknown,
-  selfId: string,
-  forbidSelf: string,
-): Promise<{ target?: UserRow; error?: { message: string; status: number } }> {
-  id = String(id || '').trim()
-  if (!id) return { error: { message: 'id is required', status: 400 } }
-  const target = await first<UserRow>(db, 'SELECT * FROM users WHERE id = $1', [id])
-  if (!target) return { error: { message: '用户不存在', status: 404 } }
-  if (forbidSelf && target.id === selfId) return { error: { message: forbidSelf, status: 400 } }
-  return { target }
-}
-
-async function updateUserStatus(c: Ctx, db: ReturnType<typeof getDb>, body: any, self: UserRow) {
-  const status = body.status === 'disabled' ? 'disabled' : 'active'
-  const { target, error } = await loadTargetUser(db, body.id, self.id, status === 'disabled' ? '不能禁用自己的账号' : '')
-  if (error) return c.json({ error: error.message }, error.status as 400)
-  await run(db, 'UPDATE users SET status = $1, updated_at = $2 WHERE id = $3', [status, Date.now(), target!.id])
-  if (status === 'disabled') await run(db, 'DELETE FROM user_sessions WHERE user_id = $1', [target!.id])
-  return c.json({ success: true })
-}
-
-async function updateUserRole(c: Ctx, db: ReturnType<typeof getDb>, body: any, self: UserRow) {
-  const role = String(body.role || '')
-  if (!['admin', 'reader'].includes(role)) return c.json({ error: 'role 必须是 admin 或 reader' }, 400)
-  const { target, error } = await loadTargetUser(db, body.id, self.id, role !== 'admin' ? '不能降级自己的账号' : '')
-  if (error) return c.json({ error: error.message }, error.status as 400)
-  await run(db, 'UPDATE users SET role = $1, updated_at = $2 WHERE id = $3', [role, Date.now(), target!.id])
-  return c.json({ success: true, role })
-}
-
-async function setPassword(c: Ctx, db: ReturnType<typeof getDb>, body: Record<string, unknown>, self: UserRow) {
-  if (typeof body.newPassword !== 'string' || body.newPassword.length < 8) return c.json({ error: '新密码至少需要 8 位' }, 400)
-  const { target, error } = await loadTargetUser(db, body.id, self.id, '修改本人密码需要验证当前密码')
-  if (error) return c.json({ error: error.message }, error.status as 400)
-  const salt = newSalt()
-  const hash = await hashPassword(body.newPassword, salt)
-  const now = Date.now()
-  // 密码、会话和审计一起提交，失败时旧密码与会话均保留。
-  const updated = await withTx(db, async (q) => {
-    const locked = await q('SELECT id FROM users WHERE id = $1 FOR UPDATE', [target!.id])
-    if (!locked.rows.length) return false
-    await q('UPDATE users SET password_hash = $1, password_salt = $2, password_iterations = $3, updated_at = $4 WHERE id = $5', [
-      hash,
-      salt,
-      PASSWORD_ITERATIONS,
-      now,
-      target!.id,
-    ])
-    await q('DELETE FROM user_sessions WHERE user_id = $1', [target!.id])
-    // 审计仅记录操作元数据；不保存密码、盐、请求正文或其摘要。
-    await q(
-      `INSERT INTO admin_operation_audit
-      (id, operation_id, scope, actor_user_id, action, target_count, request_hash, status, response_status, created_at, updated_at, finished_at)
-      VALUES ($1, $2, $3, $4, 'set-password', 1, '', 'completed', 200, $5, $5, $5)`,
-      [newId('adminop'), newId('passwordop'), `admin-users.set-password.${self.id}.${target!.id}`, self.id, now],
-    )
-    return true
-  })
-  c.header('Cache-Control', 'no-store')
-  return updated ? c.json({ success: true }) : c.json({ error: '用户不存在' }, 404)
-}
-
-async function resetPassword(c: Ctx, db: ReturnType<typeof getDb>, body: any, self: UserRow) {
-  const { target, error } = await loadTargetUser(db, body.id, self.id, '')
-  if (error) return c.json({ error: error.message }, error.status as 400)
-  const tempPassword = newToken().slice(0, 12)
-  const now = Date.now()
-  const salt = newSalt()
-  const hash = await hashPassword(tempPassword, salt)
-  await run(db, 'UPDATE users SET password_hash = $1, password_salt = $2, password_iterations = 120000, updated_at = $3 WHERE id = $4', [
-    hash,
-    salt,
-    now,
-    target!.id,
-  ])
-  await run(db, 'DELETE FROM user_sessions WHERE user_id = $1', [target!.id])
-  return c.json({ success: true, username: target!.username, tempPassword })
-}
-
-async function deleteUser(c: Ctx, db: ReturnType<typeof getDb>, body: any, self: UserRow) {
-  const { target, error } = await loadTargetUser(db, body.id, self.id, '不能删除自己的账号')
-  if (error) return c.json({ error: error.message }, error.status as 400)
-  if (
-    String(body.confirmUsername || '')
-      .trim()
-      .toLowerCase() !== target!.username
-  ) {
-    return c.json({ error: '用户名确认不匹配' }, 400)
+async function mutateAccount(c: Ctx, db: ReturnType<typeof getDb>, body: Record<string, unknown>, self: UserRow) {
+  try {
+    const id = String(body.id || '').trim()
+    const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) : ''
+    if (!id || !reason) return c.json({ error: '请选择目标账号并填写操作原因' }, 400)
+    const result = await withManagedAccount(db, self.id, id, body, async (tx, actor, target) => {
+      const action = String(body.action)
+      if (action === 'reset-password') {
+        if (!target.email || !target.email_verified_at) throw new AccountError('该用户尚未绑定已验证邮箱，请由用户先绑定邮箱')
+        return { email: target.email, role: target.role, status: target.status }
+      }
+      if (action === 'user-role') {
+        if (actor.role !== 'super_admin') throw new AccountError('只有超级管理员可以授予或撤销管理权限', 403)
+        if (!isUserRole(body.role)) throw new AccountError('角色无效')
+        await protectLastSuper(tx, target, body.role, target.status)
+        await tx.query('UPDATE users SET role=$2,updated_at=$3 WHERE id=$1', [id, body.role, Date.now()])
+      } else if (action === 'user-status') {
+        if (body.status !== 'active' && body.status !== 'disabled') throw new AccountError('状态无效')
+        if (id === actor.id && body.status === 'disabled') throw new AccountError('不能禁用自己的账号')
+        await protectLastSuper(tx, target, target.role, body.status)
+        await tx.query('UPDATE users SET status=$2,updated_at=$3 WHERE id=$1', [id, body.status, Date.now()])
+      } else if (action === 'delete-user') {
+        if (id === actor.id) throw new AccountError('不能删除自己的账号')
+        if (body.confirmUsername !== target.username) throw new AccountError('用户名确认不匹配')
+        await protectLastSuper(tx, target, '', 'disabled')
+        await tx.query('DELETE FROM novel_comment_reports WHERE reported_by=$1 OR resolved_by=$1 OR comment_id IN (SELECT id FROM novel_comments WHERE user_id=$1)', [id])
+        await tx.query('DELETE FROM novel_comment_likes WHERE user_id=$1 OR comment_id IN (SELECT id FROM novel_comments WHERE user_id=$1)', [id])
+        await tx.query('DELETE FROM novel_comments WHERE user_id=$1', [id])
+        await tx.query('DELETE FROM novel_ratings WHERE user_id=$1', [id])
+        await tx.query('DELETE FROM thoughts WHERE user_id=$1', [id])
+        await tx.query('DELETE FROM reading_progress WHERE user_id=$1', [id])
+        await tx.query('DELETE FROM users WHERE id=$1', [id])
+      }
+      await tx.query('DELETE FROM user_sessions WHERE user_id=$1', [id])
+      await tx.query('DELETE FROM account_email_tokens WHERE user_id=$1', [id])
+      await auditAccount(tx, actor.id, id, action, reason, accountSnapshot(target),
+        action === 'delete-user' ? { deleted: true } : { ...accountSnapshot(target),
+          ...(action === 'user-role' ? { role: body.role } : {}), ...(action === 'user-status' ? { status: body.status } : {}) })
+      return null
+    })
+    if (result?.email) {
+      await limitEmailRequest(db, id, clientIpFromContext(c))
+      await issueAccountEmail(db, id, result.email, 'reset-password', self.id, result, reason)
+    }
+    return c.json({ success: true })
+  } catch (error) {
+    if (error instanceof AccountError) return c.json({ error: error.message }, error.status)
+    throw error
   }
-  // 无 FK 的表显式清理（thoughts/reading_progress 的 user_id 是裸文本列）；
-  // 其余 user 相关的评论/点赞/举报/评分/书签/书架经 FK 级联。
-  await withTx(db, async (q) => {
-    await q(
-      'DELETE FROM novel_comment_reports WHERE reported_by = $1 OR resolved_by = $1 OR comment_id IN (SELECT id FROM novel_comments WHERE user_id = $1)',
-      [target!.id],
-    )
-    await q('DELETE FROM novel_comment_likes WHERE user_id = $1 OR comment_id IN (SELECT id FROM novel_comments WHERE user_id = $1)', [target!.id])
-    await q('DELETE FROM novel_comments WHERE user_id = $1', [target!.id])
-    await q('DELETE FROM novel_ratings WHERE user_id = $1', [target!.id])
-    await q('DELETE FROM thoughts WHERE user_id = $1', [target!.id])
-    await q('DELETE FROM reading_progress WHERE user_id = $1', [target!.id])
-    await q('DELETE FROM users WHERE id = $1', [target!.id])
-  })
-  return c.json({ success: true })
 }

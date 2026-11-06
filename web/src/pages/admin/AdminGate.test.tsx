@@ -21,9 +21,9 @@ function AuthDestination() {
   const location = useLocation()
   return <output>{JSON.stringify(location.state)}</output>
 }
-function mountGate() {
-  render(<MemoryRouter initialEntries={['/admin/novels?novelId=test']}><Routes>
-    <Route path="/admin/:tab" element={<AdminGate><p>管理内容</p></AdminGate>} />
+function mountGate(entry = '/admin/novels?novelId=test', superOnly = false) {
+  render(<MemoryRouter initialEntries={[entry]}><Routes>
+    <Route path="/admin/:tab" element={<AdminGate superOnly={superOnly}><p>管理内容</p></AdminGate>} />
     <Route path="/auth" element={<AuthDestination />} />
   </Routes></MemoryRouter>)
 }
@@ -55,4 +55,31 @@ it('管理员直接展示原管理内容', () => {
   expect(screen.getByText('管理内容')).toBeInTheDocument()
   expect(screen.queryByRole('main')).not.toBeInTheDocument()
   expect(mocks.status).not.toHaveBeenCalled()
+})
+
+it.each(['/admin/site-settings?view=mail', '/admin/site-settings/?view=mail', '/admin/ai/?sub=config'])('普通管理员的站点配置深链 %s 被拦截', (entry) => {
+  mocks.session.user = { role: 'admin', displayName: '管理员', username: 'admin' }
+  mountGate(entry)
+  expect(screen.getByRole('heading', { name: '需要超级管理员权限' })).toBeInTheDocument()
+  expect(screen.queryByText('管理内容')).not.toBeInTheDocument()
+})
+
+it('超级管理员可以访问备份与站点设置', () => {
+  mocks.session.user = { role: 'super_admin', displayName: '站长', username: 'root' }
+  mountGate('/admin/backups')
+  expect(screen.getByText('管理内容')).toBeInTheDocument()
+})
+
+it('无查询参数时也拦截由上次位置恢复的配置视图', () => {
+  mocks.session.user = { role: 'admin', displayName: '管理员', username: 'admin' }
+  mountGate('/admin/ai', true)
+  expect(screen.getByRole('heading', { name: '需要超级管理员权限' })).toBeInTheDocument()
+  expect(screen.queryByText('管理内容')).not.toBeInTheDocument()
+})
+
+it('出站日志深链仅超级管理员可见', () => {
+  mocks.session.user = { role: 'admin', displayName: '管理员', username: 'admin' }
+  mountGate('/admin/calls?view=outbound')
+  expect(screen.queryByText('管理内容')).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: '需要超级管理员权限' })).toBeInTheDocument()
 })

@@ -21,6 +21,7 @@ struct LoginView: View {
     @State private var isRestoringSession = false
     @State private var errorMessage: String?
     @State private var interactionFeedback = 0
+    @State private var showPasswordRecovery = false
     @State private var showOfflineReading = false
     @FocusState private var focusedField: Field?
 
@@ -65,6 +66,11 @@ struct LoginView: View {
                                 .padding(.top, 16)
                         }
 
+                        if mode == .login {
+                            Button("忘记密码") { showPasswordRecovery = true }
+                                .disabled(busy || isRestoringSession)
+                                .padding(.top, 16)
+                        }
                         accountSwitch
                             .disabled(busy || isRestoringSession)
                             .padding(.top, 16)
@@ -93,6 +99,9 @@ struct LoginView: View {
             } else {
                 passkeyConfig = nil
             }
+        }
+        .sheet(isPresented: $showPasswordRecovery) {
+            NavigationStack { AccountEmailView(bindingEmail: false) }
         }
         .sheet(isPresented: $showOfflineReading) {
             NavigationStack {

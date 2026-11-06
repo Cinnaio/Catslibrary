@@ -13,10 +13,10 @@ import { describe, expect, it, vi } from 'vitest'
  */
 import UserManagementPanel from './UserManagementPanel'
 
-const mocks = vi.hoisted(() => ({ directory: vi.fn(), setPassword: vi.fn(), changePassword: vi.fn(), toast: vi.fn() }))
+const mocks = vi.hoisted(() => ({ directory: vi.fn(), mutateAccount: vi.fn(), changePassword: vi.fn(), toast: vi.fn() }))
 vi.mock('@/lib/api', () => ({
   url: (path: string) => path,
-  adminApi: { users: { directory: mocks.directory, setPassword: mocks.setPassword } },
+  adminApi: { users: { directory: mocks.directory, mutateAccount: mocks.mutateAccount } },
   authApi: { changePassword: mocks.changePassword },
 }))
 vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }) }))
@@ -25,12 +25,9 @@ const users = [
   { id: 'self', username: 'admin', displayName: '管理员', role: 'admin', status: 'active', createdAt: 1, updatedAt: 1, lastLoginAt: 0, bio: '', avatarUrl: '' },
 ]
 
-const noop = vi.fn()
-const actions = { onRole: noop, onStatus: noop, onReset: noop, onDelete: noop }
-
 function mount() {
   mocks.directory.mockResolvedValue({ users, total: users.length })
-  return render(<UserManagementPanel search="" selfId="self" {...actions} />)
+  return render(<UserManagementPanel search="" selfId="self" selfRole="super_admin" />)
 }
 
 describe('用户管理筛选轨的间距归属', () => {

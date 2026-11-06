@@ -25,6 +25,7 @@ function migrationDir() {
 }
 export async function validateCompatibility(db: Db, manifest: Manifest) {
   if (manifest.migrationVersion > (await currentMigration(db))) throw new BackupError('SCHEMA_INCOMPATIBLE', '备份结构比当前程序更新，请先升级程序')
+  if (manifest.migrationVersion < 70) throw new BackupError('SUPER_ADMIN_MIGRATION_REQUIRED', '旧备份尚未建立超级管理员；请用匹配的旧版本离线恢复，再升级迁移并明确运行 admin:recover')
   const current = Number((await first<{ version: string }>(db, "SELECT current_setting('server_version_num') AS version"))?.version || 0)
   if (Math.floor(current / 10000) < Math.floor(manifest.postgresVersion / 10000))
     throw new BackupError('SCHEMA_INCOMPATIBLE', '不能向较低大版本 PostgreSQL 恢复')
@@ -72,10 +73,11 @@ async function generateRestoreScript(dump: string, dir: string, manifest: Manife
       )
     }
     await write(`\nDELETE FROM public.user_sessions;
+DELETE FROM public.account_email_tokens;
 UPDATE public.ai_tasks SET status='failed',step='备份恢复后已中断',error='请管理员重新确认后重试',finished_at=${Date.now()} WHERE status IN ('queued','running');
 UPDATE public.scrape_jobs SET status='failed',step='备份恢复后已中断',error='请管理员重新确认后重试' WHERE status NOT IN ('completed','partial','failed','cancelled');
 DO $$ BEGIN
- IF NOT EXISTS(SELECT 1 FROM public.users WHERE role='admin' AND status='active') THEN RAISE EXCEPTION 'No active administrator'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.users WHERE role='super_admin' AND status='active') THEN RAISE EXCEPTION 'No active super administrator; restore pre-070 archives offline with the matching old release, then migrate and run admin:recover'; END IF;
  IF EXISTS(SELECT 1 FROM public.chapters c LEFT JOIN public.novels n ON n.id=c.novel_id WHERE n.id IS NULL) THEN RAISE EXCEPTION 'Orphan chapters'; END IF;
 END $$;
 ${commitId ? `INSERT INTO backup_control.settings(key,value,updated_at) VALUES('restoreCommit','${JSON.stringify(commitId).replace(/'/g, "''")}',${Date.now()}) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=EXCLUDED.updated_at;` : ''}
@@ -138,7 +140,7 @@ export async function rehearse(db: Db, manifest: Manifest, afterRestore?: (shado
     if (marker.rows[0]?.value !== 'zhi-zhou-backup-rehearsal') throw new BackupError('REHEARSAL_UNSAFE', '演练数据库缺少专属保护标记')
     prepared = await prepareRestore(db, manifest)
     await command(psqlTool(), ['--no-psqlrc', '--set', 'ON_ERROR_STOP=1', '--file', prepared.script], { env: pgEnvironment(connectionString) })
-    const administrators = await pool.query("SELECT username FROM public.users WHERE role='admin' AND status='active' ORDER BY username")
+    const administrators = await pool.query("SELECT username FROM public.users WHERE role='super_admin' AND status='active' ORDER BY username")
     if (afterRestore) await afterRestore(pool as unknown as Db)
     return administrators.rows.map((row) => String(row.username))
   } finally {

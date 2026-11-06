@@ -1,3 +1,4 @@
+import { isAdministrator } from '@shared/roles'
 import { requestSession } from './browser-session'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Context } from 'hono'
@@ -126,7 +127,7 @@ export async function resolveContentAccess(c: Context<AuthEnv>): Promise<Content
   )
   const user = rows[0]
   if (!user || (c.get('user') && c.get('user').id !== user.id)) return { canViewRestricted: false, reason: 'login_required' }
-  if (user.role === 'admin') {
+  if (isAdministrator(user.role)) {
     if (bearer) setAdultAccessCookie(c, createAdultAccessToken(sessionHash, Math.min(Number(user.expires_at), Date.now() + ADULT_ACCESS_TTL_SECONDS * 1000)))
     return { canViewRestricted: true, reason: 'admin', accountId: user.id }
   }

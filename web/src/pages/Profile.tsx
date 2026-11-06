@@ -1,4 +1,6 @@
 import { Spinner } from '@/components/ui/spinner'
+import { roleLabel } from '@shared/roles'
+import ProfileEmail from './ProfileEmail'
 import '@/styles/account-content.css'
 import '@/styles/input-fields.css'
 import { Button } from '@/components/ui/button'
@@ -28,7 +30,7 @@ interface SessionItem {
 }
 
 function roleText(role: string): string {
-  return role === 'admin' ? '管理员' : '读者'
+  return roleLabel(role)
 }
 
 export default function Profile() {
@@ -330,6 +332,7 @@ export default function Profile() {
           </nav>
 
           <div className="profile-edit-grid" data-settings={activeSettings}>
+            {activeSettings === 'security' && <ProfileEmail key={user.id} user={user} />}
             {activeSettings === 'stats' && <ReadingStatsPanel key={`${user.id}:${safeMode}`} />}
             {activeSettings === 'reading' && <ReadingDataPanel key={`${user.id}:${safeMode}`} userId={user.id} username={user.username} />}
             <section className="profile-section profile-details-card" aria-label="个人资料" hidden={activeSettings !== 'details'}>
@@ -392,7 +395,7 @@ export default function Profile() {
                 </label>
                 <label className="profile-field">
                   <span>邮箱</span>
-                  <input type="email" className="form-input" id="emailInput" placeholder="暂未开放邮箱绑定" disabled />
+                  <input type="email" className="form-input" id="emailInput" value={user.email || ''} placeholder="请在账户安全中绑定邮箱" disabled />
                 </label>
                 <label className="profile-field">
                   <span>个人简介</span>

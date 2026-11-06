@@ -1072,7 +1072,7 @@ struct ReaderView: View {
 
     private var readerMoreMenu: some View {
         Menu {
-            if !offlineOnly, appState.user?.role == "admin" {
+            if !offlineOnly, appState.user?.isAdmin == true {
                 Button("管理这本书", systemImage: "slider.horizontal.3") { showAdminWorkspace = true }
                 Divider()
             }

@@ -95,7 +95,7 @@ export default function Admin() {
     : getAdminViewLabel(active, location.search)
 
   return (
-    <AdminGate>
+    <AdminGate superOnly={Boolean(settingsView)}>
       <AdminShell active={active} activeLabel={activeLabel}>
         <Suspense key={settingsView ? 'site-settings' : active} fallback={<RouteLoading embedded />}>
           <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => {

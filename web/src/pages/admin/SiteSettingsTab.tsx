@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ErrorState, InlineError, LoadingState } from '@/components/shared/AsyncStates'
 import TurnstileTestWidget from '@/components/TurnstileTestWidget'
 import ContentPolicyTab from './ContentPolicyTab'
+import MailSettings from './MailSettings'
 import SiteSettingsNavigation from './SiteSettingsNavigation'
 import { getSiteSettingsView, type SiteSettingsView } from './site-settings-views'
 import styles from './site-settings.module.css'
@@ -26,6 +27,7 @@ import styles from './site-settings.module.css'
 const AiSettingsWorkspace = lazy(() => import('./ai/AiSettingsWorkspace'))
 type LocalView = 'branding' | 'security' | 'passkey'
 const meta: Record<SiteSettingsView, { title: string; description: string }> = {
+  mail: { title: '账号邮件', description: '查看邮箱验证与密码找回的发信配置状态。' },
   branding: { title: '站点信息', description: '统一主站的名称、介绍、浏览器标题与品牌图片。' },
   'content-policy': { title: '内容安全', description: '设置全站限制级内容的访问入口与解锁条件。' },
   security: { title: '安全验证', description: '配置成人内容解锁验证，并独立测试已保存的配置。' },
@@ -202,6 +204,7 @@ export default function SiteSettingsTab() {
 
   return <AdminPage {...meta[view]} className="admin-redesign-page--site-settings">
     <SiteSettingsNavigation view={view} disabled={busy || aiBusy} />
+    {view === 'mail' && <MailSettings />}
     {view === 'content-policy' && <ContentPolicyTab />}
     {localView && <>
       {!hasData && (loadError

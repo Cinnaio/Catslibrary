@@ -154,5 +154,5 @@ export async function currentMigration(db: DbClient) {
   return Number((await first<{ version: number }>(db, 'SELECT COALESCE(MAX(version),0)::int AS version FROM schema_migrations'))?.version || 0)
 }
 export async function databaseSummary(db: Db) {
-  return all<{ username: string }>(db, "SELECT username FROM users WHERE role='admin' AND status='active'")
+  return all<{ username: string }>(db, "SELECT username FROM users WHERE role='super_admin' AND status='active'")
 }

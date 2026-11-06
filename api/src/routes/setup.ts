@@ -1,3 +1,4 @@
+import { siteInitialized } from '../services/account-security'
 /**
  * /api/setup/* —— 首次安装向导（数据库配置 + 可选项）。
  *
@@ -25,7 +26,7 @@ import {
 export const setupRoutes = new Hono()
 
 async function adminExists(): Promise<boolean> {
-  return Boolean(await first(getDb(), "SELECT 1 FROM users WHERE role = 'admin' LIMIT 1"))
+  return siteInitialized(getDb())
 }
 
 type AdminProbe = 'yes' | 'no' | 'error'

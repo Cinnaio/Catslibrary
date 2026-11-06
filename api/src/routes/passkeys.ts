@@ -1,3 +1,4 @@
+import { lockAccounts } from '../services/account-security'
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server'
 import type { AuthenticationResponseJSON, RegistrationResponseJSON, WebAuthnCredential } from '@simplewebauthn/server'
 import { Hono } from 'hono'
@@ -14,7 +15,7 @@ import { markSessionReauthenticated } from '../services/reauthentication'
 
 const CHALLENGE_TTL = 5 * 60_000
 const MAX_PASSKEYS_PER_USER = 10
-const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, created_at, updated_at, last_login_at'
+const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, email, email_verified_at, created_at, updated_at, last_login_at'
 
 interface PasskeyRow {
   id: string
@@ -148,6 +149,7 @@ passkeyRoutes.post('/login/verify', async (c) => {
   const userAgent = c.req.header('User-Agent') || ''
   try {
     const result = await withTx(db, async (query) => {
+      await lockAccounts({ query })
       const deleted = await query("DELETE FROM webauthn_challenges WHERE id = $1 AND purpose = 'login' AND expires_at > $2", [challengeRow.id, Date.now()])
       if (!deleted.rowCount) throw new Error('challenge_consumed')
       const tx = { query } as Db

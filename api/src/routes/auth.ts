@@ -1,3 +1,4 @@
+import { siteInitialized, lockAccounts, auditAccount, AccountError } from '../services/account-security'
 import type { Db } from '../db/pool'
 import { requestSession, sessionResponse, clearSessionCookie, setSessionCookie } from '../services/browser-session'
 /**
@@ -37,7 +38,7 @@ import { recordLoginAudit } from '../services/login-audit'
 import { clearAdultAccessCookie, contentPolicyHeaders, setAccountContentMode } from '../services/content-access'
 import { markSessionReauthenticated } from '../services/reauthentication'
 
-const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, created_at, updated_at, last_login_at'
+const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, email, email_verified_at, created_at, updated_at, last_login_at'
 const LOGIN_USER_COLUMNS = PUBLIC_USER_COLUMNS + ', password_hash, password_salt, password_iterations'
 
 export const authRoutes = new Hono<AuthEnv>()
@@ -130,16 +131,22 @@ authRoutes.post('/login', async (c) => {
   // 否则攻击者可用自己的账号周期性登录来解除 IP 封锁
   await clearLoginFailures(db, failKey)
   const now = Date.now()
-  await run(db, 'UPDATE users SET last_login_at = $1, updated_at = $1 WHERE id = $2', [now, user.id])
-  user.last_login_at = now
-  user.updated_at = now
   // 保持登录：勾选时给更长的会话有效期（REMEMBER_TTL），否则用默认 SESSION_TTL
   const remember = body.remember === true
-  const token = await createSession(db, user.id, c.req.header('User-Agent') || '', salt, remember ? REMEMBER_TTL : SESSION_TTL)
+  const authenticated = await withTx(db, async query => {
+    const tx = { query } as Db
+    await lockAccounts(tx)
+    const latest = await first<UserRow>(tx, 'SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id])
+    if (!latest || latest.status !== 'active' || latest.password_hash !== user.password_hash) return null
+    await run(tx, 'UPDATE users SET last_login_at=$1,updated_at=$1 WHERE id=$2', [now, user.id])
+    const token = await createSession(tx, user.id, c.req.header('User-Agent') || '', salt, remember ? REMEMBER_TTL : SESSION_TTL)
+    return { token, user: { ...latest, last_login_at: now, updated_at: now } }
+  })
+  if (!authenticated) return c.json({ error: '账号凭据已变化，请重新登录' }, 401)
   await recordLoginAudit(db, c, { userId: user.id, username: user.username, status: 'success', reason: 'login' })
   return c.json({
-    user: publicUser(user),
-    ...sessionResponse(c, token, remember ? REMEMBER_TTL : SESSION_TTL, remember),
+    user: publicUser(authenticated.user),
+    ...sessionResponse(c, authenticated.token, remember ? REMEMBER_TTL : SESSION_TTL, remember),
   })
 })
 
@@ -272,15 +279,19 @@ authRoutes.post('/change-password', requireUser(), async (c) => {
   const currentPassword = String(body.currentPassword || '')
   const newPassword = String(body.newPassword || '')
   if (!(await verifyPassword(currentPassword, user))) return c.json({ error: '当前密码不正确' }, 401)
-  if (newPassword.length < 8) return c.json({ error: '密码至少 8 位' }, 400)
+  if (newPassword.length < 8 || newPassword.length > 512) return c.json({ error: '密码需要 8–512 位' }, 400)
 
   const now = Date.now()
   const salt = newSalt()
   const hash = await hashPassword(newPassword, salt)
   const { token, fresh } = await withTx(db, async (query) => {
     const tx = { query } as Db
+    await lockAccounts(tx)
+    const latest = await first<UserRow>(tx, 'SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id])
+    if (!latest || latest.status !== 'active' || latest.password_hash !== user.password_hash) throw new AccountError('账号凭据已变化，请重新登录', 409)
     await run(tx, 'UPDATE users SET password_hash=$1,password_salt=$2,password_iterations=120000,updated_at=$3 WHERE id=$4', [hash, salt, now, user.id])
     await run(tx, 'DELETE FROM user_sessions WHERE user_id=$1', [user.id])
+    await run(tx, 'DELETE FROM account_email_tokens WHERE user_id=$1', [user.id])
     const token = await createSession(
       tx,
       user.id,
@@ -363,9 +374,6 @@ authRoutes.delete('/avatar', requireUser(), async (c) => {
 
 // ---------- 内部辅助 ----------
 
-// pg_advisory_xact_lock 的键：串行化「首个管理员」创建，任意稳定常量即可
-const BOOTSTRAP_ADMIN_LOCK_KEY = 730001
-
 async function createBootstrapAdmin(c: Context<AuthEnv>) {
   if (await adminExists()) return c.json({ error: '管理员已存在' }, 409)
   const db = getDb()
@@ -384,14 +392,15 @@ async function createBootstrapAdmin(c: Context<AuthEnv>) {
     // TOCTOU 防护：并发提交时「检查-插入」会双双通过检查造出两个管理员。
     // 事务内先拿咨询锁再复查，后到者会阻塞到先到者提交后看到已有管理员。
     const created = await withTx(db, async (q) => {
-      await q('SELECT pg_advisory_xact_lock($1)', [BOOTSTRAP_ADMIN_LOCK_KEY])
-      const { rows } = await q("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1")
-      if (rows.length > 0) return false
+      await lockAccounts({ query: q })
+      if (await siteInitialized({ query: q })) return false
       await q(
         `INSERT INTO users (id, username, display_name, role, password_hash, password_salt, password_iterations, status, created_at, updated_at, last_login_at)
-         VALUES ($1, $2, $3, 'admin', $4, $5, 120000, 'active', $6, $6, 0)`,
+         VALUES ($1, $2, $3, 'super_admin', $4, $5, 120000, 'active', $6, $6, 0)`,
         [id, username, displayName, hash, salt, now],
       )
+      await q("INSERT INTO site_initialization (id,initialized_at) VALUES ('site',$1)", [now])
+      await auditAccount({ query: q }, id, id, 'initialize-site', '首次安装', {}, { role: 'super_admin', status: 'active' })
       return true
     })
     if (!created) return c.json({ error: '管理员已存在' }, 409)
@@ -405,7 +414,7 @@ async function createBootstrapAdmin(c: Context<AuthEnv>) {
 }
 
 async function adminExists(): Promise<boolean> {
-  return Boolean(await first(getDb(), "SELECT 1 FROM users WHERE role = 'admin' LIMIT 1"))
+  return siteInitialized(getDb())
 }
 
 async function publicUserById(db: ReturnType<typeof getDb>, id: string) {

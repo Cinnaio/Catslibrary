@@ -63,7 +63,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   mocks.list.mockResolvedValue({ settings: { registerMode: 'invite' }, invites, users: [] })
-  mocks.me.mockResolvedValue({ user: { id: 'self', username: 'admin', displayName: '管理员', role: 'admin' } })
+  mocks.me.mockResolvedValue({ user: { id: 'self', username: 'admin', displayName: '管理员', role: 'super_admin' } })
   mocks.login.mockResolvedValue({ audits: [], total: 0 })
   mocks.operations.mockResolvedValue({ operations: [], total: 0 })
   mocks.directory.mockResolvedValue({ users: [], total: 0 })
