@@ -1,0 +1,125 @@
+.securityLayout:global(.profile-edit-grid) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 24px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 24px;
+}
+
+.panel[hidden], .passkeyRegistration[hidden] { display: none; }
+.emailPanel { grid-column: 1; }
+.passwordPanel { grid-column: 2; }
+.passkeyPanel { grid-column: 1 / -1; }
+
+.headingRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.heading {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.heading h2 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.heading h2 span {
+  color: var(--text-muted);
+  font: 400 12px / 1.5 var(--font-body);
+}
+
+.heading p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 24px;
+}
+
+.feedback { display: grid; min-width: 0; gap: 12px; }
+.notice, .result, .actions p { margin: 0; font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.notice, .actions p { color: var(--text-muted); }
+.result { color: var(--color-success); }
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-top: auto;
+  gap: 12px;
+}
+
+.actions p { flex: 1 1 160px; margin-right: auto; }
+.actions > button { flex-shrink: 0; }
+
+.passkeyList { display: grid; min-width: 0; }
+.passkeyList:empty { display: none; }
+
+.passkeyItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  gap: 16px;
+  padding-block: 16px;
+}
+
+.passkeyItem:first-child { padding-top: 0; }
+.passkeyItem:last-child { padding-bottom: 0; }
+.passkeyItem + .passkeyItem { border-top: 1px solid var(--border); }
+.passkeyMeta { display: grid; min-width: 0; gap: 4px; }
+.passkeyMeta strong { font-size: 14px; font-weight: 500; line-height: 1.7; overflow-wrap: anywhere; }
+.passkeyMeta span { color: var(--text-muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.passkeyActions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+.remove:hover:not(:disabled) { color: var(--color-danger); }
+.passkeyRegistration { display: grid; min-width: 0; gap: 24px; }
+.subheading { margin: 0; color: var(--text-secondary); font-size: 14px; font-weight: 500; line-height: 1.5; }
+
+.registrationForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  min-width: 0;
+  gap: 24px;
+}
+
+.registrationForm > .actions { grid-column: 1 / -1; }
+
+@media (max-width: 1100px) {
+  .securityLayout:global(.profile-edit-grid) { grid-template-columns: minmax(0, 1fr); }
+  .emailPanel, .passwordPanel { grid-column: 1; }
+}
+
+@media (max-width: 700px) {
+  .registrationForm, .passkeyItem { grid-template-columns: minmax(0, 1fr); }
+  .passkeyItem { gap: 8px; }
+  .actions { flex-direction: column; align-items: stretch; }
+  .actions p { flex: initial; }
+  .actions > button { width: 100%; }
+}

@@ -5,6 +5,10 @@ import '@/styles/account-content.css'
 import '@/styles/input-fields.css'
 import { Button } from '@/components/ui/button'
 import styles from './account.module.css'
+import securityStyles from './profile-security.module.css'
+import FormField from '@/components/shared/FormField'
+import { InlineError } from '@/components/shared/AsyncStates'
+import { Input } from '@/components/ui/input'
 /**
  * Profile 页 —— 头像、资料编辑、密码、会话管理、退出（由 Novel-KV js/profile.js 平移）。
  */
@@ -16,7 +20,7 @@ import { useSession } from '../context/SessionContext'
 import { useConfirm } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate, timeAgo } from '../lib/format'
-import { ImagePlus, KeyRound, Monitor, Smartphone, Trash2 } from 'lucide-react'
+import { ImagePlus, Monitor, Plus, Smartphone, Trash2 } from 'lucide-react'
 import { ReadingDataPanel } from '../components/ReadingDataPanel'
 import { ReadingStatsPanel } from '../components/ReadingStatsPanel'
 import { useContentPolicy } from '../context/ContentPolicyContext'
@@ -44,13 +48,21 @@ export default function Profile() {
   const [bio, setBio] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [passwordBusy, setPasswordBusy] = useState(false)
+  const passwordPending = useRef(false)
+  const focusPasskeyAction = useRef(false)
   const [sessions, setSessions] = useState<SessionItem[]>([])
   const [passkeys, setPasskeys] = useState<PasskeyItem[]>([])
+  const [passkeysLoading, setPasskeysLoading] = useState(true)
+  const [passkeysError, setPasskeysError] = useState('')
+  const [addingPasskey, setAddingPasskey] = useState(false)
+  const passkeyTrigger = useRef<HTMLButtonElement>(null)
   const [passkeyEnabled, setPasskeyEnabled] = useState(false)
   const [passkeyRegistrationEnabled, setPasskeyRegistrationEnabled] = useState(false)
   const [passkeyPassword, setPasskeyPassword] = useState('')
   const [passkeyName, setPasskeyName] = useState('')
   const [passkeyBusy, setPasskeyBusy] = useState(false)
+  const passkeyPending = useRef(false)
   const [editingPasskeyId, setEditingPasskeyId] = useState('')
   const [editingPasskeyName, setEditingPasskeyName] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -61,6 +73,11 @@ export default function Profile() {
   const [msg, setMsg] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
   const activeSettings = ['details', 'security', 'sessions', 'reading', 'stats'].includes(searchParams.get('tab') || '') ? searchParams.get('tab')! : 'details'
+  useEffect(() => {
+    if (focusPasskeyAction.current && !passkeyBusy) {
+      passkeyTrigger.current?.focus({ preventScroll: true }); focusPasskeyAction.current = false
+    }
+  }, [passkeyBusy, addingPasskey])
   function setActiveSettings(tab: string) {
     setSearchParams(previous => { const next = new URLSearchParams(previous); next.set('tab', tab); return next })
   }
@@ -81,12 +98,13 @@ export default function Profile() {
   }, [])
 
   const loadPasskeys = useCallback(async () => {
+    setPasskeysLoading(true)
+    setPasskeysError('')
     try {
       const data = await authApi.passkeys()
       setPasskeys(data.passkeys || [])
-    } catch {
-      setPasskeys([])
-    }
+    } catch { setPasskeysError('通行密钥读取失败，请重试。') }
+    finally { setPasskeysLoading(false) }
   }, [])
 
   const loadPasskeySettings = useCallback(async () => {
@@ -145,6 +163,9 @@ export default function Profile() {
   }
 
   async function changePassword() {
+    if (passwordPending.current) return
+    passwordPending.current = true
+    setPasswordBusy(true)
     try {
       await authApi.changePassword(currentPassword, newPassword)
       await refresh()
@@ -154,21 +175,26 @@ export default function Profile() {
       message('密码已修改')
     } catch (err) {
       message((err as Error).message || '修改失败')
-    }
+    } finally { passwordPending.current = false; setPasswordBusy(false) }
   }
 
   async function registerPasskey() {
+    if (passkeyPending.current) return
     if (!passkeyPassword.trim()) { message('请先输入当前密码'); return }
+    passkeyPending.current = true
     setPasskeyBusy(true)
     try {
       await authApi.registerPasskey(passkeyPassword, passkeyName.trim())
       setPasskeyPassword('')
       setPasskeyName('')
       await loadPasskeys()
+      focusPasskeyAction.current = true
+      setAddingPasskey(false)
       message('Passkey 已注册')
     } catch (err) {
       message((err as Error).message || 'Passkey 注册失败')
     } finally {
+      passkeyPending.current = false
       setPasskeyBusy(false)
     }
   }
@@ -331,7 +357,7 @@ export default function Profile() {
             ))}
           </nav>
 
-          <div className="profile-edit-grid" data-settings={activeSettings}>
+          <div className={`profile-edit-grid${activeSettings === 'security' ? ` ${securityStyles.securityLayout}` : ''}`} data-settings={activeSettings}>
             {activeSettings === 'security' && <ProfileEmail key={user.id} user={user} />}
             {activeSettings === 'stats' && <ReadingStatsPanel key={`${user.id}:${safeMode}`} />}
             {activeSettings === 'reading' && <ReadingDataPanel key={`${user.id}:${safeMode}`} userId={user.id} username={user.username} />}
@@ -410,80 +436,72 @@ export default function Profile() {
             </section>
 
             {/* 密码 */}
-            <section className="profile-section profile-security-section" hidden={activeSettings !== 'security' || !passkeyEnabled}>
-              <div className="profile-edit-panel profile-passkey-panel">
-                <div className="profile-edit-panel__head">
-                  <div>
-                    <h2 className="profile-section-heading">Passkey</h2>
-                    <p className="profile-section-note">使用设备解锁、指纹或面容快速登录；私钥只保留在你的设备或密码管理器中。</p>
-                  </div>
+            <section className={`profile-section ${securityStyles.panel} ${securityStyles.passwordPanel}`} aria-label="修改密码" hidden={activeSettings !== 'security'}>
+              <header className={securityStyles.heading}>
+                <h2 className="profile-section-heading">修改密码</h2>
+                <p>验证当前密码后，设置新的登录密码。</p>
+              </header>
+              <form className={securityStyles.form} onSubmit={event => { event.preventDefault(); void changePassword() }}>
+                <FormField label="当前密码" htmlFor="currentPasswordInput">
+                  <Input id="currentPasswordInput" type="password" autoComplete="current-password" value={currentPassword} required disabled={passwordBusy} onChange={e => setCurrentPassword(e.target.value)} />
+                </FormField>
+                <FormField label="新密码" htmlFor="newPasswordInput" hint="8–512 位">
+                  <Input id="newPasswordInput" type="password" autoComplete="new-password" value={newPassword} required minLength={8} maxLength={512} disabled={passwordBusy} onChange={e => setNewPassword(e.target.value)} />
+                </FormField>
+                <div className={securityStyles.actions}>
+                  <Button type="submit" disabled={passwordBusy}>{passwordBusy && <Spinner size="sm" aria-hidden="true" />}{passwordBusy ? '保存中…' : '保存新密码'}</Button>
                 </div>
-                <div className="profile-passkey-list">
-                  {passkeys.length === 0 ? <p className="profile-empty-note">还没有注册 Passkey</p> : passkeys.map(item => (
-                    <div className="profile-passkey-item" key={item.id}>
-                      <div className="profile-session-icon" aria-hidden="true"><KeyRound size={17} /></div>
-                      <div className="profile-session-meta">
-                        {editingPasskeyId === item.id ? <input className="form-input profile-passkey-name-input" aria-label="Passkey 名称" value={editingPasskeyName} maxLength={80} onChange={e => setEditingPasskeyName(e.target.value)} /> : <strong className="profile-session-title">{item.name}</strong>}
-                        <span className="profile-session-detail">注册于 {formatDate(item.createdAt)}{item.lastUsedAt ? ` · 最近使用 ${timeAgo(item.lastUsedAt)}` : ''}{item.deviceName ? ` · ${item.deviceName}` : ''}</span>
-                      </div>
-                      {editingPasskeyId === item.id ? <div className="profile-passkey-actions"><Button variant="secondary" size="sm"  disabled={passkeyBusy} onClick={() => void savePasskeyName(item.id)}>保存</Button><Button variant="ghost" size="sm"  disabled={passkeyBusy} onClick={() => setEditingPasskeyId('')}>取消</Button></div> : <div className="profile-passkey-actions"><Button variant="ghost" size="sm"  disabled={passkeyBusy} onClick={() => beginRenamePasskey(item)}>改名</Button><Button variant="ghost" size="sm" className="profile-passkey-remove" disabled={passkeyBusy} onClick={() => void deletePasskey(item.id)}>移除</Button></div>}
-                    </div>
-                  ))}
-                </div>
-                {passkeyRegistrationEnabled ? <>
-                  <div className="profile-settings profile-passkey-form">
-                    <label className="profile-field">
-                      <span>当前密码</span>
-                      <input type="password" className="form-input" id="passkeyPasswordInput" autoComplete="current-password" value={passkeyPassword} disabled={passkeyBusy} onChange={e => setPasskeyPassword(e.target.value)} />
-                    </label>
-                    <label className="profile-field">
-                      <span>设备名称</span>
-                      <input type="text" className="form-input" id="passkeyNameInput" maxLength={80} placeholder="例如：我的 MacBook" value={passkeyName} disabled={passkeyBusy} onChange={e => setPasskeyName(e.target.value)} />
-                    </label>
-                  </div>
-                  <div className="profile-edit-panel__actions"><Button variant="default"  disabled={passkeyBusy || !passkeyPassword.trim()} onClick={() => void registerPasskey()}>{passkeyBusy ? '处理中…' : '注册 Passkey'}</Button></div>
-                </> : <p className="profile-section-note">管理员暂时关闭了新的 Passkey 注册；已有凭据仍按站点策略处理。</p>}
-              </div>
+              </form>
             </section>
 
-            {/* 密码 */}
-            <section className="profile-section profile-security-section" hidden={activeSettings !== 'security'}>
-              <div className="profile-edit-panel">
-                <div className="profile-edit-panel__head">
-                  <div>
-                    <h2 className="profile-section-heading">修改密码</h2>
+            {/* 通行密钥 */}
+            <section className={`profile-section ${securityStyles.panel} ${securityStyles.passkeyPanel}`} aria-label="Passkey" hidden={activeSettings !== 'security' || !passkeyEnabled}>
+              <header className={securityStyles.headingRow}>
+                <div className={securityStyles.heading}>
+                  <h2 className="profile-section-heading">通行密钥 <span>Passkey</span></h2>
+                  <p>通过设备解锁、指纹或面容登录，私钥保留在设备或密码管理器中。</p>
+                </div>
+                {passkeyRegistrationEnabled && <Button ref={passkeyTrigger} type="button" variant="secondary" size="sm" aria-expanded={addingPasskey} aria-controls="profile-passkey-registration" disabled={passkeyBusy || passkeysLoading} onClick={() => setAddingPasskey(value => !value)}>
+                  {!addingPasskey && <Plus size={14} aria-hidden="true" />}{addingPasskey ? '收起添加' : '添加通行密钥'}
+                </Button>}
+              </header>
+              {passkeysError && <InlineError message={passkeysError} onRetry={() => void loadPasskeys()} />}
+              {passkeysLoading && <p className={securityStyles.notice} role="status">正在读取通行密钥…</p>}
+              {!passkeysLoading && !passkeysError && passkeys.length === 0 && <p className={securityStyles.notice}>尚未添加通行密钥。</p>}
+              <div className={securityStyles.passkeyList}>
+                {passkeys.map(item => (
+                  <div className={securityStyles.passkeyItem} key={item.id}>
+                    <div className={securityStyles.passkeyMeta}>
+                      {editingPasskeyId === item.id ? <Input aria-label="Passkey 名称" value={editingPasskeyName} maxLength={80} disabled={passkeyBusy} autoFocus onChange={e => setEditingPasskeyName(e.target.value)} /> : <strong>{item.name}</strong>}
+                      {item.deviceName && <span>{item.deviceName}</span>}
+                      <span>{formatDate(item.createdAt)} 注册{item.lastUsedAt ? ` · ${timeAgo(item.lastUsedAt)}使用` : ''}</span>
+                    </div>
+                    <div className={securityStyles.passkeyActions}>
+                      {editingPasskeyId === item.id ? <>
+                        <Button variant="secondary" size="sm" disabled={passkeyBusy} onClick={() => void savePasskeyName(item.id)}>保存</Button>
+                        <Button variant="ghost" size="sm" disabled={passkeyBusy} onClick={() => setEditingPasskeyId('')}>取消</Button>
+                      </> : <>
+                        <Button variant="ghost" size="sm" disabled={passkeyBusy} onClick={() => beginRenamePasskey(item)}>改名</Button>
+                        <Button variant="ghost" size="sm" className={securityStyles.remove} disabled={passkeyBusy} onClick={() => void deletePasskey(item.id)}>移除</Button>
+                      </>}
+                    </div>
                   </div>
-                </div>
-                <div className="profile-settings">
-                  <label className="profile-field">
-                    <span>当前密码</span>
-                    <input
-                      type="password"
-                      className="form-input"
-                      id="currentPasswordInput"
-                      autoComplete="current-password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                    />
-                  </label>
-                  <label className="profile-field">
-                    <span>新密码</span>
-                    <input
-                      type="password"
-                      className="form-input"
-                      id="newPasswordInput"
-                      autoComplete="new-password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                    />
-                  </label>
-                </div>
-                <div className="profile-edit-panel__actions">
-                  <Button variant="default"  onClick={() => void changePassword()}>
-                    修改密码
-                  </Button>
-                </div>
+                ))}
               </div>
+              {passkeyRegistrationEnabled ? <div id="profile-passkey-registration" className={securityStyles.passkeyRegistration} hidden={!addingPasskey}>
+                <h3 className={securityStyles.subheading}>添加通行密钥</h3>
+                <form className={securityStyles.registrationForm} onSubmit={event => { event.preventDefault(); void registerPasskey() }}>
+                  <FormField label="当前密码" htmlFor="passkeyPasswordInput">
+                    <Input id="passkeyPasswordInput" type="password" autoComplete="current-password" value={passkeyPassword} required disabled={passkeyBusy} onChange={e => setPasskeyPassword(e.target.value)} />
+                  </FormField>
+                  <FormField label="设备名称" htmlFor="passkeyNameInput">
+                    <Input id="passkeyNameInput" type="text" maxLength={80} placeholder="例如：我的 MacBook" value={passkeyName} disabled={passkeyBusy} onChange={e => setPasskeyName(e.target.value)} />
+                  </FormField>
+                  <div className={securityStyles.actions}>
+                    <Button type="submit" disabled={passkeyBusy || !passkeyPassword.trim()}>{passkeyBusy && <Spinner size="sm" aria-hidden="true" />}{passkeyBusy ? '处理中…' : '注册 Passkey'}</Button>
+                  </div>
+                </form>
+              </div> : <p className={securityStyles.notice}>管理员暂时关闭了新的 Passkey 注册；已有凭据仍按站点策略处理。</p>}
             </section>
 
             {/* 会话 */}

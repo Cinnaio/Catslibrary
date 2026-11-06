@@ -413,33 +413,6 @@
   font-size: 0.75rem;
   line-height: 1.7;
 }
-:global(.profile-passkey-list) {
-  display: grid;
-  margin-bottom: 24px;
-}
-:global(.profile-passkey-item) {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  padding: 14px 0;
-  border-top: 1px solid var(--border);
-}
-:global(.profile-passkey-item):first-child {
-  border-top: 0;
-}
-:global(.profile-passkey-actions) {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
-}
-:global(.profile-passkey-name-input) {
-  width: 100%;
-  min-width: 0;
-  padding: 7px 9px;
-  font-size: 0.8125rem;
-}
 .profile :global(.btn--ghost) {
   padding-inline: 8px;
   background: transparent;
@@ -448,13 +421,6 @@
 .profile :global(.btn--ghost):hover {
   background: var(--bg-secondary);
   color: var(--text-primary);
-}
-:global(.profile-passkey-remove):hover {
-  color: var(--color-danger) !important;
-}
-:global(.profile-passkey-form) {
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
 }
 :global(.account-page-heading) :global(.profile-message) {
   margin: 12px 0 0;
