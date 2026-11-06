@@ -131,7 +131,7 @@ export function createWebRoutes(
           )
           const novel = rows[0]
           if (novel) {
-            title = `${novel.title} — ${branding.name}`
+            title = `${novel.title} · ${branding.name}`
             description = `${novel.author}著。${novel.description || ''}`.slice(0, 180)
             content = `<main><h1>${escHtml(novel.title)}</h1><p>作者：${escHtml(novel.author)}</p><p>${escHtml(novel.description)}</p><a href="/">返回书库</a></main>`
             indexable = true

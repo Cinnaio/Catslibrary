@@ -8,7 +8,7 @@ export interface SiteBranding {
   faviconUrl: string
 }
 export const DEFAULT_SITE_BRANDING: SiteBranding = {
-  name: '知舟', tagline: '一个安静的中文小说书库', homeTitle: '知舟 — 小说阅读',
+  name: '知舟', tagline: '一个安静的中文小说书库', homeTitle: '知舟 · 小说阅读',
   description: '知舟 — 发现精彩小说，享受阅读之美', logoUrl: '/images/logo-circle.png', faviconUrl: '/images/logo-circle.png',
 }
 export function brandingDisplayUrl(path: string): string {
