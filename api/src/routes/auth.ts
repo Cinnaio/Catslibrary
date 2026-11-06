@@ -109,25 +109,27 @@ authRoutes.post('/login', async (c) => {
   const username = cleanUsername(body.username)
   const password = String(body.password || '')
   const salt = loadConfig().sessionHashSalt
-  const failKey = await hashToken('login:' + (username || 'unknown'), salt)
-  // IP 维度：防止轮换用户名绕过按用户名的限流。IP 不可得时（测试等）跳过。
+  const user = await first<UserRow>(db, `SELECT ${LOGIN_USER_COLUMNS} FROM users WHERE (username = $1 OR (lower(email) = $1 AND email_verified_at > 0)) AND status = 'active'`, [username])
+  // 用户名与已验证邮箱共用账户限流，不允许切换登录标识增加尝试次数。
+  const failKey = await hashToken('login:' + (user?.username || username || 'unknown'), salt)
+  const auditUsername = user?.username || (username.includes('@') ? '' : username)
+  // IP 维度：防止轮换账号绕过按账户的限流。IP 不可得时（测试等）跳过。
   const clientIp = clientIpFromContext(c)
   const ipKey = clientIp ? await hashToken('login-ip:' + clientIp, salt) : ''
 
   const limited = (await checkLoginLimit(db, failKey, LOGIN_LIMIT_PER_USERNAME)) || (ipKey ? await checkLoginLimit(db, ipKey, LOGIN_LIMIT_PER_IP) : null)
   if (limited) {
-    await recordLoginAudit(db, c, { username, status: 'limited', reason: 'rate_limited' })
+    await recordLoginAudit(db, c, { username: auditUsername, status: 'limited', reason: 'rate_limited' })
     return c.json({ error: limited }, 429)
   }
 
-  const user = await first<UserRow>(db, `SELECT ${LOGIN_USER_COLUMNS} FROM users WHERE username = $1 AND status = 'active'`, [username])
   if (!user || !(await verifyPassword(password, user))) {
     await recordLoginFailure(db, failKey)
     if (ipKey) await recordLoginFailure(db, ipKey)
-    await recordLoginAudit(db, c, { username, status: 'failure', reason: 'invalid_credentials' })
-    return c.json({ error: '用户名或密码错误' }, 401)
+    await recordLoginAudit(db, c, { username: auditUsername, status: 'failure', reason: 'invalid_credentials' })
+    return c.json({ error: '账号或密码错误' }, 401)
   }
-  // 只清除用户名维度：成功登录不应重置 IP 维度的计数，
+  // 只清除账户维度：成功登录不应重置 IP 维度的计数，
   // 否则攻击者可用自己的账号周期性登录来解除 IP 封锁
   await clearLoginFailures(db, failKey)
   const now = Date.now()
@@ -138,6 +140,8 @@ authRoutes.post('/login', async (c) => {
     await lockAccounts(tx)
     const latest = await first<UserRow>(tx, 'SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id])
     if (!latest || latest.status !== 'active' || latest.password_hash !== user.password_hash) return null
+    // 邮箱可能在校验密码期间被替换，确认仍属于当前账户后才创建会话。
+    if (username.includes('@') && (latest.email?.toLowerCase() !== username || !Number(latest.email_verified_at))) return null
     await run(tx, 'UPDATE users SET last_login_at=$1,updated_at=$1 WHERE id=$2', [now, user.id])
     const token = await createSession(tx, user.id, c.req.header('User-Agent') || '', salt, remember ? REMEMBER_TTL : SESSION_TTL)
     return { token, user: { ...latest, last_login_at: now, updated_at: now } }

@@ -74,6 +74,22 @@ describe('Passkey WebAuthn endpoints', () => {
     expect(((await (await request('/api/auth/passkeys', 'GET')).json()) as { passkeys: unknown[] }).passkeys).toEqual([])
   })
 
+  it('selects the same account by verified email and username', async () => {
+    await t.db.query("UPDATE users SET email='Passkey@Example.com',email_verified_at=$1 WHERE username='passkey-admin'", [Date.now()])
+    for (const username of ['passkey-admin', ' PASSKEY@example.COM ']) {
+      const response = await request('/api/auth/passkeys/login/options', 'POST', { username }, '')
+      expect(response.status).toBe(200)
+      const { challenge } = await response.json() as { challenge: string }
+      const stored = await t.db.query<{ username: string }>('SELECT u.username FROM webauthn_challenges c JOIN users u ON u.id=c.user_id WHERE c.challenge=$1', [challenge])
+      expect(stored.rows[0]?.username).toBe('passkey-admin')
+    }
+    await t.db.query("UPDATE users SET email_verified_at=0 WHERE username='passkey-admin'")
+    const options = await (await request('/api/auth/passkeys/login/options', 'POST', { username: 'passkey@example.com' }, '')).json() as { challenge: string }
+    const stored = await t.db.query<{ user_id: string }>('SELECT user_id FROM webauthn_challenges WHERE challenge=$1', [options.challenge])
+    expect(stored.rows[0]?.user_id).toBe('')
+    await t.db.query("UPDATE users SET email=NULL,email_verified_at=0 WHERE username='passkey-admin'")
+  })
+
   it('requires the current password before issuing registration options', async () => {
     const response = await request('/api/auth/passkeys/register/options', 'POST', { currentPassword: 'wrong-password' })
     expect(response.status).toBe(401)

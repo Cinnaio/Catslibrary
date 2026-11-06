@@ -66,7 +66,7 @@ passkeyRoutes.post('/login/options', async (c) => {
   const body = asRecord(await c.req.json().catch(() => ({})))
   const username = cleanUsername(body.username)
   const user = username
-    ? await first<UserRow>(getDb(), `SELECT ${PUBLIC_USER_COLUMNS} FROM users WHERE username = $1 AND status = 'active'`, [username])
+    ? await first<UserRow>(getDb(), `SELECT ${PUBLIC_USER_COLUMNS} FROM users WHERE (username = $1 OR (lower(email) = $1 AND email_verified_at > 0)) AND status = 'active'`, [username])
     : undefined
   const credentials = user ? await listPasskeyRows(getDb(), user.id) : []
   const options = await generateAuthenticationOptions({

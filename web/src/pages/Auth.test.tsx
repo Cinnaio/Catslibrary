@@ -64,18 +64,18 @@ describe('Auth', () => {
     await waitFor(() => expect(mocks.register).toHaveBeenCalledWith('reader', 'secret', ''))
   })
 
-  it('登录保留保持登录选择和来源页回跳', async () => {
+  it('登录接受已验证邮箱，保留保持登录选择和来源页回跳', async () => {
     function Destination() {
       const location = useLocation()
       return <output>{location.pathname + location.search}</output>
     }
     const user = userEvent.setup()
     render(<MemoryRouter initialEntries={[{ pathname: '/auth', state: { from: '/novel/test?source=reader' } }]}><Auth /><Destination /></MemoryRouter>)
-    await user.type(screen.getByLabelText('账号'), ' reader ')
+    await user.type(screen.getByPlaceholderText('输入用户名或已验证邮箱'), ' Reader@Example.com ')
     await user.type(screen.getByLabelText('密码'), 'secret')
     await user.click(screen.getByRole('checkbox', { name: '保持登录' }))
     await user.click(screen.getByRole('button', { name: '进入阅读空间' }))
-    await waitFor(() => expect(mocks.login).toHaveBeenCalledWith('reader', 'secret', false))
+    await waitFor(() => expect(mocks.login).toHaveBeenCalledWith('Reader@Example.com', 'secret', false))
     expect(screen.getByText('/novel/test?source=reader')).toBeInTheDocument()
   })
 

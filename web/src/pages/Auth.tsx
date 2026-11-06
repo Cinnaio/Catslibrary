@@ -228,7 +228,7 @@ export default function Auth() {
                     ref={loginInput}
                     autoComplete={isLogin ? 'username webauthn' : 'username'}
                     required
-                    placeholder="输入你的账号"
+                    placeholder={isLogin ? '输入用户名或已验证邮箱' : '输入你的账号'}
                     disabled={fieldsDisabled}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}

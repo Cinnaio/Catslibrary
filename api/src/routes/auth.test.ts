@@ -80,6 +80,41 @@ describe('auth 端到端（pglite）', () => {
     expect(meData.user.username).toBe('admin')
   })
 
+  it('已验证邮箱支持大小写和首尾空格，仍需密码且返回真实用户名', async () => {
+    await t.db.query("UPDATE users SET email='Owner@Example.com',email_verified_at=$1 WHERE username='admin'", [Date.now()])
+    const login = (username: string, password = 'adminpass123') => req('/api/auth/login', json('POST', { username, password }))
+    const ok = await login('  OWNER@example.COM  ')
+    expect(ok.status).toBe(200)
+    const data = await jsonOf<AuthResponse>(ok)
+    expect(data.user.username).toBe('admin')
+    expect((await req('/api/auth/me', json('GET', undefined, data.token))).status).toBe(200)
+    const wrong = await login('owner@example.com', 'wrong-password')
+    expect(wrong.status).toBe(401)
+    expect(await wrong.json()).toEqual({ error: '账号或密码错误' })
+    await t.db.query("UPDATE users SET email_verified_at=0 WHERE username='admin'")
+    expect((await login('owner@example.com')).status).toBe(401)
+    expect((await login('admin')).status).toBe(200)
+    await t.db.query("UPDATE users SET email_verified_at=$1,status='disabled' WHERE username='admin'", [Date.now()])
+    expect((await login('owner@example.com')).status).toBe(401)
+    await t.db.query("UPDATE users SET status='active',email='replacement@example.com' WHERE username='admin'")
+    expect((await login('owner@example.com')).status).toBe(401)
+    expect((await login('replacement@example.com')).status).toBe(200)
+    const audits = await t.db.query<{ username: string }>("SELECT username FROM login_audit WHERE username LIKE '%@%'")
+    expect(audits.rows).toEqual([])
+  })
+
+  it('用户名和邮箱共用失败次数，邮箱大小写不能绕过限流', async () => {
+    const login = (username: string, password: string) => req('/api/auth/login', json('POST', { username, password }))
+    for (let i = 0; i < 10; i++) {
+      expect((await login(i % 2 ? 'REPLACEMENT@example.COM' : 'admin', 'wrong-password')).status).toBe(401)
+    }
+    expect((await login('replacement@example.com', 'adminpass123')).status).toBe(429)
+    expect((await login('admin', 'adminpass123')).status).toBe(429)
+    // 清理本用例的锁定，不影响后续用户名登录回归。
+    await t.db.query('DELETE FROM login_failures')
+    await t.db.query("UPDATE users SET email=NULL,email_verified_at=0 WHERE username='admin'")
+  })
+
   it('register 需邀请码，非法/占用邀请码 400，成功后可直接登录', async () => {
     // 默认 invite_required='1'
     const noInvite = await req('/api/auth/register', json('POST', { username: 'reader1', password: 'readerpass1' }))
