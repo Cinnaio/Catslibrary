@@ -1,9 +1,6 @@
 name: Deploy
 
-# 构建与生产依赖安装放在 GitHub runner 上，服务器只负责校验、切换与重启：
-# 生产机只有 891MB 内存，本地跑 vite build 会撞 V8 堆上限，而且 vite 会先清空
-# web/dist 再打包，构建失败会直接把线上页面删空。
-# 发布前只运行关键回归及实际发布包冒烟，全量测试继续由独立 CI 执行。
+# 复用独立发布包验证，部署只接收本次验证通过的原包。
 on:
   # 在 Actions 中选择分支并手动运行，推送与 PR 均不发布网站。
   workflow_dispatch:
@@ -16,89 +13,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  verify:
+    uses: ./.github/workflows/release-verify.yml
+
+  deploy:
+    needs: verify
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     env:
-      RELEASE_SHA: ${{ github.sha }}
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: release_smoke
-          POSTGRES_PASSWORD: release_smoke
-          POSTGRES_DB: release_smoke
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U release_smoke"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+      RELEASE_SHA: ${{ needs.verify.outputs.release-sha }}
+      RELEASE_ARCHIVE_SHA256: ${{ needs.verify.outputs.archive-sha256 }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: '.node-version'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint and critical regressions
-        run: |
-          npm run lint -- --quiet
-          npm run test --workspace=@zhi-zhou/api -- src/services/readiness.test.ts src/routes/auth.test.ts src/routes/account-security.test.ts src/routes/browser-security.test.ts src/services/scraper/fetch.test.ts src/services/outbound-fetch.test.ts src/routes/web.test.ts --maxWorkers=2 --minWorkers=1
-          npm run test --workspace=@zhi-zhou/web -- src/lib/progress-sync.test.ts src/lib/api.progress.test.ts src/context/SessionContext.progress.test.tsx --maxWorkers=2 --minWorkers=1
-          python3 scripts/test-release.py
-
-      # 先清空再构建：产物里绝不能混入上一次提交遗留的旧哈希资源。
-      - name: Build
-        run: |
-          rm -rf web/dist api/dist
-          npm run build
-
-      - name: Sanity check artifacts
-        run: |
-          test -f web/dist/index.html
-          test -f api/dist/index.js
-          test -d api/dist/migrations
-          node -e "
-            const fs = require('fs');
-            const path = require('path');
-            const html = fs.readFileSync('web/dist/index.html', 'utf8');
-            const refs = [...html.matchAll(/(?:src|href)=\"(\/assets\/[^\"]+)\"/g)].map((m) => m[1]);
-            if (!refs.length) throw new Error('index.html 没有引用任何打包资源');
-            const root = path.resolve('web/dist');
-            for (const ref of refs) {
-              const file = path.join(root, ref.replace(/^\//, ''));
-              if (!fs.existsSync(file)) throw new Error('index.html 引用了不存在的资源: ' + ref + ' -> ' + file);
-            }
-            console.log('引用资源检查通过:', refs.join(', '));
-          "
-
-      - name: Assemble isolated production runtime
-        run: npm run release:package -- --output "$RUNNER_TEMP/zhizhou-release"
-
-      - name: Smoke test the actual release with PostgreSQL
+      - name: Check verification outputs
         env:
-          RELEASE_SMOKE_DATABASE_URL: postgres://release_smoke:release_smoke@127.0.0.1:5432/release_smoke
-        run: npm run release:smoke -- "$RUNNER_TEMP/zhizhou-release"
-
-      - name: Package release
+          RELEASE_ARTIFACT_ID: ${{ needs.verify.outputs.artifact-id }}
         run: |
-          tar -czf release.tgz -C "$RUNNER_TEMP/zhizhou-release" web/dist api/dist
-          ls -lh release.tgz
+          [[ "$RELEASE_ARTIFACT_ID" =~ ^[0-9]+$ ]]
+          [[ "$RELEASE_ARCHIVE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [ "$RELEASE_SHA" = "$GITHUB_SHA" ]
 
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
+      - name: Download this run's verified release
+        uses: actions/download-artifact@v4
         with:
-          name: release-${{ github.sha }}
-          path: release.tgz
-          retention-days: 14
+          artifact-ids: ${{ needs.verify.outputs.artifact-id }}
+          merge-multiple: true
+
+      - name: Verify the exact archive before connecting to production
+        run: |
+          printf '%s  release.tgz\n' "$RELEASE_ARCHIVE_SHA256" | sha256sum --check --strict -
 
       - name: Start ssh-agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -135,7 +78,6 @@ jobs:
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          RELEASE_SHA: ${{ github.sha }}
         run: |
           ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
             "sudo -n /usr/local/bin/zhizhou-release '$RELEASE_SHA'"

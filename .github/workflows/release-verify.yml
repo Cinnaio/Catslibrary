@@ -1,0 +1,162 @@
+name: Verify release package
+
+# 可独立手动验收，也供 Deploy 在同一源码提交上复用；本工作流不读取部署密钥。
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      artifact-id:
+        description: Immutable artifact ID for the verified release archive
+        value: ${{ jobs.verify.outputs.artifact-id }}
+      archive-sha256:
+        description: SHA-256 of release.tgz, distinct from the Actions artifact digest
+        value: ${{ jobs.verify.outputs.archive-sha256 }}
+      release-sha:
+        description: Full source commit used to build and verify the release
+        value: ${{ jobs.verify.outputs.release-sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build and verify Linux release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      RELEASE_SHA: ${{ github.sha }}
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      archive-sha256: ${{ steps.archive.outputs.sha256 }}
+      release-sha: ${{ github.sha }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: release_smoke
+          POSTGRES_PASSWORD: release_smoke
+          POSTGRES_DB: release_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U release_smoke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint and critical regressions
+        run: |
+          npm run lint -- --quiet
+          npm run test --workspace=@zhi-zhou/api -- src/services/readiness.test.ts src/routes/auth.test.ts src/routes/account-security.test.ts src/routes/browser-security.test.ts src/services/scraper/fetch.test.ts src/services/outbound-fetch.test.ts src/routes/web.test.ts --maxWorkers=2 --minWorkers=1
+          npm run test --workspace=@zhi-zhou/web -- src/lib/progress-sync.test.ts src/lib/api.progress.test.ts src/context/SessionContext.progress.test.tsx --maxWorkers=2 --minWorkers=1
+          python3 scripts/test-release.py
+
+      # 产物里不能混入前一次构建的旧哈希资源。
+      - name: Build
+        run: |
+          rm -rf web/dist api/dist
+          npm run build
+
+      - name: Sanity check artifacts
+        run: |
+          test -f web/dist/index.html
+          test -f api/dist/index.js
+          test -d api/dist/migrations
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const html = fs.readFileSync('web/dist/index.html', 'utf8');
+            const refs = [...html.matchAll(/(?:src|href)=\"(\/assets\/[^\"]+)\"/g)].map((m) => m[1]);
+            if (!refs.length) throw new Error('index.html 没有引用任何打包资源');
+            const root = path.resolve('web/dist');
+            for (const ref of refs) {
+              const file = path.join(root, ref.replace(/^\//, ''));
+              if (!fs.existsSync(file)) throw new Error('index.html 引用了不存在的资源: ' + ref + ' -> ' + file);
+            }
+            console.log('引用资源检查通过:', refs.join(', '));
+          "
+
+      - name: Assemble isolated production runtime
+        run: npm run release:package -- --output "$RUNNER_TEMP/zhizhou-release"
+
+      - name: Package release
+        id: archive
+        run: |
+          tar -czf release.tgz -C "$RUNNER_TEMP/zhizhou-release" web/dist api/dist
+          sha256sum release.tgz > release.tgz.sha256
+          printf 'sha256=%s\n' "$(cut -d ' ' -f 1 release.tgz.sha256)" >> "$GITHUB_OUTPUT"
+
+      # 使用生产端同一校验器重新解包；冒烟对象是最终归档中的文件。
+      - name: Validate and extract the final archive
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, runpy, shutil
+          validate = runpy.run_path('scripts/validate-release.py')['validate_archive']
+          destination = pathlib.Path(os.environ['RUNNER_TEMP']) / 'zhizhou-release-verified'
+          destination.mkdir()
+          node_version = pathlib.Path('.node-version').read_text('utf-8').strip()
+          manifest = validate('release.tgz', destination, os.environ['RELEASE_SHA'], node_version)
+          shutil.copyfile(destination / 'api/dist/release.json', 'release-manifest.json')
+          print(f"归档校验通过: {manifest['platform']}/{manifest['arch']}, {len(manifest['files'])} files")
+          PY
+          "$RUNNER_TEMP/zhizhou-release-verified/api/dist/runtime/node" "$RUNNER_TEMP/zhizhou-release-verified/api/dist/check-release-runtime.mjs"
+
+      - name: Smoke test the extracted release with PostgreSQL
+        env:
+          RELEASE_SMOKE_DATABASE_URL: postgres://release_smoke:release_smoke@127.0.0.1:5432/release_smoke
+        run: npm run release:smoke -- "$RUNNER_TEMP/zhizhou-release-verified"
+
+      - name: Confirm the tested archive is unchanged
+        run: sha256sum --check --strict release.tgz.sha256
+
+      - name: Upload verified release artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            release.tgz
+            release.tgz.sha256
+            release-manifest.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Record verification result
+        env:
+          ARCHIVE_SHA256: ${{ steps.archive.outputs.sha256 }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          manifest = json.loads(pathlib.Path('release-manifest.json').read_text('utf-8'))
+          lines = [
+              '## 发布包验证通过',
+              '',
+              f"- 源码 SHA：`{manifest['releaseSha']}`",
+              f"- API / Web：`{manifest['apiVersion']}` / `{manifest['webVersion']}`",
+              f"- 平台 / Node：`{manifest['platform']}/{manifest['arch']}` / `{manifest['nodeVersion']}`",
+              f"- release.tgz SHA-256：`{os.environ['ARCHIVE_SHA256']}`",
+              f"- 工件 ID：`{os.environ['ARTIFACT_ID']}`（保留 14 天）",
+              '- 已验证：类型、Lint、关键回归、归档完整性、随包依赖与 Sharp、临时 PostgreSQL 16 上的迁移和业务就绪、首页及入口资源。',
+              '- 本作业未连接生产服务器。单独运行 Verify release package 到此结束；由 Deploy 调用时，后续部署作业使用本次验证的原包。',
+              '',
+          ]
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('\n'.join(lines))
+          PY

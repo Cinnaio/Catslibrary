@@ -8,19 +8,24 @@
 
 ### 按需发布（GitHub Actions）
 
-网站部署和 iOS 构建分别手动选择运行，推送或创建/更新 PR 均不会自动触发它们：
+发布包验收、网站部署和 iOS 构建分别手动选择运行，推送或创建/更新 PR 均不会自动触发它们：
 
+- 发布包验收：进入仓库 **Actions → Verify release package → Run workflow**，选择待验证分支；只构建、验证并保存发布工件，不连接生产服务器，也不需要 `DEPLOY_*` Secrets。
 - 网站：进入仓库 **Actions → Deploy → Run workflow**，选择要部署的分支（通常为 `main`）并运行。
 - iOS：进入 **Actions → Build and Test iOS (unsigned IPA) → Run workflow**，选择分支并运行；完成后下载 `ZhiZhou-unsigned-ipa` 工件。
 - 普通 CI 与备份集成检查继续按各自工作流的现有规则触发。
 
-手动运行 `.github/workflows/deploy.yml` 后会依次执行：
+`.github/workflows/release-verify.yml` 同时支持手动运行与工作流调用。首次使用前须先把工作流推送到仓库默认分支，才能从 Actions 页面手动选择；远程执行使用所选分支的提交，不能验证尚未推送的本地修改。单独验收依次执行：
 
 1. 按根目录 `.node-version` 安装固定 Node，运行类型、Lint 错误检查及认证、同步、就绪和发布失败恢复等关键回归；全量测试由独立 CI 执行
 2. 在 Ubuntu 22.04 x64 runner 上构建 Web/API，校验首页引用的资源；API 注入同一源码 SHA、版本、锁文件摘要与必要迁移清单
 3. `release:package` 在独立临时目录按原锁文件安装 API 生产依赖，连同固定 Node、Web/API 产物和 SHA-256 文件清单组成完整发布目录；不使用服务器旧 `node_modules`
-4. 使用该发布目录及其 Node 启动独立进程，在 CI 临时 PostgreSQL 16 上验证迁移、就绪、首页、入口资源和只读书目接口；通过后打包为 `release.tgz`
-5. 只信任已核对的 SSH 主机密钥，核对服务器发布工具为协议 2，再上传并执行 `/usr/local/bin/zhizhou-release <完整 SHA>`
+4. 生成最终 `release.tgz` 和归档 SHA-256，再用生产端相同的 Python 校验器在新目录解包，复核文件清单、平台、源码 SHA、Node 策略与锁文件；使用解出的运行时再次验证依赖和 Sharp
+5. 使用解出的发布包启动独立进程，在 CI 临时 PostgreSQL 16 上验证迁移、就绪、首页、入口资源和只读书目接口；确认原始归档未改变后上传工件
+
+成功后的工件名为 `release-<完整 SHA>-<运行尝试次数>`，保留 14 天，包含 `release.tgz`、`release.tgz.sha256` 和 `release-manifest.json`。运行摘要显示源码 SHA、API/Web 版本、平台、Node、归档摘要与工件 ID。验证失败时不发布供部署使用的工件；验收成功不代表已部署或完成真实客户端验收。
+
+`.github/workflows/deploy.yml` 先调用同一提交的验证工作流，全部通过后才启动部署作业。部署按不可变工件 ID 下载**同一次运行中验证过的原包**，核对源码 SHA 与归档 SHA-256 后才加载 SSH 密钥；之后只信任已核对的主机密钥，检查服务器协议 2，上传并执行 `/usr/local/bin/zhizhou-release <完整 SHA>`。部署作业不重新构建，也不根据名称搜索或下载其他运行的工件。单独验收后手动启动 Deploy，会在新的运行里重新构建并验证当前所选提交，不直接沿用之前的验收工件。
 
 `zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）的行为：
 
