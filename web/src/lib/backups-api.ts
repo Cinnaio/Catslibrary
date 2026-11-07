@@ -58,7 +58,7 @@ export const backupsApi = {
   retry: (id: string) => request<BackupTask>('POST', `${root}/versions/${id}/retry`, operation(), true),
   remove: (id: string) => request<BackupTask>('DELETE', `${root}/versions/${id}`, operation(), true),
   preview: (id: string) => request<BackupTask>('POST', `${root}/versions/${id}/restore-preview`, operation(), true),
-  restore: (id: string, body: { previewTaskId: string; previewToken: string; password: string; confirmVersion: string; impactAcknowledged: boolean }) =>
+  restore: (id: string, body: { previewTaskId: string; previewToken: string; confirmVersion: string; impactAcknowledged: boolean }) =>
     request<BackupTask>('POST', `${root}/versions/${id}/restore`, { ...operation(), ...body }, true),
   manifest: (id: string) => request<Record<string, unknown>>('GET', `${root}/versions/${id}/manifest`, null, true),
   async download(id: string) {

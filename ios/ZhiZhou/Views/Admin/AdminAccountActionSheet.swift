@@ -21,7 +21,6 @@ struct AdminAccountActionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
     @State private var reason = ""
-    @State private var password = ""
     @State private var role = "reader"
     @State private var confirmUsername = ""
     @State private var busy = false
@@ -43,7 +42,6 @@ struct AdminAccountActionSheet: View {
                 }
                 Section {
                     TextField("操作原因（必填）", text: $reason, axis: .vertical)
-                    SecureField("你的当前密码", text: $password).textContentType(.password)
                     if operation.action == "delete-user" {
                         TextField("输入完整用户名确认删除", text: $confirmUsername)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -67,7 +65,7 @@ struct AdminAccountActionSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(busy) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(busy ? "处理中…" : "确认") { Task { await submit() } }
-                        .disabled(busy || reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reason.count > 500 || password.isEmpty ||
+                        .disabled(busy || reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || reason.count > 500 ||
                                   (operation.action == "user-role" && role == operation.user.role) ||
                                   (operation.action == "delete-user" && confirmUsername != operation.user.username))
                 }
@@ -82,14 +80,11 @@ struct AdminAccountActionSheet: View {
         busy = true; errorMessage = nil
         defer { busy = false }
         do {
-            let _: EmptyResponse = try await APIClient.shared.post("/api/auth/reauthenticate", body: JSONEncoder().encode(["password": password]), auth: true)
-            guard appState.user?.id == owner else { return }
             var values: [String: String] = [:]
             if operation.action == "user-role" { values["role"] = role }
             if operation.action == "user-status" { values["status"] = operation.user.isDisabled ? "active" : "disabled" }
             if operation.action == "delete-user" { values["confirmUsername"] = confirmUsername }
             try await AdminAPI.mutateAccount(user: operation.user, action: operation.action, reason: reason.trimmingCharacters(in: .whitespacesAndNewlines), values: values)
-            password = ""
             guard appState.user?.id == owner else { return }
             AppFeedback.success(operation.action == "reset-password" ? "重置邮件已发送" : "账号操作已完成")
             onSuccess(); dismiss()

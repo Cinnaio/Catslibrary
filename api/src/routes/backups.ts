@@ -8,7 +8,6 @@ import { configureDeployment, deploymentView } from '../services/backups/deploym
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { getDb } from '../db/pool'
 import { all, first, withTx } from '../db/query'
-import { verifyPassword } from '../services/auth'
 import { BackupError, BACKUP_LOCK, encryptionReady, backupRoot, keyId, allowedHosts } from '../services/backups/config'
 import { enqueue, maintenance, policy, savePolicy, saveTarget, targetRows, targetView, taskView, versions, type TaskRow } from '../services/backups/store'
 import {
@@ -218,15 +217,10 @@ backupRoutes.post('/versions/:id/restore-preview', async (c) => queue(c, 'previe
 backupRoutes.delete('/versions/:id', async (c) => queue(c, 'delete', { ...(await bodyJSON(c)), versionId: c.req.param('id') }))
 backupRoutes.post('/versions/:id/restore', async (c) => {
   const body = await bodyJSON(c)
-  if (
-    body.confirmVersion !== c.req.param('id') ||
-    typeof body.password !== 'string' ||
-    body.password.length > 512 ||
-    !(await verifyPassword(body.password, c.get('user')))
-  )
-    throw new BackupError('REAUTH_FAILED', '版本确认或管理员密码不正确', 403)
+  if (body.confirmVersion !== c.req.param('id')) throw new BackupError('VERSION_CONFIRMATION_REQUIRED', '请输入完整目标版本标识确认回滚', 400)
   if (body.impactAcknowledged !== true) throw new BackupError('IMPACT_ACK_REQUIRED', '请先查看并确认回滚影响', 400)
   await assertRestoreImpactBinding(getDb(), String(body.previewTaskId || ''), c.get('user').id, c.req.param('id'))
+  // 兼容旧客户端，避免其仍提交的密码进入任务载荷。
   const { password: _password, ...safe } = body
   return queue(c, 'restore', { ...safe, versionId: c.req.param('id') })
 })

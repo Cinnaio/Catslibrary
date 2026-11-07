@@ -116,71 +116,53 @@ it('没有本地登录标记时也检查服务端 Cookie；退出网络失败不
   await expect(authApi.logout()).rejects.toThrow('offline')
   expect(getToken()).toBe(marker)
 })
-it('关键操作密码确认后仅重试一次，确认期间换账号则不重试', async () => {
+it('管理写入直接使用当前会话，保留操作标识且只提交一次', async () => {
   const { request } = await import('./api')
-  setToken('a')
-  const fetcher = vi
-    .fn()
-    .mockResolvedValueOnce(new Response('{"code":"reauth_required"}', { status: 403 }))
-    .mockResolvedValueOnce(new Response('{"success":true}'))
+  setToken('a'); setStorageUser('a')
+  const fetcher = vi.fn().mockResolvedValue(new Response('{"success":true}'))
   vi.stubGlobal('fetch', fetcher)
-  const accept = (event: Event) => (event as CustomEvent<{ finish: (value: boolean) => void }>).detail.finish(true)
-  window.addEventListener('zz-reauthenticate', accept)
-  try {
-    expect(await request('PUT', '/admin/backups/settings', { revision: 1 }, true)).toEqual({ success: true })
-    expect(fetcher).toHaveBeenCalledTimes(2)
-  } finally {
-    window.removeEventListener('zz-reauthenticate', accept)
-  }
-  const switchAccount = (event: Event) => {
-    setToken('b')
-    accept(event)
-  }
-  window.addEventListener('zz-reauthenticate', switchAccount)
-  fetcher.mockResolvedValueOnce(new Response('{"code":"reauth_required"}', { status: 403 }))
-  try {
-    await expect(request('PUT', '/admin/backups/settings', { revision: 1 }, true)).rejects.toThrow('已取消身份验证')
-    expect(fetcher).toHaveBeenCalledTimes(3)
-  } finally {
-    window.removeEventListener('zz-reauthenticate', switchAccount)
-  }
+  expect(await request('PUT', '/admin/backups/settings', { revision: 1 }, true, { 'Idempotency-Key': 'settings-operation' })).toEqual({ success: true })
+  expect(fetcher).toHaveBeenCalledOnce()
+  const options = fetcher.mock.calls[0]![1] as RequestInit
+  expect(options.credentials).toBe('include')
+  expect(new Headers(options.headers).get('X-ZZ-Account')).toBe('a')
+  expect(new Headers(options.headers).get('X-ZZ-CSRF')).toBe('1')
+  expect(new Headers(options.headers).get('Idempotency-Key')).toBe('settings-operation')
+  expect(JSON.parse(options.body as string)).toEqual({ revision: 1 })
 })
 
-it('上传触发重新验证并复用 FormData，仍被拒绝时不循环重试', async () => {
+it('被拒绝的管理写入和上传直接报错，不弹出密码验证或自动重试', async () => {
+  const { request } = await import('./api')
   setToken('a'); setStorageUser('a')
-  const fetcher = vi.fn()
-    .mockResolvedValueOnce(new Response('{"code":"reauth_required"}', { status: 403 }))
-    .mockResolvedValueOnce(new Response('{"logoUrl":"/logo.png"}'))
+  const marker = getToken()
+  const fetcher = vi.fn().mockImplementation(async () => new Response('{"code":"reauth_required","error":"请求被拒绝"}', { status: 403 }))
   vi.stubGlobal('fetch', fetcher)
-  const accept = vi.fn((event: Event) => (event as CustomEvent).detail.finish(true))
-  window.addEventListener('zz-reauthenticate', accept)
+  const prompt = vi.fn((event: Event) => (event as CustomEvent).detail.finish(false))
+  window.addEventListener('zz-reauthenticate', prompt)
   try {
-    expect(await siteSettingsApi.upload('logo', new File(['image'], 'logo.png'))).toMatchObject({ logoUrl: '/logo.png' })
-    expect(fetcher.mock.calls[0]![1].body).toBe(fetcher.mock.calls[1]![1].body)
+    await expect(request('PUT', '/admin/backups/settings', { revision: 1 }, true)).rejects.toThrow('请求被拒绝')
+    await expect(siteSettingsApi.upload('logo', new File(['image'], 'logo.png'))).rejects.toThrow('请求被拒绝')
+    expect(fetcher.mock.calls[1]![1].body).toBeInstanceOf(FormData)
     expect(new Headers(fetcher.mock.calls[1]![1].headers).get('X-ZZ-Account')).toBe('a')
-    fetcher.mockImplementation(async () => new Response('{"code":"reauth_required","error":"验证失败"}', { status: 403 }))
-    await expect(siteSettingsApi.upload('favicon', new File(['icon'], 'icon.png'))).rejects.toThrow('验证失败')
-    expect(fetcher).toHaveBeenCalledTimes(4)
-    expect(accept).toHaveBeenCalledTimes(2)
-  } finally { window.removeEventListener('zz-reauthenticate', accept) }
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(prompt).not.toHaveBeenCalled()
+    expect(getToken()).toBe(marker)
+  } finally { window.removeEventListener('zz-reauthenticate', prompt) }
 })
 
-it('上传验证期间换账号不重放，旧请求的 401 不清理新会话', async () => {
+it.each(['request', 'authFetch'])('%s 的旧请求返回 401 不清理新账号会话', async (client) => {
+  const { request } = await import('./api')
   setToken('a'); setStorageUser('a')
-  const fetcher = vi.fn().mockResolvedValue(new Response('{"code":"reauth_required"}', { status: 403 }))
-  vi.stubGlobal('fetch', fetcher)
-  const switchAccount = (event: Event) => { setToken('b'); setStorageUser('b'); (event as CustomEvent).detail.finish(true) }
-  window.addEventListener('zz-reauthenticate', switchAccount)
-  try {
-    await expect(siteSettingsApi.upload('logo', new File(['image'], 'logo.png'))).rejects.toThrow('已取消身份验证')
-    expect(fetcher).toHaveBeenCalledOnce()
-  } finally { window.removeEventListener('zz-reauthenticate', switchAccount) }
   let resolve!: (value: Response) => void
-  fetcher.mockImplementationOnce(() => new Promise(done => { resolve = done }))
-  const old = authFetch('/asset')
-  setToken('c'); setStorageUser('c')
+  const fetcher = vi.fn().mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  vi.stubGlobal('fetch', fetcher)
+  const old = client === 'request' ? request('GET', '/asset', null, true) : authFetch('/asset')
+  setToken('b'); setStorageUser('b')
   const marker = getToken()
   resolve(new Response('{}', { status: 401 }))
-  await old
+  if (client === 'request') await expect(old).rejects.toThrow('HTTP 401')
+  else expect((await old as Response).status).toBe(401)
   expect(getToken()).toBe(marker)
+  expect(getStorageScope()).toBe('user:b')
+  expect(fetcher).toHaveBeenCalledOnce()
 })

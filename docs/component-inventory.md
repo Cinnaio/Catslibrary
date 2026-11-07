@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-07 取消管理员二次验证：移除 `ReauthenticationDialog`、事件协调模块、入口挂载和专用样式；备份恢复继续由 `BackupsTab` 持有版本与影响确认，使用现有共享表单与弹窗。账号人机验证继续由 `SecurityChallengeDialog` 持有。组件检查为 107 个组件、276 个源码模块。
+
 2026-11-07 首屏与大目录优化：`Pagination` 保留页码、跳页与页大小契约，`PaginationPageSize` 仅在提供页大小选择时加载 Radix Select；两者共用 `Pagination.css`，展厅仍通过原分页示例覆盖该控件。作品详情的章节筛选、每页 100 章、页码和阅读位置跳转由 `pages/Novel.tsx` 持有，入场与过渡样式归 `novel.module.css`；阅读器沿用已有虚拟列表。组件检查为 108 个组件、278 个源码模块。
 
 2026-11-07 邮件安全配置由 `pages/admin/MailSecuritySettings.tsx` 持有配置读取、密码草稿、队列初始化、回调字段和失败保留；`SecurityCenterTab` 协调统一原因确认、状态刷新及真实投递锁，`MailSettings` 接收相邻配置的忙碌／草稿状态。队列与回调各自使用 Card／PanelHeading／CardContent 标准面板，测试另用独立面板，与 SMTP、站点设置统一；复用 FormField、Input、Button、AdminStatusBadge 与既有异步状态。仅使用 `security-center.module.css` 既有双栏和表单布局，删除专用小标题、状态文字及间距样式，没有新增公共层业务依赖。组件边界检查为 107 个共享／业务组件、275 个生产源码模块。
@@ -104,7 +106,6 @@
 | `components/reader/VirtualList.tsx` | 阅读场景 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/ReadingDataPanel.tsx` | 应用／业务 | 1 | `styles/input-fields.css` | 保留：账户阅读数据检查与恢复 |
 | `components/ReadingStatsPanel.tsx` | 应用／业务 | 1 | `styles/select-fields.css`、`styles/input-fields.css` | 保留：账户阅读统计 |
-| `components/ReauthenticationDialog.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：敏感操作近期身份确认 |
 | `components/RouteLoading.tsx` | 应用／业务 | 3 | `styles/loading-indicators.css`、`styles/route-loading.css` | 保留：路由切换与外壳占位 |
 | `components/shared/AsyncStates.tsx` | 通用组合 | 21 | `styles/loading-indicators.css`、`components/shared/AsyncStates.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/CellText.tsx` | 通用组合 | 2 | `components/shared/CellText.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |

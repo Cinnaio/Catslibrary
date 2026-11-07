@@ -1,4 +1,3 @@
-import { ReauthenticationDialog } from './components/ReauthenticationDialog'
 import SecurityChallengeDialog from './components/SecurityChallengeDialog'
 /**
  * 应用路由 —— 干净路径（/ /novel/:id /read/:novelId/:chapterId /bookshelf /profile /auth）。
@@ -38,7 +37,6 @@ export default function App() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <TooltipProvider delayDuration={150}>
-        <ReauthenticationDialog />
         <SecurityChallengeDialog />
         <SiteBrandingSync />
         <VisitTracker />

@@ -8,7 +8,6 @@ import type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
 export type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
 import { normalizePlotTimeoutSeconds, PLOT_TIMEOUT_RESPONSE_GRACE_MS } from '@shared/ai-plot-timeout'
 import type { MemoryRebuildPlan, MemoryRebuildRequest, MemoryKind } from '@shared/story-memory-rebuild'
-import { requestReauthentication } from './reauthentication'
 /**
  * API 客户端 —— 类型化 fetch 封装（由 Novel-KV js/api.js 平移）。
  * Cookie 会话、公开账号缓存标记、AbortSignal.timeout 超时、
@@ -206,23 +205,16 @@ function timedFetch(input: RequestInfo | URL, opts: RequestInit = {}, timeoutMs 
   return fetch(input, opts)
 }
 
-async function handleAuthResponse(
-  path: string,
+function handleAuthResponse(
   response: Response,
   data: { code?: string; reason?: string },
   requestToken: string,
-  reauthenticated: boolean,
-): Promise<boolean> {
-  if (response.status === 403 && data.code === 'reauth_required' && !reauthenticated) {
-    if (requestToken === getToken() && await requestReauthentication() && requestToken === getToken()) return true
-    throw new Error('已取消身份验证，操作未执行')
-  }
-  if (path !== '/auth/reauthenticate' && requestToken === getToken() &&
+): void {
+  if (requestToken === getToken() &&
     (response.status === 401 || (response.status === 403 && data.code === 'restricted_content' && data.reason === 'login_required'))) {
     clearToken()
     window.dispatchEvent(new Event('zhizhou-session-expired'))
   }
-  return false
 }
 
 export async function request<T = unknown>(
@@ -232,7 +224,6 @@ export async function request<T = unknown>(
   useAuth = false,
   extraHeaders: Record<string, string> = {},
   timeoutMs = API_TIMEOUT_MS,
-  reauthenticated = false,
 ): Promise<T> {
   const challengeActions:Record<string,SecurityAction>={'/auth/forgot-password':'forgot-password','/auth/email/request':'verify-email','/auth/login':'login','/auth/register':'register'}
   const challengeAction=method==='POST'?challengeActions[normalizePath(path)]:undefined
@@ -275,9 +266,7 @@ export async function request<T = unknown>(
   }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string }
 
-  if (await handleAuthResponse(path, res, data as { code?: string; reason?: string }, requestToken, reauthenticated)) {
-    return request<T>(method, path, body, useAuth, extraHeaders, timeoutMs, true)
-  }
+  handleAuthResponse(res, data as { code?: string; reason?: string }, requestToken)
   if (!res.ok) {
     const err = new Error((data as { error?: string }).error || `HTTP ${res.status}`) as ApiError
     err.status = res.status
@@ -316,14 +305,12 @@ export const siteSettingsApi = {
 export async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const requestToken = getToken()
   const headers = authHeaders(Object.fromEntries(new Headers(init.headers).entries()))
-  const replayable = !(typeof ReadableStream !== 'undefined' && init.body instanceof ReadableStream)
-  for (let attempt = 0; ; attempt++) {
-    // 每次尝试使用独立的默认超时；FormData/Blob 可复用，流式 body 不自动重放。
-    const res = await timedFetch(url(path), { ...init, headers })
-    if (res.ok) return res
+  const res = await timedFetch(url(path), { ...init, headers })
+  if (!res.ok) {
     const data = await res.clone().json().catch(() => ({})) as { code?: string; reason?: string }
-    if (!await handleAuthResponse(path, res, data, requestToken, attempt > 0 || !replayable)) return res
+    handleAuthResponse(res, data, requestToken)
   }
+  return res
 }
 
 export const illustrationsApi = {
@@ -1090,12 +1077,6 @@ export const authApi = {
           return r
         }),
     )
-  },
-  async reauthenticateWithPasskey(): Promise<{ success: boolean; expiresIn: number }> {
-    const { startAuthentication } = await import('@simplewebauthn/browser')
-    const options = await request<import('@simplewebauthn/browser').PublicKeyCredentialRequestOptionsJSON>('POST', '/auth/passkeys/reauth/options', {}, true)
-    const response = await startAuthentication({ optionsJSON: options })
-    return request<{ success: boolean; expiresIn: number }>('POST', '/auth/passkeys/reauth/verify', { challenge: options.challenge, response }, true)
   },
   async registerPasskey(currentPassword: string, name = ''): Promise<{ passkey: PasskeyItem | null }> {
     const { startRegistration } = await import('@simplewebauthn/browser')

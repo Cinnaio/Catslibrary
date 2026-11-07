@@ -116,16 +116,18 @@ afterAll(async () => {
 })
 
 describe('邮件额度、任务与防护', () => {
-  it('邮件安全配置仅超级管理员可读写，写入要求近期身份核实和原因', async () => {
+  it('邮件安全配置仅超级管理员可读写，有效会话提交原因即可保存', async () => {
     for (const actor of ['manager', 'reader', '']) {
       expect((await api('/admin/security/mail-settings', actor)).status).toBe(actor ? 403 : 401)
       expect((await api('/admin/security/mail-settings', actor, { reason: '初始化队列加密' }, 'PUT')).status).toBe(actor ? 403 : 401)
     }
     expect((await api('/admin/security/mail-settings', 'root', { revision: 0 }, 'PUT')).status).toBe(400)
     await t.db.query('UPDATE user_sessions SET reauthenticated_at=0')
-    const result = await api('/admin/security/mail-settings', 'root', { revision: 0, reason: '初始化队列加密' }, 'PUT')
-    expect(result.status).toBe(403)
-    expect(await result.json()).toMatchObject({ code: 'reauth_required' })
+    const result = await api('/admin/security/mail-settings', 'root', {
+      revision: 0, reason: '保存回调签名配置', generateQueueKey: false, queueEncryptionKey: '', webhookSecret: process.env.RESEND_WEBHOOK_SECRET,
+    }, 'PUT')
+    expect(result.status).toBe(200)
+    expect(await result.json()).toMatchObject({ revision: 1 })
   })
 
   it('前端初始化密钥立即用于队列，状态和审计不含密钥且不能重复替换', async () => {
@@ -566,7 +568,7 @@ describe('邮件额度、任务与防护', () => {
     expect(await count()).toBe(0)
     expect(mocks.send).not.toHaveBeenCalled()
   })
-  it('策略冲突与身份过期阻止敏感操作，保留审计前后值', async () => {
+  it('策略冲突仍阻止覆盖，有效会话无需再次验证并保留审计前后值', async () => {
     const next = { ...DEFAULT_SECURITY_POLICY, daily: 90 }
     await saveSecurityPolicy(t.db, 'root', next, '调整本站发信预算')
     await expect(saveSecurityPolicy(t.db, 'root', next, '重复保存过期策略')).rejects.toMatchObject({ code: 'policy_conflict' })
@@ -578,9 +580,10 @@ describe('邮件额度、任务与防护', () => {
     expect(audit.before_state.daily).toBe(80)
     expect(audit.after_state.daily).toBe(90)
     await t.db.query("UPDATE user_sessions SET reauthenticated_at=1 WHERE user_id='root'")
-    const response = await api('/admin/security/budget-reconcile', 'root', { daily: 1, monthly: 1, reason: '身份确认已过期' })
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({ code: 'reauth_required' })
+    const response = await api('/admin/security/budget-reconcile', 'root', { daily: 1, monthly: 1, reason: '核对外部邮件用量' })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ success: true })
+    expect(await count()).toBe(1)
   })
   it('匿名账号输入不获得账号例外，限制自动到期且允许规则不覆盖封禁', async () => {
     await policy({ challenges: { ...DEFAULT_SECURITY_POLICY.challenges, login: 'enforce' } })

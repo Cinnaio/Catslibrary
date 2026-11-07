@@ -110,7 +110,7 @@ it('迁移轮换旧凭据，旧 Bearer 失效；退出会清除会话和 Cookie'
   expect(logout.headers.get('set-cookie')).toContain('Max-Age=0')
   expect((await call('/auth/me', 'GET', undefined, { Cookie: cookie })).status).toBe(401)
 })
-it('管理员超过八小时且闲置三十分钟后仍登录，关键写入继续需要近期认证，实际到期后失效', async () => {
+it('管理员有效会话直接执行关键写入，仍校验账号、来源及实际到期时间', async () => {
   const cookie = await login()
   const token = cookie.split('=')[1]!,
     hash = await hashToken(token, loadConfig().sessionHashSalt)
@@ -120,16 +120,15 @@ it('管理员超过八小时且闲置三十分钟后仍登录，关键写入继�
   await t.db.query('UPDATE user_sessions SET created_at=$2,last_seen_at=$3 WHERE token_hash=$1', [hash, Date.now() - 9 * 3600000, Date.now() - 31 * 60000])
   expect((await call('/auth/me', 'GET', undefined, { Cookie: cookie })).status).toBe(200)
   await t.db.query('UPDATE user_sessions SET reauthenticated_at=$2 WHERE token_hash=$1', [hash, Date.now() - 11 * 60000])
-  const blocked = await call('/admin-users/' + userId, 'PUT', { displayName: '旧认证不允许' }, { ...web, Cookie: cookie })
-  expect(blocked.status).toBe(403)
-  expect(await blocked.json()).toMatchObject({ code: 'reauth_required' })
-  expect((await call('/auth/reauthenticate', 'POST', { password: 'wrong' }, { ...web, Cookie: cookie })).status).toBe(401)
-  expect((await call('/auth/me', 'GET', undefined, { Cookie: cookie })).status).toBe(200)
-  expect((await call('/auth/reauthenticate', 'POST', { password: 'fixturepass123' }, { ...web, Cookie: cookie })).status).toBe(200)
-  const retried = await call('/admin-users/' + userId, 'PUT', { displayName: '新认证' }, { ...web, Cookie: cookie })
-  expect(retried.status).not.toBe(403)
+  const body = { action: 'settings', registerMode: 'invite' }
+  expect((await call('/admin-users', 'POST', body, { ...web, Cookie: cookie })).status).toBe(200)
+  const changed = await call('/admin-users', 'POST', body, { ...web, Cookie: cookie, 'X-ZZ-Account': 'another-account' })
+  expect(changed.status).toBe(409)
+  expect(await changed.json()).toMatchObject({ code: 'account_changed' })
+  expect((await call('/admin-users', 'POST', body, { ...web, Cookie: cookie, Origin: 'https://evil.test' })).status).toBe(403)
   await t.db.query('UPDATE user_sessions SET expires_at=$2 WHERE token_hash=$1', [hash, Date.now() - 1])
   expect((await call('/auth/me', 'GET', undefined, { Cookie: cookie })).status).toBe(401)
+  expect((await call('/admin-users', 'POST', body, { ...web, Cookie: cookie })).status).toBe(401)
 })
 it('改密码后创建新会话失败时，密码与旧会话整批回滚', async () => {
   const cookie = await login()
@@ -212,7 +211,7 @@ it.skipIf(process.env.BROWSER_SECURITY_CHECK !== '1')(
         Date.now() - 11 * 60000,
       ])
       await page.goto(base + '/admin/users')
-      // Reauthentication is exercised in component tests; browser checks actual cookie isolation and refresh.
+      // Browser checks actual cookie isolation and refresh with an older authenticated session.
       expect(await page.evaluate(() => localStorage.getItem('user_session_marker'))).toBeTruthy()
       expect(
         (

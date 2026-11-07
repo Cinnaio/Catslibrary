@@ -61,7 +61,6 @@ export default function BackupsTab() {
     [backupTargets, setBackupTargets] = useState<string[]>([]),
     [note, setNote] = useState('')
   const [restoreTask, setRestoreTask] = useState<BackupTask | null>(null),
-    [password, setPassword] = useState(''),
     [confirmVersion, setConfirmVersion] = useState('')
   const [impactTask, setImpactTask] = useState<BackupTask | null>(null)
   const [restoreImpact, setRestoreImpact] = useState<BackupImpactReport | null>(null)
@@ -765,7 +764,6 @@ export default function BackupsTab() {
             setRestoreImpact(report)
             setRestoreNow(Date.now())
             setImpactAcknowledged(false)
-            setPassword('')
             setConfirmVersion('')
             setImpactTask(null)
           }}
@@ -785,7 +783,6 @@ export default function BackupsTab() {
             setRestoreTask(null)
             setRestoreImpact(null)
             setImpactAcknowledged(false)
-            setPassword('')
           }
         }}
       >
@@ -804,12 +801,10 @@ export default function BackupsTab() {
                     const value = await backupsApi.restore(restoreTask.versionId, {
                       previewTaskId: restoreTask.id,
                       previewToken: restoreTask.result?.previewToken || '',
-                      password,
                       confirmVersion,
                       impactAcknowledged,
                     })
                     setRestoreTask(null)
-                    setPassword('')
                     return value
                   })
                 }}
@@ -832,19 +827,6 @@ export default function BackupsTab() {
                     <Input id={id} required value={confirmVersion} disabled={busy} onChange={(e) => setConfirmVersion(e.target.value)} autoComplete="off" />
                   )}
                 </FormField>
-                <FormField label="当前管理员密码">
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      required
-                      type="password"
-                      value={password}
-                      disabled={busy}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                    />
-                  )}
-                </FormField>
                 {error && (
                   <p role="alert" className="backup-error">
                     {error}
@@ -858,8 +840,7 @@ export default function BackupsTab() {
                     !restoreImpact ||
                     !impactAcknowledged ||
                     restoreImpact.expiresAt <= restoreNow ||
-                    confirmVersion !== restoreTask.versionId ||
-                    !password
+                    confirmVersion !== restoreTask.versionId
                   }
                 >
                   {busy ? '提交中…' : '创建保护备份并回滚'}

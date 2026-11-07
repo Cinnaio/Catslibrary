@@ -76,15 +76,19 @@ describe('备份管理权限、幂等及敏感边界', () => {
       for (const path of ['/versions', '/logs', '/settings', '/settings/rehearsal', '/versions/example/download', '/tasks/example/impact'])
         expect([401, 403]).toContain((await call(path, 'GET', undefined, token)).status)
   })
-  it('影响校验需要管理员；确认回滚必须勾选影响并拥有完整报告', async () => {
+  it('回滚无需密码，仍要求管理员、完整版本标识、影响确认和有效报告', async () => {
+    await db.query('UPDATE user_sessions SET reauthenticated_at=0')
     for (const token of ['', reader]) expect([401, 403]).toContain((await call('/tasks/missing/impact/check', 'POST', { versionId: 'missing' }, token)).status)
     const body = {
       confirmVersion: 'missing',
-      password: 'fixture-password',
       previewTaskId: 'missing',
       previewToken: 'private-token',
       operationId: 'missing-impact',
     }
+    for (const token of ['', reader]) expect([401, 403]).toContain((await call('/versions/missing/restore', 'POST', body, token)).status)
+    const mismatch = await call('/versions/missing/restore', 'POST', { ...body, confirmVersion: 'another-version' })
+    expect(mismatch.status).toBe(400)
+    expect(await mismatch.json()).toMatchObject({ code: 'VERSION_CONFIRMATION_REQUIRED' })
     const unacknowledged = await call('/versions/missing/restore', 'POST', body)
     expect(unacknowledged.status).toBe(400)
     expect(await unacknowledged.text()).toContain('IMPACT_ACK_REQUIRED')
@@ -145,11 +149,13 @@ describe('备份管理权限、幂等及敏感边界', () => {
     expect((await call('/versions', 'POST', [])).status).toBe(400)
     expect((await call('/versions', 'POST', { operationId: 'invalid-fixture', targetIds: 'all' })).status).toBe(400)
   })
-  it('维护模式拒绝新任务；回滚错误密码不会入队或保存密码', async () => {
+  it('维护模式拒绝新任务；旧客户端附带密码不能跳过回滚影响确认', async () => {
     await setSetting(db, 'maintenance', true)
     expect((await call('/versions', 'POST', { operationId: 'maintenance-fixture' })).status).toBe(409)
     await setSetting(db, 'maintenance', false)
-    expect((await call('/versions/fixture/restore', 'POST', { operationId: 'restore-fixture', confirmVersion: 'fixture', password: 'wrong' })).status).toBe(403)
+    const response = await call('/versions/fixture/restore', 'POST', { operationId: 'restore-fixture', confirmVersion: 'fixture', password: 'wrong' })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ code: 'IMPACT_ACK_REQUIRED' })
     const rows = await db.query<{ payload: string }>('SELECT payload FROM backup_control.tasks')
     expect(JSON.stringify(rows.rows)).not.toContain('wrong')
   })

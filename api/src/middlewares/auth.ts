@@ -6,7 +6,7 @@ import { isAdministrator, requiresSuperAdministrator } from '@shared/roles'
 import type { MiddlewareHandler } from 'hono'
 import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
-import { hashToken, REAUTH_TTL, type UserRow } from '../services/auth'
+import type { UserRow } from '../services/auth'
 import type { Context } from 'hono'
 import { requestSession, browserRequest } from '../services/browser-session'
 import { getUserByToken } from '../services/sessions'
@@ -56,22 +56,6 @@ export function requireAdmin(): MiddlewareHandler<AuthEnv> {
     const superOnly = requiresSuperAdministrator(c.req.path, c.req.method, typeof action === 'string' ? action : '')
     if (superOnly && user.role !== 'super_admin') return c.json({ error: '需要超级管理员权限' }, 403)
     if (accountChanged(c, user)) return c.json({ error: '账号已变化，请刷新页面后再操作', code: 'account_changed' }, 409)
-    const sensitive =
-      !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) &&
-      (superOnly || /^\/api\/admin-users(?:\/|$)/.test(c.req.path) ||
-        /^\/api\/admin\/backups\/(settings|targets|deployment|policy)(?:\/|$)/.test(c.req.path) ||
-        c.req.path === '/api/admin/site-settings/turnstile' ||
-        c.req.path.startsWith('/api/auth/mail-settings') ||
-        c.req.path === '/api/admin/site-settings/passkey')
-    if (sensitive) {
-      const session = (
-        await db.query<{ reauthenticated_at: number }>('SELECT reauthenticated_at FROM user_sessions WHERE token_hash=$1', [
-          await hashToken(token, loadConfig().sessionHashSalt),
-        ])
-      ).rows[0]
-      if (!session || Number(session.reauthenticated_at) < Date.now() - REAUTH_TTL)
-        return c.json({ error: '请重新验证管理员身份', code: 'reauth_required' }, 403)
-    }
     c.set('user', user)
     await next()
   }

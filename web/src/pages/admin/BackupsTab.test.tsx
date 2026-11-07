@@ -188,12 +188,14 @@ describe('备份后台', () => {
     await screen.findByRole('dialog', { name: '回滚到指定版本' })
     expect(mock.checkImpact).toHaveBeenCalledWith(preview.id, preview.versionId)
     fireEvent.change(screen.getByLabelText('输入完整目标版本标识'), { target: { value: preview.versionId } })
-    fireEvent.change(screen.getByLabelText('当前管理员密码'), { target: { value: 'fixture-password' } })
+    expect(screen.queryByLabelText('当前管理员密码')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '创建保护备份并回滚' })).toBeDisabled()
     fireEvent.click(screen.getByRole('checkbox', { name: '我已查看并确认上述回滚影响' }))
     fireEvent.click(screen.getByRole('button', { name: '创建保护备份并回滚' }))
     await waitFor(() =>
-      expect(mock.restore).toHaveBeenCalledWith(preview.versionId, expect.objectContaining({ previewTaskId: preview.id, impactAcknowledged: true })),
+      expect(mock.restore).toHaveBeenCalledWith(preview.versionId, {
+        previewTaskId: preview.id, previewToken: 'fixture-token', confirmVersion: preview.versionId, impactAcknowledged: true,
+      }),
     )
   })
   it('缺少实际依赖时禁止创建备份，并显示具体缺项', async () => {

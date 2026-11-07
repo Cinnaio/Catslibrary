@@ -152,7 +152,6 @@ const rootReasons = {
   PageState: '控制整页外壳的异常呈现，区别于面板空态',
   ReadingDataPanel: '账户阅读数据检查与恢复',
   ReadingStatsPanel: '账户阅读统计',
-  ReauthenticationDialog: '敏感操作近期身份确认',
   SecurityChallengeDialog: '账号操作的统一人机验证',
   RouteLoading: '路由切换与外壳占位',
   SiteBrandingSync: '站点品牌同步',

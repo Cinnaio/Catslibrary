@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readdir } from 'node:fs/promises'
 const webAuthnMocks = vi.hoisted(() => ({ verifyAuthenticationResponse: vi.fn() }))
 vi.mock('@simplewebauthn/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@simplewebauthn/server')>()
@@ -188,9 +189,8 @@ describe('Passkey WebAuthn endpoints', () => {
     expect(await rejected.json()).toMatchObject({ error: 'Passkey 验证失败，请使用设备验证后重试' })
     const session = (await t.db.query<{ reauthenticated_at: number }>('SELECT reauthenticated_at FROM user_sessions WHERE user_id=$1', [user.id])).rows[0]!
     expect(Number(session.reauthenticated_at)).toBe(0)
-    const blocked = await request('/api/admin/site-settings/passkey', 'PUT', { enabled: true, registrationEnabled: true, rpName: '书灯' })
-    expect(blocked.status).toBe(403)
-    expect(await blocked.json()).toMatchObject({ code: 'reauth_required' })
+    const saved = await request('/api/admin/site-settings/passkey', 'PUT', { enabled: true, registrationEnabled: true, rpName: '书灯' })
+    expect(saved.status).toBe(200)
   })
 
   it('管理员 Passkey 登录使用三十天或一百八十天会话，保持登录 Cookie 与数据库期限一致', async () => {
@@ -242,22 +242,17 @@ describe('Passkey WebAuthn endpoints', () => {
       name TEXT NOT NULL,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`)
-    for (let version = 1; version <= 61; version += 1) {
+    // 测试库已经执行全部迁移，仅缺少上方主动移除的 062 修复字段。
+    // 按实际文件记账，避免新增迁移后重复创建已经存在的表。
+    for (const file of (await readdir(new URL('../db/migrations', import.meta.url))).filter((name) => name.endsWith('.sql'))) {
+      const version = Number.parseInt(file, 10)
+      if (version === 62) continue
       await t.db.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING', [
         version,
-        `${String(version).padStart(3, '0')}_legacy.sql`,
+        file,
       ])
     }
-    // 夹具只建了与 passkey 相关的表，模拟「记账到 061、后续迁移已跑完」的实例。
-    // 62 的修复迁移必须真跑（本用例验证的就是它），63 起的章节记忆表在这里不存在，
-    // 记为已应用以免重放时因缺表失败。
-    for (let version = 63; version <= 70; version += 1) {
-      await t.db.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING', [
-        version,
-        `${String(version).padStart(3, '0')}_legacy.sql`,
-      ])
-    }
-    await runMigrations(t.db)
+    await expect(runMigrations(t.db)).resolves.toEqual(['062_passkey_schema_repair.sql'])
 
     const response = await request('/api/auth/passkeys', 'GET')
     expect(response.status).toBe(200)
