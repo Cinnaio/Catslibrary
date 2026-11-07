@@ -39,6 +39,7 @@ import {
 import MailSettings from './MailSettings'
 import SecurityOverviewPanel from './SecurityOverviewPanel'
 import SecurityPolicyEditor from './SecurityPolicyEditor'
+import { SECURITY_CENTER_VIEWS as views } from './admin-registry'
 import {
   mailStateLabels as stateLabels,
   outcomeLabels as outcomes,
@@ -51,7 +52,6 @@ import {
 } from './security-center-format'
 import styles from './security-center.module.css'
 
-const views = { overview: '安全概览', service: '邮件服务', policy: '防护策略', mail: '邮件记录', events: '风控事件', restrictions: '封禁与例外' } as const
 const viewDescriptions = {
   overview: '查看邮件额度、投递状态与需要处理的异常。',
   service: '配置邮件连接、发件身份，检查实际投递。',

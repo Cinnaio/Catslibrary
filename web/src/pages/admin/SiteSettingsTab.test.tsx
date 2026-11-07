@@ -31,20 +31,17 @@ beforeEach(() => {
   mock.contentPolicySettings.mockResolvedValue({ adultContentEnabled: true, turnstileConfigured: true })
 })
 describe('SiteSettingsTab', () => {
-  it('账号邮件按需读取，往返分区保留密码草稿并隐藏非当前分区保存条', async () => {
+  it('旧账号邮件地址仍可访问，站点导航移除重复入口且切换后隐藏保存条', async () => {
     mock.mailSettings.mockResolvedValue({ ready: true, mode: 'smtp', source: 'environment', revision: 0,
       host: 'smtp.example.test', port: 465, security: 'tls', username: 'user', passwordSet: true,
       from: 'account@example.test', publicOrigin: 'https://reader.example.test' })
-    await show()
-    expect(mock.mailSettings).not.toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('tab', { name: '账号邮件' }))
+    render(<MemoryRouter initialEntries={['/admin/site-settings?view=mail']}><SiteSettingsTab /></MemoryRouter>)
     await screen.findByLabelText('SMTP 服务器')
+    expect(screen.queryByRole('tab', { name: '账号邮件' })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('SMTP 密码 / 授权码'), { target: { value: 'unsaved-password' } })
     expect(screen.getByRole('button', { name: '保存配置' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('tab', { name: '站点信息' }))
     expect(screen.queryByRole('button', { name: '保存配置' })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('tab', { name: '账号邮件' }))
-    expect(screen.getByLabelText('SMTP 密码 / 授权码')).toHaveValue('unsaved-password')
     expect(mock.mailSettings).toHaveBeenCalledTimes(1)
   })
   it('往返内容安全复用导航节点并保留键盘焦点与站点信息草稿', async () => {

@@ -11,16 +11,26 @@ const navigation: WorkspaceNavGroup[] = NAV_GROUPS.map((group) => ({
   items: group.items.map((item) => ({ ...item, to: item.children?.[0]?.to || adminTabPath(item.id) })),
 }))
 
+function canVisitAsAdministrator(item: { to: string }) {
+  const url = new URL(item.to, 'https://workspace.local')
+  return !requiresSuperAdministratorPage(url.pathname, url.search)
+}
+
 export default function AdminShell({ activeLabel, children }: { active: string; activeLabel: string; children: ReactNode }) {
   const branding = useSiteBranding()
   const { user } = useSession()
-  const visibleNavigation = user?.role === 'super_admin' ? navigation : navigation.map(group => ({ ...group, items: group.items.filter(item => {
-    const url = new URL(item.to, 'https://workspace.local')
-    return !requiresSuperAdministratorPage(url.pathname, url.search)
-  }).map(item => ({ ...item, children: item.children?.filter(child => {
-    const url = new URL(child.to, 'https://workspace.local')
-    return !requiresSuperAdministratorPage(url.pathname, url.search)
-  }) })) })).filter(group => group.items.length)
+  const visibleNavigation = user?.role === 'super_admin' ? navigation : navigation.map(group => ({
+    ...group,
+    items: group.items.flatMap(item => {
+      if (item.children) {
+        const children = item.children.filter(canVisitAsAdministrator)
+        // 先筛选子入口，父入口指向首个可访问视图，避免排序隐藏整个分组。
+        const firstChild = children[0]
+        return firstChild ? [{ ...item, to: firstChild.to, children }] : []
+      }
+      return canVisitAsAdministrator(item) ? [item] : []
+    }),
+  })).filter(group => group.items.length)
   useEffect(() => {
     document.title = `${activeLabel || '管理台'} · ${branding.name}`
     return () => {

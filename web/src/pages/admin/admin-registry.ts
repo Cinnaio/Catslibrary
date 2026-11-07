@@ -56,6 +56,16 @@ export interface AdminNavItem {
   children?: AdminSubTab[]
 }
 
+// 安全中心的侧栏与页内导航共用标签和顺序。
+export const SECURITY_CENTER_VIEWS = {
+  overview: '安全概览',
+  service: '邮件服务',
+  policy: '防护策略',
+  mail: '邮件记录',
+  events: '风控事件',
+  restrictions: '封禁与例外',
+} as const
+
 export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
   {
     label: '工作台',
@@ -118,14 +128,16 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
   {
     label: '系统',
     items: [
-      { id:'security',label:'安全与风控',icon:ShieldCheck,children:[
-        {id:'security-mail',label:'邮件记录',to:`${adminTabPath('security')}?view=mail`},
-        {id:'security-overview',label:'安全概览',to:`${adminTabPath('security')}?view=overview`},
-        {id:'security-service',label:'邮件服务',to:`${adminTabPath('security')}?view=service`},
-        {id:'security-policy',label:'防护策略',to:`${adminTabPath('security')}?view=policy`},
-        {id:'security-events',label:'风控事件',to:`${adminTabPath('security')}?view=events`},
-        {id:'security-restrictions',label:'封禁与例外',to:`${adminTabPath('security')}?view=restrictions`},
-      ]},
+      {
+        id: 'security',
+        label: '安全与风控',
+        icon: ShieldCheck,
+        children: Object.entries(SECURITY_CENTER_VIEWS).map(([view, label]) => ({
+          id: `security-${view}`,
+          label,
+          to: `${adminTabPath('security')}?view=${view}`,
+        })),
+      },
       {
         id: 'backups',
         label: '备份与恢复',
@@ -164,7 +176,6 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
           { id: 'content-policy', label: '内容安全', to: `${adminTabPath('site-settings')}?view=content-policy` },
           { id: 'site-settings-security', label: '安全验证', to: `${adminTabPath('site-settings')}?view=security` },
           { id: 'site-settings-passkey', label: 'Passkey', to: `${adminTabPath('site-settings')}?view=passkey` },
-          { id: 'site-settings-mail', label: '账号邮件', to: `${adminTabPath('site-settings')}?view=mail` },
           { id: 'ai-config', label: '模型与服务', to: `${adminTabPath('ai')}?sub=config` },
           { id: 'ai-params', label: '创作参数', to: `${adminTabPath('ai')}?sub=params` },
         ],
