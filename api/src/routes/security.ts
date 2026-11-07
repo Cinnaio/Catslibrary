@@ -26,6 +26,7 @@ import { finishMail } from '../services/mail-worker'
 import { receiveMailWebhook } from '../services/mail-webhook'
 import { normalizeEmail } from '../services/account-email'
 import { newId } from '../services/auth'
+import { adminMailSecuritySettings, effectiveMailSecuritySettings, saveMailSecuritySettings, validWebhookSecret } from '../services/mail-security-settings'
 import { SECURITY_ACTIONS, type SecurityAction, type SecurityOverview } from '@shared/security'
 
 export const securityAdminRoutes = new Hono<AuthEnv>()
@@ -165,7 +166,7 @@ securityAdminRoutes.get('/overview', async (c) => {
     encryptionReady: Boolean(queueKey()),
     mailReady: config.ready,
     turnstileReady: turnstile.configured,
-    webhookReady: Boolean(process.env.RESEND_WEBHOOK_SECRET),
+    webhookReady: validWebhookSecret(effectiveMailSecuritySettings().webhookSecret),
     workerAt,
     lastWebhookAt,
     nextResetAt: Date.parse(new Date(now).toISOString().slice(0, 10)) + 86400000,
@@ -175,6 +176,42 @@ securityAdminRoutes.get('/overview', async (c) => {
     breakerUntil,
   }
   return c.json(response)
+})
+securityAdminRoutes.get('/mail-settings', async (c) => {
+  c.header('Cache-Control', 'no-store')
+  const retained = Boolean(await first(getDb(), "SELECT 1 FROM mail_jobs WHERE payload<>'' LIMIT 1"))
+  return c.json(adminMailSecuritySettings(retained))
+})
+securityAdminRoutes.put('/mail-settings', bodyLimit({ maxSize: 4096, onError: (c) => c.json({ error: '邮件安全配置请求过大' }, 413) }), async (c) => {
+  const body = await c.req.json().catch(() => null),
+    reason = requireReason(body?.reason),
+    db = getDb()
+  const result = await withTx(db, async (query) => {
+    const tx = { query }
+    await lockSecurityAdmin(tx, c.get('user').id)
+    const retained = Boolean(await first(tx, "SELECT 1 FROM mail_jobs WHERE payload<>'' LIMIT 1"))
+    const before = adminMailSecuritySettings(retained)
+    // A private file cannot roll back with SQL; persist the pending audit first.
+    const auditId = await auditAccount(db, c.get('user').id, 'security-center', 'mail-security-settings', reason, before, { configuration: 'pending' }, true)
+    try {
+      saveMailSecuritySettings(body, retained)
+      const after = adminMailSecuritySettings(retained)
+      await db.query('UPDATE account_security_audit SET after_state=$2::jsonb WHERE id=$1', [
+        auditId,
+        JSON.stringify({ ...after, webhookChanged: Boolean(body.webhookSecret?.trim()) }),
+      ])
+      await db.query("UPDATE admin_operation_audit SET status='completed',response_status=200,updated_at=$2,finished_at=$2 WHERE id=$1", [auditId, Date.now()])
+      return after
+    } catch (error) {
+      await db.query(
+        "UPDATE admin_operation_audit SET status='failed',error='mail_security_settings_save_failed',response_status=503,updated_at=$2,finished_at=$2 WHERE id=$1",
+        [auditId, Date.now()],
+      )
+      throw error
+    }
+  })
+  c.header('Cache-Control', 'no-store')
+  return c.json(result)
 })
 securityAdminRoutes.put('/policy', async (c) => {
   const body = await c.req.json()

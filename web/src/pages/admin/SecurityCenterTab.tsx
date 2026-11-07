@@ -37,6 +37,7 @@ import {
   type SecurityRestriction,
 } from '@shared/security'
 import MailSettings from './MailSettings'
+import MailSecuritySettings from './MailSecuritySettings'
 import SecurityOverviewPanel from './SecurityOverviewPanel'
 import SecurityPolicyEditor from './SecurityPolicyEditor'
 import { SECURITY_CENTER_VIEWS as views } from './admin-registry'
@@ -85,6 +86,9 @@ function SecurityCenterContent() {
   const [serviceVisited, setServiceVisited] = useState(view === 'service')
   const [serviceBusy, setServiceBusy] = useState(false)
   const [serviceDirty, setServiceDirty] = useState(false)
+  const [securityBusy, setSecurityBusy] = useState(false)
+  const [securityDirty, setSecurityDirty] = useState(false)
+  const [serviceRefreshToken, setServiceRefreshToken] = useState(0)
   useEffect(() => {
     if (view === 'service') setServiceVisited(true)
   }, [view])
@@ -301,7 +305,7 @@ function SecurityCenterContent() {
       <Tabs ref={navigationRef} className={styles.navigation} value={view} activationMode="manual" onValueChange={(value) => navigateView(value as View)}>
         <TabsList aria-label="安全中心分区">
           {visibleViews.map(([key, label]) => (
-            <TabsTrigger key={key} value={key} disabled={busy || serviceBusy}>
+            <TabsTrigger key={key} value={key} disabled={busy || serviceBusy || securityBusy}>
               {label}
             </TabsTrigger>
           ))}
@@ -350,47 +354,43 @@ function SecurityCenterContent() {
       )}
       {(serviceVisited || view === 'service') && (
         <div hidden={view !== 'service'} className={styles.service}>
-          <MailSettings active={view === 'service'} onBusyChange={setServiceBusy} onDirtyChange={setServiceDirty} onStatusChange={load} />
+          <MailSettings
+            active={view === 'service'}
+            externalBusy={busy || securityBusy}
+            externalDirty={securityDirty}
+            onBusyChange={setServiceBusy}
+            onDirtyChange={setServiceDirty}
+            onStatusChange={() => {
+              void load()
+              setServiceRefreshToken((value) => value + 1)
+            }}
+          />
+          <MailSecuritySettings
+            blocked={busy || serviceBusy}
+            refreshToken={serviceRefreshToken}
+            onBusyChange={setSecurityBusy}
+            onDirtyChange={setSecurityDirty}
+            onConfirm={ask}
+          />
           <Card>
             <PanelHeading
-              title="投递反馈与测试"
-              description="连接通过后，可发送一封邮件核对实际投递。"
+              title="投递测试"
+              description="使用已保存的配置，核对邮件的实际投递。"
+              status={
+                overview && <AdminStatusBadge tone="neutral">当前投递：{overview.policy.transport === 'resend' ? 'Resend API' : 'SMTP'}</AdminStatusBadge>
+              }
               actions={
-                <Button variant="ghost" onClick={() => navigateView('mail')} disabled={serviceBusy}>
+                <Button variant="ghost" onClick={() => navigateView('mail')} disabled={serviceBusy || securityBusy || busy}>
                   查看邮件记录
                 </Button>
               }
             />
             <CardContent className={styles.panelBody}>
-              {overview && (
-                <dl className={styles.status}>
-                  <div>
-                    <dt>当前投递</dt>
-                    <dd>{overview.policy.transport === 'resend' ? 'Resend API' : 'SMTP'}</dd>
-                  </div>
-                  <div>
-                    <dt>队列加密</dt>
-                    <dd>
-                      <AdminStatusBadge tone={overview.encryptionReady ? 'neutral' : 'warning'}>
-                        {overview.encryptionReady ? '已配置' : '待配置'}
-                      </AdminStatusBadge>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>投递回调</dt>
-                    <dd>
-                      <AdminStatusBadge tone={overview.webhookReady ? 'neutral' : 'warning'}>
-                        {overview.webhookReady ? '签名已配置' : '尚未配置'}
-                      </AdminStatusBadge>
-                    </dd>
-                  </div>
-                </dl>
-              )}
               <div className={styles.testDelivery}>
                 <div>
                   <p>发送到我的已验证邮箱</p>
                   <p className={styles.hint}>
-                    {serviceDirty
+                    {serviceDirty || securityDirty
                       ? '请先保存邮件配置，再进行真实投递测试。'
                       : !user?.emailVerified
                         ? '请先在个人中心完成邮箱验证。'
@@ -404,7 +404,16 @@ function SecurityCenterContent() {
                 <Button
                   variant="secondary"
                   disabled={
-                    serviceBusy || serviceDirty || busy || !user?.emailVerified || !overview?.mailReady || !overview.encryptionReady || overview.policy.paused
+                    serviceBusy ||
+                    securityBusy ||
+                    serviceDirty ||
+                    securityDirty ||
+                    busy ||
+                    loading ||
+                    !user?.emailVerified ||
+                    !overview?.mailReady ||
+                    !overview.encryptionReady ||
+                    overview.policy.paused
                   }
                   onClick={() =>
                     ask({
@@ -420,7 +429,7 @@ function SecurityCenterContent() {
               </div>
               <details className={styles.disclosure}>
                 <summary>
-                  投递方式与服务器配置
+                  投递方式与配置说明
                   <ChevronDown size={14} aria-hidden="true" />
                 </summary>
                 <div className={styles.disclosureBody}>
@@ -448,7 +457,11 @@ function SecurityCenterContent() {
                       </dd>
                     </div>
                   </dl>
-                  <p>密钥由服务器提供，不回传浏览器。账号邮件建议在服务商控制台关闭打开与点击追踪。</p>
+                  <p>可在上方初始化队列加密、保存回调签名密钥，保存后立即生效。后台已保存的对应密钥优先于环境变量，原值不回传浏览器。</p>
+                  <p>
+                    配置保存在服务器私有文件 data/mail-security-config.json（可由 MAIL_SECURITY_CONFIG_FILE
+                    指定），数据库备份不包含它；多实例须共享同一文件，迁移服务器时单独安全迁移。账号邮件建议在服务商控制台关闭打开与点击追踪。
+                  </p>
                 </div>
               </details>
             </CardContent>

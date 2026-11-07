@@ -6,6 +6,7 @@ import { lockSecurity, SecurityError, securityEvent, securityPolicy } from './se
 import { finishMail } from './mail-worker'
 import type { MailJob } from './mail-queue'
 import { newId } from './auth'
+import { effectiveMailSecuritySettings, validWebhookSecret } from './mail-security-settings'
 
 const states: Record<string, string> = {
   'email.sent': 'accepted',
@@ -28,8 +29,8 @@ const rank: Record<string, number> = {
   expired: 6,
 }
 export async function receiveMailWebhook(db: Db, raw: string, headers: Record<string, string>) {
-  const secret = process.env.RESEND_WEBHOOK_SECRET
-  if (!secret) throw new SecurityError('webhook_unconfigured', '回调尚未配置', 503)
+  const secret = effectiveMailSecuritySettings().webhookSecret
+  if (!validWebhookSecret(secret)) throw new SecurityError('webhook_unconfigured', '回调尚未配置或密钥格式无效', 503)
   let event: { type: string; created_at: string; data: { email_id: string; tags?: Record<string, string>; bounce?: { type?: string } } }
   try {
     new Webhook(secret).verify(raw, headers)

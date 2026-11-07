@@ -5,6 +5,7 @@ import { loadConfig } from '../config'
 import { AccountError, auditAccount, lockAccounts } from './account-security'
 import { mailConfiguration } from './mail'
 import { parseSmtp } from './mail-settings'
+import { effectiveMailSecuritySettings, parseQueueEncryptionKey } from './mail-security-settings'
 import { DEFAULT_SECURITY_POLICY, SECURITY_ACTIONS, type SecurityPolicy, type SecurityAction } from '@shared/security'
 import { DEFAULT_EMAIL_DOMAIN_POLICY, parseEmailDomainList, type EmailDomainPolicy } from '@shared/email-domain-policy'
 
@@ -37,10 +38,7 @@ export function emailHint(email: string) {
   return `${name.slice(0, 1)}***@${domain}`
 }
 export function queueKey(): Buffer | null {
-  const raw = process.env.MAIL_QUEUE_ENCRYPTION_KEY || process.env.SITE_SETTINGS_ENCRYPTION_KEY || ''
-  if (!/^[A-Za-z0-9+/]{43}=$/.test(raw)) return null
-  const key = Buffer.from(raw, 'base64')
-  return key.length === 32 ? key : null
+  return parseQueueEncryptionKey(effectiveMailSecuritySettings().queueEncryptionKey)
 }
 export function sealMail(id: string, value: unknown) {
   const key = queueKey()

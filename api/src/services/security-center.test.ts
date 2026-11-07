@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { randomBytes, createHmac } from 'node:crypto'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createTestDb, type TestDb } from '../test/db'
 import { setDbForTests } from '../db/pool'
 import { app } from '../app'
@@ -15,6 +16,7 @@ import { budgetPeriods, type MailJob, type MailPayload } from './mail-queue'
 import { MailDeliveryError } from './mail'
 import { protectRequest } from './security-requests'
 import { liveImpactFingerprint } from './backups/impact-snapshot'
+import { mailSecuritySettingsPath } from './mail-security-settings'
 
 const mocks = vi.hoisted(() => ({ send: vi.fn(), verify: vi.fn() }))
 vi.mock('./mail', async (original) => ({
@@ -70,6 +72,7 @@ beforeAll(async () => {
   process.env.DATABASE_URL = 'postgres://test/test'
 })
 beforeEach(async () => {
+  rmSync(mailSecuritySettingsPath(), { force: true })
   vi.stubEnv('MAIL_QUEUE_ENCRYPTION_KEY', randomBytes(32).toString('base64'))
   vi.stubEnv('RESEND_WEBHOOK_SECRET', 'whsec_' + randomBytes(32).toString('base64'))
   mocks.send.mockReset().mockResolvedValue({ providerId: 'provider-1' })
@@ -113,6 +116,85 @@ afterAll(async () => {
 })
 
 describe('邮件额度、任务与防护', () => {
+  it('邮件安全配置仅超级管理员可读写，写入要求近期身份核实和原因', async () => {
+    for (const actor of ['manager', 'reader', '']) {
+      expect((await api('/admin/security/mail-settings', actor)).status).toBe(actor ? 403 : 401)
+      expect((await api('/admin/security/mail-settings', actor, { reason: '初始化队列加密' }, 'PUT')).status).toBe(actor ? 403 : 401)
+    }
+    expect((await api('/admin/security/mail-settings', 'root', { revision: 0 }, 'PUT')).status).toBe(400)
+    await t.db.query('UPDATE user_sessions SET reauthenticated_at=0')
+    const result = await api('/admin/security/mail-settings', 'root', { revision: 0, reason: '初始化队列加密' }, 'PUT')
+    expect(result.status).toBe(403)
+    expect(await result.json()).toMatchObject({ code: 'reauth_required' })
+  })
+
+  it('前端初始化密钥立即用于队列，状态和审计不含密钥且不能重复替换', async () => {
+    vi.stubEnv('MAIL_QUEUE_ENCRYPTION_KEY', '')
+    vi.stubEnv('SITE_SETTINGS_ENCRYPTION_KEY', '')
+    const initial = await api('/admin/security/mail-settings')
+    expect(initial.headers.get('Cache-Control')).toBe('no-store')
+    expect(await initial.json()).toMatchObject({ encryptionReady: false, queueCanInitialize: true })
+    const input = { revision: 0, generateQueueKey: true, queueEncryptionKey: '', webhookSecret: '', reason: '启用邮件队列加密' }
+    const response = await api('/admin/security/mail-settings', 'root', input, 'PUT')
+    expect(response.status).toBe(200)
+    const status = await response.json()
+    expect(status).toMatchObject({ revision: 1, encryptionReady: true, queueSource: 'local', queueCanInitialize: false })
+    const stored = JSON.parse(readFileSync(mailSecuritySettingsPath(), 'utf8'))
+    expect(Buffer.from(stored.queueEncryptionKey, 'base64')).toHaveLength(32)
+    expect(JSON.stringify(status)).not.toContain(stored.queueEncryptionKey)
+    const audit = (await t.db.query("SELECT before_state,after_state FROM account_security_audit WHERE action='mail-security-settings'")).rows
+    expect(JSON.stringify(audit)).not.toContain(stored.queueEncryptionKey)
+    expect(audit).toHaveLength(1)
+    const payload = { to: 'reader@example.test', subject: '测试', url: 'https://reader.example.test' }
+    expect(openMail('local-key-test', sealMail('local-key-test', payload))).toEqual(payload)
+    expect((await api('/admin/security/overview')).status).toBe(200)
+    expect((await api('/admin/security/mail-settings', 'root', input, 'PUT')).status).toBe(409)
+    expect((await api('/admin/security/mail-settings', 'root', { ...input, revision: 1 }, 'PUT')).status).toBe(409)
+    expect(JSON.parse(readFileSync(mailSecuritySettingsPath(), 'utf8')).queueEncryptionKey).toBe(stored.queueEncryptionKey)
+  })
+
+  it('保留环境密钥，拒绝无效输入，并在原密钥丢失且仍有加密邮件时阻止初始化', async () => {
+    const input = { revision: 0, generateQueueKey: true, queueEncryptionKey: '', webhookSecret: '', reason: '初始化邮件安全配置' }
+    expect((await api('/admin/security/mail-settings', 'root', input, 'PUT')).status).toBe(409)
+    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password')
+    vi.stubEnv('MAIL_QUEUE_ENCRYPTION_KEY', '')
+    vi.stubEnv('SITE_SETTINGS_ENCRYPTION_KEY', '')
+    const status = await (await api('/admin/security/mail-settings')).json()
+    expect(status).toMatchObject({ queueCanInitialize: false, queueIssue: 'retained-payload' })
+    expect((await api('/admin/security/mail-settings', 'root', input, 'PUT')).status).toBe(409)
+    vi.stubEnv('MAIL_QUEUE_ENCRYPTION_KEY', 'invalid-key')
+    expect(await (await api('/admin/security/mail-settings')).json()).toMatchObject({ encryptionReady: false, queueIssue: 'invalid' })
+    expect((await api('/admin/security/mail-settings', 'root', { ...input, generateQueueKey: false, webhookSecret: 'invalid' }, 'PUT')).status).toBe(400)
+  })
+
+  it('后台回调密钥立即验证签名，留空保留且环境队列密钥不受影响', async () => {
+    const secret = 'whsec_' + randomBytes(32).toString('base64'),
+      oldKey = process.env.MAIL_QUEUE_ENCRYPTION_KEY
+    const input = { revision: 0, generateQueueKey: false, queueEncryptionKey: '', webhookSecret: secret, reason: '接入投递签名回调' }
+    const response = await api('/admin/security/mail-settings', 'root', input, 'PUT')
+    expect(response.status).toBe(200)
+    const status = await response.json()
+    expect(status).toMatchObject({ revision: 1, webhookReady: true, webhookSource: 'local', queueSource: 'environment' })
+    expect(JSON.stringify(status)).not.toContain(secret)
+    expect(JSON.stringify((await t.db.query("SELECT * FROM account_security_audit WHERE action='mail-security-settings'")).rows)).not.toContain(secret)
+    const raw = JSON.stringify({ type: 'email.delivered', created_at: new Date().toISOString(), data: { email_id: 'local-provider' } })
+    const timestamp = String(Math.floor(Date.now() / 1000)),
+      id = 'local-secret-event'
+    const signature = createHmac('sha256', Buffer.from(secret.slice(6), 'base64'))
+      .update(`${id}.${timestamp}.${raw}`)
+      .digest('base64')
+    await expect(receiveMailWebhook(t.db, raw, { 'svix-id': id, 'svix-timestamp': timestamp, 'svix-signature': 'v1,' + signature })).resolves.toBeUndefined()
+    await expect(signedEvent('old-environment-key', 'email.delivered', { email_id: 'local-provider' })).rejects.toThrow('回调验证失败')
+    expect(process.env.MAIL_QUEUE_ENCRYPTION_KEY).toBe(oldKey)
+    vi.stubEnv('MAIL_QUEUE_ENCRYPTION_KEY', '')
+    const initialized = await api('/admin/security/mail-settings', 'root', { ...input, revision: 1, generateQueueKey: true, webhookSecret: '' }, 'PUT')
+    expect(initialized.status).toBe(200)
+    expect(JSON.parse(readFileSync(mailSecuritySettingsPath(), 'utf8')).webhookSecret).toBe(secret)
+    writeFileSync(mailSecuritySettingsPath(), '{broken')
+    expect((await api('/admin/security/mail-settings')).status).toBe(503)
+    expect(() => sealMail('bad-file', {})).toThrow('邮件安全配置无法读取')
+  })
+
   it('域名策略规范化并审计，旧客户端保存其他设置不会清空名单', async () => {
     const next = {
       ...DEFAULT_SECURITY_POLICY,

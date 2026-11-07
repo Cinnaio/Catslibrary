@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { DEFAULT_SECURITY_POLICY, type SecurityOverview, type SecurityPolicy } from '@shared/security'
+import type { MailSecuritySettings } from '@shared/mail-security-settings'
 // jsdom 缺少 Radix Select 使用的指针捕获接口。
 Element.prototype.hasPointerCapture = () => false
 Element.prototype.setPointerCapture = () => {}
@@ -53,10 +54,23 @@ const overview: SecurityOverview = {
   trend: [],
   alerts: [],
 }
+const mailSecurity: MailSecuritySettings = {
+  revision: 0,
+  encryptionReady: false,
+  queueSource: 'none',
+  queueCanInitialize: true,
+  queueIssue: null,
+  webhookReady: false,
+  webhookSource: 'none',
+  webhookInvalid: false,
+  webhookUrl: 'https://reader.example.test/api/security/resend-webhook',
+}
 beforeEach(() => {
   vi.resetAllMocks()
   mock.user = { id: 'root', role: 'super_admin' }
-  mock.request.mockImplementation(async (_method: string, path: string) => (path.endsWith('/overview') ? structuredClone(overview) : { items: [], total: 0 }))
+  mock.request.mockImplementation(async (_method: string, path: string) =>
+    path.endsWith('/overview') ? structuredClone(overview) : path.endsWith('/mail-settings') ? structuredClone(mailSecurity) : { items: [], total: 0 },
+  )
 })
 function show(view = 'overview') {
   return render(
@@ -126,6 +140,58 @@ it('切换账号清除旧记录与策略草稿', async () => {
   )
   await waitFor(() => expect(screen.queryByLabelText('每日总预算')).not.toBeInTheDocument())
   expect(screen.getAllByRole('tab')).toHaveLength(2)
+})
+
+it('邮件安全配置入口生成服务端密钥，保存只提交选择和原因，成功后隐藏初始化入口', async () => {
+  show('service')
+  const button = await screen.findByRole('button', { name: '生成并启用加密密钥' })
+  await waitFor(() => expect(button).toBeEnabled())
+  fireEvent.click(button)
+  fireEvent.change(screen.getByLabelText('操作原因'), { target: { value: '启用队列加密配置' } })
+  mock.request.mockImplementation(async (method: string, path: string) =>
+    path.endsWith('/overview')
+      ? structuredClone(overview)
+      : method === 'PUT'
+        ? { ...mailSecurity, revision: 1, encryptionReady: true, queueSource: 'local', queueCanInitialize: false }
+        : structuredClone(mailSecurity),
+  )
+  fireEvent.click(screen.getByRole('button', { name: '确认操作' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(mock.request).toHaveBeenCalledWith(
+    'PUT',
+    '/admin/security/mail-settings',
+    {
+      revision: 0,
+      generateQueueKey: true,
+      queueEncryptionKey: '',
+      webhookSecret: '',
+      reason: '启用队列加密配置',
+    },
+    true,
+  )
+  expect(screen.queryByRole('button', { name: '生成并启用加密密钥' })).not.toBeInTheDocument()
+})
+
+it('回调密钥不回显，跨分区保留草稿，失败保留确认内容并阻止旧配置测试', async () => {
+  const user = userEvent.setup()
+  show('service')
+  const input = await screen.findByLabelText('回调签名密钥')
+  await waitFor(() => expect(input).toBeEnabled())
+  expect(input).toHaveAttribute('type', 'password')
+  fireEvent.change(input, { target: { value: 'whsec_testSecret1234567890==' } })
+  expect(screen.getByRole('button', { name: '刷新状态' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '发送测试邮件' })).toBeDisabled()
+  await user.click(screen.getByRole('tab', { name: '防护策略' }))
+  await user.click(screen.getByRole('tab', { name: '邮件服务' }))
+  expect(screen.getByLabelText('回调签名密钥')).toHaveValue('whsec_testSecret1234567890==')
+  fireEvent.click(screen.getByRole('button', { name: '保存安全配置' }))
+  fireEvent.change(screen.getByLabelText('操作原因'), { target: { value: '更新服务商回调配置' } })
+  mock.request.mockRejectedValueOnce(new Error('配置写入失败'))
+  fireEvent.click(screen.getByRole('button', { name: '确认操作' }))
+  await screen.findByText('配置写入失败')
+  expect(screen.getByLabelText('操作原因')).toHaveValue('更新服务商回调配置')
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '取消' }))
+  expect(screen.getByLabelText('回调签名密钥')).toHaveValue('whsec_testSecret1234567890==')
 })
 
 it('无效预算不能进入保存确认，修正后仍使用原策略草稿', async () => {

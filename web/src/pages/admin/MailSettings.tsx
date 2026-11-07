@@ -19,8 +19,10 @@ import styles from './mail-settings.module.css'
 const draftFrom = (value: Settings): MailSettingsInput => ({ revision: value.revision, host: value.host, port: value.port,
   security: value.security, username: value.username, password: '', clearPassword: false, from: value.from, publicOrigin: value.publicOrigin })
 
-export default function MailSettings({ active = true, onBusyChange, onDirtyChange, onStatusChange }: {
+export default function MailSettings({ active = true, externalBusy = false, externalDirty = false, onBusyChange, onDirtyChange, onStatusChange }: {
   active?: boolean
+  externalBusy?: boolean
+  externalDirty?: boolean
   onBusyChange?: (busy: boolean) => void
   onDirtyChange?: (dirty: boolean) => void
   onStatusChange?: () => void
@@ -77,7 +79,7 @@ export default function MailSettings({ active = true, onBusyChange, onDirtyChang
   }
   async function save(event: FormEvent) {
     event.preventDefault()
-    if (!draft || inFlight.current || !dirty) return
+    if (!draft || inFlight.current || externalBusy || !dirty) return
     if(reason.trim().length<4){setActionError('请填写至少 4 字的配置修改原因');return}
     inFlight.current = true; setBusy(true); setActionError(''); setTestMessage('')
     try {
@@ -90,7 +92,7 @@ export default function MailSettings({ active = true, onBusyChange, onDirtyChang
     finally { inFlight.current = false; setBusy(false) }
   }
   async function testConnection() {
-    if (!status || dirty || inFlight.current) return
+    if (!status || dirty || inFlight.current || externalBusy) return
     inFlight.current = true; setBusy(true); setActionError(''); setTestMessage('')
     try { setTestMessage((await authApi.testMailConnection(status.revision)).message) }
     catch (error) { setActionError(error instanceof Error ? error.message : '连接测试失败') }
@@ -104,14 +106,14 @@ export default function MailSettings({ active = true, onBusyChange, onDirtyChang
 
   const localOutbox = status?.mode === 'outbox'
   const statusLabel = error ? '保留上次配置' : !status?.ready ? '待配置' : localOutbox ? '本地邮件箱' : '配置已就绪'
-  const locked = loading || busy
+  const locked = loading || busy || externalBusy
   return <div className={styles.workspace} aria-busy={locked}>
     <div className={styles.toolbar}>
       <div className={styles.summary}>
         {status && <AdminStatusBadge tone={error || localOutbox ? 'neutral' : status.ready ? 'success' : 'warning'}>{statusLabel}</AdminStatusBadge>}
         {status && <span>当前使用{status.source === 'local' ? '后台配置' : '服务器配置'}</span>}
       </div>
-      <Button variant="secondary" disabled={locked || dirty} onClick={() => void load()}>
+      <Button variant="secondary" disabled={locked || dirty || externalDirty} onClick={() => void load()}>
         {loading ? <Spinner size="sm" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}刷新状态
       </Button>
     </div>
