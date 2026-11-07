@@ -1,5 +1,60 @@
-import { describe, expect, it } from 'vitest'
-import { resolveProxyUrl, shouldBypassProxy } from './fetch'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createServer } from 'node:http'
+import { fetchHtml, MAX_HTML_BYTES, resolveProxyUrl, shouldBypassProxy } from './fetch'
+
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+
+describe('正文下载限制', () => {
+  it('收到响应头后正文停顿仍触发总超时并关闭请求', async () => {
+    vi.stubEnv('ALLOW_PRIVATE_FETCH', '1')
+    let sentHeaders!: () => void
+    const headersReady = new Promise<void>(resolve => { sentHeaders = resolve })
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { 'Content-Type': 'text/html' })
+      response.write('<p>')
+      sentHeaders()
+      // 故意不结束正文；服务端由测试 finally 关闭。
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = server.address() as { port: number }
+      const result = fetchHtml(`http://127.0.0.1:${address.port}/`, { timeoutMs: 300 }).then(value => value, error => error as Error)
+      await headersReady
+      expect(await result).toMatchObject({ message: expect.stringContaining('请求超时') })
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>(resolve => server.close(() => resolve()))
+    }
+  })
+
+  it.each([undefined, '1'])('正文实际超限时取消读取，声明长度为 %s', async declared => {
+    vi.stubEnv('ALLOW_PRIVATE_FETCH', '1')
+    const cancel = vi.fn()
+    let sent = 0
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) { controller.enqueue(new Uint8Array(++sent === 1 ? MAX_HTML_BYTES : 1)) },
+      cancel,
+    }, { highWaterMark: 0 })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(stream, {
+      headers: declared ? { 'Content-Length': declared } : {},
+    })))
+    await expect(fetchHtml('http://127.0.0.1/')).rejects.toThrow('16 MiB')
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(sent).toBe(2)
+  })
+
+  it('正常页面保留编码、内容和来源信息，声明超限则不读取正文', async () => {
+    vi.stubEnv('ALLOW_PRIVATE_FETCH', '1')
+    const fetch = vi.fn().mockResolvedValueOnce(new Response('<p>正常正文</p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } }))
+    vi.stubGlobal('fetch', fetch)
+    await expect(fetchHtml('http://127.0.0.1/book')).resolves.toMatchObject({ html: '<p>正常正文</p>', encoding: 'utf-8', finalUrl: 'http://127.0.0.1/book' })
+    const cancel = vi.fn(), pull = vi.fn()
+    fetch.mockResolvedValueOnce(new Response(new ReadableStream({ pull, cancel }, { highWaterMark: 0 }), { headers: { 'Content-Length': String(MAX_HTML_BYTES + 1) } }))
+    await expect(fetchHtml('http://127.0.0.1/')).rejects.toThrow('16 MiB')
+    expect(pull).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('scraper 标准代理解析', () => {
   it('HTTPS_PROXY 优先于后台开发代理', () => {

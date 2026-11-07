@@ -6,6 +6,43 @@ import { describeError, outboundFetch, resolveOutboundProxy, shouldBypassProxy, 
 
 export { shouldBypassProxy }
 
+export const MAX_HTML_BYTES = 16 * 1024 * 1024
+
+/** 限制实际解压后的字节数；声明长度缺失或不可信时也不能无限读入内存。 */
+async function readHtmlBytes(response: Response, signal: AbortSignal): Promise<Uint8Array> {
+  if (Number(response.headers.get('content-length')) > MAX_HTML_BYTES) {
+    void response.body?.cancel().catch(() => {})
+    throw new Error('页面超过 16 MiB 大小限制')
+  }
+  const reader = response.body?.getReader()
+  if (!reader) return new Uint8Array()
+  const abort = () => { void reader.cancel(signal.reason).catch(() => {}) }
+  signal.addEventListener('abort', abort, { once: true })
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    for (;;) {
+      signal.throwIfAborted()
+      const { done, value } = await reader.read()
+      signal.throwIfAborted()
+      if (done) break
+      size += value.byteLength
+      if (size > MAX_HTML_BYTES) throw new Error('页面超过 16 MiB 大小限制')
+      chunks.push(value)
+    }
+    const bytes = new Uint8Array(size)
+    let offset = 0
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+    return bytes
+  } catch (error) {
+    void reader.cancel().catch(() => {})
+    throw error
+  } finally {
+    signal.removeEventListener('abort', abort)
+    reader.releaseLock()
+  }
+}
+
 export const FETCH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
   Accept: 'text/html,application/xhtml+xml',
@@ -66,6 +103,7 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   let res: Response
+  let bytes: Uint8Array
   try {
     const headers = new Headers(FETCH_HEADERS)
     if (opts.headers) {
@@ -81,18 +119,18 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
       forceProxy: opts.forceProxy,
       proxyConfig: proxyOverrides(opts),
     })
+    if (!res.ok) {
+      void res.body?.cancel().catch(() => {})
+      throw new Error(`HTTP ${res.status} — ${url}`)
+    }
+    bytes = await readHtmlBytes(res, controller.signal)
   } catch (err) {
-    clearTimeout(timeout)
-    if ((err as Error).name === 'AbortError') throw new Error(`请求超时 (${Math.round(timeoutMs / 1000)}s): ${url}`)
+    if (controller.signal.aborted || (err as Error).name === 'AbortError') throw new Error(`请求超时 (${Math.round(timeoutMs / 1000)}s): ${url}`)
     if (proxyUrl) throw new Error(`代理请求失败: ${describeError(err)}`)
     throw err
+  } finally {
+    clearTimeout(timeout)
   }
-  clearTimeout(timeout)
-
-  if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`)
-
-  const arrayBuffer = await res.arrayBuffer()
-  const bytes = new Uint8Array(arrayBuffer)
 
   let encoding: string | null = null
   const contentType = res.headers.get('Content-Type') || ''
