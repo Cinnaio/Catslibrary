@@ -108,13 +108,15 @@
   white-space: nowrap;
 }
 
-.pagination__page-size [data-slot='select-trigger'] {
+.pagination__page-size [data-slot='select-trigger'],
+.pagination__page-size-placeholder {
   min-width: var(--pagination-page-size-width);
 }
 
 /* panel 与 detached 都使用分页紧凑高度，覆盖后台通用按钮的 40px 高度。 */
 .pagination .pagination__controls > [data-slot='button'][data-size],
-.pagination__page-size [data-slot='select-trigger'] {
+.pagination__page-size [data-slot='select-trigger'],
+.pagination__page-size-placeholder {
   height: var(--pagination-control-size);
   min-height: var(--pagination-control-size);
   padding-block: 0;

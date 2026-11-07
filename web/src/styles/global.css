@@ -4,7 +4,12 @@
    Shared tokens and interaction foundations; page styles are owned by their modules.
    ============================================================ */
 
-@import 'tailwindcss';
+/* Explicit roots prevent docs, fixtures and build artifacts from generating utilities. */
+@import 'tailwindcss' source(none);
+@source '../';
+@source '../../index.html';
+@source not '../**/*.test.{ts,tsx}';
+@source not '../test';
 @import 'tw-animate-css';
 
 @import './tokens.css';

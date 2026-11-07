@@ -8,7 +8,6 @@ import type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
 export type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
 import { normalizePlotTimeoutSeconds, PLOT_TIMEOUT_RESPONSE_GRACE_MS } from '@shared/ai-plot-timeout'
 import type { MemoryRebuildPlan, MemoryRebuildRequest, MemoryKind } from '@shared/story-memory-rebuild'
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { requestReauthentication } from './reauthentication'
 /**
  * API 客户端 —— 类型化 fetch 封装（由 Novel-KV js/api.js 平移）。
@@ -1078,7 +1077,10 @@ export const authApi = {
         false,
         authHeaders(),
       )
-        .then(async (options) => ({ options, response: await startAuthentication({ optionsJSON: options }) }))
+        .then(async (options) => {
+          const { startAuthentication } = await import('@simplewebauthn/browser')
+          return { options, response: await startAuthentication({ optionsJSON: options }) }
+        })
         .then(({ options, response }) =>
           request<{ user: User }>('POST', '/auth/passkeys/login/verify', { challenge: options.challenge, response, remember: persist }, false, authHeaders()),
         )
@@ -1090,11 +1092,13 @@ export const authApi = {
     )
   },
   async reauthenticateWithPasskey(): Promise<{ success: boolean; expiresIn: number }> {
+    const { startAuthentication } = await import('@simplewebauthn/browser')
     const options = await request<import('@simplewebauthn/browser').PublicKeyCredentialRequestOptionsJSON>('POST', '/auth/passkeys/reauth/options', {}, true)
     const response = await startAuthentication({ optionsJSON: options })
     return request<{ success: boolean; expiresIn: number }>('POST', '/auth/passkeys/reauth/verify', { challenge: options.challenge, response }, true)
   },
   async registerPasskey(currentPassword: string, name = ''): Promise<{ passkey: PasskeyItem | null }> {
+    const { startRegistration } = await import('@simplewebauthn/browser')
     const options = await request<import('@simplewebauthn/browser').PublicKeyCredentialCreationOptionsJSON>(
       'POST',
       '/auth/passkeys/register/options',

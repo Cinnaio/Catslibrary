@@ -139,7 +139,7 @@ export const entries: GalleryEntry[] = [
     '后台列表',
     StatusExample,
   ),
-  entry('pagination', '后台分页', 'business', '面板、独立与弹窗变体，含跳页与每页条数。', ['components/shared/Pagination.tsx'], '后台列表 / 弹窗', PaginationExample, [
+  entry('pagination', '后台分页', 'business', '面板、独立与弹窗变体，含跳页与按需加载的每页条数。', ['components/shared/Pagination.tsx', 'components/shared/PaginationPageSize.tsx'], '后台列表 / 弹窗', PaginationExample, [
     'default',
     'loading',
   ]),

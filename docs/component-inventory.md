@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-07 首屏与大目录优化：`Pagination` 保留页码、跳页与页大小契约，`PaginationPageSize` 仅在提供页大小选择时加载 Radix Select；两者共用 `Pagination.css`，展厅仍通过原分页示例覆盖该控件。作品详情的章节筛选、每页 100 章、页码和阅读位置跳转由 `pages/Novel.tsx` 持有，入场与过渡样式归 `novel.module.css`；阅读器沿用已有虚拟列表。组件检查为 108 个组件、278 个源码模块。
+
 2026-11-07 邮件安全配置由 `pages/admin/MailSecuritySettings.tsx` 持有配置读取、密码草稿、队列初始化、回调字段和失败保留；`SecurityCenterTab` 协调统一原因确认、状态刷新及真实投递锁，`MailSettings` 接收相邻配置的忙碌／草稿状态。队列与回调各自使用 Card／PanelHeading／CardContent 标准面板，测试另用独立面板，与 SMTP、站点设置统一；复用 FormField、Input、Button、AdminStatusBadge 与既有异步状态。仅使用 `security-center.module.css` 既有双栏和表单布局，删除专用小标题、状态文字及间距样式，没有新增公共层业务依赖。组件边界检查为 107 个共享／业务组件、275 个生产源码模块。
 
 2026-11-07 邮箱域名黑白名单归 `SecurityPolicyEditor` 持有表单草稿、开关和校验呈现，复用 Card／PanelHeading、FormField、Textarea、Switch 与原保存确认；名单输入区的高度和纵向调整归 `security-center.module.css`。`shared/email-domain-policy.ts` 为 Web 和 API 共用的纯名单解析、规范化及域名匹配逻辑，不引入 UI、请求或存储依赖；事件及队列原因继续由 `security-center-format.ts` 显示。没有新增生产组件，组件边界检查仍为 107 个共享／业务组件、274 个生产源码模块。
@@ -112,6 +114,7 @@
 | `components/shared/FloatingPageTools.tsx` | 通用组合 | 2 | `components/shared/FloatingPageTools.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/FormField.tsx` | 通用组合 | 18 | `components/shared/FormField.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/Pagination.tsx` | 通用组合 | 19 | `components/shared/Pagination.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/PaginationPageSize.tsx` | 通用组合 | 1 | `components/shared/Pagination.css` | 分页的按需页大小控件，无业务取数 |
 | `components/shared/PanelHeading.tsx` | 通用组合 | 8 | `components/shared/PanelHeading.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/ReadingDialog.tsx` | 通用组合 | 2 | `components/shared/ReadingDialog.module.css` | 共享：正文优先的阅读窗及工具栏、正文、编辑框、辅助折叠；业务由调用方传入 |
 | `components/shared/SearchField.tsx` | 通用组合 | 12 | `components/shared/SearchField.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |

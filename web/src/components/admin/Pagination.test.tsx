@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import Pagination from "@/components/shared/Pagination"
@@ -88,6 +88,7 @@ describe('admin Pagination（后台统一分页）', () => {
     expect(screen.getByText('显示 1-25 / 100')).toBeTruthy()
     expect(screen.getByLabelText('每页显示数量')).toBeTruthy()
 
+    await waitFor(() => expect(screen.getByLabelText('每页显示数量')).not.toBeDisabled())
     await userEvent.click(screen.getByLabelText('每页显示数量'))
     await userEvent.click(await screen.findByRole('option', { name: '50 条' }))
     expect(onPageSize).toHaveBeenCalledWith(50)
@@ -116,6 +117,7 @@ describe('admin Pagination（后台统一分页）', () => {
 
   it('未传 options 时下拉使用全站档位，且默认值 15 在可选档位内', async () => {
     render(<Pagination page={1} totalPages={5} onPage={() => {}} pageSize={{ value: ADMIN_DEFAULT_PAGE_SIZE, onChange: () => {} }} />)
+    await waitFor(() => expect(screen.getByLabelText('每页显示数量')).not.toBeDisabled())
     await userEvent.click(screen.getByLabelText('每页显示数量'))
     // 默认值必须在档位里，否则 Select 会显示空白
     expect(await screen.findByRole('option', { name: '15 条' })).toBeTruthy()

@@ -3,13 +3,13 @@
  * plain 用于公开书库，panel/detached/dialog 用于数据面板与浮层；所有形态共享跳转、禁用和页大小契约。
  * 数据请求、URL 同步和账户范围始终留在使用方。
  */
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { DEFAULT_PAGE_SIZE_OPTIONS } from '@/lib/pagination'
 import './Pagination.css'
+
+const PageSizeSelect = lazy(() => import('./PaginationPageSize'))
 
 export interface PaginationPageSize {
   value: number
@@ -69,27 +69,18 @@ export default function Pagination({
         {pageSize ? (
           <div className="pagination__page-size">
             <span>{variant === 'detached' ? '每页行数' : '每页'}</span>
-            <Select
-              disabled={busy}
-              value={String(pageSize.value)}
-              onValueChange={(value) => {
-                if (busy) return
-                pageSize.onChange(Number(value))
-                // 改变每页条数后回到第 1 页：停留在原页码会落在越界区间。
-                if (page !== 1) onPage(1)
-              }}
-            >
-              <SelectTrigger size="sm" aria-label="每页显示数量">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" align="end" sideOffset={4}>
-                {(pageSize.options || DEFAULT_PAGE_SIZE_OPTIONS).map((size) => (
-                  <SelectItem key={size} value={String(size)}>
-                    {size} 条
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Suspense fallback={<Button type="button" variant="outline" size="sm" className="pagination__page-size-placeholder" role="combobox" aria-label="每页显示数量" aria-expanded={false} disabled>{pageSize.value} 条</Button>}>
+              <PageSizeSelect
+                busy={busy}
+                pageSize={pageSize}
+                onChange={(value) => {
+                  if (busy) return
+                  pageSize.onChange(value)
+                  // 改变每页条数后回到第 1 页：停留在原页码会落在越界区间。
+                  if (page !== 1) onPage(1)
+                }}
+              />
+            </Suspense>
           </div>
         ) : null}
 
