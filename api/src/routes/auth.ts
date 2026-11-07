@@ -5,6 +5,7 @@ import { requestSession, sessionResponse, clearSessionCookie, setSessionCookie }
  * /api/auth/* —— 用户账户（由 Novel-KV server/functions/api/auth.js 平移）。
  */
 import { Hono, type Context } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
 import { first, run, withTx } from '../db/query'
@@ -43,6 +44,14 @@ const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, emai
 const LOGIN_USER_COLUMNS = PUBLIC_USER_COLUMNS + ', password_hash, password_salt, password_iterations'
 
 export const authRoutes = new Hono<AuthEnv>()
+const accountBodyLimit = bodyLimit({ maxSize: 16384, onError: c => c.json({ error: '请求过大' }, 413) })
+const avatarBodyLimit = bodyLimit({ maxSize: 1024 * 1024 + 16384, onError: c => c.json({ error: '头像请求过大，文件不能超过 1MB' }, 413) })
+
+// 认证 JSON 保留原有上限；头像额外预留 multipart 开销，文件本身仍限制为 1 MB。
+authRoutes.use('*', (c, next) =>
+  (c.req.method === 'PUT' && c.req.path === '/api/auth/avatar' ? avatarBodyLimit : accountBodyLimit)(c, next),
+)
+
 authRoutes.use('*', async (c, next) => {
   c.header('Cache-Control', 'private, no-store')
   await next()

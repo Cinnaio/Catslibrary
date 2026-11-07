@@ -9,9 +9,8 @@ export async function createSession(db: Db, userId: string, userAgent: string, s
   const token = newToken()
   const tokenHash = await hashToken(token, salt)
   const now = Date.now()
-  // 清理过期会话 + 同设备（同 UA）去重
+  // UA 只用于展示设备名称；不同设备可能完全相同，不能据此撤销有效会话。
   await db.query('DELETE FROM user_sessions WHERE expires_at <= $1', [now])
-  await db.query('DELETE FROM user_sessions WHERE user_id = $1 AND user_agent = $2', [userId, userAgent])
   await db.query(
     `INSERT INTO user_sessions (token_hash, user_id, expires_at, created_at, device_name, user_agent, last_seen_at, reauthenticated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $4, $4)`,

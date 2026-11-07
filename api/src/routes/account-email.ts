@@ -16,7 +16,7 @@ import { SecurityError, requireReason, lockSecurityAdmin } from '../services/sec
 import { requestSession } from '../services/browser-session'
 
 export const accountEmailRoutes = new Hono<AuthEnv>()
-accountEmailRoutes.use('*',bodyLimit({maxSize:16384,onError:c=>c.json({error:'请求过大'},413)}))
+const emailBodyLimit = bodyLimit({ maxSize: 16384, onError: c => c.json({ error: '请求过大' }, 413) })
 accountEmailRoutes.onError((error, c) => {
   if (error instanceof SecurityError) { c.header('Retry-After', String(error.retryAfter)); return c.json({error:error.message,code:error.code},error.status) }
   if (error instanceof AccountError) return c.json({ error: error.message }, error.status)
@@ -55,7 +55,7 @@ accountEmailRoutes.post('/mail-settings/test', requireAdmin(), bodyLimit({ maxSi
   await testMailConnection(body?.revision)
   return c.json({ success: true, message: 'SMTP 连接及认证通过；未发送邮件，实际送达仍需以收件结果为准。' })
 })
-accountEmailRoutes.post('/email/request', requireUser(), async c => {
+accountEmailRoutes.post('/email/request', emailBodyLimit, requireUser(), async c => {
   const body = await c.req.json().catch(() => ({}))
   const user = c.get('user')
   await protectRequest(getDb(), 'verify-email', user.id, clientIpFromContext(c), body.turnstileToken, user.id, requestSession(c))
@@ -65,13 +65,13 @@ accountEmailRoutes.post('/email/request', requireUser(), async c => {
   await issueAccountEmail(getDb(), user.id, email, 'verify-email', user.id, { role: user.role, status: user.status, passwordHash: user.password_hash })
   return c.json({ success: true, message: '验证邮件申请已受理，请稍后查收。确认后需要重新登录。' })
 })
-accountEmailRoutes.post('/email/verify', async c => {
+accountEmailRoutes.post('/email/verify', emailBodyLimit, async c => {
   const body = await c.req.json().catch(() => ({}))
   await limitEmailRequest(getDb(), 'verify:' + String(body.token || '').slice(0, 64), clientIpFromContext(c))
   await consumeAccountEmail(getDb(), body.token, 'verify-email')
   return c.json({ success: true })
 })
-accountEmailRoutes.post('/forgot-password', async c => {
+accountEmailRoutes.post('/forgot-password', emailBodyLimit, async c => {
   const started = Date.now()
   const body = await c.req.json().catch(() => ({}))
   const identifier = typeof body.identifier === 'string' ? body.identifier.trim().toLowerCase().slice(0, 254) : ''
@@ -85,7 +85,7 @@ accountEmailRoutes.post('/forgot-password', async c => {
   await delay(Math.max(0,250-(Date.now()-started)))
   return c.json({ success: true, message: '如果账号已绑定可用邮箱，你将收到密码重置邮件。' })
 })
-accountEmailRoutes.post('/reset-password', async c => {
+accountEmailRoutes.post('/reset-password', emailBodyLimit, async c => {
   const body = await c.req.json().catch(() => ({}))
   await limitEmailRequest(getDb(), 'reset:' + String(body.token || '').slice(0, 64), clientIpFromContext(c))
   await consumeAccountEmail(getDb(), body.token, 'reset-password', body.password)

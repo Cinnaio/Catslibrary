@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, expect, it } from 'vitest'
+import { beforeAll, beforeEach, afterAll, expect, it } from 'vitest'
 import { app } from '../app'
 import { createTestDb, type TestDb } from '../test/db'
 import { setDbForTests } from '../db/pool'
@@ -28,6 +28,11 @@ beforeAll(async () => {
   userId = result.user.id
   Object.assign(web, { 'X-ZZ-Account': userId })
 })
+beforeEach(async () => {
+  // 重复登录用于测试 Cookie/事务，不累计其他用例消耗的请求预算。
+  await t.db.query('DELETE FROM security_counters')
+})
+
 afterAll(async () => {
   setDbForTests(null)
   await t.close()

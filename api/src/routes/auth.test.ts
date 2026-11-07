@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
@@ -11,6 +11,12 @@ beforeAll(async () => {
   setDbForTests(t.db)
   // 放行 app 的 needsSetup 守卫（getDb 走 testOverride，不真正连远端）
   process.env.DATABASE_URL = 'postgres://test/test'
+})
+
+// 各场景共享账号夹具，但不共享请求预算；同一场景内仍执行真实限流。
+beforeEach(async () => {
+  await t.db.query('DELETE FROM security_counters')
+  await t.db.query('DELETE FROM login_failures')
 })
 
 afterAll(async () => {
@@ -78,6 +84,50 @@ describe('auth 端到端（pglite）', () => {
     expect(me.status).toBe(200)
     const meData = await jsonOf<{ user: { username: string } }>(me)
     expect(meData.user.username).toBe('admin')
+  })
+
+  it('相同 UA 的设备可同时登录，撤销其中一个不影响另一个', async () => {
+    const login = () => req('/api/auth/login', {
+      ...json('POST', { username: 'admin', password: 'adminpass123' }),
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'identical-browser-version' },
+    })
+    const first = await jsonOf<AuthResponse>(await login())
+    const second = await jsonOf<AuthResponse>(await login())
+    expect(first.token).not.toBe(second.token)
+    expect((await req('/api/auth/me', json('GET', undefined, first.token))).status).toBe(200)
+    expect((await req('/api/auth/me', json('GET', undefined, second.token))).status).toBe(200)
+    const { sessions } = await jsonOf<{ sessions: Array<{ id: string; current: boolean }> }>(
+      await req('/api/auth/sessions', json('GET', undefined, first.token)),
+    )
+    expect((await req(`/api/auth/sessions?id=${sessions.find(s => s.current)!.id}`, json('DELETE', undefined, first.token))).status).toBe(200)
+    expect((await req('/api/auth/me', json('GET', undefined, first.token))).status).toBe(401)
+    expect((await req('/api/auth/me', json('GET', undefined, second.token))).status).toBe(200)
+  })
+
+  it('头像允许超过 16 KB 直到 1 MB，文件超限与请求超限分别拒绝', async () => {
+    const { token } = await jsonOf<AuthResponse>(await req('/api/auth/login', json('POST', { username: 'admin', password: 'adminpass123' })))
+    const upload = (size: number) => {
+      const png = new Uint8Array(size)
+      png.set(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1sAAAAASUVORK5CYII=', 'base64'))
+      const form = new FormData()
+      form.set('avatar', new Blob([png], { type: 'image/png' }), 'avatar.png')
+      return req('/api/auth/avatar', { method: 'PUT', headers: { Authorization: `Bearer ${token}` }, body: form })
+    }
+    expect((await upload(49_456)).status).toBe(200)
+    expect((await upload(1024 * 1024)).status).toBe(200)
+    const oversized = await upload(1024 * 1024 + 1)
+    expect(oversized.status).toBe(400)
+    expect(await oversized.json()).toMatchObject({ error: '头像不能超过 1MB' })
+    expect((await upload(1024 * 1024 + 32768)).status).toBe(413)
+    const stored = await t.db.query<{ size: number }>('SELECT octet_length(data) AS size FROM user_avatars')
+    expect(stored.rows).toEqual([{ size: 1024 * 1024 }])
+  })
+
+  it('邮件和普通认证请求仍保留 16 KB 上限', async () => {
+    for (const path of ['/email/request', '/email/verify', '/forgot-password', '/reset-password', '/login']) {
+      const response = await req('/api/auth' + path, json('POST', { padding: 'x'.repeat(16384) }))
+      expect(response.status, path).toBe(413)
+    }
   })
 
   it('已验证邮箱支持大小写和首尾空格，仍需密码且返回真实用户名', async () => {
@@ -205,13 +255,14 @@ describe('auth 端到端（pglite）', () => {
     }
   })
 
-  it('登录失败 10 次后触发限流 429', async () => {
-    let lastStatus = 0
-    for (let i = 0; i < 11; i++) {
+  it('同一账号超过默认六次请求预算后触发限流 429', async () => {
+    for (let i = 0; i < 6; i++) {
       const res = await req('/api/auth/login', json('POST', { username: 'nobody', password: 'badpass' }))
-      lastStatus = res.status
+      expect(res.status).toBe(401)
     }
-    expect(lastStatus).toBe(429)
+    const limited = await req('/api/auth/login', json('POST', { username: 'nobody', password: 'badpass' }))
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toMatchObject({ code: 'security_rate_limited' })
   })
 
   it('轮换用户名无法绕过 IP 维度限流', async () => {
@@ -223,7 +274,7 @@ describe('auth 端到端（pglite）', () => {
         body: JSON.stringify(body),
       })
       let lastStatus = 0
-      // 每次换用户名：用户名维度（10 次）永不触发，只能靠 IP 维度（30 次）拦截
+      // 每次换用户名仍须受 IP 请求预算及登录失败次数保护。
       for (let i = 0; i < 31; i++) {
         const res = await req('/api/auth/login', withIp({ username: `ipuser${i}`, password: 'badpass' }))
         lastStatus = res.status
