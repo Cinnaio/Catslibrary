@@ -19,7 +19,12 @@ import styles from './mail-settings.module.css'
 const draftFrom = (value: Settings): MailSettingsInput => ({ revision: value.revision, host: value.host, port: value.port,
   security: value.security, username: value.username, password: '', clearPassword: false, from: value.from, publicOrigin: value.publicOrigin })
 
-export default function MailSettings({ active = true, onBusyChange }: { active?: boolean; onBusyChange?: (busy: boolean) => void }) {
+export default function MailSettings({ active = true, onBusyChange, onDirtyChange, onStatusChange }: {
+  active?: boolean
+  onBusyChange?: (busy: boolean) => void
+  onDirtyChange?: (dirty: boolean) => void
+  onStatusChange?: () => void
+}) {
   const titleId = useId()
   const deliveryTitleId = useId()
   const clearId = useId()
@@ -35,6 +40,8 @@ export default function MailSettings({ active = true, onBusyChange }: { active?:
   const [readAt, setReadAt] = useState<Date | null>(null)
   const revision = useRef(0)
   const inFlight = useRef(false)
+  const statusChangeRef = useRef(onStatusChange)
+  statusChangeRef.current = onStatusChange
   const dirty = Boolean(status && draft && JSON.stringify(draft) !== JSON.stringify(draftFrom(status)))
   const load = useCallback(async () => {
     if (inFlight.current) return
@@ -47,6 +54,7 @@ export default function MailSettings({ active = true, onBusyChange }: { active?:
       // 仅初读、无修改刷新及明确撤销时读取；读取期间禁用编辑。
       setStatus(next); setDraft(draftFrom(next))
       setReadAt(new Date())
+      statusChangeRef.current?.()
     } catch (error) {
       if (request === revision.current) setError(error instanceof Error ? error.message : '邮件配置读取失败')
     } finally {
@@ -55,6 +63,7 @@ export default function MailSettings({ active = true, onBusyChange }: { active?:
   }, [])
   useEffect(() => { void load(); return () => { revision.current++; inFlight.current = false } }, [load])
   useEffect(() => { onBusyChange?.(busy || loading) }, [busy, loading, onBusyChange])
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
   useEffect(() => {
     if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
@@ -75,6 +84,7 @@ export default function MailSettings({ active = true, onBusyChange }: { active?:
       const next = await authApi.saveMailSettings({...draft,reason:reason.trim()})
       setReason('')
       setStatus(next); setDraft(draftFrom(next)); setReadAt(new Date())
+      statusChangeRef.current?.()
       toast('邮件配置已保存并立即生效', 'success')
     } catch (error) { setActionError(error instanceof Error ? error.message : '保存失败，草稿已保留') }
     finally { inFlight.current = false; setBusy(false) }
@@ -89,7 +99,7 @@ export default function MailSettings({ active = true, onBusyChange }: { active?:
   async function discard() {
     if (inFlight.current) return
     if (status) setDraft(draftFrom(status))
-    setActionError(''); setTestMessage(''); await load()
+    setActionError(''); setTestMessage(''); setReason(''); await load()
   }
 
   const localOutbox = status?.mode === 'outbox'

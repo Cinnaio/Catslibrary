@@ -1,8 +1,12 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { DEFAULT_SECURITY_POLICY, type SecurityOverview } from '@shared/security'
+// jsdom 缺少 Radix Select 使用的指针捕获接口。
+Element.prototype.hasPointerCapture = () => false
+Element.prototype.setPointerCapture = () => {}
+Element.prototype.releasePointerCapture = () => {}
 const mock = vi.hoisted(() => ({ request: vi.fn(), toast: vi.fn(), user: { id: 'root', role: 'super_admin' } }))
 vi.mock('@/lib/api', () => ({
   request: mock.request,
@@ -64,7 +68,7 @@ function show(view = 'overview') {
 it('普通管理员只看到邮件与事件，不读取概览和策略', async () => {
   mock.user = { id: 'manager', role: 'admin' }
   show('mail')
-  await screen.findByText('没有符合条件的记录')
+  await screen.findByText('还没有邮件记录')
   expect(screen.getAllByRole('tab')).toHaveLength(2)
   expect(screen.queryByRole('tab', { name: '防护策略' })).not.toBeInTheDocument()
   expect(mock.request.mock.calls.every((call) => call[1].includes('/mail?'))).toBe(true)
@@ -73,9 +77,9 @@ it('读取失败提供重试，不显示成空列表', async () => {
   mock.request.mockRejectedValueOnce(new Error('记录读取失败'))
   show('mail')
   await screen.findByRole('button', { name: /重试/ })
-  expect(screen.queryByText('没有符合条件的记录')).not.toBeInTheDocument()
+  expect(screen.queryByText('还没有邮件记录')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: /重试/ }))
-  await screen.findByText('没有符合条件的记录')
+  await screen.findByText('还没有邮件记录')
 })
 it('切换分区保留策略与邮件配置草稿', async () => {
   const user = userEvent.setup()
@@ -114,4 +118,65 @@ it('切换账号清除旧记录与策略草稿', async () => {
   )
   await waitFor(() => expect(screen.queryByLabelText('每日总预算')).not.toBeInTheDocument())
   expect(screen.getAllByRole('tab')).toHaveLength(2)
+})
+
+it('无效预算不能进入保存确认，修正后仍使用原策略草稿', async () => {
+  show('policy')
+  await screen.findByLabelText('每日总预算')
+  fireEvent.change(screen.getByLabelText('每日应急预留'), { target: { value: '80' } })
+  expect(screen.getByRole('button', { name: '保存策略' })).toBeDisabled()
+  expect(screen.getByText('应急预留须小于每日总预算')).toBeInTheDocument()
+  expect(mock.request.mock.calls.every((call) => call[0] === 'GET')).toBe(true)
+  fireEvent.change(screen.getByLabelText('每日总预算'), { target: { value: '100' } })
+  fireEvent.click(screen.getByRole('button', { name: '保存策略' }))
+  expect(screen.getByRole('dialog')).toHaveTextContent('保存防护策略')
+})
+it('邮件详情先显示加载，关闭后忽略迟到响应并恢复入口焦点', async () => {
+  const user = userEvent.setup()
+  const record = {
+    id: 'mail-fixture',
+    recipient_hint: 'a***@example.test',
+    purpose: 'reset-password',
+    state: 'unknown',
+    emergency: false,
+    attempts: 1,
+    error_code: 'smtp_unknown',
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    user_id: 'reader',
+    provider_id: '',
+    transport: 'smtp',
+  }
+  let finish!: (value: unknown) => void
+  mock.request.mockImplementation(async (_method: string, path: string) =>
+    path.endsWith('/mail/mail-fixture')
+      ? await new Promise((resolve) => {
+          finish = resolve
+        })
+      : { items: [record], total: 1 },
+  )
+  show('mail')
+  const trigger = await screen.findByRole('button', { name: '查看' })
+  await user.click(trigger)
+  expect(screen.getByRole('dialog')).toHaveTextContent('读取投递过程')
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '关闭' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  await waitFor(() => expect(trigger).toHaveFocus())
+  finish({ attempts: [], events: [] })
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+it('账号验证例外限制为邮箱绑定，禁止选择邮箱验证豁免', async () => {
+  const user = userEvent.setup()
+  show('restrictions')
+  await screen.findByText('暂无生效中的规则')
+  await user.click(screen.getByRole('button', { name: '新增规则' }))
+  await user.click(screen.getByLabelText('处理方式'))
+  expect(screen.getByRole('option', { name: '仅豁免人机验证' })).toHaveAttribute('aria-disabled', 'true')
+  await user.keyboard('{Escape}')
+  await user.click(screen.getByLabelText('目标类型'))
+  await user.click(screen.getByRole('option', { name: '账号 ID' }))
+  await user.click(screen.getByLabelText('处理方式'))
+  await user.click(screen.getByRole('option', { name: '仅豁免人机验证' }))
+  expect(screen.getByLabelText('适用场景')).toBeDisabled()
+  expect(screen.getByLabelText('适用场景')).toHaveTextContent('绑定与更换邮箱')
 })

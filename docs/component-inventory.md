@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-07 安全中心界面统一：`SecurityCenterTab` 保留视图、请求、草稿、权限及操作确认；`SecurityOverviewPanel` 持有用量与异常呈现，`SecurityPolicyEditor` 持有策略分组和即时字段校验，`security-center-format.ts` 集中维护显示文案，不引入共享层业务依赖。复用默认 Tabs、AdminToolbar、SearchSelect、AdminDataPanel、PanelHeading、FormField 与 DialogFrame；双栏、键值信息及手机布局归 `security-center.module.css`，不重绘共享导航、表单控件或状态皮肤。邮件配置通过状态／草稿回调与安全中心协作，旧站点入口继续可用。组件边界检查为 107 个共享／业务组件、274 个生产源码模块。
+
 2026-11-07 安全与风控六视图由 `pages/admin/SecurityCenterTab.tsx` 与 `security-center.module.css` 持有；邮件配置沿用 `MailSettings`，共享字段、Tabs、表格、异步状态、DialogFrame 和保存条维护各自外观。`SecurityChallengeDialog` 是应用级账号验证场景，协议协调在 `lib/security-challenge.ts`；验证码脚本加载统一归 `lib/turnstile.ts`，成人验证与配置测试共用，不从成人弹窗导入业务样式。共享 UI 不新增账号或 API 依赖。
 
 2026-11-07 书籍导入的外框、步骤、来源表单、文件摘要、ZIP 书单与底部布局由 `components/admin/BookImportDialog.module.css` 持有；移除 `styles/book-import.css` 中对应规则，后者继续维护差异核对、解析诊断与导入历史。复用共享 DialogFrame、Tabs、Button 及字段控件，预览、匹配、确认和撤回仍由导入场景持有，不增加共享层业务依赖。

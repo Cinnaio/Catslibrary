@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { RefreshCw, ShieldCheck } from 'lucide-react'
+import { RefreshCw, ShieldCheck, Mail, Plus, CirclePlus, ChevronDown, Check, Ban } from 'lucide-react'
 import { request } from '@/lib/api'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useSession } from '@/context/SessionContext'
 import { useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminDataPanel } from '@/components/admin/AdminDataPanel'
-import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { AdminToolbar } from '@/components/admin/AdminToolbar'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import AdminRowActions, { type AdminRowActionItem } from '@/components/admin/AdminRowActions'
+import { PanelHeading } from '@/components/shared/PanelHeading'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { Spinner } from '@/components/ui/spinner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { DialogFrame, DialogBody } from '@/components/shared/DialogFrame'
 import FormField from '@/components/shared/FormField'
 import { SearchField } from '@/components/shared/SearchField'
+import SearchSelect from '@/components/shared/SearchSelect'
 import Pagination from '@/components/shared/Pagination'
 import EmptyState from '@/components/shared/EmptyState'
 import { ErrorState, InlineError, LoadingState } from '@/components/shared/AsyncStates'
@@ -32,42 +37,32 @@ import {
   type SecurityRestriction,
 } from '@shared/security'
 import MailSettings from './MailSettings'
+import SecurityOverviewPanel from './SecurityOverviewPanel'
+import SecurityPolicyEditor from './SecurityPolicyEditor'
+import {
+  mailStateLabels as stateLabels,
+  outcomeLabels as outcomes,
+  purposeLabels,
+  targetLabels,
+  callbackLabels,
+  securityReason,
+  statusTone,
+  securityDate as date,
+} from './security-center-format'
 import styles from './security-center.module.css'
 
 const views = { overview: '安全概览', service: '邮件服务', policy: '防护策略', mail: '邮件记录', events: '风控事件', restrictions: '封禁与例外' } as const
+const viewDescriptions = {
+  overview: '查看邮件额度、投递状态与需要处理的异常。',
+  service: '配置邮件连接、发件身份，检查实际投递。',
+  policy: '设置邮件预算、请求频率和各场景的验证方式。',
+  mail: '按收件人查看申请与投递，未知结果请核对后处理。',
+  events: '查看防护决策，同一来源与规则按 15 分钟聚合。',
+  restrictions: '管理生效中的限制与验证例外，规则到期后自动解除。',
+} as const
 type View = keyof typeof views
-const stateLabels: Record<string, string> = {
-  queued: '待发送',
-  sending: '发送中',
-  accepted: '服务商已受理',
-  delivered: '收件服务器已接收',
-  unknown: '结果待核实',
-  failed: '失败',
-  expired: '已过期',
-  cancelled: '已取消',
-  bounced: '永久退信',
-  complained: '投诉',
-}
-const outcomes: Record<string, string> = { blocked: '已拦截', observed: '观察命中', suppressed: '已停发' }
-const purposeLabels: Record<string, string> = { 'verify-email': '验证邮箱', 'reset-password': '找回密码', test: '投递测试' }
-const date = (n: number) => (n ? new Date(Number(n)).toLocaleString('zh-CN') : '暂无记录')
-const numericFields: Array<[keyof SecurityPolicy, string, string]> = [
-  ['daily', '每日总预算', '按 UTC 自然日重置，含应急额度'],
-  ['monthly', '每月总预算', '按 UTC 自然月重置'],
-  ['reserveDaily', '每日应急预留', '只供管理员核实后的恢复操作'],
-  ['reserveMonthly', '每月应急预留', '公开申请无法使用'],
-  ['hourly', '普通发送每小时上限', '限制短时间消耗'],
-  ['cooldownSeconds', '账号冷却秒数', '重复请求合并，不替换有效链接'],
-  ['accountQuarterHour', '账号每 15 分钟上限', '跨 IP 累计'],
-  ['accountDaily', '账号每天上限', '滚动 24 小时'],
-  ['recipientDaily', '收件邮箱每天上限', '跨账号累计'],
-  ['newAccountDaily', '新账号每天上限', '注册后 24 小时内适用'],
-  ['ipQuarterHour', 'IP 每 15 分钟请求上限', '按登录、注册与邮件用途分别计数'],
-  ['identifierQuarterHour', '标识每 15 分钟请求上限', '包括不存在的账号'],
-  ['retentionDays', '详细记录保留天数', '1–180 天，过期后自动清理'],
-]
 type Rows = { items: MailRecord[] | SecurityEvent[] | SecurityRestriction[]; total: number }
-type Operation = { title: string; description: string; run: (reason: string) => Promise<unknown> }
+type Operation = { title: string; description: string; target?: string; run: (reason: string) => Promise<unknown> }
 
 export default function SecurityCenterTab() {
   const { user } = useSession()
@@ -86,8 +81,10 @@ function SecurityCenterContent() {
   const [rowView, setRowView] = useState<View>(view)
   const detailRevision = useRef(0)
   const detailTrigger = useRef<HTMLElement | null>(null)
+  const navigationRef = useRef<HTMLDivElement>(null)
   const [serviceVisited, setServiceVisited] = useState(view === 'service')
   const [serviceBusy, setServiceBusy] = useState(false)
+  const [serviceDirty, setServiceDirty] = useState(false)
   useEffect(() => {
     if (view === 'service') setServiceVisited(true)
   }, [view])
@@ -102,10 +99,13 @@ function SecurityCenterContent() {
     [reason, setReason] = useState(''),
     [busy, setBusy] = useState(false),
     [actionError, setActionError] = useState('')
+  const [restrictionOpen, setRestrictionOpen] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
   const [restrictionForm, setRestrictionForm] = useState({ kind: 'email', value: '', action: 'all', effect: 'block', hours: 24 })
   const [reconcile, setReconcile] = useState({ daily: 0, monthly: 0 })
   const [detail, setDetail] = useState<{
-    id: string
+    record: MailRecord
     attempts: Array<{ attempt: number; outcome: string; code: string; created_at: number }>
     events: Array<{ kind: string; occurred_at: number }>
   } | null>(null)
@@ -116,9 +116,12 @@ function SecurityCenterContent() {
   savedRef.current = overview?.policy
   const dirty = Boolean(draft && overview && JSON.stringify(draft) !== JSON.stringify(overview.policy))
   const listView = ['mail', 'events', 'restrictions'].includes(view)
+  const transitioning = loading || (view === 'mail' && query !== search)
   const visibleRows: Rows = rowView === view ? rows : { items: [], total: 0 }
   useEffect(() => {
     setDetail(null)
+    setDetailError('')
+    setDetailLoading(false)
     setOperation(null)
     return () => {
       detailRevision.current++
@@ -185,8 +188,12 @@ function SecurityCenterContent() {
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
   const operationTrigger = useRef<HTMLElement | null>(null)
-  function ask(next: Operation) {
-    operationTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  function restoreFocus(target: HTMLElement | null) {
+    if (target?.isConnected && !target.closest('[hidden], [inert]')) target.focus()
+    else navigationRef.current?.querySelector<HTMLElement>('[data-state="active"]')?.focus()
+  }
+  function ask(next: Operation, trigger?: HTMLElement | null) {
+    operationTrigger.current = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     setReason('')
     setActionError('')
     setOperation(next)
@@ -209,480 +216,513 @@ function SecurityCenterContent() {
   function setValue<K extends keyof SecurityPolicy>(key: K, value: SecurityPolicy[K]) {
     setDraft((p) => p && { ...p, [key]: value })
   }
-  async function showDetail(id: string) {
-    detailTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const revision = ++detailRevision.current
-    setError('')
+  async function showDetail(record: MailRecord, retry = false) {
+    if (!retry) detailTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const id = ++detailRevision.current
+    setDetail({ record, attempts: [], events: [] })
+    setDetailLoading(true)
+    setDetailError('')
     try {
-      const d = await request<Omit<NonNullable<typeof detail>, 'id'>>('GET', `/admin/security/mail/${encodeURIComponent(id)}`, null, true)
-      if (revision === detailRevision.current) setDetail({ id, ...d })
+      const result = await request<Omit<NonNullable<typeof detail>, 'record'>>('GET', `/admin/security/mail/${encodeURIComponent(record.id)}`, null, true)
+      if (id === detailRevision.current) setDetail({ record, ...result })
     } catch (e) {
-      if (revision === detailRevision.current) setError((e as Error).message)
+      if (id === detailRevision.current) setDetailError((e as Error).message)
+    } finally {
+      if (id === detailRevision.current) setDetailLoading(false)
     }
   }
+  function navigateView(value: View) {
+    const next = new URLSearchParams(params)
+    next.set('view', value)
+    setParams(next)
+  }
+  function mailActions(row: MailRecord): AdminRowActionItem[] {
+    const confirm = (operation: Operation) => ask(operation, document.getElementById('mail-detail-' + row.id))
+    if (!superAdmin) return []
+    if (row.state === 'queued')
+      return [
+        {
+          label: '取消待发邮件',
+          icon: Ban,
+          danger: true,
+          onSelect: () =>
+            confirm({
+              title: '取消待发邮件',
+              target: `${row.recipient_hint} · ${purposeLabels[row.purpose] || row.purpose}`,
+              description: '尚未尝试发送的任务将归还预占额度；曾尝试发送的任务保守保留额度。',
+              run: (reason) => request('POST', `/admin/security/mail/${row.id}/cancel`, { reason }, true),
+            }),
+        },
+      ]
+    if (row.state === 'unknown')
+      return [
+        {
+          label: '已核实受理',
+          icon: Check,
+          onSelect: () =>
+            confirm({
+              title: '确认服务商已受理',
+              target: row.recipient_hint,
+              description: '仅在核对服务商记录后确认。此操作保留额度，不会再次发送邮件。',
+              run: (reason) => request('POST', `/admin/security/mail/${row.id}/resolve`, { state: 'accepted', reason }, true),
+            }),
+        },
+        {
+          label: '已核实失败',
+          icon: Ban,
+          danger: true,
+          onSelect: () =>
+            confirm({
+              title: '确认投递失败',
+              target: row.recipient_hint,
+              description: '此操作会废弃对应邮件链接，保守保留已占用额度。核实失败后可重新申请邮件。',
+              run: (reason) => request('POST', `/admin/security/mail/${row.id}/resolve`, { state: 'failed', reason }, true),
+            }),
+        },
+      ]
+    return []
+  }
+  const restrictionValid =
+    Boolean(restrictionForm.value.trim()) && Number.isSafeInteger(restrictionForm.hours) && restrictionForm.hours >= 1 && restrictionForm.hours <= 720
   const visibleViews = Object.entries(views).filter(([key]) => superAdmin || ['mail', 'events'].includes(key))
   return (
     <AdminPage
-      title="安全与风控"
-      description="管理账号操作、邮件预算与投递，查看防护决策并处理异常。"
+      title={views[view]}
+      description={`${viewDescriptions[view]}${!superAdmin ? ' 仅显示普通读者关联记录。' : ''}`}
       actions={
-        <Button variant="secondary" disabled={loading || busy} onClick={() => void load()}>
-          <RefreshCw size={14} />
-          刷新
-        </Button>
+        view !== 'service' && !listView ? (
+          <Button variant="secondary" disabled={loading || busy || serviceBusy} onClick={() => void load()}>
+            <RefreshCw size={14} aria-hidden="true" />
+            {loading ? '刷新中…' : '刷新'}
+          </Button>
+        ) : undefined
       }
     >
-      <Tabs
-        value={view}
-        onValueChange={(value) => {
-          const next = new URLSearchParams(params)
-          next.set('view', value)
-          setParams(next)
-        }}
-      >
-        <div className={styles.navigation}>
-          <TabsList aria-label="安全中心分区">
-            {visibleViews.map(([key, label]) => (
-              <TabsTrigger key={key} value={key} disabled={busy || serviceBusy}>
-                {label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+      <Tabs ref={navigationRef} className={styles.navigation} value={view} activationMode="manual" onValueChange={(value) => navigateView(value as View)}>
+        <TabsList aria-label="安全中心分区">
+          {visibleViews.map(([key, label]) => (
+            <TabsTrigger key={key} value={key} disabled={busy || serviceBusy}>
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
       </Tabs>
-      {error && <InlineError message={error} />}
+      {error && (listView ? visibleRows.items.length > 0 : Boolean(overview)) && (
+        <InlineError message={`刷新失败：${error}。已保留上次结果。`} onRetry={() => void load()} />
+      )}
       {!listView && loading && !overview ? (
         <LoadingState label="读取安全状态" rows={3} />
       ) : !listView && !overview ? (
         <ErrorState message={error || '安全状态尚未载入'} onRetry={() => void load()} />
       ) : null}
       {view === 'overview' && overview && (
-        <>
-          <div className={styles.metrics}>
-            {[
-              ['今日预占与消耗', `${overview.today} / ${overview.policy.daily}`],
-              ['本月预占与消耗', `${overview.month} / ${overview.policy.monthly}`],
-              ['近一天拦截', overview.blocked],
-              ['待发 / 结果未知', `${overview.queued} / ${overview.unknown}`],
-            ].map(([label, value]) => (
-              <Card key={label}>
-                <CardContent>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          <p className={styles.hint}>
-            统计仅覆盖本站发起的邮件，包含已预占与结果未知的额度，不代表服务商账户剩余额度。普通日额度 {overview.ordinaryToday} /{' '}
-            {overview.policy.daily - overview.policy.reserveDaily}；下次日重置 {date(overview.nextResetAt)}。
-          </p>
-          <Card>
-            <CardHeader>
-              <CardTitle>核对外部用量</CardTitle>
-            </CardHeader>
-            <CardContent className={styles.stack}>
-              <p className={styles.hint}>
-                如有其他项目共用额度或刚恢复备份，核对服务商控制台后录入包含待发与结果未知任务的保守总量。仅允许上调；核对不会自动恢复发送。
-              </p>
-              <div className={styles.fields}>
-                <FormField label="今日已用与预占">
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      type="number"
-                      min={overview.today}
-                      value={reconcile.daily}
-                      onChange={(e) => setReconcile((p) => ({ ...p, daily: Number(e.target.value) }))}
-                    />
-                  )}
-                </FormField>
-                <FormField label="本月已用与预占">
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      type="number"
-                      min={overview.month}
-                      value={reconcile.monthly}
-                      onChange={(e) => setReconcile((p) => ({ ...p, monthly: Number(e.target.value) }))}
-                    />
-                  )}
-                </FormField>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  ask({
-                    title: '确认保守用量',
-                    description: '此操作增加额度账本中的消耗，并解除备份恢复核对保护。请确认已包含待发与结果未知的预占额度。',
-                    run: (reason) => request('POST', '/admin/security/budget-reconcile', { ...reconcile, reason }, true),
-                  })
-                }
-              >
-                记录核对结果
-              </Button>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>需要关注</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {overview.alerts.length ? (
-                <ul className={styles.alerts}>
-                  {overview.alerts.map((a) => (
-                    <li key={a.code} data-severity={a.severity}>
-                      <ShieldCheck size={16} />
-                      <span>{a.message}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>当前没有需要处理的告警。</p>
-              )}
-            </CardContent>
-          </Card>
-          <div className={styles.columns}>
-            <Card>
-              <CardHeader>
-                <CardTitle>运行状态</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className={styles.status}>
-                  {[
-                    ['发送状态', overview.policy.paused ? '已暂停' : '允许按策略发送'],
-                    ['邮件服务', overview.mailReady ? '配置就绪' : '待配置'],
-                    ['队列加密', overview.encryptionReady ? '就绪' : '待配置'],
-                    ['人机验证', overview.turnstileReady ? '配置就绪' : '待配置'],
-                    ['回调签名', overview.webhookReady ? '已配置' : '未配置'],
-                    ['工作进程', date(overview.workerAt)],
-                    ['最近回调', date(overview.lastWebhookAt)],
-                  ].map(([k, v]) => (
-                    <div key={k}>
-                      <dt>{k}</dt>
-                      <dd>{v}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <Button
-                  variant="secondary"
-                  disabled={dirty}
-                  onClick={() =>
-                    ask({
-                      title: overview.policy.paused ? '恢复邮件发送' : '暂停邮件发送',
-                      description: '正在发送的任务可能已经提交给服务商；新任务和后续领取将遵守新状态。',
-                      run: async (reason) => {
-                        const p = await request<SecurityPolicy>(
-                          'PUT',
-                          '/admin/security/policy',
-                          { policy: { ...overview.policy, paused: !overview.policy.paused }, reason },
-                          true,
-                        )
-                        setDraft(p)
-                      },
-                    })
-                  }
-                >
-                  {overview.policy.paused ? '恢复发送' : '暂停发送'}
-                </Button>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>近两周申请趋势</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {overview.trend.length ? (
-                  <div className={styles.trend}>
-                    {overview.trend.map((row) => (
-                      <div key={row.day}>
-                        <span>{row.day.slice(5)}</span>
-                        <meter
-                          min={0}
-                          max={Math.max(overview.policy.daily, ...overview.trend.map((x) => x.sent))}
-                          value={row.sent}
-                          aria-label={`${row.day} ${row.sent} 封`}
-                        />
-                        <span>
-                          {row.sent} 封 · 失败 {row.failed}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className={styles.hint}>还没有邮件申请记录。</p>
-                )}
-                <p className={styles.hint}>
-                  近一天：服务商已受理 {overview.accepted}，确认投递 {overview.delivered}，失败或退信 {overview.failed}。
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </>
+        <SecurityOverviewPanel
+          overview={overview}
+          dirty={dirty}
+          busy={busy || loading}
+          reconcile={reconcile}
+          onReconcileChange={setReconcile}
+          onView={navigateView}
+          onReconcile={() =>
+            ask({
+              title: '确认保守用量',
+              target: `今日 ${reconcile.daily} 封 · 本月 ${reconcile.monthly} 封`,
+              description: '此操作增加额度账本中的消耗，并解除备份恢复核对保护。请确认已包含待发与结果未知的预占额度。',
+              run: (reason) => request('POST', '/admin/security/budget-reconcile', { ...reconcile, reason }, true),
+            })
+          }
+          onPause={() =>
+            ask({
+              title: overview.policy.paused ? '恢复邮件发送' : '暂停邮件发送',
+              description: '正在发送的任务可能已经提交给服务商；新任务和后续领取将遵守新状态。',
+              run: async (reason) => {
+                const policy = await request<SecurityPolicy>(
+                  'PUT',
+                  '/admin/security/policy',
+                  { policy: { ...overview.policy, paused: !overview.policy.paused }, reason },
+                  true,
+                )
+                setDraft(policy)
+              },
+            })
+          }
+        />
       )}
       {(serviceVisited || view === 'service') && (
         <div hidden={view !== 'service'} className={styles.service}>
-          <MailSettings active={view === 'service'} onBusyChange={setServiceBusy} />
+          <MailSettings active={view === 'service'} onBusyChange={setServiceBusy} onDirtyChange={setServiceDirty} onStatusChange={load} />
           <Card>
-            <CardHeader>
-              <CardTitle>投递反馈与测试</CardTitle>
-            </CardHeader>
-            <CardContent className={styles.stack}>
-              <p>SMTP 可继续发送；在防护策略中切换至 Resend API 后，可关联投递、退信与投诉事件。两种方式共用已保存的 Resend SMTP 凭据。</p>
-              <p className={styles.hint}>
-                回调地址：<code>/api/security/resend-webhook</code>。签名密钥由服务器的 RESEND_WEBHOOK_SECRET 提供；队列加密使用 MAIL_QUEUE_ENCRYPTION_KEY 或
-                SITE_SETTINGS_ENCRYPTION_KEY。密钥不回传浏览器。服务商域名设置中应关闭账号邮件的打开与点击追踪。
-              </p>
-              <Button
-                variant="secondary"
-                disabled={serviceBusy}
-                onClick={() =>
-                  ask({
-                    title: '发送真实投递测试',
-                    description: '仅向你本人已验证的邮箱发送一封测试邮件，计入普通预算；连接测试不会发信。',
-                    run: (reason) => request('POST', '/admin/security/test-mail', { reason }, true),
-                  })
-                }
-              >
-                发送到我的已验证邮箱
-              </Button>
+            <PanelHeading
+              title="投递反馈与测试"
+              description="连接通过后，可发送一封邮件核对实际投递。"
+              actions={
+                <Button variant="ghost" onClick={() => navigateView('mail')} disabled={serviceBusy}>
+                  查看邮件记录
+                </Button>
+              }
+            />
+            <CardContent className={styles.panelBody}>
+              {overview && (
+                <dl className={styles.status}>
+                  <div>
+                    <dt>当前投递</dt>
+                    <dd>{overview.policy.transport === 'resend' ? 'Resend API' : 'SMTP'}</dd>
+                  </div>
+                  <div>
+                    <dt>队列加密</dt>
+                    <dd>
+                      <AdminStatusBadge tone={overview.encryptionReady ? 'neutral' : 'warning'}>
+                        {overview.encryptionReady ? '已配置' : '待配置'}
+                      </AdminStatusBadge>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>投递回调</dt>
+                    <dd>
+                      <AdminStatusBadge tone={overview.webhookReady ? 'neutral' : 'warning'}>
+                        {overview.webhookReady ? '签名已配置' : '尚未配置'}
+                      </AdminStatusBadge>
+                    </dd>
+                  </div>
+                </dl>
+              )}
+              <div className={styles.testDelivery}>
+                <div>
+                  <p>发送到我的已验证邮箱</p>
+                  <p className={styles.hint}>
+                    {serviceDirty
+                      ? '请先保存邮件配置，再进行真实投递测试。'
+                      : !user?.emailVerified
+                        ? '请先在个人中心完成邮箱验证。'
+                        : overview?.policy.paused
+                          ? '邮件发送已暂停，请先恢复发送。'
+                          : !overview?.mailReady || !overview.encryptionReady
+                            ? '请先完成邮件服务和队列加密配置。'
+                            : '使用已保存配置，仅向你本人发送，计入普通邮件额度。'}
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  disabled={
+                    serviceBusy || serviceDirty || busy || !user?.emailVerified || !overview?.mailReady || !overview.encryptionReady || overview.policy.paused
+                  }
+                  onClick={() =>
+                    ask({
+                      title: '发送真实投递测试',
+                      description: '仅向你本人已验证的邮箱发送一封测试邮件，计入普通预算；连接测试不会发信。',
+                      run: (reason) => request('POST', '/admin/security/test-mail', { reason }, true),
+                    })
+                  }
+                >
+                  <Mail size={14} aria-hidden="true" />
+                  发送测试邮件
+                </Button>
+              </div>
+              <details className={styles.disclosure}>
+                <summary>
+                  投递方式与服务器配置
+                  <ChevronDown size={14} aria-hidden="true" />
+                </summary>
+                <div className={styles.disclosureBody}>
+                  <p>
+                    在防护策略中选择 SMTP 或 Resend API。Resend API 使用已保存的 Resend 邮件凭据，配置回调后可关联投递、退信和投诉；普通 SMTP
+                    受理不代表邮件已送达。
+                  </p>
+                  <dl className={styles.technical}>
+                    <div>
+                      <dt>回调地址</dt>
+                      <dd>
+                        <code>/api/security/resend-webhook</code>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>回调签名密钥</dt>
+                      <dd>
+                        <code>RESEND_WEBHOOK_SECRET</code>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>队列加密密钥</dt>
+                      <dd>
+                        <code>MAIL_QUEUE_ENCRYPTION_KEY</code>，也可使用已有的 <code>SITE_SETTINGS_ENCRYPTION_KEY</code>
+                      </dd>
+                    </div>
+                  </dl>
+                  <p>密钥由服务器提供，不回传浏览器。账号邮件建议在服务商控制台关闭打开与点击追踪。</p>
+                </div>
+              </details>
             </CardContent>
           </Card>
         </div>
       )}
       {view === 'policy' && draft && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
+        <SecurityPolicyEditor
+          draft={draft}
+          dirty={dirty}
+          busy={busy}
+          turnstileReady={Boolean(overview?.turnstileReady)}
+          onChange={setValue}
+          onDiscard={() => setDraft(overview!.policy)}
+          onSave={() =>
             ask({
               title: '保存防护策略',
               description: '更改立即影响新的请求和待发任务。观察模式只记录人机验证命中，额度与请求限流始终执行。',
               run: async (reason) => {
-                const p = await request<SecurityPolicy>('PUT', '/admin/security/policy', { policy: draft, reason }, true)
-                setDraft(p)
+                const policy = await request<SecurityPolicy>('PUT', '/admin/security/policy', { policy: draft, reason }, true)
+                setDraft(policy)
               },
             })
-          }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle>额度与频率</CardTitle>
-            </CardHeader>
-            <CardContent>
+          }
+        />
+      )}
+      {view === 'restrictions' && restrictionOpen && (
+        <Card>
+          <PanelHeading title="新增规则" description="选择限制对象、场景与有效期。" />
+          <CardContent className={styles.panelBody} hidden={!restrictionOpen} id="security-restriction-form">
+            <form
+              className={styles.stack}
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!restrictionValid) return
+                ask({
+                  title: '保存限制规则',
+                  target: `${restrictionForm.value.trim()} · ${restrictionForm.hours} 小时`,
+                  description: `${restrictionForm.effect === 'block' ? '阻止所选场景的操作' : '仅免除所选场景的人机验证'}，到期自动解除。不会禁用账号的其他功能。`,
+                  run: async (reason) => {
+                    await request('POST', '/admin/security/restrictions', { ...restrictionForm, reason }, true)
+                    setRestrictionForm((p) => ({ ...p, value: '' }))
+                    setRestrictionOpen(false)
+                  },
+                })
+              }}
+            >
               <div className={styles.fields}>
-                {numericFields.map(([key, label, hint]) => (
-                  <FormField key={key} label={label} hint={hint}>
-                    {({ id }) => (
-                      <Input
-                        id={id}
-                        type="number"
-                        min={key.startsWith('reserve') ? 0 : 1}
-                        max={key === 'retentionDays' ? 180 : 100000}
-                        required
-                        value={Number(draft[key])}
-                        onChange={(e) => setValue(key, Number(e.target.value))}
-                      />
-                    )}
-                  </FormField>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className={styles.section}>
-            <CardHeader>
-              <CardTitle>场景验证与投递方式</CardTitle>
-            </CardHeader>
-            <CardContent className={styles.fields}>
-              {SECURITY_ACTIONS.map((action) => (
-                <FormField key={action} label={SECURITY_ACTION_LABELS[action]}>
+                <FormField label="目标类型">
                   {({ id }) => (
                     <Select
-                      value={draft.challenges[action]}
-                      onValueChange={(value) => setValue('challenges', { ...draft.challenges, [action]: value as 'off' | 'observe' | 'enforce' })}
+                      value={restrictionForm.kind}
+                      onValueChange={(kind) =>
+                        setRestrictionForm((p) => ({
+                          ...p,
+                          kind,
+                          value: '',
+                          effect: kind === 'email' ? 'block' : p.effect,
+                          action: kind === 'account' && p.effect === 'allow' ? 'verify-email' : p.action,
+                        }))
+                      }
                     >
                       <SelectTrigger id={id}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="enforce">强制验证</SelectItem>
-                        <SelectItem value="observe">观察命中</SelectItem>
-                        <SelectItem value="off">不要求人机验证</SelectItem>
+                        <SelectItem value="email">收件邮箱</SelectItem>
+                        <SelectItem value="account">账号 ID</SelectItem>
+                        <SelectItem value="ip">IP 地址</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
                 </FormField>
-              ))}
-              <FormField label="投递方式" hint="Resend API 需要已保存的 smtp.resend.com 凭据及回调配置。">
-                {({ id }) => (
-                  <Select value={draft.transport} onValueChange={(v) => setValue('transport', v as 'smtp' | 'resend')}>
-                    <SelectTrigger id={id}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="smtp">SMTP</SelectItem>
-                      <SelectItem value="resend">Resend API · 投递回调</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </FormField>
-              <FormField label="暂停邮件发送">{({ id }) => <Switch id={id} checked={draft.paused} onCheckedChange={(v) => setValue('paused', v)} />}</FormField>
-            </CardContent>
-          </Card>
-          {dirty && (
-            <AdminFloatingDock reserveSpace>
-              <span>防护策略有未保存修改</span>
-              <Button type="button" variant="ghost" onClick={() => setDraft(overview!.policy)}>
-                撤销
-              </Button>
-              <Button type="submit" disabled={busy}>
-                保存策略
-              </Button>
-            </AdminFloatingDock>
-          )}
-        </form>
-      )}
-      {view === 'restrictions' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>新增限时限制或验证例外</CardTitle>
-          </CardHeader>
-          <CardContent className={styles.stack}>
-            <div className={styles.fields}>
-              <FormField label="目标类型">
-                {({ id }) => (
-                  <Select value={restrictionForm.kind} onValueChange={(v) => setRestrictionForm((p) => ({ ...p, kind: v }))}>
-                    <SelectTrigger id={id}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="email">收件邮箱</SelectItem>
-                      <SelectItem value="account">账号 ID</SelectItem>
-                      <SelectItem value="ip">IP 地址</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </FormField>
-              <FormField label="目标值" hint="IP 和邮箱只保存哈希及脱敏摘要。">
-                {({ id }) => (
-                  <Input id={id} value={restrictionForm.value} onChange={(e) => setRestrictionForm((p) => ({ ...p, value: e.target.value }))} maxLength={254} />
-                )}
-              </FormField>
-              <FormField label="处理方式">
-                {({ id }) => (
-                  <Select value={restrictionForm.effect} onValueChange={(v) => setRestrictionForm((p) => ({ ...p, effect: v }))}>
-                    <SelectTrigger id={id}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="block">阻止操作</SelectItem>
-                      <SelectItem value="allow">仅豁免人机验证</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </FormField>
-              <FormField label="适用场景">
-                {({ id }) => (
-                  <Select value={restrictionForm.action} onValueChange={(v) => setRestrictionForm((p) => ({ ...p, action: v }))}>
-                    <SelectTrigger id={id}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部场景</SelectItem>
-                      {SECURITY_ACTIONS.map((a) => (
-                        <SelectItem key={a} value={a}>
-                          {SECURITY_ACTION_LABELS[a]}
+                <FormField label="目标值" hint="IP 和邮箱只保存哈希及脱敏摘要。">
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      required
+                      autoComplete="off"
+                      type={restrictionForm.kind === 'email' ? 'email' : 'text'}
+                      placeholder={restrictionForm.kind === 'email' ? 'reader@example.com' : restrictionForm.kind === 'ip' ? '输入完整 IP 地址' : '输入账号 ID'}
+                      value={restrictionForm.value}
+                      onChange={(e) => setRestrictionForm((p) => ({ ...p, value: e.target.value }))}
+                      maxLength={254}
+                    />
+                  )}
+                </FormField>
+                <FormField label="处理方式">
+                  {({ id }) => (
+                    <Select
+                      value={restrictionForm.effect}
+                      onValueChange={(effect) =>
+                        setRestrictionForm((p) => ({ ...p, effect, action: effect === 'allow' && p.kind === 'account' ? 'verify-email' : p.action }))
+                      }
+                    >
+                      <SelectTrigger id={id}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="block">阻止操作</SelectItem>
+                        <SelectItem value="allow" disabled={restrictionForm.kind === 'email'}>
+                          仅豁免人机验证
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </FormField>
-              <FormField label="有效期（小时）">
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    type="number"
-                    min={1}
-                    max={720}
-                    value={restrictionForm.hours}
-                    onChange={(e) => setRestrictionForm((p) => ({ ...p, hours: Number(e.target.value) }))}
-                  />
-                )}
-              </FormField>
-            </div>
-            <p className={styles.hint}>
-              账号验证例外仅适用于已登录的邮箱绑定，匿名入口可设置限时 IP
-              例外。例外仍遵守请求限流、收件人停发和全站额度；阻止规则优先。服务商退信与投诉产生的停发记录需核实后解除。
-            </p>
-            <Button
-              disabled={!restrictionForm.value.trim()}
-              onClick={() =>
-                ask({
-                  title: '保存限制规则',
-                  description: '规则将在指定时间自动到期，修改不会禁用账号的其他功能。',
-                  run: async (reason) => {
-                    await request('POST', '/admin/security/restrictions', { ...restrictionForm, reason }, true)
-                    setRestrictionForm((p) => ({ ...p, value: '' }))
-                  },
-                })
-              }
-            >
-              添加规则
-            </Button>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormField>
+                <FormField label="适用场景">
+                  {({ id }) => (
+                    <Select
+                      disabled={restrictionForm.kind === 'account' && restrictionForm.effect === 'allow'}
+                      value={restrictionForm.action}
+                      onValueChange={(v) => setRestrictionForm((p) => ({ ...p, action: v }))}
+                    >
+                      <SelectTrigger id={id}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部场景</SelectItem>
+                        {SECURITY_ACTIONS.map((a) => (
+                          <SelectItem key={a} value={a}>
+                            {SECURITY_ACTION_LABELS[a]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormField>
+                <FormField label="有效期（小时）">
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      type="number"
+                      min={1}
+                      max={720}
+                      step={1}
+                      required
+                      value={restrictionForm.hours}
+                      onChange={(e) => setRestrictionForm((p) => ({ ...p, hours: Number(e.target.value) }))}
+                    />
+                  )}
+                </FormField>
+              </div>
+              <p className={styles.hint}>
+                账号验证例外仅适用于已登录的邮箱绑定，匿名入口可设置限时 IP
+                例外。例外仍遵守请求限流、收件人停发和全站额度；阻止规则优先。服务商退信与投诉产生的停发记录需核实后解除。
+              </p>
+              <div className={styles.sectionActions}>
+                <Button type="button" variant="ghost" onClick={() => setRestrictionOpen(false)}>
+                  暂不添加
+                </Button>
+                <Button type="submit" disabled={!restrictionValid}>
+                  添加规则
+                </Button>
+              </div>
+            </form>
           </CardContent>
         </Card>
       )}
       {listView && (
-        <>
-          <div className={styles.toolbar}>
-            {view === 'mail' && (
-              <SearchField label="搜索邮件" placeholder="脱敏邮箱、账号 ID 或任务 ID" value={query} onChange={(e) => setQuery(e.target.value)} />
-            )}
+        <div className={styles.workspace}>
+          <AdminToolbar className={`admin-filter-rail ${styles.toolbar}`} ariaLive="polite">
             {view !== 'restrictions' && (
-              <Select
-                value={filter}
-                onValueChange={(v) => {
-                  setFilter(v)
-                  setPage(1)
-                }}
-              >
-                <SelectTrigger aria-label="记录状态">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  {Object.entries(view === 'mail' ? stateLabels : outcomes).map(([v, label]) => (
-                    <SelectItem key={v} value={v}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                {view === 'mail' && (
+                  <SearchField label="搜索邮件" placeholder="脱敏邮箱、账号 ID 或任务 ID" value={query} onChange={(e) => setQuery(e.target.value)} />
+                )}
+                <SearchSelect
+                  compact
+                  chip
+                  filterChip
+                  leadingIcon={<CirclePlus className="size-[var(--select-filter-chip-icon-size)]" />}
+                  aria-label="记录状态"
+                  value={filter}
+                  onChange={(value) => {
+                    setFilter(value)
+                    setPage(1)
+                  }}
+                  options={[
+                    { value: 'all', label: '全部状态' },
+                    ...Object.entries(view === 'mail' ? stateLabels : outcomes).map(([value, label]) => ({ value, label })),
+                  ]}
+                />
+                {(filter !== 'all' || query) && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setQuery('')
+                      setSearch('')
+                      setFilter('all')
+                      setPage(1)
+                    }}
+                  >
+                    清除筛选
+                  </Button>
+                )}
+              </>
             )}
-          </div>
-          <div className={styles.records} aria-busy={loading} data-transitioning={loading}>
-            {loading && !visibleRows.items.length ? (
-              <LoadingState label="读取记录" rows={3} />
-            ) : error && !visibleRows.items.length ? (
-              <ErrorState message={error} onRetry={() => void load()} />
-            ) : !visibleRows.items.length ? (
-              <EmptyState icon={<ShieldCheck />} message="没有符合条件的记录" hint="调整筛选，或在相关操作发生后刷新。" />
-            ) : (
-              <AdminDataPanel
-                ariaLabel={views[view]}
-                columns={[
-                  { key: 'target', label: '对象', primary: true },
-                  { key: 'result', label: '状态' },
-                  { key: 'time', label: '时间' },
-                  { key: 'action', label: '操作', actions: true },
-                ]}
-              >
-                <Table className="admin-data-table">
+            {view === 'restrictions' && (
+              <Button variant="secondary" onClick={() => setRestrictionOpen(!restrictionOpen)} aria-expanded={restrictionOpen}>
+                {!restrictionOpen && <Plus size={14} aria-hidden="true" />}
+                {restrictionOpen ? '收起表单' : '新增规则'}
+              </Button>
+            )}
+            <div className={styles.toolbarActions}>
+              <span className={styles.hint}>{transitioning ? '正在更新…' : error ? '读取未完成' : `共 ${visibleRows.total} 条`}</span>
+              <Button variant="secondary" size="sm" disabled={loading || busy} onClick={() => void load()}>
+                <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+                {loading ? '刷新中…' : '刷新'}
+              </Button>
+            </div>
+          </AdminToolbar>
+          <div className={styles.records} aria-busy={transitioning}>
+            <AdminDataPanel
+              ariaLabel={views[view]}
+              density="comfortable"
+              columns={[
+                { key: 'target', label: '对象', primary: true },
+                { key: 'result', label: '状态', width: '30%' },
+                { key: 'time', label: '时间', width: '23%' },
+                { key: 'action', label: '操作', actions: true, width: '8.5rem' },
+              ]}
+            >
+              {loading && !visibleRows.items.length ? (
+                <LoadingState label="读取记录" rows={3} />
+              ) : error && !visibleRows.items.length ? (
+                <ErrorState message={error} onRetry={() => void load()} />
+              ) : !visibleRows.items.length ? (
+                <EmptyState
+                  icon={view === 'mail' ? <Mail /> : <ShieldCheck />}
+                  message={
+                    filter !== 'all' || search
+                      ? '没有符合条件的记录'
+                      : view === 'mail'
+                        ? '还没有邮件记录'
+                        : view === 'events'
+                          ? '还没有风控事件'
+                          : '暂无生效中的规则'
+                  }
+                  hint={
+                    filter !== 'all' || search
+                      ? '换一个状态或搜索条件，再查看记录。'
+                      : view === 'mail'
+                        ? '邮箱验证、密码找回和测试邮件将在这里显示。'
+                        : view === 'events'
+                          ? '验证命中、请求拦截和收件人停发会记录在这里。'
+                          : '需要临时限制或验证例外时，可在上方新增规则。'
+                  }
+                  action={
+                    filter !== 'all' || search ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setQuery('')
+                          setSearch('')
+                          setFilter('all')
+                          setPage(1)
+                        }}
+                      >
+                        清除筛选
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                <Table
+                  inert={transitioning || undefined}
+                  className={`admin-data-table admin-data-table--animated${transitioning ? ' admin-data-table--transitioning' : ''}`}
+                >
                   <TableHeader>
                     <TableRow>
-                      <TableHead>对象与用途</TableHead>
-                      <TableHead>状态与原因</TableHead>
-                      <TableHead>时间</TableHead>
+                      <TableHead>{view === 'events' ? '场景与来源' : view === 'mail' ? '收件人及用途' : '限制对象'}</TableHead>
+                      <TableHead>{view === 'events' ? '处理结果' : view === 'mail' ? '投递状态' : '规则与原因'}</TableHead>
+                      <TableHead>{view === 'restrictions' ? '到期时间' : view === 'events' ? '最近发生' : '申请时间'}</TableHead>
                       <TableHead>操作</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -690,85 +730,58 @@ function SecurityCenterContent() {
                     {view === 'mail' &&
                       (visibleRows.items as MailRecord[]).map((row, i) => (
                         <TableRow key={row.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(i, visibleRows.items.length)}ms` }}>
-                          <TableCell data-label="对象" data-primary>
-                            <strong>{row.recipient_hint}</strong>
+                          <TableCell data-label="收件人" data-primary>
+                            <strong className={styles.primary}>{row.recipient_hint}</strong>
                             <small>
-                              {purposeLabels[row.purpose]} · {row.emergency ? '应急预算' : '普通预算'}
-                            </small>
-                            <small>{row.id}</small>
-                          </TableCell>
-                          <TableCell data-label="状态">
-                            {stateLabels[row.state] || row.state}
-                            <small>
-                              {row.error_code || '—'} · 尝试 {row.attempts} 次
+                              {purposeLabels[row.purpose] || row.purpose} · {row.emergency ? '应急预算' : '普通预算'}
                             </small>
                           </TableCell>
-                          <TableCell data-label="时间">{date(row.created_at)}</TableCell>
+                          <TableCell data-label="投递状态">
+                            <div className={styles.cellStack}>
+                              <AdminStatusBadge tone={statusTone(row.state)}>{stateLabels[row.state] || row.state}</AdminStatusBadge>
+                              {row.error_code && <small>{securityReason(row.error_code)}</small>}
+                              {row.attempts > 0 && <small>已尝试 {row.attempts} 次</small>}
+                            </div>
+                          </TableCell>
+                          <TableCell data-label="申请时间">
+                            <time className={styles.recordTime} dateTime={new Date(Number(row.created_at)).toISOString()}>
+                              {date(row.created_at)}
+                            </time>
+                          </TableCell>
                           <TableCell data-label="操作" data-actions>
-                            <Button variant="ghost" onClick={() => void showDetail(row.id)}>
-                              查看过程
-                            </Button>
-                            {superAdmin && row.state === 'queued' && (
-                              <Button
-                                variant="ghost"
-                                onClick={() =>
-                                  ask({
-                                    title: '取消待发邮件',
-                                    description: '尚未尝试发送的任务将归还预占额度；曾尝试发送的任务保守保留额度。',
-                                    run: (reason) => request('POST', `/admin/security/mail/${row.id}/cancel`, { reason }, true),
-                                  })
-                                }
-                              >
-                                取消
+                            <AdminRowActions label={`${row.recipient_hint} · ${purposeLabels[row.purpose] || row.purpose}`} items={mailActions(row)}>
+                              <Button id={'mail-detail-' + row.id} variant="ghost" onClick={() => void showDetail(row)}>
+                                查看
                               </Button>
-                            )}
-                            {superAdmin && row.state === 'unknown' && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  onClick={() =>
-                                    ask({
-                                      title: '确认服务商已受理',
-                                      description: '仅在核对服务商记录后确认。此操作保留额度，不会再次发送邮件。',
-                                      run: (reason) => request('POST', `/admin/security/mail/${row.id}/resolve`, { state: 'accepted', reason }, true),
-                                    })
-                                  }
-                                >
-                                  已核实受理
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  onClick={() =>
-                                    ask({
-                                      title: '确认投递失败',
-                                      description: '此操作会废弃对应邮件链接，保守保留已占用额度。核实失败后可重新申请邮件。',
-                                      run: (reason) => request('POST', `/admin/security/mail/${row.id}/resolve`, { state: 'failed', reason }, true),
-                                    })
-                                  }
-                                >
-                                  已核实失败
-                                </Button>
-                              </>
-                            )}
+                            </AdminRowActions>
                           </TableCell>
                         </TableRow>
                       ))}
                     {view === 'events' &&
                       (visibleRows.items as SecurityEvent[]).map((row, i) => (
                         <TableRow key={row.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(i, visibleRows.items.length)}ms` }}>
-                          <TableCell data-label="对象" data-primary>
-                            {SECURITY_ACTION_LABELS[row.action as keyof typeof SECURITY_ACTION_LABELS] || purposeLabels[row.action] || row.action}
+                          <TableCell data-label="场景与来源" data-primary>
+                            <strong className={styles.primary}>
+                              {SECURITY_ACTION_LABELS[row.action as keyof typeof SECURITY_ACTION_LABELS] || purposeLabels[row.action] || row.action}
+                            </strong>
                             <small>{row.identity_hint || row.target_id || '匿名请求'}</small>
                           </TableCell>
-                          <TableCell data-label="状态">
-                            {outcomes[row.outcome] || row.outcome}
-                            <small>
-                              {row.rule} · {row.count} 次
-                            </small>
+                          <TableCell data-label="处理结果">
+                            <div className={styles.cellStack}>
+                              <AdminStatusBadge tone={statusTone(row.outcome)}>{outcomes[row.outcome] || row.outcome}</AdminStatusBadge>
+                              <small>
+                                {securityReason(row.rule)} · {row.count} 次
+                              </small>
+                              <details className={styles.recordTechnical}>
+                                <summary>规则信息</summary>
+                                <span>
+                                  {row.rule} · 策略版本 {row.policy_revision}
+                                </span>
+                              </details>
+                            </div>
                           </TableCell>
-                          <TableCell data-label="时间">
-                            {date(row.updated_at)}
-                            <small>策略版本 {row.policy_revision}</small>
+                          <TableCell data-label="最近发生">
+                            <time className={styles.recordTime}>{date(row.updated_at)}</time>
                           </TableCell>
                           <TableCell data-label="操作" data-actions>
                             {superAdmin && row.can_restrict_source ? (
@@ -777,15 +790,16 @@ function SecurityCenterContent() {
                                 onClick={() =>
                                   ask({
                                     title: '限制此请求来源',
+                                    target: `${row.identity_hint || '此来源'} · ${SECURITY_ACTION_LABELS[row.action as keyof typeof SECURITY_ACTION_LABELS] || row.action}`,
                                     description: '仅限制此来源在当前场景的请求，24 小时后自动解除；不会禁用目标账号。',
                                     run: (reason) => request('POST', `/admin/security/events/${row.id}/restrict-source`, { reason }, true),
                                   })
                                 }
                               >
-                                限制来源 24 小时
+                                限制来源
                               </Button>
                             ) : (
-                              <span>按 15 分钟聚合</span>
+                              <span className={styles.hint}>{superAdmin ? '—' : '只读记录'}</span>
                             )}
                           </TableCell>
                         </TableRow>
@@ -793,21 +807,30 @@ function SecurityCenterContent() {
                     {view === 'restrictions' &&
                       (visibleRows.items as SecurityRestriction[]).map((row, i) => (
                         <TableRow key={row.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(i, visibleRows.items.length)}ms` }}>
-                          <TableCell data-label="对象" data-primary>
-                            {row.hint}
-                            <small>{row.action === 'all' ? '全部场景' : SECURITY_ACTION_LABELS[row.action]}</small>
+                          <TableCell data-label="限制对象" data-primary>
+                            <strong className={styles.primary}>{row.hint}</strong>
+                            <small>
+                              {targetLabels[row.kind]} · {row.action === 'all' ? '全部场景' : SECURITY_ACTION_LABELS[row.action]}
+                            </small>
                           </TableCell>
-                          <TableCell data-label="状态">
-                            {row.effect === 'block' ? '阻止操作' : '验证例外'}
-                            <small>{row.reason}</small>
+                          <TableCell data-label="规则与原因">
+                            <div className={styles.cellStack}>
+                              <AdminStatusBadge tone={row.effect === 'block' ? 'warning' : 'neutral'}>
+                                {row.effect === 'block' ? '阻止操作' : '验证例外'}
+                              </AdminStatusBadge>
+                              <small>{row.reason}</small>
+                            </div>
                           </TableCell>
-                          <TableCell data-label="时间">到期 {date(row.expires_at)}</TableCell>
+                          <TableCell data-label="到期时间">
+                            <time className={styles.recordTime}>{date(row.expires_at)}</time>
+                          </TableCell>
                           <TableCell data-label="操作" data-actions>
                             <Button
                               variant="ghost"
                               onClick={() =>
                                 ask({
                                   title: '解除限制',
+                                  target: row.hint,
                                   description: '请核实收件地址和请求来源；解除本站停发不会自动移除服务商的停发名单。',
                                   run: (reason) => request('POST', `/admin/security/restrictions/${row.id}/revoke`, { reason }, true),
                                 })
@@ -820,11 +843,20 @@ function SecurityCenterContent() {
                       ))}
                   </TableBody>
                 </Table>
-              </AdminDataPanel>
-            )}
+              )}
+            </AdminDataPanel>
           </div>
-          <Pagination page={page} totalPages={Math.ceil(visibleRows.total / 30)} onPage={setPage} busy={loading} summary={`共 ${visibleRows.total} 条记录`} />
-        </>
+          {visibleRows.total > 0 && (
+            <Pagination
+              variant="detached"
+              page={page}
+              totalPages={Math.ceil(visibleRows.total / 30)}
+              onPage={setPage}
+              busy={transitioning}
+              summary={`第 ${(page - 1) * 30 + 1}–${Math.min(page * 30, visibleRows.total)} 条，共 ${visibleRows.total} 条`}
+            />
+          )}
+        </div>
       )}
       <Dialog
         open={Boolean(operation)}
@@ -836,7 +868,7 @@ function SecurityCenterContent() {
           showCloseButton={!busy}
           onCloseAutoFocus={(e) => {
             e.preventDefault()
-            operationTrigger.current?.focus()
+            restoreFocus(operationTrigger.current)
           }}
           onEscapeKeyDown={(e) => {
             if (busy) e.preventDefault()
@@ -849,9 +881,21 @@ function SecurityCenterContent() {
             <DialogTitle>{operation?.title}</DialogTitle>
             <DialogDescription>{operation?.description}</DialogDescription>
           </DialogHeader>
-          <DialogBody>
+          <DialogBody className={styles.dialogBody}>
+            {operation?.target && <p className={styles.operationTarget}>{operation.target}</p>}
             <FormField label="操作原因" hint="至少 4 字，将记录到管理员操作审计。">
-              {({ id }) => <Input id={id} value={reason} onChange={(e) => setReason(e.target.value)} minLength={4} maxLength={300} disabled={busy} />}
+              {({ id }) => (
+                <Textarea
+                  id={id}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  minLength={4}
+                  maxLength={300}
+                  disabled={busy}
+                  rows={3}
+                  placeholder="简要说明核对结果或调整原因"
+                />
+              )}
             </FormField>
             {actionError && <InlineError message={actionError} />}
           </DialogBody>
@@ -860,6 +904,7 @@ function SecurityCenterContent() {
               取消
             </Button>
             <Button disabled={busy || reason.trim().length < 4} onClick={() => void execute()}>
+              {busy && <Spinner size="sm" aria-hidden="true" />}
               {busy ? '处理中…' : '确认操作'}
             </Button>
           </DialogFooter>
@@ -877,36 +922,153 @@ function SecurityCenterContent() {
         <DialogFrame
           onCloseAutoFocus={(e) => {
             e.preventDefault()
-            detailTrigger.current?.focus()
+            restoreFocus(detailTrigger.current)
           }}
         >
           <DialogHeader>
-            <DialogTitle>投递过程</DialogTitle>
-            <DialogDescription>{detail?.id}</DialogDescription>
+            <DialogTitle>邮件详情</DialogTitle>
+            <DialogDescription>
+              {detail ? `${detail.record.recipient_hint} · ${purposeLabels[detail.record.purpose] || detail.record.purpose}` : '查看投递过程与服务商反馈。'}
+            </DialogDescription>
           </DialogHeader>
-          <DialogBody className={styles.stack}>
-            {detail?.attempts.map((a) => (
-              <p key={a.attempt}>
-                {date(a.created_at)} · 第 {a.attempt} 次 ·{' '}
-                {a.outcome === 'sending'
-                  ? '发送中'
-                  : a.outcome === 'accepted'
-                    ? '已受理'
-                    : a.outcome === 'unknown'
-                      ? '结果未知'
-                      : a.outcome === 'retry'
-                        ? '可重试'
-                        : '拒收'}{' '}
-                {a.code}
-              </p>
-            ))}
-            {detail?.events.map((e, i) => (
-              <p key={i}>
-                {date(e.occurred_at)} · {e.kind}
-              </p>
-            ))}
-            {!detail?.attempts.length && !detail?.events.length && <p>尚无投递尝试或回调记录。</p>}
+          <DialogBody className={styles.dialogBody}>
+            {detail && (
+              <>
+                <dl className={styles.status}>
+                  <div>
+                    <dt>投递状态</dt>
+                    <dd>
+                      <AdminStatusBadge tone={statusTone(detail.record.state)}>{stateLabels[detail.record.state] || detail.record.state}</AdminStatusBadge>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>使用预算</dt>
+                    <dd>{detail.record.emergency ? '应急预算' : '普通预算'}</dd>
+                  </div>
+                  <div>
+                    <dt>投递方式</dt>
+                    <dd>{detail.record.transport === 'resend' ? 'Resend API' : 'SMTP'}</dd>
+                  </div>
+                  <div>
+                    <dt>申请时间</dt>
+                    <dd>{date(detail.record.created_at)}</dd>
+                  </div>
+                  {detail.record.error_code && (
+                    <div>
+                      <dt>结果说明</dt>
+                      <dd>{securityReason(detail.record.error_code)}</dd>
+                    </div>
+                  )}
+                </dl>
+                <section aria-label="投递过程" className={styles.stack}>
+                  <PanelHeading title="投递过程" className={styles.sectionHeading} />
+                  {detailLoading ? (
+                    <LoadingState label="读取投递过程" rows={3} />
+                  ) : detailError ? (
+                    <ErrorState message={detailError} onRetry={() => void showDetail(detail.record, true)} />
+                  ) : (
+                    <dl className={styles.status}>
+                      {[
+                        ...detail.attempts.map((a) => ({
+                          key: `attempt-${a.attempt}`,
+                          at: a.created_at,
+                          label: `第 ${a.attempt} 次发送`,
+                          title:
+                            a.outcome === 'sending'
+                              ? '发送中'
+                              : a.outcome === 'accepted'
+                                ? '已受理'
+                                : a.outcome === 'unknown'
+                                  ? '结果未知'
+                                  : a.outcome === 'retry'
+                                    ? '等待重试'
+                                    : '拒收',
+                          hint: securityReason(a.code),
+                        })),
+                        ...detail.events.map((event, i) => ({
+                          key: `event-${i}`,
+                          at: event.occurred_at,
+                          label: '服务商反馈',
+                          title: callbackLabels[event.kind] || '收到服务商反馈',
+                          hint: '',
+                        })),
+                      ]
+                        .sort((a, b) => Number(a.at) - Number(b.at))
+                        .map((item) => (
+                          <div key={item.key}>
+                            <dt>{item.label}</dt>
+                            <dd>
+                              {item.title}
+                              <time className={styles.hint}>{date(item.at)}</time>
+                              {item.hint && <span className={styles.hint}>{item.hint}</span>}
+                            </dd>
+                          </div>
+                        ))}
+                    </dl>
+                  )}
+                  {!detailLoading && !detailError && !detail.attempts.length && !detail.events.length && (
+                    <p className={styles.hint}>尚无投递尝试或回调记录。</p>
+                  )}
+                </section>
+                <p className={styles.hint}>服务商受理与收件服务器接收分别记录，不能据此判断用户是否阅读。</p>
+                <details className={styles.disclosure}>
+                  <summary>
+                    技术信息
+                    <ChevronDown size={14} aria-hidden="true" />
+                  </summary>
+                  <dl className={`${styles.technical} ${styles.disclosureBody}`}>
+                    <div>
+                      <dt>任务 ID</dt>
+                      <dd>{detail.record.id}</dd>
+                    </div>
+                    <div>
+                      <dt>账号 ID</dt>
+                      <dd>{detail.record.user_id || '未关联'}</dd>
+                    </div>
+                    <div>
+                      <dt>服务商 ID</dt>
+                      <dd>{detail.record.provider_id || '未回传'}</dd>
+                    </div>
+                    <div>
+                      <dt>最后更新</dt>
+                      <dd>{date(detail.record.updated_at)}</dd>
+                    </div>
+                    {detail.record.error_code && (
+                      <div>
+                        <dt>结果代码</dt>
+                        <dd>{detail.record.error_code}</dd>
+                      </div>
+                    )}
+                    {detail.attempts
+                      .filter((a) => a.code)
+                      .map((a) => (
+                        <div key={a.attempt}>
+                          <dt>第 {a.attempt} 次代码</dt>
+                          <dd>{a.code}</dd>
+                        </div>
+                      ))}
+                    {detail.events.map((event, i) => (
+                      <div key={i}>
+                        <dt>服务商事件</dt>
+                        <dd>{event.kind}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
+              </>
+            )}
           </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                detailRevision.current++
+                setDetail(null)
+              }}
+            >
+              关闭
+            </Button>
+          </DialogFooter>
         </DialogFrame>
       </Dialog>
     </AdminPage>
