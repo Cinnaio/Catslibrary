@@ -1,16 +1,20 @@
 import '@/styles/admin/components/floating-dock.css'
-import { useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef, type CSSProperties } from 'react'
+import { useLayoutEffect, useState, type ComponentPropsWithoutRef, type CSSProperties, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
+import { useMotionPresence } from '@/hooks/useMotionPresence'
 
 interface AdminFloatingDockProps extends ComponentPropsWithoutRef<'div'> {
   /** 按实际高度预留空间，保证页尾内容能滚动到操作条上方。 */
   reserveSpace?: boolean | 'page-end'
+  /** 由操作条保留退出画面与占位，调用方不提前卸载。 */
+  open?: boolean
 }
 
 /** 后台共享浮动操作条；业务提供状态、动作和显示周期。保留 DOM 位置以支持原生表单提交。 */
-export default function AdminFloatingDock({ reserveSpace = false, className, children, ...props }: AdminFloatingDockProps) {
-  const dockRef = useRef<HTMLDivElement>(null)
+export default function AdminFloatingDock({ reserveSpace = false, open, className, children, ...props }: AdminFloatingDockProps) {
+  const presence = useMotionPresence(open ?? true)
+  const dockRef = presence.ref
   const [height, setHeight] = useState<number>()
   const [spaceTarget, setSpaceTarget] = useState<Element | null>(null)
 
@@ -24,7 +28,9 @@ export default function AdminFloatingDock({ reserveSpace = false, className, chi
     const observer = new ResizeObserver(measure)
     observer.observe(dock)
     return () => observer.disconnect()
-  }, [reserveSpace])
+  }, [reserveSpace, presence.visible, dockRef])
+
+  if (!presence.visible) return null
 
   const spacer = reserveSpace ? (
     <div
@@ -37,7 +43,9 @@ export default function AdminFloatingDock({ reserveSpace = false, className, chi
   return (
     <>
       {spaceTarget ? createPortal(spacer, spaceTarget) : spacer}
-      <div ref={dockRef} className={cn('admin-floating-dock', className)} {...props}>
+      <div ref={dockRef as Ref<HTMLDivElement>} className={cn('admin-floating-dock', className)} {...props}
+        data-motion-managed={open !== undefined || undefined}
+        inert={presence.inert || props.inert} aria-hidden={presence['aria-hidden'] || props['aria-hidden']}>
         {children}
       </div>
     </>

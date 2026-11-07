@@ -1,3 +1,4 @@
+import { MotionPresence, MotionView } from '@/components/ui/motion'
 import { Spinner } from '@/components/ui/spinner'
 import { roleLabel } from '@shared/roles'
 import ProfileEmail from './ProfileEmail'
@@ -358,7 +359,7 @@ export default function Profile() {
             ))}
           </nav>
 
-          <div className={`profile-edit-grid${activeSettings === 'security' ? ` ${securityStyles.securityLayout}` : ''}`} data-settings={activeSettings}>
+          <MotionView asChild motionKey={activeSettings}><div className={`profile-edit-grid${activeSettings === 'security' ? ` ${securityStyles.securityLayout}` : ''}`} data-settings={activeSettings}>
             {activeSettings === 'security' && <ProfileEmail key={user.id} user={user} />}
             {activeSettings === 'stats' && <Suspense fallback={<Spinner aria-label="正在加载阅读统计" />}><ReadingStatsPanel key={`${user.id}:${safeMode}`} /></Suspense>}
             {activeSettings === 'reading' && <ReadingDataPanel key={`${user.id}:${safeMode}`} userId={user.id} username={user.username} />}
@@ -489,7 +490,7 @@ export default function Profile() {
                   </div>
                 ))}
               </div>
-              {passkeyRegistrationEnabled ? <div id="profile-passkey-registration" className={securityStyles.passkeyRegistration} hidden={!addingPasskey}>
+              {passkeyRegistrationEnabled ? <MotionPresence asChild open={addingPasskey} mode="disclosure" keepMounted><div id="profile-passkey-registration" className={securityStyles.passkeyRegistration}>
                 <h3 className={securityStyles.subheading}>添加通行密钥</h3>
                 <form className={securityStyles.registrationForm} onSubmit={event => { event.preventDefault(); void registerPasskey() }}>
                   <FormField label="当前密码" htmlFor="passkeyPasswordInput">
@@ -502,7 +503,7 @@ export default function Profile() {
                     <Button type="submit" disabled={passkeyBusy || !passkeyPassword.trim()}>{passkeyBusy && <Spinner size="sm" aria-hidden="true" />}{passkeyBusy ? '处理中…' : '注册 Passkey'}</Button>
                   </div>
                 </form>
-              </div> : <p className={securityStyles.notice}>管理员暂时关闭了新的 Passkey 注册；已有凭据仍按站点策略处理。</p>}
+              </div></MotionPresence> : <p className={securityStyles.notice}>管理员暂时关闭了新的 Passkey 注册；已有凭据仍按站点策略处理。</p>}
             </section>
 
             {/* 会话 */}
@@ -548,7 +549,7 @@ export default function Profile() {
                 </div>
               </div>
             </section>
-          </div>
+          </div></MotionView>
         </div>
       </div>
     </main>

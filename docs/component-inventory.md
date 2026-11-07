@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-07 Web 全站动效：`components/ui/motion.tsx` 与自带 CSS Module 维护分区、折叠和原生说明过渡；`overlay-motion.module.css` 统一共享浮层节奏。`useMotionPresence` 持有退出与焦点隔离，`useListMotion` 仅响应成功用户操作，调用方继续持有请求与账户上下文；保存及批量操作条的退出与占位归 `AdminFloatingDock`。组件展厅直接使用生产实现，不新增业务依赖或动效库。
+
 2026-11-07 取消管理员二次验证：移除 `ReauthenticationDialog`、事件协调模块、入口挂载和专用样式；备份恢复继续由 `BackupsTab` 持有版本与影响确认，使用现有共享表单与弹窗。账号人机验证继续由 `SecurityChallengeDialog` 持有。组件检查为 107 个组件、276 个源码模块。
 
 2026-11-07 首屏与大目录优化：`Pagination` 保留页码、跳页与页大小契约，`PaginationPageSize` 仅在提供页大小选择时加载 Radix Select；两者共用 `Pagination.css`，展厅仍通过原分页示例覆盖该控件。作品详情的章节筛选、每页 100 章、页码和阅读位置跳转由 `pages/Novel.tsx` 持有，入场与过渡样式归 `novel.module.css`；阅读器沿用已有虚拟列表。组件检查为 108 个组件、278 个源码模块。
@@ -56,22 +58,24 @@
 
 2026-11-05 AI 作品创作台的布局与创作子区样式由 `pages/admin/ai/writing-workspace.module.css` 持有，退出三份旧样式中的创作选择器。作品、起点、模式、分区导航和生成操作复用共享字段、SearchSelect、Tabs 与 Button；审阅及产出复用 `AiGenerationsPanel`，任务结束通过刷新标记更新列表，保留正在编辑的草稿。未新增公共组件或改变公共层依赖方向。
 
+由 `node scripts/check-web-components.mjs --inventory` 从当前源码生成；108 个组件文件，275 个生产源码模块。使用方数量包含开发展厅，不包含测试。表格记录保留或迁移依据，不表示所有控件需要重写；组件内部页面级子组件按所属页面／工作流保留。
+
 | 文件 | 层级 | 使用方 | 样式所有权 | 结论 |
 | --- | --- | ---: | --- | --- |
 | `components/AccountMenu.tsx` | 应用／业务 | 1 | `styles/account-menu.css` | 保留：账户导航与会话动作 |
-| `components/admin/AdminContentRatingBadge.tsx` | 后台场景 | 4 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留／拆分：管理操作、数据表面或具体作品流程 |
-| `components/admin/AdminDataPanel.tsx` | 后台场景 | 16 | `styles/admin/components/readability.css`、`styles/admin/components/table-motion.css`、`styles/admin/components/tables.css`、`components/admin/admin-data-panel.module.css` | 保留／拆分：管理操作、数据表面或具体作品流程；表面由组件自身维护，不依赖页面层级 |
-| `components/admin/AdminFloatingDock.tsx` | 后台场景 | 5 | `styles/admin/components/floating-dock.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/AdminContentRatingBadge.tsx` | 后台场景 | 5 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/AdminDataPanel.tsx` | 后台场景 | 20 | `styles/admin/components/readability.css`、`styles/admin/components/table-motion.css`、`styles/admin/components/tables.css`、`components/admin/admin-data-panel.module.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/AdminFloatingDock.tsx` | 后台场景 | 8 | `styles/admin/components/floating-dock.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/AdminModelTime.tsx` | 后台场景 | 1 | `components/admin/AdminModelTime.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/AdminPage.tsx` | 后台场景 | 17 | `components/admin/admin-page.module.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
-| `components/admin/AdminRowActions.tsx` | 后台场景 | 6 | `styles/admin/components/row-actions.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
-| `components/admin/AdminSelectionBar.tsx` | 后台场景 | 6 | `styles/admin/components/selection.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
-| `components/admin/AdminStatusBadge.tsx` | 后台场景 | 31 | `styles/admin/components/status-badges.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/AdminRowActions.tsx` | 后台场景 | 7 | `styles/admin/components/row-actions.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/AdminSelectionBar.tsx` | 后台场景 | 7 | `styles/admin/components/selection.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/AdminStatusBadge.tsx` | 后台场景 | 39 | `styles/admin/components/status-badges.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/AdminTabHeader.tsx` | 后台场景 | 1 | `components/admin/admin-page.module.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
-| `components/admin/AdminToolbar.tsx` | 后台场景 | 13 | `components/admin/AdminToolbar.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/AdminToolbar.tsx` | 后台场景 | 14 | `components/admin/AdminToolbar.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/BatchNovelFollowupDialog.tsx` | 后台场景 | 2 | `styles/admin/pages/novel-followup.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/BookImportChapterResolver.tsx` | 后台场景 | 1 | `styles/input-fields.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
-| `components/admin/BookImportDialog.tsx` | 后台场景 | 2 | `styles/input-fields.css`, `components/admin/BookImportDialog.module.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/BookImportDialog.tsx` | 后台场景 | 2 | `styles/input-fields.css`、`components/admin/BookImportDialog.module.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/BookImportHistoryDialog.tsx` | 后台场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/ImportDiagnosticsPanel.tsx` | 后台场景 | 1 | `styles/input-fields.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/NovelDeleteDialog.tsx` | 后台场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留／拆分：管理操作、数据表面或具体作品流程 |
@@ -82,12 +86,12 @@
 | `components/admin/NovelVisibilityField.tsx` | 后台场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/ScrapeTaskDetailsDialog.tsx` | 后台场景 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/SupplementarySourcesDialog.tsx` | 后台场景 | 2 | `styles/input-fields.css`、`styles/supplementary-sources.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
-| `components/AdultUnlockDialog.tsx` | 应用／业务 | 2 | `styles/content-policy.css`、`styles/input-fields.css`、`styles/adult-unlock-dialog.css` | 保留：内容策略验证流程 |
+| `components/AdultUnlockDialog.tsx` | 应用／业务 | 1 | `styles/content-policy.css`、`styles/input-fields.css`、`styles/adult-unlock-dialog.css` | 保留：内容策略验证流程 |
 | `components/AppErrorBoundary.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：应用异常与整页恢复 |
 | `components/CatchupRecap.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：小说阅读回顾业务 |
 | `components/ContentPolicyStatus.tsx` | 应用／业务 | 2 | `styles/content-policy.css` | 保留：内容访问检查状态 |
 | `components/ContentRestrictionNotice.tsx` | 应用／业务 | 3 | `styles/content-policy.css` | 保留：分级门禁与解锁入口 |
-| `components/feedback.tsx` | 应用／业务 | 43 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：应用级确认与通知上下文 |
+| `components/feedback.tsx` | 应用／业务 | 46 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：应用级确认与通知上下文 |
 | `components/icons.tsx` | 应用／业务 | 6 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：共享 SVG 图形，不包含业务状态 |
 | `components/identity/UserAvatar.tsx` | 业务适配 | 10 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：账户资源地址与基础头像呈现分离 |
 | `components/Layout.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：路由布局与页面外壳适配 |
@@ -95,72 +99,74 @@
 | `components/NovelCoverStatus.tsx` | 应用／业务 | 2 | `styles/novel-indicators.css` | 保留：小说封面业务标记 |
 | `components/PageSeo.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：路由 SEO 与品牌配置 |
 | `components/PageState.tsx` | 应用／业务 | 7 | `styles/page-state.css` | 保留：控制整页外壳的异常呈现，区别于面板空态 |
-| `components/reader/BookSearch.tsx` | 阅读场景 | 2 | `components/reader/BookSearch.module.css` | 保留：书内正文查询、分批检索与章节定位业务 |
-| `components/reader/BookmarkPanel.tsx` | 阅读场景 | 1 | `components/reader/BookmarkPanel.module.css` | 书签列表布局；按钮与空态复用共享组件 |
-| `components/reader/ChapterIllustrations.tsx` | 阅读场景 | 2 | `styles/select-fields.css`、`styles/input-fields.css`、`styles/chapter-illustrations.css`、`components/reader/ChapterIllustrations.module.css` | 保留：阅读状态、图片与段落锚点；编辑布局由 CSS Module 持有 |
+| `components/reader/BookmarkPanel.tsx` | 阅读场景 | 1 | `components/reader/BookmarkPanel.module.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
+| `components/reader/BookSearch.tsx` | 阅读场景 | 2 | `components/reader/BookSearch.module.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
+| `components/reader/ChapterIllustrations.tsx` | 阅读场景 | 2 | `styles/select-fields.css`、`styles/input-fields.css`、`styles/chapter-illustrations.css`、`components/reader/ChapterIllustrations.module.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ChapterRecap.tsx` | 阅读场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/MobileSheets.tsx` | 阅读场景 | 1 | `styles/input-fields.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
-| `components/reader/SettingsControls.tsx` | 阅读场景 | 3 | `components/reader/SettingsControls.module.css` | 阅读设置控件；Button／Switch 共用，设置键与同步不变 |
+| `components/reader/SettingsControls.tsx` | 阅读场景 | 3 | `components/reader/SettingsControls.module.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ThoughtImage.tsx` | 阅读场景 | 2 | `styles/thoughts.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ThoughtPanel.tsx` | 阅读场景 | 1 | `styles/thoughts.css`、`styles/input-fields.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/VirtualList.tsx` | 阅读场景 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/ReadingDataPanel.tsx` | 应用／业务 | 1 | `styles/input-fields.css` | 保留：账户阅读数据检查与恢复 |
 | `components/ReadingStatsPanel.tsx` | 应用／业务 | 1 | `styles/select-fields.css`、`styles/input-fields.css` | 保留：账户阅读统计 |
 | `components/RouteLoading.tsx` | 应用／业务 | 3 | `styles/loading-indicators.css`、`styles/route-loading.css` | 保留：路由切换与外壳占位 |
-| `components/shared/AsyncStates.tsx` | 通用组合 | 21 | `styles/loading-indicators.css`、`components/shared/AsyncStates.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/SecurityChallengeDialog.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：账号操作的统一人机验证 |
+| `components/shared/AsyncStates.tsx` | 通用组合 | 37 | `styles/loading-indicators.css`、`components/shared/AsyncStates.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/CellText.tsx` | 通用组合 | 2 | `components/shared/CellText.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/ConfirmationDialog.tsx` | 通用组合 | 2 | `components/shared/ConfirmationDialog.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
-| `components/shared/DialogFrame.tsx` | 通用组合 | 28 | `components/shared/DialogFrame.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
-| `components/shared/EmptyState.tsx` | 通用组合 | 15 | `components/shared/EmptyState.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/DialogFrame.tsx` | 通用组合 | 30 | `components/shared/DialogFrame.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/EmptyState.tsx` | 通用组合 | 26 | `components/shared/EmptyState.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/FloatingPageTools.tsx` | 通用组合 | 2 | `components/shared/FloatingPageTools.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
-| `components/shared/FormField.tsx` | 通用组合 | 18 | `components/shared/FormField.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
-| `components/shared/Pagination.tsx` | 通用组合 | 19 | `components/shared/Pagination.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
-| `components/shared/PaginationPageSize.tsx` | 通用组合 | 1 | `components/shared/Pagination.css` | 分页的按需页大小控件，无业务取数 |
-| `components/shared/PanelHeading.tsx` | 通用组合 | 8 | `components/shared/PanelHeading.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
-| `components/shared/ReadingDialog.tsx` | 通用组合 | 2 | `components/shared/ReadingDialog.module.css` | 共享：正文优先的阅读窗及工具栏、正文、编辑框、辅助折叠；业务由调用方传入 |
-| `components/shared/SearchField.tsx` | 通用组合 | 12 | `components/shared/SearchField.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
-| `components/shared/SearchSelect.tsx` | 通用组合 | 30 | `styles/select-fields.css`、`components/shared/SearchSelect.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/FormField.tsx` | 通用组合 | 29 | `components/shared/FormField.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/Pagination.tsx` | 通用组合 | 21 | `components/shared/Pagination.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/PaginationPageSize.tsx` | 通用组合 | 1 | `components/shared/Pagination.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/PanelHeading.tsx` | 通用组合 | 10 | `components/shared/PanelHeading.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/ReadingDialog.tsx` | 通用组合 | 7 | `components/shared/ReadingDialog.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/SearchField.tsx` | 通用组合 | 16 | `components/shared/SearchField.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
+| `components/shared/SearchSelect.tsx` | 通用组合 | 33 | `styles/select-fields.css`、`components/shared/SearchSelect.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/TimeField.tsx` | 通用组合 | 2 | `components/shared/TimeField.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/SiteBrandingSync.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：站点品牌同步 |
 | `components/SiteNotice.tsx` | 应用／业务 | 1 | `styles/site-notice.css` | 保留：站点公告与工作区位置 |
 | `components/ThemeMenu.tsx` | 应用／业务 | 3 | `styles/theme-menu.css`、`styles/input-fields.css` | 保留：应用主题偏好入口 |
 | `components/TurnstileTestWidget.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：站点验证码配置诊断 |
-| `components/ui/alert-dialog.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/alert-dialog.tsx` | 基础控件 | 2 | `components/ui/overlay-motion.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/alert.tsx` | 基础控件 | 3 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/avatar.tsx` | 基础控件 | 1 | `styles/identity.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/badge.tsx` | 基础控件 | 11 | `styles/identity.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/button.tsx` | 基础控件 | 100 | `components/ui/button.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/card.tsx` | 基础控件 | 13 | `components/ui/card.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/checkbox.tsx` | 基础控件 | 16 | `components/ui/checkbox.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/badge.tsx` | 基础控件 | 12 | `styles/identity.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/button.tsx` | 基础控件 | 114 | `components/ui/button.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/card.tsx` | 基础控件 | 15 | `components/ui/card.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/checkbox.tsx` | 基础控件 | 20 | `components/ui/checkbox.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/collapsible.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/command.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/control-appearance.tsx` | 基础控件 | 9 | `components/ui/control-appearance.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/dialog.tsx` | 基础控件 | 32 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/dropdown-menu.tsx` | 基础控件 | 6 | `styles/dropdown-menu.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/dialog.tsx` | 基础控件 | 38 | `components/ui/overlay-motion.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/dropdown-menu.tsx` | 基础控件 | 8 | `components/ui/overlay-motion.module.css`、`styles/dropdown-menu.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/field-context.tsx` | 基础控件 | 6 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/filter-chip.tsx` | 基础控件 | 2 | `components/ui/filter-chip.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/initial-avatar.tsx` | 基础控件 | 2 | `styles/identity.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/input.tsx` | 基础控件 | 41 | `styles/native-form-fields.css`、`styles/input-fields.css`、`components/ui/input.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/input.tsx` | 基础控件 | 49 | `styles/native-form-fields.css`、`styles/input-fields.css`、`components/ui/input.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/label.tsx` | 基础控件 | 23 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/panel.tsx` | 基础控件 | 5 | `components/ui/panel.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/popover.tsx` | 基础控件 | 3 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/motion.tsx` | 基础控件 | 54 | `components/ui/motion.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/panel.tsx` | 基础控件 | 8 | `components/ui/panel.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/popover.tsx` | 基础控件 | 4 | `components/ui/overlay-motion.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/progress.tsx` | 基础控件 | 3 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/radio-group.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/scroll-area.tsx` | 基础控件 | 3 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/select.tsx` | 基础控件 | 8 | `styles/native-form-fields.css`、`styles/select-fields.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/select.tsx` | 基础控件 | 9 | `components/ui/overlay-motion.module.css`、`styles/native-form-fields.css`、`styles/select-fields.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/separator.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/sheet.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/sheet.tsx` | 基础控件 | 2 | `components/ui/overlay-motion.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/sidebar.tsx` | 基础控件 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/skeleton.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/sonner.tsx` | 基础控件 | 1 | `styles/toast-feedback.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/spinner.tsx` | 基础控件 | 17 | `components/ui/spinner.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/switch.tsx` | 基础控件 | 7 | `components/ui/switch.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/table.tsx` | 基础控件 | 15 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/tabs.tsx` | 基础控件 | 16 | `components/ui/tabs.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/textarea.tsx` | 基础控件 | 18 | `styles/native-form-fields.css`、`styles/input-fields.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/spinner.tsx` | 基础控件 | 21 | `components/ui/spinner.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/switch.tsx` | 基础控件 | 10 | `components/ui/switch.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/table.tsx` | 基础控件 | 19 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/tabs.tsx` | 基础控件 | 21 | `components/ui/tabs.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/textarea.tsx` | 基础控件 | 22 | `styles/native-form-fields.css`、`styles/input-fields.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/toggle-group.tsx` | 基础控件 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/ui/toggle.tsx` | 基础控件 | 2 | `components/ui/toggle.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
-| `components/ui/tooltip.tsx` | 基础控件 | 3 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
+| `components/ui/tooltip.tsx` | 基础控件 | 3 | `components/ui/overlay-motion.module.css` | 保留：Radix/原生控件及纯视觉基础；主题和外观 context 属于设计基础 |
 | `components/VisitTracker.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：访问统计副作用 |
 | `components/workspace/NovelWorkspaceLinks.tsx` | 工作区场景 | 1 | `components/workspace/novel-workspace-links.module.css` | 保留：共享外壳或作品上下文导航 |
-| `components/workspace/WorkspaceShell.tsx` | 工作区场景 | 2 | `styles/input-fields.css`、`components/workspace/workspace-shell.module.css` | 保留：共享外壳或作品上下文导航 |
+| `components/workspace/WorkspaceShell.tsx` | 工作区场景 | 2 | `styles/input-fields.css`、`styles/site-branding.css`、`components/workspace/workspace-shell.module.css` | 保留：共享外壳或作品上下文导航 |

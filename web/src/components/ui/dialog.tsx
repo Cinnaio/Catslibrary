@@ -1,3 +1,4 @@
+import motion from './overlay-motion.module.css'
 import { useControlAppearance } from './control-appearance'
 import * as React from 'react'
 import { XIcon } from 'lucide-react'
@@ -27,7 +28,7 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        'fixed inset-0 z-50 bg-[var(--overlay-bg)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
+        motion.backdrop, 'fixed inset-0 z-50 bg-[var(--overlay-bg)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
         className,
       )}
       {...props}
@@ -55,7 +56,7 @@ function DialogContent({
         data-slot="dialog-content"
         data-ui={appearance['data-ui']}
         className={cn(
-          appearance.className,
+          motion.surface, appearance.className,
           'fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[24px] border bg-card p-6 shadow-[var(--shadow-modal)] duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
           className,
         )}

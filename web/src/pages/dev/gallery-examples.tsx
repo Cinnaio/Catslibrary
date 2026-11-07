@@ -26,6 +26,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { MotionDetails, MotionPresence, MotionView } from '@/components/ui/motion'
+import { useListMotion } from '@/hooks/useListMotion'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
@@ -519,6 +521,37 @@ export function CommandExample() {
     </Command>
   )
 }
+function MotionListExample() {
+  const [items, setItems] = useState(['第一本书', '第二本书', '第三本书'])
+  const motion = useListMotion('gallery')
+  return <div ref={motion.root} className="flex flex-col gap-3">
+    {items.map(item => <div data-motion-item={item} key={item} className="flex items-center justify-between gap-4 rounded-lg border p-3">
+      <span>{item}</span><Button variant="ghost" onClick={async () => {
+        await motion.remove(item); motion.prepare(); setItems(current => current.filter(value => value !== item))
+      }}>移除{item}</Button>
+    </div>)}
+    {items.length < 3 && <Button data-motion-fallback variant="outline" onClick={() => setItems(['第一本书', '第二本书', '第三本书'])}>恢复示例书目</Button>}
+  </div>
+}
+
+export function MotionExample() {
+  const [open, setOpen] = useState(false)
+  const [view, setView] = useState('overview')
+  const [dirty, setDirty] = useState(false)
+  return <div className="flex flex-col gap-4">
+    <div className="flex flex-wrap gap-3">
+      <Button variant="outline" aria-controls="gallery-motion-panel" aria-expanded={open} onClick={() => setOpen(value => !value)}>展开配置</Button>
+      <Button variant="outline" onClick={() => setView(value => value === 'overview' ? 'details' : 'overview')}>切换内容</Button>
+      <Button variant="outline" onClick={() => setDirty(value => !value)}>切换保存条</Button>
+    </div>
+    <MotionPresence open={open} asChild keepMounted mode="disclosure"><Card id="gallery-motion-panel"><CardContent className="p-5"><Input aria-label="动效示例草稿" placeholder="输入内容后反复开关，草稿仍会保留" /></CardContent></Card></MotionPresence>
+    <MotionView motionKey={view}><p>{view === 'overview' ? '概览内容' : '详情内容'}</p></MotionView>
+    <MotionDetails><summary>展开原生说明</summary><p className="py-4">原生折叠说明保留键盘、浏览器查找及 open 状态。</p></MotionDetails>
+    <MotionListExample />
+    <AdminFloatingDock open={dirty} reserveSpace><span>示例有未保存修改</span><Button onClick={() => setDirty(false)}>保存示例</Button></AdminFloatingDock>
+  </div>
+}
+
 export function Disclosure() {
   return (
     <div className="gallery-stack">

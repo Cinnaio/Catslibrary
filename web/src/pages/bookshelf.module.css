@@ -18,7 +18,7 @@
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   border-radius: var(--radius-container);
-  animation: shelf-enter 220ms var(--ease) both;
+  animation: shelf-enter var(--motion-state-enter) var(--ease-out) both;
 }
 .card:nth-child(3n + 2) { animation-delay: 25ms; }
 .card:nth-child(3n) { animation-delay: 50ms; }
@@ -81,7 +81,7 @@
 .favorite { justify-self: start; min-height: 36px; padding: 4px 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
 .title:hover, .favorite:hover:not(:disabled) { color: var(--accent-hover); }
 .coverLink:focus-visible, .title:focus-visible, .more:focus-visible, .favorite:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@keyframes shelf-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shelf-enter { from { opacity: 0; transform: translateY(var(--motion-state-offset)); } to { opacity: 1; transform: translateY(0); } }
 @container bookshelf-content (min-width: 1120px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @container bookshelf-content (max-width: 719px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 700px) {

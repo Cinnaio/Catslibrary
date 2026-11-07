@@ -10,6 +10,7 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import AdminTabHeader from './AdminTabHeader'
 import styles from './admin-page.module.css'
+import { MotionView } from '@/components/ui/motion'
 
 interface AdminPageProps {
   title?: string // 可选：scrape 视图切换器无标题头
@@ -17,16 +18,17 @@ interface AdminPageProps {
   actions?: ReactNode
   className?: string // 附加到 .tab-content，如 SettingsTab 的 account-admin
   children: ReactNode
+  motionKey?: string
 }
 
-export default function AdminPage({ title, className, children, ...header }: AdminPageProps) {
+export default function AdminPage({ title, className, children, motionKey, ...header }: AdminPageProps) {
   return (
     // admin-redesign-page 提供后台页面统一的区块间距（CSS 里的 grid + 1rem gap）
     // 与卡片表面归一化。它是所有 tab 共用的容器契约，不可省略：此前 novels
     // 缺失该类，导致工作对象卡与数据面板之间实测 0 间距。
-    <main className={cn(styles.page, 'tab-content', 'admin-redesign-page', className)} aria-label={title}>
+    <MotionView asChild motionKey={motionKey}><main className={cn(styles.page, 'tab-content', 'admin-redesign-page', className)} aria-label={title}>
       {title != null && <AdminTabHeader {...header} title={title} />}
       {children}
-    </main>
+    </main></MotionView>
   )
 }

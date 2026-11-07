@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useEffect, useState, type FormEvent } from 'react'
 import type { BackupSettings, BackupSettingsInput, BackupSettingsPage } from '@shared/backups'
 import { useToast } from '@/components/feedback'
@@ -299,11 +300,11 @@ export default function BackupSettingsForm({
               <p className="backup-hint">
                 当前连接：{settings.rehearsalConfigured ? settings.rehearsalLabel : '未配置'}。演练库必须与业务库不同名，且只能用于备份恢复测试。
               </p>
-              <details className="backup-hint">
+              <MotionDetails className="backup-hint">
                 <summary>演练库初始化说明</summary>
                 <p>先创建独立数据库，再在该库执行以下 SQL 建立保护标记。保存只验证连接与标记；恢复预检会重建该库的 public 数据。</p>
                 <pre className="backup-setup-code">{`CREATE SCHEMA backup_rehearsal;\nCREATE TABLE backup_rehearsal.guard (\n  key text PRIMARY KEY, value text NOT NULL\n);\nINSERT INTO backup_rehearsal.guard VALUES\n  ('purpose', 'zhi-zhou-backup-rehearsal');`}</pre>
-              </details>
+              </MotionDetails>
             </div>
           </div>
         </CardContent>
@@ -322,8 +323,7 @@ export default function BackupSettingsForm({
 
       {dirty && initialSettings.revision > settings.revision && <p role="status" className="backup-error">设置已更新，当前草稿保留原修订号。请撤销修改读取最新设置后再编辑。</p>}
       {/* 只有未保存修改时显示保存动作。 */}
-      {dirty ?
-      <AdminFloatingDock reserveSpace role="region" aria-label="备份设置保存" data-state="open">
+      <AdminFloatingDock open={dirty} reserveSpace role="region" aria-label="备份设置保存" data-state="open">
         <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
           {disabled ? '恢复期间暂时不能修改设置' : dirty ? '有未保存的修改' : '设置已保存；新任务使用当前配置'}
         </span>
@@ -335,7 +335,8 @@ export default function BackupSettingsForm({
             {busy ? '验证并保存中…' : '保存设置'}
           </Button>
         </div>
-      </AdminFloatingDock> : <p className="backup-hint">{disabled ? '恢复期间暂时不能修改设置' : '设置已保存；新任务使用当前配置'}</p>}
+      </AdminFloatingDock>
+      {!dirty && <p className="backup-hint">{disabled ? '恢复期间暂时不能修改设置' : '设置已保存；新任务使用当前配置'}</p>}
     </form>
   )
 }

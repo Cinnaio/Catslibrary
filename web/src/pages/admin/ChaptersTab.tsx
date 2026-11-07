@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { Spinner } from '@/components/ui/spinner'
 import '../../styles/admin/pages/chapters.css'
 /**
@@ -651,7 +652,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
             <span>{selectedNovelInfo?.author || '未知作者'} · {selectedNovelInfo?.chapterCount || chapters.length} 章</span>
             <p>弱标题可自动补全，其他标题需确认。序号修复需另行勾选，章节正文保持不变。</p>
           </div>
-          <details className="chapter-merge-dialog__source" open={sourceExpanded} onToggle={(event) => setSourceExpanded(event.currentTarget.open)}>
+          <MotionDetails className="chapter-merge-dialog__source" open={sourceExpanded} onToggle={(event) => setSourceExpanded(event.currentTarget.open)}>
             <summary>原作者源站<span>{sourcePreview ? '已读取 · 更换来源' : '搜索作品或粘贴链接'}</span></summary>
             <p className="dialog-frame-hint">支持晋江与 PO18.tw。选择搜索结果后会直接读取并生成预览。</p>
             <div className="chapter-merge-dialog__source-grid grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
@@ -684,7 +685,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                 </Button>
               </div>
             </div>
-          </details>
+          </MotionDetails>
           {sourceError && <p role="alert" className="chapter-merge-dialog__error">{sourceError}</p>}
           {renaming && !sourcePreview && <p role="status" className="dialog-frame-hint">正在读取源站并匹配本地章节，请稍候…</p>}
           {sourcePreview && <>

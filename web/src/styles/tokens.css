@@ -211,11 +211,18 @@
   /* Transition */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  /* Low-frequency disclosure / form-mode changes; never page or list refreshes. */
+  /* User-driven state changes. Passive sync does not trigger motion. */
   --motion-state-enter: 180ms;
   --motion-state-exit: 140ms;
   --motion-state-reduced: 100ms;
   --motion-state-offset: 4px;
+  --motion-control: 160ms;
+  --motion-overlay-enter: 180ms;
+  --motion-overlay-exit: 140ms;
+  --motion-menu-enter: 160ms;
+  --motion-menu-exit: 120ms;
+  --motion-sheet-enter: 240ms;
+  --motion-sheet-exit: 180ms;
 }
 
 /* Dark theme — moonlit paper */

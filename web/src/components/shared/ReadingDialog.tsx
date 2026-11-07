@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useRef, type ComponentProps, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -66,12 +67,12 @@ export function ReadingDialogEditor({ className, ...props }: ComponentProps<type
 /** 折叠的生成依据、原始请求等辅助长文，和正文共用中间滚动区。 */
 export function ReadingDialogDisclosure({ label, hint, children, className, ...props }: Omit<ComponentProps<'details'>, 'children'> & { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
   return (
-    <details className={cn(styles.disclosure, className)} {...props}>
+    <MotionDetails className={cn(styles.disclosure, className)} {...props}>
       <summary className={styles.disclosureSummary}>
         <span>{label}{hint && <span className={styles.disclosureHint}>{hint}</span>}</span>
         <ChevronDown className={styles.disclosureChevron} aria-hidden="true" />
       </summary>
       <pre className={styles.disclosureText}>{children}</pre>
-    </details>
+    </MotionDetails>
   )
 }

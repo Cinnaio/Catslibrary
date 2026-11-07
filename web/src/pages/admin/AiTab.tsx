@@ -1,3 +1,4 @@
+import { MotionView } from '@/components/ui/motion'
 import '../../styles/admin/pages/ai-service-claude.css'
 import '../../styles/admin/pages/ai.css'
 /**
@@ -92,7 +93,7 @@ export default function AiTab() {
   }, [load])
 
   return (
-    <AdminPage
+    <AdminPage motionKey={currentSubTab}
       title={currentMeta.title}
       description={currentMeta.description}
       className={`admin-redesign-page admin-redesign-page--ai ai-admin-page${currentSubTab === 'writing' ? '' : ' ai-service'}`}
@@ -100,7 +101,7 @@ export default function AiTab() {
       <div className="ai-service-tabs">
         <div className="ai-service-tabs__content min-w-0">
           {(writingVisited || currentSubTab === 'writing' || currentSubTab === 'graph') && (
-            <div hidden={currentSubTab !== 'writing'}>
+            <MotionView asChild><div hidden={currentSubTab !== 'writing'}>
               <AiWritingPanel
                 model={provider?.model}
                 onViewBatch={openGenerations}
@@ -139,7 +140,7 @@ export default function AiTab() {
                   setSearchParams(next)
                 }}
               />
-            </div>
+            </div></MotionView>
           )}
           {currentSubTab === 'graph' && (
             <StoryGraphPanel

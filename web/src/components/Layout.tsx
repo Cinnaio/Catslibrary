@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react'
 import RouteLoading from './RouteLoading'
 import { PageLayoutContext } from '../context/PageLayoutContext'
 import WorkspaceShell from './workspace/WorkspaceShell'
+import { MotionView } from './ui/motion'
 
 export default function Layout() {
   const { pathname } = useLocation()
@@ -12,7 +13,7 @@ export default function Layout() {
     <PageLayoutContext.Provider value={setStandalone}>
       <WorkspaceShell standalone={standalone}>
         <Suspense key={pathname} fallback={<RouteLoading embedded />}>
-          <Outlet />
+          <MotionView><Outlet /></MotionView>
         </Suspense>
       </WorkspaceShell>
     </PageLayoutContext.Provider>

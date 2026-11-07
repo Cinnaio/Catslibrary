@@ -1,3 +1,4 @@
+import { MotionDetails, MotionPresence } from '@/components/ui/motion'
 import { useState } from 'react'
 import { AlertCircle, ChevronDown } from 'lucide-react'
 import type { SecurityOverview } from '@shared/security'
@@ -164,7 +165,7 @@ export default function SecurityOverviewPanel({ overview: o, dirty, busy, reconc
             </Button>
           }
         />
-        <CardContent id="security-budget-reconcile" hidden={!expanded} className={styles.panelBody}>
+        <MotionPresence asChild open={expanded} mode="disclosure" keepMounted><CardContent id="security-budget-reconcile"  className={styles.panelBody}>
           <form
             className={styles.stack}
             onSubmit={(e) => {
@@ -212,9 +213,9 @@ export default function SecurityOverviewPanel({ overview: o, dirty, busy, reconc
               </Button>
             </div>
           </form>
-        </CardContent>
+        </CardContent></MotionPresence>
       </Card>
-      <details className={styles.disclosure}>
+      <MotionDetails className={styles.disclosure}>
         <summary>
           近两周邮件申请
           <ChevronDown size={14} aria-hidden="true" />
@@ -256,7 +257,7 @@ export default function SecurityOverviewPanel({ overview: o, dirty, busy, reconc
             <EmptyState message="还没有邮件申请" hint="发生邮件申请后，这里将显示近两周的记录。" />
           )}
         </div>
-      </details>
+      </MotionDetails>
     </div>
   )
 }

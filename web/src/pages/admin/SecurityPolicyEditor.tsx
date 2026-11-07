@@ -255,8 +255,7 @@ export default function SecurityPolicyEditor({ draft, dirty, busy, turnstileRead
         </div>
       </div>
       <p className={styles.hint}>调整后需填写原因并确认身份，保存成功后生效。切换视图会保留未保存的草稿。</p>
-      {dirty && (
-        <AdminFloatingDock reserveSpace>
+      <AdminFloatingDock open={dirty} reserveSpace>
           <span>{valid ? '防护策略有未保存修改' : '请先修正标出的参数'}</span>
           <Button type="button" variant="ghost" disabled={busy} onClick={onDiscard}>
             撤销
@@ -265,7 +264,6 @@ export default function SecurityPolicyEditor({ draft, dirty, busy, turnstileRead
             保存策略
           </Button>
         </AdminFloatingDock>
-      )}
     </form>
   )
 }

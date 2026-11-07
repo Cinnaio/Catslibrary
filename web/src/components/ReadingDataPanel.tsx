@@ -1,3 +1,4 @@
+import { MotionPresence } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 import { Button } from '@/components/ui/button'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -17,7 +18,7 @@ function Preview({ preview }: { preview: ReadingDataPreview }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <>
-      <ul id={listId} className="reading-data-list reading-data-list--preview" hidden={!visible} tabIndex={0} aria-label="阅读数据预览明细">
+      <MotionPresence asChild open={visible} mode="disclosure" keepMounted><ul id={listId} className="reading-data-list reading-data-list--preview" tabIndex={0} aria-label="阅读数据预览明细">
         {preview.items.slice(0, expanded ? undefined : 20).map((item, i) => (
           <li key={`${item.kind}:${item.novelId}:${item.chapterId}:${i}`}>
             <strong>
@@ -27,7 +28,7 @@ function Preview({ preview }: { preview: ReadingDataPreview }) {
             <span>{item.detail}</span>
           </li>
         ))}
-      </ul>
+      </ul></MotionPresence>
       {visible && !expanded && preview.items.length > 20 && (
         <Button variant="secondary" size="sm" type="button"  aria-controls={listId} onClick={() => setExpanded(true)}>
           查看全部 {preview.items.length} 项

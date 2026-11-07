@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { ChevronDown, MailCheck, RefreshCw } from 'lucide-react'
 import type { MailSettings as Settings, MailSettingsInput } from '@shared/mail-settings'
@@ -157,10 +158,10 @@ export default function MailSettings({ active = true, externalBusy = false, exte
           </div>
           {dirty && <FormField label="配置修改原因" hint="至少 4 字；修改前后配置会脱敏记录到操作审计。">{({id})=><Input id={id} value={reason} onChange={e=>setReason(e.target.value)} required minLength={4} maxLength={300} disabled={locked}/>}</FormField>}
           {actionError && <InlineError message={actionError} />}
-          {dirty && active && <AdminFloatingDock reserveSpace><span>邮件配置有未保存修改</span><Button type="button" variant="ghost" disabled={locked} onClick={() => void discard()}>撤销</Button><Button type="submit" disabled={locked}>{busy && <Spinner size="sm" aria-hidden="true" />}保存配置</Button></AdminFloatingDock>}
+          <AdminFloatingDock open={dirty && active} reserveSpace><span>邮件配置有未保存修改</span><Button type="button" variant="ghost" disabled={locked} onClick={() => void discard()}>撤销</Button><Button type="submit" disabled={locked}>{busy && <Spinner size="sm" aria-hidden="true" />}保存配置</Button></AdminFloatingDock>
         </form>
         <div className={styles.footer}>
-          <details className={styles.help}>
+          <MotionDetails className={styles.help}>
             <summary>配置与安全说明<ChevronDown aria-hidden="true" /></summary>
             <div className={styles.helpContent}>
               <p>仅超级管理员可配置。密码不会回传到浏览器，后台保存的整套配置优先于环境变量。</p>
@@ -168,7 +169,7 @@ export default function MailSettings({ active = true, externalBusy = false, exte
               <p>迁移服务器时需单独安全迁移邮件私有配置文件，数据库备份不包含它。</p>
               <p>完成邮箱验证或密码重置后，旧登录会话会失效，需要重新登录；新邮箱确认前，原邮箱仍然有效。</p>
             </div>
-          </details>
+          </MotionDetails>
           {readAt && <p className={styles.updated} aria-live="polite">最近读取 <time dateTime={readAt.toISOString()}>{readAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</time></p>}
         </div>
       </>}

@@ -1,3 +1,4 @@
+import { MotionView } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 import '@/styles/site-branding.css'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
@@ -205,9 +206,9 @@ export default function SiteSettingsTab() {
   }
   const widgetError = useCallback((message: string) => { setTestMessage(message); setTestPassed(false); setTestToken('') }, [])
 
-  return <AdminPage {...meta[view]} className="admin-redesign-page--site-settings">
+  return <AdminPage motionKey={view} {...meta[view]} className="admin-redesign-page--site-settings">
     <SiteSettingsNavigation view={view} disabled={busy || aiBusy || mailBusy} />
-    <div hidden={view !== 'mail'}>{mailVisited && <MailSettings active={view === 'mail'} onBusyChange={setMailBusy} />}</div>
+    <MotionView asChild><div hidden={view !== 'mail'}>{mailVisited && <MailSettings active={view === 'mail'} onBusyChange={setMailBusy} />}</div></MotionView>
     {view === 'content-policy' && <ContentPolicyTab />}
     {localView && <>
       {!hasData && (loadError

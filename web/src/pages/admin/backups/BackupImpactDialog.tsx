@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useEffect, useState } from 'react'
 import type { BackupImpactReport, BackupImpactSummary, BackupTask } from '@shared/backups'
 import { BACKUP_IMPACT_GROUPS } from '@shared/backups'
@@ -146,21 +147,21 @@ export default function BackupImpactDialog({
                   </p>
                 ))}
               </div>
-              <details className="backup-hint">
+              <MotionDetails className="backup-hint">
                 <summary>比较范围与恢复行为</summary>
                 {report.notes.map((item) => (
                   <p key={item}>{item}</p>
                 ))}
-              </details>
+              </MotionDetails>
               {!!report.summary.schemaChanges.length && (
-                <details className="backup-hint">
+                <MotionDetails className="backup-hint">
                   <summary>数据表结构变化（{report.summary.schemaChanges.length}）</summary>
                   {report.summary.schemaChanges.map((item) => (
                     <p key={item.table}>
                       {changes[item.change]}数据表：{item.table}
                     </p>
                   ))}
-                </details>
+                </MotionDetails>
               )}
             </>
           )}

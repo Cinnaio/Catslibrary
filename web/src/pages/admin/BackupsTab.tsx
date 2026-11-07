@@ -1,3 +1,4 @@
+import { MotionView } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useEffect, useState, useRef, useCallback } from 'react'
@@ -237,7 +238,7 @@ export default function BackupsTab() {
       ].filter(Boolean)
     : []
   return (
-    <AdminPage
+    <AdminPage motionKey={view}
       title={titles[view]}
       description={
         view === 'versions'
@@ -508,7 +509,7 @@ export default function BackupsTab() {
               ))}
             </div>
           )}
-          {policyVisited && <div hidden={view !== 'schedule'}>
+          {policyVisited && <MotionView asChild><div hidden={view !== 'schedule'}>
             <PolicyForm
               policy={overview.policy}
               targets={overview.targets}
@@ -516,8 +517,8 @@ export default function BackupsTab() {
               onDirtyChange={setPolicyDirty}
               onSaved={refresh}
             />
-          </div>}
-          {settings && <div hidden={view !== 'settings'}>
+          </div></MotionView>}
+          {settings && <MotionView asChild><div hidden={view !== 'settings'}>
             <BackupSettingsForm
               page={settings}
               active={view === 'settings'}
@@ -528,7 +529,7 @@ export default function BackupsTab() {
                 refresh()
               }}
             />
-          </div>}
+          </div></MotionView>}
           {view === 'logs' && (
             <>
               <AdminToolbar>

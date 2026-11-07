@@ -17,8 +17,8 @@
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 160ms ease,
-    color 160ms ease;
+    background-color var(--motion-control) ease,
+    color var(--motion-control) ease;
 }
 .toggle:hover {
   background: var(--bg-hover);

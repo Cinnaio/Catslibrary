@@ -83,13 +83,13 @@
 }
 
 /* 筛选、搜索及翻页数据流转态（Transitioning Feedback） */
+.admin-data-table--animated [data-slot='table-body'],
+.content-ratings-ledger [data-slot='table-body'] {
+  transition: opacity var(--motion-control) var(--ease-out);
+}
 .admin-data-table--transitioning [data-slot='table-body'],
 .content-ratings-ledger--transitioning [data-slot='table-body'] {
   opacity: 0.58;
-  filter: blur(0.4px);
-  transition:
-    opacity 150ms var(--ease),
-    filter 150ms var(--ease);
   pointer-events: none;
 }
 

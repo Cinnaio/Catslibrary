@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useState } from 'react'
 import { aiApi, type AiWritingBrief, type AiWritingMaterials } from '@/lib/api'
 import FormField from "@/components/shared/FormField"
@@ -45,7 +46,7 @@ export default function WritingPreparation(props: {
     }
   }
   return (
-    <details className="ai-writing-outline-details" aria-label="进阶约束与材料">
+    <MotionDetails className="ai-writing-outline-details" aria-label="进阶约束与材料">
       <summary>
         进阶约束与材料
         <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -152,7 +153,7 @@ export default function WritingPreparation(props: {
           </div>
         )}
         {props.chapterCount > 1 && (
-          <details>
+          <MotionDetails>
             <summary className="cursor-pointer text-sm">分别指定 {props.chapterCount} 章的目标</summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {Array.from({ length: props.chapterCount }, (_, i) => (
@@ -173,7 +174,7 @@ export default function WritingPreparation(props: {
                 </FormField>
               ))}
             </div>
-          </details>
+          </MotionDetails>
         )}
         {props.continuation && (
           <>
@@ -212,7 +213,7 @@ export default function WritingPreparation(props: {
                   <p className="text-xs text-muted-foreground">没有找到匹配的历史原文，可补充人物姓名或具体事实后重新预览。</p>
                 )}
                 {visiblePreview.historicalPassages.map((p) => (
-                  <details key={p.chapterId} className="border-b border-border pb-2">
+                  <MotionDetails key={p.chapterId} className="border-b border-border pb-2">
                     <summary className="cursor-pointer text-sm">
                       历史原文 · {p.title} · 匹配：{p.matchedTerms.join('、')}
                     </summary>
@@ -220,7 +221,7 @@ export default function WritingPreparation(props: {
                     <p className="mt-1 break-all text-xs text-muted-foreground">
                       来源章节 {p.chapterId} · 正文片段 {p.start}–{p.end}
                     </p>
-                  </details>
+                  </MotionDetails>
                 ))}
                 {[
                   ...visiblePreview.plan.facts.filter((block) => !block.id.startsWith('history-')),
@@ -228,7 +229,7 @@ export default function WritingPreparation(props: {
                   ...visiblePreview.plan.style,
                   ...visiblePreview.plan.chapterTask,
                 ].map((block) => (
-                  <details key={block.id} className="border-b border-border pb-2">
+                  <MotionDetails key={block.id} className="border-b border-border pb-2">
                     <summary className="cursor-pointer text-sm">
                       {(
                         {
@@ -246,13 +247,13 @@ export default function WritingPreparation(props: {
                       · {block.text.length.toLocaleString()} 字符
                     </summary>
                     <p className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-sm leading-6">{block.text}</p>
-                  </details>
+                  </MotionDetails>
                 ))}
               </div>
             )}
           </>
         )}
       </div>
-    </details>
+    </MotionDetails>
   )
 }

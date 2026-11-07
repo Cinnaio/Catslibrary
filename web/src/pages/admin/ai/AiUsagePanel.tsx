@@ -1,3 +1,4 @@
+import { MotionPresence } from '@/components/ui/motion'
 import { useEffect, useId, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Area, Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -142,7 +143,7 @@ export default function AiUsagePanel({ days = 30, refreshKey = 0, onLoadingChang
         : !hasData && error ? <ErrorState message={`用量加载失败：${error}`} onRetry={retry} />
         : !hasData ? <AiPanelEmptyState configured={configured} unconfiguredMessage="尚未配置文本 AI 供应商，暂时没有用量可统计" unconfiguredHint="配置文本供应商后，这里会显示调用次数、Token 与成本趋势。" emptyMessage="所选范围内没有 AI 调用记录" hint={`最近 ${days} 天内没有调用；可切换其他时间范围。`} />
         : error ? <InlineError message={`用量更新失败，保留上次结果：${error}`} onRetry={retry} /> : null}
-      <div id={chartId} hidden={!isOpen}>
+      <MotionPresence asChild open={isOpen} mode="disclosure" keepMounted><div id={chartId} >
         {isOpen && hasData && (
           <Tabs value={metric} onValueChange={(value) => setMetric(value as Metric)} className={styles.trend}>
             <div className={styles.trendHeading}>
@@ -179,7 +180,7 @@ export default function AiUsagePanel({ days = 30, refreshKey = 0, onLoadingChang
             </TabsContent>
           </Tabs>
         )}
-      </div>
+      </div></MotionPresence>
     </section>
   )
 }

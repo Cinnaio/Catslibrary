@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 /** AI 封面生成工作台：选小说 → 生成封面（落候选，不覆盖）→ 预览候选 → 采纳/弃用/上传替换。 */
 import { ErrorState } from "@/components/shared/AsyncStates"
@@ -692,7 +693,7 @@ export default function AiCoverPanel({
                     aria-labelledby="cover-change-novel-label"
                   />
                 </FormField>
-                <details className="ai-cover-book-disclosure">
+                <MotionDetails className="ai-cover-book-disclosure">
                   <summary>作品资料与内容分级</summary>{' '}
                   <section className="ai-cover-book-details grid gap-4" aria-labelledby="cover-book-title">
                     <CoverCanvas src={previewSrc} title={`${selected.title} 当前封面`} hasNovel className="max-w-24 rounded-md" />
@@ -723,12 +724,12 @@ export default function AiCoverPanel({
                       <div className="grid gap-1.5 text-sm leading-relaxed">
                         <p className="text-foreground/90">{selected.description?.trim() || '这本小说还没有简介，自动推荐会更多依赖书名和分类。'}</p>
                         {selected.description?.trim() && selected.description.length > 320 && (
-                          <details className="text-xs text-muted-foreground">
+                          <MotionDetails className="text-xs text-muted-foreground">
                             <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                               展开完整简介
                             </summary>
                             <p className="mt-2 whitespace-pre-wrap leading-relaxed">{selected.description}</p>
-                          </details>
+                          </MotionDetails>
                         )}
                       </div>
 
@@ -740,7 +741,7 @@ export default function AiCoverPanel({
                       )}
                     </div>
                   </section>
-                </details>
+                </MotionDetails>
                 <section className="grid gap-3" aria-labelledby="cover-design-title">
                   <div className="grid gap-1">
                     <Button
@@ -805,7 +806,7 @@ export default function AiCoverPanel({
                       : `构图：${COMPOSITION_OPTIONS.find((option) => option.value === composition)?.label || composition}。`}
                   </p>
                 </section>
-                <details className="ai-cover-understanding">
+                <MotionDetails className="ai-cover-understanding">
                   <summary>AI 对作品的理解与方向提取</summary>
                   <section className="grid gap-3" aria-labelledby="cover-understanding-title" aria-live="polite">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -902,7 +903,7 @@ export default function AiCoverPanel({
                       </div>
                     )}
                   </section>
-                </details>
+                </MotionDetails>
                 {!imageConfigured && (
                   <div className="flex items-start gap-2.5 rounded-lg border border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] px-3.5 py-3 text-sm leading-relaxed text-[var(--color-warning)]">
                     <CircleAlert className="mt-0.5 size-4 shrink-0" />
@@ -1151,12 +1152,12 @@ export default function AiCoverPanel({
                             </Button>
                           </div>
                           {focusedCandidate.prompt && (
-                            <details className="text-xs text-muted-foreground">
+                            <MotionDetails className="text-xs text-muted-foreground">
                               <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                                 查看完整描述词
                               </summary>
                               <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words leading-relaxed">{focusedCandidate.prompt}</p>
-                            </details>
+                            </MotionDetails>
                           )}
                         </figcaption>{' '}
                       </figure>

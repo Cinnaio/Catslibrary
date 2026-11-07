@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 import '../../styles/admin/pages/accounts.css'
 /**
@@ -852,10 +853,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               </Button>
             </div>
           )}
-          <details className="account-record-note">
+          <MotionDetails className="account-record-note">
             <summary>注册与邀请说明</summary>
             <p>邀请码一次使用后即失效。停用不影响已有用户，清理仅处理确认时已使用或已停用的邀请码。</p>
-          </details>
+          </MotionDetails>
           <AccountRecordDetails detail={inviteDetail} onClose={() => setInviteDetail(null)} />
         </section>
       )}

@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { ExternalLink, RefreshCw, SearchX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -94,7 +95,7 @@ export default function DiscoveryPanel({
           {batch.done && <Button variant="ghost" onClick={onClearBatch}>清除记录</Button>}
         </div>
         <Progress value={batchPercent} className={styles.batchProgress} aria-label="批量处理进度" />
-        {batch.entries.length > 0 && <details className={styles.batchDetails}><summary>查看处理明细</summary><ul className={styles.batchEntries} tabIndex={0} aria-label="批量处理明细">{batch.entries.map((entry, index) => <li key={index} data-kind={entry.type}><span>{entry.type === 'err' ? '失败' : entry.type === 'ok' ? '成功' : entry.type === 'skip' ? '跳过' : entry.type === 'novel' ? '作品' : '说明'}</span>{entry.text}</li>)}</ul></details>}
+        {batch.entries.length > 0 && <MotionDetails className={styles.batchDetails}><summary>查看处理明细</summary><ul className={styles.batchEntries} tabIndex={0} aria-label="批量处理明细">{batch.entries.map((entry, index) => <li key={index} data-kind={entry.type}><span>{entry.type === 'err' ? '失败' : entry.type === 'ok' ? '成功' : entry.type === 'skip' ? '跳过' : entry.type === 'novel' ? '作品' : '说明'}</span>{entry.text}</li>)}</ul></MotionDetails>}
       </section>}
       <AdminSelectionBar count={selectedNewCount} label={`已选择 ${selectedNewCount} 本作品`} onClear={onClearSelect || onToggleAll} clearLabel="取消选择" clearPlacement="actions">
         <Button onClick={onBatchScrape} disabled={selectedNewCount === 0 || loading || batchBusy}>{batchBusy ? <Spinner size="sm" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}{batchBusy ? '正在批量处理…' : `批量抓取 (${selectedNewCount})`}</Button>

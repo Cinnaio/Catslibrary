@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 import { DialogFrame } from "@/components/shared/DialogFrame"
 import BookImportChapterResolver, { type ChapterResolutionChoice } from './BookImportChapterResolver'
@@ -621,7 +622,7 @@ export default function BookImportDialog({
                       </div>
                     </section>
                   )}
-                  {!file?.name.toLowerCase().endsWith('.zip') && <details className={styles.optionalSource}>
+                  {!file?.name.toLowerCase().endsWith('.zip') && <MotionDetails className={styles.optionalSource}>
                     <summary>
                       补充来源链接 <span>可选</span>
                       <ChevronDown aria-hidden="true" />
@@ -647,7 +648,7 @@ export default function BookImportDialog({
                         用于更准确地匹配已有作品和章节；留空也可以导入。
                       </p>
                     </div>
-                  </details>}
+                  </MotionDetails>}
                 </TabsContent>
                 <TabsContent value="url" className={`${styles.sourceContent} ${styles.urlContent}`}>
                   <div className={styles.urlIntro}>

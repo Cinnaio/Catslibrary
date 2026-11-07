@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SourceSyncManualMapping, SourceSyncPreview } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -191,13 +192,13 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
     return orders.length > 6 ? `${orders.slice(0, 6).join('、')}…` : orders.join('、')
   }
 
-  return <details className="chapter-merge-dialog__preview-section chapter-merge-dialog__mapping-review">
+  return <MotionDetails className="chapter-merge-dialog__preview-section chapter-merge-dialog__mapping-review">
     <summary>核对与调整映射<span>查看匹配依据，处理未匹配章节</span></summary>
     {preview.orderRepairBlockedReason && <p className="chapter-merge-dialog__warning">序号检查：{preview.orderRepairBlockedReason}</p>}
     {shiftSegments.some(segment => segment.offset !== 0) && (() => {
       const shiftedSegments = shiftSegments.filter(segment => segment.offset !== 0)
       const detail = `${shiftedSegments.length} 段 · ${orderChanges.size} 个序号可修复 · ${blockedIds.size} 章受阻`
-      return <details className="chapter-merge-dialog__shift-summary">
+      return <MotionDetails className="chapter-merge-dialog__shift-summary">
         <summary>序号偏移分段<span>{detail}</span></summary>
         <p className="dialog-frame-hint">序号不同的章节可勾选按源站排序，未勾选保持原样。移动依赖其他章节让位时需一并选择；受阻项先核对占位章节。</p>
         <ul>
@@ -216,9 +217,9 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
             </li>
           })}
         </ul>
-      </details>
+      </MotionDetails>
     })()}
-    {!!blockers.size && <details className="chapter-merge-dialog__shift-summary">
+    {!!blockers.size && <MotionDetails className="chapter-merge-dialog__shift-summary">
       <summary>序号修复受阻汇总<span>{blockers.size} 个阻塞源 · {(preview.orderRepairBlockers || []).reduce((total, row) => total + row.affectedChapterIds.length, 0)} 项待处理</span></summary>
       <p className="dialog-frame-hint">修复目标序号被以下本地章节占用。请先核对阻塞源，再重新生成修复方案。</p>
       <ul>
@@ -237,7 +238,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
           }}>定位阻塞源</Button>
         </li>)}
       </ul>
-    </details>}
+    </MotionDetails>}
     <div className="chapter-merge-dialog__mapping-tools">
       <div className="chapter-merge-dialog__filters" role="group" aria-label="映射差异筛选">
         <Button variant="ghost" aria-pressed={filter === 'all'} onClick={() => { setFilter('all'); setPage(1); setEditingId('') }}>全部 {locals.length}</Button>
@@ -247,7 +248,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
       <Input aria-label="搜索本地章节映射" placeholder="搜索本地标题或序号" value={query} onChange={event => { setQuery(event.target.value); setPage(1); setEditingId('') }} />
     </div>
     <div className="chapter-merge-dialog__mapping-guidance">
-      <details><summary>核对说明</summary><p className="dialog-frame-hint">可以先暂存多条调整，再统一保存并重新预览。未受影响的确认与勾选会保留，变化的映射需重新确认。选择已占用的源站章节可交换对应关系；拆分组保持原样。</p></details>
+      <MotionDetails><summary>核对说明</summary><p className="dialog-frame-hint">可以先暂存多条调整，再统一保存并重新预览。未受影响的确认与勾选会保留，变化的映射需重新确认。选择已占用的源站章节可交换对应关系；拆分组保持原样。</p></MotionDetails>
       <Button variant="ghost" size="sm" disabled={disabled || !preview.manualMappings?.length || !!drafts.length} onClick={() => void onRemap([])}>恢复自动匹配</Button>
     </div>
     {!!drafts.length && <div className="chapter-merge-dialog__mapping-selection">
@@ -321,7 +322,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
                   : <span className="chapter-merge-dialog__shift-neutral">序号偏移 {sign}{shift.segment.offset}（按勾选同步）</span>
               })()}
               {mapping && <span>{mapping.matchReason ? MATCH_REASON_LABELS[mapping.matchReason] : '旧预览未记录依据'} · 置信度{CONFIDENCE_LABELS[mapping.confidence]}{mapping.relation === 'split' ? ' · 拆分组' : ''}</span>}
-              {mapping?.matchEvidence && <details><summary>匹配说明</summary><p>{mapping.matchEvidence}</p></details>}
+              {mapping?.matchEvidence && <MotionDetails><summary>匹配说明</summary><p>{mapping.matchEvidence}</p></MotionDetails>}
               {drafts.some(row => row.localChapterId === local.id) && <span className="chapter-merge-dialog__warning">暂存目标：{sources.find(source => source.key === effectiveMappings.get(local.id))?.title || '解除匹配'}（尚未保存）</span>}
               {onInspect && <Button variant="ghost" size="sm" disabled={disabled} onClick={() => onInspect(local.id)} aria-label={`预览正文：本地 ${local.order}`}>预览正文</Button>}
               {onDelete && <label className="chapter-merge-dialog__manual-choice"><Checkbox aria-label={`标记删除：本地 ${local.order}`} checked={deleteIds.has(local.id)} disabled={disabled} onCheckedChange={checked => {
@@ -388,5 +389,5 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, onSel
       <Button variant="ghost" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setEditingId('') }}>上一页</Button><span>{currentPage} / {pages}</span><Button variant="ghost" disabled={currentPage === pages} onClick={() => { setPage(currentPage + 1); setEditingId('') }}>下一页</Button>
     </nav>}
 
-  </details>
+  </MotionDetails>
 }

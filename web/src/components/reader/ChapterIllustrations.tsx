@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/select-fields.css'
 import '@/styles/input-fields.css'
 import { Button } from '@/components/ui/button'
@@ -376,7 +377,7 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
             </button>
           )}
           {!!data?.items.length && (
-            <details className="illustration-list">
+            <MotionDetails className="illustration-list">
               <summary>已保存插图（{data.items.length}）</summary>
               <ol>
                 {[...data.items]
@@ -421,7 +422,7 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
                     )
                   })}
               </ol>
-            </details>
+            </MotionDetails>
           )}
           {pending.length > 0 && (
             <div className="illustration-pending">
@@ -620,7 +621,7 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
                     ]}
                   />
                 </FormField>
-                <details className={styles.contextDisclosure}>
+                <MotionDetails className={styles.contextDisclosure}>
                   <summary>查看插入位置上下文<ChevronDown size={14} aria-hidden="true" /></summary>
                 <dl className={styles.context} aria-label="插入位置上下文">
                   <div><dt>上文</dt><dd>
@@ -632,7 +633,7 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
                   </dd></div>
                   <div><dt>下文</dt><dd>{editor && editor.index + 1 < paragraphs.length ? excerptText(paragraphs[editor.index + 1]?.textContent || '') : '章节结尾'}</dd></div>
                 </dl>
-                </details>
+                </MotionDetails>
                 <div className={styles.widthField}>
                   <span>展示宽度</span>
                   <div className={styles.widthOptions} role="group" aria-label="展示宽度">

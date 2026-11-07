@@ -6,3 +6,9 @@ export function prefersReducedMotion(): boolean {
 export function scrollBehavior(): ScrollBehavior {
   return prefersReducedMotion() ? 'auto' : 'smooth'
 }
+
+export function motionDuration(element: HTMLElement, opening: boolean) {
+  const token = getComputedStyle(element).getPropertyValue(opening ? '--motion-state-enter' : '--motion-state-exit').trim()
+  const value = parseFloat(token)
+  return Number.isFinite(value) ? value * (token.endsWith('ms') ? 1 : 1000) : opening ? 180 : 140
+}

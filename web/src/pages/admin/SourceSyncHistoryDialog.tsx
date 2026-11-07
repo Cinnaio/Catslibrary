@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { scrapeApi, newOperationId, type SourceSyncAppliedChange, type SourceSyncHistoryItem, type SourceSyncRollbackResult } from '@/lib/api'
 import { useConfirm } from '@/components/feedback'
@@ -90,7 +91,7 @@ export default function SourceSyncHistoryDialog({ open, novelId, onOpenChange, o
             </dl>
             {item.summary.sourceUrl && <p className="source-sync-history__source"><span>来源</span>{item.summary.sourceUrl}</p>}
             {item.rollback && <p>已恢复 {item.rollback.restored} 项，保留 {item.rollback.conflicts.length} 项冲突。</p>}
-            {!!item.rollback?.conflicts.length && <details><summary>查看保留的冲突</summary>{item.rollback.conflicts.map(conflict => <p key={conflict.id}>{conflict.title}：{conflict.reason}</p>)}</details>}
+            {!!item.rollback?.conflicts.length && <MotionDetails><summary>查看保留的冲突</summary>{item.rollback.conflicts.map(conflict => <p key={conflict.id}>{conflict.title}：{conflict.reason}</p>)}</MotionDetails>}
             {!item.canRollback && item.status === 'applied' && <p className="dialog-frame-hint">没有可撤回的实际变化快照；旧记录不推断恢复值。</p>}
           </div>
           <div className="chapter-merge-dialog__history-actions"><Button variant="ghost" aria-expanded={detail?.runId === item.runId} aria-controls={detail?.runId === item.runId ? 'source-sync-history-detail' : undefined} disabled={!!busyId || loading} onClick={() => void readDetail(item.runId)}>查看变化</Button><Button variant="secondary" disabled={!item.canRollback || !!busyId || loading} onClick={() => void rollback(item)}>撤回此次融合</Button></div>
@@ -124,5 +125,5 @@ function HistoryChanges({ changes }: { changes: SourceSyncAppliedChange[] }) {
 
 function MetadataChanges({ change }: { change: Extract<SourceSyncAppliedChange, { kind: 'metadata' }> }) {
   const fields = { title: '书名', author: '作者', description: '简介', cover_url: '封面', categories: '分类', status: '状态', content_rating: '内容分级' }
-  return <div>{Object.entries(fields).filter(([field]) => change.before[field] !== change.after[field]).map(([field, label]) => <details key={field}><summary>{label}变化</summary><p>原：{String(change.before[field] ?? '未填写')}</p><p>更新后：{String(change.after[field] ?? '未填写')}</p></details>)}</div>
+  return <div>{Object.entries(fields).filter(([field]) => change.before[field] !== change.after[field]).map(([field, label]) => <MotionDetails key={field}><summary>{label}变化</summary><p>原：{String(change.before[field] ?? '未填写')}</p><p>更新后：{String(change.after[field] ?? '未填写')}</p></MotionDetails>)}</div>
 }

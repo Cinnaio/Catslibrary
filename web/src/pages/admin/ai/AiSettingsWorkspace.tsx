@@ -1,3 +1,4 @@
+import { MotionView } from '@/components/ui/motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/shared/AsyncStates'
@@ -53,7 +54,7 @@ export default function AiSettingsWorkspace({ view, group, onBusyChange }: { vie
   const paramsBusy = useCallback((value: boolean) => setBusy(previous => ({ ...previous, params: value })), [])
   useEffect(() => onBusyChange(busy.config || busy.params), [busy.config, busy.params, onBusyChange])
   return <>
-    <div hidden={view !== 'config'}>{visited.has('config') && <SettingsSection view="config" onBusyChange={configBusy} />}</div>
-    <div hidden={view !== 'params'}>{visited.has('params') && <SettingsSection view="params" group={group} onBusyChange={paramsBusy} />}</div>
+    <MotionView asChild><div hidden={view !== 'config'}>{visited.has('config') && <SettingsSection view="config" onBusyChange={configBusy} />}</div></MotionView>
+    <MotionView asChild><div hidden={view !== 'params'}>{visited.has('params') && <SettingsSection view="params" group={group} onBusyChange={paramsBusy} />}</div></MotionView>
   </>
 }

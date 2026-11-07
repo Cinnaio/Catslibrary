@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
 import { TaskDetails, TaskDetailsFact, TaskDetailsFacts, TaskDetailsIdentifier, TaskDetailsResult, TaskDetailsSection, TaskDetailsSummary } from '../TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
@@ -582,14 +583,14 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                           <span>{section.hint}</span>
                         </header>
                         {section.blocks.map((block, blockIndex) => (
-                          <details key={`${section.id}-${block.id}-${blockIndex}`} className="ai-prompt-view__block">
+                          <MotionDetails key={`${section.id}-${block.id}-${blockIndex}`} className="ai-prompt-view__block">
                             <summary>
                               <span className="ai-prompt-view__block-title">{block.idLabel}</span>
                               {block.kindLabel && <span className="ai-prompt-view__block-kind">{block.kindLabel}</span>}
                               {block.source && <span className="ai-prompt-view__block-source">{block.source}</span>}
                             </summary>
                             <pre className="ai-prompt-view__block-text">{block.text}</pre>
-                          </details>
+                          </MotionDetails>
                         ))}
                       </section>
                     ))}

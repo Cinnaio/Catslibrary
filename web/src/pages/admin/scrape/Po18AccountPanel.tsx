@@ -1,3 +1,4 @@
+import { MotionDetails, MotionPresence } from '@/components/ui/motion'
 import FormField from "@/components/shared/FormField"
 import { useCallback, useEffect, useId, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -227,7 +228,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
           </Button>
         </div>
       </div>
-      {!collapsed && <div id={connectionId} className={styles.connectionBody}>
+      <MotionPresence asChild open={!collapsed} mode="disclosure"><div id={connectionId} className={styles.connectionBody}>
         <div className={styles.connectionIntro}>
           <p className={styles.hint}>{statusError || getStatusDescription(status)}</p>
           <Button variant="ghost" asChild><Link to="/admin/scrape?view=proxy">代理设置</Link></Button>
@@ -251,14 +252,14 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
             <Button disabled={disabled || (challenge.captchaRequired && !captcha.trim())} onClick={() => void login()}>{busy === 'login' && <Spinner size="sm" aria-hidden="true" />}{busy === 'login' ? '登录中…' : '提交登录'}</Button>
           </div>}
         </section>
-        <details className={styles.connectionAlternative}>
+        <MotionDetails className={styles.connectionAlternative}>
           <summary><span>导入浏览器 Cookie</span><span className={styles.foldAside}>自动登录不成功时使用</span></summary>
           <div className={styles.alternativeBody}>
             <p className={styles.hint}>在浏览器登录 PO18.tw 后复制 Cookie。保存后不会回显，账号沿用上方填写的值。</p>
             <FormField label="会话 Cookie" htmlFor="po18-session-cookie"><Textarea id="po18-session-cookie" rows={3} value={sessionCookie} onChange={(event) => setSessionCookie(event.target.value)} placeholder="粘贴浏览器中已登录的 Cookie" disabled={disabled} /></FormField>
             <div className={styles.connectionActions}><Button variant="outline" disabled={disabled || !sessionCookie.trim()} onClick={() => void saveAccount(true)}>{busy === 'save' ? '保存中…' : '加密保存 Cookie'}</Button>{status?.hasSession && <span className={styles.hint}>Cookie 已保存，仍需校验实际读取权限</span>}</div>
           </div>
-        </details>
+        </MotionDetails>
         <section className={styles.connectionSection} aria-labelledby="po18-test-title">
           <div className={styles.sectionIntro}><h3 id="po18-test-title">会话校验</h3><p className={styles.hint}>填写链接可验证对应章节的读取权限；留空只检查站点可访问。</p></div>
           <FormField label="会话验证链接（可选）" htmlFor="po18-session-test-url"><div className={styles.controls}><Input id="po18-session-test-url" type="url" value={testSourceUrl} onChange={(event) => setTestSourceUrl(event.target.value)} placeholder="粘贴有权限的目录或章节链接" disabled={disabled} /><Button variant="outline" disabled={disabled || !status?.hasSession} onClick={() => void testSession()}>{busy === 'test' && <Spinner size="sm" aria-hidden="true" />}{busy === 'test' ? '测试中…' : '测试会话'}</Button></div></FormField>
@@ -267,7 +268,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
           <p className={styles.hint}>密码与 Cookie 由服务端加密存储；受保护内容仍需账号具备读取权限。</p>
           <Button variant="ghost" disabled={disabled || !status?.configured} onClick={() => void clearAccount()}><Trash2 aria-hidden="true" />{busy === 'clear' ? '清除中…' : '清除账号'}</Button>
         </footer>
-      </div>}
+      </div></MotionPresence>
     </section>
   )
 }

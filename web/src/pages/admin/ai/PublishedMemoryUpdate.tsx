@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
@@ -266,14 +267,14 @@ export default function PublishedMemoryUpdate({
                     )}
                     {profile?.manualOverride && <p className="text-xs text-muted-foreground">人工校正会保留，自动档案更新后可能需要重新确认。</p>}
                     {progress?.previewContent && !ready && (
-                      <details className="text-xs group mt-1">
+                      <MotionDetails className="text-xs group mt-1">
                         <summary className="cursor-pointer text-muted-foreground hover:text-foreground font-medium transition-colors select-none">
                           查看已保存的阶段内容
                         </summary>
                         <pre className="mt-1.5 max-h-36 overflow-auto rounded-md border border-border/60 bg-muted/30 p-2.5 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-muted-foreground">
                           {progress.previewContent}
                         </pre>
-                      </details>
+                      </MotionDetails>
                     )}
                   </div>
                   {!ready && !running && (

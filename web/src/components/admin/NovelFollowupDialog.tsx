@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import type { PendingChapterCounts } from '@shared/novel-updates'
 import { pendingUpdateDisplay } from '@shared/novel-updates'
 import { Link } from 'react-router-dom'
@@ -274,7 +275,7 @@ export default function NovelFollowupDialog({
                           }}
                         />
                         <p className="dialog-frame-hint">支持站点自动使用内置规则。保存来源后，可另行开启自动追更。</p>
-                        <details>
+                        <MotionDetails>
                           <summary>高级配置：自定义选择器</summary>
                           <Label htmlFor="novel-web-encoding">网页编码（留空使用站点规则）</Label>
                           <Input
@@ -292,7 +293,7 @@ export default function NovelFollowupDialog({
                             onChange={(event) => setSelectors(event.target.value)}
                             placeholder={'{"chapterList":".chapters a","chapterContent":"#content"}'}
                           />
-                        </details>
+                        </MotionDetails>
                         {sourceError && <p role="alert">{sourceError}</p>}
                         <div className="novel-followup-dialog__source-actions">
                           <Button size="sm" disabled={busy || !sourceUrl.trim()} onClick={() => void saveSource()}>

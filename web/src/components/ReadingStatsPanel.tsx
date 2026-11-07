@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/select-fields.css'
 import '@/styles/input-fields.css'
 import { Button } from '@/components/ui/button'
@@ -304,7 +305,7 @@ export function ReadingStatsPanel() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <details className="reading-stats__table">
+              <MotionDetails className="reading-stats__table">
                 <summary>查看趋势数据</summary>
                 <table>
                   <thead>
@@ -324,7 +325,7 @@ export function ReadingStatsPanel() {
                     ))}
                   </tbody>
                 </table>
-              </details>
+              </MotionDetails>
               <h3 className="reading-stats__books-title">阅读作品</h3>
               <ul className="reading-stats__books">
                 {data.novels.slice(0, expanded ? undefined : 5).map((book) => (
@@ -346,7 +347,7 @@ export function ReadingStatsPanel() {
               )}
             </>
           )}
-          <details className="reading-stats__help">
+          <MotionDetails className="reading-stats__help">
             <summary>统计说明{data.recordedSince ? ` · 从 ${readingDate(data.recordedSince)} 开始记录` : ''}</summary>
             <p>当前统计来自 Web 阅读器，按北京时间划分日期，周一为每周起点，仅包含当前模式可访问的作品。</p>
             <p>正文在前台、窗口获得焦点时计时。后台、遮挡正文的面板、休眠或 5 分钟无操作时暂停。计时是阅读活动的近似统计。</p>
@@ -356,7 +357,7 @@ export function ReadingStatsPanel() {
               秒计算。趋势次数在各时间段分别计入，同一次跨时段阅读可能出现在多个时段。
             </p>
             <p>旧进度无法补算阅读时间。离线记录会在联网后同步，最新数据可能延迟约 30 秒显示。</p>
-          </details>
+          </MotionDetails>
         </div>
       )}
     </section>

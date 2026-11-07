@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 /**
  * 导入解析诊断面板。
@@ -313,7 +314,7 @@ function ImpactRows({ impacts }: { impacts: BookImportBoundaryImpact[] }) {
             ))}
           </div>
           {impact.context && (
-            <details className="book-import__impact-context">
+            <MotionDetails className="book-import__impact-context">
               <summary>查看这一行附近的原文</summary>
               <ol className="book-import__source-lines" aria-label={`第 ${impact.line} 行附近原文`}>
                 {impact.context.map((row) => (
@@ -323,7 +324,7 @@ function ImpactRows({ impacts }: { impacts: BookImportBoundaryImpact[] }) {
                   </li>
                 ))}
               </ol>
-            </details>
+            </MotionDetails>
           )}
         </div>
       ))}
@@ -455,7 +456,7 @@ function ManualBoundaryEditor({
     }
   }
   return (
-    <details className="book-import__manual-boundary">
+    <MotionDetails className="book-import__manual-boundary">
       <summary>人工修正边界</summary>
       <div className="book-import__manual-content">
         <p className="book-import__diagnostics-clean">按原文行号修正遗漏或误识别的标题。先预览影响，再应用；已采纳的其他修正会保留。</p>
@@ -543,6 +544,6 @@ function ManualBoundaryEditor({
           </>
         )}
       </div>
-    </details>
+    </MotionDetails>
   )
 }

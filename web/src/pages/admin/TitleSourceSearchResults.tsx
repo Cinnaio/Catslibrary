@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import type { TitleSource, TitleSourceSearchResponse } from '@/lib/api'
 
 const SITES = ['jjwxc', 'po18tw'] as const
@@ -53,10 +54,10 @@ export default function TitleSourceSearchResults({ search, disabled, onSelect }:
           <div key={site}>
             {bucket?.error && <p className="mb-2 text-xs text-amber-600">{bucket.error}</p>}
             {results.length > 0 ? (
-              <details>
+              <MotionDetails>
                 <summary className="cursor-pointer text-sm">{label}其他结果 · {results.length} 个</summary>
                 <div className="mt-2 grid gap-2">{results.map(renderCandidate)}</div>
-              </details>
+              </MotionDetails>
             ) : <p className="dialog-frame-hint">{label} · {bucket?.results?.length ? '全部结果已列入优先候选' : bucket?.ok ? '没有匹配结果' : '搜索不可用'}</p>}
           </div>
         )

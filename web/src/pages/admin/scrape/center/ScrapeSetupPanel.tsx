@@ -1,3 +1,4 @@
+import { MotionDetails, MotionPresence } from '@/components/ui/motion'
 import { useId, useState } from 'react'
 import { ArrowRight, ChevronDown, ExternalLink, FlaskConical, RotateCcw } from 'lucide-react'
 import type { ContentRating } from '@shared/types'
@@ -151,7 +152,7 @@ export default function ScrapeSetupPanel({
           </Button>
           <span className={styles.foldAside}>书名、作者、分类与分级</span>
         </div>
-        {metadataOpen && <div id={metadataId} className={styles.foldBody}>
+        <MotionPresence asChild open={metadataOpen} mode="disclosure"><div id={metadataId} className={styles.foldBody}>
           <fieldset className={styles.metadata} disabled={Boolean(novelId) || busy}>
             <div className={styles.fields}>
               <ScrapeField label="书名" error={attemptedSave && !preview.title.trim() ? '请填写书名' : undefined}>{({ id }) => <Input id={id} value={preview.title} onChange={(event) => onPreviewChange({ ...preview, title: event.target.value })} />}</ScrapeField>
@@ -163,7 +164,7 @@ export default function ScrapeSetupPanel({
             </div>
           </fieldset>
           {novelId && <p className={styles.hint}>作品信息已保存，后续可到作品库编辑。</p>}
-        </div>}
+        </div></MotionPresence>
       </section>
 
       <section className={styles.fold} aria-label="章节规则与校验">
@@ -175,8 +176,7 @@ export default function ScrapeSetupPanel({
           <span className={styles.foldAside}>{sitePreset === 'po18' ? 'PO18 预设' : '自动识别 / 自定义规则'}</span>
         </div>
         {!canStart && !advancedOpen && <p className={`${styles.hint} ${styles.danger}`}>章节来源或选择器不完整，请展开补充后启动。</p>}
-        {advancedOpen && (
-          <div id={advancedId} className={styles.config}>
+        <MotionPresence asChild open={advancedOpen} mode="disclosure"><div id={advancedId} className={styles.config}>
             <Tabs value={sitePreset} onValueChange={onSitePresetChange}>
               <TabsList aria-label="选择器来源" data-active-index={PRESET_INDEX[sitePreset] ?? 0}>
                 <TabsTrigger value="po18" disabled={busy || started || testResult.loading}>PO18 预设</TabsTrigger>
@@ -206,13 +206,12 @@ export default function ScrapeSetupPanel({
             {testResult.empty && <p className={`${styles.hint} ${styles.danger}`} role="status">没有找到章节链接，请检查目录地址和章节链接选择器。</p>}
             {testResult.data && !testResult.loading && <div className={styles.checkResults} role="status">
               <ScrapeChecks items={testChecks} />
-              {links.length > 0 && <details className={styles.sampleLinks}>
+              {links.length > 0 && <MotionDetails className={styles.sampleLinks}>
                 <summary>查看章节链接样本（前 {Math.min(8, links.length)} 个）</summary>
                 <ol tabIndex={0} aria-label="章节链接样本">{links.slice(0, 8).map((link, index) => <li key={index}><a href={link.href} target="_blank" rel="noreferrer">{link.text || link.href}</a></li>)}</ol>
-              </details>}
+              </MotionDetails>}
             </div>}
-          </div>
-        )}
+          </div></MotionPresence>
       </section>
 
       <div className={styles.actions}>

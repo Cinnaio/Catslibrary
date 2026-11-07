@@ -1,3 +1,4 @@
+import motion from './overlay-motion.module.css'
 import '@/styles/native-form-fields.css'
 import '@/styles/select-fields.css'
 import { useControlAppearance } from './control-appearance'
@@ -58,7 +59,7 @@ function SelectContent({ className, children, position = 'item-aligned', align =
         data-slot="select-content"
         data-ui={appearance['data-ui']}
         className={cn(
-          appearance.className,
+          motion.menu, appearance.className,
           'shared-select-content relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',

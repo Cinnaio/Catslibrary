@@ -30,6 +30,8 @@
   animation: adminSelectionDockExit var(--admin-dock-exit-duration) var(--admin-dock-exit-ease) both;
   pointer-events: none;
 }
+.admin-floating-dock[data-motion-managed] { animation: none; }
+.admin-floating-dock[inert] { pointer-events: none; }
 
 @keyframes adminSelectionDockEnter {
   0% {

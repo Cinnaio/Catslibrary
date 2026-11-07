@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import type { BackupTask, BackupVersion } from '@shared/backups'
 import { Download, RefreshCw, RotateCcw } from 'lucide-react'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
@@ -209,7 +210,7 @@ export function BackupVersionDialog({
                 </Button>
               </div>
             </section>
-            <details className={styles.metadata}>
+            <MotionDetails className={styles.metadata}>
               <summary>版本与校验信息</summary>
               <dl>
                 <div>
@@ -229,7 +230,7 @@ export function BackupVersionDialog({
                   <dd>{version.digest || '尚未生成'}</dd>
                 </div>
               </dl>
-            </details>
+            </MotionDetails>
           </>
         )}
       </ReadingDialog>

@@ -27,9 +27,9 @@
   background: var(--bg-card);
   pointer-events: none;
   transition:
-    transform 180ms ease-out,
-    width 180ms ease-out,
-    height 180ms ease-out;
+    transform var(--motion-state-enter) var(--ease-out),
+    width var(--motion-state-enter) var(--ease-out),
+    height var(--motion-state-enter) var(--ease-out);
 }
 .list[data-variant='default'] > .trigger {
   position: relative;
@@ -63,12 +63,18 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+.content[data-state='active']:not([hidden]) {
+  animation: content-enter var(--motion-state-enter) var(--ease-out);
+}
+.content[hidden] { display: none !important; }
+@keyframes content-enter { from { opacity: 0.6; } to { opacity: 1; } }
 @media (max-width: 700px) {
   .list[data-variant='default'] > .trigger {
     min-height: 48px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .content[data-state='active'] { animation: none; }
   .indicator {
     transition: none;
   }

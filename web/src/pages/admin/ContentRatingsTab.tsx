@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import '../../styles/admin/pages/content-ratings.css'
 import { startPolling } from '@/lib/polling'
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
@@ -1346,7 +1347,7 @@ export default function ContentRatingsTab() {
               LLM 建议 <span className="content-ratings-tab-count">{aiData ? formatNumber(aiData.counts.pending) : '—'}</span>
             </TabsTrigger>
           </TabsList>
-          <details ref={policyRef} className="content-ratings-policy">
+          <MotionDetails ref={policyRef} className="content-ratings-policy">
             <summary>
               <Info aria-hidden="true" />
               分级与审核口径
@@ -1402,7 +1403,7 @@ export default function ContentRatingsTab() {
                 只提出限制级或继续未标注的判断，不自动标为一般。规则批准前预览影响范围，模型建议经人工审核才可修改分级；人工修改必须填写理由并保留审计记录。
               </p>
             </div>
-          </details>
+          </MotionDetails>
         </div>
         <TabsContent value="ledger" className="content-ratings-ledger-view">
           <AdminToolbar layout="inline" className="admin-filter-rail content-ratings-toolbar content-ratings-filter-rail" ariaLive="polite">

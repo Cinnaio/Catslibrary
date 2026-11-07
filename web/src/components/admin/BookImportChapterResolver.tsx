@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 import { useState } from 'react'
 import type { BookImportChapterDiff, BookImportChapterResolution, BookImportLocalChapter } from '@shared/types'
@@ -160,7 +161,7 @@ export default function BookImportChapterResolver({
             <div role="status">
               <p>预计新增序号：{plan.insertOrders.get(chapter.id)}。以最终勾选的新增章节计算实际位置。</p>
               {plan.changes.length ? (
-                <details>
+                <MotionDetails>
                   <summary>预计顺延 {plan.changes.length} 个已有章节的序号</summary>
                   <ul>
                     {plan.changes.map((item) => (
@@ -169,7 +170,7 @@ export default function BookImportChapterResolver({
                       </li>
                     ))}
                   </ul>
-                </details>
+                </MotionDetails>
               ) : (
                 <p>无需调整已有章节的序号。</p>
               )}

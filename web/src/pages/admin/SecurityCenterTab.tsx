@@ -1,3 +1,4 @@
+import { MotionDetails, MotionPresence, MotionView } from '@/components/ui/motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { RefreshCw, ShieldCheck, Mail, Plus, CirclePlus, ChevronDown, Check, Ban } from 'lucide-react'
@@ -290,7 +291,7 @@ function SecurityCenterContent() {
     Boolean(restrictionForm.value.trim()) && Number.isSafeInteger(restrictionForm.hours) && restrictionForm.hours >= 1 && restrictionForm.hours <= 720
   const visibleViews = Object.entries(views).filter(([key]) => superAdmin || ['mail', 'events'].includes(key))
   return (
-    <AdminPage
+    <AdminPage motionKey={view}
       title={views[view]}
       description={`${viewDescriptions[view]}${!superAdmin ? ' 仅显示普通读者关联记录。' : ''}`}
       actions={
@@ -353,7 +354,7 @@ function SecurityCenterContent() {
         />
       )}
       {(serviceVisited || view === 'service') && (
-        <div hidden={view !== 'service'} className={styles.service}>
+        <MotionView asChild><div hidden={view !== 'service'} className={styles.service}>
           <MailSettings
             active={view === 'service'}
             externalBusy={busy || securityBusy}
@@ -427,7 +428,7 @@ function SecurityCenterContent() {
                   发送测试邮件
                 </Button>
               </div>
-              <details className={styles.disclosure}>
+              <MotionDetails className={styles.disclosure}>
                 <summary>
                   投递方式与配置说明
                   <ChevronDown size={14} aria-hidden="true" />
@@ -463,10 +464,10 @@ function SecurityCenterContent() {
                     指定），数据库备份不包含它；多实例须共享同一文件，迁移服务器时单独安全迁移。账号邮件建议在服务商控制台关闭打开与点击追踪。
                   </p>
                 </div>
-              </details>
+              </MotionDetails>
             </CardContent>
           </Card>
-        </div>
+        </div></MotionView>
       )}
       {view === 'policy' && draft && (
         <SecurityPolicyEditor
@@ -491,7 +492,7 @@ function SecurityCenterContent() {
       {view === 'restrictions' && restrictionOpen && (
         <Card>
           <PanelHeading title="新增规则" description="选择限制对象、场景与有效期。" />
-          <CardContent className={styles.panelBody} hidden={!restrictionOpen} id="security-restriction-form">
+          <MotionPresence asChild open={restrictionOpen} mode="disclosure" keepMounted><CardContent className={styles.panelBody} id="security-restriction-form">
             <form
               className={styles.stack}
               onSubmit={(e) => {
@@ -618,7 +619,7 @@ function SecurityCenterContent() {
                 </Button>
               </div>
             </form>
-          </CardContent>
+          </CardContent></MotionPresence>
         </Card>
       )}
       {listView && (
@@ -785,12 +786,12 @@ function SecurityCenterContent() {
                               <small>
                                 {securityReason(row.rule)} · {row.count} 次
                               </small>
-                              <details className={styles.recordTechnical}>
+                              <MotionDetails className={styles.recordTechnical}>
                                 <summary>规则信息</summary>
                                 <span>
                                   {row.rule} · 策略版本 {row.policy_revision}
                                 </span>
-                              </details>
+                              </MotionDetails>
                             </div>
                           </TableCell>
                           <TableCell data-label="最近发生">
@@ -1024,7 +1025,7 @@ function SecurityCenterContent() {
                   )}
                 </section>
                 <p className={styles.hint}>服务商受理与收件服务器接收分别记录，不能据此判断用户是否阅读。</p>
-                <details className={styles.disclosure}>
+                <MotionDetails className={styles.disclosure}>
                   <summary>
                     技术信息
                     <ChevronDown size={14} aria-hidden="true" />
@@ -1067,7 +1068,7 @@ function SecurityCenterContent() {
                       </div>
                     ))}
                   </dl>
-                </details>
+                </MotionDetails>
               </>
             )}
           </DialogBody>

@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useEffect, useRef, type RefObject } from 'react'
 import { CheckCircle2, ChevronDown, XCircle } from 'lucide-react'
 import type { AdminContentRatingAiSuggestion, AdminContentRatingBodySnapshot, AdminContentRatingEvidence } from '@/lib/api'
@@ -58,7 +59,7 @@ function BodySamples({ body }: { body?: AdminContentRatingBodySnapshot }) {
           </p>
           <p className={styles.hint}>命中词用于定位片段，分级需结合原文语境判断。</p>
           {body.keywordHits.length > 0 && (
-            <details className={styles.disclosure}>
+            <MotionDetails className={styles.disclosure}>
               <summary>
                 <span>命中词明细 <span className={styles.meta}>{number(body.keywordHits.length)} 个词</span></span>
                 <ChevronDown aria-hidden="true" />
@@ -80,7 +81,7 @@ function BodySamples({ body }: { body?: AdminContentRatingBodySnapshot }) {
                   )
                 })}
               </div>
-            </details>
+            </MotionDetails>
           )}
           {body.excerpts.length > 0 ? (
             <div className={styles.excerpts}>
@@ -88,7 +89,7 @@ function BodySamples({ body }: { body?: AdminContentRatingBodySnapshot }) {
                 const strong = excerpt.strongKeywords ?? excerpt.keywords.filter(isStrongKeyword)
                 const weak = excerpt.weakKeywords ?? excerpt.keywords.filter(word => !isStrongKeyword(word))
                 return (
-                  <details key={`${excerpt.chapter}-${index}`} className={styles.excerpt} open={index === 0}>
+                  <MotionDetails key={`${excerpt.chapter}-${index}`} className={styles.excerpt} open={index === 0}>
                     <summary>
                       <span className={styles.excerptHeading}>
                         <span>{excerpt.chapter}</span>
@@ -102,7 +103,7 @@ function BodySamples({ body }: { body?: AdminContentRatingBodySnapshot }) {
                       </p>
                       <blockquote>{excerpt.text}</blockquote>
                     </div>
-                  </details>
+                  </MotionDetails>
                 )
               })}
             </div>
@@ -211,7 +212,7 @@ export default function ContentRatingAiReview({ suggestion, decision, reason, er
           </section>}
 
           <section className={styles.section} aria-label="模型提取的证据">
-            <details className={styles.disclosure} open>
+            <MotionDetails className={styles.disclosure} open>
               <summary><span className={styles.disclosureHeading}>模型提取的证据 <span className={styles.meta}>{suggestion.evidence.length} 条</span></span><ChevronDown aria-hidden="true" /></summary>
               {suggestion.evidence.length > 0 ? <ol className={styles.evidence}>
                 {suggestion.evidence.map((item, index) => <li key={`${item.type}-${item.field || ''}-${index}`}>
@@ -219,12 +220,12 @@ export default function ContentRatingAiReview({ suggestion, decision, reason, er
                   <div><p>{item.value || item.rule || '未记录证据内容'}</p>{item.rule && item.value && <span className={styles.meta}>规则：{item.rule}</span>}</div>
                 </li>)}
               </ol> : <p className={styles.hint}>未附模型证据，请核对元数据与原文。</p>}
-            </details>
+            </MotionDetails>
           </section>
 
           <BodySamples body={suggestion.inputSnapshot.body} />
 
-          <details className={styles.disclosure}>
+          <MotionDetails className={styles.disclosure}>
             <summary><span>审核口径与模型信息</span><ChevronDown aria-hidden="true" /></summary>
             <p className={styles.hint}>模型建议经人工确认才会生效。批准“继续未标注”不会将作品标为一般；作品或建议已变化时，须重新加载后审核。</p>
             <dl className={styles.metadata}>
@@ -232,7 +233,7 @@ export default function ContentRatingAiReview({ suggestion, decision, reason, er
               <div><dt>提示版本</dt><dd>{suggestion.promptVersion || '未记录'}</dd></div>
               <div><dt>作品修订</dt><dd>{suggestion.novelRevision}</dd></div>
             </dl>
-          </details>
+          </MotionDetails>
         </div>}
       </ReadingDialog>
     </Dialog>

@@ -423,8 +423,7 @@ export function PolicyForm({ policy, targets, disabled = false, onDirtyChange, o
 
       {dirty && policy.revision > saved.revision && <p role="status" className="backup-error">计划已更新，当前草稿保留原修订号。请撤销修改读取最新计划后再编辑。</p>}
       {/* 只有未保存修改时显示保存动作。 */}
-      {dirty ?
-      <AdminFloatingDock reserveSpace role="region" aria-label="自动备份计划保存" data-state="open">
+      <AdminFloatingDock open={dirty} reserveSpace role="region" aria-label="自动备份计划保存" data-state="open">
         <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
           {dirty ? '有未保存的计划修改' : '已与当前配置同步'}
         </span>
@@ -436,7 +435,8 @@ export function PolicyForm({ policy, targets, disabled = false, onDirtyChange, o
             {busy ? '保存中…' : '保存计划'}
           </Button>
         </div>
-      </AdminFloatingDock> : <p className="backup-hint">计划已与当前配置同步。</p>}
+      </AdminFloatingDock>
+      {!dirty && <p className="backup-hint">计划已与当前配置同步。</p>}
     </form>
   )
 }

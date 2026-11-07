@@ -16,9 +16,9 @@
   outline-offset: 4px;
   box-shadow: none;
   transition:
-    background-color 160ms,
-    border-color 160ms,
-    color 160ms,
+    background-color var(--motion-control),
+    border-color var(--motion-control),
+    color var(--motion-control),
     transform 140ms var(--ease);
 }
 .button > svg {

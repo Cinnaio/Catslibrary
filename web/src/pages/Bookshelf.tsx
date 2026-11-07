@@ -1,3 +1,4 @@
+import { MotionView } from '@/components/ui/motion'
 import { Spinner } from '@/components/ui/spinner'
 import '@/styles/account-content.css'
 import { Button } from '@/components/ui/button'
@@ -6,6 +7,7 @@ import cardStyles from '../components/novel-card.module.css'
 import styles from './account.module.css'
 import shelfStyles from './bookshelf.module.css'
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
+import { useListMotion } from '../hooks/useListMotion'
 /**
  * 书架页 —— 收藏、最近阅读、书签、想法、手动同步（由 Novel-KV js/bookshelf.js 平移）。
  */
@@ -112,6 +114,7 @@ export default function Bookshelf() {
   const [loadedMode, setLoadedMode] = useState<boolean | null>(null)
   const shelfView = viewParams.get('view') || 'favorites'
   const activeShelf = ['favorites', 'recent', 'bookmarks', 'thoughts'].includes(shelfView) ? shelfView : 'favorites'
+  const listMotion = useListMotion(`${user?.id || 'guest'}:${safeMode}:${activeShelf}`)
   const setActiveShelf = (view: string) => {
     const next = new URLSearchParams(viewParams)
     if (view === 'favorites') next.delete('view')
@@ -249,6 +252,9 @@ export default function Bookshelf() {
       await bookshelfApi.remove(novelId)
       if (!current()) return
       removeFromBookshelf(novelId)
+      await listMotion.remove(novelId)
+      if (!current()) return
+      listMotion.prepare()
       setFavorites(items => items.filter(item => item.novelId !== novelId))
       toast('已移出书架', 'success', { action: { label: '撤销', onClick: () => { void addFavorite(novelId, current) } } })
     } catch (err) {
@@ -290,6 +296,9 @@ export default function Bookshelf() {
         applyProgressState(novelId, state)
         // 已删书的幂等删除可能没有墓碑；确认成功后也要清理本机记录。
         if (!state.skipped && !state.progress) clearHistory(novelId)
+        if (!state.skipped && !state.progress) await listMotion.remove(novelId)
+        if (!current()) return
+        listMotion.prepare()
         setRecent(previous => previous.flatMap(h => {
           const local = getNovelHistory(h.novelId)
           return local ? [local] : []
@@ -326,7 +335,7 @@ export default function Bookshelf() {
 
   return (
     <main className={`${styles.shelf} bookshelf-page`}>
-      <div className={`container bookshelf-shell ${shelfStyles.layout}`}>
+      <div ref={listMotion.root} className={`container bookshelf-shell ${shelfStyles.layout}`}>
         <section className="bookshelf-hero">
           <div>
             <h1>{activeShelf === 'recent' ? '阅读记录' : '我的书架'}</h1>
@@ -349,7 +358,7 @@ export default function Bookshelf() {
             { id: 'bookmarks', label: '书签', count: bookmarks.length },
             { id: 'thoughts', label: '想法', count: thoughts.length },
           ].map((item) => (
-            <button type="button" key={item.id} className="bookshelf-tab" aria-pressed={activeShelf === item.id} onClick={() => setActiveShelf(item.id)}>
+            <button type="button" key={item.id} className="bookshelf-tab" aria-pressed={activeShelf === item.id} data-motion-fallback={activeShelf === item.id || undefined} onClick={() => setActiveShelf(item.id)}>
               {item.label}
               <span>{item.count}</span>
             </button>
@@ -357,7 +366,7 @@ export default function Bookshelf() {
         </nav>
 
         {/* 收藏 */}
-        <section className="bookshelf-section" hidden={activeShelf !== 'favorites' || loadedMode !== safeMode}>
+        <MotionView asChild><section className="bookshelf-section" hidden={activeShelf !== 'favorites' || loadedMode !== safeMode}>
           <div className="bookshelf-sections">
             <h2 className="bookshelf-subtitle sr-only">
               收藏 <span className="text-muted">· {favorites.length}</span>
@@ -377,10 +386,10 @@ export default function Bookshelf() {
               )}
             </div>
           </div>
-        </section>
+        </section></MotionView>
 
         {/* 最近阅读 */}
-        <section className="bookshelf-section" hidden={activeShelf !== 'recent' || loadedMode !== safeMode}>
+        <MotionView asChild><section className="bookshelf-section" hidden={activeShelf !== 'recent' || loadedMode !== safeMode}>
           <div className="bookshelf-sections">
             <h2 className="bookshelf-subtitle sr-only">
               最近阅读 <span className="text-muted">· {recentItems.length}</span>
@@ -397,10 +406,10 @@ export default function Bookshelf() {
               )}
             </div>
           </div>
-        </section>
+        </section></MotionView>
 
         {/* 书签 */}
-        <section className="bookshelf-section" hidden={activeShelf !== 'bookmarks' || loadedMode !== safeMode}>
+        <MotionView asChild><section className="bookshelf-section" hidden={activeShelf !== 'bookmarks' || loadedMode !== safeMode}>
           <h2 className="bookshelf-subtitle sr-only">
             书签 <span className="text-muted">· {bookmarks.length}</span>
           </h2>
@@ -418,10 +427,10 @@ export default function Bookshelf() {
               ))
             )}
           </div>
-        </section>
+        </section></MotionView>
 
         {/* 想法 */}
-        <section className="bookshelf-section" hidden={activeShelf !== 'thoughts' || loadedMode !== safeMode}>
+        <MotionView asChild><section className="bookshelf-section" hidden={activeShelf !== 'thoughts' || loadedMode !== safeMode}>
           <h2 className="bookshelf-subtitle sr-only">
             想法 <span className="text-muted">· {thoughts.length}</span>
           </h2>
@@ -442,7 +451,7 @@ export default function Bookshelf() {
               ))
             )}
           </div>
-        </section>
+        </section></MotionView>
         {totalPages > 1 && <Pagination variant="plain" ariaLabel="书架分页" page={visiblePage} totalPages={totalPages} busy={syncing} jump={false} summary={`共 ${total} 条`} onPage={page => setPages(current => ({ ...current, [activeShelf]: page }))} />}
       </div>
     </main>
@@ -458,7 +467,7 @@ function ShelfBookCard({ novelId, title, author, coverUpdatedAt, reading, favori
   const resume = reading.chapterId ? `/read/${encodeURIComponent(novelId)}/${encodeURIComponent(reading.chapterId)}` : detail
   const target = recentView ? resume : detail
   const positionLabel = reading.chapterId ? `读至 ${reading.chapterTitle || '上次阅读的章节'}` : '尚未开始阅读'
-  return <article className={`${cardStyles.card} ${shelfStyles.card}`} aria-label={title} aria-busy={pending}>
+  return <article className={`${cardStyles.card} ${shelfStyles.card}`} data-motion-item={novelId} aria-label={title} aria-busy={pending}>
     <Link to={target} className={shelfStyles.coverLink} aria-label={`${recentView ? '继续阅读' : '查看作品'}《${title}》封面`}>
       <CoverOrPlaceholder novelId={novelId} title={title} updatedAt={coverUpdatedAt} />
     </Link>

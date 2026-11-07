@@ -1,3 +1,4 @@
+import { MotionDetails, MotionView } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 /** 配置面板：供应商信息、开关、配额（分组确认后保存）。 */
 import FormField from "@/components/shared/FormField"
@@ -261,7 +262,7 @@ export default function AiConfigPanel(props: {
 
       <div className={styles.sections}>
         {/* 1. 模型供应商面板 */}
-        <div
+        <MotionView asChild><div
           role="tabpanel"
           id="ai-config-panel-providers"
           aria-labelledby="ai-config-tab-providers"
@@ -283,7 +284,7 @@ export default function AiConfigPanel(props: {
                 </AdminStatusBadge>
               </div>
               <AiProviderPresets scope="text" config={props.providerConfig} draft={providerDraft} disabled={saving || props.loading || testing} dirty={providerDirty} onBusy={setSaving} onApplied={() => { setTestResult(''); props.onReload() }} />
-              <details className={styles.connection} open={textEditorOpen} onToggle={event => setTextEditorOpen(event.currentTarget.open)}>
+              <MotionDetails className={styles.connection} open={textEditorOpen} onToggle={event => setTextEditorOpen(event.currentTarget.open)}>
                 <summary><span>连接设置</span><span>{providerDirty ? '有待保存的修改' : '地址、模型与密钥'}<ChevronDown aria-hidden="true" /></span></summary>
                 <div className={styles.editor} role="group" aria-label="编辑当前文本配置">
                   <div className={styles.fieldGrid}>
@@ -322,7 +323,7 @@ export default function AiConfigPanel(props: {
                     />
                   </FormField>
                 </div>
-              </details>
+              </MotionDetails>
               <div className={styles.serviceActions}>
                 <span aria-live="polite">{testResult || '尚未进行本次检查 · 使用已保存配置'}</span>
                 <Button
@@ -351,7 +352,7 @@ export default function AiConfigPanel(props: {
                 </AdminStatusBadge>
               </div>
               <AiProviderPresets scope="image" config={imageProviderConfig} draft={imageProviderDraft} disabled={saving || props.loading || testing} dirty={imageProviderDirty} onBusy={setSaving} onApplied={props.onReload} />
-              <details className={styles.connection} open={imageEditorOpen} onToggle={event => setImageEditorOpen(event.currentTarget.open)}>
+              <MotionDetails className={styles.connection} open={imageEditorOpen} onToggle={event => setImageEditorOpen(event.currentTarget.open)}>
                 <summary><span>连接设置</span><span>{imageProviderDirty ? '有待保存的修改' : '地址、模型与密钥'}<ChevronDown aria-hidden="true" /></span></summary>
                 <div className={styles.editor} role="group" aria-label="编辑当前图像配置">
                   <div className={styles.fieldGrid}>
@@ -390,7 +391,7 @@ export default function AiConfigPanel(props: {
                     />
                   </FormField>
                 </div>
-              </details>
+              </MotionDetails>
               <div className={styles.serviceActions}>
                 <span>图像连接由封面生成任务进行端到端验证</span>
                 <Button variant="secondary" size="sm" asChild>
@@ -399,10 +400,10 @@ export default function AiConfigPanel(props: {
               </div>
             </section>
             </Panel>
-        </div>
+        </div></MotionView>
 
         {/* 2. 读者生成策略：按实际功能分别设置权限和限额。 */}
-        <div
+        <MotionView asChild><div
           role="tabpanel"
           id="ai-config-panel-reader"
           aria-labelledby="ai-config-tab-reader"
@@ -496,10 +497,10 @@ export default function AiConfigPanel(props: {
               <p className={styles.policyFootnote}>图片配额独立计算，管理员和读者均受限，失败任务也计入。</p>
             </section>
           </Panel>
-        </div>
+        </div></MotionView>
 
         {/* 3. 服务与用量：统计纸面与连接状态各自独立。 */}
-        <div
+        <MotionView asChild><div
           role="tabpanel"
           id="ai-config-panel-service"
           aria-labelledby="ai-config-tab-service"
@@ -585,11 +586,11 @@ export default function AiConfigPanel(props: {
               </div>
             </section>
           </Panel>
-        </div>
+        </div></MotionView>
       </div>
 
       {!dirty && <p className={styles.savedStatus} role="status">配置与当前生效值一致</p>}
-      {dirty && <AdminFloatingDock reserveSpace role="region" aria-label="AI 配置保存" data-state="open">
+      <AdminFloatingDock open={dirty} reserveSpace role="region" aria-label="AI 配置保存" data-state="open">
         <span className="admin-floating-dock__status" data-dirty={dirty || undefined} role="status">
           {dirtyCount} 项待保存 · 切换分类保留修改
         </span>
@@ -614,7 +615,7 @@ export default function AiConfigPanel(props: {
             {saving ? '保存中…' : '保存配置'}
           </Button>
         </div>
-      </AdminFloatingDock>}
+      </AdminFloatingDock>
     </Tabs>
   )
 }

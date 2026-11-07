@@ -1,5 +1,5 @@
 import '@/styles/admin/components/selection.css'
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
+import { useRef, type ComponentType, type ReactNode } from 'react'
 import { MoreHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -37,38 +37,13 @@ export default function AdminSelectionBar({
   clearLabel = '取消选择',
   clearPlacement = 'actions',
 }: AdminSelectionBarProps) {
-  // 维护退出动画渲染周期：当 count 变为 0 时保持渲染至退出动画结束
-  const [rendered, setRendered] = useState(count > 0)
-  const [isExiting, setIsExiting] = useState(false)
+  // 共享操作条负责退出周期；保留最后一份文案，避免退出时数字闪回 0。
+  const isExiting = count <= 0
   const lastState = useRef({ label, children, actions })
-  const exitTimer = useRef<number | null>(null)
 
   if (count > 0) {
     lastState.current = { label, children, actions }
   }
-
-  useEffect(() => {
-    if (count > 0) {
-      if (exitTimer.current) {
-        clearTimeout(exitTimer.current)
-        exitTimer.current = null
-      }
-      setRendered(true)
-      setIsExiting(false)
-    } else if (rendered) {
-      setIsExiting(true)
-      exitTimer.current = window.setTimeout(() => {
-        setRendered(false)
-        setIsExiting(false)
-      }, 220) // 与 CSS 退出动画时长一致
-    }
-
-    return () => {
-      if (exitTimer.current) clearTimeout(exitTimer.current)
-    }
-  }, [count, rendered])
-
-  if (!rendered && count <= 0) return null
 
   const displayLabel = count > 0 ? label : lastState.current.label
   const displayChildren = count > 0 ? children : lastState.current.children
@@ -84,6 +59,7 @@ export default function AdminSelectionBar({
 
   return (
     <AdminFloatingDock
+      open={count > 0}
       reserveSpace="page-end"
       className={`admin-selection-bar ${isExiting ? 'admin-selection-bar--exiting' : 'admin-selection-bar--entering'}`}
       role="region"

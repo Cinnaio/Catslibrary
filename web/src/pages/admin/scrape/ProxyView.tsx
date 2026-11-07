@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import styles from './proxy.module.css'
 import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
@@ -209,13 +210,13 @@ export default function ProxyView() {
             )}
           </div>
           {loaded && !loading && !loadError && enabled && (effective.proxyBypass || noProxy) && (
-            <details className={styles.effectiveRules}>
+            <MotionDetails className={styles.effectiveRules}>
               <summary>查看跳过规则<ChevronRight aria-hidden="true" /></summary>
               <div>
                 {effective.proxyBypass && <p>管理端跳过：{effective.proxyBypass}</p>}
                 {noProxy && <p>NO_PROXY：{noProxy}</p>}
               </div>
-            </details>
+            </MotionDetails>
           )}
         </div>
 
@@ -380,7 +381,7 @@ export default function ProxyView() {
           </section>
         </div>
 
-        <details className={styles.help}>
+        <MotionDetails className={styles.help}>
           <summary>
             <ChevronRight aria-hidden="true" />
             代理协议与部署说明
@@ -405,7 +406,7 @@ export default function ProxyView() {
               代理端口可达不等于目标可访问。连接失败时结合出站请求记录检查 CONNECT、目标 TLS、超时和目标站点权限。
             </p>
           </div>
-        </details>
+        </MotionDetails>
       </div>
     </div>
   )

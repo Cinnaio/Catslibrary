@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { MailSecuritySettings as Settings, MailSecuritySettingsInput, MailSecretSource } from '@shared/mail-security-settings'
@@ -124,7 +125,7 @@ export default function MailSecuritySettings({
                     生成并启用加密密钥
                   </Button>
                 </div>
-                <details className={styles.disclosure}>
+                <MotionDetails className={styles.disclosure}>
                   <summary>
                     使用已有密钥
                     <ChevronDown size={14} aria-hidden="true" />
@@ -148,7 +149,7 @@ export default function MailSecuritySettings({
                       )}
                     </FormField>
                   </div>
-                </details>
+                </MotionDetails>
               </>
             ) : (
               <p className={styles.hint}>

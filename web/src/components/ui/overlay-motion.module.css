@@ -1,0 +1,14 @@
+/* Radix 继续负责 Presence、焦点和 Escape；这里只统一入场与退出的节奏。 */
+.surface, .backdrop, .menu, .sheet {
+  animation-timing-function: var(--ease-out);
+  animation-duration: var(--motion-overlay-enter);
+}
+.surface { --tw-enter-scale: 0.98; --tw-exit-scale: 0.98; }
+.surface[data-state='closed'], .backdrop[data-state='closed'] { animation-duration: var(--motion-overlay-exit); }
+.menu { --tw-enter-scale: 0.98; --tw-exit-scale: 0.98; animation-duration: var(--motion-menu-enter); }
+.menu[data-state='closed'] { animation-duration: var(--motion-menu-exit); }
+.sheet[data-state='open'] { animation-duration: var(--motion-sheet-enter); }
+.sheet[data-state='closed'] { animation-duration: var(--motion-sheet-exit); }
+@media (prefers-reduced-motion: reduce) {
+  .surface, .backdrop, .menu, .sheet { animation: none; transition: none; }
+}

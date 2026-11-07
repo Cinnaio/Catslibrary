@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import WritingPreparation from './WritingPreparation'
 import AiGenerationsPanel from './AiGenerationsPanel'
 import styles from './writing-workspace.module.css'
@@ -246,7 +247,7 @@ function TextProgressPreview({ progress }: { progress?: AiTextProgress | null })
   const hasCapturedElements = entities.length > 0 || labels.length > 0
 
   return (
-    <details className="ai-progress-preview-details group rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs text-xs" open>
+    <MotionDetails className="ai-progress-preview-details group rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs text-xs" open>
       <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-3.5 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors font-medium">
         <div className="flex flex-wrap items-center gap-2">
           <ChevronRight className="size-3.5 text-muted-foreground transition-transform duration-200 group-open:rotate-90" />
@@ -300,7 +301,7 @@ function TextProgressPreview({ progress }: { progress?: AiTextProgress | null })
         <span>仅展示最近 4,000 字符流</span>
         <span>完整返回并校验后自动归档至检查点</span>
       </div>
-    </details>
+    </MotionDetails>
   )
 }
 
@@ -579,13 +580,13 @@ export function ProfileSection(props: {
 
       {/* 已保存阶段内容折叠 */}
       {preview && (
-        <details className="ai-analysis-preview">
+        <MotionDetails className="ai-analysis-preview">
           <summary>查看已保存的阶段内容</summary>
           <p className="text-xs leading-5 text-muted-foreground">
             截至本次目标中的第 {processed} 章 · 此内容尚未作为本次完整档案生效。
           </p>
           <ProfileText text={preview} />
-        </details>
+        </MotionDetails>
       )}
 
       {/* 底部元信息 */}
@@ -1785,7 +1786,7 @@ export default function AiWritingPanel(props: {
                   )}
                 </div>
                 {mode === 'continue' && (
-                  <details
+                  <MotionDetails
                     className={styles.outline}
                     open={deckOpen}
                     onToggle={(event) => setDeckOpen(event.currentTarget.open)}
@@ -2009,10 +2010,10 @@ export default function AiWritingPanel(props: {
                         </div>
                       )}
                     </div>
-                  </details>
+                  </MotionDetails>
                 )}
                 {mode === 'new' && (
-                  <details className="ai-writing-outline-details">
+                  <MotionDetails className="ai-writing-outline-details">
                     <summary>
                       大纲 <span>生成章节时使用</span>
                     </summary>
@@ -2028,7 +2029,7 @@ export default function AiWritingPanel(props: {
                         placeholder="先生成大纲，或直接粘贴已有大纲"
                       />
                     </div>
-                  </details>
+                  </MotionDetails>
                 )}
 
                 {mode === 'continue' && (
@@ -2091,7 +2092,7 @@ export default function AiWritingPanel(props: {
                 )}
                 <div className="ai-writing-actions grid gap-3 border-t pt-5">
                   {isContinuationMode && (
-                    <details className="ai-writing-submit-preview text-xs text-muted-foreground">
+                    <MotionDetails className="ai-writing-submit-preview text-xs text-muted-foreground">
                       <summary className="cursor-pointer hover:text-foreground inline-flex items-center gap-1 select-none py-0.5">
                         <span>查看本次上下文摘要</span>
                       </summary>
@@ -2115,7 +2116,7 @@ export default function AiWritingPanel(props: {
                           '先选择小说；续写基线会随所选作品加载。'
                         )}
                       </p>
-                    </details>
+                    </MotionDetails>
                   )}
                   <div className="flex flex-wrap items-center gap-3 pt-1">
                     {mode === 'new' ? (
@@ -2284,7 +2285,7 @@ export default function AiWritingPanel(props: {
                     </Button>
                   </div>
                 )}
-                <details className={styles.contextDetails}>
+                <MotionDetails className={styles.contextDetails}>
                   <summary>
                     内容尺度 <span>{adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}</span>
                   </summary>
@@ -2353,7 +2354,7 @@ export default function AiWritingPanel(props: {
                       )}
                     </div>
                   )}
-                </details>
+                </MotionDetails>
                 <WritingPreparation
                   key={novelId}
                   brief={currentWritingBrief}
@@ -2415,7 +2416,7 @@ export default function AiWritingPanel(props: {
               </aside>
             </div>
             {recentTasks.length > 0 && (
-              <details className="ai-writing-recent-drawer border-t pt-4 text-xs">
+              <MotionDetails className="ai-writing-recent-drawer border-t pt-4 text-xs">
                 <summary className="flex cursor-pointer select-none items-center justify-between text-muted-foreground hover:text-foreground font-medium py-1">
                   <span>最近创作任务 ({recentTasks.length})</span>
                   <span className="text-[11px] font-normal text-muted-foreground/80">展开 / 收起</span>
@@ -2460,7 +2461,7 @@ export default function AiWritingPanel(props: {
                     </li>
                   ))}
                 </ul>
-              </details>
+              </MotionDetails>
             )}
           </TabsContent>
           {view !== 'compose' && (

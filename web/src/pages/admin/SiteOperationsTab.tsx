@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -242,7 +243,7 @@ export default function SiteOperationsTab() {
                 </Card>
               </Tabs>
 
-              <details className={styles.details}>
+              <MotionDetails className={styles.details}>
                 <summary><span>每日明细 <small>{days} 日 · UV 按日去重</small></span><ChevronDown aria-hidden="true" /></summary>
                 <p className={styles.detailHint}>周期 UV 独立去重，不等于每日 UV 相加。{compare && '上期按相同顺序的日期对齐，最后一天截至对应时刻。'}</p>
                 <AdminDataPanel ariaLabel="每日访问明细" columns={columns} responsive="scroll">
@@ -258,7 +259,7 @@ export default function SiteOperationsTab() {
                     ))}</TableBody>
                   </Table>
                 </AdminDataPanel>
-              </details>
+              </MotionDetails>
 
               <section aria-labelledby="traffic-distribution-heading" className={styles.distribution}>
                 <div className={styles.sectionIntro}><h2 id="traffic-distribution-heading">访问分布</h2><p>按访问事件分类，所有占比均以本期全部 PV 为分母。点击分类查看统计口径。</p></div>
@@ -277,14 +278,14 @@ export default function SiteOperationsTab() {
                 </div>
               </section>
 
-              <details className={styles.privacy}>
+              <MotionDetails className={styles.privacy}>
                 <summary><span>统计口径与隐私说明</span><ChevronDown aria-hidden="true" /></summary>
                 <div>
                   <p>时间范围按北京时间划分，包含今日截至刷新时刻的访问。PV 为访问次数；UV 使用浏览器随机标识，经服务端哈希后按周期去重，同一访客跨设备可能重复统计。上一周期与本期时长一致，截止到对应时刻。</p>
                   <p>日均浏览量为本期 PV 除以所选自然日数，包含尚未结束的今日。地区识别率仅表示访问事件中的地区信息覆盖，未识别地区仍计入全部浏览量；没有访问时不计算识别率。</p>
                   <p>不记录 IP、完整 User-Agent 或完整来源地址。地区、设备与来源仅保存分类结果；来源按访问事件归类，并非新访客获客渠道。</p>
                 </div>
-              </details>
+              </MotionDetails>
             </>
           )}
         </TabsContent>

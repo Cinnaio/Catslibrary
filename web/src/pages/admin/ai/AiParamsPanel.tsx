@@ -1,3 +1,4 @@
+import { MotionView } from '@/components/ui/motion'
 import { Panel } from '@/components/ui/panel'
 /** 创作参数：按用途分组编辑，跨分类保留草稿并确认保存。 */
 import FormField from "@/components/shared/FormField"
@@ -167,7 +168,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           <Button type="button" variant="secondary" size="sm" disabled={props.loading || saving || dirty} onClick={props.onReload} aria-label="刷新生成参数">{props.loading ? '刷新中…' : '刷新'}</Button>
         </div>
         <div className={styles.sections}>
-          <div role="tabpanel" aria-labelledby="ai-param-tab-recap" hidden={activeGroup !== 'recap'} id="ai-params-recap" tabIndex={0} className={styles.group}>
+          <MotionView asChild><div role="tabpanel" aria-labelledby="ai-param-tab-recap" hidden={activeGroup !== 'recap'} id="ai-params-recap" tabIndex={0} className={styles.group}>
             <ParameterSection title="生成设置" description="调整提要的表达变化与输出长度。">
               <div className={styles.fields}>
                 <FormField label="创意度（Temperature）" className={styles.temperature} htmlFor="recap-temp">
@@ -212,8 +213,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 />
               </FormField>
             </ParameterSection>
-          </div>
-          <div role="tabpanel" aria-labelledby="ai-param-tab-catchup" hidden={activeGroup !== 'catchup'} id="ai-params-catchup" tabIndex={0} className={styles.group}>
+          </div></MotionView>
+          <MotionView asChild><div role="tabpanel" aria-labelledby="ai-param-tab-catchup" hidden={activeGroup !== 'catchup'} id="ai-params-catchup" tabIndex={0} className={styles.group}>
             <ParameterSection title="启用与触发" description="决定何时向久未阅读的读者提供回顾。">
               {toggle("catchupEnabled", "回来接着读功能", "为久未阅读的读者合成连贯回顾。")}
               <div className={styles.fields}>
@@ -276,8 +277,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 </FormField>
               </div>
             </ParameterSection>
-          </div>
-          <div role="tabpanel" aria-labelledby="ai-param-tab-writing" hidden={activeGroup !== 'writing'} id="ai-params-writing" tabIndex={0} className={styles.group}>
+          </div></MotionView>
+          <MotionView asChild><div role="tabpanel" aria-labelledby="ai-param-tab-writing" hidden={activeGroup !== 'writing'} id="ai-params-writing" tabIndex={0} className={styles.group}>
             <ParameterSection title="正文与大纲" description="统一设置正文续写、推荐情节与大纲规划。">
               <div className={styles.fields}>
                 <FormField label="创意度（Temperature）" className={styles.temperature} htmlFor="writing-temp">
@@ -437,8 +438,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 </FormField>
               </div>
             </ParameterSection>
-          </div>
-          <div role="tabpanel" aria-labelledby="ai-param-tab-image" hidden={activeGroup !== 'image'} id="ai-params-image" tabIndex={0} className={styles.group}>
+          </div></MotionView>
+          <MotionView asChild><div role="tabpanel" aria-labelledby="ai-param-tab-image" hidden={activeGroup !== 'image'} id="ai-params-image" tabIndex={0} className={styles.group}>
             <ParameterSection title="图像输出" description="设置默认尺寸、质量及返回格式。">
               <div className={styles.fields}>
                 <FormField label="图像尺寸" htmlFor="image-size">
@@ -508,8 +509,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 />
               </FormField>
             </ParameterSection>
-          </div>
-          <div role="tabpanel" aria-labelledby="ai-param-tab-import" hidden={activeGroup !== 'import'} id="ai-params-import" tabIndex={0} className={styles.group}>
+          </div></MotionView>
+          <MotionView asChild><div role="tabpanel" aria-labelledby="ai-param-tab-import" hidden={activeGroup !== 'import'} id="ai-params-import" tabIndex={0} className={styles.group}>
             <ParameterSection title="复核范围" description="用模型辅助判断章节边界的疑难行。">
               {toggle("importAiReviewEnabled", "启用导入 AI 复核", "确定性解析仍是主链路；开启后可在导入预览页对证据不足的行运行复核。")}
               <div className={styles.fields}>
@@ -554,8 +555,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 />
               </FormField>
             </ParameterSection>
-          </div>
-          <div role="tabpanel" aria-labelledby="ai-param-tab-contentRating" hidden={activeGroup !== 'contentRating'} id="ai-params-contentRating" tabIndex={0} className={styles.group}>
+          </div></MotionView>
+          <MotionView asChild><div role="tabpanel" aria-labelledby="ai-param-tab-contentRating" hidden={activeGroup !== 'contentRating'} id="ai-params-contentRating" tabIndex={0} className={styles.group}>
             <ParameterSection title="输出预算" description="为单本作品的内容分级建议分配输出长度。">
               <FormField
                 label="分级输出 Token 上限"
@@ -597,8 +598,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 </Select>
               </FormField>
             </ParameterSection>
-          </div>
-          <div role="tabpanel" aria-labelledby="ai-param-tab-tasks" hidden={activeGroup !== 'tasks'} id="ai-params-tasks" tabIndex={0} className={styles.group}>
+          </div></MotionView>
+          <MotionView asChild><div role="tabpanel" aria-labelledby="ai-param-tab-tasks" hidden={activeGroup !== 'tasks'} id="ai-params-tasks" tabIndex={0} className={styles.group}>
             <ParameterSection title="运行并发" description="限制同时运行的创作任务数量。">
               <FormField label="创作任务并发上限" htmlFor="max-concurrent-tasks" hint="同时运行的大纲/章节/续写任务数上限，超出时新任务被拒绝，1-10 个">
                 <Input
@@ -631,24 +632,24 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 />
               </FormField>
             </ParameterSection>
-          </div>
-          <div role="tabpanel" aria-labelledby="ai-param-tab-audit" hidden={activeGroup !== 'audit'} id="ai-params-audit" tabIndex={0} className={styles.group}>
+          </div></MotionView>
+          <MotionView asChild><div role="tabpanel" aria-labelledby="ai-param-tab-audit" hidden={activeGroup !== 'audit'} id="ai-params-audit" tabIndex={0} className={styles.group}>
             <ParameterSection title="请求来源" description="决定调用审计是否保留来源地址。">
               {toggle("logIpAddress", "记录 IP 地址", "在审计记录中保存用户 IP。")}
             </ParameterSection>
             <ParameterSection title="浏览器信息" description="决定调用审计是否保留客户端信息。">
               {toggle("logUserAgent", "记录 User-Agent", "在审计记录中保存浏览器信息。")}
             </ParameterSection>
-          </div>
+          </div></MotionView>
         </div>
         {!dirty && <p className={styles.savedStatus} role="status">参数与当前生效值一致</p>}
-        {dirty && <AdminFloatingDock reserveSpace role="region" aria-label="参数保存操作" data-state="open">
+        <AdminFloatingDock open={dirty} reserveSpace role="region" aria-label="参数保存操作" data-state="open">
           <span className="admin-floating-dock__status" data-dirty role="status">{changeCount} 项参数待保存 · 切换分类保留修改</span>
           <div className="admin-floating-dock__actions">
             <Button type="button" variant="outline" disabled={props.loading || saving} onClick={() => setLocalSettings(props.settings)}>撤销修改</Button>
             <Button type="submit" disabled={props.loading || saving}>{saving ? '保存中…' : '保存所有参数'}</Button>
           </div>
-        </AdminFloatingDock>}
+        </AdminFloatingDock>
       </Tabs>
     </form>
   )

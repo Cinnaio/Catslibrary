@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useState } from 'react'
 import { isZhiZhouIosApp } from '@shared/device'
 import { CirclePlus, RefreshCw, History } from 'lucide-react'
@@ -364,14 +365,14 @@ export default function AccountAuditPanel({
         summary={hasLoaded ? `共 ${total} 条记录` : '尚未读取记录'}
         pageSize={{ value: limit, onChange: onLimit, options: ADMIN_PAGE_SIZE_OPTIONS }}
       />
-      <details className="account-record-note">
+      <MotionDetails className="account-record-note">
         <summary>审计记录说明</summary>
         <p>
           {kind === 'login'
             ? '记录包含登录结果、原因、来源 IP 与完整 User-Agent。设备摘要仅供辅助判断，完整信息可在详情查看。'
             : '详情保留目标数量、响应码、重放次数、操作 ID 与错误信息。记录仅提供元数据，不展示密码、登录令牌或目标正文。'}
         </p>
-      </details>
+      </MotionDetails>
       <AccountRecordDetails detail={detail} onClose={() => setDetail(null)} />
     </>
   )

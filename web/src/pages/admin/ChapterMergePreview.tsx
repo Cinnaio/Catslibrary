@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useMemo, useState } from 'react'
 import type { SourceSyncChange, SourceSyncManualMapping, SourceSyncPreview } from '@/lib/api'
 import ChapterMappingReview from './ChapterMappingReview'
@@ -71,14 +72,14 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
       <h3>可更新 <strong>{eligible + confirmedCount}</strong> 个章节名</h3>
       <p>{preview.site === 'jjwxc' ? '晋江' : preview.site === 'po18tw' ? 'PO18.tw' : preview.site} · 源站 {preview.sourceChapterCount} 章 / 本地 {preview.localChapterCount} 节 · 已匹配 {preview.matchedSourceCount} 章</p>
       {manual > 0 && <p className="chapter-merge-dialog__warning">{eligible} 个可自动更新；{manual} 个需人工核对，已确认 {confirmedCount} 个。未确认的标题保持原样。</p>}
-      {(preview.unmatchedSource.length > 0 || preview.unmatchedLocal.length > 0) && <details className="chapter-merge-dialog__unmatched">
+      {(preview.unmatchedSource.length > 0 || preview.unmatchedLocal.length > 0) && <MotionDetails className="chapter-merge-dialog__unmatched">
         <summary><ChevronDown size={16} aria-hidden="true" /><span className="chapter-merge-dialog__unmatched-title">未匹配章节</span><span>源站 {preview.unmatchedSource.length} 章 · 本地 {preview.unmatchedLocal.length} 节</span></summary>
         <div className="chapter-merge-dialog__unmatched-content">
           <p className="dialog-frame-hint">以下章节保持原样，不参与本次更新。</p>
           {preview.unmatchedSource.length > 0 && <UnmatchedChapterList label="源站章节" chapters={preview.unmatchedSource.map((chapter) => ({ ...chapter, id: chapter.key }))} />}
           {preview.unmatchedLocal.length > 0 && <UnmatchedChapterList label="本地章节" chapters={preview.unmatchedLocal} />}
         </div>
-      </details>}
+      </MotionDetails>}
       {preview.warnings.map((warning) => <p className="chapter-merge-dialog__warning" key={warning}>{warning}</p>)}
     </div>
 
@@ -138,7 +139,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
       </>}
     </div>
 
-    <details className="chapter-merge-dialog__metadata chapter-merge-dialog__preview-section">
+    <MotionDetails className="chapter-merge-dialog__metadata chapter-merge-dialog__preview-section">
       <summary>同步小说信息<span>{selected} 项已选 · 按勾选字段更新</span></summary>
       <p className="dialog-frame-hint">勾选即用源站值更新该字段，已有内容也会替换；未勾选字段保持原样。</p>
       <div className="chapter-merge-dialog__metadata-actions">
@@ -148,14 +149,14 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
       <div className="chapter-merge-dialog__metadata-fields">
         {metadata.map(([field, label, value]) => <div className="chapter-merge-dialog__metadata-field" key={field}>
           <Label htmlFor={`merge-metadata-${field}`}><Checkbox id={`merge-metadata-${field}`} checked={Boolean(value) && fields.includes(field)} disabled={disabled || !value} onCheckedChange={(checked) => onFieldsChange(checked ? [...new Set([...fields, field])] : fields.filter((item) => item !== field))} />{label}</Label>
-          <div>{field === 'description' && value ? <details><summary>{value.slice(0, 72)}{value.length > 72 ? '… 展开全文' : ''}</summary><p>{value}</p></details> : <span>{value || '源站未提供'}</span>}</div>
+          <div>{field === 'description' && value ? <MotionDetails><summary>{value.slice(0, 72)}{value.length > 72 ? '… 展开全文' : ''}</summary><p>{value}</p></MotionDetails> : <span>{value || '源站未提供'}</span>}</div>
         </div>)}
       </div>
-    </details>
-    {preview.mappings.some((mapping) => mapping.relation === 'split') && <details className="chapter-merge-dialog__preview-section">
+    </MotionDetails>
+    {preview.mappings.some((mapping) => mapping.relation === 'split') && <MotionDetails className="chapter-merge-dialog__preview-section">
       <summary>查看拆分章节映射</summary>
       {preview.mappings.filter((mapping) => mapping.relation === 'split').map((mapping) => <p key={mapping.sourceChapterKey}>源站第 {mapping.sourceOrder} 章「{mapping.sourceTitle}」 → 本地 {mapping.localChapterIds.length} 节</p>)}
-    </details>}
+    </MotionDetails>}
   </section>
 }
 

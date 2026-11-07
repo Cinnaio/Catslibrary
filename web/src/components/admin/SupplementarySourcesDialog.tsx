@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 import { useEffect, useRef, useState } from 'react'
 import type { BookImportPreview } from '@shared/types'
@@ -561,7 +562,7 @@ export default function SupplementarySourcesDialog({
                         </p>
                       )}
                       {!!catalog?.folders.length && (
-                        <details className="supplementary-coverage">
+                        <MotionDetails className="supplementary-coverage">
                           <summary>查看目录读取情况（{catalog.folders.length} 个目录）</summary>
                           <ul>
                             {catalog.folders.map((folder) => (
@@ -574,7 +575,7 @@ export default function SupplementarySourcesDialog({
                               </li>
                             ))}
                           </ul>
-                        </details>
+                        </MotionDetails>
                       )}
                       {catalog && !catalog.total && (
                         <div className="supplementary-empty">
@@ -605,7 +606,7 @@ export default function SupplementarySourcesDialog({
                               </dd>
                             </div>
                           </dl>
-                          <details className="supplementary-versions">
+                          <MotionDetails className="supplementary-versions">
                             <summary>查看 {book.versions.length} 个已发现版本</summary>
                             <div>
                               {book.versions.map((file) => (
@@ -634,7 +635,7 @@ export default function SupplementarySourcesDialog({
                                 </div>
                               ))}
                             </div>
-                          </details>
+                          </MotionDetails>
                           <div className="supplementary-card__actions">
                             <Button variant="outline" size="sm" disabled={busy} onClick={() => chooseBinding(book.versions[0]!)}>
                               绑定已有书籍

@@ -1,3 +1,4 @@
+import { MotionPresence } from '@/components/ui/motion'
 import { isAdministrator } from '@shared/roles'
 import { Spinner } from '@/components/ui/spinner'
 import '@/styles/input-fields.css'
@@ -1393,25 +1394,20 @@ export default function Reader() {
               </div>
             )}
 
-          {bookmarkPanelOpen && (
-            <div id="reader-bookmarks-panel" role="dialog" aria-modal="false" aria-label="书签列表">
+          <MotionPresence asChild open={bookmarkPanelOpen} mode="surface"><div id="reader-bookmarks-panel" role="dialog" aria-modal="false" aria-label="书签列表">
               {bookmarkError && <InlineError message={`书签加载失败：${bookmarkError}`} onRetry={() => void reloadBookmarks()} />}
               <BookmarkPanel novelId={nid} currentChapterId={chapter.id} onJump={(cid, bookId) => { closeReaderPanel('bookmarks'); gotoChapter(cid, bookId) }} onDelete={deleteBookmark} onClose={() => closeReaderPanel('bookmarks')} />
-            </div>
-          )}
+            </div></MotionPresence>
 
           {/* Desktop settings panel */}
-          {settingsPanelOpen && (
-            <section id="reader-settings-panel" className="reader-settings-panel" role="dialog" aria-modal="false" aria-label="阅读设置" onClick={(e) => e.stopPropagation()}>
+          <MotionPresence asChild open={settingsPanelOpen} mode="surface"><section id="reader-settings-panel" className="reader-settings-panel" role="dialog" aria-modal="false" aria-label="阅读设置" onClick={(e) => e.stopPropagation()}>
               <div className="reader-popover__head"><h2>阅读设置</h2><Button variant="ghost" size="icon" type="button" aria-label="关闭阅读设置" onClick={() => closeReaderPanel('settings')}><X size={16} aria-hidden="true" /></Button></div>
               <SettingsControls settings={settings} set={set} wakeLockSupported={wakeLockSupported} />
-            </section>
-          )}
+            </section></MotionPresence>
         </div>
 
         {/* Chapter dropdown */}
-        {dropdownOpen && (
-          <div
+        <MotionPresence asChild open={dropdownOpen} mode="surface"><div
             id="reader-chapters-panel"
             className="chapter-dropdown open"
             style={dropdownPos ? { top: dropdownPos.top, left: dropdownPos.left } : undefined}
@@ -1454,8 +1450,7 @@ export default function Reader() {
                 }}
               />
             )}
-          </div>
-        )}
+          </div></MotionPresence>
 
         {/* Content */}
         {bodySearch.query && <div className={styles.searchNavigation} role="region" aria-label="本章搜索定位">

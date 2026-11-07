@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useRef, useState } from 'react'
 import { FOLLOWUP_INTERVAL_HOURS, MAX_BATCH_FOLLOWUPS, type BatchFollowupMode, type BatchFollowupResult } from '@shared/novel-followup'
 import { url, authHeaders } from '@/lib/api'
@@ -114,14 +115,14 @@ export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: 
               <p className="dialog-frame-hint">下次检查从保存时重新安排；无新章时逐步降频，失败后自动重试。</p>
             </div>
           )}
-          <details className="batch-followup-dialog__selection">
+          <MotionDetails className="batch-followup-dialog__selection">
             <summary>查看所选作品 · {novels.length} 本</summary>
             <ul>
               {novels.map((novel) => (
                 <li key={novel.id}>{novel.title}</li>
               ))}
             </ul>
-          </details>
+          </MotionDetails>
           {result && (
             <section className="novel-followup-dialog__result" aria-label="设置结果">
               <p role="status">

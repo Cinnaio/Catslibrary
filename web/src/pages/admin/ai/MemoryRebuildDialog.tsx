@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useEffect, useRef, useState } from 'react'
 import type { MemoryKind, MemoryRebuildPlan, MemoryRebuildRequest } from '@shared/story-memory-rebuild'
 import { aiApi, newOperationId } from '@/lib/api'
@@ -323,12 +324,12 @@ export default function MemoryRebuildDialog({
               {history &&
                 (history.length ? (
                   history.map((item) => (
-                    <details key={item.id} className="border-t border-border py-3 text-sm">
+                    <MotionDetails key={item.id} className="border-t border-border py-3 text-sm">
                       <summary>
                         {labels[kind]} · {new Date(item.created_at).toLocaleString('zh-CN')} · 只读
                       </summary>
                       <p className="mt-3 max-h-60 overflow-auto whitespace-pre-wrap break-words leading-7">{item.content}</p>
-                    </details>
+                    </MotionDetails>
                   ))
                 ) : (
                   <p className="dialog-frame-hint">暂无历史备份；开始重建时会保留当前档案。</p>

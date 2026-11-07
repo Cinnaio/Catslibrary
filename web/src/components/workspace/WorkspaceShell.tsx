@@ -1,7 +1,8 @@
+import { MotionPresence } from '@/components/ui/motion'
 import { isAdministrator } from '@shared/roles'
 import '@/styles/input-fields.css'
 import '@/styles/site-branding.css'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Dialog, Switch } from 'radix-ui'
 import { ArrowUpRight, BookOpen, ChevronDown, History, Library, LogOut, Menu, Search, Settings2, Shield, X, type LucideIcon } from 'lucide-react'
@@ -47,6 +48,7 @@ function selectedPath(to: string, pathname: string, search: string) {
 
 function Navigation({ groups, onNavigate }: { groups: WorkspaceNavGroup[]; onNavigate?: () => void }) {
   const { pathname, search } = useLocation()
+  const navigationId = useId()
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   return (
     <nav className={styles.navigation} aria-label="工作区导航">
@@ -78,6 +80,7 @@ function Navigation({ groups, onNavigate }: { groups: WorkspaceNavGroup[]; onNav
                       className={styles.expand}
                       aria-label={`${isOpen ? '收起' : '展开'}${item.label}`}
                       aria-expanded={isOpen}
+                      aria-controls={`${navigationId}-${item.id}`}
                       onClick={() => setExpanded((previous) => ({ ...previous, [item.id]: !isOpen }))}
                     >
                       <ChevronDown size={14} data-open={isOpen} />
@@ -85,7 +88,7 @@ function Navigation({ groups, onNavigate }: { groups: WorkspaceNavGroup[]; onNav
                   )}
                 </div>
                 {item.children && (
-                  <div className={styles.subnav} hidden={!isOpen}>
+                  <MotionPresence asChild open={isOpen} mode="disclosure" keepMounted><div id={`${navigationId}-${item.id}`} className={styles.subnav}>
                     {item.children.map((child, index) => {
                       const childActive =
                         selectedPath(child.to, pathname, search) ||
@@ -102,7 +105,7 @@ function Navigation({ groups, onNavigate }: { groups: WorkspaceNavGroup[]; onNav
                         </Link>
                       )
                     })}
-                  </div>
+                  </div></MotionPresence>
                 )}
               </div>
             )

@@ -1,3 +1,4 @@
+import { MotionPresence } from '@/components/ui/motion'
 // ============================================================
 // 抓取任务记录 — 进度 / 指标 / 失败章节 / 日志
 // consumers: scrape/center/JobQueue.tsx
@@ -73,8 +74,7 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
           <ChevronDown className={`${styles.chevron} ${job.logOpen ? styles.chevronOpen : ''}`} aria-hidden="true" />
         </Button>
       </div>
-      {job.logOpen && (
-        <div id={detailId} className={styles.taskDetails}>
+      <MotionPresence asChild open={job.logOpen} mode="disclosure"><div id={detailId} className={styles.taskDetails}>
           <p className={styles.hint}>{job.step || '暂无执行说明'}</p>
           <div className={styles.taskSummary}>
             <span>成功 {job.successCount} · 失败 {job.failedCount} · 跳过 {job.skippedCount}</span>
@@ -106,8 +106,7 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
             {!running && ['failed', 'cancelled', 'partial'].includes(job.status) && <Button variant="outline" onClick={() => onRetry(job.jobId)}>整本重试</Button>}
             {terminal ? <Button variant="ghost" onClick={() => onDismiss(job.jobId)}>移除此记录</Button> : <Button variant="ghost" onClick={() => onCancel(job.jobId)}>终止任务</Button>}
           </div>
-        </div>
-      )}
+        </div></MotionPresence>
     </article>
   )
 }

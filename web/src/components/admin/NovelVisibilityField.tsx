@@ -1,3 +1,4 @@
+import { MotionDetails } from '@/components/ui/motion'
 import { useEffect, useState } from 'react'
 import type { NovelVisibility } from '@shared/types'
 import { novelsApi, type NovelAccessUser, type NovelVisibilitySettings } from '@/lib/api'
@@ -103,12 +104,12 @@ export default function NovelVisibilityField({ novelId, onChange, disabled }: {
                 </div>}
               </>}
           </div>}
-          {!!settings.audit.length && <details className="novel-visibility-audit">
+          {!!settings.audit.length && <MotionDetails className="novel-visibility-audit">
             <summary>最近的可见范围变更</summary>
             <ol>{settings.audit.map((entry) => <li key={entry.revision}>
               {entry.actorName || '管理员'} · {options.find((o) => o.value === entry.visibility)?.label} · {new Date(Number(entry.createdAt)).toLocaleString('zh-CN')}
             </li>)}</ol>
-          </details>}
+          </MotionDetails>}
         </>}
     </div>
   )
