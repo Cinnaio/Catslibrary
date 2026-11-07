@@ -13,6 +13,7 @@ export interface MailSettings {
 }
 
 export interface MailSettingsInput {
+  reason?: string
   revision: number
   host: string
   port: number

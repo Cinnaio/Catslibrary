@@ -61,6 +61,7 @@ export function requireAdmin(): MiddlewareHandler<AuthEnv> {
       (superOnly || /^\/api\/admin-users(?:\/|$)/.test(c.req.path) ||
         /^\/api\/admin\/backups\/(settings|targets|deployment|policy)(?:\/|$)/.test(c.req.path) ||
         c.req.path === '/api/admin/site-settings/turnstile' ||
+        c.req.path.startsWith('/api/auth/mail-settings') ||
         c.req.path === '/api/admin/site-settings/passkey')
     if (sensitive) {
       const session = (

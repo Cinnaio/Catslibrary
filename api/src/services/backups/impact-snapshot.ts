@@ -5,7 +5,7 @@ import { BACKUP_IMPACT_GROUPS } from '@shared/backups'
 import { BackupError } from './config'
 
 // 会话会在恢复时统一失效；迁移版本另行绑定，不比较其应用时间。
-const excluded = new Set(['user_sessions', 'schema_migrations'])
+const excluded = new Set(['user_sessions', 'schema_migrations', 'account_email_tokens'])
 // 这些运行记录仍会回到备份状态，但查看报告/提交恢复产生的审计不应让业务影响过期。
 export const volatileTables = new Set([
   'site_visits',
@@ -16,6 +16,14 @@ export const volatileTables = new Set([
   'api_idempotency',
   'login_failures',
   'content_request_limits',
+  'account_security_audit',
+  'security_counters',
+  'security_events',
+  'mail_jobs',
+  'mail_budget',
+  'mail_attempts',
+  'mail_delivery_events',
+  'mail_worker_status',
 ])
 const assets = new Set(['novel_covers', 'user_avatars', 'novel_cover_history', 'thought_images', 'chapter_illustration_assets'])
 const safeFields: Record<string, Record<string, string>> = {

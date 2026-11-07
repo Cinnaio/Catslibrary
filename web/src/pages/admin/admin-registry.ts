@@ -16,6 +16,7 @@ import {
   UserCog,
   ListChecks,
   Activity,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -35,6 +36,7 @@ const ContentRatingsTab = lazy(() => import('./ContentRatingsTab'))
 const SiteOperationsTab = lazy(() => import('./SiteOperationsTab'))
 const SiteSettingsTab = lazy(() => import('./SiteSettingsTab'))
 const BackupsTab = lazy(() => import('./BackupsTab'))
+const SecurityCenterTab = lazy(() => import('./SecurityCenterTab'))
 
 export interface AdminTabProps {
   highlightNovelId?: string
@@ -116,6 +118,14 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
   {
     label: '系统',
     items: [
+      { id:'security',label:'安全与风控',icon:ShieldCheck,children:[
+        {id:'security-mail',label:'邮件记录',to:`${adminTabPath('security')}?view=mail`},
+        {id:'security-overview',label:'安全概览',to:`${adminTabPath('security')}?view=overview`},
+        {id:'security-service',label:'邮件服务',to:`${adminTabPath('security')}?view=service`},
+        {id:'security-policy',label:'防护策略',to:`${adminTabPath('security')}?view=policy`},
+        {id:'security-events',label:'风控事件',to:`${adminTabPath('security')}?view=events`},
+        {id:'security-restrictions',label:'封禁与例外',to:`${adminTabPath('security')}?view=restrictions`},
+      ]},
       {
         id: 'backups',
         label: '备份与恢复',
@@ -182,6 +192,7 @@ export const TAB_COMPONENTS = {
   'site-settings': SiteSettingsTab,
   settings: SettingsTab,
   backups: BackupsTab,
+  security: SecurityCenterTab,
 } satisfies Record<string, ComponentType<AdminTabProps>>
 
 export const TAB_KEY = 'admin_active_tab'

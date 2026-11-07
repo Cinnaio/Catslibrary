@@ -2,6 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { readFile, readdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { randomBytes } from 'node:crypto'
+import { DEFAULT_SECURITY_POLICY } from '@shared/security'
+import { runMailTick } from '../services/mail-worker'
+import { MailDeliveryError } from '../services/mail'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
@@ -32,7 +36,14 @@ function request(route: string, body?: unknown, actor?: string, method = body ==
 function mutate(actor: string, target: string, action: string, values: Record<string, unknown> = {}) {
   return request('/admin-users', { action, id: target, expectedRole: target === 'root' ? 'super_admin' : target === 'manager' ? 'admin' : 'reader', expectedStatus: 'active', reason: '测试账号变更原因', ...values }, actor)
 }
-function latestToken() { return new URLSearchParams(new URL(mail.send.mock.calls.at(-1)![2]).hash.slice(1)).get('token')! }
+async function latestToken() {
+  await t.db.query("DELETE FROM mail_worker_status WHERE id='last-send'")
+  await runMailTick(t.db)
+  const token = new URLSearchParams(new URL(mail.send.mock.calls.at(-1)![2]).hash.slice(1)).get('token')!
+  // These tests exercise link consumption; quota/cooldown behavior has its own suite.
+  await t.db.query('UPDATE mail_jobs SET created_at=created_at-61000')
+  return token
+}
 async function row(id = 'reader') { return (await t.db.query<UserRow>('SELECT * FROM users WHERE id=$1', [id])).rows[0]! }
 async function verified() { await t.db.query("UPDATE users SET email='reader@example.test',email_verified_at=1 WHERE id='reader'") }
 beforeAll(async () => {
@@ -41,7 +52,11 @@ beforeAll(async () => {
   salt = newSalt(); passwordHash = await hashPassword(password, salt)
 })
 beforeEach(async () => {
-  mail.send.mockReset().mockResolvedValue(undefined)
+  mail.send.mockReset().mockResolvedValue({ providerId: '' })
+  vi.stubEnv('MAIL_QUEUE_ENCRYPTION_KEY', randomBytes(32).toString('base64'))
+  for (const table of ['mail_jobs','mail_budget','mail_delivery_events','mail_worker_status','security_events','security_restrictions','security_counters','security_policy']) await t.db.query(`DELETE FROM ${table}`)
+  const policy = {...DEFAULT_SECURITY_POLICY, challenges:{login:'off',register:'off','forgot-password':'off','verify-email':'off'}}
+  await t.db.query("INSERT INTO security_policy(id,value,updated_at) VALUES('site',$1::jsonb,1)", [JSON.stringify(policy)])
   await t.db.query('DELETE FROM users')
   await t.db.query('DELETE FROM site_initialization')
   await t.db.query('DELETE FROM account_security_audit')
@@ -52,11 +67,11 @@ beforeEach(async () => {
     tokens[id] = await createSession(t.db, id, 'test', loadConfig().sessionHashSalt)
   }
 })
-afterAll(async () => { setDbForTests(null); delete process.env.DATABASE_URL; await t.close() })
+afterAll(async () => { setDbForTests(null); vi.unstubAllEnvs(); delete process.env.DATABASE_URL; await t.close() })
 
 describe('三级权限与初始化保护', () => {
   it('超级管理员可保存并读取即时生效的 SMTP 配置，旧修订不能覆盖且公开状态不泄露字段', async () => {
-    const config = { revision: 0, host: 'smtp.example.test', port: 465, security: 'tls', username: 'smtp-user',
+    const config = { reason: '核对邮件服务配置', revision: 0, host: 'smtp.example.test', port: 465, security: 'tls', username: 'smtp-user',
       password: 'route-fixture-secret', from: 'account@example.test', publicOrigin: 'https://reader.example.test' }
     expect((await request('/auth/mail-settings', { ...config, password: 'x'.repeat(17000) }, 'root', 'PUT')).status).toBe(413)
     expect((await request('/auth/mail-settings/test', { revision: 0, padding: 'x'.repeat(2048) }, 'root')).status).toBe(413)
@@ -65,6 +80,10 @@ describe('三级权限与初始化保护', () => {
     const result = await response.json()
     expect(result).toMatchObject({ revision: 1, source: 'local', host: 'smtp.example.test', passwordSet: true, ready: true })
     expect(JSON.stringify(result)).not.toContain('route-fixture-secret')
+    const audit=(await t.db.query("SELECT before_state,after_state,reason FROM account_security_audit WHERE action='mail-settings'")).rows
+    expect(audit).toHaveLength(1)
+    expect(JSON.stringify(audit)).not.toContain('route-fixture-secret')
+    expect(audit[0]).toMatchObject({reason:'核对邮件服务配置',after_state:{credentialChanged:true}})
     expect((await request('/auth/mail-settings', config, 'root', 'PUT')).status).toBe(409)
     expect(await (await request('/auth/mail-status')).json()).toEqual({ ready: true })
     expect(await (await request('/auth/mail-settings', undefined, 'root')).json()).toEqual(result)
@@ -135,7 +154,7 @@ describe('三级权限与初始化保护', () => {
   })
   it('角色变更原子撤销全部会话和邮件链接，并保存可查看的原因与前后状态', async () => {
     await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'verify-email')
-    const link = latestToken()
+    const link = await latestToken()
     expect((await mutate('root', 'reader', 'user-role', { role: 'admin' })).status).toBe(200)
     expect((await request('/auth/me', undefined, 'reader')).status).toBe(401)
     await expect(consumeAccountEmail(t.db, link, 'verify-email')).rejects.toThrow('链接无效')
@@ -168,7 +187,7 @@ describe('邮箱验证与密码找回', () => {
     const response = await request('/auth/email/request', { email: ' Reader@Example.Test ', currentPassword: password }, 'reader')
     expect(response.status).toBe(200)
     expect((await row()).email).toBeNull()
-    const token = latestToken()
+    const token = await latestToken()
     const records = (await t.db.query<{ token_hash: string }>('SELECT * FROM account_email_tokens')).rows
     expect(records[0]!.token_hash).not.toBe(token)
     expect(records[0]!.token_hash).toBe(await hashToken(token, loadConfig().sessionHashSalt))
@@ -178,16 +197,17 @@ describe('邮箱验证与密码找回', () => {
     expect((await request('/auth/email/verify', { token })).status).toBe(400)
   })
   it('同邮箱的两个待确认请求只有一个能绑定成功', async () => {
-    await issueAccountEmail(t.db, 'reader', 'shared@example.test', 'verify-email'); const first = latestToken()
-    await issueAccountEmail(t.db, 'other', 'shared@example.test', 'verify-email'); const second = latestToken()
+    await issueAccountEmail(t.db, 'reader', 'shared@example.test', 'verify-email'); const first = await latestToken()
+    await issueAccountEmail(t.db, 'other', 'shared@example.test', 'verify-email'); const second = await latestToken()
     await consumeAccountEmail(t.db, first, 'verify-email')
     await expect(consumeAccountEmail(t.db, second, 'verify-email')).rejects.toThrow('此邮箱无法绑定')
     expect((await row('other')).email).toBeNull()
   })
-  it('拒绝过期、用途错误、重发前和凭据变更前的链接', async () => {
-    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'verify-email'); const old = latestToken()
-    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'verify-email'); const current = latestToken()
-    await expect(consumeAccountEmail(t.db, old, 'verify-email')).rejects.toThrow('链接无效')
+  it('同地址重发保留旧链接，拒绝过期、用途错误和凭据变更前的链接', async () => {
+    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'verify-email'); const old = await latestToken()
+    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'verify-email'); const current = await latestToken()
+    expect((await t.db.query('SELECT 1 FROM account_email_tokens WHERE token_hash=$1', [await hashToken(old, loadConfig().sessionHashSalt)])).rows).toHaveLength(1)
+    expect(current).not.toBe(old)
     await expect(consumeAccountEmail(t.db, current, 'reset-password', password)).rejects.toThrow('链接无效')
     await t.db.query('UPDATE account_email_tokens SET expires_at=1')
     await expect(consumeAccountEmail(t.db, current, 'verify-email')).rejects.toThrow('链接无效')
@@ -201,7 +221,7 @@ describe('邮箱验证与密码找回', () => {
     expect(await result.json()).not.toHaveProperty('tempPassword')
     expect((await row()).password_hash).toBe(passwordHash)
     expect((await request('/auth/me', undefined, 'reader')).status).toBe(200)
-    const token = latestToken()
+    const token = await latestToken()
     expect((await request('/auth/reset-password', { token, password: 'short' })).status).toBe(400)
     expect((await request('/auth/reset-password', { token, password: 'New-password-456' })).status).toBe(200)
     expect((await request('/auth/me', undefined, 'reader')).status).toBe(401)
@@ -211,18 +231,19 @@ describe('邮箱验证与密码找回', () => {
   })
   it('自行改密会废弃之前邮件链接；更换邮箱也废弃旧重置链接', async () => {
     await verified()
-    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password'); const old = latestToken()
+    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password'); const old = await latestToken()
     expect((await request('/auth/change-password', { currentPassword: password, newPassword: 'Own-new-password' }, 'reader')).status).toBe(200)
     await expect(consumeAccountEmail(t.db, old, 'reset-password', password)).rejects.toThrow('链接无效')
-    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password'); const previousEmail = latestToken()
+    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password'); const previousEmail = await latestToken()
     await issueAccountEmail(t.db, 'reader', 'new@example.test', 'verify-email')
     expect((await row()).email).toBe('reader@example.test')
-    await consumeAccountEmail(t.db, latestToken(), 'verify-email')
+    await consumeAccountEmail(t.db, await latestToken(), 'verify-email')
     await expect(consumeAccountEmail(t.db, previousEmail, 'reset-password', password)).rejects.toThrow('链接无效')
   })
   it('发送失败撤销刚签发的链接，并且不会改动密码', async () => {
-    await verified(); mail.send.mockRejectedValueOnce(new Error('fake SMTP failure'))
-    await expect(issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password')).rejects.toThrow()
+    await verified(); mail.send.mockRejectedValueOnce(new MailDeliveryError('smtp_rejected', 'rejected'))
+    await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password')
+    await runMailTick(t.db)
     expect((await t.db.query('SELECT * FROM account_email_tokens')).rows).toHaveLength(0)
     expect((await row()).password_hash).toBe(passwordHash)
     expect((await t.db.query<{ status: string; response_status: number }>("SELECT status,response_status FROM admin_operation_audit WHERE action='request-reset-password'")).rows[0]).toEqual({ status: 'failed', response_status: 503 })
@@ -235,8 +256,10 @@ describe('邮箱验证与密码找回', () => {
       expect(response.status).toBe(200); responses.push(await response.json())
     }
     expect(responses[0]).toEqual(responses[1]); expect(responses[1]).toEqual(responses[2])
-    await vi.waitFor(() => expect(mail.send).toHaveBeenCalledTimes(1))
-    await vi.waitFor(async () => expect((await t.db.query<{ status: string }>("SELECT status FROM admin_operation_audit WHERE action='request-reset-password'")).rows[0]?.status).toBe('completed'))
+    expect(mail.send).not.toHaveBeenCalled()
+    await runMailTick(t.db)
+    expect(mail.send).toHaveBeenCalledTimes(1)
+    expect((await t.db.query<{ status: string }>("SELECT status FROM admin_operation_audit WHERE action='request-reset-password'")).rows[0]?.status).toBe('completed')
   })
   it('账号和 IP 限流均落在数据库，不能换地址或账号绕过', async () => {
     for (let index = 0; index < 3; index++) await limitEmailRequest(t.db, 'one', `ip${index}`)

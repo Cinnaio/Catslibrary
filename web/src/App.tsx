@@ -1,4 +1,5 @@
 import { ReauthenticationDialog } from './components/ReauthenticationDialog'
+import SecurityChallengeDialog from './components/SecurityChallengeDialog'
 /**
  * 应用路由 —— 干净路径（/ /novel/:id /read/:novelId/:chapterId /bookshelf /profile /auth）。
  * Reader 用无页头布局（沉浸式）；/auth、/install、/admin 同为独立顶级路由，也不带站点页头：
@@ -38,6 +39,7 @@ export default function App() {
     <Suspense fallback={<RouteLoading />}>
       <TooltipProvider delayDuration={150}>
         <ReauthenticationDialog />
+        <SecurityChallengeDialog />
         <SiteBrandingSync />
         <VisitTracker />
         <PageSeo />

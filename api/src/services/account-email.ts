@@ -4,7 +4,9 @@ import { first, withTx } from '../db/query'
 import { hashToken, newToken, hashPassword, newSalt, type UserRow } from './auth'
 import { loadConfig } from '../config'
 import { AccountError, lockAccounts, auditAccount, accountSnapshot } from './account-security'
-import { mailConfiguration, sendAccountMail } from './mail'
+import { mailConfiguration } from './mail'
+import { lockSecurity, securityPolicy, securityEvent, SecurityError } from './security-policy'
+import { reserveMail, insertMailJob } from './mail-queue'
 
 export function normalizeEmail(value: unknown): string {
   if (typeof value !== 'string') throw new AccountError('请输入有效邮箱')
@@ -28,18 +30,18 @@ export async function limitEmailRequest(db: Db, identity: string, ip?: string) {
   })
 }
 
-export async function issueAccountEmail(db: Db, userId: string, email: string, purpose: 'verify-email' | 'reset-password', actorId = userId, expected?: { role: string; status: string; passwordHash?: string }, reason = '用户申请账号邮件') {
+export async function issueAccountEmail(db: Db, userId: string, email: string, purpose: 'verify-email' | 'reset-password', actorId = userId, expected?: { role: string; status: string; passwordHash?: string }, reason = '用户申请账号邮件', emergency = false) {
   const config = mailConfiguration()
   if (!config.ready) throw new AccountError('邮件服务尚未配置，请联系超级管理员', 503)
   const token = newToken()
   const tokenHash = await hashToken(token, loadConfig().sessionHashSalt)
-  const auditId = await withTx(db, async query => {
+  try { return await withTx(db, async query => {
     await lockAccounts({ query })
     const user = await first<UserRow>({ query }, 'SELECT * FROM users WHERE id=$1 FOR UPDATE', [userId])
     if (!user || user.status !== 'active') throw new AccountError('账号不可用', 403)
-    if (actorId !== userId) {
+    if (actorId !== userId || emergency) {
       const actor = await first<UserRow>({ query }, 'SELECT * FROM users WHERE id=$1 FOR UPDATE', [actorId])
-      if (!actor || actor.status !== 'active' || !isAdministrator(actor.role) || !canManageUser(actor.role, user.role)) throw new AccountError('管理员权限已变化', 403)
+      if (!actor || actor.status !== 'active' || !isAdministrator(actor.role) || (actorId !== userId && !canManageUser(actor.role, user.role))) throw new AccountError('管理员权限已变化', 403)
     }
     if (expected && (user.role !== expected.role || user.status !== expected.status)) throw new AccountError('账号状态已变化，请刷新', 409)
     if (expected?.passwordHash && user.password_hash !== expected.passwordHash) throw new AccountError('账号凭据已变化，请重新登录', 409)
@@ -48,26 +50,24 @@ export async function issueAccountEmail(db: Db, userId: string, email: string, p
       const used = await first({ query }, 'SELECT 1 FROM users WHERE lower(email)=$1 AND id<>$2', [email, userId])
       if (used) throw new AccountError('此邮箱无法绑定')
     }
-    await query('DELETE FROM account_email_tokens WHERE user_id=$1 AND purpose=$2 OR expires_at<$3', [userId, purpose, Date.now()])
+    const tx = { query }; await lockSecurity(tx)
+    const policy = await securityPolicy(tx)
+    const reservation = await reserveMail(tx, policy, user, email, purpose, emergency, actorId)
+    if (reservation.duplicate) return reservation.duplicate
+    // Anonymous recovery must not invalidate the victim's previous link. Authenticated email changes supersede a different pending address.
+    if (purpose === 'verify-email') await query("DELETE FROM account_email_tokens WHERE user_id=$1 AND purpose='verify-email' AND email<>$2", [userId, email])
+    await query('DELETE FROM account_email_tokens WHERE expires_at<$1', [Date.now()])
     await query(`INSERT INTO account_email_tokens (token_hash,user_id,purpose,email,expires_at,created_at) VALUES ($1,$2,$3,$4,$5,$6)`,
       [tokenHash, userId, purpose, email, Date.now() + (purpose === 'verify-email' ? 86400000 : 30 * 60000), Date.now()])
-    return auditAccount({ query }, actorId, userId, `request-${purpose}`, reason, accountSnapshot(user), { purpose, delivery: 'requested' }, true)
-  })
-  try {
+    const auditId = await auditAccount(tx, actorId, userId, `request-${purpose}`, reason, accountSnapshot(user), { purpose, delivery: 'queued' }, true)
     const route = purpose === 'verify-email' ? '/verify-email' : '/reset-password'
-    await sendAccountMail(email, purpose === 'verify-email' ? '验证你的 Cat’s Library 邮箱' : '重置你的 Cat’s Library 密码', `${config.publicOrigin}${route}#token=${token}`)
+    return insertMailJob(tx, { user, actor: actorId, email, purpose, emergency, policy, tokenHash, auditId,
+      payload: { to: email, subject: purpose === 'verify-email' ? '验证你的 Cat’s Library 邮箱' : '重置你的 Cat’s Library 密码', url: `${config.publicOrigin}${route}#token=${token}` } })
+  })
   } catch (error) {
-    await withTx(db, async query => {
-      await query('DELETE FROM account_email_tokens WHERE token_hash=$1', [tokenHash])
-      await query("UPDATE account_security_audit SET after_state=$2::jsonb WHERE id=$1", [auditId, JSON.stringify({ purpose, delivery: 'failed' })])
-      await query("UPDATE admin_operation_audit SET status='failed',response_status=503,error='邮件发送失败',updated_at=$2,finished_at=$2 WHERE id=$1", [auditId, Date.now()])
-    })
+    if (error instanceof SecurityError) await securityEvent(db, purpose, error.code, 'blocked', userId, (await securityPolicy(db)).revision, '', userId)
     throw error
   }
-  await withTx(db, async query => {
-    await query('UPDATE account_security_audit SET after_state=$2::jsonb WHERE id=$1', [auditId, JSON.stringify({ purpose, delivery: 'accepted' })])
-    await query("UPDATE admin_operation_audit SET status='completed',response_status=200,updated_at=$2,finished_at=$2 WHERE id=$1", [auditId, Date.now()])
-  })
 }
 
 export async function consumeAccountEmail(db: Db, token: unknown, purpose: 'verify-email' | 'reset-password', password?: unknown) {

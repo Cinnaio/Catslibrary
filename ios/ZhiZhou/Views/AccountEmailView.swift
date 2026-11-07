@@ -9,6 +9,7 @@ struct AccountEmailView: View {
     @State private var busy = false
     @State private var message: String?
     @State private var errorMessage: String?
+    @State private var challenge = AccountChallengeController()
 
     private struct Response: Decodable { let message: String }
 
@@ -44,6 +45,10 @@ struct AccountEmailView: View {
             if !bindingEmail { ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() }.disabled(busy) } }
         }
         .onAppear { if bindingEmail { identifier = appState.user?.email ?? "" } }
+        .sheet(isPresented: Binding(get: { challenge.action != nil }, set: { if !$0 { challenge.finish(nil) } })) {
+            if let action = challenge.action { AccountChallengeSheet(action: action, finish: challenge.finish).disabled(false) }
+        }
+        .onDisappear { challenge.finish(nil) }
     }
 
     @MainActor private func send() async {
@@ -52,10 +57,14 @@ struct AccountEmailView: View {
         busy = true; errorMessage = nil; message = nil
         defer { busy = false }
         do {
-            let body = bindingEmail ? ["email": identifier.trimmingCharacters(in: .whitespacesAndNewlines), "currentPassword": password] : ["identifier": identifier.trimmingCharacters(in: .whitespacesAndNewlines)]
+            let token = try await challenge.verify(bindingEmail ? "verify-email" : "forgot-password")
+            guard !bindingEmail || appState.user?.id == owner else { return }
+            var body = bindingEmail ? ["email": identifier.trimmingCharacters(in: .whitespacesAndNewlines), "currentPassword": password] : ["identifier": identifier.trimmingCharacters(in: .whitespacesAndNewlines)]
+            if !token.isEmpty { body["turnstileToken"] = token }
             let response: Response = try await APIClient.shared.post(bindingEmail ? "/api/auth/email/request" : "/api/auth/forgot-password", body: JSONEncoder().encode(body), auth: bindingEmail)
             guard !bindingEmail || appState.user?.id == owner else { return }
             password = ""; message = response.message
-        } catch { errorMessage = AppCopy.friendlyError(error) }
+        } catch is CancellationError { errorMessage = "已取消安全验证，输入已保留。" }
+        catch { errorMessage = AppCopy.friendlyError(error) }
     }
 }

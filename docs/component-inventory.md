@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-07 安全与风控六视图由 `pages/admin/SecurityCenterTab.tsx` 与 `security-center.module.css` 持有；邮件配置沿用 `MailSettings`，共享字段、Tabs、表格、异步状态、DialogFrame 和保存条维护各自外观。`SecurityChallengeDialog` 是应用级账号验证场景，协议协调在 `lib/security-challenge.ts`；验证码脚本加载统一归 `lib/turnstile.ts`，成人验证与配置测试共用，不从成人弹窗导入业务样式。共享 UI 不新增账号或 API 依赖。
+
 2026-11-07 书籍导入的外框、步骤、来源表单、文件摘要、ZIP 书单与底部布局由 `components/admin/BookImportDialog.module.css` 持有；移除 `styles/book-import.css` 中对应规则，后者继续维护差异核对、解析诊断与导入历史。复用共享 DialogFrame、Tabs、Button 及字段控件，预览、匹配、确认和撤回仍由导入场景持有，不增加共享层业务依赖。
 
 2026-11-07 小说选择的完整取数由 `lib/admin-novel-index.ts` 分页读取管理员紧凑书目，创作、章节、补充来源绑定与任务标题索引共用，不把公开书库第一页或固定索引上限当成全库。SearchSelect 仍为不取业务数据的共享控件，负责完整候选筛选、首批 100 项及继续显示；AI 写作和封面的选项同时提供作者，章节和写作提供加载／错误与重试。封面原有完整分页取数保留，使用共享继续显示浏览后续匹配；补充来源保留外置搜索框及受控结果，不再重复做标题过滤。

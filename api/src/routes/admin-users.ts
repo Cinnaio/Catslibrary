@@ -1,7 +1,6 @@
 import { isUserRole } from '@shared/roles'
 import { AccountError, withManagedAccount, protectLastSuper, accountSnapshot, auditAccount } from '../services/account-security'
 import { issueAccountEmail, limitEmailRequest } from '../services/account-email'
-import { clientIpFromContext } from '../services/ai/audit-context'
 /**
  * /api/admin-users —— 用户管理 + 邀请码 + 注册设置（由 Novel-KV admin-users.js 平移）。
  */
@@ -337,8 +336,8 @@ async function mutateAccount(c: Ctx, db: ReturnType<typeof getDb>, body: Record<
       return null
     })
     if (result?.email) {
-      await limitEmailRequest(db, id, clientIpFromContext(c))
-      await issueAccountEmail(db, id, result.email, 'reset-password', self.id, result, reason)
+      await limitEmailRequest(db, `admin-recovery:${self.id}`)
+      await issueAccountEmail(db, id, result.email, 'reset-password', self.id, result, reason, true)
     }
     return c.json({ success: true })
   } catch (error) {

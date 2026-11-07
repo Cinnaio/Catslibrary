@@ -43,17 +43,41 @@ export async function testMailConnection(revision: number) {
   try { await mailTransport(config.smtp).verify() }
   catch { throw new AccountError('SMTP 连接或认证失败，请检查服务器、端口、加密方式及账号密码', 503) }
 }
-export async function sendAccountMail(to: string, subject: string, url: string) {
+export class MailDeliveryError extends AccountError {
+  constructor(public code: string, public outcome: 'retry' | 'rejected' | 'unknown') { super('邮件暂时发送失败，请稍后重试', 503) }
+}
+export async function sendAccountMail(to: string, subject: string, url: string, jobId: string = randomUUID(), transport: 'smtp' | 'resend' = 'smtp') {
   const config = mailConfiguration()
   if (!config.ready) throw new AccountError('邮件服务尚未配置，请联系超级管理员', 503)
-  const text = `${subject}\n\n请在浏览器中打开以下链接并确认操作：\n${url}\n\n链接会过期且只能使用一次。如果不是你的操作，请忽略此邮件。`
+  const text = url ? `${subject}\n\n请在浏览器中打开以下链接并确认操作：\n${url}\n\n链接会过期且只能使用一次。如果不是你的操作，请忽略此邮件。` : `${subject}\n\n这是一封由站点管理员发起的投递测试邮件，无需回复。`
+  if (transport === 'resend') {
+    const smtp = parseSmtp(config.smtp)
+    if (!smtp || smtp.hostname !== 'smtp.resend.com') throw new MailDeliveryError('resend_configuration', 'rejected')
+    let response: Response
+    try { response = await fetch('https://api.resend.com/emails', { method: 'POST', signal: AbortSignal.timeout(15000),
+      headers: { Authorization: `Bearer ${decodeURIComponent(smtp.password)}`, 'Content-Type':'application/json', 'Idempotency-Key':jobId },
+      body: JSON.stringify({ from:config.from,to:[to],subject,text,tags:[{name:'job_id',value:jobId}] }) }) }
+    catch { throw new MailDeliveryError('provider_network', 'unknown') }
+    if (!response.ok) throw new MailDeliveryError(`provider_${response.status}`, response.status===429 ? 'retry' : response.status>=500 || response.status===409 ? 'unknown' : 'rejected')
+    const data = await response.json().catch(()=>null) as { id?: string } | null
+    if (!data?.id) throw new MailDeliveryError('provider_response', 'unknown')
+    return { providerId: data.id }
+  }
   if (config.smtp) {
     try {
-      const result = await mailTransport(config.smtp).sendMail({ from: config.from, to: { address: to, name: '' }, subject, text })
-      if (!result.accepted?.length) throw new Error('rejected')
-      return
-    } catch { throw new AccountError('邮件暂时发送失败，请稍后重试', 503) }
+      const result = await mailTransport(config.smtp).sendMail({ from: config.from, to: { address: to, name: '' }, subject, text,
+        headers: { 'Resend-Idempotency-Key': jobId }, messageId: `<${jobId}@${new URL(config.publicOrigin).hostname}>` })
+      if (!result.accepted?.length) throw new MailDeliveryError('smtp_rejected','rejected')
+      return { providerId: '' }
+    } catch (error) {
+      if (error instanceof MailDeliveryError) throw error
+      const e = error as { responseCode?: number; code?: string }
+      if (e.responseCode && e.responseCode>=400 && e.responseCode<500) throw new MailDeliveryError('smtp_temporary','retry')
+      if ((e.responseCode && e.responseCode>=500) || e.code==='EAUTH') throw new MailDeliveryError('smtp_rejected','rejected')
+      throw new MailDeliveryError('smtp_unknown','unknown')
+    }
   }
   await mkdir(config.outbox, { recursive: true, mode: 0o700 })
   await writeFile(path.join(config.outbox, `${randomUUID()}.json`), JSON.stringify({ to, subject, text, url }), { mode: 0o600 })
+  return { providerId: '' }
 }

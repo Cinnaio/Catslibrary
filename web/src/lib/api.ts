@@ -1,4 +1,6 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
+import type { ChallengeConfiguration, SecurityAction } from '@shared/security'
+import { requestSecurityChallenge } from './security-challenge'
 import type { MailSettings, MailSettingsInput } from '@shared/mail-settings'
 import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import type { StoryGraphResponse } from '@shared/story-graph'
@@ -232,6 +234,19 @@ export async function request<T = unknown>(
   timeoutMs = API_TIMEOUT_MS,
   reauthenticated = false,
 ): Promise<T> {
+  const challengeActions:Record<string,SecurityAction>={'/auth/forgot-password':'forgot-password','/auth/email/request':'verify-email','/auth/login':'login','/auth/register':'register'}
+  const challengeAction=method==='POST'?challengeActions[normalizePath(path)]:undefined
+  if(challengeAction && body && typeof body==='object' && !(body as {turnstileToken?:string}).turnstileToken) {
+    const owner=getToken()
+    const config=await request<ChallengeConfiguration>('GET',`/security/challenge?action=${challengeAction}`,null,useAuth)
+    if(config.action!==challengeAction || !['off','observe','enforce'].includes(config.mode)) throw new Error('安全验证配置无效，请更新服务端后重试')
+    if(config.mode==='enforce') {
+      if(!config.configured) throw new Error('安全验证尚未配置，请联系管理员')
+      const turnstileToken=await requestSecurityChallenge(config)
+      body={...body,turnstileToken}
+    }
+    if(owner!==getToken()) throw new Error('账号已变化，请重新操作')
+  }
   const requestToken = useAuth ? getToken() : ''
   const hasBody = !!body && method !== 'GET'
   // 有 body 才声明 Content-Type：GET 带它会让跨域读取多一次 preflight

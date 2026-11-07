@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { loadTurnstile } from './AdultUnlockDialog'
+import { loadTurnstile } from '@/lib/turnstile'
 
 /** Uses the same action as the real adult flow, but test endpoint never creates a grant. */
 export default function TurnstileTestWidget({ siteKey, onToken, onError }: {

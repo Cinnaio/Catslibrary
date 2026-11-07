@@ -105,9 +105,9 @@ final class AppState {
         isBooting = false
     }
 
-    func login(username: String, password: String) async throws {
+    func login(username: String, password: String, turnstileToken: String = "") async throws {
         do {
-            let body = try APIClient.shared.jsonBody(["username": username, "password": password])
+            let body = try APIClient.shared.jsonBody(["username": username, "password": password, "turnstileToken": turnstileToken])
             let r: LoginResponse = try await APIClient.shared.post("/api/auth/login", body: body)
             APIClient.shared.token = r.token
             await activateAccount(r.user)
@@ -127,9 +127,9 @@ final class AppState {
         syncAccountStateInBackground()
     }
 
-    func register(username: String, password: String, invite: String) async throws {
+    func register(username: String, password: String, invite: String, turnstileToken: String = "") async throws {
         do {
-            var payload: [String: String] = ["username": username, "password": password]
+            var payload: [String: String] = ["username": username, "password": password, "turnstileToken": turnstileToken]
             if !invite.isEmpty { payload["invite"] = invite }
             let body = try APIClient.shared.jsonBody(payload)
             let r: LoginResponse = try await APIClient.shared.post("/api/auth/register", body: body)

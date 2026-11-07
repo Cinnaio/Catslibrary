@@ -37,6 +37,7 @@ import { clientIpFromContext } from '../services/ai/audit-context'
 import { recordLoginAudit } from '../services/login-audit'
 import { clearAdultAccessCookie, contentPolicyHeaders, setAccountContentMode } from '../services/content-access'
 import { markSessionReauthenticated } from '../services/reauthentication'
+import { protectRequest } from '../services/security-requests'
 
 const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, email, email_verified_at, created_at, updated_at, last_login_at'
 const LOGIN_USER_COLUMNS = PUBLIC_USER_COLUMNS + ', password_hash, password_salt, password_iterations'
@@ -66,6 +67,7 @@ authRoutes.post('/register', async (c) => {
   const password = String(body.password || '')
   const displayName = cleanDisplayName(body.displayName || username)
   const invite = String(body.invite || '').trim()
+  await protectRequest(db, 'register', username, clientIpFromContext(c), body.turnstileToken)
 
   const invalid = validateCredentials(username, password)
   if (invalid) return c.json({ error: invalid }, 400)
@@ -110,6 +112,7 @@ authRoutes.post('/login', async (c) => {
   const password = String(body.password || '')
   const salt = loadConfig().sessionHashSalt
   const user = await first<UserRow>(db, `SELECT ${LOGIN_USER_COLUMNS} FROM users WHERE (username = $1 OR (lower(email) = $1 AND email_verified_at > 0)) AND status = 'active'`, [username])
+  await protectRequest(db, 'login', username, clientIpFromContext(c), body.turnstileToken, user?.id)
   // 用户名与已验证邮箱共用账户限流，不允许切换登录标识增加尝试次数。
   const failKey = await hashToken('login:' + (user?.username || username || 'unknown'), salt)
   const auditUsername = user?.username || (username.includes('@') ? '' : username)

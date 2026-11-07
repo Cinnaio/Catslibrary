@@ -29,6 +29,7 @@ export default function MailSettings({ active = true, onBusyChange }: { active?:
   const [error, setError] = useState('')
   const [actionError, setActionError] = useState('')
   const [testMessage, setTestMessage] = useState('')
+  const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [readAt, setReadAt] = useState<Date | null>(null)
@@ -68,9 +69,11 @@ export default function MailSettings({ active = true, onBusyChange }: { active?:
   async function save(event: FormEvent) {
     event.preventDefault()
     if (!draft || inFlight.current || !dirty) return
+    if(reason.trim().length<4){setActionError('请填写至少 4 字的配置修改原因');return}
     inFlight.current = true; setBusy(true); setActionError(''); setTestMessage('')
     try {
-      const next = await authApi.saveMailSettings(draft)
+      const next = await authApi.saveMailSettings({...draft,reason:reason.trim()})
+      setReason('')
       setStatus(next); setDraft(draftFrom(next)); setReadAt(new Date())
       toast('邮件配置已保存并立即生效', 'success')
     } catch (error) { setActionError(error instanceof Error ? error.message : '保存失败，草稿已保留') }
@@ -140,6 +143,7 @@ export default function MailSettings({ active = true, onBusyChange }: { active?:
               </CardContent>
             </Card>
           </div>
+          {dirty && <FormField label="配置修改原因" hint="至少 4 字；修改前后配置会脱敏记录到操作审计。">{({id})=><Input id={id} value={reason} onChange={e=>setReason(e.target.value)} required minLength={4} maxLength={300} disabled={locked}/>}</FormField>}
           {actionError && <InlineError message={actionError} />}
           {dirty && active && <AdminFloatingDock reserveSpace><span>邮件配置有未保存修改</span><Button type="button" variant="ghost" disabled={locked} onClick={() => void discard()}>撤销</Button><Button type="submit" disabled={locked}>{busy && <Spinner size="sm" aria-hidden="true" />}保存配置</Button></AdminFloatingDock>}
         </form>

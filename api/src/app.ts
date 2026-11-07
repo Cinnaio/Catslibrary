@@ -1,4 +1,6 @@
 import { accountEmailRoutes } from './routes/account-email'
+import { securityAdminRoutes, securityPublicRoutes } from './routes/security'
+import { SecurityError } from './services/security-policy'
 import { AccountError } from './services/account-security'
 import { Hono } from 'hono'
 import { escHtml } from '@shared/utils'
@@ -66,6 +68,7 @@ app.use('/api/*', async (c, next) => {
   return backupMaintenance()(c, next)
 })
 app.onError((err, c) => {
+  if (err instanceof SecurityError) { c.header('Retry-After', String(err.retryAfter)); return c.json({error:err.message,code:err.code},err.status) }
   if (err instanceof AccountError) return c.json({ error: err.message }, err.status)
   console.error('[api]', err)
   return c.json({ error: '服务器内部错误' }, 500)
@@ -76,6 +79,8 @@ app.get('/api/health', (c) => {
 })
 
 app.route('/api/auth', accountEmailRoutes)
+app.route('/api/security', securityPublicRoutes)
+app.route('/api/admin/security', securityAdminRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/auth/passkeys', passkeyRoutes)
 app.route('/api/novels', novelsRoutes)

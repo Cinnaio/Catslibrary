@@ -50,7 +50,10 @@ export function turnstileConfig() {
   return { siteKey, secret, hostnames, configured: Boolean(siteKey && secret && hostnames.length) }
 }
 
-export async function verifyAdultChallenge(token: unknown, remoteip: string): Promise<boolean> {
+export function verifyAdultChallenge(token: unknown, remoteip: string): Promise<boolean> {
+  return verifyChallenge(token, remoteip, ADULT_UNLOCK_ACTION)
+}
+export async function verifyChallenge(token: unknown, remoteip: string, action: string): Promise<boolean> {
   if (typeof token !== 'string' || !token || token.length > 2048) return false
   try {
     const config = await effectiveTurnstile()
@@ -63,7 +66,7 @@ export async function verifyAdultChallenge(token: unknown, remoteip: string): Pr
     })
     if (!response.ok) return false
     const result = await response.json() as { success?: boolean; hostname?: string; action?: string }
-    return result.success === true && result.action === ADULT_UNLOCK_ACTION
+    return result.success === true && result.action === action
       && config.hostnames.includes(String(result.hostname || '').toLowerCase())
   } catch {
     // 不泄露密钥或上游错误；验证不可达时不授予权限。

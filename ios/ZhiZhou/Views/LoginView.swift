@@ -23,6 +23,7 @@ struct LoginView: View {
     @State private var interactionFeedback = 0
     @State private var showPasswordRecovery = false
     @State private var showOfflineReading = false
+    @State private var challenge = AccountChallengeController()
     @FocusState private var focusedField: Field?
 
     enum Mode: Hashable { case login, register }
@@ -114,6 +115,10 @@ struct LoginView: View {
             }
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
+        .sheet(isPresented: Binding(get: { challenge.action != nil }, set: { if !$0 { challenge.finish(nil) } })) {
+            if let action = challenge.action { AccountChallengeSheet(action: action, finish: challenge.finish) }
+        }
+        .onDisappear { challenge.finish(nil) }
     }
 
     private var statusTransition: AnyTransition {
@@ -530,10 +535,11 @@ struct LoginView: View {
         defer { busy = false }
         errorMessage = nil
         do {
+            let token = try await challenge.verify(mode == .login ? "login" : "register")
             if mode == .login {
-                try await appState.login(username: username, password: password)
+                try await appState.login(username: username, password: password, turnstileToken: token)
             } else {
-                try await appState.register(username: username, password: password, invite: invite)
+                try await appState.register(username: username, password: password, invite: invite, turnstileToken: token)
             }
             AppFeedback.success()
         } catch {

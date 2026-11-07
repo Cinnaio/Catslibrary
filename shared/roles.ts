@@ -22,6 +22,7 @@ export function requiresSuperAdministrator(path: string, method = 'GET', action 
   path = path.replace(/\/+$/, '')
   if (['/api/admin/site', '/api/admin/site/traffic'].includes(path) && method === 'GET') return false
   return /^\/api\/admin\/(backups|site-settings|site)(?:\/|$)/.test(path) ||
+    (/^\/api\/admin\/security(?:\/|$)/.test(path) && (method !== 'GET' || !/^\/api\/admin\/security\/(mail|events)(?:\/|$)/.test(path))) ||
     path === '/api/admin/content-policy' ||
     /^\/api\/ai\/(provider|provider-presets|test)(?:\/|$)/.test(path) ||
     (path === '/api/ai/settings' && method !== 'GET') ||
@@ -32,6 +33,7 @@ export function requiresSuperAdministratorPage(path: string, search = ''): boole
   path = path.replace(/\/+$/, '')
   const params = new URLSearchParams(search)
   return ['/admin/site-settings', '/admin/backups', '/admin/content-policy'].includes(path) ||
+    (path === '/admin/security' && !['mail','events'].includes(params.get('view') || '')) ||
     (path === '/admin/ai' && ['config', 'params'].includes(params.get('sub') || '')) ||
     (path === '/admin/scrape' && params.get('view') === 'proxy') ||
     (path === '/admin/calls' && params.get('view') === 'outbound')

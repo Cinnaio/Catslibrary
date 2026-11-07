@@ -21,6 +21,8 @@ import { runBackupTick } from './services/backups/worker'
 import { maintenance } from './services/backups/store'
 import { withBusinessActivity, requireBackupGate } from './middlewares/backup-maintenance'
 import { stopBackupCommands } from './services/backups/process'
+import { runMailTick, pruneSecurity } from './services/mail-worker'
+import { reconcileDeliveryEvents } from './services/mail-webhook'
 
 async function resumeInterruptedCoverPromptTasks() {
   const db = getDb()
@@ -98,6 +100,17 @@ async function start() {
 
   app.route('/', createWebRoutes())
   const server = serve({ fetch: app.fetch, port: config.port })
+  let mailRunning=false, lastSecurityPrune=0
+  const mailTimer=setInterval(()=>{
+    if(mailRunning || !loadConfig().configured) return
+    mailRunning=true
+    void withBusinessActivity(getDb(),async()=>{
+      await runMailTick(getDb())
+      await reconcileDeliveryEvents(getDb())
+      if(Date.now()-lastSecurityPrune>3600000) { await pruneSecurity(getDb()); lastSecurityPrune=Date.now() }
+    }).catch(()=>console.error('[mail] worker unavailable')).finally(()=>{mailRunning=false})
+  },5000)
+  mailTimer.unref()
   const aiTaskReclaimTimer = config.configured
     ? setInterval(() => {
         void withBusinessActivity(getDb(), async () => {
@@ -165,6 +178,7 @@ async function start() {
   console.log(`[zhi-zhou api] listening on http://127.0.0.1:${config.port}  (db: ${config.configured ? 'configured' : 'needsSetup'})`)
 
   function shutdown() {
+    clearInterval(mailTimer)
     stopBackupCommands()
     clearInterval(importPruneTimer)
     clearInterval(followupTimer)

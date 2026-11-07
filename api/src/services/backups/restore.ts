@@ -12,6 +12,7 @@ import { BackupError, backupRoot } from './config'
 import { command, pgEnvironment, psqlTool, restoreTool, dumpTool } from './process'
 import { type Manifest, currentMigration, decryptArchive } from './archive'
 import { ensureLocalArchive } from './storage'
+import { DEFAULT_SECURITY_POLICY } from '@shared/security'
 
 const migrationsDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'db', 'migrations')
 // 本目录在打包后通过显式相对 dist 路径解析；见 tsup/copy-migrations。
@@ -74,6 +75,12 @@ async function generateRestoreScript(dump: string, dir: string, manifest: Manife
     }
     await write(`\nDELETE FROM public.user_sessions;
 DELETE FROM public.account_email_tokens;
+UPDATE public.account_security_audit SET after_state='{"delivery":"cancelled","code":"backup_restored"}'::jsonb WHERE id IN (SELECT audit_id FROM public.mail_jobs WHERE state IN ('queued','sending'));
+UPDATE public.admin_operation_audit SET status='failed',response_status=503,error='backup_restored',updated_at=${Date.now()},finished_at=${Date.now()} WHERE id IN (SELECT audit_id FROM public.mail_jobs WHERE state IN ('queued','sending'));
+UPDATE public.mail_jobs SET state='cancelled',payload='',error_code='backup_restored',lease_until=0,updated_at=${Date.now()} WHERE state IN ('queued','sending');
+INSERT INTO public.mail_worker_status(id,updated_at) VALUES('restore-hold',${Date.now()}) ON CONFLICT(id) DO UPDATE SET updated_at=EXCLUDED.updated_at;
+INSERT INTO public.security_policy(id,value,updated_at) VALUES('site','${JSON.stringify({ ...DEFAULT_SECURITY_POLICY, paused: true })}'::jsonb,${Date.now()})
+ON CONFLICT(id) DO UPDATE SET value=jsonb_set(jsonb_set(security_policy.value,'{paused}','true'::jsonb),'{revision}',to_jsonb(COALESCE((security_policy.value->>'revision')::int,0)+1)),updated_at=EXCLUDED.updated_at;
 UPDATE public.ai_tasks SET status='failed',step='备份恢复后已中断',error='请管理员重新确认后重试',finished_at=${Date.now()} WHERE status IN ('queued','running');
 UPDATE public.scrape_jobs SET status='failed',step='备份恢复后已中断',error='请管理员重新确认后重试' WHERE status NOT IN ('completed','partial','failed','cancelled');
 DO $$ BEGIN
