@@ -22,7 +22,7 @@
 
 ## 快速开始
 
-准备 **Node.js 22+** 和可连接的 **PostgreSQL 14+**，在仓库根目录运行：
+准备根目录 **`.node-version` 指定的 Node.js** 和可连接的 **PostgreSQL 14+**，在仓库根目录运行：
 
 ```bash
 npm install

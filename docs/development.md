@@ -17,7 +17,7 @@
 
 ## 快速开始
 
-要求：Node.js ≥ 22、PostgreSQL ≥ 14（或先跳过，用安装向导配置）。
+要求：使用根目录 `.node-version` 指定的 Node.js，PostgreSQL ≥ 14（或先跳过，用安装向导配置）。CI 与发布运行时使用同一固定 Node；升级版本时同时核对内置 Undici 和生产发布策略。
 
 ```bash
 npm install
