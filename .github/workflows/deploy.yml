@@ -1,9 +1,9 @@
 name: Deploy
 
-# 构建放在 GitHub 托管的 runner 上，服务器只负责接收产物并重启服务：
+# 构建与生产依赖安装放在 GitHub runner 上，服务器只负责校验、切换与重启：
 # 生产机只有 891MB 内存，本地跑 vite build 会撞 V8 堆上限，而且 vite 会先清空
-# web/dist 再打包，构建失败会直接把线上页面删空。这里改成「远端构建 → 原子替换」。
-# 移除了阻塞部署的耗时全量测试，仅保留必要的类型检查与构建校验，大幅缩短发布耗时。
+# web/dist 再打包，构建失败会直接把线上页面删空。
+# 发布前只运行关键回归及实际发布包冒烟，全量测试继续由独立 CI 执行。
 on:
   # 在 Actions 中选择分支并手动运行，推送与 PR 均不发布网站。
   workflow_dispatch:
@@ -17,13 +17,29 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    env:
+      RELEASE_SHA: ${{ github.sha }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: release_smoke
+          POSTGRES_PASSWORD: release_smoke
+          POSTGRES_DB: release_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U release_smoke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.node-version'
           cache: npm
 
       - name: Install dependencies
@@ -31,6 +47,13 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Lint and critical regressions
+        run: |
+          npm run lint -- --quiet
+          npm run test --workspace=@zhi-zhou/api -- src/services/readiness.test.ts src/routes/auth.test.ts src/routes/account-security.test.ts src/routes/browser-security.test.ts src/services/scraper/fetch.test.ts src/services/outbound-fetch.test.ts src/routes/web.test.ts --maxWorkers=2 --minWorkers=1
+          npm run test --workspace=@zhi-zhou/web -- src/lib/progress-sync.test.ts src/lib/api.progress.test.ts src/context/SessionContext.progress.test.tsx --maxWorkers=2 --minWorkers=1
+          python3 scripts/test-release.py
 
       # 先清空再构建：产物里绝不能混入上一次提交遗留的旧哈希资源。
       - name: Build
@@ -57,11 +80,17 @@ jobs:
             console.log('引用资源检查通过:', refs.join(', '));
           "
 
+      - name: Assemble isolated production runtime
+        run: npm run release:package -- --output "$RUNNER_TEMP/zhizhou-release"
+
+      - name: Smoke test the actual release with PostgreSQL
+        env:
+          RELEASE_SMOKE_DATABASE_URL: postgres://release_smoke:release_smoke@127.0.0.1:5432/release_smoke
+        run: npm run release:smoke -- "$RUNNER_TEMP/zhizhou-release"
+
       - name: Package release
         run: |
-          tar -czf release.tgz \
-            --exclude='*.map' \
-            web/dist api/dist
+          tar -czf release.tgz -C "$RUNNER_TEMP/zhizhou-release" web/dist api/dist
           ls -lh release.tgz
 
       - name: Upload release artifact
@@ -79,18 +108,28 @@ jobs:
       - name: Trust host key
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_KNOWN_HOSTS"
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keygen -F "$DEPLOY_HOST" -f ~/.ssh/known_hosts > /dev/null
+
+      - name: Check installed release protocol
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          protocol=$(ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" 'sudo -n /usr/local/bin/zhizhou-release --protocol-version')
+          [ "$protocol" = 2 ] || { echo '请先按部署文档升级服务器发布工具至协议 2'; exit 1; }
 
       - name: Upload release to server
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          scp -o StrictHostKeyChecking=yes release.tgz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/release-${{ github.sha }}.tgz"
+          scp -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" release.tgz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/release-${RELEASE_SHA}.tgz"
 
       - name: Activate release and restart service
         env:
@@ -98,7 +137,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
-          ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" \
+          ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
             "sudo -n /usr/local/bin/zhizhou-release '$RELEASE_SHA'"
 
       - name: Verify production
@@ -106,15 +145,18 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" 'bash -s' <<'REMOTE'
+          ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- '$RELEASE_SHA'" <<'REMOTE'
           set -eu
           systemctl is-active --quiet zhizhou.service
           base=http://127.0.0.1:8080
-          health=$(curl -s -o /dev/null -w '%{http_code}' "$base/api/health")
-          home=$(curl -s -o /dev/null -w '%{http_code}' "$base/")
-          entry=$(curl -s "$base/" | grep -o '/assets/index-[A-Za-z0-9_.-]*\.js' | head -1 || true)
+          ready=$(curl -fsS --max-time 5 "$base/api/ready")
+          printf '%s' "$ready" | python3 -c 'import json,sys; p=json.load(sys.stdin); assert p.get("ready") is True and p.get("release")==sys.argv[1]' "$1"
+          health=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "$base/api/health")
+          home=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "$base/")
+          entry=$(curl -s --max-time 5 "$base/" | grep -o '/assets/index-[A-Za-z0-9_.-]*\.js' | head -1 || true)
           entry_code=000
-          if [ -n "${entry:-}" ]; then entry_code=$(curl -s -o /dev/null -w '%{http_code}' "$base$entry"); fi
+          if [ -n "${entry:-}" ]; then entry_code=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "$base$entry"); fi
+          curl -fsS --max-time 5 "$base/api/novels?limit=1" > /dev/null
           printf 'health=%s home=%s entry=%s(%s)\n' "$health" "$home" "${entry:-none}" "$entry_code"
           [ "$health" = 200 ] && [ "$home" = 200 ] && [ "$entry_code" = 200 ]
           REMOTE

@@ -16,35 +16,53 @@
 
 手动运行 `.github/workflows/deploy.yml` 后会依次执行：
 
-1. 安装依赖并运行类型检查；全量测试由独立 CI 执行
-2. 在 GitHub 托管的 runner 上清空旧产物后 `npm run build`，校验 `index.html` 引用的每个 `/assets/*` 都真实存在
-3. 打包 `web/dist` + `api/dist`（排除 sourcemap）为 `release.tgz`
-4. 通过 SSH 上传到 `/tmp`，再执行服务器上的 `/usr/local/bin/zhizhou-release <sha>` 完成原子切换
+1. 按根目录 `.node-version` 安装固定 Node，运行类型、Lint 错误检查及认证、同步、就绪和发布失败恢复等关键回归；全量测试由独立 CI 执行
+2. 在 Ubuntu 22.04 x64 runner 上构建 Web/API，校验首页引用的资源；API 注入同一源码 SHA、版本、锁文件摘要与必要迁移清单
+3. `release:package` 在独立临时目录按原锁文件安装 API 生产依赖，连同固定 Node、Web/API 产物和 SHA-256 文件清单组成完整发布目录；不使用服务器旧 `node_modules`
+4. 使用该发布目录及其 Node 启动独立进程，在 CI 临时 PostgreSQL 16 上验证迁移、就绪、首页、入口资源和只读书目接口；通过后打包为 `release.tgz`
+5. 只信任已核对的 SSH 主机密钥，核对服务器发布工具为协议 2，再上传并执行 `/usr/local/bin/zhizhou-release <完整 SHA>`
 
 `zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）的行为：
 
-- 解包到 `/tmp` 临时目录，缺失 `web/dist/index.html`、`api/dist/index.js` 或 `api/dist/migrations` 直接拒绝，**不碰线上目录**
-- 先把当前 `web/dist`、`api/dist` 改名保留，再用目录改名完成切换
-- 重启 `zhizhou.service` 后轮询 `/api/health`，连续失败则把两个目录换回旧版并重启
+- 在站点所在文件系统内创建独立暂存目录；拒绝越界路径、软硬链接、特殊文件、重复路径、超限包以及清单不符的文件，核对平台、CPU、Node 策略、源码 SHA、完整摘要和锁文件
+- 在服务账号下执行随包 Node，验证全部 API 直接依赖都来自包内，并实际运行 Sharp；操作系统／glibc／原生模块不兼容或 systemd 尚未使用新启动器时，在切换前拒绝
+- 备份现有产物，停止服务后成组替换 `web/dist`、`api/dist`；依赖和运行时位于 `api/dist` 内，跟随代码一起切换。此流程存在短暂停机，不是零停机发布
+- 启动后验证 `/api/ready` 返回的目标 SHA、数据库与迁移就绪状态，以及首页、入口资源和只读书目接口；停止、重启、目录切换或上述检查失败均触发恢复旧目录并重启
+- 回滚协议 2 版本时继续验证旧 SHA 和业务就绪；首次迁移若回退旧产物，只能使用旧 `/api/health` 存活检查。数据库迁移不自动降级，发布前仍须核对迁移兼容窗口与备份
+
+`/api/health` 保留进程存活语义。新增 `/api/ready` 使用独立、限时的小连接池检查实际数据库、全部必要迁移及目录字段，并在备份维护期间返回 503；探针合并并发请求、短暂缓存结果，不依赖外部 AI 或邮件服务。响应只有就绪状态、API 版本、源码 SHA 与有限原因码，不返回连接串或原始异常。生产入口拒绝使用不匹配的 Node 启动。
 
 ### 发布前的一次性准备
 
-**服务器**：安装发布脚本与最小化 sudo 规则（只允许执行该脚本，不开放通用 root）：
+**服务器**：从已审核的本次源码更新发布脚本、校验器、Node 策略及启动器。现有协议 1 工具不能直接接收新包；工作流会提前拒绝。以下是待运维执行的准备步骤，本地修改这些文件不代表服务器已更新。
+
+先核对 `zhizhou.service` 的 `User`、`ExecStart`、环境配置与原 Node 路径。脚本默认站点 `/var/www/zhi-zhou`、用户 `cinnaio`、端口 8080；部署不同路径时统一修改脚本常量。启动器遇到旧产物会使用 PATH 中的 `node`，若旧服务使用其他绝对路径，应在启动器的旧版分支保留该命令，保证首次升级失败时可启动旧版本。服务器需具备 Bash、Python 3.10+、curl、tar、flock、runuser 和 systemd。
 
 ```bash
-sudo install -m 0755 scripts/zhizhou-release.sh /usr/local/bin/zhizhou-release
+systemctl show zhizhou.service -p User -p ExecStart -p WorkingDirectory
+sudo install -d -o root -g root -m 0755 /usr/local/lib/zhizhou
+sudo install -o root -g root -m 0755 scripts/zhizhou-release.sh /usr/local/bin/zhizhou-release
+sudo install -o root -g root -m 0755 scripts/zhizhou-start.sh /usr/local/bin/zhizhou-start
+sudo install -o root -g root -m 0644 scripts/validate-release.py /usr/local/lib/zhizhou/validate-release.py
+sudo install -o root -g root -m 0644 .node-version /usr/local/lib/zhizhou/node-version
+sudo install -d -m 0755 /etc/systemd/system/zhizhou.service.d
+printf '[Service]\nExecStart=\nExecStart=/usr/local/bin/zhizhou-start\n' | sudo tee /etc/systemd/system/zhizhou.service.d/release-runtime.conf
+sudo systemctl daemon-reload
 echo 'cinnaio ALL=(root) NOPASSWD: /usr/local/bin/zhizhou-release' | sudo tee /etc/sudoers.d/zhizhou-release
 sudo chmod 0440 /etc/sudoers.d/zhizhou-release
 sudo visudo -c
+sudo /usr/local/bin/zhizhou-release --protocol-version  # 应输出 2
 ```
 
-把 Actions 的公钥追加到该账号的 `~/.ssh/authorized_keys`。建议给它加限制（仅允许从 GitHub 出口访问，且不可转发）：
+不覆盖原服务的 `User`、环境文件、数据目录和安全配置。新的 Node 与生产依赖由 CI 提供，服务器无需执行 `npm ci`。未来修改 `.node-version` 时也要同步安装该策略文件；旧策略会拒绝新运行时包。生产平台不是 Linux x64 时，应先调整 runner／原生依赖构建平台，不能强行使用不匹配的包。
+
+把 Actions 的公钥追加到该账号的 `~/.ssh/authorized_keys`。可用 `restrict` 关闭转发和 PTY，同时保留工作流需要的上传与远程命令执行：
 
 ```
-restrict,command="/usr/local/bin/zhizhou-release-gate" ssh-ed25519 AAAA... github-actions-deploy@zhi-zhou
+restrict ssh-ed25519 AAAA... github-actions-deploy@zhi-zhou
 ```
 
-不加上面的 `command=` 限制时，该密钥等同于一个可登录的普通账号（能否提权仍受上面的 sudo 规则约束）。
+该密钥仍可执行部署账号的普通命令，提权受上述 sudo 规则约束；`restrict` 本身不限制来源 IP。若另行配置强制命令网关，须支持 SFTP 上传、协议查询、发布与只读验证，仓库未提供这样的网关。
 
 **GitHub 仓库 Secrets**：
 
@@ -53,11 +71,11 @@ restrict,command="/usr/local/bin/zhizhou-release-gate" ssh-ed25519 AAAA... githu
 | `DEPLOY_SSH_KEY` | 部署私钥（ed25519，OpenSSH 格式） |
 | `DEPLOY_HOST` | 服务器地址 |
 | `DEPLOY_USER` | 部署账号（需要能 `sudo -n` 执行 `zhizhou-release`） |
-| `DEPLOY_KNOWN_HOSTS` | `ssh-keyscan -t ed25519,rsa <host>` 的输出，用于固定主机指纹 |
+| `DEPLOY_KNOWN_HOSTS` | 经服务器控制台或其他可信通道核对指纹的 known_hosts 记录；必须匹配 `DEPLOY_HOST`，不直接信任未验证的网络扫描结果 |
 
 ### 手动部署
 
-自托管 Node + PostgreSQL：
+源码方式部署须使用 `.node-version` 指定的 Node 和匹配锁文件；生产更推荐上述完整发布包：
 
 ```bash
 npm ci
