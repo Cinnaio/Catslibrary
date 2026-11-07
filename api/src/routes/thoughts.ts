@@ -17,7 +17,7 @@ import sharp from 'sharp'
 import { AiError } from '../services/ai/client'
 import { generateImage, imageProvider, imageProviderLabel, isImageAiConfigured } from '../services/ai/image'
 import { getAiSettings } from '../services/ai/settings'
-import { createAiTask, getAiTask, startAiTaskHeartbeat, updateAiTask, type AiTask } from '../services/ai/tasks'
+import { createAiTask, getAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask, type AiTask } from '../services/ai/tasks'
 import { recordUsage, startOfToday } from '../services/ai/usage'
 import { usageAuditFields } from '../services/ai/upstream-usage'
 import { chapterContainsSelection, selectionImagePrompt, selectionImageRevision } from '../services/ai/selection-image'
@@ -346,6 +346,7 @@ async function createThought(c: Context<AuthEnv>, body: any, image?: { data: Uin
     if (image) {
       const task = await query<{ status: string }>('SELECT status FROM ai_tasks WHERE id = $1 FOR UPDATE', [image.taskId])
       if (!task.rows[0] || !['queued', 'running'].includes(task.rows[0].status)) throw new Error('图片任务已结束或取消')
+      if (!await isAiTaskActive({ query }, image.taskId)) throw new Error('图片任务租约已失效')
       const current = await query<{ content: string }>('SELECT content FROM chapters WHERE id = $1 FOR SHARE', [chapterId])
       if (!current.rows[0] || selectionImageRevision(current.rows[0].content) !== image.revision) throw new Error('生成期间章节已变更，请重新划选')
     }

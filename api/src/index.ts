@@ -9,7 +9,7 @@ import { loadConfig } from './config'
 import { migrate } from './db/migrate'
 import { getDb } from './db/pool'
 import { getAiSettings } from './services/ai/settings'
-import { AI_TASK_RECLAIM_INTERVAL_MS, failInterruptedAiTasks, listAiTasks, pruneFinishedAiTasks, reclaimStaleAiTasks, updateAiTask } from './services/ai/tasks'
+import { AI_TASK_RECLAIM_INTERVAL_MS, claimInterruptedCoverPromptTask, failInterruptedAiTasks, pruneFinishedAiTasks, reclaimStaleAiTasks, updateAiTask } from './services/ai/tasks'
 import { generateCoverPromptTask } from './services/ai/cover'
 import { COVER_PROMPT_PIPELINE_VERSION } from './services/ai/cover-brief'
 import { resolveStoredPipelineVersion } from './services/ai/prompt-version'
@@ -27,10 +27,12 @@ import { buildInfo } from './services/build-info'
 
 async function resumeInterruptedCoverPromptTasks() {
   const db = getDb()
-  const { items } = await listAiTasks(db, { kind: 'cover_prompt', limit: 100, offset: 0 })
-  const interrupted = items.filter((task) => task.status === 'queued' || task.status === 'running')
   let resumed = 0
-  for (const task of interrupted) {
+  // One upstream request at a time, at most ten claims per tick. Never claim work
+  // in advance: its lease would expire while waiting behind a long generation.
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const task = await claimInterruptedCoverPromptTask(db)
+    if (!task) break
     let params: Record<string, any> | null = null
     try {
       params = task.params ? (JSON.parse(task.params) as Record<string, any>) : null
@@ -50,7 +52,7 @@ async function resumeInterruptedCoverPromptTasks() {
     }
     const promptPipelineVersion = resolvedPipeline.version
     resumed += 1
-    void generateCoverPromptTask(db, {
+    await generateCoverPromptTask(db, {
       userId: task.userId,
       novelId,
       renderTitle: typeof params.renderTitle === 'boolean' ? params.renderTitle : true,
@@ -85,13 +87,11 @@ async function start() {
       // requests: the reader now uses content_rating as its sole R18 signal.
       const ratingPrefill = await prefillUnknownContentRatings(getDb())
       console.log(`[zhi-zhou api] content rating prefill: scanned=${ratingPrefill.scanned}, applied=${ratingPrefill.applied}, unknown=${ratingPrefill.unknown}`)
-      const reclaimed = await reclaimStaleAiTasks(getDb())
+      const reclaimed = await reclaimStaleAiTasks(getDb(), { excludeKinds: ['cover_prompt'] })
       if (reclaimed) console.log(`[zhi-zhou api] reclaimed ${reclaimed} stale AI task(s)`)
-      // 提示词任务参数和结果可持久化，服务重启后自动接管；有副作用的图片/写作任务仍标记失败，交给管理员确认后重试。
+      // 有效租约保持原样；过期图片/写作任务交给管理员确认重试。
       const interrupted = await failInterruptedAiTasks(getDb(), { excludeKinds: ['cover_prompt'] })
       if (interrupted) console.log('[zhi-zhou api] marked ' + interrupted + ' interrupted AI task(s) as failed')
-      const resumed = await resumeInterruptedCoverPromptTasks()
-      if (resumed) console.log('[zhi-zhou api] resumed ' + resumed + ' interrupted cover prompt task(s)')
       // 已结束任务按保留期清理（天数在管理端「参数调优」可配）
       const settings = await getAiSettings(getDb())
       const pruned = await pruneFinishedAiTasks(getDb(), settings.taskRetentionDays)
@@ -115,15 +115,23 @@ async function start() {
     }).catch(()=>console.error('[mail] worker unavailable')).finally(()=>{mailRunning=false})
   },5000)
   mailTimer.unref()
-  const aiTaskReclaimTimer = config.configured
-    ? setInterval(() => {
-        void withBusinessActivity(getDb(), async () => {
-          const reclaimed = await reclaimStaleAiTasks(getDb())
-          if (reclaimed) console.log(`[zhi-zhou api] reclaimed ${reclaimed} stale AI task(s)`)
-        }).catch((err) => console.error('[zhi-zhou api] AI task reclaim failed:', err))
-      }, AI_TASK_RECLAIM_INTERVAL_MS)
-    : undefined
+  let aiTaskMaintenanceRunning = false
+  const checkAiTasks = async () => {
+    if (aiTaskMaintenanceRunning || !loadConfig().configured) return
+    aiTaskMaintenanceRunning = true
+    try {
+      await withBusinessActivity(getDb(), async () => {
+        const reclaimed = await reclaimStaleAiTasks(getDb(), { excludeKinds: ['cover_prompt'] })
+        if (reclaimed) console.log(`[zhi-zhou api] reclaimed ${reclaimed} stale AI task(s)`)
+        const resumed = await resumeInterruptedCoverPromptTasks()
+        if (resumed) console.log(`[zhi-zhou api] resumed ${resumed} expired cover prompt task(s)`)
+      })
+    } catch (err) { console.error('[zhi-zhou api] AI task maintenance failed:', err) }
+    finally { aiTaskMaintenanceRunning = false }
+  }
+  const aiTaskReclaimTimer = config.configured ? setInterval(() => void checkAiTasks(), AI_TASK_RECLAIM_INTERVAL_MS) : undefined
   aiTaskReclaimTimer?.unref?.()
+  void checkAiTasks()
   let followupTickRunning = false
   const checkFollowups = async () => {
     if (followupTickRunning || !loadConfig().configured) return

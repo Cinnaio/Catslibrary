@@ -10,6 +10,7 @@ import { createTestDb, type TestDb } from '../../test/db'
 import { createAiTask, updateAiTask } from './tasks'
 import { generateWriting } from './writing'
 import { recordUsage } from './usage'
+import { storeCoverCandidate } from '../covers'
 let t: TestDb
 beforeAll(async () => { t = await createTestDb(); await t.applyMigrations() })
 afterAll(async () => { await t.close() })
@@ -35,4 +36,17 @@ it('同一调用事实重复入账保持一条，不合并不同的真实调用'
   await recordUsage(t.db, { ...record, usageId: 'another-call' })
   const rows = await t.db.query("SELECT id FROM ai_usage WHERE id IN ('same-call','another-call')")
   expect(rows.rows).toHaveLength(2)
+})
+
+it('上游响应后租约失效仍记用量，但不保存写作草稿或封面候选', async () => {
+  const task = await createAiTask(t.db, { userId: 'test', kind: 'write_outline' })
+  mocks.chat.mockImplementationOnce(async () => {
+    await t.db.query('UPDATE ai_tasks SET lease_expires_at=1 WHERE id=$1', [task.id])
+    return { text: '不可保存', model: 'fixture', promptTokens: 3, completionTokens: 2, cost: 0, upstreamRequestId: 'expired-call' }
+  })
+  await expect(generateWriting(t.db, { taskId: task.id, userId: 'test', novelId: '', kind: 'write_outline', title: '书', instruction: '生成', context: '', promptPipelineVersion: 1 })).rejects.toThrow('任务已停止')
+  expect((await t.db.query("SELECT id FROM ai_usage WHERE upstream_request_id='expired-call'")).rows).toHaveLength(1)
+  expect((await t.db.query('SELECT id FROM ai_generations WHERE params_json LIKE $1', [`%${task.id}%`])).rows).toHaveLength(0)
+  await expect(storeCoverCandidate(t.db, { novelId: '', taskId: task.id, data: new Uint8Array(), contentType: 'image/png' })).rejects.toThrow('租约已失效')
+  expect((await t.db.query('SELECT id FROM ai_cover_candidates WHERE task_id=$1', [task.id])).rows).toHaveLength(0)
 })

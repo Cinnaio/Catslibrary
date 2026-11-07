@@ -1,6 +1,7 @@
 import type { Db, DbClient } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
+import { randomUUID } from 'node:crypto'
 
 export type AiTaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -8,8 +9,11 @@ export const AI_TASK_QUEUED_TIMEOUT_MS = 15 * 60_000
 export const AI_TASK_RUNNING_TIMEOUT_MS = 30 * 60_000
 export const AI_TASK_HEARTBEAT_INTERVAL_MS = 60_000
 export const AI_TASK_RECLAIM_INTERVAL_MS = 60_000
+export const AI_TASK_LEASE_MS = 5 * 60_000
+// A new identity on every process boot; never reuse a hostname or PID as ownership.
+export const AI_TASK_OWNER_ID = randomUUID()
+const DB_NOW = 'floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint'
 
-const ACTIVE_STATUSES = ['queued', 'running'] as const
 const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'] as const
 
 export interface AiTask {
@@ -56,12 +60,12 @@ function mapTask(row: AiTaskRow): AiTask {
 export async function createAiTask(db: DbClient, input: { userId: string; novelId?: string; kind: string; total?: number; batchId?: string; prompt?: string; params?: string }): Promise<AiTask> {
   const id = newId('aitask')
   const now = Date.now()
-  await run(db, `INSERT INTO ai_tasks (id,user_id,novel_id,kind,status,current,total,step,prompt,batch_id,params,error,created_at,updated_at,finished_at)
-    VALUES ($1,$2,$3,$4,'queued',0,$5,'',$6,$7,$8,'',$9,$9,0)`, [id, input.userId, input.novelId || '', input.kind, Math.max(1, Math.trunc(input.total || 1)), input.prompt || '', input.batchId || '', input.params || '', now])
+  await run(db, `INSERT INTO ai_tasks (id,user_id,novel_id,kind,status,current,total,step,prompt,batch_id,params,error,created_at,updated_at,finished_at,owner_id,lease_expires_at,owner_history)
+    VALUES ($1,$2,$3,$4,'queued',0,$5,'',$6,$7,$8,'',$9,$9,0,$10,${DB_NOW}+$11,ARRAY[$10]::text[])`, [id, input.userId, input.novelId || '', input.kind, Math.max(1, Math.trunc(input.total || 1)), input.prompt || '', input.batchId || '', input.params || '', now, AI_TASK_OWNER_ID, AI_TASK_LEASE_MS])
   return mapTask((await first<AiTaskRow>(db, 'SELECT * FROM ai_tasks WHERE id = $1', [id]))!)
 }
 
-export async function updateAiTask(db: Db, id: string, patch: { status?: AiTaskStatus; current?: number; total?: number; step?: string; prompt?: string; result?: string; batchId?: string; error?: string }): Promise<boolean> {
+export async function updateAiTask(db: DbClient, id: string, patch: { status?: AiTaskStatus; current?: number; total?: number; step?: string; prompt?: string; result?: string; batchId?: string; error?: string }): Promise<boolean> {
   const values: unknown[] = []
   const parts: string[] = []
   for (const [key, value] of Object.entries(patch)) {
@@ -78,7 +82,11 @@ export async function updateAiTask(db: Db, id: string, patch: { status?: AiTaskS
   const activeOrSameTerminal = terminalStatus
     ? `status IN ('queued','running') OR status = '${terminalStatus}'`
     : `status IN ('queued','running')`
-  return (await run(db, `UPDATE ai_tasks SET ${parts.join(', ')} WHERE id = $${values.length} AND (${activeOrSameTerminal})`, values)) > 0
+  const idIndex = values.length
+  values.push(AI_TASK_OWNER_ID, AI_TASK_LEASE_MS)
+  parts.push(`lease_expires_at = ${DB_NOW} + $${values.length}`)
+  return (await run(db, `UPDATE ai_tasks SET ${parts.join(', ')} WHERE id = $${idIndex} AND (${activeOrSameTerminal})
+    AND owner_id=$${idIndex + 1} AND lease_expires_at>${DB_NOW}`, values)) > 0
 }
 
 export async function getAiTask(db: Db, id: string): Promise<AiTask | undefined> {
@@ -92,14 +100,16 @@ export async function isAiTaskCancelled(db: Db, id: string): Promise<boolean> {
 }
 
 /** 任务仍可由当前执行器继续推进时返回 true；failed/cancelled 任务不会被旧回调重新唤醒。 */
-export async function isAiTaskActive(db: Db, id: string): Promise<boolean> {
-  const row = await first<{ status: string }>(db, 'SELECT status FROM ai_tasks WHERE id = $1', [id])
-  return row ? ACTIVE_STATUSES.includes(row.status as (typeof ACTIVE_STATUSES)[number]) : false
+export async function isAiTaskActive(db: DbClient, id: string): Promise<boolean> {
+  return !!await first(db, `SELECT 1 FROM ai_tasks WHERE id=$1 AND owner_id=$2
+    AND lease_expires_at>${DB_NOW} AND status IN ('queued','running')`, [id, AI_TASK_OWNER_ID])
 }
 
 /** 仅刷新活跃任务的更新时间，用于长时间上游调用期间的存活心跳。 */
 export async function touchAiTask(db: Db, id: string): Promise<boolean> {
-  return (await run(db, `UPDATE ai_tasks SET updated_at = $1 WHERE id = $2 AND status IN ('queued','running')`, [Date.now(), id])) > 0
+  return (await run(db, `UPDATE ai_tasks SET updated_at = $1, lease_expires_at=${DB_NOW}+$4
+    WHERE id = $2 AND owner_id=$3 AND lease_expires_at>${DB_NOW} AND status IN ('queued','running')`,
+  [Date.now(), id, AI_TASK_OWNER_ID, AI_TASK_LEASE_MS])) > 0
 }
 
 /**
@@ -108,7 +118,7 @@ export async function touchAiTask(db: Db, id: string): Promise<boolean> {
  */
 export function startAiTaskHeartbeat(db: Db, id: string, intervalMs = AI_TASK_HEARTBEAT_INTERVAL_MS): () => void {
   const timer = setInterval(() => {
-    void touchAiTask(db, id).catch(() => {})
+    void touchAiTask(db, id).then(active => { if (!active) clearInterval(timer) }).catch(() => {})
   }, Math.max(1_000, Math.trunc(intervalMs)))
   timer.unref?.()
   return () => clearInterval(timer)
@@ -128,8 +138,8 @@ export async function deleteAiTask(db: Db, id: string): Promise<boolean> {
 }
 
 /**
- * 服务启动时调用：有副作用的任务在重启后统一标记为 failed。
- * 可通过 excludeKinds 留出由调用方安全接管的任务类型。
+ * 启动时只回收无有效租约的任务；活跃的其它进程不受影响。
+ * 无租约的旧版任务仅支持停机升级，不能和旧版执行器混合滚动运行。
  */
 export async function failInterruptedAiTasks(db: Db, opts: { excludeKinds?: string[] } = {}): Promise<number> {
   const now = Date.now()
@@ -139,7 +149,7 @@ export async function failInterruptedAiTasks(db: Db, opts: { excludeKinds?: stri
   return run(
     db,
     `UPDATE ai_tasks SET status = 'failed', step = '已中断', error = '服务重启，任务中断', updated_at = $1, finished_at = $1
-     WHERE status IN ('queued','running')` + exclusionSql,
+     WHERE status IN ('queued','running') AND lease_expires_at<=${DB_NOW}` + exclusionSql,
     [now, ...excluded],
   )
 }
@@ -153,8 +163,11 @@ export async function reclaimStaleAiTasks(
   const queuedAfterMs = Math.max(1_000, Math.trunc(opts.queuedAfterMs ?? AI_TASK_QUEUED_TIMEOUT_MS))
   const runningAfterMs = Math.max(1_000, Math.trunc(opts.runningAfterMs ?? AI_TASK_RUNNING_TIMEOUT_MS))
   const excluded = (opts.excludeKinds || []).map((kind) => String(kind).trim()).filter(Boolean)
-  const placeholders = excluded.map((_, index) => '$' + String(index + 4)).join(', ')
-  const exclusionSql = excluded.length ? ` AND kind NOT IN (${placeholders})` : ''
+  const values: unknown[] = [now, now - queuedAfterMs, now - runningAfterMs]
+  if (excluded.length) values.push(AI_TASK_OWNER_ID, ...excluded)
+  const placeholders = excluded.map((_, index) => '$' + String(index + 5)).join(', ')
+  // Never reacquire a task in its original process: a delayed callback may still exist.
+  const exclusionSql = excluded.length ? ` AND (kind NOT IN (${placeholders}) OR owner_id=$4)` : ''
   return run(
     db,
     `UPDATE ai_tasks
@@ -163,9 +176,26 @@ export async function reclaimStaleAiTasks(
          error = '后台任务超时，已自动回收',
          updated_at = $1,
          finished_at = $1
-     WHERE ((status = 'queued' AND updated_at < $2) OR (status = 'running' AND updated_at < $3))${exclusionSql}`,
-    [now, now - queuedAfterMs, now - runningAfterMs, ...excluded],
+     WHERE status IN ('queued','running') AND (
+       (owner_id<>'' AND lease_expires_at<=${DB_NOW}) OR
+       (owner_id='' AND ((status='queued' AND updated_at<$2) OR (status='running' AND updated_at<$3)))
+     )${exclusionSql}`,
+    values,
   )
+}
+
+/** Atomically claim one expired prompt task. Historical completed tasks never hide old queued work. */
+export async function claimInterruptedCoverPromptTask(db: Db): Promise<AiTask | undefined> {
+  // Retired owners never reacquire this task, even across pool resets or another
+  // worker's expiry. Retrying in the same process creates a fresh task id.
+  const row = await first<AiTaskRow>(db, `WITH candidate AS (
+    SELECT id FROM ai_tasks WHERE kind='cover_prompt' AND status IN ('queued','running')
+      AND owner_id<>$1 AND NOT ($1=ANY(owner_history)) AND lease_expires_at<=${DB_NOW}
+    ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED
+  ) UPDATE ai_tasks t SET owner_id=$1,lease_expires_at=${DB_NOW}+$2,updated_at=${DB_NOW},
+    owner_history=array_append(array_append(t.owner_history,t.owner_id),$1)
+    FROM candidate c WHERE t.id=c.id RETURNING t.*`, [AI_TASK_OWNER_ID, AI_TASK_LEASE_MS])
+  return row ? mapTask(row) : undefined
 }
 
 /** 运行中（含排队）的创作任务数：路由据此做并发上限拦截。 */

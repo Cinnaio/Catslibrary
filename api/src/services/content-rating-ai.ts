@@ -8,7 +8,7 @@ import { applyContentRatingChange, parseContentRatingEvidence, type ContentRatin
 import { chat, isTextAiConfigured, providerLabel, textProvider } from './ai/client'
 import { getAiSettings } from './ai/settings'
 import type { AiReasoningMode } from '@shared/ai-text-progress'
-import { createAiTask, getAiTask, isAiTaskCancelled, startAiTaskHeartbeat, updateAiTask } from './ai/tasks'
+import { createAiTask, getAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './ai/tasks'
 import { recordUsage } from './ai/usage'
 import { usageAuditFields } from './ai/upstream-usage'
 
@@ -534,7 +534,7 @@ export async function runContentRatingAiReviewTask(
 ): Promise<void> {
   const stopHeartbeat = startAiTaskHeartbeat(db, input.taskId, 10_000)
   try {
-    await updateAiTask(db, input.taskId, { status: 'running', step: '准备作品元数据' })
+    if (!await updateAiTask(db, input.taskId, { status: 'running', step: '准备作品元数据' })) return
     const task = await getAiTask(db, input.taskId)
     const taskParams = parseContentRatingAiTaskParams(task?.params)
     const settings = await getAiSettings(db)
@@ -548,7 +548,7 @@ export async function runContentRatingAiReviewTask(
     for (const novelId of input.novelIds) {
       // 取消检查必须在每一次上游调用之前：任务一旦被管理员终止，
       // 循环要立刻停，不再产生新的模型费用。
-      if (await isAiTaskCancelled(db, input.taskId)) return
+      if (!await isAiTaskActive(db, input.taskId)) return
       const novel = await first<AiNovelRow>(
         db,
         `SELECT id, title, author, description, categories, content_rating, content_rating_revision
@@ -612,6 +612,8 @@ export async function runContentRatingAiReviewTask(
           novelId: novel.id,
           generationType: 'content-rating-llm',
         }).catch((error) => console.warn('[content-rating-ai] usage audit failed', error))
+
+        if (!await isAiTaskActive(db, input.taskId)) throw new Error('任务已停止，未保存分级结果')
 
         const current = await first<{ content_rating: string; content_rating_revision: number }>(
           db,

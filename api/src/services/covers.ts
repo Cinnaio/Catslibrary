@@ -11,6 +11,7 @@ import { outboundFetch } from './outbound-fetch'
 import { DEFAULT_COVER_PATH, isDefaultCoverSource } from '@shared/covers'
 import { getDefaultCoverImage } from '../default-cover'
 import { getCoverDisplay, prepareCoverDisplays } from './cover-display'
+import { isAiTaskActive } from './ai/tasks'
 
 export const DEFAULT_COVER_URL = DEFAULT_COVER_PATH
 export const MAX_COVER_BYTES = 5 * 1024 * 1024
@@ -265,11 +266,17 @@ export async function storeCoverCandidate(
   opts: { novelId: string; data: Uint8Array; contentType: string; prompt?: string; taskId?: string; metadata?: CoverCandidateMetadata },
 ): Promise<string> {
   const id = newId('cc')
-  await db.query(
-    `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, metadata, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [id, opts.novelId, opts.data, opts.contentType || 'image/png', opts.prompt || '', opts.taskId || '', JSON.stringify(opts.metadata || {}), Date.now()],
-  )
+  await withTx(db, async query => {
+    if (opts.taskId) {
+      await query('SELECT id FROM ai_tasks WHERE id=$1 FOR UPDATE', [opts.taskId])
+      if (!await isAiTaskActive({ query }, opts.taskId)) throw new AiError('invalid', '任务租约已失效，未保存封面')
+    }
+    await query(
+      `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, opts.novelId, opts.data, opts.contentType || 'image/png', opts.prompt || '', opts.taskId || '', JSON.stringify(opts.metadata || {}), Date.now()],
+    )
+  })
   await prepareCoverDisplays(db, opts.novelId, { data: opts.data, contentType: opts.contentType || 'image/png' })
   return id
 }

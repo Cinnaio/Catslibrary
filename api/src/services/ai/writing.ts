@@ -853,6 +853,7 @@ export async function generateWriting(db: Db, opts: {
     const generation = await withTx(db, async q => {
       const active = await q<{ status: string }>('SELECT status FROM ai_tasks WHERE id=$1 FOR UPDATE', [taskId])
       if (!['queued', 'running'].includes(active.rows[0]?.status || '')) throw new AiError('invalid', '任务已停止')
+      if (!await isAiTaskActive({ query: q }, taskId)) throw new AiError('invalid', '任务租约已失效')
       return saveGeneration({ query: q }, {
       novelId: opts.novelId,
       chapterId: '',
