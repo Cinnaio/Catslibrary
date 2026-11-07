@@ -11,7 +11,7 @@ import { useVisibleRefresh } from '../hooks/useVisibleRefresh'
  * Novel 详情页 —— hero 信息、章节目录、本地书签、评分与评论。
  * 由 Novel-KV js/novel.js 平移为 React。
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, BookOpen, Star, X } from 'lucide-react'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
@@ -29,6 +29,7 @@ import { useToast, useConfirm } from '../components/feedback'
 import { SearchIcon } from '../components/icons'
 import FloatingPageTools from "@/components/shared/FloatingPageTools"
 import EmptyState from '@/components/shared/EmptyState'
+import Pagination from '@/components/shared/Pagination'
 import CatchupRecap from '../components/CatchupRecap'
 import BookSearch from '../components/reader/BookSearch'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
@@ -36,9 +37,11 @@ import PageState from '../components/PageState'
 import ContentPolicyStatus from '../components/ContentPolicyStatus'
 import { setPageSeo } from '../lib/seo'
 import { useSiteBranding } from '../lib/site-branding'
+import { scrollBehavior } from '../lib/motion'
 
 // 暂时隐藏详情页评分与评论；恢复时开启此开关即可。
 const SHOW_NOVEL_COMMUNITY = false
+const CHAPTER_PAGE_SIZE = 100
 
 interface RatingSummary {
   average: number
@@ -94,6 +97,11 @@ export default function Novel() {
   const [descOverflows, setDescOverflows] = useState(false)
   const [coverFailed, setCoverFailed] = useState(false)
   const [chapterQuery, setChapterQuery] = useState('')
+  const deferredChapterQuery = useDeferredValue(chapterQuery)
+  const [focusChapterId, setFocusChapterId] = useState('')
+  const [chapterPage, setChapterPage] = useState(1)
+  const [chapterTransitioning, startChapterTransition] = useTransition()
+  const chapterListRef = useRef<HTMLUListElement>(null)
   const lastReadChapterRef = useRef<HTMLAnchorElement>(null)
 
   // 竞态保护：快速切书时，旧书未完成的请求不得写入新书的状态
@@ -370,10 +378,33 @@ export default function Novel() {
   }
 
   const filteredChapters = useMemo(() => {
-    const query = chapterQuery.trim().toLocaleLowerCase()
+    const query = deferredChapterQuery.trim().toLocaleLowerCase()
     if (!query) return chapters
     return chapters.filter((chapter) => `${chapter.order || ''} ${chapter.title || ''}`.toLocaleLowerCase().includes(query))
-  }, [chapterQuery, chapters])
+  }, [deferredChapterQuery, chapters])
+  const chapterPages = Math.max(1, Math.ceil(filteredChapters.length / CHAPTER_PAGE_SIZE))
+  const currentChapterPage = Math.min(chapterPage, chapterPages)
+  const chapterOffset = (currentChapterPage - 1) * CHAPTER_PAGE_SIZE
+  const visibleChapters = useMemo(() => filteredChapters.slice(chapterOffset, chapterOffset + CHAPTER_PAGE_SIZE), [filteredChapters, chapterOffset])
+  useEffect(() => { setChapterPage(1); setChapterQuery(''); setFocusChapterId('') }, [id])
+  useEffect(() => {
+    if (!focusChapterId || deferredChapterQuery || !visibleChapters.some(ch => ch.id === focusChapterId)) return
+    const anchor = lastReadChapterRef.current
+    if (!anchor) return
+    anchor.scrollIntoView?.({ behavior: scrollBehavior(), block: 'center' })
+    anchor.focus({ preventScroll: true })
+    setFocusChapterId('')
+  }, [focusChapterId, deferredChapterQuery, visibleChapters])
+
+  function changeChapterQuery(value: string) {
+    setChapterQuery(value)
+    setChapterPage(1)
+  }
+
+  function changeChapterPage(page: number) {
+    startChapterTransition(() => setChapterPage(page))
+    requestAnimationFrame(() => chapterListRef.current?.scrollIntoView?.({ behavior: scrollBehavior(), block: 'start' }))
+  }
 
   // ---------- 渲染 ----------
   if (checking || policyError) return <ContentPolicyStatus />
@@ -410,10 +441,9 @@ export default function Novel() {
 
   function focusLastReadChapter() {
     setChapterQuery('')
-    requestAnimationFrame(() => {
-      lastReadChapterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      lastReadChapterRef.current?.focus({ preventScroll: true })
-    })
+    const index = chapters.findIndex(ch => ch.id === progress?.chapterId)
+    setChapterPage(Math.floor(Math.max(0, index) / CHAPTER_PAGE_SIZE) + 1)
+    setFocusChapterId(progress?.chapterId || '')
   }
 
   return (
@@ -519,11 +549,11 @@ export default function Novel() {
                   placeholder="搜索章节号或标题"
                   autoComplete="off"
                   value={chapterQuery}
-                  onChange={(event) => setChapterQuery(event.target.value)}
+                  onChange={(event) => changeChapterQuery(event.target.value)}
                   aria-describedby="chapter-directory-count"
                 />
                 {chapterQuery && (
-                  <button type="button" className="chapter-directory__clear" aria-label="清除章节搜索" title="清除章节搜索" onClick={() => setChapterQuery('')}><X size={16} aria-hidden="true" /></button>
+                  <button type="button" className="chapter-directory__clear" aria-label="清除章节搜索" title="清除章节搜索" onClick={() => changeChapterQuery('')}><X size={16} aria-hidden="true" /></button>
                 )}
                 <span id="chapter-directory-count" className="chapter-directory__result" aria-live="polite">
                   {chapterQuery ? `${filteredChapters.length} / ${chapters.length} 章` : `${chapters.length} 章`}
@@ -532,14 +562,14 @@ export default function Novel() {
               {filteredChapters.length === 0 ? (
                 <div className="chapter-directory__empty" role="status">没有匹配的章节</div>
               ) : (
-                <ul className="chapter-list">
-                  {filteredChapters.map((ch) => {
+                <ul ref={chapterListRef} key={`${currentChapterPage}:${deferredChapterQuery}`} className="chapter-list" aria-label="章节目录列表" aria-busy={chapterTransitioning || chapterQuery !== deferredChapterQuery} data-transitioning={chapterTransitioning || chapterQuery !== deferredChapterQuery}>
+                  {visibleChapters.map((ch, index) => {
                     const order = Number(ch.order || 0) || 0
                     const isLastRead = ch.id === progress?.chapterId
                     const isRead = !isLastRead && (progress?.chapterOrder || 0) > 0 && order > 0 && order < (progress?.chapterOrder || 0)
                     return (
+                      <li key={ch.id} className={styles.chapterRow} style={{ '--chapter-row-delay': `${Math.min(index, 7) * 18}ms` } as CSSProperties}>
                       <Link
-                        key={ch.id}
                         ref={isLastRead ? lastReadChapterRef : undefined}
                         to={`/read/${encodeURIComponent(ch.novelId || novel.id)}/${encodeURIComponent(ch.id)}`}
                         className={`chapter-list__item${isRead ? ' chapter-list__item--read' : ''}${isLastRead ? ' chapter-list__item--last-read' : ''}`}
@@ -554,10 +584,14 @@ export default function Novel() {
                           {ch.createdAt ? ` ${timeAgo(ch.createdAt)}` : ''}
                         </span>
                       </Link>
+                      </li>
                     )
                   })}
                 </ul>
               )}
+              {chapterPages > 1 && <Pagination variant="plain" ariaLabel="章节目录分页"
+                page={currentChapterPage} totalPages={chapterPages} onPage={changeChapterPage}
+                summary={`显示 ${chapterOffset + 1}–${chapterOffset + visibleChapters.length} / ${filteredChapters.length} 章`} />}
             </>
           )}
         </section>

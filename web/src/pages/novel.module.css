@@ -385,7 +385,7 @@
   padding: 0;
 }
 
-:global(.chapter-list) > li {
+:global(.chapter-list) > li:not(.chapterRow) {
   grid-column: 1 / -1;
 }
 
@@ -1228,4 +1228,21 @@
   :global(.novel-hero__actions) :global(.btn) {
     min-height: 48px;
   }
+}
+.chapterRow {
+  min-width: 0;
+  list-style: none;
+  animation: chapter-row-enter 180ms var(--ease-out) both;
+  animation-delay: var(--chapter-row-delay, 0ms);
+}
+
+@keyframes chapter-row-enter {
+  from { opacity: 0.65; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.page :global(.chapter-list[data-transitioning='true']) { opacity: 0.65; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chapterRow { animation: none; }
 }

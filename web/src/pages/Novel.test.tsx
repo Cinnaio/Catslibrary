@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
 import Layout from '../components/Layout'
@@ -8,6 +8,8 @@ import Novel from './Novel'
 const mocks = vi.hoisted(() => ({
   policy: { mode: 'adult', checking: false, policyError: '', adultContentEnabled: true, isAllowed: () => true, setMode: vi.fn(), refreshPolicy: vi.fn() },
   novel: vi.fn(),
+  chapters: vi.fn().mockResolvedValue({ chapters: [] }),
+  history: null as { chapterId: string; chapterOrder: number; timestamp: number } | null,
 }))
 vi.mock('../context/SessionContext', () => ({ useSession: () => ({ user: null }) }))
 vi.mock('../context/ContentPolicyContext', () => ({ useContentPolicy: () => mocks.policy }))
@@ -19,7 +21,11 @@ vi.mock('../components/SiteNotice', () => ({ default: () => <aside>站点公告<
 vi.mock('../lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('../lib/api')>(),
   novelsApi: { get: mocks.novel },
-  chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [] }) },
+  chaptersApi: { list: mocks.chapters },
+}))
+vi.mock('../lib/storage', async importOriginal => ({
+  ...await importOriginal<typeof import('../lib/storage')>(),
+  getNovelHistory: () => mocks.history,
 }))
 
 function tree() {
@@ -64,4 +70,29 @@ it('后台撤销私密授权后，返回页面清除书名和目录并显示普�
   fireEvent.focus(window)
   await waitFor(() => expect(screen.queryByRole('heading', { name: '私密书名' })).not.toBeInTheDocument())
   expect(screen.getByText('小说未找到')).toBeInTheDocument()
+})
+
+it('万章目录限制渲染数量，搜索整书和末页阅读位置仍可直达', async () => {
+  mocks.policy.checking = false
+  mocks.policy.policyError = ''
+  mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '万章小说', author: '作者', description: '', categories: [], contentRating: 'general' } })
+  mocks.chapters.mockResolvedValue({ chapters: Array.from({ length: 10000 }, (_, i) => ({
+    id: `ch-${i + 1}`, novelId: 'book', title: i === 9999 ? '最后的远方' : `章节 ${i + 1}`, order: i + 1,
+  })) })
+  mocks.history = { chapterId: 'ch-9999', chapterOrder: 9999, timestamp: Date.now() }
+  render(tree())
+  await screen.findByRole('heading', { name: '万章小说' })
+  const rows = () => within(screen.getByRole('list', { name: '章节目录列表' }))
+  expect(rows().getAllByRole('link')).toHaveLength(100)
+  fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+  await waitFor(() => expect(rows().getAllByRole('link')[0]).toHaveAttribute('href', '/read/book/ch-101'))
+  fireEvent.change(screen.getByRole('searchbox', { name: '搜索章节' }), { target: { value: '最后的远方' } })
+  await waitFor(() => expect(rows().getAllByRole('link')).toHaveLength(1))
+  expect(rows().getByRole('link')).toHaveAttribute('href', '/read/book/ch-10000')
+  fireEvent.click(screen.getByRole('button', { name: '定位到阅读位置' }))
+  await waitFor(() => expect(document.activeElement).toHaveAttribute('href', '/read/book/ch-9999'))
+  expect(rows().getAllByRole('link')).toHaveLength(100)
+  expect(screen.getByText('第 100 / 100 页')).toBeInTheDocument()
+  mocks.history = null
+  mocks.chapters.mockResolvedValue({ chapters: [] })
 })
