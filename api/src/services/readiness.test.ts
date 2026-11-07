@@ -34,6 +34,26 @@ it('连接异常不泄漏内部错误，备份维护期间拒绝就绪', async (
   expect(await probe()).toMatchObject({ ready: false, reason: 'maintenance' })
 })
 
+it('历史 006 名称仅在 007 与 010 修复均已记账时兼容，其他名称仍拒绝', async () => {
+  const migrations = [
+    { version: 6, name: '006_ai_usage_request_audit.sql' },
+    { version: 7, name: '007_repair_ai_usage_request_audit.sql' },
+    { version: 10, name: '010_scrape_source_connectivity.sql' },
+  ]
+  const legacy = migrations.map(row => row.version === 6 ? { ...row, name: '006_scrape_source_connectivity.sql' } : row)
+  const query = vi.fn().mockResolvedValue({ migrations: legacy, maintenance: 'false' })
+  const probe = createReadinessProbe({ configured: () => true, query, info: { ...info, migrations }, cacheMs: 0 })
+  expect(await probe()).toMatchObject({ ready: true })
+  for (const version of [7, 10]) {
+    query.mockResolvedValueOnce({ migrations: legacy.filter(row => row.version !== version), maintenance: 'false' })
+    expect(await probe()).toMatchObject({ ready: false, reason: 'schema_pending' })
+    query.mockResolvedValueOnce({ migrations: legacy.map(row => row.version === version ? { ...row, name: 'wrong.sql' } : row), maintenance: 'false' })
+    expect(await probe()).toMatchObject({ ready: false, reason: 'schema_pending' })
+  }
+  query.mockResolvedValueOnce({ migrations: legacy.map(row => row.version === 6 ? { ...row, name: '006_unknown.sql' } : row), maintenance: 'false' })
+  expect(await probe()).toMatchObject({ ready: false, reason: 'schema_pending' })
+})
+
 it('探针总截止时间生效，并发请求复用查询和短暂缓存', async () => {
   vi.useFakeTimers()
   const query = vi.fn(() => new Promise<DatabaseState>(() => {}))
@@ -61,6 +81,16 @@ it('实际 SQL 验证全部迁移、目录字段和维护状态', async () => {
     const probe = createReadinessProbe({ configured: () => true, info: { ...info, migrations }, cacheMs: 0,
       query: async () => (await test.db.query<DatabaseState>(READINESS_SQL)).rows[0] })
     expect(await probe()).toMatchObject({ ready: true })
+    await test.db.query("UPDATE schema_migrations SET name='006_scrape_source_connectivity.sql' WHERE version=6")
+    expect(await runMigrations(test.db)).toEqual([])
+    expect(await probe()).toMatchObject({ ready: true })
+    expect((await test.db.query<{ name: string }>('SELECT name FROM schema_migrations WHERE version=6')).rows[0]?.name).toBe('006_scrape_source_connectivity.sql')
+    await test.db.query('ALTER TABLE ai_usage RENAME COLUMN ip_address TO missing_ip_address')
+    expect(await probe()).toMatchObject({ ready: false, reason: 'database_unavailable' })
+    await test.db.query('ALTER TABLE ai_usage RENAME COLUMN missing_ip_address TO ip_address')
+    await test.db.query('ALTER TABLE scrape_sources RENAME COLUMN connectivity TO missing_connectivity')
+    expect(await probe()).toMatchObject({ ready: false, reason: 'database_unavailable' })
+    await test.db.query('ALTER TABLE scrape_sources RENAME COLUMN missing_connectivity TO connectivity')
     await test.db.query("INSERT INTO backup_control.settings(key,value,updated_at) VALUES('maintenance','true',0) ON CONFLICT(key) DO UPDATE SET value='true'")
     expect(await probe()).toMatchObject({ ready: false, reason: 'maintenance' })
     await test.db.query("UPDATE backup_control.settings SET value='false' WHERE key='maintenance'")
