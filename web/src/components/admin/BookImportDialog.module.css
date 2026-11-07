@@ -1,0 +1,492 @@
+.dialog[data-slot='dialog-content'] {
+  width: min(calc(100% - 2rem), 56rem);
+  max-width: 56rem;
+  align-content: start;
+}
+
+.dialog[data-slot='dialog-content'][data-step='source'] {
+  width: min(calc(100% - 2rem), 42rem);
+  max-width: 42rem;
+}
+
+.dialog .header {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  text-align: left;
+  padding-bottom: 8px;
+}
+
+.header [data-slot='dialog-title'] {
+  padding: 0 44px 0 0;
+}
+
+.header [data-slot='dialog-description'] {
+  margin: 0;
+  padding-right: 28px;
+  font-size: 13px;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 2px solid var(--border-light);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.step[data-active='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.step[data-complete='true'] {
+  border-color: var(--accent-light);
+  color: var(--text-secondary);
+}
+
+.stepNumber {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 15px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepNumber svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dialog .body {
+  min-width: 0;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  overscroll-behavior: contain;
+}
+
+.source {
+  min-width: 0;
+}
+
+.sourceTabs[data-slot='tabs-list'] {
+  width: 100%;
+}
+
+.sourceContent {
+  margin-top: 12px;
+  min-width: 0;
+}
+
+.dropzone {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 14px;
+  min-height: 190px;
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-container);
+  background: var(--bg-primary);
+  text-align: center;
+  transition: background-color 160ms, border-color 160ms;
+}
+
+.dropzone[data-drag-active='true'],
+.dropzone:focus-within {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.dropzone[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.dropzoneIcon {
+  display: flex;
+  color: var(--text-secondary);
+}
+
+.dropzoneIcon svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.4;
+}
+
+.dropzoneCopy {
+  display: grid;
+  gap: 4px;
+}
+
+.dropzoneCopy strong,
+.urlIntro strong {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.dropzoneCopy > span,
+.urlIntro p {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.chooseFile {
+  min-width: 128px;
+}
+
+.formats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.formats > span {
+  display: grid;
+  gap: 2px;
+  color: var(--text-muted);
+}
+
+.formats strong {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.selectedFile {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 20px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+}
+
+.selectedFile > svg {
+  width: 28px;
+  height: 28px;
+  color: var(--text-secondary);
+  stroke-width: 1.5;
+}
+
+.fileCopy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.fileCopy strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.fileState {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-success);
+}
+
+.fileState svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.fileActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.optionalSource {
+  margin-top: 16px;
+}
+
+.optionalSource summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.optionalSource summary::-webkit-details-marker {
+  display: none;
+}
+
+.optionalSource summary span {
+  color: var(--text-muted);
+}
+
+.optionalSource summary svg {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+}
+
+.optionalSource[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.optionalSource summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-tag);
+}
+
+.optionalSource > div {
+  margin-top: 8px;
+}
+
+.urlContent {
+  padding-block: 12px 8px;
+}
+
+.urlIntro {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.urlIntro > svg {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  stroke-width: 1.5;
+}
+
+.urlIntro p {
+  margin: 4px 0 0;
+}
+
+.urlField {
+  margin-top: 0;
+}
+
+.archive {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.archiveHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.archiveHeading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.archiveHeading > span,
+.archiveChapters {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.archiveItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding-block: 14px;
+  cursor: pointer;
+}
+
+.archiveList {
+  display: grid;
+}
+
+.archiveItem + .archiveItem {
+  border-top: 1px solid var(--border-light);
+}
+
+.archiveItem > [data-slot='checkbox'] {
+  margin-top: 3px;
+}
+
+.archiveItem > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.archiveItem strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.archiveItem small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.archiveChapters {
+  padding-top: 2px;
+  white-space: nowrap;
+}
+
+.dialog .footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding-top: 8px;
+}
+
+.footerStatus {
+  flex: 1 1 150px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.footerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.footerActions [data-slot='button'] {
+  min-height: 40px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+@media (max-width: 700px) {
+  .dialog[data-slot='dialog-content'],
+  .dialog[data-slot='dialog-content'][data-step='source'] {
+    width: calc(100% - 1rem);
+    max-height: calc(100svh - 1rem);
+  }
+
+  .dialog .header,
+  .dialog .body,
+  .dialog .footer {
+    padding-inline: 20px;
+  }
+
+  .steps {
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .step {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .dropzone {
+    padding: 24px 12px;
+  }
+
+  .selectedFile {
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 12px;
+    padding: 20px 16px;
+  }
+
+  .fileActions {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .optionalSource summary {
+    min-height: 48px;
+  }
+
+  .dialog .footer {
+    flex-direction: column;
+    align-items: stretch;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  .footerStatus {
+    flex-basis: auto;
+  }
+
+  .footerActions > [data-slot='button'] {
+    flex: 1 1 auto;
+    min-height: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropzone {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .step[data-active='true'] {
+    border-color: Highlight;
+    color: Highlight;
+  }
+
+  .dropzone,
+  .selectedFile {
+    border-color: CanvasText;
+  }
+}

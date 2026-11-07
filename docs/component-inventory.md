@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-07 书籍导入的外框、步骤、来源表单、文件摘要、ZIP 书单与底部布局由 `components/admin/BookImportDialog.module.css` 持有；移除 `styles/book-import.css` 中对应规则，后者继续维护差异核对、解析诊断与导入历史。复用共享 DialogFrame、Tabs、Button 及字段控件，预览、匹配、确认和撤回仍由导入场景持有，不增加共享层业务依赖。
+
 2026-11-07 小说选择的完整取数由 `lib/admin-novel-index.ts` 分页读取管理员紧凑书目，创作、章节、补充来源绑定与任务标题索引共用，不把公开书库第一页或固定索引上限当成全库。SearchSelect 仍为不取业务数据的共享控件，负责完整候选筛选、首批 100 项及继续显示；AI 写作和封面的选项同时提供作者，章节和写作提供加载／错误与重试。封面原有完整分页取数保留，使用共享继续显示浏览后续匹配；补充来源保留外置搜索框及受控结果，不再重复做标题过滤。
 
 2026-11-06 手机作品库条目由 `pages/admin/NovelsTab.tsx` 的内部 `MobileNovelSummary` 与 `novels.module.css` 持有，使用 700px 断点将同一作品记录切换为左封面、右侧身份与元数据、底部更新和来源；701px 以上保留原表格与记录卡。Checkbox、Button、AdminRowActions、NovelUpdateTag 继续复用，编辑入口只在手机移入原行菜单，选择、分页、排序与请求仍归 NovelsTab；跨列手机摘要通过显式 `data-record` 标记继续参与共享阶梯动效，不将空态或详情行纳入入场。
@@ -57,7 +59,7 @@
 | `components/admin/AdminToolbar.tsx` | 后台场景 | 13 | `components/admin/AdminToolbar.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/BatchNovelFollowupDialog.tsx` | 后台场景 | 2 | `styles/admin/pages/novel-followup.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/BookImportChapterResolver.tsx` | 后台场景 | 1 | `styles/input-fields.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
-| `components/admin/BookImportDialog.tsx` | 后台场景 | 2 | `styles/input-fields.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
+| `components/admin/BookImportDialog.tsx` | 后台场景 | 2 | `styles/input-fields.css`, `components/admin/BookImportDialog.module.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/BookImportHistoryDialog.tsx` | 后台场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/ImportDiagnosticsPanel.tsx` | 后台场景 | 1 | `styles/input-fields.css` | 保留／拆分：管理操作、数据表面或具体作品流程 |
 | `components/admin/NovelDeleteDialog.tsx` | 后台场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留／拆分：管理操作、数据表面或具体作品流程 |

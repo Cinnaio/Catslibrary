@@ -1,10 +1,6 @@
-/* 书籍导入工作流：沿用 Paper Sanctuary 的纸面、细分隔线与低饱和状态色。
-
-   弹窗三段（页头 / 正文 / 页脚）遵循 .dialog-frame 的设计约定：
-   页头与页脚**不加边框、不加底色**，分隔完全交给间距与按钮视觉
-   （见 admin-operations.css 中 `.dialog-frame [data-slot='dialog-header']`
-   的 border-bottom:0 与 footer 的 border-top:0）。三段桌面留白继承共享规则，
-   本文件只补充工作流布局与窄屏适配，不重新引入分隔线或另一套字阶。 */
+/* 导入历史、差异核对与解析诊断的既有场景样式。
+   导入弹窗外框、步骤、来源表单与底部布局由 BookImportDialog.module.css 持有。
+   首尾使用留白分组，共享 DialogFrame 继续维护纸面、尺寸令牌与滚动基础。 */
 
 /* 导入历史：独立记录布局，避免书架横向条目压缩长标题。 */
 [data-slot='dialog-content'].dialog-frame.book-import-history-dialog {
@@ -144,313 +140,13 @@
   }
 }
 
-[data-slot='dialog-content'].book-import-dialog {
-  width: min(calc(100% - 2rem), 56rem);
-  max-width: 56rem;
-  align-content: start;
-}
-
-/* 来源表单采用标准宽度，进入目录核对后再使用宽版。 */
-[data-slot='dialog-content'].book-import-dialog[data-step='source'] {
-  width: min(calc(100% - 2rem), 47.5rem);
-  max-width: 47.5rem;
-}
-
-.book-import__header {
-  display: grid;
-  justify-items: center;
-}
-
-.book-import__body {
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-}
-
-.book-import__steps {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: var(--admin-space-5);
-  width: 100%;
-  margin: var(--admin-space-4) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.book-import__step {
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-2);
-  position: relative;
-  min-width: 0;
-  padding-block: 0.5rem;
-  color: var(--text-muted);
-  font-size: var(--admin-table-cell-size);
-  line-height: 1.5;
-}
-
-.book-import__step[data-active='true'] {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.book-import__step-number {
-  display: grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
-  font-size: var(--admin-table-cell-size);
-}
-
-.book-import__step-number svg {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-.book-import__step[data-active='true'] .book-import__step-number {
-  background: var(--accent);
-  color: var(--accent-foreground);
-}
-
-.book-import__step[data-complete='true'] {
-  color: var(--text-secondary);
-}
-
 .book-import__alert {
   margin-bottom: 1rem;
 }
 
-.book-import__source,
 .book-import__workspace {
   max-width: 800px;
   margin: 0 auto;
-}
-
-.book-import__source {
-  max-width: none;
-  padding-block: 0;
-}
-
-/* 来源使用共享 line Tabs，保持轻量导航，不再绘制分段轨道。 */
-.book-import__source-tabs {
-  justify-content: flex-start;
-  gap: var(--admin-space-5);
-  width: fit-content;
-  max-width: 100%;
-  height: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.book-import__source-tabs [data-slot='tabs-trigger'] {
-  flex: 0 1 auto;
-  gap: var(--admin-space-2);
-  min-width: 0;
-  min-height: 2.75rem;
-  padding: var(--admin-space-2);
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--text-muted);
-  font-size: var(--tabs-segmented-label-size);
-  font-weight: var(--tabs-segmented-label-weight);
-  line-height: var(--tabs-segmented-label-line-height);
-  transition: color var(--tabs-segmented-transition);
-}
-
-.book-import__source-tabs [data-slot='tabs-trigger'][data-state='active'] {
-  background: transparent;
-  box-shadow: none;
-  color: var(--accent);
-  font-weight: var(--tabs-segmented-active-label-weight);
-}
-
-.book-import__source-tabs [data-slot='tabs-trigger']::after {
-  bottom: 0;
-  height: 2px;
-  background: var(--accent);
-  transition: opacity var(--tabs-segmented-transition);
-}
-
-.book-import__source-tabs [data-slot='tabs-trigger']:hover {
-  color: var(--text-primary);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .book-import__source-tabs [data-slot='tabs-trigger'],
-  .book-import__source-tabs [data-slot='tabs-trigger']::after {
-    transition: none;
-  }
-}
-
-.book-import__source-content {
-  padding-top: var(--admin-space-5);
-}
-
-.book-import__dropzone {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.75rem;
-  min-height: 11rem;
-  padding: 1.5rem;
-  border: 1px dashed var(--admin-border-strong);
-  border-radius: var(--radius-xl);
-  background: transparent;
-  color: var(--text-muted);
-  text-align: center;
-  transition: background-color var(--admin-table-row-interaction);
-}
-
-.book-import__dropzone[data-drag-active='true'] {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
-  outline: none;
-}
-
-.book-import__dropzone strong {
-  max-width: 100%;
-  color: var(--text-primary);
-  font-size: var(--admin-section-title-size);
-  font-weight: 500;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-
-.book-import__dropzone-icon {
-  display: grid;
-  margin-bottom: 0.25rem;
-  place-items: center;
-  color: var(--accent);
-}
-
-.book-import__dropzone-icon svg {
-  width: 2rem;
-  height: 2rem;
-  stroke-width: 1.5;
-}
-
-.book-import__file-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.book-import__formats {
-  color: var(--text-muted);
-  font-size: var(--admin-table-cell-size);
-  line-height: 1.6;
-}
-
-.book-import__choose-file {
-  min-height: 2.75rem;
-  margin-top: 0.5rem;
-  padding-inline: 1.5rem;
-}
-
-.book-import__selected-file {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--admin-space-4);
-  padding: var(--admin-space-5);
-  min-height: 7.5rem;
-  background: transparent;
-  border-radius: var(--radius-xl);
-  border: 1px dashed var(--admin-border-strong);
-  text-align: left;
-}
-
-.book-import__selected-file > svg {
-  width: 2rem;
-  height: 2rem;
-  color: var(--accent);
-  stroke-width: 1.25;
-}
-
-.book-import__file-copy {
-  display: grid;
-  flex: 1;
-  min-width: 0;
-  gap: 0.3rem;
-  overflow-wrap: anywhere;
-}
-
-.book-import__file-copy strong {
-  color: var(--text-primary);
-  font-size: var(--admin-section-title-size);
-  font-weight: 500;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-
-.book-import__file-copy span {
-  color: var(--text-muted);
-  font-size: var(--admin-table-cell-size);
-  line-height: 1.7;
-}
-
-.book-import__file-actions {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.book-import__optional-source {
-  margin-top: var(--admin-space-4);
-  border: 0;
-}
-
-.book-import__optional-source summary {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  color: var(--text-secondary);
-  font-size: var(--dialog-frame-label-size);
-  cursor: pointer;
-  list-style: none;
-}
-
-.book-import__optional-source summary::-webkit-details-marker {
-  display: none;
-}
-
-.book-import__optional-source summary span {
-  color: var(--text-muted);
-}
-
-.book-import__optional-source summary svg {
-  width: 0.875rem;
-  height: 0.875rem;
-  margin-left: auto;
-}
-
-.book-import__optional-source[open] summary svg {
-  transform: rotate(180deg);
-}
-
-.book-import__optional-source .book-import__field {
-  margin-top: 0.25rem;
-}
-
-.book-import__optional-source summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.book-import__dropzone[aria-disabled='true'] {
-  cursor: wait;
-  opacity: 0.6;
 }
 
 .book-import__field {
@@ -472,7 +168,6 @@
   line-height: var(--dialog-frame-hint-line-height);
 }
 
-.book-import__source-callout,
 .book-import__safe-note {
   display: flex;
   align-items: flex-start;
@@ -483,14 +178,6 @@
   color: var(--text-muted);
   font-size: var(--admin-table-cell-size);
   line-height: 1.7;
-}
-
-.book-import__source-callout svg {
-  flex: 0 0 auto;
-  width: 1rem;
-  height: 1rem;
-  margin-top: 0.1rem;
-  color: var(--accent);
 }
 
 .book-import__book-summary {
@@ -1083,31 +770,6 @@
   color: var(--accent);
 }
 
-.book-import-dialog [data-slot='dialog-footer'] {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--admin-space-3) var(--admin-space-5);
-}
-
-.book-import__footer-status {
-  min-width: 0;
-  color: var(--text-muted);
-  font-size: var(--admin-table-cell-size);
-  line-height: 1.7;
-}
-
-.book-import__footer-actions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 0.625rem;
-}
-
-.book-import__footer-actions [data-slot='button'] {
-  min-height: 2.75rem;
-}
-
 .book-import__result {
   display: grid;
   justify-items: center;
@@ -1242,27 +904,6 @@
 }
 
 @media (max-width: 640px) {
-  /* 窄屏同理：必须用与桌面同一套特异性选择器，否则被全局 1.5rem 压回，
-     移动端弹窗左右留白不一致。 */
-  .book-import-dialog [data-slot='dialog-header'],
-  .book-import-dialog [data-slot='dialog-footer'],
-  .book-import__body {
-    padding-right: 1rem;
-    padding-left: 1rem;
-  }
-
-  .book-import__steps {
-    gap: 0.875rem;
-  }
-
-  .book-import__step {
-    gap: 0;
-    font-size: var(--admin-table-cell-size);
-  }
-
-  .book-import__step-number {
-    display: none;
-  }
   .book-import__review-tabs {
     gap: var(--admin-space-2);
   }
@@ -1337,29 +978,6 @@
 
   .book-import__chapter-title span {
     white-space: normal;
-  }
-
-  .book-import-dialog [data-slot='dialog-footer'] {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.625rem;
-  }
-
-  .book-import__footer-actions {
-    justify-content: flex-end;
-  }
-
-  .book-import__file-actions {
-    margin-left: 0;
-  }
-  .book-import__selected-file {
-    grid-template-columns: 2rem minmax(0, 1fr);
-    align-items: start;
-    padding: var(--admin-space-4);
-  }
-  .book-import__selected-file .book-import__file-actions {
-    grid-column: 2;
-    justify-self: end;
   }
 }
 
@@ -1536,7 +1154,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .book-import__dropzone,
   .book-import__candidate {
     transition: none;
   }
