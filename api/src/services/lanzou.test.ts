@@ -114,7 +114,7 @@ describe('蓝奏目录与下载', () => {
   })
   it('递归扫描蓝奏优享版目录与多级子文件夹并解析书籍', async () => {
     const ilanzouRoot = 'https://www.ilanzou.com/s/bTPy1rOoO'
-    const request = vi.fn(async (url: string, init?: RequestInit) => {
+    const request = vi.fn(async (url: string) => {
       const u = new URL(url)
       if (u.pathname.includes('/unproved/recommend/list')) {
         return bytes({ status: 1, code: 200, list: [{ shareId: 18062578 }] })

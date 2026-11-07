@@ -12,7 +12,6 @@ import { Pool } from 'pg'
 import { loadConfig } from '../config'
 import { getDb, resetPool } from '../db/pool'
 import { migrate } from '../db/migrate'
-import { first } from '../db/query'
 import { prefillUnknownContentRatings } from '../services/content-rating'
 import {
   applyRuntimeConfigToEnv,

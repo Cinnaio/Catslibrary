@@ -44,7 +44,7 @@ export interface PasskeySettings {
   rpName: string
 }
 
-export interface PasskeyPublicSettings extends PasskeySettings {}
+export type PasskeyPublicSettings = PasskeySettings
 
 export interface PasskeyAdminSettings extends PasskeySettings {
   rpId: string

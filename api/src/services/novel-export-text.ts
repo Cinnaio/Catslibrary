@@ -40,7 +40,7 @@ export function parseExportText(
   const boundaries: number[] = []
   const ranges: Array<{ startLine: number; endLine: number }> = []
   let body: string[] = []
-  let description: string[] = []
+  const description: string[] = []
   const flush = () => {
     if (payload.chapters.length) payload.chapters[payload.chapters.length - 1]!.content = body.join('\n')
     body = []
