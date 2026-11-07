@@ -56,7 +56,7 @@ chaptersRoutes.get('/', optionalUser(), async (c) => {
   // 显式列，绝不 SELECT *：content 是整章正文，避免整本小说被拉走
   const rows = await all<Record<string, unknown>>(
     db,
-    'SELECT id, novel_id, title, sort_order, word_count, source_url, created_at FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC',
+    'SELECT id, novel_id, title, sort_order, word_count, source_url, created_at FROM chapters WHERE novel_id = $1 ORDER BY sort_order, id',
     [novelId],
   )
   const chapters = rows.map(rowToChapterMeta).filter((ch) => ch !== null)

@@ -5,6 +5,7 @@ import { createTestDb, type TestDb } from '../test/db'
 import { hashToken } from '../services/auth'
 import { loadConfig } from '../config'
 import type { BookSearchResponse } from '@shared/book-search'
+import { BOOK_SEARCH_TEXT_VERSION, parseSearchCursor, searchBook } from '../services/book-search'
 
 let t: TestDb
 const tokens = { admin: 's'.repeat(64), reader: 'r'.repeat(64) }
@@ -88,5 +89,32 @@ describe('书内正文搜索', () => {
     expect((await search('public', '')).status).toBe(400)
     expect((await search('public', '猫'.repeat(81))).status).toBe(400)
     expect((await search('public', '猫', { cursor: 'not-json' })).status).toBe(400)
+  })
+  it('缓存保留 HTML/字面匹配语义，修改正文后立即失效且不会读到迟到的旧缓存', async () => {
+    await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('cache','缓存书',1,1)")
+    await t.db.query("INSERT INTO chapters(id,novel_id,title,content,created_at) VALUES('cache-ch','cache','缓存章','<p>海<em>风</em>&amp;猫 %_ Cat cat</p>',1)")
+    const run = (q: string) => searchBook(t.db, 'cache', q, parseSearchCursor('')!)
+    const cold = await run('海风&猫')
+    expect(cold.items).toHaveLength(1)
+    expect(await run('海风&猫')).toEqual(cold)
+    expect((await run('CAT')).items[0]?.matchCount).toBe(2)
+    expect((await run('%_')).items).toHaveLength(1)
+
+    await t.db.query("UPDATE chapters SET content='<p>新正文</p>' WHERE id='cache-ch'")
+    expect((await t.db.query("SELECT * FROM chapter_search_text WHERE chapter_id='cache-ch'")).rows).toHaveLength(0)
+    // Simulate an old request finishing after an edit. Revision checking must protect readers.
+    await t.db.query("INSERT INTO chapter_search_text VALUES('cache-ch',0,$1,'海风&猫')", [BOOK_SEARCH_TEXT_VERSION])
+    expect((await run('海风&猫')).items).toHaveLength(0)
+    expect((await run('新正文')).items).toHaveLength(1)
+    await t.db.query("DELETE FROM chapters WHERE id='cache-ch'")
+    expect((await t.db.query("SELECT * FROM chapter_search_text WHERE chapter_id='cache-ch'")).rows).toHaveLength(0)
+  })
+  it('正文清理版本变化后忽略旧缓存，标题和排序修改不误用旧元数据', async () => {
+    await t.db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES('version-ch','cache','原题','<p>原文</p>',1,1)")
+    await t.db.query("INSERT INTO chapter_search_text VALUES('version-ch',0,0,'过期词')")
+    const run = (q: string) => searchBook(t.db, 'cache', q, parseSearchCursor('')!)
+    expect((await run('过期词')).items).toHaveLength(0)
+    await t.db.query("UPDATE chapters SET title='新题',sort_order=50 WHERE id='version-ch'")
+    expect((await run('原文')).items[0]).toMatchObject({ chapterTitle: '新题', chapterOrder: 50, snippet: '原文' })
   })
 })

@@ -9,6 +9,7 @@ import { enqueue, setSetting } from './store'
 import { generateRestoreImpact, restoreImpactReport, checkRestoreImpactFreshness } from './impact'
 import { liveImpactFingerprint } from './impact-snapshot'
 import { currentMigration, type Manifest } from './archive'
+import { parseSearchCursor, searchBook } from '../book-search'
 
 const url = process.env.BACKUP_IMPACT_INTEGRATION_DATABASE_URL
 const shadowUrl = process.env.BACKUP_IMPACT_INTEGRATION_REHEARSAL_URL
@@ -116,6 +117,13 @@ describe.skipIf(!url || !shadowUrl)('真实 PostgreSQL 回滚影响报告（仅�
     expect(await liveImpactFingerprint(db)).toBe(stored)
     expect(await liveImpactFingerprint(db)).toBe(stored)
     expect((await live.query("SELECT title FROM novels WHERE id='same'")).rows[0].title).toBe('当前书名')
+    expect(await checkRestoreImpactFreshness(db, taskId, 'admin', versionId)).toMatchObject({ fresh: true })
+  })
+  it('读者搜索生成派生缓存不会让已确认的恢复影响报告过期', async () => {
+    const before = await liveImpactFingerprint(db)
+    expect((await searchBook(db, 'same', '当前', parseSearchCursor('')!)).items).toHaveLength(1)
+    expect((await live.query("SELECT chapter_id FROM chapter_search_text WHERE chapter_id='chapter'")).rows).toHaveLength(1)
+    expect(await liveImpactFingerprint(db)).toBe(before)
     expect(await checkRestoreImpactFreshness(db, taskId, 'admin', versionId)).toMatchObject({ fresh: true })
   })
   it('差异详情写入失败不发布半份报告，清理明细并拒绝继续回滚', async () => {
