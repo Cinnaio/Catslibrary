@@ -23,6 +23,7 @@ import { withBusinessActivity, requireBackupGate } from './middlewares/backup-ma
 import { stopBackupCommands } from './services/backups/process'
 import { runMailTick, pruneSecurity } from './services/mail-worker'
 import { reconcileDeliveryEvents } from './services/mail-webhook'
+import { buildInfo } from './services/build-info'
 
 async function resumeInterruptedCoverPromptTasks() {
   const db = getDb()
@@ -66,6 +67,9 @@ async function resumeInterruptedCoverPromptTasks() {
 }
 
 async function start() {
+  if (buildInfo.nodeVersion && process.versions.node !== buildInfo.nodeVersion) {
+    throw new Error(`发布包需要 Node ${buildInfo.nodeVersion}，请使用随包运行时启动`)
+  }
   // 会话/IP 哈希盐：缺失或为弱默认值时生成随机盐并持久化，须在处理任何请求前完成
   ensureRuntimeSalts()
   const config = loadConfig()

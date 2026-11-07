@@ -1,0 +1,64 @@
+import { Pool } from 'pg'
+import { loadConfig } from '../config'
+import { buildInfo, requiredMigrations, type BuildInfo } from './build-info'
+
+export const READINESS_SQL = `SELECT
+  (SELECT COALESCE(json_agg(json_build_object('version', version, 'name', name)), '[]'::json) FROM schema_migrations) AS migrations,
+  COALESCE((SELECT value FROM backup_control.settings WHERE key='maintenance'), 'false') AS maintenance,
+  (SELECT COUNT(*) FROM (SELECT id, visibility, content_rating FROM novels LIMIT 0) sample) AS catalog`
+
+export interface DatabaseState { migrations: Array<{ version: number; name: string }>; maintenance: string }
+interface ReadinessState { ready: boolean; version: string; release: string; reason?: string }
+let pool: Pool | undefined
+let poolUrl = ''
+
+async function queryDatabase(): Promise<DatabaseState | undefined> {
+  const databaseUrl = loadConfig().databaseUrl
+  if (!pool || poolUrl !== databaseUrl) {
+    void pool?.end().catch(() => {})
+    poolUrl = databaseUrl
+    // 探针不占用业务连接池，数据库排队、执行和网络等待均有上限。
+    pool = new Pool({ connectionString: databaseUrl, max: 1, connectionTimeoutMillis: 800, statement_timeout: 800, query_timeout: 1200, idleTimeoutMillis: 5000, allowExitOnIdle: true })
+    pool.on('error', () => {})
+  }
+  return (await pool.query<DatabaseState>(READINESS_SQL)).rows[0]
+}
+
+export function createReadinessProbe(options: {
+  configured?: () => boolean
+  query?: () => Promise<DatabaseState | undefined>
+  info?: BuildInfo
+  timeoutMs?: number
+  cacheMs?: number
+} = {}) {
+  const info = options.info || buildInfo
+  const configured = options.configured || (() => loadConfig().configured)
+  const query = options.query || queryDatabase
+  let pending: Promise<ReadinessState> | undefined
+  let cached: { until: number; state: ReadinessState } | undefined
+  const response = (ready: boolean, reason?: string): ReadinessState => ({ ready, version: info.apiVersion, release: info.releaseSha, ...(reason ? { reason } : {}) })
+
+  async function inspect(): Promise<ReadinessState> {
+    const [state, expected] = await Promise.all([query(), requiredMigrations(info)])
+    if (!state) return response(false, 'database_unavailable')
+    const actual = new Map(state.migrations.map(row => [Number(row.version), row.name]))
+    if (!expected.length || expected.some(row => actual.get(row.version) !== row.name)) return response(false, 'schema_pending')
+    if (JSON.parse(state.maintenance)) return response(false, 'maintenance')
+    return response(true)
+  }
+
+  return async (): Promise<ReadinessState> => {
+    if (info.nodeVersion && process.versions.node !== info.nodeVersion) return response(false, 'runtime_mismatch')
+    if (!configured()) return response(false, 'not_configured')
+    if (pending) return pending
+    if (cached && cached.until > Date.now()) return cached.state
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<ReadinessState>(resolve => { timer = setTimeout(() => resolve(response(false, 'database_timeout')), options.timeoutMs ?? 2000) })
+    pending = Promise.race([inspect().catch(() => response(false, 'database_unavailable')), timeout])
+      .then(state => { cached = { until: Date.now() + (options.cacheMs ?? 1000), state }; return state })
+      .finally(() => { clearTimeout(timer); pending = undefined })
+    return pending
+  }
+}
+
+export const checkReadiness = createReadinessProbe()

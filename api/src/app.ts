@@ -39,6 +39,8 @@ import { csrfProtection, browserSecurityHeaders } from './middlewares/browser-se
 import { readingDataRoutes } from './routes/reading-data'
 import { readingStatsRoutes } from './routes/reading-stats'
 import { passkeyRoutes } from './routes/passkeys'
+import { buildInfo } from './services/build-info'
+import { checkReadiness } from './services/readiness'
 
 /** 全局应用：中间件装配 + 路由注册（阶段化增量挂载）。 */
 export const app = new Hono()
@@ -55,7 +57,7 @@ app.use('/api/*', async (c, next) => {
 
 // 安装引导守卫：数据库未配置时仅放行健康检查与安装向导（/api/setup/*）
 app.use('/api/*', async (c, next) => {
-  if (c.req.path === '/api/health' || c.req.path.startsWith('/api/setup/')) return next()
+  if (c.req.path === '/api/health' || c.req.path === '/api/ready' || c.req.path.startsWith('/api/setup/')) return next()
   if (!loadConfig().configured) {
     return c.json({ error: '数据库尚未初始化，请先配置 DATABASE_URL', needsSetup: true }, 503)
   }
@@ -64,7 +66,7 @@ app.use('/api/*', async (c, next) => {
 
 // 统一错误出口：细节只进服务端日志，客户端只拿通用信息
 app.use('/api/*', async (c, next) => {
-  if (!loadConfig().configured || c.req.path.startsWith('/api/setup/')) return next()
+  if (!loadConfig().configured || c.req.path === '/api/ready' || c.req.path.startsWith('/api/setup/')) return next()
   return backupMaintenance()(c, next)
 })
 app.onError((err, c) => {
@@ -75,7 +77,12 @@ app.onError((err, c) => {
 })
 
 app.get('/api/health', (c) => {
-  return c.json({ ok: true, name: 'Cat’s Library', esc: escHtml('<b>&</b>') })
+  return c.json({ ok: true, name: 'Cat’s Library', esc: escHtml('<b>&</b>'), version: buildInfo.apiVersion, release: buildInfo.releaseSha })
+})
+
+app.get('/api/ready', async c => {
+  const state = await checkReadiness()
+  return c.json(state, state.ready ? 200 : 503)
 })
 
 app.route('/api/auth', accountEmailRoutes)
