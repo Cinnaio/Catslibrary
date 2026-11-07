@@ -1,3 +1,5 @@
+import { DEFAULT_EMAIL_DOMAIN_POLICY, type EmailDomainPolicy } from './email-domain-policy'
+
 export const SECURITY_ACTIONS = ['forgot-password', 'verify-email', 'login', 'register'] as const
 export type SecurityAction = (typeof SECURITY_ACTIONS)[number]
 export type ChallengeMode = 'off' | 'observe' | 'enforce'
@@ -19,6 +21,7 @@ export interface SecurityPolicy {
   retentionDays: number
   challenges: Record<SecurityAction, ChallengeMode>
   transport: 'smtp' | 'resend'
+  emailDomains: EmailDomainPolicy
 }
 export const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
   revision: 0,
@@ -38,6 +41,7 @@ export const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
   retentionDays: 30,
   challenges: { 'forgot-password': 'enforce', 'verify-email': 'observe', login: 'observe', register: 'observe' },
   transport: 'smtp',
+  emailDomains: DEFAULT_EMAIL_DOMAIN_POLICY,
 }
 export interface ChallengeConfiguration {
   action: SecurityAction

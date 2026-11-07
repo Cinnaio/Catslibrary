@@ -31,6 +31,12 @@
 .panelBody {
   padding-top: 0;
 }
+.domainList {
+  field-sizing: fixed;
+  min-height: 120px;
+  max-height: 320px;
+  resize: vertical;
+}
 .columns,
 .fields {
   display: grid;

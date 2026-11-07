@@ -55,7 +55,7 @@ const views = { overview: '安全概览', service: '邮件服务', policy: '防�
 const viewDescriptions = {
   overview: '查看邮件额度、投递状态与需要处理的异常。',
   service: '配置邮件连接、发件身份，检查实际投递。',
-  policy: '设置邮件预算、请求频率和各场景的验证方式。',
+  policy: '设置邮件预算、邮箱域名名单、请求频率和各场景的验证方式。',
   mail: '按收件人查看申请与投递，未知结果请核对后处理。',
   events: '查看防护决策，同一来源与规则按 15 分钟聚合。',
   restrictions: '管理生效中的限制与验证例外，规则到期后自动解除。',

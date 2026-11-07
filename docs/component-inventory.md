@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-07 邮箱域名黑白名单归 `SecurityPolicyEditor` 持有表单草稿、开关和校验呈现，复用 Card／PanelHeading、FormField、Textarea、Switch 与原保存确认；名单输入区的高度和纵向调整归 `security-center.module.css`。`shared/email-domain-policy.ts` 为 Web 和 API 共用的纯名单解析、规范化及域名匹配逻辑，不引入 UI、请求或存储依赖；事件及队列原因继续由 `security-center-format.ts` 显示。没有新增生产组件，组件边界检查仍为 107 个共享／业务组件、274 个生产源码模块。
+
 2026-11-07 安全中心界面统一：`SecurityCenterTab` 保留视图、请求、草稿、权限及操作确认；`SecurityOverviewPanel` 持有用量与异常呈现，`SecurityPolicyEditor` 持有策略分组和即时字段校验，`security-center-format.ts` 集中维护显示文案，不引入共享层业务依赖。复用默认 Tabs、AdminToolbar、SearchSelect、AdminDataPanel、PanelHeading、FormField 与 DialogFrame；双栏、键值信息及手机布局归 `security-center.module.css`，不重绘共享导航、表单控件或状态皮肤。邮件配置通过状态／草稿回调与安全中心协作，旧站点入口继续可用。组件边界检查为 107 个共享／业务组件、274 个生产源码模块。
 
 2026-11-07 安全与风控六视图由 `pages/admin/SecurityCenterTab.tsx` 与 `security-center.module.css` 持有；邮件配置沿用 `MailSettings`，共享字段、Tabs、表格、异步状态、DialogFrame 和保存条维护各自外观。`SecurityChallengeDialog` 是应用级账号验证场景，协议协调在 `lib/security-challenge.ts`；验证码脚本加载统一归 `lib/turnstile.ts`，成人验证与配置测试共用，不从成人弹窗导入业务样式。共享 UI 不新增账号或 API 依赖。

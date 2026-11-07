@@ -1,9 +1,10 @@
 import { canManageUser, isAdministrator } from '@shared/roles'
+import { emailDomainRejection } from '@shared/email-domain-policy'
 import type { Db, DbClient } from '../db/pool'
 import { first, withTx } from '../db/query'
 import { lockAccounts } from './account-security'
 import type { UserRow } from './auth'
-import { lockSecurity, openMail, queueKey, restriction, securityKey, securityPolicy } from './security-policy'
+import { lockSecurity, openMail, queueKey, restriction, securityKey, securityPolicy, securityEvent } from './security-policy'
 import { budgetPeriods, releaseBudget, transportFingerprint, type MailJob, type MailPayload } from './mail-queue'
 import { MailDeliveryError, sendAccountMail } from './mail'
 
@@ -118,14 +119,16 @@ export async function runMailTick(db: Db) {
       ],
       job.purpose === 'verify-email' ? 'verify-email' : 'forgot-password',
     )
-    if (changed || blocked?.effect === 'block') {
+    const domainRejection = emailDomainRejection(payload.to, policy.emailDomains)
+    if (changed || blocked?.effect === 'block' || domainRejection) {
       await finishMail(
         tx,
         job,
         job.had_unknown ? 'unknown' : 'cancelled',
-        changed ? 'account_or_configuration_changed' : 'recipient_restricted',
+        changed ? 'account_or_configuration_changed' : domainRejection || 'recipient_restricted',
         job.attempts === 0,
       )
+      if (!changed && domainRejection) await securityEvent(tx, job.purpose, domainRejection, 'blocked', job.user_id, policy.revision, '', job.user_id)
       return null
     }
     if (!(await rolloverBudget(tx, job))) {

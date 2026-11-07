@@ -1,8 +1,10 @@
 import type { FormEvent } from 'react'
 import { SECURITY_ACTIONS, SECURITY_ACTION_LABELS, type SecurityPolicy } from '@shared/security'
+import { DEFAULT_EMAIL_DOMAIN_POLICY, EMAIL_DOMAIN_LIST_LIMIT, parseEmailDomainList, type EmailDomainPolicy } from '@shared/email-domain-policy'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import AdminFloatingDock from '@/components/admin/AdminFloatingDock'
@@ -72,7 +74,14 @@ export default function SecurityPolicyEditor({ draft, dirty, busy, turnstileRead
   if (draft.reserveMonthly >= draft.monthly) errors.reserveMonthly = '应急预留须小于每月总预算'
   if (draft.daily > draft.monthly) errors.daily = '每日总预算不能超过每月总预算'
   if (draft.newAccountDaily > draft.accountDaily) errors.newAccountDaily = '不能超过普通账号每天上限'
-  const valid = Object.keys(errors).length === 0
+  const domains = draft.emailDomains || DEFAULT_EMAIL_DOMAIN_POLICY
+  const blocklist = parseEmailDomainList(domains.blocklist),
+    allowlist = parseEmailDomainList(domains.allowlist)
+  const allowlistError = allowlist.error || (domains.allowlistEnabled && !allowlist.domains.length ? '开启白名单时至少填写一个允许的邮箱域名' : '')
+  const valid = Object.keys(errors).length === 0 && !blocklist.error && !allowlistError
+  function changeDomains<K extends keyof EmailDomainPolicy>(key: K, value: EmailDomainPolicy[K]) {
+    onChange('emailDomains', { ...domains, [key]: value })
+  }
   function submit(event: FormEvent) {
     event.preventDefault()
     if (valid && dirty && !busy) onSave()
@@ -115,6 +124,73 @@ export default function SecurityPolicyEditor({ draft, dirty, busy, turnstileRead
           ))}
         </div>
         <div className={styles.stack}>
+          <Card>
+            <PanelHeading title="邮箱域名" description="控制邮箱绑定、密码找回、管理员重置及测试邮件可使用的收件域名。" />
+            <CardContent className={styles.panelBody}>
+              <label className={styles.switchRow} htmlFor="security-domain-allowlist">
+                <span>
+                  <span>仅允许白名单域名</span>
+                  <span className={styles.hint}>开启后，名单外的邮箱无法申请账号邮件；关闭后仅执行黑名单。</span>
+                </span>
+                <Switch
+                  id="security-domain-allowlist"
+                  checked={domains.allowlistEnabled}
+                  disabled={busy}
+                  onCheckedChange={(value) => changeDomains('allowlistEnabled', value)}
+                />
+              </label>
+              <FormField label="域名白名单" error={allowlistError} hint={`每行一个域名，最多 ${EMAIL_DOMAIN_LIST_LIMIT} 个；关闭白名单时保留列表。`}>
+                {({ id }) => (
+                  <Textarea
+                    id={id}
+                    className={styles.domainList}
+                    rows={4}
+                    maxLength={51200}
+                    disabled={busy}
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    placeholder={'qq.com\ngmail.com'}
+                    value={domains.allowlist.join('\n')}
+                    onChange={(e) => changeDomains('allowlist', e.target.value.split(/\r?\n/))}
+                  />
+                )}
+              </FormField>
+              <FormField label="域名黑名单" error={blocklist.error} hint={`每行一个域名，最多 ${EMAIL_DOMAIN_LIST_LIMIT} 个；黑名单始终优先于白名单。`}>
+                {({ id }) => (
+                  <Textarea
+                    id={id}
+                    className={styles.domainList}
+                    rows={4}
+                    maxLength={51200}
+                    disabled={busy}
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    placeholder="blocked.example.com"
+                    value={domains.blocklist.join('\n')}
+                    onChange={(e) => changeDomains('blocklist', e.target.value.split(/\r?\n/))}
+                  />
+                )}
+              </FormField>
+              <label className={styles.switchRow} htmlFor="security-domain-subdomains">
+                <span>
+                  <span>同时匹配子域名</span>
+                  <span className={styles.hint}>例如 example.com 同时匹配 mail.example.com；关闭时仅匹配填写的域名。</span>
+                </span>
+                <Switch
+                  id="security-domain-subdomains"
+                  checked={domains.includeSubdomains}
+                  disabled={busy}
+                  onCheckedChange={(value) => changeDomains('includeSubdomains', value)}
+                />
+              </label>
+              <p className={styles.hint}>
+                填写纯英文域名，不包含
+                @、完整邮箱、网址或通配符；保存时忽略大小写并去重。白名单不豁免限流、额度、验证和收件人停发规则，管理员应急邮件也需遵守。密码和通行密钥登录不受此设置影响。
+              </p>
+            </CardContent>
+          </Card>
           <Card>
             <PanelHeading
               title="场景验证"

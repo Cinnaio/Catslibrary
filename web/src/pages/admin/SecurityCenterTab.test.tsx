@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { DEFAULT_SECURITY_POLICY, type SecurityOverview } from '@shared/security'
+import { DEFAULT_SECURITY_POLICY, type SecurityOverview, type SecurityPolicy } from '@shared/security'
 // jsdom 缺少 Radix Select 使用的指针捕获接口。
 Element.prototype.hasPointerCapture = () => false
 Element.prototype.setPointerCapture = () => {}
@@ -86,11 +86,19 @@ it('切换分区保留策略与邮件配置草稿', async () => {
   show('policy')
   await screen.findByLabelText('每日总预算')
   fireEvent.change(screen.getByLabelText('每日总预算'), { target: { value: '88' } })
+  await user.click(screen.getByRole('switch', { name: /^仅允许白名单域名/ }))
+  fireEvent.change(screen.getByLabelText('域名白名单'), { target: { value: ' Example.COM \n' } })
+  fireEvent.change(screen.getByLabelText('域名黑名单'), { target: { value: 'blocked.test' } })
+  await user.click(screen.getByRole('switch', { name: /^同时匹配子域名/ }))
   await user.click(screen.getByRole('tab', { name: '邮件服务' }))
   await screen.findByLabelText('SMTP 服务器')
   fireEvent.change(screen.getByLabelText('SMTP 服务器'), { target: { value: 'draft.example.test' } })
   await user.click(screen.getByRole('tab', { name: '防护策略' }))
   expect(screen.getByLabelText('每日总预算')).toHaveValue(88)
+  expect(screen.getByLabelText('域名白名单')).toHaveValue(' Example.COM \n')
+  expect(screen.getByLabelText('域名黑名单')).toHaveValue('blocked.test')
+  expect(screen.getByRole('switch', { name: /^仅允许白名单域名/ })).toBeChecked()
+  expect(screen.getByRole('switch', { name: /^同时匹配子域名/ })).toBeChecked()
   await user.click(screen.getByRole('tab', { name: '邮件服务' }))
   expect(screen.getByLabelText('SMTP 服务器')).toHaveValue('draft.example.test')
 })
@@ -130,6 +138,47 @@ it('无效预算不能进入保存确认，修正后仍使用原策略草稿', a
   fireEvent.change(screen.getByLabelText('每日总预算'), { target: { value: '100' } })
   fireEvent.click(screen.getByRole('button', { name: '保存策略' }))
   expect(screen.getByRole('dialog')).toHaveTextContent('保存防护策略')
+})
+it('白名单为空或域名无效时禁止保存，修正后提交名单并显示服务端规范化结果', async () => {
+  let saved = structuredClone(DEFAULT_SECURITY_POLICY)
+  const emailDomains = { allowlistEnabled: true, includeSubdomains: false, allowlist: ['example.com'], blocklist: ['blocked.test'] }
+  mock.request.mockImplementation(async (method: string, path: string, body?: { policy: SecurityPolicy }) => {
+    if (method === 'PUT' && path.endsWith('/policy')) {
+      saved = { ...body!.policy, revision: 1, emailDomains }
+      return structuredClone(saved)
+    }
+    return { ...overview, policy: structuredClone(saved) }
+  })
+  show('policy')
+  await screen.findByLabelText('域名白名单')
+  fireEvent.click(screen.getByRole('switch', { name: /^仅允许白名单域名/ }))
+  expect(screen.getByLabelText('域名白名单')).toHaveAttribute('aria-invalid', 'true')
+  expect(screen.getByRole('button', { name: '保存策略' })).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('域名白名单'), { target: { value: 'user@example.com' } })
+  expect(screen.getByText(/第 1 行不是有效域名/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '保存策略' })).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('域名白名单'), { target: { value: ' EXAMPLE.COM \nexample.com\n' } })
+  fireEvent.change(screen.getByLabelText('域名黑名单'), { target: { value: '*.blocked.test' } })
+  expect(screen.getByLabelText('域名黑名单')).toHaveAttribute('aria-invalid', 'true')
+  expect(screen.getByRole('button', { name: '保存策略' })).toBeDisabled()
+  expect(mock.request.mock.calls.every((call) => call[0] === 'GET')).toBe(true)
+  fireEvent.change(screen.getByLabelText('域名黑名单'), { target: { value: 'blocked.test' } })
+  expect(screen.getByRole('button', { name: '保存策略' })).toBeEnabled()
+  fireEvent.click(screen.getByRole('button', { name: '保存策略' }))
+  fireEvent.change(screen.getByLabelText('操作原因'), { target: { value: '限制账号邮件域名' } })
+  fireEvent.click(screen.getByRole('button', { name: '确认操作' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(mock.request).toHaveBeenCalledWith(
+    'PUT',
+    '/admin/security/policy',
+    {
+      policy: expect.objectContaining({ emailDomains: { ...emailDomains, allowlist: [' EXAMPLE.COM ', 'example.com', ''] } }),
+      reason: '限制账号邮件域名',
+    },
+    true,
+  )
+  expect(screen.getByLabelText('域名白名单')).toHaveValue('example.com')
+  expect(screen.queryByRole('button', { name: '保存策略' })).not.toBeInTheDocument()
 })
 it('邮件详情先显示加载，关闭后忽略迟到响应并恢复入口焦点', async () => {
   const user = userEvent.setup()

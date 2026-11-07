@@ -1,6 +1,7 @@
 import type { DbClient } from '../db/pool'
 import { first } from '../db/query'
 import type { SecurityPolicy } from '@shared/security'
+import { emailDomainRejection } from '@shared/email-domain-policy'
 import { mailConfiguration } from './mail'
 import { emailHint, restriction, sealMail, securityKey, SecurityError } from './security-policy'
 import { newId, type UserRow } from './auth'
@@ -65,6 +66,13 @@ export async function reserveMail(
   const now = Date.now(),
     recipient = securityKey('email:' + email)
   if (p.paused) throw new SecurityError('mail_paused', '邮件发送已暂停，请稍后重试', 503)
+  const domainRejection = emailDomainRejection(email, p.emailDomains)
+  if (domainRejection)
+    throw new SecurityError(
+      domainRejection,
+      domainRejection === 'mail_domain_blocked' ? '此邮箱域名已被禁止使用账号邮件' : '此邮箱域名不在允许名单中，请使用允许的邮箱',
+      403,
+    )
   const rule = await restriction(
     db,
     [

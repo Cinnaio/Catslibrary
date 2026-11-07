@@ -7,7 +7,8 @@ import { createSession } from './sessions'
 import { loadConfig } from '../config'
 import { DEFAULT_SECURITY_POLICY, type SecurityPolicy } from '@shared/security'
 import { issueAccountEmail } from './account-email'
-import { openMail, saveSecurityPolicy, securityKey, sealMail } from './security-policy'
+import { openMail, saveSecurityPolicy, securityKey, sealMail, securityPolicy, validatePolicy } from './security-policy'
+import { DEFAULT_EMAIL_DOMAIN_POLICY } from '@shared/email-domain-policy'
 import { runMailTick } from './mail-worker'
 import { receiveMailWebhook, reconcileDeliveryEvents } from './mail-webhook'
 import { budgetPeriods, type MailJob, type MailPayload } from './mail-queue'
@@ -112,6 +113,107 @@ afterAll(async () => {
 })
 
 describe('邮件额度、任务与防护', () => {
+  it('域名策略规范化并审计，旧客户端保存其他设置不会清空名单', async () => {
+    const next = {
+      ...DEFAULT_SECURITY_POLICY,
+      emailDomains: { ...DEFAULT_EMAIL_DOMAIN_POLICY, allowlistEnabled: true, allowlist: [' EXAMPLE.TEST ', 'example.test'], blocklist: ['blocked.test'] },
+    }
+    const response = await api('/admin/security/policy', 'root', { policy: next, reason: '设置邮箱域名名单' }, 'PUT')
+    expect(response.status).toBe(200)
+    const saved = (await response.json()) as SecurityPolicy
+    expect(saved.emailDomains.allowlist).toEqual(['example.test'])
+    const legacy = { ...saved, daily: 90 } as Partial<SecurityPolicy>
+    delete legacy.emailDomains
+    const updated = await saveSecurityPolicy(t.db, 'root', legacy, '旧客户端调整每日预算')
+    expect(updated.emailDomains).toEqual(saved.emailDomains)
+    expect(
+      (
+        await t.db.query<{ after_state: SecurityPolicy }>(
+          "SELECT after_state FROM account_security_audit WHERE action='security-policy' ORDER BY created_at DESC LIMIT 1",
+        )
+      ).rows[0]?.after_state.emailDomains,
+    ).toEqual(saved.emailDomains)
+    await t.db.query("UPDATE security_policy SET value=value-'emailDomains'")
+    expect((await securityPolicy(t.db)).emailDomains).toEqual(DEFAULT_EMAIL_DOMAIN_POLICY)
+    expect(() => validatePolicy({ ...next, emailDomains: null })).toThrow('邮箱域名策略格式无效')
+    expect(() => validatePolicy({ ...next, emailDomains: { ...next.emailDomains, allowlist: [] } })).toThrow('至少填写一个')
+  })
+
+  it('域名黑名单优先，普通与应急申请都不占用预算或生成邮件链接', async () => {
+    await policy({ emailDomains: { ...DEFAULT_EMAIL_DOMAIN_POLICY, allowlistEnabled: true, allowlist: ['example.test'], blocklist: ['example.test'] } })
+    for (const emergency of [false, true])
+      await expect(
+        issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password', emergency ? 'root' : 'reader', undefined, '核实用户邮箱域名', emergency),
+      ).rejects.toMatchObject({ code: 'mail_domain_blocked' })
+    await expect(issueAccountEmail(t.db, 'reader', 'new@other.test', 'verify-email')).rejects.toMatchObject({ code: 'mail_domain_not_allowed' })
+    const test = await api('/admin/security/test-mail', 'root', { reason: '检查域名测试邮件' })
+    expect(test.status).toBe(403)
+    expect(await test.json()).toMatchObject({ code: 'mail_domain_blocked' })
+    expect(await count()).toBe(0)
+    expect((await t.db.query('SELECT id FROM mail_jobs')).rows).toHaveLength(0)
+    expect((await t.db.query('SELECT token_hash FROM account_email_tokens')).rows).toHaveLength(0)
+    expect((await t.db.query("SELECT rule FROM security_events WHERE rule='mail_domain_blocked' AND target_id='reader'")).rows).toHaveLength(1)
+    expect((await t.db.query("SELECT rule FROM security_events WHERE rule='mail_domain_blocked' AND action='test' AND target_id='root'")).rows).toHaveLength(1)
+  })
+
+  it('白名单邮箱仍受限流、额度、停发和验证约束', async () => {
+    const emailDomains = { ...DEFAULT_EMAIL_DOMAIN_POLICY, allowlistEnabled: true, allowlist: ['example.test'] }
+    await policy({ emailDomains, recipientDaily: 1 })
+    await issueAccountEmail(t.db, 'reader', 'shared@example.test', 'verify-email')
+    await expect(issueAccountEmail(t.db, 'other', 'shared@example.test', 'verify-email')).rejects.toMatchObject({ code: 'mail_recipient_rate' })
+    await policy({ emailDomains, daily: 2, monthly: 3, reserveDaily: 1, reserveMonthly: 1 })
+    await expect(issueAccountEmail(t.db, 'other', 'other@example.test', 'reset-password')).rejects.toMatchObject({ code: 'mail_budget_exhausted' })
+    await t.db.query(
+      `INSERT INTO security_restrictions(id,kind,key_hash,action,effect,hint,reason,expires_at,created_at,actor_id)
+      VALUES('domain-test-stop','email',$1,'all','block','fixture','停发优先测试',$2,1,'root')`,
+      [securityKey('email:other@example.test'), Date.now() + 60000],
+    )
+    await expect(issueAccountEmail(t.db, 'other', 'other@example.test', 'reset-password')).rejects.toMatchObject({ code: 'mail_restricted' })
+    await policy({ emailDomains, challenges: { ...DEFAULT_SECURITY_POLICY.challenges, 'forgot-password': 'enforce' } })
+    mocks.verify.mockResolvedValue(false)
+    expect((await api('/auth/forgot-password', '', { identifier: 'reader' })).status).toBe(403)
+    await runMailTick(t.db)
+    expect(mocks.send).toHaveBeenCalledOnce()
+    expect(mocks.send.mock.calls[0]?.[0]).toBe('shared@example.test')
+  })
+
+  it('新增域名限制会取消未发送队列并归还预占，记录拦截原因', async () => {
+    const id = await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password')
+    await policy({ emailDomains: { ...DEFAULT_EMAIL_DOMAIN_POLICY, blocklist: ['example.test'] } })
+    await expect(issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password')).rejects.toMatchObject({ code: 'mail_domain_blocked' })
+    expect(await count()).toBe(1)
+    await runMailTick(t.db)
+    expect(await job(id)).toMatchObject({ state: 'cancelled', error_code: 'mail_domain_blocked' })
+    expect(await count()).toBe(0)
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect((await t.db.query('SELECT token_hash FROM account_email_tokens')).rows).toHaveLength(0)
+    expect((await t.db.query("SELECT rule FROM security_events WHERE rule='mail_domain_blocked'")).rows).toHaveLength(1)
+  })
+
+  it('白名单收紧后，结果曾未知的邮件不重发也不归还额度', async () => {
+    await policy({ transport: 'resend' })
+    const id = await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password')
+    mocks.send.mockRejectedValueOnce(new MailDeliveryError('provider_network', 'unknown'))
+    await runMailTick(t.db)
+    await policy({ transport: 'resend', emailDomains: { ...DEFAULT_EMAIL_DOMAIN_POLICY, allowlistEnabled: true, allowlist: ['other.test'] } })
+    await t.db.query('UPDATE mail_jobs SET next_attempt_at=0')
+    await runMailTick(t.db)
+    expect(await job(id)).toMatchObject({ state: 'unknown', error_code: 'mail_domain_not_allowed' })
+    expect(await count()).toBe(1)
+    expect(mocks.send).toHaveBeenCalledTimes(1)
+    expect((await t.db.query('SELECT token_hash FROM account_email_tokens')).rows).toHaveLength(1)
+  })
+
+  it('匿名找回的域名拦截仍返回统一结果，不泄露账号或邮箱是否存在', async () => {
+    await policy({ emailDomains: { ...DEFAULT_EMAIL_DOMAIN_POLICY, blocklist: ['example.test'] } })
+    const existing = await api('/auth/forgot-password', '', { identifier: 'reader' })
+    const missing = await api('/auth/forgot-password', '', { identifier: 'missing' })
+    expect(existing.status).toBe(200)
+    expect(await existing.json()).toEqual(await missing.json())
+    expect(await count()).toBe(0)
+    expect((await t.db.query('SELECT id FROM mail_jobs')).rows).toHaveLength(0)
+  })
+
   it('重复申请只预占一次，队列加密且任务换位不能解密', async () => {
     const id = await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password')
     expect(await issueAccountEmail(t.db, 'reader', 'reader@example.test', 'reset-password')).toBe(id)

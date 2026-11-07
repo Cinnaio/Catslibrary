@@ -6,6 +6,7 @@ import { AccountError, auditAccount, lockAccounts } from './account-security'
 import { mailConfiguration } from './mail'
 import { parseSmtp } from './mail-settings'
 import { DEFAULT_SECURITY_POLICY, SECURITY_ACTIONS, type SecurityPolicy, type SecurityAction } from '@shared/security'
+import { DEFAULT_EMAIL_DOMAIN_POLICY, parseEmailDomainList, type EmailDomainPolicy } from '@shared/email-domain-policy'
 
 export const SECURITY_LOCK = 730072
 export const lockSecurity = (db: DbClient) => db.query('SELECT pg_advisory_xact_lock($1)', [SECURITY_LOCK])
@@ -95,10 +96,28 @@ export function validatePolicy(input: unknown): SecurityPolicy {
     throw new SecurityError('policy_invalid', '日预算不能超过月预算，新账号限额不能超过账号限额', 400)
   if (!p.challenges || SECURITY_ACTIONS.some((action) => !['off', 'observe', 'enforce'].includes(p.challenges[action])))
     throw new SecurityError('policy_invalid', '验证策略无效', 400)
+  const domains = Object.hasOwn(p, 'emailDomains') ? p.emailDomains : DEFAULT_EMAIL_DOMAIN_POLICY
+  if (!domains || typeof domains !== 'object' || typeof domains.allowlistEnabled !== 'boolean' || typeof domains.includeSubdomains !== 'boolean')
+    throw new SecurityError('policy_invalid', '邮箱域名策略格式无效', 400)
+  const blocklist = parseEmailDomainList(domains.blocklist),
+    allowlist = parseEmailDomainList(domains.allowlist)
+  if (blocklist.error || allowlist.error)
+    throw new SecurityError('policy_invalid', blocklist.error ? `域名黑名单：${blocklist.error}` : `域名白名单：${allowlist.error}`, 400)
+  if (domains.allowlistEnabled && !allowlist.domains.length) throw new SecurityError('policy_invalid', '开启白名单时至少填写一个允许的邮箱域名', 400)
+  const emailDomains: EmailDomainPolicy = {
+    allowlistEnabled: domains.allowlistEnabled,
+    includeSubdomains: domains.includeSubdomains,
+    blocklist: blocklist.domains,
+    allowlist: allowlist.domains,
+  }
   return Object.fromEntries(
     Object.keys(DEFAULT_SECURITY_POLICY).map((key) => [
       key,
-      key === 'challenges' ? Object.fromEntries(SECURITY_ACTIONS.map((a) => [a, p.challenges[a]])) : p[key as keyof SecurityPolicy],
+      key === 'challenges'
+        ? Object.fromEntries(SECURITY_ACTIONS.map((a) => [a, p.challenges[a]]))
+        : key === 'emailDomains'
+          ? emailDomains
+          : p[key as keyof SecurityPolicy],
     ]),
   ) as unknown as SecurityPolicy
 }
@@ -118,7 +137,13 @@ export async function saveSecurityPolicy(db: Db, actorId: string, input: unknown
     if (!next.paused && (await first(tx, "SELECT 1 FROM mail_worker_status WHERE id='restore-hold' AND updated_at>0")))
       throw new SecurityError('restore_reconciliation_required', '请先核对服务商额度并录入保守用量，再恢复发送', 409)
     if (before.revision !== next.revision) throw new SecurityError('policy_conflict', '安全策略已更新，请刷新后重试', 409)
-    const value = { ...next, revision: next.revision + 1 }
+    // Older clients omit the new field; saving another setting must not erase
+    // the server's domain restrictions. A present but invalid field is rejected.
+    const value = {
+      ...next,
+      emailDomains: Object.hasOwn(input as object, 'emailDomains') ? next.emailDomains : before.emailDomains,
+      revision: next.revision + 1,
+    }
     await query(
       "INSERT INTO security_policy(id,value,updated_at) VALUES('site',$1::jsonb,$2) ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value,updated_at=EXCLUDED.updated_at",
       [JSON.stringify(value), Date.now()],

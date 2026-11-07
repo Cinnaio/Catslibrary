@@ -36,6 +36,8 @@ const reasonLabels: Record<string, string> = {
   mail_emergency_rate: '应急发送冷却中',
   mail_paused: '邮件发送已暂停',
   mail_restricted: '命中停发规则',
+  mail_domain_blocked: '命中邮箱域名黑名单',
+  mail_domain_not_allowed: '邮箱域名不在白名单中',
   lease_recovered: '等待重新确认投递',
   lease_expired: '发送超时，结果待核实',
   queue_expired: '超过待发有效期',

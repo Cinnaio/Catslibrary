@@ -10,6 +10,7 @@ import { effectiveTurnstile } from '../services/turnstile'
 import {
   SecurityError,
   securityPolicy,
+  securityEvent,
   saveSecurityPolicy,
   queueKey,
   securityKey,
@@ -284,6 +285,10 @@ securityAdminRoutes.post('/test-mail', async (c) => {
       tokenHash: '',
       auditId,
     })
+  }).catch(async (error: unknown) => {
+    if (error instanceof SecurityError && ['mail_domain_blocked', 'mail_domain_not_allowed'].includes(error.code))
+      await securityEvent(getDb(), 'test', error.code, 'blocked', user.id, (await securityPolicy(getDb())).revision, '', user.id)
+    throw error
   })
   return c.json({ id, message: '测试邮件已入队，计入本站普通预算。' })
 })
