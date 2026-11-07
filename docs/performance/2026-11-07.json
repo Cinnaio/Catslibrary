@@ -1,0 +1,1476 @@
+{
+  "measuredOn": "2026-11-07",
+  "sourceBase": "6719986ca5301a951b0b4e10fe10867d331f59c4",
+  "sourceStateAtMeasurement": "uncommitted API/Web 0.11.0 candidate",
+  "subsequentSourceCommits": [
+    "36bd7b2825ee2cb98e67f284fce292ae7c1cf7ee",
+    "b67097442dfaf2bc983d8f368f1acfdb26f85b12",
+    "3d541aa64c6ccfe31936452722e9e19aebf321fb",
+    "4f49f674391c8b6bb6b4f1911ea7176771dd7153"
+  ],
+  "environment": "Windows x64, isolated locked dependencies, synthetic loopback databases only",
+  "bundle": {
+    "node": "22.23.4",
+    "vite": "7.3.6",
+    "before": {
+      "initial": {
+        "jsBytes": 566300,
+        "jsGzipBytes": 181364,
+        "cssBytes": 204105,
+        "cssGzipBytes": 34185
+      },
+      "files": [
+        {
+          "file": "assets/index-8qgf-B3L.js",
+          "bytes": 566300,
+          "gzipBytes": 181364
+        },
+        {
+          "file": "assets/index-CbPo8nUZ.css",
+          "bytes": 204105,
+          "gzipBytes": 34185
+        }
+      ]
+    },
+    "after": {
+      "initial": {
+        "jsBytes": 535885,
+        "jsGzipBytes": 172782,
+        "cssBytes": 189186,
+        "cssGzipBytes": 32353
+      },
+      "files": [
+        {
+          "file": "assets/index-Cpgcl8dn.js",
+          "bytes": 535885,
+          "gzipBytes": 172782
+        },
+        {
+          "file": "assets/index-CmVWvmuZ.css",
+          "bytes": 189186,
+          "gzipBytes": 32353
+        }
+      ],
+      "largestModules": [
+        {
+          "id": "node_modules/react-dom/cjs/react-dom-client.production.js",
+          "renderedBytes": 552879
+        },
+        {
+          "id": "node_modules/tailwind-merge/dist/bundle-mjs.mjs",
+          "renderedBytes": 102185
+        },
+        {
+          "id": "node_modules/react-router/dist/development/chunk-62JRHF6Z.mjs",
+          "renderedBytes": 86239
+        },
+        {
+          "id": "node_modules/sonner/dist/index.mjs",
+          "renderedBytes": 64245
+        },
+        {
+          "id": "web/src/lib/api.ts",
+          "renderedBytes": 59930
+        },
+        {
+          "id": "node_modules/@floating-ui/core/dist/floating-ui.core.mjs",
+          "renderedBytes": 27058
+        },
+        {
+          "id": "node_modules/@floating-ui/dom/dist/floating-ui.dom.mjs",
+          "renderedBytes": 26088
+        },
+        {
+          "id": "web/src/pages/Home.tsx",
+          "renderedBytes": 25567
+        },
+        {
+          "id": "node_modules/@radix-ui/react-menu/dist/index.mjs",
+          "renderedBytes": 23656
+        },
+        {
+          "id": "node_modules/react/cjs/react.production.js",
+          "renderedBytes": 18321
+        },
+        {
+          "id": "node_modules/@radix-ui/react-collection/dist/index.mjs",
+          "renderedBytes": 17678
+        },
+        {
+          "id": "web/src/components/workspace/WorkspaceShell.tsx",
+          "renderedBytes": 17032
+        },
+        {
+          "id": "node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs",
+          "renderedBytes": 13860
+        },
+        {
+          "id": "node_modules/@radix-ui/react-dialog/dist/index.mjs",
+          "renderedBytes": 12004
+        },
+        {
+          "id": "node_modules/scheduler/cjs/scheduler.production.js",
+          "renderedBytes": 11134
+        },
+        {
+          "id": "node_modules/@radix-ui/react-popper/dist/index.mjs",
+          "renderedBytes": 11079
+        },
+        {
+          "id": "node_modules/@floating-ui/react-dom/dist/floating-ui.react-dom.mjs",
+          "renderedBytes": 9953
+        },
+        {
+          "id": "web/src/components/ThemeMenu.tsx",
+          "renderedBytes": 9643
+        },
+        {
+          "id": "node_modules/@radix-ui/react-roving-focus/dist/index.mjs",
+          "renderedBytes": 9641
+        },
+        {
+          "id": "node_modules/@radix-ui/react-focus-scope/dist/index.mjs",
+          "renderedBytes": 8988
+        }
+      ],
+      "cssSources": [
+        {
+          "id": "web/src/components/workspace/workspace-shell.module.css",
+          "sourceBytes": 15536
+        },
+        {
+          "id": "web/src/pages/home.module.css",
+          "sourceBytes": 8288
+        },
+        {
+          "id": "web/src/components/shared/Pagination.css",
+          "sourceBytes": 6220
+        },
+        {
+          "id": "web/src/styles/theme-menu.css",
+          "sourceBytes": 5312
+        },
+        {
+          "id": "web/src/components/shared/DialogFrame.css",
+          "sourceBytes": 5062
+        },
+        {
+          "id": "web/src/styles/toast-feedback.css",
+          "sourceBytes": 4411
+        },
+        {
+          "id": "web/src/styles/account-menu.css",
+          "sourceBytes": 4392
+        },
+        {
+          "id": "web/src/styles/input-fields.css",
+          "sourceBytes": 4145
+        },
+        {
+          "id": "web/src/components/novel-card.module.css",
+          "sourceBytes": 4072
+        },
+        {
+          "id": "web/src/styles/catalog-controls.css",
+          "sourceBytes": 3446
+        },
+        {
+          "id": "web/src/components/ui/button.module.css",
+          "sourceBytes": 2777
+        },
+        {
+          "id": "web/src/styles/page-state.css",
+          "sourceBytes": 2493
+        },
+        {
+          "id": "web/src/styles/dropdown-menu.css",
+          "sourceBytes": 2330
+        },
+        {
+          "id": "web/src/styles/adult-unlock-dialog.css",
+          "sourceBytes": 1928
+        },
+        {
+          "id": "web/src/styles/state-motion.css",
+          "sourceBytes": 1868
+        },
+        {
+          "id": "web/src/styles/novel-indicators.css",
+          "sourceBytes": 1794
+        },
+        {
+          "id": "web/src/styles/content-policy.css",
+          "sourceBytes": 1704
+        },
+        {
+          "id": "web/src/components/shared/AsyncStates.module.css",
+          "sourceBytes": 1372
+        },
+        {
+          "id": "web/src/styles/identity.css",
+          "sourceBytes": 1184
+        },
+        {
+          "id": "web/src/styles/route-loading.css",
+          "sourceBytes": 1042
+        },
+        {
+          "id": "web/src/components/shared/ConfirmationDialog.module.css",
+          "sourceBytes": 1038
+        },
+        {
+          "id": "web/src/components/ui/control-appearance.module.css",
+          "sourceBytes": 901
+        },
+        {
+          "id": "web/src/components/shared/EmptyState.module.css",
+          "sourceBytes": 884
+        },
+        {
+          "id": "web/src/styles/global.css",
+          "sourceBytes": 863
+        },
+        {
+          "id": "web/src/components/ui/filter-chip.module.css",
+          "sourceBytes": 845
+        },
+        {
+          "id": "web/src/styles/native-form-fields.css",
+          "sourceBytes": 827
+        },
+        {
+          "id": "web/src/components/ui/spinner.module.css",
+          "sourceBytes": 607
+        },
+        {
+          "id": "web/src/styles/site-notice.css",
+          "sourceBytes": 387
+        },
+        {
+          "id": "web/src/components/shared/FormField.module.css",
+          "sourceBytes": 343
+        },
+        {
+          "id": "web/src/styles/site-branding.css",
+          "sourceBytes": 238
+        },
+        {
+          "id": "web/src/styles/loading-indicators.css",
+          "sourceBytes": 172
+        },
+        {
+          "id": "web/src/components/ui/input.module.css",
+          "sourceBytes": 160
+        }
+      ]
+    },
+    "attribution": "Module renderedBytes are before minification; CSS sourceBytes are source sizes. Neither equals transfer bytes."
+  },
+  "books": {
+    "version": "PostgreSQL 18.4 on x86_64-windows, compiled by msvc-19.44.35227, 64-bit",
+    "node": "22.23.4",
+    "locale": "Chinese_China.936",
+    "classification": {
+      "lc_ctype": "Chinese_China.936",
+      "chinese_trigrams": [
+        "0x82bc73",
+        "0xcea44c",
+        "0xfb09d3",
+        "0x36c457",
+        "0x6863d6"
+      ]
+    },
+    "synthetic": true,
+    "results": [
+      {
+        "chapters": 1000,
+        "seedMs": 2617.49,
+        "rawPage": {
+          "medianMs": 257.96,
+          "maxMs": 391.87,
+          "runs": 7
+        },
+        "precomputedPage": {
+          "medianMs": 25.4,
+          "maxMs": 39.13,
+          "runs": 7
+        },
+        "actualSearchPage": {
+          "medianMs": 33.05,
+          "maxMs": 42.83,
+          "runs": 7
+        },
+        "legacySearchPage": {
+          "medianMs": 199.25,
+          "maxMs": 219.15,
+          "runs": 7
+        },
+        "coldSearchPage": {
+          "medianMs": 252.18,
+          "maxMs": 267.29,
+          "runs": 3
+        },
+        "actualWholeBook": {
+          "medianMs": 148.03,
+          "maxMs": 175.7,
+          "runs": 3
+        },
+        "legacyWholeBook": {
+          "medianMs": 992.1,
+          "maxMs": 1024.4,
+          "runs": 3
+        },
+        "directory": {
+          "bytes": 120830,
+          "gzipBytes": 8551,
+          "query": {
+            "medianMs": 3.51,
+            "maxMs": 5.77,
+            "runs": 7
+          }
+        }
+      },
+      {
+        "chapters": 5000,
+        "seedMs": 8703.9,
+        "rawPage": {
+          "medianMs": 213.33,
+          "maxMs": 342.87,
+          "runs": 7
+        },
+        "precomputedPage": {
+          "medianMs": 21.49,
+          "maxMs": 35.65,
+          "runs": 7
+        },
+        "actualSearchPage": {
+          "medianMs": 30.45,
+          "maxMs": 40.76,
+          "runs": 7
+        },
+        "legacySearchPage": {
+          "medianMs": 158.75,
+          "maxMs": 186.17,
+          "runs": 7
+        },
+        "coldSearchPage": {
+          "medianMs": 240.66,
+          "maxMs": 283.8,
+          "runs": 3
+        },
+        "actualWholeBook": {
+          "medianMs": 1325.52,
+          "maxMs": 1349.48,
+          "runs": 3
+        },
+        "legacyWholeBook": {
+          "medianMs": 3920.05,
+          "maxMs": 4201.6,
+          "runs": 3
+        },
+        "directory": {
+          "bytes": 612830,
+          "gzipBytes": 43497,
+          "query": {
+            "medianMs": 8.71,
+            "maxMs": 10.06,
+            "runs": 7
+          }
+        }
+      },
+      {
+        "chapters": 10000,
+        "seedMs": 10568.42,
+        "rawPage": {
+          "medianMs": 140.05,
+          "maxMs": 236.36,
+          "runs": 7
+        },
+        "precomputedPage": {
+          "medianMs": 19.01,
+          "maxMs": 27.3,
+          "runs": 7
+        },
+        "actualSearchPage": {
+          "medianMs": 32.48,
+          "maxMs": 48.89,
+          "runs": 7
+        },
+        "legacySearchPage": {
+          "medianMs": 172.33,
+          "maxMs": 251.45,
+          "runs": 7
+        },
+        "coldSearchPage": {
+          "medianMs": 253.27,
+          "maxMs": 281.35,
+          "runs": 3
+        },
+        "actualWholeBook": {
+          "medianMs": 1108.11,
+          "maxMs": 1314.86,
+          "runs": 3
+        },
+        "legacyWholeBook": {
+          "medianMs": 6912.35,
+          "maxMs": 7491.19,
+          "runs": 3
+        },
+        "directory": {
+          "bytes": 1227833,
+          "gzipBytes": 85917,
+          "query": {
+            "medianMs": 17.28,
+            "maxMs": 26.11,
+            "runs": 7
+          }
+        }
+      }
+    ],
+    "cacheBytes": 125542400,
+    "index": {
+      "buildMs": 23923.54,
+      "bytes": 46522368,
+      "total_bytes": 256409600,
+      "queries": [
+        {
+          "query": "青铜古城",
+          "medianMs": 0.47,
+          "maxMs": 0.54,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 42.55,
+                "Total Cost": 42.56,
+                "Plan Rows": 1,
+                "Plan Width": 19,
+                "Actual Startup Time": 0.154,
+                "Actual Total Time": 0.154,
+                "Actual Rows": 10,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 25,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 57,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 38.53,
+                    "Total Cost": 42.54,
+                    "Plan Rows": 1,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 0.045,
+                    "Actual Total Time": 0.15,
+                    "Actual Rows": 10,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Recheck Cond": "(search_text ~~ '%青铜古城%'::text)",
+                    "Rows Removed by Index Recheck": 0,
+                    "Filter": "(novel_id = 'book'::text)",
+                    "Rows Removed by Filter": 0,
+                    "Exact Heap Blocks": 10,
+                    "Lossy Heap Blocks": 0,
+                    "Shared Hit Blocks": 57,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Index Name": "chapters_search_trgm",
+                        "Startup Cost": 0,
+                        "Total Cost": 38.53,
+                        "Plan Rows": 1,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 0.009,
+                        "Actual Total Time": 0.009,
+                        "Actual Rows": 10,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Index Cond": "(search_text ~~ '%青铜古城%'::text)",
+                        "Index Searches": 1,
+                        "Shared Hit Blocks": 7,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 1,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.059,
+              "Triggers": [],
+              "Execution Time": 0.165
+            }
+          ]
+        },
+        {
+          "query": "海风",
+          "medianMs": 508.13,
+          "maxMs": 661.49,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 314.02,
+                "Total Cost": 314.03,
+                "Plan Rows": 3,
+                "Plan Width": 19,
+                "Actual Startup Time": 450.516,
+                "Actual Total Time": 450.525,
+                "Actual Rows": 322,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 37,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 20023,
+                "Shared Read Blocks": 20141,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 0,
+                    "Total Cost": 314,
+                    "Plan Rows": 3,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 1.411,
+                    "Actual Total Time": 450.156,
+                    "Actual Rows": 322,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Filter": "((search_text ~~ '%海风%'::text) AND (novel_id = 'book'::text))",
+                    "Rows Removed by Filter": 9678,
+                    "Shared Hit Blocks": 20023,
+                    "Shared Read Blocks": 20141,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.125,
+              "Triggers": [],
+              "Execution Time": 450.551
+            }
+          ]
+        },
+        {
+          "query": "猫",
+          "medianMs": 460.64,
+          "maxMs": 499.66,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 331.29,
+                "Total Cost": 332.29,
+                "Plan Rows": 400,
+                "Plan Width": 19,
+                "Actual Startup Time": 430.144,
+                "Actual Total Time": 430.147,
+                "Actual Rows": 99,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 28,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 20036,
+                "Shared Read Blocks": 20128,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 0,
+                    "Total Cost": 314,
+                    "Plan Rows": 400,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 4.184,
+                    "Actual Total Time": 430.013,
+                    "Actual Rows": 99,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Filter": "((search_text ~~ '%猫%'::text) AND (novel_id = 'book'::text))",
+                    "Rows Removed by Filter": 9901,
+                    "Shared Hit Blocks": 20036,
+                    "Shared Read Blocks": 20128,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.12,
+              "Triggers": [],
+              "Execution Time": 430.164
+            }
+          ]
+        },
+        {
+          "query": "%_",
+          "medianMs": 448.51,
+          "maxMs": 454.15,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 423.66,
+                "Total Cost": 428.66,
+                "Plan Rows": 2000,
+                "Plan Width": 19,
+                "Actual Startup Time": 436.274,
+                "Actual Total Time": 436.548,
+                "Actual Rows": 10000,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 775,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 20031,
+                "Shared Read Blocks": 20133,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 0,
+                    "Total Cost": 314,
+                    "Plan Rows": 2000,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 0.211,
+                    "Actual Total Time": 432.768,
+                    "Actual Rows": 10000,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Filter": "((search_text ~~ '%\\%\\_%'::text) AND (novel_id = 'book'::text))",
+                    "Rows Removed by Filter": 0,
+                    "Shared Hit Blocks": 20031,
+                    "Shared Read Blocks": 20133,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.13,
+              "Triggers": [],
+              "Execution Time": 437.133
+            }
+          ]
+        },
+        {
+          "query": "无此词语",
+          "medianMs": 0.35,
+          "maxMs": 0.37,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 42.55,
+                "Total Cost": 42.56,
+                "Plan Rows": 1,
+                "Plan Width": 19,
+                "Actual Startup Time": 0.014,
+                "Actual Total Time": 0.014,
+                "Actual Rows": 0,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 25,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 7,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 38.53,
+                    "Total Cost": 42.54,
+                    "Plan Rows": 1,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 0.012,
+                    "Actual Total Time": 0.012,
+                    "Actual Rows": 0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Recheck Cond": "(search_text ~~ '%无此词语%'::text)",
+                    "Rows Removed by Index Recheck": 0,
+                    "Filter": "(novel_id = 'book'::text)",
+                    "Rows Removed by Filter": 0,
+                    "Exact Heap Blocks": 0,
+                    "Lossy Heap Blocks": 0,
+                    "Shared Hit Blocks": 7,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Index Name": "chapters_search_trgm",
+                        "Startup Cost": 0,
+                        "Total Cost": 38.53,
+                        "Plan Rows": 1,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 0.006,
+                        "Actual Total Time": 0.006,
+                        "Actual Rows": 0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Index Cond": "(search_text ~~ '%无此词语%'::text)",
+                        "Index Searches": 1,
+                        "Shared Hit Blocks": 7,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 1,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.058,
+              "Triggers": [],
+              "Execution Time": 0.024
+            }
+          ]
+        }
+      ]
+    },
+    "chineseIndex": {
+      "buildMs": 22535.88,
+      "bytes": 46522368,
+      "queries": [
+        {
+          "query": "青铜古城",
+          "medianMs": 0.71,
+          "maxMs": 0.83,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 42.55,
+                "Total Cost": 42.56,
+                "Plan Rows": 1,
+                "Plan Width": 19,
+                "Actual Startup Time": 0.173,
+                "Actual Total Time": 0.174,
+                "Actual Rows": 10,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 25,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 57,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 38.53,
+                    "Total Cost": 42.54,
+                    "Plan Rows": 1,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 0.046,
+                    "Actual Total Time": 0.168,
+                    "Actual Rows": 10,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Recheck Cond": "((search_text)::text ~~ '%青铜古城%'::text)",
+                    "Rows Removed by Index Recheck": 0,
+                    "Filter": "(novel_id = 'book'::text)",
+                    "Rows Removed by Filter": 0,
+                    "Exact Heap Blocks": 10,
+                    "Lossy Heap Blocks": 0,
+                    "Shared Hit Blocks": 57,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Index Name": "chapters_search_zh",
+                        "Startup Cost": 0,
+                        "Total Cost": 38.53,
+                        "Plan Rows": 1,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 0.013,
+                        "Actual Total Time": 0.013,
+                        "Actual Rows": 10,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Index Cond": "((search_text)::text ~~ '%青铜古城%'::text)",
+                        "Index Searches": 1,
+                        "Shared Hit Blocks": 7,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 1,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.087,
+              "Triggers": [],
+              "Execution Time": 0.188
+            }
+          ]
+        },
+        {
+          "query": "海风",
+          "medianMs": 478.26,
+          "maxMs": 732.53,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 314.02,
+                "Total Cost": 314.03,
+                "Plan Rows": 3,
+                "Plan Width": 19,
+                "Actual Startup Time": 449.52,
+                "Actual Total Time": 449.531,
+                "Actual Rows": 322,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 37,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 20045,
+                "Shared Read Blocks": 20119,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 0,
+                    "Total Cost": 314,
+                    "Plan Rows": 3,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 1.486,
+                    "Actual Total Time": 449.244,
+                    "Actual Rows": 322,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Filter": "(((search_text)::text ~~ '%海风%'::text) AND (novel_id = 'book'::text))",
+                    "Rows Removed by Filter": 9678,
+                    "Shared Hit Blocks": 20045,
+                    "Shared Read Blocks": 20119,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.197,
+              "Triggers": [],
+              "Execution Time": 449.557
+            }
+          ]
+        },
+        {
+          "query": "猫",
+          "medianMs": 446.05,
+          "maxMs": 452.59,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 331.29,
+                "Total Cost": 332.29,
+                "Plan Rows": 400,
+                "Plan Width": 19,
+                "Actual Startup Time": 476.17,
+                "Actual Total Time": 476.176,
+                "Actual Rows": 99,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 28,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 20008,
+                "Shared Read Blocks": 20156,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 0,
+                    "Total Cost": 314,
+                    "Plan Rows": 400,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 4.459,
+                    "Actual Total Time": 475.962,
+                    "Actual Rows": 99,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Filter": "(((search_text)::text ~~ '%猫%'::text) AND (novel_id = 'book'::text))",
+                    "Rows Removed by Filter": 9901,
+                    "Shared Hit Blocks": 20008,
+                    "Shared Read Blocks": 20156,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.126,
+              "Triggers": [],
+              "Execution Time": 476.211
+            }
+          ]
+        },
+        {
+          "query": "%_",
+          "medianMs": 529.95,
+          "maxMs": 593.08,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 423.66,
+                "Total Cost": 428.66,
+                "Plan Rows": 2000,
+                "Plan Width": 19,
+                "Actual Startup Time": 456.359,
+                "Actual Total Time": 456.645,
+                "Actual Rows": 10000,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 775,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 20028,
+                "Shared Read Blocks": 20136,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 0,
+                    "Total Cost": 314,
+                    "Plan Rows": 2000,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 0.184,
+                    "Actual Total Time": 452.561,
+                    "Actual Rows": 10000,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Filter": "(((search_text)::text ~~ '%\\%\\_%'::text) AND (novel_id = 'book'::text))",
+                    "Rows Removed by Filter": 0,
+                    "Shared Hit Blocks": 20028,
+                    "Shared Read Blocks": 20136,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.183,
+              "Triggers": [],
+              "Execution Time": 457.223
+            }
+          ]
+        },
+        {
+          "query": "无此词语",
+          "medianMs": 0.44,
+          "maxMs": 0.71,
+          "runs": 7,
+          "plan": [
+            {
+              "Plan": {
+                "Node Type": "Sort",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 42.55,
+                "Total Cost": 42.56,
+                "Plan Rows": 1,
+                "Plan Width": 19,
+                "Actual Startup Time": 0.031,
+                "Actual Total Time": 0.032,
+                "Actual Rows": 0,
+                "Actual Loops": 1,
+                "Disabled": false,
+                "Sort Key": [
+                  "sort_order",
+                  "id"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 25,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 7,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "chapters",
+                    "Alias": "chapters",
+                    "Startup Cost": 38.53,
+                    "Total Cost": 42.54,
+                    "Plan Rows": 1,
+                    "Plan Width": 19,
+                    "Actual Startup Time": 0.027,
+                    "Actual Total Time": 0.027,
+                    "Actual Rows": 0,
+                    "Actual Loops": 1,
+                    "Disabled": false,
+                    "Recheck Cond": "((search_text)::text ~~ '%无此词语%'::text)",
+                    "Rows Removed by Index Recheck": 0,
+                    "Filter": "(novel_id = 'book'::text)",
+                    "Rows Removed by Filter": 0,
+                    "Exact Heap Blocks": 0,
+                    "Lossy Heap Blocks": 0,
+                    "Shared Hit Blocks": 7,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Index Name": "chapters_search_zh",
+                        "Startup Cost": 0,
+                        "Total Cost": 38.53,
+                        "Plan Rows": 1,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 0.018,
+                        "Actual Total Time": 0.018,
+                        "Actual Rows": 0,
+                        "Actual Loops": 1,
+                        "Disabled": false,
+                        "Index Cond": "((search_text)::text ~~ '%无此词语%'::text)",
+                        "Index Searches": 1,
+                        "Shared Hit Blocks": 7,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 1,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.151,
+              "Triggers": [],
+              "Execution Time": 0.055
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "independentTaskProcesses": {
+    "postgres": "PostgreSQL 18.4 on x86_64-windows, compiled by msvc-19.44.35227, 64-bit",
+    "checks": [
+      "live lease preserved by another process",
+      "two processes claim expired task exactly once",
+      "old callback rejected",
+      "old heartbeat rejected",
+      "retired process cannot reacquire",
+      "fresh process can recover"
+    ],
+    "passed": 6
+  },
+  "validation": {
+    "apiTestsPassed": 204,
+    "webTestsPassed": 53,
+    "backupImpactIntegrationTestsIncludedInApi": 7,
+    "independentProcessChecks": 6,
+    "migrationsAppliedToFreshIntegrationDatabases": 76,
+    "typecheck": "API and Web passed",
+    "componentBoundaries": "108 components, 278 modules passed",
+    "lint": "Changed source files passed eslint --quiet",
+    "builds": "Web Vite and API tsup passed on Node 22.23.4",
+    "mobilePerformance": "not measured; Chrome DevTools MCP unavailable",
+    "releaseAtMeasurement": "not committed, pushed, packaged for Linux, or deployed"
+  }
+}
