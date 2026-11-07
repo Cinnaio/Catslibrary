@@ -8,9 +8,11 @@ import type { Db } from '../db/pool'
 import { newId } from './auth'
 import { readRuntimeConfig, writeRuntimeConfig } from '../runtime-config'
 import { cleanHtml, cleanText } from './scraper/parse'
-import { decodeBytes, FETCH_HEADERS } from './scraper/fetch'
-import { parsePo18twChapterContent, parsePo18twChapterLinks, po18ChapterContentUrl, po18ChapterListUrl, po18ResponseProblem } from './scraper/enrich'
+import { decodeBytes, FETCH_HEADERS, fetchHtml } from './scraper/fetch'
+import { isPo18twLoginPage, parsePo18twChapterContent, parsePo18twChapterLinks, po18ChapterContentUrl, po18ChapterListUrl, po18ResponseProblem } from './scraper/enrich'
 import { outboundFetch } from './outbound-fetch'
+import { assertPo18SessionResponse, cookieIsDeleted, isPo18AuthUrl, Po18SessionExpiredError, PO18_SESSION_REQUIRED } from './po18-session-policy'
+import { resumePo18Followups } from './po18-followups'
 
 const PO18_SITE = 'po18tw'
 const PO18_LOGIN_URL = 'https://members.po18.tw/apps/login.php'
@@ -93,7 +95,6 @@ interface Po18HttpResponse {
 }
 
 const challenges = new Map<string, LoginChallenge>()
-let cachedSession: { accountId: string; cookie: string; checkedAt: number } | null = null
 
 function encryptionKey(): Buffer {
   let raw = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY?.trim() || readRuntimeConfig().SOURCE_ACCOUNT_ENCRYPTION_KEY || ''
@@ -182,6 +183,7 @@ export async function savePo18Account(
        session_iv = EXCLUDED.session_iv,
        session_tag = EXCLUDED.session_tag,
        status = EXCLUDED.status,
+       last_login_at = EXCLUDED.last_login_at,
        last_error = '',
        updated_at = EXCLUDED.updated_at`,
     [
@@ -200,13 +202,12 @@ export async function savePo18Account(
       existing?.created_at || now,
     ],
   )
-  cachedSession = sessionCookie ? { accountId: id, cookie: sessionCookie, checkedAt: now } : null
+  if (sessionCookie) await resumePo18Followups(db)
   return statusFromRow(await loadAccount(db))
 }
 
 export async function clearPo18Account(db: Db): Promise<void> {
   await db.query('DELETE FROM source_accounts WHERE site = $1', [PO18_SITE])
-  cachedSession = null
   challenges.clear()
 }
 
@@ -228,7 +229,7 @@ function cookieParts(headers: Headers): string[] {
   return raw ? raw.split(/,(?=\s*[^;,=\s]+=[^;,]*)/) : []
 }
 
-function mergeCookies(current: string, setCookies: string[]): string {
+export function mergeCookies(current: string, setCookies: string[]): string {
   const jar = new Map<string, string>()
   for (const part of normalizeCookie(current).split(';')) {
     const [name, ...rest] = part.trim().split('=')
@@ -237,7 +238,10 @@ function mergeCookies(current: string, setCookies: string[]): string {
   for (const cookie of setCookies) {
     const pair = cookie.split(';', 1)[0]?.trim() || ''
     const [name, ...rest] = pair.split('=')
-    if (name && rest.length) jar.set(name, `${name}=${rest.join('=')}`)
+    if (name && rest.length) {
+      if (cookieIsDeleted(cookie)) jar.delete(name)
+      else jar.set(name, `${name}=${rest.join('=')}`)
+    }
   }
   return [...jar.values()].join('; ')
 }
@@ -434,24 +438,47 @@ export async function loginPo18Account(db: Db, input: { challengeId: string; cap
       status = 'authenticated', last_login_at = $4, last_checked_at = $4, last_error = '', updated_at = $4 WHERE id = $5`,
     [encrypted.ciphertext, encrypted.iv, encrypted.tag, now, account.id],
   )
-  cachedSession = { accountId: account.id, cookie: response.cookie, checkedAt: now }
+  await resumePo18Followups(db)
   return { ...statusFromRow(await loadAccount(db)), message: 'PO18 登录成功' }
 }
 
-export async function getPo18Session(db: Db): Promise<{ accountId: string; cookie: string }> {
+export interface Po18Session {
+  accountId: string
+  cookie: string
+  /** 只供失效操作比较当前会话，绝不返回给客户端或写入日志。 */
+  sessionCiphertext: string
+}
+
+export async function getPo18Session(db: Db): Promise<Po18Session> {
   const account = await loadAccount(db)
-  if (!account) throw new Error('尚未配置 PO18.tw 账号，请先在抓取中心完成登录')
-  if (cachedSession?.accountId === account.id && cachedSession.cookie) return { accountId: account.id, cookie: cachedSession.cookie }
+  if (!account || account.status === 'invalid' || !account.session_ciphertext) throw new Po18SessionExpiredError()
+  const session = { accountId: account.id, sessionCiphertext: account.session_ciphertext, cookie: '' }
   try {
     const cookie = decrypt({ ciphertext: account.session_ciphertext, iv: account.session_iv, tag: account.session_tag })
-    if (cookie) {
-      cachedSession = { accountId: account.id, cookie, checkedAt: Date.now() }
-      return { accountId: account.id, cookie }
-    }
+    if (cookie) return { ...session, cookie }
   } catch {
-    throw new Error('PO18.tw 会话无法解密，请重新登录或粘贴 Cookie')
+    // 解密失败也不能反复启动追更任务；只失效本次读取到的会话。
   }
-  throw new Error('PO18.tw 尚未配置有效登录会话，请先登录或粘贴 Cookie')
+  await invalidatePo18Session(db, session)
+  throw new Po18SessionExpiredError()
+}
+
+export function po18SessionResponseGuard(db: Db, session: Po18Session) {
+  return async (response: Response, url: string): Promise<void> => {
+    try {
+      assertPo18SessionResponse(response, url, session.cookie)
+    } catch (error) {
+      if (error instanceof Po18SessionExpiredError) await invalidatePo18Session(db, session)
+      throw error
+    }
+  }
+}
+
+export async function assertPo18SessionPage(db: Db, session: Po18Session, url: string, html: string): Promise<void> {
+  if (isPo18AuthUrl(url) || isPo18twLoginPage(html)) {
+    await invalidatePo18Session(db, session)
+    throw new Po18SessionExpiredError()
+  }
 }
 
 export async function testPo18Account(db: Db, sourceUrl?: string): Promise<Po18LoginResponse> {
@@ -461,26 +488,34 @@ export async function testPo18Account(db: Db, sourceUrl?: string): Promise<Po18L
   const isContentTarget = Boolean(requestedUrl && /\/books\/\d+\/articlescontent\/\d+\/?$/i.test(requestedUrl.pathname))
   const target = requestedUrl ? (isContentTarget ? requestedUrl.href : po18ChapterListUrl(requestedUrl.href)) : 'https://www.po18.tw/'
   const requestCookie = ['po18Limit=1', session.cookie].filter(Boolean).join('; ')
-  const response = await po18Request(target, { headers: { Cookie: requestCookie } }, requestCookie, PO18_SOURCE_HOSTS)
-  const html = decodeHtml(response)
+  const requestPage = async (url: string, headers: Record<string, string> = {}) => {
+    const page = await fetchHtml(url, {
+      headers: { ...headers, Cookie: requestCookie }, scope: 'source-auth', allowedRedirectHosts: PO18_SOURCE_HOSTS,
+      onResponse: po18SessionResponseGuard(db, session),
+    })
+    await assertPo18SessionPage(db, session, page.finalUrl || url, page.html)
+    return page
+  }
+  const response = await requestPage(target)
+  const html = response.html
   const targetPath = new URL(target).pathname.replace(/\/$/, '')
   const responsePath = (() => {
     try {
-      return new URL(response.url).pathname.replace(/\/$/, '')
+      return new URL(response.finalUrl || target).pathname.replace(/\/$/, '')
     } catch {
       return ''
     }
   })()
-  const detectedProblem = po18ResponseProblem(response.url, html)
+  const detectedProblem = po18ResponseProblem(response.finalUrl, html)
   const problem = detectedProblem && !(targetPath === '' && responsePath === '' && detectedProblem.includes('首页')) ? detectedProblem : null
   const fail = async (message: string): Promise<never> => {
     const status: AccountStatus = message.includes('登录页') ? 'invalid' : 'error'
-    if (status === 'invalid') cachedSession = null
-    await db.query('UPDATE source_accounts SET status = $1, last_checked_at = $2, last_error = $3, updated_at = $2 WHERE id = $4', [
+    await db.query('UPDATE source_accounts SET status = $1, last_checked_at = $2, last_error = $3, updated_at = $2 WHERE id = $4 AND session_ciphertext=$5', [
       status,
       Date.now(),
       message,
       session.accountId,
+      session.sessionCiphertext,
     ])
     throw new Error(message)
   }
@@ -496,14 +531,9 @@ export async function testPo18Account(db: Db, sourceUrl?: string): Promise<Po18L
       if (!firstLink) return fail('POPO 目录可访问，但没有可验证的免费章节；请粘贴一个明确可阅读的章节链接')
       contentTitle = firstLink.text
       const contentUrl = po18ChapterContentUrl(firstLink.href)
-      const contentResponse = await po18Request(
-        contentUrl,
-        { headers: { Cookie: requestCookie, Referer: firstLink.href, 'X-Requested-With': 'XMLHttpRequest' } },
-        requestCookie,
-        PO18_SOURCE_HOSTS,
-      )
-      contentHtml = decodeHtml(contentResponse)
-      const contentProblem = po18ResponseProblem(contentResponse.url, contentHtml)
+      const contentResponse = await requestPage(contentUrl, { Referer: firstLink.href, 'X-Requested-With': 'XMLHttpRequest' })
+      contentHtml = contentResponse.html
+      const contentProblem = po18ResponseProblem(contentResponse.finalUrl, contentHtml)
       if (contentProblem) return fail(contentProblem)
     }
     const parsed = parsePo18twChapterContent(contentHtml, contentTitle)
@@ -521,10 +551,11 @@ export async function testPo18Account(db: Db, sourceUrl?: string): Promise<Po18L
       )
     }
   }
-  await db.query("UPDATE source_accounts SET status = $1, last_checked_at = $2, last_error = '', updated_at = $2 WHERE id = $3", [
+  await db.query("UPDATE source_accounts SET status = $1, last_checked_at = $2, last_error = '', updated_at = $2 WHERE id = $3 AND session_ciphertext=$4", [
     'authenticated',
     Date.now(),
     session.accountId,
+    session.sessionCiphertext,
   ])
   return {
     ...statusFromRow(await loadAccount(db)),
@@ -532,11 +563,11 @@ export async function testPo18Account(db: Db, sourceUrl?: string): Promise<Po18L
   }
 }
 
-export async function invalidatePo18Session(db: Db, error = 'PO18 会话已失效'): Promise<void> {
-  cachedSession = null
+export async function invalidatePo18Session(db: Db, session: Po18Session): Promise<void> {
   await db.query(
-    "UPDATE source_accounts SET session_ciphertext = '', session_iv = '', session_tag = '', status = $1, last_error = $2, updated_at = $3 WHERE site = $4",
-    ['invalid', error, Date.now(), PO18_SITE],
+    `UPDATE source_accounts SET session_ciphertext='',session_iv='',session_tag='',status='invalid',
+      last_error=$1,last_checked_at=$2,updated_at=$2 WHERE site=$3 AND id=$4 AND session_ciphertext=$5`,
+    [PO18_SESSION_REQUIRED, Date.now(), PO18_SITE, session.accountId, session.sessionCiphertext],
   )
 }
 

@@ -11,6 +11,7 @@ describe('PO18.tw source account helpers', () => {
   it('合并重定向过程中返回的 Set-Cookie，并以最新值覆盖旧值', () => {
     const { mergeCookies } = sourceAccountTestHelpers
     expect(mergeCookies('sid=old; keep=yes', ['sid=new; Path=/', 'fresh=value; HttpOnly'])).toBe('sid=new; keep=yes; fresh=value')
+    expect(mergeCookies('sid=old; keep=yes', ['sid=deleted; Max-Age=0; Path=/'])).toBe('keep=yes')
   })
 
   it('识别带隐藏字段和验证码的登录表单', () => {

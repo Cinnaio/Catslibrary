@@ -3,6 +3,7 @@
  * 纯 fetch + TextDecoder；支持 Docker 环境代理与后台开发代理。
  */
 import { describeError, outboundFetch, resolveOutboundProxy, shouldBypassProxy, type OutboundProxyConfig } from '../outbound-fetch'
+import type { SafeFetchOptions } from '../safe-fetch'
 
 export { shouldBypassProxy }
 
@@ -61,6 +62,7 @@ export interface FetchHtmlOptions extends OutboundProxyConfig {
   headers?: Headers | Record<string, string> | Array<[string, string]>
   /** 仅在携带站点 Cookie 时使用，限制安全抓取的重定向目标。 */
   allowedRedirectHosts?: string[]
+  onResponse?: SafeFetchOptions['onResponse']
 }
 
 export interface FetchResult {
@@ -104,6 +106,7 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
 
   let res: Response
   let bytes: Uint8Array
+  let responseError: unknown
   try {
     const headers = new Headers(FETCH_HEADERS)
     if (opts.headers) {
@@ -116,6 +119,9 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
       scope: opts.scope || 'scrape',
       safe: true,
       allowedRedirectHosts: opts.allowedRedirectHosts,
+      onResponse: opts.onResponse ? async (response, currentUrl) => {
+        try { await opts.onResponse!(response, currentUrl) } catch (error) { responseError = error; throw error }
+      } : undefined,
       forceProxy: opts.forceProxy,
       proxyConfig: proxyOverrides(opts),
     })
@@ -125,6 +131,7 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
     }
     bytes = await readHtmlBytes(res, controller.signal)
   } catch (err) {
+    if (responseError && err === responseError) throw err
     if (controller.signal.aborted || (err as Error).name === 'AbortError') throw new Error(`请求超时 (${Math.round(timeoutMs / 1000)}s): ${url}`)
     if (proxyUrl) throw new Error(`代理请求失败: ${describeError(err)}`)
     throw err

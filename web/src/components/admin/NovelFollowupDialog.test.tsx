@@ -15,6 +15,13 @@ vi.mock("@/components/shared/SearchSelect", () => ({
   ),
 }))
 const state = { enabled: false, intervalHours: 6, nextCheckAt: 0, checkedAt: 0, result: 'idle', message: '', addedCount: 0, hasConfig: true, ongoing: true }
+
+it('会话失效保留追更开关并明确等待重新登录', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...state, enabled: true, result: 'failed', blockedReason: '请重新登录 PO18', message: '请重新登录 PO18' }) }))
+  render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
+  expect(await screen.findByText('等待重新登录 PO18')).toBeVisible()
+  expect(screen.getByRole('checkbox', { name: '自动追更' })).toBeChecked()
+})
 afterEach(() => vi.unstubAllGlobals())
 it('保存自动追更开关及频率，并展示保存结果', async () => {
   const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => state })

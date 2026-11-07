@@ -48,6 +48,7 @@ import { readRuntimeConfig, syncRuntimeConfigToEnv, writeRuntimeConfig } from '.
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
 import { makeDeps, withPo18Session, fireJob } from '../services/scraper/runtime'
+import { guardPo18SessionFetch } from '../services/po18-fetch'
 import { getFollowup, saveFollowup, enqueueFollowup, bindFollowupSource } from '../services/novel-followup'
 
 export const scrapeRoutes = new Hono<AuthEnv>()
@@ -744,8 +745,9 @@ scrapeRoutes.post('/', async (c) => {
       if (!query) return c.json({ error: 'query required' }, 400)
       try {
         const account = await getPo18AccountStatus(db)
-        const sessionCookie = account.hasSession ? (await getPo18Session(db)).cookie : ''
-        return c.json(await searchPo18tw(String(query), String(searchType || 'book'), Number(page) || 1, db, sessionCookie))
+        const session = account.hasSession ? await getPo18Session(db) : null
+        return c.json(await searchPo18tw(String(query), String(searchType || 'book'), Number(page) || 1, db, session?.cookie || '',
+          session ? guardPo18SessionFetch(db, session, deps.fetchHtml) : deps.fetchHtml))
       } catch (err) {
         return c.json({ error: `POPO 搜索失败: ${(err as Error).message}` }, 502)
       }
@@ -754,8 +756,11 @@ scrapeRoutes.post('/', async (c) => {
       const { title, author } = body
       if (!title && !author) return c.json({ error: 'title or author required' }, 400)
       const po18Account = await getPo18AccountStatus(db)
-      const po18SessionCookie = po18Account.hasSession ? (await getPo18Session(db)).cookie : ''
-      return c.json(await searchTitleSources(String(title || '').trim(), String(author || '').trim(), { po18SessionCookie }))
+      const po18Session = po18Account.hasSession ? await getPo18Session(db) : null
+      return c.json(await searchTitleSources(String(title || '').trim(), String(author || '').trim(), {
+        po18SessionCookie: po18Session?.cookie || '',
+        po18FetchHtml: po18Session ? guardPo18SessionFetch(db, po18Session, deps.fetchHtml) : deps.fetchHtml,
+      }))
     }
     case 'jjwxc-titles': {
       const { sourceUrl } = body

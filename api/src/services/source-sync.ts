@@ -9,7 +9,7 @@ import { detectMeta } from './scraper/meta'
 import { extractJjwxcTitles, extractPo18twTitles } from './scraper/enrich'
 import type { FetchHtmlOptions, FetchResult } from './scraper/fetch'
 import type { ScrapeStore } from './scraper/store'
-import { getPo18Session } from './source-account'
+import { withPo18Session } from './po18-fetch'
 import { applyContentRatingChange, CONTENT_RATING_RULE_VERSION } from './content-rating-governance'
 import { evaluateContentRatingRules, loadContentRatingRuleSet } from './content-rating-rules'
 import { toContentRating } from '../db/mappers'
@@ -1215,15 +1215,7 @@ export async function createSourceSyncPreview(
   if (site === 'unsupported') throw new Error('目前支持的原作者源站为晋江和 PO18.tw')
   const binding = await ensureBinding(db, opts.novelId, url.href, site)
   const warnings: string[] = []
-  let sourceFetchHtml = opts.fetchHtml
-  if (site === 'po18tw') {
-    const session = await getPo18Session(db)
-    sourceFetchHtml = (targetUrl, fetchOpts = {}) => {
-      const headers = new Headers(fetchOpts.headers)
-      headers.set('Cookie', session.cookie)
-      return opts.fetchHtml(targetUrl, { ...fetchOpts, headers, allowedRedirectHosts: ['po18.tw'] })
-    }
-  }
+  const sourceFetchHtml = site === 'po18tw' ? withPo18Session(db, opts.fetchHtml) : opts.fetchHtml
   const source = await fetchSourceChapters(url.href, sourceFetchHtml)
   const metadataResult = await fetchSourceMetadata(url.href, opts.store, sourceFetchHtml)
   if (metadataResult.warning) warnings.push(metadataResult.warning)

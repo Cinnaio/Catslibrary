@@ -5,6 +5,7 @@ import type { SourceChapterCandidate } from '../novel-update-summary'
  * DB、网络与日志，不再依赖 env / Response / context.waitUntil。
  */
 import { sleep } from './utils'
+import { Po18SessionExpiredError } from '../po18-session-policy'
 import type { FetchHtmlOptions, FetchResult } from './fetch'
 import { cleanHtml, cleanText, cleanTitle, extractContent, extractLinkHref, extractLinks, extractText } from './parse'
 import type { JobData, ScrapeLink, ScrapeStore } from './store'
@@ -522,6 +523,11 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
             break
           } catch (ferr) {
             lastErr = ferr as Error
+            if (ferr instanceof Po18SessionExpiredError) {
+              cancelled = true
+              abortReason = ferr
+              break
+            }
             if (attempt < maxAttempts - 1) {
               const backoff = Math.pow(2, attempt) * 1000
               const errMsg = (ferr as Error).message
@@ -540,6 +546,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
           await store.appendJobLog(jobId, 'error', `Ch${i + 1}: 获取失败`, lastErr.message)
           addDebug(`Ch${i + 1}: 获取失败 (${SCRAPE_MAX_RETRIES}次重试后) - ${lastErr.message}`)
           log(job!, `Ch${i + 1} 获取失败: ${lastErr.message}`, 'warn')
+          if (lastErr instanceof Po18SessionExpiredError) break
           consecutiveFailures++
           if (isCF && consecutiveFailures >= SCRAPE_MAX_CONSECUTIVE_FAILURES) {
             addDebug(`连续 ${SCRAPE_MAX_CONSECUTIVE_FAILURES} 章失败，终止抓取（源站可能已限流或离线）`)
@@ -657,6 +664,11 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     await Promise.all(workers)
 
     await flushBatch()
+    const stoppedBy = abortReason as Error | null
+    if (stoppedBy instanceof Po18SessionExpiredError) {
+      await updateStatus(count > 0 ? 'partial' : 'failed', { chapterCount: count, error: stoppedBy.message, step: stoppedBy.message })
+      return
+    }
     if (abortReason) throw abortReason
 
     if (cancelled) {

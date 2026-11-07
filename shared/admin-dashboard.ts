@@ -8,6 +8,7 @@ export interface DashboardFollowupBook {
   result: string
   message: string
   addedCount: number
+  blockedReason?: string
 }
 
 export interface DashboardFollowups {

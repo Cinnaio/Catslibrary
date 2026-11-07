@@ -6,9 +6,9 @@ import type { BookImportBoundaryOverride, BookImportDiagnostics, BookImportHisto
 import { getDb } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
-import { fetchHtml as fetchHtmlImpl, type FetchHtmlOptions } from '../services/scraper/fetch'
+import { fetchHtml as fetchHtmlImpl } from '../services/scraper/fetch'
 import { PgScrapeStore } from '../services/scraper/store'
-import { getPo18Session } from '../services/source-account'
+import { withPo18Session } from '../services/po18-fetch'
 import {
   applyImport,
   createPreview,
@@ -54,26 +54,6 @@ function safeJsonParse<T>(value: unknown, fallback: T): T {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? Array.from(new Set(value.map((item) => String(item || '').trim()).filter(Boolean))) : []
-}
-
-function isPo18twUrl(sourceUrl: string): boolean {
-  try {
-    const hostname = new URL(sourceUrl).hostname.toLowerCase()
-    return hostname === 'po18.tw' || hostname.endsWith('.po18.tw')
-  } catch {
-    return false
-  }
-}
-
-function withPo18Session(db: ReturnType<typeof getDb>, baseFetchHtml: typeof fetchHtmlImpl) {
-  return async (url: string, opts: FetchHtmlOptions = {}) => {
-    if (!isPo18twUrl(url)) return baseFetchHtml(url, opts)
-    const session = await getPo18Session(db)
-    const headers = new Headers(opts.headers)
-    const cookie = [headers.get('Cookie'), 'po18Limit=1', session.cookie].filter(Boolean).join('; ')
-    if (cookie) headers.set('Cookie', cookie)
-    return baseFetchHtml(url, { ...opts, headers, scope: opts.scope || 'source-auth', allowedRedirectHosts: ['po18.tw'] })
-  }
 }
 
 async function loadRun(db: ReturnType<typeof getDb>, runId: string, actorUserId: string): Promise<BookImportRunRow | null> {

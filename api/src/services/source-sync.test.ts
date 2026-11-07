@@ -12,7 +12,8 @@ import {
 } from './source-sync'
 
 // 目录 HTML 使用夹具，账号会话也显式提供夹具，避免依赖部署账号。
-vi.mock('./source-account', () => ({
+vi.mock('./source-account', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./source-account')>(),
   getPo18Session: vi.fn().mockResolvedValue({ accountId: 'fixture-account', cookie: 'fixture-session=1' }),
 }))
 

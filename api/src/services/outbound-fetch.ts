@@ -1,7 +1,7 @@
 import { ProxyAgent } from 'undici'
 import { connect } from 'node:net'
 import { loadConfig } from '../config'
-import { safeFetch, type FetchImplementation } from './safe-fetch'
+import { safeFetch, type FetchImplementation, type SafeFetchOptions } from './safe-fetch'
 
 export type ProxySource = 'environment' | 'runtime' | 'none'
 
@@ -20,6 +20,7 @@ export interface OutboundFetchOptions {
   proxyConfig?: OutboundProxyConfig
   /** 携带站点会话时限制重定向目标，避免 Cookie 被转发到第三方域名。 */
   allowedRedirectHosts?: string[]
+  onResponse?: SafeFetchOptions['onResponse']
 }
 
 export interface OutboundRequestLog {
@@ -276,6 +277,6 @@ async function performFetch(rawUrl: string, init: RequestInit, options: Outbound
 export async function outboundFetch(rawUrl: string, init: RequestInit = {}, options: OutboundFetchOptions = {}): Promise<Response> {
   const fetchImplementation: FetchImplementation = (url, nextInit) => performFetch(url, nextInit, options)
   return options.safe
-    ? safeFetch(rawUrl, init, fetchImplementation, { allowedRedirectHosts: options.allowedRedirectHosts })
+    ? safeFetch(rawUrl, init, fetchImplementation, { allowedRedirectHosts: options.allowedRedirectHosts, onResponse: options.onResponse })
     : performFetch(rawUrl, init, options)
 }

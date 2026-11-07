@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { DashboardFollowupBook } from '@shared/admin-dashboard'
 const mocks = vi.hoisted(() => ({ stats: vi.fn(), status: vi.fn() }))
-vi.mock('@/lib/api', () => ({ url: (p: string) => p, authHeaders: () => ({}), adminApi: { stats: mocks.stats }, scrapeApi: { status: mocks.status } }))
+vi.mock('@/lib/api', () => ({ url: (p: string) => p, authHeaders: () => ({}), authFetch: (value: string, init: RequestInit) => fetch(value, init), adminApi: { stats: mocks.stats }, scrapeApi: { status: mocks.status } }))
 import DashboardTab from './DashboardTab'
 const now = Date.now()
 const book = (title: string, result = 'idle'): DashboardFollowupBook => ({
@@ -62,6 +62,14 @@ it('切换检查安排与最近结果，区分调度时间和新增章节', asyn
   fireEvent.mouseDown(screen.getByRole('tab', { name: '最近结果' }), { button: 0 })
   expect(await screen.findByText('有新章的作品')).toBeVisible()
   expect(screen.getByText(/新增 3 章/)).toBeVisible()
+})
+it('账号会话阻断时显示等待重新登录，不显示等待调度', async () => {
+  const data = fixture()
+  data.followups.issues = [{ ...book('会话失效作品', 'failed'), nextCheckAt: 0, blockedReason: '请重新登录 PO18', message: '请重新登录 PO18' }]
+  mocks.stats.mockResolvedValue(data)
+  show()
+  expect(await screen.findByText('等待重新登录')).toBeVisible()
+  expect(screen.queryByText('等待调度')).not.toBeInTheDocument()
 })
 it('没有异常时默认展示安排，空结果说明状态而非显示故障', async () => {
   const data = fixture()

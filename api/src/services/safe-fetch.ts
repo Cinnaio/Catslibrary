@@ -114,6 +114,8 @@ export type FetchImplementation = (url: string, init: RequestInit) => Promise<Re
 export interface SafeFetchOptions {
   /** 将重定向限制在受信任的站点集合内，适用于携带站点会话 Cookie 的请求。 */
   allowedRedirectHosts?: string[]
+  /** 在读取正文或跟随跳转前检查每一跳响应；抛错时关闭响应流。 */
+  onResponse?: (response: Response, url: string) => void | Promise<void>
 }
 
 function hostAllowed(hostname: string, allowlist: string[]): boolean {
@@ -145,6 +147,12 @@ export async function safeFetch(
   let currentInit = init
   for (let i = 0; i <= MAX_REDIRECTS; i++) {
     const res = await fetchImplementation(current, { ...currentInit, redirect: 'manual' } as RequestInit)
+    try {
+      await options.onResponse?.(res, current)
+    } catch (error) {
+      void res.body?.cancel().catch(() => {})
+      throw error
+    }
     if (res.status < 300 || res.status >= 400) return res
     const location = res.headers.get('Location')
     if (!location) return res
