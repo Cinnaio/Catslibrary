@@ -173,8 +173,7 @@ export default function Bookshelf() {
       replaceAllBookmarks(bookmarkData.bookmarks)
       replaceBookshelf(allFavorites as Favorite[])
       progressData.tombstones.forEach(t => {
-        const h = getRecentHistory(100).find(x => x.novelId === t.novelId)
-        if (h && Number(t.updatedAt || 0) >= h.timestamp) clearHistory(t.novelId)
+        applyProgressState(t.novelId, { progress: null, tombstone: t })
       })
       const visibleIds = new Set(progressData.progress.map(p => p.novelId))
       // 列表成员以云端为准，缓存只补充仍在列表中的阅读位置。

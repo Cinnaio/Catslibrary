@@ -15,7 +15,8 @@ import { requestReauthentication } from './reauthentication'
  * Cookie 会话、公开账号缓存标记、AbortSignal.timeout 超时、
  * 通用 request(method, path, body, useAuth)。
  */
-import { getStorageUser, setStorageUser } from './storage'
+import { getStorageScope, getStorageUser, setStorageUser } from './storage'
+import { acknowledgeProgress } from './progress-outbox'
 import type { ChapterIllustration } from '@shared/chapter-illustrations'
 import type { LegacyReadingData, ReadingDataPreview, ReadingDataResult } from '@shared/reading-data'
 import type { LocalBookmark } from '@shared/types'
@@ -768,8 +769,8 @@ export const progressApi = {
   },
   // Last-chance write：pagehide/visibilitychange 用 keepalive 让请求越过页面销毁。
   // sendBeacon 不能携带 CSRF 自定义头，故用 fetch keepalive。
-  saveOnExit(data: Record<string, unknown>): void {
-    if (!getStorageUser()) return
+  async saveOnExit(data: Record<string, unknown>): Promise<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }> {
+    if (!getStorageUser()) return { success: true, skipped: true, progress: null, tombstone: null }
     const opts: RequestInit = {
       method: 'POST',
       credentials: 'include',
@@ -777,14 +778,21 @@ export const progressApi = {
       body: JSON.stringify(data),
       keepalive: true,
     }
-    try {
-      fetch(url('/progress'), opts).catch(() => {})
-    } catch {
-      /* 忽略卸载期异常 */
-    }
+    const response = await timedFetch(url('/progress'), opts)
+    if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status })
+    return response.json()
   },
-  remove(novelId: string): Promise<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }> {
-    return request('DELETE', `/progress?novelId=${encodeURIComponent(novelId)}&clientUpdatedAt=${encodeURIComponent(Date.now())}`, null, true)
+  async remove(novelId: string): Promise<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }> {
+    const token = getToken(), scope = getStorageScope(), deletedAt = Date.now()
+    const state = await request<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }>(
+      'DELETE', `/progress?novelId=${encodeURIComponent(novelId)}&clientUpdatedAt=${encodeURIComponent(deletedAt)}`, null, true,
+    )
+    if (token === getToken() && scope === getStorageScope() && state.success) {
+      const version = Number(state.tombstone?.updatedAt || state.tombstone?.deletedAt || state.progress?.updatedAt || 0)
+      // 服务端可能校正偏快的设备时钟；已执行的删除仍覆盖本机在删除前排队的位置。
+      acknowledgeProgress(novelId, state.skipped ? version : Math.max(version, deletedAt))
+    }
+    return state
   },
 }
 

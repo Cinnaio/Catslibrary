@@ -4,7 +4,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { ReadingDataPreview, ReadingDataResult } from '@shared/reading-data'
 import { readingDataApi, getToken } from '../lib/api'
 import { readLegacyReadingData } from '../lib/legacy-reading-data'
-import { clearHistory, getStorageScope, getStorageUser } from '../lib/storage'
+import { clearHistory, getNovelHistory, getStorageScope, getStorageUser } from '../lib/storage'
+import { acknowledgeProgress } from '../lib/progress-outbox'
 import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useConfirm } from './feedback'
 import { formatDate } from '../lib/format'
@@ -122,6 +123,7 @@ export function ReadingDataPanel({ userId, username }: { userId: string; usernam
       })
       if (!ok || !current()) return
       if (kind === 'restore' && readLegacyReadingData().fingerprint !== legacy.fingerprint) throw new Error('浏览器旧数据已变化，请重新预览')
+      const operationAt = Date.now()
       const result = await readingDataApi.apply(
         kind,
         {
@@ -134,7 +136,11 @@ export function ReadingDataPanel({ userId, username }: { userId: string; usernam
         mode,
       )
       if (!current()) return
-      result.clearedNovelIds.forEach(clearHistory)
+      result.clearedNovelIds.forEach(novelId => {
+        acknowledgeProgress(novelId, operationAt)
+        const local = getNovelHistory(novelId)
+        if (local && local.timestamp <= operationAt) clearHistory(novelId)
+      })
       setHistory((rows) => [result, ...rows].slice(0, 10))
       setRepair(null)
       setRestore(null)

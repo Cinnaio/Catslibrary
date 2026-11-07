@@ -5,6 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { User } from '@shared/types'
 import { authApi, getToken } from '../lib/api'
+import { progressSync } from '../lib/progress-sync'
 
 interface SessionContextValue {
   user: User | null
@@ -21,6 +22,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const revision = useRef(0)
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
+
+  useEffect(() => {
+    if (!loading && user) return progressSync.start()
+  }, [loading, user])
 
   const refresh = useCallback(async () => {
     const seq = ++revision.current

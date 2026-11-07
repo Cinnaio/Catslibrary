@@ -1,5 +1,6 @@
 import type { ReadingHistoryEntry } from '@shared/types'
 import { clearHistory, getNovelHistory, saveHistory } from './storage'
+import { acknowledgeProgress } from './progress-outbox'
 
 export interface ProgressState {
   progress: { novelId?: string; chapterId: string; scrollPercent?: number; updatedAt: number } | null
@@ -10,6 +11,7 @@ export interface ProgressState {
 export function applyProgressState(novelId: string, state: ProgressState, metadata: Partial<ReadingHistoryEntry> = {}): ReadingHistoryEntry | null {
   const local = getNovelHistory(novelId)
   const deletedAt = Number(state.tombstone?.updatedAt || state.tombstone?.deletedAt || 0)
+  acknowledgeProgress(novelId, Math.max(deletedAt, Number(state.progress?.updatedAt || 0)))
   if (deletedAt && (!local || deletedAt >= local.timestamp)) {
     clearHistory(novelId)
     return null

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { ReadingDataPanel } from './ReadingDataPanel'
 import { getNovelHistory, saveHistory, setStorageUser } from '../lib/storage'
+import { enqueueProgress, pendingProgress } from '../lib/progress-outbox'
 const mocks = vi.hoisted(() => ({ check: vi.fn(), preview: vi.fn(), apply: vi.fn(), operations: vi.fn(), confirm: vi.fn(), safeMode: true }))
 vi.mock('../lib/api', () => ({
   getToken: () => sessionStorage.getItem('user_session_token') || '',
@@ -88,16 +89,36 @@ it('确认期间换账号不会提交旧请求，旧响应也不能更新新账�
 it('服务端修复失败保留本地历史，成功后仅清理已修复进度的账号缓存', async () => {
   saveHistory('n', { chapterId: 'c' })
   saveHistory('keep', { chapterId: 'other' })
+  enqueueProgress({ novelId: 'n', chapterId: 'c', scrollPercent: .1, clientUpdatedAt: Date.now() - 1000 })
+  enqueueProgress({ novelId: 'keep', chapterId: 'other', scrollPercent: .2, clientUpdatedAt: Date.now() - 1000 })
   mocks.apply.mockRejectedValueOnce(new Error('预览已过期'))
   render(<ReadingDataPanel userId="a" username="reader-a" />)
   fireEvent.click(screen.getByRole('button', { name: '检查当前账号' }))
   fireEvent.click(await screen.findByRole('button', { name: '确认修复 1 项' }))
   await screen.findByText('预览已过期')
   expect(getNovelHistory('n')?.chapterId).toBe('c')
+  expect(pendingProgress()).toHaveLength(2)
   mocks.apply.mockResolvedValueOnce({ operationId: 'repair', kind: 'repair', changed: 1, skipped: 0, clearedNovelIds: ['n'], createdAt: Date.now() })
   fireEvent.click(screen.getByRole('button', { name: '检查当前账号' }))
   fireEvent.click(await screen.findByRole('button', { name: '确认修复 1 项' }))
   await screen.findByText('修复完成：处理 1 项。')
   expect(getNovelHistory('n')).toBeNull()
   expect(getNovelHistory('keep')?.chapterId).toBe('other')
+  expect(pendingProgress().map(entry => entry.payload.novelId)).toEqual(['keep'])
+})
+
+it('修复期间产生的新阅读保留本地位置和待上传记录', async () => {
+  saveHistory('n', { chapterId: 'c', timestamp: Date.now() - 1000 })
+  mocks.apply.mockImplementationOnce(async () => {
+    const updatedAt = Date.now() + 1
+    saveHistory('n', { chapterId: 'new', timestamp: updatedAt })
+    enqueueProgress({ novelId: 'n', chapterId: 'new', scrollPercent: .5, clientUpdatedAt: updatedAt })
+    return { operationId: 'repair', kind: 'repair', changed: 1, skipped: 0, clearedNovelIds: ['n'], createdAt: Date.now() }
+  })
+  render(<ReadingDataPanel userId="a" username="reader-a" />)
+  fireEvent.click(screen.getByRole('button', { name: '检查当前账号' }))
+  fireEvent.click(await screen.findByRole('button', { name: '确认修复 1 项' }))
+  await screen.findByText('修复完成：处理 1 项。')
+  expect(getNovelHistory('n')?.chapterId).toBe('new')
+  expect(pendingProgress()[0]?.payload.chapterId).toBe('new')
 })
