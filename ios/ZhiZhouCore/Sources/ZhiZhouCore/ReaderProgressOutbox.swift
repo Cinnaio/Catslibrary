@@ -1,7 +1,7 @@
 import Foundation
 
-public typealias ProgressUploader = (SaveProgressBody) async throws -> Void
-public typealias ProgressDeleter = (String, Int64) async throws -> Void
+public typealias ProgressUploader = (SaveProgressBody, String) async throws -> Void
+public typealias ProgressDeleter = (String, Int64, String) async throws -> Void
 
 /// 阅读进度 outbox：最新进度按小说保留，回到前台或下次登录时继续发送。
 @MainActor
@@ -26,7 +26,7 @@ public final class ReaderProgressOutbox {
     public init(
         localStore: ReaderLocalStore = ReaderLocalStore(),
         uploader: @escaping ProgressUploader,
-        deleter: @escaping ProgressDeleter = { _, _ in }
+        deleter: @escaping ProgressDeleter = { _, _, _ in throw ProgressSyncError.unconfirmed }
     ) {
         self.localStore = localStore
         self.uploader = uploader
@@ -129,6 +129,7 @@ public final class ReaderProgressOutbox {
     private func flushPending(session: Session) async {
         guard isCurrent(session) else { return }
         let userID = session.userID
+        var firstError: String?
 
         // Deletes always go first. This makes a progress deletion win over an
         // older in-flight progress snapshot and keeps the deletion authoritative
@@ -137,17 +138,18 @@ public final class ReaderProgressOutbox {
             .sorted { $0.value < $1.value }
         for (novelID, deletedAt) in deleteSnapshot {
             do {
-                try await deleter(novelID, deletedAt)
+                try await deleter(novelID, deletedAt, userID)
                 guard isCurrent(session) else { return }
                 if pendingDeletes[novelID] == deletedAt {
                     pendingDeletes.removeValue(forKey: novelID)
                     localStore.saveProgressTombstones(pendingDeletes, userID: userID)
                 }
-                lastSyncError = nil
             } catch {
                 guard isCurrent(session) else { return }
-                lastSyncError = error.localizedDescription
+                firstError = firstError ?? "\(novelID)：\(error.localizedDescription)"
+                lastSyncError = firstError
                 localStore.saveProgressTombstones(pendingDeletes, userID: userID)
+                if case ProgressSyncError.itemRejected = error { continue }
                 return
             }
         }
@@ -155,21 +157,25 @@ public final class ReaderProgressOutbox {
         let snapshot = pending.values.sorted { $0.clientUpdatedAt < $1.clientUpdatedAt }
 
         for body in snapshot {
+            // An unacknowledged delete still fences uploads of this novel.
+            guard pendingDeletes[body.novelId] == nil else { continue }
             do {
-                try await uploader(body)
+                try await uploader(body, userID)
                 guard isCurrent(session) else { return }
                 if pending[body.novelId] == body {
                     pending.removeValue(forKey: body.novelId)
                     localStore.saveProgress(pending, userID: userID)
                 }
-                lastSyncError = nil
             } catch {
                 guard isCurrent(session) else { return }
-                lastSyncError = error.localizedDescription
+                firstError = firstError ?? "\(body.novelId)：\(error.localizedDescription)"
+                lastSyncError = firstError
                 localStore.saveProgress(pending, userID: userID)
+                if case ProgressSyncError.itemRejected = error { continue }
                 return
             }
         }
+        lastSyncError = firstError
     }
 
     private func persistCurrent() {

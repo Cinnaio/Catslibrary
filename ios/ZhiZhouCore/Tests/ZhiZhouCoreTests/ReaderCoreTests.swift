@@ -117,7 +117,7 @@ final class ReaderCoreTests: XCTestCase {
     func testPendingProgressDoesNotLeakAcrossUsers() {
         let outbox = ReaderProgressOutbox(
             localStore: ReaderLocalStore(defaults: defaults),
-            uploader: { _ in }
+            uploader: { _, _ in }
         )
         let body = SaveProgressBody(
             novelId: "novel-1",
@@ -146,8 +146,8 @@ final class ReaderCoreTests: XCTestCase {
         var deleted: [(String, Int64)] = []
         let outbox = ReaderProgressOutbox(
             localStore: localStore,
-            uploader: { body in uploaded.append(body) },
-            deleter: { novelID, deletedAt in deleted.append((novelID, deletedAt)) }
+            uploader: { body, _ in uploaded.append(body) },
+            deleter: { novelID, deletedAt, _ in deleted.append((novelID, deletedAt)) }
         )
         let body = SaveProgressBody(
             novelId: "novel-1",
@@ -180,8 +180,8 @@ final class ReaderCoreTests: XCTestCase {
         let localStore = ReaderLocalStore(defaults: defaults)
         let failingOutbox = ReaderProgressOutbox(
             localStore: localStore,
-            uploader: { _ in },
-            deleter: { _, _ in throw DeletionError.unavailable }
+            uploader: { _, _ in },
+            deleter: { _, _, _ in throw DeletionError.unavailable }
         )
         failingOutbox.activate(userID: "alice")
         failingOutbox.discard(novelID: "novel-1", deletedAt: 300)
@@ -192,8 +192,8 @@ final class ReaderCoreTests: XCTestCase {
 
         let reopenedOutbox = ReaderProgressOutbox(
             localStore: localStore,
-            uploader: { _ in },
-            deleter: { _, _ in }
+            uploader: { _, _ in },
+            deleter: { _, _, _ in }
         )
         reopenedOutbox.activate(userID: "alice")
 

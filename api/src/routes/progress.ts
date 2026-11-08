@@ -1,12 +1,12 @@
 import { visibleNovelSql } from '../services/novel-visibility'
 /**
  * /api/progress —— 阅读进度同步（由 Novel-KV progress.js 平移）。
- * 匿名用户 POST/DELETE 返回 success:true 但不落库；登录用户按 userId 记录。
+ * 写入必须有有效会话；匿名阅读只保存在客户端，不返回虚假的云端成功。
  */
 import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
 import { first } from '../db/query'
-import { optionalUser, type AuthEnv } from '../middlewares/auth'
+import { optionalUser, requireUser, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 export const progressRoutes = new Hono<AuthEnv>()
@@ -52,7 +52,7 @@ function isForeignKeyViolation(err: unknown): boolean {
   return /foreign key/i.test(String((err as Error)?.message || ''))
 }
 
-progressRoutes.post('/', optionalUser(), async (c) => {
+progressRoutes.post('/', requireUser(), async (c) => {
   const db = getDb()
   const body = await c.req.json().catch(() => ({}))
   const { novelId, chapterId } = body
@@ -62,8 +62,8 @@ progressRoutes.post('/', optionalUser(), async (c) => {
   if (!Number.isFinite(scrollPercent)) scrollPercent = 0
   scrollPercent = Math.min(1, Math.max(0, scrollPercent))
 
-  const userId = c.get('user')?.id
-  if (!userId) return c.json({ success: true })
+  const userId = c.get('user').id
+  const acknowledged = { userId, novelId, clientUpdatedAt: Number(body.clientUpdatedAt) || 0 }
 
   const chapter = await first<{ content_rating: string }>(db, `SELECT n.content_rating FROM chapters ch JOIN novels n ON n.id = ch.novel_id WHERE ch.id=$1 AND ch.novel_id=$2 AND ${visibleNovelSql(c)}`, [chapterId, novelId])
   if (!chapter) return c.json({ error: 'Chapter not found in this novel' }, 404)
@@ -95,7 +95,7 @@ progressRoutes.post('/', optionalUser(), async (c) => {
   }
 
   if (!saved) saved = await first<ProgressRow>(db, `SELECT ${PROGRESS_COLUMNS} FROM reading_progress WHERE user_id=$1 AND novel_id=$2`, [userId, novelId])
-  return c.json({ success: true, skipped: !applied, ...stateResponse(saved) })
+  return c.json({ success: true, acknowledged, skipped: !applied, ...stateResponse(saved) })
 })
 
 progressRoutes.get('/', optionalUser(), async (c) => {
@@ -169,16 +169,16 @@ async function listRecent(c: Context<AuthEnv>) {
   }, 200, contentPolicyHeaders())
 }
 
-progressRoutes.delete('/', optionalUser(), async (c) => {
+progressRoutes.delete('/', requireUser(), async (c) => {
   const db = getDb()
   const novelId = c.req.query('novelId')
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
 
-  const userId = c.get('user')?.id
-  if (!userId) return c.json({ success: true })
+  const userId = c.get('user').id
+  const acknowledged = { userId, novelId, clientUpdatedAt: Number(c.req.query('clientUpdatedAt')) || 0 }
 
   const visible = await first(db, `SELECT id FROM novels WHERE id=$1 AND ${visibleNovelSql(c, 'novels')}`, [novelId])
-  if (!visible) return c.json({ success: true, progress: null, tombstone: null }, 200, contentPolicyHeaders())
+  if (!visible) return c.json({ success: true, acknowledged, progress: null, tombstone: null }, 200, contentPolicyHeaders())
   const deletedAt = normalizeTimestamp(c.req.query('clientUpdatedAt'))
   let saved: ProgressRow | undefined
   let applied = false
@@ -197,10 +197,10 @@ progressRoutes.delete('/', optionalUser(), async (c) => {
     applied = !!saved
   } catch (err) {
     // 目标书不存在时无进度可删，按幂等成功返回（客户端只关心墓碑生效）
-    if (isForeignKeyViolation(err)) return c.json({ success: true, progress: null, tombstone: null })
+    if (isForeignKeyViolation(err)) return c.json({ success: true, acknowledged, progress: null, tombstone: null })
     throw err
   }
 
   if (!saved) saved = await first<ProgressRow>(db, `SELECT ${PROGRESS_COLUMNS} FROM reading_progress WHERE user_id=$1 AND novel_id=$2`, [userId, novelId])
-  return c.json({ success: true, skipped: !applied, ...stateResponse(saved) })
+  return c.json({ success: true, acknowledged, skipped: !applied, ...stateResponse(saved) })
 })

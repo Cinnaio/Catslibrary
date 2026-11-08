@@ -4,7 +4,7 @@ import { acknowledgeProgress } from './progress-outbox'
 
 export interface ProgressState {
   progress: { novelId?: string; chapterId: string; scrollPercent?: number; updatedAt: number } | null
-  tombstone?: { deletedAt: number; updatedAt?: number } | null
+  tombstone?: { novelId?: string; deletedAt: number; updatedAt?: number } | null
 }
 
 /** 所有入口共享云端位置和墓碑的版本比较；调用方须先确认账号及请求目标。 */

@@ -8,6 +8,29 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllGlobals(); clearToken() })
 
+it.each([
+  { success: true },
+  { success: false, progress: null, tombstone: null },
+  { success: true, tombstone: { novelId: 'other', deletedAt: 123 } },
+  { success: true, tombstone: {} },
+  { success: true, acknowledged: { userId: 'other', novelId: 'n', clientUpdatedAt: 1 } },
+])('缺失或不属于当前操作的删除回执不能清空队列：%j', async response => {
+  enqueueProgress({ novelId: 'n', chapterId: 'c', scrollPercent: .5, clientUpdatedAt: Date.now() - 1000 })
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(response))))
+  await expect(progressApi.remove('n')).rejects.toThrow('尚未得到服务端确认')
+  expect(pendingProgress()).toHaveLength(1)
+})
+
+it('确认当前账号、作品和请求版本后删除旧队列', async () => {
+  enqueueProgress({ novelId: 'n', chapterId: 'c', scrollPercent: .5, clientUpdatedAt: Date.now() - 1000 })
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async (input: string) => {
+    const version = Number(new URL(input, 'http://localhost').searchParams.get('clientUpdatedAt'))
+    return new Response(JSON.stringify({ success: true, acknowledged: { userId: 'a', novelId: 'n', clientUpdatedAt: version } }))
+  }))
+  await progressApi.remove('n')
+  expect(pendingProgress()).toHaveLength(0)
+})
+
 it('删除成功清理旧上传，但删除失败保留可重试进度', async () => {
   const uploadedAt = Date.now() - 1000
   enqueueProgress({ novelId: 'n', chapterId: 'c', scrollPercent: .5, clientUpdatedAt: uploadedAt })

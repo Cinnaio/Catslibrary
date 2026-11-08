@@ -175,9 +175,9 @@ describe('内容 API 端到端（pglite）', () => {
     const { chapters: list2 } = await jsonOf<{ chapters: Array<{ id: string }> }>(chapters)
     const chapterId = list2[0]!.id
 
-    // 匿名：POST 成功但不落库
+    // 匿名阅读保存在客户端，云端写入必须登录。
     const anon = await req('/api/progress', json('POST', { novelId, chapterId, scrollPercent: 0.5 }))
-    expect(anon.status).toBe(200)
+    expect(anon.status).toBe(401)
 
     // 登录一个读者
     await t.db.query('INSERT INTO invites (code, created_at) VALUES ($1, $2)', ['READER-INVITE', Date.now()])

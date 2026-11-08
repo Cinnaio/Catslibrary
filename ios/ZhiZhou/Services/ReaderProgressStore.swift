@@ -1,3 +1,4 @@
+import Foundation
 import ZhiZhouCore
 
 /// App 层的进度上传适配器；持久化与 outbox 状态机由 Core module 负责。
@@ -10,27 +11,30 @@ final class ReaderProgressStore {
     init(localStore: ReaderLocalStore = ReaderLocalStore()) {
         outbox = ReaderProgressOutbox(
             localStore: localStore,
-            uploader: { body in
+            uploader: { body, userID in
                 let encoded = try APIClient.shared.jsonBody(body)
-                try await APIClient.shared.requestVoid(
-                    "POST",
-                    "/api/progress",
-                    body: encoded,
-                    auth: true
-                )
+                try await Self.write("POST", "/api/progress", body: encoded,
+                                     userID: userID, novelID: body.novelId, clientUpdatedAt: body.clientUpdatedAt)
             },
-            deleter: { novelID, clientUpdatedAt in
+            deleter: { novelID, clientUpdatedAt, userID in
                 let query = ReaderQuery.encode([
                     "novelId": novelID,
                     "clientUpdatedAt": String(clientUpdatedAt),
                 ])
-                try await APIClient.shared.requestVoid(
-                    "DELETE",
-                    "/api/progress?\(query)",
-                    auth: true
-                )
+                try await Self.write("DELETE", "/api/progress?\(query)",
+                                     userID: userID, novelID: novelID, clientUpdatedAt: clientUpdatedAt)
             }
         )
+    }
+
+    private static func write(_ method: String, _ path: String, body: Data? = nil,
+                              userID: String, novelID: String, clientUpdatedAt: Int64) async throws {
+        do {
+            let receipt: ProgressWriteAcknowledgement = try await APIClient.shared.request(method, path, body: body, auth: true)
+            try receipt.validate(userID: userID, novelID: novelID, clientUpdatedAt: clientUpdatedAt, deleting: method == "DELETE")
+        } catch APIError.http(let status, let message) where [400, 403, 404, 410, 422].contains(status) {
+            throw ProgressSyncError.itemRejected(message ?? "这本作品暂时无法同步（HTTP \(status)）")
+        }
     }
 
     var activeUserID: String? { outbox.activeUserID }

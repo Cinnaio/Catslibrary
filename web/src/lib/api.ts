@@ -769,11 +769,21 @@ export const progressApi = {
     return response.json()
   },
   async remove(novelId: string): Promise<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }> {
-    const token = getToken(), scope = getStorageScope(), deletedAt = Date.now()
-    const state = await request<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }>(
+    const token = getToken(), scope = getStorageScope(), userId = getStorageUser(), deletedAt = Date.now()
+    const state = await request<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean; acknowledged?: { userId: string; novelId: string; clientUpdatedAt: number } }>(
       'DELETE', `/progress?novelId=${encodeURIComponent(novelId)}&clientUpdatedAt=${encodeURIComponent(deletedAt)}`, null, true,
     )
-    if (token === getToken() && scope === getStorageScope() && state.success) {
+    const receipt = state.acknowledged
+    // 兼容旧版已认证的完整删除响应，但只有 success 的匿名响应不能确认操作。
+    const confirmed = receipt
+      ? receipt.userId === userId && receipt.novelId === novelId && receipt.clientUpdatedAt === deletedAt
+      : (!!state.progress?.chapterId && Number.isFinite(state.progress.updatedAt) && state.progress.updatedAt > 0
+          && (!state.progress.novelId || state.progress.novelId === novelId))
+        || (!!state.tombstone && Number.isFinite(state.tombstone.deletedAt) && state.tombstone.deletedAt > 0
+          && (!state.tombstone.novelId || state.tombstone.novelId === novelId))
+        || state.progress === null && state.tombstone === null
+    if (!state.success || !confirmed) throw new Error('阅读记录删除尚未得到服务端确认')
+    if (token === getToken() && scope === getStorageScope()) {
       const version = Number(state.tombstone?.updatedAt || state.tombstone?.deletedAt || state.progress?.updatedAt || 0)
       // 服务端可能校正偏快的设备时钟；已执行的删除仍覆盖本机在删除前排队的位置。
       acknowledgeProgress(novelId, state.skipped ? version : Math.max(version, deletedAt))
