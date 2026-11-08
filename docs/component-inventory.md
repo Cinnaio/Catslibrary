@@ -1,6 +1,8 @@
 # 生产组件归属清单
 
-2026-11-08 阅读器计时接入：`components/reader/ReaderTempo.tsx` 持有阅读器计时 Provider、桌面／手机入口、共享弹窗及收起后的控制条，样式归 `ReaderTempo.module.css`；独立页与面板复用 `components/reader/TempoControls.tsx` 及其 CSS Module。`useTempoController` 统一输入、会话、声音与结束记账，`useReaderTempo` 分离面板上下文和高频计时上下文，阅读正文不订阅 tick。`pages/Reader.tsx` 持有账号／作品生命周期、阅读统计和自动滚动协调；共享 UI 层无新增业务依赖。组件展厅登记真实生产组件，并使用独立示例存储空间。组件检查为 110 个组件、289 个源码模块。下方节奏计时初版归属记录保留当时状态。
+2026-11-08 节拍指令：`pages/Edge.tsx` 持有独立工具页面与成人门禁，布局归 `edge.module.css`；复用 Panel、Button、FilterChip、FormField、Input、Switch、EmptyState、ConfirmationDialog、ContentRestrictionNotice 与 ContentPolicyStatus，不新增公共控件。会话状态机、随机源、指令池与本机记录归 `lib/edge.ts`，合成节拍与低心跳归 `lib/edge-audio.ts`，页面状态与结束记账归 `useEdgeController`，节拍推进归 `useEdgeSession`，声音与语音归 `useEdgeAudio`；共享组件不导入这些场景逻辑。路由按需加载，入口由 WorkspaceShell 的工具分组持有。组件检查为 110 个组件、296 个源码模块。
+
+2026-11-08 阅读器计时接入：`components/reader/ReaderTempo.tsx` 持有阅读器计时 Provider、桌面／手机入口、共享弹窗及收起后的控制条，样式归 `ReaderTempo.module.css`；独立页与面板复用 `components/reader/TempoControls.tsx` 及其 CSS Module。`useTempoController` 统一输入、会话、声音与结束记账，`useReaderTempo` 分离面板上下文和高频计时上下文，阅读正文不订阅 tick。`pages/Reader.tsx` 持有账号／作品生命周期、阅读统计和自动滚动协调；共享 UI 层无新增业务依赖。组件展厅登记真实生产组件，并使用独立示例存储空间。下方节奏计时初版归属记录保留当时状态。
 
 2026-11-08 节奏计时：`pages/Tempo.tsx` 持有独立工具页面，布局归 `tempo.module.css`；复用 Panel、Button、FilterChip、FormField、Input、Switch、EmptyState 与 ConfirmationDialog，不新增公共控件。计时状态、浏览器音频和账号隔离的本机记录分别归 `lib/tempo.ts`、`lib/tempo-audio.ts` 与三个 `useTempo*` hook；共享组件不导入这些场景逻辑。路由按需加载，桌面与手机入口由 WorkspaceShell 持有。组件边界检查为 108 个组件、285 个源码模块。
 
