@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as matchers from '@testing-library/jest-dom/matchers'
-import { readTempoData } from '../lib/tempo'
+import { readEdgeData } from '../lib/edge'
 
 expect.extend(matchers)
 
@@ -15,8 +15,10 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('../context/SessionContext', () => ({ useSession: () => mocks.session, useOptionalSession: () => mocks.session }))
 vi.mock('../hooks/useReadingStats', () => ({ useReadingStats: mocks.stats }))
-vi.mock('../lib/tempo-audio', () => ({ TempoMetronome: class {
+vi.mock('../lib/edge-audio', () => ({ EdgeAudio: class {
   start() { mocks.playing = true; return Promise.resolve(true) }
+  startHeartbeat() { mocks.playing = true; return Promise.resolve(true) }
+  stopHeartbeat() {}
   stop() { mocks.playing = false }
   dispose() { mocks.playing = false; mocks.dispose() }
 } }))
@@ -63,21 +65,23 @@ beforeEach(() => {
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
-describe('阅读器节奏计时', () => {
+describe('阅读器节拍指令', () => {
+  beforeEach(() => { mocks.session = { user: { id: 'reader' }, loading: false } })
+
   it('桌面面板互斥，关闭后回焦且只在展开时暂停阅读统计', async () => {
     const user = userEvent.setup()
     mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
     mount()
     await screen.findByText('正文')
     await user.click(screen.getByRole('button', { name: '阅读设置' }))
-    const trigger = within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' })
+    const trigger = within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节拍指令' })
     await user.click(trigger)
     expect(screen.queryByRole('dialog', { name: '阅读设置' })).not.toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: '节奏计时' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '节拍指令' })).toBeInTheDocument()
     expect(mocks.stats.mock.lastCall?.[0].enabled).toBe(false)
     await user.keyboard('{Escape}')
     expect(trigger).toHaveFocus()
-    expect(screen.queryByRole('dialog', { name: '节奏计时' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: '节拍指令' })).not.toBeInTheDocument()
     expect(mocks.stats.mock.lastCall?.[0].enabled).toBe(true)
   })
 
@@ -87,16 +91,16 @@ describe('阅读器节奏计时', () => {
     mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
     mount()
     await screen.findByText('正文')
-    const trigger = within(screen.getByRole('group', { name: '阅读快捷工具' })).getByRole('button', { name: '节奏计时' })
+    const trigger = within(screen.getByRole('group', { name: '阅读快捷工具' })).getByRole('button', { name: '节拍指令' })
     await user.click(trigger)
-    expect(screen.getByRole('dialog', { name: '节奏计时' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '节拍指令' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
     expect(trigger).toHaveFocus()
     await user.click(trigger)
     vi.stubGlobal('innerWidth', 1024)
     fireEvent(window, new Event('resize'))
     await user.keyboard('{Escape}')
-    expect(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' })).toHaveFocus()
+    expect(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节拍指令' })).toHaveFocus()
   })
 
   it('收起面板与同书切章加载保持计时，结束复用本机记录且离开释放声音', async () => {
@@ -106,9 +110,11 @@ describe('阅读器节奏计时', () => {
     const view = mount()
     await screen.findByText('正文')
     vi.useFakeTimers({ toFake: ['Date', 'performance', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] })
-    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' }))
-    fireEvent.click(screen.getByRole('switch', { name: '节拍声' }))
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '开始计时' })) })
+    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节拍指令' }))
+    fireEvent.change(screen.getByLabelText('时长（分钟）'), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('switch', { name: /^节拍声/ }))
+    fireEvent.click(screen.getByRole('switch', { name: /^红色时的心跳/ }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '开始这一局' })) })
     fireEvent.click(screen.getByRole('button', { name: '收起，继续阅读' }))
     const renders = mocks.stats.mock.calls.length
     act(() => vi.advanceTimersByTime(1000))
@@ -121,16 +127,16 @@ describe('阅读器节奏计时', () => {
     act(() => vi.advanceTimersByTime(1000))
     await act(async () => finish({ chapter: { id: 'second', novelId: 'book', title: '下一章', content: '第二章正文', order: 2 } }))
     expect(screen.getByText('第二章正文')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '打开节奏计时，剩余 04:58' })).toBeInTheDocument()
-    expect(readTempoData('guest').data.history).toHaveLength(0)
-    fireEvent.click(screen.getByRole('button', { name: '打开节奏计时，剩余 04:58' }))
-    fireEvent.click(screen.getByRole('button', { name: '结束' }))
-    expect(readTempoData('guest').data.history).toEqual([expect.objectContaining({ elapsedMs: 2000, completed: false })])
+    expect(screen.getByRole('button', { name: '打开节拍指令，剩余 04:58' })).toBeInTheDocument()
+    expect(readEdgeData('user:reader').data.history).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: '打开节拍指令，剩余 04:58' }))
+    fireEvent.click(screen.getByRole('button', { name: '不玩了' }))
+    expect(readEdgeData('user:reader').data.history).toEqual([expect.objectContaining({ elapsedMs: 2000, ending: 'ended' })])
     fireEvent.click(screen.getByRole('button', { name: '再来一次' }))
     view.unmount()
     expect(mocks.playing).toBe(false)
     expect(mocks.dispose).toHaveBeenCalled()
-    expect(readTempoData('guest').data.history).toHaveLength(1)
+    expect(readEdgeData('user:reader').data.history).toHaveLength(1)
   })
 
   it('后台暂停、恢复权限失败与账号切换不会留下隐藏计时', async () => {
@@ -138,28 +144,33 @@ describe('阅读器节奏计时', () => {
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
     const view = mount()
     await screen.findByText('正文')
-    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' }))
-    fireEvent.click(screen.getByRole('button', { name: '开始计时' }))
+    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节拍指令' }))
+    fireEvent.click(screen.getByRole('button', { name: '开始这一局' }))
     fireEvent.click(screen.getByRole('button', { name: '收起，继续阅读' }))
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
     fireEvent(document, new Event('visibilitychange'))
-    expect(screen.getByRole('button', { name: '继续计时' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '继续节拍指令' })).toBeInTheDocument()
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
     fireEvent(document, new Event('visibilitychange'))
-    fireEvent.click(screen.getByRole('button', { name: '继续计时' }))
+    fireEvent.click(screen.getByRole('button', { name: '继续节拍指令' }))
     mocks.policy.policyError = '权限检查失败'
     view.rerender(readerTree())
-    expect(screen.queryByRole('group', { name: '阅读计时控制' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '阅读节拍指令控制' })).not.toBeInTheDocument()
     mocks.policy.policyError = ''
     view.rerender(readerTree())
-    expect(screen.getByRole('button', { name: '继续计时' })).toBeInTheDocument()
+    await screen.findByText('正文')
+    expect(screen.queryByRole('group', { name: '阅读节拍指令控制' })).not.toBeInTheDocument()
     mocks.session = { user: { id: 'new-reader' }, loading: false }
     view.rerender(readerTree())
     await screen.findByText('正文')
-    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' }))
-    expect(screen.getByRole('button', { name: '开始计时' })).toBeInTheDocument()
-    expect(readTempoData('guest').data.history).toHaveLength(0)
-    expect(readTempoData('user:new-reader').data.history).toHaveLength(0)
+    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节拍指令' }))
+    expect(screen.getByRole('button', { name: '开始这一局' })).toBeInTheDocument()
+    expect(readEdgeData('user:reader').data.history).toHaveLength(0)
+    expect(readEdgeData('user:new-reader').data.history).toHaveLength(0)
+    mocks.policy.mode = 'safe'
+    view.rerender(readerTree())
+    expect(screen.queryByRole('dialog', { name: '节拍指令' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '节拍指令' })).not.toBeInTheDocument()
   })
 })
 

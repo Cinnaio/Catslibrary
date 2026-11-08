@@ -5,7 +5,7 @@ import '@/styles/site-branding.css'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Dialog, Switch } from 'radix-ui'
-import { ArrowUpRight, BookOpen, ChevronDown, Flame, History, Library, LogOut, Menu, Search, Settings2, Shield, Timer, X, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, BookOpen, ChevronDown, Flame, History, Library, LogOut, Menu, Search, Settings2, Shield, X, type LucideIcon } from 'lucide-react'
 import { useSession } from '../../context/SessionContext'
 import { useContentPolicy } from '../../context/ContentPolicyContext'
 import { useSiteBranding } from '../../lib/site-branding'
@@ -39,7 +39,6 @@ const readerGroups: WorkspaceNavGroup[] = [
   {
     label: '工具',
     items: [
-      { id: 'tempo', label: '节奏计时', to: '/tools/tempo', icon: Timer },
       { id: 'edge', label: '节拍指令', to: '/tools/edge', icon: Flame },
     ],
   },
@@ -159,11 +158,9 @@ export default function WorkspaceShell({
           ? new URLSearchParams(location.search).get('view') === 'recent'
             ? '阅读记录'
             : '我的书架'
-          : location.pathname === '/tools/tempo'
-            ? '节奏计时'
-            : location.pathname === '/tools/edge'
-              ? '节拍指令'
-              : '全部书库')
+          : location.pathname === '/tools/edge'
+            ? '节拍指令'
+            : '全部书库')
   useEffect(() => {
     setMenuOpen(false)
   }, [location.pathname, location.search])

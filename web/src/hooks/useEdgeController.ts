@@ -9,9 +9,9 @@ function integer(value: string, min: number, max: number): boolean {
 }
 
 /** 换账号时由调用方重挂载；settings 里的时间类字段要在开始前落盘。 */
-export function useEdgeController(scope: string) {
+export function useEdgeController(scope: string, enabled = true) {
   const { data, error: storageError, updateSettings, addRecord, clearHistory, retry } = useEdgeData(scope)
-  const { session, dispatch } = useEdgeSession()
+  const { session, dispatch } = useEdgeSession(enabled)
   const audio = useEdgeAudio(session, data.settings)
   const [minutes, setMinutes] = useState(String(data.settings.minutes))
   const [permitSeconds, setPermitSeconds] = useState(String(data.settings.permitSeconds))
@@ -77,7 +77,7 @@ export function useEdgeController(scope: string) {
   }
 
   function start() {
-    if (active || !minutesValid || !permitValid || !holdMinValid || !holdMaxValid || !chanceValid) return
+    if (!enabled || active || !minutesValid || !permitValid || !holdMinValid || !holdMaxValid || !chanceValid) return
     saveNumbers()
     dispatch({
       type: 'start',

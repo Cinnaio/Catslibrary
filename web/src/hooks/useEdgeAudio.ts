@@ -77,8 +77,12 @@ export function useEdgeAudio(session: EdgeSession | null, settings: EdgeSettings
   }, [audio, bpm, phase, settings.heartbeat, settings.sound, soundSupported, status])
 
   useEffect(() => {
-    if (!settings.speech || !speechSupported || !status) return
-    if (document.hidden) return
+    if (!settings.speech || !speechSupported || !status || status === 'paused' || document.hidden) {
+      stopSpeech()
+      spokenPhase.current = ''
+      spokenStatus.current = ''
+      return
+    }
     const key = `${status}:${phase}:${edges}:${ending ?? ''}`
     if (spokenStatus.current === key) return
     spokenStatus.current = key
@@ -93,7 +97,7 @@ export function useEdgeAudio(session: EdgeSession | null, settings: EdgeSettings
     if (spokenPhase.current === phaseKey) return
     spokenPhase.current = phaseKey
     speak(PHASE_ANNOUNCE[phase as 'go' | 'slow' | 'stop'] ?? '继续。')
-  }, [edges, ending, phase, settings.speech, speak, speechSupported, status])
+  }, [edges, ending, phase, settings.speech, speak, speechSupported, status, stopSpeech])
 
   // 离开页面或切后台立刻消音；回来由用户重新开始这一次会话的节奏。
   useEffect(() => {

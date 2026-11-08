@@ -19,6 +19,8 @@
 
 复杂业务弹窗、账户流程、图表和部分阅读器面板仍可通过索引定位，后续按需补充隔离的场景示例。不得为了补覆盖而直接挂载会请求真实数据或执行写入的完整业务页面。
 
+阅读节拍指令示例复用阅读器的原位弹窗与紧凑控制条，并登记 `EdgeControls` 的生产源码。计时入口仅在真实成人内容权限确认后显示，示例不模拟放行；记录使用独立的 `gallery:reader-tempo` 本机空间。
+
 ## 维护
 
 示例组件位于 `web/src/pages/dev/gallery-examples.tsx`；在 `gallery-catalog.ts` 注册名称、分类、来源、使用场景和支持状态。分类与状态类型在 `gallery-types.ts`，目录、iframe 与源码查看器在 `ComponentGallery.tsx`。

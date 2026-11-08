@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-08 阅读器计时融合：`ReaderTempo` 直接持有节拍指令面板与紧凑控制条，`Reader` 提供已确认的成人内容权限，权限失效时隐藏入口并清理会话。`components/reader/EdgeControls.tsx` 与 CSS Module 从工具页提取，供阅读器及独立页共用；普通计时的独立页、控件、hook、计时与音频模块及专属测试已删除，旧 URL 只保留重定向。`useReaderTempo` 继续分离面板与高频状态，展厅使用真实权限和隔离示例记录；共享 UI 层无新增业务依赖。当前组件检查为 110 个组件、289 个源码模块；下方初版归属记录保留历史状态，当前组件表已移除普通计时。
+
 2026-11-08 节拍指令：`pages/Edge.tsx` 持有独立工具页面与成人门禁，布局归 `edge.module.css`；复用 Panel、Button、FilterChip、FormField、Input、Switch、EmptyState、ConfirmationDialog、ContentRestrictionNotice 与 ContentPolicyStatus，不新增公共控件。会话状态机、随机源、指令池与本机记录归 `lib/edge.ts`，合成节拍与低心跳归 `lib/edge-audio.ts`，页面状态与结束记账归 `useEdgeController`，节拍推进归 `useEdgeSession`，声音与语音归 `useEdgeAudio`；共享组件不导入这些场景逻辑。路由按需加载，入口由 WorkspaceShell 的工具分组持有。组件检查为 110 个组件、296 个源码模块。
 
 2026-11-08 阅读器计时接入：`components/reader/ReaderTempo.tsx` 持有阅读器计时 Provider、桌面／手机入口、共享弹窗及收起后的控制条，样式归 `ReaderTempo.module.css`；独立页与面板复用 `components/reader/TempoControls.tsx` 及其 CSS Module。`useTempoController` 统一输入、会话、声音与结束记账，`useReaderTempo` 分离面板上下文和高频计时上下文，阅读正文不订阅 tick。`pages/Reader.tsx` 持有账号／作品生命周期、阅读统计和自动滚动协调；共享 UI 层无新增业务依赖。组件展厅登记真实生产组件，并使用独立示例存储空间。下方节奏计时初版归属记录保留当时状态。
@@ -109,10 +111,10 @@
 | `components/reader/BookSearch.tsx` | 阅读场景 | 2 | `components/reader/BookSearch.module.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ChapterIllustrations.tsx` | 阅读场景 | 2 | `styles/select-fields.css`、`styles/input-fields.css`、`styles/chapter-illustrations.css`、`components/reader/ChapterIllustrations.module.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ChapterRecap.tsx` | 阅读场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
+| `components/reader/EdgeControls.tsx` | 阅读场景 | 2 | `components/reader/EdgeControls.module.css` | 保留：独立工具页与阅读器共用节拍指令控件 |
 | `components/reader/MobileSheets.tsx` | 阅读场景 | 1 | `styles/input-fields.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ReaderTempo.tsx` | 阅读场景 | 2 | `components/reader/ReaderTempo.module.css` | 保留：阅读器内计时生命周期、弹窗与紧凑控制条 |
 | `components/reader/SettingsControls.tsx` | 阅读场景 | 3 | `components/reader/SettingsControls.module.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
-| `components/reader/TempoControls.tsx` | 阅读场景 | 2 | `components/reader/TempoControls.module.css` | 保留：独立工具页与阅读器共用计时控件 |
 | `components/reader/ThoughtImage.tsx` | 阅读场景 | 2 | `styles/thoughts.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ThoughtPanel.tsx` | 阅读场景 | 1 | `styles/thoughts.css`、`styles/input-fields.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/VirtualList.tsx` | 阅读场景 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |

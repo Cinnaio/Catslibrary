@@ -217,5 +217,5 @@ export const entries: GalleryEntry[] = [
     ReaderSettings,
   ),
   entry('reader-paper', '阅读纸面', 'pages', '沿用阅读器结构与排版类名，使用虚构段落。', ['pages/Reader.tsx', 'pages/reader.module.css'], '阅读器专属', ReaderPaper),
-  entry('reader-tempo', '阅读节奏计时', 'pages', '面板收起后继续计时，复用独立工具页的控件与状态。', ['components/reader/ReaderTempo.tsx', 'components/reader/ReaderTempo.module.css', 'components/reader/TempoControls.tsx', 'components/reader/TempoControls.module.css'], '阅读器 / 节奏计时工具', ReaderTempoExample),
+  entry('reader-tempo', '阅读节拍指令', 'pages', '阅读器计时入口直接打开节拍指令，收起后继续运行；沿用成人内容权限。', ['components/reader/ReaderTempo.tsx', 'components/reader/ReaderTempo.module.css', 'components/reader/EdgeControls.tsx', 'components/reader/EdgeControls.module.css'], '阅读器 / 计时工具', ReaderTempoExample),
 ]

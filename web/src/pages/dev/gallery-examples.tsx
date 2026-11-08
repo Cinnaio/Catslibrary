@@ -68,6 +68,7 @@ import SearchSelect from "@/components/shared/SearchSelect"
 import TimeField from "@/components/shared/TimeField"
 import { SettingsControls } from '@/components/reader/SettingsControls'
 import { ReaderTempoProvider, ReaderTempoStatus, ReaderTempoTrigger } from '@/components/reader/ReaderTempo'
+import { useContentPolicy } from '@/context/ContentPolicyContext'
 import readerStyles from '../reader.module.css'
 import type { ExampleProps } from './gallery-types'
 
@@ -1015,11 +1016,12 @@ export function ReaderPaper({ boundary }: ExampleProps) {
 }
 
 export function ReaderTempoExample() {
-  return <ReaderTempoProvider scope="gallery:reader-tempo">
+  const { mode, checking, policyError } = useContentPolicy()
+  return <ReaderTempoProvider scope="gallery:reader-tempo" edgeAllowed={mode === 'adult' && !checking && !policyError}>
     <div className="gallery-stack">
       <div className="gallery-row"><ReaderTempoTrigger onOpen={() => {}} /></div>
       <ReaderTempoStatus onOpen={() => {}} />
-      <p className="gallery-note">复用阅读器真实计时面板；示例记录使用独立本机空间。</p>
+      <p className="gallery-note">复用阅读器节拍指令面板，需开启成人内容模式；示例记录使用独立本机空间。</p>
     </div>
   </ReaderTempoProvider>
 }

@@ -308,6 +308,7 @@ export interface EdgeSession {
   id: string
   settings: EdgeSettings
   status: EdgeStatus
+  resumeStatus: 'running' | 'cooldown' | 'permit' | null
   pauseReason: 'manual' | 'background' | 'interrupted' | null
   /** 前台累计时长，暂停期间不增长。 */
   elapsedMs: number
@@ -336,6 +337,7 @@ export type EdgeAction =
   | { type: 'came'; now: number }
   | { type: 'quit'; now: number }
   | { type: 'reset' }
+  | { type: 'discard' }
 
 function beginSegment(session: EdgeSession): EdgeSession {
   const phase = pickPhase(session.settings, session.phase, session.rng)
@@ -422,7 +424,7 @@ function advance(session: EdgeSession, now: number): EdgeSession {
   const delta = now - session.sampledAt
   // 设备休眠或主线程长时间阻塞不算这一局的前台时间。
   if (!Number.isFinite(delta) || delta < 0 || delta > 2000) {
-    return { ...session, status: 'paused', sampledAt: null, pauseReason: 'interrupted' }
+    return { ...session, status: 'paused', resumeStatus: session.status === 'cooldown' || session.status === 'permit' ? session.status : 'running', sampledAt: null, pauseReason: 'interrupted' }
   }
   return resolve({ ...session, elapsedMs: session.elapsedMs + delta, sampledAt: now })
 }
@@ -433,6 +435,7 @@ export function createEdgeSession(id: string, settings: EdgeSettings, now: numbe
     id,
     settings: normalized,
     status: 'running',
+    resumeStatus: null,
     pauseReason: null,
     elapsedMs: 0,
     totalMs: normalized.minutes * 60_000,
@@ -452,6 +455,8 @@ export function createEdgeSession(id: string, settings: EdgeSettings, now: numbe
 }
 
 export function edgeReducer(session: EdgeSession | null, action: EdgeAction): EdgeSession | null {
+  // Lifecycle cleanup is separate from dismissing an already finished result.
+  if (action.type === 'discard') return null
   if (action.type === 'reset') return session?.status === 'finished' ? null : session
   if (action.type === 'start') {
     if (session && session.status !== 'finished') return session
@@ -459,12 +464,12 @@ export function edgeReducer(session: EdgeSession | null, action: EdgeAction): Ed
   }
   if (!session || session.status === 'finished') return session
   if (action.type === 'resume') {
-    return session.status === 'paused' ? { ...session, status: 'running', sampledAt: action.now, pauseReason: null } : session
+    return session.status === 'paused' ? { ...session, status: session.resumeStatus ?? 'running', resumeStatus: null, sampledAt: action.now, pauseReason: null } : session
   }
   if (action.type === 'pause') {
     const next = advance(session, action.now)
     if (next.status === 'finished' || next.status === 'paused') return next
-    return { ...next, status: 'paused', sampledAt: null, pauseReason: action.reason }
+    return { ...next, status: 'paused', resumeStatus: next.status, sampledAt: null, pauseReason: action.reason }
   }
   const next = advance(session, action.now)
   if (next.status === 'finished') return next
