@@ -1,10 +1,12 @@
 # iOS 阅读器节拍指令
 
-源码候选：`1.1.0 / build 22`，基线 `021d4c42`。此记录不表示已构建或发布 IPA。
+版本：`1.1.0 / build 22`，功能源码 `950f549a`，编译修复及构建源码 `0443b21cc4662eb3038ec1efb95d1866c8256a22`。未签名 IPA 已构建并下载核对，尚未签名安装或真机验收。
 
 ## 云构建跟进
 
-源码 `950f549a` 已提交并推送。2026-11-08 23:11（Asia/Shanghai），首轮 [iOS 构建 42493216217](https://github.com/Cinnaio/zhi-zhou/actions/runs/42493216217) 在 `ReaderView.body` 遇到 Swift 类型推断超时；Core 测试和资源摘要检查已通过，未产出 IPA。本次将阅读器布局、弹层和生命周期拆成独立的 opaque View 表达式，保留既有状态拥有者与修饰顺序；使用同一 `1.1.0 / build 22` 候选再次构建，结果另行补记。
+源码 `950f549a` 已提交并推送。2026-11-08 23:11（Asia/Shanghai），首轮 [iOS 构建 42493216217](https://github.com/Cinnaio/zhi-zhou/actions/runs/42493216217) 在 `ReaderView.body` 遇到 Swift 类型推断超时；Core 测试和资源摘要检查已通过，未产出 IPA。修复提交 `0443b21c` 将阅读器布局、弹层和生命周期拆成独立的 opaque View 表达式，保留既有状态拥有者与修饰顺序；首轮没有交付安装包，因此继续使用同一 `1.1.0 / build 22` 候选重建。
+
+[iOS 重建 42493817400](https://github.com/Cinnaio/zhi-zhou/actions/runs/42493817400) 于 23:23:07 成功完成。macOS 15、Xcode `26.3 / 17C529` 下 97 项 Core 测试全部通过，Release 构建、规则资源摘要和隐私清单检查通过。工件 `ZhiZhou-unsigned-ipa`（ID `13623110799`）已下载，ZIP 完整性、版本／构建号、最低系统 26.0、隐私清单及网络传输配置正确；随包规则与源码在统一换行后完全一致。产物摘要及配套 Web `1.2.0` 部署结果见 [交付记录](../../docs/releasing.md#阅读器节拍功能交付2026-11-08)。
 
 ## 入口与会话
 
@@ -37,8 +39,8 @@ python ios/scripts/check-reader-edge-resource.py
 
 ## 已做检查与待验收项
 
-已通过短时 Node 桥接检查：同种子同操作与 Web 引擎逐步一致，覆盖五种结局、等待／许可暂停恢复、运行中断暂停、丢弃、独立实例和记录验证；资源源码一致性、摘要以及差异检查通过。未运行完整测试套件、截图、浏览器自动化或远程构建。
+源码阶段已通过短时 Node 桥接检查：同种子同操作与 Web 引擎逐步一致，覆盖五种结局、等待／许可暂停恢复、运行中断暂停、丢弃、独立实例和记录验证；资源源码一致性、摘要以及差异检查通过。本次远程构建和产物核对已完成，未追加完整测试套件、截图或浏览器自动化。
 
-已补充 `ZhiZhouTests/ReaderEdgeRuntimeTests.swift`，检查原生资源加载、Codable、暂停阶段、本机账号／站点隔离及异常时长格式化。当前 Windows 环境未执行这些 XCTest，也未验证 Swift 编译。后续在 Xcode 中使用 `ZhiZhouReaderTests` scheme，并仅选择 `ReaderEdgeRuntimeTests` 即可定向运行。
+已补充 `ZhiZhouTests/ReaderEdgeRuntimeTests.swift`，检查原生资源加载、Codable、暂停阶段、本机账号／站点隔离及异常时长格式化。云端已完成应用 Swift 编译，但标准构建工作流仅运行 `ZhiZhouCore`，未执行这些 XCTest。后续在 Xcode 中使用 `ZhiZhouReaderTests` scheme，并仅选择 `ReaderEdgeRuntimeTests` 即可定向运行。
 
-真机仍需确认：小屏和辅助功能字号的工具栏／状态条布局、滚动和分页切章、收起面板后继续、权限失效即时清理、锁屏／来电／耳机切换后的暂停、静音与语音、记录保存和清空。未构建新 IPA、未部署或发布，也不代表已完成设备验收。
+真机仍需确认：小屏和辅助功能字号的工具栏／状态条布局、滚动和分页切章、收起面板后继续、权限失效即时清理、锁屏／来电／耳机切换后的暂停、静音与语音、记录保存和清空。IPA 未签名，未执行 App Store／TestFlight 上架；构建与包内容检查不代表设备验收。

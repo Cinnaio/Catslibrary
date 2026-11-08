@@ -1,5 +1,26 @@
 # 发布与版本管理
 
+## 阅读器节拍功能交付（2026-11-08）
+
+Web `1.2.0` 与 API `1.0.0` 已部署，源码为 `950f549aa0b55f11e4fb4d7f20a017b4323efe60`。[Deploy 42493219374](https://github.com/Cinnaio/zhi-zhou/actions/runs/42493219374) 于 23:12:57（Asia/Shanghai）完成生产激活，部署作业于 23:13:02 成功结束。功能提交 `8cfb3850`、`42c51e03`、`d9d5fc7b`、`3afdb4c3`、`021d4c42` 与 iOS 接入提交 `950f549a` 均已推送到 `origin/main`；普通计时的历史候选已由节拍指令替代，没有单独交付 Web `1.1.0`。
+
+Ubuntu 22.04 x64、Node `22.23.4` 下的干净依赖安装、类型与 Lint 检查、88 项 API 与 27 项 Web 关键回归、5 组发布失败恢复测试通过，1 项可选浏览器用例跳过。生产构建、3,199 个文件的完整归档清单、随包依赖／Sharp 和临时 PostgreSQL 16 中的最终归档冒烟通过。部署使用本次验证的原包 `release-950f549aa0b55f11e4fb4d7f20a017b4323efe60-1`，工件 ID `13621634134`，保留至 2026-11-22 23:12；`release.tgz` SHA-256 为 `62000210ff5f07eca323b01b43d7afee656bdc60f05d55235ca8a3df79c89618`。服务器完整文件与运行时预检通过，第 2 次就绪检查成功，未触发回退。
+
+23:15 的公网只读复核确认 `/api/ready` 为 `ready: true`，API 版本为 `1.0.0`，release 与上述源码 SHA 完全一致；健康接口、首页、入口脚本 `/assets/index-8FvJzQ9H.js` 及书目接口均返回 200。同一源码的 [Backup recovery 42493206255](https://github.com/Cinnaio/zhi-zhou/actions/runs/42493206255) 成功，68 项真实备份恢复集成全部通过、零跳过；该结果来自隔离环境，没有恢复生产数据库。本次无新增迁移。
+
+iOS 首轮构建失败后，视图表达式拆分修复 `0443b21cc4662eb3038ec1efb95d1866c8256a22` 已推送；[iOS 重建 42493817400](https://github.com/Cinnaio/zhi-zhou/actions/runs/42493817400) 于 23:23:07 成功完成，版本为 `1.1.0 / build 22`。macOS 15、Xcode `26.3 / 17C529` 下 97 项 Core 测试全部通过，独立的 Release 构建、资源摘要及隐私清单检查也已通过。该修复仅涉及 iOS 与记录文档，Web/API 保留上述已部署源码。
+
+iOS 工件 `ZhiZhou-unsigned-ipa` 的 ID 为 `13623110799`，保留至 2027-02-06 23:14。下载后核对 IPA ZIP 完整性、`com.zhizhou.app`、`1.1.0 / build 22`、最低系统 26.0、可解析的隐私清单及未开启任意网络传输；随包 `ReaderEdgeRuntime.js` 在统一换行后与源码完全一致。包内没有签名资源，仍需自行签名安装。工作流仅执行 `ZhiZhouCore` 测试，不包含新增的 `ReaderEdgeRuntimeTests`，后者及真机行为仍待验收。
+
+Linux 发布包也已下载，清单中的 Web/API 版本及源码 SHA 正确，归档 SHA-256 与工作流及部署使用的摘要一致。两项本地产物摘要如下；这些检查不代替登录后的完整业务或设备验收。
+
+| 产物 | 字节数 | SHA-256 |
+| --- | ---: | --- |
+| `release.tgz` | 74,965,008 | `62000210ff5f07eca323b01b43d7afee656bdc60f05d55235ca8a3df79c89618` |
+| `ZhiZhou-unsigned.ipa` | 11,970,928 | `a7bc07837a17398ffe5cb41867e6b1c0b4152a54c2008bf5daea070f55995c82` |
+
+下方源码候选记录保留各次提交时的检查边界，当前构建、部署与产物状态以本节为准。未新增 Git tag 或 GitHub Release，亦未进行签名安装、App Store／TestFlight 上架或真机验收。
+
 ## iOS 阅读器节拍指令（2026-11-08，源码候选）
 
 源码 `950f549a` 已推送并于 23:07（Asia/Shanghai）触发构建。首轮 [iOS 42493216217](https://github.com/Cinnaio/zhi-zhou/actions/runs/42493216217) 的 Core 测试及资源校验通过，但 Release 编译因 `ReaderView.body` 修饰链过长、类型推断超时而失败，未产出 IPA。本次分拆布局、弹层和生命周期表达式以减轻类型推断负担，保留既有状态和行为，继续使用 `1.1.0 / build 22` 候选重建。以下未构建描述保留初次源码检查时的边界，实际交付结果另记。
