@@ -69,7 +69,7 @@ import { extractPlotState } from '../services/ai/plot-state'
 import { extractRelationshipProfile } from '../services/ai/relationship-profile'
 import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, saveProfileOverride } from '../services/ai/profile-overrides'
 import { generateStoryGraph, getStoryGraph } from '../services/ai/story-graph'
-import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
+import { checkQuota, ReaderQuotaExceededError, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { usageAuditFields } from '../services/ai/upstream-usage'
 import { userAvatarUrl } from '../services/auth'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
@@ -288,11 +288,6 @@ aiRoutes.post('/recap', requireUser(), async (c) => {
     if (cached) return c.json({ recap: cached.result, cached: true, model: cached.model, id: cached.id }, 200, { 'Cache-Control': 'no-store' })
   }
 
-  const quota = await checkQuota(db, user.id, settings.dailyQuota, isAdmin)
-  if (!quota.ok) {
-    return c.json({ error: '今日 AI 生成次数已用完', code: 'quota_exceeded', used: quota.used, limit: quota.limit, resetAt: quota.resetAt }, 429)
-  }
-
   const chapter = await loadChapterForRecap(db, chapterId)
   if (!chapter) return c.json({ error: '章节不存在' }, 404)
 
@@ -305,6 +300,7 @@ aiRoutes.post('/recap', requireUser(), async (c) => {
       novelTitle: novel?.title || '',
       maxChapterChars: settings.maxChapterChars,
       userId: user.id,
+      unlimitedQuota: isAdmin,
       ...(await auditRequestContext(c, db)),
     })
     return c.json({ recap: result.generation.result, cached: false, model: result.generation.model, id: result.generation.id }, 200, {
@@ -341,13 +337,8 @@ aiRoutes.post('/catchup', requireUser(), async (c) => {
   const cached = await getCachedCatchup(db, user.id, novelId, model, inspection)
   if (cached) return c.json({ recap: cached.result, cached: true, model: cached.model, id: cached.id }, 200, { 'Cache-Control': 'no-store' })
 
-  const quota = await checkQuota(db, user.id, settings.dailyQuota, isAdmin)
-  if (!quota.ok) {
-    return c.json({ error: '今日 AI 生成次数已用完', code: 'quota_exceeded', used: quota.used, limit: quota.limit, resetAt: quota.resetAt }, 429)
-  }
-
   try {
-    const result = await generateCatchup(db, { userId: user.id, novelId, source: inspection.source, ...(await auditRequestContext(c, db)) })
+    const result = await generateCatchup(db, { userId: user.id, novelId, source: inspection.source, unlimitedQuota: isAdmin, ...(await auditRequestContext(c, db)) })
     return c.json(
       { recap: result.generation?.result || null, cached: false, model: result.generation?.model, id: result.generation?.id, chapterIds: result.chapterIds },
       200,
@@ -2860,6 +2851,9 @@ aiRoutes.post('/generations/restore', requireAdmin(), async (c) => {
 
 /** AiError → HTTP：客户端只拿到 code 与可展示文案，上游细节留在服务端日志。 */
 function aiErrorResponse(c: Context, err: unknown) {
+  if (err instanceof ReaderQuotaExceededError) {
+    return c.json({ error: err.message, code: 'quota_exceeded', ...err.quota }, 429)
+  }
   if (err instanceof AiError) {
     const status =
       err.code === 'disabled'

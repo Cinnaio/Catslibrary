@@ -9,7 +9,7 @@ import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from '
 import { cacheKey, findPublished, saveGeneration, type Generation } from './generations'
 import { createHash } from 'node:crypto'
 import { DEFAULT_AI_SETTINGS, getAiSettings } from './settings'
-import { recordUsage } from './usage'
+import { ReaderQuotaExceededError, recordUsage, reserveReaderQuota, settleReaderQuota } from './usage'
 import { usageAuditFields } from './upstream-usage'
 
 /** 提示词版本：改动下方 prompt 时 +1，历史缓存自动失效重算。 */
@@ -70,6 +70,7 @@ export interface RecapOptions {
   userId: string
   /** true 时忽略缓存强制重算（管理员用） */
   force?: boolean
+  unlimitedQuota?: boolean
   ipAddress?: string
   userAgent?: string
 }
@@ -92,7 +93,15 @@ export async function generateRecap(db: Db, opts: RecapOptions): Promise<RecapRe
 
   const key = opts.chapter.id + ':' + createHash('sha256').update(opts.chapter.content).digest('hex')
   const pending = inflight.get(key)
-  if (pending) return pending
+  if (pending) {
+    try { return await pending }
+    catch (error) {
+      // A rejected admission never contacted the model. Another reader may
+      // still have quota; do not share the first reader's rejection with them.
+      if (!(error instanceof ReaderQuotaExceededError)) throw error
+      return generateRecap(db, opts)
+    }
+  }
 
   const promise = runGenerateRecap(db, opts)
   inflight.set(key, promise)
@@ -120,6 +129,7 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
   const userPrompt = buildUserPrompt(opts.novelTitle, opts.chapter, text)
   // 温度与 token 上限来自「参数调优」设置；两者不参与缓存键——
   // 调参只影响后续新生成，不作废历史缓存（避免改一个数字导致全站重算烧钱）
+  const reservation = await reserveReaderQuota(db, opts.userId, settings.dailyQuota, opts.unlimitedQuota)
   const res = await chat({
     messages: [
       { role: 'system', content: systemPrompt },
@@ -130,21 +140,8 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
     maxTokens: settings.recapMaxTokens,
   })
 
-  const generation = await saveGeneration(db, {
-    novelId: opts.chapter.novel_id,
-    chapterId: opts.chapter.id,
-    kind: 'summary',
-    model: res.model,
-    // 缓存键用配置模型名而非上游回显模型名，避免同一配置因回显差异反复未命中
-    paramsJson: await recapParams(db, provider.model, opts.chapter.content),
-    prompt: userPrompt,
-    result: res.text,
-    // 提要面向读者即时可见，落 published；管理端可事后驳回使其失效
-    status: 'published',
-    createdBy: opts.userId || '',
-  })
-
   await recordUsage(db, {
+    ...reservation,
     userId: opts.userId || '',
     model: res.model,
     provider: providerLabel(provider.baseUrl),
@@ -157,6 +154,21 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
     generationType: 'summary',
     ipAddress: opts.ipAddress,
     userAgent: opts.userAgent,
+  })
+  await settleReaderQuota(db, reservation?.usageId)
+
+  // Record the real call before publishing: a content-storage failure must not refund it.
+  const generation = await saveGeneration(db, {
+    novelId: opts.chapter.novel_id,
+    chapterId: opts.chapter.id,
+    kind: 'summary',
+    model: res.model,
+    // Cache against the configured model, not the upstream display name.
+    paramsJson: await recapParams(db, provider.model, opts.chapter.content),
+    prompt: userPrompt,
+    result: res.text,
+    status: 'published',
+    createdBy: opts.userId || '',
   })
 
   return {

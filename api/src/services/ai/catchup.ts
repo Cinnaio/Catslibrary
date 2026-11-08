@@ -9,7 +9,7 @@ import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from '
 import { findPublished, saveGeneration, type Generation } from './generations'
 import { getAiSettings } from './settings'
 import { recapParams, recapContentKey } from './summary'
-import { recordUsage } from './usage'
+import { recordUsage, reserveReaderQuota, settleReaderQuota } from './usage'
 import { usageAuditFields } from './upstream-usage'
 
 /** 提示词版本：改动下方 prompt 时 +1，历史缓存自动失效重算。 */
@@ -134,7 +134,7 @@ const inflight = new Map<string, Promise<CatchupResult>>()
 
 export async function generateCatchup(
   db: Db,
-  opts: { userId: string; novelId: string; source?: CatchupSource; ipAddress?: string; userAgent?: string },
+  opts: { userId: string; novelId: string; source?: CatchupSource; ipAddress?: string; userAgent?: string; unlimitedQuota?: boolean },
 ): Promise<CatchupResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
 
@@ -153,7 +153,7 @@ export async function generateCatchup(
   }
 }
 
-async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: string; source?: CatchupSource; ipAddress?: string; userAgent?: string }): Promise<CatchupResult> {
+async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: string; source?: CatchupSource; ipAddress?: string; userAgent?: string; unlimitedQuota?: boolean }): Promise<CatchupResult> {
   const provider = textProvider()
   const source = opts.source || (await inspectCatchup(db, opts.userId, opts.novelId, provider.model)).source
   if (!source) return { generation: null, cached: false, chapterIds: [], usage: null }
@@ -164,6 +164,7 @@ async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: strin
 
   // 温度与 token 上限来自「参数调优」设置；不参与缓存键，调参只影响后续新生成
   const settings = await getAiSettings(db)
+  const reservation = await reserveReaderQuota(db, opts.userId, settings.dailyQuota, opts.unlimitedQuota)
   const res = await chat({
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -173,19 +174,8 @@ async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: strin
     maxTokens: settings.catchupMaxTokens,
   })
 
-  const generation = await saveGeneration(db, {
-    novelId: opts.novelId,
-    chapterId: source.progress.chapter_id,
-    kind: 'catchup',
-    model: res.model,
-    paramsJson: source.paramsJson,
-    prompt: userPrompt,
-    result: res.text,
-    status: 'published',
-    createdBy: opts.userId || '',
-  })
-
   await recordUsage(db, {
+    ...reservation,
     userId: opts.userId || '',
     model: res.model,
     provider: providerLabel(provider.baseUrl),
@@ -198,6 +188,19 @@ async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: strin
     generationType: 'catchup',
     ipAddress: opts.ipAddress,
     userAgent: opts.userAgent,
+  })
+  await settleReaderQuota(db, reservation?.usageId)
+
+  const generation = await saveGeneration(db, {
+    novelId: opts.novelId,
+    chapterId: source.progress.chapter_id,
+    kind: 'catchup',
+    model: res.model,
+    paramsJson: source.paramsJson,
+    prompt: userPrompt,
+    result: res.text,
+    status: 'published',
+    createdBy: opts.userId || '',
   })
 
   return {

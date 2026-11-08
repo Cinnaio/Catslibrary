@@ -18,6 +18,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:backup-integration": "node scripts/test-backup-integration.mjs",
+    "test:reader-reliability": "node scripts/test-reader-reliability.mjs",
     "security:headers": "node scripts/export-browser-security-headers.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

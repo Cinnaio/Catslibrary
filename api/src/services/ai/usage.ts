@@ -3,14 +3,16 @@
  * cost_millicents 来自生成响应或精确关联的中转站账单（货币单位 × 100_000，保留小数），
  * 缺失或无效时落 0 并保留未回传标记；不按模型标价估算。
  */
-import type { Db } from '../../db/pool'
-import { first, run } from '../../db/query'
+import type { Db, DbClient } from '../../db/pool'
+import { first, run, withTx } from '../../db/query'
 import { newId } from '../auth'
 import type { UpstreamUsage } from './upstream-usage'
 
 export interface UsageRecord extends UpstreamUsage {
   /** 单次真实调用的稳定记账 ID，用于同一事实的幂等写入。 */
   usageId?: string
+  /** 服务端准入时间；跨零点完成的读者调用仍归属原来的额度日。 */
+  createdAt?: number
   userId: string
   model: string
   provider: string
@@ -46,7 +48,7 @@ export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
       // 审计字段来自请求头，截断防御超长输入膨胀审计表
       String(rec.ipAddress || '').slice(0, 100),
       String(rec.userAgent || '').slice(0, 500),
-      Date.now(),
+      rec.createdAt ?? Date.now(),
       rec.cacheReadTokens ?? null,
       rec.cacheWriteTokens ?? null,
       rec.reasoningTokens ?? null,
@@ -86,12 +88,54 @@ export async function countUsageSince(db: Db, userId: string, since: number): Pr
 }
 
 /** 管理员不限额（传 unlimited=true）；读者按 dailyQuota 卡自然日调用次数。 */
-export async function checkQuota(db: Db, userId: string, dailyQuota: number, unlimited = false): Promise<QuotaState> {
-  const resetAt = startOfTomorrow()
+export async function checkQuota(db: DbClient, userId: string, dailyQuota: number, unlimited = false, now = Date.now()): Promise<QuotaState> {
+  const resetAt = startOfTomorrow(now)
   if (unlimited) return { ok: true, used: 0, limit: -1, resetAt }
   if (dailyQuota <= 0) return { ok: false, used: 0, limit: 0, resetAt }
-  const used = await countUsageSince(db, userId, startOfToday())
+  // One snapshot counts a reservation OR its usage row, never both. Accounting
+  // and reservation cleanup need not race two separate COUNT queries.
+  const row = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM (
+    SELECT id FROM ai_usage WHERE user_id=$1 AND created_at >= $2 AND generation_type <> 'selection_image'
+    UNION ALL
+    SELECT r.id FROM ai_quota_reservations r WHERE r.user_id=$1 AND r.created_at >= $2 AND r.expires_at > $3
+      AND NOT EXISTS (SELECT 1 FROM ai_usage u WHERE u.id=r.id)
+  ) charged`, [userId, startOfToday(now), now])
+  const used = Number(row?.total) || 0
   return { ok: used < dailyQuota, used, limit: dailyQuota, resetAt }
+}
+
+export class ReaderQuotaExceededError extends Error {
+  constructor(readonly quota: QuotaState) {
+    super('今日 AI 生成次数已用完（含处理中或结果未确认的调用）')
+    this.name = 'ReaderQuotaExceededError'
+  }
+}
+
+export interface ReaderQuotaReservation { usageId: string; createdAt: number }
+
+/** A short transaction serializes admission per user; no lock is held during AI work. */
+export async function reserveReaderQuota(db: Db, userId: string, dailyQuota: number, unlimited = false): Promise<ReaderQuotaReservation | undefined> {
+  if (unlimited) return undefined
+  return withTx(db, async query => {
+    const user = await query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [userId])
+    if (!user.rows.length) throw new Error('Reader quota owner no longer exists')
+    const now = Date.now()
+    const quota = await checkQuota({ query }, userId, dailyQuota, false, now)
+    if (!quota.ok) throw new ReaderQuotaExceededError(quota)
+    // Prune only this user's elapsed days; current uncertain calls are retained.
+    await query('DELETE FROM ai_quota_reservations WHERE user_id=$1 AND expires_at <= $2', [userId, now])
+    const id = newId('aiuse')
+    await query('INSERT INTO ai_quota_reservations(id,user_id,created_at,expires_at) VALUES($1,$2,$3,$4)',
+      [id, userId, now, quota.resetAt])
+    return { usageId: id, createdAt: now }
+  })
+}
+
+/** The stable usage ID already prevents double counting if cleanup is interrupted. */
+export async function settleReaderQuota(db: Db, usageId: string | undefined): Promise<void> {
+  if (!usageId) return
+  await run(db, 'DELETE FROM ai_quota_reservations WHERE id=$1 AND EXISTS (SELECT 1 FROM ai_usage WHERE id=$1)', [usageId])
+    .catch(() => { /* Next admission still counts the linked usage exactly once. */ })
 }
 
 export interface UsageSummary {
