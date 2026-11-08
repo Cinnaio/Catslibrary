@@ -67,6 +67,7 @@ import Pagination from "@/components/shared/Pagination"
 import SearchSelect from "@/components/shared/SearchSelect"
 import TimeField from "@/components/shared/TimeField"
 import { SettingsControls } from '@/components/reader/SettingsControls'
+import { ReaderTempoProvider, ReaderTempoStatus, ReaderTempoTrigger } from '@/components/reader/ReaderTempo'
 import readerStyles from '../reader.module.css'
 import type { ExampleProps } from './gallery-types'
 
@@ -1011,4 +1012,14 @@ export function ReaderPaper({ boundary }: ExampleProps) {
       </article>
     </div>
   )
+}
+
+export function ReaderTempoExample() {
+  return <ReaderTempoProvider scope="gallery:reader-tempo">
+    <div className="gallery-stack">
+      <div className="gallery-row"><ReaderTempoTrigger onOpen={() => {}} /></div>
+      <ReaderTempoStatus onOpen={() => {}} />
+      <p className="gallery-note">复用阅读器真实计时面板；示例记录使用独立本机空间。</p>
+    </div>
+  </ReaderTempoProvider>
 }

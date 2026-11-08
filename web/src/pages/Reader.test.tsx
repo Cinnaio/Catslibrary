@@ -1,13 +1,25 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as matchers from '@testing-library/jest-dom/matchers'
+import { readTempoData } from '../lib/tempo'
+
+expect.extend(matchers)
 
 const mocks = vi.hoisted(() => ({
   policy: { mode: 'adult', checking: false, policyError: '', adultContentEnabled: true, isAllowed: () => true, setMode: vi.fn(), refreshPolicy: vi.fn() },
-  chapter: vi.fn(), novel: vi.fn(), chapters: vi.fn(),
+  chapter: vi.fn(), novel: vi.fn(), chapters: vi.fn(), thoughts: vi.fn(),
+  session: { user: null as null | { id: string }, loading: false },
+  playing: false, dispose: vi.fn(), stats: vi.fn(),
 }))
-vi.mock('../context/SessionContext', () => ({ useSession: () => ({ user: null, loading: false }), useOptionalSession: () => ({ user: null }) }))
+vi.mock('../context/SessionContext', () => ({ useSession: () => mocks.session, useOptionalSession: () => mocks.session }))
+vi.mock('../hooks/useReadingStats', () => ({ useReadingStats: mocks.stats }))
+vi.mock('../lib/tempo-audio', () => ({ TempoMetronome: class {
+  start() { mocks.playing = true; return Promise.resolve(true) }
+  stop() { mocks.playing = false }
+  dispose() { mocks.playing = false; mocks.dispose() }
+} }))
 vi.mock('../context/ContentPolicyContext', () => ({ useContentPolicy: () => mocks.policy }))
 vi.mock('../components/feedback', () => ({ useToast: () => ({ toast: vi.fn() }) }))
 vi.mock('../hooks/useBookmarks', () => ({ useBookmarks: () => ({ bookmarks: [], change: vi.fn(), reload: vi.fn() }) }))
@@ -22,7 +34,7 @@ vi.mock('../lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('../lib/api')>(),
   chaptersApi: { get: mocks.chapter, list: mocks.chapters },
   novelsApi: { get: mocks.novel },
-  thoughtsApi: { chapter: vi.fn().mockResolvedValue({ thoughts: [] }), list: vi.fn().mockResolvedValue({ thoughts: [] }) },
+  thoughtsApi: { chapter: mocks.thoughts, list: mocks.thoughts },
 }))
 vi.mock('../components/ThemeMenu', () => ({ ThemeMenu: () => null }))
 vi.mock('../components/reader/ChapterRecap', () => ({ default: () => null }))
@@ -37,12 +49,118 @@ function mount() { return render(readerTree()) }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
+  mocks.session = { user: null, loading: false }
+  mocks.playing = false
+  mocks.thoughts.mockResolvedValue({ thoughts: [] })
   mocks.policy.mode = 'adult'
   mocks.policy.checking = false
   mocks.policy.policyError = ''
   mocks.chapter.mockResolvedValue({ chapter: { id: 'chapter', novelId: 'book', title: '测试章节', content: '正文', order: 1 } })
   mocks.novel.mockRejectedValue(new TypeError('Failed to fetch'))
   mocks.chapters.mockReset().mockResolvedValue({ chapters: [] })
+})
+
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+
+describe('阅读器节奏计时', () => {
+  it('桌面面板互斥，关闭后回焦且只在展开时暂停阅读统计', async () => {
+    const user = userEvent.setup()
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    mount()
+    await screen.findByText('正文')
+    await user.click(screen.getByRole('button', { name: '阅读设置' }))
+    const trigger = within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' })
+    await user.click(trigger)
+    expect(screen.queryByRole('dialog', { name: '阅读设置' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '节奏计时' })).toBeInTheDocument()
+    expect(mocks.stats.mock.lastCall?.[0].enabled).toBe(false)
+    await user.keyboard('{Escape}')
+    expect(trigger).toHaveFocus()
+    expect(screen.queryByRole('dialog', { name: '节奏计时' })).not.toBeInTheDocument()
+    expect(mocks.stats.mock.lastCall?.[0].enabled).toBe(true)
+  })
+
+  it('手机入口可用，跨断点关闭时焦点回到当前可见入口', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('innerWidth', 390)
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    mount()
+    await screen.findByText('正文')
+    const trigger = within(screen.getByRole('group', { name: '阅读快捷工具' })).getByRole('button', { name: '节奏计时' })
+    await user.click(trigger)
+    expect(screen.getByRole('dialog', { name: '节奏计时' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(trigger).toHaveFocus()
+    await user.click(trigger)
+    vi.stubGlobal('innerWidth', 1024)
+    fireEvent(window, new Event('resize'))
+    await user.keyboard('{Escape}')
+    expect(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' })).toHaveFocus()
+  })
+
+  it('收起面板与同书切章加载保持计时，结束复用本机记录且离开释放声音', async () => {
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    vi.stubGlobal('AudioContext', class {})
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    const view = mount()
+    await screen.findByText('正文')
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] })
+    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' }))
+    fireEvent.click(screen.getByRole('switch', { name: '节拍声' }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '开始计时' })) })
+    fireEvent.click(screen.getByRole('button', { name: '收起，继续阅读' }))
+    const renders = mocks.stats.mock.calls.length
+    act(() => vi.advanceTimersByTime(1000))
+    expect(mocks.stats).toHaveBeenCalledTimes(renders)
+    expect(mocks.playing).toBe(true)
+    let finish!: (data: unknown) => void
+    mocks.chapter.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    fireEvent.click(screen.getByRole('link', { name: '测试切章' }))
+    await act(async () => {})
+    act(() => vi.advanceTimersByTime(1000))
+    await act(async () => finish({ chapter: { id: 'second', novelId: 'book', title: '下一章', content: '第二章正文', order: 2 } }))
+    expect(screen.getByText('第二章正文')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '打开节奏计时，剩余 04:58' })).toBeInTheDocument()
+    expect(readTempoData('guest').data.history).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: '打开节奏计时，剩余 04:58' }))
+    fireEvent.click(screen.getByRole('button', { name: '结束' }))
+    expect(readTempoData('guest').data.history).toEqual([expect.objectContaining({ elapsedMs: 2000, completed: false })])
+    fireEvent.click(screen.getByRole('button', { name: '再来一次' }))
+    view.unmount()
+    expect(mocks.playing).toBe(false)
+    expect(mocks.dispose).toHaveBeenCalled()
+    expect(readTempoData('guest').data.history).toHaveLength(1)
+  })
+
+  it('后台暂停、恢复权限失败与账号切换不会留下隐藏计时', async () => {
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    const view = mount()
+    await screen.findByText('正文')
+    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' }))
+    fireEvent.click(screen.getByRole('button', { name: '开始计时' }))
+    fireEvent.click(screen.getByRole('button', { name: '收起，继续阅读' }))
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    fireEvent(document, new Event('visibilitychange'))
+    expect(screen.getByRole('button', { name: '继续计时' })).toBeInTheDocument()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    fireEvent(document, new Event('visibilitychange'))
+    fireEvent.click(screen.getByRole('button', { name: '继续计时' }))
+    mocks.policy.policyError = '权限检查失败'
+    view.rerender(readerTree())
+    expect(screen.queryByRole('group', { name: '阅读计时控制' })).not.toBeInTheDocument()
+    mocks.policy.policyError = ''
+    view.rerender(readerTree())
+    expect(screen.getByRole('button', { name: '继续计时' })).toBeInTheDocument()
+    mocks.session = { user: { id: 'new-reader' }, loading: false }
+    view.rerender(readerTree())
+    await screen.findByText('正文')
+    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节奏计时' }))
+    expect(screen.getByRole('button', { name: '开始计时' })).toBeInTheDocument()
+    expect(readTempoData('guest').data.history).toHaveLength(0)
+    expect(readTempoData('user:new-reader').data.history).toHaveLength(0)
+  })
 })
 
 describe('阅读器访问状态', () => {

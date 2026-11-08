@@ -1,0 +1,53 @@
+.workspace { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr); gap: 24px; align-items: start; }
+.timerPanel { --panel-padding: 32px; }
+.timerPanel > section { display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.status { text-align: center; }
+.status h2, .settingsPanel h2 { margin: 0; font-size: 18px; font-weight: 500; color: var(--text-primary); }
+.status p { min-height: 40px; margin-top: 10px; color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+.dial { position: relative; width: min(100%, 288px); aspect-ratio: 1; }
+.dial > svg { display: block; width: 100%; height: 100%; fill: none; stroke-width: 2; }
+.track { stroke: var(--border-light); }
+.arc { stroke: var(--accent); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 100ms linear; }
+.dialText { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+.countdown { color: var(--text-primary); font-size: clamp(40px, 5.5vw, 64px); font-weight: 400; line-height: 1.2; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+.remaining { margin-top: 8px; color: var(--text-muted); font-size: 12px; }
+.beatLabel { display: flex; align-items: center; gap: 9px; margin-top: 24px; color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.beat { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.beat[data-running] { animation: tempo-beat var(--beat-duration) ease-out infinite; }
+.actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; }
+.actions > button { min-width: 120px; }
+.sessionNote { margin: 0; color: var(--text-muted); font-size: 11px; text-align: center; }
+.settingsPanel { --panel-padding: 28px; }
+.settingsPanel > section { display: grid; gap: 24px; }
+.settingsFields { display: grid; gap: 24px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.numberFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.soundSettings { display: grid; gap: 22px; }
+.settingRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
+.settingRow label { display: grid; gap: 5px; cursor: pointer; }
+.settingRow strong { font-size: 13px; font-weight: 500; }
+.settingRow label span { color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+.hint { color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+.notice { color: var(--text-secondary); background: var(--bg-secondary); border-radius: var(--radius-compact); padding: 12px; font-size: 12px; line-height: 1.7; }
+.workspace[data-compact] { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr); gap: 28px; }
+.workspace[data-compact] .timerPanel > section { gap: 16px; }
+.workspace[data-compact] .settingsPanel > section, .workspace[data-compact] .settingsFields { gap: 20px; }
+.workspace[data-compact] .status h2, .workspace[data-compact] .settingsPanel h2 { font-size: 15px; }
+.workspace[data-compact] .dial { width: min(100%, 190px); }
+.workspace[data-compact] .countdown { font-size: 40px; }
+.workspace[data-compact] .beatLabel { margin-top: 12px; }
+.workspace[data-compact] .actions { width: 100%; gap: 8px; }
+.workspace[data-compact] .actions > button { flex: 1; min-width: 0; }
+@keyframes tempo-beat { 0% { transform: scale(1.3); } 65%, 100% { transform: scale(1); } }
+@media (max-width: 1100px) { .workspace:not([data-compact]) { grid-template-columns: minmax(0, 1fr); } .settingsPanel { --panel-padding: 24px; } }
+@media (max-width: 700px) {
+  .workspace[data-compact] { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .timerPanel, .settingsPanel { --panel-padding: 20px; }
+  .timerPanel > section { gap: 20px; }
+  .dial { width: min(100%, 264px); }
+  .countdown { font-size: 52px; }
+  .settingRow { min-height: 48px; }
+}
+@media (max-width: 360px) { .numberFields { grid-template-columns: minmax(0, 1fr); } .countdown { font-size: 44px; } .actions { width: 100%; } .actions > button { flex: 1; min-width: 0; } }
+@media (prefers-reduced-motion: reduce) { .beat[data-running] { animation: none; } .arc { transition: none; } }
+@media (forced-colors: active) { .track { stroke: GrayText; } .arc { stroke: Highlight; } .beat { background: Highlight; } }

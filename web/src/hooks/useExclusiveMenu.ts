@@ -1,6 +1,6 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from 'react'
 
-export type ExclusiveMenu = 'account' | 'theme' | 'reader-chapters' | 'reader-bookmarks' | 'reader-settings' | 'reader-search' | 'reader-bookmark-note'
+export type ExclusiveMenu = 'account' | 'theme' | 'reader-chapters' | 'reader-bookmarks' | 'reader-settings' | 'reader-search' | 'reader-bookmark-note' | 'reader-tempo'
 
 const MENU_OPEN_EVENT = 'zhi-zhou:exclusive-menu-open'
 

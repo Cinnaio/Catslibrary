@@ -61,6 +61,8 @@ import ContentPolicyStatus from '../components/ContentPolicyStatus'
 import FloatingPageTools from "@/components/shared/FloatingPageTools"
 import BookSearch from '../components/reader/BookSearch'
 import { useReaderSearch } from '../hooks/useReaderSearch'
+import { ReaderTempoProvider, ReaderTempoStatus, ReaderTempoTrigger } from '../components/reader/ReaderTempo'
+import { useReaderTempo } from '../hooks/useReaderTempo'
 
 const CHAPTER_ROW_H = 44
 const CHAPTER_CACHE_MAX = 6
@@ -74,6 +76,14 @@ interface ReaderContext {
 }
 
 export default function Reader() {
+  const { novelId = '' } = useParams()
+  const { user, loading } = useSession()
+  if (loading) return <div className="loading-center" style={{ minHeight: '60vh' }}><Spinner size="lg" aria-label="正在准备阅读器" /></div>
+  const scope = user ? `user:${user.id}` : 'guest'
+  return <ReaderTempoProvider key={`${scope}:${novelId}`} scope={scope}><ReaderContent /></ReaderTempoProvider>
+}
+
+function ReaderContent() {
   const { novelId = '', chapterId = '' } = useParams()
   const navigate = useNavigate()
   const { user, loading: sessionLoading } = useSession()
@@ -135,6 +145,15 @@ export default function Reader() {
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false)
   const [mobileLibraryTab, setMobileLibraryTab] = useState<'chapters' | 'bookmarks'>('chapters')
   const [mobileChapterQuery, setMobileChapterQuery] = useState('')
+  const { open: tempoOpen, suspend: suspendTempo } = useReaderTempo()
+  function prepareTempo() {
+    setMobileSettingsOpen(false)
+    setMobileLibraryOpen(false)
+    setMobileBarHidden(true)
+  }
+  useEffect(() => {
+    if (checking || policyError || blocked || notFound || loadError) suspendTempo()
+  }, [checking, policyError, blocked, notFound, loadError, suspendTempo])
 
   // 分页模式
   const currentPageRef = useRef(0)
@@ -158,7 +177,7 @@ export default function Reader() {
     userId: user?.id || '', novelId: chapter?.novelId || novelId, chapterId: chapter?.id || '',
     enabled: !loading && !notFound && !loadError && !blocked && !sessionLoading && !checking && !policyBlocked
       && chapter?.id === chapterId && !bodySearchOpen && !dropdownOpen && !bookmarkPanelOpen && !bookmarkNoteOpen
-      && !settingsPanelOpen && !mobileSettingsOpen && !mobileLibraryOpen && !thoughtPanelOpen,
+      && !settingsPanelOpen && !mobileSettingsOpen && !mobileLibraryOpen && !thoughtPanelOpen && !tempoOpen,
     contentMode: mode, ready: statsReady,
   })
 
@@ -892,7 +911,7 @@ export default function Reader() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.defaultPrevented || (e.target as HTMLElement).closest('button, a, [role="dialog"], [role="menu"], [role="listbox"]') || illustrationMode) return
+      if (e.defaultPrevented || tempoOpen || (e.target as HTMLElement).closest('button, a, [role="dialog"], [role="menu"], [role="listbox"]') || illustrationMode) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       if (pageMode) {
@@ -918,7 +937,7 @@ export default function Reader() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageMode, chapter?.id, allChapters.length, illustrationMode])
+  }, [pageMode, chapter?.id, allChapters.length, illustrationMode, tempoOpen])
 
   // ---------- 章节下拉：定位 + 点击空白关闭 ----------
   // 下拉用 position:fixed，需按触发按钮的视口坐标计算 top/left；
@@ -1064,7 +1083,7 @@ export default function Reader() {
     function tick(ts: number) {
       const s = autoScrollRef.current
       if (!s.running) return
-      if (document.hidden || bodySearchOpen || dropdownOpen || bookmarkPanelOpen || bookmarkNoteOpen || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen) {
+      if (document.hidden || bodySearchOpen || dropdownOpen || bookmarkPanelOpen || bookmarkNoteOpen || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen || tempoOpen) {
         s.frame = requestAnimationFrame(tick)
         return
       }
@@ -1117,7 +1136,7 @@ export default function Reader() {
       stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readerAutoScrollSpeed, bodySearchOpen, dropdownOpen, bookmarkPanelOpen, bookmarkNoteOpen, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, pageMode])
+  }, [readerAutoScrollSpeed, bodySearchOpen, dropdownOpen, bookmarkPanelOpen, bookmarkNoteOpen, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, tempoOpen, pageMode])
 
   // ---------- Wake Lock ----------
   useEffect(() => {
@@ -1355,6 +1374,7 @@ export default function Reader() {
           </nav>
           <div className="reader-controls" role="group" aria-label="阅读工具">
             <BookSearch novelId={nid} title={novel?.title || ''} className="reader-tool-btn" iconOnly onSelect={openSearchHit} onOpenChange={openBodySearch} />
+            <ReaderTempoTrigger onOpen={prepareTempo} />
             {canManageIllustrations && <Button variant="ghost" size="icon" type="button" aria-label="管理章节插图" aria-pressed={illustrationMode} title="章节插图" onClick={() => setIllustrationMode(value => !value)}><ImagePlus size={18} /></Button>}
             <Button variant="ghost" size="icon" type="button" ref={bookmarkTriggerRef} disabled={bookmarkBusy} className={`reader-controls__bookmark${currentBookmarked ? ' bookmarked' : ''}`} aria-label={currentBookmarked ? '移除书签' : '添加书签'} aria-pressed={currentBookmarked} title={currentBookmarked ? '移除书签' : '添加书签'} onClick={handleBookmarkToggle}>
               <Bookmark className="bookmark-icon" size={18} aria-hidden="true" />
@@ -1369,6 +1389,7 @@ export default function Reader() {
           </div>
           <div className="reader-mobile-tools" role="group" aria-label="阅读快捷工具">
             <BookSearch novelId={nid} title={novel?.title || ''} className="reader-tool-btn" iconOnly onSelect={openSearchHit} onOpenChange={openBodySearch} />
+            <ReaderTempoTrigger mobile onOpen={prepareTempo} />
             {canManageIllustrations && <Button variant="ghost" size="icon" type="button" aria-label="管理章节插图" aria-pressed={illustrationMode} title="章节插图" onClick={() => setIllustrationMode(value => !value)}><ImagePlus size={16} aria-hidden="true" /></Button>}
             <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置" />
           </div>
@@ -1405,6 +1426,8 @@ export default function Reader() {
               <SettingsControls settings={settings} set={set} wakeLockSupported={wakeLockSupported} />
             </section></MotionPresence>
         </div>
+
+        <ReaderTempoStatus locating={!!bodySearch.query} onOpen={prepareTempo} />
 
         {/* Chapter dropdown */}
         <MotionPresence asChild open={dropdownOpen} mode="surface"><div

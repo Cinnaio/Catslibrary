@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-08 阅读器计时接入：`components/reader/ReaderTempo.tsx` 持有阅读器计时 Provider、桌面／手机入口、共享弹窗及收起后的控制条，样式归 `ReaderTempo.module.css`；独立页与面板复用 `components/reader/TempoControls.tsx` 及其 CSS Module。`useTempoController` 统一输入、会话、声音与结束记账，`useReaderTempo` 分离面板上下文和高频计时上下文，阅读正文不订阅 tick。`pages/Reader.tsx` 持有账号／作品生命周期、阅读统计和自动滚动协调；共享 UI 层无新增业务依赖。组件展厅登记真实生产组件，并使用独立示例存储空间。组件检查为 110 个组件、289 个源码模块。下方节奏计时初版归属记录保留当时状态。
+
 2026-11-08 节奏计时：`pages/Tempo.tsx` 持有独立工具页面，布局归 `tempo.module.css`；复用 Panel、Button、FilterChip、FormField、Input、Switch、EmptyState 与 ConfirmationDialog，不新增公共控件。计时状态、浏览器音频和账号隔离的本机记录分别归 `lib/tempo.ts`、`lib/tempo-audio.ts` 与三个 `useTempo*` hook；共享组件不导入这些场景逻辑。路由按需加载，桌面与手机入口由 WorkspaceShell 持有。组件边界检查为 108 个组件、285 个源码模块。
 
 2026-11-07 Web 全站动效：`components/ui/motion.tsx` 与自带 CSS Module 维护分区、折叠和原生说明过渡；`overlay-motion.module.css` 统一共享浮层节奏。`useMotionPresence` 持有退出与焦点隔离，`useListMotion` 仅响应成功用户操作，调用方继续持有请求与账户上下文；保存及批量操作条的退出与占位归 `AdminFloatingDock`。组件展厅直接使用生产实现，不新增业务依赖或动效库。
@@ -106,7 +108,9 @@
 | `components/reader/ChapterIllustrations.tsx` | 阅读场景 | 2 | `styles/select-fields.css`、`styles/input-fields.css`、`styles/chapter-illustrations.css`、`components/reader/ChapterIllustrations.module.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ChapterRecap.tsx` | 阅读场景 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/MobileSheets.tsx` | 阅读场景 | 1 | `styles/input-fields.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
+| `components/reader/ReaderTempo.tsx` | 阅读场景 | 2 | `components/reader/ReaderTempo.module.css` | 保留：阅读器内计时生命周期、弹窗与紧凑控制条 |
 | `components/reader/SettingsControls.tsx` | 阅读场景 | 3 | `components/reader/SettingsControls.module.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
+| `components/reader/TempoControls.tsx` | 阅读场景 | 2 | `components/reader/TempoControls.module.css` | 保留：独立工具页与阅读器共用计时控件 |
 | `components/reader/ThoughtImage.tsx` | 阅读场景 | 2 | `styles/thoughts.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/ThoughtPanel.tsx` | 阅读场景 | 1 | `styles/thoughts.css`、`styles/input-fields.css` | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
 | `components/reader/VirtualList.tsx` | 阅读场景 | 2 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：阅读状态、虚拟化、图片、触摸或阅读设置契约 |
