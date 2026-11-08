@@ -1,5 +1,15 @@
 # 发布与版本管理
 
+## 1.0.0 正式版准备（2026-11-08）
+
+按本次正式发布要求，将仓库根包 `0.5.0`、API/Web `0.11.2` 和 iOS `0.4.1` 一次性统一为 `1.0.0`；iOS build 从 `20` 递增至 `21`。根锁文件顶层、根包与两个 workspace 同步更新，后续各端仍按实际交付独立管理版本。本次只调整版本元数据和发布文档，不更改业务源码、依赖、数据库结构或数据格式。
+
+源码基于已推送的 `main` 提交 `b1171faa`，前一交付源码为 `4030914e`。本条所在的版本提交作为构建来源；推送后执行既有 Deploy 与 Build and Test iOS 工作流，并核对自动触发的 Backup recovery 结果。全部所需作业成功、下载产物并核对版本和摘要后，创建指向该构建源码的 `v1.0.0` 标签与正式 GitHub Release，附 Linux x64 发布包、iOS 未签名 IPA、发布清单和 SHA-256 校验文件。
+
+提交时尚未执行 1.0.0 远程构建、部署或创建正式 Release，实际结果完成后另补记录。版本元数据本地只做 JSON/YAML 解析、版本一致性和差异检查；业务回归与发布包验收由现有工作流执行，不因纯版本调整追加全量本地测试。
+
+从当前 API/Web `0.11.2` 升级没有新增迁移，沿用迁移 077 与协议 2 发布工具；更旧版本升级仍须满足下方既有迁移、停旧服务和备份要求。iOS 交付为 `1.0.0 / build 21` 的未签名包，需自行签名安装；App Store／TestFlight 上架、实体设备和登录后完整界面验收未纳入本次发布。已有审查后续项仍按原记录保留，正式版本号不替代这些验收结果。
+
 ## API/Web 0.11.2 正式发布（2026-11-08）
 
 2026-11-08 13:16:25（Asia/Shanghai），[Deploy 42449842516](https://github.com/Cinnaio/zhi-zhou/actions/runs/42449842516) 完成源码 `4030914e35752c42dc4e6ee58514e4092686881c` 的 API/Web `0.11.2` 激活，部署作业于 13:16:29 记录成功。进度同步、额度预留和版本记录分别为 `65205de9`、`17d79960`、`4030914e`，均已推送到 `origin/main`；同一源码的 [Backup recovery 42449694157](https://github.com/Cinnaio/zhi-zhou/actions/runs/42449694157) 成功，真实备份恢复集成共 68 项通过、零跳过。
@@ -402,12 +412,12 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 ## 版本来源
 
-| 组件 | 唯一版本来源 | 本次候选版本 | 同步要求 |
+| 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `0.3.0 / 18` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `0.8.0` | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `0.8.4` | 同步锁文件 `packages.web.version` |
-| 仓库根包 | `package.json` | `0.5.0`，本次未改 | 修改时同步锁文件顶层及 `packages[""].version` |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.0.0 / 21` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| API | `api/package.json` | `1.0.0` | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.0.0` | 同步锁文件 `packages.web.version` |
+| 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。
 
