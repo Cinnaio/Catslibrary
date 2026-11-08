@@ -1,6 +1,8 @@
 /* The reader shares the site's paper, controls and type scale. Only the book
    paper responds to reading width, font and background preferences. */
 .page {
+  /* Keep reader controls below body-level dialog portals. */
+  isolation: isolate;
   --reader-paper: var(--bg-card);
   --reader-ink: var(--text-primary);
   --reader-line: var(--border);
