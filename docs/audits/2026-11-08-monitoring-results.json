@@ -1,0 +1,94 @@
+{
+  "auditDate": "2026-11-08",
+  "sourceCommit": "34c80e3e5c273f8b2ba7dd81fb223d00b02f3c9d",
+  "sourceNote": "Test run began before the PO18 commit; monitoring sources are unchanged between 7ba8509f and 34c80e3e.",
+  "command": "npm run test --workspace=@zhi-zhou/web -- src/pages/admin/monitoring.test.tsx --maxWorkers=1 --minWorkers=1",
+  "environment": {
+    "os": "Windows",
+    "node": "22.22.0",
+    "npm": "10.9.4"
+  },
+  "summary": {
+    "total": 16,
+    "passed": 6,
+    "failed": 10,
+    "success": false
+  },
+  "note": "Condensed from Vitest JSON output. DOM dumps omitted. Failures require contract review; they do not establish ten production defects.",
+  "results": [
+    {
+      "title": "普通管理员不显示出站配置日志，也不发起出站日志请求",
+      "status": "passed"
+    },
+    {
+      "title": "微小账单金额在记录和趋势中保留精度，详情显示可追溯来源",
+      "status": "failed",
+      "failure": "AssertionError: expected 1 to be greater than or equal to 3"
+    },
+    {
+      "title": "调用记录区分缓存命中、未命中、未知，展开读取/写入数量与未知成本",
+      "status": "failed",
+      "failure": "Error: Unable to find an element with the text: 缓存命中 800. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+    },
+    {
+      "title": "趋势显示已回传的缓存合计与覆盖次数，未知成本不当成免费",
+      "status": "failed",
+      "failure": "TestingLibraryElementError: Unable to find an element with the text: 缓存读取. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+    },
+    {
+      "title": "旧任务、统计、审计链接保留查询上下文，显式 AI 子页优先于历史值",
+      "status": "passed"
+    },
+    {
+      "title": "抓取和下载视图只加载各自的数据，切换写入 URL",
+      "status": "passed"
+    },
+    {
+      "title": "AI 任务深链接直接显示任务面板",
+      "status": "passed"
+    },
+    {
+      "title": "AI 与抓取任务首次读取失败复用同一空态，摘要显示原因且不重复重试入口",
+      "status": "failed",
+      "failure": "Error: expect(element).toHaveClass(\"admin-read-error empty-state\")"
+    },
+    {
+      "title": "下载记录读取失败展示原因，不显示正常摘要",
+      "status": "failed",
+      "failure": "TestingLibraryElementError: Unable to find an accessible element with the role \"heading\" and name \"下载日志读取失败\""
+    },
+    {
+      "title": "用量趋势与调用明细共享时间范围，切换后重置分页",
+      "status": "passed"
+    },
+    {
+      "title": "出站请求失败可刷新恢复，并且不加载 AI 用量",
+      "status": "failed",
+      "failure": "Error: expect(element).toHaveClass(\"admin-read-error\")"
+    },
+    {
+      "title": "用量首次读取失败不显示零读数，面板刷新恢复两张趋势",
+      "status": "failed",
+      "failure": "Error: Unable to find an element with the text: 用量趋势加载失败：需要管理员登录. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible."
+    },
+    {
+      "title": "调用记录刷新失败保留已有记录，刷新只读取明细",
+      "status": "failed",
+      "failure": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"刷新调用记录\""
+    },
+    {
+      "title": "抓取详情中的终止保留确认与真实请求，数值零不被旧章节数替代",
+      "status": "passed"
+    },
+    {
+      "title": "AI 详情删除仍保留审计与草稿提示，Prompt 入口保持完整文本",
+      "status": "failed",
+      "failure": "Error: Unable to find role=\"button\" and name \"查看输入\""
+    },
+    {
+      "title": "AI 外置筛选仍传递独立的排队状态并回到首页",
+      "status": "failed",
+      "failure": "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"排队中\""
+    }
+  ]
+}
