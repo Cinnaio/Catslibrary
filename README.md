@@ -6,6 +6,8 @@
 
 自托管的中文小说阅读与 AI 创作空间 · Web & iOS
 
+当前正式版本：**1.0.0** · [发布与下载](https://github.com/Cinnaio/zhi-zhou/releases/tag/v1.0.0)
+
 [快速开始](#快速开始) · [文档](docs/README.md) · [部署指南](docs/deployment.md) · [iOS 客户端](ios/README.md) · [更新记录](CHANGELOG.md)
 
 </div>

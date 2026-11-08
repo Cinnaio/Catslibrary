@@ -1,5 +1,26 @@
 # 发布与版本管理
 
+## 1.0.0 正式发布（2026-11-08）
+
+2026-11-08 14:14:09（Asia/Shanghai）已发布 [Cat’s Library v1.0.0 正式版](https://github.com/Cinnaio/zhi-zhou/releases/tag/v1.0.0)，非草稿、非预发布，已设为 Latest。带注释的 `v1.0.0` 标签准确指向构建源码 `37568fb1064253c8bef124098fa63a28efafaa5b`；根包、API、Web 与 iOS 均为 `1.0.0`，iOS build 为 `21`。后续交付记录提交仅更新文档，标签保留在已验证的构建源码上，无需重新部署。
+
+网站由 [Deploy 42453164268](https://github.com/Cinnaio/zhi-zhou/actions/runs/42453164268) 于 14:08:29 完成生产激活，部署作业于 14:08:33 成功结束。Ubuntu 22.04 x64、Node `22.23.4` 的干净安装、API/Web 类型检查、Lint、88 项 API 与 27 项 Web 关键回归、5 组发布失败恢复测试通过，1 项可选浏览器测试跳过。生产构建、3,192 个文件的完整清单校验、随包依赖／Sharp 检查及临时 PostgreSQL 16 上的迁移与最终归档业务冒烟通过；保留既有大分块提示，未运行全量 CI 测试。
+
+部署使用本次验收原包 `release-37568fb1064253c8bef124098fa63a28efafaa5b-1`（工件 ID `13607150298`，Actions 保留至 2026-11-22 14:07）。服务器服务状态、就绪与目标源码 SHA 检查通过，服务器本机健康接口、首页、入口 `/assets/index-BLBmtr6-.js` 和书目接口正常，未触发回退。本次没有新增迁移，延续已交付的迁移 077；未额外创建数据库备份，最近一次生产备份见下方 0.11.2 的 13:11:39 记录。本轮未独立执行公网或登录后完整界面验收。
+
+iOS 由 [Build and Test iOS 42453167320](https://github.com/Cinnaio/zhi-zhou/actions/runs/42453167320) 于 14:10:43 完成。macOS 15、Xcode `26.3 / 17C529` 下 97 项 Core 测试全通过，Release 构建、隐私清单和网络传输配置检查通过。测试与构建仍为独立 job，本次分别确认成功。工件 `ZhiZhou-unsigned-ipa` 的 ID 为 `13606476705`，Actions 保留至 2027-02-06 14:03；下载后核对 ZIP 完整性、`com.zhizhou.app`、`1.0.0 / build 21`、最低系统 26.0、隐私清单和未开启任意网络传输。包未签名，未执行 App Store／TestFlight 上架、签名安装或实体设备验收。
+
+同一源码的 [Backup recovery 42453157427](https://github.com/Cinnaio/zhi-zhou/actions/runs/42453157427) 成功，68 项真实备份恢复集成全部通过、零跳过；该结果属于隔离集成环境，不代表恢复了生产数据库。
+
+Release 共附 5 个文件：`release.tgz`、`release.tgz.sha256`、`release-manifest.json`、`ZhiZhou-unsigned.ipa` 和 `SHA256SUMS`，不依赖 Actions 的短期工件保留期。已下载并逐项复核 Linux 文件清单与 IPA 内容；上传后再次核对 GitHub 返回的全部附件大小、状态及 SHA-256，与本地一致。
+
+| 产物 | 字节数 | SHA-256 |
+| --- | ---: | --- |
+| `release.tgz` | 74,943,544 | `fe51a1503bd80097322089ca5a80d326fc4d60e2ceb207da268a1f6ad1b9409b` |
+| `ZhiZhou-unsigned.ipa` | 11,769,127 | `fb2ef30e314b5553c3d42db979d52b189e2a428d99f7a8b8644ac05dea79eabd` |
+
+下方准备记录保留提交时的候选状态，本次实际交付以本节为准。既有审查后续项继续保留，不把正式版标记等同于所有场景已验收。
+
 ## 1.0.0 正式版准备（2026-11-08）
 
 按本次正式发布要求，将仓库根包 `0.5.0`、API/Web `0.11.2` 和 iOS `0.4.1` 一次性统一为 `1.0.0`；iOS build 从 `20` 递增至 `21`。根锁文件顶层、根包与两个 workspace 同步更新，后续各端仍按实际交付独立管理版本。本次只调整版本元数据和发布文档，不更改业务源码、依赖、数据库结构或数据格式。
