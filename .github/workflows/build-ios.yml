@@ -39,6 +39,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check bundled reader rules
+        run: python3 scripts/check-reader-edge-resource.py
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

@@ -23,13 +23,16 @@ targets:
         excludes:
           - "Support/Info.plist"
           - "Support/PrivacyInfo.xcprivacy"
+          - "Resources/ReaderEdgeRuntime.js"
       - path: ZhiZhou/Support/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: ZhiZhou/Resources/ReaderEdgeRuntime.js
         buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zhizhou.app
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: 21
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: 22
         INFOPLIST_FILE: ZhiZhou/Support/Info.plist
         CODE_SIGN_ENTITLEMENTS: ZhiZhou/Support/ZhiZhou.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

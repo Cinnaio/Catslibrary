@@ -84,6 +84,8 @@ struct ReaderView: View {
     @State private var pendingSearchCharacter: Int?
     @State private var searchLocationMissing = false
     @State private var showSettings = false
+    @State private var showEdge = false
+    @State private var edgeStore = ReaderEdgeStore()
     @State private var showChrome = true
     @State private var scrollTapGuard = ReaderTapGuard()
     @State private var scrolledParagraph: Int?
@@ -139,14 +141,26 @@ struct ReaderView: View {
     private var statisticsVisible: Bool {
         !isLoading && chapter != nil && pendingScrollRestore == nil
             && (!novel.isRestricted || (!offlineOnly && ContentAccessStore.shared.mode == "adult"))
-            && !showTOC && !showBodySearch && !showSettings && !showThoughtPanel && !showBookmark
+            && !showTOC && !showBodySearch && !showSettings && !showEdge && !showThoughtPanel && !showBookmark
             && !showRecap && !showIllustrationsNotice && scenePhase == .active
     }
 
     private var autoScrollActive: Bool {
         !autoScrollPaused && settings.pageMode == "scroll" && !isLoading && chapter != nil
-            && pendingScrollRestore == nil && !showTOC && !showBodySearch && !showSettings && !showThoughtPanel
+            && pendingScrollRestore == nil && !showTOC && !showBodySearch && !showSettings && !showEdge && !showThoughtPanel
             && !showBookmark && !showRecap && !showIllustrationsNotice && !isSelectingBodyText && scenePhase == .active
+    }
+
+    private var edgeContext: ReaderEdgeContext? {
+        guard !offlineOnly, ContentAccessStore.shared.mode == "adult", let userID = appState.user?.id else { return nil }
+        return ReaderEdgeContext(server: ServerConfig.serverURL, userID: userID, bookID: novel.id,
+                                 accountRevision: ContentAccessStore.shared.accountRevision)
+    }
+
+    private func openReaderEdge() {
+        guard edgeContext != nil, scenePhase == .active else { return }
+        showEdge = true
+        interactionFeedback += 1
     }
 
     init(
@@ -221,11 +235,20 @@ struct ReaderView: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            if settings.pageMode == "page" {
-                pagedReader(geo: geo)
-            } else {
-                readerScroll(geo: geo)
+        VStack(spacing: 0) {
+            if edgeContext != nil {
+                ReaderEdgeBar(store: edgeStore, open: openReaderEdge)
+                    .foregroundStyle(ink)
+                    .background(paper)
+                    .opacity(scenePhase == .active ? 1 : 0)
+                    .accessibilityHidden(scenePhase != .active)
+            }
+            GeometryReader { geo in
+                if settings.pageMode == "page" {
+                    pagedReader(geo: geo)
+                } else {
+                    readerScroll(geo: geo)
+                }
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -306,6 +329,13 @@ struct ReaderView: View {
         }
         .sheet(isPresented: $showSettings) {
             ReaderSettingsView()
+                .preferredColorScheme(scheme)
+                .presentationBackground(AppTheme.background)
+                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showEdge) {
+            ReaderEdgeSheet(store: edgeStore)
                 .preferredColorScheme(scheme)
                 .presentationBackground(AppTheme.background)
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
@@ -399,6 +429,7 @@ struct ReaderView: View {
             if selecting { autoScrollPaused = true }
         }
         .onChange(of: scenePhase) { _, phase in
+            edgeStore.setForeground(phase == .active)
             if phase == .background || phase == .inactive {
                 autoScrollPaused = true
                 saveProgressNow()
@@ -406,9 +437,18 @@ struct ReaderView: View {
                 flushProgress()
             }
         }
-        .onAppear { applyWakeLock() }
+        .onAppear {
+            applyWakeLock()
+            edgeStore.activate(edgeContext, foreground: scenePhase == .active)
+        }
+        .onChange(of: edgeContext) { _, context in
+            showEdge = false
+            edgeStore.activate(context, foreground: scenePhase == .active)
+        }
         .onChange(of: settings.wakeLockEnabled) { _, _ in applyWakeLock() }
         .onDisappear {
+            showEdge = false
+            edgeStore.deactivate()
             autoScrollPaused = true
             UIApplication.shared.isIdleTimerDisabled = false
             saveTask?.cancel()
@@ -1079,6 +1119,16 @@ struct ReaderView: View {
                 .accessibilityLabel("查看插图加载状态")
             }
             if !offlineOnly || settings.pageMode == "scroll" { readerMoreMenu }
+
+            if edgeContext != nil {
+                Button(action: openReaderEdge) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("计时：节拍指令")
+            }
 
             Button {
                 showTOC = true
