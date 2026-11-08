@@ -234,7 +234,8 @@ struct ReaderView: View {
             : chapterOrder < totalOrderCount
     }
 
-    var body: some View {
+    /// Bound the generic modifier chains so Release compilation can infer each layer independently.
+    private var readerSurface: some View {
         VStack(spacing: 0) {
             if edgeContext != nil {
                 ReaderEdgeBar(store: edgeStore, open: openReaderEdge)
@@ -280,6 +281,10 @@ struct ReaderView: View {
         .sensoryFeedback(.selection, trigger: chapterOrder)
         .sensoryFeedback(.selection, trigger: currentPage)
         .sensoryFeedback(.selection, trigger: interactionFeedback)
+    }
+
+    private var readerWithPanels: some View {
+        readerSurface
         .sheet(isPresented: $showBookmark) {
             if let chapter {
                 BookmarkEditorView(novelID: novel.id, chapterID: chapter.id, chapterTitle: chapter.title)
@@ -385,6 +390,10 @@ struct ReaderView: View {
                 Color.clear
             }
         }
+    }
+
+    var body: some View {
+        readerWithPanels
         .preferredColorScheme(scheme)
         .alert("章节插图", isPresented: $showIllustrationsNotice) {
             if illustrationsError != nil && !offlineOnly {
