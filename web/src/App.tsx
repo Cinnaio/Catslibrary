@@ -20,6 +20,7 @@ const Admin = lazy(() => import('./pages/admin/Admin'))
 const Novel = lazy(() => import('./pages/Novel'))
 const Reader = lazy(() => import('./pages/Reader'))
 const Bookshelf = lazy(() => import('./pages/Bookshelf'))
+const Tempo = lazy(() => import('./pages/Tempo'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Auth = lazy(() => import('./pages/Auth'))
 const AccountEmail = lazy(() => import('./pages/AccountEmail'))
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/novel/:id" element={<Novel />} />
             <Route path="/bookshelf" element={<Bookshelf />} />
+            <Route path="/tools/tempo" element={<Tempo />} />
             <Route path="/profile" element={<Profile />} />
           </Route>
           <Route path="/read/:novelId/:chapterId" element={<Reader />} />

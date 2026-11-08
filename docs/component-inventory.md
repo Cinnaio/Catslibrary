@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-08 节奏计时：`pages/Tempo.tsx` 持有独立工具页面，布局归 `tempo.module.css`；复用 Panel、Button、FilterChip、FormField、Input、Switch、EmptyState 与 ConfirmationDialog，不新增公共控件。计时状态、浏览器音频和账号隔离的本机记录分别归 `lib/tempo.ts`、`lib/tempo-audio.ts` 与三个 `useTempo*` hook；共享组件不导入这些场景逻辑。路由按需加载，桌面与手机入口由 WorkspaceShell 持有。组件边界检查为 108 个组件、285 个源码模块。
+
 2026-11-07 Web 全站动效：`components/ui/motion.tsx` 与自带 CSS Module 维护分区、折叠和原生说明过渡；`overlay-motion.module.css` 统一共享浮层节奏。`useMotionPresence` 持有退出与焦点隔离，`useListMotion` 仅响应成功用户操作，调用方继续持有请求与账户上下文；保存及批量操作条的退出与占位归 `AdminFloatingDock`。组件展厅直接使用生产实现，不新增业务依赖或动效库。
 
 2026-11-07 取消管理员二次验证：移除 `ReauthenticationDialog`、事件协调模块、入口挂载和专用样式；备份恢复继续由 `BackupsTab` 持有版本与影响确认，使用现有共享表单与弹窗。账号人机验证继续由 `SecurityChallengeDialog` 持有。组件检查为 107 个组件、276 个源码模块。

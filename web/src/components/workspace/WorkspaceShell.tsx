@@ -5,7 +5,7 @@ import '@/styles/site-branding.css'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Dialog, Switch } from 'radix-ui'
-import { ArrowUpRight, BookOpen, ChevronDown, History, Library, LogOut, Menu, Search, Settings2, Shield, X, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, BookOpen, ChevronDown, History, Library, LogOut, Menu, Search, Settings2, Shield, Timer, X, type LucideIcon } from 'lucide-react'
 import { useSession } from '../../context/SessionContext'
 import { useContentPolicy } from '../../context/ContentPolicyContext'
 import { useSiteBranding } from '../../lib/site-branding'
@@ -35,6 +35,10 @@ const readerGroups: WorkspaceNavGroup[] = [
       { id: 'shelf', label: '我的书架', to: '/bookshelf', icon: BookOpen },
       { id: 'history', label: '阅读记录', to: '/bookshelf?view=recent', icon: History },
     ],
+  },
+  {
+    label: '工具',
+    items: [{ id: 'tempo', label: '节奏计时', to: '/tools/tempo', icon: Timer }],
   },
 ]
 
@@ -152,7 +156,9 @@ export default function WorkspaceShell({
           ? new URLSearchParams(location.search).get('view') === 'recent'
             ? '阅读记录'
             : '我的书架'
-          : '全部书库')
+          : location.pathname === '/tools/tempo'
+            ? '节奏计时'
+            : '全部书库')
   useEffect(() => {
     setMenuOpen(false)
   }, [location.pathname, location.search])
@@ -313,7 +319,7 @@ export default function WorkspaceShell({
   )
   const shortcuts = admin
     ? groups.flatMap((group) => group.items).filter((item) => ['novels', 'ai', 'tasks', 'dashboard'].includes(item.id))
-    : readerGroups[0]?.items || []
+    : readerGroups.flatMap((group) => group.items)
   return (
     <div className={styles.shell} data-standalone={standalone || undefined} data-workspace={admin ? 'admin' : 'reader'}>
       {!standalone && (
