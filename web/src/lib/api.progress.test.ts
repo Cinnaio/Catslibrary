@@ -74,7 +74,8 @@ it('账号切换后迟到的删除结果不能清除新账号的队列', async (
   setToken(''); setStorageUser('b')
   enqueueProgress({ novelId: 'n', chapterId: 'b', scrollPercent: .5, clientUpdatedAt: Date.now() - 1000 })
   finish(new Response(JSON.stringify({ success: true, progress: null, tombstone: { deletedAt: Date.now() } })))
-  await response
+  await expect(response).rejects.toThrow('账号已变化，请重新读取结果')
+  expect(pendingProgress()).toHaveLength(1)
   expect(pendingProgress()[0]?.payload.chapterId).toBe('b')
 })
 
