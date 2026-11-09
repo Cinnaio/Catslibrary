@@ -1,0 +1,94 @@
+.root,
+.editor,
+.summary,
+.history {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.root {
+  color: var(--text-primary);
+}
+.heading,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.heading {
+  justify-content: space-between;
+}
+.root h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.root p {
+  margin: 0;
+  line-height: 1.7;
+}
+.item {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  animation: memory-enter 180ms ease-out both;
+}
+.heading > span,
+.muted {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.content,
+.summary li {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.previous {
+  display: grid;
+  gap: 8px;
+  padding-inline-start: 16px;
+  border-inline-start: 2px solid var(--border);
+  color: var(--text-secondary);
+}
+.root blockquote {
+  margin: 0;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--bg-secondary);
+}
+.root summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: list-item;
+  align-content: center;
+}
+.summary ul {
+  padding-inline-start: 22px;
+}
+.summary li + li {
+  margin-block-start: 8px;
+}
+.error {
+  color: var(--color-danger);
+}
+@media (max-width: 700px) {
+  .actions > button {
+    min-height: 48px;
+  }
+}
+@keyframes memory-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    animation: none;
+  }
+}

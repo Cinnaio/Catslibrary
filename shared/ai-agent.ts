@@ -32,12 +32,64 @@ export interface AgentSession {
   updatedAt: number
 }
 
+export interface AgentMemory {
+  id: string
+  novelId: string
+  sessionId: string
+  kind: 'agreement'
+  title: string
+  content: string
+  status: 'pending' | 'active' | 'superseded' | 'archived'
+  sourceEventId: number | null
+  supersedesId: string | null
+  revision: number
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AgentSummaryContent {
+  goal: string
+  decisions: string[]
+  rejected: string[]
+  openQuestions: string[]
+  nextSteps: string[]
+  references: string[]
+}
+
+export interface AgentSummary {
+  throughEventId: number
+  content: AgentSummaryContent
+  revision: number
+  updatedAt: number
+}
+
+export interface AgentMemorySource {
+  id: number
+  content: string
+  sessionId: string
+}
+
+export interface AgentMemoryPage {
+  memories: AgentMemory[]
+  hasMore: boolean
+  summary: AgentSummary | null
+}
+
 export interface AgentEvent {
   id: number
   role: 'user' | 'assistant' | 'activity'
   content: string
   taskId: string
-  metadata: { tool?: string; artifactTaskId?: string; actionId?: string; error?: boolean; providerPresetId?: string; model?: string; round?: number }
+  metadata: {
+    tool?: string
+    artifactTaskId?: string
+    actionId?: string
+    memoryId?: string
+    error?: boolean
+    providerPresetId?: string
+    model?: string
+    round?: number
+  }
   createdAt: number
 }
 
@@ -68,6 +120,8 @@ export interface AgentSessionDetail {
   activeTask: AgentTask | null
   artifacts: AgentArtifact[]
   actions: AgentAction[]
+  memories?: AgentMemory[]
+  summary?: AgentSummary | null
 }
 
 export const agentTaskRunning = (task: AgentTask | null | undefined): boolean => !!task && ['queued', 'running'].includes(task.status)

@@ -7,6 +7,7 @@ import { generationContentRevision } from './generations'
 import { getEffectiveProfileForAnchor } from './profile-overrides'
 import { agentDraftTitle, prepareAgentAction, readAgentArtifact, scopedAgentDraft, type AgentApi } from './agent-actions'
 import { readAgentEvents, requireAgentArtifact, trackAgentArtifact } from './agent-store'
+import { createAgentMemory } from './agent-memory'
 import { parseRewriteSuggestion, parseRewriteTaskParams } from './rewrite'
 
 type Property = { type: 'string' | 'integer'; description?: string; enum?: string[]; maxLength?: number; minimum?: number; maximum?: number }
@@ -51,6 +52,11 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   }),
   tool('generate_cover', '按用户确定的画面要求生成一张封面候选。instruction 必须是完整画面描述，会原样提交给图像服务；现有能力是重新生成，不能承诺原图局部编辑或人物完全一致。', { instruction }),
   tool('refresh_memory', '仅在用户要求更新小说分析时创建后台档案任务；会产生模型用量。', { kind: { type: 'string', enum: ['plot', 'relationship'] } }),
+  tool('propose_memory', '当作者明确说“记住/以后都遵循/作为本书约定”时，提出一条跨对话创作约定。只创建待确认提议，不会立即生效。', {
+    title: { type: 'string', maxLength: 100 },
+    content: { type: 'string', maxLength: 1000 },
+    supersedesId: { ...id },
+  }, ['title', 'content']),
   tool(
     'prepare_action',
     '创建待用户确认的操作卡。只预览，不执行。apply_rewrite 的 targetId 是改写任务 ID，publish_draft 是草稿 ID，adopt_cover 是候选 ID，restore_draft 是之前已完成操作的 ID。',
@@ -114,6 +120,7 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
   refine_rewrite: '调整上一版改写建议',
   generate_cover: '生成封面候选',
   refresh_memory: '更新小说分析',
+  propose_memory: '提出创作记忆',
   prepare_action: '准备采纳预览',
 }
 export const AGENT_GENERATION_TOOLS = new Set(['generate_draft', 'rewrite_draft', 'refine_rewrite', 'generate_cover', 'refresh_memory'])
@@ -135,6 +142,8 @@ export async function executeAgentTool(
   a: Record<string, string | number>,
   operationId: string,
   api: AgentApi,
+  userId = '',
+  currentTaskId = '',
 ): Promise<Record<string, unknown>> {
   if (name === 'read_overview') {
     const novel = await first<{ title: string; author: string; description: string }>(db, 'SELECT title,author,description FROM novels WHERE id=$1', [
@@ -222,6 +231,16 @@ export async function executeAgentTool(
     }
   if (name === 'read_task') return { ...(await readAgentArtifact(db, session, String(a.taskId))) }
   if (name === 'read_conversation') return readAgentEvents(db, session.id, Number(a.beforeId), 20)
+  if (name === 'propose_memory') {
+    const source = await first<{ id: number }>(db, "SELECT id FROM ai_agent_events WHERE session_id=$1 AND task_id=$2 AND role='user' ORDER BY id DESC LIMIT 1", [session.id, currentTaskId])
+    if (!source) throw new AiError('invalid', '没有找到可引用的作者消息', 422)
+    return { memory: await createAgentMemory(db, userId, session, {
+      title: a.title,
+      content: a.content,
+      sourceEventId: Number(source.id),
+      supersedesId: a.supersedesId ? String(a.supersedesId) : undefined,
+    }, true) }
+  }
   if (name === 'prepare_action') return { action: await prepareAgentAction(db, session, a.kind as AgentActionKind, String(a.targetId), String(a.title || '')) }
   let receipt: Record<string, unknown>
   if (name === 'generate_draft') {

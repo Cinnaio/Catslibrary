@@ -32,6 +32,7 @@ import SearchSelect from '@/components/shared/SearchSelect'
 import { ReadingDialog } from '@/components/shared/ReadingDialog'
 import { taskStatusLabel, kindLabel } from './labels'
 import AiAgentComposer from './AiAgentComposer'
+import AiAgentMemory from './AiAgentMemory'
 import styles from './agent-workspace.module.css'
 
 const failure = (e: unknown) => (e instanceof Error ? e.message : '操作失败，请稍后重试')
@@ -438,6 +439,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         <BookOpen size={16} />
         <span>{data.session.anchorTitle ? `续写起点：${data.session.anchorTitle}` : '新章节创作'}</span>
         <span className={styles.muted}>{data.session.title}</span>
+        <AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} />
       </div>
       <AgentSettings
         key={data.session.id}

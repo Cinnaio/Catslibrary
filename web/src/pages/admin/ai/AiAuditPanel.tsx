@@ -30,6 +30,7 @@ const AUDIT_COLUMNS: readonly AdminColumn[] = [
 
 const aiCallTypeLabels: Record<string, string> = {
   agent_chat: '创作对话',
+  agent_summary: '对话摘要',
   summary: '前情提要',
   catchup: '回顾总结',
   continue: '续写',

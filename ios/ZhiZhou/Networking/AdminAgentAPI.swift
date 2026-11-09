@@ -42,6 +42,31 @@ struct AdminAgentAPI {
         return value.session
     }
 
+    func memories(_ id: String, offset: Int = 0) async throws -> AIAgentMemoryPage {
+        try await AdminAPI.parityRequest("GET", Self.path(id) + "/memories?offset=\(offset)", token: token)
+    }
+
+    func createMemory(_ id: String, title: String, content: String) async throws -> AIAgentMemory {
+        let value: AIAgentMemoryResponse = try await AdminAPI.parityRequest("POST", Self.path(id) + "/memories",
+            body: ["title": title, "content": content], token: token)
+        return value.memory
+    }
+
+    func changeMemory(_ id: String, memory: AIAgentMemory, operation: String, title: String? = nil, content: String? = nil) async throws -> AIAgentMemory {
+        var body: [String: Any] = ["operation": operation, "expectedRevision": memory.revision]
+        if let title { body["title"] = title }
+        if let content { body["content"] = content }
+        let value: AIAgentMemoryResponse = try await AdminAPI.parityRequest("PATCH",
+            Self.path(id) + "/memories/" + ReaderMediaAPI.pathSegment(memory.id), body: body, token: token)
+        return value.memory
+    }
+
+    func memorySource(_ id: String, memoryID: String) async throws -> AIAgentMemorySource? {
+        let value: AIAgentMemorySourceResponse = try await AdminAPI.parityRequest("GET",
+            Self.path(id) + "/memories/" + ReaderMediaAPI.pathSegment(memoryID) + "/source", token: token)
+        return value.source
+    }
+
     func stop(_ id: String, taskID: String) async throws {
         let _: EmptyResponse = try await AdminAPI.parityRequest("POST", Self.path(id) + "/stop",
             body: ["taskId": taskID], token: token)

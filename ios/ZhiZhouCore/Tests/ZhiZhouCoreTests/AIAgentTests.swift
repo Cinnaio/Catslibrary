@@ -27,10 +27,42 @@ final class AIAgentTests: XCTestCase {
         """#
         let value = try JSONDecoder().decode(AIAgentDetail.self, from: Data(json.utf8))
         XCTAssertNil(value.activeTask)
+        XCTAssertNil(value.memories)
+        XCTAssertNil(value.summary)
         XCTAssertNil(value.artifacts.first?.task.result)
         XCTAssertEqual(value.artifacts.first?.drafts.first?.content, "正文 **原文**")
         XCTAssertNil(value.session.contentPreferences.consentRuleTier)
         XCTAssertTrue(value.actions[0].canConfirm)
+    }
+
+    func testMemoryPageDecodesStatusesSourcesAndStructuredSummary() throws {
+        let json = """
+        {"memories":[{"id":"m1","novelId":"n1","sessionId":"s1","kind":"agreement","title":"保留悬念","content":"结尾揭晓",
+          "status":"pending","sourceEventId":100,"supersedesId":"old","revision":2,"createdAt":1,"updatedAt":2}],"hasMore":true,
+          "summary":{"throughEventId":90,"content":{"goal":"讨论下一章","decisions":["#1 保留悬念"],"rejected":["#2 不采纳"],
+          "openQuestions":["#3 待确认"],"nextSteps":["#4 检查草稿"],"references":["#1"]},"revision":1,"updatedAt":3}}
+        """
+        let page = try JSONDecoder().decode(AIAgentMemoryPage.self, from: Data(json.utf8))
+        XCTAssertTrue(page.hasMore)
+        XCTAssertEqual(page.memories.first?.sourceEventId, 100)
+        XCTAssertEqual(page.memories.first?.supersedesId, "old")
+        XCTAssertEqual(page.memories.first?.statusLabel, "待确认")
+        XCTAssertEqual(page.memories.first?.canEdit, true)
+        XCTAssertEqual(page.summary?.content.rejected, ["#2 不采纳"])
+        XCTAssertEqual(page.summary?.throughEventId, 90)
+    }
+
+    func testMemoryHistoryAndUnavailableSourceRemainReadable() throws {
+        let json = """
+        {"memories":[{"id":"m1","novelId":"n1","sessionId":"","kind":"agreement","title":"旧约定","content":"内容",
+          "status":"archived","sourceEventId":null,"supersedesId":null,"revision":3,"createdAt":1,"updatedAt":2}],"hasMore":false,"summary":null}
+        """
+        let page = try JSONDecoder().decode(AIAgentMemoryPage.self, from: Data(json.utf8))
+        XCTAssertNil(page.summary)
+        XCTAssertEqual(page.memories.first?.canEdit, false)
+        XCTAssertEqual(page.memories.first?.statusLabel, "已移除")
+        let source = try JSONDecoder().decode(AIAgentMemorySourceResponse.self, from: Data(#"{"source":null}"#.utf8))
+        XCTAssertNil(source.source)
     }
 
     func testStaleCheckpointCannotTruncateLivePreview() throws {

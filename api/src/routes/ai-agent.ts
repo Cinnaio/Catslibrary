@@ -24,6 +24,7 @@ import {
   requireAgentArtifact,
   type AgentActionRow,
 } from '../services/ai/agent-store'
+import { agentMemorySource, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories } from '../services/ai/agent-memory'
 
 type Dispatch = (request: Request) => Response | Promise<Response>
 function numberParam(value: string | undefined, max = 10000) {
@@ -93,6 +94,8 @@ export function createAgentRoutes(dispatch: Dispatch) {
       activeTask: session.activeTaskId ? (await getAiTask(db, session.activeTaskId)) || null : null,
       artifacts,
       actions: await listAgentActions(db, session.id),
+      memories: (await listAgentMemories(db, c.get('user').id, session.novelId)).memories.filter((memory) => memory.status === 'active' || memory.status === 'pending'),
+      summary: await getAgentSummary(db, session.id),
     })
   })
   routes.get('/sessions/:id/events', async (c) => {
@@ -127,6 +130,37 @@ export function createAgentRoutes(dispatch: Dispatch) {
         throw new AiError('conflict', '会话已变化，请刷新后再保存', 409)
     })
     return c.json({ session: await getAgentSession(db, c.get('user').id, session.id) })
+  })
+  routes.get('/sessions/:id/memories', async (c) => {
+    const db = getDb()
+    const session = await getAgentSession(db, c.get('user').id, c.req.param('id'))
+    return c.json({ ...(await listAgentMemories(db, c.get('user').id, session.novelId, numberParam(c.req.query('offset'), Number.MAX_SAFE_INTEGER))), summary: await getAgentSummary(db, session.id) })
+  })
+  routes.get('/sessions/:id/memories/:memoryId/source', async (c) => {
+    const db = getDb()
+    const session = await getAgentSession(db, c.get('user').id, c.req.param('id'))
+    return c.json({ source: await agentMemorySource(db, c.get('user').id, session, c.req.param('memoryId')) })
+  })
+  routes.post('/sessions/:id/memories', async (c) => {
+    const db = getDb()
+    const session = await getAgentSession(db, c.get('user').id, c.req.param('id'))
+    const body = await c.req.json().catch(() => ({}))
+    return c.json({ memory: await createAgentMemory(db, c.get('user').id, session, {
+      title: body.title,
+      content: body.content,
+    }) }, 201)
+  })
+  routes.patch('/sessions/:id/memories/:memoryId', async (c) => {
+    const db = getDb()
+    const session = await getAgentSession(db, c.get('user').id, c.req.param('id'))
+    const body = await c.req.json().catch(() => ({}))
+    if (!['edit', 'confirm', 'archive'].includes(body.operation)) throw new AiError('invalid', '记忆操作无效', 422)
+    return c.json({ memory: await changeAgentMemory(db, c.get('user').id, session, c.req.param('memoryId'), {
+      operation: body.operation,
+      expectedRevision: body.expectedRevision,
+      title: body.title,
+      content: body.content,
+    }) })
   })
   routes.post('/sessions/:id/messages', async (c) => {
     const db = getDb()

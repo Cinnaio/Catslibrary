@@ -6,6 +6,7 @@ struct AdminAIAgentConversationView: View {
     @State private var model: AdminAIAgentConversationModel
     @State private var panel = 0
     @State private var showSettings = false
+    @State private var showMemory = false
 
     init(session: AIAgentSession, userID: String, token: String) {
         _model = State(initialValue: AdminAIAgentConversationModel(session: session, userID: userID, token: token))
@@ -35,11 +36,16 @@ struct AdminAIAgentConversationView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button("作品记忆", systemImage: "bookmark") { showMemory = true }
+                    .disabled(!model.hasLoaded)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("会话设置", systemImage: "slider.horizontal.3") { showSettings = true }
                     .disabled(!model.hasLoaded)
             }
         }
         .sheet(isPresented: $showSettings) { AgentSettingsSheet(model: model) }
+        .sheet(isPresented: $showMemory) { AgentMemoryView(model: model) }
         .sheet(item: $model.selectedAction) { action in AgentActionSheet(model: model, initialAction: action) }
         .task(id: scenePhase) {
             guard scenePhase == .active else { model.pause(); return }
@@ -60,6 +66,10 @@ struct AdminAIAgentConversationView: View {
                 Text("对话").tag(0)
                 Text("产出与采纳").tag(1)
             }.pickerStyle(.segmented)
+            if model.pendingMemoryCount > 0 {
+                Button("作品记忆 · \(model.pendingMemoryCount) 条待确认") { showMemory = true }
+                    .font(.footnote).frame(minHeight: 44)
+            }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
     }

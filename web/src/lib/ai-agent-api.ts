@@ -1,4 +1,15 @@
-import type { AgentAction, AgentActionKind, AgentArtifact, AgentContentPreferences, AgentEvent, AgentSession, AgentSessionDetail } from '@shared/ai-agent'
+import type {
+  AgentAction,
+  AgentActionKind,
+  AgentArtifact,
+  AgentContentPreferences,
+  AgentEvent,
+  AgentMemory,
+  AgentMemoryPage,
+  AgentMemorySource,
+  AgentSession,
+  AgentSessionDetail,
+} from '@shared/ai-agent'
 import { request } from './api'
 
 const root = '/ai/agent/sessions'
@@ -13,6 +24,12 @@ export const agentApi = {
     request<{ taskId: string; created: boolean }>('POST', `${path(id)}/messages`, { content, requestId, providerPresetId }, true),
   save: (id: string, brief: string, contentPreferences: AgentContentPreferences, expectedUpdatedAt: number) =>
     request<{ session: AgentSession }>('PATCH', path(id), { brief, contentPreferences, expectedUpdatedAt }, true),
+  memories: (id: string, offset = 0) => request<AgentMemoryPage>('GET', `${path(id)}/memories?offset=${offset}`, null, true),
+  memorySource: (id: string, memoryId: string) =>
+    request<{ source: AgentMemorySource | null }>('GET', `${path(id)}/memories/${encodeURIComponent(memoryId)}/source`, null, true),
+  createMemory: (id: string, title: string, content: string) => request<{ memory: AgentMemory }>('POST', `${path(id)}/memories`, { title, content }, true),
+  changeMemory: (id: string, memoryId: string, operation: 'edit' | 'confirm' | 'archive', expectedRevision: number, title?: string, content?: string) =>
+    request<{ memory: AgentMemory }>('PATCH', `${path(id)}/memories/${encodeURIComponent(memoryId)}`, { operation, expectedRevision, title, content }, true),
   stop: (id: string, taskId: string) => request('POST', `${path(id)}/stop`, { taskId }, true),
   artifact: (id: string, taskId: string) => request<AgentArtifact>('GET', `${path(id)}/artifacts/${encodeURIComponent(taskId)}`, null, true),
   prepare: (id: string, kind: AgentActionKind, targetId: string, title = '') =>

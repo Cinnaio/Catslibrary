@@ -12,6 +12,7 @@ final class AdminAIAgentConversationModel {
     var events: [AIAgentEvent] = []
     var artifacts: [AIAgentArtifact] = []
     var actions: [AIAgentAction] = []
+    var pendingMemoryCount = 0
     var tasks: [String: AIAgentTask] = [:]
     var presets: [AIAgentPreset] = []
     var localDraft: AIAgentLocalDraft { didSet { persist() } }
@@ -121,6 +122,7 @@ final class AdminAIAgentConversationModel {
             let latestIDs = Set(value.artifacts.map(\.id))
             artifacts = value.artifacts + artifacts.filter { !latestIDs.contains($0.id) }
             actions = value.actions
+            pendingMemoryCount = value.memories?.filter { $0.status == "pending" }.count ?? 0
             if let selected = selectedAction, let latest = actions.first(where: { $0.id == selected.id }) {
                 selectedAction = latest
             }

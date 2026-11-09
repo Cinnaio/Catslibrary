@@ -82,6 +82,7 @@ public struct AIAgentEvent: Codable, Identifiable, Equatable, Sendable {
         public let tool: String?
         public let artifactTaskId: String?
         public let actionId: String?
+        public let memoryId: String?
         public let error: Bool?
         public let providerPresetId: String?
         public let model: String?
@@ -165,6 +166,8 @@ public struct AIAgentDetail: Codable, Sendable {
     public let activeTask: AIAgentTask?
     public let artifacts: [AIAgentArtifact]
     public let actions: [AIAgentAction]
+    public let memories: [AIAgentMemory]?
+    public let summary: AIAgentSummary?
 }
 
 public struct AIAgentSessions: Decodable, Sendable {
