@@ -6,7 +6,7 @@ import { extractPlotState, getPlotStateForAnchor } from './plot-state'
 import { extractRelationshipProfile } from './relationship-profile'
 import { getMemoryAttempt, getStoryMemoryProgress, pauseStoryMemory } from './story-memory'
 import { ledgerAtAnchor } from './story-ledger-store'
-import { currentFacts, renderLedger } from './story-ledger'
+import { currentFacts, relevantLedger, renderLedger, workingFacts } from './story-ledger'
 import { getEffectiveProfileForAnchor, saveProfileOverride } from './profile-overrides'
 import { selectLedgerMaterials } from './story-ledger-materials'
 import { generateStoryGraph } from './story-graph'
@@ -146,6 +146,33 @@ describe('chapter ledger shared extraction and source integrity', () => {
     const materials = await selectLedgerMaterials(t.db, 'book', 'c3', '沈砚调查林舟去向', { plot, relationship })
     expect(materials?.selected.plot).toContain('【历史记录，已被后续状态更新】')
     expect(materials?.selected.plot).toContain('一直留在城中')
+  })
+
+  it('persists a resolved clue and its answer without rewriting an earlier chapter or granting characters knowledge', async () => {
+    await chapter(1, '铜钥匙上密文含义不明，沈砚不知道含义。')
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([
+      fact({ kind: 'clue', subjects: ['铜钥匙'], label: '钥匙密文含义', certainty: 'clue', summary: '铜钥匙密文含义不明。', quote: '铜钥匙上密文含义不明' }),
+      fact({ subjects: ['沈砚', '铜钥匙'], label: '钥匙密文含义', certainty: 'belief', perspective: '沈砚', summary: '沈砚不知道含义。', quote: '沈砚不知道含义' }),
+    ], [entity('铜钥匙', 'item'), entity('沈砚')])))
+    await extractPlotState(t.db, opts)
+    const old = (await ledgerAtAnchor(t.db, 'book'))!.state.facts[0]!
+    await chapter(2, '林舟独自查明铜钥匙密文指向东门，没有告诉沈砚。')
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([
+      fact({ subjects: ['铜钥匙'], label: '钥匙密文含义', summary: '铜钥匙密文指向东门。', quote: '铜钥匙密文指向东门', resolves: [old.id] }),
+      fact({ subjects: ['林舟', '铜钥匙'], label: '钥匙密文含义', certainty: 'belief', perspective: '林舟', summary: '林舟知道密文指向东门。', quote: '林舟独自查明铜钥匙密文指向东门' }),
+    ], [entity('林舟')])))
+    await extractRelationshipProfile(t.db, opts)
+    const state = (await ledgerAtAnchor(t.db, 'book'))!.state
+    expect(workingFacts(state).some((f) => f.id === old.id)).toBe(false)
+    expect(workingFacts(state).map((f) => f.summary)).toContain('沈砚不知道含义。')
+    expect(relevantLedger(state, '', ['钥匙密文含义']).facts.find((f) => f.id === old.id)?.stillActive).toBe(false)
+    const earlier = await getPlotStateForAnchor(t.db, 'book', 'c1')
+    expect(earlier.state).toContain('含义不明')
+    expect(earlier.state).not.toContain('指向东门')
+    const latest = await getPlotStateForAnchor(t.db, 'book', 'c2')
+    expect(latest.state).toContain('指向东门')
+    expect(latest.state).not.toContain('含义不明')
+    expect(recordUsage).toHaveBeenCalledTimes(2)
   })
 
   it('automatically binds cognitive subject perspective into subjects when omitted by model', async () => {
@@ -509,6 +536,21 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect(recordUsage).toHaveBeenCalledTimes(5)
   })
 
+  it('retains multiple same-source validation errors across manual retries without another automatic model call', async () => {
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ quote: '不存在的正文' })])))
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('逐字匹配')
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ subjects: ['未声明的人物'] })])))
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('未声明')
+    expect(chat).toHaveBeenCalledTimes(2)
+    expect(await getMemoryAttempt(t.db, 'book', 'plot')).toMatchObject({ validationErrors: [expect.stringContaining('逐字匹配'), expect.stringContaining('未声明')] })
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload()))
+    await extractPlotState(t.db, opts)
+    expect(input(2).previousValidationError).toContain('逐字匹配')
+    expect(input(2).previousValidationError).toContain('未声明')
+    expect(await getMemoryAttempt(t.db, 'book', 'plot')).not.toHaveProperty('validationErrors')
+  })
+
   it('drops manual retry feedback after the source chapter changes', async () => {
     await chapter(1)
     vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ quote: '不存在的正文' })])))
@@ -794,56 +836,31 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect(dispatched.some((f) => f.id === second.id)).toBe(true)
     expect(currentFacts((await ledgerAtAnchor(t.db, 'book'))!.state).map((f) => f.summary)).toEqual(['铜钥匙仍在林舟手里。'])
   })
-  it('allows a character belief to be confirmed into an objective fact, replacing the belief while rejecting fact downgrade', async () => {
-    await chapter(1)
+  it('keeps a confirmed truth separate from a character knowledge update and rejects cross-perspective replacement', async () => {
+    await chapter(1, '林舟猜测密道在城门，沈砚不知道入口。')
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([
+      fact({ label: '密道入口', subjects: ['林舟'], summary: '林舟猜测密道在城门。', certainty: 'belief', perspective: '林舟', quote: '林舟猜测密道在城门' }),
+      fact({ label: '密道入口', subjects: ['沈砚'], summary: '沈砚不知道入口。', certainty: 'belief', perspective: '沈砚', quote: '沈砚不知道入口' }),
+    ])))
     await extractPlotState(t.db, opts)
-    // 第2章：苏越个人推测拥有双修体质（belief）
-    await chapter(2, '苏越暗自猜测自己身负特殊双修体质。')
-    vi.mocked(chat).mockResolvedValueOnce(
-      reply(
-        payload(
-          [fact({ subjects: ['苏越'], label: '双修体质猜想', summary: '苏越怀疑自己拥有双修体质。', certainty: 'belief', perspective: '苏越', quote: '苏越暗自猜测自己身负特殊双修体质。' })],
-          [entity('苏越')],
-        ),
-      ),
-    )
-    await extractPlotState(t.db, opts)
-    const belief = (await ledgerAtAnchor(t.db, 'book'))!.state.facts.find((f) => f.certainty === 'belief')!
-    expect(belief).toBeDefined()
-
-    // 第3章：正文直接证实，模型将旧 belief 替换升级为客观 fact（perspective 为空）
-    await chapter(3, '长老探查后，也证实了苏越的特殊双修体质。')
-    vi.mocked(chat).mockResolvedValueOnce(
-      reply(
-        payload(
-          [fact({ subjects: ['苏越'], label: '双修体质猜想', summary: '长老证实了苏越的特殊双修体质。', certainty: 'fact', quote: '也证实了苏越的特殊双修体质。', replaces: [belief.id] })],
-          [entity('苏越')],
-        ),
-      ),
-    )
-    await extractPlotState(t.db, opts)
-    const ledger = (await ledgerAtAnchor(t.db, 'book'))!
-    expect(ledger.processed).toBe(3)
-    const active = currentFacts(ledger.state)
-    const upgraded = active.find((f) => f.replaces.includes(belief.id))!
-    expect(upgraded).toBeDefined()
-    expect(upgraded.certainty).toBe('fact')
-    expect(upgraded.perspective).toBeUndefined()
-    // 旧的 belief 依然保留在 state.facts 历史链中，但不在当前有效集合中
-    expect(ledger.state.facts.some((f) => f.id === belief.id)).toBe(true)
-    expect(active.some((f) => f.id === belief.id)).toBe(false)
-
-    // 反向校验：不允许将客观事实退化降级为个人认知
-    await chapter(4, '苏越又怀疑自己可能并非双修体质。')
-    vi.mocked(chat).mockResolvedValueOnce(
-      reply(
-        payload(
-          [fact({ subjects: ['苏越'], label: '双修体质猜想', summary: '苏越重新怀疑自己。', certainty: 'belief', perspective: '苏越', quote: '苏越又怀疑自己可能并非双修体质。', replaces: [upgraded.id] })],
-          [entity('苏越')],
-        ),
-      ),
-    )
+    const prefix = (await ledgerAtAnchor(t.db, 'book'))!.state
+    const old = prefix.facts[0]!
+    await chapter(2, '林舟查明密道入口在废井，林舟知道先前猜错；沈砚没有收到消息。')
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([
+      fact({ label: '密道入口', subjects: ['林舟'], summary: '入口在废井。', quote: '密道入口在废井', replaces: [old.id] }),
+    ])))
     await expect(extractPlotState(t.db, opts)).rejects.toThrow('认知口径不同')
+    expect((await ledgerAtAnchor(t.db, 'book'))!.state).toEqual(prefix)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([
+      fact({ label: '密道入口', subjects: ['林舟'], summary: '林舟知道入口在废井。', certainty: 'belief', perspective: '林舟', quote: '林舟查明密道入口在废井', replaces: [old.id] }),
+      fact({ label: '入口位置', subjects: ['林舟'], summary: '密道入口在废井。', quote: '密道入口在废井' }),
+    ])))
+    await extractPlotState(t.db, opts)
+    const state = (await ledgerAtAnchor(t.db, 'book'))!.state
+    expect(currentFacts(state).filter((f) => f.certainty === 'belief')).toHaveLength(2)
+    expect(currentFacts(state).map((f) => f.summary)).toContain('沈砚不知道入口。')
+    expect(currentFacts(state).find((f) => f.replaces.includes(old.id))).toMatchObject({ certainty: 'belief', perspective: old.perspective, status: 'active' })
+    expect(state.facts).toContainEqual(old)
   })
 
   it('updates a stable belief topic while rejecting a boundary replacement with different participants', async () => {

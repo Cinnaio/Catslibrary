@@ -35,7 +35,7 @@ beforeAll(async () => {
   adminToken = ((await admin.json()) as { token: string }).token
   await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('book','隔离故事',1,1)")
   await t.db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES('c1','book','起点','沈砚持有铜钥匙。',1,1)")
-  await saveAiSettings(t.db, { storyMemoryEngine: 'incremental', storyMemoryAutoUpdate: false })
+  await saveAiSettings(t.db, { storyMemoryEngine: 'incremental', storyMemoryAutoUpdate: false, storyMemoryStreamEnabled: false })
 }, 120000)
 afterAll(async () => {
   setDbForTests(null)

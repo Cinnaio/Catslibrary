@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aliasIdentityGrounded, replacementProblem } from './story-ledger-integrity'
+import { aliasIdentityGrounded, aliasIdentityQuote, replacementProblem } from './story-ledger-integrity'
 import { emptyLedger, parseChapterMemory, type MemoryEntity, type MemoryFact } from './story-ledger'
 
 const entities = new Map<string, MemoryEntity>([
@@ -28,6 +28,13 @@ const fact = (patch: Partial<MemoryFact> = {}): MemoryFact => ({
 })
 
 describe('story memory identity and state transitions', () => {
+  it('accepts bounded occupation prefixes but not speculative or arbitrary sentence prefixes', () => {
+    expect(aliasIdentityQuote('燕棠', '小棠', '山站管理员燕棠也叫小棠。', ['山站'])).toBe('山站管理员燕棠也叫小棠')
+    expect(aliasIdentityQuote('燕棠', '小棠', '管理员燕棠也叫小棠。')).toBe('管理员燕棠也叫小棠')
+    expect(aliasIdentityQuote('燕棠', '小棠', '山站管理员燕棠也叫小棠。')).toBe('')
+    for (const text of ['有人猜测山站管理员燕棠也叫小棠。', '山站管理员燕棠也叫小棠？', '山站管理员燕棠并不叫小棠。', '传闻山站管理员燕棠也叫小棠。'])
+      expect(aliasIdentityQuote('燕棠', '小棠', text, ['山站', '传闻山站'])).toBe('')
+  })
   it.each(['林舟又名阿舟。', '林舟，化名为“阿舟”。', '阿舟本名林舟。'])('accepts an explicit identity statement: %s', (quote) => {
     expect(aliasIdentityGrounded('林舟', '阿舟', quote)).toBe(true)
   })
@@ -90,11 +97,12 @@ describe('story memory identity and state transitions', () => {
     expect(replacementProblem(before, { ...before, kind: 'boundary' }, entities)).toContain('类别不同')
     expect(replacementProblem(before, { ...before, perspective: 'shen' }, entities)).toContain('认知口径不同')
     expect(replacementProblem({ ...before, memoryType: 'event' }, before, entities)).toContain('持续状态')
-    expect(replacementProblem(before, { ...before, certainty: 'fact', perspective: undefined }, entities)).toBeUndefined()
+    expect(replacementProblem(before, { ...before, certainty: 'fact', perspective: undefined }, entities)).toContain('认知口径不同')
   })
   it('allows a boundary becoming a fact only with its original subjects and topic', () => {
     const before = fact({ kind: 'boundary', subjects: ['lin', 'shen'], label: '身份公开范围' })
     expect(replacementProblem(before, { ...before, kind: 'fact' }, entities)).toBeUndefined()
+    expect(replacementProblem(before, { ...before, kind: 'state' }, entities)).toBeUndefined()
     expect(replacementProblem(before, { ...before, kind: 'fact', subjects: ['lin'] }, entities)).toContain('核心主体')
     expect(replacementProblem(before, { ...before, kind: 'fact', label: '当前位置' }, entities)).toContain('主题不同')
   })

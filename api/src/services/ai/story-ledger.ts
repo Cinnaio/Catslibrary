@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
 import type { StoryCertainty, StoryGraph } from '@shared/story-graph'
 import { AiError } from './client'
-import { aliasIdentityQuote, replacementProblem } from './story-ledger-integrity'
+import { aliasIdentityQuote, cognitionProblem, replacementProblem, resolutionProblem } from './story-ledger-integrity'
+import { reconcileState } from './story-ledger-state'
 
 export const LEDGER_VERSION = 1
 /** Bump when extraction semantics change, without changing the stored JSON schema. */
-export const LEDGER_PROMPT_VERSION = 5
+export const LEDGER_PROMPT_VERSION = 6
 export type EntityKind = 'person' | 'item' | 'place' | 'faction'
 export type FactKind = 'fact' | 'state' | 'relationship' | 'boundary' | 'clue' | 'conflict' | 'item' | 'place'
 export interface MemoryEntity {
@@ -28,6 +29,10 @@ export interface MemoryFact {
   status: 'active' | 'resolved'
   scope: 'local' | 'global'
   replaces: string[]
+  /** Explicitly closed questions/conflicts; their answers remain separate facts. */
+  resolves?: string[]
+  /** Server-derived identity of a state slot, independent of its current value. */
+  stateKey?: string
   quote: string
   chapterId: string
   ordinal: number
@@ -164,6 +169,9 @@ const ENTITY_NAME_KIND = /(大殿|大厅|客栈|酒馆|城外|城内|山上|山�
 
 export function coerceFactKind(kind: unknown, item: Record<string, unknown>): string {
   const raw = String(kind ?? '').trim()
+  // Knowledge has a single epistemic contract regardless of whether the model
+  // calls it a clue or a generic state. Relationships keep their own topology.
+  if (item.certainty === 'belief' && ['fact', 'state', 'clue', 'belief', 'cognition', 'knowledge'].includes(raw)) return 'state'
   if (['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'].includes(raw)) return raw
   const memoryType = String(item.memoryType ?? '').trim()
   const certainty = String(item.certainty ?? '').trim()
@@ -180,7 +188,7 @@ export function coerceEntityKind(kind: unknown, name: string): EntityKind | stri
 }
 
 export function currentFacts(state: LedgerState): MemoryFact[] {
-  const replaced = new Set(state.facts.flatMap((f) => f.replaces))
+  const replaced = new Set(state.facts.flatMap((f) => [...f.replaces, ...(f.resolves || [])]))
   return state.facts.filter((f) => !replaced.has(f.id))
 }
 
@@ -233,10 +241,11 @@ export function relevantLedger(
   const add = (id: string) => {
     if (!wanted.has(id)) {
       wanted.add(id)
-      byId.get(id)?.replaces.forEach(add)
+      const fact = byId.get(id)
+      if (fact) [...fact.replaces, ...(fact.resolves || [])].forEach(add)
     }
   }
-  for (const f of historical) f.replaces.forEach(add)
+  for (const f of historical) [...f.replaces, ...(f.resolves || [])].forEach(add)
   const facts = state.facts
     .filter((f) => wanted.has(f.id))
     .map((fact) => (replaceable.has(fact.id) ? fact : { ...fact, stillActive: false }))
@@ -269,6 +278,10 @@ export function parseChapterMemory(
     return str(item.name === undefined || item.name === null || item.name === '' ? known?.name : item.name, 60, '人物/实体姓名')
   }
   const declaredNames = new Set(root.entities.map((value) => entityName(object(value))))
+  const declaredPlaces = [
+    ...opts.previous.entities.filter((entity) => entity.kind === 'place').map((entity) => entity.name),
+    ...root.entities.map(object).filter((item) => item.kind === 'place').map(entityName),
+  ].filter((name) => opts.text.includes(name))
   for (const value of root.entities) {
     const item = object(value)
     const name = entityName(item)
@@ -290,7 +303,7 @@ export function parseChapterMemory(
       if (declaredNames.has(alias) || [...entities.values()].some((entity) => entity.id !== existing?.id && [entity.name, ...entity.aliases].includes(alias))) {
         return fail(`别名「${alias}」与另一实体冲突`)
       }
-      const identity = aliasIdentityQuote(existing?.name || name, alias, opts.text)
+      const identity = aliasIdentityQuote(existing?.name || name, alias, opts.text, declaredPlaces)
       if (!identity) {
         return fail(`别名「${alias}」缺少正文来源中的明确身份说明，请提供 identityQuote`)
       }
@@ -322,6 +335,7 @@ export function parseChapterMemory(
   }
   const supplied = new Map(opts.supplied.facts.map((fact) => [fact.id, fact]))
   const replaceable = new Set(workingFacts(opts.previous).map((fact) => fact.id))
+  const activeStates = workingFacts(opts.previous)
   const replacedThisChapter = new Set<string>()
   const facts: MemoryFact[] = []
   for (let index = 0; index < root.facts.length; index++) {
@@ -346,20 +360,33 @@ export function parseChapterMemory(
     const status = enumValue(lenientEnum(item.status, ['active', 'resolved'], 'status'), ['active', 'resolved'] as const, 'status')
     const scope = enumValue(lenientEnum(item.scope, ['local', 'global'], 'scope'), ['local', 'global'] as const, 'scope')
     const replaces = item.replaces === undefined ? [] : strings(item.replaces, 30, 'replaces')
+    const resolves = item.resolves === undefined ? [] : strings(item.resolves, 30, 'resolves')
     const next: MemoryFact = {
       id: `f_${ledgerHash([opts.novelId, opts.chapterId, opts.part, index, item]).slice(0, 24)}`,
       memoryType, kind, subjects, label, summary, certainty,
       ...(kind === 'relationship' ? { directed: item.directed as boolean } : {}),
       ...(perspective ? { perspective } : {}),
-      status, scope, replaces, quote, chapterId: opts.chapterId, ordinal: opts.ordinal,
+      status, scope, replaces: [...replaces], ...(resolves.length ? { resolves } : {}), quote, chapterId: opts.chapterId, ordinal: opts.ordinal,
     }
-    for (const id of replaces) {
+    const cognitiveProblem = cognitionProblem(next, entities)
+    if (cognitiveProblem) return fail(`facts[${index}] ${cognitiveProblem}`)
+    for (const id of [...replaces, ...resolves]) {
       const before = supplied.get(id)
       if (!before || !replaceable.has(id) || before.stillActive === false || replacedThisChapter.has(id)) {
         return fail(`替换记录 ${id} 不是本次提供的当前有效状态；历史依据不能作为替换目标`)
       }
-      const problem = replacementProblem(before, next, entities)
+      const problem = replaces.includes(id) ? replacementProblem(before, next, entities) : resolutionProblem(before, next)
       if (problem) return fail(`替换记录 ${id} 无效（${problem}）`)
+      replacedThisChapter.add(id)
+    }
+    const reconciliation = reconcileState(next, activeStates, new Set(supplied.keys()), entities)
+    if (reconciliation.problem) return fail(`facts[${index}] ${reconciliation.problem}`)
+    if (reconciliation.skip) continue
+    if (next.stateKey && facts.some((fact) => fact.stateKey === next.stateKey))
+      return fail(`facts[${index}] 同一段不能重复提交同一状态；请合并为本段结束时的状态，经过另记 event`)
+    // Include deterministic singleton replacements in the same atomic conflict check.
+    for (const id of next.replaces.filter((id) => !replaces.includes(id))) {
+      if (replacedThisChapter.has(id)) return fail(`替换记录 ${id} 在本段被重复更新`)
       replacedThisChapter.add(id)
     }
     facts.push(next)
