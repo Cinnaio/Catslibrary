@@ -49,7 +49,7 @@ private struct AppPrivacyCover: View {
             VStack(spacing: 14) {
                 BrandMark(size: 56)
                 Text("Cat’s Library")
-                    .font(serifFont(.title2, .regular))
+                    .font(.system(.title2, design: .serif))
                     .foregroundStyle(AppTheme.textPrimary)
                 Text("内容已隐藏")
                     .font(.footnote)
@@ -67,16 +67,16 @@ private struct AppPrivacyCover: View {
     }
 }
 
-/// 连接页：暖纸画布、Web 共用花枝与真实连接状态。
+/// 连接页：网站品牌标识、主题画布与真实连接状态。
 struct BootView: View {
     var body: some View {
         ZStack {
             AppTheme.canvas.ignoresSafeArea()
             VStack(spacing: 32) {
                 VStack(spacing: 16) {
-                    BrandFlower(width: 192, breathing: true)
+                    BrandMark(size: 80)
                     Text("Cat’s Library")
-                        .font(serifFont(.largeTitle, .regular))
+                        .font(.system(.title, design: .serif))
                         .foregroundStyle(AppTheme.textPrimary)
                         .accessibilityAddTraits(.isHeader)
                     Text("让故事，慢慢展开。")
@@ -102,49 +102,18 @@ struct BootView: View {
     }
 }
 
-/// 复用 Web 登录页的原始花枝资源，仅用于安静的品牌装饰。
-struct BrandFlower: View {
-    var width: CGFloat = 112
-    var breathing: Bool = false
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isBreathing = false
-
-    var body: some View {
-        Image("AuthFlower")
-            .resizable()
-            .scaledToFit()
-            .frame(width: width, height: width / 2)
-            .brightness(colorScheme == .dark ? 0.12 : 0)
-            .opacity((colorScheme == .dark ? 0.85 : 0.7) * (breathing && !reduceMotion && isBreathing ? 0.82 : 1.0))
-            .scaleEffect((breathing && !reduceMotion && isBreathing) ? 0.985 : 1.0)
-            .accessibilityHidden(true)
-            .allowsHitTesting(false)
-            .onAppear {
-                guard breathing, !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
-                    isBreathing = true
-                }
-            }
-    }
-}
-
-/// 启动、登录与关于页面共用的品牌标记。
+/// 启动、登录、关于与隐私遮罩共用部署站点的 Logo，离线时也可直接显示。
 struct BrandMark: View {
     var size: CGFloat = 64
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                .fill(AppTheme.primaryLight)
-            Image(systemName: "book.closed.fill")
-                .resizable()
-                .scaledToFit()
-                .frame(width: size * 0.42, height: size * 0.42)
-                .foregroundStyle(AppTheme.primary)
-        }
-        .frame(width: size, height: size)
-        .accessibilityHidden(true)
+        Image("SiteLogo")
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+            .accessibilityHidden(true)
     }
 }
 

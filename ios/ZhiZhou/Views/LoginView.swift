@@ -6,7 +6,6 @@ struct LoginView: View {
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var mode: Mode = .login
     @State private var username = ""
@@ -43,8 +42,10 @@ struct LoginView: View {
                         fieldsGroup
                             .disabled(busy || isRestoringSession)
 
-                        statusLine
-                            .padding(.top, 16)
+                        if appState.sessionRestoreFailed || errorMessage != nil {
+                            statusLine
+                                .padding(.top, 16)
+                        }
 
                         if mode != .register || registerMode == .open || registerMode == .invite {
                             submitButton
@@ -67,18 +68,13 @@ struct LoginView: View {
                                 .padding(.top, 16)
                         }
 
-                        if mode == .login {
-                            Button("忘记密码") { showPasswordRecovery = true }
-                                .disabled(busy || isRestoringSession)
-                                .padding(.top, 16)
-                        }
                         accountSwitch
                             .disabled(busy || isRestoringSession)
                             .padding(.top, 16)
 
                     }
                     .padding(.horizontal, 28)
-                    .padding(.top, max(20, min(64, proxy.size.height * 0.08)))
+                    .padding(.top, max(20, min(40, proxy.size.height * 0.05)))
                     .padding(.bottom, 28)
                     .frame(maxWidth: 460)
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
@@ -137,17 +133,13 @@ struct LoginView: View {
 
     private var brandHeader: some View {
         VStack(alignment: .leading, spacing: 24) {
-            HStack(spacing: 8) {
-                BrandMark(size: 28)
+            HStack(spacing: 12) {
+                BrandMark(size: 48)
 
                 Text("Cat’s Library")
-                    .font(serifFont(.title3, .regular))
+                    .font(.system(.title2, design: .serif))
                     .foregroundStyle(AppTheme.textPrimary)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 12)
-                if !dynamicTypeSize.isAccessibilitySize {
-                    BrandFlower(width: 104)
-                }
+                    .fixedSize(horizontal: false, vertical: true)
             }
             welcomeCopy
         }
@@ -155,15 +147,15 @@ struct LoginView: View {
     }
 
     private var welcomeCopy: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(mode == .login ? "登录 Cat’s Library" : "创建 Cat’s Library 账号")
-                .font(serifFont(.largeTitle, .regular))
+        VStack(alignment: .leading, spacing: 8) {
+            Text(mode == .login ? "欢迎回来" : "创建账号")
+                .font(serifFont(.title, .regular))
                 .foregroundStyle(AppTheme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text(mode == .login
-                 ? "登录后，接着读你的故事。\n书架与阅读进度会随账号同步。"
-                 : "带上一本喜欢的书，开始新的旅程。\n创建账号即可同步书架与阅读进度。")
+                 ? "登录后，同步书架与阅读进度。"
+                 : "让书架与阅读进度，随账号同步。")
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -180,16 +172,20 @@ struct LoginView: View {
                     Text(mode == .login ? "还没有账号？" : "已经有账号？")
                         .foregroundStyle(AppTheme.textSecondary)
 
-                    Button(mode == .login ? "注册" : "登录") {
+                    Button {
                         interactionFeedback &+= 1
                         switchMode()
+                    } label: {
+                        Text(mode == .login ? "注册" : "登录")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(AppTheme.primary)
+                            .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
+                            .contentShape(Rectangle())
                     }
-                    .fontWeight(.semibold)
-                    .foregroundStyle(AppTheme.primary)
                     .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
                 }
                 .font(.subheadline)
-                .frame(minHeight: 44)
+                .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
                 .accessibilityElement(children: .contain)
             }
         }
@@ -236,7 +232,7 @@ struct LoginView: View {
                 }
             }
 
-            fieldSurface("密码", isFocused: focusedField == .password) {
+            fieldSurface("密码", isFocused: focusedField == .password, showsRecovery: mode == .login) {
                 HStack(spacing: 10) {
                     Group {
                         if showPassword {
@@ -279,13 +275,29 @@ struct LoginView: View {
     private func fieldSurface<Content: View>(
         _ title: String,
         isFocused: Bool,
+        showsRecovery: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(AppTheme.textPrimary)
-                .accessibilityHidden(true)
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .accessibilityHidden(true)
+                if showsRecovery {
+                    Spacer(minLength: 12)
+                    Button {
+                        showPasswordRecovery = true
+                    } label: {
+                        Text("忘记密码")
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.primary)
+                            .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
             content()
                 .padding(.horizontal, AppLayout.fieldHorizontalInset)
                 .padding(.vertical, AppLayout.fieldVerticalInset)
@@ -314,14 +326,16 @@ struct LoginView: View {
                         .font(.headline)
                 }
             }
-            .foregroundStyle(AppTheme.onPrimary)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 32)
+            .foregroundStyle(canSubmit || busy ? AppTheme.onPrimary : AppTheme.textSecondary)
+            .padding(.horizontal, AppLayout.fieldHorizontalInset)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: AppLayout.fieldMinHeight)
+            .background(
+                canSubmit || busy ? AppTheme.primary : AppTheme.controlFill,
+                in: RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius)
+            )
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .buttonBorderShape(.roundedRectangle(radius: AppTheme.fieldCornerRadius))
-        .tint(AppTheme.primary)
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
         .disabled(!canSubmit)
         .accessibilityLabel(mode == .login ? "登录" : "注册")
     }
@@ -332,36 +346,32 @@ struct LoginView: View {
 
     @ViewBuilder
     private var passkeyButton: some View {
-        Button {
-            Task { await submitPasskey() }
-        } label: {
-            HStack(spacing: 10) {
-                if passkeyBusy {
-                    ProgressView()
-                } else {
-                    Image(systemName: "person.badge.key")
-                }
-                Text(passkeyBusy ? "等待设备验证…" : "使用 Passkey 登录")
-                    .font(.headline)
-            }
-            .foregroundStyle(AppTheme.primary)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 32)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
-        .buttonBorderShape(.roundedRectangle(radius: AppTheme.fieldCornerRadius))
-        .tint(AppTheme.primary)
-        .disabled(busy || passkeyBusy || isRestoringSession || PasskeyService.shared.localAvailabilityError != nil)
-        .accessibilityLabel("使用 Passkey 登录")
-        .accessibilityIdentifier("login.passkey")
-
-        if let error = PasskeyService.shared.localAvailabilityError {
-            Text(error.localizedDescription)
+        if PasskeyService.shared.localAvailabilityError != nil {
+            Text("此安装版本暂不支持 Passkey，请使用密码登录。")
                 .font(.footnote)
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Button {
+                Task { await submitPasskey() }
+            } label: {
+                HStack(spacing: 8) {
+                    if passkeyBusy {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "person.badge.key")
+                    }
+                    Text(passkeyBusy ? "等待设备验证…" : "使用 Passkey 登录")
+                }
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+            }
+            .buttonStyle(.borderless)
+            .tint(AppTheme.primary)
+            .disabled(busy || passkeyBusy || isRestoringSession)
+            .accessibilityLabel("使用 Passkey 登录")
+            .accessibilityIdentifier("login.passkey")
         }
     }
 

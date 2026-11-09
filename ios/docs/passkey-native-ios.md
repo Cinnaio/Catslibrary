@@ -45,7 +45,7 @@ PASSKEY_ORIGINS=https://catrr.uk
 客户端读取安装包的 `embedded.mobileprovision` 中的 XML 负载作体验预检：
 
 - 能读到 `Entitlements`，且缺少 `com.apple.developer.associated-domains`
-  或其数组为空：登录页停用 Passkey 按钮并显示签名限制，管理页保留已有凭据列表、
+  或其数组为空：登录页用简短说明替代不可用的 Passkey 按钮，管理页保留已有凭据列表、
   改名和撤销，注册表单替换为限制说明。服务层也会在请求 options 前拒绝操作。
 - 没有描述文件、格式无法识别或已授权该能力：不提前禁用，由系统继续验证。
   预检仅识别明确缺失的权限，不验证 CMS 签名，不证明实际代码签名携带了权限，

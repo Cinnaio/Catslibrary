@@ -99,7 +99,7 @@ struct ProfileAboutView: View {
                 HStack(spacing: 16) {
                     BrandMark(size: 48)
                     Text("Cat’s Library")
-                        .font(serifFont(.title2, .semibold))
+                        .font(.system(.title2, design: .serif).weight(.semibold))
                         .foregroundStyle(AppTheme.textPrimary)
                 }
                 .padding(.vertical, 12)
