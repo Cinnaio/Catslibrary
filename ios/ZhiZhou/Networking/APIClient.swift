@@ -655,11 +655,12 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     }
 
     /// 读取服务端 SSE 文本行。用于可恢复任务的前台实时展示；连接中断不影响服务端任务本身。
-    func streamLines(_ path: String, auth: Bool = false) -> AsyncThrowingStream<String, Error> {
-        let requestToken = auth ? token : nil
+    func streamLines(_ path: String, auth: Bool = false, expectedToken: String? = nil) -> AsyncThrowingStream<String, Error> {
+        let requestToken = auth ? (expectedToken ?? token) : nil
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
+                    if auth && (requestToken == nil || token != requestToken) { throw CancellationError() }
                     let url = try makeURL(path)
                     var req = URLRequest(url: url)
                     req.httpMethod = "GET"
@@ -671,6 +672,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
                     req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
 
                     let (bytes, response) = try await session.bytes(for: req)
+                    if auth && token != requestToken { throw CancellationError() }
                     guard let http = response as? HTTPURLResponse else {
                         throw APIError.invalidResponse
                     }
@@ -680,9 +682,14 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
                         }
                         throw APIError.http(status: http.statusCode, message: nil)
                     }
+                    if expectedToken != nil,
+                       http.value(forHTTPHeaderField: "Content-Type")?.lowercased().contains("text/event-stream") != true {
+                        throw APIError.invalidResponse
+                    }
 
                     for try await line in bytes.lines {
                         try Task.checkCancellation()
+                        if auth && token != requestToken { throw CancellationError() }
                         continuation.yield(line)
                     }
                     continuation.finish()

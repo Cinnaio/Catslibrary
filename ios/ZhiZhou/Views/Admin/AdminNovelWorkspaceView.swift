@@ -63,6 +63,10 @@ struct AdminNovelWorkspaceView: View {
             }
             Section("创作与封面") {
                 NavigationLink {
+                    AdminAIAgentView(initialNovel: book, afterChapterID: afterChapterID)
+                } label: { Label("对话创作", systemImage: "bubble.left.and.bubble.right") }
+                .accessibilityIdentifier("admin.workspace.agent")
+                NavigationLink {
                     AdminAIWritingView(initialNovel: book, afterChapterID: afterChapterID)
                 } label: { Label(afterChapterID == nil ? "创作与续写" : "从当前章节续写", systemImage: "pencil.and.outline") }
                 .accessibilityIdentifier("admin.workspace.writing")

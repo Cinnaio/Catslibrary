@@ -1,5 +1,11 @@
 # 发布与版本管理
 
+## iOS 原生对话创作（2026-11-09，源码候选）
+
+基于 `e7625672` 的工作区改动，将 Web 已有 Agent 接入原生 iOS；底部导航新增管理员「创作」，AI 服务与书内管理入口共用同一工作区。会话、流式任务、文本模型切换、常用 Markdown、输入恢复、草稿／改写／封面预览与保存操作确认均复用现有服务端契约。当前 `ios/project.yml` 从未发布的 `1.1.1 / 23` 合并递增至功能候选 `1.2.0 / build 24`，包括该候选之前尚未交付的 iOS 改动。Web/API 版本不变，无新运行依赖或迁移，依赖 API `1.1.0` 与既有迁移 078。
+
+已按真实路由核对数据形状、鉴权、任务流、分页和确认请求；新增 9 项 Core 回归覆盖接口解码、流式检查点、轮次去重、请求恢复及账号隔离、偏好归一化、操作恢复与 Markdown。初次接入时 Windows 仅完成变更 Swift 的语法解析与差异检查，新增 XCTest 尚未执行；没有 Swift/Xcode，不能视为类型检查、原生编译或设备验收通过。2026-11-09 已获授权提交、推送，并执行 iOS 构建及网站部署；按本次源码 SHA 分别记录工作流实际结果，不将启动视为成功。已有 `1.1.0 / 22` IPA 不包含本次功能。操作及定向验收说明见 [iOS 对话创作](../ios/docs/ai-agent-2026-11-09.md)。
+
 ## 对话输入 Enter 发送（2026-11-09，源码候选）
 
 源码为本条所在的本地提交，父提交为 `ffea19e4`。对话输入改为 Enter 发送、Shift + Enter 换行，保留 Ctrl / ⌘ + Enter，并同步按钮提示、辅助说明及使用文档。输入法组合输入与选词、长按重复按键不触发发送，沿用空消息、提交中及回复中的发送保护。继续纳入未发布的 Web `1.3.0`，已核对包版本与锁文件一致，无 API、依赖或迁移变更。
@@ -586,7 +592,7 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.1.1 / 23`（源码候选） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.2.0 / 24`（源码候选） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
 | API | `api/package.json` | `1.1.0`（源码候选） | 同步 `package-lock.json` 的 `packages.api.version` |
 | Web | `web/package.json` | `1.3.0`（源码候选） | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |

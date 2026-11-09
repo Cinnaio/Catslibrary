@@ -29,6 +29,9 @@ struct AdminAIServiceView: View {
             }
 
             Section("生成") {
+                NavigationLink { AdminAIAgentView() } label: {
+                    AppIconLabel("对话创作", systemImage: "bubble.left.and.bubble.right")
+                }
                 NavigationLink {
                     AdminAIWritingView()
                 } label: {

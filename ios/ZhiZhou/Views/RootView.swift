@@ -118,6 +118,7 @@ struct BrandMark: View {
 }
 
 struct MainTabView: View {
+    @Environment(AppState.self) private var appState
     var body: some View {
         TabView {
             Tab("发现", systemImage: "sparkle.magnifyingglass") {
@@ -125,6 +126,11 @@ struct MainTabView: View {
             }
             Tab("书架", systemImage: "books.vertical") {
                 BookshelfView()
+            }
+            if appState.user?.isAdmin == true {
+                Tab("创作", systemImage: "bubble.left.and.bubble.right") {
+                    NavigationStack { AdminAIAgentView() }
+                }
             }
             Tab("我的", systemImage: "person") {
                 NavigationStack { ProfileView() }
