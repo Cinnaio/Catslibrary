@@ -122,20 +122,28 @@ export async function readAgentEvents(db: DbClient, sessionId: string, before = 
 }
 
 /** Session lock serializes turns across API processes. Request IDs survive lost responses. */
-export async function beginAgentTurn(db: Db, userId: string, sessionId: string, content: string, requestId: string) {
+export async function beginAgentTurn(
+  db: Db,
+  userId: string,
+  sessionId: string,
+  content: string,
+  requestId: string,
+  provider: { providerPresetId: string; model: string } = { providerPresetId: '', model: '' },
+) {
   if (!content.trim() || content.length > 8000) throw new AiError('invalid', '请输入 1–8000 字的消息', 422)
   if (!/^[a-zA-Z0-9_-]{8,160}$/.test(requestId)) throw new AiError('invalid', '消息请求标识无效', 422)
   return withTx(db, async (query) => {
     const scoped = { query }
     const session = await first<SessionRow>(scoped, 'SELECT * FROM ai_agent_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE', [sessionId, userId])
     if (!session) throw new AiError('invalid', '创作对话不存在', 404)
-    const previous = await first<{ task_id: string; content: string }>(
+    const previous = await first<{ task_id: string; content: string; metadata: AgentEvent['metadata'] }>(
       scoped,
-      'SELECT task_id,content FROM ai_agent_events WHERE session_id=$1 AND request_id=$2',
+      'SELECT task_id,content,metadata FROM ai_agent_events WHERE session_id=$1 AND request_id=$2',
       [sessionId, requestId],
     )
     if (previous) {
       if (previous.content !== content) throw new AiError('conflict', '同一请求标识不能提交不同消息', 409)
+      if ((previous.metadata.providerPresetId || '') !== provider.providerPresetId) throw new AiError('conflict', '同一请求标识不能切换模型预设', 409)
       return { taskId: previous.task_id, created: false }
     }
     const active = await first(scoped, "SELECT id FROM ai_tasks WHERE id=$1 AND status IN ('queued','running')", [session.active_task_id])
@@ -154,9 +162,9 @@ export async function beginAgentTurn(db: Db, userId: string, sessionId: string, 
       kind: 'agent_chat',
       total: 8,
       prompt: content,
-      params: JSON.stringify({ sessionId }),
+      params: JSON.stringify({ sessionId, ...provider }),
     })
-    await appendAgentEvent(scoped, sessionId, 'user', content, task.id, {}, requestId)
+    await appendAgentEvent(scoped, sessionId, 'user', content, task.id, provider, requestId)
     await query(
       "UPDATE ai_agent_sessions SET active_task_id=$1,title=CASE WHEN title='新的创作对话' THEN $2 ELSE title END,updated_at=GREATEST(updated_at+1,$3) WHERE id=$4",
       [task.id, content.slice(0, 32), Date.now(), sessionId],

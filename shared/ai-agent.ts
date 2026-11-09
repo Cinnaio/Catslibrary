@@ -36,7 +36,7 @@ export interface AgentEvent {
   role: 'user' | 'assistant' | 'activity'
   content: string
   taskId: string
-  metadata: { tool?: string; artifactTaskId?: string; actionId?: string; error?: boolean }
+  metadata: { tool?: string; artifactTaskId?: string; actionId?: string; error?: boolean; providerPresetId?: string; model?: string }
   createdAt: number
 }
 

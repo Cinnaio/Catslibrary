@@ -5,8 +5,10 @@ import type { AgentAction, AgentSessionDetail } from '@shared/ai-agent'
 import AiAgentPanel from './AiAgentPanel'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn() }))
+const providerMocks = vi.hoisted(() => ({ providerPresets: vi.fn(), status: vi.fn() }))
 vi.mock('@/lib/ai-agent-api', () => ({ agentApi: { ...mocks } }))
 vi.mock('@/lib/api', () => ({
+  aiApi: providerMocks,
   chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [] }) },
   newOperationId: () => `request_${Math.random()}`,
   url: (p: string) => p,
@@ -79,9 +81,55 @@ beforeEach(() => {
   mocks.sessions.mockResolvedValue({ sessions: [], hasMore: false })
   mocks.get.mockResolvedValue(detail())
   mocks.message.mockResolvedValue({ taskId: 'turn', created: true })
+  providerMocks.providerPresets.mockResolvedValue({
+    presets: [
+      { id: 'text-backup', scope: 'text', name: '备用文本', model: 'backup-model', hasApiKey: true, active: false },
+      { id: 'image-backup', scope: 'image', name: '封面模型', model: 'image-model', hasApiKey: true, active: false },
+    ],
+  })
+  providerMocks.status.mockResolvedValue({ model: 'default-model', configured: true })
 })
 
 describe('creative agent conversation', () => {
+  it('selects an existing text preset for the message and changes the retry ID when the selection changes', async () => {
+    mocks.message.mockRejectedValueOnce(new Error('连接中断'))
+    open()
+    const picker = await screen.findByRole('button', { name: '切换模型，当前default-model' })
+    fireEvent.pointerDown(picker, { button: 0, ctrlKey: false })
+    expect(await screen.findByRole('menuitemradio', { name: /备用文本/ })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitemradio', { name: /封面模型/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /备用文本/ }))
+    const input = screen.getByLabelText('发送给创作助手的消息')
+    fireEvent.change(input, { target: { value: '继续讨论动机' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+    await screen.findByText(/连接中断/)
+    expect(mocks.message).toHaveBeenLastCalledWith('session', '继续讨论动机', expect.any(String), 'text-backup')
+    const firstId = mocks.message.mock.calls[0]?.[2]
+    fireEvent.pointerDown(screen.getByRole('button', { name: '切换模型，当前backup-model' }), { button: 0, ctrlKey: false })
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /跟随默认/ }))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+    await waitFor(() => expect(mocks.message).toHaveBeenCalledTimes(2))
+    expect(mocks.message.mock.calls[1]?.[3]).toBe('')
+    expect(mocks.message.mock.calls[1]?.[2]).not.toBe(firstId)
+    await waitFor(() => expect(input).toHaveValue(''))
+  })
+  it('restores the latest conversation preset and locks its picker during an active turn', async () => {
+    const data = detail()
+    data.events.unshift({
+      id: 0,
+      role: 'user',
+      content: '继续',
+      taskId: 'turn',
+      metadata: { providerPresetId: 'text-backup', model: 'backup-model' },
+      createdAt: 0,
+    })
+    data.activeTask = { id: 'turn', kind: 'agent_chat', status: 'running', step: '正在整理', current: 0, total: 8, error: '' }
+    mocks.get.mockResolvedValue(data)
+    open()
+    expect(await screen.findByRole('button', { name: '切换模型，当前backup-model' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '停止回复' })).toBeEnabled()
+    expect(screen.getByLabelText('发送给创作助手的消息')).toBeEnabled()
+  })
   it('renders assistant Markdown with headings, emphasis, lists, tables and literal code', async () => {
     const data = detail()
     data.events[0]!.content = [

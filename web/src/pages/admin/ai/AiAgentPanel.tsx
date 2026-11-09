@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import Markdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { BookOpen, Check, Image as ImageIcon, MessageSquare, Plus, Send, Square } from 'lucide-react'
+import { BookOpen, Check, Image as ImageIcon, MessageSquare, Plus } from 'lucide-react'
 import type { AdminNovelIndexItem, ChapterMeta } from '@shared/types'
 import {
   agentTaskRunning,
@@ -27,6 +27,7 @@ import FormField from '@/components/shared/FormField'
 import SearchSelect from '@/components/shared/SearchSelect'
 import { ReadingDialog } from '@/components/shared/ReadingDialog'
 import { taskStatusLabel, kindLabel } from './labels'
+import AiAgentComposer from './AiAgentComposer'
 import styles from './agent-workspace.module.css'
 
 const failure = (e: unknown) => (e instanceof Error ? e.message : '操作失败，请稍后重试')
@@ -249,6 +250,8 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   const observedEvents = useRef(new Map<number, AgentEvent>())
   const [hasEarlier, setHasEarlier] = useState<boolean | null>(null)
   const [input, setInput] = useState('')
+  const [providerPresetId, setProviderPresetId] = useState('')
+  const providerInitialized = useRef(false)
   const [error, setError] = useState('')
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -262,8 +265,9 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   useEffect(() => {
     onSessionRef.current = onSession
   }, [onSession])
-  const pendingRequest = useRef<{ content: string; id: string } | null>(null)
+  const pendingRequest = useRef<{ content: string; id: string; providerPresetId: string } | null>(null)
   const feed = useRef<HTMLDivElement>(null)
+  const chat = useRef<HTMLElement>(null)
   const followBottom = useRef(true)
   const running = agentTaskRunning(data?.activeTask)
   const reload = useCallback(() => setRefresh((v) => v + 1), [])
@@ -284,6 +288,10 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         const next = await agentApi.get(sessionId)
         if (next.session.novelId !== novelId) throw new Error('此对话不属于当前作品，请重新选择对话')
         if (!active) return
+        if (!providerInitialized.current) {
+          setProviderPresetId([...next.events].reverse().find((event) => event.role === 'user')?.metadata.providerPresetId || '')
+          providerInitialized.current = true
+        }
         for (const event of next.events) observedEvents.current.set(event.id, event)
         setEarlier([...observedEvents.current.values()].filter((event) => !next.events.some((e) => e.id === event.id)).sort((a, b) => a.id - b.id))
         setData(next)
@@ -332,10 +340,11 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   async function send(content = input) {
     if (!content.trim() || busy || running) return
     const old = pendingRequest.current
-    const request = old?.content === content ? old : { content, id: newOperationId('agent-message') }
+    const request =
+      old?.content === content && old.providerPresetId === providerPresetId ? old : { content, id: newOperationId('agent-message'), providerPresetId }
     pendingRequest.current = request
     await perform(async () => {
-      await agentApi.message(sessionId, content, request.id)
+      await agentApi.message(sessionId, content, request.id, request.providerPresetId)
       if (mounted.current) {
         pendingRequest.current = null
         setInput((current) => (current === content ? '' : current))
@@ -446,7 +455,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         </p>
       )}
       <div className={styles.workspace} data-mobile-view={mobileView}>
-        <section className={styles.chat} aria-label="创作对话" data-running={running}>
+        <section ref={chat} className={styles.chat} aria-label="创作对话" data-running={running}>
           <div className={styles.chatHeading}>
             <span className={styles.chatTitle}>
               <MessageSquare size={16} aria-hidden="true" />
@@ -517,41 +526,19 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
               <p className={styles.error}>本轮未完成：{data.activeTask.error}。已保留对话和已提交的任务，可以调整要求后继续。</p>
             )}
           </div>
-          <form
-            className={styles.composer}
-            onSubmit={(e) => {
-              e.preventDefault()
-              void send()
-            }}
-          >
-            <Textarea
-              aria-label="发送给创作助手的消息"
-              placeholder="描述你的想法，或告诉我哪里需要调整…"
-              value={input}
-              maxLength={8000}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
-                  e.preventDefault()
-                  void send()
-                }
-              }}
-            />
-            <div className={styles.composerActions}>
-              <span>生成会使用已配置的模型 · Ctrl / ⌘ + Enter 发送</span>
-              {running ? (
-                <Button type="button" variant="outline" disabled={busy} onClick={() => void perform(() => agentApi.stop(sessionId, data.activeTask!.id))}>
-                  <Square size={14} />
-                  停止回复
-                </Button>
-              ) : (
-                <Button type="submit" disabled={busy || !input.trim()}>
-                  <Send size={15} />
-                  {busy ? '正在提交…' : '发送'}
-                </Button>
-              )}
-            </div>
-          </form>
+          <AiAgentComposer
+            value={input}
+            onChange={setInput}
+            onSend={() => void send()}
+            onStop={() => void perform(() => agentApi.stop(sessionId, data.activeTask!.id))}
+            busy={busy}
+            running={running}
+            providerPresetId={providerPresetId}
+            onProviderChange={setProviderPresetId}
+            chatRef={chat}
+            feedRef={feed}
+            followBottomRef={followBottom}
+          />
         </section>
         <aside className={styles.outputs} aria-label="产出与采纳">
           <div className={styles.outputHeader}>

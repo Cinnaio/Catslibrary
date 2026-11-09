@@ -101,4 +101,36 @@ describe('provider presets', () => {
       expect(providerForScope('text').apiKey).toBe('backup-secret')
     })
   })
+  it('isolates per-turn text overrides, inherits image settings and keeps child requests on the selected preset', async () => {
+    const selected = { baseUrl: 'https://selected.test', apiKey: 'selected-secret', model: 'selected-model' }
+    const other = { baseUrl: 'https://other.test', apiKey: 'other-secret', model: 'other-model' }
+    await withProviderSnapshot(async () => {
+      const before = providerForScope('text')
+      const image = providerForScope('image')
+      await Promise.all([
+        withProviderSnapshot(
+          async () => {
+            await Promise.resolve()
+            expect(providerForScope('text')).toEqual(selected)
+            expect(providerForScope('image')).toEqual(image)
+            await withProviderSnapshot(async () => {
+              await Promise.resolve()
+              expect(providerForScope('text')).toEqual(selected)
+            })
+          },
+          { text: selected },
+        ),
+        withProviderSnapshot(
+          async () => {
+            await Promise.resolve()
+            expect(providerForScope('text')).toEqual(other)
+          },
+          { text: other },
+        ),
+      ])
+      expect(providerForScope('text')).toEqual(before)
+    })
+    expect(readRuntimeConfig()).toEqual({})
+    expect(process.env.AI_TEXT_API_KEY).toBe('')
+  })
 })

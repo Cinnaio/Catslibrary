@@ -14,8 +14,14 @@ import { buildRewriteTaskParams } from '../services/ai/rewrite'
 import { cancelAiTask, createAiTask, getAiTask, updateAiTask } from '../services/ai/tasks'
 import { generationContentRevision } from '../services/ai/generations'
 import { replaceCoverForAdmin } from '../services/covers'
-import type { AiToolCall } from '../services/ai/client'
+import { AiError, type AiToolCall } from '../services/ai/client'
 import type { AgentSession, AgentSessionDetail } from '@shared/ai-agent'
+
+const presetMock = vi.hoisted(() => vi.fn())
+vi.mock('../services/ai/provider-presets', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/ai/provider-presets')>()),
+  getProviderPreset: presetMock,
+}))
 
 let t: TestDb
 let adminToken = ''
@@ -107,6 +113,18 @@ beforeAll(async () => {
   vi.stubGlobal('fetch', fetchMock)
 })
 beforeEach(async () => {
+  presetMock.mockReset()
+  presetMock.mockImplementation((id: string) => {
+    if (id !== 'text-preset' && id !== 'image-preset') throw new AiError('invalid', '端点预设不存在', 404)
+    return {
+      id,
+      name: '测试预设',
+      scope: id === 'text-preset' ? 'text' : 'image',
+      baseUrl: 'https://selected.test/v1',
+      apiKey: 'selected-key',
+      model: 'selected-model',
+    }
+  })
   fetchMock.mockReset()
   fetchMock.mockImplementation(async () => completion('可以先保留分歧，让合作推动关系。'))
   await t.db.query('DELETE FROM ai_agent_sessions')
@@ -146,6 +164,65 @@ describe('novel-scoped creative agent', () => {
     await expect(beginAgentTurn(t.db, 'admin', session.id, '不同的消息', 'request_123456')).rejects.toMatchObject({ status: 409 })
     await expect(beginAgentTurn(t.db, 'admin', session.id, '另一条消息', 'request_123457')).rejects.toMatchObject({ status: 409 })
     expect((await readAgentEvents(t.db, session.id)).events).toHaveLength(1)
+  })
+  it('uses the selected preset for the coordinator and its generated draft without changing the default', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'empty-novel' })
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body))
+      if (!body.tools) return completion(`标题：晨雨\n\n${'清晨的雨落在窗沿，屋里的人终于收起了信。'.repeat(50)}`)
+      return completion(
+        '已开始准备。',
+        body.messages.some((message: { role: string }) => message.role === 'tool') ? undefined : [call('generate_draft', { instruction: '写一个雨夜开场' })],
+      )
+    })
+    const response = await request(`/api/ai/agent/sessions/${session.id}/messages`, 'POST', {
+      content: '写一个雨夜开场',
+      requestId: 'selected_request',
+      providerPresetId: 'text-preset',
+    })
+    expect(response.status).toBe(202)
+    const receipt = (await response.json()) as { taskId: string }
+    expect((await waitTask(receipt.taskId)).status).toBe('completed')
+    const child = await first<{ task_id: string }>(t.db, 'SELECT task_id FROM ai_agent_artifacts WHERE session_id=$1', [session.id])
+    expect(child).toBeDefined()
+    expect((await waitTask(child!.task_id)).status).toBe('completed')
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3)
+    for (const [url, init] of fetchMock.mock.calls) {
+      expect(String(url)).toContain('https://selected.test/v1/')
+      expect(JSON.parse(String(init?.body)).model).toBe('selected-model')
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer selected-key')
+    }
+    expect(process.env.AI_TEXT_MODEL).toBe('mock-agent')
+    expect(process.env.AI_TEXT_BASE_URL).toBe('https://agent.test/v1')
+    const history = await readAgentEvents(t.db, session.id)
+    expect(history.events[0]?.metadata).toEqual({ providerPresetId: 'text-preset', model: 'selected-model' })
+    expect(JSON.stringify(history)).not.toContain('selected-key')
+    const repeat = await request(`/api/ai/agent/sessions/${session.id}/messages`, 'POST', {
+      content: '写一个雨夜开场',
+      requestId: 'selected_request',
+      providerPresetId: 'text-preset',
+    })
+    expect(await repeat.json()).toEqual({ taskId: receipt.taskId, created: false })
+    expect((await request(`/api/ai/agent/sessions/${session.id}/messages`, 'POST', { content: '写一个雨夜开场', requestId: 'selected_request' })).status).toBe(
+      409,
+    )
+  })
+  it('rejects missing, malformed or image presets before creating a turn', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    for (const [providerPresetId, status] of [
+      ['missing', 404],
+      ['image-preset', 422],
+      [42, 422],
+    ] as const) {
+      const response = await request(`/api/ai/agent/sessions/${session.id}/messages`, 'POST', {
+        content: '讨论一下',
+        requestId: 'invalid_preset_request',
+        providerPresetId,
+      })
+      expect(response.status).toBe(status)
+    }
+    expect((await readAgentEvents(t.db, session.id)).events).toEqual([])
+    expect(fetchMock).not.toHaveBeenCalled()
   })
   it('rejects cross-book/future sources and unregistered or malformed tool calls', async () => {
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })

@@ -4,9 +4,10 @@ import type { AgentActionKind } from '@shared/ai-agent'
 import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
-import { AiError, isTextAiConfigured } from '../services/ai/client'
+import { AiError, isTextAiConfigured, textProvider } from '../services/ai/client'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { withProviderSnapshot } from '../services/ai/provider-snapshot'
+import { getProviderPreset } from '../services/ai/provider-presets'
 import { cancelAiTask, getAiTask } from '../services/ai/tasks'
 import { validateWritingContentPreferences } from '../services/ai/writing-preferences'
 import { runAgentTurn } from '../services/ai/agent'
@@ -128,19 +129,32 @@ export function createAgentRoutes(dispatch: Dispatch) {
     return c.json({ session: await getAgentSession(db, c.get('user').id, session.id) })
   })
   routes.post('/sessions/:id/messages', async (c) => {
-    if (!isTextAiConfigured()) throw new AiError('disabled', '请先在模型与服务中配置支持工具调用的文本模型', 503)
     const db = getDb()
     const session = await getAgentSession(db, c.get('user').id, c.req.param('id'))
     const body = await c.req.json().catch(() => ({}))
-    const turn = await beginAgentTurn(db, c.get('user').id, session.id, String(body.content || ''), String(body.requestId || ''))
-    if (turn.created) {
-      const current = await getAgentSession(db, c.get('user').id, session.id)
-      void runAgentTurn(db, current, turn.taskId, c.get('user').id, agentApiAdapter(c.req.raw, dispatch), {
-        ipAddress: clientIpFromContext(c),
-        userAgent: c.req.header('User-Agent'),
-      }).catch((err) => console.error('[ai-agent] turn failed', err))
-    }
-    return c.json(turn, 202)
+    if (body.providerPresetId !== undefined && (typeof body.providerPresetId !== 'string' || body.providerPresetId.length > 160))
+      throw new AiError('invalid', '模型预设标识无效', 422)
+    const providerPresetId = body.providerPresetId || ''
+    const preset = providerPresetId ? getProviderPreset(providerPresetId) : undefined
+    if (preset && preset.scope !== 'text') throw new AiError('invalid', '对话请选择文本模型预设', 422)
+    return withProviderSnapshot(
+      async () => {
+        if (!isTextAiConfigured()) throw new AiError('disabled', '请先在模型与服务中配置支持工具调用的文本模型', 503)
+        const turn = await beginAgentTurn(db, c.get('user').id, session.id, String(body.content || ''), String(body.requestId || ''), {
+          providerPresetId,
+          model: textProvider().model,
+        })
+        if (turn.created) {
+          const current = await getAgentSession(db, c.get('user').id, session.id)
+          void runAgentTurn(db, current, turn.taskId, c.get('user').id, agentApiAdapter(c.req.raw, dispatch), {
+            ipAddress: clientIpFromContext(c),
+            userAgent: c.req.header('User-Agent'),
+          }).catch((err) => console.error('[ai-agent] turn failed', err))
+        }
+        return c.json(turn, 202)
+      },
+      preset ? { text: { baseUrl: preset.baseUrl, apiKey: preset.apiKey, model: preset.model } } : undefined,
+    )
   })
   routes.post('/sessions/:id/stop', async (c) => {
     const db = getDb()

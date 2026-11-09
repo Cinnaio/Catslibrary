@@ -2,6 +2,10 @@
   min-width: 0;
   color: var(--text-primary);
 }
+:global(.ai-admin-page):has(.root) {
+  /* hidden 会将页面变成 sticky 的滚动容器；clip 保留文档滚动下的浮动输入。 */
+  overflow-x: clip;
+}
 .toolbar {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
@@ -58,7 +62,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-feature);
   background: var(--bg-card);
-  overflow: hidden;
+  overflow: clip;
   min-width: 0;
   transition: border-color 180ms ease;
 }
@@ -114,7 +118,8 @@
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding: 22px 28px 28px;
+  padding: 22px 28px var(--agent-composer-space, calc(var(--agent-composer-height, 100px) + 40px));
+  scroll-padding-bottom: var(--agent-composer-space, calc(var(--agent-composer-height, 100px) + 40px));
 }
 .message {
   margin-bottom: 28px;
@@ -279,26 +284,65 @@
   padding-left: 0;
 }
 .composer {
-  position: relative;
+  --input-border: transparent;
+  --input-background: transparent;
+  --input-radius: 0;
+  --input-focus-border: transparent;
+  --input-focus-shadow: none;
+  position: sticky;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 3;
   overflow: hidden;
-  padding: 20px 24px 24px;
-  background: color-mix(in srgb, var(--bg-secondary) 38%, var(--bg-card));
+  margin: calc(-1 * var(--agent-composer-height, 100px) - 16px) 16px 16px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+  background: var(--bg-card);
+  box-shadow: var(--admin-dock-shadow);
+}
+.composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 .composer textarea {
-  min-height: 90px;
-  max-height: 240px;
-  resize: vertical;
+  display: block;
+  field-sizing: fixed;
+  height: 40px;
+  min-height: 40px;
+  max-height: min(180px, 24dvh);
+  padding: 8px 10px;
+  resize: none;
+  overflow-y: hidden;
+  line-height: 22px;
 }
 .composerActions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 2px;
 }
-.composerActions > span {
-  font-size: 11px;
-  line-height: 1.6;
+.modelTrigger {
+  min-width: 0;
+  max-width: calc(100% - 56px);
+  justify-content: flex-start;
+}
+.modelTrigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.modelMenu {
+  max-width: min(360px, calc(100vw - 32px));
+}
+.modelOption {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.modelOption small {
+  font-size: 12px;
   color: var(--text-muted);
 }
 .outputs {
@@ -616,7 +660,7 @@
     grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
   }
   .feed {
-    padding: 20px;
+    padding: 20px 20px var(--agent-composer-space, calc(var(--agent-composer-height, 100px) + 36px));
   }
   .chatHeading {
     padding: 20px 20px 14px;
@@ -652,10 +696,14 @@
   .feed {
     height: 52vh;
     min-height: 260px;
-    padding: 20px 16px;
+    padding: 20px 16px var(--agent-composer-space, calc(var(--agent-composer-height, 100px) + 32px));
   }
   .composer {
-    padding: 16px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    margin: calc(-1 * var(--agent-composer-height, 100px) - 12px) 12px 12px;
+  }
+  .composer textarea {
+    font-size: 16px;
   }
   .chatHeading {
     padding-inline: 16px;
@@ -666,9 +714,6 @@
   .message[data-role='user'] {
     max-width: 96%;
     padding: 14px 16px;
-  }
-  .composerActions > span {
-    max-width: 180px;
   }
   .welcome,
   .empty {

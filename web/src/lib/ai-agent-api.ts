@@ -9,8 +9,8 @@ export const agentApi = {
   create: (novelId: string, afterChapterId = '') => request<{ session: AgentSession }>('POST', root, { novelId, afterChapterId }, true),
   get: (id: string) => request<AgentSessionDetail>('GET', path(id), null, true),
   events: (id: string, before: number) => request<{ events: AgentEvent[]; hasEarlier: boolean }>('GET', `${path(id)}/events?before=${before}`, null, true),
-  message: (id: string, content: string, requestId: string) =>
-    request<{ taskId: string; created: boolean }>('POST', `${path(id)}/messages`, { content, requestId }, true),
+  message: (id: string, content: string, requestId: string, providerPresetId = '') =>
+    request<{ taskId: string; created: boolean }>('POST', `${path(id)}/messages`, { content, requestId, providerPresetId }, true),
   save: (id: string, brief: string, contentPreferences: AgentContentPreferences, expectedUpdatedAt: number) =>
     request<{ session: AgentSession }>('PATCH', path(id), { brief, contentPreferences, expectedUpdatedAt }, true),
   stop: (id: string, taskId: string) => request('POST', `${path(id)}/stop`, { taskId }, true),
