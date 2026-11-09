@@ -13,6 +13,12 @@ const nativeBridge = Object.freeze({
       finales: options(exports.EDGE_FINALES),
       tones: options(exports.EDGE_TONES),
       categories: Object.entries(exports.EDGE_CATEGORY_LABELS).map(([id, label]) => ({ id, label })),
+      acts: exports.EDGE_ACT_LABELS,
+      rules: options(exports.EDGE_RULE_LABELS),
+      declarations: options(exports.EDGE_DECLARE_LABELS),
+      spends: options(exports.EDGE_SPEND_LABELS),
+      overtimeMinSeconds: exports.EDGE_OVERTIME_MIN_SECONDS,
+      overtimeMaxSeconds: exports.EDGE_OVERTIME_MAX_SECONDS,
       endings: exports.EDGE_ENDING_LABELS,
       historyLimit: exports.EDGE_HISTORY_LIMIT,
     })
@@ -28,8 +34,11 @@ const nativeBridge = Object.freeze({
   normalizeSettings(raw) {
     return JSON.stringify(exports.normalizeEdgeSettings(JSON.parse(raw)))
   },
+  summarizeHistory(raw) {
+    return JSON.stringify(exports.summarizeEdgeHistory(JSON.parse(raw)))
+  },
   dispatch(raw) {
     session = exports.edgeReducer(session, JSON.parse(raw))
-    return JSON.stringify(session)
+    return JSON.stringify(session && { ...session, feedback: exports.edgeSessionFeedback(session) })
   },
 })

@@ -36,11 +36,25 @@ struct ReaderEdgeBar: View {
                 Text(session.status == .finished ? (store.catalog?.endings[session.ending ?? ""] ?? "本次结束") : session.command)
                     .font(.subheadline)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.bottom, 10)
+                if session.isActive {
+                    let summary = [
+                        session.settings.acts ? store.catalog?.acts[session.act] : nil,
+                        session.feedback.sprinting ? "冲刺" : nil,
+                        session.settings.bank ? "银行 \(session.bank) 点" : nil,
+                    ].compactMap { $0 }.joined(separator: " · ")
+                    if !summary.isEmpty {
+                        Text(summary).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let hint = session.feedback.timingHint {
+                        Text(hint).font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             .buttonStyle(.plain)
             .frame(maxWidth: 520)
             .padding(.horizontal, 16)
+            .padding(.bottom, 10)
             .frame(maxWidth: .infinity)
         }
     }
@@ -51,7 +65,7 @@ struct ReaderEdgeBar: View {
             if session.status == .permit {
                 icon("checkmark", title: "按下了", action: store.reportCompletion)
             } else if session.status == .running || session.status == .cooldown {
-                icon("checkmark", title: "忍住了", action: store.declareEdge)
+                icon("checkmark", title: "忍住了", action: { store.declareEdge() })
                     .disabled(!session.canDeclare)
             }
             icon(session.status == .paused ? "play.fill" : "pause.fill",

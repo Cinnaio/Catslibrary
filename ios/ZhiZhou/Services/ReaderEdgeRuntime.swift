@@ -43,6 +43,11 @@ final class ReaderEdgeRuntime {
         return try call("dispatch", arguments: [String(decoding: raw, as: UTF8.self)])
     }
 
+    func summarize(_ history: [ReaderEdgeRecord]) throws -> ReaderEdgeTotals {
+        let raw = try JSONEncoder().encode(history)
+        return try call("summarizeHistory", arguments: [String(decoding: raw, as: UTF8.self)])
+    }
+
     private func call<Value: Decodable>(_ method: String, arguments: [Any]) throws -> Value {
         context.exception = nil
         let result = bridge.invokeMethod(method, withArguments: arguments)

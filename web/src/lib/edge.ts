@@ -56,6 +56,8 @@ export const EDGE_BONUS_PER_EDGE = 5
 export const EDGE_BONUS_CAP = 20
 /** 加时轮数上限：达到后下一次抽签必然许可，避免无限加时。 */
 export const EDGE_OVERTIME_CAP = 5
+export const EDGE_OVERTIME_MIN_SECONDS = 45
+export const EDGE_OVERTIME_MAX_SECONDS = 300
 /** 最后一段全红冲刺的长度；短局按比例缩小，交给 edgeSprintMs 计算。 */
 export const EDGE_SPRINT_MS = 30_000
 /** 时间银行：每守住这么久存 1 点。 */
@@ -82,7 +84,19 @@ const DECLARE_COOLDOWN_SCALE: Record<EdgeDeclare, number> = { hold: 1, grind: 1.
 /** 靠近指令末尾的判定阈值（占当前指令进度的比例）。 */
 const TIMING_THRESHOLDS: readonly [number, number] = [0.34, 0.72]
 
-export const EDGE_SPRINT_COMMAND = '最后三十秒。手放下，不许碰。'
+export const EDGE_SPRINT_COMMAND = '最后一段。手放下，不许碰。'
+
+export const EDGE_TIMING_HINTS: Record<EdgeTiming, string> = {
+  early: '现在按太早了，得分很低。',
+  steady: '还可以再撑一会儿。',
+  late: '就是现在，按下去最值。',
+}
+
+export const EDGE_RULE_LABELS = {
+  acts: { label: '三幕结构', summary: '铺垫、折磨、极限依次推进，最后一段全红冲刺' },
+  bank: { label: '时间银行', summary: '绿色、黄色阶段每累计一分钟存 1 点，可兑现豁免、缩短或许可' },
+  timing: { label: '申报时机判定', summary: '按本条指令进度增加许可率，同时开放「磨着不停」；关闭后每次固定增加 5%' },
+}
 
 export const EDGE_DECLARE_LABELS: Record<EdgeDeclare, { label: string; summary: string }> = {
   hold: { label: '停手', summary: '松手申报，安全，冷却按设定' },
@@ -90,7 +104,7 @@ export const EDGE_DECLARE_LABELS: Record<EdgeDeclare, { label: string; summary: 
 }
 
 export const EDGE_SPEND_LABELS: Record<EdgeSpendKind, { label: string; summary: string }> = {
-  pardon: { label: '豁免', summary: '立刻结束当前这条红色指令，换成可以动' },
+  pardon: { label: '豁免', summary: '结束当前普通红色指令；等待和冲刺期间不可用' },
   time: { label: '缩短', summary: '本局提前三十秒结束' },
   permit: { label: '兑现许可', summary: '不再抽签，直接进入许可窗口' },
 }
@@ -162,7 +176,7 @@ export const EDGE_DIFFICULTIES: Record<EdgeDifficulty, EdgeDifficultyInfo> = {
 }
 
 export const EDGE_FINALES: Record<EdgeFinale, { label: string; summary: string }> = {
-  lottery: { label: '抽签', summary: '按当前许可率决定允许还是禁止；每申报一次忍住，概率 +5%（最多 +20%）' },
+  lottery: { label: '抽签', summary: '按当前许可率决定允许还是禁止；申报奖励最多累计 +20%，许可率不超过 100%' },
   always: { label: '必定允许', summary: '时间一到就允许，第一次玩选这个' },
   never: { label: '必定禁止', summary: '不发放许可，时间到了松手收场' },
   ruin: { label: '松手射精', summary: '可以射，但射出的瞬间要松手，不许再碰' },
@@ -276,7 +290,7 @@ export function normalizeEdgeSettings(value: unknown): EdgeSettings {
     difficulty: pick(input.difficulty, ['easy', 'normal', 'hard', 'oni'], DEFAULT_EDGE_SETTINGS.difficulty),
     finale: pick(input.finale, ['lottery', 'always', 'never', 'ruin', 'overtime'], DEFAULT_EDGE_SETTINGS.finale),
     permitSeconds: integer(input.permitSeconds, 5, 60, DEFAULT_EDGE_SETTINGS.permitSeconds),
-    overtimeSeconds: integer(input.overtimeSeconds, 15, 300, DEFAULT_EDGE_SETTINGS.overtimeSeconds),
+    overtimeSeconds: integer(input.overtimeSeconds, EDGE_OVERTIME_MIN_SECONDS, EDGE_OVERTIME_MAX_SECONDS, DEFAULT_EDGE_SETTINGS.overtimeSeconds),
     sound: input.sound === true,
     speech: input.speech === true,
     heartbeat: input.heartbeat === true,
@@ -373,7 +387,7 @@ export function edgeActAt(settings: EdgeSettings, elapsedMs: number, totalMs: nu
   return 'limit'
 }
 
-/** 冲刺长度：默认三十秒，短局按三分之一缩，最长不超过整局的四分之一。 */
+/** 冲刺长度：默认三十秒，最长不超过整局的四分之一。 */
 export function edgeSprintMs(totalMs: number): number {
   return Math.min(EDGE_SPRINT_MS, Math.round(totalMs / 4))
 }
@@ -384,7 +398,7 @@ export function edgeInSprint(totalMs: number, elapsedMs: number): boolean {
   return sprint > 0 && totalMs - elapsedMs <= sprint
 }
 
-function segmentDuration(settings: EdgeSettings, act: EdgeAct, phase: EdgePhase, state: number): { durationMs: number; state: number } {
+function segmentDuration(settings: EdgeSettings, act: EdgeAct, state: number): { durationMs: number; state: number } {
   const [min, max] = EDGE_DIFFICULTIES[settings.difficulty].spanSeconds
   const scale = (settings.segmentLength === 'long' ? 2.4 : 1) * (settings.acts ? ACT_SPAN_SCALE[act] : 1)
   const drawn = roll(state)
@@ -455,36 +469,57 @@ export function edgeTimingAt(session: EdgeSession): EdgeTiming {
   return 'late'
 }
 
-/** 时间银行的可兑现项与价格；不够点数或当前状态不允许的花费不出现在这里。 */
+/** UI 与 reducer 共用的兑现条件；note 非空表示不能兑现。 */
 export function edgeSpendOptions(session: EdgeSession): Array<{ kind: EdgeSpendKind; cost: number; note: string | null }> {
   return (Object.keys(EDGE_BANK_COST) as EdgeSpendKind[]).map((kind) => {
     const cost = EDGE_BANK_COST[kind]
     let note: string | null = null
     if (!session.settings.bank) note = '本局未开启时间银行'
-    else if (session.bank < cost) note = `还差 ${cost - session.bank} 点`
     else if (session.status !== 'running' && session.status !== 'cooldown') note = '这一局现在不能兑现'
+    else if (kind === 'pardon' && session.status === 'cooldown') note = '申报后的等待不能豁免'
+    else if (kind === 'pardon' && session.settings.acts && edgeInSprint(session.totalMs, session.elapsedMs)) note = '冲刺期间不能豁免'
     else if (kind === 'pardon' && session.phase !== 'stop') note = '只在红色指令里可用'
     else if (kind === 'time' && session.totalMs - session.elapsedMs <= EDGE_BANK_TIME_MS + 5000) note = '剩下的时间不够再缩短'
+    else if (session.bank < cost) note = `还差 ${cost - session.bank} 点`
     return { kind, cost, note }
   })
 }
 
+/** 原生桥接和 Web 共享提示与可用项，不在各端重写规则。 */
+export function edgeSessionFeedback(session: EdgeSession) {
+  const timing = session.settings.timing && session.status === 'running' && session.phase !== 'stop'
+    ? edgeTimingAt(session) : null
+  return {
+    timing,
+    timingHint: timing ? EDGE_TIMING_HINTS[timing] : null,
+    sprinting: session.settings.acts && session.status === 'running' && edgeInSprint(session.totalMs, session.elapsedMs),
+    spends: edgeSpendOptions(session),
+  }
+}
+
+function beginSprint(session: EdgeSession): EdgeSession {
+  return {
+    ...session,
+    status: 'running',
+    act: 'limit',
+    phase: 'stop',
+    command: EDGE_SPRINT_COMMAND,
+    bpm: 0,
+    phaseStartedAt: session.elapsedMs,
+    phaseEndsAt: session.totalMs,
+  }
+}
+
 function beginSegment(session: EdgeSession): EdgeSession {
   const act = edgeActAt(session.settings, session.elapsedMs, session.totalMs)
-  const sprint = session.settings.acts && edgeInSprint(session.totalMs, session.elapsedMs)
-  const phase = sprint
-    ? { phase: 'stop' as EdgePhase, state: session.rng }
-    : pickPhase(session.settings, act, session.phase, session.rng)
-  const command = sprint
-    ? { command: EDGE_SPRINT_COMMAND, state: phase.state }
-    : pickCommand(session.settings, phase.phase, session.command, phase.state)
+  if (session.settings.acts && edgeInSprint(session.totalMs, session.elapsedMs)) return beginSprint(session)
+  const phase = pickPhase(session.settings, act, session.phase, session.rng)
+  const command = pickCommand(session.settings, phase.phase, session.command, phase.state)
   const bpm = phaseBpm(phase.phase, command.state)
-  const duration = segmentDuration(session.settings, act, phase.phase, bpm.state)
+  const duration = segmentDuration(session.settings, act, bpm.state)
   // 冲刺段不能被一条提前开始的指令跨过去：到冲刺起点就切段，保证最后一段必定全红。
   const sprintStart = session.totalMs - edgeSprintMs(session.totalMs)
-  const endsAt = session.settings.acts && !sprint && session.elapsedMs < sprintStart
-    ? Math.min(session.elapsedMs + duration.durationMs, Math.max(session.elapsedMs + 1000, sprintStart))
-    : session.elapsedMs + duration.durationMs
+  const endsAt = Math.min(session.elapsedMs + duration.durationMs, session.settings.acts ? sprintStart : session.totalMs)
   return {
     ...session,
     status: 'running',
@@ -533,7 +568,7 @@ function resolveEnding(session: EdgeSession): EdgeSession {
       if (drawn.value * 100 < boosted || session.overtime + 1 >= EDGE_OVERTIME_CAP) return startPermit(base, false)
       const overtime = session.overtime + 1
       // 加时至少留出一次完整指令的余地，否则新相位还没走完就又撞上结束点。
-      const extension = Math.max(session.settings.overtimeSeconds * 1000, 45_000)
+      const extension = session.settings.overtimeSeconds * 1000
       return beginSegment({
         ...base,
         overtime,
@@ -557,15 +592,26 @@ function resolve(session: EdgeSession): EdgeSession {
       next = resolveEnding(next)
       continue
     }
+    const act = edgeActAt(next.settings, next.elapsedMs, next.totalMs)
+    if (next.act !== act) next = { ...next, act }
+    if (next.status === 'running' && next.settings.acts) {
+      const sprintStart = next.totalMs - edgeSprintMs(next.totalMs)
+      if (next.elapsedMs >= sprintStart) {
+        return next.phase === 'stop' && next.command === EDGE_SPRINT_COMMAND && next.phaseEndsAt === next.totalMs
+          ? next : beginSprint(next)
+      }
+      // 缩短总时长后也重新裁剪当前指令，不能穿过新的冲刺起点。
+      if (next.phaseEndsAt > sprintStart) next = { ...next, phaseEndsAt: sprintStart }
+    }
     if (next.elapsedMs < next.phaseEndsAt) return next
     next = beginSegment(next)
   }
   return next
 }
 
-/** 时间银行只在正常游玩时累积；等待、许可、暂停都不算守住的时间。 */
+/** 只累计绿色、黄色阶段；推进过程在相位边界处分段记账。 */
 function bankTick(session: EdgeSession, delta: number): EdgeSession {
-  if (!session.settings.bank || session.status !== 'running') return session
+  if (!session.settings.bank || session.status !== 'running' || session.phase === 'stop') return session
   let bankedMs = session.bankedMs + delta
   let bank = session.bank
   while (bankedMs >= EDGE_BANK_WINDOW_MS) {
@@ -582,8 +628,17 @@ function advance(session: EdgeSession, now: number): EdgeSession {
   if (!Number.isFinite(delta) || delta < 0 || delta > 2000) {
     return { ...session, status: 'paused', resumeStatus: session.status === 'cooldown' || session.status === 'permit' ? session.status : 'running', sampledAt: null, pauseReason: 'interrupted' }
   }
-  const banked = bankTick(session, delta)
-  return resolve({ ...banked, elapsedMs: banked.elapsedMs + delta, sampledAt: now })
+  let next = resolve(session)
+  let remaining = delta
+  // 每次只推进到下一个边界，避免把跨入红色/许可的时间记入银行。
+  while (remaining > 0 && next.status !== 'finished' && next.status !== 'paused') {
+    const boundary = next.status === 'permit' ? next.phaseEndsAt : Math.min(next.phaseEndsAt, next.totalMs)
+    const step = Math.min(remaining, boundary - next.elapsedMs)
+    const banked = bankTick(next, step)
+    next = resolve({ ...banked, elapsedMs: banked.elapsedMs + step })
+    remaining -= step
+  }
+  return { ...next, sampledAt: next.status === 'finished' || next.status === 'paused' ? null : now }
 }
 
 export function createEdgeSession(id: string, settings: EdgeSettings, now: number, seed = Date.now() >>> 0): EdgeSession {
@@ -643,13 +698,14 @@ export function edgeReducer(session: EdgeSession | null, action: EdgeAction): Ed
   if (action.type === 'edge') {
     // 红色（不许碰）与等待里没有"申报"这回事；重复按不加分也不重排等待。
     if (next.status !== 'running' || next.phase === 'stop') return next
+    if (!next.settings.timing && action.declare === 'grind') return next
     const declare: EdgeDeclare = action.declare ?? 'hold'
     const timing = edgeTimingAt(next)
     const drawn = roll(next.rng)
     const spread = next.settings.holdMax - next.settings.holdMin + 1
     const baseHold = next.settings.holdMin + Math.floor(drawn.value * spread)
     const hold = Math.round(baseHold * DECLARE_COOLDOWN_SCALE[declare])
-    const bonus = DECLARE_BONUS[declare][timing]
+    const bonus = next.settings.timing ? DECLARE_BONUS[declare][timing] : EDGE_BONUS_PER_EDGE
     return {
       ...next,
       status: 'cooldown',
@@ -670,17 +726,12 @@ export function edgeReducer(session: EdgeSession | null, action: EdgeAction): Ed
 
 /** 兑现时间银行的点数：豁免红色、缩短本局、或直接换许可。 */
 function spendBank(session: EdgeSession, kind: EdgeSpendKind): EdgeSession {
-  if (!session.settings.bank) return session
-  if (session.status !== 'running' && session.status !== 'cooldown') return session
-  const cost = EDGE_BANK_COST[kind]
-  if (session.bank < cost) return session
-  const paid = { ...session, bank: session.bank - cost, spent: session.spent + cost }
+  const option = edgeSpendOptions(session).find((entry) => entry.kind === kind)
+  if (!option || option.note !== null) return session
+  const paid = { ...session, bank: session.bank - option.cost, spent: session.spent + option.cost }
   if (kind === 'permit') return startPermit(paid, session.settings.finale === 'ruin')
   if (kind === 'time') {
-    // 缩到当前进度之后，交给 resolve 收尾；至少要留一秒，否则会原地触发结局。
-    const floor = paid.elapsedMs + 1000
-    const totalMs = Math.max(floor, paid.totalMs - EDGE_BANK_TIME_MS)
-    return resolve({ ...paid, totalMs })
+    return resolve({ ...paid, totalMs: paid.totalMs - EDGE_BANK_TIME_MS })
   }
   return beginSegment({ ...paid, status: 'running', phase: 'stop', phaseStartedAt: paid.elapsedMs, phaseEndsAt: paid.elapsedMs })
 }

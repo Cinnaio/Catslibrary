@@ -16,6 +16,9 @@ struct ReaderEdgeSettings: Codable, Equatable {
     var customChance: Int?
     var holdMin: Int
     var holdMax: Int
+    var acts: Bool
+    var bank: Bool
+    var timing: Bool
 }
 
 struct ReaderEdgeOption: Decodable, Identifiable {
@@ -32,6 +35,12 @@ struct ReaderEdgeCatalog: Decodable {
     let finales: [ReaderEdgeOption]
     let tones: [ReaderEdgeOption]
     let categories: [ReaderEdgeOption]
+    let acts: [String: String]
+    let rules: [ReaderEdgeOption]
+    let declarations: [ReaderEdgeOption]
+    let spends: [ReaderEdgeOption]
+    let overtimeMinSeconds: Int
+    let overtimeMaxSeconds: Int
     let endings: [String: String]
     let historyLimit: Int
 
@@ -48,6 +57,29 @@ enum ReaderEdgePhase: String, Decodable {
     case go, slow, stop
 }
 
+enum ReaderEdgeDeclaration: String {
+    case hold, grind
+}
+
+enum ReaderEdgeSpendKind: String, Decodable {
+    case pardon, time, permit
+}
+
+struct ReaderEdgeSpendOption: Decodable, Identifiable {
+    let kind: ReaderEdgeSpendKind
+    let cost: Int
+    let note: String?
+    var id: String { kind.rawValue }
+}
+
+/// Derived by the shared engine after each action, including native ticks.
+struct ReaderEdgeFeedback: Decodable {
+    let timing: String?
+    let timingHint: String?
+    let sprinting: Bool
+    let spends: [ReaderEdgeSpendOption]
+}
+
 /// A read-only projection; the shared JavaScript engine owns the complete state.
 struct ReaderEdgeSession: Decodable, Identifiable {
     let id: String
@@ -58,19 +90,27 @@ struct ReaderEdgeSession: Decodable, Identifiable {
     let elapsedMs: Double
     let totalMs: Double
     let phase: ReaderEdgePhase
+    let act: String
     let phaseEndsAt: Double
     let command: String
     let bpm: Int
     let edges: Int
+    let grinds: Int
+    let bank: Int
+    let spent: Int
     let chance: Int
     let ruined: Bool
     let overtime: Int
     let ending: String?
+    let feedback: ReaderEdgeFeedback
 
     var isActive: Bool { status != .finished }
     var isAdvancing: Bool { status != .finished && status != .paused }
     var canDeclare: Bool { status == .running && phase != .stop }
-    var remainingMs: Double { max(0, totalMs - elapsedMs) }
+    var remainingMs: Double {
+        status == .permit || (status == .paused && resumeStatus == .permit)
+            ? phaseRemainingMs : max(0, totalMs - elapsedMs)
+    }
     var phaseRemainingMs: Double { max(0, phaseEndsAt - elapsedMs) }
     var progress: Double { totalMs > 0 ? min(1, elapsedMs / totalMs) : 0 }
 
@@ -106,6 +146,8 @@ struct ReaderEdgeRecord: Codable, Identifiable {
     let finale: String
     let elapsedMs: Double
     let edges: Int
+    let grinds: Int
+    let spent: Int
     let overtime: Int
     let ending: String
 
@@ -117,9 +159,20 @@ struct ReaderEdgeRecord: Codable, Identifiable {
         finale = session.settings.finale
         elapsedMs = session.elapsedMs.rounded()
         edges = session.edges
+        grinds = session.grinds
+        spent = session.spent
         overtime = session.overtime
         ending = session.ending ?? "ended"
     }
+}
+
+struct ReaderEdgeTotals: Decodable {
+    let sessions: Int
+    let edges: Int
+    let grinds: Int
+    let spent: Int
+    let permitted: Int
+    let longestMs: Double
 }
 
 struct ReaderEdgeData: Codable {

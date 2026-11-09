@@ -15,6 +15,9 @@ struct ReaderEdgeSheet: View {
                         if store.data != nil, store.catalog != nil {
                             Section { ReaderEdgeStage(store: store) }
                                 .listRowSeparator(.hidden)
+                            if let session = store.session, session.isActive, session.settings.bank {
+                                ReaderEdgeBankSection(store: store, session: session)
+                            }
                             ReaderEdgeSettingsSections(store: store)
                             Section {
                                 NavigationLink {
@@ -58,7 +61,6 @@ struct ReaderEdgeSheet: View {
 
 private struct ReaderEdgeStage: View {
     let store: ReaderEdgeStore
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var session: ReaderEdgeSession? { store.session }
     private var chance: Int {
@@ -74,6 +76,10 @@ private struct ReaderEdgeStage: View {
                 Text("许可率 \(chance)%").font(.caption).foregroundStyle(.secondary)
             }
             if let session {
+                if session.settings.acts, let act = store.catalog?.acts[session.act] {
+                    Text(session.feedback.sprinting ? "\(act) · 冲刺" : act)
+                        .font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                }
                 Text(session.status == .finished ? (store.catalog?.endings[session.ending ?? ""] ?? "本次结束") : session.command)
                     .font(SongtiFont.font(.title2, weight: .medium))
                     .fixedSize(horizontal: false, vertical: true)
@@ -98,11 +104,18 @@ private struct ReaderEdgeStage: View {
             }
             if let session, session.edges > 0 {
                 Text("已申报 \(session.edges) 次").font(.caption).foregroundStyle(.secondary)
+                if session.grinds > 0 {
+                    Text("其中磨着 \(session.grinds) 次").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if let hint = session?.feedback.timingHint {
+                Text(hint).font(.footnote)
+                    .foregroundStyle(session?.feedback.timing == "late" ? AppTheme.success : AppTheme.textSecondary)
             }
             if let hint = session?.pauseHint {
                 Text(hint).font(.footnote).foregroundStyle(.secondary)
             }
-            actions
+            ReaderEdgeActions(store: store)
             if session?.canDeclare == true {
                 Button("中途没忍住？点这里") { store.reportCompletion() }
                     .font(.footnote).frame(minHeight: 44)
@@ -110,19 +123,49 @@ private struct ReaderEdgeStage: View {
         }
         .padding(.vertical, 8)
     }
+}
 
-    private var actions: some View {
+private struct ReaderEdgeActions: View {
+    let store: ReaderEdgeStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let session = store.session, session.status == .running || session.status == .cooldown {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { declarations(session) }
+                    VStack(alignment: .leading, spacing: 8) { declarations(session) }
+                }
+            }
+            lifecycleActions
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+    }
+
+    @ViewBuilder
+    private func declarations(_ session: ReaderEdgeSession) -> some View {
+        Button("忍住了", systemImage: "checkmark") { store.declareEdge() }
+            .buttonStyle(.borderedProminent)
+            .frame(minHeight: 44)
+            .disabled(!session.canDeclare)
+        if session.settings.timing, let option = store.catalog?.declarations.first(where: { $0.id == "grind" }) {
+            Button(option.label, systemImage: "flame") { store.declareEdge(.grind) }
+                .frame(minHeight: 44)
+                .accessibilityHint(option.summary ?? "")
+                .disabled(!session.canDeclare)
+        }
+    }
+
+    private var lifecycleActions: some View {
         let layout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
             : AnyLayout(HStackLayout(spacing: 8))
         return layout {
-            if let session, session.isActive {
+            if let session = store.session, session.isActive {
                 if session.status == .permit {
                     Button("按下了", systemImage: "checkmark") { store.reportCompletion() }
                         .buttonStyle(.borderedProminent)
-                } else if session.status == .running || session.status == .cooldown {
-                    Button("忍住了", systemImage: "checkmark") { store.declareEdge() }
-                        .buttonStyle(.borderedProminent).disabled(!session.canDeclare)
                 }
                 Button(session.status == .paused ? "继续" : "暂停",
                        systemImage: session.status == .paused ? "play.fill" : "pause.fill") {
@@ -130,13 +173,43 @@ private struct ReaderEdgeStage: View {
                 }
                 Button("结束", role: .destructive) { store.quit() }
             } else {
-                Button(session == nil ? "开始这一局" : "再来一次", systemImage: "play.fill") { store.start() }
+                Button(store.session == nil ? "开始这一局" : "再来一次", systemImage: "play.fill") { store.start() }
                     .buttonStyle(.borderedProminent).disabled(!store.ready)
-                if session != nil { Button("清掉结果") { store.reset() } }
+                if store.session != nil { Button("清掉结果") { store.reset() } }
             }
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
+    }
+}
+
+private struct ReaderEdgeBankSection: View {
+    let store: ReaderEdgeStore
+    let session: ReaderEdgeSession
+
+    var body: some View {
+        Section {
+            ForEach(session.feedback.spends) { option in
+                let metadata = store.catalog?.spends.first { $0.id == option.id }
+                Button { store.spend(option.kind) } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(metadata?.label ?? option.id)
+                            Spacer(minLength: 8)
+                            Text("\(option.cost) 点").monospacedDigit()
+                        }
+                        Text(option.note ?? metadata?.summary ?? "")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(minHeight: 44)
+                }
+                .disabled(option.note != nil || !store.ready)
+                .accessibilityHint(option.note ?? metadata?.summary ?? "")
+            }
+        } header: {
+            Text("时间银行 · \(session.bank) 点")
+        } footer: {
+            Text(store.catalog?.rules.first { $0.id == "bank" }?.summary ?? "")
+        }
     }
 }
 
@@ -157,6 +230,10 @@ private struct ReaderEdgeSettingsSections: View {
                     }
                 }
                 optionSummary(catalog.difficulties, selected: settings.difficulty)
+                if let chance = settings.customChance {
+                    Text("当前按自定义许可率 \(chance)% 计算，难度的概率已被覆盖。")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 Picker("结局", selection: binding(\.finale, fallback: settings.finale)) {
                     ForEach(catalog.finales) { Text($0.label).tag($0.id) }
                 }
@@ -174,7 +251,9 @@ private struct ReaderEdgeSettingsSections: View {
                 }
                 Stepper("许可时长：\(settings.permitSeconds) 秒", value: binding(\.permitSeconds, fallback: settings.permitSeconds), in: 5...60)
                 if settings.finale == "overtime" {
-                    Stepper("单次加时：\(settings.overtimeSeconds) 秒", value: binding(\.overtimeSeconds, fallback: settings.overtimeSeconds), in: 15...300, step: 15)
+                    Stepper("单次加时：\(settings.overtimeSeconds) 秒", value: binding(\.overtimeSeconds, fallback: settings.overtimeSeconds), in: catalog.overtimeMinSeconds...catalog.overtimeMaxSeconds)
+                    Text("单次加时 \(catalog.overtimeMinSeconds)–\(catalog.overtimeMaxSeconds) 秒。")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 Toggle("自定义许可率", isOn: Binding(
                     get: { store.data?.settings.customChance != nil },
@@ -192,6 +271,11 @@ private struct ReaderEdgeSettingsSections: View {
                     get: { store.data?.settings.segmentLength == "long" },
                     set: { store.update(\.segmentLength, $0 ? "long" : "standard") }
                 ))
+                Text("每条指令持续更久，红色同样会拉长。")
+                    .font(.footnote).foregroundStyle(.secondary)
+                ruleToggle("acts", key: \.acts, settings: settings, catalog: catalog)
+                ruleToggle("bank", key: \.bank, settings: settings, catalog: catalog)
+                ruleToggle("timing", key: \.timing, settings: settings, catalog: catalog)
             } header: {
                 Text("这一局的规则")
             } footer: {
@@ -209,6 +293,21 @@ private struct ReaderEdgeSettingsSections: View {
                 Text("声音与显示")
             } footer: {
                 Text("声音默认关闭，并遵守系统静音设置。语音只提示状态变化；切后台、耳机断连或音频中断会暂停。")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func ruleToggle(_ id: String, key: WritableKeyPath<ReaderEdgeSettings, Bool>,
+                            settings: ReaderEdgeSettings, catalog: ReaderEdgeCatalog) -> some View {
+        if let rule = catalog.rules.first(where: { $0.id == id }) {
+            Toggle(isOn: binding(key, fallback: settings[keyPath: key])) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(rule.label)
+                    if let summary = rule.summary {
+                        Text(summary).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             }
         }
     }
@@ -260,6 +359,9 @@ private struct ReaderEdgeHistoryView: View {
                         ContentUnavailableView("暂无本机记录", systemImage: "clock",
                                                description: Text("完成或主动结束一局后，记录会保存在这里。"))
                     } else {
+                        if let totals = store.historyTotals {
+                            ReaderEdgeHistorySummary(totals: totals)
+                        }
                         ForEach(Array(history.prefix(visibleCount))) { record in
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack(alignment: .firstTextBaseline) {
@@ -271,6 +373,13 @@ private struct ReaderEdgeHistoryView: View {
                                     .font(.subheadline).foregroundStyle(.secondary)
                                 Text("\(difficulty(record.difficulty)) · \(record.minutes) 分钟 · 申报 \(record.edges) 次")
                                     .font(.caption).foregroundStyle(.secondary)
+                                if record.grinds > 0 || record.spent > 0 {
+                                    Text("磨着 \(record.grinds) 次 · 兑现 \(record.spent) 点")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                if record.overtime > 0 {
+                                    Text("加时 \(record.overtime) 轮").font(.caption).foregroundStyle(.secondary)
+                                }
                             }
                             .padding(.vertical, 4)
                         }
@@ -299,6 +408,21 @@ private struct ReaderEdgeHistoryView: View {
 
     private func difficulty(_ value: String) -> String {
         store.catalog?.difficulties.first { $0.id == value }?.label ?? value
+    }
+}
+
+private struct ReaderEdgeHistorySummary: View {
+    let totals: ReaderEdgeTotals
+
+    var body: some View {
+        Section("最近记录汇总") {
+            LabeledContent("总局数", value: "\(totals.sessions)")
+            LabeledContent("总申报", value: "\(totals.edges) 次")
+            LabeledContent("磨着不停", value: "\(totals.grinds) 次")
+            LabeledContent("银行兑现", value: "\(totals.spent) 点")
+            LabeledContent("拿到许可", value: "\(totals.permitted) 局")
+            LabeledContent("最长坚持", value: readerEdgeTime(totals.longestMs))
+        }
     }
 }
 

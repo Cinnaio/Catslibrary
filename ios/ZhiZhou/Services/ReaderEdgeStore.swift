@@ -59,6 +59,10 @@ final class ReaderEdgeStore {
     var active: Bool { session?.isActive == true }
     var ready: Bool { authorized && runtime != nil && data != nil && runtimeNotice == nil }
     var canClearHistory: Bool { authorized && !readBlocked }
+    var historyTotals: ReaderEdgeTotals? {
+        guard authorized, let runtime, let data else { return nil }
+        return try? runtime.summarize(data.history)
+    }
 
     func activate(_ next: ReaderEdgeContext?, foreground: Bool) {
         guard next != context else { setForeground(foreground); return }
@@ -115,9 +119,13 @@ final class ReaderEdgeStore {
 
     func pause() { perform(["type": "pause", "now": now, "reason": "manual"]) }
     func resume() { perform(["type": "resume", "now": now]) }
-    func declareEdge() {
+    func declareEdge(_ declaration: ReaderEdgeDeclaration = .hold) {
         guard session?.canDeclare == true else { return }
-        perform(["type": "edge", "now": now])
+        perform(["type": "edge", "declare": declaration.rawValue, "now": now])
+    }
+    func spend(_ kind: ReaderEdgeSpendKind) {
+        // The reducer rechecks eligibility after advancing to the current timestamp.
+        perform(["type": "spend", "kind": kind.rawValue, "now": now])
     }
     func reportCompletion() {
         guard session?.canDeclare == true || session?.status == .permit else { return }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_EDGE_SETTINGS, EDGE_BANK_TIME_MS, EDGE_BANK_WINDOW_MS, EDGE_OVERTIME_CAP, EDGE_SPRINT_COMMAND, EDGE_SPRINT_MS,
-  createEdgeSession, edgeActAt, edgeInSprint, edgeReducer, edgeSpendOptions, edgeSprintMs, edgeTimingAt,
+  createEdgeSession, edgeActAt, edgeInSprint, edgeReducer, edgeSessionFeedback, edgeSpendOptions, edgeSprintMs, edgeTimingAt,
   formatEdgeTime, mergeEdgeHistory, normalizeEdgeSettings, readEdgeData, summarizeEdgeHistory, writeEdgeData,
   type EdgeRecord, type EdgeSession, type EdgeSettings,
 } from './edge'
@@ -13,7 +13,7 @@ function start(overrides: Partial<EdgeSettings> = {}): EdgeSession {
 function tickFor(session: EdgeSession, milliseconds: number, step = 100): EdgeSession {
   let next = session
   for (let elapsed = 0; elapsed < milliseconds; elapsed += step) {
-    next = edgeReducer(next, { type: 'tick', now: (next.sampledAt ?? 0) + step })!
+    next = edgeReducer(next, { type: 'tick', now: (next.sampledAt ?? 0) + Math.min(step, milliseconds - elapsed) })!
   }
   return next
 }
@@ -139,16 +139,17 @@ describe('edge session', () => {
   })
 
   it('banks a point per minute kept and spends it on pardon, time, or permit', () => {
-    let session = start({ minutes: 30, finale: 'always' })
+    let session: EdgeSession = { ...start({ minutes: 30, finale: 'always' }), phase: 'go', phaseEndsAt: 600_000 }
     session = tickFor(session, 185_000)
     expect(session.bank).toBe(3)
 
-    const pardoned = edgeReducer(session, { type: 'spend', kind: 'pardon', now: (session.sampledAt ?? 0) + 10 })!
+    const pardoned = edgeReducer({ ...session, phase: 'stop' }, { type: 'spend', kind: 'pardon', now: (session.sampledAt ?? 0) + 10 })!
     expect(pardoned.bank).toBe(0)
     expect(pardoned.spent).toBe(3)
     expect(pardoned.status).toBe('running')
+    expect(pardoned.phase).not.toBe('stop')
 
-    let rich = start({ minutes: 60, finale: 'always' })
+    let rich: EdgeSession = { ...start({ minutes: 60, finale: 'always' }), phase: 'go', phaseEndsAt: 600_000 }
     rich = tickFor(rich, 8 * EDGE_BANK_WINDOW_MS + 1000)
     expect(rich.bank).toBe(8)
     const shortened = edgeReducer(rich, { type: 'spend', kind: 'time', now: (rich.sampledAt ?? 0) + 10 })!
@@ -179,9 +180,110 @@ describe('edge session', () => {
     expect(tickFor(off, 200_000).bank).toBe(0)
     expect(edgeSpendOptions(off).every((option) => option.note !== null)).toBe(true)
   })
+
+  it('banks only the eligible portion of ticks crossing a red or cooldown boundary', () => {
+    const beforeSprint: EdgeSession = {
+      ...start({ minutes: 1 }), phase: 'go', elapsedMs: 44_950, sampledAt: 44_950,
+      phaseEndsAt: 45_000, bankedMs: 59_950,
+    }
+    expect(edgeReducer(beforeSprint, { type: 'tick', now: 45_950 })).toMatchObject({
+      phase: 'stop', bank: 1, bankedMs: 0, phaseEndsAt: 60_000,
+    })
+    for (const status of ['running', 'cooldown'] as const) {
+      const red: EdgeSession = { ...start({ acts: false }), status, phase: 'stop', phaseEndsAt: 500 }
+      expect(edgeReducer(red, { type: 'tick', now: 1000 })).toMatchObject({
+        status: 'running', bank: 0, bankedMs: 500,
+      })
+    }
+    const permit: EdgeSession = { ...start(), status: 'permit', phaseEndsAt: 10_000 }
+    expect(tickFor(permit, 1000).bankedMs).toBe(0)
+    const paused = edgeReducer(beforeSprint, { type: 'pause', reason: 'manual', now: 44_950 })!
+    expect(edgeReducer(paused, { type: 'tick', now: 45_950 })?.bankedMs).toBe(59_950)
+  })
+
+  it('rejects pardons during sprint, cooldown, non-red phases, and after the red boundary', () => {
+    const base: EdgeSession = { ...start({ minutes: 10 }), phase: 'stop', phaseEndsAt: 10_000, bank: 8 }
+    const blocked: EdgeSession[] = [
+      { ...base, phase: 'go' },
+      { ...base, status: 'cooldown' },
+      { ...base, status: 'paused', sampledAt: null },
+      { ...base, elapsedMs: 580_000, sampledAt: 580_000, phaseEndsAt: 600_000, command: EDGE_SPRINT_COMMAND },
+    ]
+    for (const session of blocked) {
+      expect(edgeSpendOptions(session).find((option) => option.kind === 'pardon')?.note).toBeTruthy()
+      const result = edgeReducer(session, { type: 'spend', kind: 'pardon', now: session.sampledAt ?? 0 })!
+      expect(result).toMatchObject({ bank: 8, spent: 0, rng: session.rng })
+    }
+    const boundary: EdgeSession = { ...base, phaseEndsAt: 100 }
+    expect(edgeSpendOptions(boundary).find((option) => option.kind === 'pardon')?.note).toBeNull()
+    const advanced = edgeReducer(boundary, { type: 'tick', now: 100 })!
+    const rejected = edgeReducer(boundary, { type: 'spend', kind: 'pardon', now: 100 })!
+    expect(rejected).toEqual(advanced)
+    expect(rejected.phase).not.toBe('stop')
+    const paid = edgeReducer(base, { type: 'spend', kind: 'pardon', now: 0 })!
+    expect(paid).toMatchObject({ bank: 5, spent: 3 })
+    expect(edgeReducer(paid, { type: 'spend', kind: 'pardon', now: 0 })).toEqual(paid)
+  })
+
+  it('recomputes the sprint immediately and clips future segments after shortening', () => {
+    const base: EdgeSession = {
+      ...start({ minutes: 10 }), phase: 'go', bank: 5, elapsedMs: 547_000,
+      sampledAt: 547_000, phaseStartedAt: 520_000, phaseEndsAt: 570_000,
+    }
+    const shortened = edgeReducer(base, { type: 'spend', kind: 'time', now: 547_000 })!
+    expect(shortened).toMatchObject({ totalMs: 570_000, phase: 'stop', bank: 0, spent: 5, command: EDGE_SPRINT_COMMAND, phaseEndsAt: 570_000 })
+    const earlier = { ...base, elapsedMs: 520_000, sampledAt: 520_000 }
+    const clipped = edgeReducer(earlier, { type: 'spend', kind: 'time', now: 520_000 })!
+    expect(clipped).toMatchObject({ phase: 'go', phaseEndsAt: 540_000 })
+    expect(tickFor(clipped, 20_000)).toMatchObject({ phase: 'stop', command: EDGE_SPRINT_COMMAND })
+    const late = { ...base, elapsedMs: 565_000, sampledAt: 565_000 }
+    expect(edgeSpendOptions(late).find((option) => option.kind === 'time')?.note).toBeTruthy()
+    expect(edgeReducer(late, { type: 'spend', kind: 'time', now: 565_000 })).toMatchObject({ bank: 5, spent: 0, totalMs: 600_000 })
+    const onBoundary = { ...late, elapsedMs: 564_950, sampledAt: 564_950 }
+    expect(edgeSpendOptions(onBoundary).find((option) => option.kind === 'time')?.note).toBeNull()
+    expect(edgeReducer(onBoundary, { type: 'spend', kind: 'time', now: 565_000 })).toMatchObject({ bank: 5, spent: 0, totalMs: 600_000 })
+  })
+
+  it('restores fixed bonuses and disables the second declaration when timing is off', () => {
+    for (const elapsedMs of [100, 5000, 9000]) {
+      const session: EdgeSession = {
+        ...start({ timing: false }), phase: 'go', phaseStartedAt: 0, phaseEndsAt: 10_000,
+        elapsedMs, sampledAt: elapsedMs,
+      }
+      expect(edgeSessionFeedback(session)).toMatchObject({ timing: null, timingHint: null })
+      expect(edgeReducer(session, { type: 'edge', declare: 'hold', now: elapsedMs })).toMatchObject({ chance: 90, edges: 1, grinds: 0 })
+      expect(edgeReducer(session, { type: 'edge', declare: 'grind', now: elapsedMs })).toEqual(session)
+    }
+  })
+
+  it('normalizes legacy overtime settings to the same duration the engine executes', () => {
+    const session = start({ minutes: 1, overtimeSeconds: 15, finale: 'overtime', customChance: 0 })
+    expect(session.settings.overtimeSeconds).toBe(45)
+    expect(tickFor(session, 60_000)).toMatchObject({ overtime: 1, totalMs: 105_000 })
+    expect(normalizeEdgeSettings({ overtimeSeconds: 301 }).overtimeSeconds).toBe(300)
+  })
+
+  it('keeps phase boundaries and bank totals independent of the tick interval', () => {
+    const session = start({ minutes: 10, difficulty: 'oni' })
+    const fast = tickFor(session, 220_000, 100)
+    const slow = tickFor(session, 220_000, 1000)
+    expect(slow).toEqual(fast)
+  })
 })
 
 describe('edge settings and records', () => {
+  it('fills old record fields and preserves explicit disabled rules on round-trip', () => {
+    const { grinds: _grinds, spent: _spent, ...legacy } = record
+    localStorage.setItem('zhizhou-edge:v1:legacy', JSON.stringify({
+      settings: { acts: false, bank: false, timing: false, overtimeSeconds: 15 }, history: [legacy],
+    }))
+    const loaded = readEdgeData('legacy')
+    expect(loaded.error).toBeNull()
+    expect(loaded.data.settings).toMatchObject({ acts: false, bank: false, timing: false, overtimeSeconds: 45 })
+    expect(loaded.data.history).toEqual([record])
+    writeEdgeData('legacy', loaded.data)
+    expect(readEdgeData('legacy').data).toEqual(loaded.data)
+  })
   it('normalizes out-of-range values and clamps the hold range', () => {
     const settings = normalizeEdgeSettings({ minutes: 900, difficulty: 'nope', finale: 'ruin', holdMin: 30, holdMax: 5, permitSeconds: 1, customChance: 140, categories: { pain: true } })
     expect(settings).toMatchObject({ minutes: 180, difficulty: 'easy', finale: 'ruin', holdMin: 30, holdMax: 30, permitSeconds: 5, customChance: 100 })
