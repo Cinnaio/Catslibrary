@@ -75,6 +75,13 @@ struct BookshelfView: View {
     private var bookshelfList: some View {
         bookshelfContent
             .appListStyle(.browsing)
+            .overlay(alignment: .center) {
+                if isLoading && response == nil {
+                    ProgressView()
+                        .accessibilityLabel("正在加载书架")
+                        .allowsHitTesting(false)
+                }
+            }
             .navigationTitle("书架")
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $search, prompt: "搜索收藏的书名或作者")
@@ -138,11 +145,7 @@ struct BookshelfView: View {
     // Give each section its own type-checking boundary as the list grows.
     private var bookshelfContent: some View {
         List(selection: $selection) {
-            if isLoading && response == nil {
-                ProgressView()
-                    .frame(maxWidth: .infinity, minHeight: 160)
-                    .listRowBackground(Color.clear)
-            } else if let errorMessage, response == nil {
+            if let errorMessage, response == nil, !isLoading {
                 ContentUnavailableView {
                     Label("加载失败", systemImage: "wifi.slash")
                 } description: {
