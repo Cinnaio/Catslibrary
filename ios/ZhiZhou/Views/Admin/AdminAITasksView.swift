@@ -5,12 +5,16 @@ import ZhiZhouCore
 struct AdminAITasksView: View {
     @State private var focusedTaskID: String?
     init(taskID: String? = nil) { _focusedTaskID = State(initialValue: taskID) }
-    @State private var requests = ListRequestGuard<Bool>()
+    @State private var requests = ListRequestGuard<[String]>()
     @Environment(\.scenePhase) private var scenePhase
     @State private var tasks: [AiTaskInfo] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var statusFilter = "all"
+    @State private var pageOffset = 0
+    @State private var totalTasks = 0
+    @State private var loadedQuery: [String] = []
+    private let pageSize = 50
     @State private var busyId: String?
     @State private var actionError: String?
     @State private var pendingDelete: AiTaskInfo?
@@ -28,9 +32,11 @@ struct AdminAITasksView: View {
                     AdminFilterMenu("状态", value: taskStatusLabel) {
                         Picker("状态", selection: $statusFilter) {
                             Text("全部").tag("all")
-                            Text("排队/运行").tag("running")
+                            Text("排队中").tag("queued")
+                            Text("运行中").tag("running")
                             Text("已完成").tag("completed")
-                            Text("失败/取消").tag("failed")
+                            Text("已失败").tag("failed")
+                            Text("已取消").tag("cancelled")
                         }
                     }
                 }
@@ -66,11 +72,28 @@ struct AdminAITasksView: View {
                         .listRowSeparator(.hidden)
                     }
                 } else {
-                    Section("任务（\(filteredTasks.count)）") {
-                        ForEach(filteredTasks) { task in
+                    Section("任务（\(filteredTasks.count) / \(totalTasks)）") {
+                        ForEach(Array(filteredTasks.enumerated()), id: \.element.id) { index, task in
                             taskRow(task)
+                                .modifier(AdminTaskRowEntrance(index: index))
                         }
                     }
+                }
+            }
+            if focusedTaskID == nil && (totalTasks > pageSize || pageOffset > 0) {
+                Section {
+                    HStack {
+                        Button("上一页") { pageOffset = max(0, pageOffset - pageSize) }
+                            .disabled(isLoading || pageOffset == 0)
+                        Spacer()
+                        Text("第 \(pageOffset / pageSize + 1) 页")
+                            .foregroundStyle(AppTheme.textSecondary)
+                        Spacer()
+                        Button("下一页") { pageOffset += pageSize }
+                            .disabled(isLoading || pageOffset + pageSize >= totalTasks)
+                    }
+                    .buttonStyle(.borderless)
+                    .frame(minHeight: 44)
                 }
             }
         }
@@ -79,7 +102,8 @@ struct AdminAITasksView: View {
         .navigationTitle("AI 任务")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
-        .task(id: "\(statusFilter)-\(scenePhase)") {
+        .onChange(of: statusFilter) { _, _ in pageOffset = 0 }
+        .task(id: "\(statusFilter)-\(pageOffset)-\(focusedTaskID ?? "")-\(scenePhase)") {
             guard scenePhase == .active else { return }
             await monitorTasks()
         }
@@ -115,19 +139,20 @@ struct AdminAITasksView: View {
     // MARK: - 列表
 
     private var filteredTasks: [AiTaskInfo] {
-        switch statusFilter {
-        case "running": return tasks.filter { $0.isRunning }
-        case "completed": return tasks.filter { $0.status == "completed" }
-        case "failed": return tasks.filter { ["failed", "cancelled"].contains($0.status ?? "") }
-        default: return tasks
-        }
+        statusFilter == "all" ? tasks : tasks.filter { $0.status == statusFilter }
+    }
+
+    private var taskQuery: [String] {
+        [focusedTaskID ?? "", statusFilter, String(pageOffset)]
     }
 
     private var taskStatusLabel: String {
         switch statusFilter {
-        case "running": return "排队/运行"
+        case "queued": return "排队中"
+        case "running": return "运行中"
         case "completed": return "已完成"
-        case "failed": return "失败/取消"
+        case "failed": return "已失败"
+        case "cancelled": return "已取消"
         default: return "全部状态"
         }
     }
@@ -209,10 +234,15 @@ struct AdminAITasksView: View {
     }
 
     private func load() async {
-        let ticket = requests.begin(true)
+        let query = taskQuery
+        let ticket = requests.begin(query)
+        if loadedQuery != query {
+            tasks = []
+            totalTasks = 0
+        }
         isLoading = true
         defer {
-            if requests.accepts(ticket, query: true) {
+            if requests.accepts(ticket, query: taskQuery) {
                 requests.finish(ticket)
                 isLoading = false
             }
@@ -223,14 +253,16 @@ struct AdminAITasksView: View {
                 let detail = try await AdminAPI.aiTask(id: focusedTaskID)
                 r = AiTasksResponse(items: [detail.task], total: 1, limit: 1, offset: 0)
             } else {
-                r = try await AdminAPI.aiTasks(status: "all", limit: 200, offset: 0)
+                r = try await AdminAPI.aiTasks(status: query[1], limit: pageSize, offset: Int(query[2]) ?? 0)
             }
-            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: taskQuery) else { return }
             tasks = r.items
+            totalTasks = r.total ?? r.items.count
+            loadedQuery = query
             AdminAITaskCoordinator.shared.reconcile(tasks)
             errorMessage = nil
         } catch {
-            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: taskQuery) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
@@ -293,6 +325,17 @@ struct AdminAITasksView: View {
             try await AdminAPI.deleteAiTask(id: task.id)
             AdminAITaskCoordinator.shared.finish(taskID: task.id)
             tasks.removeAll { $0.id == task.id }
+            totalTasks = max(0, totalTasks - 1)
+            if focusedTaskID == task.id {
+                focusedTaskID = nil
+                statusFilter = "all"
+                pageOffset = 0
+            }
+            if tasks.isEmpty && pageOffset > 0 {
+                pageOffset = max(0, pageOffset - pageSize)
+            } else {
+                await load()
+            }
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
@@ -303,5 +346,22 @@ struct AdminAITasksView: View {
             get: { actionError != nil },
             set: { if !$0 { actionError = nil } }
         )
+    }
+}
+
+private struct AdminTaskRowEntrance: ViewModifier {
+    let index: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared || reduceMotion ? 0 : 4)
+            .onAppear {
+                withAnimation(reduceMotion ? nil : AppMotion.micro.delay(Double(min(index, 6)) * 0.02)) {
+                    appeared = true
+                }
+            }
     }
 }
