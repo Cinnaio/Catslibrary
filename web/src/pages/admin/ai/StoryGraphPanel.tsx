@@ -1,3 +1,5 @@
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import type { AiTextProgress } from '@shared/ai-text-progress'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowUpRight, Loader2, Network, RefreshCw } from 'lucide-react'
@@ -39,14 +41,20 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
   const [focusOnly, setFocusOnly] = useState(false)
   const [tab, setTab] = useState<'detail' | 'archives'>('detail')
   const mounted = useRef(true)
+  const version = useRef(0)
+  const [progress, setProgress] = useState<AiTextProgress | null>(null)
   const writingUrl = `/admin/ai?sub=writing&novel=${encodeURIComponent(novelId)}${afterChapterId ? `&afterChapterId=${encodeURIComponent(afterChapterId)}` : ''}`
 
   useEffect(() => {
     mounted.current = true
+    version.current++
+    setBusy(false)
+    setProgress(null)
     let cancelled = false
     if (!novelId)
       return () => {
         mounted.current = false
+      version.current++
       }
     aiApi.writing
       .getStoryGraph(novelId, afterChapterId)
@@ -62,26 +70,29 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
     return () => {
       cancelled = true
       mounted.current = false
+      version.current++
     }
   }, [novelId, afterChapterId])
 
   async function generate() {
     if (busy) return
+    const current = ++version.current
+    setProgress(null)
     setBusy(true)
     setError('')
     try {
-      const result = await aiApi.writing.generateStoryGraph(novelId, afterChapterId)
-      if (mounted.current) {
+      const result = await aiApi.writing.generateStoryGraph(novelId, afterChapterId, (next) => { if (mounted.current && current === version.current) setProgress(next) })
+      if (mounted.current && current === version.current) {
         setData(result)
         setSelected('')
       }
     } catch (err) {
       const message = (err as Error).message || '图谱生成失败，请重试'
-      if (mounted.current) setError(/^HTTP (502|504)$/.test(message)
+      if (mounted.current && current === version.current) setError(/^HTTP (502|504)$/.test(message)
         ? `故事图谱生成请求失败（${message}），未收到具体错误原因。请先刷新状态确认结果，再检查服务日志；原档案与正文已保留。`
         : message)
     } finally {
-      if (mounted.current) setBusy(false)
+      if (mounted.current && current === version.current) setBusy(false)
     }
   }
 
@@ -171,18 +182,19 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
                 size="sm"
                 disabled={loading || busy}
                 onClick={() => {
+                  const current = version.current
                   setLoading(true)
                   setError('')
                   aiApi.writing
                     .getStoryGraph(novelId, afterChapterId)
                     .then((r) => {
-                      if (mounted.current) setData(r)
+                      if (mounted.current && current === version.current) setData(r)
                     })
                     .catch((e: Error) => {
-                      if (mounted.current) setError(e.message)
+                      if (mounted.current && current === version.current) setError(e.message)
                     })
                     .finally(() => {
-                      if (mounted.current) setLoading(false)
+                      if (mounted.current && current === version.current) setLoading(false)
                     })
                 }}
               >
@@ -206,6 +218,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
           </div>
         </div>
       </div>
+      {busy && <AiStreamPreview progress={progress} structured />}
       {error && (
         <div role="alert" className="story-graph-message story-graph-message--error">
           {error}

@@ -1,0 +1,16 @@
+.root {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.status {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.preview {
+  max-height: 224px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}

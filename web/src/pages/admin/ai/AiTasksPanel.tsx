@@ -1,3 +1,6 @@
+import { watchAiTask } from '@/lib/ai-task-stream'
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import { parseAiTextProgress } from '@shared/ai-text-progress'
 import { MotionDetails } from '@/components/ui/motion'
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
 import { TaskDetails, TaskDetailsFact, TaskDetailsFacts, TaskDetailsIdentifier, TaskDetailsResult, TaskDetailsSection, TaskDetailsSummary } from '../TaskWorkspace'
@@ -139,6 +142,12 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     if (!hasActive) return
     return startPolling(load, ACTIVE_POLL_INTERVAL, false)
   }, [hasActive, load])
+
+  // Only the open detail needs token-level updates; list polling still discovers new tasks.
+  useEffect(() => {
+    if (!detailsId) return
+    return watchAiTask(detailsId, (next) => setTasks((previous) => previous.map((task) => task.id === next.id ? { ...task, ...next } : task)))
+  }, [detailsId])
 
   async function cancel(id: string) {
     const task = tasks.find((item) => item.id === id)
@@ -518,6 +527,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                   : detailTask.current > 0 ? `已处理 ${detailTask.current} 个步骤 · 总数未提供` : '处理数量未提供'}
               />
             </TaskDetailsSection>
+            <AiStreamPreview progress={parseAiTextProgress(detailTask.result)} stopped={!['queued', 'running'].includes(detailTask.status)} structured={['plot_state', 'relationship_profile', 'content_rating_review', 'cover_prompt'].includes(detailTask.kind)} />
             {detailTask.error && (
               <TaskDetailsSection label="错误原因" tone="danger">{detailTask.error}</TaskDetailsSection>
             )}

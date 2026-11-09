@@ -1,3 +1,7 @@
+import { watchAiTask } from '@/lib/ai-task-stream'
+import { parseAiTextProgress } from '@shared/ai-text-progress'
+import type { AgentTask } from '@shared/ai-agent'
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import Markdown, { type Components } from 'react-markdown'
@@ -247,6 +251,7 @@ function AiAgentWorkspace() {
 function AgentConversation({ sessionId, novelId, onSession }: { sessionId: string; novelId: string; onSession: (s: AgentSession) => void }) {
   const [data, setData] = useState<AgentSessionDetail | null>(null)
   const [earlier, setEarlier] = useState<AgentEvent[]>([])
+  const [liveTasks, setLiveTasks] = useState<Record<string, AgentTask>>({})
   const observedEvents = useRef(new Map<number, AgentEvent>())
   const [hasEarlier, setHasEarlier] = useState<boolean | null>(null)
   const [input, setInput] = useState('')
@@ -268,7 +273,8 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   const pendingRequest = useRef<{ content: string; id: string; providerPresetId: string } | null>(null)
   const feed = useRef<HTMLDivElement>(null)
   const followBottom = useRef(true)
-  const running = agentTaskRunning(data?.activeTask)
+  const activeTask = data?.activeTask ? liveTasks[data.activeTask.id] || data.activeTask : null
+  const running = agentTaskRunning(activeTask)
   const reload = useCallback(() => setRefresh((v) => v + 1), [])
   useEffect(() => {
     mounted.current = true
@@ -296,7 +302,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         setData(next)
         onSessionRef.current(next.session)
         setLoadError('')
-        timer = setTimeout(() => void load(), agentTaskRunning(next.activeTask) || next.artifacts.some((a) => agentTaskRunning(a.task)) ? 2000 : 12000)
+        timer = setTimeout(() => void load(), 12000)
       } catch (e) {
         if (active) {
           setLoadError(failure(e))
@@ -320,9 +326,23 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
       document.removeEventListener('visibilitychange', visible)
     }
   }, [sessionId, novelId, refresh])
+  const watchedIds = [data?.activeTask, ...(data?.artifacts.map((a) => a.task) || [])].filter(agentTaskRunning).map((task) => task!.id).sort().join(',')
+  useEffect(() => {
+    const stops = watchedIds.split(',').filter(Boolean).map((id) => {
+      let previousStep = ''
+      return watchAiTask(id, (task) => {
+        setLiveTasks((current) => ({ ...current, [id]: { ...task, status: task.status as AgentTask['status'] } }))
+        // Saved messages and artifacts become available at stage transitions.
+        const step = `${task.status}:${task.current}:${parseAiTextProgress(task.result)?.round ?? ''}:${task.step.replace(/\d+/g, '#')}`
+        if (previousStep && step !== previousStep || !['queued', 'running'].includes(task.status)) reload()
+        previousStep = step
+      })
+    })
+    return () => stops.forEach((stop) => stop())
+  }, [watchedIds, reload])
   useEffect(() => {
     if (followBottom.current && feed.current) feed.current.scrollTop = feed.current.scrollHeight
-  }, [data?.events.length])
+  }, [data?.events.length, activeTask?.result])
   async function perform(action: () => Promise<unknown>) {
     if (busy) return
     setBusy(true)
@@ -394,9 +414,12 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   const allEvents = [...earlier, ...(data?.events || [])]
     .filter((e, index, all) => all.findIndex((item) => item.id === e.id) === index)
     .sort((a, b) => a.id - b.id)
-  const artifact = selectedTask
+  const savedArtifact = selectedTask
     ? data?.artifacts.find((a) => a.task.id === selectedTask) || (olderArtifact?.task.id === selectedTask ? olderArtifact : null)
     : data?.artifacts[0]
+  const artifact = savedArtifact ? { ...savedArtifact, task: liveTasks[savedArtifact.task.id] || savedArtifact.task } : null
+  const partial = parseAiTextProgress(activeTask?.result)
+  const previewVisible = partial && !allEvents.some((event) => event.role === 'assistant' && event.taskId === activeTask?.id && event.metadata.round === partial.round)
   const action = preview ? data?.actions.find((a) => a.id === preview.id) || preview : null
   if (!data)
     return (
@@ -516,14 +539,20 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                   )}
                 </article>
               ))}
+              {previewVisible && partial.preview && (
+                <article className={styles.message} data-role="assistant" aria-label="助手回复预览">
+                  <span className={styles.speaker}>创作助手{running ? ' · 正在回复' : ' · 未完成'}</span>
+                  <div className={styles.markdown}><Markdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>{partial.preview}</Markdown></div>
+                </article>
+              )}
               {running && (
                 <div className={styles.progress} role="status">
                   <span className={styles.dot} aria-hidden="true" />
-                  <span className={styles.progressText}>{data.activeTask?.step || '正在处理…'}</span>
+                  <span className={styles.progressText}>{activeTask?.step || '正在处理…'}</span>
                 </div>
               )}
-              {data.activeTask?.status === 'failed' && (
-                <p className={styles.error}>本轮未完成：{data.activeTask.error}。已保留对话和已提交的任务，可以调整要求后继续。</p>
+              {activeTask?.status === 'failed' && (
+                <p className={styles.error}>本轮未完成：{activeTask.error}。已保留对话和已提交的任务，可以调整要求后继续。</p>
               )}
             </div>
           </div>
@@ -739,6 +768,7 @@ function AgentArtifactView({
           </Button>
         </div>
       )}
+      {artifact.task.status !== 'completed' && <AiStreamPreview progress={parseAiTextProgress(artifact.task.result)} stopped={!agentTaskRunning(artifact.task)} structured={['plot_state', 'relationship_profile', 'cover_prompt'].includes(artifact.task.kind)} />}
       {artifact.task.error && <p className={styles.error}>{artifact.task.error}</p>}
       {artifact.drafts.map((draft) => (
         <section key={draft.id} className={styles.draft}>

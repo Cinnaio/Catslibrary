@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import type { AiTextProgress } from '@shared/ai-text-progress'
+import { useEffect, useRef, useState } from 'react'
 import { aiApi, type AiWritingReview } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 
@@ -6,28 +8,37 @@ export default function DraftReview(props: { draftId: string; contentRevision: s
   const [report, setReport] = useState<AiWritingReview | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [progress, setProgress] = useState<AiTextProgress | null>(null)
+  const version = useRef(0)
   useEffect(() => {
+    const current = ++version.current
+    setBusy(false)
+    setProgress(null)
     let cancelled = false
     void aiApi.writing
       .getDraftReview(props.draftId)
       .then(({ report }) => {
-        if (!cancelled) setReport(report)
+        if (!cancelled && current === version.current) setReport(report)
       })
       .catch(() => {})
     return () => {
       cancelled = true
+      version.current++
     }
   }, [props.draftId, props.contentRevision])
   const stale = report && (report.stale || report.draftRevision !== props.contentRevision)
   async function check() {
+    const current = ++version.current
+    setProgress(null)
     setBusy(true)
     setError('')
     try {
-      setReport((await aiApi.writing.reviewDraft(props.draftId, props.contentRevision)).report)
+      const result = await aiApi.writing.reviewDraft(props.draftId, props.contentRevision, (next) => { if (current === version.current) setProgress(next) })
+      if (current === version.current) setReport(result.report)
     } catch (err) {
-      setError((err as Error).message)
+      if (current === version.current) setError((err as Error).message)
     } finally {
-      setBusy(false)
+      if (current === version.current) setBusy(false)
     }
   }
   return (
@@ -41,6 +52,7 @@ export default function DraftReview(props: { draftId: string; contentRevision: s
           {busy ? '检查中…' : report ? '重新检查' : '检查草稿'}
         </Button>
       </div>
+      {busy && <AiStreamPreview progress={progress} structured />}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}

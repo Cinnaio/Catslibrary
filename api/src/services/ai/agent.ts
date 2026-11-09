@@ -9,6 +9,7 @@ import { AGENT_GENERATION_TOOLS, AGENT_TOOLS, AGENT_TOOL_LABELS, executeAgentToo
 import { isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
+import { createTextProgressReporter } from './text-progress'
 
 const SYSTEM = `你是 Cat’s Library 的创作助手，与作者围绕当前一本小说持续沟通。
 先理解意图，必要时提出简短的问题；对具体剧情、人物和原文的判断必须先读取相关资料并注明章节依据。
@@ -42,6 +43,7 @@ export async function runAgentTurn(
   }, 1000)
   cancellation.unref?.()
   let generations = 0
+  let progress: ReturnType<typeof createTextProgressReporter> | undefined
   const generationResults = new Map<string, Record<string, unknown>>()
   const assertActive = async () => {
     if (controller.signal.aborted || !(await isAiTaskActive(db, taskId))) throw new AiError('cancelled', '对话已停止', 409)
@@ -77,6 +79,8 @@ export async function runAgentTurn(
       await assertActive()
       if (JSON.stringify(messages).length > 180000) throw new AiError('invalid', '本轮取材较多，已保留记录，请缩小范围后继续', 422)
       await updateAiTask(db, taskId, { current: round, step: round ? '正在整理资料与下一步' : '正在理解创作要求' })
+      progress = createTextProgressReporter(db, taskId, { round, previewLimit: 24000 })
+      await progress.start()
       const response = await chat({
         messages,
         tools: AGENT_TOOLS,
@@ -87,7 +91,10 @@ export async function runAgentTurn(
         retryOnTimeout: false,
         returnIncompleteResult: true,
         signal: controller.signal,
+        onDelta: progress.onDelta,
+        onProgress: progress.onProgress,
       })
+      await progress.flush(true)
       await recordUsage(db, {
         userId,
         novelId: session.novelId,
@@ -106,8 +113,8 @@ export async function runAgentTurn(
       const calls = response.toolCalls || []
       if (!calls.length) {
         if (!response.text.trim()) throw new AiError('invalid', '模型未返回回复；请确认当前文本模型支持工具调用', 422)
-        await appendAgentEvent(db, session.id, 'assistant', response.text, taskId)
-        await updateAiTask(db, taskId, { status: 'completed', current: round + 1, total: round + 1, step: '本轮对话已完成' })
+        await appendAgentEvent(db, session.id, 'assistant', response.text, taskId, { round })
+        await updateAiTask(db, taskId, { status: 'completed', current: round + 1, total: round + 1, step: '本轮对话已完成', result: '' })
         return
       }
       if (calls.length > 4) throw new AiError('invalid', '模型一次请求了过多工具，已停止本轮', 422)
@@ -121,7 +128,8 @@ export async function runAgentTurn(
         tool_calls: calls,
         ...(response.reasoningContent ? { reasoning_content: response.reasoningContent } : {}),
       })
-      if (response.text.trim()) await appendAgentEvent(db, session.id, 'assistant', response.text, taskId)
+      if (response.text.trim()) await appendAgentEvent(db, session.id, 'assistant', response.text, taskId, { round })
+      await updateAiTask(db, taskId, { result: '' })
       for (const { call, args } of parsed) {
         await assertActive()
         callsSeen.add(call.id)
@@ -186,6 +194,11 @@ export async function runAgentTurn(
     await appendAgentEvent(db, session.id, 'assistant', '本轮已完成多步处理，相关结果已保留。请查看产出，告诉我接下来需要调整哪一部分。', taskId)
     await updateAiTask(db, taskId, { status: 'completed', current: 8, step: '本轮已达到处理步数上限，可继续对话' })
   } catch (error) {
+    await progress?.flush(true).catch(() => {})
+    if (error instanceof AiError && error.partialResult) {
+      const partial = error.partialResult
+      await recordUsage(db, { userId, novelId: session.novelId, generationType: 'agent_chat', model: partial.model, provider: providerLabel(textProvider().baseUrl), promptTokens: partial.promptTokens, completionTokens: partial.completionTokens, costMillicents: partial.cost * 100000, ...usageAuditFields(partial), ...audit }).catch(() => {})
+    }
     if (await isAiTaskActive(db, taskId)) {
       const message = error instanceof AiError ? error.message : '助手处理失败，已保留对话和已提交的任务'
       await appendAgentEvent(db, session.id, 'activity', message, taskId, { error: true }).catch(() => {})

@@ -1,3 +1,4 @@
+import { partialUsageRecorder } from './partial-usage'
 /**
  * 小说风格画像 —— novel-continuation-ai skill 的「风格指纹提取」落地。
  *
@@ -73,7 +74,7 @@ export async function extractStyleProfile(db: Db, opts: {
 
   const sampleTextValue = sampleText(sample, cleanForSample)
   const persistedSource: ProfileSource = { ...sample.source, extractionPromptVersion: 2 }
-  const res = await chat({
+  const res = await chat({ onIncomplete: partialUsageRecorder(db, { userId: opts.userId, provider: providerLabel(provider.baseUrl), novelId, generationType: 'style_profile', ipAddress: opts.ipAddress, userAgent: opts.userAgent }),
     messages: [
       { role: 'system', content: STYLE_EXTRACT_SYSTEM },
       { role: 'user', content: `作品正文样例：\n${sampleTextValue}` },

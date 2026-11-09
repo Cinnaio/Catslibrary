@@ -137,7 +137,7 @@ it('复核期间禁止提交和返回，完成后使用新版本逐条采纳并�
       usage: { promptTokens: 1, completionTokens: 1, costMillicents: 0 },
     }),
   )
-  expect(api.aiReview).toHaveBeenCalledWith('run', 0)
+  expect(api.aiReview).toHaveBeenCalledWith('run', 0, expect.any(Function))
   fireEvent.click(screen.getByRole('button', { name: /按建议重新识别章节/ }))
   await screen.findByText(/章节和作品信息的勾选已重置/)
   expect(api.applyAiReview).toHaveBeenCalledWith('run', 1, [1])

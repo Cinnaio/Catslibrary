@@ -1,3 +1,6 @@
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import type { AiTextProgress } from '@shared/ai-text-progress'
+import { watchAiTask } from '@/lib/ai-task-stream'
 import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 /** AI 封面生成工作台：选小说 → 生成封面（落候选，不覆盖）→ 预览候选 → 采纳/弃用/上传替换。 */
@@ -23,7 +26,7 @@ import { taskStatusLabel } from './labels'
 import { BookOpen, CircleAlert, Loader2, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react'
 
 // 后台封面任务的进度轮询间隔（与 AiWritingPanel 对齐）
-const TASK_POLL_INTERVAL = 3000
+
 const COVER_TASK_KINDS = new Set(['cover'])
 const DEFAULT_COVER_PROMPT_MAX_CHARS = 2000
 const MIN_COVER_PROMPT_MAX_CHARS = 100
@@ -274,6 +277,14 @@ export default function AiCoverPanel({
   const [promptSourceSignature, setPromptSourceSignature] = useState('')
   const [coverPromptMaxChars, setCoverPromptMaxChars] = useState(DEFAULT_COVER_PROMPT_MAX_CHARS)
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
+  const [promptProgress, setPromptProgress] = useState<AiTextProgress | null>(null)
+  const promptRequest = useRef(0)
+  useEffect(() => {
+    promptRequest.current++
+    setPromptProgress(null)
+    setGeneratingPrompt(false)
+    return () => { promptRequest.current++ }
+  }, [novelId])
   const [imageConfigured, setImageConfigured] = useState(false)
   /** 当前小说的 AI 封面候选（未采纳）；生成成功/采纳/弃用后刷新 */
   const [candidates, setCandidates] = useState<AiCoverCandidate[]>([])
@@ -421,30 +432,17 @@ export default function AiCoverPanel({
     }
   }, [])
 
-  // 轮询后台封面任务：setTask 触发下一轮 effect，形成 3 秒间隔的轮询链，任务结束自然停止
+  const streamingTaskId = task && ['queued', 'running'].includes(task.status) ? task.id : ''
   useEffect(() => {
-    if (!task || (task.status !== 'queued' && task.status !== 'running')) return
-    const timer = setTimeout(() => {
-      if (document.hidden) {
-        setTask((prev) => (prev ? { ...prev } : prev))
-        return
-      }
-      aiApi
-        .task(task.id)
-        .then(({ task: next }) => {
-          setTask(next)
-          if (next.status === 'completed') {
-            toast('封面已生成，请在下方预览候选并决定是否采纳', 'success')
-            // 只在任务属于当前选中的小说时刷新候选，避免切书后被旧任务结果覆盖
-            if (next.novelId === novelIdRef.current) void loadCandidates(next.novelId)
-          } else if (next.status === 'failed') {
-            toast(next.error || '封面生成失败', 'error')
-          }
-        })
-        .catch(() => setTask((prev) => (prev ? { ...prev } : prev)))
-    }, TASK_POLL_INTERVAL)
-    return () => clearTimeout(timer)
-  }, [task, toast])
+    if (!streamingTaskId) return
+    return watchAiTask(streamingTaskId, (next) => {
+      setTask(next)
+      if (next.status === 'completed') {
+        toast('封面已生成，请在下方预览候选并决定是否采纳', 'success')
+        if (next.novelId === novelIdRef.current) void loadCandidates(next.novelId)
+      } else if (next.status === 'failed') toast(next.error || '封面生成失败', 'error')
+    })
+  }, [streamingTaskId, toast])
 
   async function generate() {
     if (!novelId) return toast('请先选择小说', 'error')
@@ -480,6 +478,9 @@ export default function AiCoverPanel({
 
   async function generatePrompt(forceNewVariation = false) {
     if (!novelId) return toast('请先选择小说', 'error')
+    const current = ++promptRequest.current
+    setPromptProgress(null)
+    const requestBook = novelId
     setGeneratingPrompt(true)
     try {
       const requestedVariationId = forceNewVariation ? crypto.randomUUID() : variationId
@@ -490,7 +491,8 @@ export default function AiCoverPanel({
         composition,
         variationId: requestedVariationId,
         operationId: newOperationId('ai-cover-prompt'),
-      })
+      }, (next) => { if (current === promptRequest.current && requestBook === novelIdRef.current) setPromptProgress(next) })
+      if (current !== promptRequest.current || requestBook !== novelIdRef.current) return
       setPrompt(limitCoverPrompt(result.prompt, coverPromptMaxChars))
       setVariationId(result.metadata?.variationId || requestedVariationId)
       setPromptMetadata(result.metadata)
@@ -500,9 +502,9 @@ export default function AiCoverPanel({
       )
       toast('已生成封面描述词，可继续编辑', 'success')
     } catch (err) {
-      toast((err as Error).message || '生成描述词失败', 'error')
+      if (current === promptRequest.current) toast((err as Error).message || '生成描述词失败', 'error')
     } finally {
-      setGeneratingPrompt(false)
+      if (current === promptRequest.current) setGeneratingPrompt(false)
     }
   }
 
@@ -924,6 +926,7 @@ export default function AiCoverPanel({
                         {coverPromptCharCount(prompt)}/{coverPromptMaxChars}
                       </span>
                     </div>
+                    {generatingPrompt && <AiStreamPreview progress={promptProgress} structured />}
                     <textarea
                       id="cover-prompt"
                       aria-describedby="cover-prompt-hint"

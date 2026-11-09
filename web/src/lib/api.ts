@@ -5,6 +5,7 @@ import type { MailSettings, MailSettingsInput } from '@shared/mail-settings'
 import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import type { StoryGraphResponse } from '@shared/story-graph'
 import type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
+import { readAiResponse, type AiProgressHandler } from './ai-stream'
 export type { AiReasoningMode, AiTextProgress } from '@shared/ai-text-progress'
 import { normalizePlotTimeoutSeconds, PLOT_TIMEOUT_RESPONSE_GRACE_MS } from '@shared/ai-plot-timeout'
 import type { MemoryRebuildPlan, MemoryRebuildRequest, MemoryKind } from '@shared/story-memory-rebuild'
@@ -224,6 +225,7 @@ export async function request<T = unknown>(
   useAuth = false,
   extraHeaders: Record<string, string> = {},
   timeoutMs = API_TIMEOUT_MS,
+  onProgress?: AiProgressHandler,
 ): Promise<T> {
   const challengeActions:Record<string,SecurityAction>={'/auth/forgot-password':'forgot-password','/auth/email/request':'verify-email','/auth/login':'login','/auth/register':'register'}
   const challengeAction=method==='POST'?challengeActions[normalizePath(path)]:undefined
@@ -241,7 +243,8 @@ export async function request<T = unknown>(
   const requestToken = useAuth ? getToken() : ''
   const hasBody = !!body && method !== 'GET'
   // 有 body 才声明 Content-Type：GET 带它会让跨域读取多一次 preflight
-  const headers = { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...extraHeaders }
+  const streamProgress = onProgress || (method === 'POST' && /^\/ai\/(recap|catchup|test|cover\/prompt|writing\/(titles|plot-suggestions|style-profile|story-graph\/[^/]+|drafts\/[^/]+\/review|plot-state|relationship-profile))$/.test(normalizePath(path)) ? (() => {}) : undefined)
+  const headers = { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...(streamProgress ? { Accept: 'text/event-stream' } : {}), ...extraHeaders }
   if (useAuth) Object.assign(headers, authHeaders())
 
   // 内容访问凭证由服务端以 HttpOnly Cookie 保存；include 也兼容 API 与 Web
@@ -264,7 +267,10 @@ export async function request<T = unknown>(
     }
     throw err
   }
-  const data = (await res.json().catch(() => ({}))) as T & { error?: string }
+  const received = streamProgress ? await readAiResponse(res, (progress) => { if (!useAuth || requestToken === getToken()) streamProgress(progress) }) : { status: res.status, data: await res.json().catch(() => ({})) }
+  if (useAuth && requestToken !== getToken()) throw new Error('账号已变化，请重新读取结果')
+  const data = received.data as T & { error?: string }
+  if (received.status !== res.status) res = new Response(null, { status: received.status })
 
   handleAuthResponse(res, data as { code?: string; reason?: string }, requestToken)
   if (!res.ok) {
@@ -541,8 +547,8 @@ export const bookImportApi = {
    * AI 边界复核：只裁决证据不足的候选行，产出建议写进快照，不改动已落库的 payload。
    * 服务端开关未开启时返回 403，前端据此提示去 AI 设置启用。
    */
-  aiReview(runId: string, revision: number): Promise<BookImportAiReview> {
-    return request('POST', `/book-import/${encodeURIComponent(runId)}/ai-review`, { revision }, true, {}, 180000)
+  aiReview(runId: string, revision: number, onProgress?: AiProgressHandler): Promise<BookImportAiReview> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/ai-review`, { revision }, true, {}, 180000, onProgress)
   },
   /** 采纳复核建议：按行号覆盖重切并刷新快照，切分仍由确定性代码完成。 */
   applyAiReview(runId: string, revision: number, lines: number[]): Promise<BookImportPreview> {
@@ -2294,15 +2300,15 @@ export const aiApi = {
   status(): Promise<AiStatus> {
     return request('GET', '/ai/status', null, true)
   },
-  recap(chapterId: string, force = false): Promise<{ recap: string; cached: boolean; model: string; id: string }> {
-    return request('POST', '/ai/recap', force ? { chapterId, force: true } : { chapterId }, true)
+  recap(chapterId: string, force = false, onProgress?: AiProgressHandler): Promise<{ recap: string; cached: boolean; model: string; id: string }> {
+    return request('POST', '/ai/recap', force ? { chapterId, force: true } : { chapterId }, true, {}, 180_000, onProgress)
   },
   /** 只读缓存：没有已生成的提要就返回空串，不触发生成也不计配额。 */
   cachedRecap(chapterId: string): Promise<{ recap: string; cached: boolean }> {
     return request('GET', `/ai/recap?chapterId=${encodeURIComponent(chapterId)}`, null, true)
   },
   /** 回来接着读：用已缓存的单章提要合成一段连贯回顾；原料不足时 recap 为 null。 */
-  catchup(novelId: string): Promise<{
+  catchup(novelId: string, onProgress?: AiProgressHandler): Promise<{
     recap: string | null
     cached: boolean
     model?: string
@@ -2310,7 +2316,7 @@ export const aiApi = {
     chapterIds?: string[]
     reason?: 'no_progress' | 'not_stale' | 'insufficient_summaries'
   }> {
-    return request('POST', '/ai/catchup', { novelId }, true)
+    return request('POST', '/ai/catchup', { novelId }, true, {}, 180_000, onProgress)
   },
   settings(): Promise<{
     settings: AiSettings
@@ -2379,6 +2385,7 @@ export const aiApi = {
   generateCoverPrompt(
     novelId: string,
     opts: { renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string; operationId?: string } = {},
+    onProgress?: AiProgressHandler,
   ): Promise<{ prompt: string; metadata?: AiCoverMetadata }> {
     const operationId = opts.operationId || newOperationId('ai-cover-prompt')
     return request(
@@ -2395,6 +2402,8 @@ export const aiApi = {
       },
       true,
       operationHeaders(operationId),
+      600_000,
+      onProgress,
     )
   },
   /** AI 封面候选列表（含 dataUrl，供 <img> 直接展示）。 */
@@ -2479,13 +2488,13 @@ export const aiApi = {
     materials(data: Record<string, unknown>): Promise<AiWritingMaterials> {
       return request('POST', '/ai/writing/materials', data, true)
     },
-    reviewDraft(id: string, expectedRevision: string): Promise<{ report: AiWritingReview }> {
-      return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/review`, { expectedRevision }, true, {}, 300_000)
+    reviewDraft(id: string, expectedRevision: string, onProgress?: AiProgressHandler): Promise<{ report: AiWritingReview }> {
+      return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/review`, { expectedRevision }, true, {}, 300_000, onProgress)
     },
     getDraftReview(id: string): Promise<{ report: AiWritingReview | null }> {
       return request('GET', `/ai/writing/drafts/${encodeURIComponent(id)}/review`, null, true)
     },
-    /** 创作类接口统一为后台任务模式：立即返回任务 id，用 aiApi.task 轮询进度，产物在「已生成内容」。 */
+    /** 创作类接口统一为后台任务模式：立即返回任务 id，用 watchAiTask 订阅进度，产物在「已生成内容」。 */
     outline(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
       const operationId = typeof data.operationId === 'string' && data.operationId ? data.operationId : newOperationId('ai-writing-outline')
       return request('POST', '/ai/writing/outline', { ...data, operationId }, true, operationHeaders(operationId))
@@ -2499,8 +2508,8 @@ export const aiApi = {
       return request('POST', '/ai/writing/continue', { ...data, operationId }, true, operationHeaders(operationId))
     },
     /** 提取/刷新某部小说的风格画像：取样已发布章节 → 文本模型分析 → 落库，续写时复用。 */
-    refreshStyleProfile(novelId: string): Promise<{ ok: boolean; profile: string; model: string; usage: { promptTokens: number; completionTokens: number } }> {
-      return request('POST', '/ai/writing/style-profile', { novelId }, true)
+    refreshStyleProfile(novelId: string, onProgress?: AiProgressHandler): Promise<{ ok: boolean; profile: string; model: string; usage: { promptTokens: number; completionTokens: number } }> {
+      return request('POST', '/ai/writing/style-profile', { novelId }, true, {}, 300_000, onProgress)
     },
     /** 读取已存的风格画像（未提取过返回空串）。 */
     getStyleProfile(novelId: string): Promise<AiStyleProfileResponse> {
@@ -2539,8 +2548,8 @@ export const aiApi = {
       const query = afterChapterId ? `?afterChapterId=${encodeURIComponent(afterChapterId)}` : ''
       return request('GET', `/ai/writing/story-graph/${encodeURIComponent(novelId)}${query}`, null, true)
     },
-    generateStoryGraph(novelId: string, afterChapterId?: string): Promise<StoryGraphResponse> {
-      return request('POST', `/ai/writing/story-graph/${encodeURIComponent(novelId)}`, { afterChapterId }, true, {}, 180_000)
+    generateStoryGraph(novelId: string, afterChapterId?: string, onProgress?: AiProgressHandler): Promise<StoryGraphResponse> {
+      return request('POST', `/ai/writing/story-graph/${encodeURIComponent(novelId)}`, { afterChapterId }, true, {}, 180_000, onProgress)
     },
     getPlotState(novelId: string, afterChapterId?: string): Promise<AiPlotStateResponse> {
       const query = afterChapterId ? `?afterChapterId=${encodeURIComponent(afterChapterId)}` : ''
@@ -2613,8 +2622,8 @@ export const aiApi = {
       content: string
       novelId?: string
       contextTitle?: string
-    }): Promise<{ titles: string[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
-      return request('POST', '/ai/writing/titles', data, true)
+    }, onProgress?: AiProgressHandler): Promise<{ titles: string[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
+      return request('POST', '/ai/writing/titles', data, true, {}, 180_000, onProgress)
     },
     /**
      * 推荐情节方向：基于最近章节给出若干条可直接用作创作要求的候选。
@@ -2631,13 +2640,13 @@ export const aiApi = {
       plotDirection?: string
       writingBrief?: AiWritingBrief
       contentPreferences?: unknown
-    }): Promise<{
+    }, onProgress?: AiProgressHandler): Promise<{
       suggestions: Array<{ direction: string; effect: string }>
       outline?: string
       usage: { model: string; promptTokens: number; completionTokens: number }
     }> {
       const timeoutSeconds = normalizePlotTimeoutSeconds(data.timeoutSeconds)
-      return request('POST', '/ai/writing/plot-suggestions', { ...data, timeoutSeconds }, true, {}, timeoutSeconds * 1000 + PLOT_TIMEOUT_RESPONSE_GRACE_MS)
+      return request('POST', '/ai/writing/plot-suggestions', { ...data, timeoutSeconds }, true, {}, timeoutSeconds * 1000 + PLOT_TIMEOUT_RESPONSE_GRACE_MS, onProgress)
     },
     updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string; contentRevision: string; quality?: WritingQualityReport }> {
       return request('PUT', `/ai/writing/drafts/${encodeURIComponent(id)}`, { result }, true)

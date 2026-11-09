@@ -1,3 +1,4 @@
+import { partialUsageRecorder } from './partial-usage'
 import { removeAdPatterns } from '@shared/ad-cleaner'
 import { normalizePlotTimeoutSeconds } from '@shared/ai-plot-timeout'
 import { detectRepeatedOpening } from '@shared/ai-writing-quality'
@@ -344,7 +345,7 @@ export async function generateWritingTitles(db: Db, opts: {
     opts.contextTitle ? `已有标题或上下文：${opts.contextTitle}` : '',
     `正文：\n${cleanWritingText(opts.content)}`,
   ].filter(Boolean).join('\n\n')
-  const res = await chat({
+  const res = await chat({ onIncomplete: partialUsageRecorder(db, { userId: opts.userId, provider: providerLabel(provider.baseUrl), novelId: opts.novelId, generationType: 'writing_title', ipAddress: opts.ipAddress, userAgent: opts.userAgent }),
     messages: [
       { role: 'system', content: '你是中文网络小说编辑，擅长根据正文提炼准确、有吸引力且不夸张的章节标题。' },
       { role: 'user', content: prompt },
@@ -652,7 +653,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
     // 5 条 40-80 字的候选加上 JSON 结构约需 600-900 token；多章大纲更长（最高 20 章）。
     // 在开启思考（low/high/inherit）时，推理模型思考阶段会先消耗 1,500-3,000 Token，
     // 因此在非 disabled 模式下提供充足的 6,000 Token（大纲 8,000 Token），防止思考吃满上限截断正文。
-    // 已全面接入 chatStream 流式保活，充足预算不会触发网关 524 超时。
+    // 流式逐段传输；上游超时仍受模型供应商与网关限制。
     maxTokens: outlineMode
       ? Math.min(settings.writingMaxTokens || 8000, 8000)
       : settings.writingReasoningMode !== 'disabled'
@@ -661,10 +662,18 @@ export async function generatePlotSuggestions(db: Db, opts: {
     reasoningMode: settings.writingReasoningMode,
     timeoutMs: normalizePlotTimeoutSeconds(opts.timeoutSeconds) * 1000,
     retryOnTimeout: false,
+    onIncomplete: partialUsageRecorder(db, {
+      userId: opts.userId,
+      provider: providerLabel(provider.baseUrl),
+      novelId: opts.novelId,
+      generationType: outlineMode ? 'plot_outline' : 'plot_suggestion',
+      ipAddress: opts.ipAddress,
+      userAgent: opts.userAgent,
+    }),
   }
   const res = settings.writingStreamEnabled
     ? await chatStream(chatOptions, () => {})
-    : await chat(chatOptions)
+    : await chat({ ...chatOptions, stream: false })
   const usage = { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens }
   const commonUsage = {
     userId: opts.userId,
@@ -832,10 +841,10 @@ export async function generateWriting(db: Db, opts: {
   const progress = createTextProgressReporter(db, taskId)
   try {
     if (settings.writingStreamEnabled) await progress.start()
-    const request = { messages: [{ role: 'system' as const, content: system }, { role: 'user' as const, content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000, reasoningMode: settings.writingReasoningMode }
+    const request = { onIncomplete: partialUsageRecorder(db, { usageId, userId: opts.userId, provider: providerLabel(provider.baseUrl), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent }), messages: [{ role: 'system' as const, content: system }, { role: 'user' as const, content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000, reasoningMode: settings.writingReasoningMode }
     const res = settings.writingStreamEnabled
       ? await chatStream({ ...request, onProgress: progress.onProgress }, progress.onDelta)
-      : await chat(request)
+      : await chat({ ...request, stream: false })
     // 调用事实独立于任务是否接收产物；取消不能抹掉已经发生的上游用量。
     await recordUsage(db, { usageId, userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
@@ -903,6 +912,9 @@ export async function generateWriting(db: Db, opts: {
     if (settings.writingStreamEnabled) await updateAiTask(db, taskId, { result: '' })
     if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' })
     return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+  } catch (error) {
+    await progress.flush(true).catch(() => {})
+    throw error
   } finally {
     stopHeartbeat()
   }

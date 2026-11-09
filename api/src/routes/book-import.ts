@@ -1,3 +1,4 @@
+import { withAiResponseStream } from '../services/ai/response-stream'
 import { bodyLimit } from 'hono/body-limit'
 import { parseBookZip } from '../services/book-import-zip'
 import { createHash, randomUUID } from 'node:crypto'
@@ -405,7 +406,7 @@ bookImportRoutes.post('/:runId/rollback', async (c) => {
  * 不改变已落库的 payload —— 采纳与否由管理员决定。这是刻意的：
  * 复核是可选增强，不是导入主链路的必经环节。
  */
-bookImportRoutes.post('/:runId/ai-review', async (c) => {
+bookImportRoutes.post('/:runId/ai-review', withAiResponseStream(async (c) => {
   const db = getDb()
   const runId = String(c.req.param('runId') || '').trim()
   const run = await loadRun(db, runId, c.get('user').id)
@@ -487,7 +488,7 @@ bookImportRoutes.post('/:runId/ai-review', async (c) => {
   } finally {
     await db.query("UPDATE book_import_runs SET review_token='', review_started_at=0 WHERE id=$1 AND review_token=$2", [runId, token])
   }
-})
+}))
 
 /** 统一的边界编辑：AI 逐条采纳、人工裁决、撤销与恢复原始解析都走累计覆盖。 */
 async function editBoundaries(c: Context<AuthEnv>, aiOnly = false) {

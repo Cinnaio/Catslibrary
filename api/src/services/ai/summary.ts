@@ -1,3 +1,4 @@
+import { partialUsageRecorder } from './partial-usage'
 /**
  * 章节前情提要 —— 阅读器进入某章时，为「上一章」生成 2-4 句回顾。
  * 只喂上一章正文，天然无剧透；结果按章缓存，全站读者共用一份。
@@ -130,7 +131,7 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
   // 温度与 token 上限来自「参数调优」设置；两者不参与缓存键——
   // 调参只影响后续新生成，不作废历史缓存（避免改一个数字导致全站重算烧钱）
   const reservation = await reserveReaderQuota(db, opts.userId, settings.dailyQuota, opts.unlimitedQuota)
-  const res = await chat({
+  const res = await chat({ onIncomplete: partialUsageRecorder(db, { ...reservation, userId: opts.userId || '', provider: providerLabel(provider.baseUrl), novelId: opts.chapter.novel_id, chapterId: opts.chapter.id, generationType: 'summary', ipAddress: opts.ipAddress, userAgent: opts.userAgent }),
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },

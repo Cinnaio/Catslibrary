@@ -15,6 +15,7 @@ export interface AgentTask {
   current: number
   total: number
   error: string
+  result?: string
 }
 
 export interface AgentSession {
@@ -36,7 +37,7 @@ export interface AgentEvent {
   role: 'user' | 'assistant' | 'activity'
   content: string
   taskId: string
-  metadata: { tool?: string; artifactTaskId?: string; actionId?: string; error?: boolean; providerPresetId?: string; model?: string }
+  metadata: { tool?: string; artifactTaskId?: string; actionId?: string; error?: boolean; providerPresetId?: string; model?: string; round?: number }
   createdAt: number
 }
 

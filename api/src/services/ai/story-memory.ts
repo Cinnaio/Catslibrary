@@ -1,3 +1,4 @@
+import { partialUsageRecorder } from './partial-usage'
 import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import type { Db } from '../../db/pool'
@@ -321,11 +322,12 @@ export async function advanceStoryMemory(db: Db, kind: 'plot' | 'relationship', 
         let res: Awaited<ReturnType<typeof chat>>
         try {
           if (settings.storyMemoryStreamEnabled) await progress.start()
-          const request = { messages, temperature: 0.3, maxTokens, timeoutMs, retryOnTimeout: false, signal: controller.signal, returnIncompleteResult: true, reasoningMode: settings.storyMemoryReasoningMode }
+          const request = { onIncomplete: partialUsageRecorder(db, { userId: opts.userId, provider: providerLabel(textProvider().baseUrl), novelId: opts.novelId, generationType: kind === 'plot' ? 'plot_state' : 'relationship_profile', ipAddress: opts.ipAddress, userAgent: opts.userAgent }), messages, temperature: 0.3, maxTokens, timeoutMs, retryOnTimeout: false, signal: controller.signal, returnIncompleteResult: true, reasoningMode: settings.storyMemoryReasoningMode }
           res = settings.storyMemoryStreamEnabled
             ? await chatStream({ ...request, onProgress: progress.onProgress }, progress.onDelta)
-            : await chat(request)
+            : await chat({ ...request, stream: false })
         } catch (err) {
+          await progress.flush(true).catch(() => {})
           if (controller.signal.aborted) throw controller.signal.reason
           if (!(err instanceof AiError) || !(err.code === 'timeout' || err.code === 'upstream' && (err.status === 408 || err.status === 504))) throw err
           const label = kind === 'plot' ? '情节档案' : '关系档案'

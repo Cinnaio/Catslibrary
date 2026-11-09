@@ -2,6 +2,7 @@ import type { Db, DbClient } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
 import { randomUUID } from 'node:crypto'
+import { publishAiTask } from './task-events'
 
 export type AiTaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -85,8 +86,10 @@ export async function updateAiTask(db: DbClient, id: string, patch: { status?: A
   const idIndex = values.length
   values.push(AI_TASK_OWNER_ID, AI_TASK_LEASE_MS)
   parts.push(`lease_expires_at = ${DB_NOW} + $${values.length}`)
-  return (await run(db, `UPDATE ai_tasks SET ${parts.join(', ')} WHERE id = $${idIndex} AND (${activeOrSameTerminal})
+  const updated = (await run(db, `UPDATE ai_tasks SET ${parts.join(', ')} WHERE id = $${idIndex} AND (${activeOrSameTerminal})
     AND owner_id=$${idIndex + 1} AND lease_expires_at>${DB_NOW}`, values)) > 0
+  if (updated) publishAiTask(id, { ...patch, updatedAt: Date.now(), ...(finished ? { finishedAt: finished } : {}) })
+  return updated
 }
 
 export async function getAiTask(db: Db, id: string): Promise<AiTask | undefined> {
@@ -125,7 +128,9 @@ export function startAiTaskHeartbeat(db: Db, id: string, intervalMs = AI_TASK_HE
 }
 
 export async function cancelAiTask(db: Db, id: string): Promise<boolean> {
-  return (await run(db, `UPDATE ai_tasks SET status = 'cancelled', step = '已取消', updated_at = $1, finished_at = $1 WHERE id = $2 AND status IN ('queued','running')`, [Date.now(), id])) > 0
+  const updated = (await run(db, `UPDATE ai_tasks SET status = 'cancelled', step = '已取消', updated_at = $1, finished_at = $1 WHERE id = $2 AND status IN ('queued','running')`, [Date.now(), id])) > 0
+  if (updated) publishAiTask(id, { status: 'cancelled', step: '已取消', updatedAt: Date.now(), finishedAt: Date.now() })
+  return updated
 }
 
 /**
@@ -240,13 +245,17 @@ export async function getLatestAiTaskByKind(db: Db, kind: string): Promise<AiTas
 
 export async function listAiTasks(
   db: Db,
-  opts: { limit?: number; offset?: number; status?: string; kind?: string } = {},
+  opts: { limit?: number; offset?: number; status?: string; kind?: string; viewerUserId?: string } = {},
 ): Promise<{ items: AiTask[]; total: number; counts: Record<AiTaskStatus | 'all', number> }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
   const offset = Math.max(Math.trunc(opts.offset || 0), 0)
 
   const conditions: string[] = []
   const params: unknown[] = []
+  if (opts.viewerUserId) {
+    params.push(opts.viewerUserId)
+    conditions.push(`(t.kind <> 'agent_chat' OR t.user_id = $${params.length})`)
+  }
   if (opts.status) {
     params.push(opts.status)
     conditions.push(`t.status = $${params.length}`)
@@ -272,6 +281,10 @@ export async function listAiTasks(
   // 状态选项显示全量计数；当前 status 筛选不应把其它选项的计数变成 0。
   const countConditions: string[] = []
   const countParams: unknown[] = []
+  if (opts.viewerUserId) {
+    countParams.push(opts.viewerUserId)
+    countConditions.push(`(t.kind <> 'agent_chat' OR t.user_id = $${countParams.length})`)
+  }
   if (opts.kind) {
     countParams.push(opts.kind)
     countConditions.push(`t.kind = $${countParams.length}`)

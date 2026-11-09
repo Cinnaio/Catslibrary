@@ -1,3 +1,4 @@
+import { partialUsageRecorder } from './partial-usage'
 import { createHash } from 'node:crypto'
 import type { StoryCertainty, StoryEvidence, StoryGraph, StoryGraphResponse } from '@shared/story-graph'
 import type { Db } from '../../db/pool'
@@ -211,7 +212,7 @@ export async function generateStoryGraph(
     const reasoningMode = settings.storyGraphReasoningMode === 'disabled' && !/(^|\/)deepseek(?:[-_/]|$)/i.test(provider.model)
       ? 'inherit'
       : settings.storyGraphReasoningMode
-    const res = await chat({
+    const res = await chat({ onIncomplete: partialUsageRecorder(db, { userId: opts.userId, provider: providerLabel(provider.baseUrl), novelId: opts.novelId, generationType: 'story_graph', ipAddress: opts.ipAddress, userAgent: opts.userAgent }),
       messages: [
         { role: 'system', content: PROMPT },
         {

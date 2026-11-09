@@ -1,5 +1,7 @@
 # 生产组件归属清单
 
+2026-11-09 AI 文本流式：`components/shared/AiStreamPreview.tsx` 与同名 CSS Module 统一显示阶段、字符数和有限长度预览，结构化输出仅显示状态，未完成内容明确标注。组件只接收共享进度类型，不导入业务 API、会话或存储；流解析归 `shared/sse.ts`，浏览器传输／重连归 `lib/ai-stream.ts`、`lib/ai-task-stream.ts`，权限、作品及任务生命周期仍由各页面持有。当前检查为 111 个组件、295 个源码模块，以下旧记录保留当时状态。
+
 2026-11-08 阅读器计时融合：`ReaderTempo` 直接持有节拍指令面板与紧凑控制条，`Reader` 提供已确认的成人内容权限，权限失效时隐藏入口并清理会话。`components/reader/EdgeControls.tsx` 与 CSS Module 从工具页提取，供阅读器及独立页共用；普通计时的独立页、控件、hook、计时与音频模块及专属测试已删除，旧 URL 只保留重定向。`useReaderTempo` 继续分离面板与高频状态，展厅使用真实权限和隔离示例记录；共享 UI 层无新增业务依赖。当前组件检查为 110 个组件、289 个源码模块；下方初版归属记录保留历史状态，当前组件表已移除普通计时。
 
 2026-11-08 节拍指令：`pages/Edge.tsx` 持有独立工具页面与成人门禁，布局归 `edge.module.css`；复用 Panel、Button、FilterChip、FormField、Input、Switch、EmptyState、ConfirmationDialog、ContentRestrictionNotice 与 ContentPolicyStatus，不新增公共控件。会话状态机、随机源、指令池与本机记录归 `lib/edge.ts`，合成节拍与低心跳归 `lib/edge-audio.ts`，页面状态与结束记账归 `useEdgeController`，节拍推进归 `useEdgeSession`，声音与语音归 `useEdgeAudio`；共享组件不导入这些场景逻辑。路由按需加载，入口由 WorkspaceShell 的工具分组持有。组件检查为 110 个组件、296 个源码模块。
@@ -122,6 +124,7 @@
 | `components/ReadingStatsPanel.tsx` | 应用／业务 | 1 | `styles/select-fields.css`、`styles/input-fields.css` | 保留：账户阅读统计 |
 | `components/RouteLoading.tsx` | 应用／业务 | 3 | `styles/loading-indicators.css`、`styles/route-loading.css` | 保留：路由切换与外壳占位 |
 | `components/SecurityChallengeDialog.tsx` | 应用／业务 | 1 | 组合已带样式的原语／模块内工具类；场景布局由所属入口加载 | 保留：账号操作的统一人机验证 |
+| `components/shared/AiStreamPreview.tsx` | 通用组合 | 12 | `components/shared/AiStreamPreview.module.css` | 共享：无业务取数，调用方提供实时进度与结构化标记 |
 | `components/shared/AsyncStates.tsx` | 通用组合 | 37 | `styles/loading-indicators.css`、`components/shared/AsyncStates.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/CellText.tsx` | 通用组合 | 2 | `components/shared/CellText.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |
 | `components/shared/ConfirmationDialog.tsx` | 通用组合 | 2 | `components/shared/ConfirmationDialog.module.css` | 迁移／共享：无业务取数，使用方提供状态与动作 |

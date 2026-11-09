@@ -79,7 +79,7 @@ describe('story graph workflow', () => {
     expect(api.generateStoryGraph).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '更新图谱' }))
     await screen.findByRole('button', { name: '人物：林舟' })
-    expect(api.generateStoryGraph).toHaveBeenCalledWith('book', 'c1')
+    expect(api.generateStoryGraph).toHaveBeenCalledWith('book', 'c1', expect.any(Function))
   })
   it.each(['模型回复被截断', 'people[0].evidenceIds[0]：证据 ID 不属于本次有效档案，请重新生成'])('shows actionable failure %s and allows retry', async (message) => {
     api.getStoryGraph.mockResolvedValue({ ...fixture, status: 'missing', graph: null })

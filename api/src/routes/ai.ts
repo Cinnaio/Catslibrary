@@ -1,3 +1,5 @@
+import { taskStreamResponse } from '../services/ai/task-stream'
+import { withAiResponseStream } from '../services/ai/response-stream'
 import { isAdministrator } from '@shared/roles'
 import { profileReadResponse, memoryProgressResponse, memoryTaskResponse } from '../services/ai/profile-read-response'
 import { visibleNovelSql } from '../services/novel-visibility'
@@ -164,12 +166,12 @@ aiRoutes.get('/writing/story-graph/:novelId', requireAdmin(), async (c) => {
   }
 })
 
-aiRoutes.post('/writing/story-graph/:novelId', requireAdmin(), async (c) => {
+aiRoutes.post('/writing/story-graph/:novelId', requireAdmin(), withAiResponseStream(async (c) => {
   const body = await c.req.json().catch(() => ({}))
   try {
     const db = getDb()
     const result = await generateStoryGraph(db, {
-      novelId: c.req.param('novelId'),
+      novelId: c.req.param('novelId')!,
       afterChapterId: String(body.afterChapterId || '').trim() || undefined,
       userId: c.get('user').id,
       ...(await auditRequestContext(c, db)),
@@ -179,7 +181,7 @@ aiRoutes.post('/writing/story-graph/:novelId', requireAdmin(), async (c) => {
     if (err instanceof AiError && err.status === 404) return c.json({ error: err.message, code: err.code }, 404)
     return aiErrorResponse(c, err)
   }
-})
+}))
 
 async function auditRequestContext(c: Context<AuthEnv>, db: ReturnType<typeof getDb>): Promise<{ ipAddress?: string; userAgent?: string }> {
   const settings = await getAiSettings(db)
@@ -265,7 +267,7 @@ aiRoutes.get('/recap', requireUser(), async (c) => {
   })
 })
 
-aiRoutes.post('/recap', requireUser(), async (c) => {
+aiRoutes.post('/recap', requireUser(), withAiResponseStream(async (c) => {
   const db = getDb()
   const user = c.get('user')
   const isAdmin = isAdministrator(user.role)
@@ -309,11 +311,11 @@ aiRoutes.post('/recap', requireUser(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
-})
+}))
 
 // ---------- 回来接着读（进度感知的连贯回顾） ----------
 
-aiRoutes.post('/catchup', requireUser(), async (c) => {
+aiRoutes.post('/catchup', requireUser(), withAiResponseStream(async (c) => {
   const db = getDb()
   const user = c.get('user')
   const isAdmin = isAdministrator(user.role)
@@ -347,7 +349,7 @@ aiRoutes.post('/catchup', requireUser(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
-})
+}))
 
 // ---------- 管理端 ----------
 
@@ -461,7 +463,7 @@ aiRoutes.put('/provider', requireAdmin(), async (c) => {
 })
 
 /** 连通性自检：发一条最小请求，确认 baseUrl/key/model 三件套可用。 */
-aiRoutes.post('/test', requireAdmin(), async (c) => {
+aiRoutes.post('/test', requireAdmin(), withAiResponseStream(async (c) => {
   if (!isTextAiConfigured()) return c.json({ ok: false, error: 'AI 文本服务未配置（AI_TEXT_BASE_URL / AI_TEXT_API_KEY）', code: 'disabled' }, 503)
   const provider = textProvider()
   const startedAt = Date.now()
@@ -490,7 +492,7 @@ aiRoutes.post('/test', requireAdmin(), async (c) => {
     const aiErr = err instanceof AiError ? err : new AiError('upstream', 'AI 请求失败')
     return c.json({ ok: false, error: aiErr.message, code: aiErr.code, elapsedMs: Date.now() - startedAt }, 200)
   }
-})
+}))
 
 // ---------- 管理端 AI 创作：先生成草稿，发布时才写入正式章节 ----------
 
@@ -1057,7 +1059,7 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
   )
 })
 
-aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
+aiRoutes.post('/cover/prompt', requireAdmin(), withAiResponseStream(async (c) => {
   const db = getDb()
   const body = (await c.req.json().catch(() => ({}))) as Record<string, any>
   const novelId = String(body.novelId || '').trim()
@@ -1134,7 +1136,7 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
       }
     },
   )
-})
+}))
 
 // ---------- AI 封面候选管理：生成结果先落候选，采纳/弃用由管理员决定 ----------
 
@@ -1289,7 +1291,7 @@ aiRoutes.post('/cover/history/:novelId/:id/restore', requireAdmin(), async (c) =
   )
 })
 
-aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
+aiRoutes.post('/writing/titles', requireAdmin(), withAiResponseStream(async (c) => {
   const db = getDb()
   const body = await c.req.json().catch(() => ({}))
   const content = String(body.content || '').trim()
@@ -1307,7 +1309,7 @@ aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
-})
+}))
 
 // ---------- 情节方向推荐：给作者提供可直接用作续写指令的候选 ----------
 
@@ -1316,7 +1318,7 @@ aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
  * 用途：续写的 instruction 留空时模型会自由发挥（实测密度在 4-9 之间随机波动），
  * 作者想不出写什么时，可先取候选再挑一条填入指令。
  */
-aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
+aiRoutes.post('/writing/plot-suggestions', requireAdmin(), withAiResponseStream(async (c) => {
   const db = getDb()
   const body = await c.req.json().catch(() => ({}))
   const novelId = String(body.novelId || '').trim()
@@ -1349,7 +1351,7 @@ aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
-})
+}))
 
 // ---------- 风格画像：从小说已发布章节提取风格特征，续写时拼进 system prompt ----------
 
@@ -1357,7 +1359,7 @@ aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
  * 提取/刷新某部小说的风格画像。一次性成本（取样最近几章 → 文本模型分析 → 落库），
  * 之后每次续写直接复用，不再烧钱。无章节时写兜底画像，不报错。
  */
-aiRoutes.post('/writing/style-profile', requireAdmin(), async (c) => {
+aiRoutes.post('/writing/style-profile', requireAdmin(), withAiResponseStream(async (c) => {
   const db = getDb()
   const body = await c.req.json().catch(() => ({}))
   const novelId = String(body.novelId || '').trim()
@@ -1375,7 +1377,7 @@ aiRoutes.post('/writing/style-profile', requireAdmin(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
-})
+}))
 
 /** 读取某部小说已存的风格画像（管理端展示用，未提取过返回空串）。 */
 aiRoutes.get('/writing/style-profile/:novelId', requireAdmin(), async (c) => {
@@ -1419,7 +1421,7 @@ aiRoutes.get('/writing/drafts/:id/review', requireAdmin(), async (c) => {
   )
 })
 
-aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), async (c) => {
+aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), withAiResponseStream(async (c) => {
   const db = getDb()
   const draft = await first<GenerationRow>(db, "SELECT * FROM ai_generations WHERE id = $1 AND status = 'draft' AND deleted_at = 0", [c.req.param('id')])
   if (!draft || !['continue', 'write_chapter'].includes(draft.kind)) return c.json({ error: '可检查的草稿不存在' }, 404)
@@ -1457,7 +1459,7 @@ aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
-})
+}))
 
 aiRoutes.post('/writing/materials', requireAdmin(), async (c) => {
   const db = getDb()
@@ -1610,7 +1612,7 @@ aiRoutes.post('/writing/memory/:kind/:novelId/start', requireAdmin(), async (c) 
  * 提取/刷新某部小说的情节状态。全历史分批建立或增量更新；sampleChapters 控制批次大小，complete=false 时继续。
  * 多章续写时防止人设漂移、伏笔遗忘。无章节时写空状态，不报错。
  */
-aiRoutes.post('/writing/plot-state', requireAdmin(), async (c) => {
+aiRoutes.post('/writing/plot-state', requireAdmin(), withAiResponseStream(async (c) => {
   const db = getDb()
   const body = await c.req.json().catch(() => ({}))
   const novelId = String(body.novelId || '').trim()
@@ -1629,7 +1631,7 @@ aiRoutes.post('/writing/plot-state', requireAdmin(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
-})
+}))
 
 /**
  * 读取某部小说已存的情节状态（管理端展示用，未提取过返回空串）。
@@ -1672,7 +1674,7 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
  * 提取/刷新某部小说的关系画像。全历史分批建立或增量更新；sampleChapters 控制批次大小，complete=false 时继续。
  * 防 skill 踩坑：主从写成平等恋人、奖赏手段当真心、从属试探写成主导。无章节时写空画像，不报错。
  */
-aiRoutes.post('/writing/relationship-profile', requireAdmin(), async (c) => {
+aiRoutes.post('/writing/relationship-profile', requireAdmin(), withAiResponseStream(async (c) => {
   const db = getDb()
   const body = await c.req.json().catch(() => ({}))
   const novelId = String(body.novelId || '').trim()
@@ -1691,7 +1693,7 @@ aiRoutes.post('/writing/relationship-profile', requireAdmin(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
-})
+}))
 
 /** 读取某部小说已存的关系画像（管理端展示用，未提取过返回空串）。 */
 aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c) => {
@@ -2244,7 +2246,7 @@ aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const status = TASK_STATUSES.has(c.req.query('status') || '') ? c.req.query('status') : undefined
   const requestedKind = c.req.query('kind') || ''
   const kind = RETRIABLE_TASK_KINDS.has(requestedKind) || requestedKind === 'agent_chat' ? requestedKind : undefined
-  const result = await listAiTasks(getDb(), { limit, offset, status, kind })
+  const result = await listAiTasks(getDb(), { limit, offset, status, kind, viewerUserId: c.get('user').id })
   return c.json({ ...result, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })
 
@@ -2253,88 +2255,16 @@ aiRoutes.get('/tasks', requireAdmin(), async (c) => {
  * 任务本身仍以 ai_tasks 为事实来源，客户端断线后可以重新订阅或继续轮询。
  */
 aiRoutes.get('/tasks/:id/stream', requireAdmin(), async (c) => {
-  const id = String(c.req.param('id') || '').trim()
-  const initial = await getAiTask(getDb(), id)
-  if (!initial) return c.json({ error: '任务不存在' }, 404)
-
   const db = getDb()
-  const signal = c.req.raw.signal
-  const encoder = new TextEncoder()
-  let cancelFollow: (() => void) | undefined
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      let closed = false
-      let lastSignature = ''
-      let lastHeartbeatAt = Date.now()
-
-      const close = () => {
-        if (closed) return
-        closed = true
-        controller.close()
-      }
-      const emit = (payload: unknown) => {
-        if (closed) return
-        try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
-        } catch {
-          close()
-        }
-      }
-
-      const follow = async () => {
-        try {
-          while (!closed && !signal.aborted) {
-            const task = await getAiTask(db, id)
-            if (!task) break
-
-            const signature = JSON.stringify([task.updatedAt, task.status, task.current, task.step, task.prompt, task.result, task.error])
-            if (signature !== lastSignature) {
-              lastSignature = signature
-              const terminal = ['completed', 'failed', 'cancelled'].includes(task.status)
-              emit({ type: terminal ? 'done' : 'update', task })
-            }
-
-            if (['completed', 'failed', 'cancelled'].includes(task.status)) break
-
-            const now = Date.now()
-            if (now - lastHeartbeatAt >= 10_000) {
-              if (!closed) controller.enqueue(encoder.encode(': heartbeat\n\n'))
-              lastHeartbeatAt = now
-            }
-            await delay(100)
-          }
-        } catch {
-          // 客户端会把连接断开视为可恢复事件，并回退到任务查询。
-        } finally {
-          close()
-        }
-      }
-
-      const onAbort = () => close()
-      cancelFollow = close
-      signal.addEventListener('abort', onAbort, { once: true })
-      void follow()
-    },
-    cancel() {
-      cancelFollow?.()
-    },
-  })
-
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    },
-  })
+  const task = await getAiTask(db, String(c.req.param('id') || '').trim())
+  if (!task || (task.kind === 'agent_chat' && task.userId !== c.get('user').id)) return c.json({ error: '任务不存在' }, 404)
+  return taskStreamResponse(c, db, task)
 })
 
 /** 单任务查询：后台续写等长任务由前端轮询此接口看进度。 */
 aiRoutes.get('/tasks/:id', requireAdmin(), async (c) => {
   const task = await getAiTask(getDb(), String(c.req.param('id') || '').trim())
-  if (!task) return c.json({ error: '任务不存在' }, 404)
+  if (!task || (task.kind === 'agent_chat' && task.userId !== c.get('user').id)) return c.json({ error: '任务不存在' }, 404)
   return c.json({ task }, 200, { 'Cache-Control': 'no-store' })
 })
 
@@ -2353,10 +2283,6 @@ aiRoutes.get('/tasks/:id/generations', requireAdmin(), async (c) => {
   }
   return c.json({ items, linkage }, 200, { 'Cache-Control': 'no-store' })
 })
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {
   const db = getDb()

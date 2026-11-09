@@ -16,6 +16,7 @@ import { generationContentRevision } from '../services/ai/generations'
 import { replaceCoverForAdmin } from '../services/covers'
 import { AiError, type AiToolCall } from '../services/ai/client'
 import type { AgentSession, AgentSessionDetail } from '@shared/ai-agent'
+import { subscribeAiTask } from '../services/ai/task-events'
 
 const presetMock = vi.hoisted(() => vi.fn())
 vi.mock('../services/ai/provider-presets', async (importOriginal) => ({
@@ -144,6 +145,34 @@ afterAll(async () => {
 })
 
 describe('novel-scoped creative agent', () => {
+  it('streams a preview, waits for complete tool arguments, executes once and isolates task recovery', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '生成雨夜封面', 'streamed-turn')
+    let output!: ReadableStreamDefaultController<Uint8Array>
+    const encoder = new TextEncoder()
+    const frame = (value: unknown) => output.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`))
+    fetchMock.mockResolvedValueOnce(new Response(new ReadableStream({ start(c) { output = c } }), { headers: { 'Content-Type': 'text/event-stream' } })).mockResolvedValueOnce(completion('封面任务已提交。'))
+    const api = vi.fn().mockResolvedValue({ taskId: 'stream-cover-task' })
+    const changes: string[] = []
+    const unsubscribe = subscribeAiTask(turn.taskId, (patch) => { if (patch.result) changes.push(patch.result) })
+    const running = runAgentTurn(t.db, session, turn.taskId, 'admin', api)
+    frame({ choices: [{ delta: { content: '正在准备封面。', tool_calls: [{ index: 0, id: 'tool-stream', type: 'function', function: { name: 'generate_cover', arguments: '{"instruction":' } }] } }] })
+    await vi.waitFor(() => expect(changes.some((value) => value.includes('正在准备封面'))).toBe(true))
+    expect(api).not.toHaveBeenCalled()
+    expect((await readAgentEvents(t.db, session.id)).events.some((event) => event.role === 'assistant')).toBe(false)
+    expect((await request(`/api/ai/tasks/${turn.taskId}/stream`, 'GET', undefined, otherToken)).status).toBe(404)
+    expect((await request(`/api/ai/tasks/${turn.taskId}`, 'GET', undefined, otherToken)).status).toBe(404)
+    frame({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"雨夜"}' } }] }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 10, completion_tokens: 20 } })
+    output.enqueue(encoder.encode('data: [DONE]\n\n'))
+    output.close()
+    await running
+    unsubscribe()
+    expect(api).toHaveBeenCalledTimes(1)
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
+    const events = (await readAgentEvents(t.db, session.id)).events
+    expect(events.filter((event) => event.content === '正在准备封面。')).toHaveLength(1)
+    expect(events.at(-1)?.metadata.round).toBe(1)
+  })
   it('requires an administrator and isolates conversations by account and book', async () => {
     expect((await request('/api/ai/agent/sessions?novelId=novel', 'GET', undefined, '')).status).toBe(401)
     expect((await request('/api/ai/agent/sessions?novelId=novel', 'GET', undefined, readerToken)).status).toBe(403)

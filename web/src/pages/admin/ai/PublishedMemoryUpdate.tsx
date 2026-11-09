@@ -1,5 +1,8 @@
+import { watchAiTask } from '@/lib/ai-task-stream'
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import { parseAiTextProgress, type AiTextProgress } from '@shared/ai-text-progress'
 import { MotionDetails } from '@/components/ui/motion'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
 import { aiApi, chaptersApi, type AiEffectiveProfile } from '@/lib/api'
@@ -12,6 +15,48 @@ const labels = { plot: '情节状态', relationship: '关系画像' }
 type Entry = { profile?: AiEffectiveProfile; error?: string; submitting?: boolean }
 const active = (profile?: AiEffectiveProfile) => profile?.memoryTask?.status === 'queued' || profile?.memoryTask?.status === 'running'
 const complete = (profile?: AiEffectiveProfile) => !profile?.memoryNeedsInitialization && profile?.eligibility === 'usable' && !profile.isOlderThanAnchor && Boolean(profile.effectiveContent)
+
+function useMemoryTaskProgress(
+  kind: Kind,
+  novelId: string,
+  targetId: string | undefined,
+  taskId: string | undefined,
+  setEntries: Dispatch<SetStateAction<Record<Kind, Entry>>>,
+  setLive: Dispatch<SetStateAction<Record<string, AiTextProgress | null>>>,
+) {
+  useEffect(() => {
+    if (!targetId || !taskId) return
+    let stopped = false
+    let checkpoint = -1
+    let request = 0
+    const stop = watchAiTask(taskId, (task) => {
+      if (stopped) return
+      const terminal = !['queued', 'running'].includes(task.status)
+      setLive((previous) => ({ ...previous, [kind]: parseAiTextProgress(task.result) }))
+      // Keep the subscription until the final validated profile has been read.
+      if (!terminal) setEntries((previous) => {
+        const entry = previous[kind]
+        return { ...previous, [kind]: { ...entry, profile: entry.profile ? { ...entry.profile, memoryTask: { ...entry.profile.memoryTask, ...task } } : entry.profile } }
+      })
+      if (task.current === checkpoint && !terminal) return
+      checkpoint = task.current
+      const current = ++request
+      void (kind === 'plot' ? aiApi.writing.getPlotState(novelId, targetId) : aiApi.writing.getRelationshipProfile(novelId, targetId)).then((profile) => {
+        if (!stopped && current === request) setEntries((previous) => ({ ...previous, [kind]: { ...previous[kind], profile, error: undefined } }))
+      }).catch((error: unknown) => {
+        if (!stopped && current === request) setEntries((previous) => {
+          const entry = previous[kind]
+          return { ...previous, [kind]: {
+            ...entry,
+            error: error instanceof Error ? error.message : '进度读取失败，请刷新重试',
+            profile: terminal && entry.profile ? { ...entry.profile, memoryTask: { ...entry.profile.memoryTask, ...task } } : entry.profile,
+          } }
+        })
+      })
+    })
+    return () => { stopped = true; stop() }
+  }, [kind, novelId, targetId, taskId, setEntries, setLive])
+}
 
 /** Published prose only. The two jobs share a fixed anchor but retain independent recovery. */
 export default function PublishedMemoryUpdate({
@@ -28,12 +73,22 @@ export default function PublishedMemoryUpdate({
   const [target, setTarget] = useState<{ id: string; title: string; count: number }>()
   const [entries, setEntries] = useState<Record<Kind, Entry>>({ plot: {}, relationship: {} })
   const [error, setError] = useState('')
+  const [live, setLive] = useState<Record<string, AiTextProgress | null>>({})
   const [loading, setLoading] = useState(true)
   const [reload, setReload] = useState(0)
   const pending = useRef(new Set<Kind>())
   const version = useRef(0)
   const started = useRef(false)
   const fixedTarget = useRef<typeof target>(undefined)
+
+  useEffect(() => {
+    fixedTarget.current = undefined
+    started.current = false
+    pending.current.clear()
+    setTarget(undefined)
+    setEntries({ plot: {}, relationship: {} })
+    setLive({})
+  }, [novelId])
 
   useEffect(() => {
     const current = ++version.current
@@ -101,32 +156,8 @@ export default function PublishedMemoryUpdate({
     }
   }, [novelId, autoStart, reload])
 
-  useEffect(() => {
-    if (!target || loading || !kinds.some((kind) => active(entries[kind].profile))) return
-    let cancelled = false
-    const timer = setTimeout(async () => {
-      const results = await Promise.allSettled([aiApi.writing.getPlotState(novelId, target.id), aiApi.writing.getRelationshipProfile(novelId, target.id)])
-      if (cancelled) return
-      setEntries(
-        (previous) =>
-          Object.fromEntries(
-            kinds.map((kind, index) => {
-              const result = results[index]!
-              return [
-                kind,
-                result.status === 'fulfilled'
-                  ? { ...previous[kind], profile: result.value, error: undefined }
-                  : { ...previous[kind], error: (result.reason as Error).message || '进度读取失败，请刷新重试' },
-              ]
-            }),
-          ) as Record<Kind, Entry>,
-      )
-    }, 4000)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [novelId, target, entries, loading])
+  useMemoryTaskProgress('plot', novelId, target?.id, !loading && active(entries.plot.profile) ? entries.plot.profile?.memoryTask?.id : undefined, setEntries, setLive)
+  useMemoryTaskProgress('relationship', novelId, target?.id, !loading && active(entries.relationship.profile) ? entries.relationship.profile?.memoryTask?.id : undefined, setEntries, setLive)
 
   async function start(selected: Kind[]) {
     if (!target || loading) return
@@ -245,6 +276,7 @@ export default function PublishedMemoryUpdate({
                       </div>
                     </div>
 
+                    {running && <AiStreamPreview progress={live[kind]} structured />}
                     {(readError || taskError) && (
                       <p role="alert" className="text-xs text-destructive break-words">
                         {readError || taskError}

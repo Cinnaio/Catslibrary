@@ -4,17 +4,20 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import PublishedMemoryUpdate from './PublishedMemoryUpdate'
 
+const streams = vi.hoisted(() => ({ listeners: new Map<string, (task: unknown) => void>() }))
+vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: (id: string, listener: (task: unknown) => void) => { streams.listeners.set(id, listener); return () => streams.listeners.delete(id) } }))
 const api = vi.hoisted(() => ({ list: vi.fn(), getPlotState: vi.fn(), getRelationshipProfile: vi.fn(), startMemoryTask: vi.fn() }))
 vi.mock('@/lib/api', () => ({ aiApi: { writing: api }, chaptersApi: { list: api.list } }))
 const missing = () => ({ eligibility: 'missing', isOlderThanAnchor: false, effectiveContent: '', effectiveOrigin: 'none', baseProfileRevision: '' })
 const ready = () => ({ ...missing(), eligibility: 'usable', effectiveContent: '完整档案', source: { chapterId: 'new', chapterOrdinal: 2 } })
-const running = () => ({
+const running = (id = 'plot-task') => ({
   ...missing(),
-  memoryTask: { status: 'running', current: 1, total: 2, step: '分析新增章节' },
+  memoryTask: { id, status: 'running', current: 1, total: 2, step: '分析新增章节' },
   progress: { processedChapters: 1, totalChapters: 2, targetChapterId: 'new' },
 })
 beforeEach(() => {
   vi.resetAllMocks()
+  streams.listeners.clear()
   api.list.mockResolvedValue({
     chapters: [
       { id: 'old', title: '旧章节' },
@@ -24,7 +27,7 @@ beforeEach(() => {
   api.getPlotState.mockResolvedValue(missing())
   api.getRelationshipProfile.mockResolvedValue(missing())
   api.startMemoryTask.mockImplementation(async (_id, kind) => {
-    ;(kind === 'plot' ? api.getPlotState : api.getRelationshipProfile).mockResolvedValue(running())
+    ;(kind === 'plot' ? api.getPlotState : api.getRelationshipProfile).mockResolvedValue(running(`${kind}-task`))
     return { task: { status: 'running' } }
   })
 })
@@ -94,13 +97,18 @@ it('refresh preserves the fixed anchor even if more chapters arrive', async () =
   fireEvent.click(screen.getByRole('button', { name: '一键更新情节与关系' }))
   await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('book', 'plot', 3, 'new'))
 })
-it('polls jobs started after the initial read and displays completion', async () => {
+it('subscribes to jobs started after the initial read and displays completion', async () => {
   open()
   await screen.findByText('更新至第 2 章「刚发布的章节」')
   fireEvent.click(screen.getByRole('button', { name: '一键更新情节与关系' }))
   await screen.findByText('情节状态：更新中 · 已保存 1 / 2 章')
   api.getPlotState.mockResolvedValue(ready())
-  api.getRelationshipProfile.mockResolvedValue(ready())
+  let finishRelationship!: (value: ReturnType<typeof ready>) => void
+  api.getRelationshipProfile.mockReturnValue(new Promise((resolve) => { finishRelationship = resolve }))
+  await act(async () => { for (const [id, listener] of streams.listeners) listener({ id, status: 'completed', current: 2, total: 2, result: '' }) })
+  expect(await screen.findByText('情节状态：已更新至第 2 章，可用于续写')).toBeInTheDocument()
+  expect(streams.listeners.has('relationship-task')).toBe(true)
+  await act(async () => finishRelationship(ready()))
   await waitFor(() => expect(screen.getByRole('button', { name: '两项档案均已更新' })).toBeDisabled(), { timeout: 6000 })
 })
 it('existing older jobs remain visible and require an explicit continuation after they finish', async () => {

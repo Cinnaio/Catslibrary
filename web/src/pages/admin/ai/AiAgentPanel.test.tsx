@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentAction, AgentSessionDetail } from '@shared/ai-agent'
 import AiAgentPanel from './AiAgentPanel'
 
+const streams = vi.hoisted(() => ({ watch: vi.fn() }))
+vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: streams.watch }))
 const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn() }))
 const providerMocks = vi.hoisted(() => ({ providerPresets: vi.fn(), status: vi.fn() }))
 vi.mock('@/lib/ai-agent-api', () => ({ agentApi: { ...mocks } }))
@@ -78,6 +80,7 @@ function open() {
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  streams.watch.mockReturnValue(() => {})
   mocks.sessions.mockResolvedValue({ sessions: [], hasMore: false })
   mocks.get.mockResolvedValue(detail())
   mocks.message.mockResolvedValue({ taskId: 'turn', created: true })
@@ -308,4 +311,27 @@ describe('creative agent conversation', () => {
     expect(screen.queryByText('session 的既有回复')).not.toBeInTheDocument()
     expect(screen.getByText('other-session 的既有回复')).toBeInTheDocument()
   })
+})
+
+it('renders a live Markdown reply once, deduplicates its saved round and detaches on book switch', async () => {
+  const initial = detail()
+  initial.activeTask = { id: 'turn', kind: 'agent_chat', status: 'running', current: 0, total: 8, step: '正在回复', error: '', result: '' }
+  mocks.get.mockResolvedValue(initial)
+  const stopped = vi.fn()
+  streams.watch.mockReturnValue(stopped)
+  open()
+  await waitFor(() => expect(streams.watch).toHaveBeenCalledWith('turn', expect.any(Function)))
+  const emit = streams.watch.mock.calls[0]![1]
+  const result = JSON.stringify({ kind: 'text-progress', phase: 'writing', preview: '**正在生成的回复**', generatedCharacters: 11, reasoningCharacters: 0, startedAt: 1, updatedAt: 2, round: 0 })
+  act(() => emit({ ...initial.activeTask, result }))
+  expect(await screen.findByText('正在生成的回复')).toHaveProperty('tagName', 'STRONG')
+  const saved = { ...initial, events: [...initial.events, { id: 2, role: 'assistant' as const, content: '**正在生成的回复**', taskId: 'turn', metadata: { round: 0 }, createdAt: 2 }], activeTask: { ...initial.activeTask!, status: 'completed' as const, result: '' } }
+  mocks.get.mockResolvedValue(saved)
+  act(() => emit({ ...saved.activeTask }))
+  await waitFor(() => expect(screen.getAllByText('正在生成的回复')).toHaveLength(1))
+  mocks.get.mockResolvedValue(detail('other-session', 'other'))
+  fireEvent.click(screen.getByText('切到另一本书'))
+  await screen.findByText('other-session 的既有回复')
+  expect(stopped).toHaveBeenCalled()
+  expect(screen.queryByText('正在生成的回复')).not.toBeInTheDocument()
 })

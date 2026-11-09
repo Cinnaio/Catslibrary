@@ -1,3 +1,6 @@
+import { watchAiTask } from '@/lib/ai-task-stream'
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import { parseAiTextProgress, type AiTextProgress } from '@shared/ai-text-progress'
 import '@/styles/input-fields.css'
 /**
  * 草稿选段改写：在正文里选中一段，交给 AI 润色 / 扩写 / 精简 / 按自定义要求改写。
@@ -13,7 +16,7 @@ import '@/styles/input-fields.css'
  * 与 textarea 和 JS 字符串一致），不能用 DOM Range —— 那给的是另一套坐标系。
  * 正文用 <textarea> 而非富文本，正是为了让这套偏移可用。
  */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { aiApi, newOperationId, type AiTaskInfo, type RewriteMode } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
@@ -21,10 +24,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowRight, Check, RotateCcw, Sparkles, X } from 'lucide-react'
-
-/** 轮询改写任务；后端已把建议放在 task.result 的 JSON 里。
- *  循环里先立即查一次再等，故首次判定不受该间隔影响。 */
-const REWRITE_POLL_INTERVAL = 3000
 
 const MODE_LABELS: Record<RewriteMode, string> = {
   polish: '润色',
@@ -106,6 +105,30 @@ export default function DraftRewrite(props: {
   const [applying, setApplying] = useState(false)
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null)
   const [selectedText, setSelectedText] = useState('')
+  const [activeTask, setActiveTask] = useState<{ id: string; selected: string } | null>(null)
+  const [progress, setProgress] = useState<AiTextProgress | null>(null)
+  const generation = useRef(0)
+  useEffect(() => {
+    generation.current++
+    setActiveTask(null)
+    setGenerating(false)
+    setProgress(null)
+    return () => { generation.current++ }
+  }, [props.draftId, props.contentRevision])
+  useEffect(() => {
+    if (!activeTask) return
+    return watchAiTask(activeTask.id, (task) => {
+      setProgress(parseAiTextProgress(task.result))
+      if (['queued', 'running'].includes(task.status)) return
+      setGenerating(false)
+      setActiveTask(null)
+      if (task.status === 'completed') {
+        const parsed = parseSuggestion(task, task.id)
+        if (parsed) { setSuggestion(parsed); setSelectedText(activeTask.selected) }
+        else toast('改写建议格式异常，请到任务中心查看', 'error')
+      } else toast(task.error || '改写任务已停止', 'error')
+    })
+  }, [activeTask, toast])
 
   // 正文换了（保存/应用/切换草稿）就作废旧选区与旧建议 —— 偏移可能已失效。
   // 用「渲染期间比对并重置」而不是 useEffect：effect 里同步 setState 会多一轮渲染，
@@ -136,6 +159,8 @@ export default function DraftRewrite(props: {
       toast('自定义要求需要填写改写说明', 'error')
       return
     }
+    const current = ++generation.current
+    setProgress(null)
     setGenerating(true)
     setSuggestion(null)
     try {
@@ -148,29 +173,9 @@ export default function DraftRewrite(props: {
         instruction: instruction.trim(),
         clientRequestId: newOperationId('ai-rewrite'),
       })
-      // 轮询到终态。先立即查一次：模型很快时（或任务已由他人完成）不必白等一个周期。
-      // 页面隐藏时跳过查询，恢复可见后继续。
-      const deadline = Date.now() + 600_000
-      for (;;) {
-        if (Date.now() > deadline) throw new Error('改写建议生成超时，请到「AI 任务」查看')
-        if (!document.hidden) {
-          const { task } = await aiApi.task(taskId)
-          if (task.status === 'completed') {
-            const parsed = parseSuggestion(task, taskId)
-            if (!parsed) throw new Error('改写建议格式异常，请重试')
-            setSuggestion(parsed)
-            setSelectedText(selection.text)
-            return
-          }
-          if (task.status === 'failed') throw new Error(task.error || '改写建议生成失败')
-          if (task.status === 'cancelled') throw new Error('改写任务已取消')
-        }
-        await new Promise((resolve) => setTimeout(resolve, REWRITE_POLL_INTERVAL))
-      }
+      if (current === generation.current) setActiveTask({ id: taskId, selected: selection.text })
     } catch (err) {
-      toast((err as Error).message || '改写建议生成失败', 'error')
-    } finally {
-      setGenerating(false)
+      if (current === generation.current) { setGenerating(false); toast((err as Error).message || '改写建议生成失败', 'error') }
     }
   }
 
@@ -214,6 +219,7 @@ export default function DraftRewrite(props: {
 
   return (
     <div className="ai-rewrite grid gap-3 rounded-md border bg-muted/10 p-3">
+      <AiStreamPreview progress={progress} stopped={!generating} />
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor="draft-rewrite-mode" className="text-xs font-medium">
           选段改写

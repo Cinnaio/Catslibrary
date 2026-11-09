@@ -1,3 +1,4 @@
+vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: () => () => {} }))
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { act, render, screen, waitFor, within } from '@testing-library/react'

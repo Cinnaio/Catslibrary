@@ -1,3 +1,4 @@
+import { partialUsageRecorder } from './partial-usage'
 /**
  * 回来接着读 —— 为「隔了很久才回来」的读者合成一段连贯回顾。
  * 原料全部复用已缓存的单章提要，绝不触发生成；合成只需一次短上下文调用，边际成本接近零。
@@ -165,7 +166,7 @@ async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: strin
   // 温度与 token 上限来自「参数调优」设置；不参与缓存键，调参只影响后续新生成
   const settings = await getAiSettings(db)
   const reservation = await reserveReaderQuota(db, opts.userId, settings.dailyQuota, opts.unlimitedQuota)
-  const res = await chat({
+  const res = await chat({ onIncomplete: partialUsageRecorder(db, { ...reservation, userId: opts.userId, provider: providerLabel(provider.baseUrl), novelId: opts.novelId, generationType: 'catchup', ipAddress: opts.ipAddress, userAgent: opts.userAgent }),
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },

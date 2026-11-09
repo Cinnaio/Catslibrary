@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const streams = vi.hoisted(() => ({ listeners: new Map<string, (task: unknown) => void>() }))
+vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: (id: string, listener: (task: unknown) => void) => { streams.listeners.set(id, listener); return () => streams.listeners.delete(id) } }))
 const api = vi.hoisted(() => ({
   getStyleProfile: vi.fn(),
   refreshStyleProfile: vi.fn(),
@@ -121,12 +123,13 @@ describe('AiWritingPanel', () => {
       expect(await screen.findByText(/123 个思考字符/)).toBeInTheDocument()
       expect(screen.queryByText('部分档案正文')).not.toBeInTheDocument()
     } else {
-      expect(await screen.findByText('部分档案正文')).toBeInTheDocument()
-      expect(screen.getByText(/未完成，尚未保存/)).toBeInTheDocument()
+      expect(await screen.findByText(/已接收 6 字符，完成校验后显示结果/)).toBeInTheDocument()
+      expect(screen.getByText('部分档案正文')).toBeInTheDocument()
     }
   })
   beforeEach(() => {
     vi.clearAllMocks()
+    streams.listeners.clear()
     api.getPlotState.mockResolvedValue({ state: '', chaptersThrough: 0, chapterCount: 0 })
     api.getRelationshipProfile.mockResolvedValue({ profile: '' })
     api.getStyleProfile.mockResolvedValue({ profile: '' })
@@ -220,7 +223,7 @@ describe('AiWritingPanel', () => {
     expect(screen.getByLabelText('可用 0 项小说分析')).toBeInTheDocument()
   })
 
-  it('提交后台任务后只读轮询，完整结果返回后恢复操作', async () => {
+  it('提交后台任务后只读订阅，完整结果返回后恢复操作', async () => {
     await selectNovel()
     switchToContinue()
     await openAnalysis()
@@ -228,6 +231,7 @@ describe('AiWritingPanel', () => {
     await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', 'plot', 8, undefined))
     expect(await screen.findByRole('button', { name: '暂停更新' })).toBeInTheDocument()
     api.getPlotState.mockResolvedValue({ state: '完整情节档案', effectiveContent: '完整情节档案', source: { coverage: 'full' }, chaptersThrough: 47, memoryTask: { id: 'memory-1', status: 'completed' }, progress: { complete: true, processedChapters: 47, totalChapters: 47 } })
+    await act(async () => streams.listeners.get('memory-1')?.({ id: 'memory-1', kind: 'plot_state', status: 'completed', result: '' }))
     await waitFor(() => expect(screen.getByText(/档案截至第 47 章/)).toBeInTheDocument(), { timeout: 4000 })
     expect(screen.getByRole('button', { name: '更新情节档案' })).toBeEnabled()
     expect(api.startMemoryTask).toHaveBeenCalledTimes(1)
@@ -246,6 +250,7 @@ describe('AiWritingPanel', () => {
     expect(api.pauseMemory).toHaveBeenCalledWith('novel_1', kind)
     expect(await screen.findByRole('button', { name: '正在暂停…' })).toBeDisabled()
     get.mockResolvedValue({ ...initial, memoryTask: { id: 'old-task', status: 'cancelled' }, progress: { complete: false, paused: true, processedChapters: 8, totalChapters: 18, targetChapterId: 'chapter-18' } })
+    await act(async () => streams.listeners.get('old-task')?.({ id: 'old-task', kind: kind === 'plot' ? 'plot_state' : 'relationship_profile', status: 'cancelled', result: '' }))
     await waitFor(() => expect(screen.getByText(/已暂停 · 已保存 8 \/ 18 章/)).toBeInTheDocument(), { timeout: 4000 })
     fireEvent.click(screen.getByRole('button', { name: `继续更新${label}档案` }))
     await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', kind, kind === 'plot' ? 8 : 10, 'chapter-18'))
@@ -268,14 +273,14 @@ describe('AiWritingPanel', () => {
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalledWith(expect.objectContaining({
       writingBrief: expect.objectContaining({ objective: '建立初步信任', forbiddenEvents: '不得揭露真实身份' }),
       timeoutSeconds: 300,
-    })))
+    }), expect.any(Function)))
     api.plotSuggestions.mockClear()
     fireEvent.click(screen.getByRole('button', { name: '整理成大纲' }))
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalledWith(expect.objectContaining({
       chapterCount: 1,
       timeoutSeconds: 300,
       writingBrief: expect.objectContaining({ objective: '建立初步信任', forbiddenEvents: '不得揭露真实身份' }),
-    })))
+    }), expect.any(Function)))
     expect(localStorage.getItem('zz-ai-plot-timeout-seconds')).toBe('300')
   })
 
@@ -291,6 +296,7 @@ describe('AiWritingPanel', () => {
 
   it('离开页面不自动暂停已提交的后台任务', async () => {
     const view = render(<AiWritingPanel initialNovelId="novel_1" />)
+    await waitFor(() => expect(api.getPlotState).toHaveBeenCalledWith('novel_1'))
     await openAnalysis()
     await waitFor(() => expect(screen.getByRole('button', { name: '更新情节档案' })).toBeEnabled())
     // 初次选书的档案请求发起后再提交，避免把初始化请求的版本切换混进离页测试。
@@ -415,7 +421,7 @@ describe('AiWritingPanel', () => {
 
     await openAnalysis()
     fireEvent.click(screen.getByRole('button', { name: '提取风格画像' }))
-    await waitFor(() => expect(api.refreshStyleProfile).toHaveBeenCalledWith('novel_1'))
+    await waitFor(() => expect(api.refreshStyleProfile).toHaveBeenCalledWith('novel_1', expect.any(Function)))
     // 画像默认折叠，正文不在 DOM 中；展开后才能断言竞态结果。
     // 这条用例守护的是「在途旧请求不得覆盖新结果」，与折叠无关，故只补一步展开。
     fireEvent.click(screen.getByRole('button', { name: /风格画像/ }))

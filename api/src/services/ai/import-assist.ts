@@ -1,3 +1,4 @@
+import { partialUsageRecorder } from './partial-usage'
 /**
  * 书籍导入的 AI 边界复核。
  *
@@ -96,7 +97,7 @@ export async function reviewImportHeadings(
   }
 
   const provider = textProvider()
-  const res = await chat({
+  const res = await chat({ onIncomplete: partialUsageRecorder(db, { usageId: opts.usageId, userId: opts.userId, provider: providerLabel(provider.baseUrl), generationType: 'import_review', ipAddress: opts.ipAddress, userAgent: opts.userAgent }),
     messages: [
       { role: 'system', content: settings.importAiSystemPrompt },
       { role: 'user', content: buildImportReviewMessage(candidates) },

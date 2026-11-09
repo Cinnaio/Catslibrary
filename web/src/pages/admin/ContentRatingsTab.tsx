@@ -1,6 +1,7 @@
+import { startPolling } from '@/lib/polling'
+import { watchAiTask } from '@/lib/ai-task-stream'
 import { MotionDetails } from '@/components/ui/motion'
 import '../../styles/admin/pages/content-ratings.css'
-import { startPolling } from '@/lib/polling'
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
@@ -972,6 +973,12 @@ export default function ContentRatingsTab() {
       active = false
     }
   }, [])
+
+  const streamingRatingTaskId = aiTask && ['queued', 'running'].includes(aiTask.status) ? aiTask.id : ''
+  useEffect(() => {
+    if (!streamingRatingTaskId) return
+    return watchAiTask(streamingRatingTaskId, setAiTask)
+  }, [streamingRatingTaskId])
 
   useEffect(() => {
     const taskId = aiTask?.id

@@ -1,3 +1,5 @@
+import { watchAiTask } from '@/lib/ai-task-stream'
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
 import { MotionDetails } from '@/components/ui/motion'
 import WritingPreparation from './WritingPreparation'
 import AiGenerationsPanel from './AiGenerationsPanel'
@@ -32,8 +34,6 @@ import { url } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Sparkles, ArrowRight, ChevronRight, Network, Pause, BookOpen, Cpu, FileText } from 'lucide-react'
 
-// 后台创作任务的进度轮询间隔
-const TASK_POLL_INTERVAL = 3000
 // 后台化的创作任务类型
 const WRITING_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter'])
 // 超过该章数的批量续写需要二次确认（成本意识）
@@ -177,132 +177,8 @@ function memoryRunning(profile: AiEffectiveProfile | null): boolean {
   return !!profile?.progress?.running || profile?.memoryTask?.status === 'queued' || profile?.memoryTask?.status === 'running'
 }
 
-interface ExtractedStreamEntity {
-  name: string
-  kind?: string
-}
-
-function extractStreamEntities(text: string): { entities: ExtractedStreamEntity[]; labels: string[] } {
-  if (!text) return { entities: [], labels: [] }
-  const entityMatches = Array.from(text.matchAll(/"name"\s*:\s*"([^"]+)"(?:[^{}]*?"kind"\s*:\s*"([^"]+)")?/g))
-  const entitiesMap = new Map<string, ExtractedStreamEntity>()
-  for (const m of entityMatches) {
-    const name = m[1]?.trim()
-    if (name && !entitiesMap.has(name)) {
-      entitiesMap.set(name, { name, kind: m[2] })
-    }
-  }
-  const labelMatches = Array.from(new Set(Array.from(text.matchAll(/"label"\s*:\s*"([^"]+)"/g)).map((m) => m[1]?.trim()))).filter(Boolean)
-  return {
-    entities: Array.from(entitiesMap.values()).slice(0, 8),
-    labels: labelMatches.slice(0, 5) as string[],
-  }
-}
-
-function getEntityIcon(kind?: string) {
-  switch (kind) {
-    case 'person':
-      return '👤'
-    case 'place':
-      return '📍'
-    case 'item':
-      return '📦'
-    case 'faction':
-      return '🏛️'
-    default:
-      return '🏷️'
-  }
-}
-
 function TextProgressPreview({ progress }: { progress?: AiTextProgress | null }) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [progress?.preview])
-
-  if (!progress) return null
-
-  if (progress.phase === 'thinking') {
-    return (
-      <div
-        role="status"
-        className="flex items-center gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3.5 py-3 text-xs text-amber-900 dark:text-amber-200"
-      >
-        <Sparkles className="size-4 shrink-0 text-amber-600 motion-safe:animate-pulse dark:text-amber-400" />
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="font-semibold text-foreground/90">模型推演思考中</span>
-          <span className="text-muted-foreground">
-            已接收 <span className="font-mono font-medium">{progress.reasoningCharacters.toLocaleString()} 个思考字符</span>，组织叙事逻辑后将流式输出…
-          </span>
-        </div>
-      </div>
-    )
-  }
-
-  const preview = progress.preview || ''
-  const { entities, labels } = extractStreamEntities(preview)
-  const hasCapturedElements = entities.length > 0 || labels.length > 0
-
-  return (
-    <MotionDetails className="ai-progress-preview-details group rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs text-xs" open>
-      <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-3.5 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors font-medium">
-        <div className="flex flex-wrap items-center gap-2">
-          <ChevronRight className="size-3.5 text-muted-foreground transition-transform duration-200 group-open:rotate-90" />
-          <span className="flex items-center gap-1.5 font-medium text-foreground">
-            <span className="size-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
-            <span>实时正文流</span>
-          </span>
-          <span className="rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-mono text-muted-foreground border border-border/60">
-            已接收 {progress.generatedCharacters.toLocaleString()} 字符
-          </span>
-        </div>
-        <span className="text-[11px] font-normal text-muted-foreground shrink-0">流式传输中 · 未完成，尚未保存</span>
-      </summary>
-
-      {hasCapturedElements && (
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/40 bg-muted/15 px-3.5 py-2 text-xs">
-          <span className="text-[11px] font-medium text-muted-foreground">实时捕获要素:</span>
-          {entities.map((item) => (
-            <span
-              key={item.name}
-              className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/90 px-2 py-0.5 text-[11px] text-foreground/80 shadow-2xs"
-            >
-              <span>{getEntityIcon(item.kind)}</span>
-              <span className="font-medium">{item.name}</span>
-            </span>
-          ))}
-          {labels.map((lbl) => (
-            <span
-              key={lbl}
-              className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-800 dark:text-amber-300"
-            >
-              <span>📋</span>
-              <span className="font-medium">{lbl}</span>
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div
-        ref={scrollRef}
-        className="max-h-56 overflow-y-auto border-t border-border/40 bg-[#FAF8F5] p-3.5 font-mono text-[11.5px] leading-5 text-foreground/85 whitespace-pre-wrap break-all select-text dark:bg-[#191816] dark:text-foreground/90"
-      >
-        {preview}
-        <span
-          className="inline-block w-1.5 h-3.5 ml-0.5 bg-primary/80 motion-safe:animate-pulse align-middle"
-          aria-hidden="true"
-        />
-      </div>
-
-      <div className="flex items-center justify-between border-t border-border/40 bg-muted/15 px-3.5 py-1.5 text-[11px] text-muted-foreground">
-        <span>仅展示最近 4,000 字符流</span>
-        <span>完整返回并校验后自动归档至检查点</span>
-      </div>
-    </MotionDetails>
-  )
+  return <AiStreamPreview progress={progress} />
 }
 
 function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) {
@@ -667,6 +543,8 @@ export default function AiWritingPanel(props: {
   }
   const initialGraphAnchor = useRef({ novelId: props.initialNovelId, chapterId: props.initialAfterChapterId })
   const [title, setTitle] = useState('')
+  const [requestProgress, setRequestProgress] = useState<{ kind: string; value: AiTextProgress } | null>(null)
+  const [memoryLive, setMemoryLive] = useState<Record<string, AiTextProgress | null>>({})
   const [chapterTitle, setChapterTitle] = useState('')
   const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false)
   const draftKey = `${novelId}:${mode}`
@@ -789,6 +667,8 @@ export default function AiWritingPanel(props: {
     // 作品、模式或承接位置改变后，旧请求不能回写到新的构思中。
     suggestionSeq.current++
     outlineSeq.current++
+    setOutlineBusy(false)
+    setRequestProgress(null)
     setSuggestions([])
     setSuggestionFill(null)
     setSuggestBusy(false)
@@ -897,8 +777,9 @@ export default function AiWritingPanel(props: {
    */
   const syncEffective = useCallback(async (kind: 'style' | 'plot' | 'relationship', id: string) => {
     if (kind === 'style') {
+      const version = styleRequestVersion.current
       const res = await aiApi.writing.getStyleProfile(id).catch(() => null)
-      if (res) setStyleEffective(res)
+      if (res && version === styleRequestVersion.current) setStyleEffective(res)
       return
     }
     if (kind === 'plot') {
@@ -947,6 +828,16 @@ export default function AiWritingPanel(props: {
     return () => { cancelled = true }
   }, [view, novelId, loadAllProfiles, loadChapterOptions])
 
+  const memoryTaskIds = [plotEffective?.memoryTask, relationshipEffective?.memoryTask].filter((task) => task && ['queued', 'running'].includes(task.status)).map((task) => task!.id).sort().join(',')
+  useEffect(() => {
+    let active = true
+    const stops = memoryTaskIds.split(',').filter(Boolean).map((id) => watchAiTask(id, (task) => {
+      setMemoryLive((current) => ({ ...current, [id]: parseAiTextProgress(task.result) }))
+      if (!['queued', 'running'].includes(task.status)) void loadProfile(task.kind === 'plot_state' ? 'plot' : 'relationship', novelId, () => !active)
+    }))
+    return () => { active = false; stops.forEach((stop) => stop()) }
+  }, [memoryTaskIds, novelId, loadProfile])
+
   // 后台任务独立执行；刷新页面只恢复观察，不再由浏览器驱动付费批次。
   useEffect(() => {
     if (!novelId) return
@@ -977,7 +868,7 @@ export default function AiWritingPanel(props: {
         !plotBusy && memoryRunning(plotEffective) ? poll('plot') : undefined,
         !relationshipBusy && memoryRunning(relationshipEffective) ? poll('relationship') : undefined,
       ]).finally(() => { polling = false })
-    }, 2000)
+    }, 10000)
     return () => {
       cancelled = true
       window.clearInterval(timer)
@@ -993,6 +884,9 @@ export default function AiWritingPanel(props: {
     // 而标题仍写「点一条填入左侧创作要求」，用户会以为这是 B 书的方向。
     // 与封面页切书清空候选同理，且一并递增序号，挡住在途响应回写。
     suggestionSeq.current++
+    outlineSeq.current++
+    setOutlineBusy(false)
+    setRequestProgress(null)
     setSuggestions([])
     setSuggestionFill(null)
     setSuggestCollapsed(false)
@@ -1001,6 +895,7 @@ export default function AiWritingPanel(props: {
     // 新书此时并没有在途的候选请求，归零是安全的。
     setSuggestBusy(false)
     setPlotBusy(false)
+    setStyleBusy(false)
     setRelationshipBusy(false)
     setPlotPausing(false)
     setRelationshipPausing(false)
@@ -1059,26 +954,16 @@ export default function AiWritingPanel(props: {
     }
   }, [novelId, taskStatus, view])
 
-  // 轮询后台创作任务：setTask 触发下一轮 effect，形成 3 秒间隔的轮询链，任务结束自然停止
+  // Subscribe to progress; reconnects recover persisted snapshots without resubmitting.
+  const streamingTaskId = task && ['queued', 'running'].includes(task.status) ? task.id : ''
   useEffect(() => {
-    if (!task || (task.status !== 'queued' && task.status !== 'running')) return
-    const timer = setTimeout(() => {
-      if (document.hidden) {
-        // 页面不可见时跳过本轮请求，仅续上轮询链
-        setTask((prev) => (prev ? { ...prev } : prev))
-        return
-      }
-      aiApi
-        .task(task.id)
-        .then(({ task: next }) => {
-          setTask(next)
-          if (next.status === 'completed') toast(`${taskKindLabel(next.kind)}生成完成，草稿已保存，可在“草稿审阅”查看`, 'success')
-          else if (next.status === 'failed') toast(next.error || `AI ${taskKindLabel(next.kind)}生成失败`, 'error')
-        })
-        .catch(() => setTask((prev) => (prev ? { ...prev } : prev)))
-    }, TASK_POLL_INTERVAL)
-    return () => clearTimeout(timer)
-  }, [task, toast])
+    if (!streamingTaskId) return
+    return watchAiTask(streamingTaskId, (next) => {
+      setTask(next)
+      if (next.status === 'completed') toast(`${taskKindLabel(next.kind)}生成完成，草稿已保存，可在“草稿审阅”查看`, 'success')
+      else if (next.status === 'failed') toast(next.error || 'AI 生成失败', 'error')
+    })
+  }, [streamingTaskId, toast])
 
   /** 启动后台任务并挂上进度轮询。 */
   async function startTask(start: () => Promise<{ taskId: string }>, startedMessage: string) {
@@ -1184,9 +1069,11 @@ export default function AiWritingPanel(props: {
     const version = ++styleRequestVersion.current
     setStyleBusy(true)
     try {
-      const res = await aiApi.writing.refreshStyleProfile(novelId)
+      setRequestProgress(null)
+      const res = await aiApi.writing.refreshStyleProfile(novelId, (value) => { if (version === styleRequestVersion.current) setRequestProgress({ kind: '风格画像', value }) })
       // 用 POST 回包立刻更新界面：提取结果是权威内容，不该等第二次 GET 才显示
-      if (version === styleRequestVersion.current) setStyleProfile(res.profile)
+      if (version !== styleRequestVersion.current) return
+      setStyleProfile(res.profile)
       toast('风格画像已更新，后续续写将自动套用', 'success')
       // 再同步基准版本号：重新提取会改变 baseProfileRevision，人工校正的基准随之失效，
       // 不同步的话校正编辑器会拿着旧基准去保存（必然 409）。只补元数据、不覆盖正文。
@@ -1194,7 +1081,7 @@ export default function AiWritingPanel(props: {
     } catch (err) {
       toast((err as Error).message, 'error')
     } finally {
-      setStyleBusy(false)
+      if (version === styleRequestVersion.current) { setStyleBusy(false); setRequestProgress(null) }
     }
   }
 
@@ -1206,6 +1093,7 @@ export default function AiWritingPanel(props: {
     setSuggestBusy(true)
     setDeckTab('suggestions')
     setSuggestCollapsed(false)
+    setRequestProgress(null)
     try {
       const res = await aiApi.writing.plotSuggestions({
         novelId,
@@ -1214,7 +1102,7 @@ export default function AiWritingPanel(props: {
         ...(focus.trim() ? { focus: focus.trim() } : {}),
         contentPreferences: buildContentPreferences(),
         writingBrief: currentWritingBrief,
-      })
+      }, (value) => { if (seq === suggestionSeq.current) setRequestProgress({ kind: '情节方向', value }) })
       // 期间切了书或又发起了新一轮：这一份已过期，丢弃而不是写进当前页面
       if (seq !== suggestionSeq.current || requestedNovelId !== novelId) return
       setSuggestions(res.suggestions)
@@ -1225,6 +1113,7 @@ export default function AiWritingPanel(props: {
       if (seq !== suggestionSeq.current) return
       toast((err as Error).message, 'error')
     } finally {
+      if (seq === suggestionSeq.current) setRequestProgress(null)
       if (seq === suggestionSeq.current) setSuggestBusy(false)
     }
   }
@@ -1240,6 +1129,7 @@ export default function AiWritingPanel(props: {
     setOutlineBusy(true)
     setDeckTab('outline')
     setSuggestCollapsed(false)
+    setRequestProgress(null)
     try {
       const res = await aiApi.writing.plotSuggestions({
         novelId,
@@ -1251,7 +1141,7 @@ export default function AiWritingPanel(props: {
         ...(direction ? { plotDirection: direction } : {}),
         contentPreferences: buildContentPreferences(),
         writingBrief: currentWritingBrief,
-      })
+      }, (value) => { if (seq === outlineSeq.current) setRequestProgress({ kind: '分章大纲', value }) })
       if (seq !== outlineSeq.current) return
       if (!res.outline) return toast('未返回可用的大纲', 'error')
       setOutline(res.outline)
@@ -1267,6 +1157,7 @@ export default function AiWritingPanel(props: {
       if (seq !== outlineSeq.current) return
       toast((err as Error).message, 'error')
     } finally {
+      if (seq === outlineSeq.current) setRequestProgress(null)
       if (seq === outlineSeq.current) setOutlineBusy(false)
     }
   }
@@ -1475,7 +1366,7 @@ export default function AiWritingPanel(props: {
             <ProfileSection
               label="关系画像"
               key={`relationship-${novelId}`}
-              effective={relationshipEffective}
+              effective={relationshipEffective?.memoryTask && memoryLive[relationshipEffective.memoryTask.id] ? { ...relationshipEffective, memoryTask: { ...relationshipEffective.memoryTask, livePreview: memoryLive[relationshipEffective.memoryTask.id] } } : relationshipEffective}
               extracted={!!relationshipProfile}
               statusText={memoryStatus(relationshipEffective)}
               busy={relationshipBusy}
@@ -1506,7 +1397,7 @@ export default function AiWritingPanel(props: {
                       <ProfileOverrideEditor
                         novelId={novelId}
                         kind="relationship"
-                        effective={relationshipEffective}
+                        effective={relationshipEffective?.memoryTask && memoryLive[relationshipEffective.memoryTask.id] ? { ...relationshipEffective, memoryTask: { ...relationshipEffective.memoryTask, livePreview: memoryLive[relationshipEffective.memoryTask.id] } } : relationshipEffective}
                         onChanged={() => setProfileReloadToken((n) => n + 1)}
                         disabled={busy || taskActive}
                       />
@@ -1518,7 +1409,7 @@ export default function AiWritingPanel(props: {
             <ProfileSection
               label="情节状态"
               key={`plot-${novelId}`}
-              effective={plotEffective}
+              effective={plotEffective?.memoryTask && memoryLive[plotEffective.memoryTask.id] ? { ...plotEffective, memoryTask: { ...plotEffective.memoryTask, livePreview: memoryLive[plotEffective.memoryTask.id] } } : plotEffective}
               extracted={!!plotState}
               statusText={memoryStatus(plotEffective)}
               busy={plotBusy}
@@ -1542,7 +1433,7 @@ export default function AiWritingPanel(props: {
                       <ProfileOverrideEditor
                         novelId={novelId}
                         kind="plot"
-                        effective={plotEffective}
+                        effective={plotEffective?.memoryTask && memoryLive[plotEffective.memoryTask.id] ? { ...plotEffective, memoryTask: { ...plotEffective.memoryTask, livePreview: memoryLive[plotEffective.memoryTask.id] } } : plotEffective}
                         onChanged={() => setProfileReloadToken((n) => n + 1)}
                         disabled={busy || taskActive}
                       />
@@ -1586,6 +1477,7 @@ export default function AiWritingPanel(props: {
 
   return (
     <div className={styles.root}>
+      {requestProgress && <section aria-label={requestProgress.kind}><AiStreamPreview progress={requestProgress.value} structured={requestProgress.kind === '情节方向'} /></section>}
       <section className={styles.workbench} aria-label="作品创作台">
         <div className={styles.toolbar}>
           <FormField label="当前作品" labelId="ai-writing-novel-label">
@@ -2203,7 +2095,7 @@ export default function AiWritingPanel(props: {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">{task.step || '等待处理'}</p>
-                      {taskActive && <TextProgressPreview progress={parseAiTextProgress(task.result)} />}
+                      {taskActive && <AiStreamPreview progress={parseAiTextProgress(task.result)} />}
                       {task.error && <p className="text-xs text-destructive">{task.error}</p>}
                     </div>
                   )}

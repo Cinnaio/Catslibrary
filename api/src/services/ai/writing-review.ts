@@ -1,3 +1,4 @@
+import { partialUsageRecorder } from './partial-usage'
 import { createHash, randomUUID } from 'node:crypto'
 import type { Db } from '../../db/pool'
 import { all, first, run } from '../../db/query'
@@ -183,7 +184,7 @@ export async function reviewWritingDraft(
   if (!claimed) throw new AiError('conflict', '该版本草稿正在检查，请稍后再查看', 409)
   try {
     const settings = await getAiSettings(db)
-    const response = await chat({
+    const response = await chat({ onIncomplete: partialUsageRecorder(db, { userId: opts.userId, provider: providerLabel(textProvider().baseUrl), novelId: draft.novel_id, generationType: 'writing_review', ipAddress: opts.ipAddress, userAgent: opts.userAgent }),
       messages: [
         {
           role: 'system',

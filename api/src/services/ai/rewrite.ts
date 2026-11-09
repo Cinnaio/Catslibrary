@@ -1,3 +1,5 @@
+import { partialUsageRecorder } from './partial-usage'
+import { createTextProgressReporter } from './text-progress'
 import { createHash } from 'node:crypto'
 import type { Db } from '../../db/pool'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from './client'
@@ -191,8 +193,11 @@ export async function runRewriteTask(db: Db, opts: { taskId: string; userId: str
   const started = await updateAiTask(db, opts.taskId, { status: 'running', step: 'AI 正在生成改写建议', prompt: user })
   if (!started) throw new AiError('invalid', '任务已停止')
   const stopHeartbeat = startAiTaskHeartbeat(db, opts.taskId)
+  const progress = createTextProgressReporter(db, opts.taskId)
   try {
-    const res = await chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: settings.writingTemperature, maxTokens: settings.writingMaxTokens, timeoutMs: 600_000 })
+    await progress.start()
+    const res = await chat({ onIncomplete: partialUsageRecorder(db, { userId: opts.userId, provider: providerLabel(provider.baseUrl), generationType: 'rewrite_selection', ipAddress: opts.ipAddress, userAgent: opts.userAgent }), onDelta: progress.onDelta, onProgress: progress.onProgress, retryOnTimeout: false, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: settings.writingTemperature, maxTokens: settings.writingMaxTokens, timeoutMs: 600_000 })
+    await progress.flush(true)
     if (!(await isAiTaskActive(db, opts.taskId))) throw new AiError('invalid', '任务已停止')
     const suggestion = res.text.trim()
     if (!suggestion) throw new AiError('invalid', 'AI 未返回有效改写建议')
@@ -208,6 +213,7 @@ export async function runRewriteTask(db: Db, opts: { taskId: string; userId: str
     await updateAiTask(db, opts.taskId, { status: 'completed', current: 1, total: 1, step: '改写建议已生成', result: JSON.stringify(result) })
     return result
   } finally {
+    await progress.flush(true).catch(() => {})
     stopHeartbeat()
   }
 }

@@ -1,3 +1,5 @@
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import type { AiTextProgress } from '@shared/ai-text-progress'
 import { Button } from '@/components/ui/button'
 /**
  * 回来接着读 —— 小说详情页的「隔了很久回来」回顾入口。
@@ -5,7 +7,7 @@ import { Button } from '@/components/ui/button'
  * 生成复用已缓存的单章提要，一次短调用，成本接近零。
  * 原料不足时后端返回 null，此处给软提示而不是报错。
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { aiApi, type ApiError } from '../lib/api'
 import { useAiStatus } from '../hooks/useAiStatus'
 
@@ -24,12 +26,26 @@ function isQuotaError(err: unknown): boolean {
 export default function CatchupRecap({ novelId, novelTitle, lastReadAt = 0 }: CatchupRecapProps) {
   const status = useAiStatus(lastReadAt > 0)
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState<AiTextProgress | null>(null)
+  const generation = useRef(0)
+
   const [recap, setRecap] = useState('')
   const [error, setError] = useState('')
   const [empty, setEmpty] = useState(false)
   const [emptyReason, setEmptyReason] = useState<'no_progress' | 'not_stale' | 'insufficient_summaries' | ''>('')
   /** 今日剩余生成次数；null 表示不限额（管理员）或未知 */
   const [remaining, setRemaining] = useState<number | null>(null)
+
+  useEffect(() => {
+    generation.current++
+    setProgress(null)
+    setLoading(false)
+    setRecap('')
+    setError('')
+    setEmpty(false)
+    setEmptyReason('')
+    return () => { generation.current++ }
+  }, [novelId])
 
   useEffect(() => {
     if (!status?.quota || status.quota.limit < 0) {
@@ -45,12 +61,15 @@ export default function CatchupRecap({ novelId, novelTitle, lastReadAt = 0 }: Ca
   const available = !!status?.features.catchup && stale
 
   const generate = useCallback(async () => {
+    const request = ++generation.current
+    setProgress(null)
     setLoading(true)
     setError('')
     setEmpty(false)
     setEmptyReason('')
     try {
-      const res = await aiApi.catchup(novelId)
+      const res = await aiApi.catchup(novelId, (next) => { if (request === generation.current) setProgress(next) })
+      if (request !== generation.current) return
       if (res.recap) {
         setRecap(res.recap)
         // 命中缓存不计配额，只有真实生成才扣减
@@ -60,10 +79,11 @@ export default function CatchupRecap({ novelId, novelTitle, lastReadAt = 0 }: Ca
         setEmptyReason(res.reason || 'insufficient_summaries')
       }
     } catch (err) {
+      if (request !== generation.current) return
       if (isQuotaError(err)) setRemaining(0)
       setError((err as Error).message || '生成失败')
     } finally {
-      setLoading(false)
+      if (request === generation.current) { setLoading(false); setProgress(null) }
     }
   }, [novelId])
 
@@ -81,6 +101,7 @@ export default function CatchupRecap({ novelId, novelTitle, lastReadAt = 0 }: Ca
           </p>
         </div>
 
+        {loading && <AiStreamPreview progress={progress} />}
         {recap ? (
           <p className="catchup-card__recap">{recap}</p>
         ) : error ? (

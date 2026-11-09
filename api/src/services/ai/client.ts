@@ -10,6 +10,8 @@ import { outboundFetch } from '../outbound-fetch'
 import { upstreamCost } from './upstream-cost'
 import { resolveUpstreamBilling } from './upstream-billing'
 import { upstreamUsage, type UpstreamUsage } from './upstream-usage'
+import { readSse } from '@shared/sse'
+import { createRequestProgress } from './stream-context'
 import {
   contentRefusalMessage,
   detectContentCancellation,
@@ -23,6 +25,8 @@ export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid' | 'con
 export class AiError extends Error {
   code: AiErrorCode
   status: number
+  /** Received usage is still billable when the transport fails before completion. */
+  partialResult?: AiChatResult
   constructor(code: AiErrorCode, message: string, status = 502) {
     super(message)
     this.name = 'AiError'
@@ -30,6 +34,8 @@ export class AiError extends Error {
     this.status = status
   }
 }
+
+class StreamUnsupportedError extends AiError {}
 
 export interface AiMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -54,6 +60,10 @@ export interface AiFunctionTool {
 export interface AiChatOptions {
   messages: AiMessage[]
   tools?: AiFunctionTool[]
+  /** Text requests stream by default; explicit false retains legacy providers/settings. */
+  stream?: boolean
+  onDelta?: AiChatDeltaHandler
+  onIncomplete?: (result: AiChatResult) => Promise<void>
   /** Tool orchestration uses one attempt; uncertain paid calls are never silently replayed. */
   maxAttempts?: number
   model?: string
@@ -133,6 +143,7 @@ export function providerLabel(baseUrl: string): string {
 
 /** 单轮对话补全。失败按 AiError 语义化抛出，上层只需分辨 code。 */
 export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
+  if (opts.stream !== false) return chatStream(opts, opts.onDelta || (() => {}))
   throwIfCancelled(opts.signal)
   const provider = textProvider()
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
@@ -156,7 +167,7 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
     try {
       return await once(endpoint, provider.apiKey, body, model, opts)
     } catch (err) {
-      throwIfCancelled(opts.signal)
+      if (!(err instanceof AiError && err.partialResult)) throwIfCancelled(opts.signal)
       const aiErr = err instanceof AiError ? err : new AiError('upstream', (err as Error)?.message || '未知错误')
       lastError = aiErr
       if (attempt >= attempts || !isRetriable(aiErr, opts)) break
@@ -186,26 +197,41 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
     max_tokens: opts.maxTokens ?? 800,
     stream: true,
     stream_options: { include_usage: true },
+    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: 'auto', parallel_tool_calls: false } : {}),
     ...reasoningFields(model, opts.reasoningMode),
   })
 
   let lastError: AiError | null = null
   let emitted = false
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  const preview = createRequestProgress()
+  const attempts = Math.max(1, Math.min(MAX_ATTEMPTS, opts.maxAttempts ?? MAX_ATTEMPTS))
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     throwIfCancelled(opts.signal)
     try {
-      return await onceStream(endpoint, provider.apiKey, body, model, { ...opts, onProgress: async (progress) => {
+      const result = await onceStream(endpoint, provider.apiKey, body, model, { ...opts, onProgress: async (progress) => {
         if (progress.reasoningCharacters > 0) emitted = true
+        preview.progress(progress)
         await opts.onProgress?.(progress)
-      } }, async (delta) => {
+      } }, () => { emitted = true }, async (delta) => {
         emitted = true
+        preview.delta(delta)
         await onDelta(delta)
       })
+      preview.finish()
+      return result
     } catch (err) {
-      throwIfCancelled(opts.signal)
+      if (!(err instanceof AiError && err.partialResult)) throwIfCancelled(opts.signal)
       const aiErr = err instanceof AiError ? err : new AiError('upstream', (err as Error)?.message || '未知错误')
       lastError = aiErr
-      if (emitted || attempt >= MAX_ATTEMPTS || !isRetriable(aiErr, opts)) break
+      if (!emitted && aiErr instanceof StreamUnsupportedError) {
+        // A definitive parameter rejection has not generated anything. Never retry an ambiguous paid request here.
+        const fallback = await chat({ ...opts, stream: false, maxAttempts: 1 })
+        if (fallback.text) { preview.delta(fallback.text); await onDelta(fallback.text) }
+        preview.finish()
+        return { ...fallback, streamed: false }
+      }
+      preview.finish()
+      if (emitted || attempt >= attempts || !isRetriable(aiErr, opts)) break
       await sleep(attempt * 700, opts.signal)
     }
   }
@@ -287,6 +313,7 @@ async function onceStream(
   body: string,
   model: string,
   opts: AiChatOptions,
+  onOutput: () => void,
   onDelta: AiChatDeltaHandler,
 ): Promise<AiChatResult> {
   const timeout = AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)
@@ -315,26 +342,29 @@ async function onceStream(
     console.error('[ai] upstream %d %s', res.status, detail)
     const refusal = detectStructuredContentRefusalFromDetail(detail)
     if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
+    if ([400, 422].includes(res.status) && /\bstream(?:ing|_options)?\b/i.test(detail) && /not supported|unsupported|not allowed|unknown (?:parameter|field)|unrecognized|does not support|不支持/i.test(detail)) {
+      throw new StreamUnsupportedError('upstream', describeUpstreamError(res.status, detail), res.status)
+    }
     throw new AiError('upstream', describeUpstreamError(res.status, detail), res.status)
   }
 
+  // A successful response can still be legacy JSON. An unreadable body must not replay paid work.
+  onOutput()
   const contentType = (res.headers.get('content-type') || '').toLowerCase()
   if (!contentType.includes('text/event-stream')) {
     const data = await readChatResponseJson(res, opts, timeout)
     const refusal = detectStructuredContentRefusal(data)
     if (refusal && !opts.returnIncompleteResult) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
     const parsed = parseChatCompletion(data, model)
-    if (!parsed.text && !opts.returnIncompleteResult) throw emptyChatResponseError(parsed.finishReason, data)
+    if (!parsed.text && !parsed.toolCalls?.length && !opts.returnIncompleteResult) throw emptyChatResponseError(parsed.finishReason, data)
     if (parsed.text) { await opts.onProgress?.({ phase: 'writing', reasoningCharacters: 0 }); await onDelta(parsed.text) }
     return { ...parsed, streamed: false, ...(refusal ? { refusal: contentRefusalMessage(refusal) } : {}), ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, parsed.costReported ? parsed.cost : null, opts.signal) }
   }
 
   if (!res.body) throw new AiError('upstream', 'AI 服务未返回流式内容')
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
   let text = ''
+  let reasoningContent = ''
+  const calls = new Map<number, AiToolCall>()
   let responseModel = model
   let promptTokens = 0
   let completionTokens = 0
@@ -348,11 +378,8 @@ async function onceStream(
   let reasoningCharacters = 0
   let streamDone = false
 
-  const consumeLine = async (line: string): Promise<void> => {
-    const normalized = line.endsWith('\r') ? line.slice(0, -1) : line
-    if (!normalized.startsWith('data:')) return
-    const payload = normalized.slice(5).trim()
-    if (payload === '[DONE]') { streamDone = true; return }
+  const consumeData = async (payload: string): Promise<void | boolean> => {
+    if (payload.trim() === '[DONE]') { streamDone = true; return false }
     if (!payload) return
 
     let data: ChatCompletionStreamChunk
@@ -361,6 +388,8 @@ async function onceStream(
     } catch {
       throw new AiError('invalid', 'AI 流式响应格式不正确')
     }
+    if (data.error) throw new AiError('upstream', describeUpstreamError(502, payload))
+    if (data.choices?.length) onOutput()
 
     const refusal = detectStructuredContentRefusal(data)
     if (refusal) {
@@ -378,44 +407,55 @@ async function onceStream(
     if (upstreamCost(data) !== null) costReported = true
     cost = upstreamCost(data) ?? cost
 
-    const choice = data.choices?.[0]
+    const choice = data.choices?.find((item) => item.index === undefined || item.index === 0)
     const reasoning = extractContent(choice?.delta?.reasoning_content)
     if (reasoning) {
       reasoningCharacters += reasoning.length
+      if (opts.tools?.length) reasoningContent += reasoning
+      if (reasoningContent.length > 1_000_000) throw new AiError('invalid', '模型工具上下文过长')
       await opts.onProgress?.({ phase: 'thinking', reasoningCharacters })
     }
-    if (choice?.finish_reason) finishReason = String(choice.finish_reason)
+    if (choice?.finish_reason || choice?.finishReason) finishReason = String(choice.finish_reason || choice.finishReason)
+    for (const fragment of choice?.delta?.tool_calls || []) {
+      if (!Number.isInteger(fragment.index) || fragment.index < 0 || fragment.index > 15) throw new AiError('invalid', '工具调用序号无效')
+      const call = calls.get(fragment.index) || { id: '', type: 'function' as const, function: { name: '', arguments: '' } }
+      if (fragment.id) call.id += fragment.id
+      if (fragment.type && fragment.type !== 'function') throw new AiError('invalid', '不支持的工具调用类型')
+      if (fragment.function?.name) call.function.name += fragment.function.name
+      if (fragment.function?.arguments) call.function.arguments += fragment.function.arguments
+      if (call.function.arguments.length > 128_000 || call.function.name.length > 200 || call.id.length > 500) throw new AiError('invalid', '工具调用参数过大')
+      calls.set(fragment.index, call)
+    }
     const delta = extractContent(choice?.delta?.content, false)
     if (!delta) return
     text += delta
+    if (text.length > 2_000_000) throw new AiError('invalid', '模型输出过长')
     await opts.onProgress?.({ phase: 'writing', reasoningCharacters })
     await onDelta(delta)
   }
 
   try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split(/\n/)
-      buffer = lines.pop() || ''
-      for (const line of lines) await consumeLine(line)
-    }
-    buffer += decoder.decode()
-    if (buffer) await consumeLine(buffer)
+    await readSse(res.body, consumeData)
+    if (!streamDone && !finishReason) throw new AiError('upstream', 'AI 流式响应在完成标记前中断，未保存未完成内容')
   } catch (err) {
-    rethrowResponseTimeout(err, opts, timeout)
-    throw err
-  } finally {
-    reader.releaseLock()
+    let failure = err instanceof AiError ? err : new AiError('upstream', (err as Error)?.message || '流式连接中断')
+    try { rethrowResponseTimeout(err, opts, timeout) } catch (timeoutError) { failure = timeoutError as AiError }
+    failure.partialResult = {
+      text: '', model: responseModel, promptTokens, completionTokens, finishReason,
+      cacheReadTokens, cacheWriteTokens, reasoningTokens, streamed: true,
+      ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, costReported ? cost : null),
+    }
+    await opts.onIncomplete?.(failure.partialResult).catch((auditError) => console.error('[ai] incomplete usage audit failed', auditError))
+    throw failure
   }
 
   const trimmed = text.trim()
-  if (!streamDone && !finishReason) throw new AiError('upstream', 'AI 流式响应在完成标记前中断，未保存未完成内容')
-  if (!trimmed && !opts.returnIncompleteResult) throw emptyChatResponseError(finishReason, null)
+  const toolCalls = [...calls.entries()].sort(([a], [b]) => a - b).map(([, call]) => call)
+  if (!trimmed && !toolCalls.length && !opts.returnIncompleteResult) throw emptyChatResponseError(finishReason, null)
   const cancellation = detectContentCancellation(trimmed, finishReason)
   return {
     streamed: true,
+    ...(toolCalls.length ? { toolCalls, reasoningContent } : {}),
     ...(responseRefusal ? { refusal: responseRefusal } : {}),
     text: cancellation ? stripCancellationTail(trimmed) : trimmed,
     ...(cancellation ? { truncated: true } : {}),
@@ -437,7 +477,8 @@ function parseChatCompletion(data: ChatCompletionResponse | null, model: string)
   const cost = upstreamCost(data)
   const finishReason = String(choice?.finish_reason || '')
   return {
-    text,
+    text: detectContentCancellation(text, finishReason) ? stripCancellationTail(text) : text,
+    ...(choice?.message?.tool_calls?.length ? { toolCalls: choice.message.tool_calls, reasoningContent: extractContent(choice.message.reasoning_content, false) } : {}),
     model: String(data?.model || model),
     ...usage,
     promptTokens: usage.promptTokens ?? 0,
@@ -483,7 +524,7 @@ interface ChatCompletionResponse {
 interface ChatCompletionStreamChunk {
   model?: string
   refusal?: unknown
-  choices?: Array<{ delta?: { content?: unknown; reasoning_content?: unknown; refusal?: unknown }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
+  choices?: Array<{ index?: number; delta?: { content?: unknown; reasoning_content?: unknown; refusal?: unknown; tool_calls?: Array<{ index: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
   usage?: Record<string, unknown> | null
   usageMetadata?: Record<string, unknown>
   cost?: string | number

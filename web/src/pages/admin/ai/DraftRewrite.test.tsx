@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
   task: vi.fn(),
 }))
 
+vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: (id: string, listener: (task: unknown) => void) => { let active = true; void api.task(id).then(({ task }: { task: unknown }) => { if (active) listener(task) }); return () => { active = false } } }))
 vi.mock('@/lib/api', () => ({
   aiApi: {
     writing: {

@@ -61,7 +61,7 @@ it('checks drafts only on request and invalidates reports after the content revi
   expect(api.reviewDraft).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: '检查草稿' }))
   expect(await screen.findByText(/在本次提供的材料范围内未发现/)).toBeInTheDocument()
-  expect(api.reviewDraft).toHaveBeenCalledWith('d1', 'draft-1')
+  expect(api.reviewDraft).toHaveBeenCalledWith('d1', 'draft-1', expect.any(Function))
   api.getDraftReview.mockResolvedValue({ report: { draftRevision: 'draft-1', inputHash: 'hash', updatedAt: 1, findings: [], sources: [] } })
   rerender(<DraftReview draftId="d1" contentRevision="draft-2" />)
   expect(await screen.findByText(/草稿或来源已变化/)).toBeInTheDocument()

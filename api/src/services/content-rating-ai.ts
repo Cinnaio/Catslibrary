@@ -1,3 +1,5 @@
+import { createTextProgressReporter } from './ai/text-progress'
+import { partialUsageRecorder } from './ai/partial-usage'
 import { expireContentRatingAiSuggestions, expireOutdatedPromptVersionSuggestions } from './content-rating-ai-lifecycle'
 import { loadContentRatingBodySample, emptyContentRatingBodySample, type ContentRatingBodySample } from './content-rating-body'
 import type { ContentRating } from '@shared/types'
@@ -586,7 +588,11 @@ export async function runContentRatingAiReviewTask(
       }
 
       try {
+        const progress = createTextProgressReporter(db, input.taskId)
+        await progress.start()
         const response = await chat({
+          onDelta: progress.onDelta, onProgress: progress.onProgress,
+          onIncomplete: partialUsageRecorder(db, { userId: input.actorUserId, provider: providerLabel(provider.baseUrl), novelId: novel.id, generationType: 'content-rating-llm' }),
           messages: [
             {
               role: 'system',
@@ -600,7 +606,6 @@ export async function runContentRatingAiReviewTask(
           reasoningMode,
           timeoutMs: 120_000,
         })
-        const decision = parseContentRatingAiDecision(response.text)
         await recordUsage(db, {
           userId: input.actorUserId,
           model: response.model,
@@ -613,6 +618,7 @@ export async function runContentRatingAiReviewTask(
           generationType: 'content-rating-llm',
         }).catch((error) => console.warn('[content-rating-ai] usage audit failed', error))
 
+        const decision = parseContentRatingAiDecision(response.text)
         if (!await isAiTaskActive(db, input.taskId)) throw new Error('任务已停止，未保存分级结果')
 
         const current = await first<{ content_rating: string; content_rating_revision: number }>(

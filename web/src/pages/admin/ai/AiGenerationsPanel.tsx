@@ -1,3 +1,5 @@
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import type { AiTextProgress } from '@shared/ai-text-progress'
 import DraftReview from './DraftReview'
 import WritingQualityNotice from './WritingQualityNotice'
 import type { WritingQualityReport } from '@shared/ai-writing-quality'
@@ -113,6 +115,15 @@ export default function AiGenerationsPanel(props: {
   const [publishing, setPublishing] = useState(false)
   const [titleCandidates, setTitleCandidates] = useState<string[]>([])
   const [generatingTitles, setGeneratingTitles] = useState(false)
+  const [titleProgress, setTitleProgress] = useState<AiTextProgress | null>(null)
+  const titleRequest = useRef(0)
+  useEffect(() => {
+    titleRequest.current++
+    setTitleProgress(null)
+    setTitleCandidates([])
+    setGeneratingTitles(false)
+    return () => { titleRequest.current++ }
+  }, [viewing?.id, viewing?.contentRevision, props.novelId])
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
@@ -419,16 +430,19 @@ export default function AiGenerationsPanel(props: {
   }
 
   async function generateTitles(item: AiGenerationListItem) {
+    const current = ++titleRequest.current
+    setTitleProgress(null)
     setGeneratingTitles(true)
     setTitleCandidates([])
     try {
-      const result = await aiApi.writing.titles({ content: item.result, novelId: item.novelId, contextTitle: item.chapterTitle })
+      const result = await aiApi.writing.titles({ content: item.result, novelId: item.novelId, contextTitle: item.chapterTitle }, (next) => { if (current === titleRequest.current) setTitleProgress(next) })
+      if (current !== titleRequest.current) return
       setTitleCandidates(result.titles)
       toast(`已生成 ${result.titles.length} 个标题候选`, 'success')
     } catch (err) {
-      toast((err as Error).message || '标题生成失败', 'error')
+      if (current === titleRequest.current) toast((err as Error).message || '标题生成失败', 'error')
     } finally {
-      setGeneratingTitles(false)
+      if (current === titleRequest.current) setGeneratingTitles(false)
     }
   }
 
@@ -934,6 +948,7 @@ export default function AiGenerationsPanel(props: {
                     <Sparkles className="size-3 mr-1 text-accent" aria-hidden="true" />
                     {generatingTitles ? '生成中…' : 'AI 生成标题'}
                   </Button>
+                  {generatingTitles && <AiStreamPreview progress={titleProgress} structured />}
                   {titleCandidates.map((candidate) => (
                     <Button
                       key={candidate}

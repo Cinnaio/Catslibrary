@@ -13,6 +13,8 @@ import { generateImage, isImageAiConfigured, imageProvider, imageProviderLabel }
 import { recordUsage } from './usage'
 import { usageAuditFields, mergeUsageAuditFields, type UpstreamUsage } from './upstream-usage'
 import { getAiSettings } from './settings'
+import { withAiStreamObserver } from './stream-context'
+import { publishAiTask } from './task-events'
 import { createAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask, getAiTask } from './tasks'
 import { storeCoverCandidate, MAX_COVER_BYTES } from '../covers'
 import {
@@ -135,6 +137,16 @@ export interface CoverPromptProgress {
   prompt: string
   metadata: CoverPromptMetadata
   phase?: 'template' | 'scene'
+}
+
+/** Structured cover intermediates stay private; only their live text counts reach task subscribers. */
+function withCoverTextProgress<T>(taskId: string, run: () => Promise<T>): Promise<T> {
+  return withAiStreamObserver((progress) => {
+    const step = progress.phase === 'thinking'
+      ? `封面描述词构思中 · 已接收 ${progress.reasoningCharacters} 个思考字符`
+      : `封面描述词生成中 · 已接收 ${progress.generatedCharacters} 个字符`
+    publishAiTask(taskId, { step })
+  }, run)
 }
 
 export type CoverPromptMode = 'auto' | 'exact'
@@ -280,7 +292,7 @@ export async function generateCoverPromptTask(
       })
     }
 
-    const result = await generateCoverPrompt(db, opts.novelId, { ...opts, onProgress: persistProgress })
+    const result = await withCoverTextProgress(opts.taskId, () => generateCoverPrompt(db, opts.novelId, { ...opts, onProgress: persistProgress }))
     if (!(await isAiTaskActive(db, opts.taskId))) return
 
     if (result.textUsage) {
@@ -1007,7 +1019,7 @@ export async function generateNovelCover(
           },
           textUsage: null,
         }
-      : await buildImagePrompt(meta, {
+      : await withCoverTextProgress(taskId, () => buildImagePrompt(meta, {
           renderTitle,
           platform,
           novelId: opts.novelId,
@@ -1017,7 +1029,7 @@ export async function generateNovelCover(
           maxPromptChars: settings.coverPromptMaxChars,
           imageSize: settings.coverImageSize || settings.imageSize,
           promptPipelineVersion: opts.promptPipelineVersion,
-        })
+        }))
     const { prompt, metadata, textUsage } = built
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
     await updateAiTask(db, taskId, { prompt })

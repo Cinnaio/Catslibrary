@@ -1,9 +1,11 @@
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import type { AiTextProgress } from '@shared/ai-text-progress'
 /**
  * 章节前情提要 —— 进章时静默读缓存，没有缓存才由读者点一下现生成。
  * 只概括「上一章」，天然不剧透；未配置 AI / 未登录 / 首章时整块不渲染。
  * 有每日配额的读者会看到剩余次数，用尽后按钮禁用（命中缓存不计数）。
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { aiApi, type ApiError } from '../../lib/api'
 import { useAiStatus } from '../../hooks/useAiStatus'
@@ -23,10 +25,22 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
   const status = useAiStatus(!!prevChapterId)
   const [recap, setRecap] = useState('')
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState<AiTextProgress | null>(null)
+  const generation = useRef(0)
+
   const [error, setError] = useState('')
   const [collapsed, setCollapsed] = useState(false)
   /** 今日剩余生成次数；null 表示不限额（管理员）或未知 */
   const [remaining, setRemaining] = useState<number | null>(null)
+
+  useEffect(() => {
+    generation.current++
+    setProgress(null)
+    setLoading(false)
+    setRecap('')
+    setError('')
+    return () => { generation.current++ }
+  }, [prevChapterId])
 
   useEffect(() => {
     if (!status?.quota || status.quota.limit < 0) {
@@ -38,6 +52,7 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
 
   useEffect(() => {
     let cancelled = false
+    const request = generation.current
     setRecap('')
     setError('')
     setCollapsed(false)
@@ -45,7 +60,7 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
     void (async () => {
       try {
         const res = await aiApi.cachedRecap(prevChapterId)
-        if (!cancelled && res.recap) setRecap(res.recap)
+        if (!cancelled && request === generation.current && res.recap) setRecap(res.recap)
       } catch {
         /* 静默失败：拿不到缓存就退回按钮态 */
       }
@@ -56,18 +71,22 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
   }, [prevChapterId, status])
 
   const generate = useCallback(async () => {
+    const request = ++generation.current
+    setProgress(null)
     setLoading(true)
     setError('')
     try {
-      const res = await aiApi.recap(prevChapterId)
+      const res = await aiApi.recap(prevChapterId, false, (next) => { if (request === generation.current) setProgress(next) })
+      if (request !== generation.current) return
       setRecap(res.recap)
       // 命中缓存不计配额，只有真实生成才扣减
       if (!res.cached) setRemaining((r) => (r === null ? r : Math.max(0, r - 1)))
     } catch (err) {
+      if (request !== generation.current) return
       if (isQuotaError(err)) setRemaining(0)
       setError((err as Error).message || '生成失败')
     } finally {
-      setLoading(false)
+      if (request === generation.current) { setLoading(false); setProgress(null) }
     }
   }, [prevChapterId])
 
@@ -97,6 +116,7 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
         </Button>
       )}
 
+      {loading && <AiStreamPreview progress={progress} />}
       {recap && !collapsed && <p className="reader-recap__text">{recap}</p>}
 
       {error && (

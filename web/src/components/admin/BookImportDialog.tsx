@@ -1,3 +1,5 @@
+import AiStreamPreview from '@/components/shared/AiStreamPreview'
+import type { AiTextProgress } from '@shared/ai-text-progress'
 import { MotionDetails } from '@/components/ui/motion'
 import '@/styles/input-fields.css'
 import { DialogFrame } from "@/components/shared/DialogFrame"
@@ -119,6 +121,7 @@ export default function BookImportDialog({
   const [busy, setBusy] = useState(false)
   /** 复核与提交/目标变更互斥，避免确认中的预览被旧响应覆盖。 */
   const [reviewBusy, setReviewBusy] = useState(false)
+  const [reviewProgress, setReviewProgress] = useState<AiTextProgress | null>(null)
   const operationBusy = busy || reviewBusy
   const operationLock = useRef(false)
   const requestGeneration = useRef(0)
@@ -266,7 +269,8 @@ export default function BookImportDialog({
     let current = preview
     if (!current.localChapters) {
       operationLock.current = true
-      setReviewBusy(true)
+      setReviewProgress(null)
+    setReviewBusy(true)
       try {
         current = await bookImportApi.selectTarget(current.runId, current.targetNovelId, current.revision || 0)
         applyPreview(current)
@@ -283,6 +287,7 @@ export default function BookImportDialog({
     if (!preview || operationBusy || operationLock.current) return
     operationLock.current = true
     const generation = requestGeneration.current
+    setReviewProgress(null)
     setReviewBusy(true)
     setResolutionError('')
     setError('')
@@ -312,6 +317,7 @@ export default function BookImportDialog({
   async function reloadResolutionBase() {
     if (!preview || operationBusy || operationLock.current) return
     operationLock.current = true
+    setReviewProgress(null)
     setReviewBusy(true)
     try {
       const latest = await bookImportApi.getPreview(preview.runId)
@@ -363,9 +369,10 @@ export default function BookImportDialog({
     operationLock.current = true
     const generation = requestGeneration.current
     setError('')
+    setReviewProgress(null)
     setReviewBusy(true)
     try {
-      const review = await bookImportApi.aiReview(preview.runId, preview.revision || 0)
+      const review = await bookImportApi.aiReview(preview.runId, preview.revision || 0, (next) => { if (generation === requestGeneration.current) setReviewProgress(next) })
       if (generation !== requestGeneration.current) return
       setPreview({
         ...preview,
@@ -392,6 +399,7 @@ export default function BookImportDialog({
     operationLock.current = true
     const generation = requestGeneration.current
     setError('')
+    setReviewProgress(null)
     setReviewBusy(true)
     try {
       const next = action.lines
@@ -944,7 +952,8 @@ export default function BookImportDialog({
                             </div>}
                             {resolvingChapterId === chapter.id && <>
                               <BookImportChapterResolver key={`${preview.runId}:${preview.revision}:${chapter.id}`} chapter={chapter} local={preview.localChapters || []} resolutions={preview.chapterResolutions || []} chapters={preview.chapters} selectedIds={selectedChapterIds} busy={operationBusy} onSave={choice => void resolveChapter(chapter, choice)} onCancel={() => setResolvingChapterId(null)} />
-                              {resolutionError && <div className="book-import__resolution-error" role="alert"><p>{resolutionError}</p><Button variant="outline" size="sm" disabled={operationBusy} onClick={() => void reloadResolutionBase()}>重新读取本地章节</Button><p>重新读取会清除本次人工确认及勾选，请重新核对。</p></div>}
+                              {resolutionError && <div className="book-import__resolution-error" role="alert"><p>{resolutionError}</p>{reviewBusy && <AiStreamPreview progress={reviewProgress} structured />}
+                <Button variant="outline" size="sm" disabled={operationBusy} onClick={() => void reloadResolutionBase()}>重新读取本地章节</Button><p>重新读取会清除本次人工确认及勾选，请重新核对。</p></div>}
                             </>}
                             {expanded && (
                               <div className="book-import__chapter-diff">

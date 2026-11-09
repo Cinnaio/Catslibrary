@@ -1,3 +1,4 @@
+import { partialUsageRecorder } from './partial-usage'
 import { randomUUID } from 'node:crypto'
 import type { Db } from '../../db/pool'
 import { all, first, run, withTx } from '../../db/query'
@@ -143,7 +144,7 @@ export async function advanceLedgerMemory(db: Db, kind: 'plot' | 'relationship',
             let res: Awaited<ReturnType<typeof chat>>
             const inputChars = messages.reduce((n, m) => n + m.content.length, 0)
             try {
-              const request = {
+              const request = { onIncomplete: partialUsageRecorder(db, { userId: opts.userId, provider: providerLabel(textProvider().baseUrl), novelId: opts.novelId, generationType: 'story_memory', ipAddress: opts.ipAddress, userAgent: opts.userAgent }),
                 messages,
                 maxTokens,
                 temperature: 0.1,
@@ -156,8 +157,9 @@ export async function advanceLedgerMemory(db: Db, kind: 'plot' | 'relationship',
               if (settings.storyMemoryStreamEnabled) await progress.start()
               res = settings.storyMemoryStreamEnabled
                 ? await chatStream({ ...request, onProgress: progress.onProgress }, progress.onDelta)
-                : await chat(request)
+                : await chat({ ...request, stream: false })
             } catch (e) {
+              await progress.flush(true).catch(() => {})
               if (controller.signal.aborted) throw controller.signal.reason
               if (e instanceof AiError && (e.code === 'timeout' || (e.code === 'upstream' && [408, 504].includes(e.status)))) {
                 const diagnostic: MemoryAttempt = {

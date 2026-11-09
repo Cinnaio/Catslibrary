@@ -349,7 +349,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   />
                 </FormField>
                 {reasoning("storyMemoryReasoningMode", "关系与情节档案思考模式", "跟随供应商保持原行为。关闭、低强度和高强度适用于 DeepSeek 兼容模型；更换其他模型前请改回跟随供应商。")}
-                {toggle("storyMemoryStreamEnabled", "关系与情节档案实时预览", "启用流式请求，显示思考阶段与部分正文。完整返回后才保存；供应商可能仍以非流式返回。")}
+                {toggle("storyMemoryStreamEnabled", "关系与情节档案实时预览", "显示思考阶段、生成进度和可预览的文本；结构化档案完整校验后显示结果。供应商可能仍以非流式返回。")}
                 <FormField label="情节状态 Token" htmlFor="plot-tokens" hint="完整档案模式的情节输出预算；增量模式使用独立的章节增量记忆预算。">
                   <Input
                     id="plot-tokens"

@@ -9,8 +9,11 @@ describe('text generation controls', () => {
     expect(normalizeAiSettings({ storyGraphMaxTokens: 'invalid' })).toHaveProperty('storyGraphMaxTokens', 16000)
     expect(normalizeAiSettings({ storyGraphMaxTokens: 2000000 })).toHaveProperty('storyGraphMaxTokens', 1000000)
   })
-  it('preserves legacy provider behavior until explicitly enabled', () => {
-    expect(normalizeAiSettings({})).toMatchObject({ writingReasoningMode: 'inherit', storyMemoryReasoningMode: 'inherit', writingStreamEnabled: false, storyMemoryStreamEnabled: false })
+  it('defaults to streaming and respects explicit opt-outs', () => {
+    expect(normalizeAiSettings({})).toMatchObject({ writingReasoningMode: 'inherit', storyMemoryReasoningMode: 'inherit', writingStreamEnabled: true, storyMemoryStreamEnabled: true })
+  })
+  it('keeps explicitly disabled streams disabled', () => {
+    expect(normalizeAiSettings({ writingStreamEnabled: false, storyMemoryStreamEnabled: false })).toMatchObject({ writingStreamEnabled: false, storyMemoryStreamEnabled: false })
   })
   it('persists independent writing and archive choices and rejects unknown modes', () => {
     expect(normalizeAiSettings({ writingReasoningMode: 'disabled', storyMemoryReasoningMode: 'low', writingStreamEnabled: true, storyMemoryStreamEnabled: true })).toMatchObject({ writingReasoningMode: 'disabled', storyMemoryReasoningMode: 'low', writingStreamEnabled: true, storyMemoryStreamEnabled: true })
