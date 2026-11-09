@@ -1,5 +1,17 @@
 # 发布与版本管理
 
+## API 1.1.1 与 iOS 1.2.1 交付（2026-11-09）
+
+源码 `94dcbd9cb04d176c421babea0ac86cd2e6d377e5` 已推送至 `origin/main`，包含 Agent 轮次修复 `27c528d4` 与 iOS 布局调整 `94dcbd9c`。[Deploy 42571560012](https://github.com/Cinnaio/zhi-zhou/actions/runs/42571560012) 于 14:16:23（Asia/Shanghai）成功结束，交付 API `1.1.1` / Web `1.3.0`，没有新增迁移。公网 `/api/ready` 返回 `ready: true`、API `1.1.1` 及上述源码 SHA；首页、`/assets/index-CyyzWCjq.js`、健康接口与书目接口均为 200。
+
+发布工作流的类型、Lint、88 项 API 关键回归、27 项 Web 阅读进度回归和 5 项发布测试通过，1 项可选浏览器用例跳过。生产构建、3,228 个文件的最终归档、随包运行时与隔离 PostgreSQL 冒烟通过，部署使用本次验证的原包。工件 ID `13653965485`，保留至 2026-11-23 14:15；`release.tgz` SHA-256 为 `00f22b3726cfbfd984dedc21cdadc6714bdc102612e8954a6e63d65902e5316e`。同一源码的 [Backup recovery 42571541928](https://github.com/Cinnaio/zhi-zhou/actions/runs/42571541928) 通过 68 项隔离测试、零跳过；未执行生产数据库恢复或真实付费模型调用。
+
+iOS `1.2.1 / build 25` 使用同一源码，经 [Build and Test iOS 42571555451](https://github.com/Cinnaio/zhi-zhou/actions/runs/42571555451) 于 14:18:49（Asia/Shanghai）成功完成。macOS 15 / Xcode `26.3 (17C529)` 下 112 项 Core 测试全部通过，Release 编译及隐私清单／包检查通过。
+
+IPA 工件 ID `13654160100`，保留至 2027-02-07 14:11，已下载至 `ios/build-artifacts/github/42571555451/` 并同步到 `ios/build-artifacts/github/latest/`。本机核对 ZIP 完整性、版本／构建号、Bundle ID `com.zhizhou.app`、最低系统 26.0、可执行文件及图片资源、隐私清单、ATS 和随包节拍脚本与源码一致；`build-run.json` 保存运行及校验信息。IPA 为 11,701,633 字节，SHA-256 为 `6fc0867cab36ff8923b14cca0b26c65fdf2730c52f57e4ce6949ef83070ebcde`。安装包未签名，需要自行签名安装，未上架 App Store／TestFlight，也未进行真机界面验收。
+
+本节只补记交付结果，不改变程序。下方候选记录保留提交时的状态，本轮网站及 IPA 交付以本节结果为准；真实模型业务表现和设备界面仍待实际使用验收。
+
 ## iOS 登录、书架与创作布局调整（2026-11-09，源码候选）
 
 基于已构建的 iOS `1.2.0 / build 24` 修正三处界面布局：登录／注册表单下移 20pt，创作会话页隐藏底部导航栏，书架为空及搜索／筛选无结果时隐藏上下行线和分区线。认证、会话导航、输入区安全区占位与书架数据流程沿用现有实现，无新增依赖、接口或数据迁移。
@@ -626,9 +638,9 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.2.0 / 24`（源码候选） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.1.0`（源码候选） | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `1.3.0`（源码候选） | 同步锁文件 `packages.web.version` |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.2.1 / 25`（未签名 IPA 已构建） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| API | `api/package.json` | `1.1.1`（已部署） | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.3.0`（已部署） | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。
