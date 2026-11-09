@@ -49,7 +49,7 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
     taskId: id,
     instruction: { ...instruction, maxLength: 2000 },
   }),
-  tool('generate_cover', '按用户确定的画面要求生成一张封面候选。会调用图像服务；现有能力是重新生成，不能承诺原图局部编辑或人物完全一致。', { instruction }),
+  tool('generate_cover', '按用户确定的画面要求生成一张封面候选。instruction 必须是完整画面描述，会原样提交给图像服务；现有能力是重新生成，不能承诺原图局部编辑或人物完全一致。', { instruction }),
   tool('refresh_memory', '仅在用户要求更新小说分析时创建后台档案任务；会产生模型用量。', { kind: { type: 'string', enum: ['plot', 'relationship'] } }),
   tool(
     'prepare_action',
@@ -273,7 +273,7 @@ export async function executeAgentTool(
     })
   } else if (name === 'generate_cover') {
     if (!String(a.instruction).trim()) throw new AiError('invalid', '请先确定封面画面要求', 422)
-    receipt = await api('/api/ai/cover/generate', 'POST', { novelId: session.novelId, prompt: a.instruction, promptMode: 'auto', operationId })
+    receipt = await api('/api/ai/cover/generate', 'POST', { novelId: session.novelId, prompt: a.instruction, promptMode: 'exact', operationId })
   } else if (name === 'refresh_memory') {
     if (!session.afterChapterId) throw new AiError('invalid', '当前对话起点没有正式章节，请发布后新建对话再更新分析', 422)
     await anchorOrder(db, session)

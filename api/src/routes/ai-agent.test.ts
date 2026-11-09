@@ -30,7 +30,7 @@ let otherToken = ''
 let readerToken = ''
 const fetchMock = vi.fn<typeof fetch>()
 const originalEnv = new Map<string, string | undefined>()
-const keys = ['DATABASE_URL', 'AI_TEXT_BASE_URL', 'AI_TEXT_API_KEY', 'AI_TEXT_MODEL', 'COVER_FETCH_ENABLED']
+const keys = ['DATABASE_URL', 'AI_TEXT_BASE_URL', 'AI_TEXT_API_KEY', 'AI_TEXT_MODEL', 'AI_IMAGE_BASE_URL', 'AI_IMAGE_API_KEY', 'AI_IMAGE_MODEL', 'COVER_FETCH_ENABLED']
 const original = '他转身离开。她没有开口。'
 function completion(text: string, calls?: AiToolCall[]) {
   return Response.json({
@@ -90,6 +90,9 @@ beforeAll(async () => {
   process.env.AI_TEXT_BASE_URL = 'https://agent.test/v1'
   process.env.AI_TEXT_API_KEY = 'mock-key'
   process.env.AI_TEXT_MODEL = 'mock-agent'
+  process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
+  process.env.AI_IMAGE_API_KEY = 'mock-image-key'
+  process.env.AI_IMAGE_MODEL = 'mock-image'
   process.env.COVER_FETCH_ENABLED = '0'
   t = await createTestDb()
   await t.applyMigrations()
@@ -268,6 +271,24 @@ describe('novel-scoped creative agent', () => {
     const emptySession = await createAgentSession(t.db, 'admin', { novelId: 'empty-novel' })
     await expect(executeAgentTool(t.db, emptySession, 'refresh_memory', { kind: 'plot' }, 'op', api)).rejects.toMatchObject({ status: 422 })
     expect(api).not.toHaveBeenCalled()
+  })
+  it('submits agreed cover instructions through the real route without regenerating the prompt', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const instruction = '竖版封面，右下方一只手托着冰蓝色玻璃球，球内有一朵金色莲花；冷蓝背景，左上留白，不出现文字。'
+    const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    fetchMock.mockResolvedValueOnce(Response.json({ model: 'mock-image', data: [{ b64_json: pngB64 }] }))
+
+    const receipt = await executeAgentTool(t.db, session, 'generate_cover', { instruction }, 'cover_prompt_request', internalApi())
+    expect(receipt.status).toBe('submitted')
+    const taskId = String(receipt.taskId)
+    const task = await waitTask(taskId)
+    expect(task.status).toBe('completed')
+    expect(JSON.parse(task.params)).toMatchObject({ prompt: instruction, promptMode: 'exact' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://image.test/v1/images/generations')
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).prompt).toBe(instruction)
+    expect(await first(t.db, 'SELECT novel_id,prompt FROM ai_cover_candidates WHERE task_id=$1', [taskId])).toEqual({ novel_id: 'novel', prompt: instruction })
+    expect(await first(t.db, 'SELECT task_id FROM ai_agent_artifacts WHERE session_id=$1 AND task_id=$2', [session.id, taskId])).toEqual({ task_id: taskId })
   })
   it('reuses one submitted task for identical generation calls with different model call IDs', async () => {
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
