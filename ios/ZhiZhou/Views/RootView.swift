@@ -19,11 +19,51 @@ struct RootView: View {
         .accessibilityHidden(scenePhase != .active && ContentAccessStore.shared.mode == "adult")
         .overlay {
             if scenePhase != .active && ContentAccessStore.shared.mode == "adult" {
-                AppTheme.canvas.ignoresSafeArea()
+                AppPrivacyCover()
+                    .transition(.identity)
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: appState.isBooting)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: appState.user != nil)
+    }
+}
+
+/// 磨砂只叠在不透明的品牌底色上，不采样阅读正文或封面。
+private struct AppPrivacyCover: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        ZStack {
+            AppTheme.canvas
+
+            if !reduceTransparency && contrast != .increased {
+                LinearGradient(
+                    colors: [AppTheme.surfaceSecondary, AppTheme.primaryLight, AppTheme.canvas],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                Rectangle().fill(.regularMaterial)
+            }
+
+            VStack(spacing: 14) {
+                BrandMark(size: 56)
+                Text("Cat’s Library")
+                    .font(serifFont(.title2, .regular))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text("内容已隐藏")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+            .multilineTextAlignment(.center)
+            .padding(32)
+            .frame(maxWidth: 440)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Cat’s Library，内容已隐藏")
+        .accessibilityIdentifier("privacy.cover")
     }
 }
 
