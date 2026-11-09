@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUp, ChevronDown, Square } from 'lucide-react'
 import { aiApi, type AiProviderPreset } from '@/lib/api'
@@ -25,28 +25,12 @@ interface Props {
   running: boolean
   providerPresetId: string
   onProviderChange: (id: string) => void
-  chatRef: RefObject<HTMLElement | null>
-  feedRef: RefObject<HTMLDivElement | null>
-  followBottomRef: RefObject<boolean>
 }
 
 const DEFAULT_PROVIDER = '__default__'
 
-export default function AiAgentComposer({
-  value,
-  onChange,
-  onSend,
-  onStop,
-  busy,
-  running,
-  providerPresetId,
-  onProviderChange,
-  chatRef,
-  feedRef,
-  followBottomRef,
-}: Props) {
+export default function AiAgentComposer({ value, onChange, onSend, onStop, busy, running, providerPresetId, onProviderChange }: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null)
-  const form = useRef<HTMLFormElement>(null)
   const hintId = useId()
   const [presets, setPresets] = useState<AiProviderPreset[]>([])
   const [defaultModel, setDefaultModel] = useState('')
@@ -89,8 +73,7 @@ export default function AiAgentComposer({
 
   useLayoutEffect(() => {
     const input = textarea.current
-    const composer = form.current
-    if (!input || !composer) return
+    if (!input) return
     let width = -1
     let maxHeight = ''
     const measure = () => {
@@ -100,40 +83,19 @@ export default function AiAgentComposer({
         maxHeight = availableHeight
         resizeInput()
       }
-      const feed = feedRef.current
-      const chat = chatRef.current
-      if (feed && chat && composer.offsetHeight > 0) {
-        // 同步更新占位，避免输入收缩与 React 重渲染之间临时压缩对话区。
-        const height = `${composer.offsetHeight}px`
-        const resized = chat.style.getPropertyValue('--agent-composer-height') !== height
-        if (resized) chat.style.setProperty('--agent-composer-height', height)
-        // 页面滚动时卡片可能提前贴住视口底部，按实际遮挡量为最后一条消息留白。
-        const overlap = Math.max(0, feed.getBoundingClientRect().bottom - composer.getBoundingClientRect().top)
-        // 对话区在折叠线下方时，留白不能反过来撑高滚动区并不断扩大遮挡量。
-        const maxSpace = Math.max(0, feed.clientHeight - (Number.parseFloat(getComputedStyle(feed).paddingTop) || 0) - 8)
-        const space = `${Math.ceil(Math.min(overlap + 24, maxSpace))}px`
-        if (resized || feed.style.getPropertyValue('--agent-composer-space') !== space) {
-          feed.style.setProperty('--agent-composer-space', space)
-          if (followBottomRef.current) feed.scrollTop = feed.scrollHeight
-        }
-      }
     }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(input)
-    observer.observe(composer)
     window.addEventListener('resize', measure)
-    window.addEventListener('scroll', measure, { passive: true })
     return () => {
       observer.disconnect()
       window.removeEventListener('resize', measure)
-      window.removeEventListener('scroll', measure)
     }
-  }, [chatRef, resizeInput, feedRef, followBottomRef])
+  }, [resizeInput])
 
   return (
     <form
-      ref={form}
       className={styles.composer}
       aria-label="创作消息输入"
       onSubmit={(event) => {
@@ -210,11 +172,27 @@ export default function AiAgentComposer({
           </DropdownMenuContent>
         </DropdownMenu>
         {running ? (
-          <Button type="button" size="icon" variant="secondary" aria-label="停止回复" title="停止回复" disabled={busy} onClick={onStop}>
+          <Button
+            className={styles.composerButton}
+            type="button"
+            size="icon"
+            variant="secondary"
+            aria-label="停止回复"
+            title="停止回复"
+            disabled={busy}
+            onClick={onStop}
+          >
             <Square size={15} aria-hidden="true" />
           </Button>
         ) : (
-          <Button type="submit" size="icon" aria-label={busy ? '正在提交…' : '发送'} title="发送（Ctrl / ⌘ + Enter）" disabled={busy || !value.trim()}>
+          <Button
+            className={styles.composerButton}
+            type="submit"
+            size="icon"
+            aria-label={busy ? '正在提交…' : '发送'}
+            title="发送（Ctrl / ⌘ + Enter）"
+            disabled={busy || !value.trim()}
+          >
             <ArrowUp size={17} aria-hidden="true" />
           </Button>
         )}

@@ -267,7 +267,6 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   }, [onSession])
   const pendingRequest = useRef<{ content: string; id: string; providerPresetId: string } | null>(null)
   const feed = useRef<HTMLDivElement>(null)
-  const chat = useRef<HTMLElement>(null)
   const followBottom = useRef(true)
   const running = agentTaskRunning(data?.activeTask)
   const reload = useCallback(() => setRefresh((v) => v + 1), [])
@@ -455,76 +454,78 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         </p>
       )}
       <div className={styles.workspace} data-mobile-view={mobileView}>
-        <section ref={chat} className={styles.chat} aria-label="创作对话" data-running={running}>
-          <div className={styles.chatHeading}>
-            <span className={styles.chatTitle}>
-              <MessageSquare size={16} aria-hidden="true" />
-              创作助手
-            </span>
-            <span className={styles.chatState}>{running ? '正在处理你的想法' : '随时接着聊'}</span>
-          </div>
-          <div
-            ref={feed}
-            className={styles.feed}
-            role="log"
-            aria-label="对话记录"
-            aria-live="polite"
-            aria-relevant="additions"
-            onScroll={() => {
-              if (feed.current) followBottom.current = feed.current.scrollHeight - feed.current.scrollTop - feed.current.clientHeight < 80
-            }}
-          >
-            {(hasEarlier ?? data.hasEarlier) && (
-              <Button variant="ghost" size="sm" disabled={busy} onClick={() => void loadEarlier()}>
-                读取更早的对话
-              </Button>
-            )}
-            {!allEvents.length && (
-              <div className={styles.empty}>
-                <h3>这次想一起完成什么？</h3>
-                <p>可以先聊聊想法，再慢慢调整成满意的作品。</p>
-                <div className={styles.suggestions}>
-                  {['先了解这本小说，和我讨论下一章的走向', '帮我找出最近草稿中可以加强的冲突', '结合故事氛围，先给我几个封面构思'].map((text) => (
-                    <Button key={text} variant="outline" onClick={() => setInput(text)}>
-                      {text}
+        <section className={styles.chat} aria-label="创作对话">
+          <div className={styles.chatBody} data-running={running}>
+            <div className={styles.chatHeading}>
+              <span className={styles.chatTitle}>
+                <MessageSquare size={16} aria-hidden="true" />
+                创作助手
+              </span>
+              <span className={styles.chatState}>{running ? '正在处理你的想法' : '随时接着聊'}</span>
+            </div>
+            <div
+              ref={feed}
+              className={styles.feed}
+              role="log"
+              aria-label="对话记录"
+              aria-live="polite"
+              aria-relevant="additions"
+              onScroll={() => {
+                if (feed.current) followBottom.current = feed.current.scrollHeight - feed.current.scrollTop - feed.current.clientHeight < 80
+              }}
+            >
+              {(hasEarlier ?? data.hasEarlier) && (
+                <Button variant="ghost" size="sm" disabled={busy} onClick={() => void loadEarlier()}>
+                  读取更早的对话
+                </Button>
+              )}
+              {!allEvents.length && (
+                <div className={styles.empty}>
+                  <h3>这次想一起完成什么？</h3>
+                  <p>可以先聊聊想法，再慢慢调整成满意的作品。</p>
+                  <div className={styles.suggestions}>
+                    {['先了解这本小说，和我讨论下一章的走向', '帮我找出最近草稿中可以加强的冲突', '结合故事氛围，先给我几个封面构思'].map((text) => (
+                      <Button key={text} variant="outline" onClick={() => setInput(text)}>
+                        {text}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {allEvents.map((event) => (
+                <article key={event.id} className={event.role === 'activity' ? styles.activity : styles.message} data-role={event.role}>
+                  {event.role === 'assistant' && <span className={styles.speaker}>创作助手</span>}
+                  <div className={event.metadata.error ? styles.error : event.role === 'assistant' ? styles.markdown : styles.prose}>
+                    {event.role === 'assistant' && !event.metadata.error ? (
+                      <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>
+                        {event.content}
+                      </Markdown>
+                    ) : (
+                      event.content
+                    )}
+                  </div>
+                  {event.metadata.artifactTaskId && (
+                    <Button size="sm" variant="link" disabled={busy} onClick={() => void showArtifact(event.metadata.artifactTaskId!)}>
+                      查看进度与产出
                     </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {allEvents.map((event) => (
-              <article key={event.id} className={event.role === 'activity' ? styles.activity : styles.message} data-role={event.role}>
-                {event.role !== 'activity' && <span className={styles.speaker}>{event.role === 'user' ? '你' : '创作助手'}</span>}
-                <div className={event.metadata.error ? styles.error : event.role === 'assistant' ? styles.markdown : styles.prose}>
-                  {event.role === 'assistant' && !event.metadata.error ? (
-                    <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>
-                      {event.content}
-                    </Markdown>
-                  ) : (
-                    event.content
                   )}
+                  {event.metadata.actionId && (
+                    <Button size="sm" variant="link" disabled={busy} onClick={() => void showAction(event.metadata.actionId!)}>
+                      查看操作记录
+                    </Button>
+                  )}
+                </article>
+              ))}
+              {running && (
+                <div className={styles.progress} role="status">
+                  <span className={styles.dot} aria-hidden="true" />
+                  <span className={styles.progressText}>{data.activeTask?.step || '正在处理…'}</span>
                 </div>
-                {event.metadata.artifactTaskId && (
-                  <Button size="sm" variant="link" disabled={busy} onClick={() => void showArtifact(event.metadata.artifactTaskId!)}>
-                    查看进度与产出
-                  </Button>
-                )}
-                {event.metadata.actionId && (
-                  <Button size="sm" variant="link" disabled={busy} onClick={() => void showAction(event.metadata.actionId!)}>
-                    查看操作记录
-                  </Button>
-                )}
-              </article>
-            ))}
-            {running && (
-              <div className={styles.progress} role="status">
-                <span className={styles.dot} aria-hidden="true" />
-                <span className={styles.progressText}>{data.activeTask?.step || '正在处理…'}</span>
-              </div>
-            )}
-            {data.activeTask?.status === 'failed' && (
-              <p className={styles.error}>本轮未完成：{data.activeTask.error}。已保留对话和已提交的任务，可以调整要求后继续。</p>
-            )}
+              )}
+              {data.activeTask?.status === 'failed' && (
+                <p className={styles.error}>本轮未完成：{data.activeTask.error}。已保留对话和已提交的任务，可以调整要求后继续。</p>
+              )}
+            </div>
           </div>
           <AiAgentComposer
             value={input}
@@ -535,9 +536,6 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
             running={running}
             providerPresetId={providerPresetId}
             onProviderChange={setProviderPresetId}
-            chatRef={chat}
-            feedRef={feed}
-            followBottomRef={followBottom}
           />
         </section>
         <aside className={styles.outputs} aria-label="产出与采纳">

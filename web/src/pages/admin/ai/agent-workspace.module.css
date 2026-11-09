@@ -2,10 +2,6 @@
   min-width: 0;
   color: var(--text-primary);
 }
-:global(.ai-admin-page):has(.root) {
-  /* hidden 会将页面变成 sticky 的滚动容器；clip 保留文档滚动下的浮动输入。 */
-  overflow-x: clip;
-}
 .toolbar {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
@@ -57,6 +53,12 @@
   gap: 28px;
 }
 .chat {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+}
+.chatBody {
   position: relative;
   isolation: isolate;
   border: 1px solid var(--border);
@@ -66,7 +68,7 @@
   min-width: 0;
   transition: border-color 180ms ease;
 }
-.chat[data-running='true'] {
+.chatBody[data-running='true'] {
   border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
 }
 .chatHeading {
@@ -93,10 +95,10 @@
   font-size: 12px;
   text-align: right;
 }
-.chat[data-running='true'] .chatState {
+.chatBody[data-running='true'] .chatState {
   color: var(--accent);
 }
-.chat[data-running='true']::after,
+.chatBody[data-running='true']::after,
 .composer:focus-within::before {
   content: '';
   position: absolute;
@@ -113,13 +115,13 @@
   animation: lightSweep 1.6s ease-out both;
 }
 .feed {
-  height: min(62vh, 720px);
-  min-height: 300px;
+  height: min(70dvh, 840px);
+  min-height: 360px;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding: 22px 28px var(--agent-composer-space, calc(var(--agent-composer-height, 100px) + 40px));
-  scroll-padding-bottom: var(--agent-composer-space, calc(var(--agent-composer-height, 100px) + 40px));
+  padding: 22px 28px;
+  scroll-padding-block: 22px;
 }
 .message {
   margin-bottom: 28px;
@@ -289,29 +291,33 @@
   --input-radius: 0;
   --input-focus-border: transparent;
   --input-focus-shadow: none;
-  position: sticky;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  position: relative;
   z-index: 3;
   overflow: hidden;
-  margin: calc(-1 * var(--agent-composer-height, 100px) - 16px) 16px 16px;
-  padding: 8px;
-  border: 1px solid var(--border);
+  margin: 0;
+  padding: 6px 10px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, var(--bg-card));
   border-radius: var(--radius-container);
   background: var(--bg-card);
-  box-shadow: var(--admin-dock-shadow);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 4%);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 .composer:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 6%, transparent);
 }
 .composer textarea {
   display: block;
   field-sizing: fixed;
-  height: 40px;
-  min-height: 40px;
+  height: 36px;
+  min-height: 36px;
   max-height: min(180px, 24dvh);
-  padding: 8px 10px;
+  padding: 6px 8px;
   resize: none;
   overflow-y: hidden;
+  font-size: 14px;
   line-height: 22px;
 }
 .composerActions {
@@ -321,15 +327,41 @@
   gap: 8px;
   margin-top: 2px;
 }
-.modelTrigger {
+.composer .modelTrigger {
+  --button-label-size: 12px;
+  --button-icon-size: 12px;
   min-width: 0;
-  max-width: calc(100% - 56px);
+  min-height: 32px;
+  max-width: calc(100% - 52px);
+  padding: 4px 8px;
+  gap: 6px;
+  flex-shrink: 1;
   justify-content: flex-start;
+  font-weight: 400;
+  outline-offset: 1px;
+}
+.composer .modelTrigger:not(:disabled):hover,
+.composer .modelTrigger[data-state='open'] {
+  border-color: transparent;
+  background: var(--bg-hover);
 }
 .modelTrigger > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.composer .composerButton {
+  --button-height: 40px;
+  --button-icon-size: 18px;
+  min-height: 40px;
+  padding: 0;
+  outline-offset: 2px;
+}
+.composer .composerButton:disabled {
+  color: var(--text-muted);
+  border-color: transparent;
+  background: var(--bg-secondary);
+  opacity: 1;
 }
 .modelMenu {
   max-width: min(360px, calc(100vw - 32px));
@@ -660,7 +692,8 @@
     grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
   }
   .feed {
-    padding: 20px 20px var(--agent-composer-space, calc(var(--agent-composer-height, 100px) + 36px));
+    padding: 20px;
+    scroll-padding-block: 20px;
   }
   .chatHeading {
     padding: 20px 20px 14px;
@@ -696,14 +729,18 @@
   .feed {
     height: 52vh;
     min-height: 260px;
-    padding: 20px 16px var(--agent-composer-space, calc(var(--agent-composer-height, 100px) + 32px));
-  }
-  .composer {
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    margin: calc(-1 * var(--agent-composer-height, 100px) - 12px) 12px 12px;
+    padding: 20px 16px;
   }
   .composer textarea {
     font-size: 16px;
+  }
+  .composer .modelTrigger {
+    --button-label-size: 13px;
+    min-height: 48px;
+  }
+  .composer .composerButton {
+    --button-height: 48px;
+    min-height: 48px;
   }
   .chatHeading {
     padding-inline: 16px;
@@ -724,10 +761,11 @@
   .message {
     animation: none;
   }
-  .chat {
+  .chatBody,
+  .composer {
     transition: none;
   }
-  .chat::after,
+  .chatBody::after,
   .composer::before,
   .progress::before,
   .taskProgressTrack::after {
@@ -736,7 +774,7 @@
   }
 }
 @media (forced-colors: active) {
-  .chat,
+  .chatBody,
   .welcome,
   .pending,
   .progress,
@@ -748,7 +786,12 @@
   .composer {
     background: Canvas;
   }
-  .chat::after,
+  .composer .composerButton:disabled {
+    color: GrayText;
+    border-color: GrayText;
+    background: Canvas;
+  }
+  .chatBody::after,
   .composer::before,
   .progress::before,
   .taskProgressTrack::after {
