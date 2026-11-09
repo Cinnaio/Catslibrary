@@ -3,6 +3,41 @@ import XCTest
 @testable import ZhiZhouCore
 
 final class CacheStorageTests: XCTestCase {
+    func testOverwriteAndOfflinePromotionKeepIncrementalBudgetAccurate() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = ChapterDiskCache(directoryURL: directory, maxBytes: 100)
+        await cache.store(Data(repeating: 1, count: 70), for: "first", scope: "alice")
+        await cache.store(Data(repeating: 2, count: 20), for: "first", scope: "alice")
+        await cache.store(Data(repeating: 3, count: 70), for: "second", scope: "bob")
+        let first = await cache.data(for: "first", scope: "alice")
+        XCTAssertEqual(first?.count, 20)
+        _ = try await cache.preserveOffline("second", scope: "bob")
+        await cache.store(Data(repeating: 4, count: 70), for: "third", scope: "alice")
+        let retained = await cache.contains("first", scope: "alice")
+        XCTAssertTrue(retained)
+        let usage = await cache.usage()
+        XCTAssertEqual(usage.automaticBytes, 90)
+        XCTAssertEqual(usage.offlineBytes, 70)
+    }
+
+    func testIncrementalBudgetRebuildsAcrossRestartAndAccountRemoval() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let original = ChapterDiskCache(directoryURL: directory, maxBytes: 100)
+        await original.store(Data(repeating: 1, count: 60), for: "old", scope: "alice")
+        let reopened = ChapterDiskCache(directoryURL: directory, maxBytes: 100)
+        await reopened.store(Data(repeating: 2, count: 60), for: "new", scope: "bob")
+        let old = await reopened.contains("old", scope: "alice")
+        let new = await reopened.contains("new", scope: "bob")
+        XCTAssertFalse(old)
+        XCTAssertTrue(new)
+        await reopened.removeAll(scope: "bob")
+        await reopened.store(Data(repeating: 3, count: 100), for: "replacement", scope: "alice")
+        let usage = await reopened.usage()
+        XCTAssertEqual(usage.automaticBytes, 100)
+    }
+
     func testCustomBudgetSurvivesReloadAndPartitionsTheWholeBudget() {
         let name = "CacheStorageTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!

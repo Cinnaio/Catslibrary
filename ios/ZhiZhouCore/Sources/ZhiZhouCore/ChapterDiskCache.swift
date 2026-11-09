@@ -9,6 +9,13 @@ public actor ChapterDiskCache {
     private let directoryURL: URL
     private var maxBytes: Int64
     private let offlineDirectoryURL: URL
+    private struct Entry {
+        let bytes: Int64
+        var lastAccess: Date
+    }
+    // 首次使用时扫描一次，之后由同一个 actor 增量维护普通缓存预算。
+    private var entries: [URL: Entry]?
+    private var automaticBytes: Int64 = 0
 
     public init(
         directoryURL: URL? = nil,
@@ -40,12 +47,17 @@ public actor ChapterDiskCache {
     public func data(for key: String, scope: String = "default") -> Data? {
         let saved = offlineURL(for: key, scope: scope)
         let url = fileManager.fileExists(atPath: saved.path) ? saved : fileURL(for: key, scope: scope)
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let data = try? Data(contentsOf: url) else {
+            if !fileManager.fileExists(atPath: url.path) { forget(url) }
+            return nil
+        }
 
+        let now = Date()
         try? fileManager.setAttributes(
-            [.modificationDate: Date()],
+            [.modificationDate: now],
             ofItemAtPath: url.path
         )
+        if entries?[url] != nil { entries?[url]?.lastAccess = now }
         return data
     }
 
@@ -57,6 +69,9 @@ public actor ChapterDiskCache {
     public func remove(_ key: String, scope: String = "default") {
         guard !key.isEmpty else { return }
         try? fileManager.removeItem(at: fileURL(for: key, scope: scope))
+        if !fileManager.fileExists(atPath: fileURL(for: key, scope: scope).path) {
+            forget(fileURL(for: key, scope: scope))
+        }
         try? fileManager.removeItem(at: offlineURL(for: key, scope: scope))
     }
 
@@ -71,6 +86,7 @@ public actor ChapterDiskCache {
             }
         }
         guard !key.isEmpty, Int64(data.count) <= maxBytes else { return }
+        loadIndexIfNeeded()
 
         do {
             let scopeURL = scopeDirectoryURL(for: scope)
@@ -78,7 +94,11 @@ public actor ChapterDiskCache {
                 at: scopeURL,
                 withIntermediateDirectories: true
             )
-            try data.write(to: fileURL(for: key, scope: scope), options: [.atomic])
+            let url = fileURL(for: key, scope: scope)
+            try data.write(to: url, options: [.atomic])
+            forget(url)
+            entries?[url] = Entry(bytes: Int64(data.count), lastAccess: Date())
+            automaticBytes += Int64(data.count)
             evictIfNeeded()
         } catch {
             // 缓存失败不能影响在线阅读。
@@ -88,11 +108,15 @@ public actor ChapterDiskCache {
     /// Clear automatic caches only. Explicit downloads survive this action.
     public func removeAll() {
         try? fileManager.removeItem(at: directoryURL)
+        entries = nil
+        automaticBytes = 0
     }
 
     /// Remove only one account namespace, leaving other accounts' offline data intact.
     public func removeAll(scope: String) {
         try? fileManager.removeItem(at: scopeDirectoryURL(for: scope))
+        entries = nil
+        automaticBytes = 0
         let sample = offlineURL(for: "", scope: scope).deletingLastPathComponent()
         try? fileManager.removeItem(at: sample)
     }
@@ -117,6 +141,9 @@ public actor ChapterDiskCache {
         try data.write(to: url, options: [.atomic])
         // Once preserved, the evictable copy need not consume the automatic budget.
         try? fileManager.removeItem(at: fileURL(for: key, scope: scope))
+        if !fileManager.fileExists(atPath: fileURL(for: key, scope: scope).path) {
+            forget(fileURL(for: key, scope: scope))
+        }
     }
 
     /// Move a legacy download out of the evictable cache without needing the network.
@@ -136,9 +163,12 @@ public actor ChapterDiskCache {
     }
 
     public func usage(scope: String? = nil) -> Usage {
+        // 用户主动检查用量时也校正系统在应用外清理 Caches 造成的索引偏差。
+        entries = nil
+        loadIndexIfNeeded()
         let offline = scope.map { offlineURL(for: "", scope: $0).deletingLastPathComponent() }
             ?? offlineDirectoryURL
-        return Usage(automaticBytes: directorySize(directoryURL), offlineBytes: directorySize(offline))
+        return Usage(automaticBytes: automaticBytes, offlineBytes: directorySize(offline))
     }
 
     private func directorySize(_ url: URL) -> Int64 {
@@ -172,15 +202,15 @@ public actor ChapterDiskCache {
         return scopeDirectoryURL(for: scope).appendingPathComponent(digest, isDirectory: false)
     }
 
-    private func evictIfNeeded() {
+    private func loadIndexIfNeeded() {
+        guard entries == nil else { return }
+        entries = [:]
+        automaticBytes = 0
         guard let scopeURLs = try? fileManager.contentsOfDirectory(
             at: directoryURL,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) else { return }
-
-        var entries: [(url: URL, size: Int64, date: Date)] = []
-        var total: Int64 = 0
 
         for scopeURL in scopeURLs {
             guard let scopeValues = try? scopeURL.resourceValues(forKeys: [.isDirectoryKey]),
@@ -197,18 +227,29 @@ public actor ChapterDiskCache {
                     forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
                 ), values.isRegularFile == true else { continue }
                 let size = Int64(values.fileSize ?? 0)
-                entries.append((url, size, values.contentModificationDate ?? .distantPast))
-                total += size
+                entries?[url] = Entry(bytes: size, lastAccess: values.contentModificationDate ?? .distantPast)
+                automaticBytes += size
             }
         }
 
-        guard total > maxBytes else { return }
-        for entry in entries.sorted(by: { $0.date < $1.date }) {
-            guard total > maxBytes else { break }
+    }
+
+    private func forget(_ url: URL) {
+        if let previous = entries?.removeValue(forKey: url) {
+            automaticBytes -= previous.bytes
+        }
+    }
+
+    private func evictIfNeeded() {
+        loadIndexIfNeeded()
+        guard automaticBytes > maxBytes, let entries else { return }
+        for (url, _) in entries.sorted(by: { $0.value.lastAccess < $1.value.lastAccess }) {
+            guard automaticBytes > maxBytes else { break }
             do {
-                try fileManager.removeItem(at: entry.url)
-                total -= entry.size
+                try fileManager.removeItem(at: url)
+                forget(url)
             } catch {
+                if !fileManager.fileExists(atPath: url.path) { forget(url) }
                 continue
             }
         }
