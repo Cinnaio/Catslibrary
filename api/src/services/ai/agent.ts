@@ -22,6 +22,7 @@ const SYSTEM = `你是 Cat’s Library 的创作助手，与作者围绕当前�
 封面工具只能根据描述重新生成；你不能查看图像像素，也不能承诺只改局部或保持人物完全一致。
 创作偏好由作者在会话设置中确认，不能自行开启、关闭或变更；保持现有写作参数语义。
 历史消息按需读取。遇到“第二版”“之前的方案”先定位草稿、任务或早前对话，不凭空猜测。操作失败如实说明，不自动重复付费生成。
+取材围绕作者当前的要求，资料足够就直接答复，避免无目的地重复读取相同内容。只读取材不会产生草稿或封面，不能因此提示作者查看产出。
 用简洁自然的中文沟通，展示可核对的结论和进度，不输出内部推理过程。`
 
 export async function runAgentTurn(
@@ -50,7 +51,7 @@ export async function runAgentTurn(
   }
   try {
     await assertActive()
-    await updateAiTask(db, taskId, { status: 'running', step: '正在理解创作要求' })
+    await updateAiTask(db, taskId, { status: 'running', current: 0, total: 1, step: '正在理解创作要求' })
     const history = await readAgentEvents(db, session.id, 0, 40)
     // Keep long-running conversations usable without losing persisted history.
     // Older turns remain available through read_conversation.
@@ -75,10 +76,12 @@ export async function runAgentTurn(
         content: e.role === 'activity' ? `[服务端操作记录] ${e.content} ${JSON.stringify(e.metadata)}` : e.content,
       })
     const callsSeen = new Set<string>()
-    for (let round = 0; round < 8; round++) {
+    // Continue tool rounds until the model answers, the user stops, or a request fails.
+    for (let round = 0; ; round++) {
       await assertActive()
       if (JSON.stringify(messages).length > 180000) throw new AiError('invalid', '本轮取材较多，已保留记录，请缩小范围后继续', 422)
-      await updateAiTask(db, taskId, { current: round, step: round ? '正在整理资料与下一步' : '正在理解创作要求' })
+      // The next scheduled call grows the known work; this is not a fixed turn limit.
+      await updateAiTask(db, taskId, { current: round, total: round + 1, step: round ? '正在整理资料与下一步' : '正在理解创作要求' })
       progress = createTextProgressReporter(db, taskId, { round, previewLimit: 24000 })
       await progress.start()
       const response = await chat({
@@ -191,8 +194,6 @@ export async function runAgentTurn(
         })
       }
     }
-    await appendAgentEvent(db, session.id, 'assistant', '本轮已完成多步处理，相关结果已保留。请查看产出，告诉我接下来需要调整哪一部分。', taskId)
-    await updateAiTask(db, taskId, { status: 'completed', current: 8, step: '本轮已达到处理步数上限，可继续对话' })
   } catch (error) {
     await progress?.flush(true).catch(() => {})
     if (error instanceof AiError && error.partialResult) {

@@ -32,10 +32,10 @@ const fetchMock = vi.fn<typeof fetch>()
 const originalEnv = new Map<string, string | undefined>()
 const keys = ['DATABASE_URL', 'AI_TEXT_BASE_URL', 'AI_TEXT_API_KEY', 'AI_TEXT_MODEL', 'AI_IMAGE_BASE_URL', 'AI_IMAGE_API_KEY', 'AI_IMAGE_MODEL', 'COVER_FETCH_ENABLED']
 const original = '他转身离开。她没有开口。'
-function completion(text: string, calls?: AiToolCall[]) {
+function completion(text: string, calls?: AiToolCall[], reasoning?: string) {
   return Response.json({
     model: 'mock-agent',
-    choices: [{ message: { content: text, ...(calls ? { tool_calls: calls } : {}) }, finish_reason: calls ? 'tool_calls' : 'stop' }],
+    choices: [{ message: { content: text, ...(calls ? { tool_calls: calls } : {}), ...(reasoning ? { reasoning_content: reasoning } : {}) }, finish_reason: calls ? 'tool_calls' : 'stop' }],
     usage: { prompt_tokens: 100, completion_tokens: 20 },
     cost: 0.0001,
   })
@@ -336,6 +336,77 @@ describe('novel-scoped creative agent', () => {
     expect(usage?.calls).toBe(2)
     expect(Number(usage?.cost)).toBe(20)
   })
+  it('continues beyond eight tool rounds with full context until the model answers', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '了解故事后给我建议', 'extended_reading')
+    expect(await getAiTask(t.db, turn.taskId)).toMatchObject({ status: 'queued', current: 0, total: 1 })
+    for (let round = 0; round < 12; round++)
+      fetchMock.mockResolvedValueOnce(completion('', [call('read_chapter', { chapterId: 'chapter' }, `read_${round}`)], `取材推理 ${round}`))
+    const answer = '根据 chapter 中他转身离开、她没有开口的片段，可以让下一次合作先打破沉默。目前只读取了这一章，尚不能判断全书走向。'
+    let beforeReply: Awaited<ReturnType<typeof getAiTask>>
+    fetchMock.mockImplementationOnce(async () => {
+      beforeReply = await getAiTask(t.db, turn.taskId)
+      return completion(answer)
+    })
+    const api = vi.fn()
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', api)
+
+    expect(fetchMock).toHaveBeenCalledTimes(13)
+    const requests = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))
+    expect(requests.every((body) => body.tools?.length > 0 && body.tool_choice === 'auto')).toBe(true)
+    const finalRequest = requests.at(-1)
+    expect(finalRequest.messages).toContainEqual({ role: 'user', content: '了解故事后给我建议' })
+    for (let round = 0; round < 12; round++) {
+      expect(finalRequest.messages).toContainEqual({
+        role: 'assistant',
+        content: '',
+        tool_calls: [call('read_chapter', { chapterId: 'chapter' }, `read_${round}`)],
+        reasoning_content: `取材推理 ${round}`,
+      })
+      expect(finalRequest.messages).toContainEqual(expect.objectContaining({ role: 'tool', tool_call_id: `read_${round}`, content: expect.stringContaining(original) }))
+    }
+    expect(api).not.toHaveBeenCalled()
+    expect(await first(t.db, 'SELECT task_id FROM ai_agent_artifacts WHERE session_id=$1', [session.id])).toBeUndefined()
+    expect(beforeReply!).toMatchObject({ status: 'running', current: 12, total: 13 })
+    expect(await getAiTask(t.db, turn.taskId)).toMatchObject({ status: 'completed', current: 13, total: 13, result: '' })
+    const replies = (await readAgentEvents(t.db, session.id)).events.filter((event) => event.role === 'assistant')
+    expect(replies).toHaveLength(1)
+    expect(replies[0]).toMatchObject({ content: answer, metadata: { round: 12 } })
+    const usage = await first<{ calls: number; cost: string }>(
+      t.db,
+      "SELECT COUNT(*)::int AS calls,SUM(cost_millicents) AS cost FROM ai_usage WHERE generation_type='agent_chat'",
+    )
+    expect(usage?.calls).toBe(13)
+    expect(Number(usage?.cost)).toBe(130)
+  })
+  it.each([
+    { name: 'empty text', response: () => completion('') },
+    {
+      name: 'truncated text',
+      response: () => Response.json({ choices: [{ message: { content: '尚未整理完的答复' }, finish_reason: 'length' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }),
+    },
+    {
+      name: 'refusal',
+      response: () => Response.json({ choices: [{ message: { content: '', refusal: '无法完成本轮答复' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }),
+    },
+  ])('retains prior work without claiming success when an extended turn returns $name', async ({ response }) => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '先了解一下故事', 'unfinished_extended_turn')
+    for (let round = 0; round < 10; round++)
+      fetchMock.mockResolvedValueOnce(completion('', [call('read_overview', {}, `read_${round}`)]))
+    fetchMock.mockResolvedValueOnce(response())
+    const api = vi.fn()
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', api)
+
+    expect(fetchMock).toHaveBeenCalledTimes(11)
+    expect(api).not.toHaveBeenCalled()
+    expect(await getAiTask(t.db, turn.taskId)).toMatchObject({ status: 'failed', step: '本轮处理未完成' })
+    const events = (await readAgentEvents(t.db, session.id)).events
+    expect(events.filter((event) => event.role === 'assistant')).toHaveLength(0)
+    expect(events.filter((event) => event.metadata.tool === 'read_overview')).toHaveLength(10)
+    expect(events.at(-1)?.metadata.error).toBe(true)
+    expect(await first(t.db, "SELECT COUNT(*)::int AS calls FROM ai_usage WHERE generation_type='agent_chat'")).toEqual({ calls: 11 })
+  })
   it('submits a chapter through existing middleware and exposes a saved draft without publishing', async () => {
     fetchMock.mockImplementation(async () => completion(`标题：晨雨\n\n${'清晨的雨落在窗沿，屋里的人终于收起了信。'.repeat(50)}`))
     const session = await createAgentSession(t.db, 'admin', { novelId: 'empty-novel' })
@@ -391,9 +462,11 @@ describe('novel-scoped creative agent', () => {
     await confirmAgentAction(t.db, session, valid.id, internalApi())
     expect((await first<{ count: number }>(t.db, "SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id='novel' AND title='雨后'"))?.count).toBe(1)
   })
-  it('cancels an in-flight turn before a returned generation tool can execute', async () => {
+  it.each([0, 10])('cancels after %i tool rounds before a returned generation tool can execute', async (rounds) => {
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
     const turn = await beginAgentTurn(t.db, 'admin', session.id, '帮我构思封面', 'cancel_request_1')
+    for (let round = 0; round < rounds; round++)
+      fetchMock.mockResolvedValueOnce(completion('', [call('read_overview', {}, `read_${round}`)]))
     let deliver!: (response: Response) => void
     let entered!: () => void
     const started = new Promise<void>((resolve) => {
@@ -411,6 +484,7 @@ describe('novel-scoped creative agent', () => {
     await cancelAiTask(t.db, turn.taskId)
     deliver(completion('', [call('generate_cover', { instruction: '雨夜' })]))
     await running
+    expect(fetchMock).toHaveBeenCalledTimes(rounds + 1)
     expect(api).not.toHaveBeenCalled()
     expect((await getAiTask(t.db, turn.taskId))?.status).toBe('cancelled')
   })

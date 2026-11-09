@@ -160,7 +160,7 @@ export async function beginAgentTurn(
       userId,
       novelId: session.novel_id,
       kind: 'agent_chat',
-      total: 8,
+      total: 1,
       prompt: content,
       params: JSON.stringify({ sessionId, ...provider }),
     })
