@@ -62,7 +62,7 @@ export interface StoryMemoryOptions {
   afterChapterId?: string
   /** Maximum chapters per batch; never limits total historical coverage. */
   sampleChapters?: number
-  /** 容错模式：在长篇连载分析中平稳自愈并吸收单章微小格式瑕疵，生产环境默认开启 */
+  /** 兼容已保存任务参数；格式归一化始终启用，语义校验不再按环境放宽。 */
   tolerant?: boolean
   ipAddress?: string
   userAgent?: string

@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
 import type { StoryCertainty, StoryGraph } from '@shared/story-graph'
 import { AiError } from './client'
+import { aliasIdentityQuote, replacementProblem } from './story-ledger-integrity'
 
 export const LEDGER_VERSION = 1
 /** Bump when extraction semantics change, without changing the stored JSON schema. */
-export const LEDGER_PROMPT_VERSION = 4
+export const LEDGER_PROMPT_VERSION = 5
 export type EntityKind = 'person' | 'item' | 'place' | 'faction'
 export type FactKind = 'fact' | 'state' | 'relationship' | 'boundary' | 'clue' | 'conflict' | 'item' | 'place'
 export interface MemoryEntity {
@@ -146,45 +147,15 @@ export function sourceSpan(text: string, quote: string): string {
   return ''
 }
 
-/** 代词补全名（正文只写「他父亲」，模型给出「萧炎父亲」）的落点判定：
- * 关系后缀本身在正文出现，且后缀前的人名也在正文出现。
- * 命中即保留（低置信），不要求模型额外给出 identityQuote。 */
-const RELATION_SUFFIX = /(父亲大人|母亲大人|父亲|母亲|爹爹|爹|娘亲|娘|爷爷|奶奶|外公|外婆|兄长|哥哥|弟弟|姐姐|妹妹|师父|师傅|师尊|弟子|徒弟|师兄|师姐|家主|族长|管家|叔叔|婶婶|舅舅|姑母|表哥|表妹)$/u
+/** Only an explicit possessive phrase grounds a synthesized family name.
+ * Two unrelated names/relationships appearing somewhere in a chapter do not. */
+const RELATION_SUFFIX = /(父亲|母亲|爹爹|娘亲|爷爷|奶奶|外公|外婆|兄长|哥哥|弟弟|姐姐|妹妹|师父|师傅|师尊|弟子|徒弟|师兄|师姐|叔叔|婶婶|舅舅|姑母|表哥|表妹)$/u
 
-const RELATION_SYNONYMS: Record<string, string[]> = {
-  父亲: ['父亲', '爹', '爹爹', '生父', '老爹'],
-  母亲: ['母亲', '娘', '娘亲', '生母', '阿娘'],
-  哥哥: ['哥哥', '哥', '兄长', '堂哥', '表哥'],
-  姐姐: ['姐姐', '姐', '堂姐', '表姐'],
-  弟弟: ['弟弟', '弟', '堂弟', '表弟'],
-  妹妹: ['妹妹', '妹', '堂妹', '表妹'],
-  师父: ['师父', '师傅', '师尊', '老师'],
-}
-
-function relationPresentInText(suffix: string, text: string): boolean {
-  if (text.includes(suffix)) return true
-  const list = RELATION_SYNONYMS[suffix]
-  if (list && list.some((syn) => text.includes(syn))) return true
-  return false
-}
-
-function evidenceSupportsEntity(name: string, evidence: string): boolean {
-  if (!evidence) return false
-  const suffix = name.match(RELATION_SUFFIX)?.[1]
-  if (suffix && relationPresentInText(suffix, evidence)) return true
-  const head = suffix ? name.slice(0, name.length - suffix.length) : name
-  if (head.length >= 2 && evidence.includes(head)) return true
-  return false
-}
-
-export function canonicalNameGrounded(name: string, text: string, previousEntities: MemoryEntity[] = []): boolean {
+export function canonicalNameGrounded(name: string, text: string): boolean {
   const suffix = name.match(RELATION_SUFFIX)?.[1]
   if (!suffix) return false
-  const head = name.slice(0, name.length - suffix.length)
-  if (head.length < 2) return false
-  const headGrounded = text.includes(head) || previousEntities.some((e) => e.name === head || e.aliases.includes(head))
-  if (!headGrounded) return false
-  return relationPresentInText(suffix, text)
+  const head = name.slice(0, -suffix.length)
+  return head.length >= 2 && (text.includes(`${head}的${suffix}`) || text.includes(name))
 }
 
 /** 模型常把认知/事件类值写进事实类别：entities 没有其他可落点，按名字推断；
@@ -226,7 +197,6 @@ export function relevantLedger(
   text: string,
   queries: string[] = [],
   historyMode: 'explicit' | 'topics' = 'explicit',
-  activeOnly = false,
 ): LedgerState {
   const haystack = `${text}\n${queries.join('\n')}`.toLocaleLowerCase()
   const names = new Set(state.entities.flatMap((e) => [e.name, ...e.aliases]).map((n) => n.toLocaleLowerCase()))
@@ -237,8 +207,6 @@ export function relevantLedger(
     ]),
   ].filter((term) => historyMode === 'explicit' || !names.has(term.toLocaleLowerCase()))
   const ids = new Set(state.entities.filter((e) => [e.name, ...e.aliases].some((n) => haystack.includes(n.toLocaleLowerCase()))).map((e) => e.id))
-  // 章节抽取（activeOnly）只认当前有效记录：已被替换的旧记录不能再回到替换候选里。
-  const pool = activeOnly ? currentFacts(state).filter((f) => f.status === 'active') : state.facts
   const current = workingFacts(state)
   const direct = current.filter(
     (f) => f.subjects.some((id) => ids.has(id)) || terms.some((q) => `${f.label} ${f.summary}`.toLocaleLowerCase().includes(q.toLocaleLowerCase())),
@@ -249,7 +217,11 @@ export function relevantLedger(
   const replaceable = new Set(current.map((f) => f.id))
   // History is expanded only for explicit supplementary queries, never merely
   // because the protagonist occurs in every chapter.
-  const historical = pool.filter((f) =>
+  // Extraction normally receives only current active state, but an explicit
+  // model history request must be able to inspect resolved/replaced records.
+  // Those records are marked stale below and therefore can never be used as a
+  // replacement target.
+  const historical = state.facts.filter((f) =>
     terms.some((q) =>
       `${f.label} ${f.summary} ${f.subjects.map((id) => state.entities.find((e) => e.id === id)?.name).join(' ')}`
         .toLocaleLowerCase()
@@ -265,14 +237,15 @@ export function relevantLedger(
     }
   }
   for (const f of historical) f.replaces.forEach(add)
-  const facts = pool
+  const facts = state.facts
     .filter((f) => wanted.has(f.id))
-    .map((fact) => (replaceable.has(fact.id) || fact.status !== 'active' ? fact : { ...fact, stillActive: false }))
+    .map((fact) => (replaceable.has(fact.id) ? fact : { ...fact, stillActive: false }))
   const entities = state.entities.filter((e) => related.has(e.id) || facts.some((f) => f.subjects.includes(e.id)))
   return { entities, facts }
 }
 
-/** References must resolve to supplied records; every assertion retains a verbatim source. */
+/** References must resolve exactly; formatting repair never discards semantics.
+ * A chapter is atomic: any invalid entity, alias, fact or replacement stops it. */
 export function parseChapterMemory(
   raw: unknown,
   opts: {
@@ -283,6 +256,7 @@ export function parseChapterMemory(
     part: number
     previous: LedgerState
     supplied: LedgerState
+    /** Compatibility only; semantic validation is identical in every mode. */
     tolerant?: boolean
   },
 ): ChapterMemory {
@@ -290,346 +264,106 @@ export function parseChapterMemory(
   if (!Array.isArray(root.entities) || !Array.isArray(root.facts)) return fail('缺少 entities 或 facts')
   const entities = new Map(opts.previous.entities.map((e) => [e.id, { ...e, aliases: [...e.aliases] }]))
   const changed: MemoryEntity[] = []
-  const declaredNames = new Set(root.entities.map((value) => str(object(value).name, 60, '实体名称')))
-
-  let firstEntityFailReason = ''
-
+  const entityName = (item: Record<string, unknown>) => {
+    const known = typeof item.id === 'string' ? entities.get(item.id.trim()) : undefined
+    return str(item.name === undefined || item.name === null || item.name === '' ? known?.name : item.name, 60, '人物/实体姓名')
+  }
+  const declaredNames = new Set(root.entities.map((value) => entityName(object(value))))
   for (const value of root.entities) {
     const item = object(value)
+    const name = entityName(item)
     const itemId = typeof item.id === 'string' ? item.id.trim() : ''
-    let rawName = typeof item.name === 'string' ? item.name.trim() : ''
-    if (!rawName && itemId && entities.has(itemId)) {
-      rawName = entities.get(itemId)!.name
+    const aliases = strings(item.aliases, 12, 'aliases').filter((alias) => alias !== name)
+    const kind = enumValue(coerceEntityKind(item.kind, name), ['person', 'item', 'place', 'faction'] as const, '实体类别')
+    const known = [...entities.values()].filter((entity) => [entity.name, ...entity.aliases].includes(name))
+    if (known.length > 1) return fail(`「${name}」存在身份歧义`)
+    const existing = known[0]
+    if (itemId && (!existing || existing.id !== itemId)) return fail(`实体「${name}」的 ID 与已知身份不一致`)
+    if (existing && existing.kind !== kind) return fail(`实体「${name}」的类别与已知身份不一致`)
+    if (!existing && !opts.text.includes(name) && !canonicalNameGrounded(name, opts.text)) {
+      return fail(`新增实体「${name}」不在本章正文，无法确认身份`)
     }
-    const name = str(rawName || itemId, 60, '人物/实体姓名')
-    const aliases = strings(item.aliases, 12, 'aliases').filter((n) => n !== name)
-    const mappedKind = coerceEntityKind(item.kind, name)
-    const kind = enumValue(mappedKind, ['person', 'item', 'place', 'faction'] as const, '实体类别')
-    const known = [...entities.values()].filter((e) => (itemId && e.id === itemId) || [e.name, ...e.aliases].includes(name))
-    
-    // 如果已知有多个重名/歧义，优先精确匹配同名实体或相同 ID 实体
-    const existing = (itemId ? entities.get(itemId) : undefined) || known.find((e) => e.name === name) || known[0]
-    if (known.length > 1 && !existing) {
-      firstEntityFailReason ||= `「${name}」存在身份歧义`
-      continue
-    }
-
-    // 类别冲突：优先尊重已有实体的 kind，避免因模型对类别微调导致整章被退
-    const finalKind = existing ? existing.kind : kind
-
-    const rawEvidence = typeof item.identityQuote === 'string' ? item.identityQuote.trim() : ''
-    const sourceEvidence = rawEvidence ? sourceSpan(opts.text, rawEvidence) : ''
-
-    // 实体合法性判定：
-    // 1. 已有实体（前文已存在或已匹配有效实体 ID）；
-    // 2. 本章正文逐字出现；
-    // 3. 符合规范代词推导（如"萧炎父亲"、"爹爹"等）；
-    // 4. 提供了合法的 identityQuote 并在正文中能够逐字核对；
-    // 5. 容错模式下：若正文包含前缀字根、或引文中包含该实体、或与前文实体存在关联称谓，自动接纳。
-    const isEntityGrounded =
-      Boolean(existing) ||
-      opts.text.includes(name) ||
-      canonicalNameGrounded(name, opts.text, opts.previous.entities) ||
-      evidenceSupportsEntity(name, sourceEvidence) ||
-      Boolean(
-        opts.tolerant &&
-          (sourceEvidence.includes(name) ||
-            (name.length >= 2 && (opts.text.includes(name.slice(0, 2)) || opts.text.includes(name.slice(-2)))) ||
-            opts.previous.entities.some((e) => e.name.length >= 2 && name.includes(e.name))),
-      )
-
-    if (!isEntityGrounded) {
-      firstEntityFailReason ||= `新增实体「${name}」不在本章正文（代词补全的名称须附 identityQuote 说明身份）`
-      // 单个脱离正文的孤立实体不计入合法实体，避免整章失败；若整章全部事实都无合法主体，最后会统一报错
-      continue
-    }
-
-    const validAliases: string[] = []
-    for (const alias of aliases) {
-      if (alias.length > 60) continue
-      if (declaredNames.has(alias) && alias !== name) {
-        firstEntityFailReason ||= `别名「${alias}」同时被声明为另一实体，请先核对身份`
-        continue
+    const newAliases = aliases.filter((alias) => alias !== existing?.name && !existing?.aliases.includes(alias))
+    const aliasEvidence: NonNullable<MemoryEntity['aliasEvidence']> = []
+    for (const alias of newAliases) {
+      if (alias.length > 60) return fail('别名过长')
+      if (declaredNames.has(alias) || [...entities.values()].some((entity) => entity.id !== existing?.id && [entity.name, ...entity.aliases].includes(alias))) {
+        return fail(`别名「${alias}」与另一实体冲突`)
       }
-      if (!opts.text.includes(alias) && !existing?.aliases.includes(alias) && !sourceEvidence) {
-        firstEntityFailReason ||= `别名「${alias}」缺少正文来源`
-        continue
+      const identity = aliasIdentityQuote(existing?.name || name, alias, opts.text)
+      if (!identity) {
+        return fail(`别名「${alias}」缺少正文来源中的明确身份说明，请提供 identityQuote`)
       }
-      if ([...entities.values()].some((e) => e.id !== existing?.id && [e.name, ...e.aliases].includes(alias))) {
-        firstEntityFailReason ||= `别名「${alias}」与其他实体冲突`
-        continue
-      }
-      validAliases.push(alias)
+      aliasEvidence.push({
+        alias,
+        quote: identity,
+        chapterId: opts.chapterId,
+        ordinal: opts.ordinal,
+      })
     }
-
     const entity: MemoryEntity = existing
-      ? { ...existing, aliases: [...new Set([...existing.aliases, ...validAliases])] }
-      : { id: itemId && !entities.has(itemId) ? itemId : `e_${ledgerHash([opts.novelId, finalKind, name]).slice(0, 24)}`, name, aliases: validAliases, kind: finalKind }
-    
-    const newAliases = validAliases.filter((alias) => !existing?.aliases.includes(alias))
-    if (newAliases.length && sourceEvidence) {
+      ? { ...existing, aliases: [...new Set([...existing.aliases, ...newAliases])] }
+      : { id: `e_${ledgerHash([opts.novelId, kind, name]).slice(0, 24)}`, name, aliases, kind }
+    if (newAliases.length) {
       entity.aliasEvidence = [
         ...(existing?.aliasEvidence || []),
-        ...newAliases.map((alias) => ({ alias, quote: sourceEvidence, chapterId: opts.chapterId, ordinal: opts.ordinal })),
+        ...aliasEvidence,
       ]
     }
     entities.set(entity.id, entity)
     changed.push(entity)
   }
-
-  const nameId = (nameOrId: string): string | undefined => {
-    if (!nameOrId || typeof nameOrId !== 'string') return undefined
-    const trimmed = nameOrId.trim()
-    if (!trimmed) return undefined
-
-    // 1. 直接以实体 ID 形式传入（如模型返回 "e_991b648700fdd60143c46990"）
-    if (entities.has(trimmed)) return trimmed
-    const prevById = opts.previous.entities.find((e) => e.id === trimmed)
-    if (prevById) return prevById.id
-
-    // 2. 按实体名称与别名在当前章节实体池中匹配
-    const matches = [...entities.values()].filter((e) => [e.name, ...e.aliases].includes(trimmed))
-    if (matches.length === 1) return matches[0]!.id
-    if (matches.length > 1) {
-      const exact = matches.find((e) => e.name === trimmed)
-      if (exact) return exact.id
-      return matches[0]!.id
-    }
-
-    // 3. 按实体名称与别名在历史实体池中匹配
-    const prevMatches = opts.previous.entities.filter((e) => [e.name, ...e.aliases].includes(trimmed))
-    if (prevMatches.length) {
-      const exact = prevMatches.find((e) => e.name === trimmed)
-      return (exact || prevMatches[0])!.id
-    }
-
-    // 4. 容错包含匹配（避免模型附带括号修饰或微弱前后缀噪音）
-    const partialMatch = [...entities.values(), ...opts.previous.entities].find(
-      (e) => (e.name.length >= 2 && trimmed.includes(e.name)) || e.aliases.some((a) => a.length >= 2 && trimmed.includes(a)),
-    )
-    if (partialMatch) return partialMatch.id
-
-    return undefined
+  const nameId = (value: string): string => {
+    const name = value.trim()
+    if (entities.has(name)) return name
+    const matches = [...entities.values()].filter((entity) => [entity.name, ...entity.aliases].includes(name))
+    if (matches.length !== 1) return fail(`实体「${name}」未声明或身份有歧义`)
+    return matches[0]!.id
   }
-
-  const supplied = new Map(opts.supplied.facts.map((f) => [f.id, f]))
-  const alreadyReplaced = new Set(opts.previous.facts.flatMap((f) => f.replaces))
+  const supplied = new Map(opts.supplied.facts.map((fact) => [fact.id, fact]))
+  const replaceable = new Set(workingFacts(opts.previous).map((fact) => fact.id))
+  const replacedThisChapter = new Set<string>()
   const facts: MemoryFact[] = []
-  let firstFactFailReason = ''
-
   for (let index = 0; index < root.facts.length; index++) {
-    const value = root.facts[index]
-    const item = object(value)
-    let memoryType: 'state' | 'event'
-    let kind: 'fact' | 'state' | 'relationship' | 'boundary' | 'clue' | 'conflict' | 'item' | 'place'
-    let label: string
-    let rawSubjects: string[]
-    let rawQuote: string
-    try {
-      memoryType = enumValue(item.memoryType, ['state', 'event'] as const, 'memoryType')
-      kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'] as const, '事实类别')
-      label = str(item.label, 80, 'label')
-      rawSubjects = strings(item.subjects, 12, 'subjects')
-      rawQuote = typeof item.quote === 'string' ? item.quote.trim() : ''
-    } catch (err) {
-      firstFactFailReason ||= (err as Error)?.message || '事实项格式无效'
-      continue
-    }
-
-    if (!rawQuote) {
-      firstFactFailReason ||= 'quote 缺失'
-      continue
-    }
-    const quote = rawQuote.length > 1000 ? rawQuote.slice(0, 1000) : rawQuote
-    const span = sourceSpan(opts.text, quote)
-    if (!span) {
-      firstFactFailReason ||= `facts[${index}].quote 无法逐字匹配本章正文（引文须为本段连续原文）`
-      continue
-    }
-
-    const subjects = rawSubjects.map(nameId).filter((id): id is string => Boolean(id))
-    if (!subjects.length && opts.tolerant) {
-      for (const rawName of rawSubjects) {
-        const trimmed = typeof rawName === 'string' ? rawName.trim() : ''
-        if (!trimmed || trimmed.length > 60) continue
-        const grounded =
-          opts.text.includes(trimmed) ||
-          span.includes(trimmed) ||
-          canonicalNameGrounded(trimmed, opts.text, opts.previous.entities)
-        if (grounded) {
-          const kind = coerceEntityKind(undefined, trimmed) as EntityKind
-          const autoEntity: MemoryEntity = {
-            id: `e_${ledgerHash([opts.novelId, kind, trimmed]).slice(0, 24)}`,
-            name: trimmed,
-            aliases: [],
-            kind: ['person', 'item', 'place', 'faction'].includes(kind) ? kind : 'person',
-          }
-          entities.set(autoEntity.id, autoEntity)
-          changed.push(autoEntity)
-          subjects.push(autoEntity.id)
-        }
-      }
-    }
-    if (!subjects.length) {
-      firstFactFailReason ||= '事实必须绑定实体'
-      continue
-    }
-    if (kind === 'relationship' && subjects.length !== 2) {
-      firstFactFailReason ||= '关系必须绑定双方'
-      continue
-    }
-
-    let certainty: 'fact' | 'belief' | 'clue' | 'possibility' | 'inference'
-    let perspective: string | undefined
-    try {
-      certainty = enumValue(
-        lenientEnum(item.certainty, ['fact', 'belief', 'clue', 'possibility', 'inference'] as const, 'certainty') ?? item.certainty,
-        ['fact', 'belief', 'clue', 'possibility', 'inference'] as const,
-        'certainty',
-      )
-      perspective = item.perspective ? nameId(typeof item.perspective === 'string' ? item.perspective.trim().slice(0, 60) : '') : undefined
-    } catch (err) {
-      firstFactFailReason ||= (err as Error)?.message || 'certainty 无效'
-      continue
-    }
+    const item = object(root.facts[index])
+    const memoryType = enumValue(item.memoryType, ['state', 'event'] as const, 'memoryType')
+    const kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'] as const, '事实类别')
+    const label = str(item.label, 80, 'label')
+    const summary = str(item.summary, 1000, 'summary')
+    const rawQuote = str(item.quote, 1000, 'quote')
+    const quote = sourceSpan(opts.text, rawQuote)
+    if (!quote) return fail(`facts[${index}].quote 无法逐字匹配本章正文（引文须为本段连续原文）`)
+    const subjects = [...new Set(strings(item.subjects, 12, 'subjects').map(nameId))]
+    if (!subjects.length) return fail('事实必须绑定实体')
+    const certainty = enumValue(item.certainty, ['fact', 'belief', 'clue', 'possibility', 'inference'] as const, 'certainty')
+    const perspective = item.perspective ? nameId(str(item.perspective, 100, 'perspective')) : undefined
     if (certainty === 'belief') {
-      if (!perspective && opts.tolerant) {
-        if (typeof item.perspective === 'string' && item.perspective.trim()) {
-          const pTrimmed = item.perspective.trim()
-          perspective = nameId(pTrimmed)
-          if (!perspective) {
-            const matched = [...entities.values(), ...opts.previous.entities].find(
-              (e) => (e.name.length >= 2 && pTrimmed.includes(e.name)) || e.aliases.some((a) => a.length >= 2 && pTrimmed.includes(a)),
-            )
-            if (matched) perspective = matched.id
-          }
-        }
-        if (!perspective && subjects.length > 0) {
-          perspective = subjects.find((id) => entities.get(id)?.kind === 'person') || subjects[0]
-        }
-        if (!perspective) {
-          certainty = 'fact'
-        }
-      }
-      if (!perspective) {
-        firstFactFailReason ||= '人物认知必须注明认知主体并绑定该实体'
-        continue
-      }
-      if (!subjects.includes(perspective) && kind !== 'relationship') subjects.push(perspective)
-    } else if (perspective) {
-      perspective = undefined
-    }
-
-    let replaces: string[] = []
-    try {
-      replaces = Array.isArray(item.replaces) ? strings(item.replaces, 30, 'replaces') : []
-    } catch {
-      replaces = []
-    }
-    const onceOnly = ['belief', 'clue', 'conflict', 'relationship', 'boundary'].includes(kind) || certainty === 'belief'
-    if (kind === 'relationship' && typeof item.directed !== 'boolean') {
-      firstFactFailReason ||= '关系必须明确 directed 方向'
-      continue
-    }
-
-    const validReplaces: string[] = []
-    let replaceFailed = false
-    for (const id of replaces) {
-      const before = supplied.get(id)
-      if (!before) {
-        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态`
-        replaceFailed = true
-        continue
-      }
-      const beforeKind = String(before.kind ?? '')
-      const shared = before.subjects.filter((subject) => subjects.includes(subject))
-      const sameSubjects = [...before.subjects].sort().join() === [...subjects].sort().join()
-      const isRelationship = kind === 'relationship' || beforeKind === 'relationship'
-      const anchoredByTopic = isRelationship ? sameSubjects : shared.length > 0
-      const sameSide = before.subjects.join() === subjects.join()
-      const stale = (before as MemoryFact & { supplied?: boolean }).supplied === false
-      if (stale || alreadyReplaced.has(id) || before.memoryType !== 'state' || memoryType !== 'state') {
-        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态`
-        replaceFailed = true
-        continue
-      }
-      if (!anchoredByTopic) {
-        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（缺少共有核心主体）`
-        replaceFailed = true
-        continue
-      }
-      if (before.directed && item.directed === true && !sameSide) {
-        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（单向关系不能改方向）`
-        replaceFailed = true
-        continue
-      }
-      const isBeliefConfirmed = before.certainty === 'belief' && certainty === 'fact' && !perspective
-      const samePerspective = isBeliefConfirmed || ((before.certainty === 'belief') === (certainty === 'belief') && before.perspective === perspective)
-      if (!samePerspective) {
-        firstFactFailReason ||= `替换记录 ${id} 不属于本次提供的同主题、同核心主体、同类别有效状态（认知口径不同）`
-        replaceFailed = true
-        continue
-      }
-      const RELAXABLE = ['fact', 'state', 'boundary', 'clue', 'conflict', 'item', 'place']
-      if (before.kind !== kind && !(RELAXABLE.includes(before.kind) && RELAXABLE.includes(kind))) {
-        firstFactFailReason ||= `替换记录 ${id} 的类别变化超出放宽范围（原类别 ${before.kind} → ${kind}）`
-        replaceFailed = true
-        continue
-      }
-      if (before.label !== label && (certainty === 'inference' || onceOnly)) {
-        label = before.label
-      }
-      validReplaces.push(id)
-      alreadyReplaced.add(id)
-    }
-
-    // 容错模式下：若替换校验未通过，降级为增量状态记录（置空 replaces），绝不丢弃该事实！
-    if (opts.tolerant && replaceFailed) {
-      replaceFailed = false
-    }
-
-    // 单条孤立测试或整章唯一条目若发生替换失败，跳过该条以便守卫感知原因
-    if (replaceFailed && replaces.length > 0 && validReplaces.length === 0 && root.facts.length === 1) {
-      continue
-    }
-
-    facts.push({
+      if (!perspective || entities.get(perspective)?.kind !== 'person') return fail('人物认知必须注明有效的人物认知主体')
+      // Explicitly supplied, unambiguous perspective can safely complete subjects.
+      if (!subjects.includes(perspective)) subjects.push(perspective)
+    } else if (perspective) return fail('非人物认知不能填写 perspective')
+    if (kind === 'relationship' && (subjects.length !== 2 || typeof item.directed !== 'boolean')) return fail('关系必须绑定双方并明确 directed 方向')
+    const status = enumValue(lenientEnum(item.status, ['active', 'resolved'], 'status'), ['active', 'resolved'] as const, 'status')
+    const scope = enumValue(lenientEnum(item.scope, ['local', 'global'], 'scope'), ['local', 'global'] as const, 'scope')
+    const replaces = item.replaces === undefined ? [] : strings(item.replaces, 30, 'replaces')
+    const next: MemoryFact = {
       id: `f_${ledgerHash([opts.novelId, opts.chapterId, opts.part, index, item]).slice(0, 24)}`,
-      memoryType,
-      kind,
-      subjects,
-      label,
-      summary: str(item.summary, 1000, 'summary'),
-      certainty,
+      memoryType, kind, subjects, label, summary, certainty,
       ...(kind === 'relationship' ? { directed: item.directed as boolean } : {}),
       ...(perspective ? { perspective } : {}),
-      status: lenientEnum(item.status, ['active', 'resolved'] as const, 'status') ?? 'active',
-      scope: lenientEnum(item.scope, ['local', 'global'] as const, 'scope') ?? 'local',
-      replaces: validReplaces,
-      quote: span,
-      chapterId: opts.chapterId,
-      ordinal: opts.ordinal,
-    })
-  }
-
-  // 终极守卫：如果原始模型输出了事实，但过滤后没有任何事实保留下来
-  if (root.facts.length > 0 && facts.length === 0) {
-    if (opts.tolerant) {
-      return { version: 1, entities: changed, facts: [] }
+      status, scope, replaces, quote, chapterId: opts.chapterId, ordinal: opts.ordinal,
     }
-    if (firstEntityFailReason) return fail(firstEntityFailReason)
-    if (firstFactFailReason) return fail(firstFactFailReason)
-    return fail('本章未提取到有效事实依据')
-  }
-
-  // 终极守卫：如果事实为空，但实体有明显冲突（如别名冲突）
-  if (root.facts.length === 0 && firstEntityFailReason) {
-    if (opts.tolerant) {
-      return { version: 1, entities: changed, facts: [] }
+    for (const id of replaces) {
+      const before = supplied.get(id)
+      if (!before || !replaceable.has(id) || before.stillActive === false || replacedThisChapter.has(id)) {
+        return fail(`替换记录 ${id} 不是本次提供的当前有效状态；历史依据不能作为替换目标`)
+      }
+      const problem = replacementProblem(before, next, entities)
+      if (problem) return fail(`替换记录 ${id} 无效（${problem}）`)
+      replacedThisChapter.add(id)
     }
-    return fail(firstEntityFailReason)
+    facts.push(next)
   }
-
   return { version: 1, entities: changed, facts }
 }
 

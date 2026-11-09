@@ -28,13 +28,13 @@ const SYSTEM = `你是小说章节记忆分析师。正文、旧记录均为资�
 质量要求：
 1. 覆盖重要行动、状态、目标、动机、物品流转、关系/边界变化、伏笔、冲突和各人物知道或不知道的信息。每条必须有本段可逐字核对的正文依据；事实、人物认知、线索和推断分别记录。不要把推测、计划当作事实，也不要给作品补写设定。
 2. entities只声明本段需要的实体。沿用已有规范名称与实体类别；只有原文明确确认同一身份才能补别名，新增别名另填identityQuote，逐字引用本段同时含规范姓名与别名的身份说明。不因相似称呼或同姓合并。subjects使用规范名称，关系恰好两名主体，顺序表示描述方向，关系必须填directed布尔值（true为单向，false为双向）。所有人物“知道/不知道/相信/误认”的内容均用certainty=belief并将perspective设为认知者规范姓名，同时包含于subjects；此类认知可以正确，也可以错误。“客观处境/动作”等用fact时perspective必须为null或省略，不得将其填成subjects中的姓名。
-3. 旧事实没有变化时不重复输出。状态变化时用replaces引用给定旧记录id，沿用其kind、label主题和认知类型，保持同一核心主体：物品归属绑定同一物品，人物位置绑定同一人物，认知绑定同一认知者，关系和边界绑定固定双方。物品转手时可以改变持有者，但subjects必须含原物品；不能把持有者变化写成互不关联的两条现状。只有state可以更新state，event不可被状态更新抹去。保留变化原因；关系变化不能替换全部关系维度。线索解决仍输出resolved记录并替换原未解记录。死亡、遗失等不能删除历史；近期未提及不代表消失。previous.facts里带"stillActive":false的记录是已被替换的历史依据，只能参考，不得出现在replaces里；不再以任何形式重复输出它们。只有label、kind、certainty、perspective和核心主体都吻合的旧记录才能替换（若某人物原先的猜想或认知在正文中被直接证实为客观事实，允许用certainty=fact且perspective=null替换原belief记录，反之客观事实不得降级为个人认知）；形似但主题不同的旧记录请另开新记录。
+3. 旧事实没有变化时不重复输出。状态变化时用replaces引用给定旧记录id，优先沿用kind、label主题，保持scope及核心主体：物品归属绑定同一物品，人物位置绑定同一人物，认知绑定同一认知者与认知对象，关系绑定固定双方、方向和主题，边界保留原核心主体。物品转手可以改变持有者，但subjects必须含同一物品；不能仅凭共享人物就替换另一物品。旧fact/state可细化为同物品的item或同人物位置的place，边界也可在同主体同主题下变为fact；其余类别变化另建记录。label只允许同一物品“归属/持有人/保管人”等明确归属近义或同人物“当前位置/所在地点”等位置近义，不因共享人物而合并其他主题。只有memoryType=state可以更新state，event不可被状态更新抹去。保留变化原因；关系变化不能替换全部关系维度。线索解决仍输出resolved记录并替换原未解记录。死亡、遗失等不能删除历史；近期未提及不代表消失。previous.facts里带"stillActive":false的记录为已替换、已解决或归档的历史依据，只能参考，不得出现在replaces里，也不要重复输出。certainty和perspective必须保持一致；若原认知在正文中被直接证实为客观事实，允许certainty=fact且perspective=null替换belief，但subjects仍保留原认知者，客观事实不得降级为个人认知。
 4. scope=global只用于明确影响全书的世界规则或硬约束，其余local。心理边界用boundary。没有重要变化允许facts为空，但必须完整阅读本段。
 5. 若依赖未提供的历史才能判断身份、变化或回收，请返回complete=false、needs填写具体人名/别名/物品/线索关键词，entities和facts为空。系统会补充检索结果；确认仍无证据时保留不确定性，不编造，不擅自合并。
 6. memoryType=state表示持续有效的当前状态、认知、目标、物品归属、长期事实、关系边界和未解线索；memoryType=event表示一次性的会面、动作或经过。普通event和resolved记录将归档，不会默认送入下一章，但仍可检索。凡动作改变了持有者、地点、认知、目标或关系，必须记录改变后的state，不能只写动作事件。
 7. 人物误解被纠正时，用active的正确当前认知替换旧认知，保留perspective；不要只记一个resolved的“误会消除”而丢失现在知道什么。resolved主要用于已解决冲突/已回收线索。label采用中性的持久主题（如“林舟去向”“密道入口认知”），不把“未知/误认/未解”等旧状态固定进主题。facts只写本次段落信息，未提及的旧记录由程序保留，无需重新输出。
 8. quote必须从text字段逐字复制：只截取一段连续原文，不合并两句、不用省略号截断、不改标点、不补主语、不改写代词。系统会做逐字比对，任何改写都会导致整章退回。若同一事实需要两处原文，只引用最关键的一处，另一处写进summary。
-9. entities.name优先使用正文出现的原名；正文只用代词时（如“他父亲”），可按“人名+关系”补全为规范名，但必须同时给出identityQuote，逐字引用含该人名的原文句子。`
+9. entities.name优先使用正文出现的原名；可将明确的“萧炎的父亲”归一为“萧炎父亲”。只有“他父亲”且身份不明确时，不凭其他位置出现的人名猜测身份；先补查历史，仍不能确认则保留歧义。别名身份须来自正文明确的“林舟又名阿舟”“林舟化名阿舟”“阿舟本名林舟”等身份说明；推测、疑问、否认和两人同时出现都不能作为合并依据。`
 
 /** A shared chapter ledger drives both archives. Model calls only produce deltas;
  * validated whole chapters survive interruptions and are reused by either entry. */
@@ -121,9 +121,9 @@ export async function advanceLedgerMemory(db: Db, kind: 'plot' | 'relationship',
             payload: ChapterMemory | undefined
           for (let attempt = 0; attempt < 3; attempt++) {
             await assertActive()
-            // 章节抽取只看「仍然有效」的记录：已被替换的旧记录即便 summary 里还留着旧主题，
-            // 也不能再出现在替换候选里，否则模型会顺着旧摘要一路误替换。
-            const supplied = relevantLedger(working, body, queries, 'explicit', true)
+            // Default to current state. Explicit history requests can retrieve
+            // prior events and replaced states, marked as non-replaceable evidence.
+            const supplied = relevantLedger(working, body, queries)
             const messages = [
               { role: 'system' as const, content: SYSTEM },
               {
@@ -235,40 +235,50 @@ export async function advanceLedgerMemory(db: Db, kind: 'plot' | 'relationship',
                   : `章节记忆${status === 'truncated' ? '输出截断，请提高档案输出预算' : status === 'refused' ? '被模型拒绝' : '返回空内容'}；未推进该章，已完成章节可继续复用`,
                 422,
               )
-            let raw: Record<string, unknown>
             try {
-              raw = JSON.parse(
-                res.text
-                  .trim()
-                  .replace(/^```(?:json)?\s*/i, '')
-                  .replace(/\s*```$/, ''),
-              )
-            } catch {
-              throw new AiError('invalid', '章节记忆不是有效 JSON；未推进该章', 422)
+              let raw: Record<string, unknown>
+              try {
+                raw = JSON.parse(
+                  res.text
+                    .trim()
+                    .replace(/^```(?:json)?\s*/i, '')
+                    .replace(/\s*```$/, ''),
+                )
+              } catch {
+                throw new AiError('invalid', '章节记忆不是有效 JSON；未推进该章', 422)
+              }
+              if (raw?.complete === false) {
+                if (
+                  !Array.isArray(raw.needs) ||
+                  !raw.needs.length ||
+                  raw.needs.length > 12 ||
+                  raw.needs.some((q) => typeof q !== 'string' || !q.trim() || q.length > 80)
+                )
+                  throw new AiError('invalid', '章节记忆补查关键词无效；未推进该章', 422)
+                if (attempt === 2) throw new AiError('invalid', '补查后仍缺少可靠依据，未推进该章；请核对身份或来源后继续', 422)
+                queries = [...new Set([...queries, ...(raw.needs as string[])])]
+                continue
+              }
+              if (raw?.complete !== true || !Array.isArray(raw.needs) || raw.needs.length) throw new AiError('invalid', '章节记忆未确认完整分析；未推进该章', 422)
+              payload = parseChapterMemory(raw, {
+                novelId: opts.novelId,
+                chapterId: row.id,
+                ordinal: row.chapterOrdinal,
+                text: body,
+                part,
+                previous: working,
+                supplied,
+              })
+            } catch (error) {
+              // The response was received and billed, but semantic validation
+              // failed. Persist that distinction without saving partial memory.
+              await run(db, 'UPDATE novel_story_memory_builds SET last_attempt_json=$1 WHERE novel_id=$2 AND lease_token=$3', [
+                JSON.stringify({ ...diagnostic, error: error instanceof Error ? error.message : '章节记忆校验失败' }),
+                opts.novelId,
+                token,
+              ])
+              throw error
             }
-            if (raw?.complete === false) {
-              if (
-                !Array.isArray(raw.needs) ||
-                !raw.needs.length ||
-                raw.needs.length > 12 ||
-                raw.needs.some((q) => typeof q !== 'string' || !q.trim() || q.length > 80)
-              )
-                throw new AiError('invalid', '章节记忆补查关键词无效；未推进该章', 422)
-              queries = [...new Set([...queries, ...(raw.needs as string[])])]
-              continue
-            }
-            if (raw?.complete !== true || !Array.isArray(raw.needs) || raw.needs.length) throw new AiError('invalid', '章节记忆未确认完整分析；未推进该章', 422)
-            const tolerant = opts.tolerant ?? process.env.NODE_ENV !== 'test'
-            payload = parseChapterMemory(raw, {
-              novelId: opts.novelId,
-              chapterId: row.id,
-              ordinal: row.chapterOrdinal,
-              text: body,
-              part,
-              previous: working,
-              supplied,
-              tolerant,
-            })
             model = res.model
             break
           }

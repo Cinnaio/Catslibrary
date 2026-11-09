@@ -211,7 +211,9 @@ function MemoryAttemptNote({ profile }: { profile: AiEffectiveProfile | null }) 
     refused: { label: '模型拒答，增加预算不能解决', tone: 'text-destructive font-medium' },
     empty: { label: '返回空内容，未确认截断', tone: 'text-muted-foreground font-medium' },
   }
-  const statusInfo = statusMap[attempt.status] || { label: attempt.status, tone: 'text-muted-foreground' }
+  const statusInfo = attempt.status === 'complete' && attempt.error
+    ? { label: '校验未通过，未推进该章', tone: 'text-destructive font-medium' }
+    : statusMap[attempt.status] || { label: attempt.status, tone: 'text-muted-foreground' }
 
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted-foreground">
