@@ -113,14 +113,13 @@ export default function AiAgentComposer({ value, onChange, onSend, onStop, busy,
         maxLength={8000}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
-            event.preventDefault()
-            onSend()
-          }
+          if (event.key !== 'Enter' || event.shiftKey || event.altKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
+          event.preventDefault()
+          if (!event.repeat) onSend()
         }}
       />
       <span id={hintId} className="sr-only">
-        Ctrl 或 Command 加 Enter 发送，Enter 换行。所选模型用于本轮对话与文本生成。
+        Enter 发送，Shift 加 Enter 换行，也支持 Ctrl 或 Command 加 Enter 发送。所选模型用于本轮对话与文本生成。
       </span>
       <div className={styles.composerActions}>
         <DropdownMenu
@@ -190,7 +189,7 @@ export default function AiAgentComposer({ value, onChange, onSend, onStop, busy,
             type="submit"
             size="icon"
             aria-label={busy ? '正在提交…' : '发送'}
-            title="发送（Ctrl / ⌘ + Enter）"
+            title="发送（Enter；Shift + Enter 换行）"
             disabled={busy || !value.trim()}
           >
             <ArrowUp size={17} aria-hidden="true" />
