@@ -32,6 +32,7 @@ struct AdminAIAgentConversationView: View {
         }
         .navigationTitle(model.session.title.isEmpty ? "对话创作" : model.session.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("会话设置", systemImage: "slider.horizontal.3") { showSettings = true }

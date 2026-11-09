@@ -164,12 +164,16 @@ struct BookshelfView: View {
     @ViewBuilder
     private func loadedContent(_ response: BookshelfResponse) -> some View {
         if response.favorites.isEmpty && (response.recent.isEmpty || !search.isEmpty || !reading.isEmpty) && errorMessage == nil {
-            ContentUnavailableView(
-                search.isEmpty && reading.isEmpty ? "书架空空" : "没有匹配的收藏",
-                systemImage: "books.vertical",
-                description: Text(search.isEmpty && reading.isEmpty ? "去发现页找一本喜欢的书吧" : "换个关键词或筛选条件试试")
-            )
+            Section {
+                ContentUnavailableView(
+                    search.isEmpty && reading.isEmpty ? "书架空空" : "没有匹配的收藏",
+                    systemImage: "books.vertical",
+                    description: Text(search.isEmpty && reading.isEmpty ? "去发现页找一本喜欢的书吧" : "换个关键词或筛选条件试试")
+                )
                 .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden, edges: .all)
+            }
+            .listSectionSeparator(.hidden, edges: .all)
         }
         if let errorMessage {
             LoadErrorNotice(message: errorMessage, isLoading: isLoading) {

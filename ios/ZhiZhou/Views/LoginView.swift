@@ -40,6 +40,7 @@ struct LoginView: View {
                             .padding(.bottom, 28)
 
                         fieldsGroup
+                            .padding(.top, 20)
                             .disabled(busy || isRestoringSession)
 
                         if appState.sessionRestoreFailed || errorMessage != nil {
