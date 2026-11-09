@@ -1,0 +1,595 @@
+.root {
+  min-width: 0;
+  color: var(--text-primary);
+}
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+  margin-bottom: 24px;
+}
+.toolbar > *,
+.start,
+.workspace > * {
+  min-width: 0;
+}
+.identity {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+  margin-block: 16px;
+}
+.identity > span:last-child {
+  margin-left: auto;
+}
+.settings {
+  margin-block: 20px 28px;
+  font-size: 13px;
+}
+.settings > summary,
+.history > summary {
+  cursor: pointer;
+  padding-block: 8px;
+  color: var(--text-secondary);
+}
+.settingsBody {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(160px, 1fr);
+  gap: 24px;
+  padding-block: 20px;
+}
+.confirmAdults {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+.chat {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-feature);
+  background: var(--bg-card);
+  overflow: hidden;
+  min-width: 0;
+  transition: border-color 180ms ease;
+}
+.chat[data-running='true'] {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+}
+.chatHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 28px 16px;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 75%);
+}
+.chatTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.chatTitle svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.chatState {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: right;
+}
+.chat[data-running='true'] .chatState {
+  color: var(--accent);
+}
+.chat[data-running='true']::after,
+.composer:focus-within::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 36%;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: lightSweep 4.8s ease-in-out infinite;
+}
+.composer:focus-within::before {
+  opacity: 0.65;
+  animation: lightSweep 1.6s ease-out both;
+}
+.feed {
+  height: min(62vh, 720px);
+  min-height: 300px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 22px 28px 28px;
+}
+.message {
+  margin-bottom: 28px;
+  padding: 0;
+  animation: arrive 180ms ease-out both;
+}
+.message[data-role='user'] {
+  width: fit-content;
+  max-width: 92%;
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border-light));
+  border-radius: 18px 18px 6px 18px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-card));
+  padding: 16px 18px;
+}
+.message[data-role='assistant'] > .speaker {
+  color: var(--accent);
+  font-weight: 500;
+}
+.speaker {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.95;
+}
+.activity {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  margin-block: 14px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+.activity .prose {
+  font-size: 12px;
+}
+.activity button {
+  min-height: 32px;
+  padding-left: 0;
+}
+.composer {
+  position: relative;
+  overflow: hidden;
+  padding: 20px 24px 24px;
+  background: color-mix(in srgb, var(--bg-secondary) 38%, var(--bg-card));
+}
+.composer textarea {
+  min-height: 90px;
+  max-height: 240px;
+  resize: vertical;
+}
+.composerActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.composerActions > span {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.outputs {
+  display: grid;
+  gap: 24px;
+  padding-top: 4px;
+}
+.outputHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.outputHeader h3 {
+  margin: 0;
+  font-family: var(--font-serif, serif);
+  font-size: 20px;
+  font-weight: 500;
+}
+.outputHeader a {
+  color: var(--accent);
+  font-size: 12px;
+}
+.pending {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  background: color-mix(in srgb, var(--accent-subtle) 36%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-radius: var(--radius-container);
+}
+.pending strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.pending p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin: 8px 0 0;
+}
+.pending > button {
+  justify-self: start;
+}
+.artifact {
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+.taskStatus {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+.taskStatus strong {
+  font-weight: 500;
+}
+.taskStatus span {
+  color: var(--text-muted);
+  margin-left: auto;
+  padding: 4px 8px;
+  border-radius: var(--radius-tag);
+  background: var(--bg-secondary);
+  font-size: 12px;
+}
+.taskProgress {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.taskProgressTrack {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+.taskProgressTrack progress {
+  display: block;
+  width: 100%;
+  accent-color: var(--accent);
+  height: 6px;
+}
+.taskProgressTrack::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 40%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 45%, transparent), transparent);
+  animation: lightSweep 3.2s ease-in-out infinite;
+}
+.draft {
+  display: grid;
+  gap: 20px;
+}
+.draft > .prose {
+  max-height: 64vh;
+  overflow: auto;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  scrollbar-gutter: stable;
+}
+.artifactActions,
+.dialogActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.comparison {
+  display: grid;
+  gap: 24px;
+}
+.comparison h4 {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+}
+.comparison > section {
+  min-width: 0;
+}
+.artifact > .comparison {
+  max-height: 64vh;
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg-card);
+}
+.cover {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  max-height: 560px;
+  object-fit: contain;
+  border-radius: 16px;
+  margin: 0 auto 20px;
+}
+.history {
+  font-size: 12px;
+}
+.historyRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.historyRow button {
+  white-space: normal;
+  text-align: left;
+}
+.history > .prose {
+  font-size: 12px;
+  margin-bottom: 18px;
+}
+.welcome,
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-secondary);
+}
+.welcome {
+  padding-block: 64px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-feature);
+  background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 65%), var(--bg-card);
+}
+.welcome > svg {
+  width: 56px;
+  height: 56px;
+  padding: 15px;
+  margin-bottom: 4px;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-radius: 18px;
+}
+.welcome h2 {
+  font-family: var(--font-serif, serif);
+  font-size: 26px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--text-primary);
+}
+.welcome p,
+.empty p {
+  max-width: 440px;
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 0;
+}
+.empty h3 {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0;
+}
+.start {
+  display: grid;
+  gap: 24px;
+  width: min(420px, 100%);
+  text-align: left;
+  margin-top: 16px;
+}
+.suggestions {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  width: 100%;
+}
+.suggestions button {
+  height: auto;
+  min-height: 40px;
+  padding: 12px 16px;
+  white-space: normal;
+  line-height: 1.7;
+  text-align: left;
+  justify-content: flex-start;
+}
+.progress {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  max-width: 100%;
+  overflow: hidden;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-card));
+}
+.progress::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 40%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, color-mix(in srgb, var(--accent) 12%, transparent), transparent);
+  animation: lightSweep 3.2s ease-in-out infinite;
+}
+.progressText {
+  position: relative;
+  overflow-wrap: anywhere;
+}
+.dot {
+  position: relative;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.muted {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.error {
+  color: var(--color-danger);
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.mobileTabs {
+  display: none;
+}
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes lightSweep {
+  0%,
+  12% {
+    transform: translateX(-110%);
+    opacity: 0;
+  }
+  24%,
+  68% {
+    opacity: 1;
+  }
+  88%,
+  100% {
+    transform: translateX(310%);
+    opacity: 0;
+  }
+}
+@media (max-width: 1100px) {
+  .workspace {
+    gap: 20px;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
+  }
+  .feed {
+    padding: 20px;
+  }
+  .chatHeading {
+    padding: 20px 20px 14px;
+  }
+}
+@media (max-width: 800px) {
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+  }
+  .toolbar > :first-child {
+    grid-column: 1/-1;
+  }
+  .settingsBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .identity > span:last-child {
+    width: 100%;
+    margin-left: 0;
+  }
+  .workspace {
+    display: block;
+  }
+  .mobileTabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .workspace[data-mobile-view='chat'] .outputs,
+  .workspace[data-mobile-view='outputs'] .chat {
+    display: none;
+  }
+  .feed {
+    height: 52vh;
+    min-height: 260px;
+    padding: 20px 16px;
+  }
+  .composer {
+    padding: 16px;
+  }
+  .chatHeading {
+    padding-inline: 16px;
+  }
+  .chatState {
+    max-width: 50%;
+  }
+  .message[data-role='user'] {
+    max-width: 96%;
+    padding: 14px 16px;
+  }
+  .composerActions > span {
+    max-width: 180px;
+  }
+  .welcome,
+  .empty {
+    padding: 36px 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .message {
+    animation: none;
+  }
+  .chat {
+    transition: none;
+  }
+  .chat::after,
+  .composer::before,
+  .progress::before,
+  .taskProgressTrack::after {
+    display: none;
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .chat,
+  .welcome,
+  .pending,
+  .progress,
+  .message[data-role='user'] {
+    background: Canvas;
+    border-color: CanvasText;
+  }
+  .chatHeading,
+  .composer {
+    background: Canvas;
+  }
+  .chat::after,
+  .composer::before,
+  .progress::before,
+  .taskProgressTrack::after {
+    display: none;
+  }
+}

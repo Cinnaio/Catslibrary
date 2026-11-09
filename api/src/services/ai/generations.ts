@@ -236,7 +236,7 @@ export async function listBatchResults(db: Db, batchId: string, opts: { includeD
 }
 
 /** 按任务精确关联生成结果；只接受 params_json 中解析后的 taskId，不能用时间接近猜测。 */
-export async function listTaskGenerations(db: Db, taskId: string): Promise<GenerationDetail[]> {
+export async function listTaskGenerations(db: Db, taskId: string, novelId?: string): Promise<GenerationDetail[]> {
   if (!taskId) return []
   const rows = await all<GenerationRow & { novel_title: string; chapter_title: string }>(
     db,
@@ -244,8 +244,9 @@ export async function listTaskGenerations(db: Db, taskId: string): Promise<Gener
      FROM ai_generations g
      LEFT JOIN novels n ON n.id = g.novel_id
      LEFT JOIN chapters c ON c.id = g.chapter_id
-     WHERE g.deleted_at = 0
+     WHERE g.deleted_at = 0 AND position($1 in g.params_json) > 0 ${novelId ? 'AND g.novel_id = $2' : ''}
      ORDER BY g.created_at ASC, g.id ASC`,
+    novelId ? [taskId, novelId] : [taskId],
   )
   const items = rows
     .filter((row) => {

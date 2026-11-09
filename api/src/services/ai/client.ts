@@ -32,12 +32,30 @@ export class AiError extends Error {
 }
 
 export interface AiMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
+  tool_call_id?: string
+  tool_calls?: AiToolCall[]
+  /** Some compatible reasoning providers require this opaque field on tool continuations. */
+  reasoning_content?: string
+}
+
+export interface AiToolCall {
+  id: string
+  type: 'function'
+  function: { name: string; arguments: string }
+}
+
+export interface AiFunctionTool {
+  type: 'function'
+  function: { name: string; description: string; parameters: Record<string, unknown> }
 }
 
 export interface AiChatOptions {
   messages: AiMessage[]
+  tools?: AiFunctionTool[]
+  /** Tool orchestration uses one attempt; uncertain paid calls are never silently replayed. */
+  maxAttempts?: number
   model?: string
   temperature?: number
   maxTokens?: number
@@ -57,6 +75,8 @@ export interface AiChatProgress {
 }
 
 export interface AiChatResult extends UpstreamUsage {
+  toolCalls?: AiToolCall[]
+  reasoningContent?: string
   streamed?: boolean
   refusal?: string
   text: string
@@ -125,11 +145,13 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
     temperature: opts.temperature ?? 0.3,
     max_tokens: opts.maxTokens ?? 800,
     stream: false,
+    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: 'auto', parallel_tool_calls: false } : {}),
     ...reasoningFields(model, opts.reasoningMode),
   })
 
   let lastError: AiError | null = null
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  const attempts = Math.max(1, Math.min(MAX_ATTEMPTS, opts.maxAttempts ?? MAX_ATTEMPTS))
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     throwIfCancelled(opts.signal)
     try {
       return await once(endpoint, provider.apiKey, body, model, opts)
@@ -137,7 +159,7 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
       throwIfCancelled(opts.signal)
       const aiErr = err instanceof AiError ? err : new AiError('upstream', (err as Error)?.message || '未知错误')
       lastError = aiErr
-      if (attempt >= MAX_ATTEMPTS || !isRetriable(aiErr, opts)) break
+      if (attempt >= attempts || !isRetriable(aiErr, opts)) break
       await sleep(attempt * 700, opts.signal)
     }
   }
@@ -227,8 +249,9 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
   const choice = data?.choices?.[0]
   const text = extractContent(choice?.message?.content)
   const finishReason = String(choice?.finish_reason || '')
+  const toolCalls = opts.tools?.length && Array.isArray(choice?.message?.tool_calls) ? choice.message.tool_calls : undefined
 
-  if (!text && !opts.returnIncompleteResult) {
+  if (!text && !toolCalls?.length && !opts.returnIncompleteResult) {
     // 推理模型（deepseek-v4 等）会先把 max_tokens 花在 reasoning_content 上，
     // 预算不够时 content 为空且 finish_reason=length —— 这与「上游异常」是两回事，分开报。
     console.error('[ai] 空回复 finish_reason=%s usage=%o', finishReason, data?.usage || null)
@@ -246,6 +269,7 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
   const cost = upstreamCost(data)
   return {
     text: usableText,
+    ...(toolCalls?.length ? { toolCalls, reasoningContent: extractContent(choice?.message?.reasoning_content, false) } : {}),
     ...(refusal ? { refusal: contentRefusalMessage(refusal) } : {}),
     model: String(data?.model || model),
     ...usage,
@@ -446,7 +470,7 @@ function extractContent(content: unknown, trim = true): string {
 interface ChatCompletionResponse {
   model?: string
   refusal?: unknown
-  choices?: Array<{ message?: { content?: unknown; refusal?: unknown }; finish_reason?: string; finishReason?: string }>
+  choices?: Array<{ message?: { content?: unknown; refusal?: unknown; tool_calls?: AiToolCall[]; reasoning_content?: unknown }; finish_reason?: string; finishReason?: string }>
   usage?: Record<string, unknown> | null
   usageMetadata?: Record<string, unknown>
   cost?: string | number

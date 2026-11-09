@@ -1857,6 +1857,17 @@ aiRoutes.post('/writing/drafts/:id/rewrite', requireAdmin(), async (c) => {
   const operationKey = idempotencyKeyFromRequest(c, body, ['clientRequestId'])
   if (!operationKey) return c.json({ error: 'clientRequestId 必填以保证改写幂等' }, 422)
   const params = buildRewriteTaskParams(id, draft.result, validation.value)
+  if (body.previousTaskId) {
+    const previous = await getAiTask(db, String(body.previousTaskId))
+    let previousParams: ReturnType<typeof parseRewriteTaskParams>
+    try { previousParams = parseRewriteTaskParams(JSON.parse(previous?.params || '{}')) } catch { previousParams = undefined }
+    const previousResult = previousParams && previous ? parseRewriteSuggestion(previous.result, previousParams) : undefined
+    if (!previous || previous.kind !== 'rewrite_selection' || previous.status !== 'completed' || !previousParams || !previousResult ||
+      previousParams.draftId !== id || previousParams.baseRevision !== baseRevision || previousParams.startUTF16 !== params.startUTF16 || previousParams.endUTF16 !== params.endUTF16)
+      return c.json({ error: '上次改写版本与当前草稿选段不匹配' }, 409)
+    params.previousSuggestion = previousResult.suggestion
+    params.previousTaskId = previous.id
+  }
   return withIdempotency(
     db,
     {
@@ -1981,6 +1992,8 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
       const row = locked.rows[0]
       if (!row || !['write_chapter', 'continue'].includes(row.kind)) throw new PublishError(404, '可发布的章节草稿不存在')
       if (row.status !== 'draft') throw new PublishError(409, '草稿已被发布或不可发布')
+      if (body.expectedContentRevision && generationContentRevision(row.result) !== String(body.expectedContentRevision))
+        throw new PublishError(409, '草稿已变化，请重新预览后发布', 'content_changed')
       // 兼容修复前落库的草稿：标题可能仍在正文首行，发布时再解析一次并剥离。
       const parsed = parseContinuationTitle(row.result)
       const storedTitle = draftBatchParams(row.params_json).draftTitle
@@ -2229,7 +2242,8 @@ aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const limit = Number.parseInt(c.req.query('limit') || '50', 10) || 50
   const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
   const status = TASK_STATUSES.has(c.req.query('status') || '') ? c.req.query('status') : undefined
-  const kind = RETRIABLE_TASK_KINDS.has(c.req.query('kind') || '') ? c.req.query('kind') : undefined
+  const requestedKind = c.req.query('kind') || ''
+  const kind = RETRIABLE_TASK_KINDS.has(requestedKind) || requestedKind === 'agent_chat' ? requestedKind : undefined
   const result = await listAiTasks(getDb(), { limit, offset, status, kind })
   return c.json({ ...result, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })

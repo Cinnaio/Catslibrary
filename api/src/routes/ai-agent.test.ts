@@ -1,0 +1,327 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { app } from '../app'
+import { loadConfig } from '../config'
+import { setDbForTests } from '../db/pool'
+import { first } from '../db/query'
+import { createTestDb, type TestDb } from '../test/db'
+import { createSession } from '../services/sessions'
+import { createAgentSession, beginAgentTurn, readAgentEvents, trackAgentArtifact, appendAgentEvent } from '../services/ai/agent-store'
+import { agentApiAdapter } from './ai-agent'
+import { confirmAgentAction, prepareAgentAction, readAgentArtifact } from '../services/ai/agent-actions'
+import { executeAgentTool, validateAgentCall } from '../services/ai/agent-tools'
+import { runAgentTurn } from '../services/ai/agent'
+import { buildRewriteTaskParams } from '../services/ai/rewrite'
+import { cancelAiTask, createAiTask, getAiTask, updateAiTask } from '../services/ai/tasks'
+import { generationContentRevision } from '../services/ai/generations'
+import { replaceCoverForAdmin } from '../services/covers'
+import type { AiToolCall } from '../services/ai/client'
+import type { AgentSession, AgentSessionDetail } from '@shared/ai-agent'
+
+let t: TestDb
+let adminToken = ''
+let otherToken = ''
+let readerToken = ''
+const fetchMock = vi.fn<typeof fetch>()
+const originalEnv = new Map<string, string | undefined>()
+const keys = ['DATABASE_URL', 'AI_TEXT_BASE_URL', 'AI_TEXT_API_KEY', 'AI_TEXT_MODEL', 'COVER_FETCH_ENABLED']
+const original = '他转身离开。她没有开口。'
+function completion(text: string, calls?: AiToolCall[]) {
+  return Response.json({
+    model: 'mock-agent',
+    choices: [{ message: { content: text, ...(calls ? { tool_calls: calls } : {}) }, finish_reason: calls ? 'tool_calls' : 'stop' }],
+    usage: { prompt_tokens: 100, completion_tokens: 20 },
+    cost: 0.0001,
+  })
+}
+const call = (name: string, args: Record<string, unknown> = {}, id = 'tool_1'): AiToolCall => ({
+  id,
+  type: 'function',
+  function: { name, arguments: JSON.stringify(args) },
+})
+function request(path: string, method = 'GET', body?: unknown, token = adminToken) {
+  return app.request(path, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+}
+const internalApi = () =>
+  agentApiAdapter(new Request('http://localhost/api/ai/agent/sessions', { headers: { Authorization: `Bearer ${adminToken}` } }), (r) => app.fetch(r))
+async function draft(id = 'draft', novelId = 'novel', text = original) {
+  await t.db.query(
+    "INSERT INTO ai_generations(id,novel_id,chapter_id,kind,model,params_json,prompt,result,status,created_by,created_at) VALUES($1,$2,'','write_chapter','mock',$3,'',$4,'draft','admin',$5)",
+    [id, novelId, JSON.stringify({ draftTitle: '雨后' }), text, Date.now()],
+  )
+}
+async function finishedRewrite(sessionId: string) {
+  const selectedText = '他转身离开。'
+  const params = buildRewriteTaskParams('draft', original, {
+    baseRevision: generationContentRevision(original),
+    selectedText,
+    startUTF16: 0,
+    endUTF16: selectedText.length,
+    mode: 'custom',
+    instruction: '让他犹豫一下',
+  })
+  const task = await createAiTask(t.db, { userId: 'admin', novelId: 'novel', kind: 'rewrite_selection', params: JSON.stringify(params) })
+  await updateAiTask(t.db, task.id, { status: 'completed', result: JSON.stringify({ version: 1, suggestion: '他在门边停住了。' }) })
+  await trackAgentArtifact(t.db, sessionId, task.id)
+  return task.id
+}
+async function waitTask(id: string) {
+  for (let attempt = 0; attempt < 150; attempt++) {
+    const task = await getAiTask(t.db, id)
+    if (task && !['queued', 'running'].includes(task.status)) return task
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error('mock task did not finish')
+}
+
+beforeAll(async () => {
+  for (const key of keys) originalEnv.set(key, process.env[key])
+  process.env.DATABASE_URL = 'postgres://test/test'
+  process.env.AI_TEXT_BASE_URL = 'https://agent.test/v1'
+  process.env.AI_TEXT_API_KEY = 'mock-key'
+  process.env.AI_TEXT_MODEL = 'mock-agent'
+  process.env.COVER_FETCH_ENABLED = '0'
+  t = await createTestDb()
+  await t.applyMigrations()
+  setDbForTests(t.db)
+  for (const [id, role] of [
+    ['admin', 'super_admin'],
+    ['other', 'admin'],
+    ['reader', 'reader'],
+  ])
+    await t.db.query("INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES($1,$1,$2,'test','test',1,1)", [id, role])
+  adminToken = await createSession(t.db, 'admin', 'test', loadConfig().sessionHashSalt)
+  otherToken = await createSession(t.db, 'other', 'test', loadConfig().sessionHashSalt)
+  readerToken = await createSession(t.db, 'reader', 'test', loadConfig().sessionHashSalt)
+  for (const id of ['novel', 'other-novel', 'empty-novel'])
+    await t.db.query("INSERT INTO novels(id,title,description,created_at,updated_at) VALUES($1,$1,'一部关于雨夜与和解的小说',1,1)", [id])
+  for (const [id, novelId, sort] of [
+    ['chapter', 'novel', 1],
+    ['future', 'novel', 2],
+    ['foreign', 'other-novel', 1],
+  ])
+    await t.db.query('INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES($1,$2,$1,$3,$4,1)', [id, novelId, original, sort])
+  vi.stubGlobal('fetch', fetchMock)
+})
+beforeEach(async () => {
+  fetchMock.mockReset()
+  fetchMock.mockImplementation(async () => completion('可以先保留分歧，让合作推动关系。'))
+  await t.db.query('DELETE FROM ai_agent_sessions')
+  await t.db.query('DELETE FROM ai_generations')
+  await t.db.query('DELETE FROM ai_tasks')
+  await t.db.query('DELETE FROM ai_usage')
+})
+afterAll(async () => {
+  vi.unstubAllGlobals()
+  setDbForTests(null)
+  for (const key of keys) {
+    const value = originalEnv.get(key)
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+  await t.close()
+})
+
+describe('novel-scoped creative agent', () => {
+  it('requires an administrator and isolates conversations by account and book', async () => {
+    expect((await request('/api/ai/agent/sessions?novelId=novel', 'GET', undefined, '')).status).toBe(401)
+    expect((await request('/api/ai/agent/sessions?novelId=novel', 'GET', undefined, readerToken)).status).toBe(403)
+    const created = await request('/api/ai/agent/sessions', 'POST', { novelId: 'novel', afterChapterId: 'chapter' })
+    expect(created.status).toBe(201)
+    const { session } = (await created.json()) as { session: AgentSession }
+    expect((await request(`/api/ai/agent/sessions/${session.id}`, 'GET', undefined, otherToken)).status).toBe(404)
+    expect((await request('/api/ai/agent/sessions', 'POST', { novelId: 'novel', afterChapterId: 'foreign' })).status).toBe(422)
+    const detail = (await (await request(`/api/ai/agent/sessions/${session.id}`)).json()) as AgentSessionDetail
+    expect(detail.session.afterChapterId).toBe('chapter')
+    expect(detail.events).toEqual([])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('replays the same message receipt, rejects changed payloads and serializes turns', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const firstTurn = await beginAgentTurn(t.db, 'admin', session.id, '先讨论方向', 'request_123456')
+    expect(await beginAgentTurn(t.db, 'admin', session.id, '先讨论方向', 'request_123456')).toEqual({ taskId: firstTurn.taskId, created: false })
+    await expect(beginAgentTurn(t.db, 'admin', session.id, '不同的消息', 'request_123456')).rejects.toMatchObject({ status: 409 })
+    await expect(beginAgentTurn(t.db, 'admin', session.id, '另一条消息', 'request_123457')).rejects.toMatchObject({ status: 409 })
+    expect((await readAgentEvents(t.db, session.id)).events).toHaveLength(1)
+  })
+  it('rejects cross-book/future sources and unregistered or malformed tool calls', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })
+    const api = vi.fn()
+    for (const chapterId of ['foreign', 'future'])
+      await expect(executeAgentTool(t.db, session, 'read_chapter', { chapterId }, 'op', api)).rejects.toMatchObject({ status: 404 })
+    await draft('foreign-draft', 'other-novel')
+    await expect(executeAgentTool(t.db, session, 'read_draft', { draftId: 'foreign-draft' }, 'op', api)).rejects.toMatchObject({ status: 404 })
+    expect(() => validateAgentCall(call('exec_sql', { sql: 'DELETE FROM novels' }))).toThrow('未开放')
+    expect(() => validateAgentCall(call('read_chapter', { chapterId: 'chapter', novelId: 'other-novel' }))).toThrow('不接受')
+    expect(() => validateAgentCall({ ...call('read_overview'), function: { name: 'read_overview', arguments: '{"__proto__":{}}' } })).toThrow('不接受')
+    const result = await executeAgentTool(t.db, session, 'search_chapters', { query: '离开' }, 'op', api)
+    expect(result.matches).toHaveLength(1)
+    const emptySession = await createAgentSession(t.db, 'admin', { novelId: 'empty-novel' })
+    await expect(executeAgentTool(t.db, emptySession, 'refresh_memory', { kind: 'plot' }, 'op', api)).rejects.toMatchObject({ status: 422 })
+    expect(api).not.toHaveBeenCalled()
+  })
+  it('reuses one submitted task for identical generation calls with different model call IDs', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '生成雨夜封面', 'dedup_generation')
+    fetchMock
+      .mockResolvedValueOnce(completion('', [call('generate_cover', { instruction: '雨夜窗边' }, 'first')]))
+      .mockResolvedValueOnce(completion('', [call('generate_cover', { instruction: '雨夜窗边' }, 'repeated')]))
+      .mockResolvedValueOnce(completion('已提交封面任务，可以在产出区查看。'))
+    const api = vi.fn().mockResolvedValue({ taskId: 'one-cover-task' })
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', api)
+    expect(api).toHaveBeenCalledTimes(1)
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
+    expect((await readAgentEvents(t.db, session.id)).events.filter((event) => event.metadata.artifactTaskId === 'one-cover-task')).toHaveLength(2)
+  })
+  it('keeps child operation IDs independent of the original request headers', async () => {
+    const dispatch = vi.fn(async (_request: Request) => Response.json({ ok: true }))
+    const adapter = agentApiAdapter(
+      new Request('http://localhost/api/ai/agent/sessions', { headers: { 'X-Operation-Id': 'parent', 'Idempotency-Key': 'parent' } }),
+      dispatch,
+    )
+    await adapter('/api/ai/cover/generate', 'POST', { operationId: 'child' })
+    const forwarded = dispatch.mock.calls[0]![0]
+    expect(forwarded.headers.has('X-Operation-Id')).toBe(false)
+    expect(forwarded.headers.has('Idempotency-Key')).toBe(false)
+    expect(await forwarded.json()).toEqual({ operationId: 'child' })
+  })
+  it('executes a real tool roundtrip, retains messages, and records each upstream call once', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })
+    for (let i = 0; i < 25; i++) await appendAgentEvent(t.db, session.id, 'assistant', '此前的讨论。'.repeat(1600))
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '了解故事后给我建议', 'roundtrip_request')
+    fetchMock.mockResolvedValueOnce(completion('', [call('read_overview')])).mockResolvedValueOnce(completion('依据第一章，可以先让冲突继续。'))
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
+    const sent = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))
+    expect(sent.messages).toContainEqual(expect.objectContaining({ role: 'tool', tool_call_id: 'tool_1' }))
+    expect(sent.parallel_tool_calls).toBe(false)
+    expect(JSON.stringify(sent.messages).length).toBeLessThan(180000)
+    expect(sent.messages[1].content).toContain('"hasEarlier":true')
+    expect(sent.messages).toContainEqual({ role: 'user', content: '了解故事后给我建议' })
+    expect((await readAgentEvents(t.db, session.id)).events.at(-1)?.content).toContain('依据第一章')
+    const usage = await first<{ calls: number; cost: string }>(
+      t.db,
+      "SELECT COUNT(*)::int AS calls,SUM(cost_millicents) AS cost FROM ai_usage WHERE generation_type='agent_chat'",
+    )
+    expect(usage?.calls).toBe(2)
+    expect(Number(usage?.cost)).toBe(20)
+  })
+  it('submits a chapter through existing middleware and exposes a saved draft without publishing', async () => {
+    fetchMock.mockImplementation(async () => completion(`标题：晨雨\n\n${'清晨的雨落在窗沿，屋里的人终于收起了信。'.repeat(50)}`))
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'empty-novel' })
+    const result = await executeAgentTool(t.db, session, 'generate_draft', { instruction: '写一个雨夜开场' }, 'agent_generation_request', internalApi())
+    const task = await waitTask(String(result.taskId))
+    expect(task.status).toBe('completed')
+    const artifact = await readAgentArtifact(t.db, session, task.id)
+    expect(artifact.drafts).toHaveLength(1)
+    expect(artifact.drafts[0]?.status).toBe('draft')
+    expect(await first(t.db, "SELECT id FROM chapters WHERE novel_id='empty-novel'")).toBeUndefined()
+  })
+  it('keeps rewrite proposals immutable until confirmed, applies once and restores the previous version', async () => {
+    await draft()
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const taskId = await finishedRewrite(session.id)
+    const action = await prepareAgentAction(t.db, session, 'apply_rewrite', taskId)
+    expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))?.result).toBe(original)
+    expect((await confirmAgentAction(t.db, session, action.id, internalApi())).status).toBe('completed')
+    expect((await confirmAgentAction(t.db, session, action.id, internalApi())).status).toBe('completed')
+    expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))?.result).toBe('他在门边停住了。她没有开口。')
+    const restore = await prepareAgentAction(t.db, session, 'restore_draft', action.id)
+    await confirmAgentAction(t.db, session, restore.id, internalApi())
+    expect((await confirmAgentAction(t.db, session, restore.id, internalApi())).status).toBe('completed')
+    expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))?.result).toBe(original)
+    const reapplied = await prepareAgentAction(t.db, session, 'apply_rewrite', taskId)
+    expect(reapplied.id).not.toBe(action.id)
+    expect(reapplied.status).toBe('pending')
+    await confirmAgentAction(t.db, session, reapplied.id, internalApi())
+    expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))?.result).toBe('他在门边停住了。她没有开口。')
+  })
+  it('refines an unadopted suggestion and preserves the original apply revision', async () => {
+    await draft()
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const taskId = await finishedRewrite(session.id)
+    fetchMock.mockImplementation(async () => completion('他停了片刻。'))
+    const result = await executeAgentTool(t.db, session, 'refine_rewrite', { taskId, instruction: '再克制一些' }, 'agent_refine_request', internalApi())
+    expect((await waitTask(String(result.taskId))).status).toBe('completed')
+    const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(sent.messages[1].content).toContain('他在门边停住了。')
+    const artifact = await readAgentArtifact(t.db, session, String(result.taskId))
+    expect(artifact.rewrite?.baseRevision).toBe(generationContentRevision(original))
+    expect(artifact.rewrite?.after).toBe('他停了片刻。')
+    expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))?.result).toBe(original)
+  })
+  it('rejects a stale publish preview and publishes the reviewed version only once', async () => {
+    await draft()
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const stale = await prepareAgentAction(t.db, session, 'publish_draft', 'draft', '雨后')
+    await t.db.query("UPDATE ai_generations SET result='已经人工修订的正文。' WHERE id='draft'")
+    await expect(confirmAgentAction(t.db, session, stale.id, internalApi())).rejects.toMatchObject({ status: 409 })
+    const valid = await prepareAgentAction(t.db, session, 'publish_draft', 'draft', '雨后')
+    await confirmAgentAction(t.db, session, valid.id, internalApi())
+    await confirmAgentAction(t.db, session, valid.id, internalApi())
+    expect((await first<{ count: number }>(t.db, "SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id='novel' AND title='雨后'"))?.count).toBe(1)
+  })
+  it('cancels an in-flight turn before a returned generation tool can execute', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '帮我构思封面', 'cancel_request_1')
+    let deliver!: (response: Response) => void
+    let entered!: () => void
+    const started = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    fetchMock.mockImplementationOnce(async () => {
+      entered()
+      return new Promise<Response>((resolve) => {
+        deliver = resolve
+      })
+    })
+    const api = vi.fn()
+    const running = runAgentTurn(t.db, session, turn.taskId, 'admin', api)
+    await started
+    await cancelAiTask(t.db, turn.taskId)
+    deliver(completion('', [call('generate_cover', { instruction: '雨夜' })]))
+    await running
+    expect(api).not.toHaveBeenCalled()
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('cancelled')
+  })
+  it('checks cover ownership and version, then adopts a confirmed candidate only once', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
+    await t.db.query(
+      "INSERT INTO ai_cover_candidates(id,novel_id,data,content_type,prompt,created_at) VALUES('cover-agent','novel',$1,'image/png','雨夜的窗',1),('foreign-cover','other-novel',$1,'image/png','另一作品',1)",
+      [png],
+    )
+    await expect(prepareAgentAction(t.db, session, 'adopt_cover', 'foreign-cover')).rejects.toMatchObject({ status: 404 })
+    const action = await prepareAgentAction(t.db, session, 'adopt_cover', 'cover-agent')
+    expect((await request(`/api/ai/agent/sessions/${session.id}/covers/cover-agent`)).status).toBe(200)
+    expect((await request(`/api/ai/agent/sessions/${session.id}/covers/cover-agent`, 'GET', undefined, otherToken)).status).toBe(404)
+    await replaceCoverForAdmin(t.db, { novelId: 'novel', actorId: 'admin', data: png, contentType: 'image/png', source: 'upload', reason: 'upload' })
+    await expect(confirmAgentAction(t.db, session, action.id, internalApi())).rejects.toMatchObject({ status: 409 })
+    const next = await prepareAgentAction(t.db, session, 'adopt_cover', 'cover-agent')
+    const confirmed = await request(`/api/ai/agent/sessions/${session.id}/actions/${next.id}/confirm`, 'POST', {
+      novelId: 'other-novel',
+      candidateId: 'foreign-cover',
+    })
+    expect(confirmed.status).toBe(200)
+    // Simulate losing the coordinator receipt after the existing adoption route committed.
+    await t.db.query("UPDATE ai_agent_actions SET status='executing',lease_until=1 WHERE id=$1", [next.id])
+    const refreshed = (await (await request(`/api/ai/agent/sessions/${session.id}`)).json()) as AgentSessionDetail
+    expect(refreshed.actions.find((item) => item.id === next.id)?.canResume).toBe(true)
+    expect((await confirmAgentAction(t.db, session, next.id, internalApi())).status).toBe('completed')
+    expect(await first(t.db, "SELECT id FROM ai_cover_candidates WHERE id='cover-agent'")).toBeUndefined()
+    expect(await first(t.db, "SELECT id FROM ai_cover_candidates WHERE id='foreign-cover'")).toBeDefined()
+  })
+  it('does not automatically replay uncertain upstream failures', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '讨论一下', 'failure_request')
+    fetchMock.mockImplementationOnce(async () => {
+      throw new Error('connection lost')
+    })
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
+  })
+})

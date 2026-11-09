@@ -215,6 +215,11 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const detailTask = tasks.find((task) => task.id === detailsId)
   const failedCount = statusCounts.failed ?? 0
   function renderRetry(task: AiTask) {
+    if (task.kind === 'agent_chat') {
+      let sessionId = ''
+      try { sessionId = String(JSON.parse(task.params || '{}').sessionId || '') } catch { /* Historic metadata can be missing. */ }
+      return <Button variant="outline" size="sm" onClick={() => navigate(`/admin/ai?${new URLSearchParams({ sub: 'agent', novel: task.novelId, session: sessionId })}`)}>返回对话</Button>
+    }
     if (!['failed', 'cancelled'].includes(task.status) || !task.params) return null
     if (task.kind === 'selection_image') {
       let chapterId = ''

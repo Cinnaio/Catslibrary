@@ -95,6 +95,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         label: '创作工作区',
         icon: Sparkles,
         children: [
+          { id: 'ai-agent', label: '对话创作', to: `${adminTabPath('ai')}?sub=agent` },
           { id: 'ai-writing', label: 'AI 创作', to: `${adminTabPath('ai')}?sub=writing` },
           { id: 'ai-cover', label: '封面生成', to: `${adminTabPath('ai')}?sub=cover` },
           { id: 'ai-content', label: '草稿与产出', to: `${adminTabPath('ai')}?sub=content` },

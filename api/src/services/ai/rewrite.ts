@@ -23,6 +23,9 @@ export interface RewriteTaskParams extends RewriteSelectionInput {
   baseContent: string
   contextBefore: string
   contextAfter: string
+  /** A previous, unadopted suggestion can be refined while retaining the original apply revision. */
+  previousSuggestion?: string
+  previousTaskId?: string
 }
 
 export interface RewriteSuggestionResult {
@@ -103,7 +106,9 @@ export function parseRewriteTaskParams(value: unknown): RewriteTaskParams | unde
     instruction: raw.instruction as string,
   })
   if (!validated.value) return undefined
-  return { ...buildRewriteTaskParams(raw.draftId, raw.baseContent, validated.value), contextBefore: raw.contextBefore, contextAfter: raw.contextAfter }
+  if (raw.previousSuggestion !== undefined && (typeof raw.previousSuggestion !== 'string' || Array.from(raw.previousSuggestion).length > MAX_RESULT_SCALARS)) return undefined
+  return { ...buildRewriteTaskParams(raw.draftId, raw.baseContent, validated.value), contextBefore: raw.contextBefore, contextAfter: raw.contextAfter,
+    ...(typeof raw.previousSuggestion === 'string' ? { previousSuggestion: raw.previousSuggestion, previousTaskId: String(raw.previousTaskId || '') } : {}) }
 }
 
 export function parseRewriteSuggestion(value: string, params: RewriteTaskParams): RewriteSuggestionResult | undefined {
@@ -178,6 +183,7 @@ export async function runRewriteTask(db: Db, opts: { taskId: string; userId: str
   const user = [
     `改写任务：${modeInstruction(params.mode)}`,
     params.instruction ? `用户补充要求：${params.instruction}` : '',
+    params.previousSuggestion ? `【上次未采纳的改写版本｜本次在此版本上继续调整，保留作者未要求修改的部分；仍只输出同一选段】：\n${params.previousSuggestion}` : '',
     `【待改写选段】（${selectedCount} 字，只输出它的改写版，字数应与它相当）：\n${params.selectedText}`,
     params.contextBefore ? `【选段之前的内容｜仅供衔接，绝对不要输出或改写】：\n${params.contextBefore}` : '',
     params.contextAfter ? `【选段之后的内容｜仅供衔接，绝对不要输出、改写或续写】：\n${params.contextAfter}` : '',

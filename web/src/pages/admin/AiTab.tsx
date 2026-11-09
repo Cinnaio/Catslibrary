@@ -17,12 +17,14 @@ import AiGenerationsPanel from './ai/AiGenerationsPanel'
 import AiWritingPanel, { type WritingView } from './ai/AiWritingPanel'
 import AiCoverPanel from './ai/AiCoverPanel'
 import StoryGraphPanel from './ai/StoryGraphPanel'
+import AiAgentPanel from './ai/AiAgentPanel'
 
 /** 创作视图合法值；旧设置地址由 Admin 路由交给站点设置工作区。 */
-const VALID_SUBS = ['writing', 'cover', 'content', 'graph'] as const
+const VALID_SUBS = ['writing', 'cover', 'content', 'graph', 'agent'] as const
 type SubTab = (typeof VALID_SUBS)[number]
 
 const AI_SUBTAB_META: Record<SubTab, { title: string; description: string }> = {
+  agent: { title: '对话创作', description: '围绕一本小说讨论情节、打磨草稿与构思封面，让想法在对话中逐步成形。' },
   graph: { title: '故事档案', description: '查看本书人物关系、当前处境与未解情节，核对分析档案依据。' },
   writing: { title: 'AI 创作', description: '围绕当前作品构思情节、生成章节与审阅草稿。' },
   cover: { title: '封面生成', description: '生成、比较并应用小说封面候选图。' },
@@ -96,10 +98,11 @@ export default function AiTab() {
     <AdminPage motionKey={currentSubTab}
       title={currentMeta.title}
       description={currentMeta.description}
-      className={`admin-redesign-page admin-redesign-page--ai ai-admin-page${currentSubTab === 'writing' ? '' : ' ai-service'}`}
+      className={`admin-redesign-page admin-redesign-page--ai ai-admin-page${currentSubTab === 'writing' || currentSubTab === 'agent' ? '' : ' ai-service'}`}
     >
       <div className="ai-service-tabs">
         <div className="ai-service-tabs__content min-w-0">
+          {currentSubTab === 'agent' && <AiAgentPanel key={urlNovel} />}
           {(writingVisited || currentSubTab === 'writing' || currentSubTab === 'graph') && (
             <MotionView asChild><div hidden={currentSubTab !== 'writing'}>
               <AiWritingPanel
