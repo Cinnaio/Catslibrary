@@ -1,5 +1,19 @@
 # 发布与版本管理
 
+## 对话创作与原生入口交付（2026-11-09）
+
+网站已部署 Web `1.3.0` / API `1.1.0`，源码为 `9e0dd2a44c52d4839b9291e592ede0fdb15285a6`。[Deploy 42566901804](https://github.com/Cinnaio/zhi-zhou/actions/runs/42566901804) 于 13:26:54（Asia/Shanghai）完成生产激活，工作流于 13:27:00 成功结束。包含对话创作、模型预设切换、Markdown、文本流式及此前尚未推送的节拍玩法等变更；原生接入提交 `83e4aaca` 与门禁测试修复 `9e0dd2a4` 均已推送到 `origin/main`。
+
+Ubuntu 22.04 / Node `22.23.4` 上的类型、Lint、88 项 API 关键回归、27 项 Web 阅读进度回归、5 项发布恢复测试通过，1 项可选浏览器用例跳过。Linux 生产构建、3,228 个文件的完整归档、随包依赖及 Sharp、隔离 PostgreSQL 16 中的迁移与业务就绪检查全部通过；部署使用本次验证原包，服务器第 2 次就绪检查通过，无回滚。工件 ID `13651419500`，保留至 2026-11-23 13:26；`release.tgz` SHA-256 为 `9ece387dbdcbb47f13e16a00c7bc41de350ab005306cd67699aa79e90a30944b`。
+
+部署后公网复核 `/api/ready` 为 `ready: true`、API `1.1.0`，release 与上述 SHA 一致；首页、`/assets/index-CyyzWCjq.js`、健康接口及书目接口均返回 200。发布包含已有迁移 078，未增加新的迁移文件。初始源码的 [Backup recovery 42566383702](https://github.com/Cinnaio/zhi-zhou/actions/runs/42566383702) 也成功，68 项隔离备份恢复测试通过、零跳过；这不是生产数据库恢复操作。
+
+iOS `1.2.0 / build 24` 已由 [Build and Test iOS 42566397436](https://github.com/Cinnaio/zhi-zhou/actions/runs/42566397436) 构建成功，源码为 `83e4aaca50ef319ef8b91b997e8145b607f68319`，工作流于 13:25:26 完成。macOS 15 / Xcode `26.3 (17C529)` 下 112 项 Core 测试全部通过，其中 Agent 新增 9 项；Release 编译、资源与隐私清单检查通过。`9e0dd2a4` 只改 Web 测试与发布记录，其 iOS 源码和构建配置与本 IPA 完全一致，无需重复构建。
+
+IPA 工件 ID `13651703157`，保留至 2027-02-07 13:17；已下载到 `ios/build-artifacts/github/42566397436/`，通过 ZIP 完整性、Bundle ID `com.zhizhou.app`、版本／构建号、最低系统 26.0、隐私清单、ATS 和节拍脚本摘要核对后同步到 `ios/build-artifacts/github/latest/`，`build-run.json` 保存对应 SHA、run、结果与 IPA 摘要。IPA 为 11,693,816 字节，SHA-256 为 `f05f2ee1b90117c674c1a01ca9f899a0aea644b83f36e2ddc93fa9f40fe2ff7b`。产物未签名，需要自行签名安装；没有 App Store／TestFlight 上架或真机验收。
+
+本节发布记录仅更新文档，不改变已构建／部署的程序。下方候选记录保留当时检查状态，实际交付状态以上述运行结果为准。真实付费模型、登录后完整 Agent 业务和设备交互尚未人工验收。
+
 ## 发布检查修复（2026-11-09）
 
 原生 Agent 源码 `83e4aaca50ef319ef8b91b997e8145b607f68319` 已推送。首轮 Deploy `42566402570` 的类型、Lint 和 API 关键回归通过，但 Web 阅读进度的账号切换用例仍期待旧请求正常返回，与流式改造后统一拒绝跨账号迟到响应的行为不符，导致验证失败，部署作业未执行，线上仍保留旧版本。
