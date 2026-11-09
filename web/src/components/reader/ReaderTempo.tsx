@@ -106,7 +106,7 @@ export function ReaderTempoStatus({ locating = false, onOpen }: { locating?: boo
         {beatRunning && <span className={styles.speed}>{session.bpm}<small>BPM</small></span>}
       </div>
       <div className={styles.actions}>
-        {(status === 'running' || status === 'cooldown') && <Button type="button" variant="ghost" size="sm" disabled={session.phase === 'stop' || status === 'cooldown'} onClick={controller.declareEdge}><Check size={14} aria-hidden="true" />忍住了</Button>}
+        {(status === 'running' || status === 'cooldown') && <Button type="button" variant="ghost" size="sm" disabled={session.phase === 'stop' || status === 'cooldown'} onClick={() => controller.declareEdge()}><Check size={14} aria-hidden="true" />忍住了</Button>}
         {status === 'permit' && <Button type="button" size="sm" onClick={controller.reportCame}><Check size={14} aria-hidden="true" />按下了</Button>}
         {active ? <Button type="button" variant="ghost" size="icon" aria-label={running ? '暂停节拍指令' : '继续节拍指令'} title={running ? '暂停' : '继续'} onClick={running ? controller.pause : controller.resume}>
           {running ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}

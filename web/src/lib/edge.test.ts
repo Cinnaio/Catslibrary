@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  DEFAULT_EDGE_SETTINGS, EDGE_OVERTIME_CAP, createEdgeSession, edgeReducer, formatEdgeTime,
-  mergeEdgeHistory, normalizeEdgeSettings, readEdgeData, summarizeEdgeHistory, writeEdgeData,
+  DEFAULT_EDGE_SETTINGS, EDGE_BANK_TIME_MS, EDGE_BANK_WINDOW_MS, EDGE_OVERTIME_CAP, EDGE_SPRINT_COMMAND, EDGE_SPRINT_MS,
+  createEdgeSession, edgeActAt, edgeInSprint, edgeReducer, edgeSpendOptions, edgeSprintMs, edgeTimingAt,
+  formatEdgeTime, mergeEdgeHistory, normalizeEdgeSettings, readEdgeData, summarizeEdgeHistory, writeEdgeData,
   type EdgeRecord, type EdgeSession, type EdgeSettings,
 } from './edge'
 
@@ -17,7 +18,7 @@ function tickFor(session: EdgeSession, milliseconds: number, step = 100): EdgeSe
   return next
 }
 
-const record: EdgeRecord = { id: 'one', finishedAt: 1, minutes: 5, difficulty: 'easy', finale: 'always', elapsedMs: 1000, edges: 2, overtime: 0, ending: 'permitted' }
+const record: EdgeRecord = { id: 'one', finishedAt: 1, minutes: 5, difficulty: 'easy', finale: 'always', elapsedMs: 1000, edges: 2, grinds: 0, spent: 0, overtime: 0, ending: 'permitted' }
 
 beforeEach(() => { localStorage.clear(); vi.restoreAllMocks() })
 
@@ -84,6 +85,100 @@ describe('edge session', () => {
     expect(finished.status).toBe('finished')
     expect(edgeReducer(finished, { type: 'reset' })).toBeNull()
   })
+
+  it('walks the three acts and locks the tail into a red sprint', () => {
+    const settings = { ...DEFAULT_EDGE_SETTINGS, minutes: 20 }
+    expect(edgeActAt(settings, 0, 1_200_000)).toBe('warmup')
+    expect(edgeActAt(settings, 600_000, 1_200_000)).toBe('grind')
+    expect(edgeActAt(settings, 1_000_000, 1_200_000)).toBe('limit')
+    // 关掉三幕就恒为折磨，不再有冲刺。
+    expect(edgeActAt({ ...settings, acts: false }, 0, 1_200_000)).toBe('grind')
+    expect(edgeSprintMs(1_200_000)).toBe(EDGE_SPRINT_MS)
+    expect(edgeInSprint(1_200_000, 1_200_000 - EDGE_SPRINT_MS)).toBe(true)
+    expect(edgeInSprint(1_200_000, 1_200_000 - EDGE_SPRINT_MS - 1000)).toBe(false)
+    // 短局的冲刺按四分之一缩，不会吃掉整局。
+    expect(edgeSprintMs(60_000)).toBe(15_000)
+
+    let session = start({ minutes: 1 })
+    // 1 分钟的冲刺是最后 15 秒，推进到冲刺起点之后必然全红。
+    session = tickFor(session, 46_000)
+    expect(session.phase).toBe('stop')
+    expect(session.command).toBe(EDGE_SPRINT_COMMAND)
+  })
+
+  it('pays later declarations more and charges the grind with a longer hold', () => {
+    let session = start({ minutes: 30, finale: 'lottery', holdMin: 10, holdMax: 10 })
+    // 推进到绿色指令的中段再申报。
+    while (session.phase === 'stop') session = tickFor(session, 1000)
+    const phase = tickFor(session, Math.round((session.phaseEndsAt - session.elapsedMs) * 0.8))
+    expect(edgeTimingAt(phase)).toBe('late')
+
+    const holdDeclare = edgeReducer(phase, { type: 'edge', now: (phase.sampledAt ?? 0) + 10, declare: 'hold' })!
+    expect(holdDeclare.status).toBe('cooldown')
+    expect(holdDeclare.edges).toBe(1)
+    expect(holdDeclare.grinds).toBe(0)
+    expect(holdDeclare.chance).toBe(phase.chance + 5)
+    const holdWait = holdDeclare.phaseEndsAt - holdDeclare.elapsedMs
+
+    const grindDeclare = edgeReducer(phase, { type: 'edge', now: (phase.sampledAt ?? 0) + 10, declare: 'grind' })!
+    expect(grindDeclare.grinds).toBe(1)
+    expect(grindDeclare.chance).toBe(phase.chance + 10)
+    // 磨着不停的等待按 1.8 倍算，比停手贵。
+    expect(grindDeclare.phaseEndsAt - grindDeclare.elapsedMs).toBeGreaterThan(holdWait)
+  })
+
+  it('caps the permit chance at 100 even on easy difficulty', () => {
+    let session = start({ minutes: 60, finale: 'lottery' })
+    for (let round = 0; round < 12; round += 1) {
+      let guard = 0
+      while (session.phase === 'stop' && guard < 200) { session = tickFor(session, 1000); guard += 1 }
+      session = edgeReducer(session, { type: 'edge', now: (session.sampledAt ?? 0) + 10, declare: 'grind' })!
+      session = tickFor(session, 30_000)
+    }
+    expect(session.chance).toBeLessThanOrEqual(100)
+  })
+
+  it('banks a point per minute kept and spends it on pardon, time, or permit', () => {
+    let session = start({ minutes: 30, finale: 'always' })
+    session = tickFor(session, 185_000)
+    expect(session.bank).toBe(3)
+
+    const pardoned = edgeReducer(session, { type: 'spend', kind: 'pardon', now: (session.sampledAt ?? 0) + 10 })!
+    expect(pardoned.bank).toBe(0)
+    expect(pardoned.spent).toBe(3)
+    expect(pardoned.status).toBe('running')
+
+    let rich = start({ minutes: 60, finale: 'always' })
+    rich = tickFor(rich, 8 * EDGE_BANK_WINDOW_MS + 1000)
+    expect(rich.bank).toBe(8)
+    const shortened = edgeReducer(rich, { type: 'spend', kind: 'time', now: (rich.sampledAt ?? 0) + 10 })!
+    expect(shortened.totalMs).toBe(rich.totalMs - EDGE_BANK_TIME_MS)
+
+    const permitted = edgeReducer(rich, { type: 'spend', kind: 'permit', now: (rich.sampledAt ?? 0) + 10 })!
+    expect(permitted.status).toBe('permit')
+    expect(permitted.bank).toBe(0)
+    // 点数不够时静默无事发生：允许 sampledAt 随 advance 前进，只比业务字段。
+    const poor = start({ minutes: 30 })
+    const refused = edgeReducer(poor, { type: 'spend', kind: 'permit', now: 10 })!
+    expect(refused.status).toBe(poor.status)
+    expect(refused.bank).toBe(0)
+    expect(refused.spent).toBe(0)
+  })
+
+  it('does not bank during a cooldown wait or with the bank disabled', () => {
+    // 申报后的等待不累积银行点数：90 秒等待足够跨过一分半。
+    let session = start({ minutes: 30, holdMin: 90, holdMax: 90 })
+    let guard = 0
+    while (session.phase === 'stop' && guard < 200) { session = tickFor(session, 1000); guard += 1 }
+    const declaring = edgeReducer(session, { type: 'edge', now: (session.sampledAt ?? 0) + 10, declare: 'hold' })!
+    expect(declaring.status).toBe('cooldown')
+    const bankBefore = declaring.bank
+    expect(tickFor(declaring, 80_000).bank).toBe(bankBefore)
+
+    const off = start({ minutes: 30, bank: false })
+    expect(tickFor(off, 200_000).bank).toBe(0)
+    expect(edgeSpendOptions(off).every((option) => option.note !== null)).toBe(true)
+  })
 })
 
 describe('edge settings and records', () => {
@@ -109,7 +204,7 @@ describe('edge settings and records', () => {
   })
 
   it('summarizes and formats records', () => {
-    expect(summarizeEdgeHistory([record, { ...record, id: 'two', ending: 'denied', elapsedMs: 9000, overtime: 2 }])).toEqual({ sessions: 2, edges: 4, permitted: 1, longestMs: 9000 })
+    expect(summarizeEdgeHistory([record, { ...record, id: 'two', ending: 'denied', elapsedMs: 9000, overtime: 2 }])).toEqual({ sessions: 2, edges: 4, grinds: 0, spent: 0, permitted: 1, longestMs: 9000 })
     expect(formatEdgeTime(0)).toBe('00:00')
     expect(formatEdgeTime(61_000)).toBe('01:01')
   })

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { edgeBaseChance, formatEdgeTime, type EdgeSettings } from '@/lib/edge'
+import {
+  edgeBaseChance, edgeInSprint, edgeSpendOptions, edgeTimingAt, formatEdgeTime,
+  type EdgeDeclare, type EdgeSettings, type EdgeSpendKind, type EdgeTiming,
+} from '@/lib/edge'
 import { useEdgeAudio } from './useEdgeAudio'
 import { useEdgeData } from './useEdgeData'
 import { useEdgeSession } from './useEdgeSession'
@@ -44,6 +47,8 @@ export function useEdgeController(scope: string, enabled = true) {
       finale: session.settings.finale,
       elapsedMs: Math.round(session.elapsedMs),
       edges: session.edges,
+      grinds: session.grinds,
+      spent: session.spent,
       overtime: session.overtime,
       ending: session.ending ?? 'ended',
     })
@@ -110,17 +115,24 @@ export function useEdgeController(scope: string, enabled = true) {
               : session.phase === 'stop' ? '不许碰。手放到一边，等指令变回来。'
                 : '跟着拍子走，一拍一下。快到了就申报。'
 
+  const timing: EdgeTiming | null = session && session.status === 'running' && session.phase !== 'stop' ? edgeTimingAt(session) : null
+  const spends = session ? edgeSpendOptions(session) : []
+  const sprinting = !!session && session.settings.acts && session.status === 'running' && edgeInSprint(session.totalMs, session.elapsedMs)
+
   return {
     data, storageError, clearHistory, retry, session, dispatch, audio,
     minutes, setMinutes, permitSeconds, setPermitSeconds, holdMin, setHoldMin, holdMax, setHoldMax,
     customChance, setCustomChance,
     status, active, minutesValid, permitValid, holdMinValid, holdMaxValid, chanceValid,
-    elapsed, remaining, progress, phaseRemaining, duration, phaseLabel, hint,
+    elapsed, remaining, progress, phaseRemaining, duration, phaseLabel, hint, timing, spends, sprinting,
+    act: session?.act ?? 'warmup',
+    bank: session?.bank ?? 0,
     chance: session?.chance ?? edgeBaseChance(data.settings),
     saveNumbers, changeSetting, changeCategory, start,
     resume: () => dispatch({ type: 'resume', now: performance.now() }),
     pause: () => dispatch({ type: 'pause', now: performance.now(), reason: 'manual' }),
-    declareEdge: () => dispatch({ type: 'edge', now: performance.now() }),
+    declareEdge: (declare: EdgeDeclare = 'hold') => dispatch({ type: 'edge', now: performance.now(), declare }),
+    spend: (kind: EdgeSpendKind) => dispatch({ type: 'spend', kind, now: performance.now() }),
     reportCame: () => dispatch({ type: 'came', now: performance.now() }),
     quit: () => dispatch({ type: 'quit', now: performance.now() }),
     reset: () => dispatch({ type: 'reset' }),

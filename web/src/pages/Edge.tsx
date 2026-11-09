@@ -10,7 +10,7 @@ import { useContentPolicy } from '@/context/ContentPolicyContext'
 import { useSession } from '@/context/SessionContext'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useEdgeController } from '@/hooks/useEdgeController'
-import { EDGE_DIFFICULTIES, EDGE_ENDING_LABELS, EDGE_FINALES } from '@/lib/edge'
+import { EDGE_DIFFICULTIES, EDGE_ENDING_LABELS, EDGE_FINALES, summarizeEdgeHistory } from '@/lib/edge'
 import { EdgeControls } from '@/components/reader/EdgeControls'
 import styles from './edge.module.css'
 
@@ -23,6 +23,7 @@ function EdgeWorkspace({ scope }: { scope: string }) {
   const [visibleRecords, setVisibleRecords] = useState(5)
   const clearButton = useRef<HTMLButtonElement>(null)
   const historyHeading = useRef<HTMLHeadingElement>(null)
+  const totals = summarizeEdgeHistory(data.history)
 
   function changeClearOpen(open: boolean) {
     setClearOpen(open)
@@ -51,6 +52,23 @@ function EdgeWorkspace({ scope }: { scope: string }) {
           <Button ref={clearButton} type="button" variant="ghost" disabled={data.history.length === 0} onClick={() => changeClearOpen(true)}><Trash2 aria-hidden="true" />清空记录</Button>
         </div>
         {storageError && <div className={styles.storageNotice} role="status"><p>{storageError}</p><Button type="button" variant="outline" onClick={retry}>重试保存</Button></div>}
+        {data.history.length > 0 && (
+          <dl className={styles.totals} aria-label="战绩汇总">
+            {[
+              ['总局数', String(totals.sessions)],
+              ['总申报', String(totals.edges)],
+              ['磨着不停', String(totals.grinds)],
+              ['银行兑现', `${totals.spent} 点`],
+              ['拿到许可', `${totals.permitted} 局`],
+              ['最长坚持', controller.formatTime(totals.longestMs)],
+            ].map(([label, value]) => (
+              <div key={label} className={styles.total}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
         {data.history.length === 0 ? (
           <EmptyState icon={<History />} message={storageError ? '本机记录暂不可用' : '还没有记下来的局'} hint={storageError ? '请重试读取和保存；游戏仍可正常进行。' : '结束一局后，这里会留下结局、申报次数和耗时。'} />
         ) : (
@@ -64,7 +82,7 @@ function EdgeWorkspace({ scope }: { scope: string }) {
                 </div>
                 <span className={styles.recordMeta}>{EDGE_DIFFICULTIES[record.difficulty].label} · {EDGE_FINALES[record.finale].label}</span>
                 <span className={styles.recordDuration}>{controller.formatTime(record.elapsedMs)}<small> / {record.minutes} 分钟</small></span>
-                <span className={styles.recordEdges}>{record.edges} 次申报{record.overtime > 0 ? ` · 加时 ${record.overtime}` : ''}</span>
+                <span className={styles.recordEdges}>{record.edges} 次申报{record.grinds > 0 ? ` · 磨着 ${record.grinds}` : ''}{record.spent > 0 ? ` · 花掉 ${record.spent} 点` : ''}{record.overtime > 0 ? ` · 加时 ${record.overtime}` : ''}</span>
               </li>
             ))}
           </ol>
