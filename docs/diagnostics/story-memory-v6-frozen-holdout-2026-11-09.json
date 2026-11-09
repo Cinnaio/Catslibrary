@@ -1,0 +1,201 @@
+{
+  "runId": "2026-11-09T13-49-08-117Z",
+  "implementationHash": "c4f25e7af0a5c25f5756157594c4b3a749653a740104dcbfb069d003614646b2",
+  "fixtureHash": "98e1250ca9971f26efd3f3ba2f734eb247a972cb76d416442c8ead6b8aae1172",
+  "model": "deepseek-v4.1-flash-tiancai",
+  "ledgerPromptVersion": 6,
+  "status": "failed",
+  "requestsThisRun": 1,
+  "fixture": [
+    {
+      "title": "山站交班",
+      "text": "山站管理员燕棠也叫小棠。燕棠与检修员陶策各有职务，互不隶属。燕棠保管站印，陶策携带绝缘钳。山站的电闸只有在总电源切断后才允许检修，这是所有班次都必须遵守的制度。航标图上有一枚三角符号，燕棠和陶策都不知道它代表什么。另一名职员唐燕正在山下码头登记货物；唐燕与燕棠是不同的人。",
+      "expectations": [
+        "燕棠与小棠合并，唐燕保持独立",
+        "站印属燕棠，绝缘钳属陶策",
+        "两人关系无隶属",
+        "断电检修为全局约束",
+        "符号未解，两人的无知分别保留",
+        "唐燕码头支线保留"
+      ]
+    },
+    {
+      "title": "借钳验箱",
+      "text": "陶策把绝缘钳借给信使韩雨检查木箱，借出后绝缘钳在韩雨手里，站印仍由燕棠保管。燕棠离开山站去了温室。陶策没看到她离开，误以为她在仓房清点货物。韩雨听见这个猜测，但没有证实，自己也只是暂且相信。",
+      "expectations": [
+        "钳子转给韩雨，站印不变",
+        "燕棠实际在温室",
+        "陶策与韩雨分别误以为燕棠在仓房",
+        "两人的认知不能变成客观位置"
+      ]
+    },
+    {
+      "title": "温室留话",
+      "text": "燕棠在温室遇见韩雨，告诉她自己从早上起就一直在温室。韩雨由此知道燕棠不在仓房。韩雨答应稍后告诉陶策，但现在还没有传话。陶策独自在山站检修台边等待，仍误以为燕棠在仓房。韩雨把绝缘钳交还陶策，随后回到温室。",
+      "expectations": [
+        "韩雨认知纠正且保留认知者",
+        "陶策的误解不能提前消失",
+        "传话仍为未执行计划",
+        "绝缘钳回陶策",
+        "陶策在山站，韩雨在温室"
+      ]
+    },
+    {
+      "title": "回忆中的站印",
+      "text": "陶策想起上周燕棠曾把站印临时交给自己，那是过去的事情。此刻燕棠仍在温室，她确认站印就在自己口袋里。陶策查看航标图，猜测三角符号是危险水域；这只是陶策的猜想，韩雨和燕棠都没听到。唐燕已在码头登记完货物，准备明日上山。",
+      "expectations": [
+        "回忆不把站印转给陶策",
+        "危险水域只是陶策的猜想",
+        "燕棠和韩雨不共享猜想",
+        "唐燕登记已完成，上山仍为计划",
+        "三角符号客观上仍未解"
+      ]
+    },
+    {
+      "title": "带来的说明",
+      "text": "唐燕从码头来到山站，带来航标图的原始说明。说明明确记载：三角符号代表避风泊位，与危险水域无关。只有唐燕和陶策在场，两人都逐字读过说明，知道符号的真实含义。陶策承认自己猜错。燕棠和韩雨仍在温室，没有看到说明，也没有收到消息。",
+      "expectations": [
+        "三角符号线索解决并保留历史",
+        "避风泊位作为客观答案保存",
+        "唐燕与陶策分别知道答案",
+        "陶策猜想更新为正确认知",
+        "燕棠和韩雨仍不知道答案",
+        "唐燕位置更新为山站"
+      ]
+    },
+    {
+      "title": "两次消息",
+      "text": "韩雨先从温室来到山站，把燕棠一直在温室的消息告诉陶策；陶策现在知道自己猜错了她的去向。随后唐燕把原始说明交给韩雨阅读，韩雨读完，知道三角符号代表避风泊位。这两次交谈针对不同事项。燕棠仍独自在温室，尚未获知符号含义。",
+      "expectations": [
+        "陶策关于燕棠去向的认知纠正",
+        "韩雨获得符号知识",
+        "去向认知与符号认知不能互相覆盖",
+        "燕棠仍不知道符号含义",
+        "韩雨位置更新为山站"
+      ]
+    },
+    {
+      "title": "封存与借用",
+      "text": "燕棠从温室回到山站，把站印交给韩雨保管；站印归韩雨保管后，陶策仍携带绝缘钳。燕棠读了原始说明，现在也知道三角符号表示避风泊位。陶策提议立即检修电闸，但总电源仍未切断，大家决定等断电后再动手，目前没有进行检修。",
+      "expectations": [
+        "站印转韩雨，绝缘钳仍属陶策",
+        "燕棠位置回山站",
+        "燕棠现在知道符号含义",
+        "检修只是计划",
+        "全局断电规则仍保留"
+      ]
+    },
+    {
+      "title": "检修开始",
+      "text": "燕棠切断总电源。陶策确认断电后，拿着绝缘钳开始检修电闸，工作尚未完成。韩雨带着站印去仓房清点备用件。唐燕留在山站整理原始说明。陶策和燕棠知道韩雨去了仓房，但唐燕没有听见交代，不知道韩雨的去向。",
+      "expectations": [
+        "断电已发生，检修进行中而非完成",
+        "绝缘钳仍在陶策手中，站印随韩雨",
+        "韩雨位置为仓房",
+        "三人的去向认知分别正确归属",
+        "唐燕仍在山站"
+      ]
+    },
+    {
+      "title": "完成后的封条",
+      "text": "陶策完成电闸检修，并把绝缘钳交给回到山站的韩雨。韩雨现在同时保管绝缘钳与站印。燕棠验收后恢复总电源，检修目标已经完成；下一次检修依然必须先断电。韩雨交出一只从仓房找到的封箱，燕棠收下封箱。箱子尚未打开，所有人都不知道里面装着什么。",
+      "expectations": [
+        "检修目标完成，未执行与进行中状态退出",
+        "钳子和站印均属韩雨，封箱属燕棠",
+        "韩雨位置回山站",
+        "恢复供电不废除全局规则",
+        "箱子未开，内容不能编造"
+      ]
+    },
+    {
+      "title": "留待明日",
+      "text": "燕棠决定明日邀请仓库主管一起开箱，今天不会打开封箱。她把封箱锁进山站柜内，仍由自己负责保管。韩雨带着站印和绝缘钳回到仓房。陶策独自下山去码头休息，唐燕仍留在山站。四人都还没有得知箱内内容。",
+      "expectations": [
+        "开箱仍为计划，封箱内容未知",
+        "封箱保管者仍是燕棠",
+        "韩雨在仓房并持有两件物品",
+        "陶策在码头，唐燕在山站",
+        "四人的未知各自保留"
+      ]
+    }
+  ],
+  "processedChapters": 0,
+  "steps": [
+    {
+      "runId": "2026-11-09T13-49-08-117Z",
+      "implementationHash": "c4f25e7af0a5c25f5756157594c4b3a749653a740104dcbfb069d003614646b2",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 9647,
+      "error": "章节记忆校验失败：新增实体「山站电闸」不在本章正文，无法确认身份；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 2601,
+        "elapsedMs": 9603,
+        "promptTokens": 1223,
+        "completionTokens": 1115,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794232166957,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：新增实体「山站电闸」不在本章正文，无法确认身份；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "ff5f5d9271be7961b7af660ff1016c5d926aa5393a76309d489673d2cbf42c2d",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：新增实体「山站电闸」不在本章正文，无法确认身份；未推进该章，请核对后重试"
+        ]
+      }
+    }
+  ],
+  "usage": {
+    "recorded_calls": 1,
+    "input_tokens": 1223,
+    "output_tokens": 1115,
+    "calls_with_reported_cost": 1,
+    "reported_cost_millicents": "46.80000000"
+  },
+  "costsByCurrency": [
+    {
+      "cost_currency": "USD",
+      "calls": 1,
+      "reported_cost_millicents": "46.80000000"
+    }
+  ],
+  "responses": [
+    {
+      "runId": "2026-11-09T13-49-08-117Z",
+      "chapter": 1,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"燕棠\",\"aliases\":[\"小棠\"],\"kind\":\"person\"},{\"name\":\"陶策\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"唐燕\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"站印\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"绝缘钳\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"航标图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"三角符号\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"山站\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"山站电闸\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"山下码头\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"山站电闸检修制度\",\"aliases\":[],\"kind\":\"faction\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"燕棠\"],\"directed\":false,\"label\":\"职务\",\"summary\":\"燕棠是山站管理员，与检修员陶策各有职务，互不隶属。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"燕棠与检修员陶策各有职务，互不隶属。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"陶策\"],\"directed\":false,\"label\":\"职务\",\"summary\":\"陶策是检修员，与山站管理员燕棠各有职务，互不隶属。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"燕棠与检修员陶策各有职务，互不隶属。\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"燕棠\",\"站印\"],\"directed\":false,\"label\":\"持有人\",\"summary\":\"燕棠保管站印。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"燕棠保管站印\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"陶策\",\"绝缘钳\"],\"directed\":false,\"label\":\"持有人\",\"summary\":\"陶策携带绝缘钳。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"陶策携带绝缘钳。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"山站电闸\",\"山站电闸检修制度\"],\"directed\":false,\"label\":\"检修前提条件\",\"summary\":\"山站电闸只有在总电源切断后才允许检修，这是所有班次都必须遵守的制度。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"山站的电闸只有在总电源切断后才允许检修，这是所有班次都必须遵守的制度。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"三角符号\",\"航标图\"],\"directed\":false,\"label\":\"航标图三角符号含义\",\"summary\":\"航标图上有一枚三角符号，其代表含义尚未查明。\",\"certainty\":\"clue\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"航标图上有一枚三角符号\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"燕棠\",\"三角符号\",\"航标图\"],\"directed\":false,\"label\":\"航标图三角符号含义\",\"summary\":\"燕棠不知道航标图上的三角符号代表什么。\",\"certainty\":\"belief\",\"perspective\":\"燕棠\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"航标图上有一枚三角符号，燕棠和陶策都不知道它代表什么。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"陶策\",\"三角符号\",\"航标图\"],\"directed\":false,\"label\":\"航标图三角符号含义\",\"summary\":\"陶策不知道航标图上的三角符号代表什么。\",\"certainty\":\"belief\",\"perspective\":\"陶策\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"航标图上有一枚三角符号，燕棠和陶策都不知道它代表什么。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"唐燕\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"唐燕正在山下码头登记货物。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"另一名职员唐燕正在山下码头登记货物；唐燕与燕棠是不同的人。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"唐燕\",\"燕棠\"],\"directed\":false,\"label\":\"身份区分\",\"summary\":\"唐燕与燕棠是不同的人，不可混同。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"唐燕与燕棠是不同的人。\"}]}"
+    }
+  ],
+  "state": {
+    "entities": [],
+    "facts": []
+  },
+  "current": [],
+  "explicitHistory": {
+    "entities": [],
+    "facts": []
+  },
+  "structuralChecks": {
+    "fullCoverage": false,
+    "sourceQuotesMatch": true,
+    "beliefsHavePerspective": true,
+    "uniqueActiveStateKeys": true,
+    "historicalTargetsMarked": true
+  },
+  "manualReview": "逐章依据 expectations 人工核对；结构检查通过不代表内容准确或完整。",
+  "limitations": "10 章短合成故事，不代表真实长篇准确率或性能。未开生产数据库；当前非流式、关闭思考，每次最多16000输出token、300秒。收到响应后失败也计账，未回传费用为未知；不自动重试语义校验失败。传输重试及历史补查沿用产品路径，显式 resume 的每次尝试保留记录。"
+}

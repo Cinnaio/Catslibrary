@@ -150,4 +150,6 @@ v6 将客观事实与人物认知分开：认知无论正确与否都保留 `cer
 
 验证入口：`api/src/services/ai/story-ledger.test.ts` 与 `api/src/routes/story-ledger.test.ts` 使用隔离 PGlite 和模型桩，覆盖共享提取、来源校验、认知/历史时点、依赖失效、暂停/长章、失败计账、局部取材、人工层、重建、材料预览及草稿检查。`api/scripts/replay-story-memory.ts --live` 另提供三章虚构样章的真实模型对照，显式调用已配置供应商，仅写隔离数据库和本地诊断报告。未加 `--live` 不请求模型。上游故障、冷启动和中转缓存会影响结果，短样章不能证明长篇小说质量或给出生产加速比例。最近尝试与限制见 `docs/diagnostics/story-memory-ledger-replay.json`。
 
-2026-11-09 新增十章合成故事评估脚本 `api/scripts/evaluate-story-memory.ts`：不带 `--live` 只检查样本；显式 `--resume` 从隔离数据库有效前缀继续，保留每次失败与实际用量。47 条人工预期的本轮结果为有效覆盖 7 / 10 章，第 8 章三次校验失败，第 9–10 章未执行；已通过部分仍有认知类别、主体归属和重复状态问题，不能视为长篇质量验收通过。逐项结果、原始响应与复现命令见 [评估报告](diagnostics/story-memory-evaluation-2026-11-09.md)。发布验证工作流覆盖 ledger、integrity 及 Web 失败后手动恢复回归，付费评估不进入 CI。
+2026-11-09 新增十章合成故事评估脚本 `api/scripts/evaluate-story-memory.ts`：不带 `--live` 只检查样本；`--fixture` 可指定另一份样本，显式 `--resume` 从隔离数据库有效前缀继续，保留每次失败、代码哈希与实际用量，费用按币种汇总。原规则 v5 有效覆盖 7 / 10 章，第 8 章三次校验失败，第 9–10 章未执行，详见 [v5 评估报告](diagnostics/story-memory-evaluation-2026-11-09.md)。发布验证工作流覆盖 ledger、integrity、state、HTTP、writing-memory 及 Web 失败后手动恢复回归，付费评估不进入 CI。
+
+v6 迭代评估中，原样本经 21 次调用最终覆盖 10 / 10 章，但旧目标未关闭、混合摘要残留仍存在；另一份十章故事的诊断及清空重跑均未通过首章，51 条预期未验收。第二故事参与过规则调整，原样本也保留跨实现的有效前缀，不能视为冻结版本的独立质量基准。27 次 v6 调用共 142,212 Token，上游回报 USD 0.019154。结构检查通过不等于内容准确完整，暂不据此批量重建现有书籍；证据、版本范围和下一步见 [v6 评估报告](diagnostics/story-memory-v6-evaluation-2026-11-09.md)。

@@ -14,8 +14,11 @@ import { extractPlotState } from '../src/services/ai/plot-state'
 import { getMemoryAttempt } from '../src/services/ai/story-memory'
 import { ledgerAtAnchor } from '../src/services/ai/story-ledger-store'
 import { factLine, LEDGER_PROMPT_VERSION, relevantLedger, workingFacts } from '../src/services/ai/story-ledger'
+import { stateIdentity } from '../src/services/ai/story-ledger-state'
 
-const fixture = JSON.parse(await readFile(new URL('./fixtures/story-memory-evaluation.json', import.meta.url), 'utf8')) as Array<{
+const option = (name: string) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3)
+const fixturePath = option('fixture') ? resolve(option('fixture')!) : new URL('./fixtures/story-memory-evaluation.json', import.meta.url)
+const fixture = JSON.parse(await readFile(fixturePath, 'utf8')) as Array<{
   title: string
   text: string
   expectations: string[]
@@ -33,7 +36,6 @@ if (!process.argv.includes('--live')) {
   process.exit(0)
 }
 if (!isTextAiConfigured()) throw new Error('尚未配置文本模型')
-const option = (name: string) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3)
 const runId = new Date().toISOString().replace(/[:.]/g, '-')
 const stateDir = resolve(option('state-dir') || `.tmp/story-memory-evaluation-${runId}`)
 const output = resolve(option('output') || `${stateDir}/report.json`)
@@ -56,7 +58,7 @@ if (previous && (!process.argv.includes('--resume') || JSON.stringify(previous) 
 await mkdir(stateDir, { recursive: true })
 await mkdir(dirname(output), { recursive: true })
 await writeFile(resolve(stateDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
-const sourceFiles = ['story-ledger.ts', 'story-ledger-integrity.ts', 'story-ledger-engine.ts']
+const sourceFiles = ['story-ledger.ts', 'story-ledger-integrity.ts', 'story-ledger-state.ts', 'story-ledger-engine.ts']
 const sourceHash = createHash('sha256')
 for (const file of sourceFiles) sourceHash.update(await readFile(new URL(`../src/services/ai/${file}`, import.meta.url)))
 const implementationHash = sourceHash.digest('hex')
@@ -117,6 +119,10 @@ const persist = async () => {
     )
   ).rows[0]
   const snapshot = ledger?.state
+  const costsByCurrency = (await t.db.query(
+    `SELECT cost_currency, count(*)::int AS calls, sum(cost_millicents) AS reported_cost_millicents
+     FROM ai_usage WHERE novel_id=$1 AND cost_reported GROUP BY cost_currency`, [novelId],
+  )).rows
   const report = {
     runId,
     implementationHash,
@@ -127,6 +133,7 @@ const persist = async () => {
     processedChapters: ledger?.processed ?? 0,
     steps,
     usage,
+    costsByCurrency,
     responses,
     state: snapshot,
     current: snapshot ? workingFacts(snapshot).map((fact) => ({ id: fact.id, line: factLine(fact, snapshot) })) : [],
@@ -138,6 +145,14 @@ const persist = async () => {
           beliefsHavePerspective: snapshot.facts
             .filter((fact) => fact.certainty === 'belief')
             .every((fact) => !!fact.perspective && fact.subjects.includes(fact.perspective)),
+          uniqueActiveStateKeys: (() => {
+            const entities = new Map(snapshot.entities.map((entity) => [entity.id, entity]))
+            const keys = workingFacts(snapshot).flatMap((fact) => {
+              const identity = stateIdentity(fact, entities)
+              return identity ? [identity.key] : []
+            })
+            return keys.length === new Set(keys).size
+          })(),
           historicalTargetsMarked: relevantLedger(snapshot, '', ['红线', '铜钥匙'])
             .facts.filter((fact) => !workingFacts(snapshot).some((active) => active.id === fact.id))
             .every((fact) => fact.stillActive === false),
