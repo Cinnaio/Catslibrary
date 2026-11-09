@@ -92,8 +92,12 @@ private struct AgentMessagesView: View {
                         ContentUnavailableView("一起把故事往下写", systemImage: "sparkles",
                             description: Text("可以聊情节、调整草稿，也可以描述你想要的封面。"))
                     }
-                    ForEach(model.events) { event in
-                        AgentMessageRow(event: event, model: model, showArtifacts: showArtifacts).id(event.id)
+                    ForEach(AgentMessageGroup.grouped(model.events)) { group in
+                        if group.activities.isEmpty {
+                            AgentMessageRow(event: group.firstEvent, model: model, showArtifacts: showArtifacts)
+                        } else {
+                            AgentActivityGroupView(events: group.activities) { followsBottom = false }
+                        }
                     }
                     if let live = model.liveReply, let progress = live.progress {
                         VStack(alignment: .leading, spacing: 10) {
@@ -132,13 +136,99 @@ private struct AgentMessagesView: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 if !followsBottom {
-                    Button("回到最新", systemImage: "arrow.down") {
+                    Button {
                         followsBottom = true
                         proxy.scrollTo("agent-bottom", anchor: .bottom)
+                    } label: {
+                        Label("回到最新", systemImage: "arrow.down")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(AppTheme.primary)
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
-                    .font(.caption).buttonStyle(.bordered).padding(12)
-                    .background(AppTheme.canvas.opacity(0.95), in: Capsule())
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("agent.scrollToLatest")
+                    .padding(.trailing, 12).padding(.bottom, 4)
                 }
+            }
+        }
+    }
+}
+
+private struct AgentMessageGroup: Identifiable {
+    let firstEvent: AIAgentEvent
+    var activities: [AIAgentEvent]
+    var id: Int64 { firstEvent.id }
+
+    private static let readingTools: Set<String> = [
+        "read_overview", "search_chapters", "read_chapter", "read_story_memory",
+        "list_drafts", "read_draft", "list_covers", "read_task", "read_conversation",
+    ]
+
+    static func grouped(_ events: [AIAgentEvent]) -> [Self] {
+        var groups: [Self] = []
+        for event in events {
+            // Only successful read-only calls collapse; errors and actionable results remain visible.
+            let canGroup = event.role == "activity" && event.metadata.error != true
+                && event.metadata.artifactTaskId == nil && event.metadata.actionId == nil
+                && readingTools.contains(event.metadata.tool ?? "")
+            if canGroup, let last = groups.last, !last.activities.isEmpty,
+               last.firstEvent.taskId == event.taskId {
+                groups[groups.count - 1].activities.append(event)
+            } else {
+                groups.append(Self(firstEvent: event, activities: canGroup ? [event] : []))
+            }
+        }
+        return groups
+    }
+}
+
+private struct AgentActivityGroupView: View {
+    let events: [AIAgentEvent]
+    let onExpand: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                if !isExpanded { onExpand() }
+                withAnimation(reduceMotion ? nil : AppMotion.state) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "text.book.closed").accessibilityHidden(true)
+                    Text("查阅资料").fontWeight(.medium)
+                    Text("\(events.count) 次").monospacedDigit()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .accessibilityHidden(true)
+                    Spacer(minLength: 0)
+                }
+                .font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("查阅资料，\(events.count) 次")
+            .accessibilityValue(isExpanded ? "已展开" : "已折叠")
+            .accessibilityHint(isExpanded ? "收起查阅明细" : "展开查看每次查阅")
+            .accessibilityIdentifier("agent.activity.\(events.first?.id ?? 0)")
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(events) { event in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "checkmark").font(.caption2).accessibilityHidden(true)
+                            Text(verbatim: event.content).textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+                .font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                .padding(.leading, 4).padding(.top, 2).padding(.bottom, 8)
+                .transition(.opacity)
             }
         }
     }

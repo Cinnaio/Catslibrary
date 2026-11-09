@@ -1,5 +1,11 @@
 # 发布与版本管理
 
+## iOS 对话查阅记录与透明返回按钮（2026-11-09，源码候选）
+
+源码为本条所在提交，父提交为 `7c86912f`；将对话页「回到最新」改为透明背景，并将相邻、同任务且成功完成的只读工具记录折叠为调用次数摘要。展开保留每条原文及顺序，用户／助手消息、错误和带产出／采纳入口的记录不折叠；查看明细时暂停自动跟随。沿用既有任务状态、流式预览、分页、停止及采纳确认，不修改服务端、接口或持久化格式。
+
+`ios/project.yml` 更新为 `1.2.2 / build 26`，API/Web 版本保持不变。已核对服务端活动事件形状、分组边界及 Git 差异；遵循本地约定未运行测试套件或截图。Windows 没有 Swift/Xcode，未进行 Swift 类型检查、原生编译或设备验收；本次仅本地提交，未推送、部署或生成新 IPA，已有 `1.2.1 / 25` 安装包不包含这些修改。
+
 ## API 1.1.1 与 iOS 1.2.1 交付（2026-11-09）
 
 源码 `94dcbd9cb04d176c421babea0ac86cd2e6d377e5` 已推送至 `origin/main`，包含 Agent 轮次修复 `27c528d4` 与 iOS 布局调整 `94dcbd9c`。[Deploy 42571560012](https://github.com/Cinnaio/zhi-zhou/actions/runs/42571560012) 于 14:16:23（Asia/Shanghai）成功结束，交付 API `1.1.1` / Web `1.3.0`，没有新增迁移。公网 `/api/ready` 返回 `ready: true`、API `1.1.1` 及上述源码 SHA；首页、`/assets/index-CyyzWCjq.js`、健康接口与书目接口均为 200。
@@ -638,7 +644,7 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.2.1 / 25`（未签名 IPA 已构建） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.2.2 / 26`（源码候选；已构建包为 `1.2.1 / 25`） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
 | API | `api/package.json` | `1.1.1`（已部署） | 同步 `package-lock.json` 的 `packages.api.version` |
 | Web | `web/package.json` | `1.3.0`（已部署） | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
