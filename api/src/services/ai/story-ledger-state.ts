@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { MemoryEntity, MemoryFact } from './story-ledger'
 import { locationTopic, memoryTopic, ownershipItems, ownershipTopic, replacementProblem } from './story-ledger-integrity'
+import { goalTopic } from './story-ledger-goals'
 
 /** Identity contains no current value/holder/destination. Free-form topics must
  * still match exactly; no fuzzy label merging or last-write-wins for ambiguity. */
@@ -9,7 +10,9 @@ export function stateIdentity(fact: MemoryFact, entities: ReadonlyMap<string, Me
   const ofKind = (kind: MemoryEntity['kind']) => fact.subjects.filter((id) => entities.get(id)?.kind === kind).sort()
   let identity: unknown[] = [fact.kind === 'fact' ? 'state' : fact.kind, [...fact.subjects].sort(), memoryTopic(fact.label)]
   let singleton = false
-  if (fact.certainty === 'belief') {
+  if (fact.kind === 'goal') {
+    identity = ['goal', [...fact.subjects].sort(), goalTopic(fact.label)]
+  } else if (fact.certainty === 'belief') {
     identity = ['knowledge', fact.perspective, fact.subjects.filter((id) => id !== fact.perspective).sort(), memoryTopic(fact.label)]
   } else if (ownershipTopic(fact.label) && ['item', 'state', 'fact'].includes(fact.kind) && ownershipItems(fact, entities).length === 1) {
     identity = ['ownership', ownershipItems(fact, entities)]

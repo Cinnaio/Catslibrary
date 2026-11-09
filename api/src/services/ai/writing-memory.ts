@@ -1,4 +1,5 @@
 import { currentFacts, factLine, renderLedger, type LedgerState, type MemoryFact } from './story-ledger'
+import { entityNames } from './story-ledger-names'
 
 /** A writing-only projection. Stored records, archive revisions and extraction inputs stay intact. */
 export function projectWritingState(state: LedgerState): LedgerState {
@@ -60,10 +61,10 @@ export function selectWritingLedger(state: LedgerState, query: WritingMemoryQuer
   const effective = new Set(projected.facts.map((fact) => fact.id))
   const byId = new Map(projected.facts.map((fact) => [fact.id, fact]))
   const haystack = `${query.context}\n${query.instruction}`.toLocaleLowerCase()
-  const names = new Set(state.entities.flatMap((entity) => [entity.name, ...entity.aliases]).map((name) => name.toLocaleLowerCase()))
+  const names = new Set(state.entities.flatMap(entityNames).map((name) => name.toLocaleLowerCase()))
   const actors = new Set(
     state.entities
-      .filter((entity) => [entity.name, ...entity.aliases].some((name) => name.length >= 2 && haystack.includes(name.toLocaleLowerCase())))
+      .filter((entity) => entityNames(entity).some((name) => name.length >= 2 && haystack.includes(name.toLocaleLowerCase())))
       .map((entity) => entity.id),
   )
   const task = query.instruction.toLocaleLowerCase()
@@ -83,7 +84,7 @@ export function selectWritingLedger(state: LedgerState, query: WritingMemoryQuer
       const explicit = exactTopic || terms.some((term) => text.includes(term))
       if (!global && !explicit && !(active && related)) return []
       const slot = active && related && /位置|所在地|所在地点|去向|归属|持有|保管/.test(fact.label)
-      const important = active && related && (fact.certainty === 'belief' || ['clue', 'conflict', 'boundary'].includes(fact.kind))
+      const important = active && related && (fact.certainty === 'belief' || ['clue', 'conflict', 'boundary', 'goal'].includes(fact.kind))
       const score = global ? 10000 : exactTopic ? 900 : explicit ? 750 : slot ? 650 : important ? 550 : latest - fact.ordinal <= 3 ? 400 : 200
       return [{ fact, global, explicit, slot, important, related, score }]
     })

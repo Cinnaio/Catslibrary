@@ -3,18 +3,21 @@ import type { StoryCertainty, StoryGraph } from '@shared/story-graph'
 import { AiError } from './client'
 import { aliasIdentityQuote, cognitionProblem, ownershipItems, ownershipTopic, replacementProblem, resolutionProblem } from './story-ledger-integrity'
 import { reconcileState } from './story-ledger-state'
+import { continuedGoalProblem, goalEndingProblem, goalWording, isOpenGoal, summaryProblem, type GoalReview } from './story-ledger-goals'
+import { entityNames, placePossessiveName, type SourceName } from './story-ledger-names'
 
 export const LEDGER_VERSION = 1
 /** Bump when extraction semantics change, without changing the stored JSON schema. */
-export const LEDGER_PROMPT_VERSION = 6
+export const LEDGER_PROMPT_VERSION = 7
 export type EntityKind = 'person' | 'item' | 'place' | 'faction'
-export type FactKind = 'fact' | 'state' | 'relationship' | 'boundary' | 'clue' | 'conflict' | 'item' | 'place'
+export type FactKind = 'fact' | 'state' | 'relationship' | 'boundary' | 'clue' | 'conflict' | 'item' | 'place' | 'goal'
 export interface MemoryEntity {
   id: string
   name: string
   aliases: string[]
   kind: EntityKind
   aliasEvidence?: Array<{ alias: string; quote: string; chapterId: string; ordinal: number }>
+  sourceNames?: SourceName[]
 }
 export interface MemoryFact {
   id: string
@@ -33,6 +36,8 @@ export interface MemoryFact {
   resolves?: string[]
   /** Server-derived identity of a state slot, independent of its current value. */
   stateKey?: string
+  goalOutcome?: 'completed' | 'cancelled' | 'superseded'
+  successor?: string
   quote: string
   chapterId: string
   ordinal: number
@@ -44,6 +49,7 @@ export interface ChapterMemory {
   version: 1
   entities: MemoryEntity[]
   facts: MemoryFact[]
+  goalReviews?: GoalReview[]
 }
 export interface LedgerState {
   entities: MemoryEntity[]
@@ -172,7 +178,7 @@ export function coerceFactKind(kind: unknown, item: Record<string, unknown>): st
   // Knowledge has a single epistemic contract regardless of whether the model
   // calls it a clue or a generic state. Relationships keep their own topology.
   if (item.certainty === 'belief' && ['fact', 'state', 'clue', 'belief', 'cognition', 'knowledge'].includes(raw)) return 'state'
-  if (['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'].includes(raw)) return raw
+  if (['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place', 'goal'].includes(raw)) return raw
   const memoryType = String(item.memoryType ?? '').trim()
   const certainty = String(item.certainty ?? '').trim()
   if (raw === 'belief' || raw === 'cognition' || raw === 'knowledge') return certainty === 'belief' ? 'state' : 'clue'
@@ -207,21 +213,21 @@ export function relevantLedger(
   historyMode: 'explicit' | 'topics' = 'explicit',
 ): LedgerState {
   const haystack = `${text}\n${queries.join('\n')}`.toLocaleLowerCase()
-  const names = new Set(state.entities.flatMap((e) => [e.name, ...e.aliases]).map((n) => n.toLocaleLowerCase()))
+  const names = new Set(state.entities.flatMap(entityNames).map((n) => n.toLocaleLowerCase()))
   const terms = [
     ...new Set([
       ...queries.flatMap((q) => [q, ...(q.match(/[\p{Script=Han}]{2,8}|[a-zA-Z0-9_]{2,32}/gu) || [])]),
       ...state.facts.filter((f) => queries.some((q) => q.includes(f.label))).map((f) => f.label),
     ]),
   ].filter((term) => historyMode === 'explicit' || !names.has(term.toLocaleLowerCase()))
-  const ids = new Set(state.entities.filter((e) => [e.name, ...e.aliases].some((n) => haystack.includes(n.toLocaleLowerCase()))).map((e) => e.id))
+  const ids = new Set(state.entities.filter((e) => entityNames(e).some((n) => haystack.includes(n.toLocaleLowerCase()))).map((e) => e.id))
   const current = workingFacts(state)
   const direct = current.filter(
     (f) => f.subjects.some((id) => ids.has(id)) || terms.some((q) => `${f.label} ${f.summary}`.toLocaleLowerCase().includes(q.toLocaleLowerCase())),
   )
   const related = new Set([...ids, ...direct.flatMap((f) => f.subjects)])
   const wanted = new Set(direct.map((f) => f.id))
-  for (const f of current) if (f.scope === 'global' || f.kind === 'boundary' || f.subjects.some((id) => related.has(id))) wanted.add(f.id)
+  for (const f of current) if (f.scope === 'global' || f.kind === 'boundary' || isOpenGoal(f) || f.subjects.some((id) => related.has(id))) wanted.add(f.id)
   const replaceable = new Set(current.map((f) => f.id))
   // History is expanded only for explicit supplementary queries, never merely
   // because the protagonist occurs in every chapter.
@@ -284,23 +290,27 @@ export function parseChapterMemory(
   ].filter((name) => opts.text.includes(name))
   for (const value of root.entities) {
     const item = object(value)
-    const name = entityName(item)
+    const rawName = entityName(item)
     const itemId = typeof item.id === 'string' ? item.id.trim() : ''
+    const kind = enumValue(coerceEntityKind(item.kind, rawName), ['person', 'item', 'place', 'faction'] as const, '实体类别')
+    const sourceName = item.sourceName === undefined ? undefined : str(item.sourceName, 100, 'sourceName')
+    const mapping = placePossessiveName(rawName, kind, opts.text, declaredPlaces, sourceName)
+    if (sourceName !== undefined && !mapping) return fail(`实体「${rawName}」的 sourceName 不符合地点加物品的有限来源映射`)
+    const name = mapping?.canonical || rawName
     const aliases = strings(item.aliases === undefined ? [] : item.aliases, 12, 'aliases').filter((alias) => alias !== name)
-    const kind = enumValue(coerceEntityKind(item.kind, name), ['person', 'item', 'place', 'faction'] as const, '实体类别')
-    const known = [...entities.values()].filter((entity) => [entity.name, ...entity.aliases].includes(name))
+    const known = [...entities.values()].filter((entity) => entityNames(entity).includes(name) || (mapping && entityNames(entity).includes(mapping.source)))
     if (known.length > 1) return fail(`「${name}」存在身份歧义`)
     const existing = known[0]
     if (itemId && (!existing || existing.id !== itemId)) return fail(`实体「${name}」的 ID 与已知身份不一致`)
     if (existing && existing.kind !== kind) return fail(`实体「${name}」的类别与已知身份不一致`)
-    if (!existing && !opts.text.includes(name) && !canonicalNameGrounded(name, opts.text)) {
+    if (!existing && !mapping && !opts.text.includes(name) && !canonicalNameGrounded(name, opts.text)) {
       return fail(`新增实体「${name}」不在本章正文，无法确认身份`)
     }
     const newAliases = aliases.filter((alias) => alias !== existing?.name && !existing?.aliases.includes(alias))
     const aliasEvidence: NonNullable<MemoryEntity['aliasEvidence']> = []
     for (const alias of newAliases) {
       if (alias.length > 60) return fail('别名过长')
-      if (declaredNames.has(alias) || [...entities.values()].some((entity) => entity.id !== existing?.id && [entity.name, ...entity.aliases].includes(alias))) {
+      if (declaredNames.has(alias) || [...entities.values()].some((entity) => entity.id !== existing?.id && entityNames(entity).includes(alias))) {
         return fail(`别名「${alias}」与另一实体冲突`)
       }
       const identity = aliasIdentityQuote(existing?.name || name, alias, opts.text, declaredPlaces)
@@ -323,13 +333,14 @@ export function parseChapterMemory(
         ...aliasEvidence,
       ]
     }
+    if (mapping) entity.sourceNames = [...(existing?.sourceNames || []), { text: mapping.source, rule: 'place-possessive', chapterId: opts.chapterId, ordinal: opts.ordinal }]
     entities.set(entity.id, entity)
     changed.push(entity)
   }
   const nameId = (value: string): string => {
     const name = value.trim()
     if (entities.has(name)) return name
-    const matches = [...entities.values()].filter((entity) => [entity.name, ...entity.aliases].includes(name))
+    const matches = [...entities.values()].filter((entity) => entityNames(entity).includes(name))
     if (matches.length !== 1) return fail(`实体「${name}」未声明或身份有歧义`)
     return matches[0]!.id
   }
@@ -341,7 +352,7 @@ export function parseChapterMemory(
   for (let index = 0; index < root.facts.length; index++) {
     const item = object(root.facts[index])
     const memoryType = enumValue(item.memoryType, ['state', 'event'] as const, 'memoryType')
-    const kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place'] as const, '事实类别')
+    const kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place', 'goal'] as const, '事实类别')
     const label = str(item.label, 80, 'label')
     const summary = str(item.summary, 1000, 'summary')
     const rawQuote = str(item.quote, 1000, 'quote')
@@ -370,6 +381,12 @@ export function parseChapterMemory(
     }
     const cognitiveProblem = cognitionProblem(next, entities)
     if (cognitiveProblem) return fail(`facts[${index}] ${cognitiveProblem}`)
+    const contentProblem = summaryProblem(next, entities)
+    if (contentProblem) return fail(`facts[${index}] ${contentProblem}`)
+    if (kind === 'goal' && (memoryType !== 'state' || certainty !== 'fact' || status !== 'active' || scope !== 'local' || replaces.length || resolves.length))
+      return fail('新目标须为 local、active、fact 的独立 state，旧目标结束只通过 goalReviews 提交')
+    if (memoryType === 'state' && certainty !== 'belief' && kind !== 'goal' && goalWording(label, summary))
+      return fail('目标或计划必须使用 kind=goal；不能通过改类别绕过 goalReviews')
     if (memoryType === 'state' && certainty === 'fact' && ownershipTopic(label) && ['item', 'state', 'fact'].includes(kind)) {
       const items = ownershipItems(next, entities)
       // An item explicitly named in the summary/label is not a guessed entity.
@@ -380,6 +397,7 @@ export function parseChapterMemory(
       if (!before || !replaceable.has(id) || before.stillActive === false || replacedThisChapter.has(id)) {
         return fail(`替换记录 ${id} 不是本次提供的当前有效状态；历史依据不能作为替换目标`)
       }
+      if (before.kind === 'goal') return fail(`目标 ${id} 只能通过 goalReviews 结束，不能改标签或类别替换`)
       const problem = replaces.includes(id) ? replacementProblem(before, next, entities) : resolutionProblem(before, next)
       if (problem) return fail(`替换记录 ${id} 无效（${problem}）`)
       replacedThisChapter.add(id)
@@ -396,7 +414,43 @@ export function parseChapterMemory(
     }
     facts.push(next)
   }
-  return { version: 1, entities: changed, facts }
+  const goals = activeStates.filter(isOpenGoal)
+  if (root.goalReviews !== undefined && !Array.isArray(root.goalReviews)) return fail('goalReviews 必须为数组')
+  const reviews: GoalReview[] = []
+  for (const value of (root.goalReviews || []) as unknown[]) {
+    const item = object(value)
+    const id = str(item.id, 100, 'goalReviews.id')
+    const goal = goals.find((candidate) => candidate.id === id)
+    if (!goal || !supplied.has(id) || supplied.get(id)?.stillActive === false || reviews.some((review) => review.id === id))
+      return fail(`目标复核 ${id} 不是唯一、已提供的当前目标`)
+    const decision = enumValue(item.decision, ['continue', 'completed', 'cancelled', 'superseded'] as const, 'goalReviews.decision')
+    if (decision === 'continue') {
+      const problem = continuedGoalProblem(goal, opts.text)
+      if (problem) return fail(problem)
+      if (item.successor) return fail('continue 不能指定替代目标')
+      reviews.push({ id, decision })
+      continue
+    }
+    const quote = sourceSpan(opts.text, str(item.quote, 1000, 'goalReviews.quote'))
+    if (!quote) return fail('目标结束依据无法逐字匹配本段正文')
+    const endingProblem = goalEndingProblem(decision, quote, goal, opts.text)
+    if (endingProblem) return fail(endingProblem)
+    const successorLabel = item.successor ? str(item.successor, 80, 'goalReviews.successor') : undefined
+    const successors = facts.filter((fact) => fact.kind === 'goal' && fact.label === successorLabel)
+    if (decision === 'superseded' ? successors.length !== 1 : !!successorLabel) return fail('替代须引用本段唯一的新目标 label；其他结束决定不能指定 successor')
+    const closed: MemoryFact = {
+      ...goal, id: `f_${ledgerHash([opts.novelId, opts.chapterId, opts.part, id, decision, quote]).slice(0, 24)}`,
+      status: 'resolved', goalOutcome: decision, summary: quote, replaces: [id], quote,
+      chapterId: opts.chapterId, ordinal: opts.ordinal,
+      ...(decision === 'superseded' ? { successor: successors[0]!.id } : {}),
+    }
+    delete closed.stillActive
+    facts.push(closed)
+    reviews.push({ id, decision, quote, ...(successorLabel ? { successor: successorLabel } : {}) })
+  }
+  const missing = goals.filter((goal) => !reviews.some((review) => review.id === goal.id))
+  if (missing.length) return fail(`goalReviews 缺少当前目标 ${missing.map((goal) => goal.id).join('、')}；每项目标必须明确 continue、completed、cancelled 或 superseded，事件不能代替结束关联`)
+  return { version: 1, entities: changed, facts, ...(reviews.length ? { goalReviews: reviews } : {}) }
 }
 
 export function applyChapterMemory(state: LedgerState, chapter: ChapterMemory): LedgerState {
@@ -409,7 +463,8 @@ const certaintyLabels = { fact: '已确认事实', belief: '人物认知', clue:
 export function factLine(fact: MemoryFact, state: LedgerState): string {
   const names = fact.subjects.map((id) => state.entities.find((e) => e.id === id)?.name || id).join('、')
   const perspective = fact.perspective ? `（${state.entities.find((e) => e.id === fact.perspective)?.name}所知）` : ''
-  return `${fact.memoryType === 'event' ? '【章节事件】' : ''}【${certaintyLabels[fact.certainty]}】${names}${perspective}｜${fact.label}：${fact.summary}${fact.status === 'resolved' ? '（已解决）' : ''} [章节ID:${fact.chapterId}]`
+  const outcome = fact.goalOutcome ? ({ completed: '目标已完成', cancelled: '目标已取消', superseded: '目标已被替代' })[fact.goalOutcome] : '已解决'
+  return `${fact.memoryType === 'event' ? '【章节事件】' : ''}【${certaintyLabels[fact.certainty]}】${names}${perspective}｜${fact.label}：${fact.summary}${fact.status === 'resolved' ? `（${outcome}）` : ''} [章节ID:${fact.chapterId}]`
 }
 export function renderLedger(state: LedgerState, kind: 'plot' | 'relationship', includeHistory = false): string {
   const current = new Set(currentFacts(state).map((f) => f.id))
@@ -426,6 +481,8 @@ export function renderLedger(state: LedgerState, kind: 'plot' | 'relationship', 
       (e) => `实体别名：${e.name}（${e.aliases.join('、')}）${(e.aliasEvidence || []).map((a) => `\n身份依据：${a.quote} [章节ID:${a.chapterId}]`).join('')}`,
     )
   lines.unshift(...aliases)
+  lines.unshift(...state.entities.flatMap((entity) => facts.some((fact) => fact.subjects.includes(entity.id))
+    ? (entity.sourceNames || []).map((source) => `名称来源：${source.text} → ${entity.name}（地点所属物品，单个“的”归一） [章节ID:${source.chapterId}]`) : []))
   return lines.length ? lines.join('\n\n') : '本范围暂无已提取的相关记录。'
 }
 
@@ -463,11 +520,11 @@ export function ledgerGraph(state: LedgerState): StoryGraph | undefined {
       evidence: evidence(f),
     }))
   const threads = facts
-    .filter((f) => ['state', 'clue', 'conflict', 'item', 'place'].includes(f.kind))
+    .filter((f) => ['state', 'clue', 'conflict', 'item', 'place', 'goal'].includes(f.kind))
     .map((f) => ({
       id: f.id,
       title: f.label,
-      kind: f.kind as 'state' | 'clue' | 'conflict' | 'item' | 'place',
+      kind: (f.kind === 'goal' ? 'clue' : f.kind) as 'state' | 'clue' | 'conflict' | 'item' | 'place',
       people: f.subjects.filter((id) => ids.has(id)),
       summary: f.summary,
       certainty: f.certainty,

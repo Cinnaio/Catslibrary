@@ -68,7 +68,7 @@ jobs:
 
       - name: Story memory regressions
         run: |
-          npm run test --workspace=@zhi-zhou/api -- src/services/ai/story-ledger.test.ts src/services/ai/story-ledger-integrity.test.ts src/services/ai/story-ledger-state.test.ts src/routes/story-ledger.test.ts src/services/ai/writing-memory.test.ts --maxWorkers=1 --minWorkers=1
+          npm run test --workspace=@zhi-zhou/api -- src/services/ai/story-ledger.test.ts src/services/ai/story-ledger-integrity.test.ts src/services/ai/story-ledger-state.test.ts src/services/ai/story-ledger-contracts.test.ts src/routes/story-ledger.test.ts src/services/ai/writing-memory.test.ts --maxWorkers=1 --minWorkers=1
           npm run test --workspace=@zhi-zhou/web -- src/pages/admin/ai/AiWritingPanel.test.tsx --maxWorkers=1 --minWorkers=1
 
       # 产物里不能混入前一次构建的旧哈希资源。

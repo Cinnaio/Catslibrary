@@ -87,6 +87,30 @@ beforeEach(async () => {
 })
 
 describe('chapter ledger shared extraction and source integrity', () => {
+  it('requires goal reviews, persists completion and retains the earlier anchor after retry', async () => {
+    const start = '沈砚计划检修铜门。'
+    await chapter(1, start)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ kind: 'goal', subjects: ['沈砚'], label: '检修铜门', summary: start, quote: start })], [entity('沈砚')])))
+    await extractPlotState(t.db, opts)
+    const old = (await ledgerAtAnchor(t.db, 'book'))!.state.facts[0]!
+    const end = '沈砚完成检修铜门。'
+    await chapter(2, end)
+    const event = fact({ kind: 'fact', memoryType: 'event', label: '工作结束', summary: end, quote: end })
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([event], [])))
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('goalReviews 缺少')
+    expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(1)
+    vi.mocked(chat).mockResolvedValueOnce(reply({ ...payload([event], []), goalReviews: [{ id: old.id, decision: 'completed', quote: end }] }))
+    await extractPlotState(t.db, opts)
+    const current = (await ledgerAtAnchor(t.db, 'book'))!.state
+    expect(workingFacts(current).some((fact) => fact.kind === 'goal')).toBe(false)
+    expect(current.facts.find((fact) => fact.goalOutcome)?.replaces).toEqual([old.id])
+    expect((await getPlotStateForAnchor(t.db, 'book', 'c1')).state).toContain('计划检修铜门')
+    expect((await getPlotStateForAnchor(t.db, 'book', 'c2')).state).toContain('目标已完成')
+    const stored = await t.db.query<{ payload_json: string }>('SELECT payload_json FROM novel_story_memory_chapters WHERE novel_id=$1 AND chapter_id=$2', ['book', 'c2'])
+    expect(JSON.parse(stored.rows[0]!.payload_json).goalReviews).toHaveLength(1)
+    expect(recordUsage).toHaveBeenCalledTimes(3)
+  })
+
   it('counts only incremental records when switching from an already completed legacy archive', async () => {
     await chapter(1)
     vi.mocked(getAiSettings).mockResolvedValue({ ...DEFAULT_AI_SETTINGS, storyMemoryEngine: 'legacy', storyMemoryStreamEnabled: false })
@@ -502,10 +526,10 @@ describe('chapter ledger shared extraction and source integrity', () => {
   it('keeps extraction input focused on current state even when the same protagonist has a long history', async () => {
     let previousId: string | undefined
     for (let i = 1; i <= 24; i++) {
-      const content = `沈砚当前目标是调查第${i}处密道。`
+      const content = `沈砚当前正在调查第${i}处密道。`
       await chapter(i, content)
       vi.mocked(chat).mockResolvedValueOnce(
-        reply(payload([fact({ label: '调查目标', summary: content, quote: content, replaces: previousId ? [previousId] : [] })], [entity('沈砚')])),
+        reply(payload([fact({ label: '调查进度', summary: content, quote: content, replaces: previousId ? [previousId] : [] })], [entity('沈砚')])),
       )
       await extractPlotState(t.db, opts)
       previousId = (await ledgerAtAnchor(t.db, 'book'))!.state.facts.at(-1)!.id

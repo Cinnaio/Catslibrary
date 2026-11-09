@@ -4,7 +4,8 @@
  * --state-dir=... --resume explicitly retries from the last valid chapter.
  * Responses are retained only for this synthetic fixture; never headers/keys.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { createTestDb } from '../src/test/db'
@@ -39,10 +40,37 @@ if (!isTextAiConfigured()) throw new Error('尚未配置文本模型')
 const runId = new Date().toISOString().replace(/[:.]/g, '-')
 const stateDir = resolve(option('state-dir') || `.tmp/story-memory-evaluation-${runId}`)
 const output = resolve(option('output') || `${stateDir}/report.json`)
+const frozen = process.argv.includes('--frozen')
+const configuration = {
+  storyMemoryEngine: 'incremental' as const,
+  storyMemoryAutoUpdate: false,
+  storyMemoryStreamEnabled: false,
+  storyMemoryChapterMaxTokens: 16000,
+  storyMemoryTimeoutSeconds: 300,
+  storyMemoryReasoningMode: 'disabled' as const,
+}
+const policy = { maxChapterAttempts: 3, maxFailedAttempts: 5, automaticSemanticRetries: false }
+const collectSources = async (directory: string): Promise<string[]> => {
+  const entries = await readdir(directory, { withFileTypes: true })
+  return (await Promise.all(entries.map((entry) => entry.isDirectory() ? collectSources(resolve(directory, entry.name)) :
+    entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [resolve(directory, entry.name)] : []))).flat()
+}
+const sourceFiles = frozen
+  ? [...await collectSources(resolve('api/src')), ...await collectSources(resolve('shared')), resolve('api/scripts/evaluate-story-memory.ts'), resolve('package-lock.json')].sort()
+  : ['story-ledger.ts', 'story-ledger-integrity.ts', 'story-ledger-state.ts', 'story-ledger-goals.ts', 'story-ledger-names.ts', 'story-ledger-engine.ts'].map((file) => resolve('api/src/services/ai', file))
+const hashImplementation = async () => {
+  const hash = createHash('sha256')
+  for (const file of sourceFiles) hash.update(await readFile(file))
+  return hash.digest('hex')
+}
+const implementationHash = await hashImplementation()
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+const providerFingerprint = createHash('sha256').update(textProvider().baseUrl).digest('hex')
 const manifest = {
   fixtureHash: createHash('sha256').update(JSON.stringify(fixture)).digest('hex'),
   model: textProvider().model,
   ledgerPromptVersion: LEDGER_PROMPT_VERSION,
+  ...(frozen ? { frozen: true, implementationHash, sourceCommit, configuration, policy, providerFingerprint } : {}),
 }
 const optionalJson = async (file: string) => {
   try {
@@ -54,16 +82,17 @@ const optionalJson = async (file: string) => {
 }
 const previous = await optionalJson(resolve(stateDir, 'manifest.json'))
 if (previous && (!process.argv.includes('--resume') || JSON.stringify(previous) !== JSON.stringify(manifest)))
-  throw new Error('已有评估目录；仅同模型、样本和规则版本可使用 --resume')
+  throw new Error('已有评估目录；恢复要求样本、模型和规则一致，冻结模式还要求提交、实现与配置完全一致')
+const steps: Array<Record<string, unknown>> = (await optionalJson(resolve(stateDir, 'steps.json'))) || []
+const responses: Array<Record<string, unknown>> = (await optionalJson(resolve(stateDir, 'responses.json'))) || []
+if (frozen) {
+  const failed = steps.filter((step) => step.status === 'failed')
+  if (failed.length >= policy.maxFailedAttempts || failed.some((step) => !steps.some((other) => other.chapter === step.chapter && other.status === 'passed') && steps.filter((other) => other.chapter === step.chapter).length >= policy.maxChapterAttempts))
+    throw new Error('冻结评估达到预先约定的人工重试上限，保留结果并停止')
+}
 await mkdir(stateDir, { recursive: true })
 await mkdir(dirname(output), { recursive: true })
 await writeFile(resolve(stateDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
-const sourceFiles = ['story-ledger.ts', 'story-ledger-integrity.ts', 'story-ledger-state.ts', 'story-ledger-engine.ts']
-const sourceHash = createHash('sha256')
-for (const file of sourceFiles) sourceHash.update(await readFile(new URL(`../src/services/ai/${file}`, import.meta.url)))
-const implementationHash = sourceHash.digest('hex')
-const steps: Array<Record<string, unknown>> = (await optionalJson(resolve(stateDir, 'steps.json'))) || []
-const responses: Array<Record<string, unknown>> = (await optionalJson(resolve(stateDir, 'responses.json'))) || []
 const t = await createTestDb(resolve(stateDir, 'pgdata'))
 const novelId = 'synthetic-story-evaluation'
 let chapter = 0
@@ -77,6 +106,8 @@ const endpoint = chatEndpoint(textProvider().baseUrl)
 globalThis.fetch = async (input, init) => {
   const observed = String(input) === endpoint && init?.method === 'POST'
   if (observed && ++requests > 30) throw new Error('评估达到单次运行 30 次请求上限')
+  if (observed && frozen && (await hashImplementation() !== implementationHash || createHash('sha256').update(textProvider().baseUrl).digest('hex') !== providerFingerprint))
+    throw new Error('冻结评估的实现或供应商发生变化，已停止请求')
   const response = await originalFetch(input, init)
   if (observed) {
     let content: string | null = null
@@ -99,6 +130,7 @@ globalThis.fetch = async (input, init) => {
       previousValidationError: context?.previousValidationError,
       suppliedFactIds: context?.previous?.facts?.map((fact: { id: string }) => fact.id),
       content,
+      systemPromptHash: createHash('sha256').update(request?.messages?.[0]?.content || '').digest('hex'),
     })
     await writeFile(resolve(stateDir, 'responses.json'), JSON.stringify(responses, null, 2))
   }
@@ -132,12 +164,16 @@ const persist = async () => {
     fixture,
     processedChapters: ledger?.processed ?? 0,
     steps,
+    firstAttempts: fixture.map((_, index) => {
+      const attempts = steps.filter((step) => step.chapter === index + 1)
+      return { chapter: index + 1, firstAttempt: attempts[0]?.status || 'not-run', attempts: attempts.length }
+    }),
     usage,
     costsByCurrency,
     responses,
     state: snapshot,
     current: snapshot ? workingFacts(snapshot).map((fact) => ({ id: fact.id, line: factLine(fact, snapshot) })) : [],
-    explicitHistory: snapshot ? relevantLedger(snapshot, '', ['红线', '铜钥匙']) : null,
+    explicitHistory: snapshot ? relevantLedger(snapshot, '', snapshot.facts.filter((fact) => fact.resolves?.length || fact.goalOutcome).map((fact) => fact.label)) : null,
     structuralChecks: snapshot
       ? {
           fullCoverage: ledger?.processed === fixture.length,
@@ -153,7 +189,7 @@ const persist = async () => {
             })
             return keys.length === new Set(keys).size
           })(),
-          historicalTargetsMarked: relevantLedger(snapshot, '', ['红线', '铜钥匙'])
+          historicalTargetsMarked: relevantLedger(snapshot, '', snapshot.facts.filter((fact) => fact.resolves?.length || fact.goalOutcome).map((fact) => fact.label))
             .facts.filter((fact) => !workingFacts(snapshot).some((active) => active.id === fact.id))
             .every((fact) => fact.stillActive === false),
         }
@@ -167,14 +203,7 @@ const persist = async () => {
 }
 try {
   await t.applyMigrations()
-  await saveAiSettings(t.db, {
-    storyMemoryEngine: 'incremental',
-    storyMemoryAutoUpdate: false,
-    storyMemoryStreamEnabled: false,
-    storyMemoryChapterMaxTokens: 16000,
-    storyMemoryTimeoutSeconds: 300,
-    storyMemoryReasoningMode: 'disabled',
-  })
+  await saveAiSettings(t.db, configuration)
   await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES($1,'十章合成故事评估',1,1) ON CONFLICT(id) DO NOTHING", [novelId])
   for (const [index, entry] of fixture.entries()) {
     await t.db.query('INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES($1,$2,$3,$4,$5,1) ON CONFLICT(id) DO NOTHING', [
