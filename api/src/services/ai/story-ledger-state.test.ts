@@ -66,6 +66,17 @@ describe('story state identities and resolutions', () => {
     expect(saved.facts[0]?.replaces).toEqual(['old'])
     expect(currentFacts(applyChapterMemory({ entities, facts: [old] }, saved))).toHaveLength(1)
   })
+  it('uses the same item anchor for generic and explicit ownership, without deriving it from unrelated evidence', () => {
+    const old = fact({ kind: 'state', certainty: 'fact', subjects: ['lin'], label: '铜钥匙持有人', summary: '林舟持有铜钥匙。' })
+    const explicit = { ...old, subjects: ['shen', 'key'], kind: 'item' as const, label: '保管人', summary: '沈砚持有铜钥匙。', quote: text }
+    expect(stateIdentity(old, byId)?.key).toBe(stateIdentity(explicit, byId)?.key)
+    const initial = parse([], [{ ...old, quote: text }]).facts[0]!
+    expect(initial.subjects).toEqual(['lin', 'key'])
+    expect(parse([old], [explicit]).facts[0]?.replaces).toEqual(['old'])
+    const vague = { ...old, label: '归属', summary: '林舟保管物品。', quote: text }
+    expect(stateIdentity(vague, byId)?.singleton).toBe(false)
+    expect(parse([], [vague]).facts[0]?.subjects).toEqual(['lin'])
+  })
   it('retains separate slots for different knowers, topics and relationship directions', () => {
     const knowledge = fact({ certainty: 'belief', perspective: 'lin', subjects: ['lin', 'key'] })
     expect(stateIdentity(knowledge, byId)?.key).not.toBe(stateIdentity({ ...knowledge, perspective: 'shen', subjects: ['shen', 'key'] }, byId)?.key)

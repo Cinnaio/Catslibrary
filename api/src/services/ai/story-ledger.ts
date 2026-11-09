@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { StoryCertainty, StoryGraph } from '@shared/story-graph'
 import { AiError } from './client'
-import { aliasIdentityQuote, cognitionProblem, replacementProblem, resolutionProblem } from './story-ledger-integrity'
+import { aliasIdentityQuote, cognitionProblem, ownershipItems, ownershipTopic, replacementProblem, resolutionProblem } from './story-ledger-integrity'
 import { reconcileState } from './story-ledger-state'
 
 export const LEDGER_VERSION = 1
@@ -370,6 +370,11 @@ export function parseChapterMemory(
     }
     const cognitiveProblem = cognitionProblem(next, entities)
     if (cognitiveProblem) return fail(`facts[${index}] ${cognitiveProblem}`)
+    if (memoryType === 'state' && certainty === 'fact' && ownershipTopic(label) && ['item', 'state', 'fact'].includes(kind)) {
+      const items = ownershipItems(next, entities)
+      // An item explicitly named in the summary/label is not a guessed entity.
+      if (items.length === 1 && !next.subjects.includes(items[0]!)) next.subjects.push(items[0]!)
+    }
     for (const id of [...replaces, ...resolves]) {
       const before = supplied.get(id)
       if (!before || !replaceable.has(id) || before.stillActive === false || replacedThisChapter.has(id)) {

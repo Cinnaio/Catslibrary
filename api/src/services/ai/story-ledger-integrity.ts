@@ -24,9 +24,18 @@ export const aliasIdentityGrounded = (name: string, alias: string, text: string)
 const sameIds = (a: string[], b: string[]) => [...a].sort().join('\0') === [...b].sort().join('\0')
 export const memoryTopic = (value: string) => value.normalize('NFKC').replace(/[\s，,。:：、]/gu, '')
 const topic = memoryTopic
-const ownershipTopic = (label: string) => /^(?:(?:持有|保管|拥有).*|.*?(?:归属|所有者|持有者|持有人|保管者|保管人|持有状态|保管状态))$/u.test(topic(label))
-const locationTopic = (label: string) => /^(?:当前|所在|所处)?(?:位置|地点)$/u.test(topic(label))
+export const ownershipTopic = (label: string) => /^(?:(?:持有|保管|拥有).*|.*?(?:归属|所有者|持有者|持有人|保管者|保管人|持有状态|保管状态))$/u.test(topic(label))
+export const locationTopic = (label: string) => /^(?:当前|所在|所处)?(?:位置|地点)$/u.test(topic(label))
 const genericKind = (kind: MemoryFact['kind']) => kind === 'state' || kind === 'fact'
+
+/** Resolve only an explicitly named, already registered item; evidence quotes
+ * can mention unrelated possessions and never supply an ownership anchor. */
+export function ownershipItems(fact: MemoryFact, entities: ReadonlyMap<string, MemoryEntity>): string[] {
+  const explicit = fact.subjects.filter((id) => entities.get(id)?.kind === 'item')
+  return explicit.length ? explicit : [...entities.values()]
+    .filter((entity) => entity.kind === 'item' && [entity.name, ...entity.aliases].some((name) => `${fact.label} ${fact.summary}`.includes(name)))
+    .map((entity) => entity.id)
+}
 
 /** Validate a state transition against its stable owner and topic. Never infer
  * a replacement merely because two records mention the same character. */
@@ -38,17 +47,6 @@ export function replacementProblem(before: MemoryFact, next: MemoryFact, entitie
   if (before.scope !== next.scope) return '状态范围不同'
 
   const idsOfKind = (fact: MemoryFact, kind: MemoryEntity['kind']) => fact.subjects.filter((id) => entities.get(id)?.kind === kind)
-  // Older generic states may not list the item in subjects. Recover only an
-  // explicitly named, already registered item from the stored summary/label;
-  // the quote can contain other items and is deliberately not used here.
-  const items = (fact: MemoryFact) => {
-    const explicit = idsOfKind(fact, 'item')
-    return explicit.length
-      ? explicit
-      : [...entities.values()]
-          .filter((entity) => entity.kind === 'item' && [entity.name, ...entity.aliases].some((name) => `${fact.label} ${fact.summary}`.includes(name)))
-          .map((entity) => entity.id)
-  }
   const ownership = ownershipTopic(before.label) && ownershipTopic(next.label)
   const location = locationTopic(before.label) && locationTopic(next.label)
   // An ownership label needs an item anchor even when the model classified it
@@ -71,8 +69,8 @@ export function replacementProblem(before: MemoryFact, next: MemoryFact, entitie
   } else if (before.kind === 'boundary' || next.kind === 'boundary') {
     if (!sameIds(before.subjects, next.subjects)) return '边界必须绑定同一组核心主体，涉及双方时须固定双方'
   } else if (itemTransition) {
-    const previousItems = items(before)
-    const nextItems = items(next)
+    const previousItems = ownershipItems(before, entities)
+    const nextItems = ownershipItems(next, entities)
     if (!previousItems.length || !nextItems.length) return '物品状态必须绑定同一物品；缺少可核对的物品身份，请先声明对应物品实体'
     if (!sameIds(previousItems, nextItems)) return '物品状态必须绑定同一物品'
     if (!ownership && !sameIds(before.subjects, next.subjects)) return '非归属主题的物品状态必须绑定同一组核心主体'

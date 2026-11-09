@@ -1,9 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { MemoryEntity, MemoryFact } from './story-ledger'
-import { memoryTopic, replacementProblem } from './story-ledger-integrity'
-
-const ownership = (label: string) => /^(?:(?:持有|保管|拥有).*|.*?(?:归属|所有者|持有者|持有人|保管者|保管人|持有状态|保管状态))$/u.test(memoryTopic(label))
-const location = (label: string) => /^(?:当前|所在|所处)?(?:位置|地点)$/u.test(memoryTopic(label))
+import { locationTopic, memoryTopic, ownershipItems, ownershipTopic, replacementProblem } from './story-ledger-integrity'
 
 /** Identity contains no current value/holder/destination. Free-form topics must
  * still match exactly; no fuzzy label merging or last-write-wins for ambiguity. */
@@ -14,10 +11,10 @@ export function stateIdentity(fact: MemoryFact, entities: ReadonlyMap<string, Me
   let singleton = false
   if (fact.certainty === 'belief') {
     identity = ['knowledge', fact.perspective, fact.subjects.filter((id) => id !== fact.perspective).sort(), memoryTopic(fact.label)]
-  } else if (ownership(fact.label) && ['item', 'state', 'fact'].includes(fact.kind) && ofKind('item').length === 1) {
-    identity = ['ownership', ofKind('item')]
+  } else if (ownershipTopic(fact.label) && ['item', 'state', 'fact'].includes(fact.kind) && ownershipItems(fact, entities).length === 1) {
+    identity = ['ownership', ownershipItems(fact, entities)]
     singleton = true
-  } else if (location(fact.label) && ['place', 'state', 'fact'].includes(fact.kind) && ofKind('person').length === 1) {
+  } else if (locationTopic(fact.label) && ['place', 'state', 'fact'].includes(fact.kind) && ofKind('person').length === 1) {
     identity = ['location', ofKind('person')]
     singleton = true
   } else if (fact.kind === 'relationship') {
