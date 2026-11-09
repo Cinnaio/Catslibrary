@@ -128,7 +128,15 @@ struct ReadingProgress: Codable {
     let updatedAt: Int64
 }
 
-struct ProgressResponse: Codable { let progress: ReadingProgress? }
+struct ReadingProgressTombstone: Codable {
+    let novelId: String
+    let deletedAt: Int64
+}
+
+struct ProgressResponse: Codable {
+    let progress: ReadingProgress?
+    var tombstone: ReadingProgressTombstone? = nil
+}
 
 struct BookshelfResponse: Codable {
     let favorites: [FavoriteItem]

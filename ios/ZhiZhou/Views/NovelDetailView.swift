@@ -107,7 +107,7 @@ struct NovelDetailView: View {
         .sheet(isPresented: $showAdminWorkspace, onDismiss: { Task { await load(refresh: true) } }) {
             AdminNovelWorkspaceSheet(novel: currentNovel)
         }
-        .task(id: ContentAccessStore.shared.mode) {
+        .task(id: "\(novel.id):\(ContentAccessStore.shared.mode)") {
             await offlineStore.refresh()
             await load()
         }

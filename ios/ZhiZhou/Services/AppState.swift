@@ -19,10 +19,10 @@ final class AppState {
         APIClient.shared.onUnauthorized = { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, !APIClient.shared.isAuthenticated else { return }
-                await self.deactivateLocalAccount(clearOfflineFallback: true)
                 self.user = nil
                 self.sessionRestoreFailed = false
                 self.isBooting = false
+                await self.deactivateLocalAccount(clearOfflineFallback: true)
             }
         }
         #if DEBUG && targetEnvironment(simulator)
@@ -215,34 +215,27 @@ final class AppState {
     }
 
     func logout() async {
-        // 先尽力写回最新阅读状态；网络不可用时本地 outbox 仍会按账号保留。
-        let tokenAtStart = APIClient.shared.token
-        await ReaderSettingsStore.shared.flush()
-        await ReaderProgressStore.shared.flush()
-        await ReadingStatsStore.shared.flush()
-        try? await APIClient.shared.requestVoid("POST", "/api/auth/logout", auth: true)
-        // 登录操作若在登出请求期间完成，不能让旧登出流程清掉新账号。
-        guard APIClient.shared.token == tokenAtStart else { return }
+        // 各 store 在 deactivate 中持久化；注销不等待待发队列清空。
+        if let token = APIClient.shared.token {
+            APIClient.shared.revokeSessionInBackground(token: token)
+        }
         APIClient.shared.token = nil
-        await deactivateLocalAccount(clearOfflineFallback: true)
         user = nil
         sessionRestoreFailed = false
+        await deactivateLocalAccount(clearOfflineFallback: true)
     }
 
     func logoutAll() async throws {
         let token = APIClient.shared.token
         guard let token else { throw APIError.unauthorized }
-        await ReaderSettingsStore.shared.flush()
-        await ReaderProgressStore.shared.flush()
-        await ReadingStatsStore.shared.flush()
         let _: EmptyResponse = try await APIClient.shared.request(
-            "POST", "/api/auth/logout-all", auth: true, expectedToken: token
+            "POST", "/api/auth/logout-all", auth: true, expectedToken: token, timeout: 8
         )
         guard APIClient.shared.token == token else { return }
         APIClient.shared.token = nil
-        await deactivateLocalAccount(clearOfflineFallback: true)
         user = nil
         sessionRestoreFailed = false
+        await deactivateLocalAccount(clearOfflineFallback: true)
     }
 
     private func activateAccount(_ user: User) async {
@@ -271,12 +264,13 @@ final class AppState {
 
     private func deactivateLocalAccount(clearOfflineFallback: Bool) async {
         ContentAccessStore.shared.activate(token: nil)
-        await APIClient.shared.setChapterCacheScope(userID: nil)
         OfflineReadingStore.shared.deactivate(clearOfflineFallback: clearOfflineFallback)
         ReaderSettingsStore.shared.deactivate()
         ReaderProgressStore.shared.deactivate()
         ReadingStatsStore.shared.deactivate()
         AdminAITaskCoordinator.shared.deactivate()
+        // 所有账号状态在首次挂起前清理，避免异步清理回到后来登录的会话。
+        await APIClient.shared.setChapterCacheScope(userID: nil)
     }
 
     private func activateOfflineFallbackIfAvailable() async {

@@ -18,6 +18,7 @@ public final class ReaderProgressOutbox {
     public private(set) var sessionID = UUID()
     private var pending: [String: SaveProgressBody] = [:]
     private var pendingDeletes: [String: Int64] = [:]
+    private var latest = ReaderProgressSnapshot()
     public private(set) var lastSyncError: String?
     private var isFlushing = false
     private var flushRequested = false
@@ -44,6 +45,26 @@ public final class ReaderProgressOutbox {
         pendingDeletes[novelID]
     }
 
+    public func latestBody(for novelID: String) -> SaveProgressBody? {
+        latest.positions[novelID]
+    }
+
+    /// 远端读取只合并最新位置，不把已确认数据重新放入待上传队列。
+    public func rememberRemote(_ body: SaveProgressBody) {
+        guard let activeUserID, latest.remember(body) else { return }
+        localStore.saveLatestProgress(latest, userID: activeUserID)
+    }
+
+    public func rememberRemoteDeletion(novelID: String, deletedAt: Int64) {
+        guard let activeUserID else { return }
+        latest.discard(novelID: novelID, at: deletedAt)
+        if let body = pending[novelID], body.clientUpdatedAt <= deletedAt {
+            pending.removeValue(forKey: novelID)
+            localStore.saveProgress(pending, userID: activeUserID)
+        }
+        localStore.saveLatestProgress(latest, userID: activeUserID)
+    }
+
     public func activate(userID: String) {
         let trimmed = userID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -57,6 +78,11 @@ public final class ReaderProgressOutbox {
         activeUserID = trimmed
         pending = localStore.loadProgress(userID: trimmed)
         pendingDeletes = localStore.loadProgressTombstones(userID: trimmed)
+        latest = localStore.loadLatestProgress(userID: trimmed)
+        // 旧安装仅有 outbox；首次激活将尚未送达的位置迁入独立快照。
+        for body in pending.values { latest.remember(body) }
+        for (novelID, deletedAt) in pendingDeletes { latest.discard(novelID: novelID, at: deletedAt) }
+        localStore.saveLatestProgress(latest, userID: trimmed)
         lastSyncError = nil
     }
 
@@ -66,12 +92,13 @@ public final class ReaderProgressOutbox {
         activeUserID = nil
         pending = [:]
         pendingDeletes = [:]
+        latest = ReaderProgressSnapshot()
         lastSyncError = nil
         flushRequested = false
     }
 
     public func enqueue(_ body: SaveProgressBody) {
-        guard let activeUserID, !body.novelId.isEmpty else { return }
+        guard let activeUserID, latest.remember(body) else { return }
         if let deletedAt = pendingDeletes[body.novelId], body.clientUpdatedAt <= deletedAt {
             return
         }
@@ -79,6 +106,7 @@ public final class ReaderProgressOutbox {
             return
         }
         pending[body.novelId] = body
+        localStore.saveLatestProgress(latest, userID: activeUserID)
         localStore.saveProgress(pending, userID: activeUserID)
     }
 
@@ -88,6 +116,8 @@ public final class ReaderProgressOutbox {
         guard let activeUserID, !novelID.isEmpty else { return }
         pending.removeValue(forKey: novelID)
         let timestamp = max(1, deletedAt)
+        latest.discard(novelID: novelID, at: timestamp)
+        localStore.saveLatestProgress(latest, userID: activeUserID)
         if let current = pendingDeletes[novelID] {
             pendingDeletes[novelID] = max(current, timestamp)
         } else {
@@ -180,6 +210,7 @@ public final class ReaderProgressOutbox {
 
     private func persistCurrent() {
         guard let activeUserID else { return }
+        localStore.saveLatestProgress(latest, userID: activeUserID)
         localStore.saveProgress(pending, userID: activeUserID)
         localStore.saveProgressTombstones(pendingDeletes, userID: activeUserID)
     }

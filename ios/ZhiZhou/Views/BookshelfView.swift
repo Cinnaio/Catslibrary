@@ -284,8 +284,10 @@ struct BookshelfView: View {
                 chapterOrder: launch.chapterOrder,
                 preloadedChapters: launch.preloadedChapters
             )
+            .id("reader:\(launch.novel.id):\(launch.chapterOrder)")
         case .detail(let novel):
             NovelDetailView(novel: novel)
+                .id(novel.id)
         }
     }
 

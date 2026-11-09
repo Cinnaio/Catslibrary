@@ -536,8 +536,9 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         let access = ContentAccessStore.shared
         let revision = access.revision
         let mode = offline ? "safe" : access.mode
-        let authenticated = auth || mode == "adult"
         let tokenAtStart = token
+        // 内容分级不决定账号身份；安全模式下的非公开作品同样需要 Bearer。
+        let authenticated = auth || mode == "adult" || (!offline && tokenAtStart != nil)
         let readerPath = ContentPolicy.readerPath(path, mode: mode)
         do {
             let result: T = try await requestInternal("GET", readerPath, auth: authenticated,
@@ -592,6 +593,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
     /// 预取下一章：已有磁盘缓存时不触网，在线时复用正常章节缓存路径。
     func prefetchChapter(id: String) async {
+        let tokenAtStart = token
         let path = ContentPolicy.safePath("/api/chapters/\(id)")
         guard let url = try? makeURL(path) else { return }
         guard let cacheScope = await chapterCacheScope.snapshot() else { return }
@@ -600,6 +602,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             let _: ChapterResponse = try await requestInternal(
                 "GET",
                 path,
+                auth: tokenAtStart != nil,
+                expectedToken: tokenAtStart,
                 expectedReaderCacheScope: cacheScope
             )
         } catch {
@@ -618,10 +622,13 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     }
 
     func downloadChapter(id: String, userID: String) async throws {
+        guard let tokenAtStart = token else { throw APIError.unauthorized }
         guard let scope = await chapterCacheScope.snapshot(), scope.userID == userID else { throw CancellationError() }
         let path = ContentPolicy.safePath("/api/chapters/\(id)")
         let url = try makeURL(path)
-        let response: ChapterResponse = try await requestInternal("GET", path, expectedReaderCacheScope: scope)
+        let response: ChapterResponse = try await requestInternal(
+            "GET", path, auth: true, expectedToken: tokenAtStart, expectedReaderCacheScope: scope
+        )
         guard response.chapter.id == id, !Task.isCancelled,
               await chapterCacheScope.isCurrent(scope) else { throw CancellationError() }
         try await ChapterDiskCache.shared.storeOffline(JSONEncoder().encode(response), for: url.absoluteString, scope: userID)
@@ -710,6 +717,19 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
     func jsonBody(_ value: some Encodable) throws -> Data {
         try JSONEncoder().encode(value)
+    }
+
+    /// 本地先退出；撤销请求绑定旧 token 和站点，不再读取后来登录的会话。
+    func revokeSessionInBackground(token: String) {
+        guard let url = try? makeURL("/api/auth/logout") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 5
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let capturedRequest = request
+        Task {
+            _ = try? await self.perform(capturedRequest)
+        }
     }
 
     /// 走传统 dataTask(completionHandler) 路径，而非 async `data(for:)`：

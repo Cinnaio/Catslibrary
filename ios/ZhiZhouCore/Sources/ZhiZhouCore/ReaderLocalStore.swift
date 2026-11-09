@@ -33,6 +33,22 @@ public struct ReaderLocalStore {
         return (try? JSONDecoder().decode([String: Int64].self, from: data)) ?? [:]
     }
 
+    public func loadLatestProgress(userID: String) -> ReaderProgressSnapshot {
+        guard let data = defaults.data(forKey: latestProgressKey(userID: userID)),
+              let snapshot = try? JSONDecoder().decode(ReaderProgressSnapshot.self, from: data)
+        else { return ReaderProgressSnapshot() }
+        return snapshot
+    }
+
+    public func saveLatestProgress(_ snapshot: ReaderProgressSnapshot, userID: String) {
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        defaults.set(data, forKey: latestProgressKey(userID: userID))
+    }
+
+    private func latestProgressKey(userID: String) -> String {
+        "zhizhou.readerPosition.user.\(encodedUserID(userID))"
+    }
+
     public func saveProgressTombstones(_ tombstones: [String: Int64], userID: String) {
         guard let data = try? JSONEncoder().encode(tombstones) else { return }
         defaults.set(data, forKey: progressTombstoneKey(userID: userID))

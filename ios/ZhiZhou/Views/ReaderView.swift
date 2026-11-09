@@ -98,6 +98,9 @@ struct ReaderView: View {
     /// 展示用百分比（@Observable 之外的可变参考 → 派生为可观察 State，驱动 Chrome 刷新）。
     @State private var progressPercent = 0.0
     @State private var suppressPercent = false
+    /// 恢复完成前，生命周期回调不能把初始化的 0 当作新的阅读位置。
+    @State private var progressRestored = false
+    @State private var restoredProgressSession: UUID?
     @State private var paragraphTextCache = ReaderParagraphTextCache()
     /// 翻页模式：分页结果、当前页、每页对应的整章字符区间、待恢复的进度百分比。
     @State private var pages: [NSAttributedString] = []
@@ -406,7 +409,7 @@ struct ReaderView: View {
         .modifier(ReaderStatisticsModifier(owner: statsOwner, novelID: novel.id,
             chapterID: chapter?.id, mode: offlineOnly ? "safe" : ContentAccessStore.shared.mode,
             visible: statisticsVisible))
-        .task(id: "\(chapterOrder)-\(requestedChapterID)-\(ContentAccessStore.shared.mode)") { await load() }
+        .task(id: "\(novel.id)-\(chapterOrder)-\(requestedChapterID)-\(ContentAccessStore.shared.mode)") { await load() }
         .task(id: ContentAccessStore.shared.revision) {
             recapEnabled = false
             guard !offlineOnly, appState.user != nil else { return }
@@ -805,7 +808,11 @@ struct ReaderView: View {
                     phase,
                     at: ProcessInfo.processInfo.systemUptime
                 )
-                if newPhase == .interacting { autoScrollPaused = true; hideChrome() }
+                if newPhase == .interacting {
+                    allowProgressAfterInteraction()
+                    autoScrollPaused = true
+                    hideChrome()
+                }
             }
             .onDisappear {
                 scrollTapGuard = ReaderTapGuard()
@@ -882,6 +889,7 @@ struct ReaderView: View {
         .task(id: key) { await rebuildPages(size: pageSize) }
         .onChange(of: currentPage) { _, page in
             ReadingStatsStore.shared.activity(owner: statsOwner)
+            allowProgressAfterInteraction()
             updatePageProgress(page)
         }
         // 与滚动模式一致，控制区占据真实安全区而不是盖在页面上。
@@ -1266,7 +1274,7 @@ struct ReaderView: View {
             illustrations: placements,
             searchQuery: searchQuery
         )
-        let result = await Task.detached(priority: .userInitiated) {
+        let paginationTask = Task.detached(priority: .userInitiated) {
             guard !Task.isCancelled else { return [ChapterPaginator.Page]() }
             let attr = ChapterPaginator.attributedString(for: spec)
             return ChapterPaginator.illustratedPages(
@@ -1275,7 +1283,12 @@ struct ReaderView: View {
                 pageSize: size,
                 isCancelled: { Task.isCancelled }
             )
-        }.value
+        }
+        let result = await withTaskCancellationHandler {
+            await paginationTask.value
+        } onCancel: {
+            paginationTask.cancel()
+        }
         guard !Task.isCancelled else { return }
         guard chapter.id == self.chapter?.id else { return }
         guard !result.isEmpty else { pages = []; pageRanges = []; pageIllustrations = [:]; return }
@@ -1314,6 +1327,8 @@ struct ReaderView: View {
             currentPage = 0
         }
         pendingRestorePercent = nil
+        pendingScrollRestore = nil
+        suppressPercent = false
     }
 
     private func updatePageProgress(_ page: Int) {
@@ -1377,6 +1392,8 @@ struct ReaderView: View {
 
     /// 切章前清空旧正文，避免失败时静默显示上一章内容。
     private func resetForNewChapter() {
+        progressRestored = false
+        restoredProgressSession = nil
         autoScrollPaused = true
         showBookmark = false
         showRecap = false
@@ -1413,6 +1430,8 @@ struct ReaderView: View {
     }
 
     private func load() async {
+        progressRestored = false
+        restoredProgressSession = nil
         guard !offlineOnly || !novel.isRestricted else {
             isLoading = false
             errorMessage = "限制级作品暂不提供离线下载，可正常使用已读章节缓存。"
@@ -1484,16 +1503,23 @@ struct ReaderView: View {
     private func loadContent(id: String) async throws {
         let order = chapterOrder
         let targetID = requestedChapterID
+        let progressSession = ReaderProgressStore.shared.sessionID
         let r: ChapterResponse = try await APIClient.shared.getReader(
             "/api/chapters/\(id)\(searchQuery.isEmpty ? "" : "?format=text")", offline: offlineOnly, refresh: !searchQuery.isEmpty
         )
         guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
         let content = r.chapter.content
-        let parsedParagraphs = await Task.detached(priority: .utility) {
+        let parsingTask = Task.detached(priority: .utility) {
             guard !Task.isCancelled else { return [String]() }
             return Self.paragraphs(from: content)
-        }.value
+        }
+        let parsedParagraphs = await withTaskCancellationHandler {
+            await parsingTask.value
+        } onCancel: {
+            parsingTask.cancel()
+        }
         guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
+        guard ReaderProgressStore.shared.sessionID == progressSession else { return }
         paragraphTextCache.removeAll()
         suppressPercent = true
         scrolledParagraph = nil
@@ -1504,16 +1530,16 @@ struct ReaderView: View {
         paragraphCount = paragraphs.count
         loadThoughts(for: r.chapter.id)
 
-        var restore: Double = 0
-        if APIClient.shared.isAuthenticated {
+        var progressReadConfirmed = false
+        if !offlineOnly && APIClient.shared.isAuthenticated {
             do {
                 let p: ProgressResponse = try await APIClient.shared.get(
                     "/api/progress?novelId=\(novel.id)", auth: true
                 )
                 guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
-                if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
-                    restore = prog.scrollPercent
-                }
+                guard ReaderProgressStore.shared.sessionID == progressSession else { return }
+                ReaderProgressStore.shared.rememberRemote(p, novelID: novel.id, chapters: chapterMetas, pageMode: settings.pageMode)
+                progressReadConfirmed = true
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
@@ -1521,15 +1547,17 @@ struct ReaderView: View {
                 guard chapterOrder == order, requestedChapterID == targetID, !Task.isCancelled else { return }
             }
         }
-        // 网络返回旧快照时，优先使用本地尚未上传的同章进度，避免弱网下回退到旧位置。
-        if let pending = ReaderProgressStore.shared.pendingBody(for: novel.id),
-           pending.chapterId == r.chapter.id {
-            restore = pending.scrollPercent
-        }
+        guard ReaderProgressStore.shared.sessionID == progressSession else { return }
+        // 已确认和未上传的位置都独立保存在本机，离线入口不等待远端进度。
+        let latest = ReaderProgressStore.shared.latestBody(for: novel.id)
+        let restore = latest?.chapterId == r.chapter.id ? (latest?.scrollPercent ?? 0) : 0
 
         let last = max(paragraphs.count - 1, 0)
         let target = last == 0 ? 0 : min(last, max(0, Int((restore * Double(last)).rounded(.down))))
         setProgress(restore)
+        // 无本地位置且远端读取失败时，必须等实际阅读交互后才允许保存初始值。
+        restoredProgressSession = progressSession
+        progressRestored = progressReadConfirmed || latest != nil
         pendingRestorePercent = restore > 0 ? restore : nil
         suppressPercent = true
         scrolledParagraph = nil
@@ -1742,6 +1770,12 @@ struct ReaderView: View {
         flushProgress()
     }
 
+    private func allowProgressAfterInteraction() {
+        guard !isLoading, pendingScrollRestore == nil,
+              restoredProgressSession == ReaderProgressStore.shared.sessionID else { return }
+        progressRestored = true
+    }
+
     private func flushProgress() {
         Task { @MainActor in await ReaderProgressStore.shared.flush() }
     }
@@ -1757,7 +1791,8 @@ struct ReaderView: View {
 
     /// 进度体与当前展示章节强一致：切章失败/错位时不写脏数据。
     private func progressBody() -> SaveProgressBody? {
-        guard let chapter, chapter.order == chapterOrder else { return nil }
+        guard progressRestored, restoredProgressSession == ReaderProgressStore.shared.sessionID,
+              let chapter, chapter.order == chapterOrder else { return nil }
         return SaveProgressBody(
             novelId: novel.id,
             chapterId: chapter.id,

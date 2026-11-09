@@ -28,7 +28,10 @@ final class OfflineReadingStore {
     }
 
     private let defaults: UserDefaults
+    private let preserveChapter: (String, String) async throws -> Bool
+    private let removeChapter: (String, String) async -> Void
     private var sessionGeneration = UUID()
+    private var manifestRevision = UUID()
     private(set) var activeUserID: String?
     private(set) var books: [DownloadedBook]
     private(set) var downloadingChapterIDs: Set<String> = []
@@ -41,8 +44,18 @@ final class OfflineReadingStore {
     var lastError: String?
     private var batchCancellationRequested = false
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        preserveChapter: @escaping (String, String) async throws -> Bool = { chapterID, userID in
+            try await APIClient.shared.preserveOfflineChapter(id: chapterID, userID: userID)
+        },
+        removeChapter: @escaping (String, String) async -> Void = { chapterID, userID in
+            await APIClient.shared.removeCachedChapter(id: chapterID, userID: userID)
+        }
+    ) {
         self.defaults = defaults
+        self.preserveChapter = preserveChapter
+        self.removeChapter = removeChapter
         self.books = []
     }
 
@@ -204,7 +217,7 @@ final class OfflineReadingStore {
     @discardableResult
     func remove(novelID: String, chapterID: String) async -> Bool {
         guard let session = currentSession else { return false }
-        await APIClient.shared.removeCachedChapter(id: chapterID, userID: session.userID)
+        await removeChapter(chapterID, session.userID)
         guard isCurrent(session) else { return false }
         guard let bookIndex = books.firstIndex(where: { $0.novel.id == novelID }) else { return false }
         guard books[bookIndex].chapters.contains(where: { $0.id == chapterID }) else { return false }
@@ -228,7 +241,7 @@ final class OfflineReadingStore {
                 .flatMap { $0.chapters.map(\.id) }
         )
         for chapterID in chapterIDs {
-            await APIClient.shared.removeCachedChapter(id: chapterID, userID: session.userID)
+            await removeChapter(chapterID, session.userID)
             guard isCurrent(session) else { return false }
         }
 
@@ -244,7 +257,7 @@ final class OfflineReadingStore {
         guard let session = currentSession else { return false }
         let chapterIDs = books.flatMap { $0.chapters.map(\.id) }
         for chapterID in chapterIDs {
-            await APIClient.shared.removeCachedChapter(id: chapterID, userID: session.userID)
+            await removeChapter(chapterID, session.userID)
             guard isCurrent(session) else { return false }
         }
         guard isCurrent(session) else { return false }
@@ -264,7 +277,7 @@ final class OfflineReadingStore {
             guard let userData = Data(base64Encoded: encoded), let userID = String(data: userData, encoding: .utf8) else { continue }
             for book in saved where !book.novel.isRestricted {
                 for chapter in book.chapters {
-                    _ = try await APIClient.shared.preserveOfflineChapter(id: chapter.id, userID: userID)
+                    _ = try await preserveChapter(chapter.id, userID)
                 }
             }
         }
@@ -278,6 +291,7 @@ final class OfflineReadingStore {
 
     private func refresh(session: Session) async {
         guard isCurrent(session) else { return }
+        let revision = manifestRevision
 
         var refreshed: [DownloadedBook] = []
         for book in books {
@@ -286,7 +300,7 @@ final class OfflineReadingStore {
                 guard isCurrent(session) else { return }
                 let exists: Bool
                 do {
-                    exists = try await APIClient.shared.preserveOfflineChapter(id: chapter.id, userID: session.userID)
+                    exists = try await preserveChapter(chapter.id, session.userID)
                 } catch {
                     lastError = "离线章节保存失败，请检查可用存储空间后重试。"
                     exists = await APIClient.shared.hasCachedChapter(id: chapter.id, userID: session.userID)
@@ -303,7 +317,8 @@ final class OfflineReadingStore {
             refreshed.append(copy)
         }
 
-        guard isCurrent(session) else { return }
+        // 同账号的下载/删除也能在 await 期间改变清单，不能提交旧快照。
+        guard isCurrent(session), manifestRevision == revision else { return }
         if refreshed != books {
             books = refreshed
             persist()
@@ -420,6 +435,7 @@ final class OfflineReadingStore {
     }
 
     private func persist() {
+        manifestRevision = UUID()
         guard let activeUserID,
               let data = try? JSONEncoder().encode(books)
         else { return }

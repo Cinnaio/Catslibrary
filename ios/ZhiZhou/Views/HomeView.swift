@@ -72,8 +72,10 @@ struct HomeView: View {
                             chapterOrder: selectedReaderLaunch.chapterOrder,
                             preloadedChapters: selectedReaderLaunch.preloadedChapters
                         )
+                        .id("reader:\(selectedReaderLaunch.novel.id):\(selectedReaderLaunch.chapterOrder)")
                     } else if let selectedNovel {
                         NovelDetailView(novel: selectedNovel)
+                            .id(selectedNovel.id)
                     } else {
                         ContentUnavailableView(
                             "选择一本书",

@@ -38,12 +38,31 @@ final class ReaderProgressStore {
     }
 
     var activeUserID: String? { outbox.activeUserID }
+    var sessionID: UUID { outbox.sessionID }
     var pendingCount: Int { outbox.pendingCount }
     var pendingDeleteCount: Int { outbox.pendingDeleteCount }
     var lastSyncError: String? { outbox.lastSyncError }
 
     func pendingBody(for novelID: String) -> SaveProgressBody? {
         outbox.pendingBody(for: novelID)
+    }
+
+    func latestBody(for novelID: String) -> SaveProgressBody? {
+        outbox.latestBody(for: novelID)
+    }
+
+    func rememberRemote(_ response: ProgressResponse, novelID: String, chapters: [ChapterMeta], pageMode: String) {
+        if let deleted = response.tombstone, deleted.novelId == novelID {
+            outbox.rememberRemoteDeletion(novelID: novelID, deletedAt: deleted.deletedAt)
+        }
+        if let progress = response.progress, progress.novelId == novelID {
+            let chapter = chapters.first { $0.id == progress.chapterId }
+            outbox.rememberRemote(SaveProgressBody(
+                novelId: novelID, chapterId: progress.chapterId,
+                chapterTitle: chapter?.title ?? "", chapterOrder: chapter?.order ?? 0,
+                scrollPercent: progress.scrollPercent, pageMode: pageMode, clientUpdatedAt: progress.updatedAt
+            ))
+        }
     }
 
     /// 删除服务端阅读记录，并将删除操作放入同一个 outbox，避免旧进度在

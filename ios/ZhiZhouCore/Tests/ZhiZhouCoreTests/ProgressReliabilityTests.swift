@@ -93,4 +93,77 @@ final class ProgressReliabilityTests: XCTestCase {
         outbox.activate(userID: "alice")
         XCTAssertEqual(outbox.pendingCount, 2)
     }
+
+    func testAcknowledgedProgressRemainsAvailableAfterOfflineRestart() async {
+        let suite = "ProgressReliability.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = ReaderLocalStore(defaults: defaults)
+        let outbox = ReaderProgressOutbox(localStore: store, uploader: { _, _ in })
+        outbox.activate(userID: "alice")
+        let position = body("book", time: 100)
+        outbox.enqueue(position)
+        await outbox.flush()
+        XCTAssertEqual(outbox.pendingCount, 0)
+
+        let reopened = ReaderProgressOutbox(localStore: store, uploader: { _, _ in XCTFail("Offline restore must not upload") })
+        reopened.activate(userID: "alice")
+        XCTAssertEqual(reopened.latestBody(for: "book"), position)
+        XCTAssertEqual(reopened.pendingCount, 0)
+        reopened.activate(userID: "bob")
+        XCTAssertNil(reopened.latestBody(for: "book"))
+    }
+
+    func testNewerRemotePositionWinsWithoutAddingItToTheOutbox() async {
+        let suite = "ProgressReliability.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let outbox = ReaderProgressOutbox(localStore: ReaderLocalStore(defaults: defaults), uploader: { _, _ in })
+        outbox.activate(userID: "alice")
+        outbox.enqueue(body("book", time: 200))
+        outbox.rememberRemote(body("book", time: 100))
+        XCTAssertEqual(outbox.latestBody(for: "book")?.clientUpdatedAt, 200)
+        outbox.rememberRemote(body("book", time: 300))
+        await outbox.flush()
+        XCTAssertEqual(outbox.latestBody(for: "book")?.clientUpdatedAt, 300)
+        XCTAssertEqual(outbox.pendingCount, 0)
+    }
+
+    func testAcknowledgedDeletionStillFencesStaleRemoteProgressAfterRestart() async {
+        let suite = "ProgressReliability.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = ReaderLocalStore(defaults: defaults)
+        let outbox = ReaderProgressOutbox(localStore: store, uploader: { _, _ in }, deleter: { _, _, _ in })
+        outbox.activate(userID: "alice")
+        outbox.enqueue(body("book", time: 100))
+        outbox.discard(novelID: "book", deletedAt: 200)
+        await outbox.flush()
+        XCTAssertEqual(outbox.pendingDeleteCount, 0)
+
+        let reopened = ReaderProgressOutbox(localStore: store, uploader: { _, _ in })
+        reopened.activate(userID: "alice")
+        reopened.rememberRemote(body("book", time: 100))
+        reopened.enqueue(body("book", time: 200))
+        XCTAssertNil(reopened.latestBody(for: "book"))
+        XCTAssertEqual(reopened.pendingCount, 0)
+        reopened.enqueue(body("book", time: 300))
+        XCTAssertEqual(reopened.latestBody(for: "book")?.clientUpdatedAt, 300)
+    }
+
+    func testLegacyPendingProgressMigratesAndRemoteDeletionHonorsNewerLocalReading() {
+        let suite = "ProgressReliability.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = ReaderLocalStore(defaults: defaults)
+        store.saveProgress(["book": body("book", time: 200)], userID: "alice")
+        let outbox = ReaderProgressOutbox(localStore: store, uploader: { _, _ in })
+        outbox.activate(userID: "alice")
+        XCTAssertEqual(outbox.latestBody(for: "book")?.clientUpdatedAt, 200)
+        outbox.rememberRemoteDeletion(novelID: "book", deletedAt: 100)
+        XCTAssertEqual(outbox.pendingCount, 1)
+        outbox.rememberRemoteDeletion(novelID: "book", deletedAt: 300)
+        XCTAssertNil(outbox.latestBody(for: "book"))
+        XCTAssertEqual(outbox.pendingCount, 0)
+    }
 }
