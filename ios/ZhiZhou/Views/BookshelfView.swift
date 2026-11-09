@@ -46,8 +46,17 @@ struct BookshelfView: View {
                 NavigationStack {
                     bookshelfDetail
                 }
+                .id(splitDestinationID)
             }
             .navigationSplitViewStyle(.balanced)
+        }
+    }
+
+    private var splitDestinationID: String {
+        switch selection {
+        case .read(let launch): return "reader:\(launch.novel.id):\(launch.chapterOrder)"
+        case .detail(let novel): return "detail:\(novel.id)"
+        case nil: return "none"
         }
     }
 

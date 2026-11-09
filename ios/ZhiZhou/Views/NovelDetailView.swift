@@ -1039,16 +1039,21 @@ struct NovelDetailView: View {
     }
 
     private func loadProgress() async {
+        let sessionID = ReaderProgressStore.shared.sessionID
         defer { isLoadingProgress = false }
         if let p: ProgressResponse = try? await APIClient.shared.get(
             "/api/progress?novelId=\(novel.id)", auth: true
         ) {
+            guard !Task.isCancelled, ReaderProgressStore.shared.sessionID == sessionID else { return }
+            ReaderProgressStore.shared.rememberRemote(p, novelID: novel.id, chapters: chapters, pageMode: "scroll")
             progress = p.progress
         }
-        if let pending = ReaderProgressStore.shared.pendingBody(for: novel.id),
-           pending.clientUpdatedAt >= (progress?.updatedAt ?? 0) {
-            progress = ReadingProgress(novelId: novel.id, chapterId: pending.chapterId,
-                                       scrollPercent: pending.scrollPercent, updatedAt: pending.clientUpdatedAt)
+        guard !Task.isCancelled, ReaderProgressStore.shared.sessionID == sessionID else { return }
+        if let latest = ReaderProgressStore.shared.latestBody(for: novel.id) {
+            progress = ReadingProgress(novelId: novel.id, chapterId: latest.chapterId,
+                                       scrollPercent: latest.scrollPercent, updatedAt: latest.clientUpdatedAt)
+        } else {
+            progress = nil
         }
     }
 

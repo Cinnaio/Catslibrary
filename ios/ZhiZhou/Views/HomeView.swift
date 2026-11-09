@@ -84,9 +84,17 @@ struct HomeView: View {
                         )
                     }
                 }
+                .id(splitDestinationID)
             }
             .navigationSplitViewStyle(.balanced)
         }
+    }
+
+    private var splitDestinationID: String {
+        if let launch = selectedReaderLaunch {
+            return "reader:\(launch.novel.id):\(launch.chapterOrder)"
+        }
+        return "detail:\(selectedNovel?.id ?? "none")"
     }
 
     private var homeList: some View {
