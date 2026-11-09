@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import Markdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { BookOpen, Check, Image as ImageIcon, MessageSquare, Plus, Send, Square } from 'lucide-react'
 import type { AdminNovelIndexItem, ChapterMeta } from '@shared/types'
 import {
@@ -29,6 +31,26 @@ import styles from './agent-workspace.module.css'
 
 const failure = (e: unknown) => (e instanceof Error ? e.message : '操作失败，请稍后重试')
 const ACTION_STATUS = { pending: '待确认', executing: '正在执行', completed: '已采纳', rejected: '已放弃', failed: '未采纳' }
+const markdownComponents: Components = {
+  a: ({ href, title, children }) =>
+    href ? (
+      <a href={href} title={title} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    ) : (
+      <>{children}</>
+    ),
+  table: ({ children }) => (
+    <div className={styles.markdownTable} tabIndex={0} role="region" aria-label="回复中的表格">
+      <table>{children}</table>
+    </div>
+  ),
+  pre: ({ children }) => (
+    <pre tabIndex={0} role="region" aria-label="回复中的代码块">
+      {children}
+    </pre>
+  ),
+}
 
 export default function AiAgentPanel() {
   const [params] = useSearchParams()
@@ -464,7 +486,15 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
             {allEvents.map((event) => (
               <article key={event.id} className={event.role === 'activity' ? styles.activity : styles.message} data-role={event.role}>
                 {event.role !== 'activity' && <span className={styles.speaker}>{event.role === 'user' ? '你' : '创作助手'}</span>}
-                <div className={event.metadata.error ? styles.error : styles.prose}>{event.content}</div>
+                <div className={event.metadata.error ? styles.error : event.role === 'assistant' ? styles.markdown : styles.prose}>
+                  {event.role === 'assistant' && !event.metadata.error ? (
+                    <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>
+                      {event.content}
+                    </Markdown>
+                  ) : (
+                    event.content
+                  )}
+                </div>
                 {event.metadata.artifactTaskId && (
                   <Button size="sm" variant="link" disabled={busy} onClick={() => void showArtifact(event.metadata.artifactTaskId!)}>
                     查看进度与产出

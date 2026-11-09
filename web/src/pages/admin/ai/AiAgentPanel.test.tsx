@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentAction, AgentSessionDetail } from '@shared/ai-agent'
@@ -82,6 +82,95 @@ beforeEach(() => {
 })
 
 describe('creative agent conversation', () => {
+  it('renders assistant Markdown with headings, emphasis, lists, tables and literal code', async () => {
+    const data = detail()
+    data.events[0]!.content = [
+      '## 后续情节',
+      '',
+      '**人物动机**与*情绪*，~~旧方案~~。',
+      '',
+      '- 第一条线索',
+      '- 第二条线索',
+      '',
+      '1. 铺垫',
+      '2. 转折',
+      '',
+      '> 保留悬念',
+      '',
+      '| 角色 | 目标 |',
+      '| --- | --- |',
+      '| 主角 | 寻找真相 |',
+      '',
+      '- [x] 完成构思',
+      '- [ ] 补充对白',
+      '',
+      '[参考章节](/novel/novel) 和 `chapter_id`',
+      '',
+      '```html',
+      '<b>**这里是代码**</b>',
+      '```',
+    ].join('\n')
+    mocks.get.mockResolvedValue(data)
+    open()
+    expect(await screen.findByRole('heading', { name: '后续情节', level: 2 })).toBeInTheDocument()
+    const log = screen.getByRole('log', { name: '对话记录' })
+    expect(within(log).getByText('人物动机').tagName).toBe('STRONG')
+    expect(within(log).getByText('情绪').tagName).toBe('EM')
+    expect(within(log).getByText('旧方案').tagName).toBe('DEL')
+    expect(within(log).getByText('第一条线索').closest('ul')).not.toBeNull()
+    expect(within(log).getByText('转折').closest('ol')).not.toBeNull()
+    expect(within(log).getByText('保留悬念').closest('blockquote')).not.toBeNull()
+    expect(within(within(log).getByRole('table')).getByRole('cell', { name: '寻找真相' })).toBeInTheDocument()
+    const checkboxes = within(log).getAllByRole('checkbox')
+    expect(checkboxes[0]).toBeChecked()
+    expect(checkboxes[1]).not.toBeChecked()
+    checkboxes.forEach((checkbox) => expect(checkbox).toBeDisabled())
+    expect(within(log).getByRole('link', { name: '参考章节' })).toHaveAttribute('href', '/novel/novel')
+    expect(within(log).getByText('chapter_id').tagName).toBe('CODE')
+    const code = within(log).getByText('<b>**这里是代码**</b>')
+    expect(code.tagName).toBe('CODE')
+    expect(code.closest('pre')).not.toBeNull()
+    expect(code.querySelector('b')).toBeNull()
+  })
+  it('does not render raw HTML or unsafe Markdown links in assistant replies', async () => {
+    const data = detail()
+    data.events[0]!.content = [
+      '安全回复',
+      '',
+      '<script>alert("unsafe")</script>',
+      '',
+      '<img src="x" onerror="alert(1)">',
+      '',
+      '[不安全链接](javascript:alert%281%29)',
+      '',
+      '[正常链接](https://example.com/story)',
+    ].join('\n')
+    mocks.get.mockResolvedValue(data)
+    open()
+    await screen.findByText('安全回复')
+    const log = screen.getByRole('log', { name: '对话记录' })
+    expect(log.querySelector('script, img, iframe')).toBeNull()
+    expect(within(log).getByText('不安全链接').closest('a')).toBeNull()
+    const link = within(log).getByRole('link', { name: '正常链接' })
+    expect(link).toHaveAttribute('href', 'https://example.com/story')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+  it('keeps user input, activity messages and errors as literal text', async () => {
+    const data = detail()
+    data.events = [
+      { id: 1, role: 'user', content: '## 保留我的 **原文**', taskId: '', metadata: {}, createdAt: 1 },
+      { id: 2, role: 'activity', content: '**任务状态**', taskId: '', metadata: {}, createdAt: 2 },
+      { id: 3, role: 'assistant', content: '**错误详情**', taskId: '', metadata: { error: true }, createdAt: 3 },
+      { id: 4, role: 'assistant', content: '**正常回复**', taskId: '', metadata: {}, createdAt: 4 },
+    ]
+    mocks.get.mockResolvedValue(data)
+    open()
+    expect(await screen.findByText('## 保留我的 **原文**')).toBeInTheDocument()
+    expect(screen.getByText('**任务状态**')).toBeInTheDocument()
+    expect(screen.getByText('**错误详情**')).toBeInTheDocument()
+    expect(screen.getByText('正常回复').tagName).toBe('STRONG')
+  })
   it('preserves text entered while an earlier message is being submitted', async () => {
     let finish!: () => void
     mocks.message.mockImplementationOnce(

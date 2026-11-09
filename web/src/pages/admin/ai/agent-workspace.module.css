@@ -140,11 +140,128 @@
   font-size: 12px;
   margin-bottom: 10px;
 }
-.prose {
-  white-space: pre-wrap;
+.prose,
+.markdown {
   overflow-wrap: anywhere;
   font-size: 14px;
   line-height: 1.95;
+}
+.prose {
+  white-space: pre-wrap;
+}
+.markdown :where(p, ul, ol, blockquote, pre),
+.markdownTable {
+  margin: 0 0 1em;
+}
+.markdown :where(h1, h2, h3, h4, h5, h6) {
+  margin: 1.2em 0 0.5em;
+  font-family: inherit;
+  font-size: 1.05em;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: normal;
+}
+.markdown h1 {
+  font-size: 1.35em;
+}
+.markdown h2 {
+  font-size: 1.2em;
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child,
+.markdown blockquote > :last-child {
+  margin-bottom: 0;
+}
+.markdown :where(ul, ol) {
+  padding-inline-start: 1.6em;
+}
+.markdown ul {
+  list-style: disc;
+}
+.markdown ol {
+  list-style: decimal;
+}
+.markdown li + li {
+  margin-top: 0.25em;
+}
+.markdown li > :where(ul, ol, p) {
+  margin-block: 0.35em 0;
+}
+.markdown :global(.task-list-item) {
+  list-style: none;
+}
+.markdown input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  margin-inline-end: 6px;
+  vertical-align: middle;
+  accent-color: var(--accent);
+}
+.markdown strong {
+  font-weight: 600;
+}
+.markdown blockquote {
+  padding-inline-start: 14px;
+  border-inline-start: 2px solid var(--border);
+  color: var(--text-secondary);
+}
+.markdown code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9em;
+}
+.markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  line-height: 1.6;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.markdown pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+.markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.markdown :where(a, pre):focus-visible,
+.markdownTable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.markdownTable {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.markdown :where(th, td) {
+  min-width: 88px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.markdown th {
+  background: var(--bg-secondary);
+  font-weight: 600;
+}
+.markdown hr {
+  margin-block: 1.5em;
+  border: 0;
+  border-top: 1px solid var(--border);
 }
 .activity {
   color: var(--text-muted);
