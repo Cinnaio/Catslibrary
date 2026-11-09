@@ -1,20 +1,28 @@
 # 发布与版本管理
 
-## 作品记忆与长对话摘要（2026-11-09，源码候选）
+## 作品记忆与长对话摘要（2026-11-09，已推送，云端交付受阻）
 
-本轮实现 Agent 第一阶段改进：账号／作品级长期创作约定、Web 与 iOS 管理入口、会话结构化摘要，以及回归和人工质量评估基线。API `1.2.0`、Web `1.4.0` 与锁文件对应 workspace 保持一致；iOS 更新为 `1.3.0 / build 27`，包含此前 `1.2.2 / 26` 尚未构建的界面修改。源码为本条所在提交，父提交为 `c32a2c7a`；仅本地提交，未推送，本节不是上线记录。
+本轮实现 Agent 第一阶段改进：账号／作品级长期创作约定、Web 与 iOS 管理入口、会话结构化摘要，以及回归和人工质量评估基线。API `1.2.0`、Web `1.4.0` 与锁文件对应 workspace 保持一致；iOS 更新为 `1.3.0 / build 27`，包含此前 `1.2.2 / 26` 的界面修改。源码 `fccc50a84a77f80c840d7c92884954979050effb` 已推送至 `origin/main`，父提交为 `c32a2c7a`；本节不是上线记录。
 
 新增迁移 `079_ai_agent_memory.sql`：`ai_agent_memories` 保存待确认、生效、被替换和移除的约定及来源／版本，`ai_agent_summaries` 保存每个会话的摘要游标。原始聊天和故事档案不变；新客户端的记忆管理依赖新 API，旧客户端可忽略新增可选响应字段。部署时须随 API 包携带迁移并通过既有迁移／就绪检查；本轮没有主动对生产库执行迁移或恢复。
 
 验证使用隔离 PGlite 和模拟上游，API Agent 定向 46 项、Web 记忆／对话 16 项回归全部通过，覆盖继承与隔离、待确认生效、替换冲突、历史分页、运行锁、摘要增量／多批次完整覆盖、失败／取消游标及用量归属。API/Web 类型、组件边界、版本与锁文件一致性、Git 差异检查通过；变更源码 Lint 为 0 错误，调用审计页保留 1 个既有 effect 警告。发布验证工作流已纳入这三个 Agent 回归文件。模型语义质量需按 [评估基线](ai-agent-evaluation.md) 另测，模拟响应不能证明实际模型准确率。
 
-iOS 新增 2 项 Core 解码回归，旧 API 可选字段兼容检查同时保留。Windows 使用既有 tree-sitter 工具检查变更 Swift 的语法；没有 Swift/Xcode，未执行 XCTest、Swift 类型检查、Release 编译或真机验收。本轮未运行完整测试套件、生产构建、付费模型、部署、签名或新 IPA 构建，之前 `94dcbd9c` 的网站／IPA 构建记录不覆盖本候选。
+iOS 新增 2 项 Core 解码回归，旧 API 可选字段兼容检查同时保留。Windows 使用既有 tree-sitter 工具检查变更 Swift 的语法；没有 Swift/Xcode，未执行 XCTest、Swift 类型检查、Release 编译或真机验收。真实模型质量评估尚未执行，之前的成功构建记录不覆盖本候选。
+
+推送后，本地 Windows `npm run build` 成功，生成 `web/dist/index.html`、`api/dist/index.js` 及 `api/dist/migrations/079_ai_agent_memory.sql`；Web 保留大分块提醒。本地构建不代表 Linux 发布归档、随包运行时或真实 PostgreSQL 发布门禁已通过。
+
+同一源码的 [Build and Test iOS 42604043767](https://github.com/Cinnaio/zhi-zhou/actions/runs/42604043767)、[Deploy 42604050984](https://github.com/Cinnaio/zhi-zhou/actions/runs/42604050984) 与 [Backup recovery 42604005243](https://github.com/Cinnaio/zhi-zhou/actions/runs/42604005243) 均在执行步骤前被 GitHub 账户计费／支出限制拦截。Deploy 的验证任务未启动，部署任务跳过；未生成新 IPA、未运行本候选的云端测试或执行生产迁移。GitHub 的通用提示同时列出付款失败与支出上限原因；当前 CLI 缺少读取个人账单用量的 `user` 权限，尚不能确定具体原因，不能据此断言欠费或额度耗尽。
+
+失败后只读核对生产 `/api/ready`，仍返回 `ready: true`、API `1.1.1`、源码 `94dcbd9cb04d176c421babea0ac86cd2e6d377e5`，Web 保持此前部署的 `1.3.0`。账户限制解除后须重试本功能源码对应的工作流，并核对运行的 `headSha`、完整门禁、产物及生产版本；本次不将 Windows 产物直接绕过发布验证上传。
 
 ## iOS 对话查阅记录与透明返回按钮（2026-11-09，源码候选）
 
 源码为本条所在提交，父提交为 `7c86912f`；将对话页「回到最新」改为透明背景，并将相邻、同任务且成功完成的只读工具记录折叠为调用次数摘要。展开保留每条原文及顺序，用户／助手消息、错误和带产出／采纳入口的记录不折叠；查看明细时暂停自动跟随。沿用既有任务状态、流式预览、分页、停止及采纳确认，不修改服务端、接口或持久化格式。
 
 `ios/project.yml` 更新为 `1.2.2 / build 26`，API/Web 版本保持不变。已核对服务端活动事件形状、分组边界及 Git 差异；遵循本地约定未运行测试套件或截图。Windows 没有 Swift/Xcode，未进行 Swift 类型检查、原生编译或设备验收；本次仅本地提交，未推送、部署或生成新 IPA，已有 `1.2.1 / 25` 安装包不包含这些修改。
+
+后续核对：源码 `c32a2c7a47a12276c2e7ba9701e1c2e9693cc51f` 已推送，[Build and Test iOS 42581358215](https://github.com/Cinnaio/zhi-zhou/actions/runs/42581358215) 于 2026-11-09 15:54:39（Asia/Shanghai）成功结束，Core 测试、Release 编译、包检查及工件上传步骤均成功。该源码版本声明为 `1.2.2 / build 26`；本次补记未下载并独立核验该 IPA，也未进行真机验收，不代表上方 `1.3.0 / 27` 已构建。
 
 ## API 1.1.1 与 iOS 1.2.1 交付（2026-11-09）
 
@@ -654,9 +662,9 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.2.2 / 26`（源码候选；已构建包为 `1.2.1 / 25`） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.1.1`（已部署） | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `1.3.0`（已部署） | 同步锁文件 `packages.web.version` |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.3.0 / 27`（云端构建受阻；`1.2.2 / 26` 源码已有成功构建记录） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| API | `api/package.json` | `1.2.0`（本地构建通过；生产为 `1.1.1`） | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.4.0`（本地构建通过；生产为 `1.3.0`） | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。
