@@ -190,6 +190,39 @@ describe('creative memory and context regressions', () => {
     const confirmed = await changeAgentMemory(t.db, 'admin', session, page.memories[0]!.id, { operation: 'confirm', expectedRevision: 1 })
     expect(confirmed.status).toBe('active')
   })
+  it('keeps an active agreement out of other account and other book model requests', async () => {
+    const owner = await setup()
+    await manual(owner, '仅本人使用', '只以银杏为本书章节的末句意象')
+    for (const [userId, novelId] of [['other', 'novel'], ['admin', 'other-novel']] as const) {
+      const isolated = await createAgentSession(t.db, userId, { novelId })
+      const turn = await beginAgentTurn(t.db, userId, isolated.id, '我的长期约定是什么？', `isolated-${userId}-${novelId}`)
+      await runAgentTurn(t.db, isolated, turn.taskId, userId, async () => ({}))
+      expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
+    }
+    expect(await activeAgentMemories(t.db, 'admin', 'novel')).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(String(init?.body)).not.toContain('只以银杏')
+      expect(JSON.parse(String(init?.body)).messages[1].content).toContain('"creativeAgreements":[]')
+    }
+  })
+  it('retains an old summary as history while presenting an empty current agreement list', async () => {
+    const session = await setup()
+    const memory = await manual(session, '旧约定', '只以银杏收尾')
+    await appendAgentEvent(t.db, session.id, 'user', '请记住只以银杏收尾')
+    const source = (await readAgentEvents(t.db, session.id)).events[0]!
+    const oldSummary = { ...summaryContent, decisions: [`#${source.id} 作者确认长期保持只以银杏收尾`] }
+    await saveAgentSummary(t.db, session, source.id, oldSummary)
+    await changeAgentMemory(t.db, 'admin', session, memory.id, { operation: 'archive', expectedRevision: memory.revision })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '当前的长期约定有哪些？', 'archived-with-summary')
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    const data = JSON.parse(body.messages[1].content.slice(body.messages[1].content.indexOf('{')))
+    expect(data.creativeAgreements).toEqual([])
+    expect(data.sessionSummary.content).toEqual(oldSummary)
+    expect(await activeAgentMemories(t.db, 'admin', 'novel')).toEqual([])
+    expect((await listAgentMemories(t.db, 'admin', 'novel')).memories[0]?.status).toBe('archived')
+  })
   it('does not inject pending or archived memories into another chat', async () => {
     const session = await setup()
     await proposal(session)
@@ -344,6 +377,82 @@ describe('creative memory and context regressions', () => {
     await expect(context(session, async () => { if (cancelled) throw new AiError('cancelled', '已停止', 409) })).rejects.toMatchObject({ code: 'cancelled' })
     expect(await getAgentSummary(t.db, session.id)).toBeNull()
   })
+  it('diagnoses an oversized history record without sending or discarding it', async () => {
+    const session = await setup()
+    await appendAgentEvent(t.db, session.id, 'user', '密'.repeat(90001))
+    await longHistory(session)
+    await expect(context(session)).rejects.toMatchObject({ diagnostic: { stage: 'prepare', reason: 'input_too_long', eventCount: 1, limit: 90000, usageRecorded: false } })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(await getAgentSummary(t.db, session.id)).toBeNull()
+    expect((await readAgentEvents(t.db, session.id, 0, 200)).events[0]?.content.length).toBe(90001)
+  })
+  it.each(['usage', 'persist'] as const)('diagnoses %s storage failure and preserves raw history', async (stage) => {
+    const session = await setup()
+    await longHistory(session)
+    fetchMock.mockResolvedValueOnce(completion(JSON.stringify(summaryContent)))
+    const failingDb: typeof t.db = {
+      ...t.db,
+      query: async <T>(sql: string, params?: unknown[]) => {
+        if (sql.includes(`INSERT INTO ${stage === 'usage' ? 'ai_usage ' : 'ai_agent_summaries('}`)) throw new Error('私密数据库连接错误')
+        return t.db.query<T>(sql, params)
+      },
+    }
+    let failure: unknown
+    try { await loadAgentContext(failingDb, session, 'admin', new AbortController().signal, async () => {}) } catch (error) { failure = error }
+    expect(failure).toMatchObject({ diagnostic: { stage, reason: `${stage}_failed`, usageRecorded: stage === 'persist', previousThroughEventId: 0 } })
+    expect(JSON.stringify(failure)).not.toContain('私密')
+    expect((failure as Error).message).not.toContain('私密')
+    expect(await getAgentSummary(t.db, session.id)).toBeNull()
+    expect((await readAgentEvents(t.db, session.id, 0, 200)).events).toHaveLength(65)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it.each([
+    ['invalid_json', '私密原文不是JSON', undefined, undefined, undefined],
+    ['invalid_structure', '[]', undefined, undefined, undefined],
+    ['invalid_goal', JSON.stringify({ ...summaryContent, goal: '密'.repeat(801) }), 'goal', 801, 800],
+    ['invalid_items', JSON.stringify({ ...summaryContent, decisions: undefined }), 'decisions', undefined, undefined],
+    ['invalid_items', JSON.stringify({ ...summaryContent, decisions: Array(17).fill('私密决定') }), 'decisions', 17, 16],
+    ['invalid_items', JSON.stringify({ ...summaryContent, rejected: ['密'.repeat(601)] }), 'rejected', 601, 600],
+    ['output_too_long', '密'.repeat(14001), undefined, 14001, 14000],
+  ] as const)('persists safe summary diagnostics for %s without advancing the cursor', async (reason, output, field, observed, limit) => {
+    const session = await setup()
+    await longHistory(session)
+    const originalEvents = (await readAgentEvents(t.db, session.id, 0, 200)).events
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '继续', `diagnostic-${reason}`)
+    fetchMock.mockResolvedValueOnce(completion(output))
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
+    const failure = (await readAgentEvents(t.db, session.id)).events.at(-1)!
+    expect(failure.content).toContain('再次发送“继续”')
+    expect(failure.metadata.summaryDiagnostic).toMatchObject({ stage: 'validate', reason, previousThroughEventId: 0, eventCount: 46, usageRecorded: true, finishReason: 'stop', responseCharacters: output.length })
+    expect(failure.metadata.summaryDiagnostic?.field).toBe(field)
+    expect(failure.metadata.summaryDiagnostic?.observed).toBe(observed)
+    expect(failure.metadata.summaryDiagnostic?.limit).toBe(limit)
+    expect(JSON.stringify(failure)).not.toContain('私密')
+    expect(JSON.stringify(failure)).not.toContain('密密')
+    expect(await getAgentSummary(t.db, session.id)).toBeNull()
+    expect((await readAgentEvents(t.db, session.id, 0, 200)).events.filter(event => event.id <= originalEvents.at(-1)!.id)).toEqual(originalEvents)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((await all(t.db, 'SELECT generation_type FROM ai_usage'))).toEqual([{ generation_type: 'agent_summary' }])
+    const detail = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
+    expect(detail.events.at(-1)?.metadata.summaryDiagnostic).toEqual(failure.metadata.summaryDiagnostic)
+  })
+  it.each(['length', 'refusal', 'tool_calls'] as const)('diagnoses incomplete summary %s instead of saving partial content', async (kind) => {
+    const session = await setup()
+    await longHistory(session)
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '继续', `incomplete-${kind}`)
+    fetchMock.mockResolvedValueOnce(Response.json({
+      model: 'mock-agent',
+      choices: [{ message: { content: JSON.stringify(summaryContent), ...(kind === 'refusal' ? { refusal: '私密上游拒绝详情' } : {}), ...(kind === 'tool_calls' ? { tool_calls: [call('read_overview')] } : {}) }, finish_reason: kind === 'refusal' ? 'content_filter' : kind }],
+      usage: { prompt_tokens: 100, completion_tokens: 20 }, cost: 0.0001,
+    }))
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    const failure = (await readAgentEvents(t.db, session.id)).events.at(-1)!
+    expect(failure.metadata.summaryDiagnostic).toMatchObject({ stage: 'validate', reason: kind === 'length' ? 'incomplete' : kind === 'refusal' ? 'refusal' : 'unexpected_tools' })
+    expect(JSON.stringify(failure)).not.toContain('私密')
+    expect(await getAgentSummary(t.db, session.id)).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
   it('accounts interrupted summary usage once without misclassifying it as chat', async () => {
     const session = await setup()
     await longHistory(session)
@@ -354,6 +463,7 @@ describe('creative memory and context regressions', () => {
     expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
     expect(await getAgentSummary(t.db, session.id)).toBeNull()
     expect(await all(t.db, 'SELECT generation_type,completion_tokens FROM ai_usage')).toEqual([{ generation_type: 'agent_summary', completion_tokens: 2 }])
+    expect((await readAgentEvents(t.db, session.id)).events.at(-1)?.metadata.summaryDiagnostic).toMatchObject({ stage: 'request', reason: 'request_failed', usageRecorded: true, finishReason: 'missing' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
   it('never overwrites a newer persisted summary with a stale checkpoint', async () => {
@@ -555,6 +665,10 @@ describe('novel-scoped creative agent', () => {
     expect(sent.messages[1].content).toContain('"hasEarlier":true')
     expect(sent.messages).toContainEqual({ role: 'user', content: '了解故事后给我建议' })
     expect((await readAgentEvents(t.db, session.id)).events.at(-1)?.content).toContain('依据第一章')
+    const evidence = (await readAgentEvents(t.db, session.id)).events.find(event => event.metadata.tool === 'read_overview')?.metadata.sources
+    expect(evidence).toEqual([expect.objectContaining({ kind: 'chapter', origin: 'published', excerpt: original })])
+    const restored = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
+    expect(restored.events.find(event => event.metadata.tool === 'read_overview')?.metadata.sources).toEqual(evidence)
     const usage = await first<{ calls: number; cost: string }>(
       t.db,
       "SELECT COUNT(*)::int AS calls,SUM(cost_millicents) AS cost FROM ai_usage WHERE generation_type='agent_chat'",

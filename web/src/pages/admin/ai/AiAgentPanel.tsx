@@ -33,6 +33,7 @@ import { ReadingDialog } from '@/components/shared/ReadingDialog'
 import { taskStatusLabel, kindLabel } from './labels'
 import AiAgentComposer from './AiAgentComposer'
 import AiAgentMemory from './AiAgentMemory'
+import AiAgentSources from './AiAgentSources'
 import styles from './agent-workspace.module.css'
 
 const failure = (e: unknown) => (e instanceof Error ? e.message : '操作失败，请稍后重试')
@@ -529,6 +530,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                       event.content
                     )}
                   </div>
+                  {event.metadata.sources?.length ? <AiAgentSources sources={event.metadata.sources} /> : null}
                   {event.metadata.artifactTaskId && (
                     <Button size="sm" variant="link" disabled={busy} onClick={() => void showArtifact(event.metadata.artifactTaskId!)}>
                       查看进度与产出

@@ -62,8 +62,8 @@ jobs:
       - name: Lint and critical regressions
         run: |
           npm run lint -- --quiet
-          npm run test --workspace=@zhi-zhou/api -- src/services/readiness.test.ts src/routes/auth.test.ts src/routes/account-security.test.ts src/routes/browser-security.test.ts src/services/scraper/fetch.test.ts src/services/outbound-fetch.test.ts src/routes/web.test.ts src/routes/ai-agent.test.ts --maxWorkers=2 --minWorkers=1
-          npm run test --workspace=@zhi-zhou/web -- src/lib/progress-sync.test.ts src/lib/api.progress.test.ts src/context/SessionContext.progress.test.tsx src/pages/admin/ai/AiAgentMemory.test.tsx src/pages/admin/ai/AiAgentPanel.test.tsx --maxWorkers=2 --minWorkers=1
+          npm run test --workspace=@zhi-zhou/api -- src/services/readiness.test.ts src/routes/auth.test.ts src/routes/account-security.test.ts src/routes/browser-security.test.ts src/services/scraper/fetch.test.ts src/services/outbound-fetch.test.ts src/routes/web.test.ts src/routes/ai-agent.test.ts src/services/ai/agent-retrieval.test.ts --maxWorkers=2 --minWorkers=1
+          npm run test --workspace=@zhi-zhou/web -- src/lib/progress-sync.test.ts src/lib/api.progress.test.ts src/context/SessionContext.progress.test.tsx src/pages/admin/ai/AiAgentMemory.test.tsx src/pages/admin/ai/AiAgentPanel.test.tsx src/pages/admin/ai/AiAgentSources.test.tsx --maxWorkers=2 --minWorkers=1
           python3 scripts/test-release.py
 
       # 产物里不能混入前一次构建的旧哈希资源。

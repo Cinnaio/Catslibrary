@@ -1,10 +1,9 @@
 import type { AgentActionKind, AgentSession } from '@shared/ai-agent'
 import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
-import { escapeLike } from '../text'
 import { AiError, type AiFunctionTool, type AiToolCall } from './client'
 import { generationContentRevision } from './generations'
-import { getEffectiveProfileForAnchor } from './profile-overrides'
+import { agentAnchor, readAgentChapter, readAgentProfiles, searchAgentStory } from './agent-retrieval'
 import { agentDraftTitle, prepareAgentAction, readAgentArtifact, scopedAgentDraft, type AgentApi } from './agent-actions'
 import { readAgentEvents, requireAgentArtifact, trackAgentArtifact } from './agent-store'
 import { createAgentMemory } from './agent-memory'
@@ -21,18 +20,26 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   tool('search_chapters', '在起点之前的正式章节中搜索原文或标题，返回命中片段和章节 ID。只做字面检索，不代表没有其他相关内容。', {
     query: { type: 'string', maxLength: 100 },
   }),
+  tool('search_story', '按人物名、地点、物品或情节关键词检索章节原文、有效情节与人物关系档案。用空格分开 1–6 个关键词，按匹配排序，返回片段、来源和继续读取参数。档案不是原文；无命中不代表事实不存在。', {
+    query: { type: 'string', maxLength: 160 },
+    kind: { type: 'string', enum: ['all', 'chapter', 'plot', 'relationship'] },
+    chapterOffset: { type: 'integer', minimum: 0, maximum: 1000000 },
+  }, ['query']),
   tool(
     'read_chapter',
     '按章节 ID 分段读取原文；nextOffset 非空表示未读完。不能读取其他小说或续写起点之后的章节。',
-    { chapterId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 } },
+    { chapterId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id },
     ['chapterId'],
   ),
-  tool('read_story_memory', '读取截至当前起点的有效风格、情节与人物关系档案；过期或未完成的档案不能当作事实。'),
+  tool('read_story_memory', '读取截至当前起点的有效风格、情节与人物关系档案；过期或未完成的档案不能当作事实。nextOffset 非空时指定 kind、offset 和 expectedRevision 继续读取。', {
+    kind: { type: 'string', enum: ['style', 'plot', 'relationship'] },
+    offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id,
+  }, []),
   tool('list_drafts', '列出本书草稿与已发布产出，可分页。正文必须用 read_draft 读取。', { offset: { type: 'integer', minimum: 0, maximum: 10000 } }, []),
   tool('read_draft', '读取指定草稿的当前正文和 revision，改写前必须调用。', { draftId: id }),
   tool('list_covers', '列出本书封面候选的描述词与 ID。只提供文本材料，不代表你看到了图像。'),
   tool('read_task', '读取本对话生成任务的真实进度和产出。任务未完成时不反复轮询，告知用户可稍后继续。', { taskId: id }),
-  tool('read_conversation', '读取更早的对话；beforeId 来自当前记录最早的事件 ID。遇到“之前的方案”应检索，不猜测。', {
+  tool('read_conversation', '读取本会话 beforeId 之前最近 20 条原始消息。可用当前最早消息 ID 向前翻页；若摘要引用消息 #123，用 beforeId=124 直接定位包含该消息的页面。hasEarlier=true 表示仍有更早记录，未翻到不能说原文不存在。', {
     beforeId: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
   }),
   tool(
@@ -108,6 +115,7 @@ export function validateAgentCall(call: AiToolCall): Record<string, string | num
 export const AGENT_TOOL_LABELS: Record<string, string> = {
   read_overview: '读取小说和章节目录',
   search_chapters: '检索章节依据',
+  search_story: '检索人物与情节依据',
   read_chapter: '阅读章节原文',
   read_story_memory: '核对故事档案',
   list_drafts: '查找草稿',
@@ -125,16 +133,6 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
 }
 export const AGENT_GENERATION_TOOLS = new Set(['generate_draft', 'rewrite_draft', 'refine_rewrite', 'generate_cover', 'refresh_memory'])
 
-async function anchorOrder(db: Db, session: AgentSession) {
-  if (!session.afterChapterId) return 0
-  const anchor = await first<{ sort_order: number }>(db, 'SELECT sort_order FROM chapters WHERE id=$1 AND novel_id=$2', [
-    session.afterChapterId,
-    session.novelId,
-  ])
-  if (!anchor) throw new AiError('conflict', '此对话的续写起点已删除，请新建对话选择起点', 409)
-  return Number(anchor.sort_order)
-}
-
 export async function executeAgentTool(
   db: Db,
   session: AgentSession,
@@ -149,68 +147,32 @@ export async function executeAgentTool(
     const novel = await first<{ title: string; author: string; description: string }>(db, 'SELECT title,author,description FROM novels WHERE id=$1', [
       session.novelId,
     ])
-    const boundary = await anchorOrder(db, session)
-    const chapters = await all(
+    const anchor = await agentAnchor(db, session)
+    const chapters = anchor ? await all(
       db,
-      'SELECT id,title,sort_order AS "sortOrder" FROM chapters WHERE novel_id=$1 AND sort_order<=$2 ORDER BY sort_order DESC,id DESC LIMIT 25',
-      [session.novelId, boundary],
-    )
+      'SELECT id,title,sort_order AS "sortOrder" FROM chapters WHERE novel_id=$1 AND (sort_order,id)<=($2,$3) ORDER BY sort_order DESC,id DESC LIMIT 25',
+      [session.novelId, anchor.order, anchor.id],
+    ) : []
+    const sources = anchor ? (await readAgentChapter(db, session, anchor.id)).sources : []
     return {
       novel: { ...novel, description: novel?.description?.slice(0, 6000) },
       afterChapterId: session.afterChapterId,
       chapters,
-      scope: '仅覆盖当前对话的续写起点及之前章节；草稿另行读取',
+      sources,
+      scope: '目录只覆盖最近 25 章，附起点章开头片段。不能据此断言全部正文事实；具体人物或情节先用 search_story 定位，再按需要 read_chapter。草稿另行读取。',
     }
   }
   if (name === 'search_chapters') {
-    const query = String(a.query).trim()
-    if (!query) throw new AiError('invalid', '检索词不能为空', 422)
-    const rows = await all<{ id: string; title: string; content: string }>(
-      db,
-      "SELECT id,title,content FROM chapters WHERE novel_id=$1 AND sort_order<=$2 AND (title ILIKE $3 ESCAPE '\\' OR content ILIKE $3 ESCAPE '\\') ORDER BY sort_order DESC LIMIT 8",
-      [session.novelId, await anchorOrder(db, session), `%${escapeLike(query)}%`],
-    )
+    const result = await searchAgentStory(db, session, String(a.query), 'chapter', 0, true)
     return {
-      matches: rows.map((r) => {
-        const at = Math.max(0, r.content.toLowerCase().indexOf(query.toLowerCase()))
-        const offset = Math.max(0, at - 250)
-        return { id: r.id, title: r.title, offset, excerpt: r.content.slice(offset, offset + 1200) }
-      }),
+      ...result,
+      matches: result.sources.map(source => ({ id: source.chapterId, title: source.title, offset: source.offset, excerpt: source.excerpt, revision: source.revision })),
       limited: true,
     }
   }
-  if (name === 'read_chapter') {
-    const r = await first<{ id: string; title: string; content: string }>(
-      db,
-      'SELECT id,title,content FROM chapters WHERE id=$1 AND novel_id=$2 AND sort_order<=$3',
-      [a.chapterId, session.novelId, await anchorOrder(db, session)],
-    )
-    if (!r) throw new AiError('invalid', '章节不在当前小说与起点范围内', 404)
-    const offset = Number(a.offset || 0)
-    return {
-      id: r.id,
-      title: r.title,
-      content: r.content.slice(offset, offset + 12000),
-      offset,
-      nextOffset: offset + 12000 < r.content.length ? offset + 12000 : null,
-    }
-  }
-  if (name === 'read_story_memory') {
-    if (!session.afterChapterId) return { profiles: [], message: '当前起点没有正式章节' }
-    const profiles = []
-    for (const kind of ['style', 'plot', 'relationship'] as const) {
-      const p = await getEffectiveProfileForAnchor(db, { kind, novelId: session.novelId, afterChapterId: session.afterChapterId })
-      profiles.push({
-        kind,
-        eligibility: p.eligibility,
-        origin: p.effectiveOrigin,
-        content: p.effectiveContent.slice(0, 10000),
-        truncated: p.effectiveContent.length > 10000,
-        source: p.source,
-      })
-    }
-    return { profiles }
-  }
+  if (name === 'search_story') return searchAgentStory(db, session, String(a.query), a.kind as 'all' | 'chapter' | 'plot' | 'relationship' | undefined, Number(a.chapterOffset || 0))
+  if (name === 'read_chapter') return readAgentChapter(db, session, String(a.chapterId), Number(a.offset || 0), String(a.expectedRevision || ''))
+  if (name === 'read_story_memory') return readAgentProfiles(db, session, a.kind as 'style' | 'plot' | 'relationship' | undefined, Number(a.offset || 0), String(a.expectedRevision || ''))
   if (name === 'list_drafts')
     return {
       drafts: await all(
@@ -295,7 +257,7 @@ export async function executeAgentTool(
     receipt = await api('/api/ai/cover/generate', 'POST', { novelId: session.novelId, prompt: a.instruction, promptMode: 'exact', operationId })
   } else if (name === 'refresh_memory') {
     if (!session.afterChapterId) throw new AiError('invalid', '当前对话起点没有正式章节，请发布后新建对话再更新分析', 422)
-    await anchorOrder(db, session)
+    await agentAnchor(db, session)
     receipt = await api(`/api/ai/writing/memory/${a.kind}/${encodeURIComponent(session.novelId)}/start`, 'POST', {
       afterChapterId: session.afterChapterId,
     })

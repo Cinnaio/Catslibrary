@@ -75,6 +75,56 @@ export interface AgentMemoryPage {
   summary: AgentSummary | null
 }
 
+/** A bounded snapshot of material actually read by the server, never model-authored. */
+export interface AgentEvidence {
+  id: string
+  kind: 'chapter' | 'style' | 'plot' | 'relationship'
+  novelId: string
+  title: string
+  chapterId?: string
+  origin: 'published' | 'automatic' | 'manual'
+  revision: string
+  offset: number
+  endOffset: number
+  excerpt: string
+  truncated: boolean
+  /** The archive covers a chapter prefix; this is not an exact quotation attribution. */
+  throughChapter?: { id: string; title: string }
+}
+
+/** Structural failure details only; no prompts, response text, or upstream errors. */
+export interface AgentSummaryDiagnostic {
+  stage: 'prepare' | 'request' | 'usage' | 'validate' | 'persist'
+  reason:
+    | 'input_too_long'
+    | 'output_too_long'
+    | 'invalid_json'
+    | 'invalid_structure'
+    | 'invalid_goal'
+    | 'invalid_items'
+    | 'refusal'
+    | 'incomplete'
+    | 'unexpected_tools'
+    | 'timeout'
+    | 'cancelled'
+    | 'request_failed'
+    | 'usage_failed'
+    | 'persist_failed'
+    | 'internal'
+  previousThroughEventId: number
+  firstEventId: number
+  lastEventId: number
+  eventCount: number
+  batchCharacters: number
+  elapsedMs: number
+  usageRecorded: boolean
+  responseCharacters?: number
+  finishReason?: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'other' | 'missing'
+  field?: keyof AgentSummaryContent
+  observed?: number
+  limit?: number
+}
+
 export interface AgentEvent {
   id: number
   role: 'user' | 'assistant' | 'activity'
@@ -85,6 +135,8 @@ export interface AgentEvent {
     artifactTaskId?: string
     actionId?: string
     memoryId?: string
+    sources?: AgentEvidence[]
+    summaryDiagnostic?: AgentSummaryDiagnostic
     error?: boolean
     providerPresetId?: string
     model?: string
