@@ -16,6 +16,15 @@ export interface AgentTask {
   total: number
   error: string
   result?: string
+  updatedAt?: number
+}
+
+export type AgentPhase = 'context' | 'summary' | 'model' | 'retrieval' | 'generation' | 'save'
+export interface AgentRecovery {
+  taskId: string
+  phase: AgentPhase
+  canResume: boolean
+  message: string
 }
 
 export interface AgentSession {
@@ -130,6 +139,7 @@ export interface AgentEvent {
   role: 'user' | 'assistant' | 'activity'
   content: string
   taskId: string
+  requestId?: string
   metadata: {
     tool?: string
     artifactTaskId?: string
@@ -137,6 +147,8 @@ export interface AgentEvent {
     memoryId?: string
     sources?: AgentEvidence[]
     summaryDiagnostic?: AgentSummaryDiagnostic
+    failurePhase?: AgentPhase
+    recoveryFromTaskId?: string
     error?: boolean
     providerPresetId?: string
     model?: string
@@ -166,6 +178,7 @@ export interface AgentArtifact {
 }
 
 export interface AgentSessionDetail {
+  messageReceipt?: { requestId: string; taskId: string } | null
   session: AgentSession
   events: AgentEvent[]
   hasEarlier: boolean
@@ -174,6 +187,7 @@ export interface AgentSessionDetail {
   actions: AgentAction[]
   memories?: AgentMemory[]
   summary?: AgentSummary | null
+  recovery?: AgentRecovery | null
 }
 
 export const agentTaskRunning = (task: AgentTask | null | undefined): boolean => !!task && ['queued', 'running'].includes(task.status)

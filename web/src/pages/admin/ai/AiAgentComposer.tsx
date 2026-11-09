@@ -23,13 +23,14 @@ interface Props {
   onStop: () => void
   busy: boolean
   running: boolean
+  sendDisabled?: boolean
   providerPresetId: string
   onProviderChange: (id: string) => void
 }
 
 const DEFAULT_PROVIDER = '__default__'
 
-export default function AiAgentComposer({ value, onChange, onSend, onStop, busy, running, providerPresetId, onProviderChange }: Props) {
+export default function AiAgentComposer({ value, onChange, onSend, onStop, busy, running, sendDisabled, providerPresetId, onProviderChange }: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null)
   const hintId = useId()
   const [presets, setPresets] = useState<AiProviderPreset[]>([])
@@ -190,7 +191,7 @@ export default function AiAgentComposer({ value, onChange, onSend, onStop, busy,
             size="icon"
             aria-label={busy ? '正在提交…' : '发送'}
             title="发送（Enter；Shift + Enter 换行）"
-            disabled={busy || !value.trim()}
+            disabled={busy || sendDisabled || !value.trim()}
           >
             <ArrowUp size={17} aria-hidden="true" />
           </Button>

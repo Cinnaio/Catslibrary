@@ -2,15 +2,20 @@ import { readSse } from '@shared/sse'
 import { newestTextProgress } from '@shared/ai-text-progress'
 import { aiApi, authHeaders, getToken, url, type AiTaskInfo } from './api'
 
+export type AiTaskConnection = 'connecting' | 'connected' | 'reconnecting' | 'unavailable'
 /** Reconnect only the read subscription; never resubmit a generation. */
-export function watchAiTask(id: string, onTask: (task: AiTaskInfo) => void): () => void {
+export function watchAiTask(id: string, onTask: (task: AiTaskInfo) => void, onConnection?: (state: AiTaskConnection) => void): () => void {
   const owner = getToken()
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   let done = false
   let latest: AiTaskInfo | undefined
+  const connectionState = (state: AiTaskConnection) => {
+    if (!done && !controller.signal.aborted && owner === getToken()) onConnection?.(state)
+  }
   const accept = (task: AiTaskInfo) => {
     if (done || controller.signal.aborted || owner !== getToken() || task.id !== id) return
+    if (latest?.updatedAt && task.updatedAt && task.updatedAt < latest.updatedAt) return
     if (task.status !== 'completed') task = { ...task, result: newestTextProgress(latest?.result, task.result) || '' }
     latest = task
     onTask(task)
@@ -35,6 +40,7 @@ export function watchAiTask(id: string, onTask: (task: AiTaskInfo) => void): () 
         signal: connection.signal,
       })
       if ([401, 403, 404].includes(response.status)) {
+        connectionState('unavailable')
         done = true
         return
       }
@@ -46,7 +52,7 @@ export function watchAiTask(id: string, onTask: (task: AiTaskInfo) => void): () 
           return false
         }
         const event = JSON.parse(raw)
-        if (event.task) accept(event.task)
+        if (event.task) { connectionState('connected'); accept(event.task) }
         if (done) return false
       })
     } catch {
@@ -57,6 +63,7 @@ export function watchAiTask(id: string, onTask: (task: AiTaskInfo) => void): () 
       connection.abort()
     }
     if (done || controller.signal.aborted || owner !== getToken()) return
+    connectionState('reconnecting')
     try {
       accept((await aiApi.task(id)).task)
     } catch {
@@ -64,6 +71,7 @@ export function watchAiTask(id: string, onTask: (task: AiTaskInfo) => void): () 
     }
     if (!done && !controller.signal.aborted) timer = setTimeout(() => void connect(), 2000)
   }
+  connectionState('connecting')
   void connect()
   return () => {
     done = true

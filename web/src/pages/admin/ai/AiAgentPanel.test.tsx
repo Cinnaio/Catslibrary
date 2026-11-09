@@ -3,16 +3,18 @@ import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentAction, AgentSessionDetail } from '@shared/ai-agent'
 import AiAgentPanel from './AiAgentPanel'
+import { setStorageUser } from '@/lib/storage'
+import { pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage } from './agent-task-state'
 
 const streams = vi.hoisted(() => ({ watch: vi.fn() }))
 vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: streams.watch }))
-const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn() }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn() }))
 const providerMocks = vi.hoisted(() => ({ providerPresets: vi.fn(), status: vi.fn() }))
 vi.mock('@/lib/ai-agent-api', () => ({ agentApi: { ...mocks } }))
 vi.mock('@/lib/api', () => ({
   aiApi: providerMocks,
   chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [] }) },
-  newOperationId: () => `request_${Math.random()}`,
+  newOperationId: () => `request_${Math.random().toString(36).slice(2)}`,
   url: (p: string) => p,
 }))
 vi.mock('@/lib/admin-novel-index', () => ({
@@ -80,6 +82,9 @@ function open() {
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  sessionStorage.clear()
+  localStorage.setItem('user_session_marker', 'test-session')
+  setStorageUser('test-user')
   streams.watch.mockReturnValue(() => {})
   mocks.sessions.mockResolvedValue({ sessions: [], hasMore: false })
   mocks.get.mockResolvedValue(detail())
@@ -94,7 +99,99 @@ beforeEach(() => {
 })
 
 describe('creative agent conversation', () => {
-  it('selects an existing text preset for the message and changes the retry ID when the selection changes', async () => {
+  it('restores an uncertain send after remount without POST and retries only its saved request', async () => {
+    mocks.message.mockRejectedValueOnce(new Error('连接中断'))
+    const view = open()
+    await screen.findByText('session 的既有回复')
+    fireEvent.change(screen.getByLabelText('发送给创作助手的消息'), { target: { value: '保存我的发送线索' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+    await screen.findByRole('button', { name: '重试原消息' })
+    const original = mocks.message.mock.calls[0]!
+    expect(readPendingAgentMessage(pendingAgentKey('novel', 'session'))?.id).toBe(original[2])
+    view.unmount()
+    open()
+    await screen.findByRole('button', { name: '重试原消息' })
+    expect(mocks.get).toHaveBeenLastCalledWith('session', original[2])
+    expect(mocks.message).toHaveBeenCalledTimes(1)
+    expect(screen.getByLabelText('发送给创作助手的消息')).toHaveValue(original[1])
+    fireEvent.change(screen.getByLabelText('发送给创作助手的消息'), { target: { value: '下一条还没发送' } })
+    fireEvent.click(screen.getByRole('button', { name: '重试原消息' }))
+    await waitFor(() => expect(mocks.message).toHaveBeenCalledTimes(2))
+    expect(mocks.message.mock.calls[1]).toEqual(original)
+    await waitFor(() => expect(readPendingAgentMessage(pendingAgentKey('novel', 'session'))).toBeNull())
+    expect(screen.getByLabelText('发送给创作助手的消息')).toHaveValue('下一条还没发送')
+  })
+  it('reconciles a receipt outside the visible event page using GET only', async () => {
+    const key = pendingAgentKey('novel', 'session')
+    savePendingAgentMessage(key, { id: 'old_request_1', content: '旧消息', providerPresetId: '' })
+    mocks.get.mockResolvedValue({ ...detail(), messageReceipt: { requestId: 'old_request_1', taskId: 'old-turn' } })
+    open()
+    await screen.findByText('session 的既有回复')
+    expect(mocks.get).toHaveBeenCalledWith('session', 'old_request_1')
+    expect(mocks.message).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: '重试原消息' })).not.toBeInTheDocument()
+    expect(readPendingAgentMessage(key)).toBeNull()
+  })
+  it('lets a late successful response clear only its old account receipt after navigation', async () => {
+    let finish!: () => void
+    mocks.message.mockImplementationOnce(() => new Promise(resolve => { finish = () => resolve({ taskId: 'turn', created: true }) }))
+    open()
+    await screen.findByText('session 的既有回复')
+    fireEvent.change(screen.getByLabelText('发送给创作助手的消息'), { target: { value: '旧对话请求' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+    const oldKey = pendingAgentKey('novel', 'session')
+    setStorageUser('another-user')
+    const nextKey = pendingAgentKey('other', 'other-session')
+    savePendingAgentMessage(nextKey, { id: 'another_request', content: '另一账号的请求', providerPresetId: '' })
+    mocks.get.mockResolvedValue(detail('other-session', 'other'))
+    fireEvent.click(screen.getByText('切到另一本书'))
+    await screen.findByText('other-session 的既有回复')
+    await act(async () => finish())
+    expect(readPendingAgentMessage(oldKey)).toBeNull()
+    expect(readPendingAgentMessage(nextKey)?.content).toBe('另一账号的请求')
+    expect(screen.getByLabelText('发送给创作助手的消息')).toHaveValue('另一账号的请求')
+  })
+  it('shows reconnection without resubmitting and lets persisted failure supersede stale live progress', async () => {
+    const initial = detail()
+    initial.activeTask = { id: 'turn', kind: 'agent_chat', status: 'running', step: '正在查阅资料', current: 0, total: 1, error: '', updatedAt: 2 }
+    mocks.get.mockResolvedValue(initial)
+    open()
+    await waitFor(() => expect(streams.watch).toHaveBeenCalled())
+    const [id, emit, connection] = streams.watch.mock.calls[0]!
+    expect(id).toBe('turn')
+    act(() => { emit(initial.activeTask); connection('reconnecting') })
+    expect(await screen.findByText(/连接中断，正在重新读取进度/)).toBeInTheDocument()
+    const failed = { ...initial, activeTask: { ...initial.activeTask!, status: 'failed' as const, updatedAt: 3, error: '服务已重启' }, recovery: { taskId: 'turn', phase: 'retrieval', canResume: true, message: '保留已有结果' } }
+    mocks.get.mockResolvedValue(failed)
+    fireEvent(window, new Event('online'))
+    await screen.findByRole('button', { name: '继续整理回复' })
+    expect(screen.queryByRole('button', { name: '停止回复' })).not.toBeInTheDocument()
+    expect(screen.getByText('session 的既有回复')).toBeInTheDocument()
+    expect(mocks.message).not.toHaveBeenCalled()
+    expect(mocks.resume).not.toHaveBeenCalled()
+  })
+  it('requires confirmation to resume, deduplicates rapid clicks and preserves the next input', async () => {
+    const failed: AgentSessionDetail = { ...detail(), activeTask: { id: 'failed-turn', kind: 'agent_chat', status: 'failed', step: '', current: 0, total: 1, error: '模型断线' }, recovery: { taskId: 'failed-turn', phase: 'model', canResume: true, message: '已有产出保留' } }
+    mocks.get.mockResolvedValue(failed)
+    let finish!: () => void
+    mocks.resume.mockImplementationOnce(() => new Promise(resolve => { finish = () => resolve({ taskId: 'resumed-turn', created: true }) }))
+    open()
+    await screen.findByRole('button', { name: '继续整理回复' })
+    expect(mocks.resume).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('发送给创作助手的消息'), { target: { value: '下一轮的要求' } })
+    fireEvent.click(screen.getByRole('button', { name: '继续整理回复' }))
+    const confirm = await screen.findByRole('button', { name: '确认继续整理' })
+    expect(mocks.resume).not.toHaveBeenCalled()
+    fireEvent.click(confirm)
+    fireEvent.click(confirm)
+    expect(mocks.resume).toHaveBeenCalledExactlyOnceWith('session', 'failed-turn')
+    mocks.get.mockResolvedValue({ ...failed, activeTask: { ...failed.activeTask!, id: 'resumed-turn', status: 'running' }, recovery: null })
+    await act(async () => finish())
+    await screen.findByRole('button', { name: '停止回复' })
+    expect(screen.getByLabelText('发送给创作助手的消息')).toHaveValue('下一轮的要求')
+    expect(screen.getByText('session 的既有回复')).toBeInTheDocument()
+  })
+  it('keeps the original request and preset on retry even after the composer selection changes', async () => {
     mocks.message.mockRejectedValueOnce(new Error('连接中断'))
     open()
     const picker = await screen.findByRole('button', { name: '切换模型，当前default-model' })
@@ -111,9 +208,12 @@ describe('creative agent conversation', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: '切换模型，当前backup-model' }), { button: 0, ctrlKey: false })
     fireEvent.click(await screen.findByRole('menuitemradio', { name: /跟随默认/ }))
     fireEvent.keyDown(input, { key: 'Enter', metaKey: true })
+    expect(mocks.message).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '重试原消息' }))
     await waitFor(() => expect(mocks.message).toHaveBeenCalledTimes(2))
-    expect(mocks.message.mock.calls[1]?.[3]).toBe('')
-    expect(mocks.message.mock.calls[1]?.[2]).not.toBe(firstId)
+    expect(mocks.message.mock.calls[1]?.[3]).toBe('text-backup')
+    expect(mocks.message.mock.calls[1]?.[2]).toBe(firstId)
     await waitFor(() => expect(input).toHaveValue(''))
   })
   it('restores the latest conversation preset and locks its picker during an active turn', async () => {
@@ -280,7 +380,7 @@ describe('creative agent conversation', () => {
     fireEvent.change(screen.getByLabelText('发送给创作助手的消息'), { target: { value: '帮我讨论后续情节' } })
     fireEvent.click(screen.getByRole('button', { name: '发送' }))
     await screen.findByText(/连接中断/)
-    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+    fireEvent.click(screen.getByRole('button', { name: '重试原消息' }))
     await waitFor(() => expect(mocks.message).toHaveBeenCalledTimes(2))
     expect(mocks.message.mock.calls[0]?.[2]).toBe(mocks.message.mock.calls[1]?.[2])
     await waitFor(() => expect(screen.getByLabelText('发送给创作助手的消息')).toHaveValue(''))
@@ -336,7 +436,7 @@ it('renders a live Markdown reply once, deduplicates its saved round and detache
   const stopped = vi.fn()
   streams.watch.mockReturnValue(stopped)
   open()
-  await waitFor(() => expect(streams.watch).toHaveBeenCalledWith('turn', expect.any(Function)))
+  await waitFor(() => expect(streams.watch).toHaveBeenCalledWith('turn', expect.any(Function), expect.any(Function)))
   const emit = streams.watch.mock.calls[0]![1]
   const result = JSON.stringify({ kind: 'text-progress', phase: 'writing', preview: '**正在生成的回复**', generatedCharacters: 11, reasoningCharacters: 0, startedAt: 1, updatedAt: 2, round: 0 })
   act(() => emit({ ...initial.activeTask, result }))

@@ -11,7 +11,8 @@ import { confirmAgentAction, prepareAgentAction, readAgentArtifact } from '../se
 import { executeAgentTool, validateAgentCall } from '../services/ai/agent-tools'
 import { runAgentTurn } from '../services/ai/agent'
 import { buildRewriteTaskParams } from '../services/ai/rewrite'
-import { cancelAiTask, createAiTask, getAiTask, updateAiTask } from '../services/ai/tasks'
+import { cancelAiTask, createAiTask, failInterruptedAiTasks, getAiTask, updateAiTask } from '../services/ai/tasks'
+import { setAgentPhase } from '../services/ai/agent-recovery'
 import { generationContentRevision } from '../services/ai/generations'
 import { replaceCoverForAdmin } from '../services/covers'
 import { AiError, type AiToolCall } from '../services/ai/client'
@@ -35,6 +36,123 @@ const originalEnv = new Map<string, string | undefined>()
 const keys = ['DATABASE_URL', 'AI_TEXT_BASE_URL', 'AI_TEXT_API_KEY', 'AI_TEXT_MODEL', 'AI_IMAGE_BASE_URL', 'AI_IMAGE_API_KEY', 'AI_IMAGE_MODEL', 'COVER_FETCH_ENABLED']
 const summaryContent = { goal: '继续讨论情节', decisions: ['#1 作者确认保留悬念'], rejected: ['#2 作者否定立即和解'], openQuestions: ['#3 助手建议尚未确认'], nextSteps: ['#4 待检查草稿'], references: ['#1'] }
 const original = '他转身离开。她没有开口。'
+
+describe('manual agent recovery', () => {
+  async function interrupted(status: 'failed' | 'cancelled' = 'failed', preset = '') {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '继续讨论雨夜冲突', 'interrupted_request', { providerPresetId: preset, model: 'mock-agent' })
+    await setAgentPhase(t.db, turn.taskId, 'retrieval', '正在查阅资料')
+    if (status === 'cancelled') await cancelAiTask(t.db, turn.taskId)
+    else await updateAiTask(t.db, turn.taskId, { status: 'failed', error: '模拟中断' })
+    return { session, taskId: turn.taskId, path: `/api/ai/agent/sessions/${session.id}/tasks/${turn.taskId}/resume` }
+  }
+  it.each(['failed', 'cancelled'] as const)('requires confirmation and deduplicates concurrent retries of a %s turn', async status => {
+    const { session, taskId, path } = await interrupted(status, 'text-preset')
+    expect((await request(path, 'POST', {})).status).toBe(422)
+    expect(fetchMock).not.toHaveBeenCalled()
+    const responses = await Promise.all([request(path, 'POST', { confirmModelCall: true }), request(path, 'POST', { confirmModelCall: true })])
+    expect(responses.map(r => r.status)).toEqual([202, 202])
+    const turns = await Promise.all(responses.map(r => r.json() as Promise<{ taskId: string; created: boolean }>))
+    expect(turns[0]!.taskId).toBe(turns[1]!.taskId)
+    expect(turns.filter(turn => turn.created)).toHaveLength(1)
+    expect((await waitTask(turns[0]!.taskId))?.status).toBe('completed')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+    expect(body.model).toBe('selected-model')
+    expect(body.tools.map((tool: { function: { name: string } }) => tool.function.name)).toContain('read_task')
+    expect(body.tools.map((tool: { function: { name: string } }) => tool.function.name)).not.toContain('generate_cover')
+    const replay = await (await request(path, 'POST', { confirmModelCall: true })).json()
+    expect(replay).toEqual({ taskId: turns[0]!.taskId, created: false })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((await getAiTask(t.db, taskId))?.status).toBe(status)
+    expect((await readAgentEvents(t.db, session.id)).events.filter(e => e.metadata.recoveryFromTaskId === taskId)).toHaveLength(1)
+  })
+  it('rejects foreign sessions and superseded tasks without a model request', async () => {
+    const { session, path } = await interrupted()
+    expect((await request(path, 'POST', { confirmModelCall: true }, otherToken)).status).toBe(404)
+    const another = await createAgentSession(t.db, 'admin', { novelId: 'other-novel' })
+    expect((await request(path.replace(session.id, another.id), 'POST', { confirmModelCall: true })).status).toBe(404)
+    await beginAgentTurn(t.db, 'admin', session.id, '新的请求', 'newer_request')
+    expect((await request(path, 'POST', { confirmModelCall: true })).status).toBe(409)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('recovers persisted state after lease expiry without automatically replaying work', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '读一下资料', 'restart_request')
+    const artifact = await createAiTask(t.db, { userId: 'admin', novelId: 'novel', kind: 'write_chapter' })
+    const partial = JSON.stringify({ kind: 'text-progress', phase: 'writing', preview: '已保存的草稿片段', generatedCharacters: 8, reasoningCharacters: 0, startedAt: 1, updatedAt: 2 })
+    await updateAiTask(t.db, artifact.id, { status: 'running', result: partial })
+    await trackAgentArtifact(t.db, session.id, artifact.id)
+    await setAgentPhase(t.db, turn.taskId, 'retrieval', '正在查阅')
+    await appendAgentEvent(t.db, session.id, 'activity', '较早的失败', turn.taskId, { tool: 'read_chapter', error: true, failurePhase: 'model' })
+    await t.db.query('UPDATE ai_tasks SET lease_expires_at=1 WHERE id=$1', [turn.taskId])
+    await expect(setAgentPhase(t.db, turn.taskId, 'model', '过期执行')).rejects.toMatchObject({ code: 'cancelled' })
+    await failInterruptedAiTasks(t.db)
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    const result = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
+    expect(result.activeTask?.status).toBe('failed')
+    expect(result.recovery).toMatchObject({ taskId: turn.taskId, phase: 'retrieval', canResume: true })
+    expect(result.artifacts[0]?.task).toMatchObject({ id: artifact.id, result: partial, updatedAt: expect.any(Number) })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('rejects an entire injected write-tool batch and preserves existing outputs and actions', async () => {
+    const { session, path } = await interrupted()
+    await draft()
+    const artifactId = await finishedRewrite(session.id)
+    const action = await prepareAgentAction(t.db, session, 'apply_rewrite', artifactId)
+    fetchMock.mockResolvedValueOnce(completion('', [call('read_overview', {}, 'read'), call('generate_cover', { instruction: '重复付费生成' }, 'write')]))
+    const response = await request(path, 'POST', { confirmModelCall: true })
+    expect(response.status).toBe(202)
+    const { taskId } = await response.json() as { taskId: string }
+    expect((await waitTask(taskId))?.status).toBe('failed')
+    const result = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
+    expect(result.recovery).toMatchObject({ taskId, phase: 'model' })
+    expect(result.artifacts.map(item => item.task.id)).toContain(artifactId)
+    expect(result.actions.find(item => item.id === action.id)?.status).toBe('pending')
+    expect(result.events.some(event => event.taskId === taskId && event.metadata.tool)).toBe(false)
+    expect(await all(t.db, "SELECT id FROM ai_tasks WHERE kind='cover'" )).toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(await all(t.db, 'SELECT result FROM ai_generations')).toEqual([{ result: original }])
+  })
+  it('allows read tools in recovery and returns saved evidence before answering', async () => {
+    const { session, path } = await interrupted()
+    fetchMock.mockResolvedValueOnce(completion('', [call('read_chapter', { chapterId: 'chapter' })])).mockResolvedValueOnce(completion('根据已保存的资料，冲突仍未解决。'))
+    const { taskId } = await (await request(path, 'POST', { confirmModelCall: true })).json() as { taskId: string }
+    expect((await waitTask(taskId))?.status).toBe('completed')
+    const events = (await readAgentEvents(t.db, session.id)).events
+    expect(events.find(e => e.taskId === taskId && e.metadata.tool === 'read_chapter')?.metadata.sources?.length).toBeGreaterThan(0)
+    expect(events.at(-1)?.content).toContain('根据已保存的资料')
+  })
+  it('finds an accepted request outside the current event page without starting another turn', async () => {
+    const { session, taskId } = await interrupted()
+    for (let i = 0; i < 65; i++) await appendAgentEvent(t.db, session.id, 'activity', `资料记录 ${i}`)
+    const result = await (await request(`/api/ai/agent/sessions/${session.id}?requestId=interrupted_request`)).json() as AgentSessionDetail
+    expect(result.messageReceipt).toEqual({ requestId: 'interrupted_request', taskId })
+    expect(result.events.some(e => e.requestId === 'interrupted_request')).toBe(false)
+    const missing = await (await request(`/api/ai/agent/sessions/${session.id}?requestId=not_received`)).json() as AgentSessionDetail
+    expect(missing.messageReceipt).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it.each(['assistant', 'activity'] as const)('classifies a failed %s save without making another model call', async role => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '先查阅资料', 'failed_save_request')
+    fetchMock.mockResolvedValueOnce(role === 'assistant' ? completion('未保存的回复') : completion('', [call('read_overview')]))
+    let rejectSave = true
+    const failingDb: typeof t.db = { ...t.db, query: async <T>(sql: string, params?: unknown[]) => {
+      if (rejectSave && sql.includes('INSERT INTO ai_agent_events') && params?.[1] === role) {
+        rejectSave = false
+        throw new Error('模拟保存中断')
+      }
+      return t.db.query<T>(sql, params)
+    } }
+    await runAgentTurn(failingDb, session, turn.taskId, 'admin', internalApi())
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
+    const result = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
+    expect(result.recovery?.phase).toBe('save')
+    expect(result.events.some(e => e.content === '未保存的回复')).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
 function completion(text: string, calls?: AiToolCall[], reasoning?: string) {
   return Response.json({
     model: 'mock-agent',
@@ -385,6 +503,12 @@ describe('creative memory and context regressions', () => {
     expect(fetchMock).not.toHaveBeenCalled()
     expect(await getAgentSummary(t.db, session.id)).toBeNull()
     expect((await readAgentEvents(t.db, session.id, 0, 200)).events[0]?.content.length).toBe(90001)
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '继续', 'oversized_history')
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    const detail = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
+    expect(detail.recovery).toMatchObject({ phase: 'summary', canResume: false })
+    expect((await request(`/api/ai/agent/sessions/${session.id}/tasks/${turn.taskId}/resume`, 'POST', { confirmModelCall: true })).status).toBe(409)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
   it.each(['usage', 'persist'] as const)('diagnoses %s storage failure and preserves raw history', async (stage) => {
     const session = await setup()
@@ -436,6 +560,7 @@ describe('creative memory and context regressions', () => {
     expect((await all(t.db, 'SELECT generation_type FROM ai_usage'))).toEqual([{ generation_type: 'agent_summary' }])
     const detail = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
     expect(detail.events.at(-1)?.metadata.summaryDiagnostic).toEqual(failure.metadata.summaryDiagnostic)
+    expect(detail.recovery).toMatchObject({ taskId: turn.taskId, phase: 'summary', canResume: true })
   })
   it.each(['length', 'refusal', 'tool_calls'] as const)('diagnoses incomplete summary %s instead of saving partial content', async (kind) => {
     const session = await setup()
@@ -748,6 +873,7 @@ describe('novel-scoped creative agent', () => {
     expect(events.filter((event) => event.role === 'assistant')).toHaveLength(0)
     expect(events.filter((event) => event.metadata.tool === 'read_overview')).toHaveLength(10)
     expect(events.at(-1)?.metadata.error).toBe(true)
+    expect(events.at(-1)?.metadata.failurePhase).toBe('model')
     expect(await first(t.db, "SELECT COUNT(*)::int AS calls FROM ai_usage WHERE generation_type='agent_chat'")).toEqual({ calls: 11 })
   })
   it('submits a chapter through existing middleware and exposes a saved draft without publishing', async () => {

@@ -1,4 +1,4 @@
-import { watchAiTask } from '@/lib/ai-task-stream'
+import { watchAiTask, type AiTaskConnection } from '@/lib/ai-task-stream'
 import { parseAiTextProgress } from '@shared/ai-text-progress'
 import type { AgentTask } from '@shared/ai-agent'
 import AiStreamPreview from '@/components/shared/AiStreamPreview'
@@ -33,6 +33,8 @@ import { ReadingDialog } from '@/components/shared/ReadingDialog'
 import { taskStatusLabel, kindLabel } from './labels'
 import AiAgentComposer from './AiAgentComposer'
 import AiAgentMemory from './AiAgentMemory'
+import AiAgentRecovery from './AiAgentRecovery'
+import { currentAgentTask, pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage, type PendingAgentMessage } from './agent-task-state'
 import AiAgentSources from './AiAgentSources'
 import styles from './agent-workspace.module.css'
 
@@ -251,17 +253,22 @@ function AiAgentWorkspace() {
 }
 
 function AgentConversation({ sessionId, novelId, onSession }: { sessionId: string; novelId: string; onSession: (s: AgentSession) => void }) {
+  const [pendingKey] = useState(() => pendingAgentKey(novelId, sessionId))
+  const [pending, setPending] = useState(() => readPendingAgentMessage(pendingKey))
+  const pendingRequest = useRef<PendingAgentMessage | null>(pending)
   const [data, setData] = useState<AgentSessionDetail | null>(null)
   const [earlier, setEarlier] = useState<AgentEvent[]>([])
   const [liveTasks, setLiveTasks] = useState<Record<string, AgentTask>>({})
+  const [connections, setConnections] = useState<Record<string, AiTaskConnection>>({})
   const observedEvents = useRef(new Map<number, AgentEvent>())
   const [hasEarlier, setHasEarlier] = useState<boolean | null>(null)
-  const [input, setInput] = useState('')
-  const [providerPresetId, setProviderPresetId] = useState('')
-  const providerInitialized = useRef(false)
+  const [input, setInput] = useState(pending?.content || '')
+  const [providerPresetId, setProviderPresetId] = useState(pending?.providerPresetId || '')
+  const providerInitialized = useRef(!!pending)
   const [error, setError] = useState('')
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
   const [refresh, setRefresh] = useState(0)
   const [selectedTask, setSelectedTask] = useState('')
   const [olderArtifact, setOlderArtifact] = useState<AgentArtifact | null>(null)
@@ -272,12 +279,22 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   useEffect(() => {
     onSessionRef.current = onSession
   }, [onSession])
-  const pendingRequest = useRef<{ content: string; id: string; providerPresetId: string } | null>(null)
   const feed = useRef<HTMLDivElement>(null)
   const followBottom = useRef(true)
-  const activeTask = data?.activeTask ? liveTasks[data.activeTask.id] || data.activeTask : null
+  const activeTask = data?.activeTask ? currentAgentTask(data.activeTask, liveTasks[data.activeTask.id]) : null
   const running = agentTaskRunning(activeTask)
   const reload = useCallback(() => setRefresh((v) => v + 1), [])
+  const clearPending = useCallback((request: PendingAgentMessage) => {
+    // A late response may only remove its own receipt, including after navigation.
+    if (readPendingAgentMessage(pendingKey)?.id === request.id) savePendingAgentMessage(pendingKey, null)
+    if (pendingRequest.current?.id !== request.id) return
+    pendingRequest.current = null
+    if (mounted.current) {
+      setPending(null)
+      setError('')
+      setInput(current => current === request.content ? '' : current)
+    }
+  }, [pendingKey])
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -292,9 +309,13 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
       if (inFlight || !active) return
       inFlight = true
       try {
-        const next = await agentApi.get(sessionId)
+        const receipt = pendingRequest.current
+        const next = await (receipt ? agentApi.get(sessionId, receipt.id) : agentApi.get(sessionId))
         if (next.session.novelId !== novelId) throw new Error('此对话不属于当前作品，请重新选择对话')
         if (!active) return
+        if (receipt && (next.messageReceipt?.requestId === receipt.id || next.events.some(event => event.requestId === receipt.id))) {
+          clearPending(receipt)
+        }
         if (!providerInitialized.current) {
           setProviderPresetId([...next.events].reverse().find((event) => event.role === 'user')?.metadata.providerPresetId || '')
           providerInitialized.current = true
@@ -322,12 +343,14 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
     }
     void load()
     document.addEventListener('visibilitychange', visible)
+    window.addEventListener('online', visible)
     return () => {
       active = false
       if (timer) clearTimeout(timer)
       document.removeEventListener('visibilitychange', visible)
+      window.removeEventListener('online', visible)
     }
-  }, [sessionId, novelId, refresh])
+  }, [sessionId, novelId, refresh, clearPending])
   const watchedIds = [data?.activeTask, ...(data?.artifacts.map((a) => a.task) || [])].filter(agentTaskRunning).map((task) => task!.id).sort().join(',')
   useEffect(() => {
     const stops = watchedIds.split(',').filter(Boolean).map((id) => {
@@ -338,40 +361,58 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         const step = `${task.status}:${task.current}:${parseAiTextProgress(task.result)?.round ?? ''}:${task.step.replace(/\d+/g, '#')}`
         if (previousStep && step !== previousStep || !['queued', 'running'].includes(task.status)) reload()
         previousStep = step
-      })
+      }, (state) => setConnections(current => ({ ...current, [id]: state })))
     })
     return () => stops.forEach((stop) => stop())
   }, [watchedIds, reload])
   useEffect(() => {
     if (followBottom.current && feed.current) feed.current.scrollTop = feed.current.scrollHeight
   }, [data?.events.length, activeTask?.result])
-  async function perform(action: () => Promise<unknown>) {
-    if (busy) return
+  async function perform(action: () => Promise<unknown>): Promise<boolean> {
+    if (busyRef.current) return false
+    busyRef.current = true
     setBusy(true)
     setError('')
     try {
       await action()
       if (mounted.current) reload()
+      return true
     } catch (e) {
       if (mounted.current) setError(failure(e))
+      return false
     } finally {
+      busyRef.current = false
       if (mounted.current) setBusy(false)
     }
   }
   async function send(content = input) {
-    if (!content.trim() || busy || running) return
-    const old = pendingRequest.current
-    const request =
-      old?.content === content && old.providerPresetId === providerPresetId ? old : { content, id: newOperationId('agent-message'), providerPresetId }
+    if (!content.trim() || busyRef.current || running || pendingRequest.current) return
+    await submitMessage({ content, id: newOperationId('agent-message'), providerPresetId })
+  }
+  async function submitMessage(request: PendingAgentMessage) {
+    if (busyRef.current) return
     pendingRequest.current = request
+    setPending(request)
+    savePendingAgentMessage(pendingKey, request)
     await perform(async () => {
-      await agentApi.message(sessionId, content, request.id, request.providerPresetId)
+      await agentApi.message(sessionId, request.content, request.id, request.providerPresetId)
+      clearPending(request)
       if (mounted.current) {
-        pendingRequest.current = null
-        setInput((current) => (current === content ? '' : current))
         followBottom.current = true
         setMobileView('chat')
       }
+    })
+  }
+  async function resume() {
+    if (!activeTask || pendingRequest.current) return false
+    return perform(async () => {
+      const result = await agentApi.resume(sessionId, activeTask.id)
+      if (mounted.current) setData(current => current ? {
+        ...current,
+        session: { ...current.session, activeTaskId: result.taskId },
+        activeTask: { id: result.taskId, kind: 'agent_chat', status: 'queued', step: '正在继续整理回复', current: 0, total: 1, error: '' },
+        recovery: null,
+      } : current)
     })
   }
   async function prepare(kind: AgentActionKind, targetId: string, title = '') {
@@ -419,7 +460,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   const savedArtifact = selectedTask
     ? data?.artifacts.find((a) => a.task.id === selectedTask) || (olderArtifact?.task.id === selectedTask ? olderArtifact : null)
     : data?.artifacts[0]
-  const artifact = savedArtifact ? { ...savedArtifact, task: liveTasks[savedArtifact.task.id] || savedArtifact.task } : null
+  const artifact = savedArtifact ? { ...savedArtifact, task: currentAgentTask(savedArtifact.task, liveTasks[savedArtifact.task.id]) } : null
   const partial = parseAiTextProgress(activeTask?.result)
   const previewVisible = partial && !allEvents.some((event) => event.role === 'assistant' && event.taskId === activeTask?.id && event.metadata.round === partial.round)
   const action = preview ? data?.actions.find((a) => a.id === preview.id) || preview : null
@@ -479,6 +520,22 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
           </Button>
         </p>
       )}
+      {pending && !busy && (
+        <div className={styles.recovery} role="status">
+          <p>上一条消息尚未确认送达。核对状态或重试原消息后，再发送新内容。</p>
+          <p className={styles.muted}>重试沿用原消息与模型。放弃重试只清除本页记录，不会停止服务器已接收的任务。</p>
+          <div className={styles.recoveryActions}>
+            <Button variant="ghost" size="sm" onClick={reload}>核对发送状态</Button>
+            <Button variant="outline" size="sm" onClick={() => void submitMessage(pending)}>重试原消息</Button>
+            <Button variant="ghost" size="sm" onClick={() => {
+              savePendingAgentMessage(pendingKey, null)
+              pendingRequest.current = null
+              setPending(null)
+              setError('')
+            }}>放弃重试</Button>
+          </div>
+        </div>
+      )}
       <div className={styles.workspace} data-mobile-view={mobileView}>
         <section className={styles.chat} aria-label="创作对话">
           <div className={styles.chatBody} data-running={running}>
@@ -487,7 +544,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                 <MessageSquare size={16} aria-hidden="true" />
                 创作助手
               </span>
-              <span className={styles.chatState}>{running ? '正在处理你的想法' : '随时接着聊'}</span>
+              <span className={styles.chatState}>{running ? activeTask?.step || '正在处理' : activeTask?.status === 'failed' ? '本轮未完成' : activeTask?.status === 'cancelled' ? '本轮已停止' : data.actions.some(item => ['pending', 'executing'].includes(item.status)) ? '有待确认的操作' : '随时接着聊'}</span>
             </div>
             <div
               ref={feed}
@@ -555,8 +612,13 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                   <span className={styles.progressText}>{activeTask?.step || '正在处理…'}</span>
                 </div>
               )}
-              {activeTask?.status === 'failed' && (
-                <p className={styles.error}>本轮未完成：{activeTask.error}。已保留对话和已提交的任务，可以调整要求后继续。</p>
+              {running && activeTask && ['reconnecting', 'unavailable'].includes(connections[activeTask.id] || '') && (
+                <p className={styles.muted} role="status">{connections[activeTask.id] === 'unavailable' ? '实时进度暂不可用，正在定期核对保存状态。' : '连接中断，正在重新读取进度。已显示的内容保留。'}</p>
+              )}
+              {activeTask && ['failed', 'cancelled'].includes(activeTask.status) && (
+                <AiAgentRecovery key={activeTask.id} task={activeTask} recovery={data.recovery?.taskId === activeTask.id ? data.recovery : null}
+                  busy={busy || !!pending} error={error} onResume={resume} onRefresh={reload}
+                  hasOutputs={!!data.artifacts.length || !!data.actions.length} onOutputs={() => setMobileView('outputs')} />
               )}
             </div>
           </div>
@@ -567,6 +629,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
             onStop={() => void perform(() => agentApi.stop(sessionId, data.activeTask!.id))}
             busy={busy}
             running={running}
+            sendDisabled={!!pending}
             providerPresetId={providerPresetId}
             onProviderChange={setProviderPresetId}
           />

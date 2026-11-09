@@ -25,6 +25,7 @@ import {
   type AgentActionRow,
 } from '../services/ai/agent-store'
 import { agentMemorySource, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories } from '../services/ai/agent-memory'
+import { agentTaskParams, getAgentRecovery, requireRecoveryTask } from '../services/ai/agent-recovery'
 
 type Dispatch = (request: Request) => Response | Promise<Response>
 function numberParam(value: string | undefined, max = 10000) {
@@ -88,10 +89,17 @@ export function createAgentRoutes(dispatch: Dispatch) {
         if (!(error instanceof AiError && error.status === 404)) throw error
       }
     }
+    const activeTask = session.activeTaskId ? (await getAiTask(db, session.activeTaskId)) || null : null
+    const requestId = c.req.query('requestId') || ''
+    if (requestId && !/^[a-zA-Z0-9_-]{8,160}$/.test(requestId)) throw new AiError('invalid', '消息标识无效', 422)
+    const messageReceipt = requestId ? await first<{ requestId: string; taskId: string }>(db,
+      'SELECT request_id AS "requestId",task_id AS "taskId" FROM ai_agent_events WHERE session_id=$1 AND request_id=$2', [session.id, requestId]) : null
     return c.json({
       session,
+      messageReceipt: messageReceipt || null,
       ...history,
-      activeTask: session.activeTaskId ? (await getAiTask(db, session.activeTaskId)) || null : null,
+      activeTask,
+      recovery: await getAgentRecovery(db, session, activeTask),
       artifacts,
       actions: await listAgentActions(db, session.id),
       memories: (await listAgentMemories(db, c.get('user').id, session.novelId)).memories.filter((memory) => memory.status === 'active' || memory.status === 'pending'),
@@ -189,6 +197,31 @@ export function createAgentRoutes(dispatch: Dispatch) {
       },
       preset ? { text: { baseUrl: preset.baseUrl, apiKey: preset.apiKey, model: preset.model } } : undefined,
     )
+  })
+  routes.post('/sessions/:id/tasks/:taskId/resume', async (c) => {
+    const db = getDb()
+    const userId = c.get('user').id
+    const session = await getAgentSession(db, userId, c.req.param('id'))
+    const body = await c.req.json().catch(() => ({}))
+    if (body.confirmModelCall !== true) throw new AiError('invalid', '请确认继续整理将再次调用文本模型', 422)
+    const source = await requireRecoveryTask(db, session, userId, c.req.param('taskId'))
+    const params = agentTaskParams(source)
+    const providerPresetId = params.providerPresetId || ''
+    const preset = providerPresetId ? getProviderPreset(providerPresetId) : undefined
+    if (preset && preset.scope !== 'text') throw new AiError('invalid', '原文本预设不可用，请调整要求后重新发送', 422)
+    return withProviderSnapshot(async () => {
+      if (!isTextAiConfigured()) throw new AiError('disabled', '请先配置文本模型', 503)
+      const turn = await beginAgentTurn(db, userId, session.id,
+        '请基于已保存的对话、资料与产出继续整理上轮未完成的回复。仅查阅和答复，不重新生成草稿、封面、档案或采纳操作。',
+        `agent_resume_${source.id}`, { providerPresetId, model: textProvider().model }, source.id)
+      if (turn.created) {
+        const current = await getAgentSession(db, userId, session.id)
+        void runAgentTurn(db, current, turn.taskId, userId, agentApiAdapter(c.req.raw, dispatch), {
+          ipAddress: clientIpFromContext(c), userAgent: c.req.header('User-Agent'),
+        }).catch((err) => console.error('[ai-agent] recovery failed', err))
+      }
+      return c.json(turn, 202)
+    }, preset ? { text: { baseUrl: preset.baseUrl, apiKey: preset.apiKey, model: preset.model } } : undefined)
   })
   routes.post('/sessions/:id/stop', async (c) => {
     const db = getDb()

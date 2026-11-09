@@ -2,6 +2,20 @@
   min-width: 0;
   color: var(--text-primary);
 }
+.recovery {
+  display: grid;
+  gap: 10px;
+  margin-block: 16px;
+  overflow-wrap: anywhere;
+}
+.recovery p {
+  margin: 0;
+}
+.recoveryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .toolbar {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;

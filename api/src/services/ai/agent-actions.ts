@@ -32,7 +32,7 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
   const task = await requireAgentArtifact(db, session.id, taskId)
   if (task.novelId !== session.novelId) throw new AiError('invalid', '任务小说不匹配', 409)
   const result: AgentArtifact = {
-    task: { id: task.id, kind: task.kind, status: task.status, step: task.step, current: task.current, total: task.total, error: task.error },
+    task: { id: task.id, kind: task.kind, status: task.status, step: task.step, current: task.current, total: task.total, error: task.error, updatedAt: task.updatedAt, result: task.result },
     drafts: [],
     covers: [],
   }

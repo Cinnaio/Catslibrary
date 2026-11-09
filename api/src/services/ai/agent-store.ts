@@ -107,7 +107,7 @@ export async function appendAgentEvent(
 }
 
 export async function readAgentEvents(db: DbClient, sessionId: string, before = 0, limit = 60) {
-  const rows = await all<{ id: number; role: AgentEvent['role']; content: string; task_id: string; metadata: AgentEvent['metadata']; created_at: number }>(
+  const rows = await all<{ id: number; role: AgentEvent['role']; content: string; task_id: string; request_id: string | null; metadata: AgentEvent['metadata']; created_at: number }>(
     db,
     'SELECT * FROM ai_agent_events WHERE session_id=$1 AND ($2::bigint=0 OR id<$2) ORDER BY id DESC LIMIT $3',
     [sessionId, before, limit + 1],
@@ -117,7 +117,7 @@ export async function readAgentEvents(db: DbClient, sessionId: string, before = 
     events: rows
       .slice(0, limit)
       .reverse()
-      .map((r) => ({ id: Number(r.id), role: r.role, content: r.content, taskId: r.task_id, metadata: r.metadata, createdAt: Number(r.created_at) })),
+      .map((r) => ({ id: Number(r.id), role: r.role, content: r.content, taskId: r.task_id, ...(r.request_id ? { requestId: r.request_id } : {}), metadata: r.metadata, createdAt: Number(r.created_at) })),
   }
 }
 
@@ -129,6 +129,7 @@ export async function beginAgentTurn(
   content: string,
   requestId: string,
   provider: { providerPresetId: string; model: string } = { providerPresetId: '', model: '' },
+  recoveryFromTaskId = '',
 ) {
   if (!content.trim() || content.length > 8000) throw new AiError('invalid', '请输入 1–8000 字的消息', 422)
   if (!/^[a-zA-Z0-9_-]{8,160}$/.test(requestId)) throw new AiError('invalid', '消息请求标识无效', 422)
@@ -144,7 +145,14 @@ export async function beginAgentTurn(
     if (previous) {
       if (previous.content !== content) throw new AiError('conflict', '同一请求标识不能提交不同消息', 409)
       if ((previous.metadata.providerPresetId || '') !== provider.providerPresetId) throw new AiError('conflict', '同一请求标识不能切换模型预设', 409)
+      if ((previous.metadata.recoveryFromTaskId || '') !== recoveryFromTaskId) throw new AiError('conflict', '同一请求标识不能切换恢复来源', 409)
       return { taskId: previous.task_id, created: false }
+    }
+    if (recoveryFromTaskId) {
+      const source = await first(scoped, `SELECT id FROM ai_tasks WHERE id=$1 AND user_id=$2 AND kind='agent_chat'
+        AND status IN ('failed','cancelled') AND params::jsonb->>'sessionId'=$3`, [recoveryFromTaskId, userId, sessionId])
+      if (!source || session.active_task_id !== recoveryFromTaskId)
+        throw new AiError('conflict', '对话已进入新的轮次，请刷新后继续', 409)
     }
     const active = await first(scoped, "SELECT id FROM ai_tasks WHERE id=$1 AND status IN ('queued','running')", [session.active_task_id])
     if (active) throw new AiError('conflict', '助手正在处理上一条消息，请等待或停止后继续', 409)
@@ -162,9 +170,9 @@ export async function beginAgentTurn(
       kind: 'agent_chat',
       total: 1,
       prompt: content,
-      params: JSON.stringify({ sessionId, ...provider }),
+      params: JSON.stringify({ sessionId, ...provider, ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }),
     })
-    await appendAgentEvent(scoped, sessionId, 'user', content, task.id, provider, requestId)
+    await appendAgentEvent(scoped, sessionId, 'user', content, task.id, { ...provider, ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }, requestId)
     await query(
       "UPDATE ai_agent_sessions SET active_task_id=$1,title=CASE WHEN title='新的创作对话' THEN $2 ELSE title END,updated_at=GREATEST(updated_at+1,$3) WHERE id=$4",
       [task.id, content.slice(0, 32), Date.now(), sessionId],
