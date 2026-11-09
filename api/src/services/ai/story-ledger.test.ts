@@ -504,7 +504,20 @@ describe('chapter ledger shared extraction and source integrity', () => {
     vi.mocked(chat).mockResolvedValueOnce(reply(firstPiece)).mockResolvedValueOnce(reply(payload([], [])))
     await expect(extractPlotState(t.db, opts)).resolves.toMatchObject({ complete: true, processedChapters: 2 })
     expect((await ledgerAtAnchor(t.db, 'book'))!.state.facts).toHaveLength(prefix.state.facts.length + 1)
+    expect(input(3).previousValidationError).toBeUndefined()
+    expect(input(4).previousValidationError).toContain('逐字匹配')
     expect(recordUsage).toHaveBeenCalledTimes(5)
+  })
+
+  it('drops manual retry feedback after the source chapter changes', async () => {
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ quote: '不存在的正文' })])))
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('逐字匹配')
+    await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', ['林舟站在门前。', 'c1'])
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([], [])))
+    await expect(extractPlotState(t.db, opts)).resolves.toMatchObject({ complete: true })
+    expect(input(1).previousValidationError).toBeUndefined()
+    expect(await getMemoryAttempt(t.db, 'book', 'plot')).not.toHaveProperty('error')
   })
 
   it.each(['not json', JSON.stringify({ complete: true, needs: ['unfinished'], entities: [], facts: [] })])('records a completed but invalid response diagnostic: %s', async (text) => {
@@ -614,6 +627,33 @@ describe('chapter ledger shared extraction and source integrity', () => {
     const unchanged = (await ledgerAtAnchor(t.db, 'book'))!
     expect(unchanged.processed).toBe(2)
     expect(currentFacts(unchanged.state).map((f) => f.summary)).toEqual(['铜钥匙现在由林舟保管。'])
+  })
+
+  it('rejects generic ownership without an item identity and resumes after the item is declared', async () => {
+    await chapter(1, '林舟持有铜钥匙。')
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([
+      fact({ subjects: ['林舟'], label: '持有物品', summary: '林舟持有铜钥匙。', quote: '林舟持有铜钥匙。' }),
+    ], [entity('林舟')])))
+    await extractPlotState(t.db, opts)
+    const prefix = (await ledgerAtAnchor(t.db, 'book'))!
+    const old = prefix.state.facts[0]!
+    await chapter(2, '林舟拿起银剑，将铜钥匙交给沈砚。')
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([
+      fact({ subjects: ['林舟'], label: '持有物品', summary: '林舟持有银剑。', quote: '林舟拿起银剑', replaces: [old.id] }),
+    ], [])))
+    await expect(extractPlotState(t.db, { ...opts, tolerant: true })).rejects.toThrow('缺少可核对的物品身份')
+    const rejected = (await ledgerAtAnchor(t.db, 'book'))!
+    expect(rejected.processed).toBe(1)
+    expect(rejected.state).toEqual(prefix.state)
+    expect(await getMemoryAttempt(t.db, 'book', 'plot')).toMatchObject({ error: expect.stringContaining('物品身份') })
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([
+      fact({ kind: 'item', subjects: ['沈砚', '铜钥匙'], label: '铜钥匙归属', summary: '沈砚保管铜钥匙。', quote: '将铜钥匙交给沈砚', replaces: [old.id] }),
+      fact({ kind: 'item', subjects: ['林舟', '银剑'], label: '银剑归属', summary: '林舟持有银剑。', quote: '林舟拿起银剑' }),
+    ], [entity('沈砚'), entity('铜钥匙', 'item'), entity('银剑', 'item')])))
+    await expect(extractPlotState(t.db, opts)).resolves.toMatchObject({ complete: true, processedChapters: 2 })
+    expect(input(2).previousValidationError).toContain('物品身份')
+    expect(currentFacts((await ledgerAtAnchor(t.db, 'book'))!.state).map((f) => f.summary)).toEqual(['沈砚保管铜钥匙。', '林舟持有银剑。'])
+    expect(recordUsage).toHaveBeenCalledTimes(3)
   })
 
   it('updates a person moving between places while retaining their previous location as history', async () => {
@@ -925,7 +965,7 @@ describe('chapter ledger shared extraction and source integrity', () => {
     vi.mocked(chat).mockResolvedValueOnce(reply(payload([
       fact(),
       fact({ memoryType: 'event', label: '旧线索', status: 'resolved' }),
-    ])))
+    ], [entity('林舟'), entity('沈砚'), entity('铜钥匙', 'item')])))
     await extractPlotState(t.db, opts)
     const old = (await ledgerAtAnchor(t.db, 'book'))!.state.facts[0]!
     await chapter(2)

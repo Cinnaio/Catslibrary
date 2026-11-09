@@ -346,6 +346,41 @@ describe('AiWritingPanel', () => {
     await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', 'plot', 8, 'c47'))
   })
 
+  it('章节校验失败显示未推进与真实用量，手动继续完成后清除旧错误', async () => {
+    const error = '章节记忆校验失败：缺少可核对的物品身份；未推进该章，请核对后重试'
+    const lastAttempt = { status: 'complete', error, maxTokens: 16000, completionTokens: 50, reasoningTokens: null, finishReason: 'stop', updatedAt: 1 }
+    api.getPlotState.mockResolvedValue({
+      state: '', effectiveContent: '', lastAttempt,
+      memoryTask: { id: 'failed-memory', status: 'failed', error },
+      progress: { complete: false, processedChapters: 1, totalChapters: 2, targetChapterId: 'c2' },
+    })
+    await selectNovel()
+    switchToContinue()
+    await openAnalysis()
+    expect(await screen.findByText('校验未通过，未推进该章')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(error)
+    expect(screen.getByText('50', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: '情节状态章节覆盖进度' })).toHaveAttribute('value', '1')
+    expect(screen.getByLabelText('可用 0 项小说分析')).toBeInTheDocument()
+    expect(api.startMemoryTask).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '继续更新情节档案' }))
+    await waitFor(() => expect(api.startMemoryTask).toHaveBeenCalledWith('novel_1', 'plot', 8, 'c2'))
+    await waitFor(() => expect(streams.listeners.has('memory-1')).toBe(true))
+    api.getPlotState.mockResolvedValue({
+      state: '铜钥匙由沈砚保管，银剑由林舟持有。', effectiveContent: '铜钥匙由沈砚保管，银剑由林舟持有。',
+      chaptersThrough: 2, source: { coverage: 'full' }, lastAttempt: { ...lastAttempt, error: undefined },
+      memoryTask: { id: 'memory-1', status: 'completed' },
+      progress: { complete: true, processedChapters: 2, totalChapters: 2, targetChapterId: 'c2' },
+    })
+    await act(async () => streams.listeners.get('memory-1')?.({ id: 'memory-1', kind: 'plot_state', status: 'completed', result: '' }))
+    await waitFor(() => expect(screen.getByText(/档案截至第 2 章/)).toBeInTheDocument(), { timeout: 4000 })
+    expect(screen.queryByText('校验未通过，未推进该章')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '更新情节档案' })).toBeEnabled()
+    expect(api.startMemoryTask).toHaveBeenCalledTimes(1)
+  })
+
   it('提交期间切换小说，不把旧任务写到新书', async () => {
     const pending = deferred<object>()
     api.startMemoryTask.mockReturnValueOnce(pending.promise)

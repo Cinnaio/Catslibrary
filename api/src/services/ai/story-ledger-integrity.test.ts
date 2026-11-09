@@ -54,6 +54,24 @@ describe('story memory identity and state transitions', () => {
     expect(replacementProblem(before, fact({ subjects: ['shen', 'key'] }), entities)).toBeUndefined()
     expect(replacementProblem(before, fact({ subjects: ['lin', 'sword'], label: '银剑归属' }), entities)).toContain('同一物品')
   })
+  it.each(['state', 'fact'] as const)('rejects unanchored ownership replacement classified as %s', (kind) => {
+    const people = new Map([...entities].filter(([, entity]) => entity.kind === 'person'))
+    const before = fact({ kind, subjects: ['lin'], label: '持有物品' })
+    const next = { ...before, summary: '林舟持有银剑。' }
+    expect(replacementProblem(before, next, people)).toContain('缺少可核对的物品身份')
+    // Merely having an unrelated item in the ledger cannot provide the anchor.
+    people.set('ring', { id: 'ring', name: '戒指', kind: 'item', aliases: [] })
+    expect(replacementProblem(before, next, people)).toContain('缺少可核对的物品身份')
+    expect(replacementProblem(before, next, entities)).toContain('同一物品')
+    expect(replacementProblem(before, { ...before, summary: '铜钥匙仍在林舟手里。' }, entities)).toBeUndefined()
+  })
+  it.each(['归属', '持有人', '保管人', '持有'])('accepts a terse ownership label only for the same identifiable item: %s', (label) => {
+    const before = fact({ label })
+    expect(replacementProblem(before, { ...before, subjects: ['shen', 'key'] }, entities)).toBeUndefined()
+    expect(replacementProblem(before, { ...before, subjects: ['shen', 'sword'] }, entities)).toContain('同一物品')
+    const generic = { ...before, kind: 'state' as const, subjects: ['lin'] }
+    expect(replacementProblem(generic, generic, new Map([['lin', entities.get('lin')!]]))).toContain('物品身份')
+  })
   it('binds location to the person rather than a shared destination', () => {
     const before = fact({ kind: 'place', subjects: ['lin', 'inn'], label: '当前位置' })
     expect(replacementProblem(before, { ...before, subjects: ['lin', 'gate'] }, entities)).toBeUndefined()
@@ -152,6 +170,13 @@ describe('chapter semantic completeness', () => {
     )
     expect(result.facts[0]).toMatchObject({ status: 'active', scope: 'local', quote: text.slice(0, -1) })
     expect(parseChapterMemory({ entities: [], facts: [] }, opts).facts).toEqual([])
+  })
+  it('treats omitted aliases as no new aliases, but rejects malformed supplied aliases and invented entities', () => {
+    expect(parseChapterMemory({ entities: [{ name: '林舟', kind: 'person' }], facts: [] }, opts).entities[0]?.aliases).toEqual([])
+    for (const aliases of [null, '阿舟', {}]) {
+      expect(() => parseChapterMemory({ entities: [{ name: '林舟', kind: 'person', aliases }], facts: [] }, opts)).toThrow('aliases')
+    }
+    expect(() => parseChapterMemory({ entities: [{ name: '城中退潮开门规则', kind: 'faction' }], facts: [] }, opts)).toThrow('不在本章正文')
   })
   it('rejects mixed valid and invalid replacement ids without modifying earlier memory', () => {
     const before = fact({ kind: 'state', subjects: ['lin'] })

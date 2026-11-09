@@ -19,7 +19,7 @@ export function aliasIdentityQuote(name: string, alias: string, text: string): s
 export const aliasIdentityGrounded = (name: string, alias: string, text: string) => !!aliasIdentityQuote(name, alias, text)
 const sameIds = (a: string[], b: string[]) => [...a].sort().join('\0') === [...b].sort().join('\0')
 const topic = (value: string) => value.normalize('NFKC').replace(/[\s，,。:：、]/gu, '')
-const ownershipTopic = (label: string) => /^(?:(?:持有|保管|拥有).+|.+?(?:归属|所有者|持有者|持有人|保管者|保管人|持有状态|保管状态))$/u.test(topic(label))
+const ownershipTopic = (label: string) => /^(?:(?:持有|保管|拥有).*|.*?(?:归属|所有者|持有者|持有人|保管者|保管人|持有状态|保管状态))$/u.test(topic(label))
 const locationTopic = (label: string) => /^(?:当前|所在|所处)?(?:位置|地点)$/u.test(topic(label))
 const genericKind = (kind: MemoryFact['kind']) => kind === 'state' || kind === 'fact'
 
@@ -45,7 +45,10 @@ export function replacementProblem(before: MemoryFact, next: MemoryFact, entitie
   }
   const ownership = ownershipTopic(before.label) && ownershipTopic(next.label)
   const location = locationTopic(before.label) && locationTopic(next.label)
-  const itemTransition = before.kind === 'item' || next.kind === 'item' || (ownership && (items(before).length > 0 || items(next).length > 0))
+  // An ownership label needs an item anchor even when the model classified it
+  // as a generic state and omitted every item entity. Otherwise the shared
+  // holder would let unrelated possessions overwrite each other.
+  const itemTransition = before.kind === 'item' || next.kind === 'item' || ownership
   const placeTransition = before.kind === 'place' || next.kind === 'place' || location
   const compatibleKind =
     before.kind === next.kind ||
@@ -62,7 +65,9 @@ export function replacementProblem(before: MemoryFact, next: MemoryFact, entitie
     if (!sameIds(before.subjects, next.subjects)) return '边界必须绑定同一组核心主体，涉及双方时须固定双方'
   } else if (itemTransition) {
     const previousItems = items(before)
-    if (!previousItems.length || !sameIds(previousItems, items(next))) return '物品状态必须绑定同一物品'
+    const nextItems = items(next)
+    if (!previousItems.length || !nextItems.length) return '物品状态必须绑定同一物品；缺少可核对的物品身份，请先声明对应物品实体'
+    if (!sameIds(previousItems, nextItems)) return '物品状态必须绑定同一物品'
     if (!ownership && !sameIds(before.subjects, next.subjects)) return '非归属主题的物品状态必须绑定同一组核心主体'
   } else if (placeTransition) {
     const people = idsOfKind(before, 'person')

@@ -273,7 +273,7 @@ export function parseChapterMemory(
     const item = object(value)
     const name = entityName(item)
     const itemId = typeof item.id === 'string' ? item.id.trim() : ''
-    const aliases = strings(item.aliases, 12, 'aliases').filter((alias) => alias !== name)
+    const aliases = strings(item.aliases === undefined ? [] : item.aliases, 12, 'aliases').filter((alias) => alias !== name)
     const kind = enumValue(coerceEntityKind(item.kind, name), ['person', 'item', 'place', 'faction'] as const, '实体类别')
     const known = [...entities.values()].filter((entity) => [entity.name, ...entity.aliases].includes(name))
     if (known.length > 1) return fail(`「${name}」存在身份歧义`)

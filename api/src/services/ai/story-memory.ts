@@ -159,6 +159,8 @@ export interface MemoryAttempt {
   firstContentMs?: number | null
   reasoningMode?: string
   streamed?: boolean
+  /** Incremental validation feedback is reusable only for the same source/part. */
+  validationSource?: { inputRevision: string; part: number }
 }
 
 export async function getMemoryAttempt(db: Db, novelId: string, kind: 'plot' | 'relationship'): Promise<MemoryAttempt | undefined> {

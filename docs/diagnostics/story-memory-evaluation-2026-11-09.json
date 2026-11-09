@@ -1,0 +1,2605 @@
+{
+  "runId": "2026-11-09T12-55-23-114Z",
+  "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+  "fixtureHash": "cccfc7aa6e3597e8d8ba79ea4f6e0ae7748eb4b4d2152e956e23a3c577228a8f",
+  "model": "deepseek-v4.1-flash-tiancai",
+  "ledgerPromptVersion": 5,
+  "status": "failed",
+  "requestsThisRun": 1,
+  "fixture": [
+    {
+      "title": "铜门旧约",
+      "text": "林舟又名阿舟。林舟与沈砚是两个人，两人是平等合作的伙伴，没有主从关系。林舟持有唯一的铜钥匙，沈砚持有银剑。两人约定寻找地下密道，但都不知道入口位置。客栈里保存着一张旧地图，图上有一道红线，红线的含义尚未查明。城中有一条确定的规则：地下密道的铜门只能在退潮时开启。与此同时，船匠周宁独自在北海修船，不参与寻找密道。",
+      "expectations": [
+        "林舟与阿舟为同一人，沈砚与林舟分开",
+        "铜钥匙归林舟，银剑归沈砚",
+        "合作关系双向且无主从",
+        "两人尚不知入口，红线未解",
+        "退潮开门规则为全局约束",
+        "保留周宁支线"
+      ]
+    },
+    {
+      "title": "转交与传闻",
+      "text": "第二天，林舟把铜钥匙交给沈砚保管，沈砚把银剑交给林舟防身。交接后，铜钥匙在沈砚手里，银剑在林舟手里，两件物品各自只有一件。林舟仍留在城内调查。沈砚却听客栈伙计说林舟已经离城，因此误以为林舟去了北海；沈砚不知道这个消息是假的。周宁在北海买到帆布，仍继续修船。",
+      "expectations": [
+        "钥匙和剑分别更新持有人，旧持有记录保留为历史",
+        "林舟留城为事实",
+        "沈砚误以为林舟离城属于沈砚认知",
+        "不得将传闻写成林舟已离城的事实",
+        "红线及开门规则仍保留"
+      ]
+    },
+    {
+      "title": "名字相近的人",
+      "text": "信使柳舟从东村来到客栈。柳舟与林舟只是名字相近，确实是两个不同的人。沈砚一度猜测柳舟就是林舟，但这只是沈砚的误认。柳舟出示自己的信使凭证，说自己从未使用过阿舟这个名字。苏禾从客栈来到城门等候林舟。此时铜钥匙仍由沈砚保管，林舟仍持有银剑。",
+      "expectations": [
+        "柳舟、林舟、沈砚不得合并",
+        "柳舟不是阿舟",
+        "误认保留为沈砚认知",
+        "苏禾当前位置为城门",
+        "两件物品持有人不变"
+      ]
+    },
+    {
+      "title": "当面对证",
+      "text": "林舟回到客栈，与沈砚和柳舟同时见面。林舟明确告诉沈砚：自己从未离城。沈砚看到林舟与柳舟并肩站着，确认他们是两个人，也知道林舟一直留在城内。沈砚此前关于离城和身份的两项误解都已纠正。苏禾仍在城门等候，没有参加这次谈话，所以她还不知道谈话内容。林舟与沈砚的平等合作约定继续有效。",
+      "expectations": [
+        "沈砚现在知道林舟未离城",
+        "沈砚现在知道柳舟与林舟不同",
+        "两项旧误解应被更新，不作为当前认知",
+        "苏禾不能获得未听见的谈话内容",
+        "林舟当前位置为客栈，苏禾仍在城门"
+      ]
+    },
+    {
+      "title": "第三位保管者",
+      "text": "苏禾从城门回到客栈。沈砚把铜钥匙交给苏禾，委托她保管至退潮；苏禾接过并装入自己的布袋，铜钥匙现在归苏禾保管。银剑仍在林舟手中，没有随铜钥匙转交。苏禾提议次日去北海找周宁帮忙，这只是尚未执行的计划。林舟只告诉苏禾自己从未离城，没有向她讲柳舟身份误认的经过。",
+      "expectations": [
+        "铜钥匙更新为苏禾持有，银剑仍属林舟",
+        "苏禾位置更新为客栈",
+        "去北海只是计划，不能写成已出发",
+        "苏禾获知林舟未离城，但不凭空获知身份误认经过"
+      ]
+    },
+    {
+      "title": "旧日的钥匙",
+      "text": "夜里，沈砚回忆起第一天的情景：那时林舟握着铜钥匙，两人还没有交换物品。这个片段是回忆，不是当前正在发生的事情。回到此刻，苏禾确认铜钥匙仍在自己的布袋里，林舟仍携带银剑。沈砚查看旧地图上的红线，却仍未弄清红线的含义。周宁在北海修好了船，准备次日进城。",
+      "expectations": [
+        "回忆不能把铜钥匙当前持有人改回林舟",
+        "当前钥匙归苏禾，银剑归林舟",
+        "红线仍未解决",
+        "周宁已经修好船，进城只是计划"
+      ]
+    },
+    {
+      "title": "桥下猜想",
+      "text": "苏禾独自在客栈研究旧地图。她猜测地下密道入口就在石桥下面，但没有证据，这个判断尚未证实。她没有把猜测告诉林舟或沈砚，因此两人并不知道她的猜测。沈砚去城门接应周宁；周宁刚从北海抵达城门。苏禾仍保管铜钥匙，林舟仍持有银剑。旧地图的红线含义仍是一个待解线索。",
+      "expectations": [
+        "石桥入口只是苏禾的猜测",
+        "其他人物不能自动共享苏禾认知",
+        "沈砚与周宁当前位置均为城门",
+        "红线仍未解，持有状态不丢失"
+      ]
+    },
+    {
+      "title": "红线所指",
+      "text": "周宁和沈砚从城门来到客栈，与林舟、苏禾会合。周宁拿出旧工程记录，四人逐项核对后确认：旧地图上的红线标记排水沟，地下密道入口位于废井底部，并不在石桥下面。四人都亲眼看过记录，知道入口的真实位置。苏禾明确承认自己先前猜错，现已知道入口在废井。红线含义已经查清。这些发现不改变铜门只能退潮时开启的规则。",
+      "expectations": [
+        "入口在废井成为已证实事实",
+        "四人分别有依据获得入口知识",
+        "苏禾的石桥误解更新为正确认知",
+        "红线线索已解决但历史可查",
+        "全局退潮规则仍保留"
+      ]
+    },
+    {
+      "title": "退潮之前",
+      "text": "林舟、沈砚和苏禾从客栈来到废井，周宁留在客栈修理绳索。苏禾把铜钥匙交还林舟，林舟接过钥匙，因此铜钥匙与银剑现在都由林舟持有。林舟在废井底部找到铜门，但此时尚未退潮，他没有开门。沈砚负责守在井口。三人决定等到退潮再开门；开门仍是待执行的行动。",
+      "expectations": [
+        "铜钥匙转为林舟，银剑仍为林舟，两条状态均存在",
+        "林舟、沈砚、苏禾到废井，周宁留客栈",
+        "找到门不等于已开门",
+        "退潮约束仍有效"
+      ]
+    },
+    {
+      "title": "门后的账册",
+      "text": "退潮后，林舟用铜钥匙打开铜门。沈砚从井口下来，与林舟、苏禾一起进入地下密道。铜钥匙没有损坏，开门后仍由林舟收好，银剑也仍在林舟身上。三人在密道里找到一册航运账册，苏禾负责保管账册，但他们还没有读过其中内容。寻找入口和开门两项目标已经完成，查明账册内容是新的目标。周宁仍在客栈，不知道密道里的新发现。柳舟早已回到东村，不参与此次行动。",
+      "expectations": [
+        "开门已发生，进入密道的三人位置更新",
+        "钥匙与银剑仍属林舟，账册属苏禾",
+        "账册未读，不能编造其中秘密",
+        "寻找入口和开门已完成，新目标为读账册",
+        "周宁不凭空知道发现，柳舟仍是独立人物"
+      ]
+    }
+  ],
+  "processedChapters": 7,
+  "steps": [
+    {
+      "runId": "2026-11-09T12-46-04-946Z",
+      "implementationHash": "212e53a634f4c2e8ee00e174f78eb836adfd2ea07104b31337de8ff72cbc1b25",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 9062,
+      "error": "章节记忆校验失败：实体「红线」未声明或身份有歧义；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 2772,
+        "elapsedMs": 9013,
+        "promptTokens": 1377,
+        "completionTokens": 1103,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794228381591,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：实体「红线」未声明或身份有歧义；未推进该章，请核对后重试"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-47-23-561Z",
+      "implementationHash": "9ea26f4fcde8beac7bddaf1f2895322466abe551bed4a1c2110043ddf402a30f",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 8720,
+      "error": "章节记忆校验失败：aliases 数组无效；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 2945,
+        "elapsedMs": 8670,
+        "promptTokens": 1459,
+        "completionTokens": 1030,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794228452857,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：aliases 数组无效；未推进该章，请核对后重试"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-48-32-420Z",
+      "implementationHash": "b6ddcb413a7c0e7408565cb89eb5ecc80c40cb3a46bce96affc91b66ed73372f",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 8737,
+      "error": "章节记忆校验失败：实体「铜门」未声明或身份有歧义；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 3077,
+        "elapsedMs": 8679,
+        "promptTokens": 1529,
+        "completionTokens": 984,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794228521685,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：实体「铜门」未声明或身份有歧义；未推进该章，请核对后重试"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 1,
+      "status": "passed",
+      "elapsedMs": 9494,
+      "facts": 10,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 3189,
+        "elapsedMs": 9413,
+        "promptTokens": 1584,
+        "completionTokens": 1008,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794228710816,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 2,
+      "status": "passed",
+      "elapsedMs": 6071,
+      "facts": 6,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 7197,
+        "elapsedMs": 6034,
+        "promptTokens": 3251,
+        "completionTokens": 661,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-2"
+        ],
+        "updatedAt": 1794228716910,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 3,
+      "status": "passed",
+      "elapsedMs": 6191,
+      "facts": 7,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 7790,
+        "elapsedMs": 6150,
+        "promptTokens": 3513,
+        "completionTokens": 700,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-3"
+        ],
+        "updatedAt": 1794228723109,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 4,
+      "status": "passed",
+      "elapsedMs": 9651,
+      "facts": 7,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 9358,
+        "elapsedMs": 9609,
+        "promptTokens": 4158,
+        "completionTokens": 838,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-4"
+        ],
+        "updatedAt": 1794228732770,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 5,
+      "status": "passed",
+      "elapsedMs": 5965,
+      "facts": 6,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 10977,
+        "elapsedMs": 5918,
+        "promptTokens": 4874,
+        "completionTokens": 770,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-5"
+        ],
+        "updatedAt": 1794228738742,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 6,
+      "status": "passed",
+      "elapsedMs": 6979,
+      "facts": 4,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 12435,
+        "elapsedMs": 6929,
+        "promptTokens": 5492,
+        "completionTokens": 461,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-6"
+        ],
+        "updatedAt": 1794228745737,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 7,
+      "status": "passed",
+      "elapsedMs": 7101,
+      "facts": 8,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 13691,
+        "elapsedMs": 7047,
+        "promptTokens": 6030,
+        "completionTokens": 945,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-7"
+        ],
+        "updatedAt": 1794228752846,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 8,
+      "status": "failed",
+      "elapsedMs": 9749,
+      "error": "章节记忆校验失败：替换记录 f_870512df1e8cce5fe5b85dc2 无效（认知口径不同）；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 14942,
+        "elapsedMs": 9725,
+        "promptTokens": 6580,
+        "completionTokens": 1684,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-8"
+        ],
+        "updatedAt": 1794228762626,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：替换记录 f_870512df1e8cce5fe5b85dc2 无效（认知口径不同）；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "a7e50332f810ed64284c702d78d0d6637830edd4e23b75e3938ec8d93a08ab0b",
+          "part": 0
+        }
+      }
+    },
+    {
+      "runId": "2026-11-09T12-54-26-169Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 8,
+      "status": "failed",
+      "elapsedMs": 14415,
+      "error": "章节记忆校验失败：替换记录 f_3423153c3808ffdd99d275f5 无效（认知口径不同）；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 15035,
+        "elapsedMs": 14356,
+        "promptTokens": 6626,
+        "completionTokens": 1473,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-8"
+        ],
+        "updatedAt": 1794228881168,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：替换记录 f_3423153c3808ffdd99d275f5 无效（认知口径不同）；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "a7e50332f810ed64284c702d78d0d6637830edd4e23b75e3938ec8d93a08ab0b",
+          "part": 0
+        }
+      }
+    },
+    {
+      "runId": "2026-11-09T12-55-23-114Z",
+      "implementationHash": "a4dfb15624c87e18a291b151f74175cfd0b580290847f8d36b7cbc77a09b6b98",
+      "chapter": 8,
+      "status": "failed",
+      "elapsedMs": 11969,
+      "error": "章节记忆校验失败：替换记录 f_80f9eb1952b550aef4f32bf1 无效（状态必须绑定同一组核心主体）；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 15035,
+        "elapsedMs": 11889,
+        "promptTokens": 6624,
+        "completionTokens": 1706,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-8"
+        ],
+        "updatedAt": 1794228935564,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：替换记录 f_80f9eb1952b550aef4f32bf1 无效（状态必须绑定同一组核心主体）；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "a7e50332f810ed64284c702d78d0d6637830edd4e23b75e3938ec8d93a08ab0b",
+          "part": 0
+        }
+      }
+    }
+  ],
+  "usage": {
+    "recorded_calls": 13,
+    "input_tokens": 53097,
+    "output_tokens": 13363,
+    "calls_with_reported_cost": 13,
+    "reported_cost_millicents": "959.00000000"
+  },
+  "responses": [
+    {
+      "runId": "2026-11-09T12-46-04-946Z",
+      "chapter": 1,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"林舟\",\"aliases\":[\"阿舟\"],\"kind\":\"person\"},{\"name\":\"沈砚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"周宁\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"银剑\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧地图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"地下密道\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"客栈\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"北海\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"林舟\",\"沈砚\"],\"directed\":false,\"label\":\"伙伴关系\",\"summary\":\"林舟与沈砚是两个人，二人为平等合作的伙伴，没有主从关系。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟与沈砚是两个人，两人是平等合作的伙伴，没有主从关系。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜钥匙\",\"林舟\"],\"directed\":false,\"label\":\"归属\",\"summary\":\"林舟持有唯一的铜钥匙。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟持有唯一的铜钥匙，沈砚持有银剑。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"银剑\",\"沈砚\"],\"directed\":false,\"label\":\"归属\",\"summary\":\"沈砚持有银剑。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟持有唯一的铜钥匙，沈砚持有银剑。\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"林舟\",\"沈砚\",\"地下密道\"],\"directed\":true,\"label\":\"共同目标\",\"summary\":\"林舟与沈砚约定寻找地下密道，但两人都不知道入口位置。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"林舟\",\"地下密道\"],\"directed\":false,\"label\":\"密道入口认知\",\"summary\":\"林舟不知道地下密道入口位置。\",\"certainty\":\"belief\",\"perspective\":\"林舟\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"地下密道\"],\"directed\":false,\"label\":\"密道入口认知\",\"summary\":\"沈砚不知道地下密道入口位置。\",\"certainty\":\"belief\",\"perspective\":\"沈砚\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"旧地图\",\"客栈\"],\"directed\":false,\"label\":\"保存处\",\"summary\":\"客栈里保存着一张旧地图，图上有一道红线，红线含义尚未查明。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"客栈里保存着一张旧地图，图上有一道红线，红线的含义尚未查明。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"红线\"],\"directed\":false,\"label\":\"红线含义\",\"summary\":\"旧地图上的红线含义尚未查明。\",\"certainty\":\"clue\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"图上有一道红线，红线的含义尚未查明。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"地下密道\",\"铜门\"],\"directed\":false,\"label\":\"开启条件\",\"summary\":\"城中一条确定的规则：地下密道的铜门只能在退潮时开启。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"城中有一条确定的规则：地下密道的铜门只能在退潮时开启。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"周宁\",\"北海\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"船匠周宁独自在北海修船，不参与寻找密道。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"船匠周宁独自在北海修船，不参与寻找密道。\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"周宁\"],\"directed\":false,\"label\":\"是否参与寻密道\",\"summary\":\"周宁不参与寻找密道。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"船匠周宁独自在北海修船，不参与寻找密道。\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-47-23-561Z",
+      "chapter": 1,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"林舟\",\"aliases\":[\"阿舟\"],\"kind\":\"person\"},{\"name\":\"沈砚\",\"kind\":\"person\"},{\"name\":\"周宁\",\"kind\":\"person\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"银剑\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧地图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"地下密道\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"铜门\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"客栈\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"北海\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"城中退潮开门规则\",\"aliases\":[],\"kind\":\"faction\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"林舟\",\"沈砚\"],\"directed\":false,\"label\":\"伙伴关系\",\"summary\":\"林舟与沈砚是两个人，双方为平等合作的伙伴关系，没有主从关系。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"林舟与沈砚是两个人，两人是平等合作的伙伴，没有主从关系。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜钥匙\",\"林舟\"],\"directed\":true,\"label\":\"持有人\",\"summary\":\"林舟持有唯一的铜钥匙。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"林舟持有唯一的铜钥匙，沈砚持有银剑。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"银剑\",\"沈砚\"],\"directed\":true,\"label\":\"持有人\",\"summary\":\"沈砚持有银剑。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"林舟持有唯一的铜钥匙，沈砚持有银剑。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"林舟\",\"沈砚\"],\"directed\":false,\"label\":\"寻找密道的约定\",\"summary\":\"两人约定共同寻找地下密道。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"林舟\",\"地下密道\"],\"directed\":true,\"label\":\"密道入口认知\",\"summary\":\"林舟不知道地下密道的入口位置。\",\"certainty\":\"belief\",\"perspective\":\"林舟\",\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"地下密道\"],\"directed\":true,\"label\":\"密道入口认知\",\"summary\":\"沈砚不知道地下密道的入口位置。\",\"certainty\":\"belief\",\"perspective\":\"沈砚\",\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"旧地图\",\"客栈\"],\"directed\":true,\"label\":\"保管人\",\"summary\":\"客栈里保存着一张旧地图。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"客栈里保存着一张旧地图，图上有一道红线，红线的含义尚未查明。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"旧地图\"],\"directed\":false,\"label\":\"红线含义\",\"summary\":\"旧地图上有一道红线，其含义尚未查明。\",\"certainty\":\"clue\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"客栈里保存着一张旧地图，图上有一道红线，红线的含义尚未查明。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"铜门\"],\"directed\":false,\"label\":\"开启条件\",\"summary\":\"城中确定的规则：地下密道的铜门只能在退潮时开启。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"城中有一条确定的规则：地下密道的铜门只能在退潮时开启。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"周宁\",\"北海\"],\"directed\":true,\"label\":\"当前位置\",\"summary\":\"船匠周宁独自在北海修船，不参与寻找密道。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"船匠周宁独自在北海修船，不参与寻找密道。\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-48-32-420Z",
+      "chapter": 1,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"林舟\",\"aliases\":[\"阿舟\"],\"kind\":\"person\"},{\"name\":\"沈砚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"周宁\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"银剑\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧地图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"地下密道\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"客栈\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"北海\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"林舟\",\"沈砚\"],\"directed\":false,\"label\":\"合作关系\",\"summary\":\"林舟与沈砚是平等合作的伙伴，没有主从关系。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟与沈砚是两个人，两人是平等合作的伙伴，没有主从关系。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜钥匙\"],\"directed\":false,\"label\":\"归属\",\"summary\":\"林舟持有唯一的铜钥匙。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟持有唯一的铜钥匙，沈砚持有银剑。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"银剑\"],\"directed\":false,\"label\":\"归属\",\"summary\":\"沈砚持有银剑。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟持有唯一的铜钥匙，沈砚持有银剑。\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"林舟\",\"沈砚\"],\"directed\":false,\"label\":\"共同目标\",\"summary\":\"两人约定寻找地下密道。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"林舟\"],\"directed\":false,\"label\":\"密道入口认知\",\"summary\":\"林舟不知道地下密道入口的位置。\",\"certainty\":\"belief\",\"perspective\":\"林舟\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\"],\"directed\":false,\"label\":\"密道入口认知\",\"summary\":\"沈砚不知道地下密道入口的位置。\",\"certainty\":\"belief\",\"perspective\":\"沈砚\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"旧地图\"],\"directed\":false,\"label\":\"存放地点\",\"summary\":\"旧地图保存在客栈里，图上有红线，红线含义尚未查明。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"客栈里保存着一张旧地图，图上有一道红线，红线的含义尚未查明。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"旧地图\"],\"directed\":false,\"label\":\"红线含义\",\"summary\":\"旧地图上的红线含义尚未查明，为未解线索。\",\"certainty\":\"clue\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"图上有一道红线，红线的含义尚未查明。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"铜门\"],\"directed\":false,\"label\":\"开启条件\",\"summary\":\"城中确定规则：地下密道的铜门只能在退潮时开启。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"城中有一条确定的规则：地下密道的铜门只能在退潮时开启。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"周宁\"],\"directed\":false,\"label\":\"所在地点\",\"summary\":\"船匠周宁独自在北海修船，不参与寻找密道。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"与此同时，船匠周宁独自在北海修船，不参与寻找密道。\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "chapter": 1,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"林舟\",\"aliases\":[\"阿舟\"],\"kind\":\"person\"},{\"name\":\"沈砚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"银剑\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧地图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"客栈\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"地下密道\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"北海\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"周宁\",\"aliases\":[],\"kind\":\"person\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"林舟\",\"沈砚\"],\"directed\":false,\"label\":\"合作关系\",\"summary\":\"林舟与沈砚是两个人，两人为平等合作的伙伴，没有主从关系。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟与沈砚是两个人，两人是平等合作的伙伴，没有主从关系。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜钥匙\",\"林舟\"],\"directed\":true,\"label\":\"归属\",\"summary\":\"林舟持有唯一的铜钥匙。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟持有唯一的铜钥匙，沈砚持有银剑。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"银剑\",\"沈砚\"],\"directed\":true,\"label\":\"归属\",\"summary\":\"沈砚持有银剑。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟持有唯一的铜钥匙，沈砚持有银剑。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"林舟\",\"沈砚\"],\"directed\":false,\"label\":\"寻找地下密道\",\"summary\":\"两人约定寻找地下密道，但都不知道入口位置。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"林舟\",\"地下密道\"],\"directed\":true,\"label\":\"密道入口位置认知\",\"summary\":\"林舟不知道地下密道入口的位置。\",\"certainty\":\"belief\",\"perspective\":\"林舟\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"地下密道\"],\"directed\":true,\"label\":\"密道入口位置认知\",\"summary\":\"沈砚不知道地下密道入口的位置。\",\"certainty\":\"belief\",\"perspective\":\"沈砚\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"两人约定寻找地下密道，但都不知道入口位置。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"旧地图\",\"客栈\"],\"directed\":true,\"label\":\"保管人\",\"summary\":\"客栈里保存着一张旧地图。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"客栈里保存着一张旧地图，图上有一道红线，红线的含义尚未查明。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"旧地图\"],\"directed\":true,\"label\":\"红线含义\",\"summary\":\"旧地图上有一道红线，红线的含义尚未查明。\",\"certainty\":\"clue\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"图上有一道红线，红线的含义尚未查明。\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"地下密道\"],\"directed\":true,\"label\":\"铜门开启条件\",\"summary\":\"城中有确定的规则：地下密道的铜门只能在退潮时开启。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"城中有一条确定的规则：地下密道的铜门只能在退潮时开启。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"周宁\",\"北海\"],\"directed\":true,\"label\":\"当前位置\",\"summary\":\"船匠周宁独自在北海修船，不参与寻找密道。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"船匠周宁独自在北海修船，不参与寻找密道。\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "chapter": 2,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_f5339c6649ecdbe365d33bb3",
+        "f_800a0d54faeeae9cf30ad130",
+        "f_755ac640b0068fe416f59064",
+        "f_9e5259af04db5175d5910acf",
+        "f_6685dd5a790b6230f26f0598",
+        "f_2112db390ec3a9b562dcb327",
+        "f_ec690d25d91b213d4c9e3953",
+        "f_0e49162056b5d901925aae79",
+        "f_57b4d9f682a42869b9b3000a",
+        "f_f6e43900afca07434ce8261e"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"林舟\",\"aliases\":[\"阿舟\"],\"kind\":\"person\"},{\"name\":\"沈砚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"银剑\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"北海\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"周宁\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"客栈伙计\",\"aliases\":[],\"kind\":\"person\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜钥匙\",\"沈砚\"],\"label\":\"归属\",\"summary\":\"林舟把铜钥匙交给沈砚保管，交接后铜钥匙在沈砚手里，且只有一件。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_800a0d54faeeae9cf30ad130\"],\"quote\":\"林舟把铜钥匙交给沈砚保管\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"银剑\",\"林舟\"],\"label\":\"归属\",\"summary\":\"沈砚把银剑交给林舟防身，交接后银剑在林舟手里，且只有一件。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_755ac640b0068fe416f59064\"],\"quote\":\"沈砚把银剑交给林舟防身\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"林舟\"],\"label\":\"当前位置\",\"summary\":\"林舟仍留在城内调查。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟仍留在城内调查\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"林舟\"],\"label\":\"林舟去向认知\",\"summary\":\"沈砚听客栈伙计说林舟已经离城，因此误以为林舟去了北海。\",\"certainty\":\"belief\",\"perspective\":\"沈砚\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"沈砚却听客栈伙计说林舟已经离城，因此误以为林舟去了北海\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\"],\"label\":\"离城消息真伪认知\",\"summary\":\"沈砚不知道客栈伙计所说林舟离城的消息是假的。\",\"certainty\":\"belief\",\"perspective\":\"沈砚\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"沈砚不知道这个消息是假的\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"周宁\",\"北海\"],\"label\":\"当前位置\",\"summary\":\"周宁在北海买到帆布，仍继续修船。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_f6e43900afca07434ce8261e\"],\"quote\":\"周宁在北海买到帆布，仍继续修船\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "chapter": 3,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_f5339c6649ecdbe365d33bb3",
+        "f_9e5259af04db5175d5910acf",
+        "f_6685dd5a790b6230f26f0598",
+        "f_2112db390ec3a9b562dcb327",
+        "f_ec690d25d91b213d4c9e3953",
+        "f_0e49162056b5d901925aae79",
+        "f_57b4d9f682a42869b9b3000a",
+        "f_8e322680d614858b88014a88",
+        "f_a6425397d0135e34bf00b8af",
+        "f_ea4011e7f8981a9fc2bafec0",
+        "f_50452ba16e147b177f562938",
+        "f_29efa60fc58bea3776ccc13b"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"柳舟\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"信使凭证\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"苏禾\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"东村\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"城门\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"柳舟\",\"林舟\"],\"directed\":false,\"label\":\"两个人\",\"summary\":\"柳舟与林舟只是名字相近，确实是两个不同的人。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"柳舟与林舟只是名字相近，确实是两个不同的人。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"林舟\"],\"directed\":false,\"label\":\"柳舟身份认知\",\"summary\":\"沈砚一度猜测柳舟就是林舟，但这是沈砚的误认；柳舟出示信使凭证并称从未用过阿舟之名后，此误认被否定。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"resolved\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"沈砚一度猜测柳舟就是林舟，但这只是沈砚的误认。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"柳舟\"],\"directed\":false,\"label\":\"使用阿舟之名\",\"summary\":\"柳舟出示自己的信使凭证，说自己从未使用过阿舟这个名字。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"柳舟出示自己的信使凭证，说自己从未使用过阿舟这个名字。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"信使凭证\",\"柳舟\"],\"directed\":false,\"label\":\"归属\",\"summary\":\"柳舟持有并出示自己的信使凭证。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"柳舟出示自己的信使凭证\"},{\"memoryType\":\"event\",\"kind\":\"event\",\"subjects\":[\"柳舟\",\"客栈\"],\"directed\":false,\"label\":\"到客栈\",\"summary\":\"信使柳舟从东村来到客栈。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"信使柳舟从东村来到客栈。\"},{\"memoryType\":\"event\",\"kind\":\"event\",\"subjects\":[\"苏禾\",\"城门\"],\"directed\":false,\"label\":\"到城门\",\"summary\":\"苏禾从客栈来到城门等候林舟。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"苏禾从客栈来到城门等候林舟。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"苏禾\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"苏禾从客栈来到城门，在城门等候林舟。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"苏禾从客栈来到城门等候林舟。\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "chapter": 4,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_f5339c6649ecdbe365d33bb3",
+        "f_9e5259af04db5175d5910acf",
+        "f_6685dd5a790b6230f26f0598",
+        "f_2112db390ec3a9b562dcb327",
+        "f_ec690d25d91b213d4c9e3953",
+        "f_0e49162056b5d901925aae79",
+        "f_57b4d9f682a42869b9b3000a",
+        "f_8e322680d614858b88014a88",
+        "f_a6425397d0135e34bf00b8af",
+        "f_ea4011e7f8981a9fc2bafec0",
+        "f_50452ba16e147b177f562938",
+        "f_29efa60fc58bea3776ccc13b",
+        "f_647d2d047f8ea7391faf39b2",
+        "f_99e85b4b9339a6314e7875a7",
+        "f_90b3801b845e7204cccfb9aa",
+        "f_f89de912a94ddf336ed48804"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"林舟\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"沈砚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"柳舟\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"苏禾\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"客栈\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"城门\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"林舟\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"林舟回到客栈，与沈砚和柳舟同时见面。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_ea4011e7f8981a9fc2bafec0\"],\"quote\":\"林舟回到客栈，与沈砚和柳舟同时见面。\"},{\"memoryType\":\"event\",\"kind\":\"event\",\"subjects\":[\"林舟\",\"沈砚\",\"柳舟\"],\"directed\":false,\"label\":\"客栈当面对证\",\"summary\":\"林舟回到客栈，与沈砚和柳舟同时见面；林舟明确告诉沈砚自己从未离城。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟回到客栈，与沈砚和柳舟同时见面。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"林舟\"],\"directed\":false,\"label\":\"林舟去向认知\",\"summary\":\"沈砚听林舟当面说明后，确认林舟从未离城、一直留在城内；此前以为林舟去北海的误解已纠正。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_50452ba16e147b177f562938\"],\"quote\":\"沈砚看到林舟与柳舟并肩站着，确认他们是两个人，也知道林舟一直留在城内。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\"],\"directed\":false,\"label\":\"离城消息真伪认知\",\"summary\":\"沈砚现已知道林舟从未离城，此前听客栈伙计所说林舟离城的消息是假的，该误解已纠正。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_29efa60fc58bea3776ccc13b\"],\"quote\":\"沈砚此前关于离城和身份的两项误解都已纠正。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"林舟\",\"柳舟\"],\"directed\":false,\"label\":\"林舟与柳舟身份认知\",\"summary\":\"沈砚看到林舟与柳舟并肩站着，确认他们是两个人；此前关于身份的一项误解已纠正。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"沈砚此前关于离城和身份的两项误解都已纠正。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"苏禾\"],\"directed\":false,\"label\":\"客栈谈话内容认知\",\"summary\":\"苏禾仍在城门等候，没有参加客栈谈话，所以她不知道这次谈话的内容。\",\"certainty\":\"belief\",\"perspective\":\"苏禾\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"苏禾仍在城门等候，没有参加这次谈话，所以她还不知道谈话内容。\"},{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"林舟\",\"沈砚\"],\"directed\":false,\"label\":\"合作关系\",\"summary\":\"林舟与沈砚的平等合作约定继续有效。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟与沈砚的平等合作约定继续有效。\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "chapter": 5,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_f5339c6649ecdbe365d33bb3",
+        "f_9e5259af04db5175d5910acf",
+        "f_6685dd5a790b6230f26f0598",
+        "f_2112db390ec3a9b562dcb327",
+        "f_ec690d25d91b213d4c9e3953",
+        "f_0e49162056b5d901925aae79",
+        "f_57b4d9f682a42869b9b3000a",
+        "f_8e322680d614858b88014a88",
+        "f_a6425397d0135e34bf00b8af",
+        "f_19e72624b514ec896220cf1f",
+        "f_647d2d047f8ea7391faf39b2",
+        "f_99e85b4b9339a6314e7875a7",
+        "f_90b3801b845e7204cccfb9aa",
+        "f_f89de912a94ddf336ed48804",
+        "f_85fa41d4caf9bc9dd8f2b8ec",
+        "f_5307eaef2343b5c0219b4451",
+        "f_0d61757bd9c5ad24af945608",
+        "f_d966a2c769cb1e5cd7b261b7",
+        "f_80f9eb1952b550aef4f32bf1",
+        "f_092f3e5d89620780ff33d081"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"苏禾\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"沈砚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"林舟\",\"aliases\":[\"阿舟\"],\"kind\":\"person\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"银剑\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"布袋\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"客栈\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"城门\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"北海\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"周宁\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"柳舟\",\"aliases\":[],\"kind\":\"person\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"苏禾\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"苏禾从城门回到客栈。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_f89de912a94ddf336ed48804\"],\"quote\":\"苏禾从城门回到客栈\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜钥匙\",\"苏禾\"],\"directed\":false,\"label\":\"保管人\",\"summary\":\"沈砚把铜钥匙交给苏禾保管至退潮，苏禾接过并装入自己的布袋，铜钥匙现在归苏禾保管。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_8e322680d614858b88014a88\"],\"quote\":\"沈砚把铜钥匙交给苏禾，委托她保管至退潮；苏禾接过并装入自己的布袋，铜钥匙现在归苏禾保管。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"银剑\",\"林舟\"],\"directed\":false,\"label\":\"归属\",\"summary\":\"银剑仍在林舟手中，没有随铜钥匙转交。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"银剑仍在林舟手中，没有随铜钥匙转交\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"苏禾\"],\"directed\":false,\"label\":\"找周宁帮忙的计划\",\"summary\":\"苏禾提议次日去北海找周宁帮忙，这只是尚未执行的计划。\",\"certainty\":\"belief\",\"perspective\":\"苏禾\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"苏禾提议次日去北海找周宁帮忙，这只是尚未执行的计划\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"苏禾\"],\"directed\":false,\"label\":\"林舟去向认知\",\"summary\":\"林舟只告诉苏禾自己从未离城，苏禾据此知道林舟从未离城。\",\"certainty\":\"belief\",\"perspective\":\"苏禾\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟只告诉苏禾自己从未离城\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"苏禾\",\"柳舟\",\"林舟\"],\"directed\":false,\"label\":\"林舟与柳舟身份认知\",\"summary\":\"林舟没有向苏禾讲述柳舟身份误认的经过，苏禾不知道此事。\",\"certainty\":\"belief\",\"perspective\":\"苏禾\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"没有向她讲柳舟身份误认的经过\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "chapter": 6,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_f5339c6649ecdbe365d33bb3",
+        "f_9e5259af04db5175d5910acf",
+        "f_6685dd5a790b6230f26f0598",
+        "f_2112db390ec3a9b562dcb327",
+        "f_ec690d25d91b213d4c9e3953",
+        "f_0e49162056b5d901925aae79",
+        "f_57b4d9f682a42869b9b3000a",
+        "f_a6425397d0135e34bf00b8af",
+        "f_19e72624b514ec896220cf1f",
+        "f_647d2d047f8ea7391faf39b2",
+        "f_99e85b4b9339a6314e7875a7",
+        "f_90b3801b845e7204cccfb9aa",
+        "f_85fa41d4caf9bc9dd8f2b8ec",
+        "f_5307eaef2343b5c0219b4451",
+        "f_0d61757bd9c5ad24af945608",
+        "f_d966a2c769cb1e5cd7b261b7",
+        "f_80f9eb1952b550aef4f32bf1",
+        "f_092f3e5d89620780ff33d081",
+        "f_0e1941f9cfc352b537672fde",
+        "f_28a8729854031fe89ebe5eb3",
+        "f_d99e6423b41f03ca6abf66f9",
+        "f_1b55baf838ec1d40475f1a01",
+        "f_34b1115e9c8618a51d6455ec",
+        "f_7b9ce68a9fdb689ff21b412e"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"林舟\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"沈砚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"苏禾\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"周宁\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"银剑\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧地图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"布袋\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"北海\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"旧地图\"],\"label\":\"红线含义\",\"summary\":\"沈砚查看旧地图上的红线，仍未能弄清红线的含义。\",\"certainty\":\"clue\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"沈砚查看旧地图上的红线，却仍未弄清红线的含义\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜钥匙\",\"苏禾\"],\"label\":\"保管人\",\"summary\":\"苏禾确认铜钥匙仍在自己的布袋里，继续由她保管。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"苏禾确认铜钥匙仍在自己的布袋里\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"银剑\",\"林舟\"],\"label\":\"归属\",\"summary\":\"银剑仍由林舟携带。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"林舟仍携带银剑\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"周宁\",\"北海\"],\"label\":\"修船状态\",\"summary\":\"周宁在北海修好了船，准备次日进城。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"周宁在北海修好了船，准备次日进城\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "chapter": 7,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_f5339c6649ecdbe365d33bb3",
+        "f_9e5259af04db5175d5910acf",
+        "f_6685dd5a790b6230f26f0598",
+        "f_2112db390ec3a9b562dcb327",
+        "f_ec690d25d91b213d4c9e3953",
+        "f_0e49162056b5d901925aae79",
+        "f_57b4d9f682a42869b9b3000a",
+        "f_a6425397d0135e34bf00b8af",
+        "f_19e72624b514ec896220cf1f",
+        "f_647d2d047f8ea7391faf39b2",
+        "f_99e85b4b9339a6314e7875a7",
+        "f_90b3801b845e7204cccfb9aa",
+        "f_85fa41d4caf9bc9dd8f2b8ec",
+        "f_5307eaef2343b5c0219b4451",
+        "f_0d61757bd9c5ad24af945608",
+        "f_d966a2c769cb1e5cd7b261b7",
+        "f_80f9eb1952b550aef4f32bf1",
+        "f_092f3e5d89620780ff33d081",
+        "f_0e1941f9cfc352b537672fde",
+        "f_28a8729854031fe89ebe5eb3",
+        "f_d99e6423b41f03ca6abf66f9",
+        "f_1b55baf838ec1d40475f1a01",
+        "f_34b1115e9c8618a51d6455ec",
+        "f_7b9ce68a9fdb689ff21b412e",
+        "f_870512df1e8cce5fe5b85dc2",
+        "f_a70d94ac4b4358afb95b0d88",
+        "f_b4fa3f9f34beca21a369e800",
+        "f_5743e3a70f8f0cc0d5230efa"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"苏禾\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"林舟\",\"aliases\":[\"阿舟\"],\"kind\":\"person\"},{\"name\":\"沈砚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"周宁\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"旧地图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"银剑\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"地下密道\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"石桥\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"客栈\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"城门\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"北海\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"苏禾\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"苏禾独自在客栈，研究旧地图。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_0e1941f9cfc352b537672fde\"],\"quote\":\"苏禾独自在客栈研究旧地图。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"苏禾\",\"地下密道\"],\"directed\":false,\"label\":\"密道入口位置认知\",\"summary\":\"苏禾猜测地下密道入口就在石桥下面，但没有证据，这个判断尚未证实。\",\"certainty\":\"belief\",\"perspective\":\"苏禾\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"她猜测地下密道入口就在石桥下面，但没有证据，这个判断尚未证实。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"苏禾\",\"地下密道\",\"林舟\",\"沈砚\"],\"directed\":false,\"label\":\"密道入口猜测的知情范围\",\"summary\":\"苏禾没有把自己对密道入口在石桥下的猜测告诉林舟或沈砚，因此两人并不知道她的猜测。\",\"certainty\":\"belief\",\"perspective\":\"苏禾\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"她没有把猜测告诉林舟或沈砚，因此两人并不知道她的猜测。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"沈砚\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"沈砚已去城门接应周宁。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"沈砚去城门接应周宁\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"周宁\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"周宁刚从北海抵达城门。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_19e72624b514ec896220cf1f\"],\"quote\":\"周宁刚从北海抵达城门。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜钥匙\",\"苏禾\"],\"directed\":false,\"label\":\"保管人\",\"summary\":\"苏禾仍保管铜钥匙。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_a70d94ac4b4358afb95b0d88\"],\"quote\":\"苏禾仍保管铜钥匙\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"银剑\",\"林舟\"],\"directed\":false,\"label\":\"归属\",\"summary\":\"林舟仍持有银剑。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_b4fa3f9f34beca21a369e800\"],\"quote\":\"林舟仍持有银剑\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"旧地图\"],\"directed\":false,\"label\":\"红线含义\",\"summary\":\"旧地图的红线含义仍是一个待解线索，尚未查明。\",\"certainty\":\"clue\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_0e49162056b5d901925aae79\"],\"quote\":\"旧地图的红线含义仍是一个待解线索。\"}]}"
+    },
+    {
+      "runId": "2026-11-09T12-51-40-794Z",
+      "chapter": 8,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_f5339c6649ecdbe365d33bb3",
+        "f_9e5259af04db5175d5910acf",
+        "f_6685dd5a790b6230f26f0598",
+        "f_2112db390ec3a9b562dcb327",
+        "f_ec690d25d91b213d4c9e3953",
+        "f_57b4d9f682a42869b9b3000a",
+        "f_a6425397d0135e34bf00b8af",
+        "f_647d2d047f8ea7391faf39b2",
+        "f_99e85b4b9339a6314e7875a7",
+        "f_90b3801b845e7204cccfb9aa",
+        "f_85fa41d4caf9bc9dd8f2b8ec",
+        "f_5307eaef2343b5c0219b4451",
+        "f_0d61757bd9c5ad24af945608",
+        "f_d966a2c769cb1e5cd7b261b7",
+        "f_80f9eb1952b550aef4f32bf1",
+        "f_092f3e5d89620780ff33d081",
+        "f_28a8729854031fe89ebe5eb3",
+        "f_d99e6423b41f03ca6abf66f9",
+        "f_1b55baf838ec1d40475f1a01",
+        "f_34b1115e9c8618a51d6455ec",
+        "f_7b9ce68a9fdb689ff21b412e",
+        "f_870512df1e8cce5fe5b85dc2",
+        "f_5743e3a70f8f0cc0d5230efa",
+        "f_4c9dc75125dcc26135a35c2c",
+        "f_b776c260f79e2539ea044707",
+        "f_04334d21bc5b070368710ca1",
+        "f_517ab0432eeeae03fe745fa5",
+        "f_f904c773ce5aa084ecdf0ae5",
+        "f_debf9a881b684ea709e26b0a",
+        "f_33ed18d29372b7f82a4c76f9",
+        "f_3423153c3808ffdd99d275f5"
+      ],
+      "content": "{\n  \"complete\": true,\n  \"needs\": [],\n  \"entities\": [\n    {\"name\": \"周宁\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"沈砚\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"林舟\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"苏禾\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"旧工程记录\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"旧地图\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"客栈\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"城门\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"地下密道\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"废井\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"石桥\", \"aliases\": [], \"kind\": \"place\"}\n  ],\n  \"facts\": [\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"周宁\"],\n      \"label\": \"当前位置\",\n      \"summary\": \"周宁从城门来到客栈，与林舟、苏禾会合。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_f904c773ce5aa084ecdf0ae5\"],\n      \"quote\": \"周宁和沈砚从城门来到客栈，与林舟、苏禾会合\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"沈砚\"],\n      \"label\": \"当前位置\",\n      \"summary\": \"沈砚从城门来到客栈，与林舟、苏禾会合。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_517ab0432eeeae03fe745fa5\"],\n      \"quote\": \"周宁和沈砚从城门来到客栈，与林舟、苏禾会合\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"state\",\n      \"subjects\": [\"周宁\", \"旧工程记录\"],\n      \"label\": \"持有人\",\n      \"summary\": \"周宁拿出旧工程记录，旧工程记录由周宁持有。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"quote\": \"周宁拿出旧工程记录\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"旧地图\"],\n      \"label\": \"红线含义\",\n      \"summary\": \"四人核对后确认旧地图上的红线标记的是排水沟，红线含义已经查清。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_870512df1e8cce5fe5b85dc2\", \"f_3423153c3808ffdd99d275f5\"],\n      \"quote\": \"旧地图上的红线标记排水沟\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"地下密道\"],\n      \"label\": \"入口位置\",\n      \"summary\": \"四人确认地下密道入口位于废井底部，并不在石桥下面。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"quote\": \"地下密道入口位于废井底部，并不在石桥下面\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"林舟\", \"地下密道\"],\n      \"label\": \"密道入口位置认知\",\n      \"summary\": \"林舟亲眼看过旧工程记录，现在知道地下密道入口在废井底部。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_6685dd5a790b6230f26f0598\"],\n      \"quote\": \"四人都亲眼看过记录，知道入口的真实位置\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"沈砚\", \"地下密道\"],\n      \"label\": \"密道入口位置认知\",\n      \"summary\": \"沈砚亲眼看过旧工程记录，现在知道地下密道入口在废井底部。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_2112db390ec3a9b562dcb327\"],\n      \"quote\": \"四人都亲眼看过记录，知道入口的真实位置\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"苏禾\", \"地下密道\"],\n      \"label\": \"密道入口位置认知\",\n      \"summary\": \"苏禾亲眼看过旧工程记录，明确承认自己先前猜错，现在知道入口在废井底部，不在石桥下面。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_b776c260f79e2539ea044707\"],\n      \"quote\": \"苏禾明确承认自己先前猜错，现已知道入口在废井\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"周宁\", \"地下密道\"],\n      \"label\": \"密道入口位置认知\",\n      \"summary\": \"周宁亲眼看过旧工程记录，现在知道地下密道入口在废井底部。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"quote\": \"四人都亲眼看过记录，知道入口的真实位置\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"苏禾\", \"地下密道\", \"林舟\", \"沈砚\"],\n      \"label\": \"密道入口猜测的知情范围\",\n      \"summary\": \"四人在客栈逐项核对记录，苏禾当场承认先前猜错，林舟和沈砚现在都知道她曾猜测入口在石桥下并已纠正。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_04334d21bc5b070368710ca1\"],\n      \"quote\": \"苏禾明确承认自己先前猜错\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"fact\",\n      \"subjects\": [\"地下密道\"],\n      \"label\": \"铜门开启条件\",\n      \"summary\": \"这些发现不改变铜门只能退潮时开启的规则。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"global\",\n      \"replaces\": [],\n      \"quote\": \"这些发现不改变铜门只能退潮时开启的规则\"\n    }\n  ]\n}"
+    },
+    {
+      "runId": "2026-11-09T12-54-26-169Z",
+      "chapter": 8,
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：替换记录 f_870512df1e8cce5fe5b85dc2 无效（认知口径不同）；未推进该章，请核对后重试",
+      "suppliedFactIds": [
+        "f_f5339c6649ecdbe365d33bb3",
+        "f_9e5259af04db5175d5910acf",
+        "f_6685dd5a790b6230f26f0598",
+        "f_2112db390ec3a9b562dcb327",
+        "f_ec690d25d91b213d4c9e3953",
+        "f_57b4d9f682a42869b9b3000a",
+        "f_a6425397d0135e34bf00b8af",
+        "f_647d2d047f8ea7391faf39b2",
+        "f_99e85b4b9339a6314e7875a7",
+        "f_90b3801b845e7204cccfb9aa",
+        "f_85fa41d4caf9bc9dd8f2b8ec",
+        "f_5307eaef2343b5c0219b4451",
+        "f_0d61757bd9c5ad24af945608",
+        "f_d966a2c769cb1e5cd7b261b7",
+        "f_80f9eb1952b550aef4f32bf1",
+        "f_092f3e5d89620780ff33d081",
+        "f_28a8729854031fe89ebe5eb3",
+        "f_d99e6423b41f03ca6abf66f9",
+        "f_1b55baf838ec1d40475f1a01",
+        "f_34b1115e9c8618a51d6455ec",
+        "f_7b9ce68a9fdb689ff21b412e",
+        "f_870512df1e8cce5fe5b85dc2",
+        "f_5743e3a70f8f0cc0d5230efa",
+        "f_4c9dc75125dcc26135a35c2c",
+        "f_b776c260f79e2539ea044707",
+        "f_04334d21bc5b070368710ca1",
+        "f_517ab0432eeeae03fe745fa5",
+        "f_f904c773ce5aa084ecdf0ae5",
+        "f_debf9a881b684ea709e26b0a",
+        "f_33ed18d29372b7f82a4c76f9",
+        "f_3423153c3808ffdd99d275f5"
+      ],
+      "content": "{\n  \"complete\": true,\n  \"needs\": [],\n  \"entities\": [\n    {\"name\": \"周宁\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"沈砚\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"林舟\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"苏禾\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"旧工程记录\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"旧地图\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"废井\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"地下密道\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"石桥\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"客栈\", \"aliases\": [], \"kind\": \"place\"}\n  ],\n  \"facts\": [\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"item\",\n      \"subjects\": [\"旧工程记录\", \"周宁\"],\n      \"label\": \"归属\",\n      \"summary\": \"周宁从城门来到客栈与林舟、苏禾会合时，拿出旧工程记录；记录由周宁持有并带至客栈。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"quote\": \"周宁拿出旧工程记录\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"旧地图\"],\n      \"label\": \"红线含义\",\n      \"summary\": \"四人逐项核对旧工程记录后确认：旧地图上的红线标记排水沟，红线含义已经查清。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_3423153c3808ffdd99d275f5\"],\n      \"quote\": \"旧地图上的红线标记排水沟\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"林舟\", \"地下密道\"],\n      \"label\": \"密道入口位置认知\",\n      \"summary\": \"四人核对记录后，林舟亲眼看过记录，知道地下密道入口位于废井底部，并不在石桥下面。\",\n      \"certainty\": \"fact\",\n      \"perspective\": \"林舟\",\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_6685dd5a790b6230f26f0598\"],\n      \"quote\": \"四人都亲眼看过记录，知道入口的真实位置\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"沈砚\", \"地下密道\"],\n      \"label\": \"密道入口位置认知\",\n      \"summary\": \"四人核对记录后，沈砚亲眼看过记录，知道地下密道入口位于废井底部，并不在石桥下面。\",\n      \"certainty\": \"fact\",\n      \"perspective\": \"沈砚\",\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_2112db390ec3a9b562dcb327\"],\n      \"quote\": \"四人都亲眼看过记录，知道入口的真实位置\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"苏禾\", \"地下密道\"],\n      \"label\": \"密道入口位置认知\",\n      \"summary\": \"苏禾明确承认自己先前猜错，现已知道入口在废井底部，不在石桥下面。\",\n      \"certainty\": \"fact\",\n      \"perspective\": \"苏禾\",\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_b776c260f79e2539ea044707\"],\n      \"quote\": \"苏禾明确承认自己先前猜错，现已知道入口在废井\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"苏禾\", \"地下密道\", \"林舟\", \"沈砚\"],\n      \"label\": \"密道入口猜测的知情范围\",\n      \"summary\": \"苏禾在客栈向众人当面承认自己先前猜错，林舟与沈砚已得知她此前关于入口的猜测。\",\n      \"certainty\": \"fact\",\n      \"perspective\": \"苏禾\",\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_04334d21bc5b070368710ca1\"],\n      \"quote\": \"苏禾明确承认自己先前猜错\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"林舟\"],\n      \"label\": \"当前位置\",\n      \"summary\": \"林舟在客栈与周宁、沈砚、苏禾会合。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_85fa41d4caf9bc9dd8f2b8ec\"],\n      \"quote\": \"周宁和沈砚从城门来到客栈，与林舟、苏禾会合\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"周宁\"],\n      \"label\": \"当前位置\",\n      \"summary\": \"周宁已从城门来到客栈，与林舟、苏禾会合。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_f904c773ce5aa084ecdf0ae5\"],\n      \"quote\": \"周宁和沈砚从城门来到客栈，与林舟、苏禾会合\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"沈砚\"],\n      \"label\": \"当前位置\",\n      \"summary\": \"沈砚已从城门接应周宁后一同来到客栈，与林舟、苏禾会合。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_517ab0432eeeae03fe745fa5\"],\n      \"quote\": \"周宁和沈砚从城门来到客栈，与林舟、苏禾会合\"\n    }\n  ]\n}"
+    },
+    {
+      "runId": "2026-11-09T12-55-23-114Z",
+      "chapter": 8,
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：替换记录 f_3423153c3808ffdd99d275f5 无效（认知口径不同）；未推进该章，请核对后重试",
+      "suppliedFactIds": [
+        "f_f5339c6649ecdbe365d33bb3",
+        "f_9e5259af04db5175d5910acf",
+        "f_6685dd5a790b6230f26f0598",
+        "f_2112db390ec3a9b562dcb327",
+        "f_ec690d25d91b213d4c9e3953",
+        "f_57b4d9f682a42869b9b3000a",
+        "f_a6425397d0135e34bf00b8af",
+        "f_647d2d047f8ea7391faf39b2",
+        "f_99e85b4b9339a6314e7875a7",
+        "f_90b3801b845e7204cccfb9aa",
+        "f_85fa41d4caf9bc9dd8f2b8ec",
+        "f_5307eaef2343b5c0219b4451",
+        "f_0d61757bd9c5ad24af945608",
+        "f_d966a2c769cb1e5cd7b261b7",
+        "f_80f9eb1952b550aef4f32bf1",
+        "f_092f3e5d89620780ff33d081",
+        "f_28a8729854031fe89ebe5eb3",
+        "f_d99e6423b41f03ca6abf66f9",
+        "f_1b55baf838ec1d40475f1a01",
+        "f_34b1115e9c8618a51d6455ec",
+        "f_7b9ce68a9fdb689ff21b412e",
+        "f_870512df1e8cce5fe5b85dc2",
+        "f_5743e3a70f8f0cc0d5230efa",
+        "f_4c9dc75125dcc26135a35c2c",
+        "f_b776c260f79e2539ea044707",
+        "f_04334d21bc5b070368710ca1",
+        "f_517ab0432eeeae03fe745fa5",
+        "f_f904c773ce5aa084ecdf0ae5",
+        "f_debf9a881b684ea709e26b0a",
+        "f_33ed18d29372b7f82a4c76f9",
+        "f_3423153c3808ffdd99d275f5"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"周宁\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"沈砚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"林舟\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"苏禾\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"旧工程记录\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧地图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"客栈\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"城门\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"排水沟\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"废井\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"地下密道\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"石桥\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"event\",\"kind\":\"event\",\"subjects\":[\"周宁\",\"沈砚\",\"林舟\",\"苏禾\"],\"directed\":false,\"label\":\"客栈会合\",\"summary\":\"周宁与沈砚从城门来到客栈，与林舟、苏禾会合，四人随后一同核对旧工程记录与旧地图。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"周宁和沈砚从城门来到客栈，与林舟、苏禾会合。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"周宁\",\"旧工程记录\"],\"label\":\"归属\",\"summary\":\"周宁拿出旧工程记录供四人核对，记录由周宁带至客栈。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"周宁拿出旧工程记录\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"周宁\",\"沈砚\",\"林舟\",\"苏禾\",\"地下密道\",\"废井\"],\"label\":\"密道入口位置认知\",\"summary\":\"四人逐项核对旧工程记录后一致确认：地下密道入口位于废井底部，并不在石桥下面。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"四人逐项核对后确认：旧地图上的红线标记排水沟，地下密道入口位于废井底部，并不在石桥下面。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"林舟\",\"地下密道\"],\"label\":\"密道入口位置认知\",\"summary\":\"林舟参与核对旧工程记录，亲眼看到记录，现已知道地下密道入口位于废井底部。\",\"certainty\":\"belief\",\"perspective\":\"林舟\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_6685dd5a790b6230f26f0598\"],\"quote\":\"四人都亲眼看过记录，知道入口的真实位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"地下密道\"],\"label\":\"密道入口位置认知\",\"summary\":\"沈砚参与核对旧工程记录，亲眼看到记录，现已知道地下密道入口位于废井底部。\",\"certainty\":\"belief\",\"perspective\":\"沈砚\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_2112db390ec3a9b562dcb327\"],\"quote\":\"四人都亲眼看过记录，知道入口的真实位置。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"苏禾\",\"地下密道\"],\"label\":\"密道入口位置认知\",\"summary\":\"苏禾核对旧工程记录后明确承认先前猜错，现已知道地下密道入口在废井底部，而非石桥下面。\",\"certainty\":\"belief\",\"perspective\":\"苏禾\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_b776c260f79e2539ea044707\"],\"quote\":\"苏禾明确承认自己先前猜错，现已知道入口在废井。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"苏禾\",\"林舟\",\"沈砚\",\"地下密道\"],\"label\":\"密道入口猜测的知情范围\",\"summary\":\"苏禾在客栈当面与林舟、沈砚一同核对记录，先前未告知的入口猜测现已公开并由她本人承认猜错；林舟、沈砚均已知晓入口在废井。\",\"certainty\":\"belief\",\"perspective\":\"苏禾\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_04334d21bc5b070368710ca1\"],\"quote\":\"苏禾明确承认自己先前猜错，现已知道入口在废井。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"苏禾\",\"客栈\"],\"label\":\"客栈谈话内容认知\",\"summary\":\"苏禾此次在客栈参与会合并亲自核对记录，已知道入口位置等谈话内容，先前未能参加客栈谈话的状态被改变。\",\"certainty\":\"belief\",\"perspective\":\"苏禾\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_80f9eb1952b550aef4f32bf1\"],\"quote\":\"苏禾明确承认自己先前猜错，现已知道入口在废井。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"林舟\",\"旧地图\",\"排水沟\"],\"label\":\"红线含义\",\"summary\":\"林舟核对旧工程记录后查明：旧地图上的红线标记的是排水沟。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"旧地图上的红线标记排水沟\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"沈砚\",\"旧地图\",\"排水沟\"],\"label\":\"红线含义\",\"summary\":\"沈砚核对旧工程记录后查明：旧地图上红线的含义是标记排水沟，先前未能弄清的问题已解决。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_870512df1e8cce5fe5b85dc2\"],\"quote\":\"红线含义已经查清。\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"旧地图\",\"排水沟\"],\"label\":\"红线含义\",\"summary\":\"旧地图上的红线含义已经查清，红线标记的是排水沟；原先待解的红线含义线索已解决。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"resolved\",\"scope\":\"local\",\"replaces\":[\"f_3423153c3808ffdd99d275f5\"],\"quote\":\"红线含义已经查清。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"周宁\"],\"label\":\"当前位置\",\"summary\":\"周宁从城门来到客栈，现在位于客栈与林舟、苏禾会合。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_f904c773ce5aa084ecdf0ae5\"],\"quote\":\"周宁和沈砚从城门来到客栈，与林舟、苏禾会合。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"沈砚\"],\"label\":\"当前位置\",\"summary\":\"沈砚从城门来到客栈，与林舟、苏禾会合。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_517ab0432eeeae03fe745fa5\"],\"quote\":\"周宁和沈砚从城门来到客栈，与林舟、苏禾会合。\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"地下密道\"],\"label\":\"铜门开启条件\",\"summary\":\"四人查明红线含义与入口位置后，铜门只能在退潮时开启的规则依然不变。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"quote\":\"这些发现不改变铜门只能退潮时开启的规则。\"}]}"
+    }
+  ],
+  "state": {
+    "entities": [
+      {
+        "id": "e_2417f67040249e417bfbe0e4",
+        "name": "林舟",
+        "aliases": [
+          "阿舟"
+        ],
+        "kind": "person",
+        "aliasEvidence": [
+          {
+            "alias": "阿舟",
+            "quote": "林舟又名阿舟",
+            "chapterId": "eval-1",
+            "ordinal": 1
+          }
+        ]
+      },
+      {
+        "id": "e_4d5059e2341e1c46bdabc8a6",
+        "name": "沈砚",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_69e73e530ab5c7fcf6ccd017",
+        "name": "铜钥匙",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_250f03c0865ba109a6a3e849",
+        "name": "银剑",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_2572d6c6bd086325bf7a7658",
+        "name": "旧地图",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_a320df0131547b0e4cba91db",
+        "name": "客栈",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_16f9d75399faec76cdaf6384",
+        "name": "地下密道",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_1a0657e379cd469cc69ee674",
+        "name": "北海",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_f8ffed8b8a5eb1662f249486",
+        "name": "周宁",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_5b190b8c441e1cec4f067c87",
+        "name": "客栈伙计",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_62d06683fe0026b1d2e349d5",
+        "name": "柳舟",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_037998fe03fb94c8cf7c4b46",
+        "name": "信使凭证",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_d761eb7e06abab406b82d51d",
+        "name": "苏禾",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_f153d18b43ac04c062732f73",
+        "name": "东村",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_36c62fc6ef673b3d1a05e724",
+        "name": "城门",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_532df49a410d33ac422792de",
+        "name": "布袋",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_a9f5351203063d4e7f56e98c",
+        "name": "石桥",
+        "aliases": [],
+        "kind": "place"
+      }
+    ],
+    "facts": [
+      {
+        "id": "f_f5339c6649ecdbe365d33bb3",
+        "memoryType": "state",
+        "kind": "relationship",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "合作关系",
+        "summary": "林舟与沈砚是两个人，两人为平等合作的伙伴，没有主从关系。",
+        "certainty": "fact",
+        "directed": false,
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟与沈砚是两个人，两人是平等合作的伙伴，没有主从关系",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_800a0d54faeeae9cf30ad130",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "归属",
+        "summary": "林舟持有唯一的铜钥匙。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟持有唯一的铜钥匙，沈砚持有银剑",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_755ac640b0068fe416f59064",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_250f03c0865ba109a6a3e849",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "归属",
+        "summary": "沈砚持有银剑。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟持有唯一的铜钥匙，沈砚持有银剑",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_9e5259af04db5175d5910acf",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "寻找地下密道",
+        "summary": "两人约定寻找地下密道，但都不知道入口位置。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "两人约定寻找地下密道，但都不知道入口位置",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_6685dd5a790b6230f26f0598",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4",
+          "e_16f9d75399faec76cdaf6384"
+        ],
+        "label": "密道入口位置认知",
+        "summary": "林舟不知道地下密道入口的位置。",
+        "certainty": "belief",
+        "perspective": "e_2417f67040249e417bfbe0e4",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "两人约定寻找地下密道，但都不知道入口位置",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_2112db390ec3a9b562dcb327",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_16f9d75399faec76cdaf6384"
+        ],
+        "label": "密道入口位置认知",
+        "summary": "沈砚不知道地下密道入口的位置。",
+        "certainty": "belief",
+        "perspective": "e_4d5059e2341e1c46bdabc8a6",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "两人约定寻找地下密道，但都不知道入口位置",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_ec690d25d91b213d4c9e3953",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_2572d6c6bd086325bf7a7658",
+          "e_a320df0131547b0e4cba91db"
+        ],
+        "label": "保管人",
+        "summary": "客栈里保存着一张旧地图。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "客栈里保存着一张旧地图，图上有一道红线，红线的含义尚未查明",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_0e49162056b5d901925aae79",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_2572d6c6bd086325bf7a7658"
+        ],
+        "label": "红线含义",
+        "summary": "旧地图上有一道红线，红线的含义尚未查明。",
+        "certainty": "clue",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "图上有一道红线，红线的含义尚未查明",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_57b4d9f682a42869b9b3000a",
+        "memoryType": "state",
+        "kind": "fact",
+        "subjects": [
+          "e_16f9d75399faec76cdaf6384"
+        ],
+        "label": "铜门开启条件",
+        "summary": "城中有确定的规则：地下密道的铜门只能在退潮时开启。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "global",
+        "replaces": [],
+        "quote": "城中有一条确定的规则：地下密道的铜门只能在退潮时开启",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_f6e43900afca07434ce8261e",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_f8ffed8b8a5eb1662f249486",
+          "e_1a0657e379cd469cc69ee674"
+        ],
+        "label": "当前位置",
+        "summary": "船匠周宁独自在北海修船，不参与寻找密道。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "船匠周宁独自在北海修船，不参与寻找密道",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_8e322680d614858b88014a88",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "归属",
+        "summary": "林舟把铜钥匙交给沈砚保管，交接后铜钥匙在沈砚手里，且只有一件。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_800a0d54faeeae9cf30ad130"
+        ],
+        "quote": "林舟把铜钥匙交给沈砚保管",
+        "chapterId": "eval-2",
+        "ordinal": 2
+      },
+      {
+        "id": "f_a6425397d0135e34bf00b8af",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_250f03c0865ba109a6a3e849",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "归属",
+        "summary": "沈砚把银剑交给林舟防身，交接后银剑在林舟手里，且只有一件。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_755ac640b0068fe416f59064"
+        ],
+        "quote": "沈砚把银剑交给林舟防身",
+        "chapterId": "eval-2",
+        "ordinal": 2
+      },
+      {
+        "id": "f_ea4011e7f8981a9fc2bafec0",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "当前位置",
+        "summary": "林舟仍留在城内调查。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟仍留在城内调查",
+        "chapterId": "eval-2",
+        "ordinal": 2
+      },
+      {
+        "id": "f_50452ba16e147b177f562938",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "林舟去向认知",
+        "summary": "沈砚听客栈伙计说林舟已经离城，因此误以为林舟去了北海。",
+        "certainty": "belief",
+        "perspective": "e_4d5059e2341e1c46bdabc8a6",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "沈砚却听客栈伙计说林舟已经离城，因此误以为林舟去了北海",
+        "chapterId": "eval-2",
+        "ordinal": 2
+      },
+      {
+        "id": "f_29efa60fc58bea3776ccc13b",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "离城消息真伪认知",
+        "summary": "沈砚不知道客栈伙计所说林舟离城的消息是假的。",
+        "certainty": "belief",
+        "perspective": "e_4d5059e2341e1c46bdabc8a6",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "沈砚不知道这个消息是假的",
+        "chapterId": "eval-2",
+        "ordinal": 2
+      },
+      {
+        "id": "f_19e72624b514ec896220cf1f",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_f8ffed8b8a5eb1662f249486",
+          "e_1a0657e379cd469cc69ee674"
+        ],
+        "label": "当前位置",
+        "summary": "周宁在北海买到帆布，仍继续修船。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_f6e43900afca07434ce8261e"
+        ],
+        "quote": "周宁在北海买到帆布，仍继续修船",
+        "chapterId": "eval-2",
+        "ordinal": 2
+      },
+      {
+        "id": "f_647d2d047f8ea7391faf39b2",
+        "memoryType": "state",
+        "kind": "relationship",
+        "subjects": [
+          "e_62d06683fe0026b1d2e349d5",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "两个人",
+        "summary": "柳舟与林舟只是名字相近，确实是两个不同的人。",
+        "certainty": "fact",
+        "directed": false,
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "柳舟与林舟只是名字相近，确实是两个不同的人",
+        "chapterId": "eval-3",
+        "ordinal": 3
+      },
+      {
+        "id": "f_33df3025e1b45468c672a788",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "柳舟身份认知",
+        "summary": "沈砚一度猜测柳舟就是林舟，但这是沈砚的误认；柳舟出示信使凭证并称从未用过阿舟之名后，此误认被否定。",
+        "certainty": "fact",
+        "status": "resolved",
+        "scope": "local",
+        "replaces": [],
+        "quote": "沈砚一度猜测柳舟就是林舟，但这只是沈砚的误认",
+        "chapterId": "eval-3",
+        "ordinal": 3
+      },
+      {
+        "id": "f_99e85b4b9339a6314e7875a7",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_62d06683fe0026b1d2e349d5"
+        ],
+        "label": "使用阿舟之名",
+        "summary": "柳舟出示自己的信使凭证，说自己从未使用过阿舟这个名字。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "柳舟出示自己的信使凭证，说自己从未使用过阿舟这个名字",
+        "chapterId": "eval-3",
+        "ordinal": 3
+      },
+      {
+        "id": "f_90b3801b845e7204cccfb9aa",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_037998fe03fb94c8cf7c4b46",
+          "e_62d06683fe0026b1d2e349d5"
+        ],
+        "label": "归属",
+        "summary": "柳舟持有并出示自己的信使凭证。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "柳舟出示自己的信使凭证",
+        "chapterId": "eval-3",
+        "ordinal": 3
+      },
+      {
+        "id": "f_bb5bbf3cbd0b6e62e249a11e",
+        "memoryType": "event",
+        "kind": "fact",
+        "subjects": [
+          "e_62d06683fe0026b1d2e349d5",
+          "e_a320df0131547b0e4cba91db"
+        ],
+        "label": "到客栈",
+        "summary": "信使柳舟从东村来到客栈。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "信使柳舟从东村来到客栈",
+        "chapterId": "eval-3",
+        "ordinal": 3
+      },
+      {
+        "id": "f_f782a3f1b820ce5f9966d951",
+        "memoryType": "event",
+        "kind": "fact",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d",
+          "e_36c62fc6ef673b3d1a05e724"
+        ],
+        "label": "到城门",
+        "summary": "苏禾从客栈来到城门等候林舟。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "苏禾从客栈来到城门等候林舟",
+        "chapterId": "eval-3",
+        "ordinal": 3
+      },
+      {
+        "id": "f_f89de912a94ddf336ed48804",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "当前位置",
+        "summary": "苏禾从客栈来到城门，在城门等候林舟。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "苏禾从客栈来到城门等候林舟",
+        "chapterId": "eval-3",
+        "ordinal": 3
+      },
+      {
+        "id": "f_85fa41d4caf9bc9dd8f2b8ec",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "当前位置",
+        "summary": "林舟回到客栈，与沈砚和柳舟同时见面。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_ea4011e7f8981a9fc2bafec0"
+        ],
+        "quote": "林舟回到客栈，与沈砚和柳舟同时见面",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_4be880c1c9902da660d4936a",
+        "memoryType": "event",
+        "kind": "fact",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4",
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_62d06683fe0026b1d2e349d5"
+        ],
+        "label": "客栈当面对证",
+        "summary": "林舟回到客栈，与沈砚和柳舟同时见面；林舟明确告诉沈砚自己从未离城。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟回到客栈，与沈砚和柳舟同时见面",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_5307eaef2343b5c0219b4451",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "林舟去向认知",
+        "summary": "沈砚听林舟当面说明后，确认林舟从未离城、一直留在城内；此前以为林舟去北海的误解已纠正。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_50452ba16e147b177f562938"
+        ],
+        "quote": "沈砚看到林舟与柳舟并肩站着，确认他们是两个人，也知道林舟一直留在城内",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_0d61757bd9c5ad24af945608",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "离城消息真伪认知",
+        "summary": "沈砚现已知道林舟从未离城，此前听客栈伙计所说林舟离城的消息是假的，该误解已纠正。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_29efa60fc58bea3776ccc13b"
+        ],
+        "quote": "沈砚此前关于离城和身份的两项误解都已纠正",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_d966a2c769cb1e5cd7b261b7",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_2417f67040249e417bfbe0e4",
+          "e_62d06683fe0026b1d2e349d5"
+        ],
+        "label": "林舟与柳舟身份认知",
+        "summary": "沈砚看到林舟与柳舟并肩站着，确认他们是两个人；此前关于身份的一项误解已纠正。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "沈砚此前关于离城和身份的两项误解都已纠正",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_80f9eb1952b550aef4f32bf1",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "客栈谈话内容认知",
+        "summary": "苏禾仍在城门等候，没有参加客栈谈话，所以她不知道这次谈话的内容。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "苏禾仍在城门等候，没有参加这次谈话，所以她还不知道谈话内容",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_092f3e5d89620780ff33d081",
+        "memoryType": "state",
+        "kind": "relationship",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "合作关系",
+        "summary": "林舟与沈砚的平等合作约定继续有效。",
+        "certainty": "fact",
+        "directed": false,
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟与沈砚的平等合作约定继续有效",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_0e1941f9cfc352b537672fde",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "当前位置",
+        "summary": "苏禾从城门回到客栈。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_f89de912a94ddf336ed48804"
+        ],
+        "quote": "苏禾从城门回到客栈",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_28a8729854031fe89ebe5eb3",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "保管人",
+        "summary": "沈砚把铜钥匙交给苏禾保管至退潮，苏禾接过并装入自己的布袋，铜钥匙现在归苏禾保管。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_8e322680d614858b88014a88"
+        ],
+        "quote": "沈砚把铜钥匙交给苏禾，委托她保管至退潮；苏禾接过并装入自己的布袋，铜钥匙现在归苏禾保管",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_d99e6423b41f03ca6abf66f9",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_250f03c0865ba109a6a3e849",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "归属",
+        "summary": "银剑仍在林舟手中，没有随铜钥匙转交。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "银剑仍在林舟手中，没有随铜钥匙转交",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_1b55baf838ec1d40475f1a01",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "找周宁帮忙的计划",
+        "summary": "苏禾提议次日去北海找周宁帮忙，这只是尚未执行的计划。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "苏禾提议次日去北海找周宁帮忙，这只是尚未执行的计划",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_34b1115e9c8618a51d6455ec",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "林舟去向认知",
+        "summary": "林舟只告诉苏禾自己从未离城，苏禾据此知道林舟从未离城。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟只告诉苏禾自己从未离城",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_7b9ce68a9fdb689ff21b412e",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d",
+          "e_62d06683fe0026b1d2e349d5",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "林舟与柳舟身份认知",
+        "summary": "林舟没有向苏禾讲述柳舟身份误认的经过，苏禾不知道此事。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "没有向她讲柳舟身份误认的经过",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_870512df1e8cce5fe5b85dc2",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_2572d6c6bd086325bf7a7658"
+        ],
+        "label": "红线含义",
+        "summary": "沈砚查看旧地图上的红线，仍未能弄清红线的含义。",
+        "certainty": "clue",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "沈砚查看旧地图上的红线，却仍未弄清红线的含义",
+        "chapterId": "eval-6",
+        "ordinal": 6
+      },
+      {
+        "id": "f_a70d94ac4b4358afb95b0d88",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "保管人",
+        "summary": "苏禾确认铜钥匙仍在自己的布袋里，继续由她保管。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "苏禾确认铜钥匙仍在自己的布袋里",
+        "chapterId": "eval-6",
+        "ordinal": 6
+      },
+      {
+        "id": "f_b4fa3f9f34beca21a369e800",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_250f03c0865ba109a6a3e849",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "归属",
+        "summary": "银剑仍由林舟携带。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟仍携带银剑",
+        "chapterId": "eval-6",
+        "ordinal": 6
+      },
+      {
+        "id": "f_5743e3a70f8f0cc0d5230efa",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_f8ffed8b8a5eb1662f249486",
+          "e_1a0657e379cd469cc69ee674"
+        ],
+        "label": "修船状态",
+        "summary": "周宁在北海修好了船，准备次日进城。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "周宁在北海修好了船，准备次日进城",
+        "chapterId": "eval-6",
+        "ordinal": 6
+      },
+      {
+        "id": "f_4c9dc75125dcc26135a35c2c",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "当前位置",
+        "summary": "苏禾独自在客栈，研究旧地图。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_0e1941f9cfc352b537672fde"
+        ],
+        "quote": "苏禾独自在客栈研究旧地图",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_b776c260f79e2539ea044707",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d",
+          "e_16f9d75399faec76cdaf6384"
+        ],
+        "label": "密道入口位置认知",
+        "summary": "苏禾猜测地下密道入口就在石桥下面，但没有证据，这个判断尚未证实。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "她猜测地下密道入口就在石桥下面，但没有证据，这个判断尚未证实",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_04334d21bc5b070368710ca1",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d",
+          "e_16f9d75399faec76cdaf6384",
+          "e_2417f67040249e417bfbe0e4",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "密道入口猜测的知情范围",
+        "summary": "苏禾没有把自己对密道入口在石桥下的猜测告诉林舟或沈砚，因此两人并不知道她的猜测。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "她没有把猜测告诉林舟或沈砚，因此两人并不知道她的猜测",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_517ab0432eeeae03fe745fa5",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "当前位置",
+        "summary": "沈砚已去城门接应周宁。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "沈砚去城门接应周宁",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_f904c773ce5aa084ecdf0ae5",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_f8ffed8b8a5eb1662f249486"
+        ],
+        "label": "当前位置",
+        "summary": "周宁刚从北海抵达城门。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_19e72624b514ec896220cf1f"
+        ],
+        "quote": "周宁刚从北海抵达城门",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_debf9a881b684ea709e26b0a",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "保管人",
+        "summary": "苏禾仍保管铜钥匙。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_a70d94ac4b4358afb95b0d88"
+        ],
+        "quote": "苏禾仍保管铜钥匙",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_33ed18d29372b7f82a4c76f9",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_250f03c0865ba109a6a3e849",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "归属",
+        "summary": "林舟仍持有银剑。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_b4fa3f9f34beca21a369e800"
+        ],
+        "quote": "林舟仍持有银剑",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_3423153c3808ffdd99d275f5",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_2572d6c6bd086325bf7a7658"
+        ],
+        "label": "红线含义",
+        "summary": "旧地图的红线含义仍是一个待解线索，尚未查明。",
+        "certainty": "clue",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_0e49162056b5d901925aae79"
+        ],
+        "quote": "旧地图的红线含义仍是一个待解线索",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      }
+    ]
+  },
+  "current": [
+    {
+      "id": "f_f5339c6649ecdbe365d33bb3",
+      "line": "【已确认事实】林舟、沈砚｜合作关系：林舟与沈砚是两个人，两人为平等合作的伙伴，没有主从关系。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_9e5259af04db5175d5910acf",
+      "line": "【已确认事实】林舟、沈砚｜寻找地下密道：两人约定寻找地下密道，但都不知道入口位置。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_6685dd5a790b6230f26f0598",
+      "line": "【人物认知】林舟、地下密道（林舟所知）｜密道入口位置认知：林舟不知道地下密道入口的位置。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_2112db390ec3a9b562dcb327",
+      "line": "【人物认知】沈砚、地下密道（沈砚所知）｜密道入口位置认知：沈砚不知道地下密道入口的位置。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_ec690d25d91b213d4c9e3953",
+      "line": "【已确认事实】旧地图、客栈｜保管人：客栈里保存着一张旧地图。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_57b4d9f682a42869b9b3000a",
+      "line": "【已确认事实】地下密道｜铜门开启条件：城中有确定的规则：地下密道的铜门只能在退潮时开启。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_a6425397d0135e34bf00b8af",
+      "line": "【已确认事实】银剑、林舟｜归属：沈砚把银剑交给林舟防身，交接后银剑在林舟手里，且只有一件。 [章节ID:eval-2]"
+    },
+    {
+      "id": "f_647d2d047f8ea7391faf39b2",
+      "line": "【已确认事实】柳舟、林舟｜两个人：柳舟与林舟只是名字相近，确实是两个不同的人。 [章节ID:eval-3]"
+    },
+    {
+      "id": "f_99e85b4b9339a6314e7875a7",
+      "line": "【已确认事实】柳舟｜使用阿舟之名：柳舟出示自己的信使凭证，说自己从未使用过阿舟这个名字。 [章节ID:eval-3]"
+    },
+    {
+      "id": "f_90b3801b845e7204cccfb9aa",
+      "line": "【已确认事实】信使凭证、柳舟｜归属：柳舟持有并出示自己的信使凭证。 [章节ID:eval-3]"
+    },
+    {
+      "id": "f_85fa41d4caf9bc9dd8f2b8ec",
+      "line": "【已确认事实】林舟｜当前位置：林舟回到客栈，与沈砚和柳舟同时见面。 [章节ID:eval-4]"
+    },
+    {
+      "id": "f_5307eaef2343b5c0219b4451",
+      "line": "【已确认事实】沈砚、林舟｜林舟去向认知：沈砚听林舟当面说明后，确认林舟从未离城、一直留在城内；此前以为林舟去北海的误解已纠正。 [章节ID:eval-4]"
+    },
+    {
+      "id": "f_0d61757bd9c5ad24af945608",
+      "line": "【已确认事实】沈砚｜离城消息真伪认知：沈砚现已知道林舟从未离城，此前听客栈伙计所说林舟离城的消息是假的，该误解已纠正。 [章节ID:eval-4]"
+    },
+    {
+      "id": "f_d966a2c769cb1e5cd7b261b7",
+      "line": "【已确认事实】沈砚、林舟、柳舟｜林舟与柳舟身份认知：沈砚看到林舟与柳舟并肩站着，确认他们是两个人；此前关于身份的一项误解已纠正。 [章节ID:eval-4]"
+    },
+    {
+      "id": "f_80f9eb1952b550aef4f32bf1",
+      "line": "【人物认知】苏禾（苏禾所知）｜客栈谈话内容认知：苏禾仍在城门等候，没有参加客栈谈话，所以她不知道这次谈话的内容。 [章节ID:eval-4]"
+    },
+    {
+      "id": "f_092f3e5d89620780ff33d081",
+      "line": "【已确认事实】林舟、沈砚｜合作关系：林舟与沈砚的平等合作约定继续有效。 [章节ID:eval-4]"
+    },
+    {
+      "id": "f_28a8729854031fe89ebe5eb3",
+      "line": "【已确认事实】铜钥匙、苏禾｜保管人：沈砚把铜钥匙交给苏禾保管至退潮，苏禾接过并装入自己的布袋，铜钥匙现在归苏禾保管。 [章节ID:eval-5]"
+    },
+    {
+      "id": "f_d99e6423b41f03ca6abf66f9",
+      "line": "【已确认事实】银剑、林舟｜归属：银剑仍在林舟手中，没有随铜钥匙转交。 [章节ID:eval-5]"
+    },
+    {
+      "id": "f_1b55baf838ec1d40475f1a01",
+      "line": "【人物认知】苏禾（苏禾所知）｜找周宁帮忙的计划：苏禾提议次日去北海找周宁帮忙，这只是尚未执行的计划。 [章节ID:eval-5]"
+    },
+    {
+      "id": "f_34b1115e9c8618a51d6455ec",
+      "line": "【人物认知】苏禾（苏禾所知）｜林舟去向认知：林舟只告诉苏禾自己从未离城，苏禾据此知道林舟从未离城。 [章节ID:eval-5]"
+    },
+    {
+      "id": "f_7b9ce68a9fdb689ff21b412e",
+      "line": "【人物认知】苏禾、柳舟、林舟（苏禾所知）｜林舟与柳舟身份认知：林舟没有向苏禾讲述柳舟身份误认的经过，苏禾不知道此事。 [章节ID:eval-5]"
+    },
+    {
+      "id": "f_870512df1e8cce5fe5b85dc2",
+      "line": "【未解线索】沈砚、旧地图｜红线含义：沈砚查看旧地图上的红线，仍未能弄清红线的含义。 [章节ID:eval-6]"
+    },
+    {
+      "id": "f_5743e3a70f8f0cc0d5230efa",
+      "line": "【已确认事实】周宁、北海｜修船状态：周宁在北海修好了船，准备次日进城。 [章节ID:eval-6]"
+    },
+    {
+      "id": "f_4c9dc75125dcc26135a35c2c",
+      "line": "【已确认事实】苏禾｜当前位置：苏禾独自在客栈，研究旧地图。 [章节ID:eval-7]"
+    },
+    {
+      "id": "f_b776c260f79e2539ea044707",
+      "line": "【人物认知】苏禾、地下密道（苏禾所知）｜密道入口位置认知：苏禾猜测地下密道入口就在石桥下面，但没有证据，这个判断尚未证实。 [章节ID:eval-7]"
+    },
+    {
+      "id": "f_04334d21bc5b070368710ca1",
+      "line": "【人物认知】苏禾、地下密道、林舟、沈砚（苏禾所知）｜密道入口猜测的知情范围：苏禾没有把自己对密道入口在石桥下的猜测告诉林舟或沈砚，因此两人并不知道她的猜测。 [章节ID:eval-7]"
+    },
+    {
+      "id": "f_517ab0432eeeae03fe745fa5",
+      "line": "【已确认事实】沈砚｜当前位置：沈砚已去城门接应周宁。 [章节ID:eval-7]"
+    },
+    {
+      "id": "f_f904c773ce5aa084ecdf0ae5",
+      "line": "【已确认事实】周宁｜当前位置：周宁刚从北海抵达城门。 [章节ID:eval-7]"
+    },
+    {
+      "id": "f_debf9a881b684ea709e26b0a",
+      "line": "【已确认事实】铜钥匙、苏禾｜保管人：苏禾仍保管铜钥匙。 [章节ID:eval-7]"
+    },
+    {
+      "id": "f_33ed18d29372b7f82a4c76f9",
+      "line": "【已确认事实】银剑、林舟｜归属：林舟仍持有银剑。 [章节ID:eval-7]"
+    },
+    {
+      "id": "f_3423153c3808ffdd99d275f5",
+      "line": "【未解线索】旧地图｜红线含义：旧地图的红线含义仍是一个待解线索，尚未查明。 [章节ID:eval-7]"
+    }
+  ],
+  "explicitHistory": {
+    "entities": [
+      {
+        "id": "e_2417f67040249e417bfbe0e4",
+        "name": "林舟",
+        "aliases": [
+          "阿舟"
+        ],
+        "kind": "person",
+        "aliasEvidence": [
+          {
+            "alias": "阿舟",
+            "quote": "林舟又名阿舟",
+            "chapterId": "eval-1",
+            "ordinal": 1
+          }
+        ]
+      },
+      {
+        "id": "e_4d5059e2341e1c46bdabc8a6",
+        "name": "沈砚",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_69e73e530ab5c7fcf6ccd017",
+        "name": "铜钥匙",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_250f03c0865ba109a6a3e849",
+        "name": "银剑",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_2572d6c6bd086325bf7a7658",
+        "name": "旧地图",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_a320df0131547b0e4cba91db",
+        "name": "客栈",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_16f9d75399faec76cdaf6384",
+        "name": "地下密道",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_62d06683fe0026b1d2e349d5",
+        "name": "柳舟",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_d761eb7e06abab406b82d51d",
+        "name": "苏禾",
+        "aliases": [],
+        "kind": "person"
+      }
+    ],
+    "facts": [
+      {
+        "id": "f_f5339c6649ecdbe365d33bb3",
+        "memoryType": "state",
+        "kind": "relationship",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "合作关系",
+        "summary": "林舟与沈砚是两个人，两人为平等合作的伙伴，没有主从关系。",
+        "certainty": "fact",
+        "directed": false,
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟与沈砚是两个人，两人是平等合作的伙伴，没有主从关系",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_800a0d54faeeae9cf30ad130",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "归属",
+        "summary": "林舟持有唯一的铜钥匙。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟持有唯一的铜钥匙，沈砚持有银剑",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stillActive": false
+      },
+      {
+        "id": "f_9e5259af04db5175d5910acf",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "寻找地下密道",
+        "summary": "两人约定寻找地下密道，但都不知道入口位置。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "两人约定寻找地下密道，但都不知道入口位置",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_6685dd5a790b6230f26f0598",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4",
+          "e_16f9d75399faec76cdaf6384"
+        ],
+        "label": "密道入口位置认知",
+        "summary": "林舟不知道地下密道入口的位置。",
+        "certainty": "belief",
+        "perspective": "e_2417f67040249e417bfbe0e4",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "两人约定寻找地下密道，但都不知道入口位置",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_2112db390ec3a9b562dcb327",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_16f9d75399faec76cdaf6384"
+        ],
+        "label": "密道入口位置认知",
+        "summary": "沈砚不知道地下密道入口的位置。",
+        "certainty": "belief",
+        "perspective": "e_4d5059e2341e1c46bdabc8a6",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "两人约定寻找地下密道，但都不知道入口位置",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_ec690d25d91b213d4c9e3953",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_2572d6c6bd086325bf7a7658",
+          "e_a320df0131547b0e4cba91db"
+        ],
+        "label": "保管人",
+        "summary": "客栈里保存着一张旧地图。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "客栈里保存着一张旧地图，图上有一道红线，红线的含义尚未查明",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_0e49162056b5d901925aae79",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_2572d6c6bd086325bf7a7658"
+        ],
+        "label": "红线含义",
+        "summary": "旧地图上有一道红线，红线的含义尚未查明。",
+        "certainty": "clue",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "图上有一道红线，红线的含义尚未查明",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stillActive": false
+      },
+      {
+        "id": "f_57b4d9f682a42869b9b3000a",
+        "memoryType": "state",
+        "kind": "fact",
+        "subjects": [
+          "e_16f9d75399faec76cdaf6384"
+        ],
+        "label": "铜门开启条件",
+        "summary": "城中有确定的规则：地下密道的铜门只能在退潮时开启。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "global",
+        "replaces": [],
+        "quote": "城中有一条确定的规则：地下密道的铜门只能在退潮时开启",
+        "chapterId": "eval-1",
+        "ordinal": 1
+      },
+      {
+        "id": "f_8e322680d614858b88014a88",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "归属",
+        "summary": "林舟把铜钥匙交给沈砚保管，交接后铜钥匙在沈砚手里，且只有一件。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_800a0d54faeeae9cf30ad130"
+        ],
+        "quote": "林舟把铜钥匙交给沈砚保管",
+        "chapterId": "eval-2",
+        "ordinal": 2,
+        "stillActive": false
+      },
+      {
+        "id": "f_a6425397d0135e34bf00b8af",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_250f03c0865ba109a6a3e849",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "归属",
+        "summary": "沈砚把银剑交给林舟防身，交接后银剑在林舟手里，且只有一件。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_755ac640b0068fe416f59064"
+        ],
+        "quote": "沈砚把银剑交给林舟防身",
+        "chapterId": "eval-2",
+        "ordinal": 2
+      },
+      {
+        "id": "f_647d2d047f8ea7391faf39b2",
+        "memoryType": "state",
+        "kind": "relationship",
+        "subjects": [
+          "e_62d06683fe0026b1d2e349d5",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "两个人",
+        "summary": "柳舟与林舟只是名字相近，确实是两个不同的人。",
+        "certainty": "fact",
+        "directed": false,
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "柳舟与林舟只是名字相近，确实是两个不同的人",
+        "chapterId": "eval-3",
+        "ordinal": 3
+      },
+      {
+        "id": "f_85fa41d4caf9bc9dd8f2b8ec",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "当前位置",
+        "summary": "林舟回到客栈，与沈砚和柳舟同时见面。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_ea4011e7f8981a9fc2bafec0"
+        ],
+        "quote": "林舟回到客栈，与沈砚和柳舟同时见面",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_5307eaef2343b5c0219b4451",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "林舟去向认知",
+        "summary": "沈砚听林舟当面说明后，确认林舟从未离城、一直留在城内；此前以为林舟去北海的误解已纠正。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_50452ba16e147b177f562938"
+        ],
+        "quote": "沈砚看到林舟与柳舟并肩站着，确认他们是两个人，也知道林舟一直留在城内",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_0d61757bd9c5ad24af945608",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "离城消息真伪认知",
+        "summary": "沈砚现已知道林舟从未离城，此前听客栈伙计所说林舟离城的消息是假的，该误解已纠正。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_29efa60fc58bea3776ccc13b"
+        ],
+        "quote": "沈砚此前关于离城和身份的两项误解都已纠正",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_d966a2c769cb1e5cd7b261b7",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_2417f67040249e417bfbe0e4",
+          "e_62d06683fe0026b1d2e349d5"
+        ],
+        "label": "林舟与柳舟身份认知",
+        "summary": "沈砚看到林舟与柳舟并肩站着，确认他们是两个人；此前关于身份的一项误解已纠正。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "沈砚此前关于离城和身份的两项误解都已纠正",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_80f9eb1952b550aef4f32bf1",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "客栈谈话内容认知",
+        "summary": "苏禾仍在城门等候，没有参加客栈谈话，所以她不知道这次谈话的内容。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "苏禾仍在城门等候，没有参加这次谈话，所以她还不知道谈话内容",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_092f3e5d89620780ff33d081",
+        "memoryType": "state",
+        "kind": "relationship",
+        "subjects": [
+          "e_2417f67040249e417bfbe0e4",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "合作关系",
+        "summary": "林舟与沈砚的平等合作约定继续有效。",
+        "certainty": "fact",
+        "directed": false,
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟与沈砚的平等合作约定继续有效",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_28a8729854031fe89ebe5eb3",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "保管人",
+        "summary": "沈砚把铜钥匙交给苏禾保管至退潮，苏禾接过并装入自己的布袋，铜钥匙现在归苏禾保管。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_8e322680d614858b88014a88"
+        ],
+        "quote": "沈砚把铜钥匙交给苏禾，委托她保管至退潮；苏禾接过并装入自己的布袋，铜钥匙现在归苏禾保管",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_d99e6423b41f03ca6abf66f9",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_250f03c0865ba109a6a3e849",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "归属",
+        "summary": "银剑仍在林舟手中，没有随铜钥匙转交。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "银剑仍在林舟手中，没有随铜钥匙转交",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_1b55baf838ec1d40475f1a01",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "找周宁帮忙的计划",
+        "summary": "苏禾提议次日去北海找周宁帮忙，这只是尚未执行的计划。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "苏禾提议次日去北海找周宁帮忙，这只是尚未执行的计划",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_34b1115e9c8618a51d6455ec",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "林舟去向认知",
+        "summary": "林舟只告诉苏禾自己从未离城，苏禾据此知道林舟从未离城。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "林舟只告诉苏禾自己从未离城",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_7b9ce68a9fdb689ff21b412e",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d",
+          "e_62d06683fe0026b1d2e349d5",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "林舟与柳舟身份认知",
+        "summary": "林舟没有向苏禾讲述柳舟身份误认的经过，苏禾不知道此事。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "没有向她讲柳舟身份误认的经过",
+        "chapterId": "eval-5",
+        "ordinal": 5
+      },
+      {
+        "id": "f_870512df1e8cce5fe5b85dc2",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6",
+          "e_2572d6c6bd086325bf7a7658"
+        ],
+        "label": "红线含义",
+        "summary": "沈砚查看旧地图上的红线，仍未能弄清红线的含义。",
+        "certainty": "clue",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "沈砚查看旧地图上的红线，却仍未弄清红线的含义",
+        "chapterId": "eval-6",
+        "ordinal": 6
+      },
+      {
+        "id": "f_a70d94ac4b4358afb95b0d88",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "保管人",
+        "summary": "苏禾确认铜钥匙仍在自己的布袋里，继续由她保管。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "苏禾确认铜钥匙仍在自己的布袋里",
+        "chapterId": "eval-6",
+        "ordinal": 6,
+        "stillActive": false
+      },
+      {
+        "id": "f_4c9dc75125dcc26135a35c2c",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "当前位置",
+        "summary": "苏禾独自在客栈，研究旧地图。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_0e1941f9cfc352b537672fde"
+        ],
+        "quote": "苏禾独自在客栈研究旧地图",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_b776c260f79e2539ea044707",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d",
+          "e_16f9d75399faec76cdaf6384"
+        ],
+        "label": "密道入口位置认知",
+        "summary": "苏禾猜测地下密道入口就在石桥下面，但没有证据，这个判断尚未证实。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "她猜测地下密道入口就在石桥下面，但没有证据，这个判断尚未证实",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_04334d21bc5b070368710ca1",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_d761eb7e06abab406b82d51d",
+          "e_16f9d75399faec76cdaf6384",
+          "e_2417f67040249e417bfbe0e4",
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "密道入口猜测的知情范围",
+        "summary": "苏禾没有把自己对密道入口在石桥下的猜测告诉林舟或沈砚，因此两人并不知道她的猜测。",
+        "certainty": "belief",
+        "perspective": "e_d761eb7e06abab406b82d51d",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "她没有把猜测告诉林舟或沈砚，因此两人并不知道她的猜测",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_517ab0432eeeae03fe745fa5",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_4d5059e2341e1c46bdabc8a6"
+        ],
+        "label": "当前位置",
+        "summary": "沈砚已去城门接应周宁。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "沈砚去城门接应周宁",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_debf9a881b684ea709e26b0a",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_69e73e530ab5c7fcf6ccd017",
+          "e_d761eb7e06abab406b82d51d"
+        ],
+        "label": "保管人",
+        "summary": "苏禾仍保管铜钥匙。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_a70d94ac4b4358afb95b0d88"
+        ],
+        "quote": "苏禾仍保管铜钥匙",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_33ed18d29372b7f82a4c76f9",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_250f03c0865ba109a6a3e849",
+          "e_2417f67040249e417bfbe0e4"
+        ],
+        "label": "归属",
+        "summary": "林舟仍持有银剑。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_b4fa3f9f34beca21a369e800"
+        ],
+        "quote": "林舟仍持有银剑",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      },
+      {
+        "id": "f_3423153c3808ffdd99d275f5",
+        "memoryType": "state",
+        "kind": "clue",
+        "subjects": [
+          "e_2572d6c6bd086325bf7a7658"
+        ],
+        "label": "红线含义",
+        "summary": "旧地图的红线含义仍是一个待解线索，尚未查明。",
+        "certainty": "clue",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_0e49162056b5d901925aae79"
+        ],
+        "quote": "旧地图的红线含义仍是一个待解线索",
+        "chapterId": "eval-7",
+        "ordinal": 7
+      }
+    ]
+  },
+  "structuralChecks": {
+    "fullCoverage": false,
+    "sourceQuotesMatch": true,
+    "beliefsHavePerspective": true,
+    "historicalTargetsMarked": true
+  },
+  "manualReview": "逐章依据 expectations 人工核对；结构检查通过不代表内容准确或完整。",
+  "limitations": "10 章短合成故事，不代表真实长篇准确率或性能。未开生产数据库；当前非流式、关闭思考，每次最多16000输出token、300秒。收到响应后失败也计账，未回传费用为未知；不自动重试语义校验失败。传输重试及历史补查沿用产品路径，显式 resume 的每次尝试保留记录。"
+}
