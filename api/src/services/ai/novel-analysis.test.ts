@@ -11,6 +11,7 @@ import { app } from '../../app'
 import { setDbForTests } from '../../db/pool'
 import { createSession } from '../sessions'
 import { loadConfig } from '../../config'
+import { getAiSettings, saveAiSettings } from './settings'
 
 let t: TestDb
 const input = { kind: 'plot' as const, startChapterId: 'c1', endChapterId: 'c2', question: '' }
@@ -222,6 +223,68 @@ it('截断与空输出不形成完整报告或触发付费重试', async () => {
   const next = await resumeAnalysis(t.db, 'admin', 'book', receipt.reportId)
   await runNovelAnalysis(t.db, 'book', receipt.reportId, next.taskId, {}, async () => answer(''))
   expect((await readAnalysis(t.db, 'book', receipt.reportId))).toMatchObject({ status: 'failed', content: '', processed: 0 })
+})
+
+it.each(['text', 'tool', 'empty'] as const)('回查额度结束后仅携带冻结材料写报告，拒绝工具或空正文且不重试：%s', async outcome => {
+  const receipt = await create()
+  const row = await requireAnalysis(t.db, 'book', receipt.reportId)
+  const notes = [{ sourceIds: row.source_json.map(source => source.id), content: '已有阅读记录' }]
+  await t.db.query('UPDATE novel_analysis_reports SET notes_json=$1::jsonb WHERE id=$2', [JSON.stringify(notes), receipt.reportId])
+  let calls = 0
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async options => {
+    calls++
+    const toolResult = { ...answer(''), reasoningContent: '不作为报告材料的思考', toolCalls: [{ id: `call-${calls}`, type: 'function' as const, function: { name: 'read_source', arguments: '{"sourceId":"S1"}' } }] }
+    if (calls <= 8) return toolResult
+    expect(options.toolChoice).toBe('none')
+    expect(options.tools).toBeUndefined()
+    expect(options.messages.map(message => message.role)).toEqual(['system', 'user', 'user'])
+    expect(options.messages[0]!.content).not.toContain('search_sources')
+    const evidence = JSON.parse(options.messages.at(-1)!.content).evidence
+    expect(evidence[0]).toMatchObject({ id: 'S1', text: '青遥把钥匙交给阿宁。' })
+    expect(evidence).toHaveLength(8)
+    expect(JSON.stringify(options.messages)).not.toContain('不作为报告材料的思考')
+    expect(options.maxAttempts).toBe(1)
+    return outcome === 'text' ? answer('阿宁接过钥匙。[[S1]]') : outcome === 'tool' ? toolResult : answer('')
+  })
+  expect(calls).toBe(9)
+  const report = await readAnalysis(t.db, 'book', receipt.reportId)
+  expect(report.status).toBe(outcome === 'text' ? 'completed' : 'failed')
+  expect(report.content).toBe(outcome === 'text' ? '阿宁接过钥匙。[[S1]]' : '')
+  expect(report.notes).toEqual(notes)
+  if (outcome === 'tool') expect(report.error).toContain('仍请求查原文')
+  expect(Number((await first<{ count: string }>(t.db, 'SELECT count(*) FROM ai_usage'))?.count)).toBe(9)
+})
+
+it('仅思考耗尽额度与普通空正文分开提示，保留用量且不重试', async () => {
+  const receipt = await create()
+  let calls = 0
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async () => {
+    calls++
+    return { ...answer(''), finishReason: 'length', completionTokens: 8000, reasoningTokens: 8000 }
+  })
+  expect(calls).toBe(1)
+  const report = await readAnalysis(t.db, 'book', receipt.reportId)
+  expect(report.status).toBe('failed')
+  expect(report.error).toContain('思考已达到输出上限')
+  expect(report.content).toBe('')
+  expect(Number((await first<{ tokens: number }>(t.db, 'SELECT completion_tokens AS tokens FROM ai_usage'))?.tokens)).toBe(8000)
+})
+
+it('高思考报告给正文保留更大额度，单次完成且不修改共享设置', async () => {
+  const previous = await getAiSettings(t.db)
+  const settings = await saveAiSettings(t.db, { storyMemoryReasoningMode: 'high' })
+  try {
+    const receipt = await create()
+    let calls = 0
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async options => {
+      calls++
+      expect(options).toMatchObject({ reasoningMode: 'high', maxTokens: 16000, maxAttempts: 1, retryOnTimeout: false })
+      return { ...answer('报告 [[S1]]'), completionTokens: 8134, reasoningTokens: 6684 }
+    })
+    expect(calls).toBe(1)
+    expect((await readAnalysis(t.db, 'book', receipt.reportId)).status).toBe('completed')
+    expect((await first<{ value: string }>(t.db, "SELECT value FROM app_settings WHERE key='ai_settings'"))?.value).toBe(JSON.stringify(settings))
+  } finally { await saveAiSettings(t.db, previous) }
 })
 
 it('实际路由限制管理员访问，报告及来源不可跨书读取，正文仅在来源接口返回', async () => {

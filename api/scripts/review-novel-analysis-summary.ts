@@ -57,7 +57,7 @@ const clean = (value: unknown) => JSON.stringify(value, null, 2).replaceAll(prov
 const persist = () => writeFile(path.join(output, 'calls.json'), clean({ mode: snapshot ? 'existing-notes-replay' : 'synthetic-stale-notes', reasoning, calls }))
 const invoke = async (options: AiChatOptions) => {
   if (calls.length >= 9 || Date.now() - started > 10 * 60_000) throw new AiError('invalid', '本轮汇总复核达到调用预算')
-  const call: Record<string, unknown> = { messages: structuredClone(options.messages), tools: options.tools, reasoning, startedAt: new Date().toISOString() }
+  const call: Record<string, unknown> = { messages: structuredClone(options.messages), tools: options.tools, toolChoice: options.toolChoice, reasoning, startedAt: new Date().toISOString() }
   calls.push(call)
   try {
     const result = await chat({ ...options, reasoningMode: reasoning as AiReasoningMode, timeoutMs: 120000,

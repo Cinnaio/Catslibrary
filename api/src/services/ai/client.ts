@@ -64,6 +64,8 @@ export type AiResponseFormat =
 export interface AiChatOptions {
   messages: AiMessage[]
   tools?: AiFunctionTool[]
+  /** Explicitly close a tool conversation without relying on a prompt or omitted definitions. */
+  toolChoice?: 'auto' | 'none'
   /** Text requests stream by default; explicit false retains legacy providers/settings. */
   stream?: boolean
   onDelta?: AiChatDeltaHandler
@@ -165,7 +167,7 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
     max_tokens: opts.maxTokens ?? 800,
     stream: false,
     ...(opts.responseFormat ? { response_format: opts.responseFormat } : {}),
-    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: 'auto', parallel_tool_calls: false } : {}),
+    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: opts.toolChoice ?? 'auto', parallel_tool_calls: false } : opts.toolChoice === 'none' ? { tool_choice: 'none' } : {}),
     ...reasoningFields(model, opts.reasoningMode),
   })
 
@@ -207,7 +209,7 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
     stream: true,
     stream_options: { include_usage: true },
     ...(opts.responseFormat ? { response_format: opts.responseFormat } : {}),
-    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: 'auto', parallel_tool_calls: false } : {}),
+    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: opts.toolChoice ?? 'auto', parallel_tool_calls: false } : opts.toolChoice === 'none' ? { tool_choice: 'none' } : {}),
     ...reasoningFields(model, opts.reasoningMode),
   })
 
@@ -285,7 +287,8 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
   const choice = data?.choices?.[0]
   const text = extractContent(choice?.message?.content)
   const finishReason = String(choice?.finish_reason || '')
-  const toolCalls = opts.tools?.length && Array.isArray(choice?.message?.tool_calls) ? choice.message.tool_calls : undefined
+  // Audited orchestrators must see unexpected calls too, especially after their tool budget ends.
+  const toolCalls = (opts.tools?.length || opts.returnIncompleteResult) && Array.isArray(choice?.message?.tool_calls) ? choice.message.tool_calls : undefined
 
   if (!text && !toolCalls?.length && !opts.returnIncompleteResult) {
     // 推理模型（deepseek-v4 等）会先把 max_tokens 花在 reasoning_content 上，

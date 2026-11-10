@@ -1,0 +1,288 @@
+{
+  "date": "2026-11-10",
+  "scope": "空正文诊断、结束回查处理和有界语义复核；不重跑99章阅读",
+  "sourceHashes": {
+    "api/src/services/ai/client.ts": "62342a31fb8d515a729851aaa4211b70374be6a679c9c7ced6b131a184553202",
+    "api/src/services/ai/novel-analysis.ts": "b9c989d7e01a035adf88af3114bb5982959b5e56b238de39a72aacd46e652e38",
+    "api/src/services/ai/novel-analysis-prompts.ts": "b9953b7e73fd2cd5ef28f258a6ae56d67b8cfff41b9749c51ebdf70d41444b3c",
+    "api/scripts/diagnose-novel-analysis-final.ts": "c88c933655ae3448662566291af26bc7639d92325cddfb6d7319deba4e5c5a74"
+  },
+  "totals": {
+    "calls": 15,
+    "callsWithReportedUsage": 14,
+    "promptTokens": 116575,
+    "completionTokens": 34158,
+    "reportedCost": 0.01726,
+    "unknownCostCalls": 1,
+    "currency": "USD"
+  },
+  "records": [
+    {
+      "phase": "original-final-replay",
+      "localDirectory": ".tmp/novel-analysis-empty-diagnostic-2026-11-10",
+      "calls": [
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 27729,
+          "completionTokens": 3472,
+          "reasoningTokens": 1602,
+          "cost": 0.001498,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "stop",
+          "reportCharacters": 2805,
+          "toolCallCount": 0,
+          "refusal": false,
+          "truncated": false
+        }
+      ]
+    },
+    {
+      "phase": "synthetic-finalization",
+      "localDirectory": ".tmp/novel-analysis-finalization-2026-11-10-synthetic",
+      "calls": [
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 1770,
+          "completionTokens": 50,
+          "reasoningTokens": 8,
+          "cost": 0.00016,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "tool_calls",
+          "reportCharacters": 0,
+          "toolCallCount": 1,
+          "refusal": false,
+          "truncated": false
+        },
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 1914,
+          "completionTokens": 48,
+          "reasoningTokens": 6,
+          "cost": 0.000054,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "tool_calls",
+          "reportCharacters": 0,
+          "toolCallCount": 1,
+          "refusal": false,
+          "truncated": false
+        },
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 2054,
+          "completionTokens": 41,
+          "reasoningTokens": 0,
+          "cost": 0.000054,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "tool_calls",
+          "reportCharacters": 0,
+          "toolCallCount": 1,
+          "refusal": false,
+          "truncated": false
+        },
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 2211,
+          "completionTokens": 41,
+          "reasoningTokens": 0,
+          "cost": 0.000048,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "tool_calls",
+          "reportCharacters": 0,
+          "toolCallCount": 1,
+          "refusal": false,
+          "truncated": false
+        },
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 2369,
+          "completionTokens": 41,
+          "reasoningTokens": 0,
+          "cost": 0.000052,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "tool_calls",
+          "reportCharacters": 0,
+          "toolCallCount": 1,
+          "refusal": false,
+          "truncated": false
+        },
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 2525,
+          "completionTokens": 41,
+          "reasoningTokens": 0,
+          "cost": 0.000056,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "tool_calls",
+          "reportCharacters": 0,
+          "toolCallCount": 1,
+          "refusal": false,
+          "truncated": false
+        },
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 2688,
+          "completionTokens": 41,
+          "reasoningTokens": 0,
+          "cost": 0.00005,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "tool_calls",
+          "reportCharacters": 0,
+          "toolCallCount": 1,
+          "refusal": false,
+          "truncated": false
+        },
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 2862,
+          "completionTokens": 41,
+          "reasoningTokens": 0,
+          "cost": 0.000056,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "tool_calls",
+          "reportCharacters": 0,
+          "toolCallCount": 1,
+          "refusal": false,
+          "truncated": false
+        },
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 2298,
+          "completionTokens": 5511,
+          "reasoningTokens": 4673,
+          "cost": 0.002058,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "stop",
+          "reportCharacters": 1312,
+          "toolCallCount": 0,
+          "refusal": false,
+          "truncated": false
+        }
+      ]
+    },
+    {
+      "phase": "real-finalization",
+      "localDirectory": ".tmp/novel-analysis-finalization-2026-11-10-real",
+      "calls": [
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 27379,
+          "completionTokens": 3961,
+          "reasoningTokens": 1591,
+          "cost": 0.003576,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "stop",
+          "reportCharacters": 3583,
+          "toolCallCount": 0,
+          "refusal": false,
+          "truncated": false
+        }
+      ]
+    },
+    {
+      "phase": "real-ending-direct",
+      "localDirectory": ".tmp/novel-analysis-finalization-2026-11-10-ending",
+      "calls": [
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 13592,
+          "completionTokens": 4736,
+          "reasoningTokens": 2718,
+          "cost": 0.002744,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "stop",
+          "reportCharacters": 3026,
+          "toolCallCount": 0,
+          "refusal": false,
+          "truncated": false
+        }
+      ]
+    },
+    {
+      "phase": "real-ending-high-8k",
+      "localDirectory": ".tmp/novel-analysis-finalization-2026-11-10-ending-high",
+      "calls": [
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 13592,
+          "completionTokens": 8000,
+          "reasoningTokens": 8000,
+          "cost": 0.00387,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "length",
+          "reportCharacters": 0,
+          "toolCallCount": 0,
+          "refusal": false,
+          "truncated": false
+        }
+      ]
+    },
+    {
+      "phase": "real-ending-high-16k",
+      "localDirectory": ".tmp/novel-analysis-finalization-2026-11-10-ending-high-16k",
+      "calls": [
+        {
+          "model": "deepseek-v4.1-flash-uncensored",
+          "promptTokens": 13592,
+          "completionTokens": 8134,
+          "reasoningTokens": 6684,
+          "cost": 0.002984,
+          "costReported": true,
+          "costCurrency": "USD",
+          "finishReason": "stop",
+          "reportCharacters": 2194,
+          "toolCallCount": 0,
+          "refusal": false,
+          "truncated": false
+        }
+      ]
+    },
+    {
+      "phase": "real-finalization-high",
+      "localDirectory": ".tmp/novel-analysis-finalization-2026-11-10-real-high",
+      "requests": 1,
+      "reasoning": "high",
+      "maxTokens": 16000,
+      "durationMs": 126765,
+      "error": {
+        "code": "upstream",
+        "status": 524
+      },
+      "responseStatus": 524,
+      "tokensReported": false,
+      "costReported": false,
+      "retries": 0
+    }
+  ],
+  "findings": [
+    "复现非流式客户端在未声明工具时丢弃意外tool_calls；审计调用方已修复，普通调用默认不变。旧两次空输出未保存原始结构，不能确认该缺陷是旧失败根因。",
+    "单次原请求最后一轮重放返回2805字符；原始content与客户端字数一致。没有修改模型或low思考设置。",
+    "改用结束回查材料包和tool_choice=none后，普通题材8来源样本完成，7类定向事实与引用条件通过代码助手核对；不是盲测或独立人工验收。",
+    "真实99章旧记录最终汇总返回3583字符，仍误列S96直接触发因素未知、错用S98引用S99事实；不标为内容质量通过。",
+    "仅末尾9章19217字符直接生成返回3026字符；改口原因及部分引用改善，仍有人物身份笔误、知情范围笼统、已察觉事实误列未知。直接正文也存在错误，不仅是旧记录传递。",
+    "最终系统提示已明确结束回查，不再建议使用工具；这条提示仅在末次high/16000长篇请求使用，该请求524失败，没有完整新版长篇结果。",
+    "用户要求R18成人情节保留分析所需事实与细节；不强制一律非露骨，涉及未成年人仍仅作非露骨概括。",
+    "相同末尾9章、逐字相同messages、同模型同温度：low/8000完成，high/8000用完8000思考Token后length空正文；high/16000完成，6684思考Token，报告2194字符。单次样本不证明普遍优势，耗时和费用受运行波动影响。",
+    "high/16000的已知人物身份与已察觉仍未知错误未复现，但出现把返回学校说成执行回公司计划、因果顺序倒置，以及在场范围表述仍笼统；不能标为语义验收通过。",
+    "当前模块high请求上限调整：直接/最终报告16000，分组阅读12000，归纳最低8000；其他模式预算不变。仅离线验证业务参数传递，不改变用户当前low设置，不自动重试。",
+    "最终提示与high/16000复核99章旧记录时，上游约127秒返回HTTP524，本地超时为300秒；没有正文、用量或费用，未自动重试。该结果不证明高思考长篇质量改善。"
+  ],
+  "limitations": [
+    "旧stop空正文根因仍未确认；新high/8000的length失败已明确为思考耗尽额度；没有自动付费重试",
+    "真实完整长篇质量未验收；新阅读记录整书提取未复测",
+    "搜索工具实际模型采用仍未验证",
+    "未推送、合并、部署或修改用户原报告"
+  ]
+}

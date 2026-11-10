@@ -44,6 +44,20 @@ describe('streaming tools and compatibility', () => {
     expect(mock).toHaveBeenCalledTimes(1)
   })
   const tools = [{ type: 'function' as const, function: { name: 'read_context', description: 'read', parameters: { type: 'object' } } }]
+  it.each([false, true])('explicitly disables further tools for a final text request (stream=%s)', async stream => {
+    const mock = vi.fn(async () => Response.json({ choices: [{ message: { content: '最终报告' }, finish_reason: 'stop' }] }))
+    vi.stubGlobal('fetch', mock)
+    await chat({ messages, stream, toolChoice: 'none', maxAttempts: 1 })
+    expect(JSON.parse(String((mock.mock.calls as unknown as [unknown, RequestInit][])[0]![1].body))).toMatchObject({ tool_choice: 'none' })
+    expect(mock).toHaveBeenCalledTimes(1)
+  })
+  it.each([false, true])('preserves unexpected tool calls for audited callers even without request tools (stream=%s)', async stream => {
+    const calls = [{ id: 'unexpected', type: 'function', function: { name: 'read_context', arguments: '{}' } }]
+    const mock = vi.fn(async () => Response.json({ choices: [{ message: { content: null, tool_calls: calls }, finish_reason: 'stop' }], usage: { prompt_tokens: 12, completion_tokens: 41 } }))
+    vi.stubGlobal('fetch', mock)
+    expect(await chat({ messages, stream, maxAttempts: 1, returnIncompleteResult: true })).toMatchObject({ text: '', toolCalls: calls, finishReason: 'stop', completionTokens: 41 })
+    expect(mock).toHaveBeenCalledTimes(1)
+  })
   it('does not replay an accepted request when reading legacy JSON times out', async () => {
     const fetchMock = vi.fn(async () => new Response(new ReadableStream({ start(controller) { controller.error(new DOMException('body timeout', 'TimeoutError')) } }), { headers: { 'content-type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
