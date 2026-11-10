@@ -143,6 +143,7 @@ export async function getStoryMemoryProgress(db: Db, novelId: string, kind: 'plo
 class MemoryPaused extends Error {}
 
 export interface MemoryAttempt {
+  phase?: 'extract' | 'review'
   status: 'complete' | 'truncated' | 'refused' | 'empty' | 'timeout'
   finishReason: string
   model: string

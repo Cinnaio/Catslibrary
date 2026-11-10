@@ -5,10 +5,11 @@ import { aliasIdentityQuote, cognitionProblem, ownershipItems, ownershipTopic, r
 import { reconcileState } from './story-ledger-state'
 import { continuedGoalProblem, goalEndingProblem, goalWording, isOpenGoal, summaryProblem, type GoalReview } from './story-ledger-goals'
 import { entityNames, placePossessiveName, type SourceName } from './story-ledger-names'
+import type { SemanticReview } from './story-ledger-review'
 
 export const LEDGER_VERSION = 1
 /** Bump when extraction semantics change, without changing the stored JSON schema. */
-export const LEDGER_PROMPT_VERSION = 7
+export const LEDGER_PROMPT_VERSION = 8
 export type EntityKind = 'person' | 'item' | 'place' | 'faction'
 export type FactKind = 'fact' | 'state' | 'relationship' | 'boundary' | 'clue' | 'conflict' | 'item' | 'place' | 'goal'
 export interface MemoryEntity {
@@ -50,6 +51,7 @@ export interface ChapterMemory {
   entities: MemoryEntity[]
   facts: MemoryFact[]
   goalReviews?: GoalReview[]
+  semanticReviews?: Array<SemanticReview & { part: number }>
 }
 export interface LedgerState {
   entities: MemoryEntity[]

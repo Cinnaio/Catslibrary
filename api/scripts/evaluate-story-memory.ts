@@ -16,6 +16,7 @@ import { getMemoryAttempt } from '../src/services/ai/story-memory'
 import { ledgerAtAnchor } from '../src/services/ai/story-ledger-store'
 import { factLine, LEDGER_PROMPT_VERSION, relevantLedger, workingFacts } from '../src/services/ai/story-ledger'
 import { stateIdentity } from '../src/services/ai/story-ledger-state'
+import { upstreamUsage } from '../src/services/ai/upstream-usage'
 
 const option = (name: string) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3)
 const fixturePath = option('fixture') ? resolve(option('fixture')!) : new URL('./fixtures/story-memory-evaluation.json', import.meta.url)
@@ -49,7 +50,7 @@ const configuration = {
   storyMemoryTimeoutSeconds: 300,
   storyMemoryReasoningMode: 'disabled' as const,
 }
-const policy = { maxChapterAttempts: 3, maxFailedAttempts: 5, automaticSemanticRetries: false }
+const policy = { maxChapterAttempts: 3, maxFailedAttempts: 5, maxRequests: 40, automaticSemanticRetries: false }
 const collectSources = async (directory: string): Promise<string[]> => {
   const entries = await readdir(directory, { withFileTypes: true })
   return (await Promise.all(entries.map((entry) => entry.isDirectory() ? collectSources(resolve(directory, entry.name)) :
@@ -85,10 +86,12 @@ if (previous && (!process.argv.includes('--resume') || JSON.stringify(previous) 
   throw new Error('已有评估目录；恢复要求样本、模型和规则一致，冻结模式还要求提交、实现与配置完全一致')
 const steps: Array<Record<string, unknown>> = (await optionalJson(resolve(stateDir, 'steps.json'))) || []
 const responses: Array<Record<string, unknown>> = (await optionalJson(resolve(stateDir, 'responses.json'))) || []
+const requestLog: Array<{ chapter: number; phase: 'extract' | 'review'; status: string }> = (await optionalJson(resolve(stateDir, 'request-log.json'))) || []
 if (frozen) {
   const failed = steps.filter((step) => step.status === 'failed')
   if (failed.length >= policy.maxFailedAttempts || failed.some((step) => !steps.some((other) => other.chapter === step.chapter && other.status === 'passed') && steps.filter((other) => other.chapter === step.chapter).length >= policy.maxChapterAttempts))
     throw new Error('冻结评估达到预先约定的人工重试上限，保留结果并停止')
+  if (requestLog.length >= policy.maxRequests) throw new Error('冻结评估达到预先约定的总请求上限，保留结果并停止')
 }
 await mkdir(stateDir, { recursive: true })
 await mkdir(dirname(output), { recursive: true })
@@ -105,30 +108,57 @@ const endpoint = chatEndpoint(textProvider().baseUrl)
 // request unchanged and capture only synthetic model text, never auth headers.
 globalThis.fetch = async (input, init) => {
   const observed = String(input) === endpoint && init?.method === 'POST'
-  if (observed && ++requests > 30) throw new Error('评估达到单次运行 30 次请求上限')
-  if (observed && frozen && (await hashImplementation() !== implementationHash || createHash('sha256').update(textProvider().baseUrl).digest('hex') !== providerFingerprint))
+  if (observed && requestLog.length >= policy.maxRequests) throw new Error('评估达到跨恢复累计 40 次请求上限')
+  if (observed && frozen && (await hashImplementation() !== implementationHash || createHash('sha256').update(textProvider().baseUrl).digest('hex') !== providerFingerprint || execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== sourceCommit))
     throw new Error('冻结评估的实现或供应商发生变化，已停止请求')
-  const response = await originalFetch(input, init)
+  const request = observed && typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
+  const context = request?.messages?.[1]?.content ? JSON.parse(request.messages[1].content) : undefined
+  const phase = context?.draft ? 'review' as const : 'extract' as const
+  const entry = { chapter, phase, status: 'started' }
   if (observed) {
+    requests++
+    requestLog.push(entry)
+    // Reserve the budget before transmission, including interrupted requests.
+    await writeFile(resolve(stateDir, 'request-log.json'), JSON.stringify(requestLog, null, 2))
+  }
+  let response: Response
+  try { response = await originalFetch(input, init) }
+  catch (error) {
+    if (observed) {
+      entry.status = 'transport-failed'
+      await writeFile(resolve(stateDir, 'request-log.json'), JSON.stringify(requestLog, null, 2))
+    }
+    throw error
+  }
+  if (observed) {
+    entry.status = String(response.status)
+    await writeFile(resolve(stateDir, 'request-log.json'), JSON.stringify(requestLog, null, 2))
     let content: string | null = null
+    let reportedUsage: ReturnType<typeof upstreamUsage> | undefined
+    let returnedModel: string | undefined
     if (response.ok) {
       try {
-        const body = (await response.clone().json()) as { choices?: Array<{ message?: { content?: unknown } }> }
+        const body = (await response.clone().json()) as { choices?: Array<{ message?: { content?: unknown } }>; model?: string }
         const text = body.choices?.[0]?.message?.content
         content = typeof text === 'string' ? text : null
+        reportedUsage = upstreamUsage(body)
+        returnedModel = body.model
       } catch {
         /* Client records invalid/non-JSON responses. */
       }
     }
-    const request = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
-    const context = request?.messages?.[1]?.content ? JSON.parse(request.messages[1].content) : undefined
     responses.push({
       runId,
       chapter,
+      phase,
+      reportedUsage,
+      returnedModel,
       status: response.status,
       requestedHistory: context?.requestedHistory,
       previousValidationError: context?.previousValidationError,
       suppliedFactIds: context?.previous?.facts?.map((fact: { id: string }) => fact.id),
+      reviewTargets: context?.targets,
+      reviewedGoalDecisions: context?.draft?.goalReviews,
       content,
       systemPromptHash: createHash('sha256').update(request?.messages?.[0]?.content || '').digest('hex'),
     })
@@ -161,6 +191,17 @@ const persist = async () => {
     ...manifest,
     status: result,
     requestsThisRun: requests,
+    requestLog,
+    responseUsageByPhase: ['extract', 'review'].map((phase) => {
+      const selected = responses.filter((response) => response.phase === phase)
+      const usage = selected.map((response) => response.reportedUsage as ReturnType<typeof upstreamUsage> | undefined)
+      return {
+        phase, responses: selected.length,
+        promptTokens: usage.reduce((total, value) => total + (value?.promptTokens || 0), 0),
+        completionTokens: usage.reduce((total, value) => total + (value?.completionTokens || 0), 0),
+        missingTokenUsage: usage.filter((value) => value?.promptTokens == null || value?.completionTokens == null).length,
+      }
+    }),
     fixture,
     processedChapters: ledger?.processed ?? 0,
     steps,
@@ -196,7 +237,7 @@ const persist = async () => {
       : null,
     manualReview: '逐章依据 expectations 人工核对；结构检查通过不代表内容准确或完整。',
     limitations:
-      '10 章短合成故事，不代表真实长篇准确率或性能。未开生产数据库；当前非流式、关闭思考，每次最多16000输出token、300秒。收到响应后失败也计账，未回传费用为未知；不自动重试语义校验失败。传输重试及历史补查沿用产品路径，显式 resume 的每次尝试保留记录。',
+      '10 章短合成故事，不代表真实长篇准确率或性能。未开生产数据库；当前非流式、关闭思考，每次最多16000输出token、300秒。独立语义复核额外调用且不保证判断正确；分阶段响应Token与数据库累计账单分开统计。收到响应后失败也计账，未回传费用为未知；不自动重试语义或传输失败。历史补查沿用产品路径，显式 resume 的每次尝试保留记录。',
   }
   await writeFile(resolve(stateDir, 'steps.json'), JSON.stringify(steps, null, 2))
   await writeFile(output, JSON.stringify(report, null, 2) + '\n')

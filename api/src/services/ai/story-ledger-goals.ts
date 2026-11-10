@@ -60,9 +60,32 @@ export function summaryProblem(fact: MemoryFact, entities: ReadonlyMap<string, M
   const numbers = fact.summary.match(/\d+(?:\.\d+)?/gu) || []
   if (numbers.some((value) => !fact.quote.includes(value))) return '摘要新增了引文未支持的数字；请核对数量与依据'
   if (fact.memoryType !== 'state') return undefined
+  // A completed action can leave a durable current value (empty pool, installed
+  // pump, ended relationship). resolved archives a record; it is not progress.
+  if (fact.status === 'resolved' && ['fact', 'state', 'item', 'place', 'relationship'].includes(fact.kind))
+    return '持续状态不能因动作完成而设为 resolved；完成后的当前值仍用 active，一次性经过另记 event'
   const clauses = fact.summary.split(/[，,；;。\n]/u).map((part) => part.trim()).filter(Boolean)
   const plan = /(?:计划|打算|准备|提议|决定|尚未执行|待执行)/u
   const progress = /(?:修好|修完|检修完成|完成检修|检修中|正在检修|开始检修|登记完|整理完)/u
+  const actors = fact.subjects.flatMap((id) => {
+    const entity = entities.get(id)
+    return entity?.kind === 'person' ? [entity.name, ...entity.aliases] : []
+  })
+  if (fact.kind === 'goal' && clauses.some((clause) => {
+    const actor = actors.find((name) => clause.startsWith(name))
+    const value = actor ? clause.slice(actor.length) : clause
+    return /^(?:今天|今日|目前|现在|仍然|仍|已经|已)*(?:(?:尚未|还未|未)(?:开始|执行|完成|动工)|待执行|正在|开始了|开始执行|进行中|安装中|执行中)/u.test(value)
+  })) return '目标摘要只保留稳定意图与完成条件，不含当前执行进度；尚未开始或已经开始另存进度 state'
+  if (/(?:进度|进展|执行状态)$/u.test(fact.label)) {
+    const people = fact.subjects.map((id) => entities.get(id)).filter((entity) => entity?.kind === 'person')
+    const places = [...entities.values()].filter((entity) => entity.kind === 'place')
+    const hasLocation = people.some((person) => [person!.name, ...person!.aliases].some((name) =>
+      places.some((place) => [place.name, ...place.aliases].some((where) =>
+        ['在', '仍在', '仍然在', '现在在', '目前在', '位于', '留在'].some((verb) => fact.summary.includes(`${name}${verb}${where}`)),
+      )),
+    ))
+    if (hasLocation || /(?:打算|提议|决定)/u.test(fact.summary)) return '进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度'
+  }
   if (/^(?:当前|所在|所处)?(?:位置|地点)$/u.test(fact.label) && (plan.test(fact.summary) || progress.test(fact.summary)))
     return '位置摘要混入计划或进度；请拆开记录，位置只保留当前地点'
   if (fact.certainty === 'belief') {

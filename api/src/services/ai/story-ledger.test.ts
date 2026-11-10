@@ -14,6 +14,7 @@ import { createStoryMemoryTask, preparePublishedMemory } from './story-memory-ta
 import { planMemoryRebuild, startMemoryRebuild } from './story-memory-rebuild'
 import { recordUsage } from './usage'
 import { reviewSourcesCurrent } from './writing-review'
+import { reviewChapterMemory, REVIEW_ASPECTS } from './story-ledger-review'
 
 vi.mock('./client', async (original) => ({
   ...(await original<typeof import('./client')>()),
@@ -24,6 +25,9 @@ vi.mock('./client', async (original) => ({
 }))
 vi.mock('./settings', async (original) => ({ ...(await original<typeof import('./settings')>()), getAiSettings: vi.fn() }))
 vi.mock('./usage', () => ({ recordUsage: vi.fn() }))
+// Most tests isolate extraction/persistence. The dedicated review integration
+// cases below restore the real service and account for both paid requests.
+vi.mock('./story-ledger-review', async (original) => ({ ...(await original<typeof import('./story-ledger-review')>()), reviewChapterMemory: vi.fn() }))
 let t: TestDb
 const opts = { novelId: 'book', userId: 'admin', sampleChapters: 1 }
 const prose = ['林舟把铜钥匙交给沈砚，约定共同调查密道。', '沈砚拿着铜钥匙，却误以为林舟已经离城。', '林舟当面告知沈砚自己一直留在城中。']
@@ -65,6 +69,18 @@ async function chapter(index: number, content = prose[index - 1] || `沈砚继�
   ])
 }
 const input = (index: number) => JSON.parse(vi.mocked(chat).mock.calls[index]![0].messages[1]!.content)
+const reviewReply = (request: Parameters<typeof chat>[0]) => {
+  const context = JSON.parse(request.messages[1]!.content)
+  return {
+    checks: context.targets.map((item: { id: string }) => ({ id: item.id, verdict: 'supported', reason: '测试复核：与正文及历史一致。' })),
+    goalChecks: (context.draft.goalReviews || []).map((item: { id: string }) => ({ id: item.id, verdict: 'supported', reason: '测试复核：目标生命周期一致。' })),
+    coverage: REVIEW_ASPECTS.map((aspect) => ({ aspect, verdict: 'none', reason: '测试复核：该维度无新增变化。' })),
+  }
+}
+const enableRealReview = async () => {
+  const actual = await vi.importActual<typeof import('./story-ledger-review')>('./story-ledger-review')
+  vi.mocked(reviewChapterMemory).mockImplementation(actual.reviewChapterMemory)
+}
 beforeAll(async () => {
   t = await createTestDb()
   await t.applyMigrations()
@@ -84,6 +100,102 @@ beforeEach(async () => {
   vi.mocked(chat).mockReset().mockResolvedValue(reply(payload()))
   vi.mocked(chatStream).mockReset()
   vi.mocked(recordUsage).mockReset().mockResolvedValue(undefined)
+  vi.mocked(reviewChapterMemory).mockReset().mockResolvedValue({ checks: [], goalChecks: [], coverage: [] })
+})
+
+describe('independent review persistence and accounting', () => {
+  it('saves the review alongside the chapter and counts both model calls once', async () => {
+    await enableRealReview()
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload())).mockImplementationOnce(async (request) => reply(reviewReply(request)))
+    await expect(extractPlotState(t.db, opts)).resolves.toMatchObject({ complete: true, usage: { promptTokens: 200, completionTokens: 100 } })
+    expect(recordUsage).toHaveBeenCalledTimes(2)
+    const stored = (await t.db.query<{ payload_json: string }>('SELECT payload_json FROM novel_story_memory_chapters')).rows[0]!
+    expect(JSON.parse(stored.payload_json).semanticReviews[0]).toMatchObject({ part: 0, coverage: expect.arrayContaining([expect.objectContaining({ aspect: 'ownership' })]) })
+    expect(await getMemoryAttempt(t.db, 'book', 'plot')).toMatchObject({ phase: 'review', status: 'complete' })
+    await extractRelationshipProfile(t.db, opts)
+    expect(chat).toHaveBeenCalledTimes(2)
+  })
+  it('retains the valid prefix after semantic failure and supplies that error on explicit retry', async () => {
+    await chapter(1)
+    await extractPlotState(t.db, opts)
+    const before = (await getPlotStateForAnchor(t.db, 'book', 'c1')).state
+    await chapter(2)
+    await enableRealReview()
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([], []))).mockImplementationOnce(async (request) => {
+      const result = reviewReply(request)
+      result.coverage[2] = { aspect: 'cognition', verdict: 'missing', reason: '漏记沈砚误以为林舟离城。' }
+      return reply(result)
+    })
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('cognition 漏记')
+    expect(chat).toHaveBeenCalledTimes(3)
+    expect(recordUsage).toHaveBeenCalledTimes(3)
+    expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(1)
+    expect(await getMemoryAttempt(t.db, 'book', 'plot')).toMatchObject({ phase: 'review', status: 'complete', error: expect.stringContaining('漏记') })
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ label: '林舟去向', summary: '沈砚误以为林舟已经离城。', certainty: 'belief', perspective: '沈砚', quote: prose[1] })], [])))
+      .mockImplementationOnce(async (request) => reply(reviewReply(request)))
+    await extractPlotState(t.db, opts)
+    expect(input(3).previousValidationError).toContain('漏记沈砚')
+    expect((await getPlotStateForAnchor(t.db, 'book', 'c1')).state).toBe(before)
+    expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(2)
+    expect(recordUsage).toHaveBeenCalledTimes(5)
+  })
+  it.each(['malformed', 'truncated', 'refused'])('does not save or replay a %s review and records its usage', async (mode) => {
+    await enableRealReview()
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload())).mockResolvedValueOnce({ ...reply({}),
+      ...(mode === 'malformed' ? { text: '{broken' } : mode === 'truncated' ? { finishReason: 'length' } : { refusal: '无法复核' }),
+    })
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('未推进该章')
+    expect(chat).toHaveBeenCalledTimes(2)
+    expect(recordUsage).toHaveBeenCalledTimes(2)
+    expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(0)
+    expect(await getMemoryAttempt(t.db, 'book', 'plot')).toMatchObject({ phase: 'review', status: mode === 'malformed' ? 'complete' : mode === 'truncated' ? 'truncated' : 'refused' })
+  })
+  it('keeps a review timeout distinct from a completed extraction response', async () => {
+    await enableRealReview()
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload())).mockRejectedValueOnce(new AiError('timeout', '复核超时', 504))
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('复核超时')
+    expect(recordUsage).toHaveBeenCalledTimes(1)
+    expect(await getMemoryAttempt(t.db, 'book', 'plot')).toMatchObject({ phase: 'review', status: 'timeout', promptTokens: null })
+    expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(0)
+  })
+  it('honors a pause during review without publishing an unreviewed draft', async () => {
+    await enableRealReview()
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload())).mockImplementationOnce(async (request) => {
+      await pauseStoryMemory(t.db, 'book', 'plot')
+      return reply(reviewReply(request))
+    })
+    await expect(extractPlotState(t.db, opts)).resolves.toMatchObject({ paused: true, processedChapters: 0 })
+    expect(recordUsage).toHaveBeenCalledTimes(2)
+    expect((await t.db.query('SELECT * FROM novel_plot_states')).rows).toHaveLength(0)
+  })
+  it('rejects source changes made during review after accounting for both responses', async () => {
+    await enableRealReview()
+    await chapter(1)
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload())).mockImplementationOnce(async (request) => {
+      await t.db.query("UPDATE chapters SET content='正文已被另行编辑' WHERE id='c1'")
+      return reply(reviewReply(request))
+    })
+    await expect(extractPlotState(t.db, opts)).rejects.toMatchObject({ code: 'conflict' })
+    expect(recordUsage).toHaveBeenCalledTimes(2)
+    expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(0)
+  })
+  it('discards every part of a long chapter when the final review finds a missing state', async () => {
+    await enableRealReview()
+    await chapter(1, prose[0] + '雨声不断。'.repeat(5000))
+    vi.mocked(chat).mockResolvedValueOnce(reply(payload())).mockImplementationOnce(async (request) => reply(reviewReply(request)))
+      .mockResolvedValueOnce(reply(payload([], []))).mockImplementationOnce(async (request) => {
+        const result = reviewReply(request)
+        result.coverage[7] = { aspect: 'other', verdict: 'missing', reason: '测试模拟末段缺少重要状态。' }
+        return reply(result)
+      })
+    await expect(extractPlotState(t.db, opts)).rejects.toThrow('other 漏记')
+    expect(recordUsage).toHaveBeenCalledTimes(4)
+    expect((await t.db.query('SELECT * FROM novel_story_memory_chapters')).rows).toHaveLength(0)
+  })
 })
 
 describe('chapter ledger shared extraction and source integrity', () => {
@@ -394,16 +506,16 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect(await getStoryMemoryProgress(t.db, 'book', 'relationship')).toMatchObject({ running: false, processedChapters: 1 })
   })
 
-  it('honors a pause arriving with a complete batch response before another batch starts', async () => {
+  it('honors a pause before the independent review and leaves the draft unsaved', async () => {
     await chapter(1)
     await chapter(2)
     vi.mocked(chat).mockImplementationOnce(async () => {
       await pauseStoryMemory(t.db, 'book', 'plot')
       return reply(payload())
     })
-    await expect(extractPlotState(t.db, opts)).resolves.toMatchObject({ paused: true, processedChapters: 1, complete: false })
+    await expect(extractPlotState(t.db, opts)).resolves.toMatchObject({ paused: true, processedChapters: 0, complete: false })
     expect(chat).toHaveBeenCalledTimes(1)
-    expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(1)
+    expect((await ledgerAtAnchor(t.db, 'book'))!.processed).toBe(0)
   })
 
   it('keeps streamed JSON fragments out of the archive until the complete chapter passes validation', async () => {

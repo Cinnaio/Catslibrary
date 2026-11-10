@@ -119,6 +119,35 @@ describe('traceable name normalization', () => {
 
 describe('summary scope and supported details', () => {
   const map = new Map(entities.map((entity) => [entity.id, entity]))
+  it('keeps intentions stable while progress and position change independently', () => {
+    const text = '陶策开始检修电闸，仍在山站。'
+    const saved = parse(text, [
+      { ...goal, kind: 'state', label: '检修电闸进度', summary: '陶策已开始检修电闸。', quote: text },
+      { ...goal, kind: 'place', label: '当前位置', summary: '陶策在山站。', quote: text },
+    ], [{ id: goal.id, decision: 'continue' }])
+    const current = workingFacts(applyChapterMemory({ entities, facts: [goal] }, saved))
+    expect(current.find((fact) => fact.kind === 'goal')).toEqual(goal)
+    expect(current.map((fact) => fact.summary)).toEqual([goal.summary, '陶策已开始检修电闸。', '陶策在山站。'])
+    for (const summary of ['陶策计划检修电闸，今天尚未执行。', '陶策计划检修电闸，目前正在检修。'])
+      expect(() => parse(text, [{ ...goal, summary, quote: text }], [], { entities, facts: [] })).toThrow('稳定意图')
+    expect(summaryProblem({ ...goal, summary: '陶策计划前往山站检修电闸。' }, map)).toBeUndefined()
+    expect(summaryProblem({ ...goal, summary: '陶策计划今天找到尚未归还的钥匙。' }, map)).toBeUndefined()
+  })
+  it('rejects actor location in progress without confusing a work site with actor position', () => {
+    const progress = { ...goal, kind: 'state' as const, label: '收拢工具进度' }
+    expect(summaryProblem({ ...progress, summary: '陶策仍在山站收拢工具，尚未结束。' }, map)).toContain('混入人物位置')
+    expect(summaryProblem({ ...progress, summary: '陶策收拢工具尚未结束。' }, map)).toBeUndefined()
+    expect(summaryProblem({ ...progress, summary: '山站的工具已经收拢完毕。' }, map)).toBeUndefined()
+    expect(summaryProblem({ ...progress, summary: '陶策的工具准备已经完成。' }, map)).toBeUndefined()
+  })
+  it('retains completed current values instead of treating completed actions as expired state', () => {
+    const text = '陶策已将山站水池排空。'
+    const next = { ...goal, kind: 'state', label: '水池状态', summary: '山站水池已排空。', quote: text }
+    expect(() => parse(text, [{ ...next, status: 'resolved' }], [], { entities, facts: [] })).toThrow('当前值仍用 active')
+    const saved = parse(text, [next], [], { entities, facts: [] })
+    expect(workingFacts(applyChapterMemory({ entities, facts: [] }, saved))).toHaveLength(1)
+    expect(parse(text, [{ ...next, memoryType: 'event', status: 'resolved' }], [], { entities, facts: [] }).facts).toHaveLength(1)
+  })
   it('rejects progress and plans embedded in position, and position embedded in knowledge', () => {
     expect(summaryProblem({ ...goal, kind: 'state', label: '当前位置', summary: '陶策在山站修好了电闸，准备明日下山。' }, map)).toContain('拆开')
     expect(summaryProblem({ ...goal, kind: 'state', certainty: 'belief', perspective: 'yan', label: '会议内容', summary: '燕棠仍在城门等候，因此不知道会议内容。' }, map)).toContain('混入')

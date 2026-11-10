@@ -5,6 +5,7 @@ import { createTestDb, type TestDb } from '../test/db'
 import { chat } from '../services/ai/client'
 import { saveAiSettings } from '../services/ai/settings'
 import { generationContentRevision } from '../services/ai/generations'
+import { REVIEW_ASPECTS } from '../services/ai/story-ledger-review'
 
 vi.mock('../services/ai/client', async (original) => ({
   ...(await original<typeof import('../services/ai/client')>()),
@@ -74,12 +75,20 @@ describe('incremental memory HTTP integration', () => {
         }),
       ),
     )
+    vi.mocked(chat).mockImplementationOnce(async (request) => {
+      const context = JSON.parse(request.messages[1]!.content)
+      return reply(JSON.stringify({
+        checks: context.targets.map((fact: { id: string }) => ({ id: fact.id, verdict: 'supported', reason: '正文明确沈砚持有钥匙。' })),
+        goalChecks: [],
+        coverage: REVIEW_ASPECTS.map((aspect) => ({ aspect, verdict: aspect === 'ownership' ? 'covered' : 'none', reason: '归属已记录，其他维度无变化。' })),
+      }))
+    })
     const extracted = await app.request('/api/ai/writing/plot-state', json({ novelId: 'book' }))
     expect(extracted.status).toBe(200)
     const preview = await app.request('/api/ai/writing/materials', json(body))
     expect(preview.status).toBe(200)
     expect(await preview.json()).toMatchObject({ memorySelection: { retrievedFacts: 1, totalFacts: 1 } })
-    expect(chat).toHaveBeenCalledTimes(1)
+    expect(chat).toHaveBeenCalledTimes(2)
     await t.db.query(
       "INSERT INTO ai_generations(id,novel_id,kind,result,status,created_at) VALUES('ledger-draft','book','continue','沈砚检查铜钥匙。','draft',1)",
     )
