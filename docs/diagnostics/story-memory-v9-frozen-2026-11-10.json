@@ -1,0 +1,434 @@
+{
+  "runId": "2026-11-10T01-11-15-424Z",
+  "implementationHash": "05cda78f76812c52c550838a2a92d1ab122711f894849be94d7a163e1f80f1a1",
+  "fixtureHash": "65d2551b24d7319c96f35eedc4b426ada9d07aa6fe47f37515bb49c0d91311b1",
+  "model": "deepseek-v4.1-flash-tiancai",
+  "ledgerPromptVersion": 9,
+  "frozen": true,
+  "sourceCommit": "dec4b7cf9ea8663b37489df859d794c28069128c",
+  "configuration": {
+    "storyMemoryEngine": "incremental",
+    "storyMemoryAutoUpdate": false,
+    "storyMemoryStreamEnabled": false,
+    "storyMemoryChapterMaxTokens": 16000,
+    "storyMemoryTimeoutSeconds": 300,
+    "storyMemoryReasoningMode": "disabled"
+  },
+  "policy": {
+    "maxChapterAttempts": 3,
+    "maxFailedAttempts": 5,
+    "maxRequests": 40,
+    "automaticSemanticRetries": false
+  },
+  "providerFingerprint": "4ecd49362f0fe722a595b0f2b0604f127008108f60080f80727ebf850fe43b33",
+  "status": "failed",
+  "requestsThisRun": 1,
+  "requestLog": [
+    {
+      "chapter": 1,
+      "phase": "extract",
+      "status": "200"
+    },
+    {
+      "chapter": 1,
+      "phase": "extract",
+      "status": "200"
+    },
+    {
+      "chapter": 1,
+      "phase": "extract",
+      "status": "200"
+    }
+  ],
+  "responseUsageByPhase": [
+    {
+      "phase": "extract",
+      "responses": 3,
+      "promptTokens": 5818,
+      "completionTokens": 4217,
+      "missingTokenUsage": 0
+    },
+    {
+      "phase": "review",
+      "responses": 0,
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "missingTokenUsage": 0
+    }
+  ],
+  "fixture": [
+    {
+      "title": "温室交班",
+      "text": "迟夏也叫小夏，迟夏在档案室保管铜牌，计划寻找验收单。梅岑在东棚，决定检修东棚的水泵，还未开始检修。梅涔在西棚，梅涔和梅岑是两个人。东棚的水泵漏水。西棚的水泵运转正常，两台水泵不是同一件物品。档案室里有一只封筒，封筒没有打开，内容无人知道。温室规定：水池未排空，不得试机。",
+      "expectations": [
+        "迟夏和小夏同一人，别名有本章原文依据，不建立自身关系",
+        "梅岑与梅涔保持两个实体，三人当前位置分别为东棚、西棚、档案室",
+        "东棚的水泵与西棚的水泵分开，名称如归一须保留可核对来源；漏水和运转正常分别归属正确物品",
+        "寻找验收单与检修水泵为有效目标；未开始检修另存进度，目标不夹带进度或人物位置",
+        "铜牌由迟夏保管；封筒位于档案室、未打开和内容未知分别可核对，不推断筒内物品",
+        "水池未排空不得试机的约束有效，不推断水池已排空"
+      ]
+    },
+    {
+      "title": "取消搜寻",
+      "text": "迟夏收到通知，不必寻找验收单。迟夏明确取消寻找验收单的计划。郁禾来到档案室，迟夏把铜牌交给郁禾保管。迟夏开始清点花盆，清点尚未结束。梅岑还没有开始检修东棚的水泵。封筒保持关闭。",
+      "expectations": [
+        "寻找验收单以取消结束并关联旧目标，不以完成或新标签代替",
+        "铜牌当前由郁禾保管，迟夏的旧持有状态退出当前",
+        "郁禾在档案室，迟夏仍在档案室，位置与清点进度分别保存",
+        "清点花盆为已开始但未结束的进度，不凭空补成已完成",
+        "检修水泵目标继续有效，未开始进度仍成立",
+        "封筒未开且内容仍未知，未提及不等于线索已解决"
+      ]
+    },
+    {
+      "title": "更换方案",
+      "text": "梅岑查出漏水来自东棚水泵的滤芯，滤芯已经破裂。梅岑把检修东棚水泵的计划改为更换东棚水泵滤芯，新的工作尚未动工。水池已经排空，现在是空的。梅涔没有看见检查过程，误以为坏的是西棚水泵；西棚水泵实际仍运转正常。",
+      "expectations": [
+        "检修东棚水泵目标以被替代结束并关联更换滤芯的新目标",
+        "更换滤芯意图与尚未动工的进度独立保存，旧检修进度不冒充新任务进度",
+        "滤芯破裂及漏水对应东棚水泵，不覆盖西棚水泵正常状态",
+        "水池已排空是当前仍成立的状态，不因排空动作完成而归档",
+        "梅涔误以为西棚水泵坏了属于梅涔的belief，不能写成客观故障或梅岑的认知",
+        "原试机规则未宣布作废，条件满足与规则取消必须区分"
+      ]
+    },
+    {
+      "title": "铜牌经过三双手",
+      "text": "梅岑开始更换东棚水泵滤芯，旧滤芯已取出，新滤芯还未装好。迟夏在档案室从郁禾手中取回铜牌，随后到西棚交给梅涔，再走到东棚继续清点花盆，清点没有结束。郁禾没看到后一次交接，以为铜牌还在迟夏手里。梅岑只知道此前铜牌交给了郁禾，仍以为铜牌由郁禾保管。",
+      "expectations": [
+        "更换滤芯目标继续有效，进度更新为开始且未完成，尚未动工退出当前",
+        "旧滤芯取出和新滤芯未装好由原文支持，不提前记作修复完成",
+        "铜牌段末只由梅涔保管，郁禾与迟夏的中间持有只能作为历史",
+        "迟夏段末位置为东棚，经过档案室和西棚不成为并列当前位置",
+        "清点花盆继续未结束，进度摘要不残留档案室、西棚或东棚位置",
+        "郁禾认为铜牌在迟夏处，梅岑认为在郁禾处，两人的认知分别保存且不自动获得真实去向"
+      ]
+    },
+    {
+      "title": "封筒等待开启",
+      "text": "迟夏回到档案室，计划打开封筒查明内容，但还没有开筒。迟夏暂时停下清点花盆，清点工作并未完成，也没有取消。郁禾留在档案室，仍以为铜牌在迟夏手里。梅岑在东棚继续安装滤芯，已经装好一侧，另一侧尚未固定。",
+      "expectations": [
+        "迟夏位置更新为档案室，旧东棚位置不继续有效",
+        "打开封筒查明内容是新目标，意图不夹带还没开筒",
+        "封筒仍关闭且内容未知，计划打开不等于已经打开或知道内容",
+        "清点进度更新为暂时停下但未完成，不记作取消或完成",
+        "更换滤芯目标继续，进度是一侧装好另一侧未固定，不提前结束",
+        "郁禾的位置与铜牌认知分开，错误认知继续保留"
+      ]
+    },
+    {
+      "title": "筒里的清单",
+      "text": "迟夏在郁禾面前打开封筒。封筒内只有两张花种清单，没有验收单。迟夏和郁禾都读清了内容，打开封筒查明内容的目标已经完成。梅岑与梅涔没有收到消息，各自仍不知道封筒内容。迟夏尚未恢复清点花盆。",
+      "expectations": [
+        "打开封筒查明内容目标完成且关联旧目标，不能只记开筒事件",
+        "封筒当前已打开，两张花种清单且无验收单的内容来自原文，不虚构其他物品",
+        "旧未知内容线索关联解决，不能仍作为未解的全局内容未知",
+        "迟夏与郁禾分别知道封筒内容，两人的认知有阅读依据",
+        "梅岑与梅涔分别不知道内容，不把读者知识传播给角色",
+        "清点花盆仍暂停且未完成，不因另一目标完成而结束"
+      ]
+    },
+    {
+      "title": "恢复试机",
+      "text": "梅岑固定好滤芯另一侧，完成更换东棚水泵滤芯。东棚水泵试机正常，已经不漏水。负责人正式取消水池未排空不得试机的旧规定。西棚水泵仍运转正常。迟夏恢复清点花盆并完成清点，所有花盆已经清点完毕。",
+      "expectations": [
+        "更换滤芯目标完成并关联原目标，旧目标不继续active",
+        "更换滤芯已完成作为当前结果保留，旧尚未固定进度退出",
+        "东棚水泵当前正常且不漏水，不残留当前漏水状态",
+        "旧试机约束明确取消并退出当前约束，历史依据保留",
+        "西棚水泵保持正常，与东棚水泵分开，梅涔的错误认知不自动纠正",
+        "清点花盆由暂停更新为完成，当前完成结果不被归档或混入位置"
+      ]
+    },
+    {
+      "title": "只纠正一人的消息",
+      "text": "梅涔来到东棚，向梅岑出示仍由梅涔保管的铜牌，并说明是迟夏在西棚交来的。梅岑确认铜牌现在在梅涔手里，没有接过铜牌。郁禾仍在档案室，没有收到消息，仍以为铜牌在迟夏处。梅涔没有检查西棚水泵，仍误以为西棚水泵坏了。",
+      "expectations": [
+        "梅涔位置更新为东棚，梅岑与梅涔不因相近名字合并",
+        "铜牌仍属梅涔保管，出示不等于转交梅岑",
+        "梅岑的铜牌认知更新为在梅涔手里，旧在郁禾处认知退出当前",
+        "郁禾错误认知仍为铜牌在迟夏处，不随他人确认而纠正",
+        "梅涔对西棚水泵的错误认知仍有效，不影响客观正常状态",
+        "认知摘要不夹带东棚或档案室的人物位置，物品去向作为认知内容允许保留"
+      ]
+    },
+    {
+      "title": "尚未传达",
+      "text": "迟夏计划通知梅涔封筒内容，打算明天再说，现在还没有通知。梅涔仍在东棚，不知道封筒内容。梅岑也在东棚，同样不知道内容。迟夏在档案室，清点花盆已经完成。寻找验收单的计划没有重新提出。",
+      "expectations": [
+        "通知梅涔封筒内容为新有效目标，未来安排不算目标完成",
+        "尚未通知的进度独立保存，不塞进目标摘要或人物位置",
+        "梅涔与梅岑分别仍不知道封筒内容，迟夏计划传达不算已经传播",
+        "迟夏在档案室，梅岑和梅涔在东棚，位置各自独立",
+        "已取消的寻找验收单目标不复活",
+        "清点花盆已完成的当前结果继续可用，不重新标为未完成"
+      ]
+    },
+    {
+      "title": "分开的告知",
+      "text": "次日，梅涔来到档案室。迟夏把封筒内只有两张花种清单、没有验收单的内容告诉梅涔，通知梅涔封筒内容的目标完成。梅涔把铜牌交还郁禾，郁禾知道铜牌已经回到自己手里。梅岑仍在东棚，没有收到这两条消息，仍不知道封筒内容，也仍认为铜牌在梅涔处。两台水泵运转正常，花盆已经清点完毕。",
+      "expectations": [
+        "通知梅涔目标完成且关闭原目标，不能通过改标签只写告知事件",
+        "梅涔现在知道两张花种清单且无验收单，旧不知道内容退出；梅岑仍不知道",
+        "铜牌当前由郁禾保管，梅涔的旧持有退出当前；郁禾认知更新为在自己处",
+        "梅岑仍认为铜牌在梅涔处，错误认知与客观归属分开保存",
+        "梅涔段末在档案室，梅岑继续东棚，位置不误合并",
+        "两台水泵正常和花盆已清点完毕保留为当前结果，已完成和取消的旧目标均不复活"
+      ]
+    }
+  ],
+  "processedChapters": 0,
+  "steps": [
+    {
+      "runId": "2026-11-10T01-10-01-024Z",
+      "implementationHash": "05cda78f76812c52c550838a2a92d1ab122711f894849be94d7a163e1f80f1a1",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 11301,
+      "error": "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试",
+      "attempt": {
+        "phase": "extract",
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 3987,
+        "elapsedMs": 11240,
+        "promptTokens": 1910,
+        "completionTokens": 1658,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794273023455,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "03e09f709ce0a3b80269e0dc2e13c444d3f4cb361d72db7f11e793f963f2edf4",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试"
+        ]
+      }
+    },
+    {
+      "runId": "2026-11-10T01-10-44-747Z",
+      "implementationHash": "05cda78f76812c52c550838a2a92d1ab122711f894849be94d7a163e1f80f1a1",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 9377,
+      "error": "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试",
+      "attempt": {
+        "phase": "extract",
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 4076,
+        "elapsedMs": 9249,
+        "promptTokens": 1954,
+        "completionTokens": 1291,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794273054963,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "03e09f709ce0a3b80269e0dc2e13c444d3f4cb361d72db7f11e793f963f2edf4",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试"
+        ]
+      }
+    },
+    {
+      "runId": "2026-11-10T01-11-15-424Z",
+      "implementationHash": "05cda78f76812c52c550838a2a92d1ab122711f894849be94d7a163e1f80f1a1",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 8978,
+      "error": "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试",
+      "attempt": {
+        "phase": "extract",
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 4076,
+        "elapsedMs": 8913,
+        "promptTokens": 1954,
+        "completionTokens": 1268,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794273085074,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "03e09f709ce0a3b80269e0dc2e13c444d3f4cb361d72db7f11e793f963f2edf4",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试"
+        ]
+      }
+    }
+  ],
+  "firstAttempts": [
+    {
+      "chapter": 1,
+      "firstAttempt": "failed",
+      "attempts": 3
+    },
+    {
+      "chapter": 2,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 3,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 4,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 5,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 6,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 7,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 8,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 9,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 10,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    }
+  ],
+  "usage": {
+    "recorded_calls": 3,
+    "input_tokens": 5818,
+    "output_tokens": 4217,
+    "calls_with_reported_cost": 3,
+    "reported_cost_millicents": "388.60000000"
+  },
+  "costsByCurrency": [
+    {
+      "cost_currency": "USD",
+      "calls": 3,
+      "reported_cost_millicents": "388.60000000"
+    }
+  ],
+  "responses": [
+    {
+      "runId": "2026-11-10T01-10-01-024Z",
+      "chapter": 1,
+      "phase": "extract",
+      "reportedUsage": {
+        "promptTokens": 1910,
+        "completionTokens": 1658,
+        "cacheReadTokens": 1536,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0
+      },
+      "returnedModel": "deepseek-v4.1-flash",
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [],
+      "reviewedGoalDecisions": [],
+      "content": "{\n  \"complete\": true,\n  \"needs\": [],\n  \"entities\": [\n    {\"name\": \"迟夏\", \"aliases\": [\"小夏\"], \"kind\": \"person\"},\n    {\"name\": \"档案室\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"铜牌\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"验收单\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"梅岑\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"东棚\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"东棚的水泵\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"梅涔\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"西棚\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"西棚的水泵\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"封筒\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"温室\", \"aliases\": [], \"kind\": \"place\"}\n  ],\n  \"facts\": [\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"state\",\n      \"subjects\": [\"迟夏\"],\n      \"directed\": false,\n      \"label\": \"铜牌保管人\",\n      \"summary\": \"迟夏在档案室保管铜牌。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"迟夏也叫小夏，迟夏在档案室保管铜牌，计划寻找验收单。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"迟夏\"],\n      \"directed\": false,\n      \"label\": \"当前位置\",\n      \"summary\": \"迟夏在档案室。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"迟夏也叫小夏，迟夏在档案室保管铜牌，计划寻找验收单。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"梅岑\"],\n      \"directed\": false,\n      \"label\": \"当前位置\",\n      \"summary\": \"梅岑在东棚。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"梅岑在东棚，决定检修东棚的水泵，还未开始检修。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"state\",\n      \"subjects\": [\"梅岑\", \"东棚的水泵\"],\n      \"directed\": false,\n      \"label\": \"东棚的水泵检修进度\",\n      \"summary\": \"梅岑决定检修东棚的水泵，尚未开始检修。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"梅岑在东棚，决定检修东棚的水泵，还未开始检修。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"state\",\n      \"subjects\": [\"东棚的水泵\"],\n      \"directed\": false,\n      \"label\": \"运转状况\",\n      \"summary\": \"东棚的水泵漏水。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"东棚的水泵漏水。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"梅涔\"],\n      \"directed\": false,\n      \"label\": \"当前位置\",\n      \"summary\": \"梅涔在西棚。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"梅涔在西棚，梅涔和梅岑是两个人。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"state\",\n      \"subjects\": [\"西棚的水泵\"],\n      \"directed\": false,\n      \"label\": \"运转状况\",\n      \"summary\": \"西棚的水泵运转正常。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"西棚的水泵运转正常，两台水泵不是同一件物品。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"封筒\"],\n      \"directed\": false,\n      \"label\": \"所在位置\",\n      \"summary\": \"封筒在档案室。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"档案室里有一只封筒，封筒没有打开，内容无人知道。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"state\",\n      \"subjects\": [\"封筒\"],\n      \"directed\": false,\n      \"label\": \"封筒开启状态\",\n      \"summary\": \"封筒没有打开。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"封筒没有打开，内容无人知道。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"clue\",\n      \"subjects\": [\"封筒\"],\n      \"directed\": false,\n      \"label\": \"封筒内容\",\n      \"summary\": \"封筒内容无人知道。\",\n      \"certainty\": \"clue\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"封筒没有打开，内容无人知道。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"boundary\",\n      \"subjects\": [\"温室\"],\n      \"directed\": false,\n      \"label\": \"试机前提条件\",\n      \"summary\": \"水池未排空，不得试机。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"global\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"温室规定：水池未排空，不得试机。\"\n    }\n  ],\n  \"goals\": [\n    {\n      \"subjects\": [\"迟夏\"],\n      \"objective\": \"寻找验收单\",\n      \"quote\": \"计划寻找验收单。\"\n    },\n    {\n      \"subjects\": [\"梅岑\"],\n      \"objective\": \"检修东棚的水泵\",\n      \"quote\": \"决定检修东棚的水泵，还未开始检修。\"\n    }\n  ],\n  \"goalReviews\": []\n}",
+      "systemPromptHash": "ea171c6c83ad434aa90124d4665d7457ad39f2015efeec0f14533d58bacd479c"
+    },
+    {
+      "runId": "2026-11-10T01-10-44-747Z",
+      "chapter": 1,
+      "phase": "extract",
+      "reportedUsage": {
+        "promptTokens": 1954,
+        "completionTokens": 1291,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0
+      },
+      "returnedModel": "deepseek-v4.1-flash",
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试",
+      "suppliedFactIds": [],
+      "reviewedGoalDecisions": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"迟夏\",\"aliases\":[\"小夏\"],\"kind\":\"person\"},{\"name\":\"档案室\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"铜牌\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"验收单\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"梅岑\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"东棚\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"西棚\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"梅涔\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"东棚的水泵\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"西棚的水泵\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"封筒\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"温室\",\"aliases\":[],\"kind\":\"faction\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"迟夏\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"迟夏在档案室。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"迟夏在档案室保管铜牌\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜牌\"],\"directed\":false,\"label\":\"保管人\",\"summary\":\"铜牌由迟夏在档案室保管。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"迟夏在档案室保管铜牌\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"梅岑\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"梅岑在东棚。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"梅岑在东棚\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"梅岑\",\"东棚的水泵\"],\"directed\":false,\"label\":\"东棚水泵检修进度\",\"summary\":\"梅岑决定检修东棚的水泵，还未开始检修。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"决定检修东棚的水泵，还未开始检修\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"东棚的水泵\"],\"directed\":false,\"label\":\"东棚水泵状况\",\"summary\":\"东棚的水泵漏水。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"东棚的水泵漏水\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"梅涔\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"梅涔在西棚。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"梅涔在西棚\"},{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"梅岑\",\"梅涔\"],\"directed\":true,\"label\":\"身份区分\",\"summary\":\"梅岑与梅涔是两个人，并非同一人。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"梅涔和梅岑是两个人\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"西棚的水泵\"],\"directed\":false,\"label\":\"西棚水泵状况\",\"summary\":\"西棚的水泵运转正常。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"西棚的水泵运转正常\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"东棚的水泵\",\"西棚的水泵\"],\"directed\":false,\"label\":\"物品区分\",\"summary\":\"东棚的水泵与西棚的水泵不是同一件物品。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"两台水泵不是同一件物品\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"封筒\"],\"directed\":false,\"label\":\"所在地点\",\"summary\":\"档案室里有一只封筒。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"档案室里有一只封筒\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封筒\"],\"directed\":false,\"label\":\"封筒开启状态\",\"summary\":\"封筒没有打开。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"封筒没有打开\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"封筒\"],\"directed\":false,\"label\":\"封筒内容\",\"summary\":\"封筒的内容无人知道。\",\"certainty\":\"clue\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"内容无人知道\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"温室\"],\"directed\":false,\"label\":\"试机规定\",\"summary\":\"温室规定：水池未排空，不得试机。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"温室规定：水池未排空，不得试机。\"}],\"goals\":[{\"subjects\":[\"迟夏\"],\"objective\":\"寻找验收单\",\"quote\":\"计划寻找验收单\"},{\"subjects\":[\"梅岑\"],\"objective\":\"检修东棚的水泵\",\"quote\":\"决定检修东棚的水泵\"}],\"goalReviews\":[]}",
+      "systemPromptHash": "ea171c6c83ad434aa90124d4665d7457ad39f2015efeec0f14533d58bacd479c"
+    },
+    {
+      "runId": "2026-11-10T01-11-15-424Z",
+      "chapter": 1,
+      "phase": "extract",
+      "reportedUsage": {
+        "promptTokens": 1954,
+        "completionTokens": 1268,
+        "cacheReadTokens": 1792,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0
+      },
+      "returnedModel": "deepseek-v4.1-flash",
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：facts[3] 进度摘要混入人物位置或计划；请分别记录，进度只保留执行程度；未推进该章，请核对后重试",
+      "suppliedFactIds": [],
+      "reviewedGoalDecisions": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"迟夏\",\"aliases\":[\"小夏\"],\"kind\":\"person\"},{\"name\":\"档案室\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"铜牌\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"梅岑\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"东棚\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"梅涔\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"西棚\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"东棚的水泵\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"西棚的水泵\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"封筒\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"水池\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"迟夏\",\"铜牌\"],\"directed\":false,\"label\":\"保管人\",\"summary\":\"迟夏在档案室保管铜牌。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"迟夏在档案室保管铜牌\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"迟夏\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"迟夏在档案室。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"迟夏在档案室保管铜牌\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"梅岑\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"梅岑在东棚。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"梅岑在东棚\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"梅岑\",\"东棚的水泵\"],\"directed\":false,\"label\":\"东棚水泵检修进度\",\"summary\":\"梅岑决定检修东棚的水泵，还未开始检修。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"决定检修东棚的水泵，还未开始检修\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"梅涔\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"梅涔在西棚。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"梅涔在西棚\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"梅涔\",\"梅岑\"],\"directed\":false,\"label\":\"人物区分\",\"summary\":\"梅涔和梅岑是两个人。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"梅涔和梅岑是两个人\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"东棚的水泵\"],\"directed\":false,\"label\":\"水泵状况\",\"summary\":\"东棚的水泵漏水。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"东棚的水泵漏水\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"西棚的水泵\"],\"directed\":false,\"label\":\"水泵状况\",\"summary\":\"西棚的水泵运转正常。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"西棚的水泵运转正常\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"东棚的水泵\",\"西棚的水泵\"],\"directed\":false,\"label\":\"物品区分\",\"summary\":\"东棚的水泵和西棚的水泵不是同一件物品。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"两台水泵不是同一件物品\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"封筒\"],\"directed\":false,\"label\":\"所在地点\",\"summary\":\"档案室里有一只封筒。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"档案室里有一只封筒\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封筒\"],\"directed\":false,\"label\":\"封筒开启状态\",\"summary\":\"封筒没有打开。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"封筒没有打开\"},{\"memoryType\":\"state\",\"kind\":\"clue\",\"subjects\":[\"封筒\"],\"directed\":false,\"label\":\"封筒内容\",\"summary\":\"封筒的内容无人知道。\",\"certainty\":\"clue\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"内容无人知道\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"水池\"],\"directed\":false,\"label\":\"试机规定\",\"summary\":\"温室规定：水池未排空，不得试机。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"温室规定：水池未排空，不得试机\"}],\"goals\":[{\"subjects\":[\"迟夏\"],\"objective\":\"寻找验收单\",\"quote\":\"计划寻找验收单\"},{\"subjects\":[\"梅岑\"],\"objective\":\"检修东棚的水泵\",\"quote\":\"决定检修东棚的水泵\"}],\"goalReviews\":[]}",
+      "systemPromptHash": "ea171c6c83ad434aa90124d4665d7457ad39f2015efeec0f14533d58bacd479c"
+    }
+  ],
+  "state": {
+    "entities": [],
+    "facts": []
+  },
+  "current": [],
+  "explicitHistory": {
+    "entities": [],
+    "facts": []
+  },
+  "structuralChecks": {
+    "fullCoverage": false,
+    "sourceQuotesMatch": true,
+    "beliefsHavePerspective": true,
+    "uniqueActiveStateKeys": true,
+    "historicalTargetsMarked": true
+  },
+  "manualReview": "逐章依据 expectations 人工核对；结构检查通过不代表内容准确或完整。",
+  "limitations": "10 章短合成故事，不代表真实长篇准确率或性能。未开生产数据库；当前非流式、关闭思考，每次最多16000输出token、300秒。独立语义复核额外调用且不保证判断正确；分阶段响应Token与数据库累计账单分开统计。收到响应后失败也计账，未回传费用为未知；不自动重试语义或传输失败。历史补查沿用产品路径，显式 resume 的每次尝试保留记录。"
+}
