@@ -10,6 +10,8 @@ vi.mock('@/lib/api', () => ({
 afterEach(cleanup)
 
 const missingTypes = [
+  ['novel_analysis', '小说分析报告'],
+  ['novel_analysis_review', '小说分析事实核对'],
   ['import_review', '导入审校'],
   ['style_profile', '文风分析'],
   ['relationship_profile', '人物关系分析'],

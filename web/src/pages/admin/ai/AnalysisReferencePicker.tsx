@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import styles from './analysis-reference-picker.module.css'
 
 type Choice = { id: string; kind: AnalysisKind; revision: number; edited: boolean; usable: boolean; reason: string;
-  question?: string; createdAt?: number;
+  question?: string; createdAt?: number; reviewWarning?: string;
   startChapter?: { id: string; title: string }; endChapter?: { id: string; title: string } }
 type Page = { reports: Choice[]; nextOffset: number | null; defaults?: AnalysisReferenceSelection[]; limited?: boolean }
 
@@ -79,6 +79,7 @@ export default function AnalysisReferencePicker({ novelId, afterChapterId, activ
             {report.createdAt && <small>{new Date(report.createdAt).toLocaleString('zh-CN')}</small>}
             {report.startChapter && report.endChapter && <small>{report.startChapter.title} — {report.endChapter.title}</small>}
             {!report.usable && <small className={styles.error}>{report.reason}</small>}
+            {report.reviewWarning && <small className={styles.error}>{report.reviewWarning}</small>}
             {changed && <small className={styles.error}>所选版本已变化，请取消后重新选用。</small>}
           </span>
         </label>

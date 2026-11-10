@@ -1,6 +1,6 @@
 vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: () => () => {} }))
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ tasks: vi.fn(), toast: vi.fn(), confirm: vi.fn() }))
@@ -44,4 +44,17 @@ it('慢轮询不叠加请求，完成后停止', async () => {
   expect(mocks.tasks).toHaveBeenCalledTimes(2)
   await act(async () => { finish(data('当前任务')); await vi.advanceTimersByTimeAsync(12_000) })
   expect(mocks.tasks).toHaveBeenCalledTimes(2)
+})
+
+it('小说分析核对任务返回对应报告，不提供通用重试或继续分析', async () => {
+  const task = data('核对作品', 'failed')
+  mocks.tasks.mockResolvedValue({ ...task, items: [{ ...task.items[0], kind: 'novel_analysis_review', params: JSON.stringify({ reportId: 'report-review' }) }] })
+  function Location() { const location = useLocation(); return <output data-testid="route">{location.search}</output> }
+  render(<MemoryRouter><AiTasksPanel /><Location /></MemoryRouter>)
+  await screen.findByText(/小说分析事实核对/)
+  expect(screen.queryByRole('button', { name: '重试' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '继续分析' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '查看分析报告' }))
+  const query = new URLSearchParams(screen.getByTestId('route').textContent || '')
+  expect(Object.fromEntries(query)).toEqual({ sub: 'writing', view: 'analysis', novel: 'book', report: 'report-review' })
 })

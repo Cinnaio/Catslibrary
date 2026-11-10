@@ -107,6 +107,7 @@ enum AdminFormat {
         case "rewrite_selection": return "选段改写"
         case "writing_title": return "标题生成"
         case "novel_analysis": return "小说分析报告"
+        case "novel_analysis_review": return "小说分析事实核对"
         case "cover": return "封面"
         case "cover_prompt": return "封面描述词"
         case "test": return "连通性测试"

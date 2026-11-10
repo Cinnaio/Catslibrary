@@ -6,6 +6,7 @@ import { newId } from '../auth'
 import { AiError } from './client'
 import { createAiTask, getAiTask, cancelAiTask } from './tasks'
 import { analysisHash, analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest } from './novel-analysis-source'
+import { readAnalysisReviews, saveAnalysisEvidence } from './novel-analysis-review-store'
 
 export interface AnalysisRow {
   id: string; novel_id: string; user_id: string; request_id: string; request_json: AnalysisRequest
@@ -55,8 +56,11 @@ function summary(row: AnalysisRow, task?: { status: string; step: string; error:
 export async function readAnalysis(db: Db, novelId: string, id: string): Promise<AnalysisReport> {
   const row = await requireAnalysis(db, novelId, id)
   const task = await getAiTask(db, row.task_id)
+  const sourceChanged = await analysisSourcesChanged(db, novelId, row.request_json, row.source_json)
   return { ...summary(row, task), content: row.edited_content ?? row.content, originalContent: row.content,
-    sourceChanged: await analysisSourcesChanged(db, novelId, row.request_json, row.source_json),
+    sourceChanged,
+    ...(row.content ? { evidence: await saveAnalysisEvidence(db, row) } : {}),
+    reviews: await readAnalysisReviews(db, row, sourceChanged),
     sources: row.source_json.map(({ text: _text, ...source }) => source), notes: row.notes_json, checkedSourceIds: row.checked_source_ids }
 }
 export async function listAnalyses(db: Db, novelId: string, offset = 0) {
@@ -73,11 +77,16 @@ export async function listAnalyses(db: Db, novelId: string, offset = 0) {
 export async function editAnalysis(db: Db, novelId: string, id: string, content: unknown, expectedRevision: unknown) {
   if (typeof content !== 'string' || !content.trim() || content.length > 50_000 || !Number.isSafeInteger(expectedRevision))
     throw new AiError('invalid', '报告需为 1–50000 字，并携带当前版本', 422)
-  const row = await requireAnalysis(db, novelId, id)
-  if (!row.content) throw new AiError('conflict', '请等待报告完成后修订', 409)
-  if (!await run(db, `UPDATE novel_analysis_reports SET edited_content=$1,revision=revision+1,updated_at=$2
+  await withTx(db, async query => {
+    const tx = { query }
+    await query('SELECT id FROM novel_analysis_reports WHERE id=$1 AND novel_id=$2 FOR UPDATE', [id, novelId])
+    const row = await requireAnalysis(tx, novelId, id)
+    if (!row.content) throw new AiError('conflict', '请等待报告完成后修订', 409)
+    if (!await run(tx, `UPDATE novel_analysis_reports SET edited_content=$1,revision=revision+1,updated_at=$2
     WHERE id=$3 AND novel_id=$4 AND revision=$5 AND content<>''`, [content.trim(), Date.now(), id, novelId, expectedRevision]))
-    throw new AiError('conflict', '报告已被修改，请重新读取后保存', 409)
+      throw new AiError('conflict', '报告已被修改，请重新读取后保存', 409)
+    await saveAnalysisEvidence(tx, { ...row, edited_content: content.trim(), revision: Number(row.revision) + 1 })
+  })
 }
 export async function stopAnalysis(db: Db, novelId: string, id: string) {
   const row = await requireAnalysis(db, novelId, id)

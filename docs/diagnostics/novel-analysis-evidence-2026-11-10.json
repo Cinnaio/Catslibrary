@@ -1,0 +1,434 @@
+{
+  "date": "2026-11-10",
+  "baseline": "2a8e22bc",
+  "status": "uncommitted-local-implementation",
+  "fixtureHash": "8dcf367d2df96df945f7e9a6c1aca0c6def6af5bebc4e42a2a1c3934afb4d808",
+  "realCalls": 8,
+  "reasoning": "low",
+  "timeoutSeconds": 300,
+  "automaticRetries": 0,
+  "evaluationDatabase": "isolated PGlite",
+  "semanticReview": "implementation-assistant; not independent or blind full-book review",
+  "sourceHashes": {
+    "api/src/services/ai/novel-analysis-evidence.ts": "cc30e8d03a44174f5728f8fcbc82475bd71d5671c52ce838b021ad36590f5696",
+    "api/src/services/ai/novel-analysis-facts.ts": "754a97e72b08d5cd4eb15fdd782b5e8b1924b5754b429c279cd98de04b53d257",
+    "api/src/services/ai/novel-analysis-review.ts": "0f6d95413b783d4266af1f29e5bb714bcbadd574081611545823a3f661045848"
+  },
+  "results": [
+    {
+      "id": "presence-bad",
+      "status": "completed",
+      "expectedIssue": true,
+      "actualIssueCount": 1,
+      "matchesPredefinedExpectation": true,
+      "partial": false,
+      "rejected": 0,
+      "durationMs": 13078,
+      "responseHash": "400d58f5b8ea2ee8c6c409b20715f35f61860dbebec1d81a036d30a4fa04dd25",
+      "suggestions": [
+        {
+          "kind": "conflict",
+          "original": "父母在场看到青遥收信。[[S1]]",
+          "suggestion": "青遥担心父母看到信，立刻关上抽屉；父母那时在邻镇，晚上才回来。[[S1]][[S2]]",
+          "evidenceVerified": true,
+          "quoteStatusesAfter": []
+        }
+      ],
+      "propagation": {
+        "originalRetained": true,
+        "revisionIncreased": true,
+        "writingUsesRevision": true,
+        "writingUsesContent": true,
+        "agentUsesRevision": true,
+        "agentUsesContent": true
+      }
+    },
+    {
+      "id": "presence-good",
+      "status": "completed",
+      "expectedIssue": false,
+      "actualIssueCount": 0,
+      "matchesPredefinedExpectation": true,
+      "partial": false,
+      "rejected": 0,
+      "durationMs": 9706,
+      "responseHash": "5350afa88d667b6ad8c5702cf793eb29ef8001f891598364792f2e5043db6fd3",
+      "suggestions": []
+    },
+    {
+      "id": "paraphrase-bad",
+      "status": "completed",
+      "expectedIssue": true,
+      "actualIssueCount": 1,
+      "matchesPredefinedExpectation": true,
+      "partial": false,
+      "rejected": 0,
+      "durationMs": 5852,
+      "responseHash": "d2b2fa56a02432ecc1ca8ecf7bde8606262b7d11b99ba95043846120bf90e83b",
+      "suggestions": [
+        {
+          "kind": "citation",
+          "original": "青遥因担心暴露而迅速将信收起。",
+          "suggestion": "青遥担心父母看到信，立刻关上抽屉。",
+          "evidenceVerified": true,
+          "quoteStatusesAfter": [
+            "matched"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quotation-good",
+      "status": "completed",
+      "expectedIssue": false,
+      "actualIssueCount": 0,
+      "matchesPredefinedExpectation": true,
+      "partial": false,
+      "rejected": 0,
+      "durationMs": 5060,
+      "responseHash": "5350afa88d667b6ad8c5702cf793eb29ef8001f891598364792f2e5043db6fd3",
+      "suggestions": []
+    },
+    {
+      "id": "cross-chapter-bad",
+      "status": "completed",
+      "expectedIssue": true,
+      "actualIssueCount": 1,
+      "matchesPredefinedExpectation": true,
+      "partial": false,
+      "rejected": 0,
+      "durationMs": 8280,
+      "responseHash": "6f58d5435c63cb843b4488d88228a610e8ecd2b22a488e5fa11c0045e42a2d4a",
+      "suggestions": [
+        {
+          "kind": "citation",
+          "original": "她问：“明天你会来吗？”[[S2]]",
+          "suggestion": "她问：“明天你会来吗？”[[S1]]",
+          "evidenceVerified": true,
+          "quoteStatusesAfter": [
+            "matched",
+            "matched"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cross-chapter-good",
+      "status": "completed",
+      "expectedIssue": false,
+      "actualIssueCount": 0,
+      "matchesPredefinedExpectation": true,
+      "partial": false,
+      "rejected": 0,
+      "durationMs": 5016,
+      "responseHash": "5350afa88d667b6ad8c5702cf793eb29ef8001f891598364792f2e5043db6fd3",
+      "suggestions": []
+    },
+    {
+      "id": "holdout-transfer-bad",
+      "status": "completed",
+      "expectedIssue": true,
+      "actualIssueCount": 1,
+      "matchesPredefinedExpectation": true,
+      "partial": false,
+      "rejected": 0,
+      "durationMs": 6371,
+      "responseHash": "9e527b6fd1ada5eedbdff0a5dfe657a1a83d66ad07f26f2708005a310963808f",
+      "suggestions": [
+        {
+          "kind": "conflict",
+          "original": "宋乔亲眼看见陆远把铜钥匙交给管理员，交接已经完成。",
+          "suggestion": "陆远告诉宋乔，他打算第二天把铜钥匙交给管理员；但第二天陆远改变计划，铜钥匙依然留在他手里。",
+          "evidenceVerified": true,
+          "quoteStatusesAfter": []
+        }
+      ]
+    },
+    {
+      "id": "holdout-transfer-good",
+      "status": "completed",
+      "expectedIssue": false,
+      "actualIssueCount": 1,
+      "matchesPredefinedExpectation": false,
+      "partial": false,
+      "rejected": 0,
+      "durationMs": 11931,
+      "responseHash": "38870c3273fecd034e3631db9e49ec7e858b4cafadd1e190c015b83a1f7348af",
+      "suggestions": [
+        {
+          "kind": "citation",
+          "original": "宋乔听陆远说过交钥匙的计划，没有目睹交接。[[S1]]",
+          "suggestion": "宋乔听陆远说过交钥匙的计划，当晚没有去仓库。[[S1]]",
+          "evidenceVerified": true,
+          "quoteStatusesAfter": []
+        }
+      ]
+    }
+  ],
+  "knownQuoteReplay": [
+    {
+      "id": "Q01",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "uncertain",
+          "cited": [
+            "S91"
+          ],
+          "matches": [
+            [
+              "S91"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q02",
+      "expectedExact": false,
+      "exactAtExpected": false,
+      "scanner": [
+        {
+          "status": "not_found",
+          "cited": [
+            "S91"
+          ],
+          "matches": []
+        }
+      ]
+    },
+    {
+      "id": "Q03",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "matched",
+          "cited": [
+            "S91"
+          ],
+          "matches": [
+            [
+              "S91"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q04",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "matched",
+          "cited": [
+            "S91"
+          ],
+          "matches": [
+            [
+              "S91"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q05",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "wrong_source",
+          "cited": [
+            "S93"
+          ],
+          "matches": [
+            [
+              "S92"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q06",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "matched",
+          "cited": [
+            "S95"
+          ],
+          "matches": [
+            [
+              "S95"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q07",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "uncertain",
+          "cited": [
+            "S96"
+          ],
+          "matches": [
+            [
+              "S96"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q08",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "uncertain",
+          "cited": [
+            "S98"
+          ],
+          "matches": [
+            [
+              "S98"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q09",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "uncertain",
+          "cited": [
+            "S98"
+          ],
+          "matches": [
+            [
+              "S98"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q10",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "matched",
+          "cited": [
+            "S99"
+          ],
+          "matches": [
+            [
+              "S99"
+            ]
+          ]
+        },
+        {
+          "status": "uncertain",
+          "cited": [
+            "S99"
+          ],
+          "matches": [
+            [
+              "S99"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q11",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "uncertain",
+          "cited": [
+            "S99"
+          ],
+          "matches": [
+            [
+              "S99"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "Q12",
+      "expectedExact": true,
+      "exactAtExpected": true,
+      "scanner": [
+        {
+          "status": "uncertain",
+          "cited": [
+            "S99"
+          ],
+          "matches": [
+            [
+              "S99"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "caveats": [
+    "holdout-transfer-good violates the predefined no-finding expectation. The model challenges citation coverage (S1 versus S2); the factual conclusion was not reversed. Retain as an unresolved control discrepancy, not a pass.",
+    "The raw paraphrase-bad proposal put a duplicate citation inside quotation marks. Final deterministic parsing removes only redundant external citations when the replacement is literal source text; saved-response replay confirms the resulting quote matches.",
+    "Known real-book quotes are selected prior failures/correct controls, not random samples; do not infer full-book accuracy.",
+    "No new long-book analysis or real continuation model generation in this batch. Writing and Agent checks verify the version/content supplied to them, not future model adherence."
+  ],
+  "usage": {
+    "promptTokens": 3656,
+    "completionTokens": 4070,
+    "knownCostUsd": 0.001442,
+    "unknownCostCalls": 1
+  },
+  "verification": {
+    "apiTests": 71,
+    "webTests": 32,
+    "apiTypecheck": true,
+    "webTypecheck": true,
+    "scriptTypecheck": true,
+    "builds": [
+      "API",
+      "Web"
+    ],
+    "lintErrors": 0,
+    "existingLintWarnings": 2,
+    "browserAutomation": false,
+    "iosBuild": false
+  },
+  "localPreview": {
+    "migrationBefore": 82,
+    "migrationAfter": 83,
+    "activeTasksAfter": 0,
+    "reportUnchanged": true,
+    "chaptersUnchanged": true,
+    "settingsUnchanged": true,
+    "health": 200,
+    "ready": 200,
+    "page": 200,
+    "anonymousReviewPreview": 401
+  },
+  "pushed": false,
+  "deployed": false
+}

@@ -224,7 +224,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const detailTask = tasks.find((task) => task.id === detailsId)
   const failedCount = statusCounts.failed ?? 0
   function renderRetry(task: AiTask) {
-    if (task.kind === 'novel_analysis') {
+    if (['novel_analysis', 'novel_analysis_review'].includes(task.kind)) {
       let reportId = ''
       try { reportId = String(JSON.parse(task.params || '{}').reportId || '') } catch { /* Historic metadata can be missing. */ }
       return <Button variant="outline" size="sm" onClick={() => navigate(`/admin/ai?${new URLSearchParams({ sub: 'writing', view: 'analysis', novel: task.novelId, report: reportId })}`)}>查看分析报告</Button>

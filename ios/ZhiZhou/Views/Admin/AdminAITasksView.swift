@@ -164,6 +164,9 @@ struct AdminAITasksView: View {
                 NavigationLink("查看本次草稿与发布", destination: AdminAIGenerationsView(taskID: task.id))
                     .accessibilityIdentifier("admin.task.results.\(task.id)")
             }
+            if let reportURL = analysisReportURL(task) {
+                Link("查看分析报告与核对记录", destination: reportURL)
+            }
             if let novelID = task.novelId, !novelID.isEmpty {
                 NavigationLink("管理关联作品") { AdminNovelWorkspaceLoader(novelID: novelID) }
             }
@@ -184,8 +187,10 @@ struct AdminAITasksView: View {
                                 requestCancel(task)
                             }
                         } else {
-                            Button("重试", systemImage: "arrow.clockwise") {
-                                Task { await retry(task) }
+                            if task.kind != "novel_analysis_review" {
+                                Button("重试", systemImage: "arrow.clockwise") {
+                                    Task { await retry(task) }
+                                }
                             }
                             Button("删除记录", systemImage: "trash", role: .destructive) {
                                 pendingDelete = task
@@ -209,8 +214,10 @@ struct AdminAITasksView: View {
                     requestCancel(task)
                 }
             } else {
-                Button("重试", systemImage: "arrow.clockwise") {
-                    Task { await retry(task) }
+                if task.kind != "novel_analysis_review" {
+                    Button("重试", systemImage: "arrow.clockwise") {
+                        Task { await retry(task) }
+                    }
                 }
                 Button("删除记录", systemImage: "trash", role: .destructive) {
                     pendingDelete = task
@@ -220,6 +227,21 @@ struct AdminAITasksView: View {
     }
 
     // MARK: - 数据
+
+    private func analysisReportURL(_ task: AiTaskInfo) -> URL? {
+        guard ["novel_analysis", "novel_analysis_review"].contains(task.kind ?? ""),
+              let novelID = task.novelId, !novelID.isEmpty,
+              let base = ServerConfig.shared.baseURL else { return nil }
+        var components = URLComponents(url: base.appendingPathComponent("admin/ai"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "sub", value: "writing"), URLQueryItem(name: "view", value: "analysis"),
+                                 URLQueryItem(name: "novel", value: novelID)]
+        if let data = task.params?.data(using: .utf8),
+           let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let reportID = params["reportId"] as? String, !reportID.isEmpty {
+            components?.queryItems?.append(URLQueryItem(name: "report", value: reportID))
+        }
+        return components?.url
+    }
 
     private func monitorTasks() async {
         await load()

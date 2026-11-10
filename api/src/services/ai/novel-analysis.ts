@@ -11,6 +11,7 @@ import { getAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from '.
 import { requireAnalysis } from './novel-analysis-store'
 import { analysisPrompt, analysisSourceMaterial } from './novel-analysis-prompts'
 import { searchAnalysisSources } from './novel-analysis-source'
+import { saveAnalysisEvidence } from './novel-analysis-review-store'
 
 const SOURCE_TOOL: AiFunctionTool = { type: 'function', function: { name: 'read_source',
   description: '回读本报告范围内的一段原文。sourceId 使用材料中的 S 编号，不能查阅范围外内容。',
@@ -95,6 +96,7 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
         WHERE id=$6 AND task_id=$7`, [JSON.stringify(notes), synthesis ? JSON.stringify(synthesis) : null,
         JSON.stringify([...checked]), content ?? null, Date.now(), reportId, taskId])
       if (!changed) throw new AiError('cancelled', '报告已由另一个任务继续处理', 409)
+      if (content !== undefined) await saveAnalysisEvidence(tx, await requireAnalysis(tx, novelId, reportId))
       if (content !== undefined) await updateAiTask(tx, taskId, { status: 'completed', current: report.source_json.length,
         total: report.source_json.length, step: '分析报告已保存，可核对和修订', result: JSON.stringify({ reportId }) })
     })

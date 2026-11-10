@@ -110,6 +110,7 @@ export async function readAgentAnalysis(db: Db, session: AgentSession, reportId:
   const content = report.content.slice(offset, offset + 10000)
   const cited = new Set([...content.matchAll(/\[\[(S\d+)\]\]/g)].map(match => match[1]))
   return { id: report.id, kind: report.kind, content, revision: String(report.revision), edited: report.edited,
+    review: report.review,
     startChapter: report.startChapter, endChapter: report.endChapter, offset,
     nextOffset: offset + 10000 < report.content.length ? offset + 10000 : null,
     sources: [analysisEvidence(session, report, offset)],

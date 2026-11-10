@@ -37,7 +37,27 @@
 .markdown a { text-decoration: underline; text-underline-offset: 3px; }
 .citation { display: inline; height: auto; min-height: 24px; padding: 2px 4px; font-size: 12px; vertical-align: baseline; }
 .table { overflow-x: auto; }.table table { border-collapse: collapse; width: 100%; }.table th, .table td { padding: 8px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+.evidence { margin-block: 28px; }
+.evidenceItem { margin-block: 12px; }
+.evidenceItem summary { cursor: pointer; padding-block: 10px; font-size: 14px; line-height: 1.7; }
+.evidenceItem p { line-height: 1.8; }
+.evidenceText { white-space: pre-wrap; overflow-wrap: anywhere; }
+.evidenceSource { margin-block: 16px; }
+.evidenceSource blockquote { margin: 8px 0; padding-inline-start: 14px; color: var(--text-secondary); white-space: pre-wrap; }
+.evidenceSource button { height: auto; min-height: 40px; white-space: normal; text-align: start; }
+.reviewSetup { margin-block: 16px 28px; }
+.reviewRecord h3 { font-size: 16px; font-weight: 600; margin-block: 8px; }
+.coverageSegment { margin-block: 18px; }
+.segmentChoices { display: grid; gap: 12px; max-height: 440px; overflow-y: auto; padding: 4px; }
+.segmentChoice { display: flex; gap: 12px; align-items: start; padding-block: 10px; line-height: 1.8; cursor: pointer; }
+.segmentChoice input { margin-top: 6px; accent-color: var(--accent); }
+.segmentChoice > span { display: grid; gap: 4px; min-width: 0; }
+.segmentChoice > span > span { white-space: pre-wrap; font-size: 13px; color: var(--text-secondary); }
+.revisionComparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-block: 18px; }
+.revisionComparison h4 { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.revisionComparison del { text-decoration-color: var(--text-secondary); }
+.revisionComparison ins { text-decoration-style: dotted; text-underline-offset: 3px; }
 @keyframes row-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 900px) { .workspace { grid-template-columns: minmax(0, 1fr); gap: 28px; }.historyItem { min-height: 76px; }.history { max-height: 340px; overflow-y: auto; } }
-@media (max-width: 700px) { .fields { grid-template-columns: minmax(0, 1fr); gap: 16px; }.reportHeader h2 { font-size: 24px; }.form { margin-bottom: 24px; }.sources button { min-height: 48px; } }
+@media (max-width: 700px) { .fields { grid-template-columns: minmax(0, 1fr); gap: 16px; }.reportHeader h2 { font-size: 24px; }.form { margin-bottom: 24px; }.sources button { min-height: 48px; }.revisionComparison { grid-template-columns: minmax(0, 1fr); gap: 12px; }.evidence button, .evidence summary, .segmentChoice { min-height: 48px; } }
 @media (prefers-reduced-motion: reduce) { .historyItem { animation: none; }.transitioning { transition: none; } }

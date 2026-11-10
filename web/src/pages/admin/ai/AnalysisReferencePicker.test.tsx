@@ -58,3 +58,12 @@ it('切书后丢弃旧请求的默认选择与内容', async () => {
   expect(changed).toHaveBeenCalledTimes(1)
   expect(changed).toHaveBeenLastCalledWith([])
 })
+
+it('显示报告事实疑点但保留作者手动选择权', async () => {
+  vi.mocked(request).mockResolvedValue({ reports: [{ ...choice(), reviewWarning: '有 1 处事实疑点待核对' }], defaults: [], nextOffset: null })
+  render(<Picker />)
+  await screen.findByText('有 1 处事实疑点待核对')
+  expect(screen.getByRole('checkbox')).toBeEnabled()
+  fireEvent.click(screen.getByRole('checkbox'))
+  expect(changed).toHaveBeenLastCalledWith([{ reportId: 'r1', revision: 1 }])
+})
