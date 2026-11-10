@@ -7,6 +7,7 @@ import { agentAnchor, readAgentChapter, readAgentProfiles, searchAgentStory } fr
 import { agentDraftTitle, prepareAgentAction, readAgentArtifact, scopedAgentDraft, type AgentApi } from './agent-actions'
 import { readAgentEvents, requireAgentArtifact, trackAgentArtifact } from './agent-store'
 import { createAgentMemory } from './agent-memory'
+import { isAuthorQuote, readConversationSources } from './agent-conversation'
 import { parseRewriteSuggestion, parseRewriteTaskParams } from './rewrite'
 
 type Property = { type: 'string' | 'integer'; description?: string; enum?: string[]; maxLength?: number; minimum?: number; maximum?: number }
@@ -16,7 +17,7 @@ function tool(name: string, description: string, properties: Record<string, Prop
 const id: Property = { type: 'string', maxLength: 160 }
 const instruction: Property = { type: 'string', maxLength: 4000 }
 export const AGENT_TOOLS: AiFunctionTool[] = [
-  tool('read_overview', '读取当前小说、冻结的续写起点和最近章节目录。首次讨论具体情节前先取材。'),
+  tool('read_overview', '读取当前小说、冻结的续写起点和最近章节目录。需要了解作品或定位章节时使用；核对聊天中的作者决定无需先读目录。'),
   tool('search_chapters', '在起点之前的正式章节中搜索原文或标题，返回命中片段和章节 ID。只做字面检索，不代表没有其他相关内容。', {
     query: { type: 'string', maxLength: 100 },
   }),
@@ -42,6 +43,9 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   tool('read_conversation', '读取本会话 beforeId 之前最近 20 条原始消息。可用当前最早消息 ID 向前翻页；若摘要引用消息 #123，用 beforeId=124 直接定位包含该消息的页面。hasEarlier=true 表示仍有更早记录，未翻到不能说原文不存在。', {
     beforeId: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
   }),
+  tool('read_conversation_sources', '按编号直接核对本会话的 1–8 条原始消息，编号用英文逗号分隔。摘要已有来源编号时优先使用，无需逐页遍历；作者原话、助手建议和操作记录须分别解释。', {
+    eventIds: { type: 'string', maxLength: 160 },
+  }),
   tool(
     'generate_draft',
     '用户要求开始生成时，启动一章续写或新写草稿。仅讨论方向时不要调用。正文不会自动发布。',
@@ -59,9 +63,9 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   }),
   tool('generate_cover', '按用户确定的画面要求生成一张封面候选。instruction 必须是完整画面描述，会原样提交给图像服务；现有能力是重新生成，不能承诺原图局部编辑或人物完全一致。', { instruction }),
   tool('refresh_memory', '仅在用户要求更新小说分析时创建后台档案任务；会产生模型用量。', { kind: { type: 'string', enum: ['plot', 'relationship'] } }),
-  tool('propose_memory', '当作者明确说“记住/以后都遵循/作为本书约定”时，提出一条跨对话创作约定。只创建待确认提议，不会立即生效。', {
+  tool('propose_memory', '当作者明确说“记住/以后都遵循/作为本书约定”时，忠实按作者原话提出跨对话创作约定，不扩写未要求的规则。只创建待确认提议，确认后才跨会话生效；本轮作者已经提出的要求仍须遵守。不能用此工具编辑已有提议。', {
     title: { type: 'string', maxLength: 100 },
-    content: { type: 'string', maxLength: 1000 },
+    content: { type: 'string', maxLength: 1000, description: '逐字摘取本轮作者消息中的完整原句，保留否定、条件和适用范围，不改写或扩展；可去掉冒号前的“请记住”等引导语。' },
     supersedesId: { ...id },
   }, ['title', 'content']),
   tool(
@@ -123,6 +127,7 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
   list_covers: '查看封面候选',
   read_task: '读取任务结果',
   read_conversation: '查阅早前对话',
+  read_conversation_sources: '核对作者原话',
   generate_draft: '生成章节草稿',
   rewrite_draft: '生成改写建议',
   refine_rewrite: '调整上一版改写建议',
@@ -193,9 +198,15 @@ export async function executeAgentTool(
     }
   if (name === 'read_task') return { ...(await readAgentArtifact(db, session, String(a.taskId))) }
   if (name === 'read_conversation') return readAgentEvents(db, session.id, Number(a.beforeId), 20)
+  if (name === 'read_conversation_sources') {
+    const raw = String(a.eventIds)
+    if (!/^\d+(?:\s*,\s*\d+){0,7}$/.test(raw)) throw new AiError('invalid', '请提供逗号分隔的 1–8 个消息编号', 422)
+    return readConversationSources(db, session, userId, raw.split(',').map(Number))
+  }
   if (name === 'propose_memory') {
-    const source = await first<{ id: number }>(db, "SELECT id FROM ai_agent_events WHERE session_id=$1 AND task_id=$2 AND role='user' ORDER BY id DESC LIMIT 1", [session.id, currentTaskId])
+    const source = await first<{ id: number; content: string }>(db, "SELECT id,content FROM ai_agent_events WHERE session_id=$1 AND task_id=$2 AND role='user' ORDER BY id DESC LIMIT 1", [session.id, currentTaskId])
     if (!source) throw new AiError('invalid', '没有找到可引用的作者消息', 422)
+    if (!isAuthorQuote(source.content, String(a.content))) throw new AiError('invalid', '记忆提议须逐字保留本轮作者的完整原句，包括否定与条件；请勿扩写。作者可在确认面板编辑。', 422)
     return { memory: await createAgentMemory(db, userId, session, {
       title: a.title,
       content: a.content,

@@ -197,9 +197,11 @@ export async function changeAgentMemory(
 export async function saveAgentSummary(db: DbClient, session: AgentSession, throughEventId: number, content: AgentSummaryContent): Promise<AgentSummary> {
   const now = Date.now()
   await db.query(
-    `INSERT INTO ai_agent_summaries(session_id,through_event_id,content,revision,updated_at)
+    `WITH saved AS (INSERT INTO ai_agent_summaries(session_id,through_event_id,content,revision,updated_at)
     VALUES($1,$2,$3,1,$4) ON CONFLICT(session_id) DO UPDATE SET through_event_id=EXCLUDED.through_event_id,content=EXCLUDED.content,revision=ai_agent_summaries.revision+1,updated_at=EXCLUDED.updated_at
-    WHERE ai_agent_summaries.through_event_id < EXCLUDED.through_event_id`,
+    WHERE ai_agent_summaries.through_event_id < EXCLUDED.through_event_id RETURNING *)
+    INSERT INTO ai_agent_summary_versions(session_id,revision,through_event_id,content,created_at)
+    SELECT session_id,revision,through_event_id,content,updated_at FROM saved`,
     [session.id, throughEventId, JSON.stringify(content), now],
   )
   return (await getAgentSummary(db, session.id))!

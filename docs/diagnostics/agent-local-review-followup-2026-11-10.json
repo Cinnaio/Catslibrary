@@ -1,0 +1,160 @@
+{
+  "date": "2026-11-10",
+  "source": "synthetic_provider_followup",
+  "humanVerdict": "pending",
+  "originalFailure": {
+    "report": ".tmp/agent-evaluation/provenance-2026-11-09.json",
+    "sha256": "e2520dde0d30665ce23a43f63cc0b4edd2868bb18f7ce81c587b105f5e0f51f8",
+    "case": "Q01",
+    "reply": [
+      "已提出作品记忆，内容按你的原话记录：\n\n> 本书以后保持克制文风，避免连续感叹号。\n\n目前是**待确认**状态，需要你在“作品记忆”面板中确认后才会跨对话生效；在此之前它不构成写作约束。"
+    ],
+    "assistantFinding": "Pending cross-session memory was described as not constituting a writing constraint; current explicit instruction must remain applicable."
+  },
+  "followup": {
+    "rawReportSha256": "64e4f38bb6b52f470af5a9c8d23f6410ca8b4e5b1c36be8fc7282e49fb68aa48",
+    "sourceCommit": "946af13cd0314005bf2a3aee7a326035cbdc1e94",
+    "sourceDiffHash": "ee5fc01e8c49e569157ac3c8ffb42cf63d03c9f2448bbc9afd682d7ef07f3e2b",
+    "sourceHashes": {
+      "api/src/routes/ai-agent.ts": "9900e25b037853936a82638ce12c36ccff0b903e3f319726de05866d9f7cfa05",
+      "api/src/services/ai/agent-tools.ts": "84ade074e5770f52e0f7233ac2f03e4a312db26726603d14753b6037cbaa1099",
+      "api/src/services/ai/agent.ts": "7ba28370c478b8714c2158e01bc427a84ea5cfc7e50a496f6bcfb2d8d12228b0",
+      "shared/ai-agent.ts": "0b03d9519cef4e65b9f6f8de08f126a45d8646b1e9aae76231387e8beb20d698",
+      "api/scripts/evaluate-agent.ts": "38d16155bbcd37b6e10522ee708d3cb30cadc68f9dd2b53186eac6dd747b7217",
+      "api/scripts/fixtures/agent-quality-cases.json": "31d6a0cd19232e0cf853212b81aefa7c2a414491f7e2f0c1c8c306936d6a9428"
+    },
+    "sample": {
+      "id": "Q16",
+      "repetition": 1,
+      "name": "失败改编：待确认记忆不撤销本轮指令",
+      "checks": [
+        {
+          "name": "turn_completed",
+          "passed": true
+        },
+        {
+          "name": "pending_proposal",
+          "passed": true
+        },
+        {
+          "name": "no_active_memory",
+          "passed": true
+        },
+        {
+          "name": "proposal_quotes_original",
+          "passed": true
+        },
+        {
+          "name": "only_expected_tools",
+          "passed": true
+        },
+        {
+          "name": "no_business_mutations_requested",
+          "passed": true
+        }
+      ],
+      "review": {
+        "status": "needs_review",
+        "criteria": "来源为阶段六 Q01 实际回复把待确认说成不构成写作约束。当前明确要求立即适用于本轮；跨对话记忆仍待确认。不激活记忆、不把旧待确认提议当成新指令。语义须人工判断，程序检查仅覆盖提议状态和原句。"
+      },
+      "turns": [
+        {
+          "taskId": "aitask_mw9xlbbq_c46695a1",
+          "prompt": "请记住：本书以后保持克制文风，避免连续感叹号。先按这句原话提出作品记忆，跨对话保存等我在面板确认。本轮回复现在就遵守这项要求；请简短说明本轮和后续新对话分别按什么处理，不查章节、不生成正文。",
+          "status": "completed",
+          "error": "",
+          "durationMs": 9833,
+          "events": [
+            {
+              "id": 1,
+              "role": "user",
+              "content": "请记住：本书以后保持克制文风，避免连续感叹号。先按这句原话提出作品记忆，跨对话保存等我在面板确认。本轮回复现在就遵守这项要求；请简短说明本轮和后续新对话分别按什么处理，不查章节、不生成正文。",
+              "taskId": "aitask_mw9xlbbq_c46695a1",
+              "requestId": "55349494-818b-44ae-a64f-d09f3ce8d646",
+              "metadata": {
+                "model": "deepseek-v4.1-flash-tiancai",
+                "providerPresetId": ""
+              },
+              "createdAt": 1794269262236
+            },
+            {
+              "id": 2,
+              "role": "activity",
+              "content": "提出创作记忆",
+              "taskId": "aitask_mw9xlbbq_c46695a1",
+              "metadata": {
+                "tool": "propose_memory",
+                "memoryId": "amem_mw9xlf7b_6656d9b9"
+              },
+              "createdAt": 1794269267263
+            },
+            {
+              "id": 3,
+              "role": "assistant",
+              "content": "已按你的原话提出作品记忆：“本书以后保持克制文风，避免连续感叹号。”目前待确认，你在“作品记忆”面板确认后才跨对话生效。\n\n本轮我直接照此执行；后续新对话则从确认生效起同样遵循，此前的讨论和旧记录不受影响。",
+              "taskId": "aitask_mw9xlbbq_c46695a1",
+              "metadata": {
+                "round": 1
+              },
+              "createdAt": 1794269272076
+            }
+          ],
+          "usage": {
+            "taskId": "aitask_mw9xlbbq_c46695a1",
+            "status": "completed",
+            "startedAt": 1794269262230,
+            "elapsedMs": 9847,
+            "tracked": true,
+            "chatCalls": 2,
+            "summaryCalls": 0,
+            "inputTokens": 8949,
+            "outputTokens": 217,
+            "unknownTokenCalls": 0,
+            "costs": [],
+            "unknownCostCalls": 2
+          },
+          "summary": null,
+          "summaryVersions": [],
+          "presentation": {
+            "replyCharacters": 103,
+            "possibleInternalReferences": []
+          }
+        }
+      ],
+      "blockedBusiness": []
+    },
+    "usage": [
+      {
+        "task_id": "aitask_mw9xlbbq_c46695a1",
+        "generation_type": "agent_chat",
+        "model": "deepseek-v4.1-flash",
+        "prompt_tokens": 4334,
+        "completion_tokens": 152,
+        "reasoning_tokens": 80,
+        "token_usage_reported": true,
+        "cost_millicents": "0.00000000",
+        "cost_reported": false,
+        "cost_currency": ""
+      },
+      {
+        "task_id": "aitask_mw9xlbbq_c46695a1",
+        "generation_type": "agent_chat",
+        "model": "deepseek-v4.1-flash",
+        "prompt_tokens": 4615,
+        "completion_tokens": 65,
+        "reasoning_tokens": 0,
+        "token_usage_reported": true,
+        "cost_millicents": "0.00000000",
+        "cost_reported": false,
+        "cost_currency": ""
+      }
+    ],
+    "providerRequests": 2
+  },
+  "limits": [
+    "One adapted synthetic sample, not historical author correction or repeated reliability evidence.",
+    "No real novel text sent to provider.",
+    "No automatic retries; no change to production output-format or reasoning defaults.",
+    "Code-assistant review is not independent human acceptance."
+  ]
+}

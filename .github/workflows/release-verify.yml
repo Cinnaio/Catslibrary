@@ -57,13 +57,15 @@ jobs:
         run: npm ci
 
       - name: Typecheck
-        run: npm run typecheck
+        run: |
+          npm run typecheck
+          npm run eval:agent:check
 
       - name: Lint and critical regressions
         run: |
           npm run lint -- --quiet
-          npm run test --workspace=@zhi-zhou/api -- src/services/readiness.test.ts src/routes/auth.test.ts src/routes/account-security.test.ts src/routes/browser-security.test.ts src/services/scraper/fetch.test.ts src/services/outbound-fetch.test.ts src/routes/web.test.ts src/routes/ai-agent.test.ts src/services/ai/agent-retrieval.test.ts --maxWorkers=2 --minWorkers=1
-          npm run test --workspace=@zhi-zhou/web -- src/lib/progress-sync.test.ts src/lib/api.progress.test.ts src/context/SessionContext.progress.test.tsx src/pages/admin/ai/AiAgentMemory.test.tsx src/pages/admin/ai/AiAgentPanel.test.tsx src/pages/admin/ai/AiAgentSources.test.tsx --maxWorkers=2 --minWorkers=1
+          npm run test --workspace=@zhi-zhou/api -- src/services/readiness.test.ts src/routes/auth.test.ts src/routes/account-security.test.ts src/routes/browser-security.test.ts src/services/scraper/fetch.test.ts src/services/outbound-fetch.test.ts src/routes/web.test.ts src/routes/ai-agent.test.ts src/services/ai/agent-retrieval.test.ts src/services/ai/agent-usage.test.ts src/services/ai/usage.test.ts src/services/ai/client.test.ts src/services/ai/tasks.test.ts --maxWorkers=2 --minWorkers=1
+          npm run test --workspace=@zhi-zhou/web -- src/lib/progress-sync.test.ts src/lib/api.progress.test.ts src/context/SessionContext.progress.test.tsx src/pages/admin/ai/AiAgentMemory.test.tsx src/pages/admin/ai/AiAgentPanel.test.tsx src/pages/admin/ai/AiAgentSources.test.tsx src/pages/admin/ai/AiAgentUsage.test.tsx src/pages/admin/ai/agent-task-state.test.ts src/lib/ai-task-stream.test.ts --maxWorkers=2 --minWorkers=1
           python3 scripts/test-release.py
 
       # 产物里不能混入前一次构建的旧哈希资源。

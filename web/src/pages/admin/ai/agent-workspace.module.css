@@ -16,6 +16,17 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.usage {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.usageTurn {
+  display: grid;
+  gap: 6px;
+}
+.usageTurn p {
+  margin: 0;
+}
 .toolbar {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;

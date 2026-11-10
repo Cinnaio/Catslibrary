@@ -20,6 +20,7 @@ import type { AgentSession, AgentSessionDetail } from '@shared/ai-agent'
 import { subscribeAiTask } from '../services/ai/task-events'
 import { activeAgentMemories, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories, saveAgentSummary } from '../services/ai/agent-memory'
 import { loadAgentContext, parseAgentSummary } from '../services/ai/agent-context'
+import { readConversationSources, isAuthorQuote } from '../services/ai/agent-conversation'
 
 const presetMock = vi.hoisted(() => vi.fn())
 vi.mock('../services/ai/provider-presets', async (importOriginal) => ({
@@ -36,6 +37,53 @@ const originalEnv = new Map<string, string | undefined>()
 const keys = ['DATABASE_URL', 'AI_TEXT_BASE_URL', 'AI_TEXT_API_KEY', 'AI_TEXT_MODEL', 'AI_IMAGE_BASE_URL', 'AI_IMAGE_API_KEY', 'AI_IMAGE_MODEL', 'COVER_FETCH_ENABLED']
 const summaryContent = { goal: '继续讨论情节', decisions: ['#1 作者确认保留悬念'], rejected: ['#2 作者否定立即和解'], openQuestions: ['#3 助手建议尚未确认'], nextSteps: ['#4 待检查草稿'], references: ['#1'] }
 const original = '他转身离开。她没有开口。'
+
+describe('conversation provenance and literal memory proposals', () => {
+  it('resolves distant sources only inside the account, book and session boundary', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const foreign = await createAgentSession(t.db, 'other', { novelId: 'novel' })
+    await appendAgentEvent(t.db, session.id, 'user', '不要毁掉白瓷扣。')
+    await appendAgentEvent(t.db, foreign.id, 'user', '另一个账号的私密原话')
+    for (let i = 0; i < 30; i++) await appendAgentEvent(t.db, session.id, 'assistant', '仅为建议')
+    await appendAgentEvent(t.db, session.id, 'user', '取消旧码头，改去潮汐站；其他限制不变。')
+    const own = (await readAgentEvents(t.db, session.id, 0, 50)).events
+    const foreignId = (await readAgentEvents(t.db, foreign.id)).events[0]!.id
+    const ids = [own[0]!.id, own.at(-1)!.id, foreignId]
+    const result = await readConversationSources(t.db, session, 'admin', ids)
+    expect(result.messages.map(e => e.content)).toEqual(['不要毁掉白瓷扣。', '取消旧码头，改去潮汐站；其他限制不变。'])
+    expect(result.unavailableEventIds).toEqual([foreignId])
+    expect((await readConversationSources(t.db, session, 'other', ids)).messages).toEqual([])
+    expect((await readConversationSources(t.db, { ...session, novelId: 'other-novel' }, 'admin', ids)).messages).toEqual([])
+    await expect(readConversationSources(t.db, session, 'admin', Array.from({ length: 9 }, (_, i) => i + 1))).rejects.toMatchObject({ status: 422 })
+  })
+  it('includes actual cited originals with an explicitly incomplete excerpt instead of trusting a summary', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    await appendAgentEvent(t.db, session.id, 'user', '仅为假设，尚未决定。' + '讨论材料'.repeat(900))
+    const source = (await readAgentEvents(t.db, session.id)).events[0]!
+    await saveAgentSummary(t.db, session, source.id, { ...summaryContent, decisions: [`#${source.id} 作者否定了假设`] })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '核对旧决定', 'verify-original')
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    const input = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+    const context = JSON.parse(input.messages[1].content.split('：').slice(1).join('：'))
+    expect(context.summaryOriginalMessages.messages[0]).toMatchObject({ eventId: source.id, speaker: '作者', truncated: true })
+    expect(context.summaryOriginalMessages.messages[0].content).toHaveLength(3000)
+    expect(context.summaryOriginalMessages.messages[0].content).toContain('尚未决定')
+  })
+  it('refuses expanded or negation-stripped memory without persisting a proposal', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '请记住：不要让两人立即和解，除非我另行确认。只用于本书。', 'literal-memory')
+    for (const content of ['让两人立即和解', '不要让两人立即和解', '本书永远不允许和解。'])
+      await expect(executeAgentTool(t.db, session, 'propose_memory', { title: '关系约定', content }, 'invalid-proposal', internalApi(), 'admin', turn.taskId)).rejects.toMatchObject({ status: 422 })
+    expect((await listAgentMemories(t.db, 'admin', 'novel')).memories).toHaveLength(0)
+    const result = await executeAgentTool(t.db, session, 'propose_memory', { title: '关系约定', content: '不要让两人立即和解，除非我另行确认。只用于本书。' }, 'valid-proposal', internalApi(), 'admin', turn.taskId)
+    expect(result.memory).toMatchObject({ status: 'pending', content: '不要让两人立即和解，除非我另行确认。只用于本书。' })
+  })
+  it('accepts complete multiline quotes but not fragments of conditions', () => {
+    expect(isAuthorQuote('请记住保留悬念', '保留悬念')).toBe(true)
+    expect(isAuthorQuote('记住：第一章保留疑问。\n以后只记录明确决定。', '以后只记录明确决定。')).toBe(true)
+    expect(isAuthorQuote('记住：如果作者确认，就去潮汐站。', '去潮汐站。')).toBe(false)
+  })
+})
 
 describe('manual agent recovery', () => {
   async function interrupted(status: 'failed' | 'cancelled' = 'failed', preset = '') {
@@ -477,6 +525,44 @@ describe('creative memory and context regressions', () => {
     expect([...sentIDs, ...result.history.events.map((event) => event.id)]).toEqual(raw.map((event) => Number(event.id)))
     expect(result.summary?.revision).toBe(3)
   })
+  it('refreshes referenced task states across summaries without exposing foreign tasks or task content', async () => {
+    const session = await setup()
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '仅核对讨论', 'summary_status')
+    await updateAiTask(t.db, turn.taskId, { status: 'completed', result: '私密任务正文' })
+    const child = await createAiTask(t.db, { userId: 'admin', novelId: 'novel', kind: 'write_chapter', prompt: '私密创作参数' })
+    await trackAgentArtifact(t.db, session.id, child.id)
+    await appendAgentEvent(t.db, session.id, 'activity', '已提交生成', turn.taskId, { artifactTaskId: child.id })
+    const another = await setup()
+    const unrelated = await beginAgentTurn(t.db, 'admin', another.id, '别的聊天', 'other_summary_status')
+    await updateAiTask(t.db, unrelated.taskId, { status: 'completed' })
+    const foreign = await createAiTask(t.db, { userId: 'other', novelId: 'novel', kind: 'write_chapter' })
+    const wrongBook = await createAiTask(t.db, { userId: 'admin', novelId: 'other-novel', kind: 'write_chapter' })
+    // Even inconsistent linkage must still respect account/book ownership.
+    await trackAgentArtifact(t.db, session.id, foreign.id)
+    await trackAgentArtifact(t.db, session.id, wrongBook.id)
+    const content = { ...summaryContent, references: [turn.taskId, child.id, unrelated.taskId, foreign.id, wrongBook.id, 'aitask_missing'] }
+    const last = (await readAgentEvents(t.db, session.id)).events.at(-1)!
+    await saveAgentSummary(t.db, session, last.id, content)
+    await longHistory(session)
+    fetchMock.mockImplementation(async () => completion(JSON.stringify(content)))
+    await context(session)
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    const input = JSON.parse(body.messages[1].content)
+    expect(input.taskStates.map((task: { id: string }) => task.id).sort()).toEqual([turn.taskId, child.id].sort())
+    expect(input.taskStates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: turn.taskId, status: 'completed' }),
+      expect.objectContaining({ id: child.id, status: 'queued' }),
+    ]))
+    expect(JSON.stringify(input.taskStates)).not.toContain('私密')
+    expect(Object.keys(input.taskStates[0]).sort()).toEqual(['id', 'kind', 'status', 'updatedAt'])
+
+    await updateAiTask(t.db, child.id, { status: 'failed', error: '私密上游错误' })
+    await longHistory(session, 45)
+    await context(session)
+    const nextInput = JSON.parse(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).messages[1].content)
+    expect(nextInput.taskStates.find((task: { id: string }) => task.id === child.id)).toMatchObject({ status: 'failed' })
+    expect(JSON.stringify(nextInput.taskStates)).not.toContain('私密')
+  })
   it('preserves the summary cursor on malformed responses and retries the same prefix explicitly', async () => {
     const session = await setup()
     await longHistory(session)
@@ -486,6 +572,29 @@ describe('creative memory and context regressions', () => {
     fetchMock.mockResolvedValueOnce(completion(JSON.stringify(summaryContent)))
     await context(session)
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).messages).toEqual(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).messages)
+  })
+  it('resumes the failed batch after a saved checkpoint without resummarizing or losing earlier records', async () => {
+    const session = await setup()
+    await longHistory(session, 150)
+    fetchMock.mockResolvedValueOnce(completion(JSON.stringify(summaryContent)))
+    fetchMock.mockResolvedValueOnce(completion('{"goal":'))
+    await expect(context(session)).rejects.toMatchObject({ diagnostic: { stage: 'validate', reason: 'invalid_json', usageRecorded: true } })
+    const checkpoint = await getAgentSummary(t.db, session.id)
+    expect(checkpoint?.revision).toBe(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const input = (index: number) => JSON.parse(JSON.parse(String(fetchMock.mock.calls[index]?.[1]?.body)).messages[1].content)
+    expect(input(1).events[0].id).toBeGreaterThan(checkpoint!.throughEventId)
+    expect(input(1).previousSummary).toEqual(checkpoint!.content)
+
+    fetchMock.mockImplementation(async () => completion(JSON.stringify(summaryContent)))
+    const resumed = await context(session)
+    expect(input(2)).toEqual(input(1))
+    expect(resumed.summary?.revision).toBe(3)
+    const original = await all<{ id: number }>(t.db, 'SELECT id FROM ai_agent_events WHERE session_id=$1 ORDER BY id', [session.id])
+    const persistedBatches = [0, 2, 3].flatMap(index => input(index).events.map((event: { id: number }) => Number(event.id)))
+    expect([...persistedBatches, ...resumed.history.events.map(event => event.id)]).toEqual(original.map(event => Number(event.id)))
+    expect(original).toHaveLength(150)
+    expect(await all(t.db, "SELECT generation_type FROM ai_usage WHERE generation_type='agent_summary'")).toHaveLength(4)
   })
   it('leaves cursor unchanged when cancelled after receiving the summary', async () => {
     const session = await setup()
@@ -534,6 +643,7 @@ describe('creative memory and context regressions', () => {
     ['invalid_json', '私密原文不是JSON', undefined, undefined, undefined],
     ['invalid_structure', '[]', undefined, undefined, undefined],
     ['invalid_goal', JSON.stringify({ ...summaryContent, goal: '密'.repeat(801) }), 'goal', 801, 800],
+    ['invalid_structure', JSON.stringify({ ...summaryContent, unexpected: 123 }), undefined, undefined, undefined],
     ['invalid_items', JSON.stringify({ ...summaryContent, decisions: undefined }), 'decisions', undefined, undefined],
     ['invalid_items', JSON.stringify({ ...summaryContent, decisions: Array(17).fill('私密决定') }), 'decisions', 17, 16],
     ['invalid_items', JSON.stringify({ ...summaryContent, rejected: ['密'.repeat(601)] }), 'rejected', 601, 600],
@@ -552,6 +662,8 @@ describe('creative memory and context regressions', () => {
     expect(failure.metadata.summaryDiagnostic?.field).toBe(field)
     expect(failure.metadata.summaryDiagnostic?.observed).toBe(observed)
     expect(failure.metadata.summaryDiagnostic?.limit).toBe(limit)
+    expect(failure.metadata.summaryDiagnostic?.failureArchived).toBe(true)
+    expect(await all(t.db, 'SELECT task_id,response_received,response_text FROM ai_agent_summary_failures WHERE session_id=$1', [session.id])).toEqual([{ task_id: turn.taskId, response_received: true, response_text: output }])
     expect(JSON.stringify(failure)).not.toContain('私密')
     expect(JSON.stringify(failure)).not.toContain('密密')
     expect(await getAgentSummary(t.db, session.id)).toBeNull()
@@ -587,7 +699,7 @@ describe('creative memory and context regressions', () => {
     await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
     expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
     expect(await getAgentSummary(t.db, session.id)).toBeNull()
-    expect(await all(t.db, 'SELECT generation_type,completion_tokens FROM ai_usage')).toEqual([{ generation_type: 'agent_summary', completion_tokens: 2 }])
+    expect(await all(t.db, 'SELECT task_id,generation_type,completion_tokens,token_usage_reported FROM ai_usage')).toEqual([{ task_id: turn.taskId, generation_type: 'agent_summary', completion_tokens: 2, token_usage_reported: true }])
     expect((await readAgentEvents(t.db, session.id)).events.at(-1)?.metadata.summaryDiagnostic).toMatchObject({ stage: 'request', reason: 'request_failed', usageRecorded: true, finishReason: 'missing' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -595,6 +707,23 @@ describe('creative memory and context regressions', () => {
     const session = await setup()
     const newer = await saveAgentSummary(t.db, session, 20, summaryContent)
     expect(await saveAgentSummary(t.db, session, 10, { ...summaryContent, goal: '过时' })).toEqual(newer)
+    expect(await all(t.db, 'SELECT revision,content,backfilled FROM ai_agent_summary_versions WHERE session_id=$1', [session.id])).toEqual([{ revision: 1, content: summaryContent, backfilled: false }])
+  })
+  it('archives each accepted summary and atomically preserves the cursor if archival fails', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    await saveAgentSummary(t.db, session, 20, summaryContent)
+    await saveAgentSummary(t.db, session, 40, { ...summaryContent, goal: '最新地点' })
+    expect((await all<{ revision: number }>(t.db, 'SELECT revision FROM ai_agent_summary_versions WHERE session_id=$1 ORDER BY revision', [session.id])).map(row => row.revision)).toEqual([1, 2])
+    await t.db.query("CREATE FUNCTION reject_agent_summary_version() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated storage failure'; END $$")
+    await t.db.query('CREATE TRIGGER reject_agent_summary_version BEFORE INSERT ON ai_agent_summary_versions FOR EACH ROW EXECUTE FUNCTION reject_agent_summary_version()')
+    try {
+      await expect(saveAgentSummary(t.db, session, 60, { ...summaryContent, goal: '不应保存' })).rejects.toThrow()
+      expect(await getAgentSummary(t.db, session.id)).toMatchObject({ revision: 2, throughEventId: 40, content: { goal: '最新地点' } })
+      expect(await all(t.db, 'SELECT revision FROM ai_agent_summary_versions WHERE session_id=$1', [session.id])).toHaveLength(2)
+    } finally {
+      await t.db.query('DROP TRIGGER reject_agent_summary_version ON ai_agent_summary_versions')
+      await t.db.query('DROP FUNCTION reject_agent_summary_version()')
+    }
   })
   it('rejects missing categories and oversized summary items', () => {
     expect(() => parseAgentSummary('{"goal":"不完整"}')).toThrow()
@@ -604,6 +733,23 @@ describe('creative memory and context regressions', () => {
 })
 
 describe('novel-scoped creative agent', () => {
+  it('attributes received stream usage to the stopped turn without saving its partial answer', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '讨论线索', 'cancel-stream-usage')
+    let output!: ReadableStreamDefaultController<Uint8Array>
+    const encoder = new TextEncoder()
+    fetchMock.mockResolvedValueOnce(new Response(new ReadableStream({ start(c) { output = c } }), { headers: { 'Content-Type': 'text/event-stream' } }))
+    const running = runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    output.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"未完成"}}],"usage":{"prompt_tokens":9,"completion_tokens":2}}\n\n'))
+    await vi.waitFor(async () => expect((await getAiTask(t.db, turn.taskId))?.result).toContain('未完成'))
+    await cancelAiTask(t.db, turn.taskId)
+    output.close()
+    await running
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('cancelled')
+    expect(await all(t.db, 'SELECT task_id,generation_type,prompt_tokens,completion_tokens,token_usage_reported FROM ai_usage')).toEqual([{ task_id: turn.taskId, generation_type: 'agent_chat', prompt_tokens: 9, completion_tokens: 2, token_usage_reported: true }])
+    expect((await readAgentEvents(t.db, session.id)).events.filter(e => e.role === 'assistant')).toEqual([])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
   it('streams a preview, waits for complete tool arguments, executes once and isolates task recovery', async () => {
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
     const turn = await beginAgentTurn(t.db, 'admin', session.id, '生成雨夜封面', 'streamed-turn')
@@ -803,6 +949,8 @@ describe('novel-scoped creative agent', () => {
     expect(await getAgentSummary(t.db, session.id)).not.toBeNull()
     const summaryUsage = await first<{ calls: number }>(t.db, "SELECT COUNT(*)::int AS calls FROM ai_usage WHERE generation_type='agent_summary'")
     expect(Number(summaryUsage?.calls)).toBeGreaterThan(0)
+    expect(restored.turnUsage?.[0]).toMatchObject({ taskId: turn.taskId, tracked: true, chatCalls: 2, summaryCalls: Number(summaryUsage?.calls), unknownTokenCalls: 0 })
+    expect(await all(t.db, 'SELECT DISTINCT task_id FROM ai_usage')).toEqual([{ task_id: turn.taskId }])
   })
   it('continues beyond eight tool rounds with full context until the model answers', async () => {
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })
@@ -956,6 +1104,7 @@ describe('novel-scoped creative agent', () => {
     expect(fetchMock).toHaveBeenCalledTimes(rounds + 1)
     expect(api).not.toHaveBeenCalled()
     expect((await getAiTask(t.db, turn.taskId))?.status).toBe('cancelled')
+    expect(await all(t.db, 'SELECT DISTINCT task_id,token_usage_reported FROM ai_usage')).toEqual([{ task_id: turn.taskId, token_usage_reported: true }])
   })
   it('checks cover ownership and version, then adopts a confirmed candidate only once', async () => {
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })

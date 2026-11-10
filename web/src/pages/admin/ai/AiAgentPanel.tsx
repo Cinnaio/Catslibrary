@@ -34,6 +34,7 @@ import { taskStatusLabel, kindLabel } from './labels'
 import AiAgentComposer from './AiAgentComposer'
 import AiAgentMemory from './AiAgentMemory'
 import AiAgentRecovery from './AiAgentRecovery'
+import AiAgentUsage from './AiAgentUsage'
 import { currentAgentTask, pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage, type PendingAgentMessage } from './agent-task-state'
 import AiAgentSources from './AiAgentSources'
 import styles from './agent-workspace.module.css'
@@ -504,6 +505,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
           产出与采纳
         </Button>
       </div>
+      {!!data.turnUsage?.length && <AiAgentUsage turns={data.turnUsage} />}
       {error && (
         <p className={styles.error} role="alert">
           {error}{' '}
