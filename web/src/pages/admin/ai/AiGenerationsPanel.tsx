@@ -1106,6 +1106,8 @@ export default function AiGenerationsPanel(props: {
                     draftId={viewing.id}
                     content={viewing.result}
                     contentRevision={viewing.contentRevision || ''}
+                    disabled={publishing}
+                    shortenTargetWords={viewing.quality?.warnings.some(warning => warning.code === 'long_chapter') ? viewing.quality.targetWords : undefined}
                     onApplied={({ result, contentRevision }) => {
                       updateViewing(viewing.id, { result, contentRevision })
                       void refreshViewing()

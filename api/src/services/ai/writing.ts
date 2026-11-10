@@ -462,10 +462,10 @@ export function buildContinuationChapterInstruction(opts: {
 }): string {
   const { chapterIndex, totalCount, chapterOutline, nextChapterOutline, hasPriorContext, instruction, targetWords } = opts
   const priorContextConstraint = hasPriorContext && chapterIndex === 0
-    ? '创作要求（前序承接）：本章紧密接续前文已发布章节的最终落点与当前人物状态继续向前推进，严禁时间线倒带、严禁推翻前文已发生状态、严禁无故重置场景开局。'
+    ? '创作要求（前序承接）：沿用前文已发布章节的最新人物状态与既有事实，严禁时间线倒带、严禁推翻前文已发生状态。默认接续前文结尾；作者本次要求或本章大纲明确指定新的地点、时间或场景时，优先按该要求安排合理转场或时间过渡，并进入指定场景，不要因默认承接规则滞留原地点。不重复已经发生的事件。'
     : ''
   const continuationConstraint = chapterIndex > 0
-    ? '创作要求（多章承接）：上一章已推进本方向的开局或前文剧情。本章必须紧密承接上一章草稿的结尾与最新状态继续向前推进后续剧情，严禁从头重新开场，严禁重复上一章草稿中已经发生过的事件、人物出场或相同对话。【状态冲突裁决】：若上一章草稿实际结尾已提前推进了本章大纲的某些前置事件，以最新草稿的实际现状为最高事实基准顺延推进新情节；严禁时光倒流回旧起点，严禁将已发生的事件通过闪回或回忆重复描写。'
+    ? '创作要求（多章承接）：上一章已推进本方向的开局或前文剧情。本章承接上一章草稿的最新事实与人物状态继续推进，严禁重复已经发生的事件、人物出场或相同对话。默认接续上一章结尾；作者本章要求或本章大纲指定新地点、时间或场景时，优先合理转场进入指定场景，不要求留在上一章地点。【状态冲突裁决】：若上一章草稿实际结尾已提前推进了本章大纲的某些前置事件，以最新草稿的实际现状为事实基准顺延推进新情节；严禁时光倒流回旧起点，严禁将已发生的事件通过闪回或回忆重复描写。'
     : ''
 
   const boundaryNotice = nextChapterOutline && nextChapterOutline.trim()
@@ -482,7 +482,7 @@ export function buildContinuationChapterInstruction(opts: {
     : (instruction || '')
 
   const words = Math.max(300, Math.min(30000, Math.trunc(Number(targetWords) || 0)))
-  const countNotice = `这是续写的第 ${chapterIndex + 1} 章，共 ${totalCount} 章。目标字数为本章约 ${words} 字。`
+  const countNotice = `这是续写的第 ${chapterIndex + 1} 章，共 ${totalCount} 章。目标字数为本章正文约 ${words} 字（不计标题和空白，包含标点）。篇幅统一以此处目标值为准，其他描述中的字数不另立目标。请围绕这个篇幅安排情节与自然结尾，避免额外铺陈造成明显超长。`
 
   return [taskContent, boundaryNotice, priorContextConstraint, continuationConstraint, countNotice].filter(Boolean).join('\n\n')
 }

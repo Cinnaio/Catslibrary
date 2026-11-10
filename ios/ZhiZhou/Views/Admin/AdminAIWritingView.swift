@@ -746,6 +746,9 @@ struct AdminAIWritingView: View {
         var components = URLComponents(url: base.appendingPathComponent("admin/ai"), resolvingAgainstBaseURL: false)
         components?.queryItems = [URLQueryItem(name: "sub", value: "writing"), URLQueryItem(name: "view", value: "analysis"),
                                  URLQueryItem(name: "novel", value: novelId)]
+        if !afterChapterId.isEmpty {
+            components?.queryItems?.append(URLQueryItem(name: "afterChapterId", value: afterChapterId))
+        }
         return components?.url
     }
 

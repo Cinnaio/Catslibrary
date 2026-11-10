@@ -88,6 +88,64 @@ describe('DraftRewrite', () => {
     expect(screen.getByRole('button', { name: /生成改写建议/ })).toBeDisabled()
   })
 
+  it('prepares full-body shortening without calling the model or replacing the draft', async () => {
+    const { onApplied } = renderPanel({ shortenTargetWords: 500 })
+    fireEvent.click(screen.getByRole('button', { name: '精简至目标篇幅' }))
+    expect((screen.getByLabelText('精简要求（可选）') as HTMLTextAreaElement).value).toContain('约 500 字')
+    expect(api.rewriteDraft).not.toHaveBeenCalled()
+    expect(api.applyDraftRewrite).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('正文（选中要改写的段落）')).toHaveValue(CONTENT)
+    fireEvent.click(screen.getByRole('button', { name: /生成改写建议/ }))
+    await waitFor(() => expect(api.rewriteDraft).toHaveBeenCalledWith('draft_1', expect.objectContaining({
+      startUTF16: 0, endUTF16: CONTENT.length, selectedText: CONTENT, mode: 'shorten', instruction: expect.stringContaining('约 500 字'),
+    })))
+    expect(onApplied).not.toHaveBeenCalled()
+    expect(api.applyDraftRewrite).not.toHaveBeenCalled()
+  })
+
+  it('requires manual selection when a whole draft exceeds the 6000-scalar input limit', () => {
+    renderPanel({ content: '文'.repeat(6001), shortenTargetWords: 2000 })
+    fireEvent.click(screen.getByRole('button', { name: '精简至目标篇幅' }))
+    expect(screen.getByText(/正文超过单次选段上限/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /生成改写建议/ })).toBeDisabled()
+    expect(api.rewriteDraft).not.toHaveBeenCalled()
+  })
+
+  it('warns when a full-body shortening suggestion still exceeds the target without applying it', async () => {
+    api.task.mockResolvedValue({ task: { id: 't1', status: 'completed', result: JSON.stringify({ version: 1, baseRevision: 'rev_1', mode: 'shorten', suggestion: '文'.repeat(772) }) } })
+    renderPanel({ content: '文'.repeat(890), shortenTargetWords: 500 })
+    fireEvent.click(screen.getByRole('button', { name: '精简至目标篇幅' }))
+    fireEvent.click(screen.getByRole('button', { name: /生成改写建议/ }))
+    expect(await screen.findByText(/精简建议仍超过目标 500 字的三成/)).toBeInTheDocument()
+    expect(api.applyDraftRewrite).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('正文（选中要改写的段落）')).toHaveValue('文'.repeat(890))
+  })
+
+  it('keeps prepared instructions visible when switching from shortening to polishing', async () => {
+    renderPanel({ shortenTargetWords: 500 })
+    fireEvent.click(screen.getByRole('button', { name: '精简至目标篇幅' }))
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: '润色' }))
+    expect((screen.getByLabelText('补充要求（可选）') as HTMLTextAreaElement).value).toContain('约 500 字')
+    expect(api.rewriteDraft).not.toHaveBeenCalled()
+  })
+
+  it('ignores an apply response after switching to a different draft', async () => {
+    let finish!: (value: unknown) => void
+    api.applyDraftRewrite.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    const onApplied = vi.fn(), onStale = vi.fn()
+    const { rerender } = render(<DraftRewrite draftId="draft_1" content={CONTENT} contentRevision="rev_1" onApplied={onApplied} onStale={onStale} />)
+    selectRange(0, 5)
+    fireEvent.click(screen.getByRole('button', { name: /生成改写建议/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /应用改写/ }))
+    await waitFor(() => expect(api.applyDraftRewrite).toHaveBeenCalledTimes(1))
+    rerender(<DraftRewrite draftId="draft_2" content="另一份草稿" contentRevision="rev_2" onApplied={onApplied} onStale={onStale} />)
+    finish({ result: '旧稿的改写结果', contentRevision: 'old-updated' })
+    await waitFor(() => expect(screen.getByLabelText('正文（选中要改写的段落）')).toHaveValue('另一份草稿'))
+    expect(onApplied).not.toHaveBeenCalled()
+    expect(onStale).not.toHaveBeenCalled()
+  })
+
   it('选中段落后带 UTF-16 区间与选中文本提交，并在完成后展示对比', async () => {
     renderPanel()
     selectRange(0, 5)

@@ -67,10 +67,31 @@ it('checks drafts only on request and invalidates reports after the content revi
   expect(await screen.findByText(/草稿或来源已变化/)).toBeInTheDocument()
 })
 
-it('shows how many incremental records were selected while retaining source previews', async () => {
+it('labels zero verified findings as incomplete and allows a paid retry', async () => {
+  api.getDraftReview.mockResolvedValue({ report: { draftRevision: 'draft-1', inputHash: 'hash', updatedAt: 1, findings: [], sources: [], completeness: 'partial', rejectedFindings: 2 } })
+  render(<DraftReview draftId="d1" contentRevision="draft-1" />)
+  expect(await screen.findByText(/检查不完整/)).toHaveTextContent('2 项未通过')
+  expect(screen.queryByText(/在本次提供的材料范围内未发现/)).not.toBeInTheDocument()
+  expect(api.reviewDraft).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '重试检查' }))
+  expect(await screen.findByText(/在本次提供的材料范围内未发现/)).toBeInTheDocument()
+  expect(screen.queryByText(/检查不完整/)).not.toBeInTheDocument()
+})
+
+it('restores a failed review attempt and clears it after switching drafts', async () => {
+  api.getDraftReview.mockResolvedValueOnce({ report: null, attempt: { draftRevision: 'draft-1', status: 'failed', message: '质量检查超时，可以重试。' } })
+  const { rerender } = render(<DraftReview draftId="d1" contentRevision="draft-1" />)
+  expect(await screen.findByRole('alert')).toHaveTextContent('质量检查超时')
+  expect(screen.getByRole('button', { name: '重试检查' })).toBeEnabled()
+  rerender(<DraftReview draftId="d2" contentRevision="draft-2" />)
+  await waitFor(() => expect(api.getDraftReview).toHaveBeenCalledWith('d2'))
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+it('does not restore retired archive counters while retaining source previews', async () => {
   api.materials.mockResolvedValue({ ...materials, memorySelection: { revision: 'ledger-1', retrievedFacts: 7, totalFacts: 120 } })
   render(<Preparation />)
   fireEvent.click(screen.getByRole('button', { name: '预览本次上下文' }))
-  expect(await screen.findByText(/本次关联 7 条 \/ 已存 120 条/)).toBeInTheDocument()
-  expect(screen.getByText('完整档案保留的旧伏笔')).toBeInTheDocument()
+  expect(await screen.findByText('完整档案保留的旧伏笔')).toBeInTheDocument()
+  expect(screen.queryByText(/本次关联 7 条 \/ 已存 120 条/)).not.toBeInTheDocument()
 })

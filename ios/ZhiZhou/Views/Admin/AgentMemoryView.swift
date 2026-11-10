@@ -25,7 +25,7 @@ struct AgentMemoryView: View {
             Form {
                 Section {
                     Text("同一账号、同一本书的对话共用这些约定；确认后从下一轮回复开始使用。")
-                    Text("最多保留 24 条生效约定和 24 条待确认提议。移除后不再作为长期约定使用，历史记录仍保留。正式故事档案与会话设置单独管理。")
+                    Text("最多保留 24 条生效约定和 24 条待确认提议。移除后不再作为长期约定使用，历史记录仍保留。小说分析报告与会话设置单独管理。")
                         .font(.footnote).foregroundStyle(AppTheme.textSecondary)
                     Button("添加约定", systemImage: "plus") { editing = MemoryDraft(memory: nil) }.disabled(blocked || !loaded)
                     Button("刷新") { Task { await load() } }.disabled(loading || busy)

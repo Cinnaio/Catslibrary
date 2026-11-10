@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { assessWritingQuality, detectRepeatedOpening } from './ai-writing-quality'
 
 describe('writing quality signals', () => {
+  it('flags substantial excess using current body characters and clears it when shortened', () => {
+    const text = '文'.repeat(889) + '。\n  '
+    const report = assessWritingQuality({ text, targetWords: 500 })
+    expect(report.bodyCharacters).toBe(890)
+    expect(report.warnings).toContainEqual(expect.objectContaining({ code: 'long_chapter', source: 'current' }))
+    expect(assessWritingQuality({ text: '文'.repeat(576), targetWords: 500 }).warnings).toEqual([])
+    expect(assessWritingQuality({ text: '文'.repeat(650), targetWords: 500 }).warnings).toEqual([])
+    expect(assessWritingQuality({ text: '文'.repeat(500), targetWords: 500, editedSinceGeneration: true }).warnings).toEqual([])
+    expect(text).toHaveLength(893)
+  })
   it('flags a clearly short chapter and clears that current warning after an edit', () => {
     expect(assessWritingQuality({ text: '正文。'.repeat(100), targetWords: 2000 }).warnings.map((w) => w.code)).toContain('short_chapter')
     expect(assessWritingQuality({ text: '正文。'.repeat(500), targetWords: 2000, editedSinceGeneration: true }).warnings).toEqual([])

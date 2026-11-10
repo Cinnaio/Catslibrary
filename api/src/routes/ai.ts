@@ -58,7 +58,7 @@ import {
 } from '../services/ai/writing'
 import { WRITING_PROMPT_PIPELINE_VERSION } from '../services/ai/writing-prompt'
 import { COVER_PROMPT_PIPELINE_VERSION } from '../services/ai/cover-brief'
-import { reviewWritingDraft, reviewSourcesCurrent, type WritingReview } from '../services/ai/writing-review'
+import { reviewWritingDraft, getWritingReview } from '../services/ai/writing-review'
 import { retrieveWritingHistory, writingMaterialRevision } from '../services/ai/writing-history'
 import { compileWritingPrompt } from '../services/ai/writing-prompt'
 import type { WritingBriefV1 } from '../services/ai/writing'
@@ -1272,24 +1272,7 @@ aiRoutes.get('/writing/drafts/:id/review', requireAdmin(), async (c) => {
   const db = getDb()
   const draft = await first<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE id = $1 AND deleted_at = 0', [c.req.param('id')])
   if (!draft || !['continue', 'write_chapter'].includes(draft.kind)) return c.json({ error: '草稿不存在' }, 404)
-  const latest = await first<{ report_json: string }>(
-    db,
-    "SELECT report_json FROM ai_writing_reviews WHERE draft_id = $1 AND status = 'completed' ORDER BY created_at DESC LIMIT 1",
-    [draft.id],
-  )
-  if (!latest) return c.json({ report: null }, 200, { 'Cache-Control': 'no-store' })
-  const report = JSON.parse(latest.report_json) as WritingReview
-  let sourcesCurrent = false
-  try {
-    sourcesCurrent = await reviewSourcesCurrent(db, draft.novel_id, report.sources, report.anchorId)
-  } catch {
-    sourcesCurrent = false
-  }
-  return c.json(
-    { report: { ...report, stale: draft.status !== 'draft' || report.draftRevision !== generationContentRevision(draft.result) || !sourcesCurrent } },
-    200,
-    { 'Cache-Control': 'no-store' },
-  )
+  return c.json(await getWritingReview(db, draft), 200, { 'Cache-Control': 'no-store' })
 })
 
 aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), withAiResponseStream(async (c) => {

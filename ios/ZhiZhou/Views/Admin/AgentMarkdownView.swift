@@ -67,13 +67,19 @@ private struct AgentMarkdownBlockView: View {
     private func inline(_ text: String) -> AttributedString {
         var value = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
             ?? AttributedString(text)
-        // Inline images are never fetched. Links only open ordinary web/mail destinations.
+        // Inline images are never fetched. Root-relative citations stay on the configured site.
         let links = value.runs.compactMap { run -> (Range<AttributedString.Index>, URL)? in
             guard let link = run.link else { return nil }
             return (run.range, link)
         }
-        for (range, link) in links where !["https", "http", "mailto"].contains(link.scheme?.lowercased() ?? "") {
-            value[range].link = nil
+        for (range, link) in links {
+            if ["https", "http", "mailto"].contains(link.scheme?.lowercased() ?? "") { continue }
+            if link.scheme == nil, link.host == nil, link.absoluteString.hasPrefix("/"),
+               !link.absoluteString.hasPrefix("//"), let base = ServerConfig.shared.baseURL {
+                value[range].link = APIRequestURL.resolve(link.absoluteString, relativeTo: base)
+            } else {
+                value[range].link = nil
+            }
         }
         return value
     }

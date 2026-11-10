@@ -717,7 +717,7 @@ export default function AiWritingPanel(props: {
                     {mode === 'new' && (
                       <div className={styles.newWords}>
                         {' '}
-                        <FormField label="目标字数" htmlFor="ai-writing-target-words">
+                        <FormField label="目标字数" htmlFor="ai-writing-target-words" hint="篇幅以此处数值为准，请与创作要求保持一致。">
                           <div className="ai-writing-number-input">
                             <Input
                               id="ai-writing-target-words"
@@ -1096,6 +1096,7 @@ export default function AiWritingPanel(props: {
                       <FormField
                         label={isMultiChapter ? '每章目标字数' : '目标字数'}
                         htmlFor="ai-writing-target-words"
+                        hint="正文篇幅以此处数值为准，不计标题和空白，包含标点。"
                         className={isMultiChapter ? '' : 'col-span-2'}
                       >
                         <div className="ai-writing-number-input">
