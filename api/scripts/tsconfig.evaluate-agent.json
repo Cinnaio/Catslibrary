@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": { "noEmit": true },
-  "include": ["evaluate-agent.ts", "evaluate-agent-contract.ts", "export-agent-review.ts", "agent-local-review.ts"]
+  "include": ["evaluate-agent.ts", "evaluate-agent-contract.ts", "export-agent-review.ts", "agent-local-review.ts", "evaluate-agent-memory-handoff.ts", "evaluate-agent-summary-review.ts", "evaluate-agent-summary-replay.ts"]
 }

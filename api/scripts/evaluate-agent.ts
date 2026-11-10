@@ -364,6 +364,13 @@ try {
             references: original.map(event => `#${event.id}`),
           })
         }
+        if (fixture.id === 'Q18') {
+          // Adapted from an actual handoff-run failure. At the earlier turn the
+          // active list really was empty; the new agreement was saved afterward.
+          await appendAgentEvent(t.db, session.id, 'user', fixture.prompt)
+          await appendAgentEvent(t.db, session.id, 'assistant', '当前没有已生效的长期创作约定，清单为空。')
+          memory = await createAgentMemory(t.db, user, session, { title: '保留限制与克制文风', content: '本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。' })
+        }
         if (fixture.id === 'L01') {
           let previousCursor = 0
           let seededMessages = 0
@@ -474,6 +481,8 @@ try {
             }
             if (fixture.id === 'Q06')
               check('archived_not_reactivated', !(await activeAgentMemories(t.db, user, book)).length && !memories.some((m) => m.status === 'pending'))
+            if (fixture.id === 'Q18')
+              check('current_memory_unchanged', memories.length === 1 && memories[0]?.id === memory?.id && memories[0]?.content === memory?.content && memories[0]?.revision === memory?.revision && memories[0]?.status === 'active')
             if (['Q07', 'Q08'].includes(fixture.id)) check('summary_saved', !!result.summary?.throughEventId)
             if (['Q09', 'Q10', 'Q12'].includes(fixture.id))
               check(
