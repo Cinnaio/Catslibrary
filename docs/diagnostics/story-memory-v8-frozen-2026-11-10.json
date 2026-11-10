@@ -1,0 +1,711 @@
+{
+  "runId": "2026-11-10T00-15-57-395Z",
+  "implementationHash": "ec8a6c7b303aa5293a9b246347099c53865eeb4589801ff820c2cb517ea17083",
+  "fixtureHash": "a641c58e3e4c0c259edd1ceb408c299661a2622a232db7122b79f230839f75ef",
+  "model": "deepseek-v4.1-flash-tiancai",
+  "ledgerPromptVersion": 8,
+  "frozen": true,
+  "sourceCommit": "b20d7141695a19eb23e7f7d2f083023bac9239f4",
+  "configuration": {
+    "storyMemoryEngine": "incremental",
+    "storyMemoryAutoUpdate": false,
+    "storyMemoryStreamEnabled": false,
+    "storyMemoryChapterMaxTokens": 16000,
+    "storyMemoryTimeoutSeconds": 300,
+    "storyMemoryReasoningMode": "disabled"
+  },
+  "policy": {
+    "maxChapterAttempts": 3,
+    "maxFailedAttempts": 5,
+    "maxRequests": 40,
+    "automaticSemanticRetries": false
+  },
+  "providerFingerprint": "4ecd49362f0fe722a595b0f2b0604f127008108f60080f80727ebf850fe43b33",
+  "status": "failed",
+  "requestsThisRun": 2,
+  "requestLog": [
+    {
+      "chapter": 1,
+      "phase": "extract",
+      "status": "200"
+    },
+    {
+      "chapter": 1,
+      "phase": "extract",
+      "status": "200"
+    },
+    {
+      "chapter": 1,
+      "phase": "extract",
+      "status": "200"
+    },
+    {
+      "chapter": 1,
+      "phase": "review",
+      "status": "200"
+    }
+  ],
+  "responseUsageByPhase": [
+    {
+      "phase": "extract",
+      "responses": 3,
+      "promptTokens": 5535,
+      "completionTokens": 4126,
+      "missingTokenUsage": 0
+    },
+    {
+      "phase": "review",
+      "responses": 1,
+      "promptTokens": 4992,
+      "completionTokens": 1179,
+      "missingTokenUsage": 0
+    }
+  ],
+  "fixture": [
+    {
+      "title": "北塔的晨雾",
+      "text": "北塔管理员江苇也叫小苇。江苇在北塔，计划寻找铜钥匙，也打算整理航图。顾澜在北塔，决定检修北塔的钟，尚未动工。南塔的钟完好，与北塔的钟是两件不同的器物。顾岚在南塔，顾岚与顾澜不是同一个人。库房里放着一个封箱，箱子未开，内容无人知道。作业规定：北塔钟不停摆，不准检修钟架。",
+      "expectations": [
+        "江苇与小苇为同一人，别名保留原文依据",
+        "顾澜与顾岚为不同人物，位置分别在北塔和南塔",
+        "北塔的钟与南塔的钟分开，有限名称归一保留来源映射",
+        "寻找铜钥匙、整理航图、检修北塔钟三个目标有效，目标摘要不夹带尚未动工",
+        "检修未开始与目标意图分开，江苇位置独立保存",
+        "封箱未开、内容未知，不推断箱内物品、数量或人物性别",
+        "北塔钟不停摆不能检修钟架的约束有效"
+      ]
+    },
+    {
+      "title": "钥匙与工具",
+      "text": "江苇来到库房，在门后找到铜钥匙，寻找铜钥匙这件事已经完成。江苇把铜钥匙交给苏栖保管，随后在库房收拢工具，收拢工作尚未结束。苏栖留在库房。顾澜仍在北塔，还没有开始检修北塔钟。封箱没有打开。",
+      "expectations": [
+        "寻找铜钥匙目标结束且关联原目标，不能仅保存找到钥匙事件",
+        "铜钥匙当前由苏栖保管，物品归属为独立状态",
+        "江苇当前位置更新为库房，苏栖位置为库房",
+        "江苇收拢工具尚未结束，进度不嵌入库房位置",
+        "整理航图与检修北塔钟仍为有效目标，检修仍未开始",
+        "封箱内容继续未知"
+      ]
+    },
+    {
+      "title": "改换钟绳",
+      "text": "顾澜查验后发现北塔钟的钟绳断裂，钟已经停摆。顾澜将检修北塔钟的计划改为更换北塔钟的钟绳，新的工作还未开始。顾澜知道铜钥匙交给了苏栖。顾岚仍在南塔，没有听到这番安排，也不知道钟绳断裂。",
+      "expectations": [
+        "检修北塔钟目标以被替代结束，并关联更换钟绳的新目标",
+        "新目标只保存更换钟绳的意图，未开始的进度另存",
+        "北塔钟当前已停摆、钟绳断裂，南塔钟的完好状态不被覆盖",
+        "顾澜知道钥匙在苏栖处，认知与客观归属分开",
+        "顾岚不知道钟绳断裂，不与顾澜共享认知",
+        "整理航图目标继续有效"
+      ]
+    },
+    {
+      "title": "开始动工",
+      "text": "顾澜开始更换北塔钟的钟绳，旧绳已经拆下，新绳还未装牢，更换工作没有完成。北塔台阶上的积水已经排空。江苇带着工具走到码头，收拢工具的工作仍未结束。苏栖还在库房保管铜钥匙。",
+      "expectations": [
+        "更换钟绳目标仍有效，摘要没有过时的尚未开始",
+        "更换进度更新为已开始、未完成，新绳未装牢",
+        "台阶积水排空作为仍成立的当前状态保留，不能因排水完成而归档",
+        "江苇当前位置是码头，旧库房位置退出当前状态",
+        "收拢工具仍未结束，进度不残留库房或码头的位置描述",
+        "苏栖继续持有铜钥匙，未凭空发生转手"
+      ]
+    },
+    {
+      "title": "两次交接",
+      "text": "江苇回到库房，从苏栖手中接过铜钥匙。随后江苇来到南塔，把铜钥匙交给顾岚，自己也留在南塔。苏栖没看到第二次交接，以为铜钥匙仍在江苇手里。顾澜没有收到消息，仍以为钥匙由苏栖保管。江苇的收拢工具工作尚未结束。",
+      "expectations": [
+        "铜钥匙段末由顾岚持有，两次交接可存历史但不能留下三个当前持有人",
+        "江苇段末位置为南塔，经过库房不作为并列当前位置",
+        "苏栖认为钥匙在江苇手里，认知属于苏栖",
+        "顾澜仍认为钥匙在苏栖处，不自动知道真实交接",
+        "顾岚与顾澜没有被合并，钥匙没有误记到顾澜名下",
+        "收拢工具继续未结束，旧地点不混入进度"
+      ]
+    },
+    {
+      "title": "取消航图整理",
+      "text": "航图保管员通知江苇不必再整理航图。江苇明确取消整理航图的计划。江苇继续留在南塔收拢工具，没有完成。顾澜仍在北塔安装新钟绳，已经装上一端，另一端尚未固定。",
+      "expectations": [
+        "整理航图目标取消并关联原目标，不以完成取代取消",
+        "江苇收拢工具尚未完成，南塔位置独立保留",
+        "更换钟绳目标继续有效，不能因已安装一端而提前完成",
+        "进度更新为一端装好另一端未固定，旧未开始进度退出当前状态",
+        "未提及的钥匙归属与两人的错误认知不被自动改写"
+      ]
+    },
+    {
+      "title": "钟声再起",
+      "text": "顾澜固定好另一端，完成更换北塔钟的钟绳。试敲之后，北塔钟恢复正常。码头负责人宣布，北塔钟不停摆不准检修钟架这条作业规定正式作废。南塔钟没有调整，仍然完好。江苇也完成收拢工具，工具已经收妥。",
+      "expectations": [
+        "更换钟绳目标完成，关闭原目标而非只记完成事件",
+        "更换钟绳进度为已完成，当前结果保留而非错误归档",
+        "北塔钟恢复正常，不再保留已停摆的当前状态",
+        "旧作业规定退出当前约束，历史仍可追溯",
+        "南塔钟保持完好且为独立物品",
+        "收拢工具已完成，旧尚未结束状态退出，结果仍可用于续写"
+      ]
+    },
+    {
+      "title": "只传给一人的消息",
+      "text": "顾岚来到北塔，当面把江苇交付铜钥匙的经过告诉顾澜，并出示仍由顾岚保管的铜钥匙。顾澜确认钥匙现在在顾岚手里。苏栖留在库房，没人向苏栖传达这个消息，苏栖仍以为钥匙在江苇手里。",
+      "expectations": [
+        "顾岚当前位置更新为北塔，顾澜身份保持分开",
+        "钥匙仍由顾岚保管，出示不等于转交",
+        "顾澜的旧认知被同一人同一事项的新认知替换，新认知仍为active的belief",
+        "苏栖的错误认知继续保留，不能因客观真相确认而自动纠正",
+        "苏栖位置与认知分开，摘要不混写库房所在地"
+      ]
+    },
+    {
+      "title": "封箱揭晓",
+      "text": "江苇来到库房，在苏栖面前打开封箱。箱内只有三枚旧绳夹，没有信件，也没有航图。江苇和苏栖都看清了这些物品。顾澜和顾岚留在北塔，尚不知道封箱内容。",
+      "expectations": [
+        "江苇当前位置为库房，旧南塔位置退出",
+        "封箱状态为已打开，内容为三枚旧绳夹，无信件和航图",
+        "未知内容的线索若存在必须关联解决，不能保留为未解当前问题",
+        "江苇与苏栖各自知道箱内内容，两人的认知分开记录",
+        "顾澜与顾岚各自尚不知道内容，不把读者知识传给角色",
+        "数量三来自原文，不增补绳夹用途、性别或其他物件"
+      ]
+    },
+    {
+      "title": "归还与未送达的消息",
+      "text": "顾岚离开北塔，到库房把铜钥匙交还苏栖，并告诉苏栖此前钥匙一直由顾岚保管。苏栖知道钥匙现在已回到自己手里。顾岚留在库房。顾澜没有看到归还，也没收到消息，仍认为钥匙在顾岚处。北塔钟正常，工具已经收妥；江苇没有重新提出整理航图。",
+      "expectations": [
+        "铜钥匙当前持有人更新为苏栖，顾岚的旧归属退出当前状态",
+        "苏栖认知纠正为钥匙在自己处，旧在江苇处认知退出但历史保留",
+        "顾澜仍认为钥匙在顾岚处，认知与当前客观事实可以不同",
+        "顾岚当前位置为库房，顾澜继续北塔，不按相近姓名替换位置",
+        "已取消的整理航图目标不复活，完成的寻找钥匙与更换钟绳目标不复活",
+        "北塔钟正常、工具收妥作为当前结果保留"
+      ]
+    }
+  ],
+  "processedChapters": 0,
+  "steps": [
+    {
+      "runId": "2026-11-10T00-14-30-831Z",
+      "implementationHash": "ec8a6c7b303aa5293a9b246347099c53865eeb4589801ff820c2cb517ea17083",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 10111,
+      "error": "章节记忆校验失败：关系必须绑定双方并明确 directed 方向；未推进该章，请核对后重试",
+      "attempt": {
+        "phase": "extract",
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 3776,
+        "elapsedMs": 10038,
+        "promptTokens": 1810,
+        "completionTokens": 1655,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794269688469,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：关系必须绑定双方并明确 directed 方向；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "2f84244066a26e70ca206014281ce0b0e76d79a40f5ec17ef7192061b03d6838",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：关系必须绑定双方并明确 directed 方向；未推进该章，请核对后重试"
+        ]
+      }
+    },
+    {
+      "runId": "2026-11-10T00-15-13-853Z",
+      "implementationHash": "ec8a6c7b303aa5293a9b246347099c53865eeb4589801ff820c2cb517ea17083",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 8724,
+      "error": "章节记忆校验失败：facts[2] 目标摘要只保留稳定意图与完成条件，不含当前执行进度；尚未开始或已经开始另存进度 state；未推进该章，请核对后重试",
+      "attempt": {
+        "phase": "extract",
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 3850,
+        "elapsedMs": 8658,
+        "promptTokens": 1840,
+        "completionTokens": 1091,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794269723221,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：facts[2] 目标摘要只保留稳定意图与完成条件，不含当前执行进度；尚未开始或已经开始另存进度 state；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "2f84244066a26e70ca206014281ce0b0e76d79a40f5ec17ef7192061b03d6838",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：关系必须绑定双方并明确 directed 方向；未推进该章，请核对后重试",
+          "章节记忆校验失败：facts[2] 目标摘要只保留稳定意图与完成条件，不含当前执行进度；尚未开始或已经开始另存进度 state；未推进该章，请核对后重试"
+        ]
+      }
+    },
+    {
+      "runId": "2026-11-10T00-15-57-395Z",
+      "implementationHash": "ec8a6c7b303aa5293a9b246347099c53865eeb4589801ff820c2cb517ea17083",
+      "chapter": 1,
+      "status": "failed",
+      "elapsedMs": 18648,
+      "error": "章节记忆语义复核失败：goalChecks 未逐项覆盖复核范围；未推进该章，请核对后重试",
+      "attempt": {
+        "phase": "review",
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 11737,
+        "elapsedMs": 9482,
+        "promptTokens": 4992,
+        "completionTokens": 1179,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794269776742,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆语义复核失败：goalChecks 未逐项覆盖复核范围；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "2f84244066a26e70ca206014281ce0b0e76d79a40f5ec17ef7192061b03d6838",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：关系必须绑定双方并明确 directed 方向；未推进该章，请核对后重试",
+          "章节记忆校验失败：facts[2] 目标摘要只保留稳定意图与完成条件，不含当前执行进度；尚未开始或已经开始另存进度 state；未推进该章，请核对后重试",
+          "章节记忆语义复核失败：goalChecks 未逐项覆盖复核范围；未推进该章，请核对后重试"
+        ]
+      }
+    }
+  ],
+  "firstAttempts": [
+    {
+      "chapter": 1,
+      "firstAttempt": "failed",
+      "attempts": 3
+    },
+    {
+      "chapter": 2,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 3,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 4,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 5,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 6,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 7,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 8,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 9,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 10,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    }
+  ],
+  "usage": {
+    "recorded_calls": 4,
+    "input_tokens": 10527,
+    "output_tokens": 5305,
+    "calls_with_reported_cost": 4,
+    "reported_cost_millicents": "285.00000000"
+  },
+  "costsByCurrency": [
+    {
+      "cost_currency": "USD",
+      "calls": 4,
+      "reported_cost_millicents": "285.00000000"
+    }
+  ],
+  "responses": [
+    {
+      "runId": "2026-11-10T00-14-30-831Z",
+      "chapter": 1,
+      "phase": "extract",
+      "reportedUsage": {
+        "promptTokens": 1810,
+        "completionTokens": 1655,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0
+      },
+      "returnedModel": "deepseek-v4.1-flash",
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"江苇\",\"aliases\":[\"小苇\"],\"kind\":\"person\"},{\"name\":\"顾澜\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"顾岚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"北塔\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"南塔\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"航图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"北塔的钟\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"南塔的钟\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"封箱\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"库房\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"江苇\",\"小苇\"],\"directed\":false,\"label\":\"同一人\",\"summary\":\"江苇也叫小苇，两个称呼指同一人。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"北塔管理员江苇也叫小苇。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"江苇在北塔。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"江苇在北塔，计划寻找铜钥匙，也打算整理航图。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"寻找铜钥匙\",\"summary\":\"江苇计划寻找铜钥匙。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"江苇在北塔，计划寻找铜钥匙，也打算整理航图。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"整理航图\",\"summary\":\"江苇打算整理航图。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"江苇在北塔，计划寻找铜钥匙，也打算整理航图。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"顾澜\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"顾澜在北塔。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾澜在北塔，决定检修北塔的钟，尚未动工。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"顾澜\"],\"directed\":false,\"label\":\"检修北塔的钟\",\"summary\":\"顾澜决定检修北塔的钟。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾澜在北塔，决定检修北塔的钟，尚未动工。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"顾澜\",\"北塔的钟\"],\"directed\":false,\"label\":\"检修进度\",\"summary\":\"顾澜检修北塔的钟尚未动工。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾澜在北塔，决定检修北塔的钟，尚未动工。\"},{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"北塔的钟\",\"南塔的钟\"],\"directed\":false,\"label\":\"是否为同一器物\",\"summary\":\"北塔的钟与南塔的钟是两件不同的器物。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"南塔的钟完好，与北塔的钟是两件不同的器物。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"南塔的钟\"],\"directed\":false,\"label\":\"完好状态\",\"summary\":\"南塔的钟完好。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"南塔的钟完好，与北塔的钟是两件不同的器物。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"顾岚\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"顾岚在南塔。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾岚在南塔，顾岚与顾澜不是同一个人。\"},{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"顾岚\",\"顾澜\"],\"directed\":false,\"label\":\"是否同一人\",\"summary\":\"顾岚与顾澜不是同一个人。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾岚在南塔，顾岚与顾澜不是同一个人。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"封箱\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"封箱放在库房里。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"库房里放着一个封箱，箱子未开，内容无人知道。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封箱\"],\"directed\":false,\"label\":\"开封状态\",\"summary\":\"封箱未开。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"库房里放着一个封箱，箱子未开，内容无人知道。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封箱\"],\"directed\":false,\"label\":\"箱内物品\",\"summary\":\"封箱内容无人知道。\",\"certainty\":\"belief\",\"perspective\":\"江苇\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"库房里放着一个封箱，箱子未开，内容无人知道。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封箱\"],\"directed\":false,\"label\":\"箱内物品\",\"summary\":\"封箱内容无人知道。\",\"certainty\":\"belief\",\"perspective\":\"顾澜\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"库房里放着一个封箱，箱子未开，内容无人知道。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封箱\"],\"directed\":false,\"label\":\"箱内物品\",\"summary\":\"封箱内容无人知道。\",\"certainty\":\"belief\",\"perspective\":\"顾岚\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"库房里放着一个封箱，箱子未开，内容无人知道。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"北塔的钟\"],\"directed\":false,\"label\":\"检修钟架的限制\",\"summary\":\"作业规定：北塔钟不停摆，不准检修钟架。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"作业规定：北塔钟不停摆，不准检修钟架。\"}],\"goalReviews\":[]}",
+      "systemPromptHash": "058047968bc8f3db531a12c14904a1800ad215438245fd40e5c93ad309aeb9e3"
+    },
+    {
+      "runId": "2026-11-10T00-15-13-853Z",
+      "chapter": 1,
+      "phase": "extract",
+      "reportedUsage": {
+        "promptTokens": 1840,
+        "completionTokens": 1091,
+        "cacheReadTokens": 1664,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0
+      },
+      "returnedModel": "deepseek-v4.1-flash",
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：关系必须绑定双方并明确 directed 方向；未推进该章，请核对后重试",
+      "suppliedFactIds": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"江苇\",\"aliases\":[\"小苇\"],\"kind\":\"person\"},{\"name\":\"顾澜\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"顾岚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"北塔\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"南塔\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"航图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"北塔的钟\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"南塔的钟\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"封箱\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"库房\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"寻找铜钥匙\",\"summary\":\"江苇计划寻找铜钥匙。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"江苇在北塔，计划寻找铜钥匙，也打算整理航图。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"整理航图\",\"summary\":\"江苇打算整理航图。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"江苇在北塔，计划寻找铜钥匙，也打算整理航图。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"顾澜\"],\"directed\":false,\"label\":\"检修北塔的钟\",\"summary\":\"顾澜决定检修北塔的钟，尚未动工。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾澜在北塔，决定检修北塔的钟，尚未动工。\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"北塔的钟\",\"南塔的钟\"],\"directed\":false,\"label\":\"北塔的钟与南塔的钟是两件不同器物\",\"summary\":\"南塔的钟完好；北塔的钟与南塔的钟是两件不同的器物。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"南塔的钟完好，与北塔的钟是两件不同的器物。\"},{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"顾岚\",\"顾澜\"],\"directed\":false,\"label\":\"顾岚与顾澜是不同的人\",\"summary\":\"顾岚与顾澜不是同一个人。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾岚在南塔，顾岚与顾澜不是同一个人。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"江苇在北塔。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"江苇在北塔，计划寻找铜钥匙\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"顾澜\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"顾澜在北塔。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾澜在北塔，决定检修北塔的钟\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"顾岚\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"顾岚在南塔。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾岚在南塔，顾岚与顾澜不是同一个人。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"封箱\"],\"directed\":false,\"label\":\"封存状态与内容\",\"summary\":\"封箱放在库房，箱子未开，内容无人知道。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"库房里放着一个封箱，箱子未开，内容无人知道。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"北塔的钟\"],\"directed\":false,\"label\":\"北塔钟不停摆时不检修钟架\",\"summary\":\"作业规定：北塔钟不停摆，不准检修钟架。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"作业规定：北塔钟不停摆，不准检修钟架。\"}],\"goalReviews\":[]}",
+      "systemPromptHash": "058047968bc8f3db531a12c14904a1800ad215438245fd40e5c93ad309aeb9e3"
+    },
+    {
+      "runId": "2026-11-10T00-15-57-395Z",
+      "chapter": 1,
+      "phase": "extract",
+      "reportedUsage": {
+        "promptTokens": 1885,
+        "completionTokens": 1380,
+        "cacheReadTokens": 1664,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0
+      },
+      "returnedModel": "deepseek-v4.1-flash",
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：关系必须绑定双方并明确 directed 方向；未推进该章，请核对后重试\n章节记忆校验失败：facts[2] 目标摘要只保留稳定意图与完成条件，不含当前执行进度；尚未开始或已经开始另存进度 state；未推进该章，请核对后重试",
+      "suppliedFactIds": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"江苇\",\"aliases\":[\"小苇\"],\"kind\":\"person\"},{\"name\":\"顾澜\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"顾岚\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"北塔\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"南塔\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"铜钥匙\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"航图\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"北塔的钟\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"南塔的钟\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"封箱\",\"aliases\":[],\"kind\":\"item\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"身份\",\"summary\":\"江苇是北塔管理员，也叫小苇。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"北塔管理员江苇也叫小苇。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"江苇在北塔。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"江苇在北塔，计划寻找铜钥匙，也打算整理航图。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"寻找铜钥匙\",\"summary\":\"江苇计划寻找铜钥匙。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"江苇在北塔，计划寻找铜钥匙，也打算整理航图。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"江苇\"],\"directed\":false,\"label\":\"整理航图\",\"summary\":\"江苇打算整理航图。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"江苇在北塔，计划寻找铜钥匙，也打算整理航图。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"顾澜\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"顾澜在北塔。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾澜在北塔，决定检修北塔的钟，尚未动工。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"顾澜\"],\"directed\":false,\"label\":\"检修北塔的钟\",\"summary\":\"顾澜决定检修北塔的钟。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾澜在北塔，决定检修北塔的钟，尚未动工。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"顾澜\"],\"directed\":false,\"label\":\"检修北塔的钟进度\",\"summary\":\"顾澜检修北塔的钟尚未动工。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾澜在北塔，决定检修北塔的钟，尚未动工。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"南塔的钟\",\"北塔的钟\"],\"directed\":false,\"label\":\"器物同一性\",\"summary\":\"南塔的钟与北塔的钟是两件不同的器物。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"南塔的钟完好，与北塔的钟是两件不同的器物。\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"南塔的钟\"],\"directed\":false,\"label\":\"完好状态\",\"summary\":\"南塔的钟完好。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"南塔的钟完好，与北塔的钟是两件不同的器物。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"顾岚\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"顾岚在南塔。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾岚在南塔，顾岚与顾澜不是同一个人。\"},{\"memoryType\":\"state\",\"kind\":\"fact\",\"subjects\":[\"顾岚\",\"顾澜\"],\"directed\":false,\"label\":\"身份同一性\",\"summary\":\"顾岚与顾澜不是同一个人。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"顾岚在南塔，顾岚与顾澜不是同一个人。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"封箱\"],\"directed\":false,\"label\":\"存放位置\",\"summary\":\"封箱放在库房里。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"库房里放着一个封箱，箱子未开，内容无人知道。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封箱\"],\"directed\":false,\"label\":\"开启状态\",\"summary\":\"封箱未开。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"库房里放着一个封箱，箱子未开，内容无人知道。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"北塔的钟\"],\"directed\":false,\"label\":\"检修作业规定\",\"summary\":\"作业规定北塔钟不停摆不准检修钟架。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"作业规定：北塔钟不停摆，不准检修钟架。\"}],\"goalReviews\":[]}",
+      "systemPromptHash": "058047968bc8f3db531a12c14904a1800ad215438245fd40e5c93ad309aeb9e3"
+    },
+    {
+      "runId": "2026-11-10T00-15-57-395Z",
+      "chapter": 1,
+      "phase": "review",
+      "reportedUsage": {
+        "promptTokens": 4992,
+        "completionTokens": 1179,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0
+      },
+      "returnedModel": "deepseek-v4.1-flash",
+      "status": 200,
+      "suppliedFactIds": [],
+      "reviewTargets": [
+        {
+          "id": "f_c3d09fb805c56c5cfc1c6bdf",
+          "memoryType": "state",
+          "kind": "fact",
+          "subjects": [
+            "e_718fd1a09d6e2a519081cf85"
+          ],
+          "label": "身份",
+          "summary": "江苇是北塔管理员，也叫小苇。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "北塔管理员江苇也叫小苇",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_931f30238f49ce53a7ad8038"
+        },
+        {
+          "id": "f_e69166594d116e8ca81c1859",
+          "memoryType": "state",
+          "kind": "place",
+          "subjects": [
+            "e_718fd1a09d6e2a519081cf85"
+          ],
+          "label": "当前位置",
+          "summary": "江苇在北塔。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "江苇在北塔，计划寻找铜钥匙，也打算整理航图",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_f90ab7ced0dc5e8c6c572472"
+        },
+        {
+          "id": "f_be052775379293e441583e40",
+          "memoryType": "state",
+          "kind": "goal",
+          "subjects": [
+            "e_718fd1a09d6e2a519081cf85"
+          ],
+          "label": "寻找铜钥匙",
+          "summary": "江苇计划寻找铜钥匙。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "江苇在北塔，计划寻找铜钥匙，也打算整理航图",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_a3bb7ee8c0371646331719f3"
+        },
+        {
+          "id": "f_a55d0b51d79bb77975328e27",
+          "memoryType": "state",
+          "kind": "goal",
+          "subjects": [
+            "e_718fd1a09d6e2a519081cf85"
+          ],
+          "label": "整理航图",
+          "summary": "江苇打算整理航图。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "江苇在北塔，计划寻找铜钥匙，也打算整理航图",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_d4df76a2f0f8b0aa9d656b98"
+        },
+        {
+          "id": "f_0970537dd274eed799924de6",
+          "memoryType": "state",
+          "kind": "place",
+          "subjects": [
+            "e_396a89d81c24abacaa841587"
+          ],
+          "label": "当前位置",
+          "summary": "顾澜在北塔。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "顾澜在北塔，决定检修北塔的钟，尚未动工",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_b37f691b25d7e580b5b15738"
+        },
+        {
+          "id": "f_a872a371f86397ac972c3272",
+          "memoryType": "state",
+          "kind": "goal",
+          "subjects": [
+            "e_396a89d81c24abacaa841587"
+          ],
+          "label": "检修北塔的钟",
+          "summary": "顾澜决定检修北塔的钟。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "顾澜在北塔，决定检修北塔的钟，尚未动工",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_ce0f163e0d2c1439bf28cf92"
+        },
+        {
+          "id": "f_27a9b650dc090070f897836e",
+          "memoryType": "state",
+          "kind": "state",
+          "subjects": [
+            "e_396a89d81c24abacaa841587"
+          ],
+          "label": "检修北塔的钟进度",
+          "summary": "顾澜检修北塔的钟尚未动工。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "顾澜在北塔，决定检修北塔的钟，尚未动工",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_c929773eeefc1cc4889d4ca7"
+        },
+        {
+          "id": "f_9b9662958b1b6e64af68b6fc",
+          "memoryType": "state",
+          "kind": "state",
+          "subjects": [
+            "e_66640dd6763c75901c126e4a",
+            "e_3553c359e65beec928a9112e"
+          ],
+          "label": "器物同一性",
+          "summary": "南塔的钟与北塔的钟是两件不同的器物。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "global",
+          "replaces": [],
+          "quote": "南塔的钟完好，与北塔的钟是两件不同的器物",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_fd6c0d62fbc8ac09c4f9f480"
+        },
+        {
+          "id": "f_6e6778b1755bd0f372a4b22e",
+          "memoryType": "state",
+          "kind": "fact",
+          "subjects": [
+            "e_66640dd6763c75901c126e4a"
+          ],
+          "label": "完好状态",
+          "summary": "南塔的钟完好。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "南塔的钟完好，与北塔的钟是两件不同的器物",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_e44eb2ce2963a37ae0f0e71e"
+        },
+        {
+          "id": "f_2535823d3f3bda09ecca3ad0",
+          "memoryType": "state",
+          "kind": "place",
+          "subjects": [
+            "e_71667b270aaa9476eb312705"
+          ],
+          "label": "当前位置",
+          "summary": "顾岚在南塔。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "顾岚在南塔，顾岚与顾澜不是同一个人",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_8cbec28b4ff4296dc204b720"
+        },
+        {
+          "id": "f_ddb2a7f7d4922d0f09687e85",
+          "memoryType": "state",
+          "kind": "fact",
+          "subjects": [
+            "e_71667b270aaa9476eb312705",
+            "e_396a89d81c24abacaa841587"
+          ],
+          "label": "身份同一性",
+          "summary": "顾岚与顾澜不是同一个人。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "顾岚在南塔，顾岚与顾澜不是同一个人",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_39388762e4a563555391f4d8"
+        },
+        {
+          "id": "f_e5f30cf9f2e0596993e34677",
+          "memoryType": "state",
+          "kind": "place",
+          "subjects": [
+            "e_8d3f760ba25d878dc78826ec"
+          ],
+          "label": "存放位置",
+          "summary": "封箱放在库房里。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "库房里放着一个封箱，箱子未开，内容无人知道",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_b032a7a476ca9984de30e16c"
+        },
+        {
+          "id": "f_021158c07bb2d05c12d7262e",
+          "memoryType": "state",
+          "kind": "state",
+          "subjects": [
+            "e_8d3f760ba25d878dc78826ec"
+          ],
+          "label": "开启状态",
+          "summary": "封箱未开。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "local",
+          "replaces": [],
+          "quote": "库房里放着一个封箱，箱子未开，内容无人知道",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_c568620a9eacab73d5f3fda0"
+        },
+        {
+          "id": "f_49f80ed8fa50d6db91911881",
+          "memoryType": "state",
+          "kind": "boundary",
+          "subjects": [
+            "e_3553c359e65beec928a9112e"
+          ],
+          "label": "检修作业规定",
+          "summary": "作业规定北塔钟不停摆不准检修钟架。",
+          "certainty": "fact",
+          "status": "active",
+          "scope": "global",
+          "replaces": [],
+          "quote": "作业规定：北塔钟不停摆，不准检修钟架",
+          "chapterId": "eval-1",
+          "ordinal": 1,
+          "stateKey": "s_096a22097e640796ec97450f"
+        }
+      ],
+      "content": "{\"checks\":[{\"id\":\"f_c3d09fb805c56c5cfc1c6bdf\",\"verdict\":\"supported\",\"reason\":\"原文明确称江苇为北塔管理员，别名小苇；主体、身份与别名均与摘要一致。\"},{\"id\":\"f_e69166594d116e8ca81c1859\",\"verdict\":\"supported\",\"reason\":\"原文明确说“江苇在北塔”，与其计划寻找铜钥匙、整理航图分开陈述，位置摘要无混写。\"},{\"id\":\"f_be052775379293e441583e40\",\"verdict\":\"supported\",\"reason\":\"原文明确说江苇计划寻找铜钥匙，持续意图未在本段被完成、取消或替代。\"},{\"id\":\"f_a55d0b51d79bb77975328e27\",\"verdict\":\"supported\",\"reason\":\"原文明确说江苇也打算整理航图，目标主体与事项一致，未见完成或取消。\"},{\"id\":\"f_0970537dd274eed799924de6\",\"verdict\":\"supported\",\"reason\":\"原文明确说“顾澜在北塔”，位置主体与地点一致，未把检修进度混入当前位置。\"},{\"id\":\"f_a872a371f86397ac972c3272\",\"verdict\":\"supported\",\"reason\":\"原文说顾澜决定检修北塔的钟；决定构成持续意图，摘要未声称已完成。\"},{\"id\":\"f_27a9b650dc090070f897836e\",\"verdict\":\"supported\",\"reason\":\"原文明确说顾澜检修北塔的钟“尚未动工”，进度状态与执行者、事项均对应。\"},{\"id\":\"f_9b9662958b1b6e64af68b6fc\",\"verdict\":\"supported\",\"reason\":\"原文明确说南塔的钟与北塔的钟是两件不同的器物，器物同一性判断有直接依据。\"},{\"id\":\"f_6e6778b1755bd0f372a4b22e\",\"verdict\":\"supported\",\"reason\":\"原文明确说“南塔的钟完好”，主体为南塔的钟，未误记为北塔的钟。\"},{\"id\":\"f_2535823d3f3bda09ecca3ad0\",\"verdict\":\"supported\",\"reason\":\"原文明确说“顾岚在南塔”，姓名、地点与主体一致。\"},{\"id\":\"f_ddb2a7f7d4922d0f09687e85\",\"verdict\":\"supported\",\"reason\":\"原文明确说“顾岚与顾澜不是同一个人”，否定同一性有直接依据。\"},{\"id\":\"f_e5f30cf9f2e0596993e34677\",\"verdict\":\"supported\",\"reason\":\"原文明确说库房里放着一个封箱，存放位置与物品主体一致。\"},{\"id\":\"f_021158c07bb2d05c12d7262e\",\"verdict\":\"supported\",\"reason\":\"原文明确说“箱子未开，内容无人知道”，开启状态摘要与原文一致。\"},{\"id\":\"f_49f80ed8fa50d6db91911881\",\"verdict\":\"supported\",\"reason\":\"原文作业规定为“北塔钟不停摆，不准检修钟架”，摘要保留条件、否定与对象，未误写成顾澜当前行动状态。\"}],\"goalChecks\":[{\"id\":\"f_be052775379293e441583e40\",\"verdict\":\"supported\",\"reason\":\"江苇寻找铜钥匙的计划在本段未被完成、取消或替代，继续有效。\"},{\"id\":\"f_a55d0b51d79bb77975328e27\",\"verdict\":\"supported\",\"reason\":\"江苇整理航图的打算在本段未被完成、取消或替代，继续有效。\"},{\"id\":\"f_a872a371f86397ac972c3272\",\"verdict\":\"supported\",\"reason\":\"顾澜决定检修北塔的钟，尚未动工只表示进度未开始，不代表目标结束，应继续有效。\"}],\"coverage\":[{\"aspect\":\"location\",\"verdict\":\"covered\",\"reason\":\"正文明确江苇在北塔、顾澜在北塔、顾岚在南塔，已分别记录三人的当前位置；封箱位于库房也已记录。\"},{\"aspect\":\"ownership\",\"verdict\":\"covered\",\"reason\":\"正文没有发生物品转手或归属变更；南塔的钟与北塔的钟被明确区分为两件不同器物，相关同一性事实已覆盖。\"},{\"aspect\":\"cognition\",\"verdict\":\"covered\",\"reason\":\"正文明确封箱内容无人知道，草稿以“内容无人知道”的开启状态相关记录保留；没有其他人物获知或误知信息的变化。\"},{\"aspect\":\"progress\",\"verdict\":\"covered\",\"reason\":\"正文明确顾澜尚未动工，草稿单独记录检修进度；江苇的目标仅处于计划阶段，未被误记为已完成。\"},{\"aspect\":\"goals\",\"verdict\":\"covered\",\"reason\":\"江苇寻找铜钥匙、整理航图，以及顾澜检修北塔的钟三个持续意图均在草稿中保留，未出现完成或取消。\"},{\"aspect\":\"relationships\",\"verdict\":\"covered\",\"reason\":\"正文明确顾岚与顾澜不是同一个人，草稿已记录该身份区别；江苇别名小苇也已记录。\"},{\"aspect\":\"constraints\",\"verdict\":\"covered\",\"reason\":\"正文规定北塔钟不停摆不准检修钟架，草稿已保留该作业规定及其否定条件。\"},{\"aspect\":\"other\",\"verdict\":\"covered\",\"reason\":\"南塔的钟完好、封箱未开、南北两钟为不同器物等其他重要状态均已记录，无遗漏的持久变化。\"}]}",
+      "systemPromptHash": "57a670200d10d75fd89084000bb0f6c7cef52bd0cdaedc9a868b226f2293a3a9"
+    }
+  ],
+  "state": {
+    "entities": [],
+    "facts": []
+  },
+  "current": [],
+  "explicitHistory": {
+    "entities": [],
+    "facts": []
+  },
+  "structuralChecks": {
+    "fullCoverage": false,
+    "sourceQuotesMatch": true,
+    "beliefsHavePerspective": true,
+    "uniqueActiveStateKeys": true,
+    "historicalTargetsMarked": true
+  },
+  "manualReview": "逐章依据 expectations 人工核对；结构检查通过不代表内容准确或完整。",
+  "limitations": "10 章短合成故事，不代表真实长篇准确率或性能。未开生产数据库；当前非流式、关闭思考，每次最多16000输出token、300秒。独立语义复核额外调用且不保证判断正确；分阶段响应Token与数据库累计账单分开统计。收到响应后失败也计账，未回传费用为未知；不自动重试语义或传输失败。历史补查沿用产品路径，显式 resume 的每次尝试保留记录。"
+}
