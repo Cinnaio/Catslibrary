@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest'
 import { createTestDb, type TestDb } from '../../test/db'
 import { first } from '../../db/query'
 import { createAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from './novel-analysis-store'
-import { analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest } from './novel-analysis-source'
+import { analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest, searchAnalysisSources } from './novel-analysis-source'
 import { runNovelAnalysis } from './novel-analysis'
 import { AiError, type AiChatResult, type chat } from './client'
 import { getAiTask } from './tasks'
@@ -140,6 +140,71 @@ it('按需回查只返回范围内来源，拒绝越界且重复回查不膨胀�
   }
   await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, invoke)
   expect((await readAnalysis(t.db, 'book', receipt.reportId)).checkedSourceIds).toEqual(['S1'])
+})
+
+it('原文搜索限制片段数量、保留 Unicode，并优先提供后文线索而不把无命中当结论', async () => {
+  const [base] = await captureAnalysisSources(t.db, 'book', input)
+  const sources = Array.from({ length: 9 }, (_, i) => ({ ...base!, id: `S${i + 1}`, text: '😀'.repeat(100) + '钥匙' + '😀'.repeat(150) }))
+  const result = searchAnalysisSources(sources, ' 钥匙 ')
+  expect(result).toMatchObject({ matchedSources: 9, truncated: true })
+  expect(result.matches.map(s => s.id)).toEqual(['S9', 'S8', 'S7', 'S6', 'S5', 'S4'])
+  for (const s of result.matches) {
+    expect(s.excerpt).toContain('钥匙')
+    expect(s.excerpt.length).toBeLessThanOrEqual(441)
+    expect(s.excerpt).not.toMatch(/^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/u)
+    expect(s).not.toHaveProperty('chapterId')
+  }
+  expect(searchAnalysisSources(sources, '.*')).toMatchObject({ matchedSources: 0, matches: [] })
+  expect(searchAnalysisSources(sources, '无此词').notice).toContain('无命中不等于')
+  for (const query of [null, ['钥匙'], 'a', '字'.repeat(81)]) expect(() => searchAnalysisSources(sources, query)).toThrow()
+})
+
+it('搜索使用冻结范围，重复查询不再返回正文片段，搜索本身不冒充完整回读', async () => {
+  await useLongRange()
+  const receipt = await create()
+  await t.db.query("UPDATE chapters SET content='钥匙已被改稿替换' WHERE id='c1'")
+  await t.db.query("UPDATE chapters SET content='钥匙在别的书中' WHERE id='x'")
+  let round = 0
+  const call = (name: string, args: unknown) => ({ ...answer(''), toolCalls: [{ id: `call-${round}`, type: 'function' as const, function: { name, arguments: JSON.stringify(args) } }] })
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async options => {
+    if (!options.tools) return answer('钥匙转手。[[S1]]')
+    round++
+    if (round === 1) return call('search_sources', { query: '钥匙' })
+    const result = JSON.parse(options.messages.at(-1)!.content)
+    if (round === 2) {
+      expect(result.matches).toHaveLength(1)
+      expect(result.matches[0]).toMatchObject({ id: 'S1', excerpt: expect.stringContaining('青遥把钥匙交给阿宁') })
+      expect(JSON.stringify(result)).not.toMatch(/改稿替换|别的书/)
+      expect((await requireAnalysis(t.db, 'book', receipt.reportId)).checked_source_ids).toEqual([])
+      return call('search_sources', { query: ' 钥匙 ' })
+    }
+    if (round === 3) { expect(result.message).toContain('上方返回'); expect(result).not.toHaveProperty('matches'); return call('search_sources', { query: '钥匙', novelId: 'other' }) }
+    if (round === 4) { expect(result.error).toBeTruthy(); return call('read_source', { sourceId: 'S1' }) }
+    expect(Object.keys(result).sort()).toEqual(['chapterTitle', 'id', 'part', 'text'])
+    return answer('阿宁持有钥匙。[[S1]]')
+  })
+  expect(round).toBe(5)
+  expect((await readAnalysis(t.db, 'book', receipt.reportId)).checkedSourceIds).toEqual(['S1'])
+})
+
+it('搜索片段与完整回读共享正文额度，超限后不会额外返回正文', async () => {
+  await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', [('钥匙' + '甲'.repeat(11998)).repeat(4), 'c1'])
+  const receipt = await create()
+  const row = await requireAnalysis(t.db, 'book', receipt.reportId)
+  await t.db.query('UPDATE novel_analysis_reports SET notes_json=$1::jsonb WHERE id=$2', [JSON.stringify(row.source_json.map(s => ({ sourceIds: [s.id], content: '已有阅读记录' }))), receipt.reportId])
+  let round = 0
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async options => {
+    round++
+    if (round === 1) return { ...answer(''), toolCalls: [{ id: 'search', type: 'function', function: { name: 'search_sources', arguments: '{"query":"钥匙"}' } }] }
+    if (round === 2) return { ...answer(''), toolCalls: ['S1', 'S2', 'S3', 'S4'].map(id => ({ id, type: 'function' as const, function: { name: 'read_source', arguments: JSON.stringify({ sourceId: id }) } })) }
+    const results = options.messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content))
+    expect(results[0].matches).toHaveLength(4)
+    expect(results.filter(r => r.text)).toHaveLength(3)
+    expect(results.at(-1).message).toContain('额度已用完')
+    return answer('报告已核对。[[S1]]')
+  })
+  expect(round).toBe(3)
+  expect((await readAnalysis(t.db, 'book', receipt.reportId)).checkedSourceIds).toEqual(['S1', 'S2', 'S3'])
 })
 
 it('截断与空输出不形成完整报告或触发付费重试', async () => {

@@ -9,6 +9,29 @@ import { cleanStoryText } from './story-memory'
 export const ANALYSIS_PIECE_CHARS = 12_000
 type Chapter = { id: string; title: string; content: string; sort_order: number; ordinal: number }
 export const analysisHash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
+
+/** Literal lookup inside the frozen selection; later sources help resolve earlier questions. */
+export function searchAnalysisSources(sources: AnalysisSource[], value: unknown) {
+  if (typeof value !== 'string' || value.trim().length < 2 || value.trim().length > 80)
+    throw new AiError('invalid', '请提供 2–80 字的原文关键词', 422)
+  const query = value.trim()
+  const matches: Array<{ id: string; chapterTitle: string; part: number; excerpt: string }> = []
+  let matchedSources = 0
+  for (let i = sources.length - 1; i >= 0; i--) {
+    const source = sources[i]!
+    const at = source.text.indexOf(query)
+    if (at < 0) continue
+    matchedSources++
+    if (matches.length >= 6) continue
+    let start = Math.max(0, at - 160), end = Math.min(source.text.length, at + query.length + 200)
+    if (start > 0 && /[\uDC00-\uDFFF]/u.test(source.text[start]!)) start--
+    if (end < source.text.length && /[\uD800-\uDBFF]/u.test(source.text[end - 1]!)) end--
+    matches.push({ id: source.id, chapterTitle: source.chapterTitle, part: source.part, excerpt: source.text.slice(start, end) })
+  }
+  return { query, matchedSources, truncated: matchedSources > matches.length, order: '较晚来源优先',
+    matches, notice: '每个来源仅显示首次命中附近的片段；用 read_source 查看上下文。无命中不等于事件未发生。' }
+}
+
 export function parseAnalysisRequest(value: unknown): AnalysisRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AiError('invalid', '分析参数无效', 422)
   const v = value as Record<string, unknown>
