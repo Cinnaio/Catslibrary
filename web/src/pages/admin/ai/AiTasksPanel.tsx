@@ -224,6 +224,11 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const detailTask = tasks.find((task) => task.id === detailsId)
   const failedCount = statusCounts.failed ?? 0
   function renderRetry(task: AiTask) {
+    if (task.kind === 'novel_analysis') {
+      let reportId = ''
+      try { reportId = String(JSON.parse(task.params || '{}').reportId || '') } catch { /* Historic metadata can be missing. */ }
+      return <Button variant="outline" size="sm" onClick={() => navigate(`/admin/ai?${new URLSearchParams({ sub: 'analysis', novel: task.novelId, report: reportId })}`)}>查看分析报告</Button>
+    }
     if (task.kind === 'agent_chat') {
       let sessionId = ''
       try { sessionId = String(JSON.parse(task.params || '{}').sessionId || '') } catch { /* Historic metadata can be missing. */ }

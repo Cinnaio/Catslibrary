@@ -1,6 +1,7 @@
 import { watchAiTask } from '@/lib/ai-task-stream'
 import AiStreamPreview from '@/components/shared/AiStreamPreview'
 import { MotionDetails } from '@/components/ui/motion'
+import { Link } from 'react-router-dom'
 import WritingPreparation from './WritingPreparation'
 import AiGenerationsPanel from './AiGenerationsPanel'
 import styles from './writing-workspace.module.css'
@@ -1313,10 +1314,10 @@ export default function AiWritingPanel(props: {
       <DialogFrame size="wide" className={cn(styles.analysis, 'sm:max-w-[780px] max-h-[85vh] flex flex-col p-0')}>
         <DialogHeader className="shrink-0">
           <DialogTitle id="ai-writing-analysis-title">
-            小说分析
+            续写档案
           </DialogTitle>
           <DialogDescription>
-            分析结果保存在本书中；只有当前可用的完整档案会被续写参考。展开可查看内容与人工校正。
+            用于续写的完整档案保存在本书中。展开可查看内容与人工校正。
           </DialogDescription>
           {props.onOpenGraph && (
             <Button
@@ -1336,6 +1337,7 @@ export default function AiWritingPanel(props: {
         </DialogHeader>
 
         <DialogBody className="px-6 py-4 overflow-y-auto space-y-4">
+          <Button asChild variant="outline"><Link onClick={() => setAnalysisDialogOpen(false)} to={`/admin/ai?sub=analysis&novel=${encodeURIComponent(novelId)}`}>阅读独立分析报告</Link></Button>
           <div className="ai-writing-profile-list space-y-3">
             <ProfileSection
               label="风格画像"
@@ -1999,7 +2001,7 @@ export default function AiWritingPanel(props: {
                             {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
                             {activeProfileLabels.length > 0
                               ? ` · 已注入：${activeProfileLabels.join('、')}`
-                              : ' · 尚无可用小说分析'}
+                              : ' · 尚无可用续写档案'}
                             {useOutline && outline.trim()
                               ? ` · 已挂载大纲(${countOutlineChapters(outline)}章)`
                               : outline.trim()
@@ -2129,7 +2131,7 @@ export default function AiWritingPanel(props: {
                   <p className={styles.caption}>选择作品后，查看本次使用的档案与写作材料。</p>
                 )}
                 <div className={styles.contextSection}>
-                  <span className={styles.caption}>小说分析 · {activeProfileLabels.length} 项可用</span>
+                  <span className={styles.caption}>续写档案 · {activeProfileLabels.length} 项可用</span>
                   <dl className={styles.profileStatus}>
                     <div>
                       <dt>文风画像</dt>
@@ -2164,11 +2166,11 @@ export default function AiWritingPanel(props: {
                     type="button"
                     variant="secondary"
                     size="sm"
-                    aria-label={`可用 ${activeProfileLabels.length} 项小说分析`}
+                    aria-label={`可用 ${activeProfileLabels.length} 项续写档案`}
                     disabled={!novelId}
                     onClick={() => setAnalysisDialogOpen(true)}
                   >
-                    查看小说分析
+                    查看续写档案
                   </Button>
                 </div>
                 {mode === 'continue' && pendingDrafts > 0 && (
@@ -2270,7 +2272,7 @@ export default function AiWritingPanel(props: {
                 {mode === 'new' && (
                   <div className="grid gap-4 border-t pt-5">
                     <div>
-                      <p className="text-sm font-medium">小说分析</p>
+                      <p className="text-sm font-medium">续写档案</p>
                       <p className="text-xs text-muted-foreground">
                         提取后自动注入续写：风格画像定文风，关系画像定人设边界，情节状态防断档。
                       </p>
