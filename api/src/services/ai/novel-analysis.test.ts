@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import { createTestDb, type TestDb } from '../../test/db'
 import { first } from '../../db/query'
 import { createAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from './novel-analysis-store'
 import { analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest, searchAnalysisSources } from './novel-analysis-source'
 import { runNovelAnalysis } from './novel-analysis'
-import { AiError, type AiChatResult, type chat } from './client'
+import { AiError, chat, type AiChatResult } from './client'
+import { withProviderSnapshot } from './provider-snapshot'
 import { getAiTask } from './tasks'
 import { cleanStoryText } from './story-memory'
 import { app } from '../../app'
@@ -225,6 +226,37 @@ it('截断与空输出不形成完整报告或触发付费重试', async () => {
   expect((await readAnalysis(t.db, 'book', receipt.reportId))).toMatchObject({ status: 'failed', content: '', processed: 0 })
 })
 
+it.each(['completed', 'interrupted', 'cancelled'] as const)('流式接收只在完整完成时保存报告，进度与费用保留且不重放：%s', async outcome => {
+  const receipt = await create()
+  const frames = [
+    { choices: [{ delta: { reasoning: '不公开的思考' } }] },
+    { choices: [{ delta: { content: '阿宁接过钥匙。[[S1]]' } }], usage: { prompt_tokens: 12, completion_tokens: 9 } },
+    ...(outcome === 'completed' ? [{ choices: [{ delta: {}, finish_reason: 'stop' }] }] : []),
+  ]
+  const fetchMock = vi.fn(async () => new Response(frames.map(frame => `data: ${JSON.stringify(frame)}\n\n`).join('') + (outcome === 'completed' ? 'data: [DONE]\n\n' : ''), { headers: { 'content-type': 'text/event-stream' } }))
+  vi.stubGlobal('fetch', fetchMock)
+  try {
+    await withProviderSnapshot(() => runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async options => {
+      expect(options).toMatchObject({ stream: true, maxAttempts: 1, retryOnTimeout: false })
+      return chat({ ...options, reasoningMode: 'inherit', onDelta: async () => {
+        expect((await getAiTask(t.db, receipt.taskId))?.step).toContain('正在输出')
+        expect((await requireAnalysis(t.db, 'book', receipt.reportId)).content).toBe('')
+        if (outcome === 'cancelled') {
+          await stopAnalysis(t.db, 'book', receipt.reportId)
+          throw new AiError('cancelled', '已停止', 409)
+        }
+      } })
+    }), { text: { baseUrl: 'https://closed.test/v1', apiKey: 'mock-key', model: 'mock-text' } })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const report = await readAnalysis(t.db, 'book', receipt.reportId)
+    expect(report.status).toBe(outcome === 'interrupted' ? 'failed' : outcome)
+    expect(report.content).toBe(outcome === 'completed' ? '阿宁接过钥匙。[[S1]]' : '')
+    const usage = await first<{ count: number; tokens: number }>(t.db, 'SELECT count(*)::int AS count, sum(completion_tokens)::int AS tokens FROM ai_usage')
+    expect(usage).toMatchObject({ count: 1, tokens: 9 })
+    expect(JSON.stringify(report)).not.toContain('不公开的思考')
+  } finally { vi.unstubAllGlobals() }
+})
+
 it.each(['text', 'tool', 'empty'] as const)('回查额度结束后仅携带冻结材料写报告，拒绝工具或空正文且不重试：%s', async outcome => {
   const receipt = await create()
   const row = await requireAnalysis(t.db, 'book', receipt.reportId)
@@ -270,7 +302,7 @@ it('仅思考耗尽额度与普通空正文分开提示，保留用量且不重�
   expect(Number((await first<{ tokens: number }>(t.db, 'SELECT completion_tokens AS tokens FROM ai_usage'))?.tokens)).toBe(8000)
 })
 
-it('高思考报告给正文保留更大额度，单次完成且不修改共享设置', async () => {
+it('高思考报告提高总输出额度，单次完成且不修改共享设置', async () => {
   const previous = await getAiSettings(t.db)
   const settings = await saveAiSettings(t.db, { storyMemoryReasoningMode: 'high' })
   try {

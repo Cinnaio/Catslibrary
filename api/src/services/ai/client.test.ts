@@ -188,6 +188,21 @@ describe('explicit reasoning and stream progress', () => {
     await expect(chatStream({ messages }, () => {})).rejects.toThrow('connection lost')
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+  it('counts the gateway reasoning alias without exposing or replaying it as tool context', async () => {
+    const frames = [
+      { choices: [{ delta: { reasoning: '私密思考' } }] },
+      { choices: [{ delta: { reasoning_content: '继续 ', reasoning: '不能重复统计' } }] },
+      { choices: [{ delta: { content: '报告' }, finish_reason: 'stop' }] },
+    ]
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(frames.map(frame => `data: ${JSON.stringify(frame)}\n\n`).join('') + 'data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })))
+    const progress = vi.fn(), delta = vi.fn()
+    const result = await chatStream({ messages, onProgress: progress }, delta)
+    expect(result).toMatchObject({ text: '报告', streamed: true })
+    expect(result).not.toHaveProperty('reasoningContent')
+    expect(progress.mock.calls.at(-1)).toEqual([{ phase: 'writing', reasoningCharacters: 7 }])
+    expect(JSON.stringify(progress.mock.calls)).not.toContain('私密思考')
+    expect(delta).toHaveBeenCalledExactlyOnceWith('报告')
+  })
   it('retains thought-only truncated usage for archive validation', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('data: {"choices":[{"delta":{"reasoning_content":"思考"},"finish_reason":"length"}],"usage":{"completion_tokens":50,"completion_tokens_details":{"reasoning_tokens":50}}}\n\n', { headers: { 'content-type': 'text/event-stream' } })))
     expect(await chatStream({ messages, returnIncompleteResult: true }, () => {})).toMatchObject({ text: '', finishReason: 'length', completionTokens: 50, reasoningTokens: 50 })

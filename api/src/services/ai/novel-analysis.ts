@@ -56,16 +56,25 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
       firstChapter: report.source_json[0]?.chapterTitle, lastChapter: report.source_json.at(-1)?.chapterTitle }
     const request = async (messages: AiMessage[], maxTokens: number, tools?: AiFunctionTool[], toolChoice?: 'none') => {
       await active()
+      const stage = ((await getAiTask(db, taskId))?.step || '正在分析').replace(/ · 正在(?:思考|输出)$/, '')
+      let phase: 'thinking' | 'writing' | undefined
       const usageId = newId('aiuse')
       const record = (response: AiChatResult) => recordUsage(db, { usageId, userId: task.userId, taskId, novelId,
         generationType: 'novel_analysis', model: response.model, provider: providerLabel(textProvider().baseUrl),
         tokenUsageReported: response.tokenUsageReported, promptTokens: response.promptTokens, completionTokens: response.completionTokens,
         costMillicents: response.cost * 100000, ...usageAuditFields(response), ...audit })
-      // Thinking and prose share the output cap; high needs room for both, without replaying a paid call.
+      // Thinking and prose share the cap. More room for high is not a guarantee of prose.
       const outputLimit = settings.storyMemoryReasoningMode === 'high' ? Math.max(8000, maxTokens * 2) : maxTokens
-      const response = await invoke({ messages, tools, toolChoice, stream: false, temperature: 0.2, maxTokens: outputLimit,
+      const response = await invoke({ messages, tools, toolChoice, stream: true, temperature: 0.2, maxTokens: outputLimit,
         timeoutMs: settings.storyMemoryTimeoutSeconds * 1000, reasoningMode: settings.storyMemoryReasoningMode,
-        maxAttempts: 1, retryOnTimeout: false, returnIncompleteResult: true, signal: controller.signal, onIncomplete: record })
+        maxAttempts: 1, retryOnTimeout: false, returnIncompleteResult: true, signal: controller.signal, onIncomplete: record,
+        onProgress: async progress => {
+          // Persist each phase once, never private thoughts or unfinished report text.
+          if (progress.phase === phase || phase === 'writing') return
+          phase = progress.phase
+          await active()
+          await updateAiTask(db, taskId, { step: `${stage} · ${phase === 'thinking' ? '正在思考' : '正在输出'}` })
+        } })
       await record(response)
       await active()
       if ((!tools || toolChoice === 'none') && response.toolCalls?.length) throw new AiError('invalid', '模型仍请求查原文，未返回完整报告，阅读记录已保留', 422)

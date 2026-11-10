@@ -1,4 +1,4 @@
-/** Reuse frozen reading notes to review final synthesis, without rereading the whole book or touching the app DB. */
+/** Review frozen sources in an isolated database, reusing notes or explicitly reading afresh. */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +9,7 @@ import { createTestDb } from '../src/test/db'
 import { createAnalysis, requireAnalysis } from '../src/services/ai/novel-analysis-store'
 import { runNovelAnalysis } from '../src/services/ai/novel-analysis'
 import { getAiTask } from '../src/services/ai/tasks'
+import { saveAiSettings } from '../src/services/ai/settings'
 import { chat, AiError, type AiChatOptions } from '../src/services/ai/client'
 import { loadConfig } from '../src/config'
 import { withProviderSnapshot } from '../src/services/ai/provider-snapshot'
@@ -17,8 +18,11 @@ import type { AiReasoningMode } from '../../shared/ai-text-progress'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const args = process.argv.slice(2)
 const option = (name: string) => args.includes(name) ? args[args.indexOf(name) + 1] : undefined
+const fresh = args.includes('--fresh')
+const maxCalls = fresh ? 32 : 9
+const maxDurationMs = (fresh ? 30 : 10) * 60_000
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ mode: 'plan', input: '定向合成样本，或 --snapshot 指定的冻结报告与旧阅读记录', reasoning: '--reasoning 显式指定 inherit/disabled/low/high；默认 inherit，不读取开发库设置', maxCalls: 9, retries: 0, applicationDatabaseWrites: false, fullPipelineReview: false }))
+  console.log(JSON.stringify({ mode: 'plan', input: '定向合成样本，或 --snapshot 指定的冻结报告；--fresh 不复用旧记录，从分组阅读开始', reasoning: '--reasoning 显式指定 inherit/disabled/low/high；默认 inherit，不读取开发库设置', maxCalls, maxDurationMs, retries: 0, applicationDatabaseWrites: false, fullPipelineReview: fresh }))
   process.exit(0)
 }
 const outputArg = option('--output')
@@ -39,9 +43,9 @@ const fixture = JSON.parse(await readFile(path.join(root, 'api/scripts/fixtures/
 const snapshot = snapshotPath ? JSON.parse(await readFile(path.resolve(snapshotPath), 'utf8')) as {
   source_json: AnalysisSource[]; notes_json: AnalysisNote[]; request_json: { kind: AnalysisKind; question: string }
 } : undefined
-const notes = snapshot?.notes_json ?? fixture.notes
+const notes = fresh ? [] : snapshot?.notes_json ?? fixture.notes
 const kind = snapshot?.request_json.kind ?? 'plot'
-if (!Object.hasOwn(ANALYSIS_KINDS, kind) || !Array.isArray(notes) || !notes.length || JSON.stringify(notes).length > 28000)
+if (!Object.hasOwn(ANALYSIS_KINDS, kind) || !Array.isArray(notes) || !fresh && (!notes.length || JSON.stringify(notes).length > 28000))
   throw new Error('Summary review requires complete notes that fit without additional condensation')
 const chapters = snapshot ? [...new Set(snapshot.source_json.map(s => s.chapterId))].map(id => {
   const parts = snapshot.source_json.filter(s => s.chapterId === id)
@@ -54,18 +58,26 @@ const t = await createTestDb()
 const calls: Array<Record<string, unknown>> = []
 const started = Date.now()
 const clean = (value: unknown) => JSON.stringify(value, null, 2).replaceAll(provider.apiKey, '[credential]')
-const persist = () => writeFile(path.join(output, 'calls.json'), clean({ mode: snapshot ? 'existing-notes-replay' : 'synthetic-stale-notes', reasoning, calls }))
+const persist = () => writeFile(path.join(output, 'calls.json'), clean({ mode: fresh ? 'fresh-pipeline' : snapshot ? 'existing-notes-replay' : 'synthetic-stale-notes', reasoning, calls }))
 const invoke = async (options: AiChatOptions) => {
-  if (calls.length >= 9 || Date.now() - started > 10 * 60_000) throw new AiError('invalid', '本轮汇总复核达到调用预算')
-  const call: Record<string, unknown> = { messages: structuredClone(options.messages), tools: options.tools, toolChoice: options.toolChoice, reasoning, startedAt: new Date().toISOString() }
+  if (calls.length >= maxCalls || Date.now() - started > maxDurationMs) throw new AiError('invalid', '本轮报告复核达到调用预算')
+  const call: Record<string, unknown> = { messages: options.messages.map(({ reasoning_content: _private, ...message }) => structuredClone(message)), tools: options.tools, toolChoice: options.toolChoice,
+    reasoning, stream: options.stream, maxTokens: options.maxTokens, startedAt: new Date().toISOString() }
   calls.push(call)
   try {
-    const result = await chat({ ...options, reasoningMode: reasoning as AiReasoningMode, timeoutMs: 120000,
-      signal: AbortSignal.any([options.signal || new AbortController().signal, AbortSignal.timeout(125000)]), maxAttempts: 1, retryOnTimeout: false })
+    const timeoutMs = fresh ? 300000 : 120000
+    const result = await chat({ ...options, timeoutMs,
+      onProgress: async update => {
+        call.firstThinkingMs ??= update.phase === 'thinking' ? Date.now() - Date.parse(String(call.startedAt)) : undefined
+        call.firstWritingMs ??= update.phase === 'writing' ? Date.now() - Date.parse(String(call.startedAt)) : undefined
+        call.reasoningCharacters = update.reasoningCharacters
+        await options.onProgress?.(update)
+      },
+      signal: AbortSignal.any([options.signal || new AbortController().signal, AbortSignal.timeout(timeoutMs + 5000), AbortSignal.timeout(Math.max(1, maxDurationMs - (Date.now() - started)))]), maxAttempts: 1, retryOnTimeout: false })
     call.result = { ...result, reasoningContent: undefined }
     return result
   } catch (error) {
-    call.error = error instanceof AiError ? { code: error.code, status: error.status, partial: error.partialResult } : { code: 'transport_or_budget' }
+    call.error = error instanceof AiError ? { code: error.code, status: error.status, partial: error.partialResult ? { ...error.partialResult, reasoningContent: undefined } : undefined } : { code: 'transport_or_budget' }
     throw error
   } finally {
     call.durationMs = Date.now() - Date.parse(String(call.startedAt))
@@ -75,6 +87,7 @@ const invoke = async (options: AiChatOptions) => {
 }
 try {
   await t.applyMigrations()
+  await saveAiSettings(t.db, { storyMemoryReasoningMode: reasoning as AiReasoningMode, storyMemoryTimeoutSeconds: fresh ? 300 : 120 })
   await t.db.query("INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('review','review','admin','unused','unused',1,1)")
   await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('review','隔离汇总复核',1,1)")
   for (const [i, c] of chapters.entries()) await t.db.query('INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES($1,$2,$3,$4,$5,1)', [`c${i + 1}`, 'review', c.title, c.text, i + 1])
@@ -84,7 +97,7 @@ try {
   const sources = snapshot?.source_json ?? created.source_json
   const ids = new Set(sources.map(s => s.id))
   const notedIds = new Set(notes.flatMap(n => n.sourceIds))
-  if (ids.size !== sources.length || [...ids].some(id => !notedIds.has(id)) || [...notedIds].some(id => !ids.has(id))) throw new Error('Source coverage mismatch')
+  if (ids.size !== sources.length || !fresh && ([...ids].some(id => !notedIds.has(id)) || [...notedIds].some(id => !ids.has(id)))) throw new Error('Source coverage mismatch')
   if (sources.some(s => typeof s.text !== 'string' || s.text.length > 12000) || notes.some(n => typeof n.content !== 'string')) throw new Error('Malformed source or note')
   await t.db.query('UPDATE novel_analysis_reports SET source_json=$1::jsonb,notes_json=$2::jsonb WHERE id=$3', [JSON.stringify(sources), JSON.stringify(notes), receipt.reportId])
   const sourceHash = createHash('sha256').update(JSON.stringify(sources)).digest('hex')
@@ -93,9 +106,11 @@ try {
   await withProviderSnapshot(() => runNovelAnalysis(t.db, 'review', receipt.reportId, receipt.taskId, {}, invoke), { text: provider })
   const row = await requireAnalysis(t.db, 'review', receipt.reportId)
   const task = await getAiTask(t.db, receipt.taskId)
+  await writeFile(path.join(output, 'result-snapshot.json'), clean(row))
   const summary = { status: task?.status, error: task?.error, calls: calls.length, reasoning, sourceHash, notesHash,
     sourceCount: sources.length, readingGroupsReused: notes.length, reportCharacters: row.content.length,
-    checkedSourceIds: row.checked_source_ids, fullPipelineReview: false, semanticReview: 'pending' }
+    readingGroupsCreated: row.notes_json.length - notes.length, processedSources: new Set(row.notes_json.flatMap(note => note.sourceIds)).size,
+    checkedSourceIds: row.checked_source_ids, fullPipelineReview: fresh, semanticReview: 'pending' }
   await writeFile(path.join(output, 'report.md'), row.content || task?.error || '')
   await writeFile(path.join(output, 'summary.json'), clean(summary))
   console.log(JSON.stringify(summary))

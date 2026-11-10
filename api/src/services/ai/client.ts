@@ -434,9 +434,12 @@ async function onceStream(
     cost = upstreamCost(data) ?? cost
 
     const choice = data.choices?.find((item) => item.index === undefined || item.index === 0)
-    const reasoning = extractContent(choice?.delta?.reasoning_content)
-    if (reasoning) {
-      reasoningCharacters += reasoning.length
+    const reasoning = extractContent(choice?.delta?.reasoning_content, false)
+    // Some gateways expose `reasoning` instead. Count it for progress only;
+    // do not turn an undocumented alias into tool continuation material.
+    const progressReasoning = reasoning || extractContent(choice?.delta?.reasoning, false)
+    if (progressReasoning) {
+      reasoningCharacters += progressReasoning.length
       if (opts.tools?.length) reasoningContent += reasoning
       if (reasoningContent.length > 1_000_000) throw new AiError('invalid', '模型工具上下文过长')
       await opts.onProgress?.({ phase: 'thinking', reasoningCharacters })
@@ -553,7 +556,7 @@ interface ChatCompletionResponse {
 interface ChatCompletionStreamChunk {
   model?: string
   refusal?: unknown
-  choices?: Array<{ index?: number; delta?: { content?: unknown; reasoning_content?: unknown; refusal?: unknown; tool_calls?: Array<{ index: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
+  choices?: Array<{ index?: number; delta?: { content?: unknown; reasoning_content?: unknown; reasoning?: unknown; refusal?: unknown; tool_calls?: Array<{ index: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
   usage?: Record<string, unknown> | null
   usageMetadata?: Record<string, unknown>
   cost?: string | number

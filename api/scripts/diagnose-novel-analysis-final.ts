@@ -9,12 +9,13 @@ import { withProviderSnapshot } from '../src/services/ai/provider-snapshot'
 import type { AiReasoningMode } from '../../shared/ai-text-progress'
 import { ANALYSIS_KINDS, type AnalysisKind } from '../../shared/novel-analysis'
 import { finalAnalysisMessages } from '../src/services/ai/novel-analysis'
+import { analysisPrompt } from '../src/services/ai/novel-analysis-prompts'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const args = process.argv.slice(2)
 const option = (name: string) => args.includes(name) ? args[args.indexOf(name) + 1] : undefined
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ mode: 'plan', purpose: '复用 --trace 的最后一轮，核对原始响应结构与客户端结果；--current-final --kind plot 使用当前报告提示和结束工具流程；--reasoning high 明确覆盖诊断模式并使用模块16000上限', maxCalls: 1, retries: 0, databaseWrites: false, reasoningTextSaved: false }))
+  console.log(JSON.stringify({ mode: 'plan', purpose: '复用 --trace 的最后一轮，核对原始响应结构与客户端结果；--current-final --kind plot 使用当前报告提示和结束工具流程；--reasoning high 使用模块16000上限；--stream 仅改变传输方式，记录时序不保存思考正文', maxCalls: 1, retries: 0, databaseWrites: false, reasoningTextSaved: false }))
   process.exit(0)
 }
 const traceArg = option('--trace')
@@ -30,12 +31,16 @@ const final = trace.calls.at(-1)
 if (!final?.messages?.length || final.tools?.length || !['inherit', 'disabled', 'low', 'high'].includes(trace.reasoning)) throw new Error('Expected a frozen final request without tools and explicit reasoning mode')
 const currentFinal = args.includes('--current-final')
 const kind = option('--kind')
-if (currentFinal && (!kind || !Object.hasOwn(ANALYSIS_KINDS, kind) || !final.messages.some(message => message.role === 'tool'))) throw new Error('Current final mode requires --kind and a trace with tool evidence')
-const messages = currentFinal ? finalAnalysisMessages(final.messages, kind as AnalysisKind) : final.messages
+if (currentFinal && (!kind || !Object.hasOwn(ANALYSIS_KINDS, kind) || !final.messages.some(message => message.role === 'tool') && final.toolChoice !== 'none')) throw new Error('Current final mode requires --kind and tool evidence or an already-closed final request')
+const messages = currentFinal ? final.messages.some(message => message.role === 'tool')
+  ? finalAnalysisMessages(final.messages, kind as AnalysisKind)
+  : [{ role: 'system' as const, content: analysisPrompt('final', kind as AnalysisKind) }, ...final.messages.slice(1)]
+  : final.messages
 const toolChoice = currentFinal ? 'none' : final.toolChoice
 const reasoning = option('--reasoning') || trace.reasoning
 if (!['inherit', 'disabled', 'low', 'high'].includes(reasoning) || option('--reasoning') && !currentFinal) throw new Error('Reasoning override requires current-final mode')
 const maxTokens = currentFinal && reasoning === 'high' ? 16000 : 8000
+const stream = args.includes('--stream')
 const provider = loadConfig().aiText
 if (!provider.apiKey || !provider.baseUrl || final.result?.model !== provider.model) throw new Error('Original configured provider/model required')
 await mkdir(path.dirname(output), { recursive: true })
@@ -56,14 +61,34 @@ globalThis.fetch = async (input, init) => {
   if (url !== chatEndpoint(provider.baseUrl) || init?.method !== 'POST') return originalFetch(input, init)
   if (++requests > 1) throw new Error('Single request budget exhausted')
   const response = await originalFetch(input, init)
+  if (response.headers.get('content-type')?.includes('text/event-stream') && response.body) {
+    const entry: Record<string, unknown> = { status: response.status, contentType: 'text/event-stream', headersMs: Date.now() - started, chunks: 0, bytes: 0 }
+    wire.push(entry)
+    const body = response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        entry.firstByteMs ??= Date.now() - started
+        entry.lastByteMs = Date.now() - started
+        entry.chunks = Number(entry.chunks) + 1
+        entry.bytes = Number(entry.bytes) + chunk.byteLength
+        controller.enqueue(chunk)
+      },
+    }))
+    return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers })
+  }
   const body: unknown = await response.clone().json().catch(() => undefined)
   wire.push({ status: response.status, responseShape: shape(body) })
   await writeFile(path.join(output, 'wire-shape.json'), clean(wire))
   return response
 }
 const started = Date.now()
+const progress: { firstThinkingMs?: number; firstWritingMs?: number; reasoningCharacters: number; textCharacters: number } = { reasoningCharacters: 0, textCharacters: 0 }
 try {
-  const result = await withProviderSnapshot(() => chat({ messages, toolChoice, stream: false, temperature: 0.2, maxTokens,
+  const result = await withProviderSnapshot(() => chat({ messages, toolChoice, stream, temperature: 0.2, maxTokens,
+    onProgress: update => {
+      if (update.phase === 'thinking') progress.firstThinkingMs ??= Date.now() - started
+      progress.reasoningCharacters = update.reasoningCharacters
+    },
+    onDelta: text => { progress.firstWritingMs ??= Date.now() - started; progress.textCharacters += text.length },
     reasoningMode: reasoning as AiReasoningMode, maxAttempts: 1, retryOnTimeout: false, returnIncompleteResult: true,
     timeoutMs: 300000, signal: AbortSignal.timeout(305000) }), { text: provider })
   await writeFile(path.join(output, 'result.json'), clean({ ...result, reasoningContent: undefined }))
@@ -76,6 +101,7 @@ try {
   process.exitCode = 1
 } finally {
   globalThis.fetch = originalFetch
+  await writeFile(path.join(output, 'wire-shape.json'), clean(wire))
   await writeFile(path.join(output, 'request-summary.json'), clean({ originalTrace: path.relative(root, path.resolve(traceArg)), messagesHash: createHash('sha256').update(JSON.stringify(messages)).digest('hex'),
-    currentFinal, kind, toolChoice, model: provider.model, reasoning, maxTokens, maxCalls: 1, requests, durationMs: Date.now() - started, databaseWrites: false }))
+    currentFinal, kind, toolChoice, stream, progress, model: provider.model, reasoning, maxTokens, maxCalls: 1, requests, durationMs: Date.now() - started, databaseWrites: false }))
 }
