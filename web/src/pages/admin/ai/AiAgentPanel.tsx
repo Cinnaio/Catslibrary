@@ -923,8 +923,9 @@ function AgentArtifactView({
           </div>
         </section>
       ))}
-      {artifact.task.status === 'completed' && !artifact.drafts.length && !artifact.rewrite && !artifact.covers.length && (
-        <p className={styles.muted}>任务已完成。封面可能已被采纳，或结果保存在故事档案中。</p>
+      {artifact.analysisReport && <Link to={artifact.analysisReport.url}>查看{artifact.analysisReport.title}</Link>}
+      {artifact.task.status === 'completed' && !artifact.drafts.length && !artifact.rewrite && !artifact.covers.length && !artifact.analysisReport && (
+        <p className={styles.muted}>任务已完成。结果仍可在对应作品中查看。</p>
       )}
     </div>
   )
@@ -973,7 +974,7 @@ function AgentSettings({
         <ChevronDown size={14} className={styles.settingsChevron} aria-hidden="true" />
       </summary>
       <div className={styles.settingsBody}>
-        <FormField className={styles.settingsBrief} label="这段对话始终遵循的创作约定" hint="只影响本次对话，不改写正式档案。">
+        <FormField className={styles.settingsBrief} label="这段对话始终遵循的创作约定" hint="只影响本次对话，不改写正文或分析报告。">
           <Textarea
             rows={5}
             placeholder="写下人物性格、叙事视角，或希望保留的情节…"

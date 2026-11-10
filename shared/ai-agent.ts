@@ -87,17 +87,21 @@ export interface AgentMemoryPage {
 /** A bounded snapshot of material actually read by the server, never model-authored. */
 export interface AgentEvidence {
   id: string
-  kind: 'chapter' | 'style' | 'plot' | 'relationship'
+  /** Legacy profile kinds are retained only for already-saved evidence snapshots. */
+  kind: 'chapter' | 'analysis' | 'style' | 'plot' | 'relationship'
   novelId: string
   title: string
   chapterId?: string
+  reportId?: string
+  reportRevision?: number
   origin: 'published' | 'automatic' | 'manual'
   revision: string
   offset: number
   endOffset: number
   excerpt: string
   truncated: boolean
-  /** The archive covers a chapter prefix; this is not an exact quotation attribution. */
+  fromChapter?: { id: string; title: string }
+  /** The analysis covers this range; this is not an exact quotation attribution. */
   throughChapter?: { id: string; title: string }
 }
 
@@ -177,6 +181,7 @@ export interface AgentArtifact {
   drafts: Array<{ id: string; title: string; content: string; status: string; revision: string }>
   covers: Array<{ id: string; prompt: string; imageUrl: string }>
   rewrite?: { draftId: string; before: string; after: string; baseRevision: string }
+  analysisReport?: { id: string; title: string; url: string }
 }
 
 export interface AgentSessionDetail {

@@ -196,19 +196,8 @@ export default function WritingPreparation(props: {
                 <p className="text-xs leading-5 text-muted-foreground">
                   起点：{visiblePreview.anchor.title} · 材料约 {visiblePreview.characterCount.toLocaleString()} 字符（不是 Token 数）。
                   {visiblePreview.recentContextPolicy}
-                  {visiblePreview.memorySelection && <span className="mt-1 block">增量记忆：本次关联 {visiblePreview.memorySelection.retrievedFacts} 条 / 已存 {visiblePreview.memorySelection.totalFacts} 条；完整历史仍可追溯。{visiblePreview.memorySelection.overBudget ? '关键约束较多，已完整保留，建议检查材料范围。' : ''}</span>}
+
                 </p>
-                {visiblePreview.excludedProfiles.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    未采用的档案：
-                    {visiblePreview.excludedProfiles
-                      .map(
-                        (p) =>
-                          `${({ style: '风格', plot: '情节', relationship: '关系' } as Record<string, string>)[p.kind] || p.kind}（${({ missing: '尚未建立', stale: '落后于起点', source_changed: '来源已变化', legacy_unknown: '待初始化', beyond_anchor: '晚于起点' } as Record<string, string>)[p.reason] || p.reason}）`,
-                      )
-                      .join('、')}
-                  </p>
-                )}
                 {!visiblePreview.historicalPassages.length && (
                   <p className="text-xs text-muted-foreground">没有找到匹配的历史原文，可补充人物姓名或具体事实后重新预览。</p>
                 )}
@@ -236,9 +225,7 @@ export default function WritingPreparation(props: {
                           'novel-title': '作品标题',
                           outline: '本次大纲',
                           'continuation-context': '近期正文尾部',
-                          'plot-state': '完整情节档案',
-                          'relationship-profile': '完整关系档案',
-                          'style-profile': '风格画像',
+                          'novel-analysis': '本次小说分析参考',
                           'writing-brief': '章节目标与约束',
                           'author-instruction': '本次情节',
                           'content-preferences': '内容尺度',

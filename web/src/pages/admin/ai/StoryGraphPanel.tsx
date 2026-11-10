@@ -19,7 +19,7 @@ const certaintyLabel: Record<StoryCertainty, string> = {
   inference: '分析推断',
 }
 const threadLabel = { state: '角色状态', conflict: '待解决冲突', clue: '未解伏笔', item: '关键物品', place: '重要地点' }
-const archiveLabel = { relationship: '关系画像', plot: '情节状态' }
+const archiveLabel = { relationship: '关系分析', plot: '情节分析' }
 const eligibilityLabel: Record<string, string> = {
   missing: '尚未提取',
   stale: '需要更新',
@@ -89,7 +89,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
     } catch (err) {
       const message = (err as Error).message || '图谱生成失败，请重试'
       if (mounted.current && current === version.current) setError(/^HTTP (502|504)$/.test(message)
-        ? `故事图谱生成请求失败（${message}），未收到具体错误原因。请先刷新状态确认结果，再检查服务日志；原档案与正文已保留。`
+        ? `故事图谱生成请求失败（${message}），未收到具体错误原因。请先刷新状态确认结果，再检查服务日志；原报告与正文已保留。`
         : message)
     } finally {
       if (mounted.current && current === version.current) setBusy(false)
@@ -101,7 +101,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
       <div className="story-graph-empty">
         <Network />
         <h2>先选择一本小说</h2>
-        <p>从作品库选择一本小说，或在创作工作区打开当前作品的故事档案。</p>
+        <p>从作品库选择一本小说，或在创作工作区打开当前作品的故事报告。</p>
         <Link to="/admin/novels">选择作品</Link>
       </div>
     )
@@ -119,8 +119,8 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
   function renderEvidence(evidence: StoryEvidence[]) {
     return (
       <div className="story-graph-evidence">
-        <h4>档案依据</h4>
-        <p>以下为有效分析档案的摘录；请通过来源章节核对正文。</p>
+        <h4>报告依据</h4>
+        <p>以下为有效分析报告的摘录；请通过来源章节核对正文。</p>
         {evidence.map((e, i) => (
           <div key={i} className="story-graph-evidence__entry">
             <span>{archiveLabel[e.kind]}</span>
@@ -133,7 +133,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
                 </Link>
               ))
             ) : (
-              <small>档案未提供可核对的章节标记</small>
+              <small>报告未提供可核对的章节标记</small>
             )}
           </div>
         ))}
@@ -171,7 +171,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
                   <span className="story-graph-heading__anchor-title">{data.anchor.title}</span>
                 </>
               ) : (
-                '等待小说章节与分析档案'
+                '等待小说章节与分析报告'
               )}
             </p>
           </div>
@@ -212,7 +212,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
               <span className="story-graph-heading__notice">
                 {data.status === 'ready'
                   ? `图谱已保存 · ${new Date(data.updatedAt).toLocaleString('zh-CN')}`
-                  : '调用文本模型分析 · 结果将永久保存至本书档案'}
+                  : '调用文本模型整理 · 图谱单独保存至本书'}
               </span>
             )}
           </div>
@@ -249,19 +249,19 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
             </div>
             <h3>
               {data?.status === 'unavailable'
-                ? '先准备本书的分析档案'
+                ? '先准备本书的分析报告'
                 : data?.status === 'outdated'
-                  ? '分析范围或档案已变化'
+                  ? '分析范围或报告已变化'
                   : data
                     ? '把人物与故事连起来'
                     : '暂时无法读取图谱'}
             </h3>
             <p>
               {data?.status === 'unavailable'
-                ? '当前起点没有可用的关系或情节档案。返回创作工作台完成分析后，再生成图谱。'
+                ? '当前起点没有可用的关系或情节报告。返回创作工作台完成分析后，再生成图谱。'
                 : data?.status === 'outdated'
-                  ? '请更新图谱，新的结果将使用当前有效档案及人工校正内容。'
-                  : '基于有效的关系画像与情节状态，自动解构前 47 章中的角色羁绊、门派阵营与未解伏笔。'}
+                  ? '请更新图谱，新的结果将使用当前有效报告及人工校正内容。'
+                  : '基于有效的关系分析与情节分析，自动解构所选范围中的角色羁绊、门派阵营与未解伏笔。'}
             </p>
             {data && data.status !== 'unavailable' && (
               <div className="story-graph-empty__pillars">
@@ -296,14 +296,14 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
                 {busy ? '整理图谱中…' : data.status === 'outdated' ? '立即更新图谱' : '开始构建星图'}
               </Button>
             )}
-            {busy && <p role="status" className="story-graph-empty__busy">正在整理，请稍候。档案与正文会保留。</p>}
+            {busy && <p role="status" className="story-graph-empty__busy">正在整理，请稍候。报告与正文会保留。</p>}
           </div>
         </div>
       ) : !graph.people.length ? (
         <div className="story-graph-empty">
           <Network />
-          <h3>档案中暂无可确认的人物</h3>
-          <p>可以先补充或校正关系档案，再刷新图谱。</p>
+          <h3>报告中暂无可确认的人物</h3>
+          <p>可以先补充或校正关系报告，再刷新图谱。</p>
           <Link to={writingUrl}>前往小说分析</Link>
         </div>
       ) : (
@@ -354,7 +354,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
                 关系与情节
               </button>
               <button type="button" aria-pressed={tab === 'archives'} onClick={() => setTab('archives')}>
-                文字档案
+                文字报告
               </button>
             </div>
             <div className="story-graph-detail__body" aria-live="polite">
@@ -362,7 +362,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
                 data?.archives.map((a) => (
                   <section key={a.kind}>
                     <h3>{archiveLabel[a.kind]}</h3>
-                    <p className="story-graph-archive">{a.content || '当前起点暂无可用档案。'}</p>
+                    <p className="story-graph-archive">{a.content || '当前起点暂无可用报告。'}</p>
                     <Link to={writingUrl}>
                       在创作工作台更新或人工校正
                       <ArrowUpRight className="size-3.5" />
@@ -433,7 +433,7 @@ export default function StoryGraphPanel({ novelId, afterChapterId }: { novelId: 
               ) : (
                 <div className="story-graph-detail__intro">
                   <h3>从一个人物开始</h3>
-                  <p>选择人物查看当前处境、关系与伏笔；选择连线查看双方立场及档案依据。</p>
+                  <p>选择人物查看当前处境、关系与伏笔；选择连线查看双方立场及报告依据。</p>
                   <p>虚线表示分析推断或可选方向，人物认知与未解线索会在详情中标明。</p>
                 </div>
               )}

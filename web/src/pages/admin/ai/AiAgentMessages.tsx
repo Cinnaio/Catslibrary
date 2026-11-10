@@ -13,7 +13,9 @@ const READ_TOOLS = new Set([
   'search_chapters',
   'search_story',
   'read_chapter',
-  'read_story_memory',
+  'read_story_memory', // Saved activity from older sessions remains collapsible.
+  'list_novel_analyses',
+  'read_novel_analysis',
   'list_drafts',
   'read_draft',
   'list_covers',

@@ -1,4 +1,5 @@
 import type { AgentActionKind, AgentArtifact, AgentSession } from '@shared/ai-agent'
+import { ANALYSIS_KINDS, type AnalysisKind } from '@shared/novel-analysis'
 import type { Db } from '../../db/pool'
 import { all, first, run, withTx } from '../../db/query'
 import { newId } from '../auth'
@@ -63,6 +64,12 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
     const suggestion = params ? parseRewriteSuggestion(task.result, params) : undefined
     if (params && suggestion)
       result.rewrite = { draftId: params.draftId, before: params.selectedText, after: suggestion.suggestion, baseRevision: params.baseRevision }
+  }
+  if (task.kind === 'novel_analysis') {
+    const report = await first<{ id: string; kind: AnalysisKind }>(db,
+      "SELECT id,request_json->>'kind' AS kind FROM novel_analysis_reports WHERE novel_id=$1 AND task_id=$2", [session.novelId, taskId])
+    if (report) result.analysisReport = { id: report.id, title: ANALYSIS_KINDS[report.kind],
+      url: `/admin/ai?sub=analysis&novel=${encodeURIComponent(session.novelId)}&report=${encodeURIComponent(report.id)}` }
   }
   return result
 }

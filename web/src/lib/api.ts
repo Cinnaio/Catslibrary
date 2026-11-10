@@ -2633,6 +2633,7 @@ export const aiApi = {
      */
     plotSuggestions(data: {
       novelId: string
+      analysisReferences?: import('@shared/novel-analysis').AnalysisReferenceSelection[]
       timeoutSeconds?: number
       afterChapterId?: string
       focus?: string

@@ -173,6 +173,7 @@ private struct AgentMessageGroup: Identifiable {
 
     private static let readingTools: Set<String> = [
         "read_overview", "search_chapters", "read_chapter", "read_story_memory",
+        "search_story", "list_novel_analyses", "read_novel_analysis",
         "list_drafts", "read_draft", "list_covers", "read_task", "read_conversation",
     ]
 
@@ -399,6 +400,6 @@ enum AgentDisplay {
     static func kind(_ value: String) -> String {
         ["continue": "续写草稿", "write_chapter": "章节草稿", "write_outline": "章节大纲", "cover": "封面候选",
          "rewrite_selection": "改写建议", "analyze_plot": "情节档案", "analyze_relationships": "关系档案",
-         "agent_chat": "助手回复"][value] ?? "创作任务"
+         "novel_analysis": "小说分析报告", "agent_chat": "助手回复"][value] ?? "创作任务"
     }
 }

@@ -117,6 +117,7 @@ export default function AiWritingWorkspace({ model, active = true, defaultView =
       </TabsContent>
       <TabsContent value={writingView} forceMount hidden={view === 'analysis'}>
         {visits.writing && <AiWritingPanel
+          active={active && view !== 'analysis'}
           novelId={novelId} novels={novels} view={writingView} model={model}
           focusBatchId={params.get('batch') || undefined}
           initialAfterChapterId={params.get('afterChapterId') || undefined}

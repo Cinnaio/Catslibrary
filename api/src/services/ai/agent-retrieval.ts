@@ -1,16 +1,15 @@
 import { createHash } from 'node:crypto'
 import type { AgentEvidence, AgentSession } from '@shared/ai-agent'
+import { ANALYSIS_KINDS, type WritingAnalysisReference } from '@shared/novel-analysis'
 import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { escapeLike } from '../text'
 import { AiError } from './client'
-import { getEffectiveProfileForAnchor, type EffectiveProfileResult } from './profile-overrides'
+import { getAnalysisReferences, listAnalysisReferences, readAnalysisReference } from './analysis-reference'
 
 const CHAPTER_BATCH = 6
 const MAX_SOURCES = 10
 const EXCERPT_LENGTH = 900
-export const PROFILE_TITLES = { style: '文风档案', plot: '情节档案', relationship: '人物关系档案' } as const
-type ProfileKind = keyof typeof PROFILE_TITLES
 type Chapter = { id: string; title: string; content: string; sort_order: number }
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 
@@ -29,7 +28,7 @@ function snapshot(input: Omit<AgentEvidence, 'id' | 'endOffset' | 'excerpt' | 't
   const endOffset = Math.min(text.length, input.offset + length)
   return {
     ...input,
-    id: hash([input.novelId, input.kind, input.chapterId, input.revision, input.offset, endOffset]).slice(0, 24),
+    id: hash([input.novelId, input.kind, input.chapterId, input.reportId, input.revision, input.offset, endOffset]).slice(0, 24),
     endOffset,
     excerpt: text.slice(input.offset, endOffset),
     truncated: input.offset > 0 || endOffset < text.length,
@@ -51,18 +50,21 @@ export function chapterEvidence(session: AgentSession, chapter: Chapter, offset 
   )
 }
 
-function profileEvidence(session: AgentSession, kind: ProfileKind, profile: EffectiveProfileResult, offset = 0): AgentEvidence {
+function analysisEvidence(session: AgentSession, report: WritingAnalysisReference, offset = 0): AgentEvidence {
   return snapshot(
     {
-      kind,
+      kind: 'analysis',
       novelId: session.novelId,
-      title: PROFILE_TITLES[kind],
-      origin: profile.effectiveOrigin === 'manual' ? 'manual' : 'automatic',
-      revision: hash([kind, profile.baseProfileRevision, profile.effectiveOrigin, profile.manualOverride?.revision, profile.effectiveContent]),
+      reportId: report.id,
+      reportRevision: report.revision,
+      title: ANALYSIS_KINDS[report.kind],
+      origin: report.edited ? 'manual' : 'automatic',
+      revision: String(report.revision),
       offset,
-      ...(profile.source ? { throughChapter: { id: profile.source.chapterId, title: profile.source.chapterTitle } } : {}),
+      fromChapter: report.startChapter,
+      throughChapter: report.endChapter,
     },
-    profile.effectiveContent,
+    report.content,
   )
 }
 
@@ -95,30 +97,25 @@ export async function readAgentChapter(db: Db, session: AgentSession, chapterId:
   }
 }
 
-export async function readAgentProfiles(db: Db, session: AgentSession, kind?: ProfileKind, offset = 0, expectedRevision = '') {
-  if (!(await agentAnchor(db, session))) return { profiles: [], sources: [], message: '当前起点没有正式章节' }
-  if ((offset || expectedRevision) && !kind) throw new AiError('invalid', '分段读取档案时须指定 kind', 422)
-  const profiles = []
-  const sources: AgentEvidence[] = []
-  for (const selected of kind ? [kind] : (['style', 'plot', 'relationship'] as const)) {
-    const profile = await getEffectiveProfileForAnchor(db, { kind: selected, novelId: session.novelId, afterChapterId: session.afterChapterId })
-    const source = profile.effectiveContent ? profileEvidence(session, selected, profile, offset) : null
-    if (expectedRevision && source?.revision !== expectedRevision) throw new AiError('conflict', '档案已变化或失效，请重新检索后读取', 409)
-    if (offset > profile.effectiveContent.length) throw new AiError('invalid', '读取位置超出档案长度，请从头重新读取', 422)
-    profiles.push({
-      kind: selected,
-      eligibility: profile.eligibility,
-      origin: profile.effectiveOrigin,
-      source: profile.source,
-      content: profile.effectiveContent.slice(offset, offset + 10000),
-      offset,
-      revision: source?.revision,
-      truncated: offset + 10000 < profile.effectiveContent.length,
-      nextOffset: offset + 10000 < profile.effectiveContent.length ? offset + 10000 : null,
-    })
-    if (source) sources.push(source)
-  }
-  return { profiles, sources }
+export async function listAgentAnalyses(db: Db, session: AgentSession, offset = 0) {
+  return { ...await listAnalysisReferences(db, session.novelId, session.afterChapterId, offset),
+    scope: '只读分析报告目录。usable=false 的报告不可作为当前起点的创作依据。没有可用报告时仍可搜索和读取正式章节，不会自动创建分析。' }
+}
+
+export async function readAgentAnalysis(db: Db, session: AgentSession, reportId: string, offset = 0, expectedRevision = '') {
+  if (expectedRevision && (!/^\d+$/.test(expectedRevision) || !Number.isSafeInteger(Number(expectedRevision)) || Number(expectedRevision) < 1))
+    throw new AiError('invalid', '分析报告版本无效，请重新读取目录', 422)
+  const report = await readAnalysisReference(db, session.novelId, session.afterChapterId, reportId, expectedRevision ? Number(expectedRevision) : undefined)
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > report.content.length) throw new AiError('invalid', '读取位置超出报告长度，请从头重新读取', 422)
+  const content = report.content.slice(offset, offset + 10000)
+  const cited = new Set([...content.matchAll(/\[\[(S\d+)\]\]/g)].map(match => match[1]))
+  return { id: report.id, kind: report.kind, content, revision: String(report.revision), edited: report.edited,
+    startChapter: report.startChapter, endChapter: report.endChapter, offset,
+    nextOffset: offset + 10000 < report.content.length ? offset + 10000 : null,
+    sources: [analysisEvidence(session, report, offset)],
+    citations: report.sources.filter(source => cited.has(source.id)).map(source => ({ sourceId: source.id, chapterId: source.chapterId,
+      chapterTitle: source.chapterTitle, part: source.part, url: `/read/${encodeURIComponent(session.novelId)}/${encodeURIComponent(source.chapterId)}` })),
+    scope: '报告为分析材料，包含推断和人工修订；章节范围并非逐句出处。重要判断按 citations 用 read_chapter 核对原文。' }
 }
 
 /** Lexical retrieval with bounded output; never claims semantic/exhaustive coverage. */
@@ -126,7 +123,7 @@ export async function searchAgentStory(
   db: Db,
   session: AgentSession,
   query: string,
-  kind: 'all' | 'chapter' | 'plot' | 'relationship' = 'all',
+  kind: 'all' | 'chapter' | 'analysis' = 'all',
   chapterOffset = 0,
   literalPhrase = false,
 ) {
@@ -134,7 +131,8 @@ export async function searchAgentStory(
   if (!terms.length || terms.length > 6 || query.length > 160) throw new AiError('invalid', '请用 1–6 个关键词检索，用空格分开，总长不超过 160 字', 422)
   const anchor = await agentAnchor(db, session)
   const candidates: Array<{ source: AgentEvidence; score: number }> = []
-  const archives: Array<{ kind: string; eligibility: string; origin: string }> = []
+  const analyses: Array<{ id: string; kind: string; revision: number }> = []
+  let analysisLimited = false
   let matchingChapters = 0,
     selectedChapters = 0
   const patterns = terms.map((term) => new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'iu'))
@@ -195,10 +193,11 @@ export async function searchAgentStory(
     for (const row of rows) passages(row.content, row.title, (offset) => chapterEvidence(session, row, offset), 1)
   }
   if (anchor && kind !== 'chapter') {
-    for (const selected of kind === 'all' ? (['plot', 'relationship'] as const) : [kind]) {
-      const profile = await getEffectiveProfileForAnchor(db, { kind: selected, novelId: session.novelId, afterChapterId: session.afterChapterId })
-      archives.push({ kind: selected, eligibility: profile.eligibility, origin: profile.effectiveOrigin })
-      if (profile.effectiveContent) passages(profile.effectiveContent, '', (offset) => profileEvidence(session, selected, profile, offset))
+    const result = await getAnalysisReferences(db, session.novelId, session.afterChapterId)
+    analysisLimited = result.limited
+    for (const report of result.reports) {
+      analyses.push({ id: report.id, kind: report.kind, revision: report.revision })
+      passages(report.content, ANALYSIS_KINDS[report.kind], (offset) => analysisEvidence(session, report, offset))
     }
   }
   candidates.sort(
@@ -209,19 +208,20 @@ export async function searchAgentStory(
     query,
     terms,
     sources,
-    archives,
+    analyses,
+    analysisLimited,
     matchingChapters,
     examinedChapters: selectedChapters,
     nextChapterOffset: matchingChapters > chapterOffset + selectedChapters ? chapterOffset + selectedChapters : null,
     omittedPassages: omittedPassages + Math.max(0, candidates.length - sources.length),
     limited: true,
     method: 'literal_keywords',
-    scope: '仅当前作品、续写起点及之前章节和有效档案。关键词匹配不等于穷尽相关事实；没有命中不代表正文不存在。档案是分析材料，重要事实须回读原文。',
+    scope: '仅当前作品、续写起点及之前章节，以及各主题最新可用分析报告（最多五份）。其他报告可用 list_novel_analyses 分页查阅。关键词匹配不等于穷尽相关事实；没有命中不代表正文不存在。报告是分析材料，重要事实须回读原文。',
     readMore: sources.map((source) => ({
       id: source.id,
-      tool: source.kind === 'chapter' ? 'read_chapter' : 'read_story_memory',
+      tool: source.kind === 'chapter' ? 'read_chapter' : 'read_novel_analysis',
       arguments: {
-        ...(source.kind === 'chapter' ? { chapterId: source.chapterId } : { kind: source.kind }),
+        ...(source.kind === 'chapter' ? { chapterId: source.chapterId } : { reportId: source.reportId }),
         offset: source.offset,
         expectedRevision: source.revision,
       },

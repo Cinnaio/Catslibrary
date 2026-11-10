@@ -4,8 +4,6 @@ import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
 import { chat } from '../services/ai/client'
 import { saveAiSettings } from '../services/ai/settings'
-import { generationContentRevision } from '../services/ai/generations'
-import { REVIEW_ASPECTS } from '../services/ai/story-ledger-review'
 
 vi.mock('../services/ai/client', async (original) => ({
   ...(await original<typeof import('../services/ai/client')>()),
@@ -13,7 +11,6 @@ vi.mock('../services/ai/client', async (original) => ({
   isTextAiConfigured: () => true,
   textProvider: () => ({ baseUrl: 'https://example.test/v1', model: 'test' }),
 }))
-const reply = (text: string) => ({ text, model: 'test', promptTokens: 12, completionTokens: 10, cost: 0.01, finishReason: 'stop' })
 let t: TestDb,
   adminToken = ''
 const json = (body: unknown, token = adminToken): RequestInit => ({
@@ -44,65 +41,23 @@ afterAll(async () => {
   await t.close()
 })
 
-describe('incremental memory HTTP integration', () => {
-  it('requires preparation before writing and keeps the administrator boundary', async () => {
+describe('旧增量档案配置与创作解耦', () => {
+  it('无需旧档案准备即可预览，并保持管理员边界', async () => {
     expect((await app.request('/api/ai/writing/materials', json(body, ''))).status).toBe(401)
-    const missing = await app.request('/api/ai/writing/materials', json(body))
-    expect(missing.status).toBe(422)
-    expect(chat).not.toHaveBeenCalled()
-  })
-  it('shares extraction, previews selected material and validates quality review against the full archive', async () => {
-    vi.mocked(chat).mockResolvedValueOnce(
-      reply(
-        JSON.stringify({
-          complete: true,
-          needs: [],
-          entities: [{ name: '沈砚', kind: 'person', aliases: [] }],
-          facts: [
-            {
-              memoryType: 'state',
-              kind: 'state',
-              subjects: ['沈砚'],
-              label: '持有钥匙',
-              summary: '沈砚持有铜钥匙。',
-              certainty: 'fact',
-              scope: 'local',
-              status: 'active',
-              replaces: [],
-              quote: '沈砚持有铜钥匙。',
-            },
-          ],
-        }),
-      ),
-    )
-    vi.mocked(chat).mockImplementationOnce(async (request) => {
-      const context = JSON.parse(request.messages[1]!.content)
-      return reply(JSON.stringify({
-        checks: context.targets.map((fact: { id: string }) => ({ id: fact.id, verdict: 'supported', reason: '正文明确沈砚持有钥匙。' })),
-        goalChecks: [],
-        coverage: REVIEW_ASPECTS.map((aspect) => ({ aspect, verdict: aspect === 'ownership' ? 'covered' : 'none', reason: '归属已记录，其他维度无变化。', claims: aspect === 'ownership' ? [{ statement: '沈砚持有铜钥匙', sourceQuote: context.text, matches: [{ id: context.targets[0].id, summarySpan: context.targets[0].summary }] }] : [] })),
-      }))
-    })
-    const extracted = await app.request('/api/ai/writing/plot-state', json({ novelId: 'book' }))
-    expect(extracted.status).toBe(200)
     const preview = await app.request('/api/ai/writing/materials', json(body))
     expect(preview.status).toBe(200)
-    expect(await preview.json()).toMatchObject({ memorySelection: { retrievedFacts: 1, totalFacts: 1 } })
-    expect(chat).toHaveBeenCalledTimes(2)
-    await t.db.query(
-      "INSERT INTO ai_generations(id,novel_id,kind,result,status,created_at) VALUES('ledger-draft','book','continue','沈砚检查铜钥匙。','draft',1)",
-    )
-    vi.mocked(chat).mockResolvedValueOnce(reply('{"findings":[]}'))
-    const review = await app.request('/api/ai/writing/drafts/ledger-draft/review', json({ expectedRevision: generationContentRevision('沈砚检查铜钥匙。') }))
-    expect(review.status).toBe(200)
-    const saved = await app.request('/api/ai/writing/drafts/ledger-draft/review', { headers: { Authorization: `Bearer ${adminToken}` } })
-    expect(saved.status).toBe(200)
-    expect(await saved.json()).toMatchObject({ report: { stale: false } })
+    const result = await preview.json() as any
+    expect(result.analysisReferences).toEqual([])
+    expect(JSON.stringify(result.plan)).toContain('沈砚持有铜钥匙')
+    expect(result.memorySelection).toBeUndefined()
+    expect(chat).not.toHaveBeenCalled()
   })
-  it('rejects source edits before continuing and performs no additional model call', async () => {
-    const count = vi.mocked(chat).mock.calls.length
+  it('修改正文后直接使用当前正文，不触发旧档案提取或重建', async () => {
     await t.db.query("UPDATE chapters SET content='沈砚已经交还铜钥匙。' WHERE id='c1'")
-    expect((await app.request('/api/ai/writing/materials', json(body))).status).toBe(422)
-    expect(chat).toHaveBeenCalledTimes(count)
+    const preview = await app.request('/api/ai/writing/materials', json(body))
+    expect(preview.status).toBe(200)
+    expect(JSON.stringify(await preview.json())).toContain('沈砚已经交还铜钥匙')
+    expect(chat).not.toHaveBeenCalled()
+    expect((await t.db.query('SELECT * FROM ai_tasks')).rows).toHaveLength(0)
   })
 })

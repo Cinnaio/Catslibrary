@@ -3,7 +3,8 @@ import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { AiError, type AiFunctionTool, type AiToolCall } from './client'
 import { generationContentRevision } from './generations'
-import { agentAnchor, readAgentChapter, readAgentProfiles, searchAgentStory } from './agent-retrieval'
+import { agentAnchor, listAgentAnalyses, readAgentChapter, readAgentAnalysis, searchAgentStory } from './agent-retrieval'
+import { getAnalysisReferences, parseAnalysisReferenceSelections } from './analysis-reference'
 import { agentDraftTitle, prepareAgentAction, readAgentArtifact, scopedAgentDraft, type AgentApi } from './agent-actions'
 import { readAgentEvents, requireAgentArtifact, trackAgentArtifact } from './agent-store'
 import { createAgentMemory } from './agent-memory'
@@ -21,9 +22,9 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   tool('search_chapters', '在起点之前的正式章节中搜索原文或标题，返回命中片段和章节 ID。只做字面检索，不代表没有其他相关内容。', {
     query: { type: 'string', maxLength: 100 },
   }),
-  tool('search_story', '按人物名、地点、物品或情节关键词检索章节原文、有效情节与人物关系档案。用空格分开 1–6 个关键词，按匹配排序，返回片段、来源和继续读取参数。档案不是原文；无命中不代表事实不存在。', {
+  tool('search_story', '按人物名、地点、物品或情节关键词检索章节原文和可用小说分析。用空格分开 1–6 个关键词，按匹配排序，返回片段、来源和继续读取参数。报告不是原文；无命中不代表事实不存在。', {
     query: { type: 'string', maxLength: 160 },
-    kind: { type: 'string', enum: ['all', 'chapter', 'plot', 'relationship'] },
+    kind: { type: 'string', enum: ['all', 'chapter', 'analysis'] },
     chapterOffset: { type: 'integer', minimum: 0, maximum: 1000000 },
   }, ['query']),
   tool(
@@ -32,10 +33,13 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
     { chapterId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id },
     ['chapterId'],
   ),
-  tool('read_story_memory', '读取截至当前起点的有效风格、情节与人物关系档案；过期或未完成的档案不能当作事实。nextOffset 非空时指定 kind、offset 和 expectedRevision 继续读取。', {
-    kind: { type: 'string', enum: ['style', 'plot', 'relationship'] },
-    offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id,
+  tool('list_novel_analyses', '分页查看本书小说分析报告及其可用状态。只列目录，不代表已读报告。没有报告仍可直接查阅正文，不自动发起分析。', {
+    offset: { type: 'integer', minimum: 0, maximum: 1000000 },
   }, []),
+  tool('read_novel_analysis', '按报告ID读取截至当前起点、来源仍有效的已完成小说分析，优先使用已保存的人工修订。报告不是原文事实。nextOffset 非空时指定 reportId、offset 和 expectedRevision 继续读取。', {
+    reportId: id,
+    offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id,
+  }, ['reportId']),
   tool('list_drafts', '列出本书草稿与已发布产出，可分页。正文必须用 read_draft 读取。', { offset: { type: 'integer', minimum: 0, maximum: 10000 } }, []),
   tool('read_draft', '读取指定草稿的当前正文和 revision，改写前必须调用。', { draftId: id }),
   tool('list_covers', '列出本书封面候选的描述词与 ID。只提供文本材料，不代表你看到了图像。'),
@@ -49,7 +53,8 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   tool(
     'generate_draft',
     '用户要求开始生成时，启动一章续写或新写草稿。仅讨论方向时不要调用。正文不会自动发布。',
-    { instruction, title: { type: 'string', maxLength: 200 }, outline: { type: 'string', maxLength: 6000 } },
+    { instruction, title: { type: 'string', maxLength: 200 }, outline: { type: 'string', maxLength: 6000 },
+      analysisReferences: { type: 'string', maxLength: 2000, description: '可选：JSON 数组 [{"reportId":"报告ID","revision":1}]，版本来自已查阅报告。[] 表示不使用报告；省略则选各主题最新可用报告。最多五份。' } },
     ['instruction'],
   ),
   tool(
@@ -62,7 +67,10 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
     instruction: { ...instruction, maxLength: 2000 },
   }),
   tool('generate_cover', '按用户确定的画面要求生成一张封面候选。instruction 必须是完整画面描述，会原样提交给图像服务；现有能力是重新生成，不能承诺原图局部编辑或人物完全一致。', { instruction }),
-  tool('refresh_memory', '仅在用户要求更新小说分析时创建后台档案任务；会产生模型用量。', { kind: { type: 'string', enum: ['plot', 'relationship'] } }),
+  tool('analyze_novel', '仅在作者明确要求生成或更新小说分析时创建独立后台报告，会产生模型用量。不能因查不到资料而自动分析。范围不得超过本会话起点；省略范围时从第一章到当前起点。', {
+    kind: { type: 'string', enum: ['plot', 'characters', 'relationships', 'style', 'custom'] },
+    startChapterId: id, endChapterId: id, question: { type: 'string', maxLength: 2000 },
+  }, ['kind']),
   tool('propose_memory', '当作者明确说“记住/以后都遵循/作为本书约定”时，忠实按作者原话提出跨对话创作约定，不扩写未要求的规则。只创建待确认提议，确认后才跨会话生效；本轮作者已经提出的要求仍须遵守。不能用此工具编辑已有提议。', {
     title: { type: 'string', maxLength: 100 },
     content: { type: 'string', maxLength: 1000, description: '逐字摘取本轮作者消息中的完整原句，保留否定、条件和适用范围，不改写或扩展；可去掉冒号前的“请记住”等引导语。' },
@@ -121,7 +129,8 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
   search_chapters: '检索章节依据',
   search_story: '检索人物与情节依据',
   read_chapter: '阅读章节原文',
-  read_story_memory: '核对故事档案',
+  list_novel_analyses: '查看小说分析目录',
+  read_novel_analysis: '查阅小说分析',
   list_drafts: '查找草稿',
   read_draft: '读取草稿',
   list_covers: '查看封面候选',
@@ -132,11 +141,11 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
   rewrite_draft: '生成改写建议',
   refine_rewrite: '调整上一版改写建议',
   generate_cover: '生成封面候选',
-  refresh_memory: '更新小说分析',
+  analyze_novel: '生成小说分析报告',
   propose_memory: '提出创作记忆',
   prepare_action: '准备采纳预览',
 }
-export const AGENT_GENERATION_TOOLS = new Set(['generate_draft', 'rewrite_draft', 'refine_rewrite', 'generate_cover', 'refresh_memory'])
+export const AGENT_GENERATION_TOOLS = new Set(['generate_draft', 'rewrite_draft', 'refine_rewrite', 'generate_cover', 'analyze_novel'])
 
 export async function executeAgentTool(
   db: Db,
@@ -175,9 +184,10 @@ export async function executeAgentTool(
       limited: true,
     }
   }
-  if (name === 'search_story') return searchAgentStory(db, session, String(a.query), a.kind as 'all' | 'chapter' | 'plot' | 'relationship' | undefined, Number(a.chapterOffset || 0))
+  if (name === 'search_story') return searchAgentStory(db, session, String(a.query), a.kind as 'all' | 'chapter' | 'analysis' | undefined, Number(a.chapterOffset || 0))
   if (name === 'read_chapter') return readAgentChapter(db, session, String(a.chapterId), Number(a.offset || 0), String(a.expectedRevision || ''))
-  if (name === 'read_story_memory') return readAgentProfiles(db, session, a.kind as 'style' | 'plot' | 'relationship' | undefined, Number(a.offset || 0), String(a.expectedRevision || ''))
+  if (name === 'list_novel_analyses') return listAgentAnalyses(db, session, Number(a.offset || 0))
+  if (name === 'read_novel_analysis') return readAgentAnalysis(db, session, String(a.reportId), Number(a.offset || 0), String(a.expectedRevision || ''))
   if (name === 'list_drafts')
     return {
       drafts: await all(
@@ -218,14 +228,19 @@ export async function executeAgentTool(
   let receipt: Record<string, unknown>
   if (name === 'generate_draft') {
     if (!String(a.instruction).trim()) throw new AiError('invalid', '请先确定本章创作要求', 422)
+    let selection: unknown
+    try { selection = a.analysisReferences === undefined ? undefined : JSON.parse(String(a.analysisReferences)) }
+    catch { throw new AiError('invalid', '分析参考需为包含报告及版本的 JSON 数组', 422) }
+    const references = await getAnalysisReferences(db, session.novelId, session.afterChapterId, parseAnalysisReferenceSelections(selection))
     receipt = await api(`/api/ai/writing/${session.afterChapterId ? 'continue' : 'chapter'}`, 'POST', {
       novelId: session.novelId,
       title: a.title || session.novelTitle,
       instruction: a.instruction,
       outline: a.outline || '',
       chapterCount: 1,
-      afterChapterId: session.afterChapterId || undefined,
+      afterChapterId: session.afterChapterId || null,
       contentPreferences: session.contentPreferences,
+      analysisReferences: references.reports.map(report => ({ reportId: report.id, revision: report.revision })),
       operationId,
     })
   } else if (name === 'rewrite_draft') {
@@ -266,17 +281,22 @@ export async function executeAgentTool(
   } else if (name === 'generate_cover') {
     if (!String(a.instruction).trim()) throw new AiError('invalid', '请先确定封面画面要求', 422)
     receipt = await api('/api/ai/cover/generate', 'POST', { novelId: session.novelId, prompt: a.instruction, promptMode: 'exact', operationId })
-  } else if (name === 'refresh_memory') {
+  } else if (name === 'analyze_novel') {
     if (!session.afterChapterId) throw new AiError('invalid', '当前对话起点没有正式章节，请发布后新建对话再更新分析', 422)
-    await agentAnchor(db, session)
-    receipt = await api(`/api/ai/writing/memory/${a.kind}/${encodeURIComponent(session.novelId)}/start`, 'POST', {
-      afterChapterId: session.afterChapterId,
+    const anchor = (await agentAnchor(db, session))!
+    const firstChapter = await first<{ id: string }>(db, 'SELECT id FROM chapters WHERE novel_id=$1 AND (sort_order,id)<=($2,$3) ORDER BY sort_order,id LIMIT 1',
+      [session.novelId, anchor.order, anchor.id])
+    const startChapterId = String(a.startChapterId || firstChapter?.id || '')
+    const endChapterId = String(a.endChapterId || session.afterChapterId)
+    await readAgentChapter(db, session, startChapterId)
+    await readAgentChapter(db, session, endChapterId)
+    receipt = await api(`/api/ai/analysis/${encodeURIComponent(session.novelId)}`, 'POST', {
+      request: { kind: a.kind, startChapterId, endChapterId, question: String(a.question || '') },
+      requestId: operationId,
     })
-    const task = receipt.task as { id?: string; taskId?: string } | undefined
-    receipt = { ...receipt, taskId: task?.id || task?.taskId || receipt.taskId }
   } else throw new AiError('invalid', '未开放的工具', 422)
   const taskId = String(receipt.taskId || '')
   if (!taskId) throw new AiError('upstream', '生成接口未返回任务标识，请在任务中心检查后再继续', 502)
   await trackAgentArtifact(db, session.id, taskId)
-  return { taskId, status: 'submitted', message: '任务已提交，尚未生成完成。可以在产出区查看进度；结果不会自动采纳。' }
+  return { taskId, ...(typeof receipt.reportId === 'string' ? { reportId: receipt.reportId } : {}), status: 'submitted', message: '任务已提交，尚未生成完成。可以在产出区查看进度；结果不会自动采纳。' }
 }

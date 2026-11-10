@@ -198,9 +198,6 @@ struct AdminAISettingsView: View {
             row("创作温度（0–2）", value: $writingTemperature, range: 0...2)
             row("创作最大 Tokens", value: $writingMaxTokens, range: 1...64000)
             promptEditor("创作系统提示词", text: $writingSystemPrompt)
-            row("风格画像 Tokens", value: $styleProfileMaxTokens, range: 1...64000)
-            row("情节状态 Tokens", value: $plotStateMaxTokens, range: 1...64000)
-            row("关系画像 Tokens", value: $relationshipProfileMaxTokens, range: 1...64000)
             row("标题 Tokens", value: $titleMaxTokens, range: 1...8000)
             row("最大并发创作任务", value: $maxConcurrentWritingTasks, range: 1...8)
         }

@@ -6,6 +6,23 @@ export const ANALYSIS_KINDS = {
   custom: '自定义分析',
 } as const
 export type AnalysisKind = keyof typeof ANALYSIS_KINDS
+/** Pin a reviewed report revision for a single writing request. */
+export interface AnalysisReferenceSelection {
+  reportId: string
+  revision: number
+}
+export interface WritingAnalysisReference {
+  id: string
+  revision: number
+  kind: AnalysisKind
+  content: string
+  edited: boolean
+  question?: string
+  createdAt?: number
+  startChapter: { id: string; title: string }
+  endChapter: { id: string; title: string }
+  sources: Omit<AnalysisSource, 'text'>[]
+}
 export interface AnalysisRequest {
   kind: AnalysisKind
   startChapterId: string
