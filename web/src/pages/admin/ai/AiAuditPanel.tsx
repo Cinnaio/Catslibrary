@@ -29,6 +29,8 @@ const AUDIT_COLUMNS: readonly AdminColumn[] = [
 ]
 
 const aiCallTypeLabels: Record<string, string> = {
+  novel_analysis: '小说分析报告',
+  novel_analysis_review: '小说分析事实核对',
   agent_chat: '创作对话',
   agent_summary: '对话摘要',
   summary: '前情提要',
@@ -79,6 +81,8 @@ function aiCallTone(type: string): AdminStatusTone {
     case 'relationship_profile':
     case 'plot_state':
     case 'story_memory':
+    case 'novel_analysis':
+    case 'novel_analysis_review':
     case 'import_review':
     case 'content-rating-llm':
       return 'subtle'

@@ -1,0 +1,15 @@
+.root { display: grid; gap: 12px; }
+.heading { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 600; }
+.hint, .row small { color: var(--text-secondary); font-size: 11px; line-height: 1.7; }
+.hint { margin: 0; }
+.list { display: grid; gap: 12px; transition: opacity 160ms ease; }
+.root[aria-busy="true"] .list { opacity: .5; }
+.row { display: flex; align-items: flex-start; min-height: 44px; gap: 10px; overflow-wrap: anywhere; animation: enter 180ms ease both; }
+.row input { flex: none; margin-top: 4px; accent-color: var(--color-primary); width: 16px; height: 16px; }
+.row span { display: grid; min-width: 0; gap: 2px; }
+.row strong { font-size: 12px; font-weight: 500; }
+.error, .row .error { color: var(--color-danger); font-size: 11px; }
+.actions { display: flex; flex-wrap: wrap; gap: 4px; }
+@keyframes enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 700px) { .row { min-height: 48px; } }
+@media (prefers-reduced-motion: reduce) { .row { animation: none; } .list { transition: none; } }

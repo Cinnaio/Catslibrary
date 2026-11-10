@@ -2175,6 +2175,8 @@ export interface AiWritingReview {
   inputHash: string
   updatedAt: number
   stale?: boolean
+  completeness?: 'complete' | 'partial'
+  rejectedFindings?: number
   sources: Array<{ id: string; title: string; text: string }>
   findings: Array<{
     category: 'consistency' | 'foreshadow' | 'relationship'
@@ -2183,6 +2185,20 @@ export interface AiWritingReview {
     draftQuote: string
     evidence: Array<{ sourceId: string; quote: string }>
   }>
+}
+
+export interface AiWritingReviewAttempt {
+  draftRevision: string
+  status: 'running' | 'completed' | 'partial' | 'failed'
+  stage: 'preparing' | 'upstream' | 'thinking' | 'receiving' | 'validating' | 'saving'
+  startedAt: number
+  elapsedMs: number
+  firstProgressMs?: number
+  receivedCharacters: number
+  reasoningCharacters: number
+  code?: string
+  message?: string
+  retryable?: boolean
 }
 
 export interface AiStoryMemoryProgress {
@@ -2491,7 +2507,7 @@ export const aiApi = {
     reviewDraft(id: string, expectedRevision: string, onProgress?: AiProgressHandler): Promise<{ report: AiWritingReview }> {
       return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/review`, { expectedRevision }, true, {}, 300_000, onProgress)
     },
-    getDraftReview(id: string): Promise<{ report: AiWritingReview | null }> {
+    getDraftReview(id: string): Promise<{ report: AiWritingReview | null; attempt?: AiWritingReviewAttempt | null }> {
       return request('GET', `/ai/writing/drafts/${encodeURIComponent(id)}/review`, null, true)
     },
     /** 创作类接口统一为后台任务模式：立即返回任务 id，用 watchAiTask 订阅进度，产物在「已生成内容」。 */
@@ -2633,6 +2649,7 @@ export const aiApi = {
      */
     plotSuggestions(data: {
       novelId: string
+      analysisReferences?: import('@shared/novel-analysis').AnalysisReferenceSelection[]
       timeoutSeconds?: number
       afterChapterId?: string
       focus?: string

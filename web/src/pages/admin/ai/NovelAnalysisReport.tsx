@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ANALYSIS_KINDS, type AnalysisReport, type AnalysisRequest, type AnalysisSource } from '@shared/novel-analysis'
+import { ANALYSIS_KINDS, type AnalysisEvidenceMatch, type AnalysisReport, type AnalysisRequest, type AnalysisSource } from '@shared/novel-analysis'
 import { novelAnalysisApi as api } from '@/lib/novel-analysis-api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -9,6 +9,7 @@ import { MotionDetails } from '@/components/ui/motion'
 import FormField from '@/components/shared/FormField'
 import { ReadingDialog, ReadingDialogText } from '@/components/shared/ReadingDialog'
 import NovelAnalysisMarkdown from './NovelAnalysisMarkdown'
+import NovelAnalysisEvidence from './NovelAnalysisEvidence'
 import { taskStatusLabel } from './labels'
 import { analysisPendingKey, readAnalysisDraft, saveAnalysisDraft } from './analysis-request-state'
 import styles from './novel-analysis.module.css'
@@ -16,8 +17,9 @@ import styles from './novel-analysis.module.css'
 const failure = (error: unknown) => error instanceof Error ? error.message : '操作失败，请稍后重试'
 const running = (report: AnalysisReport) => ['queued', 'running'].includes(report.status)
 
-export default function NovelAnalysisReport({ novelId, reportId, onChange, onReanalyze }: {
+export default function NovelAnalysisReport({ novelId, reportId, onChange, onReanalyze, active = true }: {
   novelId: string; reportId: string; onChange: (report: AnalysisReport) => void; onReanalyze: (request: AnalysisRequest) => void
+  active?: boolean
 }) {
   const scopeKey = analysisPendingKey(novelId)
   const draftKey = scopeKey ? `${scopeKey}:draft:${reportId}` : ''
@@ -32,6 +34,7 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
   const [baseRevision, setBaseRevision] = useState(savedDraft?.revision || 0)
   const [sourceId, setSourceId] = useState('')
   const [source, setSource] = useState<AnalysisSource | null>(null)
+  const [sourceMatch, setSourceMatch] = useState<AnalysisEvidenceMatch | null>(null)
   const [sourceError, setSourceError] = useState('')
   const [sourceRefresh, setSourceRefresh] = useState(0)
   const mounted = useRef(true)
@@ -44,6 +47,7 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
     onChange(next)
   }, [onChange])
   useEffect(() => {
+    if (!active) return
     let alive = true
     let timer: ReturnType<typeof setTimeout> | undefined
     const version = ++loadVersion.current
@@ -53,25 +57,25 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
         if (!alive || version !== loadVersion.current) return
         receive(next)
         setLoadError('')
-        if (running(next)) timer = setTimeout(() => void load(), 2500)
+        if (running(next) || next.reviews?.some(review => ['queued', 'running'].includes(review.status))) timer = setTimeout(() => void load(), 2500)
       } catch (e) { if (alive && version === loadVersion.current) setLoadError(failure(e)) }
     }
     void load()
     return () => { alive = false; clearTimeout(timer) }
-  }, [novelId, reportId, refresh, receive])
+  }, [novelId, reportId, refresh, receive, active])
   useEffect(() => {
     let alive = true
     if (sourceId) void api.source(novelId, reportId, sourceId).then(next => { if (alive) setSource(next) })
       .catch(e => { if (alive) setSourceError(failure(e)) })
     return () => { alive = false }
   }, [novelId, reportId, sourceId, sourceRefresh])
-  function selectSource(id: string) { setSource(null); setSourceError(''); setSourceId(id) }
+  function selectSource(id: string, match?: AnalysisEvidenceMatch) { setSource(null); setSourceError(''); setSourceMatch(match || null); setSourceId(id); setSourceRefresh(v => v + 1) }
   async function act(action: () => Promise<unknown>, after?: () => void) {
-    if (mutation.current) return
+    if (mutation.current) return false
     mutation.current = true; setBusy(true); setError('')
     ++loadVersion.current
-    try { await action(); if (mounted.current) after?.() }
-    catch (e) { if (mounted.current) setError(failure(e)) }
+    try { await action(); if (mounted.current) after?.(); return true }
+    catch (e) { if (mounted.current) setError(failure(e)); return false }
     finally {
       mutation.current = false
       if (mounted.current) { setBusy(false); setRefresh(v => v + 1) }
@@ -119,6 +123,7 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
           <Button variant="outline" disabled={busy} onClick={() => { setBaseRevision(report.revision); setError(''); saveAnalysisDraft(draftKey, { content: draft, revision: report.revision }) }}>已核对，继续修订当前版本</Button>
         </div>}
         {report.edited && <MotionDetails className={styles.details}><summary>查看模型原稿</summary>{markdown(report.originalContent)}</MotionDetails>}
+        <NovelAnalysisEvidence report={report} active={active} editing={editing} busy={busy} onAction={act} onSource={selectSource} onReload={() => setRefresh(v => v + 1)} />
       </>}
       {report.notes.length > 0 && <MotionDetails className={styles.details}><summary>分段阅读记录 · {report.notes.length} 组</summary>
         {report.notes.map(note => <section key={note.sourceIds.join(',')}><h3>{note.sourceIds.map(id => report.sources.find(s => s.id === id)?.chapterTitle || id).join('、')}</h3>{markdown(note.content)}</section>)}
@@ -130,11 +135,14 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
         <p className={styles.meta}>模型撰写时额外回读 {report.checkedSourceIds.length} 段。回读次数不表示内容已经人工确认。</p>
       </MotionDetails>
     </>}
-    <Dialog open={!!sourceId} onOpenChange={open => { if (!open) setSourceId('') }}>
+    <Dialog open={active && !!sourceId} onOpenChange={open => { if (!open) setSourceId('') }}>
       <ReadingDialog title={source ? source.chapterTitle : '原文依据'} description={source ? `${source.id} · 第 ${source.part} 段 · 生成时的正文快照` : '正在读取本报告保存的来源'}
         footer={source && <Button asChild variant="outline"><Link target="_blank" rel="noopener noreferrer" to={`/read/${encodeURIComponent(novelId)}/${encodeURIComponent(source.chapterId)}`}>打开当前章节</Link></Button>}>
         {sourceError ? <p role="alert">{sourceError} <Button variant="ghost" onClick={() => { setSourceError(''); setSourceRefresh(v => v + 1) }}>重试</Button></p>
-          : source ? <ReadingDialogText>{source.text || '本段没有正文。'}</ReadingDialogText> : <p role="status">正在读取原文…</p>}
+          : source ? <>
+            {sourceMatch && <div className={styles.evidenceSource}><h3>待核对的连续原句</h3><blockquote>{sourceMatch.quote}</blockquote><p className={styles.meta}>对应来源 {sourceMatch.sourceIds.join('、')}；以下为当前所选来源的完整快照。</p></div>}
+            <ReadingDialogText>{source.text || '本段没有正文。'}</ReadingDialogText>
+          </> : <p role="status">正在读取原文…</p>}
       </ReadingDialog>
     </Dialog>
   </article>

@@ -1,0 +1,301 @@
+{
+  "date": "2026-11-10",
+  "sourceCommit": "cfc40894560487a4393793cc8d5e5e5305ba2260",
+  "status": "implementation_verified_model_quality_partial",
+  "applicationDatabaseWrites": 0,
+  "modelCalls": 6,
+  "modelSettingsChanged": false,
+  "runs": [
+    {
+      "directory": ".tmp/writing-quality-fixes-2026-11-10",
+      "calls": 5,
+      "checks": [
+        {
+          "name": "replay:valid-eight-rejected-one",
+          "passed": true
+        },
+        {
+          "name": "original-draft-review:complete",
+          "passed": false,
+          "detail": {
+            "status": 200,
+            "completeness": "partial",
+            "findings": 8,
+            "rejected": 1
+          }
+        },
+        {
+          "name": "original-draft-review:attempt-recorded",
+          "passed": true
+        },
+        {
+          "name": "ordinary-500:accepted",
+          "passed": true,
+          "detail": 202
+        },
+        {
+          "name": "ordinary-500:completed",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "ordinary-500:length",
+          "passed": false,
+          "detail": 703
+        },
+        {
+          "name": "ordinary-500:analysis-frozen",
+          "passed": true
+        },
+        {
+          "name": "real-scene-transition:accepted",
+          "passed": true,
+          "detail": 202
+        },
+        {
+          "name": "real-scene-transition:completed",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "real-scene-transition:length",
+          "passed": true,
+          "detail": 647
+        },
+        {
+          "name": "real-scene-transition:analysis-frozen",
+          "passed": true
+        },
+        {
+          "name": "shorten-original-draft:accepted",
+          "passed": true,
+          "detail": 202
+        },
+        {
+          "name": "shorten-original-draft:completed",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "shorten-original-draft:length",
+          "passed": false,
+          "detail": 772
+        },
+        {
+          "name": "shorten:original-preserved",
+          "passed": true
+        },
+        {
+          "name": "contradiction-review:complete",
+          "passed": true,
+          "detail": 200
+        },
+        {
+          "name": "contradiction-review:three-known-contradictions",
+          "passed": true,
+          "detail": 3
+        },
+        {
+          "name": "sources:unchanged",
+          "passed": true
+        },
+        {
+          "name": "reports:unchanged",
+          "passed": true
+        },
+        {
+          "name": "settings:unchanged",
+          "passed": true
+        }
+      ],
+      "sourceCommit": "cfc40894560487a4393793cc8d5e5e5305ba2260",
+      "recordedDiffHash": "3cae30594329cf0c4ca4d09b0a04bca2c4bf47af35d25d101b7912da0bbfdebd",
+      "sourceScriptHash": "2a535da1adbdbf4699f2b814b9ae34c9c3f92f04bfef5fe9659bc1c36902094b",
+      "runnerMatchesRecordedHash": true,
+      "requests": [
+        {
+          "stage": "original-draft-review",
+          "headersAfterMs": 4465,
+          "durationMs": 94584,
+          "finishReason": "stop",
+          "upstreamStatus": 200
+        },
+        {
+          "stage": "ordinary-500",
+          "headersAfterMs": 2500,
+          "durationMs": 7534,
+          "finishReason": "stop",
+          "upstreamStatus": 200
+        },
+        {
+          "stage": "real-scene-transition",
+          "headersAfterMs": 3651,
+          "durationMs": 8676,
+          "finishReason": "stop",
+          "upstreamStatus": 200
+        },
+        {
+          "stage": "shorten-original-draft",
+          "headersAfterMs": 2609,
+          "durationMs": 7870,
+          "finishReason": "stop",
+          "upstreamStatus": 200
+        },
+        {
+          "stage": "contradiction-review",
+          "headersAfterMs": 1727,
+          "durationMs": 13006,
+          "finishReason": "stop",
+          "upstreamStatus": 200
+        }
+      ]
+    },
+    {
+      "directory": ".tmp/writing-quality-scene-2026-11-10",
+      "calls": 1,
+      "checks": [
+        {
+          "name": "replay:valid-eight-rejected-one",
+          "passed": true
+        },
+        {
+          "name": "real-scene-transition:accepted",
+          "passed": true,
+          "detail": 202
+        },
+        {
+          "name": "real-scene-transition:completed",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "real-scene-transition:length",
+          "passed": true,
+          "detail": 597
+        },
+        {
+          "name": "real-scene-transition:analysis-frozen",
+          "passed": true
+        },
+        {
+          "name": "sources:unchanged",
+          "passed": true
+        },
+        {
+          "name": "reports:unchanged",
+          "passed": true
+        },
+        {
+          "name": "settings:unchanged",
+          "passed": true
+        }
+      ],
+      "sourceCommit": "cfc40894560487a4393793cc8d5e5e5305ba2260",
+      "recordedDiffHash": "6cfe45653642185f908e92bedbc22402c73fa1dbca28eb71632f046c2fa58e5d",
+      "sourceScriptHash": "34057b6a5bcc23f97ad5655ebde962d3461115d14408735baf9dadcd3218de58",
+      "runnerMatchesRecordedHash": true,
+      "requests": [
+        {
+          "stage": "real-scene-transition",
+          "headersAfterMs": 2991,
+          "durationMs": 16577,
+          "finishReason": "stop",
+          "upstreamStatus": 200
+        }
+      ]
+    }
+  ],
+  "semanticReview": {
+    "reviewer": "implementation assistant; independent subagent reviewed source only",
+    "originalReview": {
+      "validFindings": 8,
+      "rejectedFindings": 1,
+      "complete": false,
+      "observedReasoningCharacters": 28994,
+      "firstProgressMs": 4480,
+      "totalElapsedMs": 98022,
+      "timeout": false
+    },
+    "contradictionReview": {
+      "findings": 3,
+      "expectedContradictionsDetected": 3
+    },
+    "ordinaryContinuation": {
+      "target": 500,
+      "bodyCharacters": 703,
+      "lengthPassed": false
+    },
+    "shortening": {
+      "target": 500,
+      "originalBodyCharacters": 890,
+      "suggestionBodyCharacters": 772,
+      "lengthPassed": false,
+      "applied": false
+    },
+    "firstScene": {
+      "target": 500,
+      "bodyCharacters": 647,
+      "scenePassed": false
+    },
+    "followupScene": {
+      "target": 500,
+      "bodyCharacters": 597,
+      "scenePassed": false,
+      "scenePartiallyMet": true,
+      "note": "Time advances to next morning and school gate appears, but most prose remains at home or in car."
+    },
+    "limitations": [
+      "Known historical samples, not a blind evaluation",
+      "No independent full-book factual acceptance",
+      "Valid quotation does not establish value of each editorial finding"
+    ]
+  },
+  "usage": {
+    "inputTokens": 36872,
+    "outputTokens": 15697,
+    "reportedCostCalls": 4,
+    "unknownCostCalls": 2,
+    "knownUsd": "0.006270"
+  },
+  "verificationNote": "Snapshot at verification time, before the local commit containing this record; original run artifacts and hashes are unchanged.",
+  "verification": {
+    "apiAndSharedTargetedTests": 95,
+    "reviewRouteTestsIncludingSetup": 2,
+    "webTargetedTests": 18,
+    "typeChecks": [
+      "api",
+      "web",
+      "evaluation-scripts"
+    ],
+    "lintErrors": 0,
+    "lintWarnings": 16,
+    "diffCheck": true,
+    "ios": "source review only; no Swift compiler/device/package",
+    "fullSuite": false,
+    "browser": false,
+    "productionBuild": false,
+    "commit": false,
+    "push": false,
+    "deploy": false
+  },
+  "provenanceNote": "First run diff hash was captured at exit, source.patch was saved immediately after launch. Second run freezes runner and diff before provider calls. Later UI and retained-report fallback fixes were tested locally without replaying unaffected model inputs.",
+  "artifactSha256": {
+    ".tmp/writing-quality-fixes-2026-11-10/plan.json": "b12270e8cb50aa9851c7fc6dc7b560cead9ee02632b6fe5f48c496ef4520996a",
+    ".tmp/writing-quality-fixes-2026-11-10/runner.ts": "2a535da1adbdbf4699f2b814b9ae34c9c3f92f04bfef5fe9659bc1c36902094b",
+    ".tmp/writing-quality-fixes-2026-11-10/source.patch": "680c6e2da8d713e3649b47fb73449dc7e44530f4d99421f27c94ede1ff9dff9e",
+    ".tmp/writing-quality-fixes-2026-11-10/summary.json": "eee7a090350742d5f44d5c44d8cf2f5e7d9c78b7f97cfc61829d04f05ef7732e",
+    ".tmp/writing-quality-fixes-2026-11-10/requests.json": "0593c90136a909f520ffaede02574f0ab4a47ad72bc80466cd3da51f956cbb06",
+    ".tmp/writing-quality-fixes-2026-11-10/api.json": "b86d94b235fb145fde8a98e742a5d20e30f1c4c284a3fb324a584eabd1035549",
+    ".tmp/writing-quality-fixes-2026-11-10/drafts.json": "a7a331e37d6eb85ab6cfd3ddc3e59f443bcc47e997df780e6528c068651e8c5f",
+    ".tmp/writing-quality-fixes-2026-11-10/replayed-review.json": "04519390da40f92471caa4eeafa86c6bad6facaf5382e92dea9194af44532298",
+    ".tmp/writing-quality-fixes-2026-11-10/shortening-task.json": "0be70fd29d5e3d2d2f97f7f769ed6fee52b0c00850d4ea599bc9005164e9b843",
+    ".tmp/writing-quality-scene-2026-11-10/plan.json": "a6e6b5fee2b2c127d51adb82736b0d8312fd4645e38c6d11f52cfd614e887220",
+    ".tmp/writing-quality-scene-2026-11-10/runner.ts": "34057b6a5bcc23f97ad5655ebde962d3461115d14408735baf9dadcd3218de58",
+    ".tmp/writing-quality-scene-2026-11-10/source.patch": "6cfe45653642185f908e92bedbc22402c73fa1dbca28eb71632f046c2fa58e5d",
+    ".tmp/writing-quality-scene-2026-11-10/summary.json": "af869f5b637a2b39e61bb5405626086ae78dbb595e6acb88a2d1580bd9b80402",
+    ".tmp/writing-quality-scene-2026-11-10/requests.json": "825689eed35563b998941fd108985ca68cbc5e9f2331dc03a02119c1e9fdd3ad",
+    ".tmp/writing-quality-scene-2026-11-10/api.json": "c522f4d32b85c174667ed267463f4d1e49239e53fa2ab2fff6d74827249ca5a6",
+    ".tmp/writing-quality-scene-2026-11-10/drafts.json": "c9af708ce054d5f53a4e1075b568b7f3853fa918fab5f5ada899e3aae9da5738",
+    ".tmp/writing-quality-scene-2026-11-10/replayed-review.json": "04519390da40f92471caa4eeafa86c6bad6facaf5382e92dea9194af44532298"
+  }
+}

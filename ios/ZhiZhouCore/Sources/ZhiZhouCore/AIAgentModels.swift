@@ -152,10 +152,16 @@ public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {
         public let after: String
         public let baseRevision: String
     }
+    public struct AnalysisReport: Codable, Equatable, Sendable {
+        public let id: String
+        public let title: String
+        public let url: String
+    }
     public let task: AIAgentTask
     public let drafts: [Draft]
     public let covers: [Cover]
     public let rewrite: Rewrite?
+    public let analysisReport: AnalysisReport?
     public var id: String { task.id }
 }
 

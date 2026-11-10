@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, useNavigate } from 'react-router-dom'
+import { MemoryRouter, useNavigate, useSearchParams } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { AnalysisReport } from '@shared/novel-analysis'
 import NovelAnalysisPanel from './NovelAnalysisPanel'
@@ -8,7 +8,6 @@ import { setStorageUser } from '@/lib/storage'
 const api = vi.hoisted(() => ({ list: vi.fn(), read: vi.fn(), create: vi.fn(), source: vi.fn(), edit: vi.fn(), stop: vi.fn(), resume: vi.fn() }))
 vi.mock('@/lib/novel-analysis-api', () => ({ novelAnalysisApi: api }))
 vi.mock('@/lib/api', () => ({ chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [{ id: 'c1', title: '第一章' }, { id: 'c2', title: '第二章' }] }) }, newOperationId: () => `analysis_${Math.random().toString(36).slice(2)}` }))
-vi.mock('@/lib/admin-novel-index', () => ({ loadAdminNovelIndex: vi.fn().mockResolvedValue([{ id: 'book', title: '本书' }, { id: 'other', title: '另一本书' }]) }))
 vi.mock('@/components/shared/SearchSelect', () => ({ default: ({ options, value, onChange, disabled, placeholder }: { options: Array<{ value: string; label: string }>; value: string; onChange: (id: string) => void; disabled?: boolean; placeholder?: string }) =>
   <select aria-label={placeholder || '选项'} value={value} disabled={disabled} onChange={e => onChange(e.target.value)}>{options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>,
 }))
@@ -19,7 +18,12 @@ const report = (id = 'report', novelId = 'book'): AnalysisReport => ({
   sources: [{ id: 'S1', chapterId: 'c1', chapterTitle: '第一章', chapterOrdinal: 1, part: 1, offset: 0, endOffset: 5, revision: 'hash' }],
 })
 function Navigate() { const go = useNavigate(); return <button onClick={() => go('/admin/ai?sub=analysis&novel=other&report=other-report')}>切书</button> }
-const open = (query = 'novel=book&report=report') => render(<MemoryRouter initialEntries={[`/admin/ai?sub=analysis&${query}`]}><Navigate /><NovelAnalysisPanel /></MemoryRouter>)
+function AnalysisRoute() {
+  const [params, setParams] = useSearchParams()
+  return <NovelAnalysisPanel novelId={params.get('novel') || ''} reportId={params.get('report') || ''}
+    onSelectReport={id => setParams(current => { const next = new URLSearchParams(current); next.set('report', id); return next })} />
+}
+const open = (query = 'novel=book&report=report') => render(<MemoryRouter initialEntries={[`/admin/ai?sub=analysis&${query}`]}><Navigate /><AnalysisRoute /></MemoryRouter>)
 beforeEach(() => {
   vi.clearAllMocks()
   for (const mock of Object.values(api)) mock.mockReset()

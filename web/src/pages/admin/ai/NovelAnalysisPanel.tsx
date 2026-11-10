@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import type { AdminNovelIndexItem, ChapterMeta } from '@shared/types'
+import type { ChapterMeta } from '@shared/types'
 import { ANALYSIS_KINDS, type AnalysisReport, type AnalysisReportSummary, type AnalysisRequest } from '@shared/novel-analysis'
 import { chaptersApi, newOperationId, type ApiError } from '@/lib/api'
-import { loadAdminNovelIndex } from '@/lib/admin-novel-index'
 import { novelAnalysisApi as api } from '@/lib/novel-analysis-api'
 import { getStorageScope } from '@/lib/storage'
 import { Button } from '@/components/ui/button'
@@ -17,24 +15,21 @@ import { taskStatusLabel } from './labels'
 import styles from './novel-analysis.module.css'
 
 const failure = (error: unknown) => error instanceof Error ? error.message : '读取失败，请稍后重试'
-export default function NovelAnalysisPanel() {
-  const [params] = useSearchParams()
-  return <AnalysisWorkspace key={`${getStorageScope()}:${params.get('novel') || ''}`} />
+type AnalysisPanelProps = { novelId: string; reportId: string; onSelectReport: (id: string) => void; active?: boolean }
+export default function NovelAnalysisPanel(props: AnalysisPanelProps) {
+  return <AnalysisWorkspace key={`${getStorageScope()}:${props.novelId}`} {...props} />
 }
-function AnalysisWorkspace() {
-  const [params, setParams] = useSearchParams()
-  const novelId = params.get('novel') || ''
-  const reportId = params.get('report') || ''
+function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }: AnalysisPanelProps) {
+  const selectReport = useRef(onSelectReport)
+  useEffect(() => { selectReport.current = onSelectReport }, [onSelectReport])
   const pendingKey = analysisPendingKey(novelId)
   const [pending, setPending] = useState<PendingAnalysis | null>(() => readPendingAnalysis(pendingKey))
   const [input, setInput] = useState<AnalysisRequest>(() => pending?.request || { kind: 'plot', startChapterId: '', endChapterId: '', question: '' })
-  const [novels, setNovels] = useState<AdminNovelIndexItem[]>([])
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [reports, setReports] = useState<AnalysisReportSummary[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [offset, setOffset] = useState(0)
   const [error, setError] = useState('')
-  const [indexError, setIndexError] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [refresh, setRefresh] = useState(0)
   const [loadedKey, setLoadedKey] = useState('')
@@ -47,13 +42,7 @@ function AnalysisWorkspace() {
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   useEffect(() => {
     let alive = true
-    void loadAdminNovelIndex('', () => alive).then(items => { if (alive) { setNovels(items); setIndexError('') } })
-      .catch(e => { if (alive) setIndexError(failure(e)) })
-    return () => { alive = false }
-  }, [refresh])
-  useEffect(() => {
-    let alive = true
-    if (!novelId) return
+    if (!novelId || !active) return
     void Promise.all([chaptersApi.list(novelId), api.list(novelId, offset)]).then(([book, history]) => {
       if (!alive) return
       setChapters(book.chapters)
@@ -61,10 +50,10 @@ function AnalysisWorkspace() {
       setInput(previous => previous.startChapterId ? previous : { ...previous, startChapterId: book.chapters[0]?.id || '', endChapterId: book.chapters[Math.min(2, book.chapters.length - 1)]?.id || '' })
     }).catch(e => { if (alive) setError(failure(e)) }).finally(() => { if (alive) setLoadedKey(loadKey) })
     return () => { alive = false }
-  }, [novelId, offset, refresh, loadKey])
+  }, [novelId, offset, refresh, loadKey, active])
   const onReportChange = useCallback((next: AnalysisReport) => setReports(previous => previous.map(item => item.id === next.id && item.updatedAt <= next.updatedAt ? next : item)), [])
   function chooseReport(id: string) {
-    const next = new URLSearchParams(params); next.set('report', id); setParams(next)
+    selectReport.current(id)
   }
   async function submit() {
     if (submitting.current) return
@@ -89,9 +78,6 @@ function AnalysisWorkspace() {
   const valid = start >= 0 && end >= start && (input.kind !== 'custom' || !!input.question.trim())
   const options = chapters.map((chapter, i) => ({ value: chapter.id, label: `${i + 1}. ${chapter.title}` }))
   return <div className={styles.root}>
-    <div className={styles.bookPicker}><FormField label="作品"><SearchSelect value={novelId} options={novels.map(novel => ({ value: novel.id, label: novel.title, sub: novel.author }))}
-      onChange={id => setParams(new URLSearchParams({ sub: 'analysis', novel: id }))} placeholder="选择需要分析的小说" /></FormField></div>
-    {indexError && <p role="alert">{indexError} <Button variant="ghost" onClick={() => setRefresh(v => v + 1)}>重新读取作品</Button></p>}
     {!novelId ? <p className={styles.empty}>选择作品，从一段章节开始阅读和核对。</p> : <>
       <form ref={formRef} className={styles.form} onSubmit={e => { e.preventDefault(); void submit() }}>
         <div className={styles.fields}>
@@ -127,7 +113,7 @@ function AnalysisWorkspace() {
           <div className={styles.actions}><Button variant="ghost" size="sm" disabled={loading || offset === 0} onClick={() => setOffset(v => Math.max(0, v - 20))}>上一页</Button>
             <Button variant="ghost" size="sm" disabled={loading || !hasMore} onClick={() => setOffset(v => v + 20)}>下一页</Button></div>
         </aside>
-        {reportId ? <NovelAnalysisReport key={reportId} novelId={novelId} reportId={reportId} onChange={onReportChange} onReanalyze={request => {
+        {reportId ? <NovelAnalysisReport key={reportId} novelId={novelId} reportId={reportId} active={active} onChange={onReportChange} onReanalyze={request => {
           if (pending) { setSubmitError('请先确认上次提交，再创建另一份报告。'); return }
           setInput(request); formRef.current?.scrollIntoView({ block: 'start' }); formRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
         }} /> : <div className={styles.empty}>生成报告或选择一份历史记录，阅读结论并逐条查看原文。</div>}

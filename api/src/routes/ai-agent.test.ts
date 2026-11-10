@@ -871,7 +871,7 @@ describe('novel-scoped creative agent', () => {
     const result = await executeAgentTool(t.db, session, 'search_chapters', { query: '离开' }, 'op', api)
     expect(result.matches).toHaveLength(1)
     const emptySession = await createAgentSession(t.db, 'admin', { novelId: 'empty-novel' })
-    await expect(executeAgentTool(t.db, emptySession, 'refresh_memory', { kind: 'plot' }, 'op', api)).rejects.toMatchObject({ status: 422 })
+    await expect(executeAgentTool(t.db, emptySession, 'analyze_novel', { kind: 'plot' }, 'op', api)).rejects.toMatchObject({ status: 422 })
     expect(api).not.toHaveBeenCalled()
   })
   it('submits agreed cover instructions through the real route without regenerating the prompt', async () => {

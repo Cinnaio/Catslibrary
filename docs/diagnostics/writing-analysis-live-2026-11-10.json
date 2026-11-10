@@ -1,0 +1,465 @@
+{
+  "date": "2026-11-10",
+  "sourceCommit": "cfc40894560487a4393793cc8d5e5e5305ba2260",
+  "sourceDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "model": "deepseek-v4.1-flash-uncensored",
+  "status": "partial_acceptance_with_open_findings",
+  "transport": "authenticated Hono app.request with real configured model and isolated PGlite; not browser/device E2E",
+  "applicationDatabaseWrites": 0,
+  "settings": {
+    "writingReasoningMode": "inherit",
+    "writingMaxTokens": 15000,
+    "reviewMaxTokens": 24000,
+    "storyMemoryReasoningMode": "low",
+    "storyMemoryChapterMaxTokens": 16000
+  },
+  "usage": {
+    "modelCalls": 26,
+    "usageRows": 26,
+    "tokenResponses": 25,
+    "inputTokens": 133993,
+    "outputTokens": 18117,
+    "reportedCostResponses": 26,
+    "reportedUsd": "0.01823200",
+    "unknownTokenResponses": 1,
+    "costCurrencies": [
+      "USD"
+    ]
+  },
+  "primaryChecks": [
+    {
+      "name": "analysis:accepted",
+      "passed": true
+    },
+    {
+      "name": "analysis:completed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "analysis:edit",
+      "passed": true
+    },
+    {
+      "name": "materials:edited-report-selected",
+      "passed": true
+    },
+    {
+      "name": "materials:no-old-archive-or-future",
+      "passed": true
+    },
+    {
+      "name": "plot:returned",
+      "passed": true,
+      "detail": 200
+    },
+    {
+      "name": "outline:accepted",
+      "passed": true,
+      "detail": 202
+    },
+    {
+      "name": "outline:completed",
+      "passed": true,
+      "detail": {
+        "status": "completed",
+        "error": ""
+      }
+    },
+    {
+      "name": "continuation:accepted",
+      "passed": true,
+      "detail": 202
+    },
+    {
+      "name": "continuation:completed",
+      "passed": true,
+      "detail": {
+        "status": "completed",
+        "error": ""
+      }
+    },
+    {
+      "name": "continuation:report-frozen",
+      "passed": true
+    },
+    {
+      "name": "review:completed-with-analysis",
+      "passed": false,
+      "detail": 504
+    },
+    {
+      "name": "agent-read:accepted",
+      "passed": true,
+      "detail": 202
+    },
+    {
+      "name": "agent-read:completed",
+      "passed": true,
+      "detail": {
+        "status": "completed",
+        "error": ""
+      }
+    },
+    {
+      "name": "agent-generate:accepted",
+      "passed": true,
+      "detail": 202
+    },
+    {
+      "name": "agent-generate:completed",
+      "passed": true,
+      "detail": {
+        "status": "completed",
+        "error": ""
+      }
+    },
+    {
+      "name": "no-report:accepted",
+      "passed": true,
+      "detail": 202
+    },
+    {
+      "name": "no-report:completed",
+      "passed": true,
+      "detail": {
+        "status": "completed",
+        "error": ""
+      }
+    },
+    {
+      "name": "no-report:frozen-empty",
+      "passed": true
+    },
+    {
+      "name": "boundary:cross-book",
+      "passed": true,
+      "detail": 404
+    },
+    {
+      "name": "boundary:future-report",
+      "passed": true,
+      "detail": 409
+    },
+    {
+      "name": "boundary:wrong-revision",
+      "passed": true,
+      "detail": 409
+    },
+    {
+      "name": "boundary:stale-source",
+      "passed": true,
+      "detail": 409
+    },
+    {
+      "name": "retired:style-profile",
+      "passed": true
+    },
+    {
+      "name": "retired:relationship-profile",
+      "passed": true
+    },
+    {
+      "name": "retired:plot-state",
+      "passed": true
+    },
+    {
+      "name": "retired:memory/trial/rebuild",
+      "passed": true
+    },
+    {
+      "name": "boundaries:no-model-calls",
+      "passed": true
+    },
+    {
+      "name": "controlled-failure:accepted",
+      "passed": true,
+      "detail": 202
+    },
+    {
+      "name": "controlled-failure:failed-as-injected",
+      "passed": true,
+      "detail": {
+        "status": "failed",
+        "error": "AI 服务返回 400：evaluation controlled failure"
+      }
+    },
+    {
+      "name": "failure:retained-without-draft",
+      "passed": true
+    },
+    {
+      "name": "retry:accepted",
+      "passed": true,
+      "detail": 202
+    },
+    {
+      "name": "retry:completed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "retry:changed-report-rejected",
+      "passed": true,
+      "detail": 409
+    },
+    {
+      "name": "source:synthetic-chapters-unchanged",
+      "passed": true
+    },
+    {
+      "name": "real:source-text-identical",
+      "passed": true
+    },
+    {
+      "name": "real:report-selected",
+      "passed": true,
+      "detail": 200
+    },
+    {
+      "name": "real-continuation:accepted",
+      "passed": true,
+      "detail": 202
+    },
+    {
+      "name": "real-continuation:completed",
+      "passed": true,
+      "detail": {
+        "status": "completed",
+        "error": ""
+      }
+    },
+    {
+      "name": "real-agent-read:accepted",
+      "passed": true,
+      "detail": 202
+    },
+    {
+      "name": "real-agent-read:completed",
+      "passed": true,
+      "detail": {
+        "status": "completed",
+        "error": ""
+      }
+    },
+    {
+      "name": "all-prompts:no-legacy-archive",
+      "passed": true
+    },
+    {
+      "name": "synthetic-prompts:no-cross-book-future",
+      "passed": true
+    },
+    {
+      "name": "agent:old-tools-not-exposed",
+      "passed": true
+    },
+    {
+      "name": "no-report:request-excludes-report",
+      "passed": true
+    },
+    {
+      "name": "plot-suggestions:wire-includes-edited-report",
+      "passed": true
+    },
+    {
+      "name": "outline:wire-includes-edited-report",
+      "passed": true
+    },
+    {
+      "name": "continuation:wire-includes-edited-report",
+      "passed": true
+    },
+    {
+      "name": "draft-review:wire-includes-edited-report",
+      "passed": true
+    }
+  ],
+  "offlineEvidenceChecks": [
+    {
+      "name": "agent-read:list_novel_analyses",
+      "passed": true
+    },
+    {
+      "name": "agent-read:read_novel_analysis",
+      "passed": true
+    },
+    {
+      "name": "agent-read:read_chapter",
+      "passed": true
+    },
+    {
+      "name": "agent-read:citations-to-read-chapters",
+      "passed": true
+    },
+    {
+      "name": "agent-read:versioned-report-evidence",
+      "passed": true
+    },
+    {
+      "name": "agent-read:read-only-no-generation",
+      "passed": true
+    },
+    {
+      "name": "real-agent-read:list_novel_analyses",
+      "passed": true
+    },
+    {
+      "name": "real-agent-read:read_novel_analysis",
+      "passed": true
+    },
+    {
+      "name": "real-agent-read:read_chapter",
+      "passed": true
+    },
+    {
+      "name": "real-agent-read:citations-to-read-chapters",
+      "passed": true
+    },
+    {
+      "name": "real-agent-read:versioned-report-evidence",
+      "passed": true
+    },
+    {
+      "name": "real-agent-read:read-only-no-generation",
+      "passed": true
+    },
+    {
+      "name": "agent-generate:tool-invoked",
+      "passed": true
+    },
+    {
+      "name": "agent-generate:child-completed-with-draft",
+      "passed": true
+    },
+    {
+      "name": "agent-generate:read-report-revision-frozen",
+      "passed": true
+    },
+    {
+      "name": "agent-generate:draft-unpublished",
+      "passed": true
+    },
+    {
+      "name": "all-drafts:no-control-marker-leak",
+      "passed": true
+    }
+  ],
+  "followupChecks": [
+    {
+      "name": "review-repeat:success",
+      "passed": false,
+      "detail": 502
+    },
+    {
+      "name": "review-repeat:current-revision",
+      "passed": false
+    },
+    {
+      "name": "negative-draft:isolated-edit",
+      "passed": true,
+      "detail": 200
+    },
+    {
+      "name": "negative-review:success",
+      "passed": true,
+      "detail": 200
+    },
+    {
+      "name": "negative-review:finds-copper-and-pump",
+      "passed": true,
+      "detail": 3
+    },
+    {
+      "name": "agent-analysis:turn-completed",
+      "passed": false,
+      "detail": "AI 服务连接失败"
+    },
+    {
+      "name": "agent-analysis:child-completed",
+      "passed": true,
+      "detail": {
+        "kind": "novel_analysis",
+        "status": "completed",
+        "error": ""
+      }
+    },
+    {
+      "name": "agent-analysis:tool-invoked",
+      "passed": true
+    },
+    {
+      "name": "agent-analysis:report-artifact",
+      "passed": true
+    },
+    {
+      "name": "original-run:artifacts-preserved",
+      "passed": true
+    }
+  ],
+  "controlledFailures": {
+    "preProvider400": 1,
+    "budgetBlockedFollowupAgentReply": true,
+    "budgetBlockedReplyMadeProviderCall": false
+  },
+  "semanticReview": {
+    "reviewer": "implementation assistant, plus independent subagent source/evidence review",
+    "ordinarySample": "known v9 regression first three chapters, not unseen",
+    "realCorpus": {
+      "snapshotSha256": "35dbe969b9687d0134e5a5145fc7b82c00f4471d68c811f0e8ef9130ffbfc7e9",
+      "chapters": 99,
+      "sourcePieces": 99,
+      "characters": 180230,
+      "reportSha256": "c3d655619881326c38985066a2b210fc28c15c487748175dade78d68f6a72c87",
+      "note": "Frozen normalized text reconstructed in isolated DB; reference revisions recomputed for cloned chapter ordering. Original snapshot unchanged."
+    },
+    "passed": [
+      "report revision enters model input and draft snapshot",
+      "Agent factual answer and original chapter links",
+      "Agent draft retains known object ownership, pump status, unopened envelope",
+      "deliberate contradiction draft yields three evidence-checked findings"
+    ],
+    "open": [
+      "original draft review hit the service upstream response-read timeout at 120 seconds; model, gateway or network root cause remains undetermined",
+      "repeat review returned 502 for non-contiguous fabricated draft quote; no findings saved",
+      "real continuation missed the requested public-place scene while the same request also imposed immediate continuity from a living-room scene; instruction priority and missing transition confound model-only attribution",
+      "ordinary continuation body measured 890 non-whitespace characters against target 500; no-report length evaluation is confounded by instruction 350 versus targetWords 500",
+      "real novel uses existing historically reviewed report; not full-book independent semantic acceptance"
+    ],
+    "postReviewQualifications": {
+      "basis": "Offline inspection of preserved requests, generated bodies and owning service code; no additional model calls or raw-record changes",
+      "lengthMetric": "Unicode characters in stored body after removing whitespace, including punctuation",
+      "ordinaryContinuation": { "targetWords": 500, "bodyCharacters": 890, "rawResponseCharacters": 941 },
+      "noReportContinuation": { "instructionTarget": 350, "targetWords": 500, "bodyCharacters": 655, "unambiguousLengthEvaluation": false },
+      "realContinuation": { "targetWords": 500, "bodyCharacters": 576, "competingSceneInstructions": true },
+      "agentContinuation": { "instructionTarget": 500, "bodyCharacters": 514 },
+      "lengthEnforcement": "Approximate prompt request; current quality hints do not flag excessive body length"
+    },
+    "notCovered": [
+      "browser interactions and rendering",
+      "iOS compilation/device",
+      "complete final Agent reply for explicit analysis creation after evaluation budget cutoff"
+    ]
+  },
+  "iosFixes": [
+    "preserve afterChapterId in report link",
+    "resolve relative citation links using configured server",
+    "replace archive wording and label novel_analysis tasks"
+  ],
+  "artifactSha256": {
+    ".tmp/writing-analysis-live-2026-11-10/summary.json": "4718c0f8d26919957a66a9afde4d9e7697d934c20cb73e955cc1af7c3c7c3c6d",
+    ".tmp/writing-analysis-live-2026-11-10/requests.json": "a3edff672a707e6f28f59eebf4abd1f40fcd311be313eb819dc8add4cadd44ab",
+    ".tmp/writing-analysis-live-2026-11-10/cases.json": "1292fa29d79341baeed7930bf4df14c73a19e37d462b256c86aa540ea7feae60",
+    ".tmp/writing-analysis-live-2026-11-10/generations.json": "1fa8454f32929e09291798841c14a52a586ad74aba73c2f4872bd9b75e927ec7",
+    ".tmp/writing-analysis-live-2026-11-10/agent-read.json": "c5a4fe3d772afbfb5244d7e650ee4ab8f883a90ac960a48841736a5dbc4a8ede",
+    ".tmp/writing-analysis-live-2026-11-10/agent-generate.json": "f15f47ed90f42813b6f91a7ce565a090978d1cfc72438514ad1d29928e7eb759",
+    ".tmp/writing-analysis-live-2026-11-10/real-agent-read.json": "ef8bfb5a81a6494e60c119d15958c7ee1c1a15b3d90a0ff63a98ab2accba1854",
+    ".tmp/writing-analysis-live-2026-11-10/evidence-checks.json": "13179b7ca0a6ea642d8a737be29ed1719a81e94bcad7cfd2f9866ad16d40133d",
+    ".tmp/writing-analysis-live-2026-11-10/real-source-manifest.json": "f4962a302edfe64ee688b6f3f9622f72cf49fcf3850a12fca53ea2a6fd9272a2",
+    ".tmp/writing-analysis-live-2026-11-10/runner.ts": "0918110d655526d4b3ca61448fefecf498555f0b2313c079cabb085e20709efa",
+    ".tmp/writing-analysis-followup-2026-11-10/summary.json": "1b8e2c50ee8809f1cff8bbbe85f930ad84465eafdef0128dfaf72f785db2c147",
+    ".tmp/writing-analysis-followup-2026-11-10/requests.json": "a38030505e8ed57f90a509dbaec9bf7f13a9431b432fcd504792b4c82a9642aa",
+    ".tmp/writing-analysis-followup-2026-11-10/api.json": "cf7f4448d9c2aaa30d9e0c91584b2eaae46e4603de6020762e09a6e12a1d6b28",
+    ".tmp/writing-analysis-followup-2026-11-10/agent-created-report.json": "5db8af304353293af500aca809d563781173f1c460e48130adc3e741508d1d95"
+  }
+}

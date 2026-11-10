@@ -214,7 +214,7 @@ function MemoryManager({
     >
       <div className={styles.root}>
         <p className={styles.muted}>
-          最多保留 24 条生效约定和 24 条待确认提议。移除后不再作为长期约定使用，历史记录仍可查看。正式故事档案与本次会话设置单独管理。
+          最多保留 24 条生效约定和 24 条待确认提议。移除后不再作为长期约定使用，历史记录仍可查看。小说分析报告与本次会话设置单独管理。
         </p>
         <div className={styles.actions}>
           <Button disabled={blocked || !page || !!draft} onClick={() => setDraft({ title: '', content: '' })}>

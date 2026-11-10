@@ -324,19 +324,9 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 />
               </FormField>
             </ParameterSection>
-            <ParameterSection title="故事档案" description="设置记忆模式、分析预算与档案更新方式。" wide>
+            <ParameterSection title="小说分析" description="分析报告按选择的章节范围生成，供阅读、核对和创作参考。" wide>
               <div className={styles.fields}>
-                <FormField label="故事记忆模式" htmlFor="story-memory-engine" hint="增量模式每章提取一次，关系、情节和星图共用可追溯记录。首次使用须从首章建立记录；原档案保留至新结果完整完成。切回原模式后，下次更新沿用完整档案流程。">
-                  <Select value={localSettings.storyMemoryEngine ?? 'legacy'} onValueChange={value => setLocalSettings({ ...localSettings, storyMemoryEngine: value as 'legacy' | 'incremental' })} disabled={props.loading || saving}>
-                    <SelectTrigger id="story-memory-engine"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="legacy">完整档案（原模式）</SelectItem><SelectItem value="incremental">章节增量记忆（试验）</SelectItem></SelectContent>
-                  </Select>
-                </FormField>
-                {toggle("storyMemoryAutoUpdate", "发布后后台准备记忆", "仅增量模式生效。发布正式章节后自动分析，会产生模型用量；失败保留进度，可手动继续。")}
-                <FormField label="章节增量记忆 Token" htmlFor="chapter-memory-tokens" hint="仅增量模式使用，默认 16,000；用于单章变化、正文依据及模型思考。不会限制检索输入，截断时保留旧档案并提示重试。">
-                  <Input id="chapter-memory-tokens" required type="number" min={1000} max={1000000} value={localSettings.storyMemoryChapterMaxTokens ?? 16000} disabled={props.loading || saving} onChange={e => setLocalSettings({ ...localSettings, storyMemoryChapterMaxTokens: Number(e.target.value) })} />
-                </FormField>
-                <FormField label="档案分析超时（秒）" htmlFor="memory-timeout" hint="关系与情节档案每次模型请求的等待上限，默认 300 秒，范围 30–600 秒；超时后停止自动重试，保留检查点供手动继续。">
+                <FormField label="小说分析超时（秒）" htmlFor="memory-timeout" hint="小说分析每次模型请求的等待上限，默认 300 秒，范围 30–600 秒；超时后停止自动重试，保留检查点供手动继续。">
                   <Input
                     id="memory-timeout"
                     required
@@ -348,32 +338,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                     onChange={(e) => setLocalSettings({ ...localSettings, storyMemoryTimeoutSeconds: e.target.value === '' ? Number.NaN : Number(e.target.value) })}
                   />
                 </FormField>
-                {reasoning("storyMemoryReasoningMode", "关系与情节档案思考模式", "跟随供应商保持原行为。关闭、低强度和高强度适用于 DeepSeek 兼容模型；更换其他模型前请改回跟随供应商。")}
-                {toggle("storyMemoryStreamEnabled", "关系与情节档案实时预览", "显示思考阶段、生成进度和可预览的文本；结构化档案完整校验后显示结果。供应商可能仍以非流式返回。")}
-                <FormField label="情节状态 Token" htmlFor="plot-tokens" hint="完整档案模式的情节输出预算；增量模式使用独立的章节增量记忆预算。">
-                  <Input
-                    id="plot-tokens"
-                    required
-                    type="number"
-                    min={300}
-                    max={1000000}
-                    value={localSettings.plotStateMaxTokens}
-                    disabled={props.loading || saving}
-                    onChange={(e) => setLocalSettings({ ...localSettings, plotStateMaxTokens: Number(e.target.value) })}
-                  />
-                </FormField>
-                <FormField label="关系画像 Token" htmlFor="relationship-tokens" hint="完整档案模式的关系输出预算；增量模式与情节共用一次章节提取。">
-                  <Input
-                    id="relationship-tokens"
-                    required
-                    type="number"
-                    min={200}
-                    max={1000000}
-                    value={localSettings.relationshipProfileMaxTokens}
-                    disabled={props.loading || saving}
-                    onChange={(e) => setLocalSettings({ ...localSettings, relationshipProfileMaxTokens: Number(e.target.value) })}
-                  />
-                </FormField>
+                {reasoning("storyMemoryReasoningMode", "小说分析思考模式", "跟随供应商保持原行为。关闭、低强度和高强度适用于 DeepSeek 兼容模型；更换其他模型前请改回跟随供应商。")}
               </div>
             </ParameterSection>
             <ParameterSection title="故事图谱" description="为结构化图谱保留独立的输出与思考预算。">
@@ -398,20 +363,8 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 </FormField>
               </div>
             </ParameterSection>
-            <ParameterSection title="分析与辅助生成" description="分别控制风格画像、草稿检查和章节标题的输出。">
+            <ParameterSection title="分析与辅助生成" description="控制草稿检查和章节标题的输出。">
               <div className={styles.fields}>
-                <FormField label="风格画像 Token" htmlFor="style-tokens" hint="风格画像提取的最大输出，推理模型需留足思考余量，推荐 1500">
-                  <Input
-                    id="style-tokens"
-                    required
-                    type="number"
-                    min={200}
-                    max={1000000}
-                    value={localSettings.styleProfileMaxTokens}
-                    disabled={props.loading || saving}
-                    onChange={(e) => setLocalSettings({ ...localSettings, styleProfileMaxTokens: Number(e.target.value) })}
-                  />
-                </FormField>
                 <FormField label="质量检查 Token" htmlFor="review-tokens" hint="单次草稿质量检查的输出预算；被截断时可提高后重试。">
                   <Input
                     id="review-tokens"

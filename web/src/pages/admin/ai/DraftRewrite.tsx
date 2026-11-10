@@ -91,6 +91,8 @@ export default function DraftRewrite(props: {
   /** 正文版本；应用建议时必须与建议生成时一致 */
   contentRevision: string
   disabled?: boolean
+  /** Present only for a draft whose current body substantially exceeds its target. */
+  shortenTargetWords?: number
   /** 应用成功后把权威正文与新版版本号交回父级 */
   onApplied: (result: { result: string; contentRevision: string }) => void
   /** 正文已变（他人编辑或保存过），父级需要重新读取 */
@@ -112,6 +114,7 @@ export default function DraftRewrite(props: {
     generation.current++
     setActiveTask(null)
     setGenerating(false)
+    setApplying(false)
     setProgress(null)
     return () => { generation.current++ }
   }, [props.draftId, props.contentRevision])
@@ -139,6 +142,8 @@ export default function DraftRewrite(props: {
     setSelection(null)
     setSuggestion(null)
     setSelectedText('')
+    setMode('polish')
+    setInstruction('')
   }
 
   function captureSelection() {
@@ -151,6 +156,18 @@ export default function DraftRewrite(props: {
       return
     }
     setSelection({ startUTF16: start, endUTF16: end, text: props.content.slice(start, end) })
+  }
+
+  function prepareShorten() {
+    setMode('shorten')
+    setSuggestion(null)
+    const fullBody = Array.from(props.content).length <= 6000
+    setInstruction(fullBody
+      ? `将整章正文精简至约 ${props.shortenTargetWords} 字（不计空白，包含标点）。保留关键事实、人物状态、因果与自然结尾，删除重复铺陈，不新增剧情。`
+      : `整章目标约 ${props.shortenTargetWords} 字。本次仅精简所选段落，删除重复铺陈，保留关键事实与语气，不将整章字数当作本选段目标，不新增剧情。`)
+    setSelection(fullBody ? { startUTF16: 0, endUTF16: props.content.length, text: props.content } : null)
+    bodyRef.current?.focus()
+    bodyRef.current?.setSelectionRange(0, fullBody ? props.content.length : 0)
   }
 
   async function generate() {
@@ -181,18 +198,21 @@ export default function DraftRewrite(props: {
 
   async function apply() {
     if (!suggestion) return
+    const current = ++generation.current
     setApplying(true)
     try {
       const result = await aiApi.writing.applyDraftRewrite(props.draftId, suggestion.taskId, {
         baseRevision: suggestion.baseRevision,
         operationId: newOperationId('ai-rewrite-apply'),
       })
+      if (current !== generation.current) return
       props.onApplied({ result: result.result, contentRevision: result.contentRevision })
       setSuggestion(null)
       setSelection(null)
       setSelectedText('')
       toast('改写已应用', 'success')
     } catch (err) {
+      if (current !== generation.current) return
       const apiError = err as { status?: number; data?: { code?: string }; message?: string }
       if (apiError.status === 409) {
         // 正文已变化：必须重新读取，旧选区与旧建议都不可再用
@@ -204,11 +224,11 @@ export default function DraftRewrite(props: {
         toast(apiError.message || '应用改写失败', 'error')
       }
     } finally {
-      setApplying(false)
+      if (current === generation.current) setApplying(false)
     }
   }
 
-  const canGenerate = Boolean(selection) && !generating && !props.disabled && (mode !== 'custom' || instruction.trim())
+  const canGenerate = Boolean(selection) && !generating && !applying && !props.disabled && (mode !== 'custom' || instruction.trim())
 
   // 建议字数与原选段字数的比值；超出该模式的合理区间时提示可能是在续写而非改写
   const originCount = Array.from(selectedText).length
@@ -220,6 +240,12 @@ export default function DraftRewrite(props: {
   return (
     <div className="ai-rewrite grid gap-3 rounded-md border bg-muted/10 p-3">
       <AiStreamPreview progress={progress} stopped={!generating} />
+      {props.shortenTargetWords && props.shortenTargetWords > 0 ? (
+        <div className="grid gap-2">
+          <Button type="button" variant="outline" size="sm" className="justify-self-start" disabled={props.disabled || generating || applying} onClick={prepareShorten}>精简至目标篇幅</Button>
+          <p className="text-xs text-muted-foreground">{Array.from(props.content).length > 6000 ? '正文超过单次选段上限，请分段选择需要精简的内容。' : `准备约 ${props.shortenTargetWords} 字的精简要求，点击生成建议后比较。`} 确认应用前保留原稿。</p>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor="draft-rewrite-mode" className="text-xs font-medium">
           选段改写
@@ -240,10 +266,10 @@ export default function DraftRewrite(props: {
         <span className="basis-full text-xs leading-5 text-muted-foreground sm:basis-auto">{MODE_HINTS[mode]}</span>
       </div>
 
-      {mode === 'custom' && (
+      {(mode === 'custom' || mode === 'shorten' || instruction.length > 0) && (
         <div className="grid gap-1.5">
           <Label htmlFor="draft-rewrite-instruction" className="text-xs text-muted-foreground">
-            改写要求（必填）
+            {mode === 'custom' ? '改写要求（必填）' : mode === 'shorten' ? '精简要求（可选）' : '补充要求（可选）'}
           </Label>
           <Textarea
             id="draft-rewrite-instruction"
@@ -325,6 +351,10 @@ export default function DraftRewrite(props: {
               </span>
             )}
           </p>
+          {suggestion.mode === 'shorten' && props.shortenTargetWords && selectedText === props.content
+            && Array.from(suggestion.text.replace(/\s/gu, '')).length > props.shortenTargetWords * 1.3 ? (
+              <p role="status" className="text-xs text-[var(--color-warning)]">精简建议仍超过目标 {props.shortenTargetWords} 字的三成，请核对篇幅后决定是否应用；原稿尚未修改。</p>
+            ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" disabled={applying || props.disabled} onClick={() => void apply()}>
               <Check className="size-3.5" aria-hidden="true" />

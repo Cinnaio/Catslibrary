@@ -1,4 +1,4 @@
-export type WritingQualityCode = 'short_chapter' | 'output_limit' | 'upstream_incomplete' | 'chapter_boundary' | 'title_format' | 'repeated_opening'
+export type WritingQualityCode = 'short_chapter' | 'long_chapter' | 'output_limit' | 'upstream_incomplete' | 'chapter_boundary' | 'title_format' | 'repeated_opening'
 export interface WritingQualityWarning {
   code: WritingQualityCode
   source: 'current' | 'generation'
@@ -31,6 +31,8 @@ export function assessWritingQuality(input: WritingQualityInput): WritingQuality
   const warnings: WritingQualityWarning[] = []
   if (targetWords > 0 && bodyCharacters < targetWords * 0.6)
     warnings.push({ code: 'short_chapter', source: 'current', message: `正文约 ${bodyCharacters} 字，不足目标 ${targetWords} 字的六成，请检查内容是否完整。` })
+  if (targetWords > 0 && bodyCharacters > targetWords * 1.3)
+    warnings.push({ code: 'long_chapter', source: 'current', message: `正文约 ${bodyCharacters} 字，超过目标 ${targetWords} 字的三成，可按目标篇幅精简；原稿保留，不自动截断。` })
   if (finishReason === 'length' || finishReason === 'max_tokens')
     warnings.push({ code: 'output_limit', source: 'generation', message: '原始生成达到上游输出上限，结尾可能不完整；原文已保留，请检查。' })
   else if (input.upstreamIncomplete || ['content_filter', 'safety', 'refusal'].includes(finishReason))

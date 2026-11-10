@@ -4,6 +4,7 @@
  */
 
 export type MaterialKind =
+  | 'analysis_report'
   | 'metadata'
   | 'published_context'
   | 'user_context'

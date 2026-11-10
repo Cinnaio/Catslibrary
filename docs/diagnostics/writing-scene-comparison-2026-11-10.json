@@ -1,0 +1,173 @@
+{
+  "date": "2026-11-10",
+  "sourceCommit": "33de75ec68f3d44353466e2a21fe81c29e28cfa5",
+  "status": "candidate_rejected_scene_adherence_still_unresolved",
+  "lengthAcceptance": "excluded_by_user_instruction; historical results preserved",
+  "comparison": {
+    "cases": 3,
+    "calls": 6,
+    "oneCallPerVariant": true,
+    "onlySceneRuleDiffers": true,
+    "modelSettingsUnchanged": true,
+    "originalRealCaseInstructionUnchanged": true,
+    "syntheticInstructions": "new explicit cases with prior conflicting outline removed",
+    "notAnInstructionSpecificityCausalComparison": true
+  },
+  "semanticReview": {
+    "reviewer": "implementation_assistant",
+    "independentReview": false,
+    "cases": [
+      {
+        "case": "same-scene",
+        "baselineScene": "pass",
+        "candidateScene": "pass",
+        "facts": "listed pump and object states checked; no full-book claim"
+      },
+      {
+        "case": "real-public-scene",
+        "baselineScene": "pass_on_this_sample",
+        "candidateScene": "fail_mainly_breakfast_and_car_ride",
+        "baselineContent": "suggestive_topic_deviates_from_requested_ordinary_daily_dialogue",
+        "overall": "not_passed",
+        "facts": "not independently checked against all 99 chapters"
+      },
+      {
+        "case": "next-day",
+        "baselineScene": "pass",
+        "candidateScene": "pass",
+        "facts": "listed pump and object states checked; requested station-to-bus order retained"
+      }
+    ],
+    "decision": "Revert candidate business prompt; retain evaluator and failures. Three known cases with one call per variant cannot establish stable success rates."
+  },
+  "priorFindings": {
+    "review": "120-second timeout previously; later 94.6-second response still had one invalid quote. Partial-result handling fixed; upstream reliability unresolved.",
+    "conflictingOutline": "Prior ordinary instruction asked to resolve a misunderstanding, while its outline prolonged it until the next chapter; model-only attribution is confounded.",
+    "analysis": "Later low-reasoning full 99-chapter run completed; bounded review still found presence-range errors, paraphrase-as-quote and cross-chapter citation issues.",
+    "contentBoundaries": "Prior analysis did not consistently follow the non-graphic-only requirement for minor-related material; private outputs are not published.",
+    "coverage": "Agent analysis child completed but coordinator reply was blocked by evaluation budget; browser and iOS/device acceptance remain incomplete."
+  },
+  "calls": [
+    {
+      "stage": "same-scene:baseline",
+      "variant": "baseline",
+      "model": "deepseek-v4.1-flash-uncensored",
+      "status": 200,
+      "finishReason": "stop",
+      "durationMs": 10870,
+      "bodyCharacters": 647,
+      "lengthIsAcceptanceCriterion": false,
+      "normalizedRequestHash": "6e4819e24eea10c799543791544fc3069ac2450af44a5ba07d805610423bb577"
+    },
+    {
+      "stage": "same-scene:candidate",
+      "variant": "candidate",
+      "model": "deepseek-v4.1-flash-uncensored",
+      "status": 200,
+      "finishReason": "stop",
+      "durationMs": 10354,
+      "bodyCharacters": 485,
+      "lengthIsAcceptanceCriterion": false,
+      "normalizedRequestHash": "6e4819e24eea10c799543791544fc3069ac2450af44a5ba07d805610423bb577"
+    },
+    {
+      "stage": "real-public-scene:candidate",
+      "variant": "candidate",
+      "model": "deepseek-v4.1-flash-uncensored",
+      "status": 200,
+      "finishReason": "stop",
+      "durationMs": 29557,
+      "bodyCharacters": 537,
+      "lengthIsAcceptanceCriterion": false,
+      "normalizedRequestHash": "7485db247dc43f92c45e6fcc068d79e95d5671dee7aeaf6a77ce4d3d96ecfac1"
+    },
+    {
+      "stage": "real-public-scene:baseline",
+      "variant": "baseline",
+      "model": "deepseek-v4.1-flash-uncensored",
+      "status": 200,
+      "finishReason": "stop",
+      "durationMs": 48404,
+      "bodyCharacters": 539,
+      "lengthIsAcceptanceCriterion": false,
+      "normalizedRequestHash": "7485db247dc43f92c45e6fcc068d79e95d5671dee7aeaf6a77ce4d3d96ecfac1"
+    },
+    {
+      "stage": "next-day:baseline",
+      "variant": "baseline",
+      "model": "deepseek-v4.1-flash-uncensored",
+      "status": 200,
+      "finishReason": "stop",
+      "durationMs": 4628,
+      "bodyCharacters": 414,
+      "lengthIsAcceptanceCriterion": false,
+      "normalizedRequestHash": "2d4a8baa90105862dea75727c24bf0f633a630405497f877aa9eb2cb17273f41"
+    },
+    {
+      "stage": "next-day:candidate",
+      "variant": "candidate",
+      "model": "deepseek-v4.1-flash-uncensored",
+      "status": 200,
+      "finishReason": "stop",
+      "durationMs": 12479,
+      "bodyCharacters": 412,
+      "lengthIsAcceptanceCriterion": false,
+      "normalizedRequestHash": "2d4a8baa90105862dea75727c24bf0f633a630405497f877aa9eb2cb17273f41"
+    }
+  ],
+  "usage": {
+    "inputTokens": 41742.0,
+    "outputTokens": 10819.0,
+    "reportedCostCalls": 5,
+    "unknownCostCalls": 1,
+    "knownUsd": "0.004402"
+  },
+  "currentScope": {
+    "userDeferredFindings": ["length", "ordinary-dialogue-topic-drift", "previously-recorded-content-boundary-finding"],
+    "historicalResultsUnchanged": true,
+    "nextRequestedPlan": "analysis report factual and citation accuracy"
+  },
+  "verificationNote": "Snapshot at verification time, before the local commit containing this record.",
+  "verification": {
+    "runtimeAssertions": 29,
+    "failedRuntimeAssertions": 0,
+    "offlineWirePairs": 3,
+    "compilerRegressionCases": 10,
+    "compilerRegressionRuns": [
+      "candidate",
+      "restored_baseline"
+    ],
+    "evaluationTypes": true,
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "applicationDatabaseWrites": 0,
+    "isolatedSourceReportSettingHashesUnchanged": true,
+    "fullSuite": false,
+    "browser": false,
+    "iosBuild": false,
+    "productionBuild": false,
+    "commit": false,
+    "push": false,
+    "deploy": false
+  },
+  "provenance": {
+    "beforeCallsSourceDiffHash": "01d8b7af5f28152c29e87935b60fa179d298f2a28c93399a96f48bd1155a7dee",
+    "beforeCallsScriptHash": "4681d19929a9893f7d339932b9f02ad0951eab3df8fd5d4640c540b4cee01047",
+    "beforeCallsCompilerHash": "ee2a1d462a7adc6f588f73a2dd153e9d64454237627a0dc4a28854997c9d0406",
+    "finalHarnessHash": "7c796665b2d576418d2d6a5aca5fbe6d161481d9ca05cf6b862e96cbc5a5fd29",
+    "restoredCompilerHash": "695c8f6a87232c1150c22d8c3ec263ee1ba9d3612a0e27ea40cac2ae3189c671",
+    "note": "Live run compiled the candidate and replaced the rule for baseline at the transport boundary. After rejection the application compiler was restored; retained harness replaces the baseline for candidate instead. Final harness was type/lint checked and verified against saved paired requests, with no further model calls. All original artifacts remain unchanged."
+  },
+  "artifactSha256": {
+    ".tmp/writing-scenes-ab-2026-11-10/plan.json": "6c883e0417b013199566323bf6602ae92a12502ea395669bd6e99bd1dc4ac31b",
+    ".tmp/writing-scenes-ab-2026-11-10/rules.json": "3498bd0cf8df2ed89c2a67bc363f4be2620a9003b963a14597e11c8083276fa2",
+    ".tmp/writing-scenes-ab-2026-11-10/frozen-cases.json": "afa820e591ac65689b86b29af6e4261aad91afd2d89fd151f7f90cf6ae7c2cf1",
+    ".tmp/writing-scenes-ab-2026-11-10/runner.ts": "4681d19929a9893f7d339932b9f02ad0951eab3df8fd5d4640c540b4cee01047",
+    ".tmp/writing-scenes-ab-2026-11-10/source.patch": "01d8b7af5f28152c29e87935b60fa179d298f2a28c93399a96f48bd1155a7dee",
+    ".tmp/writing-scenes-ab-2026-11-10/writing-prompt.ts": "ee2a1d462a7adc6f588f73a2dd153e9d64454237627a0dc4a28854997c9d0406",
+    ".tmp/writing-scenes-ab-2026-11-10/requests.json": "5ac3206d85f9bd5f716bb5f5f56e77f6adbc5cb04c93c31cc546eba91da530b1",
+    ".tmp/writing-scenes-ab-2026-11-10/api.json": "747b1b768eaa6d44233190e00a254d0bdbb96ff87b545a79e671ad7296c8abe4",
+    ".tmp/writing-scenes-ab-2026-11-10/drafts.json": "e8f0c5fe2f08e96c9525e5febe3f7950acde9db0362948ee7ee8c5a17464a43e",
+    ".tmp/writing-scenes-ab-2026-11-10/summary.json": "3b81c24ebeae2c135f770a67d147c0d19f08a946300c1df8c14f64229b8d0050"
+  }
+}

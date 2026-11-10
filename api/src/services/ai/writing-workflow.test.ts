@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestDb, type TestDb } from '../../test/db'
 import { retrieveWritingHistory, writingMaterialRevision } from './writing-history'
-import { reviewWritingDraft, reviewSourcesCurrent, parseReview } from './writing-review'
-import { chat } from './client'
+import { reviewWritingDraft, reviewSourcesCurrent, parseReview, getWritingReview } from './writing-review'
+import { AiError, chat } from './client'
 import { recordUsage } from './usage'
 import { generationContentRevision, type GenerationRow } from './generations'
 import { validateWritingBrief, type ContinuationSnapshotV1 } from './writing'
@@ -105,17 +105,61 @@ describe('writing history and quality workflow', () => {
     await t.db.query("UPDATE chapters SET content = '来源已修改' WHERE id = 'c1'")
     expect(await reviewSourcesCurrent(t.db, 'book', result.sources, result.anchorId)).toBe(false)
   })
-  it('rejects fabricated evidence and draft quotations, accounts for invalid replies', async () => {
+  it('omits unverifiable findings, marks even an empty result partial, and accounts for invalid replies', async () => {
     const row = await draft()
     vi.mocked(chat).mockResolvedValueOnce({
       ...response,
       text: JSON.stringify({ findings: [{ ...findings[0], evidence: [{ sourceId: 'chapter:other', quote: '别书的秘密' }] }] }),
     })
-    await expect(reviewWritingDraft(t.db, row, snapshot, { userId: 'test', expectedRevision: generationContentRevision(row.result) })).rejects.toThrow(
-      '来源无法核对',
-    )
+    const report = await reviewWritingDraft(t.db, row, snapshot, { userId: 'test', expectedRevision: generationContentRevision(row.result) })
+    expect(report).toMatchObject({ findings: [], completeness: 'partial', rejectedFindings: 1 })
     expect(recordUsage).toHaveBeenCalledTimes(1)
-    expect(() => parseReview(JSON.stringify({ findings: [{ ...findings[0], draftQuote: '草稿没有这句话' }] }), row.result, [])).toThrow('草稿片段不存在')
+    expect(parseReview(JSON.stringify({ findings: [{ ...findings[0], draftQuote: '草稿没有这句话' }] }), row.result, []))
+      .toMatchObject({ findings: [], completeness: 'partial', rejectedFindings: 1 })
+  })
+  it('preserves valid findings beside spliced quotes and retries partial reports without reusing them as complete', async () => {
+    const row = await draft()
+    const opts = { userId: 'test', expectedRevision: generationContentRevision(row.result) }
+    vi.mocked(chat).mockResolvedValueOnce({ ...response, text: JSON.stringify({ findings: [
+      findings[0], { ...findings[0], draftQuote: '钥匙在林舟手里……来人身份' },
+      { ...findings[0], evidence: [{ sourceId: 'chapter:c1', quote: '钥匙……沈月' }] },
+    ] }) })
+    const partial = await reviewWritingDraft(t.db, row, snapshot, opts)
+    expect(partial).toMatchObject({ findings, completeness: 'partial', rejectedFindings: 2 })
+    expect((await getWritingReview(t.db, row)).report).toMatchObject({ findings, completeness: 'partial', stale: false })
+    vi.mocked(chat).mockImplementationOnce(async options => {
+      await options.onProgress?.({ phase: 'thinking', reasoningCharacters: 24 })
+      throw new AiError('timeout', 'AI 服务响应正文读取超时', 504)
+    })
+    await expect(reviewWritingDraft(t.db, row, snapshot, opts)).rejects.toThrow('可以重试')
+    const failed = await getWritingReview(t.db, row)
+    expect(failed.report?.findings).toEqual(findings)
+    expect(failed.attempt).toMatchObject({ status: 'failed', stage: 'thinking', code: 'timeout', retryable: true, reasoningCharacters: 24 })
+    expect(vi.mocked(chat).mock.lastCall?.[0]).toMatchObject({ maxAttempts: 1, retryOnTimeout: false, timeoutMs: 120000 })
+    const complete = await reviewWritingDraft(t.db, row, snapshot, opts)
+    expect(complete).toMatchObject({ findings, completeness: 'complete', rejectedFindings: 0 })
+    await reviewWritingDraft(t.db, row, snapshot, opts)
+    expect(chat).toHaveBeenCalledTimes(3)
+    expect((await draft()).result).toBe(row.result)
+  })
+  it('does not label malformed JSON as a partial or successful empty review', async () => {
+    expect(() => parseReview('{"findings":[', '草稿', [])).toThrow('有效 JSON')
+    expect(() => parseReview('{"result":[]}', '草稿', [])).toThrow('格式无效')
+    expect(parseReview('{"findings":[]}', '草稿', [])).toEqual({ findings: [], completeness: 'complete', rejectedFindings: 0 })
+  })
+  it('retains an older verified report after failures on both its retry and a newer draft version', async () => {
+    const row = await draft()
+    const opts = { userId: 'test', expectedRevision: generationContentRevision(row.result) }
+    vi.mocked(chat).mockResolvedValueOnce({ ...response, text: JSON.stringify({ findings: [...findings, { ...findings[0], draftQuote: '拼接……引句' }] }) })
+    await reviewWritingDraft(t.db, row, snapshot, opts)
+    vi.mocked(chat).mockRejectedValue(new AiError('timeout', 'AI 服务响应正文读取超时', 504))
+    await expect(reviewWritingDraft(t.db, row, snapshot, opts)).rejects.toThrow('可以重试')
+    await t.db.query("UPDATE ai_generations SET result = '新的正文' WHERE id = 'd1'")
+    const updated = await draft()
+    await expect(reviewWritingDraft(t.db, updated, snapshot, { ...opts, expectedRevision: generationContentRevision(updated.result) })).rejects.toThrow('可以重试')
+    const restored = await getWritingReview(t.db, updated)
+    expect(restored.report).toMatchObject({ findings, draftRevision: opts.expectedRevision, stale: true })
+    expect(restored.attempt).toMatchObject({ status: 'failed', draftRevision: generationContentRevision(updated.result) })
   })
   it('does not accept results after edits while a paid check is running', async () => {
     const row = await draft()
@@ -140,7 +184,7 @@ describe('writing history and quality workflow', () => {
       '本章没有涉及约定',
       [source],
     )
-    expect(parsed[0]?.severity).toBe('info')
+    expect(parsed.findings[0]?.severity).toBe('info')
   })
 
   it('coalesces concurrent checks through the lease and accounts truncated responses', async () => {

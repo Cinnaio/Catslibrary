@@ -115,7 +115,8 @@ describe('buildContinuationChapterInstruction', () => {
     expect(res).toContain('本章大纲')
     expect(res).toContain('商议')
     expect(res).toContain('创作要求（多章承接）')
-    expect(res).toContain('严禁从头重新开场')
+    expect(res).toContain('严禁重复已经发生的事件')
+    expect(res).toContain('优先合理转场进入指定场景')
     expect(res).toContain('状态冲突裁决')
     // 关键断言：绝对不能含有总体 instruction，防止模型提前写完全文或从头重新描写
     expect(res).not.toContain('全篇主线')
@@ -148,6 +149,8 @@ describe('buildContinuationChapterInstruction', () => {
     })
     expect(res).toContain('创作要求（前序承接）')
     expect(res).toContain('严禁时间线倒带')
+    expect(res).toContain('作者本次要求或本章大纲明确指定新的地点、时间或场景时，优先')
+    expect(res).not.toContain('严禁无故重置场景开局')
     expect(res).not.toContain('创作要求（多章承接）')
   })
 
@@ -169,7 +172,7 @@ describe('buildContinuationChapterInstruction', () => {
       instruction: '推进日常对话。',
     })
     expect(res).toContain('创作要求（多章承接）')
-    expect(res).toContain('严禁从头重新开场')
+    expect(res).toContain('严禁重复已经发生的事件')
     expect(res).toContain('推进日常对话。')
     expect(res).toContain('第 2 章，共 2 章')
   })

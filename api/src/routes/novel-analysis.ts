@@ -7,6 +7,7 @@ import { withProviderSnapshot } from '../services/ai/provider-snapshot'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { createAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from '../services/ai/novel-analysis-store'
 import { runNovelAnalysis } from '../services/ai/novel-analysis'
+import { applyAnalysisFinding, createAnalysisReview, previewAnalysisReview, runAnalysisReview, stopAnalysisReview } from '../services/ai/novel-analysis-review'
 
 export const novelAnalysisRoutes = new Hono<AuthEnv>()
 novelAnalysisRoutes.use('*', requireAdmin())
@@ -34,6 +35,28 @@ novelAnalysisRoutes.post('/:novelId', async c => {
   return c.json(receipt, receipt.created ? 201 : 200)
 })
 novelAnalysisRoutes.get('/:novelId/:id', async c => c.json(await readAnalysis(getDb(), c.req.param('novelId'), c.req.param('id'))))
+novelAnalysisRoutes.get('/:novelId/:id/review-preview', async c => {
+  const starts = c.req.query('paragraphStarts')
+  if (starts !== undefined && !/^\d+(?:,\d+)*$/.test(starts)) throw new AiError('invalid', '请选择有效报告段落', 422)
+  return c.json(await previewAnalysisReview(getDb(), c.req.param('novelId'), c.req.param('id'), starts === undefined ? undefined : starts.split(',').map(Number)))
+})
+novelAnalysisRoutes.post('/:novelId/:id/reviews', async c => {
+  if (!isTextAiConfigured()) throw new AiError('disabled', '请先配置 AI 文本服务', 503)
+  const body = await c.req.json().catch(() => ({}))
+  const novelId = c.req.param('novelId'), reportId = c.req.param('id')
+  const receipt = await createAnalysisReview(getDb(), c.get('user').id, novelId, reportId, body?.requestId, body?.revision, body?.paragraphStarts)
+  if (receipt.created) void runAnalysisReview(getDb(), novelId, reportId, receipt.reviewId, receipt.taskId,
+    { ipAddress: clientIpFromContext(c), userAgent: c.req.header('user-agent') }).catch(error => console.error('[analysis-review-worker]', error))
+  return c.json(receipt, receipt.created ? 201 : 200)
+})
+novelAnalysisRoutes.post('/:novelId/:id/reviews/:reviewId/stop', async c => {
+  await stopAnalysisReview(getDb(), c.req.param('novelId'), c.req.param('id'), c.req.param('reviewId'))
+  return c.json({ ok: true })
+})
+novelAnalysisRoutes.post('/:novelId/:id/reviews/:reviewId/apply', async c => {
+  const body = await c.req.json().catch(() => ({}))
+  return c.json(await applyAnalysisFinding(getDb(), c.req.param('novelId'), c.req.param('id'), c.req.param('reviewId'), body?.findingId, body?.revision))
+})
 novelAnalysisRoutes.get('/:novelId/:id/sources/:sourceId', async c => {
   const report = await requireAnalysis(getDb(), c.req.param('novelId'), c.req.param('id'))
   const source = report.source_json.find(item => item.id === c.req.param('sourceId'))

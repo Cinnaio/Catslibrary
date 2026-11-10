@@ -1,3 +1,5 @@
+import type { AnalysisReferenceSelection, WritingAnalysisReference } from '@shared/novel-analysis'
+import { getAnalysisReferences, formatAnalysisReferences } from './analysis-reference'
 import { partialUsageRecorder } from './partial-usage'
 import { removeAdPatterns } from '@shared/ad-cleaner'
 import { normalizePlotTimeoutSeconds } from '@shared/ai-plot-timeout'
@@ -12,9 +14,6 @@ import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
-import { getStyleProfile } from './style-profile'
-import { getPlotState } from './plot-state'
-import { getRelationshipProfile } from './relationship-profile'
 import { compileWritingPrompt, WRITING_PROMPT_PIPELINE_VERSION } from './writing-prompt'
 import type { OperatorPromptHit } from './writing-prompt-patches'
 import type { HistoryPassage } from './writing-history'
@@ -150,8 +149,9 @@ export interface ContinuationAnchor {
 }
 
 export interface ContinuationSnapshotV1 {
-  version: 1
-  contextPolicyVersion: 1
+  version: 1 | 2
+  contextPolicyVersion: 1 | 2
+  analysisReferences?: WritingAnalysisReference[]
   anchor: { chapterId: string; title: string; sortOrder: number }
   context: string
   profiles: { style: string; relationship: string; plot: string }
@@ -462,10 +462,10 @@ export function buildContinuationChapterInstruction(opts: {
 }): string {
   const { chapterIndex, totalCount, chapterOutline, nextChapterOutline, hasPriorContext, instruction, targetWords } = opts
   const priorContextConstraint = hasPriorContext && chapterIndex === 0
-    ? '创作要求（前序承接）：本章紧密接续前文已发布章节的最终落点与当前人物状态继续向前推进，严禁时间线倒带、严禁推翻前文已发生状态、严禁无故重置场景开局。'
+    ? '创作要求（前序承接）：沿用前文已发布章节的最新人物状态与既有事实，严禁时间线倒带、严禁推翻前文已发生状态。默认接续前文结尾；作者本次要求或本章大纲明确指定新的地点、时间或场景时，优先按该要求安排合理转场或时间过渡，并进入指定场景，不要因默认承接规则滞留原地点。不重复已经发生的事件。'
     : ''
   const continuationConstraint = chapterIndex > 0
-    ? '创作要求（多章承接）：上一章已推进本方向的开局或前文剧情。本章必须紧密承接上一章草稿的结尾与最新状态继续向前推进后续剧情，严禁从头重新开场，严禁重复上一章草稿中已经发生过的事件、人物出场或相同对话。【状态冲突裁决】：若上一章草稿实际结尾已提前推进了本章大纲的某些前置事件，以最新草稿的实际现状为最高事实基准顺延推进新情节；严禁时光倒流回旧起点，严禁将已发生的事件通过闪回或回忆重复描写。'
+    ? '创作要求（多章承接）：上一章已推进本方向的开局或前文剧情。本章承接上一章草稿的最新事实与人物状态继续推进，严禁重复已经发生的事件、人物出场或相同对话。默认接续上一章结尾；作者本章要求或本章大纲指定新地点、时间或场景时，优先合理转场进入指定场景，不要求留在上一章地点。【状态冲突裁决】：若上一章草稿实际结尾已提前推进了本章大纲的某些前置事件，以最新草稿的实际现状为事实基准顺延推进新情节；严禁时光倒流回旧起点，严禁将已发生的事件通过闪回或回忆重复描写。'
     : ''
 
   const boundaryNotice = nextChapterOutline && nextChapterOutline.trim()
@@ -482,7 +482,7 @@ export function buildContinuationChapterInstruction(opts: {
     : (instruction || '')
 
   const words = Math.max(300, Math.min(30000, Math.trunc(Number(targetWords) || 0)))
-  const countNotice = `这是续写的第 ${chapterIndex + 1} 章，共 ${totalCount} 章。目标字数为本章约 ${words} 字。`
+  const countNotice = `这是续写的第 ${chapterIndex + 1} 章，共 ${totalCount} 章。目标字数为本章正文约 ${words} 字（不计标题和空白，包含标点）。篇幅统一以此处目标值为准，其他描述中的字数不另立目标。请围绕这个篇幅安排情节与自然结尾，避免额外铺陈造成明显超长。`
 
   return [taskContent, boundaryNotice, priorContextConstraint, continuationConstraint, countNotice].filter(Boolean).join('\n\n')
 }
@@ -533,6 +533,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
   novelId: string
   /** 从哪一章之后续写；缺省用最后一章。 */
   afterChapterId?: string
+  analysisReferences?: AnalysisReferenceSelection[]
   /** 作者想要的侧重点；可为空。 */
   focus?: string
   /**
@@ -565,6 +566,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
   if (!novel) throw new AiError('invalid', '小说不存在', 404)
   const loaded = await loadContinuationContext(db, opts.novelId, opts.afterChapterId)
   const context = loaded?.context || ''
+  const { reports } = await getAnalysisReferences(db, opts.novelId, loaded?.anchor.chapterId || '', opts.analysisReferences)
   if (!context) throw new AiError('invalid', '此书暂无已发布章节，无法推荐情节', 422)
 
   // 开启露骨模式时，五条里要有明确以成人场景为主体的方向，而不是把亲密互动
@@ -632,6 +634,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
     ].filter(Boolean).join('\n\n')
   }
 
+  prompt += '\n\n' + formatAnalysisReferences(reports)
   const planningBrief = formatPlanningWritingBrief(opts.writingBrief)
   if (planningBrief) prompt += `\n\n${planningBrief}`
 
@@ -749,28 +752,7 @@ export async function generateWriting(db: Db, opts: {
   const contentPreferences = contentPreferencesResult.preferences || { ...DEFAULT_WRITING_CONTENT_PREFERENCES }
   const provider = textProvider()
   const settings = await getAiSettings(db)
-  // 风格画像：把「保持风格一致」这句空话换成从原文提取的具体特征（句式/节奏/语气/设定）。
-  // 未提取过则退回 settings 里的 system prompt 兜底——风格画像缺失不应阻断续写。
-  const hasProfileOverrides = opts.profileOverrides !== undefined
-  const styleProfile = opts.kind === 'write_outline'
-    ? ''
-    : hasProfileOverrides
-      ? String(opts.profileOverrides?.style || '')
-      : await getStyleProfile(db, opts.novelId)
-  // 关系画像：角色关系动态/权力结构/心理边界，作为有来源的关系材料注入。
-  const relationshipProfile = opts.kind === 'write_outline'
-    ? ''
-    : hasProfileOverrides
-      ? String(opts.profileOverrides?.relationship || '')
-      : await getRelationshipProfile(db, opts.novelId)
-  // 情节状态：结构化的角色处境/伏笔/待解决冲突。多章续写时上下文会截断丢前文，
-  // 这里把提炼后的状态放进当前状态材料层（随剧情推进变，与风格材料区分）。
-  // 大纲生成不需要情节状态；未提取过则跳过，不阻断续写。
-  const plotState = opts.kind === 'write_outline'
-    ? undefined
-    : hasProfileOverrides
-      ? { state: String(opts.profileOverrides?.plot || ''), chaptersThrough: 0 }
-      : await getPlotState(db, opts.novelId)
+  const analysisReferences = opts.continuationSnapshot?.analysisReferences || []
   const usePipeline = promptPipelineVersion === WRITING_PROMPT_PIPELINE_VERSION
   let system = ''
   let user = ''
@@ -787,12 +769,7 @@ export async function generateWriting(db: Db, opts: {
       chapterCount: opts.chapterCount,
       batchIndex: opts.batchIndex,
       writingBrief: opts.writingBrief,
-      styleProfile,
-      relationshipProfile,
-      plotState,
       batchDrafts: opts.batchDrafts,
-      profileSources: opts.continuationSnapshot?.profileSources,
-      profileOrigins: opts.continuationSnapshot?.profileOrigins,
       continuationSnapshot: opts.continuationSnapshot,
       contentPreferences,
       writingSystemPrompt: settings.writingSystemPrompt,
@@ -809,8 +786,6 @@ export async function generateWriting(db: Db, opts: {
       systemParts.push('本次请求只能创作一章。只在开头输出一次章节标题，正文中不得出现下一章、上一章或任何额外章节标题；写完本章立即停止。')
       systemParts.push('首行必须使用「标题：章节名」，随后空一行再写正文；不要单独输出裸标题或章节序号。')
     }
-    if (styleProfile) systemParts.push(`本作风格特征（续写须严格遵循）：\n${styleProfile}`)
-    if (relationshipProfile) systemParts.push(`本作角色关系动态（续写须保持人设与权力结构一致，不得逾越关系边界）：\n${relationshipProfile}`)
     systemParts.push(formatWritingContentPreferences(contentPreferences))
     system = systemParts.join('\n\n')
     const optionInstructions = [
@@ -826,7 +801,7 @@ export async function generateWriting(db: Db, opts: {
       briefParts.goal,
       opts.instruction ? `补充创作要求：${opts.instruction}` : '',
       opts.outline ? `大纲：\n${cleanWritingText(opts.outline)}` : '',
-      plotState?.state ? `本作情节状态（续写须保持人设与伏笔一致）：\n${plotState.state}` : '',
+      formatAnalysisReferences(analysisReferences),
       opts.context ? `已有剧情上下文：\n${cleanWritingText(opts.context)}` : '',
     ].filter(Boolean).join('\n\n')
   }

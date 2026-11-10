@@ -399,6 +399,24 @@ struct AiCoverPromptResponse: Codable {
 
 // MARK: 已生成内容（GET /api/ai/generations 等）
 
+struct AiWritingQualityWarning: Codable, Hashable {
+    let code: String
+    let source: String
+    let message: String
+}
+
+struct AiWritingQuality: Codable, Hashable {
+    let warnings: [AiWritingQualityWarning]
+    let bodyCharacters: Int
+    let targetWords: Int
+    let finishReason: String?
+    let editedSinceGeneration: Bool?
+
+    var needsShortening: Bool {
+        targetWords > 0 && warnings.contains { $0.code == "long_chapter" }
+    }
+}
+
 struct AiGeneration: Codable, Identifiable, Hashable {
     let id: String
     let novelId: String?
@@ -418,6 +436,7 @@ struct AiGeneration: Codable, Identifiable, Hashable {
     let draftTitle: String?
     /// 服务端正文 UTF-8 SHA-256，用于选段改写的乐观并发校验。
     let contentRevision: String?
+    let quality: AiWritingQuality?
 
     var isDraft: Bool { status == "draft" }
     var isPublished: Bool { status == "published" }
@@ -466,6 +485,7 @@ struct AiRewriteApplyResponse: Codable {
     let id: String?
     let result: String?
     let contentRevision: String?
+    let quality: AiWritingQuality?
 }
 
 // MARK: 草稿发布（POST /api/ai/writing/drafts/:id/publish 等）
@@ -498,6 +518,7 @@ struct AiDraftUpdateResponse: Codable {
     let id: String?
     let result: String?
     let contentRevision: String?
+    let quality: AiWritingQuality?
 }
 
 // MARK: 画像提取（POST/GET /api/ai/writing/style-profile 等）

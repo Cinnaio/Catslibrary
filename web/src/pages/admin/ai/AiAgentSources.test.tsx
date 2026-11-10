@@ -4,6 +4,15 @@ import type { AgentEvidence } from '@shared/ai-agent'
 import AiAgentSources from './AiAgentSources'
 
 describe('Agent evidence snapshots', () => {
+  it('opens the precise report and shows its range, saved revision and human correction', () => {
+    render(<AiAgentSources sources={[{ id: 'analysis-source', kind: 'analysis', novelId: 'book/id', reportId: 'report?id', reportRevision: 3,
+      title: '人物分析', origin: 'manual', revision: '3', offset: 0, endOffset: 8, excerpt: '尚未和解。', truncated: true,
+      fromChapter: { id: 'early', title: '灯塔' }, throughChapter: { id: 'anchor', title: '雨港' } }]} />)
+    fireEvent.click(screen.getByText('查阅依据 · 1'))
+    expect(screen.getByRole('link', { name: '人物分析' })).toHaveAttribute('href', '/admin/ai?sub=analysis&novel=book%2Fid&report=report%3Fid')
+    expect(screen.getByText('人工修订报告')).toBeInTheDocument()
+    expect(screen.getByText(/范围：《灯塔》至《雨港》/)).toHaveTextContent('修订 3')
+  })
   it('opens retrieved text with escaped chapter links and distinguishes archives from exact quotations', () => {
     const chapter: AgentEvidence = {
       id: 'source-1',

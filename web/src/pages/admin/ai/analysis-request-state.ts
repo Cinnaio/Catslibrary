@@ -37,3 +37,21 @@ export function saveAnalysisDraft(key: string, value: AnalysisDraft | null) {
     else sessionStorage.removeItem(key)
   } catch { /* The editor still retains the current input in memory. */ }
 }
+
+export interface PendingAnalysisReview { requestId: string; revision: number; paragraphStarts?: number[] }
+export function readPendingAnalysisReview(key: string): PendingAnalysisReview | null {
+  try {
+    const value = JSON.parse(key ? sessionStorage.getItem(key) || 'null' : 'null')
+    return value && typeof value.requestId === 'string' && /^[a-zA-Z0-9_-]{8,160}$/.test(value.requestId)
+      && Number.isSafeInteger(value.revision) && value.revision > 0
+      && (value.paragraphStarts === undefined || (Array.isArray(value.paragraphStarts) && value.paragraphStarts.length <= 8
+        && value.paragraphStarts.every((start: unknown) => Number.isSafeInteger(start) && Number(start) >= 0))) ? value : null
+  } catch { return null }
+}
+export function savePendingAnalysisReview(key: string, value: PendingAnalysisReview | null) {
+  if (!key) return
+  try {
+    if (value) sessionStorage.setItem(key, JSON.stringify(value))
+    else sessionStorage.removeItem(key)
+  } catch { /* Retain the same request in memory if session storage is unavailable. */ }
+}

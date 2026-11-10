@@ -1,0 +1,13 @@
+{
+  "description": "固定的非私密核对样本，四组错误/正确对照；最后一组不参与提示调整。每项只调用一次，不重采样。",
+  "cases": [
+    {"id":"presence-bad","chapters":["青遥担心父母看到信，立刻关上抽屉。","父母那时在邻镇，晚上才回来。"],"report":"父母在场看到青遥收信。[[S1]]","expectIssue":true,"criterion":"发现担心/实际在场混淆，修订不再声称父母看见"},
+    {"id":"presence-good","chapters":["青遥担心父母看到信，立刻关上抽屉。","父母那时在邻镇，晚上才回来。"],"report":"青遥担心父母看到信，关上了抽屉。[[S1]]父母当时在邻镇，晚上才回来。[[S2]]","expectIssue":false,"criterion":"保留正确事实，不凭担心制造矛盾"},
+    {"id":"paraphrase-bad","chapters":["青遥担心父母看到信，立刻关上抽屉。"],"report":"原文写道：“青遥因担心暴露而迅速将信收起。”[[S1]]","expectIssue":true,"criterion":"识别概括冒充原句，不把字词近似当逐字匹配"},
+    {"id":"quotation-good","chapters":["青遥担心父母看到信，立刻关上抽屉。"],"report":"原文写道：“青遥担心父母看到信，立刻关上抽屉。”[[S1]]","expectIssue":false,"criterion":"准确引句保留"},
+    {"id":"cross-chapter-bad","chapters":["她问：“明天你会来吗？”","他答：“我明天一定会来。”"],"report":"她问：“明天你会来吗？”[[S2]]，他答：“我明天一定会来。”[[S2]]","expectIssue":true,"criterion":"问题改标S1，回答仍标S2，不合并成一条原句"},
+    {"id":"cross-chapter-good","chapters":["她问：“明天你会来吗？”","他答：“我明天一定会来。”"],"report":"她问：“明天你会来吗？”[[S1]]，他答：“我明天一定会来。”[[S2]]","expectIssue":false,"criterion":"分别对应章节的准确问答保留"},
+    {"id":"holdout-transfer-bad","chapters":["陆远告诉宋乔，他打算第二天把铜钥匙交给管理员。宋乔当晚没有去仓库。","第二天陆远改变计划，铜钥匙依然留在他手里。"],"report":"宋乔亲眼看见陆远把铜钥匙交给管理员，交接已经完成。[[S1]][[S2]]","expectIssue":true,"criterion":"区分转述/目睹、计划/完成，并按后文改变计划修正"},
+    {"id":"holdout-transfer-good","chapters":["陆远告诉宋乔，他打算第二天把铜钥匙交给管理员。宋乔当晚没有去仓库。","第二天陆远改变计划，铜钥匙依然留在他手里。"],"report":"宋乔听陆远说过交钥匙的计划，没有目睹交接。[[S1]]第二天陆远改变计划，仍持有铜钥匙。[[S2]]","expectIssue":false,"criterion":"保留后文确认的持有状态，不将计划仍当完成或未知"}
+  ]
+}

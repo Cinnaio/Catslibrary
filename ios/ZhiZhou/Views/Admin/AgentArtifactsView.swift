@@ -44,6 +44,11 @@ private struct AgentArtifactCard: View {
     let model: AdminAIAgentConversationModel
     let artifact: AIAgentArtifact
     private var task: AIAgentTask { model.tasks[artifact.id] ?? artifact.task }
+    private var analysisURL: URL? {
+        guard let report = artifact.analysisReport, report.url.hasPrefix("/admin/ai?"),
+              let base = ServerConfig.shared.baseURL else { return nil }
+        return URL(string: report.url, relativeTo: base)?.absoluteURL
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -60,6 +65,9 @@ private struct AgentArtifactCard: View {
             }
             ForEach(artifact.drafts) { draft in
                 AgentDraftResultView(model: model, draft: draft, publishable: ["continue", "write_chapter"].contains(task.kind))
+            }
+            if let analysisURL, let report = artifact.analysisReport {
+                Link("阅读\(report.title)", destination: analysisURL).frame(minHeight: 44)
             }
             if let rewrite = artifact.rewrite {
                 DisclosureGroup("查看改写前后") {
@@ -79,7 +87,7 @@ private struct AgentArtifactCard: View {
                         .buttonStyle(.bordered).disabled(model.working)
                 }
             }
-            if task.status == "completed", artifact.drafts.isEmpty, artifact.covers.isEmpty, artifact.rewrite == nil {
+            if task.status == "completed", artifact.drafts.isEmpty, artifact.covers.isEmpty, artifact.rewrite == nil, artifact.analysisReport == nil {
                 Text(task.kind == "cover" ? "候选可能已采纳或移除，可查看上方采纳记录。" : "任务已完成，详细结果可在 AI 任务中查看。")
                     .font(.footnote).foregroundStyle(AppTheme.textSecondary)
                 NavigationLink("查看 AI 任务") { AdminAITasksView() }

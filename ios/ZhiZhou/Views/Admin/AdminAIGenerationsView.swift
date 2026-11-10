@@ -433,6 +433,15 @@ struct AdminAIGenerationsView: View {
                         .foregroundStyle(AppTheme.textSecondary)
                         .appTextLineLimit(2)
                 }
+                if let quality = item.quality, let warning = quality.warnings.first {
+                    Label("质量提示 · \(quality.warnings.count) 项", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.warning)
+                    Text(warning.message)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .appTextLineLimit(2)
+                }
                 HStack(spacing: 10) {
                     Button("查看") { viewing = item }
                         .font(.subheadline.weight(.medium))
@@ -780,6 +789,8 @@ private struct GenerationDetailSheet: View {
     @State private var savingAction: String?
     @State private var actionError: String?
     @State private var contentRevision = ""
+    @State private var quality: AiWritingQuality?
+    @State private var qualityNotice: String?
     @State private var selectedRange: NSRange?
     @State private var rewriteMode = "polish"
     @State private var rewriteInstruction = ""
@@ -791,6 +802,7 @@ private struct GenerationDetailSheet: View {
     @State private var rewriteApplyOperationID = ""
     @State private var rewriteBusy = false
     @State private var rewritePollTask: Task<Void, Never>?
+    private let maxRewriteScalars = 6_000
 
     private var isEditableDraft: Bool {
         item.isDraft && ["write_chapter", "continue", "write_outline"].contains(item.kind ?? "")
@@ -809,8 +821,14 @@ private struct GenerationDetailSheet: View {
     }
 
     private var canRewriteSelection: Bool {
-        guard isPublishableDraft, !isEditing || !isDirty, let selectedRange else { return false }
-        return selectedRange.location >= 0 && selectedRange.length > 0 && selectedRange.location + selectedRange.length <= (savedText as NSString).length
+        guard isPublishableDraft, !isEditing || !isDirty, let selectedSavedText else { return false }
+        return selectedSavedText.unicodeScalars.count <= maxRewriteScalars
+    }
+
+    private var selectedSavedText: String? {
+        guard let selectedRange, selectedRange.location >= 0, selectedRange.length > 0,
+              selectedRange.location + selectedRange.length <= (savedText as NSString).length else { return nil }
+        return (savedText as NSString).substring(with: selectedRange)
     }
 
     private var rewriteSuggestionIsApplicable: Bool {
@@ -821,6 +839,29 @@ private struct GenerationDetailSheet: View {
               baseRevision == contentRevision,
               !(isEditing && isDirty) else { return false }
         return true
+    }
+
+    private var rewriteSuggestionLengthNotice: String? {
+        guard let suggestion = rewriteSuggestion,
+              suggestion.mode == "shorten",
+              suggestion.startUTF16 == 0,
+              suggestion.endUTF16 == (currentText as NSString).length,
+              suggestion.selectedText == currentText,
+              let text = suggestion.suggestion,
+              let targetWords = quality?.targetWords,
+              targetWords > 0 else { return nil }
+        // Match the server's JavaScript whitespace exclusion and Unicode scalar count.
+        let bodyCharacters = text.unicodeScalars.reduce(0) { count, scalar in
+            switch scalar.value {
+            case 0x0009...0x000D, 0x0020, 0x00A0, 0x1680, 0x2000...0x200A,
+                 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF:
+                return count
+            default:
+                return count + 1
+            }
+        }
+        guard Double(bodyCharacters) > Double(targetWords) * 1.3 else { return nil }
+        return "精简建议仍超过目标 \(targetWords) 字的三成，请核对篇幅后决定是否应用；原稿尚未修改。"
     }
 
     var body: some View {
@@ -841,6 +882,10 @@ private struct GenerationDetailSheet: View {
                         Text(item.isDraft ? "草稿" : item.isPublished ? "已发布" : "已拒绝")
                             .foregroundStyle(item.isDraft ? AppTheme.warning : item.isPublished ? AppTheme.success : AppTheme.textSecondary)
                     }
+                }
+
+                if quality != nil || qualityNotice != nil {
+                    qualitySection
                 }
 
                 Section("内容") {
@@ -887,14 +932,29 @@ private struct GenerationDetailSheet: View {
                             Text("先点“编辑草稿”，在正文中选择一段；改写建议会单独生成，应用前仍需确认。")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.textSecondary)
+                            if let quality, quality.needsShortening {
+                                if savedText.unicodeScalars.count <= maxRewriteScalars {
+                                    Button("精简至目标篇幅") { prepareShortening(targetWords: quality.targetWords) }
+                                        .disabled(saving || rewriteBusy || (isEditing && isDirty))
+                                        .frame(minHeight: 44)
+                                    Text("准备全文选区与约 \(quality.targetWords) 字的精简要求，点击“生成改写建议”后再查看和应用。")
+                                        .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                                } else {
+                                    Button("选择一段精简") { prepareShortening(targetWords: quality.targetWords) }
+                                        .disabled(saving || rewriteBusy || (isEditing && isDirty))
+                                        .frame(minHeight: 44)
+                                    Text("全文超过单次改写的 6000 字符上限（含空白与换行），请在正文中选一段精简。")
+                                        .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                                }
+                            }
                             Picker("模式", selection: $rewriteMode) {
                                 Text("润色").tag("polish")
                                 Text("扩写").tag("expand")
                                 Text("精简").tag("shorten")
                                 Text("自定义").tag("custom")
                             }
-                            if rewriteMode == "custom" {
-                                TextField("改写说明（最多 2000 字）", text: $rewriteInstruction, axis: .vertical)
+                            if rewriteMode == "custom" || rewriteMode == "shorten" || !rewriteInstruction.isEmpty {
+                                TextField(rewriteMode == "custom" ? "改写说明（最多 2000 字符）" : "补充要求（选填，最多 2000 字符）", text: $rewriteInstruction, axis: .vertical)
                                     .lineLimit(2...5)
                             }
                             Button {
@@ -906,9 +966,17 @@ private struct GenerationDetailSheet: View {
                                     Label("生成改写建议", systemImage: "wand.and.stars")
                                 }
                             }
-                            .disabled(!canRewriteSelection || rewriteBusy || (rewriteMode == "custom" && rewriteInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
-                            if !rewriteSelectedText.isEmpty {
-                                LabeledContent("已选中", value: "\(rewriteSelectedText.count) 字")
+                            .disabled(!canRewriteSelection || saving || rewriteBusy || rewriteInstruction.unicodeScalars.count > 2_000 || (rewriteMode == "custom" && rewriteInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                            if let selectedSavedText {
+                                LabeledContent("当前选区", value: "\(selectedSavedText.unicodeScalars.count) 字符")
+                                if selectedSavedText.unicodeScalars.count > maxRewriteScalars {
+                                    Text("选区超过 6000 字符，请缩小范围后生成建议。")
+                                        .font(.caption).foregroundStyle(AppTheme.warning)
+                                }
+                            }
+                            if rewriteInstruction.unicodeScalars.count > 2_000 {
+                                Text("改写要求超过 2000 字符，请缩短后生成建议。")
+                                    .font(.caption).foregroundStyle(AppTheme.warning)
                             }
                             if !rewriteTaskStatus.isEmpty {
                                 Text(rewriteTaskStatus)
@@ -927,6 +995,11 @@ private struct GenerationDetailSheet: View {
                                     Text(rewriteSuggestion.suggestion ?? "")
                                         .font(.subheadline)
                                         .textSelection(.enabled)
+                                    if let rewriteSuggestionLengthNotice {
+                                        Label(rewriteSuggestionLengthNotice, systemImage: "exclamationmark.triangle")
+                                            .font(.caption)
+                                            .foregroundStyle(AppTheme.warning)
+                                    }
                                     if !rewriteSuggestionIsApplicable {
                                         Label("草稿正文已变化或有未保存修改，这条建议不可应用，请重新选择选段。", systemImage: "exclamationmark.triangle")
                                             .font(.caption)
@@ -1044,6 +1117,8 @@ private struct GenerationDetailSheet: View {
             savedText = item.result ?? ""
             editorText = savedText
             contentRevision = item.contentRevision ?? ""
+            quality = item.quality
+            qualityNotice = nil
             selectedRange = nil
             rewriteTaskID = nil
             rewriteTaskStatus = ""
@@ -1061,6 +1136,66 @@ private struct GenerationDetailSheet: View {
         guard !didNotifyClose else { return }
         didNotifyClose = true
         onClose(refresh)
+    }
+
+    private var qualitySection: some View {
+        Section("篇幅与质量提示") {
+            if let quality {
+                LabeledContent("已保存正文", value: "约 \(quality.bodyCharacters) 字")
+                if quality.targetWords > 0 {
+                    LabeledContent("目标篇幅", value: "约 \(quality.targetWords) 字")
+                }
+                ForEach(Array(quality.warnings.enumerated()), id: \.offset) { _, warning in
+                    Label(warning.message, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(AppTheme.warning)
+                }
+                if isEditing && isDirty {
+                    Text("提示依据已保存正文；保存修改后更新。")
+                        .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+            if let qualityNotice {
+                Text(qualityNotice).font(.caption).foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+    }
+
+    private func prepareShortening(targetWords: Int) {
+        guard isPublishableDraft, targetWords > 0, !saving, !rewriteBusy, !(isEditing && isDirty) else { return }
+        editorText = savedText
+        isEditing = true
+        rewriteMode = "shorten"
+        rewriteTaskID = nil
+        rewriteSuggestion = nil
+        rewriteApplyOperationID = ""
+        if savedText.unicodeScalars.count <= maxRewriteScalars {
+            selectedRange = NSRange(location: 0, length: (savedText as NSString).length)
+            rewriteInstruction = "将本章精简至约 \(targetWords) 字，保留关键事实、人物关系、叙事视角和事件顺序，删除重复表达与无效铺陈，不新增剧情，只返回精简后的正文。"
+            rewriteTaskStatus = "已准备全文精简，请查看要求后点击“生成改写建议”。"
+        } else {
+            selectedRange = nil
+            rewriteInstruction = "本章目标约 \(targetWords) 字。请精简当前选段，保留关键事实、人物关系、叙事视角和事件顺序，删除重复表达与无效铺陈，不新增剧情，只返回这个选段的精简正文。"
+            rewriteTaskStatus = "请先在正文中选择不超过 6000 字符的一段，再生成精简建议。"
+        }
+        actionError = nil
+    }
+
+    private func refreshQuality(for text: String, received: AiWritingQuality? = nil) async {
+        quality = received
+        qualityNotice = nil
+        guard received == nil else { return }
+        do {
+            let latest = try await AdminAPI.aiGeneration(id: item.id).item
+            guard savedText == text else { return }
+            if latest.result == text {
+                quality = latest.quality
+            } else {
+                qualityNotice = "服务端正文已变化，请重新打开草稿查看最新质量提示。"
+            }
+        } catch {
+            guard savedText == text else { return }
+            qualityNotice = "正文已保存，质量提示暂未更新，请重新打开草稿查看。"
+        }
     }
 
     private func saveDraft() async {
@@ -1083,12 +1218,22 @@ private struct GenerationDetailSheet: View {
             isEditing = false
             didMutate = true
             actionError = nil
+            await refreshQuality(for: committed, received: response.quality)
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
     }
 
     private func startRewrite() async {
+        guard !saving, !rewriteBusy else { return }
+        if let selectedSavedText, selectedSavedText.unicodeScalars.count > maxRewriteScalars {
+            actionError = "选区超过 6000 字符，请缩小范围后生成建议"
+            return
+        }
+        guard rewriteInstruction.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.count <= 2_000 else {
+            actionError = "改写要求超过 2000 字符，请缩短后重试"
+            return
+        }
         guard canRewriteSelection, let selectedRange else {
             actionError = isEditing && isDirty ? "请先保存正文，再重新选择选段" : "请在已保存正文中选择一段"
             return
@@ -1204,6 +1349,7 @@ private struct GenerationDetailSheet: View {
             rewriteApplyOperationID = ""
             isEditing = false
             didMutate = true
+            await refreshQuality(for: result, received: response.quality)
         } catch {
             // 应用请求可能在服务端已提交后才丢响应；用同一 operationId 重放，禁止生成第二次替换。
             do {
@@ -1218,6 +1364,7 @@ private struct GenerationDetailSheet: View {
                 rewriteApplyOperationID = ""
                 isEditing = false
                 didMutate = true
+                await refreshQuality(for: result, received: response.quality)
             } catch {
                 actionError = AppCopy.friendlyError(error)
             }
@@ -1263,6 +1410,8 @@ private struct GenerationDetailSheet: View {
                 savedText = committed
                 editorText = committed
                 contentRevision = response.contentRevision ?? contentRevision
+                quality = response.quality
+                qualityNotice = nil
                 selectedRange = nil
                 rewriteSuggestion = nil
                 rewriteTaskID = nil

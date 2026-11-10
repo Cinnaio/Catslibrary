@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import type { StoryGraphResponse } from '@shared/story-graph'
-import { buildStoryGraphEvidenceSources, resolveStoryGraphEvidence } from './story-graph-evidence'
+import type { WritingAnalysisReference } from '@shared/novel-analysis'
+import { buildStoryGraphEvidenceSources, resolveStoryGraphEvidence, type StoryGraphEvidenceInput } from './story-graph-evidence'
 import { validateStoryGraph } from './story-graph'
 
-const quote = '林舟与沈砚合作查案。\r\n双方仍有隐瞒。[章节ID:c1][章节ID:c2][章节ID:foreign]'
-function input(content = quote): Pick<StoryGraphResponse, 'archives' | 'chapters'> {
+const quote = '林舟与沈砚合作查案。\r\n双方仍有隐瞒。[[S1]][[S2]][[S3]][[S99]][章节ID:c2][章节ID:foreign]'
+function report(content = quote, overrides: Partial<WritingAnalysisReference> = {}): WritingAnalysisReference {
   return {
-    archives: [{ kind: 'relationship', content, chaptersThrough: 1, eligibility: 'usable', origin: 'automatic' }],
+    id: 'report-1', revision: 1, kind: 'relationships', content, edited: false,
+    startChapter: { id: 'c1', title: '初遇' }, endChapter: { id: 'c1', title: '初遇' },
+    sources: ['c1', 'c2', 'foreign'].map((chapterId, i) => ({ id: `S${i + 1}`, chapterId, chapterTitle: chapterId,
+      chapterOrdinal: i + 1, part: 1, offset: 0, endOffset: 20, revision: 'original' })),
+    ...overrides,
+  }
+}
+function input(content = quote): StoryGraphEvidenceInput {
+  return {
+    reports: [report(content)],
     chapters: [
       { id: 'c1', title: '初遇', ordinal: 1 },
       { id: 'c2', title: '后续', ordinal: 2 },
@@ -43,12 +52,12 @@ describe('server-owned story graph evidence', () => {
       expect(() => resolveStoryGraphEvidence(modelGraph(ids), sources)).toThrow('people[0].evidenceIds')
     }
     for (const ids of [[{}], ['missing'], [sources[0]!.id]]) {
-      const current = buildStoryGraphEvidenceSources(input(quote + '\n档案已经更新。'))
+      const current = buildStoryGraphEvidenceSources(input(quote + '\n报告已经更新。'))
       expect(() => resolveStoryGraphEvidence(modelGraph(ids), current)).toThrow('people[0].evidenceIds[0]')
     }
   })
-  it('keeps long archives fully represented by bounded exact excerpts and stable IDs', () => {
-    const content = '林舟调查。' + '长段事实😀'.repeat(700) + '[章节ID:c1]沈砚回应。'
+  it('keeps long reports fully represented by bounded exact excerpts and stable IDs', () => {
+    const content = '林舟调查。' + '长段事实😀'.repeat(700) + '[[S1]]沈砚回应。'
     const sources = buildStoryGraphEvidenceSources(input(content))
     expect(sources.length).toBeGreaterThan(1)
     expect(sources.every((s) => s.quote.length <= 1200 && content.includes(s.quote))).toBe(true)
@@ -64,19 +73,47 @@ describe('server-owned story graph evidence', () => {
     }
     expect(covered.size).toBe(content.length)
   })
-  it('does not expose unusable archives and separates archive kinds', () => {
+  it('does not expose reports outside the anchor or graph kinds and separates evidence kinds', () => {
     const original = input()
-    const combined = { ...original, archives: [original.archives[0]!, { ...original.archives[0]!, kind: 'plot' as const }] }
+    const combined = { ...original, reports: [report(), report(quote, { id: 'plot', kind: 'plot' })] }
     const sources = buildStoryGraphEvidenceSources(combined)
     expect(sources).toHaveLength(2)
     expect(sources[0]!.id).not.toBe(sources[1]!.id)
-    expect(buildStoryGraphEvidenceSources({ ...original, archives: [{ ...original.archives[0]!, eligibility: 'stale' }] })).toEqual([])
+    expect(buildStoryGraphEvidenceSources({ ...original, reports: [report(quote, { kind: 'style' })] })).toEqual([])
+    expect(buildStoryGraphEvidenceSources({ ...original, reports: [report(quote, { endChapter: { id: 'future', title: '未来' } })] })).toEqual([])
+  })
+  it('keeps identical S# citations local to each report and rejects combined chapter mappings', () => {
+    const content = '林舟仍在调查。[[S1]]'
+    const original = input(content)
+    const second = report(content, { id: 'report-2', kind: 'characters',
+      startChapter: { id: 'c2', title: '后续' }, endChapter: { id: 'c2', title: '后续' },
+      sources: [{ ...report().sources[0]!, chapterId: 'c2', chapterOrdinal: 2 }],
+    })
+    const combined = { ...original, reports: [original.reports[0]!, second] }
+    const sources = buildStoryGraphEvidenceSources(combined)
+    expect(sources.map(source => source.chapterIds)).toEqual([['c1'], ['c2']])
+    expect(sources[0]!.id).not.toBe(sources[1]!.id)
+    for (let index = 0; index < sources.length; index++) {
+      expect(validateStoryGraph(resolveStoryGraphEvidence(modelGraph([sources[index]!.id]), sources), combined)
+        .people[0]?.evidence[0]?.chapterIds).toEqual([`c${index + 1}`])
+    }
+    const tampered = { ...modelGraph([]), people: [{ id: 'p1', name: '林舟', aliases: [], summary: '调查',
+      evidence: [{ kind: 'relationship', quote: content, chapterIds: ['c1', 'c2'] }] }] }
+    expect(() => validateStoryGraph(tampered, combined)).toThrow('章节来源')
+    expect(buildStoryGraphEvidenceSources({ ...combined, chapters: original.chapters.slice(0, 1) }).map(source => source.chapterIds)).toEqual([['c1']])
+  })
+  it('never treats author-entered chapter markers as report sources and changes IDs on revision', () => {
+    const original = input('林舟仍在调查。[章节ID:c1]')
+    const sources = buildStoryGraphEvidenceSources(original)
+    expect(sources[0]?.chapterIds).toEqual([])
+    const updated = buildStoryGraphEvidenceSources({ ...original, reports: [report(original.reports[0]!.content, { revision: 2 })] })
+    expect(updated[0]?.id).not.toBe(sources[0]?.id)
   })
   it('resolves relationship and thread references and reports unknown references in both collections', () => {
     const original = input()
     const combined = {
       ...original,
-      archives: [original.archives[0]!, { ...original.archives[0]!, kind: 'plot' as const, content: '林舟发现信件。[章节ID:c1]' }],
+      reports: [original.reports[0]!, report('林舟发现信件。[[S1]]', { id: 'plot', kind: 'plot' })],
     }
     const sources = buildStoryGraphEvidenceSources(combined)
     const raw = {
@@ -86,7 +123,7 @@ describe('server-owned story graph evidence', () => {
     }
     const graph = validateStoryGraph(resolveStoryGraphEvidence(raw, sources), combined)
     expect(graph.relationships[0]?.evidence[0]?.kind).toBe('relationship')
-    expect(graph.threads[0]?.evidence[0]).toMatchObject({ kind: 'plot', quote: '林舟发现信件。[章节ID:c1]', chapterIds: ['c1'] })
+    expect(graph.threads[0]?.evidence[0]).toMatchObject({ kind: 'plot', quote: '林舟发现信件。[[S1]]', chapterIds: ['c1'] })
     for (const key of ['relationships', 'threads'] as const) {
       const broken = { ...raw, [key]: raw[key].map((node) => ({ ...node, evidenceIds: ['unknown'] })) }
       expect(() => resolveStoryGraphEvidence(broken, sources)).toThrow(`${key}[0].evidenceIds[0]`)

@@ -1,7 +1,7 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// AI 创作：新写 / 续写，大纲 / 章节 / 多章续写后台任务，画像提取（风格/情节/关系）与标题生成。
+/// AI 创作：新写 / 续写，大纲 / 章节后台任务、小说分析参考入口与标题生成。
 /// 对齐 Web 端 admin ai AiWritingPanel（/api/ai/writing/*）。
 struct AdminAIWritingView: View {
     private let initialNovel: Novel?
@@ -82,7 +82,6 @@ struct AdminAIWritingView: View {
     @State private var chapterLoadFailed = false
     @State private var afterChapterId = ""
     @State private var selectionRequests = ListRequestGuard<String>()
-    @State private var profileRequests = ListRequestGuard<String>()
 
     // 表单
     @State private var mode: Mode = .continueWriting
@@ -139,52 +138,6 @@ struct AdminAIWritingView: View {
     @State private var showOutlineOverwriteWarning = false
     @State private var showLargeTaskWarning = false
     @State private var pendingContinuationScope: ContinuationScope?
-
-    // 画像
-    @State private var profileSummaries: [String: AiProfileSummary] = [:]
-    @State private var styleProfile = ""
-    @State private var styleEligibility = ""
-    @State private var styleEffectiveContent = ""
-    @State private var styleManualOverride: AiManualProfileOverride?
-    @State private var styleBaseProfileRevision = ""
-    @State private var styleUpdatedAt: Int64 = 0
-    @State private var plotState = ""
-    @State private var plotChaptersThrough = 0
-    @State private var plotChapterCount = 0
-    @State private var relationshipProfile = ""
-    @State private var relationshipEligibility = ""
-    @State private var plotEligibility = ""
-    @State private var plotEffectiveContent = ""
-    @State private var plotManualOverride: AiManualProfileOverride?
-    @State private var plotBaseProfileRevision = ""
-    @State private var plotUpdatedAt: Int64 = 0
-    @State private var relationshipEffectiveContent = ""
-    @State private var relationshipManualOverride: AiManualProfileOverride?
-    @State private var relationshipBaseProfileRevision = ""
-    @State private var relationshipUpdatedAt: Int64 = 0
-    @State private var profileBusy = ""
-    @State private var profileStartedAt: Date?
-    @State private var plotProgress: AiMemoryProgress?
-    @State private var relationshipProgress: AiMemoryProgress?
-    @State private var plotMemoryTask: AiMemoryTask?
-    @State private var relationshipMemoryTask: AiMemoryTask?
-    @State private var profilePausing = ""
-    @State private var profileErrors: [String: String] = [:]
-    @State private var profilePollRevision = 0
-    @State private var profileReadError: String?
-    @State private var profileOperationID = UUID()
-    @State private var profileEditorKind = ""
-    @State private var profileEditorText = ""
-    @State private var profileEditorRevision = 0
-    @State private var profileEditorBaseRevision = ""
-    @State private var profileEditorBusy = false
-    @State private var profileEditorLoadingKind = ""
-    @State private var showingProfileEditor = false
-    @State private var pendingProfileRefreshScope = ""
-    @State private var pendingProfileRefreshNovelID = ""
-    @State private var pendingProfileRefreshAnchorID = ""
-    @State private var pendingProfileRefreshBaseline: Int64 = 0
-    @State private var isRecoveringProfileRefresh = false
 
     // 任务
     @State private var starting = false
@@ -359,9 +312,6 @@ struct AdminAIWritingView: View {
                 AdminAIGenerationsView(taskID: activeTask?.id)
             }
         }
-        .sheet(isPresented: $showingProfileEditor) {
-            profileEditorSheet
-        }
         .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
             guard operation.action == .terminateAITask,
                   let taskID = operation.targetIDs.first else { return }
@@ -369,18 +319,8 @@ struct AdminAIWritingView: View {
         }
     }
 
-    private var profilePollingIdentity: String {
-        [novelId, afterChapterId, appState.user?.id ?? "", String(describing: scenePhase),
-         String(profilePollRevision), profileBusy, profilePausing,
-         String(plotMemoryTask?.isRunning == true), String(relationshipMemoryTask?.isRunning == true)]
-            .joined(separator: "|")
-    }
-
     private var lifecycleContent: some View {
         presentedContent
-        .task(id: profilePollingIdentity) {
-            await pollProfileProgress()
-        }
         .onDisappear {
             saveInputDraft()
             pollTask?.cancel()
@@ -402,11 +342,10 @@ struct AdminAIWritingView: View {
 
     private var selectionObservers: some View {
         lifecycleContent
-        .onChange(of: afterChapterId) { _, anchorID in
+        .onChange(of: afterChapterId) { _, _ in
             guard restoredSelection != selectionSnapshot else { return }
             guard mode == .continueWriting, !novelId.isEmpty else { return }
             resetContinuationAssistState(clearOutline: true)
-            Task { await loadProfileStatuses(novelID: novelId, anchorID: anchorID.isEmpty ? nil : anchorID) }
         }
         .onChange(of: continuationScope) { _, value in
             guard restoredSelection != selectionSnapshot else { return }
@@ -489,7 +428,7 @@ struct AdminAIWritingView: View {
             }
             if showAdvancedOptions {
                 contentPreferencesSection
-                profileSection
+                analysisReferenceSection
                 if mode == .continueWriting { continuationAssistSection }
             }
             Section {
@@ -631,7 +570,6 @@ struct AdminAIWritingView: View {
                     if draftContextID == "general" {
                         Button("换一本") { showNovelPicker = true }
                             .font(.subheadline)
-                            .disabled(!profileBusy.isEmpty)
                     }
                 }
                 .listRowBackground(Color.clear)
@@ -790,53 +728,28 @@ struct AdminAIWritingView: View {
         .font(.subheadline)
     }
 
-    // MARK: - 画像
-
-    private var profileSection: some View {
-        Section {
-            profileRow(
-                kind: "style",
-                label: "风格画像",
-                value: styleEffectiveContent.isEmpty ? styleProfile : styleEffectiveContent,
-                status: styleEligibility,
-                origin: profileOrigin(kind: "style", for: styleManualOverride, effective: styleEffectiveContent),
-                busy: profileBusy == "style",
-                action: { Task { await refreshProfile("style") } },
-                edit: { Task { await loadProfileForEditing(kind: "style") } },
-                empty: "未提取 · 提取后续写自动注入"
-            )
-            profileRow(
-                kind: "plot",
-                label: "情节状态",
-                value: plotEffectiveContent.isEmpty ? plotState : plotEffectiveContent,
-                status: plotEligibility,
-                origin: profileOrigin(kind: "plot", for: plotManualOverride, effective: plotEffectiveContent),
-                busy: profileBusy == "plot",
-                action: { Task { await refreshProfile("plot") } },
-                edit: { Task { await loadProfileForEditing(kind: "plot") } },
-                empty: plotSummary
-            )
-            profileRow(
-                kind: "relationship",
-                label: "关系画像",
-                value: relationshipEffectiveContent.isEmpty ? relationshipProfile : relationshipEffectiveContent,
-                status: relationshipEligibility,
-                origin: profileOrigin(kind: "relationship", for: relationshipManualOverride, effective: relationshipEffectiveContent),
-                busy: profileBusy == "relationship",
-                action: { Task { await refreshProfile("relationship") } },
-                edit: { Task { await loadProfileForEditing(kind: "relationship") } },
-                empty: "未提取 · 提取后续写自动注入"
-            )
-            if let profileReadError {
-                Text(profileReadError).font(.caption).foregroundStyle(AppTheme.warning)
-                Button("刷新进度") { profilePollRevision += 1 }
-                    .font(.caption)
+    private var analysisReferenceSection: some View {
+        Section("小说分析参考") {
+            Text("生成时自动选取当前起点以内、正文未变化的各主题最新完整报告；没有可用报告时直接依据正文创作。")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+            if let analysisURL {
+                Link("阅读与修订分析报告", destination: analysisURL)
             }
-        } header: {
-            Text("创作画像")
         } footer: {
-            Text("画像按当前小说与续写起点使用。情节与关系分析在离开页面后继续，只有点击暂停才停止；阶段内容不等同于完整画像。")
+            Text("报告可能包含推断，应结合原文核对。需要手动选择或取消参考时，可在网页创作工作区调整。")
         }
+    }
+
+    private var analysisURL: URL? {
+        guard !novelId.isEmpty, let base = ServerConfig.shared.baseURL else { return nil }
+        var components = URLComponents(url: base.appendingPathComponent("admin/ai"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "sub", value: "writing"), URLQueryItem(name: "view", value: "analysis"),
+                                 URLQueryItem(name: "novel", value: novelId)]
+        if !afterChapterId.isEmpty {
+            components?.queryItems?.append(URLQueryItem(name: "afterChapterId", value: afterChapterId))
+        }
+        return components?.url
     }
 
     private var continuationAssistSection: some View {
@@ -953,11 +866,6 @@ struct AdminAIWritingView: View {
                 LabeledContent("写作范围", value: continuationScope == .multiple ? "多章规划，共 \(chapterCount) 章" : "单章精写")
                 LabeledContent("目标字数", value: "每章约 \(targetWords) 字")
                 LabeledContent("R18", value: adultContentMode == .explicit ? "开启" : "关闭")
-                if profileInjectionCount > 0 {
-                    Text("本次将注入 \(profileInjectionCount) 项小说分析画像")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
             }
             Button {
                 Task { await startTask() }
@@ -1020,13 +928,6 @@ struct AdminAIWritingView: View {
         }
     }
 
-    private var plotSummary: String {
-        if plotChaptersThrough > 0 {
-            return "已梳理到第 \(plotChaptersThrough) 章\(plotChapterCount > 0 ? "（全书 \(plotChapterCount) 章）" : "")"
-        }
-        return "未提取 · 提取后续写自动注入"
-    }
-
     private var canUseContinuationAssist: Bool {
         mode == .continueWriting
             && !novelId.isEmpty
@@ -1039,44 +940,6 @@ struct AdminAIWritingView: View {
     private var selectedAnchorTitle: String {
         guard !afterChapterId.isEmpty else { return "最新章节之后" }
         return chapterOptions.first { $0.id == afterChapterId }?.title ?? "指定章节之后"
-    }
-
-    private var profileInjectionCount: Int {
-        profileSummaries.values.filter { $0.hasEffectiveContent }.count
-    }
-
-    private func profileRow(kind: String, label: String, value: String, status: String = "", origin: String = "", busy: Bool, action: @escaping () -> Void, edit: @escaping () -> Void, empty: String) -> some View {
-        let selectedID = novelId
-        let anchorID = afterChapterId
-        let ownerID = appState.user?.id
-        let token = APIClient.shared.token
-        let baseRevision = kind == "style" ? styleBaseProfileRevision : kind == "plot" ? plotBaseProfileRevision : relationshipBaseProfileRevision
-        let updatedAt = kind == "style" ? styleUpdatedAt : kind == "plot" ? plotUpdatedAt : relationshipUpdatedAt
-        let manual = kind == "style" ? styleManualOverride : kind == "plot" ? plotManualOverride : relationshipManualOverride
-        let documentID = "\(ownerID ?? "")|\(selectedID)|\(anchorID)|\(kind)|\(baseRevision)|\(updatedAt)|\(manual?.revision ?? 0)|\(manual?.updatedAt ?? 0)|\(status)|\(origin)"
-        return AdminAIProfileRow(
-            label: label, hasContent: profileSummaries[kind]?.hasContent ?? !value.isEmpty,
-            documentID: documentID,
-            loadDocument: {
-                let document = try await AdminAPI.aiReadProfile(kind: kind, novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID)
-                guard !Task.isCancelled, appState.user?.id == ownerID, APIClient.shared.token == token else { throw CancellationError() }
-                return document
-            },
-            status: status,
-            statusNote: profileStatusText(status), origin: origin,
-            busy: busy || (kind == "style" && pendingProfileRefreshScope == "style"),
-            progress: kind == "plot" ? plotProgress : kind == "relationship" ? relationshipProgress : nil,
-            task: kind == "plot" ? plotMemoryTask : kind == "relationship" ? relationshipMemoryTask : nil,
-            startedAt: kind == "style" ? profileStartedAt : nil,
-            pausing: profilePausing == kind,
-            error: profileErrors[kind],
-            disabled: !profileBusy.isEmpty || !profilePausing.isEmpty || profileEditorBusy || selectionRequests.isLoading,
-            editing: profileEditorLoadingKind == kind,
-            action: action,
-            pause: kind == "style" ? nil : { Task { await pauseMemoryProfile(kind) } },
-            edit: edit, empty: empty
-        )
-        .id("\(ownerID ?? "")|\(selectedID)|\(anchorID)|\(kind)")
     }
 
     // MARK: - 数据
@@ -1117,7 +980,6 @@ struct AdminAIWritingView: View {
             let anchor = initialAfterChapterID ?? saved?.values["anchor"] ?? ""
             if anchor.isEmpty || chapterOptions.contains(where: { $0.id == anchor }) {
                 afterChapterId = anchor
-                if !anchor.isEmpty { await loadProfileStatuses(novelID: selectedID, anchorID: anchor) }
             }
             guard !Task.isCancelled, APIClient.shared.token == token, appState.user?.id == owner else { return }
         }
@@ -1137,64 +999,15 @@ struct AdminAIWritingView: View {
             chapterGoalsText = ""
             showDetailedBrief = false
         }
-        if pendingProfileRefreshNovelID != id {
-            clearPendingProfileRefresh()
-        }
         let ticket = selectionRequests.begin(id)
         chapterOptions = []
         chapterLoadFailed = false
         afterChapterId = ""
-        let profileTicket = profileRequests.begin("\(id)|")
-        defer { profileRequests.finish(profileTicket) }
-        profileSummaries = [:]
-        styleProfile = ""
-        styleEligibility = ""
-        styleEffectiveContent = ""
-        styleManualOverride = nil
-        styleBaseProfileRevision = ""
-        styleUpdatedAt = 0
-        plotState = ""
-        plotEligibility = ""
-        plotEffectiveContent = ""
-        plotManualOverride = nil
-        plotBaseProfileRevision = ""
-        plotUpdatedAt = 0
-        plotChaptersThrough = 0
-        plotChapterCount = 0
-        relationshipProfile = ""
-        relationshipEligibility = ""
-        relationshipEffectiveContent = ""
-        relationshipManualOverride = nil
-        relationshipBaseProfileRevision = ""
-        relationshipUpdatedAt = 0
-        plotProgress = nil
-        relationshipProgress = nil
-        plotMemoryTask = nil
-        relationshipMemoryTask = nil
-        profileOperationID = UUID()
-        profileBusy = ""
-        profilePausing = ""
-        profileErrors = [:]
-        profileReadError = nil
         defer { selectionRequests.finish(ticket) }
-        // 载入章节列表与已提取画像（并行发起，分别容错）
-        async let chaptersTask = AdminAPI.chapters(novelId: id)
-        async let styleTask = AdminAPI.aiGetStyleProfile(novelId: id, summaryOnly: true)
-        async let plotTask = AdminAPI.aiGetPlotState(novelId: id, summaryOnly: true)
-        async let relationTask = AdminAPI.aiGetRelationshipProfile(novelId: id, summaryOnly: true)
-        let chaptersResult = try? await chaptersTask
-        let chapters = chaptersResult ?? []
-        let style = try? await styleTask
-        let plot = try? await plotTask
-        let relation = try? await relationTask
+        let chaptersResult = try? await AdminAPI.chapters(novelId: id)
         guard !Task.isCancelled, selectionRequests.accepts(ticket, query: novelId) else { return }
-        chapterOptions = chapters
+        chapterOptions = chaptersResult ?? []
         chapterLoadFailed = chaptersResult == nil
-        if profileRequests.accepts(profileTicket, query: "\(id)|") {
-            if let style { applyStyleProfile(style) }
-            if let plot { applyPlotProfile(plot) }
-            if let relation { applyRelationshipProfile(relation) }
-        }
     }
 
     private func resetContinuationAssistState(clearOutline: Bool = false) {
@@ -1330,409 +1143,8 @@ struct AdminAIWritingView: View {
         outlineError = nil
     }
 
-    private func loadProfileStatuses(
-        novelID: String,
-        anchorID: String?,
-        minimumUpdatedAt: Int64? = nil,
-        minimumUpdatedScope: String? = nil
-    ) async {
-        guard novelID == self.novelId, (anchorID ?? "") == afterChapterId else { return }
-        let ownerID = appState.user?.id
-        let token = APIClient.shared.token
-        let query = "\(novelID)|\(anchorID ?? "")"
-        let ticket = profileRequests.begin(query)
-        defer { profileRequests.finish(ticket) }
-        async let styleTask = AdminAPI.aiGetStyleProfile(novelId: novelID, afterChapterId: anchorID, summaryOnly: true)
-        async let plotTask = AdminAPI.aiGetPlotState(novelId: novelID, afterChapterId: anchorID, summaryOnly: true)
-        async let relationTask = AdminAPI.aiGetRelationshipProfile(novelId: novelID, afterChapterId: anchorID, summaryOnly: true)
-        let style = try? await styleTask
-        let plot = try? await plotTask
-        let relation = try? await relationTask
-        guard !Task.isCancelled, novelID == self.novelId, (anchorID ?? "") == afterChapterId,
-              appState.user?.id == ownerID, APIClient.shared.token == token,
-              profileRequests.accepts(ticket, query: query) else { return }
-        let styleFloor = minimumUpdatedScope == "style" ? minimumUpdatedAt : nil
-        let plotFloor = minimumUpdatedScope == "plot" ? minimumUpdatedAt : nil
-        let relationshipFloor = minimumUpdatedScope == "relationship" ? minimumUpdatedAt : nil
-
-        if let plot {
-            plotProgress = plot.progress
-            plotMemoryTask = plot.memoryTask
-        }
-        if let relation {
-            relationshipProgress = relation.progress
-            relationshipMemoryTask = relation.memoryTask
-        }
-
-        // A failed sibling GET must not turn a successful refresh into an empty
-        // row. A response older than the POST result must not roll the row back
-        // while the server is still making the new source visible.
-        if let style,
-           shouldApplyProfileResponse(updatedAt: style.updatedAt, minimumUpdatedAt: styleFloor, currentUpdatedAt: styleUpdatedAt) {
-            applyStyleProfile(style)
-        }
-        if let plot,
-           shouldApplyProfileResponse(updatedAt: plot.updatedAt, minimumUpdatedAt: plotFloor, currentUpdatedAt: plotUpdatedAt) {
-            applyPlotProfile(plot)
-        }
-        if let relation,
-           shouldApplyProfileResponse(updatedAt: relation.updatedAt, minimumUpdatedAt: relationshipFloor, currentUpdatedAt: relationshipUpdatedAt) {
-            applyRelationshipProfile(relation)
-        }
-    }
-
-    private func shouldApplyProfileResponse(
-        updatedAt: Int64?,
-        minimumUpdatedAt: Int64?,
-        currentUpdatedAt: Int64
-    ) -> Bool {
-        let responseUpdatedAt = updatedAt ?? 0
-        if let minimumUpdatedAt, minimumUpdatedAt > 0, responseUpdatedAt < minimumUpdatedAt {
-            return false
-        }
-        if responseUpdatedAt == 0 {
-            return currentUpdatedAt == 0 && (minimumUpdatedAt ?? 0) == 0
-        }
-        return currentUpdatedAt == 0 || responseUpdatedAt >= currentUpdatedAt
-    }
-
-    private func applyStyleProfile(_ profile: AiProfileGetResponse) {
-        profileSummaries["style"] = AiProfileSummary(
-            hasContent: profile.hasContent, hasEffectiveContent: profile.hasEffectiveContent,
-            content: profile.profile, effective: profile.effectiveContent, origin: profile.effectiveOrigin
-        )
-        if let value = profile.profile {
-            styleProfile = value
-        }
-        if let value = profile.effectiveContent {
-            styleEffectiveContent = value
-        } else if let value = profile.profile {
-            styleEffectiveContent = value
-        }
-        styleManualOverride = profile.manualOverride
-        styleBaseProfileRevision = profile.baseProfileRevision ?? ""
-        styleUpdatedAt = profile.updatedAt ?? styleUpdatedAt
-        styleEligibility = profile.eligibility ?? ""
-    }
-
-    private func applyPlotProfile(_ profile: AiPlotStateGetResponse) {
-        profileSummaries["plot"] = AiProfileSummary(
-            hasContent: profile.hasContent, hasEffectiveContent: profile.hasEffectiveContent,
-            content: profile.state, effective: profile.effectiveContent, origin: profile.effectiveOrigin
-        )
-        plotProgress = profile.progress
-        plotMemoryTask = profile.memoryTask
-        plotChapterCount = profile.chapterCount ?? plotChapterCount
-        if let value = profile.state {
-            plotState = value
-        }
-        if let value = profile.effectiveContent {
-            plotEffectiveContent = value
-        } else if let value = profile.state {
-            plotEffectiveContent = value
-        }
-        plotManualOverride = profile.manualOverride
-        plotBaseProfileRevision = profile.baseProfileRevision ?? ""
-        plotUpdatedAt = profile.updatedAt ?? plotUpdatedAt
-        plotChaptersThrough = profile.source?.chapterOrdinal ?? profile.chaptersThrough ?? plotChaptersThrough
-        plotEligibility = profile.eligibility ?? ""
-    }
-
-    private func applyRelationshipProfile(_ profile: AiProfileGetResponse) {
-        profileSummaries["relationship"] = AiProfileSummary(
-            hasContent: profile.hasContent, hasEffectiveContent: profile.hasEffectiveContent,
-            content: profile.profile, effective: profile.effectiveContent, origin: profile.effectiveOrigin
-        )
-        relationshipProgress = profile.progress
-        relationshipMemoryTask = profile.memoryTask
-        if let value = profile.profile {
-            relationshipProfile = value
-        }
-        if let value = profile.effectiveContent {
-            relationshipEffectiveContent = value
-        } else if let value = profile.profile {
-            relationshipEffectiveContent = value
-        }
-        relationshipManualOverride = profile.manualOverride
-        relationshipBaseProfileRevision = profile.baseProfileRevision ?? ""
-        relationshipUpdatedAt = profile.updatedAt ?? relationshipUpdatedAt
-        relationshipEligibility = profile.eligibility ?? ""
-    }
-
-    private func applyStyleRefreshResponse(_ response: AiProfileResponse) {
-        if let value = response.profile {
-            styleProfile = value
-            styleEffectiveContent = styleManualOverride?.content ?? value
-        }
-        profileSummaries["style"] = AiProfileSummary(
-            hasContent: !styleProfile.isEmpty, hasEffectiveContent: !styleEffectiveContent.isEmpty,
-            content: nil, effective: nil, origin: "automatic"
-        )
-        styleEligibility = "usable"
-        if let updatedAt = response.updatedAt {
-            styleUpdatedAt = max(styleUpdatedAt, updatedAt)
-        }
-    }
-
-    private func profileStatusText(_ status: String) -> String {
-        switch status {
-        case "usable": return "用于本次"
-        case "stale": return "来源较早，情节状态不会自动注入"
-        case "beyond_anchor": return "来源晚于当前起点，需重新提取"
-        case "legacy_unknown": return "来源未记录，需重新提取后才会注入"
-        case "source_changed": return "来源正文已变化，需重新提取"
-        case "missing": return "未提取"
-        default: return status
-        }
-    }
-
-    /// 页面只读轮询；离开或进入后台时由 SwiftUI 取消，不取消服务端任务。
-    private func pollProfileProgress() async {
-        guard !novelId.isEmpty, scenePhase == .active, profileBusy.isEmpty, profilePausing.isEmpty,
-              let ownerID = appState.user?.id, let token = APIClient.shared.token else { return }
-        let selectedID = novelId
-        let anchorID = afterChapterId
-        let revision = profilePollRevision
-        var failures = 0
-        repeat {
-            async let plotRequest = AdminAPI.aiGetPlotState(novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID, summaryOnly: true)
-            async let relationRequest = AdminAPI.aiGetRelationshipProfile(novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID, summaryOnly: true)
-            let plot = try? await plotRequest
-            let relation = try? await relationRequest
-            guard !Task.isCancelled, novelId == selectedID, afterChapterId == anchorID,
-                  profilePollRevision == revision, appState.user?.id == ownerID,
-                  APIClient.shared.token == token, scenePhase == .active else { return }
-            if let plot {
-                plotProgress = plot.progress
-                plotMemoryTask = plot.memoryTask
-                if shouldApplyProfileResponse(updatedAt: plot.updatedAt, minimumUpdatedAt: nil, currentUpdatedAt: plotUpdatedAt) {
-                    applyPlotProfile(plot)
-                }
-            }
-            if let relation {
-                relationshipProgress = relation.progress
-                relationshipMemoryTask = relation.memoryTask
-                if shouldApplyProfileResponse(updatedAt: relation.updatedAt, minimumUpdatedAt: nil, currentUpdatedAt: relationshipUpdatedAt) {
-                    applyRelationshipProfile(relation)
-                }
-            }
-            failures = plot == nil || relation == nil ? failures + 1 : 0
-            profileReadError = failures > 0 ? "进度暂时无法完整刷新，正在重新连接；服务器任务不会因此停止。" : nil
-            if failures >= 8 {
-                profileReadError = "暂时无法读取最新进度，请点击刷新；服务器任务不会因此停止。"
-                return
-            }
-            let active = plotMemoryTask?.isRunning == true || relationshipMemoryTask?.isRunning == true
-                || (plotProgress?.running == true && plotProgress?.paused != true)
-                || (relationshipProgress?.running == true && relationshipProgress?.paused != true)
-            guard active || failures > 0 else { return }
-            do { try await Task.sleep(nanoseconds: UInt64(failures > 0 ? 5 : 3) * 1_000_000_000) }
-            catch { return }
-        } while !Task.isCancelled
-    }
-
-    private func startMemoryProfile(_ kind: String) async {
-        guard kind == "plot" || kind == "relationship", !novelId.isEmpty,
-              profileBusy.isEmpty, profilePausing.isEmpty, !selectionRequests.isLoading,
-              let ownerID = appState.user?.id, let token = APIClient.shared.token else { return }
-        let selectedID = novelId
-        let anchorID = afterChapterId
-        let operationID = UUID()
-        profileOperationID = operationID
-        profileBusy = kind
-        profileErrors[kind] = nil
-        profilePollRevision += 1
-        defer {
-            if profileOperationID == operationID {
-                profileBusy = ""
-                profilePollRevision += 1
-            }
-        }
-        do {
-            let result = try await AdminAPI.aiStartMemoryProfile(
-                kind: kind, novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID
-            )
-            guard !Task.isCancelled, profileOperationID == operationID, novelId == selectedID, appState.user?.id == ownerID,
-                  APIClient.shared.token == token else { return }
-            if kind == "plot" { plotMemoryTask = result.task }
-            else { relationshipMemoryTask = result.task }
-            await loadProfileStatuses(novelID: selectedID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
-        } catch {
-            guard !Task.isCancelled, profileOperationID == operationID, novelId == selectedID, appState.user?.id == ownerID,
-                  APIClient.shared.token == token else { return }
-            if case APIError.http(status: 404, message: _) = error {
-                profileErrors[kind] = "服务器尚不支持后台画像分析，请升级 API 后重试。"
-            } else if isTransientTaskError(error) {
-                profileErrors[kind] = "提交结果尚未确认，正在查询后台进度，请勿重复提取。"
-            } else {
-                profileErrors[kind] = AppCopy.friendlyError(error)
-            }
-        }
-    }
-
-    private func pauseMemoryProfile(_ kind: String) async {
-        guard kind == "plot" || kind == "relationship", !novelId.isEmpty,
-              profileBusy.isEmpty, profilePausing.isEmpty,
-              let ownerID = appState.user?.id, let token = APIClient.shared.token else { return }
-        let selectedID = novelId
-        let operationID = UUID()
-        profileOperationID = operationID
-        profilePausing = kind
-        profileErrors[kind] = nil
-        profilePollRevision += 1
-        defer {
-            if profileOperationID == operationID {
-                profilePausing = ""
-                profilePollRevision += 1
-            }
-        }
-        do {
-            try await AdminAPI.aiPauseMemoryProfile(kind: kind, novelId: selectedID)
-            guard !Task.isCancelled, profileOperationID == operationID, novelId == selectedID, appState.user?.id == ownerID,
-                  APIClient.shared.token == token else { return }
-            await loadProfileStatuses(novelID: selectedID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
-        } catch {
-            guard !Task.isCancelled, profileOperationID == operationID, novelId == selectedID, appState.user?.id == ownerID,
-                  APIClient.shared.token == token else { return }
-            profileErrors[kind] = "暂停结果尚未确认：\(AppCopy.friendlyError(error))"
-        }
-    }
-
-    private func refreshProfile(_ scope: String) async {
-        if scope != "style" {
-            await startMemoryProfile(scope)
-            return
-        }
-        guard !novelId.isEmpty else {
-            actionError = "请先选择小说"
-            return
-        }
-        guard profileBusy.isEmpty, profilePausing.isEmpty, !selectionRequests.isLoading else { return }
-        guard pendingProfileRefreshScope.isEmpty else {
-            taskStatusText = "画像提取仍在处理中，请等待结果刷新"
-            return
-        }
-        let selectedID = novelId
-        let selectedAnchorID = afterChapterId.isEmpty ? nil : afterChapterId
-        let operationID = UUID()
-        profileOperationID = operationID
-        let ownerID = appState.user?.id
-        let token = APIClient.shared.token
-        pendingProfileRefreshScope = scope
-        pendingProfileRefreshNovelID = selectedID
-        pendingProfileRefreshAnchorID = selectedAnchorID ?? ""
-        pendingProfileRefreshBaseline = profileUpdatedAt(for: scope)
-        profileStartedAt = .now
-        profileErrors[scope] = nil
-        profileBusy = scope
-        defer { if profileOperationID == operationID { profileBusy = "" } }
-        do {
-            let r = try await AdminAPI.aiRefreshStyleProfile(novelId: selectedID, afterChapterId: selectedAnchorID)
-            guard !Task.isCancelled, profileOperationID == operationID, novelId == selectedID,
-                  appState.user?.id == ownerID, APIClient.shared.token == token else { return }
-            if (selectedAnchorID ?? "") == afterChapterId {
-                applyStyleRefreshResponse(r)
-            }
-            clearPendingProfileRefresh()
-            await loadProfileStatuses(
-                novelID: selectedID,
-                anchorID: afterChapterId.isEmpty ? nil : afterChapterId,
-                minimumUpdatedAt: r.updatedAt,
-                minimumUpdatedScope: "style"
-            )
-        } catch {
-            guard !Task.isCancelled, profileOperationID == operationID, novelId == selectedID,
-                  appState.user?.id == ownerID, APIClient.shared.token == token else { return }
-            if isTransientTaskError(error) {
-                // The model may still be running on the server after the app
-                // was backgrounded. Re-read on the next foreground transition
-                // instead of presenting a false operation failure.
-                taskStatusText = "画像提取暂时中断，回到前台后会自动刷新"
-                await recoverProfileRefreshAfterBecomingActive()
-                return
-            }
-            clearPendingProfileRefresh()
-            profileErrors[scope] = AppCopy.friendlyError(error)
-        }
-    }
-
-    private func profileUpdatedAt(for scope: String) -> Int64 {
-        switch scope {
-        case "style": return styleUpdatedAt
-        case "plot": return plotUpdatedAt
-        default: return relationshipUpdatedAt
-        }
-    }
-
-    private func clearPendingProfileRefresh() {
-        profileStartedAt = nil
-        pendingProfileRefreshScope = ""
-        pendingProfileRefreshNovelID = ""
-        pendingProfileRefreshAnchorID = ""
-        pendingProfileRefreshBaseline = 0
-    }
-
-    /// 客户端超时不代表同步模型调用已经停止；回到前台后用只读 GET
-    /// 等待服务端把本次提取写入，而不是重新消耗一次模型调用。
-    private func recoverProfileRefreshAfterBecomingActive() async {
-        guard !isRecoveringProfileRefresh,
-              !pendingProfileRefreshScope.isEmpty,
-              !pendingProfileRefreshNovelID.isEmpty
-        else { return }
-
-        let scope = pendingProfileRefreshScope
-        let novelID = pendingProfileRefreshNovelID
-        let anchorID = pendingProfileRefreshAnchorID.isEmpty ? nil : pendingProfileRefreshAnchorID
-        let baseline = pendingProfileRefreshBaseline
-        let minimumUpdatedAt = baseline > 0 ? baseline + 1 : nil
-        isRecoveringProfileRefresh = true
-        defer { isRecoveringProfileRefresh = false }
-
-        for attempt in 0..<8 {
-            guard !Task.isCancelled,
-                  pendingProfileRefreshScope == scope,
-                  pendingProfileRefreshNovelID == novelID,
-                  novelId == novelID
-            else { return }
-
-            if attempt > 0 {
-                let delaySeconds = min(30, 2 << (attempt - 1))
-                do {
-                    try await Task.sleep(nanoseconds: UInt64(delaySeconds) * 1_000_000_000)
-                } catch {
-                    return
-                }
-            }
-
-            await loadProfileStatuses(
-                novelID: novelID,
-                anchorID: anchorID,
-                minimumUpdatedAt: minimumUpdatedAt,
-                minimumUpdatedScope: scope
-            )
-            if pendingProfileRefreshScope.isEmpty {
-                return
-            }
-            if profileUpdatedAt(for: scope) > baseline {
-                clearPendingProfileRefresh()
-                return
-            }
-        }
-
-        taskStatusText = "画像提取仍在服务器处理中，回到前台后会继续刷新"
-    }
-
     private func refreshAfterBecomingActive() async {
         await resumeWritingTask()
-        guard !Task.isCancelled, !novelId.isEmpty else { return }
-        if !pendingProfileRefreshScope.isEmpty {
-            await recoverProfileRefreshAfterBecomingActive()
-        } else {
-            await loadProfileStatuses(
-                novelID: novelId,
-                anchorID: afterChapterId.isEmpty ? nil : afterChapterId
-            )
-        }
     }
 
     private func resumeWritingTask() async {
@@ -2096,155 +1508,6 @@ struct AdminAIWritingView: View {
         chapterCount = next
     }
 
-    @ViewBuilder
-    private var profileEditorSheet: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextEditor(text: $profileEditorText)
-                        .frame(minHeight: 220)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("\(profileEditorKind.isEmpty ? "画像" : profileEditorKind)人工校正")
-                } footer: {
-                    Text("只记录当前起点之前可确认的事实。保存会绑定当前自动画像来源；自动画像刷新不会覆盖这里的未保存内容。")
-                }
-                if profileEditorRevision > 0 {
-                    Button("清除人工校正", role: .destructive) {
-                        Task { await deleteProfileOverride() }
-                    }
-                    .disabled(profileEditorBusy)
-                }
-                Button {
-                    Task { await saveProfileOverride() }
-                } label: {
-                    if profileEditorBusy {
-                        HStack { Spacer(); ProgressView(); Spacer() }
-                    } else {
-                        Text("保存人工校正")
-                    }
-                }
-                .disabled(profileEditorBusy || profileEditorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || profileEditorText.unicodeScalars.count > 20_000 || profileEditorBaseRevision.isEmpty)
-            }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("人工画像")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { showingProfileEditor = false }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func profileOrigin(kind: String, for manual: AiManualProfileOverride?, effective: String) -> String {
-        if let summary = profileSummaries[kind] {
-            if summary.effectiveOrigin == "manual" { return "最终使用：人工校正（第 \(manual?.revision ?? 0) 版）" }
-            if summary.hasEffectiveContent { return "最终使用：自动画像" }
-            return manual != nil ? "人工校正存在，但当前起点未采用" : "当前起点未采用画像"
-        }
-        if let manual, let manualContent = manual.content, !manualContent.isEmpty, manualContent == effective {
-            return "最终使用：人工校正（第 \(manual.revision ?? 0) 版）"
-        }
-        if !effective.isEmpty { return "最终使用：自动画像" }
-        if manual != nil { return "人工校正存在，但当前起点未采用" }
-        return "当前起点未采用画像"
-    }
-
-    @MainActor
-    private func loadProfileForEditing(kind: String) async {
-        guard profileBusy.isEmpty, profilePausing.isEmpty, !profileEditorBusy, !selectionRequests.isLoading else { return }
-        let selectedID = novelId
-        let anchorID = afterChapterId
-        let ownerID = appState.user?.id
-        let token = APIClient.shared.token
-        profileEditorBusy = true
-        profileEditorLoadingKind = kind
-        defer {
-            profileEditorBusy = false
-            profileEditorLoadingKind = ""
-        }
-        do {
-            let document = try await AdminAPI.aiReadProfile(kind: kind, novelId: selectedID, afterChapterId: anchorID.isEmpty ? nil : anchorID)
-            guard !Task.isCancelled, novelId == selectedID, afterChapterId == anchorID,
-                  appState.user?.id == ownerID, APIClient.shared.token == token else { return }
-            beginProfileEdit(kind: kind, content: document.content, override: document.manualOverride, baseRevision: document.baseRevision)
-        } catch {
-            guard !Task.isCancelled, novelId == selectedID, afterChapterId == anchorID,
-                  appState.user?.id == ownerID, APIClient.shared.token == token else { return }
-            actionError = AppCopy.friendlyError(error)
-        }
-    }
-
-    private func beginProfileEdit(kind: String, content: String, override: AiManualProfileOverride?, baseRevision: String) {
-        guard !baseRevision.isEmpty else {
-            actionError = "当前起点没有可绑定的自动画像来源，请先提取或刷新画像"
-            return
-        }
-        profileEditorKind = kind
-        profileEditorText = override?.content ?? content
-        profileEditorRevision = override?.revision ?? 0
-        profileEditorBaseRevision = baseRevision
-        showingProfileEditor = true
-    }
-
-    private func saveProfileOverride() async {
-        guard !profileEditorBusy, !profileEditorKind.isEmpty, !novelId.isEmpty else { return }
-        let selectedNovelID = novelId
-        let operationID = UUID().uuidString
-        profileEditorBusy = true
-        defer { profileEditorBusy = false }
-        do {
-            let response = try await AdminAPI.aiSaveProfileOverride(
-                kind: profileEditorKind,
-                novelId: selectedNovelID,
-                content: profileEditorText.trimmingCharacters(in: .whitespacesAndNewlines),
-                expectedRevision: profileEditorRevision,
-                baseProfileRevision: profileEditorBaseRevision,
-                afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId,
-                operationID: operationID
-            )
-            guard !Task.isCancelled, selectedNovelID == novelId else { return }
-            if let saved = response.override {
-                switch profileEditorKind {
-                case "style": styleManualOverride = saved
-                case "plot": plotManualOverride = saved
-                default: relationshipManualOverride = saved
-                }
-            }
-            showingProfileEditor = false
-            await loadProfileStatuses(novelID: selectedNovelID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
-        } catch {
-            guard !Task.isCancelled, selectedNovelID == novelId else { return }
-            actionError = AppCopy.friendlyError(error)
-        }
-    }
-
-    private func deleteProfileOverride() async {
-        guard !profileEditorBusy, !profileEditorKind.isEmpty, profileEditorRevision > 0, !novelId.isEmpty else { return }
-        let selectedNovelID = novelId
-        let operationID = UUID().uuidString
-        profileEditorBusy = true
-        defer { profileEditorBusy = false }
-        do {
-            _ = try await AdminAPI.aiDeleteProfileOverride(
-                kind: profileEditorKind,
-                novelId: selectedNovelID,
-                expectedRevision: profileEditorRevision,
-                afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId,
-                operationID: operationID
-            )
-            guard !Task.isCancelled, selectedNovelID == novelId else { return }
-            showingProfileEditor = false
-            await loadProfileStatuses(novelID: selectedNovelID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
-        } catch {
-            guard !Task.isCancelled, selectedNovelID == novelId else { return }
-            actionError = AppCopy.friendlyError(error)
-        }
-    }
 }
 
 // MARK: - 选书 Sheet（与封面视图共用结构，独立实现避免跨文件依赖）

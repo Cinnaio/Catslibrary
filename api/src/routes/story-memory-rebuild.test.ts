@@ -3,7 +3,6 @@ import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
 import { runStoryMemoryTask } from '../services/ai/story-memory-tasks'
-import type { MemoryRebuildPlan } from '@shared/story-memory-rebuild'
 vi.mock('../services/ai/client', async (original) => ({ ...(await original<typeof import('../services/ai/client')>()), isTextAiConfigured: () => true }))
 vi.mock('../services/ai/story-memory-tasks', async (original) => ({
   ...(await original<typeof import('../services/ai/story-memory-tasks')>()),
@@ -46,27 +45,14 @@ describe('range rebuild administrator boundary', () => {
     expect((await app.request(path, json(method!, readerToken, method === 'GET' ? undefined : body))).status).toBe(403)
     expect(runStoryMemoryTask).not.toHaveBeenCalled()
   })
-  it('previews without writes or paid work and scopes chapter IDs to the selected novel', async () => {
-    const result = await app.request('/api/ai/writing/memory/book/rebuild/preview', json('POST', adminToken, body))
-    expect(result.status).toBe(200)
-    expect(result.headers.get('Cache-Control')).toBe('no-store')
-    expect(await result.json()).toMatchObject({ items: [{ actualStart: 1, targetOrdinal: 1 }] })
+  it('管理员旧预览、重建与历史请求明确返回退役，重复请求不创建任务', async () => {
+    for (const path of ['/api/ai/writing/memory/book/rebuild/preview', '/api/ai/writing/memory/book/rebuild']) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        expect((await app.request(path, json('POST', adminToken, body))).status).toBe(410)
+      }
+    }
+    expect((await app.request('/api/ai/writing/memory/relationship/book/history', json('GET', adminToken))).status).toBe(410)
+    expect(runStoryMemoryTask).not.toHaveBeenCalled()
     expect((await t.db.query('SELECT * FROM ai_tasks')).rows).toHaveLength(0)
-    expect(
-      (await app.request('/api/ai/writing/memory/book/rebuild/preview', json('POST', adminToken, { ...body, startChapterId: 'other-book-chapter' }))).status,
-    ).toBe(422)
-  })
-  it('atomically queues a rebuild once and replays the receipt after a lost response', async () => {
-    const preview = await app.request('/api/ai/writing/memory/book/rebuild/preview', json('POST', adminToken, body))
-    const plan = (await preview.json()) as MemoryRebuildPlan
-    const request = { ...body, operationId: 'same-rebuild-operation', expectedRevision: plan.revision }
-    const first = await app.request('/api/ai/writing/memory/book/rebuild', json('POST', adminToken, request))
-    expect(first.status).toBe(202)
-    const receipt = await first.json()
-    const replay = await app.request('/api/ai/writing/memory/book/rebuild', json('POST', adminToken, request))
-    expect(replay.status).toBe(202)
-    expect(await replay.json()).toEqual(receipt)
-    expect(runStoryMemoryTask).toHaveBeenCalledTimes(1)
-    expect((await t.db.query('SELECT * FROM ai_tasks')).rows).toHaveLength(1)
   })
 })
