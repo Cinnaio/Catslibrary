@@ -2,11 +2,9 @@ import { watchAiTask, type AiTaskConnection } from '@/lib/ai-task-stream'
 import { parseAiTextProgress } from '@shared/ai-text-progress'
 import type { AgentTask } from '@shared/ai-agent'
 import AiStreamPreview from '@/components/shared/AiStreamPreview'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import Markdown, { type Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { BookOpen, Check, Image as ImageIcon, MessageSquare, Plus } from 'lucide-react'
+import { ArrowDown, BookOpen, Check, ChevronDown, Image as ImageIcon, Lightbulb, MessageSquare, PanelRight, PenLine, Plus, SlidersHorizontal, X } from 'lucide-react'
 import type { AdminNovelIndexItem, ChapterMeta } from '@shared/types'
 import {
   agentTaskRunning,
@@ -36,31 +34,16 @@ import AiAgentMemory from './AiAgentMemory'
 import AiAgentRecovery from './AiAgentRecovery'
 import AiAgentUsage from './AiAgentUsage'
 import { currentAgentTask, pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage, type PendingAgentMessage } from './agent-task-state'
-import AiAgentSources from './AiAgentSources'
+import AiAgentMessages, { AgentMarkdown } from './AiAgentMessages'
 import styles from './agent-workspace.module.css'
 
 const failure = (e: unknown) => (e instanceof Error ? e.message : '操作失败，请稍后重试')
 const ACTION_STATUS = { pending: '待确认', executing: '正在执行', completed: '已采纳', rejected: '已放弃', failed: '未采纳' }
-const markdownComponents: Components = {
-  a: ({ href, title, children }) =>
-    href ? (
-      <a href={href} title={title} target="_blank" rel="noopener noreferrer">
-        {children}
-      </a>
-    ) : (
-      <>{children}</>
-    ),
-  table: ({ children }) => (
-    <div className={styles.markdownTable} tabIndex={0} role="region" aria-label="回复中的表格">
-      <table>{children}</table>
-    </div>
-  ),
-  pre: ({ children }) => (
-    <pre tabIndex={0} role="region" aria-label="回复中的代码块">
-      {children}
-    </pre>
-  ),
-}
+const STARTERS = [
+  { title: '聊聊情节', description: '一起找到下一章的方向', icon: Lightbulb, prompt: '先了解这本小说，和我讨论下一章的走向' },
+  { title: '打磨草稿', description: '让冲突和人物更有张力', icon: PenLine, prompt: '帮我找出最近草稿中可以加强的冲突' },
+  { title: '构思封面', description: '从故事氛围开始探索', icon: ImageIcon, prompt: '结合故事氛围，先给我几个封面构思' },
+]
 
 export default function AiAgentPanel() {
   const [params] = useSearchParams()
@@ -275,6 +258,15 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   const [olderArtifact, setOlderArtifact] = useState<AgentArtifact | null>(null)
   const [preview, setPreview] = useState<AgentAction | null>(null)
   const [mobileView, setMobileView] = useState<'chat' | 'outputs'>('chat')
+  const [outputsOpen, setOutputsOpen] = useState(false)
+  const [showLatest, setShowLatest] = useState(false)
+  const [focusRequest, setFocusRequest] = useState(0)
+  const outputsId = useId()
+  const outputToggle = useRef<HTMLButtonElement>(null)
+  const chatTab = useRef<HTMLButtonElement>(null)
+  const outputHeading = useRef<HTMLHeadingElement>(null)
+  const focusOutput = useRef(false)
+  const prependedScroll = useRef<{ height: number; top: number } | null>(null)
   const mounted = useRef(true)
   const onSessionRef = useRef(onSession)
   useEffect(() => {
@@ -366,9 +358,24 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
     })
     return () => stops.forEach((stop) => stop())
   }, [watchedIds, reload])
-  useEffect(() => {
-    if (followBottom.current && feed.current) feed.current.scrollTop = feed.current.scrollHeight
-  }, [data?.events.length, activeTask?.result])
+  function openOutputs() {
+    focusOutput.current = !outputsOpen || mobileView !== 'outputs'
+    setOutputsOpen(true)
+    setMobileView('outputs')
+    // Also handles selecting another artifact while the panel is already open.
+    outputHeading.current?.focus({ preventScroll: true })
+  }
+  function closeOutputs() {
+    setOutputsOpen(false)
+    setMobileView('chat')
+    const trigger = outputToggle.current?.getClientRects().length ? outputToggle.current : chatTab.current
+    trigger?.focus({ preventScroll: true })
+  }
+  function jumpToLatest() {
+    followBottom.current = true
+    setShowLatest(false)
+    if (feed.current) feed.current.scrollTop = feed.current.scrollHeight
+  }
   async function perform(action: () => Promise<unknown>): Promise<boolean> {
     if (busyRef.current) return false
     busyRef.current = true
@@ -424,7 +431,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   }
   async function showArtifact(taskId: string) {
     setSelectedTask(taskId)
-    setMobileView('outputs')
+    openOutputs()
     if (data?.artifacts.some((a) => a.task.id === taskId)) return
     await perform(async () => {
       const item = await agentApi.artifact(sessionId, taskId)
@@ -449,6 +456,8 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
       const page = await agentApi.events(sessionId, before)
       if (mounted.current) {
         followBottom.current = false
+        setShowLatest(true)
+        if (feed.current) prependedScroll.current = { height: feed.current.scrollHeight, top: feed.current.scrollTop }
         for (const e of page.events) observedEvents.current.set(e.id, e)
         setEarlier((old) => [...page.events, ...old])
         setHasEarlier(page.hasEarlier)
@@ -465,6 +474,23 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   const partial = parseAiTextProgress(activeTask?.result)
   const previewVisible = partial && !allEvents.some((event) => event.role === 'assistant' && event.taskId === activeTask?.id && event.metadata.round === partial.round)
   const action = preview ? data?.actions.find((a) => a.id === preview.id) || preview : null
+  const pendingActions = data?.actions.filter((item) => item.status === 'pending').length || 0
+  useLayoutEffect(() => {
+    const element = feed.current
+    if (!element || !element.clientHeight) return
+    if (prependedScroll.current) {
+      element.scrollTop = prependedScroll.current.top + element.scrollHeight - prependedScroll.current.height
+      prependedScroll.current = null
+    } else if (followBottom.current) {
+      element.scrollTop = element.scrollHeight
+    }
+  }, [allEvents.length, activeTask?.result, running, mobileView, outputsOpen, input])
+  useLayoutEffect(() => {
+    if (focusOutput.current) {
+      outputHeading.current?.focus({ preventScroll: true })
+      focusOutput.current = false
+    }
+  }, [mobileView, outputsOpen])
   if (!data)
     return (
       <div className={styles.empty} role="status">
@@ -483,28 +509,31 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         <span>{data.session.anchorTitle ? `续写起点：${data.session.anchorTitle}` : '新章节创作'}</span>
         <span className={styles.muted}>{data.session.title}</span>
       </div>
-      <AgentSettings
-        key={data.session.id}
-        session={data.session}
-        disabled={busy || running}
-        onSave={async (brief, preferences, expectedUpdatedAt) => {
-          const result = await agentApi.save(sessionId, brief, preferences, expectedUpdatedAt)
-          if (mounted.current) {
-            setData((current) => (current ? { ...current, session: result.session } : current))
-            onSessionRef.current(result.session)
-            reload()
-          }
-        }}
-      />
+      <div className={styles.sessionOptions}>
+        <AgentSettings
+          key={data.session.id}
+          session={data.session}
+          disabled={busy || running}
+          onSave={async (brief, preferences, expectedUpdatedAt) => {
+            const result = await agentApi.save(sessionId, brief, preferences, expectedUpdatedAt)
+            if (mounted.current) {
+              setData((current) => (current ? { ...current, session: result.session } : current))
+              onSessionRef.current(result.session)
+              reload()
+            }
+          }}
+        />
+        {!!data.turnUsage?.length && <AiAgentUsage turns={data.turnUsage} />}
+      </div>
       <div className={styles.mobileTabs} aria-label="切换工作区">
-        <Button variant={mobileView === 'chat' ? 'secondary' : 'ghost'} onClick={() => setMobileView('chat')}>
+        <Button ref={chatTab} aria-pressed={mobileView === 'chat'} variant={mobileView === 'chat' ? 'secondary' : 'ghost'} onClick={() => setMobileView('chat')}>
           对话
         </Button>
-        <Button variant={mobileView === 'outputs' ? 'secondary' : 'ghost'} onClick={() => setMobileView('outputs')}>
+        <Button aria-pressed={mobileView === 'outputs'} variant={mobileView === 'outputs' ? 'secondary' : 'ghost'} onClick={openOutputs}>
           产出与采纳
+          {pendingActions > 0 && <span className={styles.outputCount}>{pendingActions} 待确认</span>}
         </Button>
       </div>
-      {!!data.turnUsage?.length && <AiAgentUsage turns={data.turnUsage} />}
       {error && (
         <p className={styles.error} role="alert">
           {error}{' '}
@@ -537,25 +566,42 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
           </div>
         </div>
       )}
-      <div className={styles.workspace} data-mobile-view={mobileView}>
+      <div className={styles.workspace} data-mobile-view={mobileView} data-outputs-open={outputsOpen}>
         <section className={styles.chat} aria-label="创作对话">
           <div className={styles.chatBody} data-running={running}>
             <div className={styles.chatHeading}>
-              <span className={styles.chatTitle}>
-                <MessageSquare size={16} aria-hidden="true" />
-                创作助手
-              </span>
-              <span className={styles.chatState}>{running ? activeTask?.step || '正在处理' : activeTask?.status === 'failed' ? '本轮未完成' : activeTask?.status === 'cancelled' ? '本轮已停止' : data.actions.some(item => ['pending', 'executing'].includes(item.status)) ? '有待确认的操作' : '随时接着聊'}</span>
+              <div className={styles.chatHeadingText}>
+                <span className={styles.chatTitle}>
+                  <MessageSquare size={16} aria-hidden="true" />
+                  创作助手
+                </span>
+                <span className={styles.chatState}>{running ? activeTask?.step || '正在处理' : activeTask?.status === 'failed' ? '本轮未完成' : activeTask?.status === 'cancelled' ? '本轮已停止' : pendingActions ? '有待确认的操作' : data.actions.some(item => item.status === 'executing') ? '正在采纳产出' : '随时接着聊'}</span>
+              </div>
+              <Button ref={outputToggle} className={styles.outputToggle} size="sm" variant={outputsOpen ? 'secondary' : 'ghost'} aria-controls={outputsId} aria-expanded={outputsOpen} onClick={() => outputsOpen ? closeOutputs() : openOutputs()}>
+                <PanelRight size={16} aria-hidden="true" />
+                产出与采纳
+                {pendingActions > 0 && <span className={styles.outputCount}>{pendingActions} 待确认</span>}
+              </Button>
             </div>
             <div
               ref={feed}
               className={styles.feed}
               role="log"
               aria-label="对话记录"
+              tabIndex={0}
               aria-live="polite"
               aria-relevant="additions"
               onScroll={() => {
-                if (feed.current) followBottom.current = feed.current.scrollHeight - feed.current.scrollTop - feed.current.clientHeight < 80
+                if (!feed.current) return
+                const atBottom = feed.current.scrollHeight - feed.current.scrollTop - feed.current.clientHeight < 48
+                followBottom.current = atBottom
+                setShowLatest(!atBottom)
+              }}
+              onClickCapture={(event) => {
+                if (event.target instanceof Element && event.target.closest('summary')) {
+                  followBottom.current = false
+                  setShowLatest(true)
+                }
               }}
             >
               {(hasEarlier ?? data.hasEarlier) && (
@@ -565,46 +611,27 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
               )}
               {!allEvents.length && (
                 <div className={styles.empty}>
+                  <span className={styles.emptyEyebrow}>写作，从对话开始</span>
                   <h3>这次想一起完成什么？</h3>
-                  <p>可以先聊聊想法，再慢慢调整成满意的作品。</p>
+                  <p>一个情节、一段草稿，或还没成形的灵感。</p>
                   <div className={styles.suggestions}>
-                    {['先了解这本小说，和我讨论下一章的走向', '帮我找出最近草稿中可以加强的冲突', '结合故事氛围，先给我几个封面构思'].map((text) => (
-                      <Button key={text} variant="outline" onClick={() => setInput(text)}>
-                        {text}
+                    {STARTERS.map(({ title, description, icon: Icon, prompt }) => (
+                      <Button key={title} variant="outline" onClick={() => {
+                        setInput((current) => (current.trim() ? `${current}\n${prompt}` : prompt).slice(0, 8000))
+                        setFocusRequest((value) => value + 1)
+                      }}>
+                        <Icon size={18} aria-hidden="true" />
+                        <span><strong>{title}</strong><small>{description}</small></span>
                       </Button>
                     ))}
                   </div>
                 </div>
               )}
-              {allEvents.map((event) => (
-                <article key={event.id} className={event.role === 'activity' ? styles.activity : styles.message} data-role={event.role}>
-                  {event.role === 'assistant' && <span className={styles.speaker}>创作助手</span>}
-                  <div className={event.metadata.error ? styles.error : event.role === 'assistant' ? styles.markdown : styles.prose}>
-                    {event.role === 'assistant' && !event.metadata.error ? (
-                      <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>
-                        {event.content}
-                      </Markdown>
-                    ) : (
-                      event.content
-                    )}
-                  </div>
-                  {event.metadata.sources?.length ? <AiAgentSources sources={event.metadata.sources} /> : null}
-                  {event.metadata.artifactTaskId && (
-                    <Button size="sm" variant="link" disabled={busy} onClick={() => void showArtifact(event.metadata.artifactTaskId!)}>
-                      查看进度与产出
-                    </Button>
-                  )}
-                  {event.metadata.actionId && (
-                    <Button size="sm" variant="link" disabled={busy} onClick={() => void showAction(event.metadata.actionId!)}>
-                      查看操作记录
-                    </Button>
-                  )}
-                </article>
-              ))}
+              <AiAgentMessages events={allEvents} busy={busy} onArtifact={(id) => void showArtifact(id)} onAction={(id) => void showAction(id)} />
               {previewVisible && partial.preview && (
                 <article className={styles.message} data-role="assistant" aria-label="助手回复预览">
                   <span className={styles.speaker}>创作助手{running ? ' · 正在回复' : ' · 未完成'}</span>
-                  <div className={styles.markdown}><Markdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>{partial.preview}</Markdown></div>
+                  <AgentMarkdown content={partial.preview} />
                 </article>
               )}
               {running && (
@@ -619,9 +646,10 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
               {activeTask && ['failed', 'cancelled'].includes(activeTask.status) && (
                 <AiAgentRecovery key={activeTask.id} task={activeTask} recovery={data.recovery?.taskId === activeTask.id ? data.recovery : null}
                   busy={busy || !!pending} error={error} onResume={resume} onRefresh={reload}
-                  hasOutputs={!!data.artifacts.length || !!data.actions.length} onOutputs={() => setMobileView('outputs')} />
+                  hasOutputs={!!data.artifacts.length || !!data.actions.length} onOutputs={openOutputs} />
               )}
             </div>
+            {showLatest && <div className={styles.latestPosition}><Button className={styles.latestButton} variant="outline" size="sm" onClick={jumpToLatest}><ArrowDown size={14} aria-hidden="true" />回到最新</Button></div>}
           </div>
           <AiAgentComposer
             value={input}
@@ -633,12 +661,16 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
             sendDisabled={!!pending}
             providerPresetId={providerPresetId}
             onProviderChange={setProviderPresetId}
+            focusRequest={focusRequest}
             tools={<AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} />}
           />
         </section>
-        <aside className={styles.outputs} aria-label="产出与采纳">
+        <aside id={outputsId} className={styles.outputs} aria-label="产出与采纳">
           <div className={styles.outputHeader}>
-            <h3>产出与采纳</h3>
+            <h3 ref={outputHeading} tabIndex={-1}>产出与采纳</h3>
+            <Button size="icon" variant="ghost" aria-label="收起产出，返回对话" title="收起产出" onClick={closeOutputs}><X size={16} aria-hidden="true" /></Button>
+          </div>
+          <div className={styles.outputWorkspaceLink}>
             <Link to={`/admin/ai?sub=writing&novel=${encodeURIComponent(novelId)}&view=review`}>打开草稿工作区</Link>
           </div>
           {data.actions
@@ -679,6 +711,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
               onDiscuss={() => {
                 setInput(`请读取任务 ${artifact.task.id} 的结果，我们继续讨论这一版。`)
                 setMobileView('chat')
+                setFocusRequest((value) => value + 1)
               }}
             />
           ) : (
@@ -930,13 +963,20 @@ function AgentSettings({
   }
   return (
     <MotionDetails className={styles.settings}>
-      <summary>
-        创作约定与偏好 · {session.contentPreferences.adultContentMode === 'explicit' ? 'R18 已开启' : '成人内容关闭'}
-        {dirty ? ' · 有未保存调整' : ''}
+      <summary className={styles.settingsSummary}>
+        <SlidersHorizontal size={15} className={styles.settingsIcon} aria-hidden="true" />
+        <span className={styles.settingsTitle}>创作约定与偏好</span>
+        <span className={styles.settingsState} data-active={session.contentPreferences.adultContentMode === 'explicit'}>
+          {session.contentPreferences.adultContentMode === 'explicit' ? 'R18 已开启' : '成人内容关闭'}
+        </span>
+        {dirty && <span className={styles.settingsUnsaved}>有未保存调整</span>}
+        <ChevronDown size={14} className={styles.settingsChevron} aria-hidden="true" />
       </summary>
       <div className={styles.settingsBody}>
-        <FormField label="这段对话始终遵循的创作约定" hint="例如人物性格、叙事视角和希望保留的情节。这里只影响本次对话，不改写正式档案。">
+        <FormField className={styles.settingsBrief} label="这段对话始终遵循的创作约定" hint="只影响本次对话，不改写正式档案。">
           <Textarea
+            rows={5}
+            placeholder="写下人物性格、叙事视角，或希望保留的情节…"
             value={brief}
             onChange={(e) => {
               setDraft({ brief: e.target.value, preferences, expectedUpdatedAt: draft?.expectedUpdatedAt ?? session.updatedAt })
@@ -945,76 +985,80 @@ function AgentSettings({
             disabled={disabled || saving}
           />
         </FormField>
-        <FormField label="成人内容偏好">
-          <SearchSelect
-            value={preferences.adultContentMode}
-            options={[
-              { value: 'off', label: '关闭' },
-              { value: 'explicit', label: 'R18 创作' },
-            ]}
-            onChange={(value) =>
-              change({
-                ...preferences,
-                adultContentMode: value as 'off' | 'explicit',
-                intimacyWeight: value === 'off' ? 'none' : 'high',
-                adultCharactersConfirmed: false,
-              })
-            }
-            disabled={disabled || saving}
-          />
-        </FormField>
-        {preferences.adultContentMode === 'explicit' && (
-          <>
-            <FormField label="亲密内容权重">
-              <SearchSelect
-                value={preferences.intimacyWeight}
-                options={[
-                  { value: 'low', label: '低' },
-                  { value: 'medium', label: '中' },
-                  { value: 'high', label: '高' },
-                ]}
-                onChange={(value) => change({ ...preferences, intimacyWeight: value as AgentContentPreferences['intimacyWeight'] })}
-                disabled={disabled || saving}
-              />
-            </FormField>
-            <label className={styles.confirmAdults}>
-              <Checkbox
-                checked={preferences.adultCharactersConfirmed}
-                disabled={disabled || saving}
-                onCheckedChange={(checked) => change({ ...preferences, adultCharactersConfirmed: checked === true })}
-              />
-              我确认相关角色均为成年人
-            </label>
-          </>
-        )}
+        <div className={styles.settingsPreferences}>
+          <FormField label="成人内容偏好">
+            <SearchSelect
+              value={preferences.adultContentMode}
+              options={[
+                { value: 'off', label: '关闭' },
+                { value: 'explicit', label: 'R18 创作' },
+              ]}
+              onChange={(value) =>
+                change({
+                  ...preferences,
+                  adultContentMode: value as 'off' | 'explicit',
+                  intimacyWeight: value === 'off' ? 'none' : 'high',
+                  adultCharactersConfirmed: false,
+                })
+              }
+              disabled={disabled || saving}
+            />
+          </FormField>
+          {preferences.adultContentMode === 'explicit' && (
+            <>
+              <FormField label="亲密内容权重">
+                <SearchSelect
+                  value={preferences.intimacyWeight}
+                  options={[
+                    { value: 'low', label: '低' },
+                    { value: 'medium', label: '中' },
+                    { value: 'high', label: '高' },
+                  ]}
+                  onChange={(value) => change({ ...preferences, intimacyWeight: value as AgentContentPreferences['intimacyWeight'] })}
+                  disabled={disabled || saving}
+                />
+              </FormField>
+              <label className={styles.confirmAdults}>
+                <Checkbox
+                  checked={preferences.adultCharactersConfirmed}
+                  disabled={disabled || saving}
+                  onCheckedChange={(checked) => change({ ...preferences, adultCharactersConfirmed: checked === true })}
+                />
+                <span>我确认相关角色均为成年人</span>
+              </label>
+            </>
+          )}
+        </div>
         {error && (
-          <p role="alert" className={styles.error}>
+          <p role="alert" className={`${styles.error} ${styles.settingsError}`}>
             {error}
           </p>
         )}
-        <div>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!dirty || disabled || saving || (preferences.adultContentMode === 'explicit' && !preferences.adultCharactersConfirmed)}
-            onClick={() => void save()}
-          >
-            {saving ? '正在保存…' : '保存创作约定'}
-          </Button>
-          {dirty && <span className={styles.muted}> 保存后供下一条消息使用</span>}
-          {dirty && (
+        <div className={styles.settingsFooter}>
+          <span className={styles.muted}>{dirty ? '保存后供下一条消息使用' : '约定会随本次对话保存'}</span>
+          <div className={styles.settingsActions}>
+            {dirty && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={disabled || saving}
+                onClick={() => {
+                  setDraft(null)
+                  setError('')
+                }}
+              >
+                取消调整
+              </Button>
+            )}
             <Button
+              variant={dirty ? 'default' : 'outline'}
               size="sm"
-              variant="ghost"
-              disabled={disabled || saving}
-              onClick={() => {
-                setDraft(null)
-                setError('')
-              }}
+              disabled={!dirty || disabled || saving || (preferences.adultContentMode === 'explicit' && !preferences.adultCharactersConfirmed)}
+              onClick={() => void save()}
             >
-              取消调整
+              {saving ? '正在保存…' : '保存创作约定'}
             </Button>
-          )}
+          </div>
         </div>
       </div>
     </MotionDetails>

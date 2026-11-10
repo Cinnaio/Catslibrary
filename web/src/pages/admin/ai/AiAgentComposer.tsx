@@ -27,11 +27,12 @@ interface Props {
   providerPresetId: string
   onProviderChange: (id: string) => void
   tools?: ReactNode
+  focusRequest?: number
 }
 
 const DEFAULT_PROVIDER = '__default__'
 
-export default function AiAgentComposer({ value, onChange, onSend, onStop, busy, running, sendDisabled, providerPresetId, onProviderChange, tools }: Props) {
+export default function AiAgentComposer({ value, onChange, onSend, onStop, busy, running, sendDisabled, providerPresetId, onProviderChange, tools, focusRequest = 0 }: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null)
   const hintId = useId()
   const [presets, setPresets] = useState<AiProviderPreset[]>([])
@@ -42,6 +43,10 @@ export default function AiAgentComposer({ value, onChange, onSend, onStop, busy,
   const loading = loadedVersion !== refresh
   const selected = presets.find((preset) => preset.id === providerPresetId)
   const modelLabel = selected?.model || (providerPresetId ? '预设不可用' : defaultModel || '默认模型')
+
+  useEffect(() => {
+    if (focusRequest) textarea.current?.focus()
+  }, [focusRequest])
 
   useEffect(() => {
     let active = true
