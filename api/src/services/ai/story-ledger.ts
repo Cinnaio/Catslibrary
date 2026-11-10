@@ -3,13 +3,13 @@ import type { StoryCertainty, StoryGraph } from '@shared/story-graph'
 import { AiError } from './client'
 import { aliasIdentityQuote, cognitionProblem, ownershipItems, ownershipTopic, replacementProblem, resolutionProblem } from './story-ledger-integrity'
 import { reconcileState } from './story-ledger-state'
-import { continuedGoalProblem, goalEndingProblem, goalWording, isOpenGoal, summaryProblem, type GoalReview } from './story-ledger-goals'
+import { continuedGoalProblem, goalEndingProblem, goalTopic, goalWording, isOpenGoal, summaryProblem, type GoalReview } from './story-ledger-goals'
 import { entityNames, placePossessiveName, type SourceName } from './story-ledger-names'
 import type { SemanticReview } from './story-ledger-review'
 
 export const LEDGER_VERSION = 1
 /** Bump when extraction semantics change, without changing the stored JSON schema. */
-export const LEDGER_PROMPT_VERSION = 8
+export const LEDGER_PROMPT_VERSION = 9
 export type EntityKind = 'person' | 'item' | 'place' | 'faction'
 export type FactKind = 'fact' | 'state' | 'relationship' | 'boundary' | 'clue' | 'conflict' | 'item' | 'place' | 'goal'
 export interface MemoryEntity {
@@ -351,8 +351,26 @@ export function parseChapterMemory(
   const activeStates = workingFacts(opts.previous)
   const replacedThisChapter = new Set<string>()
   const facts: MemoryFact[] = []
-  for (let index = 0; index < root.facts.length; index++) {
-    const item = object(root.facts[index])
+  if (root.goals !== undefined && !Array.isArray(root.goals)) return fail('goals 必须为数组')
+  const inputFacts = root.facts.map(object)
+  if (inputFacts.some((item) => item.kind === 'goal')) return fail('新目标只填 goals 的 subjects、objective、quote；进度另填 facts，不能直接提交 kind=goal')
+  for (const value of (root.goals || []) as unknown[]) {
+    const item = object(value)
+    if (Object.keys(item).some((key) => !['subjects', 'objective', 'quote'].includes(key)))
+      return fail('goals 只接受 subjects、objective、quote；摘要和状态由程序生成，执行进度另存 facts')
+    const rawObjective = str(item.objective, 80, 'goals.objective')
+    const objective = goalTopic(rawObjective)
+    if (!objective || /[，,。；;\n]/u.test(rawObjective) || /(?:(?:尚未|还未|未)(?:开始|动工|执行|完成)|进行中)$/u.test(objective))
+      return fail('goals.objective 只写动作与对象、必要完成条件，不夹带执行进度')
+    const actors = [...new Set(strings(item.subjects, 12, 'goals.subjects').map(nameId))]
+    if (!actors.length || actors.some((id) => entities.get(id)?.kind !== 'person')) return fail('goals.subjects 必须绑定明确的人物执行者')
+    inputFacts.push({
+      subjects: actors, label: objective, summary: `${actors.map((id) => entities.get(id)!.name).join('、')}计划${objective}。`, quote: item.quote,
+      memoryType: 'state', kind: 'goal', certainty: 'fact', status: 'active', scope: 'local', replaces: [],
+    })
+  }
+  for (let index = 0; index < inputFacts.length; index++) {
+    const item = inputFacts[index]!
     const memoryType = enumValue(item.memoryType, ['state', 'event'] as const, 'memoryType')
     const kind = enumValue(coerceFactKind(item.kind, item), ['fact', 'state', 'relationship', 'boundary', 'clue', 'conflict', 'item', 'place', 'goal'] as const, '事实类别')
     const label = str(item.label, 80, 'label')
@@ -369,6 +387,8 @@ export function parseChapterMemory(
       // Explicitly supplied, unambiguous perspective can safely complete subjects.
       if (!subjects.includes(perspective)) subjects.push(perspective)
     } else if (perspective) return fail('非人物认知不能填写 perspective')
+    if (kind === 'relationship' && subjects.length === 1)
+      return fail('关系必须绑定两个不同实体；规范名与已核实别名是同一人，身份只放 entities.aliases，不另建自身关系')
     if (kind === 'relationship' && (subjects.length !== 2 || typeof item.directed !== 'boolean')) return fail('关系必须绑定双方并明确 directed 方向')
     const status = enumValue(lenientEnum(item.status, ['active', 'resolved'], 'status'), ['active', 'resolved'] as const, 'status')
     const scope = enumValue(lenientEnum(item.scope, ['local', 'global'], 'scope'), ['local', 'global'] as const, 'scope')
@@ -388,7 +408,7 @@ export function parseChapterMemory(
     if (kind === 'goal' && (memoryType !== 'state' || certainty !== 'fact' || status !== 'active' || scope !== 'local' || replaces.length || resolves.length))
       return fail('新目标须为 local、active、fact 的独立 state，旧目标结束只通过 goalReviews 提交')
     if (memoryType === 'state' && certainty !== 'belief' && kind !== 'goal' && goalWording(label, summary))
-      return fail('目标或计划必须使用 kind=goal；不能通过改类别绕过 goalReviews')
+      return fail('目标或计划必须填写 goals；不能通过改类别绕过 goalReviews')
     if (memoryType === 'state' && certainty === 'fact' && ownershipTopic(label) && ['item', 'state', 'fact'].includes(kind)) {
       const items = ownershipItems(next, entities)
       // An item explicitly named in the summary/label is not a guessed entity.
@@ -437,7 +457,7 @@ export function parseChapterMemory(
     if (!quote) return fail('目标结束依据无法逐字匹配本段正文')
     const endingProblem = goalEndingProblem(decision, quote, goal, opts.text)
     if (endingProblem) return fail(endingProblem)
-    const successorLabel = item.successor ? str(item.successor, 80, 'goalReviews.successor') : undefined
+    const successorLabel = item.successor ? goalTopic(str(item.successor, 80, 'goalReviews.successor')) : undefined
     const successors = facts.filter((fact) => fact.kind === 'goal' && fact.label === successorLabel)
     if (decision === 'superseded' ? successors.length !== 1 : !!successorLabel) return fail('替代须引用本段唯一的新目标 label；其他结束决定不能指定 successor')
     const closed: MemoryFact = {

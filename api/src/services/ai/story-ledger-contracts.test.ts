@@ -12,12 +12,36 @@ const goal: MemoryFact = {
   id: 'goal-1', memoryType: 'state', kind: 'goal', subjects: ['tao'], label: '检修电闸', summary: '陶策计划检修电闸。',
   certainty: 'fact', status: 'active', scope: 'local', replaces: [], quote: '陶策计划检修电闸。', chapterId: 'c1', ordinal: 1,
 }
-const parse = (text: string, facts: unknown[] = [], goalReviews?: unknown[], previous = { entities, facts: [goal] }) => parseChapterMemory(
-  { entities: [], facts, ...(goalReviews ? { goalReviews } : {}) },
+const parse = (text: string, facts: unknown[] = [], goalReviews?: unknown[], previous = { entities, facts: [goal] }, goals: unknown[] = []) => parseChapterMemory(
+  { entities: [], facts, goals, ...(goalReviews ? { goalReviews } : {}) },
   { novelId: 'book', chapterId: 'c2', ordinal: 2, part: 0, text, previous, supplied: relevantLedger(previous, text) },
 )
 
 describe('goal lifecycle contract', () => {
+  it('builds stable intentions from the goals input while keeping execution in a separate state', () => {
+    const text = '陶策决定检修电闸，尚未动工。'
+    const saved = parse(text, [{ ...goal, kind: 'state', label: '检修电闸进度', summary: '陶策检修电闸尚未动工。', quote: text }], [], { entities, facts: [] }, [
+      { subjects: ['陶策'], objective: '检修电闸', quote: text },
+    ])
+    expect(saved.facts.find((fact) => fact.kind === 'goal')).toMatchObject({ summary: '陶策计划检修电闸。', label: '检修电闸', status: 'active', subjects: ['tao'] })
+    expect(saved.facts.find((fact) => fact.kind === 'state')?.summary).toContain('尚未动工')
+    expect(() => parse(text, [{ ...goal, quote: text }], [], { entities, facts: [] })).toThrow('新目标只填 goals')
+    expect(() => parse(text, [], [], { entities, facts: [] }, [{ subjects: ['tao'], objective: '检修电闸，尚未动工', quote: text }])).toThrow('不夹带执行进度')
+    for (const objective of ['检修电闸，陶策在山站', '检修电闸。整理工具', '检修电闸\n整理工具'])
+      expect(() => parse(text, [], [], { entities, facts: [] }, [{ subjects: ['tao'], objective, quote: text }])).toThrow('不夹带执行进度')
+    expect(() => parse(text, [], [], { entities, facts: [] }, [{ subjects: ['station'], objective: '检修电闸', quote: text }])).toThrow('人物执行者')
+  })
+  it('keeps alias identity separate from two-entity relations and never merges similar names', () => {
+    const text = '陶策也叫阿策。陶侧与陶策一同来到山站。'
+    const previous = { entities: [...entities, { id: 'other', name: '陶侧', kind: 'person' as const, aliases: [] }], facts: [] }
+    const input = { entities: [{ name: '陶策', kind: 'person', aliases: ['阿策'] }], facts: [{ ...goal, kind: 'relationship', directed: false, subjects: ['陶策', '阿策'], label: '同一人', summary: '陶策也叫阿策。', quote: '陶策也叫阿策。' }] }
+    const opts = { novelId: 'book', chapterId: 'c2', ordinal: 2, part: 0, text, previous, supplied: previous }
+    expect(() => parseChapterMemory(input, opts)).toThrow('两个不同实体')
+    expect(parseChapterMemory({ ...input, facts: [] }, opts).entities[0]?.aliases).toEqual(['阿策'])
+    const two = parseChapterMemory({ entities: [], facts: [{ ...input.facts[0], subjects: ['陶侧', '陶策'], label: '同行', summary: '陶侧与陶策同行。', quote: '陶侧与陶策一同来到山站。' }] }, opts)
+    expect(two.facts[0]?.subjects).toEqual(['other', 'tao'])
+    expect(previous.entities.find((entity) => entity.id === 'tao')?.aliases).toEqual([])
+  })
   it('requires review even when an event reports completion under a different category and label', () => {
     const text = '陶策完成检修电闸。'
     expect(() => parse(text, [{ ...goal, memoryType: 'event', kind: 'fact', label: '工作结束', summary: text, quote: text }])).toThrow('goalReviews 缺少')
@@ -42,11 +66,12 @@ describe('goal lifecycle contract', () => {
   })
   it('links a replacement goal without turning the old goal into a differently named state', () => {
     const text = '陶策将检修电闸改为更换水泵，新的工作尚未开始。'
-    const next = { ...goal, label: '更换水泵', summary: '陶策计划更换水泵。', quote: text }
-    const saved = parse(text, [next], [{ id: goal.id, decision: 'superseded', quote: text, successor: '更换水泵' }])
+    const next = { subjects: ['tao'], objective: '更换水泵', quote: text }
+    const saved = parse(text, [], [{ id: goal.id, decision: 'superseded', quote: text, successor: '更换水泵' }], { entities, facts: [goal] }, [next])
     const state = applyChapterMemory({ entities, facts: [goal] }, saved)
     expect(workingFacts(state).map((fact) => fact.label)).toEqual(['更换水泵'])
     expect(saved.facts[1]).toMatchObject({ goalOutcome: 'superseded', successor: saved.facts[0]!.id })
+    expect(parse(text, [], [{ id: goal.id, decision: 'superseded', quote: text, successor: '更换水泵计划' }], { entities, facts: [goal] }, [{ ...next, objective: '更换水泵计划' }]).facts[1]?.successor).toBe(saved.facts[0]!.id)
     expect(() => parse(text, [], [{ id: goal.id, decision: 'superseded', quote: text, successor: '更换水泵' }])).toThrow('唯一的新目标')
   })
   it('rejects unrelated, stale, duplicate and missing review targets atomically', () => {
@@ -58,7 +83,7 @@ describe('goal lifecycle contract', () => {
     expect(goal.status).toBe('active')
   })
   it.each(['clue', 'boundary', 'state', 'relationship'])('rejects goals disguised as %s', (kind) => {
-    expect(() => parse('陶策计划检修电闸。', [{ ...goal, subjects: kind === 'relationship' ? ['yan', 'tao'] : ['tao'], directed: false, kind, label: '检修计划' }], [], { entities, facts: [] })).toThrow('kind=goal')
+    expect(() => parse('陶策计划检修电闸。', [{ ...goal, subjects: kind === 'relationship' ? ['yan', 'tao'] : ['tao'], directed: false, kind, label: '检修计划' }], [], { entities, facts: [] })).toThrow('必须填写 goals')
   })
   it('keeps negated completion, future plans and memories from closing current goals', () => {
     for (const text of ['陶策尚未完成检修电闸。', '陶策准备完成检修电闸。', '陶策回忆完成检修电闸的那天。']) {
@@ -72,8 +97,8 @@ describe('goal lifecycle contract', () => {
   })
   it('does not create the same goal again by changing only the lifecycle suffix', () => {
     const text = '陶策计划检修电闸。'
-    expect(parse(text, [{ ...goal, label: '检修电闸计划' }], [{ id: goal.id, decision: 'continue' }]).facts).toEqual([])
-    expect(() => parse(text, [{ ...goal, label: '检修电闸计划', summary: '陶策计划优先检修电闸。' }], [{ id: goal.id, decision: 'continue' }])).toThrow('不能另建重复状态')
+    expect(parse(text, [], [{ id: goal.id, decision: 'continue' }], { entities, facts: [goal] }, [{ subjects: ['tao'], objective: '检修电闸计划', quote: text }]).facts).toEqual([])
+    expect(() => parse(text, [], [{ id: goal.id, decision: 'continue' }], { entities, facts: [goal] }, [{ subjects: ['tao'], objective: '检修电闸', summary: '优先执行', quote: text }])).toThrow('只接受')
   })
 })
 
@@ -129,7 +154,7 @@ describe('summary scope and supported details', () => {
     expect(current.find((fact) => fact.kind === 'goal')).toEqual(goal)
     expect(current.map((fact) => fact.summary)).toEqual([goal.summary, '陶策已开始检修电闸。', '陶策在山站。'])
     for (const summary of ['陶策计划检修电闸，今天尚未执行。', '陶策计划检修电闸，目前正在检修。'])
-      expect(() => parse(text, [{ ...goal, summary, quote: text }], [], { entities, facts: [] })).toThrow('稳定意图')
+      expect(summaryProblem({ ...goal, summary, quote: text }, map)).toContain('稳定意图')
     expect(summaryProblem({ ...goal, summary: '陶策计划前往山站检修电闸。' }, map)).toBeUndefined()
     expect(summaryProblem({ ...goal, summary: '陶策计划今天找到尚未归还的钥匙。' }, map)).toBeUndefined()
   })

@@ -80,7 +80,7 @@ describe('incremental memory HTTP integration', () => {
       return reply(JSON.stringify({
         checks: context.targets.map((fact: { id: string }) => ({ id: fact.id, verdict: 'supported', reason: '正文明确沈砚持有钥匙。' })),
         goalChecks: [],
-        coverage: REVIEW_ASPECTS.map((aspect) => ({ aspect, verdict: aspect === 'ownership' ? 'covered' : 'none', reason: '归属已记录，其他维度无变化。' })),
+        coverage: REVIEW_ASPECTS.map((aspect) => ({ aspect, verdict: aspect === 'ownership' ? 'covered' : 'none', reason: '归属已记录，其他维度无变化。', claims: aspect === 'ownership' ? [{ statement: '沈砚持有铜钥匙', sourceQuote: context.text, matches: [{ id: context.targets[0].id, summarySpan: context.targets[0].summary }] }] : [] })),
       }))
     })
     const extracted = await app.request('/api/ai/writing/plot-state', json({ novelId: 'book' }))

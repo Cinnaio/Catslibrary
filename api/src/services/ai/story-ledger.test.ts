@@ -73,8 +73,8 @@ const reviewReply = (request: Parameters<typeof chat>[0]) => {
   const context = JSON.parse(request.messages[1]!.content)
   return {
     checks: context.targets.map((item: { id: string }) => ({ id: item.id, verdict: 'supported', reason: '测试复核：与正文及历史一致。' })),
-    goalChecks: (context.draft.goalReviews || []).map((item: { id: string }) => ({ id: item.id, verdict: 'supported', reason: '测试复核：目标生命周期一致。' })),
-    coverage: REVIEW_ASPECTS.map((aspect) => ({ aspect, verdict: 'none', reason: '测试复核：该维度无新增变化。' })),
+    goalChecks: context.goalReviewTargets.map((item: { id: string }) => ({ id: item.id, verdict: 'supported', reason: '测试复核：目标生命周期一致。' })),
+    coverage: REVIEW_ASPECTS.map((aspect) => ({ aspect, verdict: 'none', reason: '测试复核：该维度无新增变化。', claims: [] as Array<{ statement: string; sourceQuote: string; matches: Array<{ id: string; summarySpan: string }> }> })),
   }
 }
 const enableRealReview = async () => {
@@ -124,7 +124,7 @@ describe('independent review persistence and accounting', () => {
     await enableRealReview()
     vi.mocked(chat).mockResolvedValueOnce(reply(payload([], []))).mockImplementationOnce(async (request) => {
       const result = reviewReply(request)
-      result.coverage[2] = { aspect: 'cognition', verdict: 'missing', reason: '漏记沈砚误以为林舟离城。' }
+      result.coverage[2] = { aspect: 'cognition', verdict: 'missing', reason: '漏记沈砚误以为林舟离城。', claims: [{ statement: '沈砚误以为林舟离城', sourceQuote: prose[1]!, matches: [] }] }
       return reply(result)
     })
     await expect(extractPlotState(t.db, opts)).rejects.toThrow('cognition 漏记')
@@ -189,7 +189,7 @@ describe('independent review persistence and accounting', () => {
     vi.mocked(chat).mockResolvedValueOnce(reply(payload())).mockImplementationOnce(async (request) => reply(reviewReply(request)))
       .mockResolvedValueOnce(reply(payload([], []))).mockImplementationOnce(async (request) => {
         const result = reviewReply(request)
-        result.coverage[7] = { aspect: 'other', verdict: 'missing', reason: '测试模拟末段缺少重要状态。' }
+        result.coverage[7] = { aspect: 'other', verdict: 'missing', reason: '测试模拟末段缺少重要状态。', claims: [{ statement: '测试缺项', sourceQuote: '雨声不断。', matches: [] }] }
         return reply(result)
       })
     await expect(extractPlotState(t.db, opts)).rejects.toThrow('other 漏记')
@@ -202,7 +202,7 @@ describe('chapter ledger shared extraction and source integrity', () => {
   it('requires goal reviews, persists completion and retains the earlier anchor after retry', async () => {
     const start = '沈砚计划检修铜门。'
     await chapter(1, start)
-    vi.mocked(chat).mockResolvedValueOnce(reply(payload([fact({ kind: 'goal', subjects: ['沈砚'], label: '检修铜门', summary: start, quote: start })], [entity('沈砚')])))
+    vi.mocked(chat).mockResolvedValueOnce(reply({ ...payload([], [entity('沈砚')]), goals: [{ subjects: ['沈砚'], objective: '检修铜门', quote: start }] }))
     await extractPlotState(t.db, opts)
     const old = (await ledgerAtAnchor(t.db, 'book'))!.state.facts[0]!
     const end = '沈砚完成检修铜门。'

@@ -42,6 +42,9 @@ const runId = new Date().toISOString().replace(/[:.]/g, '-')
 const stateDir = resolve(option('state-dir') || `.tmp/story-memory-evaluation-${runId}`)
 const output = resolve(option('output') || `${stateDir}/report.json`)
 const frozen = process.argv.includes('--frozen')
+const developmentChapters = option('development-chapters') ? Number(option('development-chapters')) : undefined
+if (developmentChapters !== undefined && (frozen || !Number.isInteger(developmentChapters) || developmentChapters < 1 || developmentChapters > fixture.length))
+  throw new Error('development-chapters 仅允许非冻结开发诊断，且须为有效章节数')
 const configuration = {
   storyMemoryEngine: 'incremental' as const,
   storyMemoryAutoUpdate: false,
@@ -58,7 +61,7 @@ const collectSources = async (directory: string): Promise<string[]> => {
 }
 const sourceFiles = frozen
   ? [...await collectSources(resolve('api/src')), ...await collectSources(resolve('shared')), resolve('api/scripts/evaluate-story-memory.ts'), resolve('package-lock.json')].sort()
-  : ['story-ledger.ts', 'story-ledger-integrity.ts', 'story-ledger-state.ts', 'story-ledger-goals.ts', 'story-ledger-names.ts', 'story-ledger-engine.ts'].map((file) => resolve('api/src/services/ai', file))
+  : ['story-ledger.ts', 'story-ledger-integrity.ts', 'story-ledger-state.ts', 'story-ledger-goals.ts', 'story-ledger-names.ts', 'story-ledger-review.ts', 'story-ledger-engine.ts'].map((file) => resolve('api/src/services/ai', file))
 const hashImplementation = async () => {
   const hash = createHash('sha256')
   for (const file of sourceFiles) hash.update(await readFile(file))
@@ -71,6 +74,7 @@ const manifest = {
   fixtureHash: createHash('sha256').update(JSON.stringify(fixture)).digest('hex'),
   model: textProvider().model,
   ledgerPromptVersion: LEDGER_PROMPT_VERSION,
+  ...(developmentChapters !== undefined ? { developmentChapters, purpose: 'known-development-story' } : {}),
   ...(frozen ? { frozen: true, implementationHash, sourceCommit, configuration, policy, providerFingerprint } : {}),
 }
 const optionalJson = async (file: string) => {
@@ -113,7 +117,7 @@ globalThis.fetch = async (input, init) => {
     throw new Error('冻结评估的实现或供应商发生变化，已停止请求')
   const request = observed && typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
   const context = request?.messages?.[1]?.content ? JSON.parse(request.messages[1].content) : undefined
-  const phase = context?.draft ? 'review' as const : 'extract' as const
+  const phase = context?.phase === 'review' ? 'review' as const : 'extract' as const
   const entry = { chapter, phase, status: 'started' }
   if (observed) {
     requests++
@@ -156,9 +160,9 @@ globalThis.fetch = async (input, init) => {
       status: response.status,
       requestedHistory: context?.requestedHistory,
       previousValidationError: context?.previousValidationError,
-      suppliedFactIds: context?.previous?.facts?.map((fact: { id: string }) => fact.id),
+      suppliedFactIds: (context?.previous?.facts || (Array.isArray(context?.previous) ? context.previous : undefined))?.map((fact: { id: string }) => fact.id),
       reviewTargets: context?.targets,
-      reviewedGoalDecisions: context?.draft?.goalReviews,
+      reviewedGoalDecisions: context?.goalReviewTargets,
       content,
       systemPromptHash: createHash('sha256').update(request?.messages?.[0]?.content || '').digest('hex'),
     })
@@ -256,7 +260,7 @@ try {
     ])
   }
   let processed = (await ledgerAtAnchor(t.db, novelId))?.processed ?? 0
-  for (; processed < fixture.length; processed++) {
+  for (; processed < (developmentChapters || fixture.length); processed++) {
     chapter = processed + 1
     const started = Date.now()
     console.log(JSON.stringify({ chapter, status: 'started' }))

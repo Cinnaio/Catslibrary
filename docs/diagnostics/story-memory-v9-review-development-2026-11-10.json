@@ -1,0 +1,771 @@
+{
+  "purpose": "known-development-cases",
+  "maxRequests": 8,
+  "configuredModel": "deepseek-v4.1-flash-tiancai",
+  "results": [
+    {
+      "id": "unknown-content-missing",
+      "expected": "reject",
+      "text": "封箱未开，内容无人知道。",
+      "draft": {
+        "version": 1,
+        "entities": [
+          {
+            "id": "box",
+            "name": "封箱",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "person",
+            "name": "岑遥",
+            "kind": "person",
+            "aliases": []
+          },
+          {
+            "id": "dock",
+            "name": "码头",
+            "kind": "place",
+            "aliases": []
+          },
+          {
+            "id": "rope",
+            "name": "钟绳",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "pool",
+            "name": "水池",
+            "kind": "place",
+            "aliases": []
+          }
+        ],
+        "facts": [
+          {
+            "id": "box-status",
+            "label": "开启状态",
+            "summary": "封箱未开。",
+            "quote": "封箱未开，内容无人知道。",
+            "memoryType": "state",
+            "kind": "state",
+            "subjects": [
+              "box"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          }
+        ]
+      },
+      "previous": {
+        "entities": [],
+        "facts": []
+      },
+      "observed": "reject",
+      "error": "章节记忆语义复核失败：cognition 漏记: 正文断言“内容无人知道”，但没有对应摘要保存该认知状态。；未推进该章，请核对后重试",
+      "matchedExpectedDecision": true,
+      "elapsedMs": 5981,
+      "systemPromptHash": "25b7c25923005a2230433c9380c477e4faef94079990ebc020070bb9d0dbcab0",
+      "response": {
+        "text": "{\"checks\":[{\"id\":\"box-status\",\"verdict\":\"supported\",\"reason\":\"text明确写“封箱未开”，summary保存“封箱未开”，与该状态断言一致。\"}],\"coverage\":[{\"aspect\":\"location\",\"verdict\":\"none\",\"reason\":\"正文未提供封箱、人物或其他对象的位置信息。\",\"claims\":[]},{\"aspect\":\"ownership\",\"verdict\":\"none\",\"reason\":\"正文未提供封箱的归属或转手信息。\",\"claims\":[]},{\"aspect\":\"cognition\",\"verdict\":\"missing\",\"reason\":\"正文断言“内容无人知道”，但没有对应摘要保存该认知状态。\",\"claims\":[{\"statement\":\"封箱内容无人知道。\",\"sourceQuote\":\"内容无人知道。\",\"matches\":[]}]},{\"aspect\":\"progress\",\"verdict\":\"none\",\"reason\":\"正文未提供任务或操作的进度信息。\",\"claims\":[]},{\"aspect\":\"goals\",\"verdict\":\"none\",\"reason\":\"正文未提供目标意图或完成条件。\",\"claims\":[]},{\"aspect\":\"relationships\",\"verdict\":\"none\",\"reason\":\"正文未提供人物或对象之间的关系信息。\",\"claims\":[]},{\"aspect\":\"constraints\",\"verdict\":\"none\",\"reason\":\"正文未提供限制或约束条件。\",\"claims\":[]},{\"aspect\":\"other\",\"verdict\":\"covered\",\"reason\":\"封箱未开这一物品开启状态已由摘要保存。\",\"claims\":[{\"statement\":\"封箱处于未开启状态。\",\"sourceQuote\":\"封箱未开\",\"matches\":[{\"id\":\"box-status\",\"summarySpan\":\"封箱未开\"}]}]}]}",
+        "model": "deepseek-v4.1-flash",
+        "promptTokens": 963,
+        "completionTokens": 320,
+        "cost": 0.000448,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0,
+        "costReported": true,
+        "upstreamRequestId": "202611100101061965286978268d9d6RRcetRgW",
+        "costSource": "newapi-log",
+        "costCurrency": "USD"
+      }
+    },
+    {
+      "id": "unknown-content-saved",
+      "expected": "accept",
+      "text": "封箱未开，内容无人知道。",
+      "draft": {
+        "version": 1,
+        "entities": [
+          {
+            "id": "box",
+            "name": "封箱",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "person",
+            "name": "岑遥",
+            "kind": "person",
+            "aliases": []
+          },
+          {
+            "id": "dock",
+            "name": "码头",
+            "kind": "place",
+            "aliases": []
+          },
+          {
+            "id": "rope",
+            "name": "钟绳",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "pool",
+            "name": "水池",
+            "kind": "place",
+            "aliases": []
+          }
+        ],
+        "facts": [
+          {
+            "id": "box-status",
+            "label": "开启状态",
+            "summary": "封箱未开。",
+            "quote": "封箱未开，内容无人知道。",
+            "memoryType": "state",
+            "kind": "state",
+            "subjects": [
+              "box"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          },
+          {
+            "id": "box-contents",
+            "label": "封箱内容",
+            "summary": "封箱内容未知。",
+            "quote": "封箱未开，内容无人知道。",
+            "memoryType": "state",
+            "kind": "clue",
+            "subjects": [
+              "box"
+            ],
+            "certainty": "clue",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          }
+        ]
+      },
+      "previous": {
+        "entities": [],
+        "facts": []
+      },
+      "observed": "accept",
+      "matchedExpectedDecision": true,
+      "elapsedMs": 5305,
+      "systemPromptHash": "25b7c25923005a2230433c9380c477e4faef94079990ebc020070bb9d0dbcab0",
+      "response": {
+        "text": "{\"checks\":[{\"id\":\"box-status\",\"verdict\":\"supported\",\"reason\":\"正文“封箱未开”与摘要“封箱未开。”一致。\"},{\"id\":\"box-contents\",\"verdict\":\"supported\",\"reason\":\"正文“内容无人知道”与摘要“封箱内容未知。”一致。\"}],\"coverage\":[{\"aspect\":\"location\",\"verdict\":\"none\",\"reason\":\"正文未说明封箱或人物的具体位置。\",\"claims\":[]},{\"aspect\":\"ownership\",\"verdict\":\"none\",\"reason\":\"正文未涉及封箱归属或转移。\",\"claims\":[]},{\"aspect\":\"cognition\",\"verdict\":\"covered\",\"reason\":\"摘要保存了封箱内容对人物未知的状态。\",\"claims\":[{\"statement\":\"封箱内容无人知道。\",\"sourceQuote\":\"内容无人知道。\",\"matches\":[{\"id\":\"box-contents\",\"summarySpan\":\"封箱内容未知。\"}]}]},{\"aspect\":\"progress\",\"verdict\":\"none\",\"reason\":\"正文未涉及任何进度或完成程度。\",\"claims\":[]},{\"aspect\":\"goals\",\"verdict\":\"none\",\"reason\":\"正文未提出目标或意图。\",\"claims\":[]},{\"aspect\":\"relationships\",\"verdict\":\"none\",\"reason\":\"正文未涉及人物间关系。\",\"claims\":[]},{\"aspect\":\"constraints\",\"verdict\":\"covered\",\"reason\":\"摘要保存了封箱未开启这一状态约束。\",\"claims\":[{\"statement\":\"封箱未开。\",\"sourceQuote\":\"封箱未开\",\"matches\":[{\"id\":\"box-status\",\"summarySpan\":\"封箱未开。\"}]}]},{\"aspect\":\"other\",\"verdict\":\"none\",\"reason\":\"正文无其他需覆盖的重要信息。\",\"claims\":[]}]}",
+        "model": "deepseek-v4.1-flash",
+        "promptTokens": 1029,
+        "completionTokens": 343,
+        "cost": 0.00048,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0,
+        "costReported": true,
+        "upstreamRequestId": "202611100101118163920428268d9d6nPVafXrr",
+        "costSource": "newapi-log",
+        "costCurrency": "USD"
+      }
+    },
+    {
+      "id": "progress-mixed-location",
+      "expected": "reject",
+      "text": "岑遥在码头收拢工具，尚未结束。",
+      "draft": {
+        "version": 1,
+        "entities": [
+          {
+            "id": "box",
+            "name": "封箱",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "person",
+            "name": "岑遥",
+            "kind": "person",
+            "aliases": []
+          },
+          {
+            "id": "dock",
+            "name": "码头",
+            "kind": "place",
+            "aliases": []
+          },
+          {
+            "id": "rope",
+            "name": "钟绳",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "pool",
+            "name": "水池",
+            "kind": "place",
+            "aliases": []
+          }
+        ],
+        "facts": [
+          {
+            "id": "location",
+            "label": "当前位置",
+            "summary": "岑遥在码头。",
+            "quote": "岑遥在码头收拢工具，尚未结束。",
+            "memoryType": "state",
+            "kind": "place",
+            "subjects": [
+              "person"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          },
+          {
+            "id": "progress",
+            "label": "收拢工具进度",
+            "summary": "岑遥在码头收拢工具，尚未结束。",
+            "quote": "岑遥在码头收拢工具，尚未结束。",
+            "memoryType": "state",
+            "kind": "state",
+            "subjects": [
+              "person"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          }
+        ]
+      },
+      "previous": {
+        "entities": [],
+        "facts": []
+      },
+      "observed": "accept",
+      "matchedExpectedDecision": false,
+      "elapsedMs": 5456,
+      "systemPromptHash": "25b7c25923005a2230433c9380c477e4faef94079990ebc020070bb9d0dbcab0",
+      "response": {
+        "text": "{\"checks\":[{\"id\":\"location\",\"verdict\":\"supported\",\"reason\":\"正文明确岑遥在码头，摘要保存了该位置状态。\"},{\"id\":\"progress\",\"verdict\":\"supported\",\"reason\":\"正文明确收拢工具尚未结束，摘要保存了对象与未完成进度。\"}],\"coverage\":[{\"aspect\":\"location\",\"verdict\":\"covered\",\"reason\":\"正文给出岑遥当前在码头，摘要保存该位置。\",\"claims\":[{\"statement\":\"岑遥当前在码头。\",\"sourceQuote\":\"岑遥在码头收拢工具\",\"matches\":[{\"id\":\"location\",\"summarySpan\":\"岑遥在码头。\"}]}]},{\"aspect\":\"ownership\",\"verdict\":\"none\",\"reason\":\"正文未涉及物品归属或转移。\",\"claims\":[]},{\"aspect\":\"cognition\",\"verdict\":\"none\",\"reason\":\"正文未涉及人物认知或未知内容。\",\"claims\":[]},{\"aspect\":\"progress\",\"verdict\":\"covered\",\"reason\":\"正文说明收拢工具尚未结束，摘要保存该进度。\",\"claims\":[{\"statement\":\"岑遥收拢工具尚未结束。\",\"sourceQuote\":\"在码头收拢工具，尚未结束\",\"matches\":[{\"id\":\"progress\",\"summarySpan\":\"岑遥在码头收拢工具，尚未结束。\"}]}]},{\"aspect\":\"goals\",\"verdict\":\"none\",\"reason\":\"正文未表述目标或完成条件。\",\"claims\":[]},{\"aspect\":\"relationships\",\"verdict\":\"none\",\"reason\":\"正文未涉及人物关系变化。\",\"claims\":[]},{\"aspect\":\"constraints\",\"verdict\":\"none\",\"reason\":\"正文未涉及约束条件。\",\"claims\":[]},{\"aspect\":\"other\",\"verdict\":\"none\",\"reason\":\"正文无其他需保存的重要维度信息。\",\"claims\":[]}]}",
+        "model": "deepseek-v4.1-flash",
+        "promptTokens": 1033,
+        "completionTokens": 352,
+        "cost": 0.000362,
+        "cacheReadTokens": 640,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0,
+        "costReported": true,
+        "upstreamRequestId": "202611100101171299093918268d9d6pGgKn620",
+        "costSource": "newapi-log",
+        "costCurrency": "USD"
+      }
+    },
+    {
+      "id": "progress-separated",
+      "expected": "accept",
+      "text": "岑遥在码头收拢工具，尚未结束。",
+      "draft": {
+        "version": 1,
+        "entities": [
+          {
+            "id": "box",
+            "name": "封箱",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "person",
+            "name": "岑遥",
+            "kind": "person",
+            "aliases": []
+          },
+          {
+            "id": "dock",
+            "name": "码头",
+            "kind": "place",
+            "aliases": []
+          },
+          {
+            "id": "rope",
+            "name": "钟绳",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "pool",
+            "name": "水池",
+            "kind": "place",
+            "aliases": []
+          }
+        ],
+        "facts": [
+          {
+            "id": "location",
+            "label": "当前位置",
+            "summary": "岑遥在码头。",
+            "quote": "岑遥在码头收拢工具，尚未结束。",
+            "memoryType": "state",
+            "kind": "place",
+            "subjects": [
+              "person"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          },
+          {
+            "id": "progress",
+            "label": "收拢工具进度",
+            "summary": "岑遥收拢工具尚未结束。",
+            "quote": "岑遥在码头收拢工具，尚未结束。",
+            "memoryType": "state",
+            "kind": "state",
+            "subjects": [
+              "person"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          }
+        ]
+      },
+      "previous": {
+        "entities": [],
+        "facts": []
+      },
+      "observed": "accept",
+      "matchedExpectedDecision": true,
+      "elapsedMs": 5318,
+      "systemPromptHash": "25b7c25923005a2230433c9380c477e4faef94079990ebc020070bb9d0dbcab0",
+      "response": {
+        "text": "{\"checks\":[{\"id\":\"location\",\"verdict\":\"supported\",\"reason\":\"正文明确“岑遥在码头”，summary保存“岑遥在码头。”\"},{\"id\":\"progress\",\"verdict\":\"supported\",\"reason\":\"正文明确“收拢工具，尚未结束”，summary保存“岑遥收拢工具尚未结束。”\"}],\"coverage\":[{\"aspect\":\"location\",\"verdict\":\"covered\",\"reason\":\"正文给出岑遥当前位置，summary有对应位置状态。\",\"claims\":[{\"statement\":\"岑遥在码头。\",\"sourceQuote\":\"岑遥在码头收拢工具，尚未结束。\",\"matches\":[{\"id\":\"location\",\"summarySpan\":\"岑遥在码头。\"}]}]},{\"aspect\":\"ownership\",\"verdict\":\"none\",\"reason\":\"正文未提及任何物品归属信息。\",\"claims\":[]},{\"aspect\":\"cognition\",\"verdict\":\"none\",\"reason\":\"正文未提及人物认知或未知状态。\",\"claims\":[]},{\"aspect\":\"progress\",\"verdict\":\"covered\",\"reason\":\"正文说明收拢工具尚未结束，summary保存该未完成进度。\",\"claims\":[{\"statement\":\"岑遥收拢工具尚未结束。\",\"sourceQuote\":\"岑遥在码头收拢工具，尚未结束。\",\"matches\":[{\"id\":\"progress\",\"summarySpan\":\"岑遥收拢工具尚未结束。\"}]}]},{\"aspect\":\"goals\",\"verdict\":\"none\",\"reason\":\"正文未表明目标意图或完成条件。\",\"claims\":[]},{\"aspect\":\"relationships\",\"verdict\":\"none\",\"reason\":\"正文未提及人物关系。\",\"claims\":[]},{\"aspect\":\"constraints\",\"verdict\":\"none\",\"reason\":\"正文未提及限制或约束。\",\"claims\":[]},{\"aspect\":\"other\",\"verdict\":\"none\",\"reason\":\"正文未提供其他需记录的重要维度信息。\",\"claims\":[]}]}",
+        "model": "deepseek-v4.1-flash",
+        "promptTokens": 1030,
+        "completionTokens": 365,
+        "cost": 0.000372,
+        "cacheReadTokens": 640,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0,
+        "costReported": true,
+        "upstreamRequestId": "202611100101226163675028268d9d6WfBoUdWA",
+        "costSource": "newapi-log",
+        "costCurrency": "USD"
+      }
+    },
+    {
+      "id": "completed-current-state",
+      "expected": "accept",
+      "text": "岑遥已经排空水池，水池现在是空的。",
+      "draft": {
+        "version": 1,
+        "entities": [
+          {
+            "id": "box",
+            "name": "封箱",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "person",
+            "name": "岑遥",
+            "kind": "person",
+            "aliases": []
+          },
+          {
+            "id": "dock",
+            "name": "码头",
+            "kind": "place",
+            "aliases": []
+          },
+          {
+            "id": "rope",
+            "name": "钟绳",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "pool",
+            "name": "水池",
+            "kind": "place",
+            "aliases": []
+          }
+        ],
+        "facts": [
+          {
+            "id": "pool-state",
+            "label": "水池状态",
+            "summary": "水池现在是空的。",
+            "quote": "岑遥已经排空水池，水池现在是空的。",
+            "memoryType": "state",
+            "kind": "state",
+            "subjects": [
+              "pool"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          }
+        ]
+      },
+      "previous": {
+        "entities": [],
+        "facts": []
+      },
+      "observed": "accept",
+      "matchedExpectedDecision": true,
+      "elapsedMs": 5171,
+      "systemPromptHash": "25b7c25923005a2230433c9380c477e4faef94079990ebc020070bb9d0dbcab0",
+      "response": {
+        "text": "{\"checks\":[{\"id\":\"pool-state\",\"verdict\":\"supported\",\"reason\":\"text明确说明水池现在是空的，与summary一致；岑遥排空水池只是结果依据。\"}],\"coverage\":[{\"aspect\":\"location\",\"verdict\":\"none\",\"reason\":\"正文未给出水池、岑遥或其他实体的位置信息。\",\"claims\":[]},{\"aspect\":\"ownership\",\"verdict\":\"none\",\"reason\":\"正文未涉所有权或归属变化。\",\"claims\":[]},{\"aspect\":\"cognition\",\"verdict\":\"none\",\"reason\":\"正文未涉及人物认知状态。\",\"claims\":[]},{\"aspect\":\"progress\",\"verdict\":\"covered\",\"reason\":\"正文说明排空动作已完成，摘要保存了水池为空这一完成结果。\",\"claims\":[{\"statement\":\"岑遥已经排空水池。\",\"sourceQuote\":\"岑遥已经排空水池\",\"matches\":[{\"id\":\"pool-state\",\"summarySpan\":\"水池现在是空的。\"}]}]},{\"aspect\":\"goals\",\"verdict\":\"none\",\"reason\":\"正文未提出新目标或目标状态。\",\"claims\":[]},{\"aspect\":\"relationships\",\"verdict\":\"none\",\"reason\":\"正文未涉及人物或实体关系。\",\"claims\":[]},{\"aspect\":\"constraints\",\"verdict\":\"none\",\"reason\":\"正文未涉及限制条件。\",\"claims\":[]},{\"aspect\":\"other\",\"verdict\":\"covered\",\"reason\":\"水池当前为空的状态已由摘要保存。\",\"claims\":[{\"statement\":\"水池现在是空的。\",\"sourceQuote\":\"水池现在是空的。\",\"matches\":[{\"id\":\"pool-state\",\"summarySpan\":\"水池现在是空的。\"}]}]}]}",
+        "model": "deepseek-v4.1-flash",
+        "promptTokens": 966,
+        "completionTokens": 319,
+        "cost": 0.000322,
+        "cacheReadTokens": 640,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0,
+        "costReported": true,
+        "upstreamRequestId": "202611100101279314035698268d9d6FAb6bmTz",
+        "costSource": "newapi-log",
+        "costCurrency": "USD"
+      }
+    },
+    {
+      "id": "event-without-current-state",
+      "expected": "reject",
+      "text": "岑遥已经排空水池，水池现在是空的。",
+      "draft": {
+        "version": 1,
+        "entities": [
+          {
+            "id": "box",
+            "name": "封箱",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "person",
+            "name": "岑遥",
+            "kind": "person",
+            "aliases": []
+          },
+          {
+            "id": "dock",
+            "name": "码头",
+            "kind": "place",
+            "aliases": []
+          },
+          {
+            "id": "rope",
+            "name": "钟绳",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "pool",
+            "name": "水池",
+            "kind": "place",
+            "aliases": []
+          }
+        ],
+        "facts": [
+          {
+            "id": "pool-state",
+            "label": "水池状态",
+            "summary": "岑遥已经排空水池。",
+            "quote": "岑遥已经排空水池，水池现在是空的。",
+            "memoryType": "event",
+            "kind": "state",
+            "subjects": [
+              "pool"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          }
+        ]
+      },
+      "previous": {
+        "entities": [],
+        "facts": []
+      },
+      "observed": "reject",
+      "error": "章节记忆语义复核失败：progress 只有事件或已归档记录，缺少仍有效的当前状态；未推进该章，请核对后重试",
+      "matchedExpectedDecision": true,
+      "elapsedMs": 5195,
+      "systemPromptHash": "25b7c25923005a2230433c9380c477e4faef94079990ebc020070bb9d0dbcab0",
+      "response": {
+        "text": "{\"checks\":[{\"id\":\"pool-state\",\"verdict\":\"supported\",\"reason\":\"text明确称岑遥已经排空水池，summary保存了这一完成事件。\"}],\"coverage\":[{\"aspect\":\"location\",\"verdict\":\"none\",\"reason\":\"本段未提供地点信息。\",\"claims\":[]},{\"aspect\":\"ownership\",\"verdict\":\"none\",\"reason\":\"本段未涉及归属变化。\",\"claims\":[]},{\"aspect\":\"cognition\",\"verdict\":\"none\",\"reason\":\"本段未描述人物认知状态。\",\"claims\":[]},{\"aspect\":\"progress\",\"verdict\":\"covered\",\"reason\":\"排空水池这一完成状态已保存。\",\"claims\":[{\"statement\":\"岑遥已经排空水池。\",\"sourceQuote\":\"岑遥已经排空水池\",\"matches\":[{\"id\":\"pool-state\",\"summarySpan\":\"岑遥已经排空水池。\"}]}]},{\"aspect\":\"goals\",\"verdict\":\"none\",\"reason\":\"本段未涉及目标意图或完成条件。\",\"claims\":[]},{\"aspect\":\"relationships\",\"verdict\":\"none\",\"reason\":\"本段未涉及人物关系。\",\"claims\":[]},{\"aspect\":\"constraints\",\"verdict\":\"none\",\"reason\":\"本段未涉及限制条件。\",\"claims\":[]},{\"aspect\":\"other\",\"verdict\":\"covered\",\"reason\":\"水池当前为空的状态可由排空完成摘要反映。\",\"claims\":[{\"statement\":\"水池现在是空的。\",\"sourceQuote\":\"水池现在是空的\",\"matches\":[{\"id\":\"pool-state\",\"summarySpan\":\"岑遥已经排空水池。\"}]}]}]}",
+        "model": "deepseek-v4.1-flash",
+        "promptTokens": 969,
+        "completionTokens": 310,
+        "cost": 0.000316,
+        "cacheReadTokens": 640,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0,
+        "costReported": true,
+        "upstreamRequestId": "202611100101330983535208268d9d6aOLGhG80",
+        "costSource": "newapi-log",
+        "costCurrency": "USD"
+      }
+    },
+    {
+      "id": "new-goal-empty-review-scope",
+      "expected": "accept",
+      "text": "岑遥计划更换钟绳，尚未开始。",
+      "draft": {
+        "version": 1,
+        "entities": [
+          {
+            "id": "box",
+            "name": "封箱",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "person",
+            "name": "岑遥",
+            "kind": "person",
+            "aliases": []
+          },
+          {
+            "id": "dock",
+            "name": "码头",
+            "kind": "place",
+            "aliases": []
+          },
+          {
+            "id": "rope",
+            "name": "钟绳",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "pool",
+            "name": "水池",
+            "kind": "place",
+            "aliases": []
+          }
+        ],
+        "facts": [
+          {
+            "id": "old-goal",
+            "label": "更换钟绳",
+            "summary": "岑遥计划更换钟绳。",
+            "quote": "岑遥计划更换钟绳，尚未开始。",
+            "memoryType": "state",
+            "kind": "goal",
+            "subjects": [
+              "person"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          },
+          {
+            "id": "goal-progress",
+            "label": "更换钟绳进度",
+            "summary": "岑遥更换钟绳尚未开始。",
+            "quote": "岑遥计划更换钟绳，尚未开始。",
+            "memoryType": "state",
+            "kind": "state",
+            "subjects": [
+              "person"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          }
+        ]
+      },
+      "previous": {
+        "entities": [],
+        "facts": []
+      },
+      "observed": "accept",
+      "matchedExpectedDecision": true,
+      "elapsedMs": 4711,
+      "systemPromptHash": "25b7c25923005a2230433c9380c477e4faef94079990ebc020070bb9d0dbcab0",
+      "response": {
+        "text": "{\"checks\":[{\"id\":\"old-goal\",\"verdict\":\"supported\",\"reason\":\"summary保存岑遥计划更换钟绳这一目标意图；正文与此一致，未表明目标已取消或改变。\"},{\"id\":\"goal-progress\",\"verdict\":\"supported\",\"reason\":\"summary保存更换钟绳尚未开始的进度状态；正文明确写明尚未开始，段末仍成立。\"}],\"coverage\":[{\"aspect\":\"location\",\"verdict\":\"none\",\"reason\":\"正文未提及任何人物或物品的位置。\",\"claims\":[]},{\"aspect\":\"ownership\",\"verdict\":\"none\",\"reason\":\"正文未提及钟绳或其他物品的归属。\",\"claims\":[]},{\"aspect\":\"cognition\",\"verdict\":\"none\",\"reason\":\"正文未涉及人物知晓或未知的信息。\",\"claims\":[]},{\"aspect\":\"progress\",\"verdict\":\"covered\",\"reason\":\"正文明确更换钟绳尚未开始，摘要保存该进度。\",\"claims\":[{\"statement\":\"岑遥更换钟绳尚未开始。\",\"sourceQuote\":\"岑遥计划更换钟绳，尚未开始。\",\"matches\":[{\"id\":\"goal-progress\",\"summarySpan\":\"岑遥更换钟绳尚未开始。\"}]}]},{\"aspect\":\"goals\",\"verdict\":\"covered\",\"reason\":\"正文表明岑遥计划更换钟绳，摘要保存该目标意图。\",\"claims\":[{\"statement\":\"岑遥计划更换钟绳。\",\"sourceQuote\":\"岑遥计划更换钟绳，尚未开始。\",\"matches\":[{\"id\":\"old-goal\",\"summarySpan\":\"岑遥计划更换钟绳。\"}]}]},{\"aspect\":\"relationships\",\"verdict\":\"none\",\"reason\":\"正文未涉及人物之间的关系变化。\",\"claims\":[]},{\"aspect\":\"constraints\",\"verdict\":\"none\",\"reason\":\"正文未提及任何限制、障碍或条件。\",\"claims\":[]},{\"aspect\":\"other\",\"verdict\":\"none\",\"reason\":\"正文无其他需要核对的重要信息。\",\"claims\":[]}]}",
+        "model": "deepseek-v4.1-flash",
+        "promptTokens": 1039,
+        "completionTokens": 387,
+        "cost": 0.000392,
+        "cacheReadTokens": 640,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0,
+        "costReported": true,
+        "upstreamRequestId": "202611100101382996316778268d9d66jKQ4J0v",
+        "costSource": "newapi-log",
+        "costCurrency": "USD"
+      }
+    },
+    {
+      "id": "ended-goal-incorrect-continue",
+      "expected": "reject",
+      "text": "岑遥已把钟绳换妥，更换工作就此告一段落。",
+      "draft": {
+        "version": 1,
+        "entities": [
+          {
+            "id": "box",
+            "name": "封箱",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "person",
+            "name": "岑遥",
+            "kind": "person",
+            "aliases": []
+          },
+          {
+            "id": "dock",
+            "name": "码头",
+            "kind": "place",
+            "aliases": []
+          },
+          {
+            "id": "rope",
+            "name": "钟绳",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "pool",
+            "name": "水池",
+            "kind": "place",
+            "aliases": []
+          }
+        ],
+        "facts": [],
+        "goalReviews": [
+          {
+            "id": "old-goal",
+            "decision": "continue"
+          }
+        ]
+      },
+      "previous": {
+        "entities": [
+          {
+            "id": "box",
+            "name": "封箱",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "person",
+            "name": "岑遥",
+            "kind": "person",
+            "aliases": []
+          },
+          {
+            "id": "dock",
+            "name": "码头",
+            "kind": "place",
+            "aliases": []
+          },
+          {
+            "id": "rope",
+            "name": "钟绳",
+            "kind": "item",
+            "aliases": []
+          },
+          {
+            "id": "pool",
+            "name": "水池",
+            "kind": "place",
+            "aliases": []
+          }
+        ],
+        "facts": [
+          {
+            "id": "old-goal",
+            "label": "更换钟绳",
+            "summary": "岑遥计划更换钟绳。",
+            "quote": "岑遥计划更换钟绳，尚未开始。",
+            "memoryType": "state",
+            "kind": "goal",
+            "subjects": [
+              "person"
+            ],
+            "certainty": "fact",
+            "status": "active",
+            "scope": "local",
+            "replaces": [],
+            "chapterId": "case",
+            "ordinal": 1
+          }
+        ]
+      },
+      "observed": "reject",
+      "error": "章节记忆语义复核失败：old-goal stale: 目标旧摘要为“岑遥计划更换钟绳”，本段明确“岑遥已把钟绳换妥，更换工作就此告一段落”，目标已完成，旧摘要未保存完成状态，属段末已过时。；目标 old-goal: decision为continue，但本段事实为更换钟绳已完成、工作告一段落，旧目标摘要未更新为完成状态，continue判断与本段事实不符。；progress 漏记: 正文明确更换钟绳已完成，但目标摘要只保存“计划更换钟绳”，未保存完成状态。；goals 漏记: 更换钟绳的目标已完成，但summary仍只写计划，未体现完成。；未推进该章，请核对后重试",
+      "matchedExpectedDecision": true,
+      "elapsedMs": 5735,
+      "systemPromptHash": "25b7c25923005a2230433c9380c477e4faef94079990ebc020070bb9d0dbcab0",
+      "response": {
+        "text": "{\"checks\":[{\"id\":\"old-goal\",\"verdict\":\"stale\",\"reason\":\"目标旧摘要为“岑遥计划更换钟绳”，本段明确“岑遥已把钟绳换妥，更换工作就此告一段落”，目标已完成，旧摘要未保存完成状态，属段末已过时。\"}],\"coverage\":[{\"aspect\":\"location\",\"verdict\":\"none\",\"reason\":\"本段未提及任何地点或位置状态。\",\"claims\":[]},{\"aspect\":\"ownership\",\"verdict\":\"none\",\"reason\":\"本段未提及物品归属或持有人变化。\",\"claims\":[]},{\"aspect\":\"cognition\",\"verdict\":\"none\",\"reason\":\"本段未提及任何人物认知、已知或未知状态。\",\"claims\":[]},{\"aspect\":\"progress\",\"verdict\":\"missing\",\"reason\":\"正文明确更换钟绳已完成，但目标摘要只保存“计划更换钟绳”，未保存完成状态。\",\"claims\":[{\"statement\":\"岑遥已把钟绳换妥，更换工作完成。\",\"sourceQuote\":\"岑遥已把钟绳换妥，更换工作就此告一段落。\",\"matches\":[]}]},{\"aspect\":\"goals\",\"verdict\":\"missing\",\"reason\":\"更换钟绳的目标已完成，但summary仍只写计划，未体现完成。\",\"claims\":[{\"statement\":\"更换钟绳这一目标已经完成。\",\"sourceQuote\":\"更换工作就此告一段落。\",\"matches\":[]}]},{\"aspect\":\"relationships\",\"verdict\":\"none\",\"reason\":\"本段未提及人物之间的关系变化。\",\"claims\":[]},{\"aspect\":\"constraints\",\"verdict\":\"none\",\"reason\":\"本段未提及限制条件或约束变化。\",\"claims\":[]},{\"aspect\":\"other\",\"verdict\":\"none\",\"reason\":\"本段无其他维度的重要信息。\",\"claims\":[]}],\"goalChecks\":[{\"id\":\"old-goal\",\"verdict\":\"unsupported\",\"reason\":\"decision为continue，但本段事实为更换钟绳已完成、工作告一段落，旧目标摘要未更新为完成状态，continue判断与本段事实不符。\"}]}",
+        "model": "deepseek-v4.1-flash",
+        "promptTokens": 1097,
+        "completionTokens": 426,
+        "cost": 0.000434,
+        "cacheReadTokens": 640,
+        "cacheWriteTokens": 0,
+        "reasoningTokens": 0,
+        "costReported": true,
+        "upstreamRequestId": "202611100101430104561168268d9d6nFSgbFXB",
+        "costSource": "newapi-log",
+        "costCurrency": "USD"
+      }
+    }
+  ],
+  "usage": {
+    "calls": 8,
+    "input_tokens": 8126,
+    "output_tokens": 2822,
+    "reported_calls": 8,
+    "cost_millicents": "312.60000000"
+  },
+  "note": "预期拒绝但因格式/范围/引用错误而失败不算语义检出；须逐项人工检查原始响应。"
+}
