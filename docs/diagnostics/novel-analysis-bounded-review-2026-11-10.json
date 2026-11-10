@@ -1,0 +1,156 @@
+{
+  "date": "2026-11-10",
+  "implementation": "df2246bb",
+  "mode": "offline-frozen-artifact-review",
+  "modelCalls": 0,
+  "applicationDatabaseWrites": false,
+  "reportHash": "cd5ed8d9ae3c1a66e9320f45ef79f93d550737044b3f0ad0c683529cd64b1977",
+  "sourceHash": "d1af445ce9161d9dce42c189d9935921a51b302f037655a02a5e98cf38e16e27",
+  "reviewer": "implementation-assistant",
+  "independentReview": false,
+  "sweep": {
+    "quotedSpansDetected": 99,
+    "exactInParagraphSources": 78,
+    "whitespaceNormalizedInParagraphSources": 78,
+    "noExactMatchAnywhere": 14,
+    "interpretation": "用于定位候选；引号包含概念、问题和概括，单字有大量误匹配；不计算正确率。段内包含某来源不保证紧邻引用正确。"
+  },
+  "targetedQuoteReview": {
+    "selection": "后段主要转折和家庭场景中12处非露骨引句，已知样本，非随机、非盲测",
+    "results": [
+      {
+        "id": "Q01",
+        "reportLine": 45,
+        "characters": 8,
+        "source": "S91",
+        "quoteHash": "1461d4a6e20ed65f1687c510a48b583bf1051a4c8c3ef4ca9cc2474068d6dcfb",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      },
+      {
+        "id": "Q02",
+        "reportLine": 45,
+        "characters": 17,
+        "source": "S91",
+        "quoteHash": "5483271e708988d3ac763e8f67083fb440241f40045e568d39d4b8dfafa97cad",
+        "exactAtExpectedSource": false,
+        "verdict": "paraphrase-in-quotation-marks"
+      },
+      {
+        "id": "Q03",
+        "reportLine": 45,
+        "characters": 31,
+        "source": "S91",
+        "quoteHash": "1cb1afb0e924079015e49ad7c3cf187b95f7f3c05723875d75c22d4f7035871c",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      },
+      {
+        "id": "Q04",
+        "reportLine": 45,
+        "characters": 9,
+        "source": "S91",
+        "quoteHash": "9fee9e83281175ed0e97c82cbf0753b9577dc81f5b673537b1776984062547a3",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      },
+      {
+        "id": "Q05",
+        "reportLine": 49,
+        "characters": 6,
+        "source": "S92",
+        "quoteHash": "edb4720adf5b38bf123ee7030ba564eb1889dc0f66263acbd579b4e06046097f",
+        "exactAtExpectedSource": true,
+        "verdict": "exact-with-next-source-citation"
+      },
+      {
+        "id": "Q06",
+        "reportLine": 51,
+        "characters": 14,
+        "source": "S95",
+        "quoteHash": "31daf41a90861bbe8c237223eb11fd32f9189d550fa634b7e520dc7410499df9",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      },
+      {
+        "id": "Q07",
+        "reportLine": 51,
+        "characters": 23,
+        "source": "S96",
+        "quoteHash": "7c69f107d19c356c0a6bb6e02ff606f9bde1359f5806f46fdbc5940a5d102557",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      },
+      {
+        "id": "Q08",
+        "reportLine": 55,
+        "characters": 5,
+        "source": "S98",
+        "quoteHash": "949fb27e3bcfba5083ec1124049bb51d4890c7bf07a617c371132464685f4307",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      },
+      {
+        "id": "Q09",
+        "reportLine": 55,
+        "characters": 8,
+        "source": "S98",
+        "quoteHash": "35a59573a45c307eedcec603e8caf1e8446441fe3854684293a177356f545c1e",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      },
+      {
+        "id": "Q10",
+        "reportLine": 55,
+        "characters": 8,
+        "source": "S99",
+        "quoteHash": "fdca451ad33632337d2742394f945e53552741fcc8b370668164bb558542279c",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      },
+      {
+        "id": "Q11",
+        "reportLine": 57,
+        "characters": 12,
+        "source": "S99",
+        "quoteHash": "60249bad2e8dc59eabfabbfd8dae30974870ad2f26433d948113265958cef49a",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      },
+      {
+        "id": "Q12",
+        "reportLine": 57,
+        "characters": 24,
+        "source": "S99",
+        "quoteHash": "071c35055e75af0d26149bfa52d7adf5fbc90835c5e244c3997dd02bbb330bac",
+        "exactAtExpectedSource": true,
+        "verdict": "exact"
+      }
+    ],
+    "findings": [
+      {
+        "id": "Q02",
+        "change": "保留第三人称概括，但移除引号；或使用原文中的第一人称问句。意义基本一致，不能称逐字引文。"
+      },
+      {
+        "id": "Q05",
+        "change": "提问句后单独标S92，接续回答标S93；不要依赖整段前后都有编号来弥补就近引用错位。"
+      }
+    ]
+  },
+  "factReview": "novel-analysis-streaming-2026-11-10.json#semanticReview",
+  "originalReport": {
+    "changed": false
+  },
+  "residualIssues": [
+    "父母在场范围表述错误",
+    "对白和动作复述偏多",
+    "部分引号为概括且跨章问答引用需拆分",
+    "供应商未遵守涉及未成年内容的非露骨分析要求，私密输出不作交付样本"
+  ],
+  "disposition": {
+    "lowReasoning": "retain",
+    "additionalPaidCalls": "none",
+    "overallModelContentAcceptance": "incomplete"
+  }
+}
