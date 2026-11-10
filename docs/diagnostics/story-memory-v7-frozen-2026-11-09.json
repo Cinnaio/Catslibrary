@@ -1,0 +1,1917 @@
+{
+  "runId": "2026-11-09T15-39-52-956Z",
+  "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+  "fixtureHash": "47b2c08c3e1e823c4ecfbd2fdb5c3d70dc4fdc5afce2f495acbdae7d343c65b8",
+  "model": "deepseek-v4.1-flash-tiancai",
+  "ledgerPromptVersion": 7,
+  "frozen": true,
+  "sourceCommit": "5320a699a4901ae1ec1e07210da0f189c2cf200d",
+  "configuration": {
+    "storyMemoryEngine": "incremental",
+    "storyMemoryAutoUpdate": false,
+    "storyMemoryStreamEnabled": false,
+    "storyMemoryChapterMaxTokens": 16000,
+    "storyMemoryTimeoutSeconds": 300,
+    "storyMemoryReasoningMode": "disabled"
+  },
+  "policy": {
+    "maxChapterAttempts": 3,
+    "maxFailedAttempts": 5,
+    "automaticSemanticRetries": false
+  },
+  "providerFingerprint": "4ecd49362f0fe722a595b0f2b0604f127008108f60080f80727ebf850fe43b33",
+  "status": "failed",
+  "requestsThisRun": 1,
+  "fixture": [
+    {
+      "title": "旧馆的清晨",
+      "text": "岑遥又名阿遥。岑遥和杜衡共同管理旧馆，地位平等。岑遥保管铜牌，杜衡拿着扳手。旧馆的水泵已经停转。杜衡决定修复水泵，岑遥计划寻找备用铜管；两件事尚未开始。修理水泵前必须排空水池，这条规定一直有效。许澄独自在南码头核对货单。许程是另一位送货人，许程和许澄不是同一个人。",
+      "expectations": [
+        "岑遥与阿遥同一人，许澄和许程分别登记",
+        "铜牌归岑遥、扳手归杜衡",
+        "两人合作平等",
+        "水泵停转和修复水泵目标分开",
+        "寻找备用铜管是独立未执行目标",
+        "排空后修理为持续约束，南码头支线保留"
+      ]
+    },
+    {
+      "title": "库房里的铜管",
+      "text": "岑遥在库房找到备用铜管，寻找备用铜管的目标已经完成。岑遥把铜管放入工具箱，仍保管铜牌。杜衡没有开始修理，因为水池尚未排空；修复水泵的目标继续有效。许程把一只封筒送到旧馆，交给杜衡。封筒没有拆开，杜衡不知道里面写了什么。",
+      "expectations": [
+        "寻找备用铜管目标完成并退出当前未完成目标",
+        "修复水泵继续有效，不能因找到铜管而关闭",
+        "岑遥在库房，持有铜牌与备用铜管",
+        "许程保持独立，封筒归杜衡",
+        "封筒未拆且内容未知，不生成内容"
+      ]
+    },
+    {
+      "title": "临时改变的安排",
+      "text": "杜衡发现水泵外壳已经裂开，明确取消修复水泵，决定改为更换水泵。更换水泵的新目标今天尚未执行，排空水池的要求仍然适用。岑遥另定了清扫阁楼的计划。杜衡把扳手交给岑遥，铜牌仍在岑遥手里。许澄没有离开南码头。",
+      "expectations": [
+        "旧修复水泵目标结束，不能继续保持未执行",
+        "更换水泵成为独立新目标；替代应可追溯",
+        "清扫阁楼是另一个当前计划",
+        "扳手转岑遥，铜牌不变",
+        "排空约束保留，许澄位置仍为南码头"
+      ]
+    },
+    {
+      "title": "取消清扫",
+      "text": "旧馆屋顶漏雨，岑遥正式取消清扫阁楼，今天和以后都不再执行这项计划，也没有另定替代事项。杜衡先排空水池，然后开始更换水泵，目前只拆下了旧泵，更换尚未完成。岑遥仍在库房收拢工具。",
+      "expectations": [
+        "清扫阁楼以取消结束，无替代目标",
+        "更换水泵仍有效，开始不等于完成",
+        "水池已排空与更换进度分别保存",
+        "岑遥位置为库房，摘要不夹带旧清扫计划",
+        "扳手与铜牌归属不丢失"
+      ]
+    },
+    {
+      "title": "被误传的去向",
+      "text": "岑遥从库房来到旧馆庭院，铜牌和扳手都随身携带。许程在南码头告诉许澄，自己猜测岑遥去了东市；这只是许程的猜测。许澄暂且相信这个说法，但没有核实。杜衡留在旧馆安装新泵，更换工作仍未完成。",
+      "expectations": [
+        "岑遥客观位置为庭院",
+        "许程和许澄分别持有未证实的东市认知",
+        "猜测不能覆盖客观位置",
+        "更换水泵目标继续、进度未完成",
+        "铜牌和扳手仍归岑遥"
+      ]
+    },
+    {
+      "title": "只纠正一人的误解",
+      "text": "许澄从南码头来到旧馆庭院，亲眼看到岑遥。岑遥告诉许澄，自己今天从未去过东市。许澄现在知道岑遥没有去东市。许程已经离开南码头去了东市，没有听见谈话，仍以为岑遥在那里。许澄答应稍后把真实情况告诉许程，现在尚未传话。",
+      "expectations": [
+        "许澄认知纠正且保留认知者",
+        "许程旧误解仍有效，不能共享真相",
+        "许澄位置为庭院，许程位置为东市",
+        "传话是独立新目标，尚未完成",
+        "认知摘要不夹带认知者当前位置或传话计划"
+      ]
+    },
+    {
+      "title": "新泵运转",
+      "text": "杜衡装好新泵并试转成功，更换水泵的目标已经完成。水池随后重新注满，新泵正常运转；以后维修仍须先排空。岑遥把扳手还给杜衡，铜牌仍由岑遥保管。许澄今天没有找到许程，传话目标继续有效。杜衡提议明日拆开封筒查看内容，今天尚未拆封。",
+      "expectations": [
+        "更换水泵以完成结束，进行中状态退出",
+        "新泵正常运转和水池注满分别保存",
+        "未来维修约束不被完成事件删除",
+        "扳手回杜衡、铜牌归岑遥",
+        "传话目标继续，拆封为新计划，封筒内容仍未知"
+      ]
+    },
+    {
+      "title": "误解终于消除",
+      "text": "许澄在东市找到许程，明确告诉许程岑遥今天从未去过东市；许程接受了这个消息，知道先前判断错误。许澄完成向许程传话的目标。岑遥独自在旧馆庭院检查铜牌，杜衡仍保管封筒。没有人拆开封筒。",
+      "expectations": [
+        "许程获得正确认知，旧误解退出",
+        "传话目标完成并关闭旧记录",
+        "许澄与许程都在东市，岑遥在庭院",
+        "封筒保管者和未拆状态继续",
+        "拆封计划继续有效，不能因另一目标完成而关闭"
+      ]
+    },
+    {
+      "title": "封筒中的短笺",
+      "text": "次日上午，杜衡在旧馆打开封筒，读完短笺，拆开封筒查看内容的目标完成。短笺只有一句话：备用铜管属于旧馆。只有杜衡看过短笺，岑遥尚不知道这句话，许澄和许程也未收到消息。杜衡把封筒和短笺放回自己的抽屉，仍负责保管。",
+      "expectations": [
+        "拆封阅读目标完成，未拆状态退出",
+        "短笺内容仅为备用铜管属于旧馆，不增加秘密",
+        "杜衡知道内容，其他三人的未知分别保留",
+        "封筒与短笺由杜衡保管",
+        "旧完成或取消的目标不得重新出现为待执行"
+      ]
+    },
+    {
+      "title": "留给下一天的工作",
+      "text": "岑遥决定明日整理库房，整理库房是新的计划，今天没有开始。岑遥仍在旧馆庭院保管铜牌。杜衡携带扳手去了北仓，封筒和短笺仍在旧馆抽屉，由杜衡负责保管。许澄回到南码头，许程留在东市。新泵继续正常运转，三人仍未获知短笺内容。",
+      "expectations": [
+        "整理库房是唯一新建且未执行的计划",
+        "已完成、取消或被替代目标不残留当前状态",
+        "岑遥庭院、杜衡北仓、许澄南码头、许程东市",
+        "铜牌归岑遥、扳手归杜衡；封筒位置与保管者区别",
+        "新泵正常及排空维修约束保留",
+        "岑遥、许澄、许程不自动获知短笺内容"
+      ]
+    }
+  ],
+  "processedChapters": 6,
+  "steps": [
+    {
+      "runId": "2026-11-09T15-34-02-358Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 1,
+      "status": "passed",
+      "elapsedMs": 10479,
+      "facts": 9,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 3433,
+        "elapsedMs": 10417,
+        "promptTokens": 1630,
+        "completionTokens": 952,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-1"
+        ],
+        "updatedAt": 1794238459344,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T15-34-02-358Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 2,
+      "status": "passed",
+      "elapsedMs": 11477,
+      "facts": 5,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 6587,
+        "elapsedMs": 11440,
+        "promptTokens": 2916,
+        "completionTokens": 749,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-2"
+        ],
+        "updatedAt": 1794238470849,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T15-34-02-358Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 3,
+      "status": "failed",
+      "elapsedMs": 7739,
+      "error": "章节记忆校验失败：新目标须为 local、active、fact 的独立 state，旧目标结束只通过 goalReviews 提交；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 7317,
+        "elapsedMs": 7719,
+        "promptTokens": 3199,
+        "completionTokens": 865,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-3"
+        ],
+        "updatedAt": 1794238478620,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：新目标须为 local、active、fact 的独立 state，旧目标结束只通过 goalReviews 提交；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "4fbd81461b8bc6a7ca713246b753886d3d5ea971f618b668088084cb79d6875d",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：新目标须为 local、active、fact 的独立 state，旧目标结束只通过 goalReviews 提交；未推进该章，请核对后重试"
+        ]
+      }
+    },
+    {
+      "runId": "2026-11-09T15-37-15-029Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 3,
+      "status": "passed",
+      "elapsedMs": 7293,
+      "facts": 6,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 7425,
+        "elapsedMs": 7196,
+        "promptTokens": 3243,
+        "completionTokens": 578,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-3"
+        ],
+        "updatedAt": 1794238642956,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T15-37-15-029Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 4,
+      "status": "failed",
+      "elapsedMs": 6200,
+      "error": "章节记忆校验失败：目标 f_7da96b28f7ff9cfcdada43e4 只能通过 goalReviews 结束，不能改标签或类别替换；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 6609,
+        "elapsedMs": 6161,
+        "promptTokens": 2902,
+        "completionTokens": 529,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-4"
+        ],
+        "updatedAt": 1794238649204,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：目标 f_7da96b28f7ff9cfcdada43e4 只能通过 goalReviews 结束，不能改标签或类别替换；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "3ab88b52598bebd9bb9ed68f61889e18625ca3f7b7ef24be60798763e500d0a6",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：目标 f_7da96b28f7ff9cfcdada43e4 只能通过 goalReviews 结束，不能改标签或类别替换；未推进该章，请核对后重试"
+        ]
+      }
+    },
+    {
+      "runId": "2026-11-09T15-38-02-076Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 4,
+      "status": "passed",
+      "elapsedMs": 7733,
+      "facts": 6,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 6720,
+        "elapsedMs": 7640,
+        "promptTokens": 2955,
+        "completionTokens": 665,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-4"
+        ],
+        "updatedAt": 1794238690412,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T15-38-02-076Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 5,
+      "status": "passed",
+      "elapsedMs": 9235,
+      "facts": 5,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 8682,
+        "elapsedMs": 9181,
+        "promptTokens": 3768,
+        "completionTokens": 633,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-5"
+        ],
+        "updatedAt": 1794238699675,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T15-38-02-076Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 6,
+      "status": "passed",
+      "elapsedMs": 8150,
+      "facts": 4,
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 8488,
+        "elapsedMs": 8099,
+        "promptTokens": 3695,
+        "completionTokens": 505,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-6"
+        ],
+        "updatedAt": 1794238707840,
+        "streamed": false,
+        "reasoningMode": "disabled"
+      }
+    },
+    {
+      "runId": "2026-11-09T15-38-02-076Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 7,
+      "status": "failed",
+      "elapsedMs": 9428,
+      "error": "章节记忆校验失败：替换记录 f_8b97ef0332aeeaae1e547ab3 无效（只能替换当前持续状态）；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 10572,
+        "elapsedMs": 9387,
+        "promptTokens": 4595,
+        "completionTokens": 795,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-7"
+        ],
+        "updatedAt": 1794238717290,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：替换记录 f_8b97ef0332aeeaae1e547ab3 无效（只能替换当前持续状态）；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "d921e326efb92a03247e327112ff9d790bf47a21a80608b472723a5f253766a2",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：替换记录 f_8b97ef0332aeeaae1e547ab3 无效（只能替换当前持续状态）；未推进该章，请核对后重试"
+        ]
+      }
+    },
+    {
+      "runId": "2026-11-09T15-39-20-413Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 7,
+      "status": "failed",
+      "elapsedMs": 9303,
+      "error": "章节记忆校验失败：facts[1] 同一状态 f_8b97ef0332aeeaae1e547ab3 已存在；没有变化请省略，发生变化须用 replaces 明确更新，不能另建重复状态；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 10669,
+        "elapsedMs": 9233,
+        "promptTokens": 4643,
+        "completionTokens": 795,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-7"
+        ],
+        "updatedAt": 1794238770386,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：facts[1] 同一状态 f_8b97ef0332aeeaae1e547ab3 已存在；没有变化请省略，发生变化须用 replaces 明确更新，不能另建重复状态；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "d921e326efb92a03247e327112ff9d790bf47a21a80608b472723a5f253766a2",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：替换记录 f_8b97ef0332aeeaae1e547ab3 无效（只能替换当前持续状态）；未推进该章，请核对后重试",
+          "章节记忆校验失败：facts[1] 同一状态 f_8b97ef0332aeeaae1e547ab3 已存在；没有变化请省略，发生变化须用 replaces 明确更新，不能另建重复状态；未推进该章，请核对后重试"
+        ]
+      }
+    },
+    {
+      "runId": "2026-11-09T15-39-52-956Z",
+      "implementationHash": "edc086d1f2d6b1f7f606ca5537b785e50f127834ec8ee2ea5b0b4a70b586f157",
+      "chapter": 7,
+      "status": "failed",
+      "elapsedMs": 9389,
+      "error": "章节记忆校验失败：替换记录 f_4f30bc0167ecc0fcf1fe45f1 无效（主题不同，请沿用原 label 或另建记录）；未推进该章，请核对后重试",
+      "attempt": {
+        "status": "complete",
+        "finishReason": "stop",
+        "model": "deepseek-v4.1-flash",
+        "maxTokens": 16000,
+        "timeoutMs": 300000,
+        "inputChars": 10775,
+        "elapsedMs": 9305,
+        "promptTokens": 4706,
+        "completionTokens": 949,
+        "reasoningTokens": 0,
+        "chapterIds": [
+          "eval-7"
+        ],
+        "updatedAt": 1794238803170,
+        "streamed": false,
+        "reasoningMode": "disabled",
+        "error": "章节记忆校验失败：替换记录 f_4f30bc0167ecc0fcf1fe45f1 无效（主题不同，请沿用原 label 或另建记录）；未推进该章，请核对后重试",
+        "validationSource": {
+          "inputRevision": "d921e326efb92a03247e327112ff9d790bf47a21a80608b472723a5f253766a2",
+          "part": 0
+        },
+        "validationErrors": [
+          "章节记忆校验失败：替换记录 f_8b97ef0332aeeaae1e547ab3 无效（只能替换当前持续状态）；未推进该章，请核对后重试",
+          "章节记忆校验失败：facts[1] 同一状态 f_8b97ef0332aeeaae1e547ab3 已存在；没有变化请省略，发生变化须用 replaces 明确更新，不能另建重复状态；未推进该章，请核对后重试",
+          "章节记忆校验失败：替换记录 f_4f30bc0167ecc0fcf1fe45f1 无效（主题不同，请沿用原 label 或另建记录）；未推进该章，请核对后重试"
+        ]
+      }
+    }
+  ],
+  "firstAttempts": [
+    {
+      "chapter": 1,
+      "firstAttempt": "passed",
+      "attempts": 1
+    },
+    {
+      "chapter": 2,
+      "firstAttempt": "passed",
+      "attempts": 1
+    },
+    {
+      "chapter": 3,
+      "firstAttempt": "failed",
+      "attempts": 2
+    },
+    {
+      "chapter": 4,
+      "firstAttempt": "failed",
+      "attempts": 2
+    },
+    {
+      "chapter": 5,
+      "firstAttempt": "passed",
+      "attempts": 1
+    },
+    {
+      "chapter": 6,
+      "firstAttempt": "passed",
+      "attempts": 1
+    },
+    {
+      "chapter": 7,
+      "firstAttempt": "failed",
+      "attempts": 3
+    },
+    {
+      "chapter": 8,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 9,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    },
+    {
+      "chapter": 10,
+      "firstAttempt": "not-run",
+      "attempts": 0
+    }
+  ],
+  "usage": {
+    "recorded_calls": 11,
+    "input_tokens": 38252,
+    "output_tokens": 8015,
+    "calls_with_reported_cost": 10,
+    "reported_cost_millicents": "494.60000000"
+  },
+  "costsByCurrency": [
+    {
+      "cost_currency": "USD",
+      "calls": 10,
+      "reported_cost_millicents": "494.60000000"
+    }
+  ],
+  "responses": [
+    {
+      "runId": "2026-11-09T15-34-02-358Z",
+      "chapter": 1,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"岑遥\",\"aliases\":[\"阿遥\"],\"kind\":\"person\"},{\"name\":\"杜衡\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"旧馆\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"铜牌\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"扳手\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧馆的水泵\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"水池\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"南码头\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"许澄\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"许程\",\"aliases\":[],\"kind\":\"person\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"relationship\",\"subjects\":[\"岑遥\",\"杜衡\"],\"directed\":false,\"label\":\"管理关系\",\"summary\":\"岑遥和杜衡共同管理旧馆，地位平等。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"岑遥和杜衡共同管理旧馆，地位平等。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜牌\"],\"directed\":false,\"label\":\"保管人\",\"summary\":\"铜牌由岑遥保管。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"岑遥保管铜牌，杜衡拿着扳手。\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"扳手\"],\"directed\":false,\"label\":\"持有人\",\"summary\":\"扳手由杜衡拿着。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"岑遥保管铜牌，杜衡拿着扳手。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"旧馆的水泵\"],\"directed\":false,\"label\":\"运转状态\",\"summary\":\"旧馆的水泵已经停转。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"旧馆的水泵已经停转。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"杜衡\"],\"directed\":false,\"label\":\"修复水泵\",\"summary\":\"杜衡决定修复水泵，尚未开始。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"杜衡决定修复水泵，岑遥计划寻找备用铜管；两件事尚未开始。\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"岑遥\"],\"directed\":false,\"label\":\"寻找备用铜管\",\"summary\":\"岑遥计划寻找备用铜管，尚未开始。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"杜衡决定修复水泵，岑遥计划寻找备用铜管；两件事尚未开始。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"旧馆的水泵\"],\"directed\":false,\"label\":\"修理前置规定\",\"summary\":\"修理水泵前必须排空水池，这条规定一直有效。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"global\",\"replaces\":[],\"resolves\":[],\"quote\":\"修理水泵前必须排空水池，这条规定一直有效。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"许澄\"],\"directed\":false,\"label\":\"当前位置\",\"summary\":\"许澄独自在南码头核对货单。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"许澄独自在南码头核对货单。\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"许澄\",\"许程\"],\"directed\":false,\"label\":\"身份区分\",\"summary\":\"许程是另一位送货人，许程和许澄不是同一个人。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"许程是另一位送货人，许程和许澄不是同一个人。\"}],\"goalReviews\":[]}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-34-02-358Z",
+      "chapter": 2,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_d28b2f11d66a507a174f0cf0",
+        "f_01008105746c5928d6f4b0f7",
+        "f_9ecb029fc73d068ea34cdfa0",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_409b063a71397c92bda18a6e",
+        "f_e5b0eeed80c6ac45850d4f63"
+      ],
+      "content": "{\n  \"complete\": true,\n  \"needs\": [],\n  \"entities\": [\n    {\"name\": \"岑遥\", \"aliases\": [\"阿遥\"], \"kind\": \"person\"},\n    {\"name\": \"杜衡\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"旧馆\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"铜牌\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"旧馆水泵\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"水池\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"许程\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"备用铜管\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"工具箱\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"封筒\", \"aliases\": [], \"kind\": \"item\"}\n  ],\n  \"facts\": [\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"item\",\n      \"subjects\": [\"备用铜管\"],\n      \"label\": \"保管人\",\n      \"summary\": \"备用铜管由岑遥放入工具箱。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"岑遥把铜管放入工具箱\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"杜衡\"],\n      \"label\": \"当前位置\",\n      \"summary\": \"杜衡在旧馆。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"许程把一只封筒送到旧馆，交给杜衡。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"fact\",\n      \"subjects\": [\"杜衡\"],\n      \"label\": \"封筒内容认知\",\n      \"summary\": \"杜衡不知道封筒里面写了什么。\",\n      \"certainty\": \"belief\",\n      \"perspective\": \"杜衡\",\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"封筒没有拆开，杜衡不知道里面写了什么。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"state\",\n      \"subjects\": [\"封筒\"],\n      \"label\": \"开封状态\",\n      \"summary\": \"封筒没有拆开。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"封筒没有拆开\"\n    }\n  ],\n  \"goalReviews\": [\n    {\n      \"id\": \"f_9ecb029fc73d068ea34cdfa0\",\n      \"decision\": \"completed\",\n      \"quote\": \"岑遥在库房找到备用铜管，寻找备用铜管的目标已经完成。\"\n    },\n    {\n      \"id\": \"f_01008105746c5928d6f4b0f7\",\n      \"decision\": \"continue\"\n    }\n  ]\n}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-34-02-358Z",
+      "chapter": 3,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_d28b2f11d66a507a174f0cf0",
+        "f_28861962da6184c8f6e16ad1",
+        "f_01008105746c5928d6f4b0f7",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_409b063a71397c92bda18a6e",
+        "f_e5b0eeed80c6ac45850d4f63",
+        "f_e5095956a421341db5192a9b",
+        "f_5b48756c0554aedd6152bbd8"
+      ],
+      "content": "{\n  \"complete\": true,\n  \"needs\": [],\n  \"entities\": [\n    {\"name\": \"杜衡\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"岑遥\", \"aliases\": [\"阿遥\"], \"kind\": \"person\"},\n    {\"name\": \"许澄\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"旧馆水泵\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"水池\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"扳手\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"铜牌\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"南码头\", \"aliases\": [], \"kind\": \"place\"}\n  ],\n  \"facts\": [\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"goal\",\n      \"subjects\": [\"杜衡\"],\n      \"label\": \"修复水泵\",\n      \"summary\": \"杜衡因水泵外壳裂开，明确取消修复水泵。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"resolved\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_01008105746c5928d6f4b0f7\"],\n      \"resolves\": [],\n      \"quote\": \"杜衡发现水泵外壳已经裂开，明确取消修复水泵，决定改为更换水泵。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"goal\",\n      \"subjects\": [\"杜衡\"],\n      \"label\": \"更换水泵\",\n      \"summary\": \"杜衡决定更换水泵，今天尚未执行。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"杜衡发现水泵外壳已经裂开，明确取消修复水泵，决定改为更换水泵。更换水泵的新目标今天尚未执行\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"goal\",\n      \"subjects\": [\"岑遥\"],\n      \"label\": \"清扫阁楼\",\n      \"summary\": \"岑遥另定了清扫阁楼的计划。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"岑遥另定了清扫阁楼的计划。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"item\",\n      \"subjects\": [\"扳手\"],\n      \"label\": \"持有人\",\n      \"summary\": \"扳手由岑遥持有。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_28861962da6184c8f6e16ad1\"],\n      \"resolves\": [],\n      \"quote\": \"杜衡把扳手交给岑遥\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"许澄\"],\n      \"label\": \"当前位置\",\n      \"summary\": \"许澄在南码头，没有离开。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_409b063a71397c92bda18a6e\"],\n      \"resolves\": [],\n      \"quote\": \"许澄没有离开南码头。\"\n    }\n  ],\n  \"goalReviews\": [\n    {\n      \"id\": \"f_01008105746c5928d6f4b0f7\",\n      \"decision\": \"cancelled\",\n      \"quote\": \"杜衡发现水泵外壳已经裂开，明确取消修复水泵，决定改为更换水泵。\"\n    }\n  ]\n}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-37-15-029Z",
+      "chapter": 3,
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：新目标须为 local、active、fact 的独立 state，旧目标结束只通过 goalReviews 提交；未推进该章，请核对后重试",
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_d28b2f11d66a507a174f0cf0",
+        "f_28861962da6184c8f6e16ad1",
+        "f_01008105746c5928d6f4b0f7",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_409b063a71397c92bda18a6e",
+        "f_e5b0eeed80c6ac45850d4f63",
+        "f_e5095956a421341db5192a9b",
+        "f_5b48756c0554aedd6152bbd8"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"杜衡\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"岑遥\",\"aliases\":[\"阿遥\"],\"kind\":\"person\"},{\"name\":\"扳手\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"铜牌\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧馆水泵\",\"aliases\":[],\"kind\":\"item\",\"sourceNames\":[{\"text\":\"水泵\",\"rule\":\"place-possessive\",\"chapterId\":\"eval-3\",\"ordinal\":3}]},{\"name\":\"水池\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"阁楼\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"南码头\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"许澄\",\"aliases\":[],\"kind\":\"person\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"杜衡\"],\"label\":\"更换水泵\",\"summary\":\"杜衡决定改为更换水泵，今天尚未执行。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"明确取消修复水泵，决定改为更换水泵。更换水泵的新目标今天尚未执行\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"扳手\"],\"label\":\"持有人\",\"summary\":\"扳手由岑遥持有。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_28861962da6184c8f6e16ad1\"],\"quote\":\"杜衡把扳手交给岑遥\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜牌\"],\"label\":\"保管人\",\"summary\":\"铜牌仍由岑遥保管。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"铜牌仍在岑遥手里\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"岑遥\"],\"label\":\"清扫阁楼\",\"summary\":\"岑遥另定清扫阁楼的计划。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"岑遥另定了清扫阁楼的计划\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"许澄\"],\"label\":\"当前位置\",\"summary\":\"许澄仍在南码头。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"许澄没有离开南码头\"}],\"goalReviews\":[{\"id\":\"f_01008105746c5928d6f4b0f7\",\"decision\":\"superseded\",\"quote\":\"杜衡发现水泵外壳已经裂开，明确取消修复水泵，决定改为更换水泵。\",\"successor\":\"更换水泵\"}]}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-37-15-029Z",
+      "chapter": 4,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_e5b0eeed80c6ac45850d4f63",
+        "f_e5095956a421341db5192a9b",
+        "f_5b48756c0554aedd6152bbd8",
+        "f_7da96b28f7ff9cfcdada43e4",
+        "f_c7d8161baadad5415938285f"
+      ],
+      "content": "{\n  \"complete\": true,\n  \"needs\": [],\n  \"entities\": [\n    {\"name\": \"岑遥\", \"aliases\": [\"阿遥\"], \"kind\": \"person\"},\n    {\"name\": \"杜衡\", \"aliases\": [], \"kind\": \"person\"},\n    {\"name\": \"旧馆\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"旧馆水泵\", \"aliases\": [], \"kind\": \"item\"},\n    {\"name\": \"水池\", \"aliases\": [], \"kind\": \"place\"},\n    {\"name\": \"阁楼\", \"aliases\": [], \"kind\": \"place\"}\n  ],\n  \"facts\": [\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"state\",\n      \"subjects\": [\"e_d9149944ffe1762472d586b4\"],\n      \"label\": \"更换水泵\",\n      \"summary\": \"杜衡先排空水池，随后开始更换水泵；目前只拆下了旧泵，更换尚未完成。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [\"f_7da96b28f7ff9cfcdada43e4\"],\n      \"resolves\": [],\n      \"quote\": \"杜衡先排空水池，然后开始更换水泵，目前只拆下了旧泵，更换尚未完成。\"\n    },\n    {\n      \"memoryType\": \"state\",\n      \"kind\": \"place\",\n      \"subjects\": [\"e_85b2ad3d68241346506163c9\"],\n      \"label\": \"当前位置\",\n      \"summary\": \"岑遥仍在库房。\",\n      \"certainty\": \"fact\",\n      \"perspective\": null,\n      \"status\": \"active\",\n      \"scope\": \"local\",\n      \"replaces\": [],\n      \"resolves\": [],\n      \"quote\": \"岑遥仍在库房收拢工具。\"\n    }\n  ],\n  \"goalReviews\": [\n    {\n      \"id\": \"f_c7d8161baadad5415938285f\",\n      \"decision\": \"cancelled\",\n      \"quote\": \"岑遥正式取消清扫阁楼，今天和以后都不再执行这项计划，也没有另定替代事项。\"\n    },\n    {\n      \"id\": \"f_7da96b28f7ff9cfcdada43e4\",\n      \"decision\": \"continue\"\n    }\n  ]\n}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-38-02-076Z",
+      "chapter": 4,
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：目标 f_7da96b28f7ff9cfcdada43e4 只能通过 goalReviews 结束，不能改标签或类别替换；未推进该章，请核对后重试",
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_e5b0eeed80c6ac45850d4f63",
+        "f_e5095956a421341db5192a9b",
+        "f_5b48756c0554aedd6152bbd8",
+        "f_7da96b28f7ff9cfcdada43e4",
+        "f_c7d8161baadad5415938285f"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"岑遥\",\"aliases\":[\"阿遥\"],\"kind\":\"person\"},{\"name\":\"杜衡\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"旧馆\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"旧馆水泵\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"水池\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"阁楼\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"e_c69d7048da2faafc8b91d926\"],\"label\":\"水池排空\",\"summary\":\"水池已经排空。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"resolved\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"杜衡先排空水池\"},{\"memoryType\":\"event\",\"kind\":\"event\",\"subjects\":[\"e_d9149944ffe1762472d586b4\",\"e_c69d7048da2faafc8b91d926\"],\"label\":\"排空水池\",\"summary\":\"杜衡先排空了水池，随后开始更换水泵。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"resolved\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"杜衡先排空水池，然后开始更换水泵\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"e_d9149944ffe1762472d586b4\",\"e_524b849107161b1e652f3ed7\"],\"label\":\"水泵更换进度\",\"summary\":\"杜衡已拆下旧泵，更换水泵尚未完成。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"目前只拆下了旧泵，更换尚未完成\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"e_85b2ad3d68241346506163c9\"],\"label\":\"当前位置\",\"summary\":\"岑遥在库房。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"岑遥仍在库房收拢工具\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"e_85b2ad3d68241346506163c9\"],\"label\":\"收拢工具进度\",\"summary\":\"岑遥仍在库房收拢工具，尚未结束。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"resolves\":[],\"quote\":\"岑遥仍在库房收拢工具\"}],\"goalReviews\":[{\"id\":\"f_c7d8161baadad5415938285f\",\"decision\":\"cancelled\",\"quote\":\"岑遥正式取消清扫阁楼，今天和以后都不再执行这项计划，也没有另定替代事项。\"},{\"id\":\"f_7da96b28f7ff9cfcdada43e4\",\"decision\":\"continue\"}]}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-38-02-076Z",
+      "chapter": 5,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_8b97ef0332aeeaae1e547ab3",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_e5b0eeed80c6ac45850d4f63",
+        "f_e5095956a421341db5192a9b",
+        "f_5b48756c0554aedd6152bbd8",
+        "f_7da96b28f7ff9cfcdada43e4",
+        "f_526d5684028f14dbfe059286",
+        "f_a9d96b401127b4ec81982d86",
+        "f_1c10fbc1e4f80fb94ccd9864",
+        "f_8e36a8ff03cb1b43d60917d7",
+        "f_ea9f0fab2c66d1758431f284",
+        "f_fabbb534099ee53132b25e9f"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"岑遥\",\"aliases\":[\"阿遥\"],\"kind\":\"person\"},{\"name\":\"许程\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"许澄\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"杜衡\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"旧馆\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"南码头\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"东市\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"铜牌\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"扳手\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧馆水泵\",\"aliases\":[],\"kind\":\"item\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"岑遥\"],\"label\":\"当前位置\",\"summary\":\"岑遥在旧馆庭院。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_ea9f0fab2c66d1758431f284\"],\"quote\":\"岑遥从库房来到旧馆庭院\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"许程\"],\"label\":\"岑遥去向认知\",\"summary\":\"许程猜测岑遥去了东市。\",\"certainty\":\"belief\",\"perspective\":\"许程\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"许程在南码头告诉许澄，自己猜测岑遥去了东市；这只是许程的猜测。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"许澄\"],\"label\":\"岑遥去向认知\",\"summary\":\"许澄暂且相信岑遥去了东市这一说法，但没有核实。\",\"certainty\":\"belief\",\"perspective\":\"许澄\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"许澄暂且相信这个说法，但没有核实。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"杜衡\"],\"label\":\"当前位置\",\"summary\":\"杜衡在旧馆。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_e5095956a421341db5192a9b\"],\"quote\":\"杜衡留在旧馆安装新泵\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"杜衡\",\"旧馆水泵\"],\"label\":\"水泵更换进度\",\"summary\":\"杜衡正在旧馆安装新泵，更换工作仍未完成。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_8e36a8ff03cb1b43d60917d7\"],\"quote\":\"杜衡留在旧馆安装新泵，更换工作仍未完成。\"}],\"goalReviews\":[{\"id\":\"f_7da96b28f7ff9cfcdada43e4\",\"decision\":\"continue\",\"quote\":\"杜衡留在旧馆安装新泵，更换工作仍未完成。\"}]}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-38-02-076Z",
+      "chapter": 6,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_e5b0eeed80c6ac45850d4f63",
+        "f_5b48756c0554aedd6152bbd8",
+        "f_7da96b28f7ff9cfcdada43e4",
+        "f_1c10fbc1e4f80fb94ccd9864",
+        "f_fabbb534099ee53132b25e9f",
+        "f_9e39cf153ff4c8ef35c7dbca",
+        "f_8ee1185c8c5a358a0f404823",
+        "f_612178c283f889a23e6e29d1",
+        "f_8d621c8be2f81d8b87a9052e",
+        "f_760db4ba6fb2ee23eac655bd"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"许澄\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"岑遥\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"许程\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"南码头\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"旧馆\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"东市\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"许澄\"],\"label\":\"当前位置\",\"summary\":\"许澄在旧馆庭院。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_1c10fbc1e4f80fb94ccd9864\"],\"quote\":\"许澄从南码头来到旧馆庭院\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"许澄\"],\"label\":\"岑遥去向认知\",\"summary\":\"许澄现在知道岑遥没有去东市，因为岑遥当面对许澄说自己今天从未去过东市。\",\"certainty\":\"belief\",\"perspective\":\"许澄\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_612178c283f889a23e6e29d1\"],\"quote\":\"岑遥告诉许澄，自己今天从未去过东市。许澄现在知道岑遥没有去东市。\"},{\"memoryType\":\"state\",\"kind\":\"place\",\"subjects\":[\"许程\"],\"label\":\"当前位置\",\"summary\":\"许程已从南码头去往东市。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"许程已经离开南码头去了东市\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"许澄\"],\"label\":\"把岑遥真实情况告诉许程\",\"summary\":\"许澄答应稍后把真实情况告诉许程，目前尚未传话。\",\"certainty\":\"fact\",\"perspective\":null,\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"许澄答应稍后把真实情况告诉许程，现在尚未传话。\"}],\"goalReviews\":[{\"id\":\"f_7da96b28f7ff9cfcdada43e4\",\"decision\":\"continue\"}]}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-38-02-076Z",
+      "chapter": 7,
+      "status": 200,
+      "requestedHistory": [],
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_8b97ef0332aeeaae1e547ab3",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_e5b0eeed80c6ac45850d4f63",
+        "f_5b48756c0554aedd6152bbd8",
+        "f_b749376bae10d61673b2a3b3",
+        "f_7da96b28f7ff9cfcdada43e4",
+        "f_526d5684028f14dbfe059286",
+        "f_a9d96b401127b4ec81982d86",
+        "f_fabbb534099ee53132b25e9f",
+        "f_9e39cf153ff4c8ef35c7dbca",
+        "f_8ee1185c8c5a358a0f404823",
+        "f_8d621c8be2f81d8b87a9052e",
+        "f_760db4ba6fb2ee23eac655bd",
+        "f_7afc7070dd3069ab599abc56",
+        "f_e424af59f008a0283b6fb25d",
+        "f_f638b7145cac34460585021e",
+        "f_87b30d6b3c79a5efc65ad6f6"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"杜衡\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"岑遥\",\"aliases\":[\"阿遥\"],\"kind\":\"person\"},{\"name\":\"许澄\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"许程\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"旧馆水泵\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"水池\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"扳手\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"铜牌\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"封筒\",\"aliases\":[],\"kind\":\"item\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"杜衡\",\"旧馆水泵\"],\"label\":\"水泵更换进度\",\"summary\":\"杜衡已装好新泵并试转成功，更换水泵完成；新泵正常运转。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_760db4ba6fb2ee23eac655bd\"],\"quote\":\"杜衡装好新泵并试转成功，更换水泵的目标已经完成。\"},{\"memoryType\":\"event\",\"kind\":\"state\",\"subjects\":[\"旧馆水泵\"],\"label\":\"运转状态\",\"summary\":\"旧馆水泵停转后，新泵已装好试转成功并正常运转。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_8b97ef0332aeeaae1e547ab3\"],\"quote\":\"水池随后重新注满，新泵正常运转\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"水池\"],\"label\":\"水位状态\",\"summary\":\"水池重新注满。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"水池随后重新注满\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"扳手\"],\"label\":\"持有人\",\"summary\":\"扳手由杜衡持有。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_526d5684028f14dbfe059286\"],\"quote\":\"岑遥把扳手还给杜衡\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜牌\"],\"label\":\"保管人\",\"summary\":\"铜牌仍由岑遥保管。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_a9d96b401127b4ec81982d86\"],\"quote\":\"铜牌仍由岑遥保管\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"岑遥\"],\"label\":\"拆开封筒查看内容\",\"summary\":\"杜衡提议明日拆开封筒查看内容，今天尚未拆封。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"杜衡提议明日拆开封筒查看内容，今天尚未拆封。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封筒\"],\"label\":\"开封状态\",\"summary\":\"封筒今天尚未拆封。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_b749376bae10d61673b2a3b3\"],\"quote\":\"今天尚未拆封\"}],\"goalReviews\":[{\"id\":\"f_7da96b28f7ff9cfcdada43e4\",\"decision\":\"completed\",\"quote\":\"杜衡装好新泵并试转成功，更换水泵的目标已经完成。\"},{\"id\":\"f_87b30d6b3c79a5efc65ad6f6\",\"decision\":\"continue\"}]}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-39-20-413Z",
+      "chapter": 7,
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：替换记录 f_8b97ef0332aeeaae1e547ab3 无效（只能替换当前持续状态）；未推进该章，请核对后重试",
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_8b97ef0332aeeaae1e547ab3",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_e5b0eeed80c6ac45850d4f63",
+        "f_5b48756c0554aedd6152bbd8",
+        "f_b749376bae10d61673b2a3b3",
+        "f_7da96b28f7ff9cfcdada43e4",
+        "f_526d5684028f14dbfe059286",
+        "f_a9d96b401127b4ec81982d86",
+        "f_fabbb534099ee53132b25e9f",
+        "f_9e39cf153ff4c8ef35c7dbca",
+        "f_8ee1185c8c5a358a0f404823",
+        "f_8d621c8be2f81d8b87a9052e",
+        "f_760db4ba6fb2ee23eac655bd",
+        "f_7afc7070dd3069ab599abc56",
+        "f_e424af59f008a0283b6fb25d",
+        "f_f638b7145cac34460585021e",
+        "f_87b30d6b3c79a5efc65ad6f6"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"杜衡\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"岑遥\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"许澄\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"许程\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"扳手\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"铜牌\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"封筒\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"旧馆水泵\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"水池\",\"aliases\":[],\"kind\":\"place\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"杜衡\",\"旧馆水泵\"],\"label\":\"水泵更换进度\",\"summary\":\"杜衡装好新泵并试转成功，更换水泵已完成。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_760db4ba6fb2ee23eac655bd\"],\"quote\":\"杜衡装好新泵并试转成功，更换水泵的目标已经完成。\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"旧馆水泵\"],\"label\":\"运转状态\",\"summary\":\"新泵安装后正常运转。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"水池随后重新注满，新泵正常运转\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"旧馆水泵\"],\"label\":\"运转状态\",\"summary\":\"旧馆的水泵已经停转。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"旧馆的水泵已经停转\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"水池\"],\"label\":\"水位状态\",\"summary\":\"水池重新注满。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"水池随后重新注满\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"扳手\"],\"label\":\"持有人\",\"summary\":\"扳手已由岑遥还给杜衡，现在由杜衡持有。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_526d5684028f14dbfe059286\"],\"quote\":\"岑遥把扳手还给杜衡\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜牌\"],\"label\":\"保管人\",\"summary\":\"铜牌仍由岑遥保管。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"铜牌仍由岑遥保管\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封筒\"],\"label\":\"开封状态\",\"summary\":\"封筒今天尚未拆封。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"今天尚未拆封\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"杜衡\"],\"label\":\"拆开封筒查看内容\",\"summary\":\"杜衡提议明日拆开封筒查看内容，今天尚未拆封。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"杜衡提议明日拆开封筒查看内容，今天尚未拆封\"}],\"goalReviews\":[{\"id\":\"f_7da96b28f7ff9cfcdada43e4\",\"decision\":\"completed\",\"quote\":\"杜衡装好新泵并试转成功，更换水泵的目标已经完成。\"},{\"id\":\"f_87b30d6b3c79a5efc65ad6f6\",\"decision\":\"continue\"}]}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    },
+    {
+      "runId": "2026-11-09T15-39-52-956Z",
+      "chapter": 7,
+      "status": 200,
+      "requestedHistory": [],
+      "previousValidationError": "章节记忆校验失败：替换记录 f_8b97ef0332aeeaae1e547ab3 无效（只能替换当前持续状态）；未推进该章，请核对后重试\n章节记忆校验失败：facts[1] 同一状态 f_8b97ef0332aeeaae1e547ab3 已存在；没有变化请省略，发生变化须用 replaces 明确更新，不能另建重复状态；未推进该章，请核对后重试",
+      "suppliedFactIds": [
+        "f_6bd5233e7b88671370896ad4",
+        "f_8b97ef0332aeeaae1e547ab3",
+        "f_4f30bc0167ecc0fcf1fe45f1",
+        "f_e5b0eeed80c6ac45850d4f63",
+        "f_5b48756c0554aedd6152bbd8",
+        "f_b749376bae10d61673b2a3b3",
+        "f_7da96b28f7ff9cfcdada43e4",
+        "f_526d5684028f14dbfe059286",
+        "f_a9d96b401127b4ec81982d86",
+        "f_fabbb534099ee53132b25e9f",
+        "f_9e39cf153ff4c8ef35c7dbca",
+        "f_8ee1185c8c5a358a0f404823",
+        "f_8d621c8be2f81d8b87a9052e",
+        "f_760db4ba6fb2ee23eac655bd",
+        "f_7afc7070dd3069ab599abc56",
+        "f_e424af59f008a0283b6fb25d",
+        "f_f638b7145cac34460585021e",
+        "f_87b30d6b3c79a5efc65ad6f6"
+      ],
+      "content": "{\"complete\":true,\"needs\":[],\"entities\":[{\"name\":\"杜衡\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"岑遥\",\"aliases\":[\"阿遥\"],\"kind\":\"person\"},{\"name\":\"许澄\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"许程\",\"aliases\":[],\"kind\":\"person\"},{\"name\":\"旧馆水泵\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"水池\",\"aliases\":[],\"kind\":\"place\"},{\"name\":\"扳手\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"铜牌\",\"aliases\":[],\"kind\":\"item\"},{\"name\":\"封筒\",\"aliases\":[],\"kind\":\"item\"}],\"facts\":[{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"杜衡\",\"旧馆水泵\"],\"label\":\"水泵更换进度\",\"summary\":\"杜衡已装好新泵并试转成功，更换水泵的工作已经完成。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_760db4ba6fb2ee23eac655bd\"],\"quote\":\"杜衡装好新泵并试转成功，更换水泵的目标已经完成。\"},{\"memoryType\":\"event\",\"kind\":\"fact\",\"subjects\":[\"杜衡\",\"旧馆水泵\"],\"label\":\"拆除旧泵装上新泵\",\"summary\":\"杜衡拆下停转的水泵，装上新泵并试转成功。\",\"certainty\":\"fact\",\"status\":\"resolved\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"杜衡装好新泵并试转成功\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"旧馆水泵\"],\"label\":\"运转状态\",\"summary\":\"旧馆水泵已换新，新泵正常运转。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_8b97ef0332aeeaae1e547ab3\"],\"quote\":\"新泵正常运转\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"水池\"],\"label\":\"储水状态\",\"summary\":\"水池已经重新注满。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"水池随后重新注满\"},{\"memoryType\":\"state\",\"kind\":\"boundary\",\"subjects\":[\"旧馆水泵\"],\"label\":\"维修前置规定\",\"summary\":\"以后维修水泵仍须先排空水池。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"global\",\"replaces\":[\"f_4f30bc0167ecc0fcf1fe45f1\"],\"quote\":\"以后维修仍须先排空\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"扳手\"],\"label\":\"持有人\",\"summary\":\"扳手已由岑遥还给杜衡，现由杜衡持有。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_526d5684028f14dbfe059286\"],\"quote\":\"岑遥把扳手还给杜衡\"},{\"memoryType\":\"state\",\"kind\":\"item\",\"subjects\":[\"铜牌\"],\"label\":\"保管人\",\"summary\":\"铜牌仍由岑遥保管。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_a9d96b401127b4ec81982d86\"],\"quote\":\"铜牌仍由岑遥保管\"},{\"memoryType\":\"state\",\"kind\":\"state\",\"subjects\":[\"封筒\"],\"label\":\"开封状态\",\"summary\":\"封筒今天尚未拆封。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[\"f_b749376bae10d61673b2a3b3\"],\"quote\":\"今天尚未拆封\"},{\"memoryType\":\"state\",\"kind\":\"goal\",\"subjects\":[\"杜衡\"],\"label\":\"拆开封筒查看内容\",\"summary\":\"杜衡提议明日拆开封筒查看内容。\",\"certainty\":\"fact\",\"status\":\"active\",\"scope\":\"local\",\"replaces\":[],\"quote\":\"杜衡提议明日拆开封筒查看内容\"}],\"goalReviews\":[{\"id\":\"f_7da96b28f7ff9cfcdada43e4\",\"decision\":\"completed\",\"quote\":\"杜衡装好新泵并试转成功，更换水泵的目标已经完成。\"},{\"id\":\"f_87b30d6b3c79a5efc65ad6f6\",\"decision\":\"continue\"}]}",
+      "systemPromptHash": "f6363b5ff604818de65e43296a75e61c2bd4fc92ffc0a847e25e025ff022ac4b"
+    }
+  ],
+  "state": {
+    "entities": [
+      {
+        "id": "e_85b2ad3d68241346506163c9",
+        "name": "岑遥",
+        "aliases": [
+          "阿遥"
+        ],
+        "kind": "person",
+        "aliasEvidence": [
+          {
+            "alias": "阿遥",
+            "quote": "岑遥又名阿遥",
+            "chapterId": "eval-1",
+            "ordinal": 1
+          }
+        ]
+      },
+      {
+        "id": "e_d9149944ffe1762472d586b4",
+        "name": "杜衡",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_f01d866eb4809f8d5e06312f",
+        "name": "旧馆",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_9d6a8695a37c79d1c75fae76",
+        "name": "铜牌",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_f2db727fa05b88f854e7aa0a",
+        "name": "扳手",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_524b849107161b1e652f3ed7",
+        "name": "旧馆水泵",
+        "aliases": [],
+        "kind": "item",
+        "sourceNames": [
+          {
+            "text": "旧馆的水泵",
+            "rule": "place-possessive",
+            "chapterId": "eval-1",
+            "ordinal": 1
+          }
+        ]
+      },
+      {
+        "id": "e_c69d7048da2faafc8b91d926",
+        "name": "水池",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_fbf5958ad589329de637047a",
+        "name": "南码头",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_9445d93588860b52c559122e",
+        "name": "许澄",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_89520ca005908043d81ba880",
+        "name": "许程",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_4b9f3119cb38d0eb2422378f",
+        "name": "备用铜管",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_c0b6dad1e7e56a8f3fd50a58",
+        "name": "工具箱",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_2a3fbf13725e5fbe18061499",
+        "name": "封筒",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_ca5b1ef4869e2a8149face6a",
+        "name": "阁楼",
+        "aliases": [],
+        "kind": "place"
+      },
+      {
+        "id": "e_be9fcc4e99934a9a46339abb",
+        "name": "东市",
+        "aliases": [],
+        "kind": "place"
+      }
+    ],
+    "facts": [
+      {
+        "id": "f_6bd5233e7b88671370896ad4",
+        "memoryType": "state",
+        "kind": "relationship",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9",
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "管理关系",
+        "summary": "岑遥和杜衡共同管理旧馆，地位平等。",
+        "certainty": "fact",
+        "directed": false,
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "岑遥和杜衡共同管理旧馆，地位平等",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_e04816965e71e19dada51f60"
+      },
+      {
+        "id": "f_d28b2f11d66a507a174f0cf0",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_9d6a8695a37c79d1c75fae76"
+        ],
+        "label": "保管人",
+        "summary": "铜牌由岑遥保管。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "岑遥保管铜牌，杜衡拿着扳手",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_9fadbfa975617f497df17425"
+      },
+      {
+        "id": "f_28861962da6184c8f6e16ad1",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_f2db727fa05b88f854e7aa0a"
+        ],
+        "label": "持有人",
+        "summary": "扳手由杜衡拿着。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "岑遥保管铜牌，杜衡拿着扳手",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_335e0d32e65e8a474ba942cb"
+      },
+      {
+        "id": "f_8b97ef0332aeeaae1e547ab3",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_524b849107161b1e652f3ed7"
+        ],
+        "label": "运转状态",
+        "summary": "旧馆的水泵已经停转。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "旧馆的水泵已经停转",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_10cf17b5bb0e064aa35f6457"
+      },
+      {
+        "id": "f_01008105746c5928d6f4b0f7",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "修复水泵",
+        "summary": "杜衡决定修复水泵，尚未开始。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "杜衡决定修复水泵，岑遥计划寻找备用铜管；两件事尚未开始",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_b4b8f63f142cc70012f32036"
+      },
+      {
+        "id": "f_9ecb029fc73d068ea34cdfa0",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "寻找备用铜管",
+        "summary": "岑遥计划寻找备用铜管，尚未开始。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "杜衡决定修复水泵，岑遥计划寻找备用铜管；两件事尚未开始",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_f83d84df797a95fd49d632e1"
+      },
+      {
+        "id": "f_4f30bc0167ecc0fcf1fe45f1",
+        "memoryType": "state",
+        "kind": "boundary",
+        "subjects": [
+          "e_524b849107161b1e652f3ed7"
+        ],
+        "label": "修理前置规定",
+        "summary": "修理水泵前必须排空水池，这条规定一直有效。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "global",
+        "replaces": [],
+        "quote": "修理水泵前必须排空水池，这条规定一直有效",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_4a1daa930238731cb2b2544f"
+      },
+      {
+        "id": "f_409b063a71397c92bda18a6e",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_9445d93588860b52c559122e"
+        ],
+        "label": "当前位置",
+        "summary": "许澄独自在南码头核对货单。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "许澄独自在南码头核对货单",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_5f7691bcd9568458c62fe183"
+      },
+      {
+        "id": "f_e5b0eeed80c6ac45850d4f63",
+        "memoryType": "state",
+        "kind": "boundary",
+        "subjects": [
+          "e_9445d93588860b52c559122e",
+          "e_89520ca005908043d81ba880"
+        ],
+        "label": "身份区分",
+        "summary": "许程是另一位送货人，许程和许澄不是同一个人。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "许程是另一位送货人，许程和许澄不是同一个人",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_1e6164e240645eb93305d790"
+      },
+      {
+        "id": "f_c34d9d4d0c15718cb53ae390",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_4b9f3119cb38d0eb2422378f"
+        ],
+        "label": "保管人",
+        "summary": "备用铜管由岑遥放入工具箱。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "岑遥把铜管放入工具箱",
+        "chapterId": "eval-2",
+        "ordinal": 2,
+        "stateKey": "s_5888861e84fd993080ddf0fc"
+      },
+      {
+        "id": "f_e5095956a421341db5192a9b",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "当前位置",
+        "summary": "杜衡在旧馆。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "许程把一只封筒送到旧馆，交给杜衡",
+        "chapterId": "eval-2",
+        "ordinal": 2,
+        "stateKey": "s_3c89057f1b4ded9b0cc1c373"
+      },
+      {
+        "id": "f_5b48756c0554aedd6152bbd8",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "封筒内容认知",
+        "summary": "杜衡不知道封筒里面写了什么。",
+        "certainty": "belief",
+        "perspective": "e_d9149944ffe1762472d586b4",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "封筒没有拆开，杜衡不知道里面写了什么",
+        "chapterId": "eval-2",
+        "ordinal": 2,
+        "stateKey": "s_9be6c676de3edaf8f72c7473"
+      },
+      {
+        "id": "f_b749376bae10d61673b2a3b3",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_2a3fbf13725e5fbe18061499"
+        ],
+        "label": "开封状态",
+        "summary": "封筒没有拆开。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "封筒没有拆开",
+        "chapterId": "eval-2",
+        "ordinal": 2,
+        "stateKey": "s_6810b89945e1be5456f83b33"
+      },
+      {
+        "id": "f_21d5a4ab20fb4ac6fe4ecace",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "寻找备用铜管",
+        "summary": "岑遥在库房找到备用铜管，寻找备用铜管的目标已经完成",
+        "certainty": "fact",
+        "status": "resolved",
+        "scope": "local",
+        "replaces": [
+          "f_9ecb029fc73d068ea34cdfa0"
+        ],
+        "quote": "岑遥在库房找到备用铜管，寻找备用铜管的目标已经完成",
+        "chapterId": "eval-2",
+        "ordinal": 2,
+        "stateKey": "s_f83d84df797a95fd49d632e1",
+        "goalOutcome": "completed"
+      },
+      {
+        "id": "f_7da96b28f7ff9cfcdada43e4",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "更换水泵",
+        "summary": "杜衡决定改为更换水泵，今天尚未执行。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "明确取消修复水泵，决定改为更换水泵。更换水泵的新目标今天尚未执行",
+        "chapterId": "eval-3",
+        "ordinal": 3,
+        "stateKey": "s_d626cb5c7474f0b60234c337"
+      },
+      {
+        "id": "f_526d5684028f14dbfe059286",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_f2db727fa05b88f854e7aa0a"
+        ],
+        "label": "持有人",
+        "summary": "扳手由岑遥持有。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_28861962da6184c8f6e16ad1"
+        ],
+        "quote": "杜衡把扳手交给岑遥",
+        "chapterId": "eval-3",
+        "ordinal": 3,
+        "stateKey": "s_335e0d32e65e8a474ba942cb"
+      },
+      {
+        "id": "f_a9d96b401127b4ec81982d86",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_9d6a8695a37c79d1c75fae76"
+        ],
+        "label": "保管人",
+        "summary": "铜牌仍由岑遥保管。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_d28b2f11d66a507a174f0cf0"
+        ],
+        "quote": "铜牌仍在岑遥手里",
+        "chapterId": "eval-3",
+        "ordinal": 3,
+        "stateKey": "s_9fadbfa975617f497df17425"
+      },
+      {
+        "id": "f_c7d8161baadad5415938285f",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "清扫阁楼",
+        "summary": "岑遥另定清扫阁楼的计划。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "岑遥另定了清扫阁楼的计划",
+        "chapterId": "eval-3",
+        "ordinal": 3,
+        "stateKey": "s_131ec413a3ac615f79f6a584"
+      },
+      {
+        "id": "f_1c10fbc1e4f80fb94ccd9864",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_9445d93588860b52c559122e"
+        ],
+        "label": "当前位置",
+        "summary": "许澄仍在南码头。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_409b063a71397c92bda18a6e"
+        ],
+        "quote": "许澄没有离开南码头",
+        "chapterId": "eval-3",
+        "ordinal": 3,
+        "stateKey": "s_5f7691bcd9568458c62fe183"
+      },
+      {
+        "id": "f_cb6cc0cfbdf1d3757ac35cfb",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "修复水泵",
+        "summary": "杜衡发现水泵外壳已经裂开，明确取消修复水泵，决定改为更换水泵",
+        "certainty": "fact",
+        "status": "resolved",
+        "scope": "local",
+        "replaces": [
+          "f_01008105746c5928d6f4b0f7"
+        ],
+        "quote": "杜衡发现水泵外壳已经裂开，明确取消修复水泵，决定改为更换水泵",
+        "chapterId": "eval-3",
+        "ordinal": 3,
+        "stateKey": "s_b4b8f63f142cc70012f32036",
+        "goalOutcome": "superseded",
+        "successor": "f_7da96b28f7ff9cfcdada43e4"
+      },
+      {
+        "id": "f_b1588896769fa9d4005442cb",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_c69d7048da2faafc8b91d926"
+        ],
+        "label": "水池排空",
+        "summary": "水池已经排空。",
+        "certainty": "fact",
+        "status": "resolved",
+        "scope": "local",
+        "replaces": [],
+        "quote": "杜衡先排空水池",
+        "chapterId": "eval-4",
+        "ordinal": 4,
+        "stateKey": "s_956370ef861ae40d3a64bdf2"
+      },
+      {
+        "id": "f_577187f7199fde98eb66a167",
+        "memoryType": "event",
+        "kind": "fact",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4",
+          "e_c69d7048da2faafc8b91d926"
+        ],
+        "label": "排空水池",
+        "summary": "杜衡先排空了水池，随后开始更换水泵。",
+        "certainty": "fact",
+        "status": "resolved",
+        "scope": "local",
+        "replaces": [],
+        "quote": "杜衡先排空水池，然后开始更换水泵",
+        "chapterId": "eval-4",
+        "ordinal": 4
+      },
+      {
+        "id": "f_8e36a8ff03cb1b43d60917d7",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4",
+          "e_524b849107161b1e652f3ed7"
+        ],
+        "label": "水泵更换进度",
+        "summary": "杜衡已拆下旧泵，更换水泵尚未完成。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "目前只拆下了旧泵，更换尚未完成",
+        "chapterId": "eval-4",
+        "ordinal": 4,
+        "stateKey": "s_dbad20b1557f7f898392b538"
+      },
+      {
+        "id": "f_ea9f0fab2c66d1758431f284",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "当前位置",
+        "summary": "岑遥在库房。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "岑遥仍在库房收拢工具",
+        "chapterId": "eval-4",
+        "ordinal": 4,
+        "stateKey": "s_e312ac1dfe772ab94f3081be"
+      },
+      {
+        "id": "f_fabbb534099ee53132b25e9f",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "收拢工具进度",
+        "summary": "岑遥仍在库房收拢工具，尚未结束。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "岑遥仍在库房收拢工具",
+        "chapterId": "eval-4",
+        "ordinal": 4,
+        "stateKey": "s_438a82182abd0c463afc9f62"
+      },
+      {
+        "id": "f_d272d20a5c5de15196d9f116",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "清扫阁楼",
+        "summary": "岑遥正式取消清扫阁楼，今天和以后都不再执行这项计划，也没有另定替代事项",
+        "certainty": "fact",
+        "status": "resolved",
+        "scope": "local",
+        "replaces": [
+          "f_c7d8161baadad5415938285f"
+        ],
+        "quote": "岑遥正式取消清扫阁楼，今天和以后都不再执行这项计划，也没有另定替代事项",
+        "chapterId": "eval-4",
+        "ordinal": 4,
+        "stateKey": "s_131ec413a3ac615f79f6a584",
+        "goalOutcome": "cancelled"
+      },
+      {
+        "id": "f_9e39cf153ff4c8ef35c7dbca",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "当前位置",
+        "summary": "岑遥在旧馆庭院。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_ea9f0fab2c66d1758431f284"
+        ],
+        "quote": "岑遥从库房来到旧馆庭院",
+        "chapterId": "eval-5",
+        "ordinal": 5,
+        "stateKey": "s_e312ac1dfe772ab94f3081be"
+      },
+      {
+        "id": "f_8ee1185c8c5a358a0f404823",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_89520ca005908043d81ba880"
+        ],
+        "label": "岑遥去向认知",
+        "summary": "许程猜测岑遥去了东市。",
+        "certainty": "belief",
+        "perspective": "e_89520ca005908043d81ba880",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "许程在南码头告诉许澄，自己猜测岑遥去了东市；这只是许程的猜测",
+        "chapterId": "eval-5",
+        "ordinal": 5,
+        "stateKey": "s_9903bd917b29313ae495c4db"
+      },
+      {
+        "id": "f_612178c283f889a23e6e29d1",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_9445d93588860b52c559122e"
+        ],
+        "label": "岑遥去向认知",
+        "summary": "许澄暂且相信岑遥去了东市这一说法，但没有核实。",
+        "certainty": "belief",
+        "perspective": "e_9445d93588860b52c559122e",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "许澄暂且相信这个说法，但没有核实",
+        "chapterId": "eval-5",
+        "ordinal": 5,
+        "stateKey": "s_06bc0f398b54075d97d6e3c7"
+      },
+      {
+        "id": "f_8d621c8be2f81d8b87a9052e",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "当前位置",
+        "summary": "杜衡在旧馆。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_e5095956a421341db5192a9b"
+        ],
+        "quote": "杜衡留在旧馆安装新泵",
+        "chapterId": "eval-5",
+        "ordinal": 5,
+        "stateKey": "s_3c89057f1b4ded9b0cc1c373"
+      },
+      {
+        "id": "f_760db4ba6fb2ee23eac655bd",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4",
+          "e_524b849107161b1e652f3ed7"
+        ],
+        "label": "水泵更换进度",
+        "summary": "杜衡正在旧馆安装新泵，更换工作仍未完成。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_8e36a8ff03cb1b43d60917d7"
+        ],
+        "quote": "杜衡留在旧馆安装新泵，更换工作仍未完成",
+        "chapterId": "eval-5",
+        "ordinal": 5,
+        "stateKey": "s_dbad20b1557f7f898392b538"
+      },
+      {
+        "id": "f_7afc7070dd3069ab599abc56",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_9445d93588860b52c559122e"
+        ],
+        "label": "当前位置",
+        "summary": "许澄在旧馆庭院。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_1c10fbc1e4f80fb94ccd9864"
+        ],
+        "quote": "许澄从南码头来到旧馆庭院",
+        "chapterId": "eval-6",
+        "ordinal": 6,
+        "stateKey": "s_5f7691bcd9568458c62fe183"
+      },
+      {
+        "id": "f_e424af59f008a0283b6fb25d",
+        "memoryType": "state",
+        "kind": "state",
+        "subjects": [
+          "e_9445d93588860b52c559122e"
+        ],
+        "label": "岑遥去向认知",
+        "summary": "许澄现在知道岑遥没有去东市，因为岑遥当面对许澄说自己今天从未去过东市。",
+        "certainty": "belief",
+        "perspective": "e_9445d93588860b52c559122e",
+        "status": "active",
+        "scope": "local",
+        "replaces": [
+          "f_612178c283f889a23e6e29d1"
+        ],
+        "quote": "岑遥告诉许澄，自己今天从未去过东市。许澄现在知道岑遥没有去东市",
+        "chapterId": "eval-6",
+        "ordinal": 6,
+        "stateKey": "s_06bc0f398b54075d97d6e3c7"
+      },
+      {
+        "id": "f_f638b7145cac34460585021e",
+        "memoryType": "state",
+        "kind": "place",
+        "subjects": [
+          "e_89520ca005908043d81ba880"
+        ],
+        "label": "当前位置",
+        "summary": "许程已从南码头去往东市。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "许程已经离开南码头去了东市",
+        "chapterId": "eval-6",
+        "ordinal": 6,
+        "stateKey": "s_6824798598e6bf280c5b5ec7"
+      },
+      {
+        "id": "f_87b30d6b3c79a5efc65ad6f6",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_9445d93588860b52c559122e"
+        ],
+        "label": "把岑遥真实情况告诉许程",
+        "summary": "许澄答应稍后把真实情况告诉许程，目前尚未传话。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "许澄答应稍后把真实情况告诉许程，现在尚未传话",
+        "chapterId": "eval-6",
+        "ordinal": 6,
+        "stateKey": "s_45e02d9d4ea352e988770b8e"
+      }
+    ]
+  },
+  "current": [
+    {
+      "id": "f_6bd5233e7b88671370896ad4",
+      "line": "【已确认事实】岑遥、杜衡｜管理关系：岑遥和杜衡共同管理旧馆，地位平等。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_8b97ef0332aeeaae1e547ab3",
+      "line": "【已确认事实】旧馆水泵｜运转状态：旧馆的水泵已经停转。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_4f30bc0167ecc0fcf1fe45f1",
+      "line": "【已确认事实】旧馆水泵｜修理前置规定：修理水泵前必须排空水池，这条规定一直有效。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_e5b0eeed80c6ac45850d4f63",
+      "line": "【已确认事实】许澄、许程｜身份区分：许程是另一位送货人，许程和许澄不是同一个人。 [章节ID:eval-1]"
+    },
+    {
+      "id": "f_c34d9d4d0c15718cb53ae390",
+      "line": "【已确认事实】备用铜管｜保管人：备用铜管由岑遥放入工具箱。 [章节ID:eval-2]"
+    },
+    {
+      "id": "f_5b48756c0554aedd6152bbd8",
+      "line": "【人物认知】杜衡（杜衡所知）｜封筒内容认知：杜衡不知道封筒里面写了什么。 [章节ID:eval-2]"
+    },
+    {
+      "id": "f_b749376bae10d61673b2a3b3",
+      "line": "【已确认事实】封筒｜开封状态：封筒没有拆开。 [章节ID:eval-2]"
+    },
+    {
+      "id": "f_7da96b28f7ff9cfcdada43e4",
+      "line": "【已确认事实】杜衡｜更换水泵：杜衡决定改为更换水泵，今天尚未执行。 [章节ID:eval-3]"
+    },
+    {
+      "id": "f_526d5684028f14dbfe059286",
+      "line": "【已确认事实】扳手｜持有人：扳手由岑遥持有。 [章节ID:eval-3]"
+    },
+    {
+      "id": "f_a9d96b401127b4ec81982d86",
+      "line": "【已确认事实】铜牌｜保管人：铜牌仍由岑遥保管。 [章节ID:eval-3]"
+    },
+    {
+      "id": "f_fabbb534099ee53132b25e9f",
+      "line": "【已确认事实】岑遥｜收拢工具进度：岑遥仍在库房收拢工具，尚未结束。 [章节ID:eval-4]"
+    },
+    {
+      "id": "f_9e39cf153ff4c8ef35c7dbca",
+      "line": "【已确认事实】岑遥｜当前位置：岑遥在旧馆庭院。 [章节ID:eval-5]"
+    },
+    {
+      "id": "f_8ee1185c8c5a358a0f404823",
+      "line": "【人物认知】许程（许程所知）｜岑遥去向认知：许程猜测岑遥去了东市。 [章节ID:eval-5]"
+    },
+    {
+      "id": "f_8d621c8be2f81d8b87a9052e",
+      "line": "【已确认事实】杜衡｜当前位置：杜衡在旧馆。 [章节ID:eval-5]"
+    },
+    {
+      "id": "f_760db4ba6fb2ee23eac655bd",
+      "line": "【已确认事实】杜衡、旧馆水泵｜水泵更换进度：杜衡正在旧馆安装新泵，更换工作仍未完成。 [章节ID:eval-5]"
+    },
+    {
+      "id": "f_7afc7070dd3069ab599abc56",
+      "line": "【已确认事实】许澄｜当前位置：许澄在旧馆庭院。 [章节ID:eval-6]"
+    },
+    {
+      "id": "f_e424af59f008a0283b6fb25d",
+      "line": "【人物认知】许澄（许澄所知）｜岑遥去向认知：许澄现在知道岑遥没有去东市，因为岑遥当面对许澄说自己今天从未去过东市。 [章节ID:eval-6]"
+    },
+    {
+      "id": "f_f638b7145cac34460585021e",
+      "line": "【已确认事实】许程｜当前位置：许程已从南码头去往东市。 [章节ID:eval-6]"
+    },
+    {
+      "id": "f_87b30d6b3c79a5efc65ad6f6",
+      "line": "【已确认事实】许澄｜把岑遥真实情况告诉许程：许澄答应稍后把真实情况告诉许程，目前尚未传话。 [章节ID:eval-6]"
+    }
+  ],
+  "explicitHistory": {
+    "entities": [
+      {
+        "id": "e_85b2ad3d68241346506163c9",
+        "name": "岑遥",
+        "aliases": [
+          "阿遥"
+        ],
+        "kind": "person",
+        "aliasEvidence": [
+          {
+            "alias": "阿遥",
+            "quote": "岑遥又名阿遥",
+            "chapterId": "eval-1",
+            "ordinal": 1
+          }
+        ]
+      },
+      {
+        "id": "e_d9149944ffe1762472d586b4",
+        "name": "杜衡",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_524b849107161b1e652f3ed7",
+        "name": "旧馆水泵",
+        "aliases": [],
+        "kind": "item",
+        "sourceNames": [
+          {
+            "text": "旧馆的水泵",
+            "rule": "place-possessive",
+            "chapterId": "eval-1",
+            "ordinal": 1
+          }
+        ]
+      },
+      {
+        "id": "e_9445d93588860b52c559122e",
+        "name": "许澄",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_89520ca005908043d81ba880",
+        "name": "许程",
+        "aliases": [],
+        "kind": "person"
+      },
+      {
+        "id": "e_4b9f3119cb38d0eb2422378f",
+        "name": "备用铜管",
+        "aliases": [],
+        "kind": "item"
+      },
+      {
+        "id": "e_ca5b1ef4869e2a8149face6a",
+        "name": "阁楼",
+        "aliases": [],
+        "kind": "place"
+      }
+    ],
+    "facts": [
+      {
+        "id": "f_01008105746c5928d6f4b0f7",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "修复水泵",
+        "summary": "杜衡决定修复水泵，尚未开始。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "杜衡决定修复水泵，岑遥计划寻找备用铜管；两件事尚未开始",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_b4b8f63f142cc70012f32036",
+        "stillActive": false
+      },
+      {
+        "id": "f_9ecb029fc73d068ea34cdfa0",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "寻找备用铜管",
+        "summary": "岑遥计划寻找备用铜管，尚未开始。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "杜衡决定修复水泵，岑遥计划寻找备用铜管；两件事尚未开始",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_f83d84df797a95fd49d632e1",
+        "stillActive": false
+      },
+      {
+        "id": "f_4f30bc0167ecc0fcf1fe45f1",
+        "memoryType": "state",
+        "kind": "boundary",
+        "subjects": [
+          "e_524b849107161b1e652f3ed7"
+        ],
+        "label": "修理前置规定",
+        "summary": "修理水泵前必须排空水池，这条规定一直有效。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "global",
+        "replaces": [],
+        "quote": "修理水泵前必须排空水池，这条规定一直有效",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_4a1daa930238731cb2b2544f"
+      },
+      {
+        "id": "f_e5b0eeed80c6ac45850d4f63",
+        "memoryType": "state",
+        "kind": "boundary",
+        "subjects": [
+          "e_9445d93588860b52c559122e",
+          "e_89520ca005908043d81ba880"
+        ],
+        "label": "身份区分",
+        "summary": "许程是另一位送货人，许程和许澄不是同一个人。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "许程是另一位送货人，许程和许澄不是同一个人",
+        "chapterId": "eval-1",
+        "ordinal": 1,
+        "stateKey": "s_1e6164e240645eb93305d790"
+      },
+      {
+        "id": "f_c34d9d4d0c15718cb53ae390",
+        "memoryType": "state",
+        "kind": "item",
+        "subjects": [
+          "e_4b9f3119cb38d0eb2422378f"
+        ],
+        "label": "保管人",
+        "summary": "备用铜管由岑遥放入工具箱。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "岑遥把铜管放入工具箱",
+        "chapterId": "eval-2",
+        "ordinal": 2,
+        "stateKey": "s_5888861e84fd993080ddf0fc"
+      },
+      {
+        "id": "f_21d5a4ab20fb4ac6fe4ecace",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "寻找备用铜管",
+        "summary": "岑遥在库房找到备用铜管，寻找备用铜管的目标已经完成",
+        "certainty": "fact",
+        "status": "resolved",
+        "scope": "local",
+        "replaces": [
+          "f_9ecb029fc73d068ea34cdfa0"
+        ],
+        "quote": "岑遥在库房找到备用铜管，寻找备用铜管的目标已经完成",
+        "chapterId": "eval-2",
+        "ordinal": 2,
+        "stateKey": "s_f83d84df797a95fd49d632e1",
+        "goalOutcome": "completed",
+        "stillActive": false
+      },
+      {
+        "id": "f_7da96b28f7ff9cfcdada43e4",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "更换水泵",
+        "summary": "杜衡决定改为更换水泵，今天尚未执行。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "明确取消修复水泵，决定改为更换水泵。更换水泵的新目标今天尚未执行",
+        "chapterId": "eval-3",
+        "ordinal": 3,
+        "stateKey": "s_d626cb5c7474f0b60234c337"
+      },
+      {
+        "id": "f_c7d8161baadad5415938285f",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "清扫阁楼",
+        "summary": "岑遥另定清扫阁楼的计划。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "岑遥另定了清扫阁楼的计划",
+        "chapterId": "eval-3",
+        "ordinal": 3,
+        "stateKey": "s_131ec413a3ac615f79f6a584",
+        "stillActive": false
+      },
+      {
+        "id": "f_cb6cc0cfbdf1d3757ac35cfb",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_d9149944ffe1762472d586b4"
+        ],
+        "label": "修复水泵",
+        "summary": "杜衡发现水泵外壳已经裂开，明确取消修复水泵，决定改为更换水泵",
+        "certainty": "fact",
+        "status": "resolved",
+        "scope": "local",
+        "replaces": [
+          "f_01008105746c5928d6f4b0f7"
+        ],
+        "quote": "杜衡发现水泵外壳已经裂开，明确取消修复水泵，决定改为更换水泵",
+        "chapterId": "eval-3",
+        "ordinal": 3,
+        "stateKey": "s_b4b8f63f142cc70012f32036",
+        "goalOutcome": "superseded",
+        "successor": "f_7da96b28f7ff9cfcdada43e4",
+        "stillActive": false
+      },
+      {
+        "id": "f_d272d20a5c5de15196d9f116",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_85b2ad3d68241346506163c9"
+        ],
+        "label": "清扫阁楼",
+        "summary": "岑遥正式取消清扫阁楼，今天和以后都不再执行这项计划，也没有另定替代事项",
+        "certainty": "fact",
+        "status": "resolved",
+        "scope": "local",
+        "replaces": [
+          "f_c7d8161baadad5415938285f"
+        ],
+        "quote": "岑遥正式取消清扫阁楼，今天和以后都不再执行这项计划，也没有另定替代事项",
+        "chapterId": "eval-4",
+        "ordinal": 4,
+        "stateKey": "s_131ec413a3ac615f79f6a584",
+        "goalOutcome": "cancelled",
+        "stillActive": false
+      },
+      {
+        "id": "f_87b30d6b3c79a5efc65ad6f6",
+        "memoryType": "state",
+        "kind": "goal",
+        "subjects": [
+          "e_9445d93588860b52c559122e"
+        ],
+        "label": "把岑遥真实情况告诉许程",
+        "summary": "许澄答应稍后把真实情况告诉许程，目前尚未传话。",
+        "certainty": "fact",
+        "status": "active",
+        "scope": "local",
+        "replaces": [],
+        "quote": "许澄答应稍后把真实情况告诉许程，现在尚未传话",
+        "chapterId": "eval-6",
+        "ordinal": 6,
+        "stateKey": "s_45e02d9d4ea352e988770b8e"
+      }
+    ]
+  },
+  "structuralChecks": {
+    "fullCoverage": false,
+    "sourceQuotesMatch": true,
+    "beliefsHavePerspective": true,
+    "uniqueActiveStateKeys": true,
+    "historicalTargetsMarked": true
+  },
+  "manualReview": "逐章依据 expectations 人工核对；结构检查通过不代表内容准确或完整。",
+  "limitations": "10 章短合成故事，不代表真实长篇准确率或性能。未开生产数据库；当前非流式、关闭思考，每次最多16000输出token、300秒。收到响应后失败也计账，未回传费用为未知；不自动重试语义校验失败。传输重试及历史补查沿用产品路径，显式 resume 的每次尝试保留记录。"
+}
