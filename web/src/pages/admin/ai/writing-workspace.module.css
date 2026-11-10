@@ -13,12 +13,17 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(180px, 1fr) auto;
   align-items: end;
   gap: 24px;
   padding: var(--management-panel-padding);
-  border-bottom: 1px solid var(--border);
 }
+
+.toolbar[hidden] { display: none; }
+
+.bookToolbar { padding: var(--management-panel-padding); }
+.bookToolbar > * { max-width: 540px; }
+.analysisContent { padding: var(--management-panel-padding); }
 
 .toolbar > *,
 .anchor,
@@ -45,7 +50,6 @@
 
 .navigation {
   padding-inline: var(--management-panel-padding);
-  border-bottom: 1px solid var(--border);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -459,16 +463,6 @@
 }
 
 @media (max-width: 1100px) {
-  .toolbar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .mode {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
   .layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -488,7 +482,10 @@
     gap: 20px;
   }
   .mode {
-    grid-column: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
   }
   .context,
   .newFields {

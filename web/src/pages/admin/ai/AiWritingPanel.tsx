@@ -1,7 +1,6 @@
 import { watchAiTask } from '@/lib/ai-task-stream'
 import AiStreamPreview from '@/components/shared/AiStreamPreview'
 import { MotionDetails } from '@/components/ui/motion'
-import { Link } from 'react-router-dom'
 import WritingPreparation from './WritingPreparation'
 import AiGenerationsPanel from './AiGenerationsPanel'
 import styles from './writing-workspace.module.css'
@@ -15,7 +14,6 @@ import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { aiApi, chaptersApi, newOperationId, type AiEffectiveProfile, type AiTaskInfo } from '@/lib/api'
-import { loadAdminNovelIndex } from '@/lib/admin-novel-index'
 import { useToast, useConfirm } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,7 +23,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { DialogBody, DialogFrame } from "@/components/shared/DialogFrame"
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import SearchSelect from "@/components/shared/SearchSelect"
 import { kindLabel as taskKindLabel, taskStatusLabel } from './labels'
 import ProfileOverrideEditor from './ProfileOverrideEditor'
@@ -503,48 +501,27 @@ export function ProfileSection(props: {
 export type WritingView = 'compose' | 'review' | 'outputs'
 
 export default function AiWritingPanel(props: {
-  view?: WritingView
-  onViewChange?: (view: WritingView) => void
+  view: WritingView
+  novelId: string
+  novels: AdminNovelIndexItem[]
   focusBatchId?: string
-  onNovelChange?: (novelId: string) => void
   onAfterChapterChange?: (chapterId: string) => void
   onViewBatch?: (batchId?: string, novelId?: string, view?: 'review' | 'outputs') => void
   onOpenGraph?: (novelId: string, afterChapterId?: string) => void
-  initialNovelId?: string
+  onOpenAnalysis: () => void
   initialAfterChapterId?: string
   model?: string
-} = {}) {
+}) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   // AI 创作的主要使用场景是给既有小说续写；新写仍保留为并列入口，而非默认落点。
   const [mode, setMode] = useState<'new' | 'continue'>('continue')
   const [recentTasks, setRecentTasks] = useState<AiTaskInfo[]>([])
-  const [novels, setNovels] = useState<AdminNovelIndexItem[]>([])
-  const [novelsLoading, setNovelsLoading] = useState(true)
-  const [novelsError, setNovelsError] = useState('')
-  const [novelsReload, setNovelsReload] = useState(0)
-  const [novelId, setNovelId] = useState('')
-  const appliedRouteNovel = useRef<string | undefined>(undefined)
-  const [localView, setLocalView] = useState<WritingView>('compose')
-  const [localBatchId, setLocalBatchId] = useState<string>()
-  const view = props.view ?? localView
-  function changeView(next: WritingView) {
-    setLocalBatchId(undefined)
-    setLocalView(next)
-    props.onViewChange?.(next)
-  }
+  const { novelId, novels, view } = props
   function openDrafts(batchId?: string, targetNovelId = novelId, nextView: 'review' | 'outputs' = 'review') {
-    setLocalBatchId(batchId)
-    setLocalView(nextView)
-    if (targetNovelId !== novelId) setNovelId(targetNovelId)
     props.onViewBatch?.(batchId, targetNovelId, nextView)
   }
-  function selectNovel(id: string) {
-    setNovelId(id)
-    setLocalBatchId(undefined)
-    props.onNovelChange?.(id)
-  }
-  const initialGraphAnchor = useRef({ novelId: props.initialNovelId, chapterId: props.initialAfterChapterId })
+  const initialGraphAnchor = useRef({ novelId, chapterId: props.initialAfterChapterId })
   const [title, setTitle] = useState('')
   const [requestProgress, setRequestProgress] = useState<{ kind: string; value: AiTextProgress } | null>(null)
   const [memoryLive, setMemoryLive] = useState<Record<string, AiTextProgress | null>>({})
@@ -699,28 +676,9 @@ export default function AiWritingPanel(props: {
   }
 
   useEffect(() => {
-    let active = true
-    setNovelsLoading(true)
-    setNovelsError('')
-    void loadAdminNovelIndex('', () => active)
-      .then((items) => { if (active) setNovels(items) })
-      .catch((err) => { if (active) setNovelsError((err as Error).message || '书目加载失败') })
-      .finally(() => { if (active) setNovelsLoading(false) })
-    return () => { active = false }
-  }, [novelsReload])
-
-  // URL 往返更新所选作品；同一作品内切换审阅不会覆盖编辑中的输入。
-  useEffect(() => {
-    const id = props.initialNovelId?.trim() || ''
-    if (appliedRouteNovel.current === id || novelsLoading || novelsError) return
-    appliedRouteNovel.current = id
-    if (!id || novels.some((novel) => novel.id === id)) setNovelId(id)
-  }, [novels, novelsLoading, novelsError, props.initialNovelId])
-
-  useEffect(() => {
-    initialGraphAnchor.current = { novelId: props.initialNovelId, chapterId: props.initialAfterChapterId }
-    if (novelId === (props.initialNovelId || '')) setAfterChapterId(props.initialAfterChapterId || '')
-  }, [props.initialNovelId, props.initialAfterChapterId, novelId])
+    initialGraphAnchor.current = { novelId, chapterId: props.initialAfterChapterId }
+    setAfterChapterId(props.initialAfterChapterId || '')
+  }, [props.initialAfterChapterId, novelId])
 
   // 挂载时恢复正在运行的创作任务：切换 tab 回来后进度不丢
   useEffect(() => {
@@ -1337,7 +1295,7 @@ export default function AiWritingPanel(props: {
         </DialogHeader>
 
         <DialogBody className="px-6 py-4 overflow-y-auto space-y-4">
-          <Button asChild variant="outline"><Link onClick={() => setAnalysisDialogOpen(false)} to={`/admin/ai?sub=analysis&novel=${encodeURIComponent(novelId)}`}>阅读独立分析报告</Link></Button>
+          <Button variant="outline" onClick={() => { setAnalysisDialogOpen(false); props.onOpenAnalysis() }}>阅读分析报告</Button>
           <div className="ai-writing-profile-list space-y-3">
             <ProfileSection
               label="风格画像"
@@ -1482,28 +1440,8 @@ export default function AiWritingPanel(props: {
   return (
     <div className={styles.root}>
       {requestProgress && <section aria-label={requestProgress.kind}><AiStreamPreview progress={requestProgress.value} structured={requestProgress.kind === '情节方向'} /></section>}
-      <section className={styles.workbench} aria-label="作品创作台">
-        <div className={styles.toolbar}>
-          <FormField label="当前作品" labelId="ai-writing-novel-label">
-            <SearchSelect
-              options={novels.map((novel) => ({ value: novel.id, label: novel.title, sub: `${novel.author || '未知作者'} · ${novel.chapterCount} 章` }))}
-              value={novelId}
-              onChange={selectNovel}
-              placeholder={novelsLoading ? '正在加载书目…' : '选择小说'}
-              disabled={novelsLoading || !!novelsError}
-              searchable
-              searchPlaceholder="搜索书名或作者…"
-              filter={(option, query) => `${option.label} ${option.sub || ''}`.toLowerCase().includes(query)}
-              dropdownSide="bottom"
-              aria-labelledby="ai-writing-novel-label"
-            />
-            {novelsError && (
-              <div role="alert" className="text-sm text-destructive">
-                {novelsError}
-                <Button variant="ghost" size="sm" onClick={() => setNovelsReload((value) => value + 1)}>重新加载书目</Button>
-              </div>
-            )}
-          </FormField>
+      <section aria-label="作品创作台">
+        <div className={styles.toolbar} hidden={view !== 'compose'}>
           {mode === 'continue' && (
             <div className={styles.anchor}>
               {chapterOptions.length > 1 && (
@@ -1544,15 +1482,7 @@ export default function AiWritingPanel(props: {
             </Tabs>
           </div>
         </div>
-        <Tabs value={view} onValueChange={(value) => changeView(value as WritingView)} className={styles.viewTabs}>
-          <div className={styles.navigation}>
-            <TabsList variant="line" aria-label="本书创作视图">
-              <TabsTrigger value="compose">构思与生成</TabsTrigger>
-              <TabsTrigger value="review">草稿审阅</TabsTrigger>
-              <TabsTrigger value="outputs">本书产出</TabsTrigger>
-            </TabsList>
-          </div>
-          <TabsContent value="compose" forceMount hidden={view !== 'compose'}>
+          <div hidden={view !== 'compose'}>
             <div className={styles.layout}>
               <div className={styles.editor}>
                 <div className={styles.sectionHeading}>
@@ -2359,24 +2289,23 @@ export default function AiWritingPanel(props: {
                 </ul>
               </MotionDetails>
             )}
-          </TabsContent>
+          </div>
           {view !== 'compose' && (
-            <TabsContent value={view} className={styles.results}>
+            <div className={styles.results}>
               {novelId ? (
                 <AiGenerationsPanel
                   key={`${novelId}:${view}`}
                   scope="writing"
                   status={view === 'review' ? 'draft' : 'all'}
                   novelId={novelId}
-                  focusBatchId={props.focusBatchId || localBatchId}
+                  focusBatchId={props.focusBatchId}
                   refreshToken={!taskActive && task?.novelId === novelId ? `${task.id}:${task.status}` : undefined}
                 />
               ) : (
                 <p className={styles.caption}>先在上方选择作品，再查看本书的草稿与产出。</p>
               )}
-            </TabsContent>
+            </div>
           )}
-        </Tabs>
         <footer className={styles.footer}>
           <span>离开本页后，已提交的任务仍会在后台继续。</span>
           <div>

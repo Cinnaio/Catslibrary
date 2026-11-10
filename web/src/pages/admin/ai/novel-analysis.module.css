@@ -1,5 +1,4 @@
 .root { min-width: 0; color: var(--text-primary); }
-.bookPicker { max-width: 540px; margin-bottom: 24px; }
 .form { display: grid; gap: 20px; margin-bottom: 36px; }
 .fields { display: grid; grid-template-columns: minmax(160px, .8fr) repeat(2, minmax(0, 1fr)); gap: 20px; }
 .fields > *, .workspace > * { min-width: 0; }

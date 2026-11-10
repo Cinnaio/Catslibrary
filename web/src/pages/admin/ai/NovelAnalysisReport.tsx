@@ -16,8 +16,9 @@ import styles from './novel-analysis.module.css'
 const failure = (error: unknown) => error instanceof Error ? error.message : '操作失败，请稍后重试'
 const running = (report: AnalysisReport) => ['queued', 'running'].includes(report.status)
 
-export default function NovelAnalysisReport({ novelId, reportId, onChange, onReanalyze }: {
+export default function NovelAnalysisReport({ novelId, reportId, onChange, onReanalyze, active = true }: {
   novelId: string; reportId: string; onChange: (report: AnalysisReport) => void; onReanalyze: (request: AnalysisRequest) => void
+  active?: boolean
 }) {
   const scopeKey = analysisPendingKey(novelId)
   const draftKey = scopeKey ? `${scopeKey}:draft:${reportId}` : ''
@@ -44,6 +45,7 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
     onChange(next)
   }, [onChange])
   useEffect(() => {
+    if (!active) return
     let alive = true
     let timer: ReturnType<typeof setTimeout> | undefined
     const version = ++loadVersion.current
@@ -58,7 +60,7 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
     }
     void load()
     return () => { alive = false; clearTimeout(timer) }
-  }, [novelId, reportId, refresh, receive])
+  }, [novelId, reportId, refresh, receive, active])
   useEffect(() => {
     let alive = true
     if (sourceId) void api.source(novelId, reportId, sourceId).then(next => { if (alive) setSource(next) })
@@ -130,7 +132,7 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
         <p className={styles.meta}>模型撰写时额外回读 {report.checkedSourceIds.length} 段。回读次数不表示内容已经人工确认。</p>
       </MotionDetails>
     </>}
-    <Dialog open={!!sourceId} onOpenChange={open => { if (!open) setSourceId('') }}>
+    <Dialog open={active && !!sourceId} onOpenChange={open => { if (!open) setSourceId('') }}>
       <ReadingDialog title={source ? source.chapterTitle : '原文依据'} description={source ? `${source.id} · 第 ${source.part} 段 · 生成时的正文快照` : '正在读取本报告保存的来源'}
         footer={source && <Button asChild variant="outline"><Link target="_blank" rel="noopener noreferrer" to={`/read/${encodeURIComponent(novelId)}/${encodeURIComponent(source.chapterId)}`}>打开当前章节</Link></Button>}>
         {sourceError ? <p role="alert">{sourceError} <Button variant="ghost" onClick={() => { setSourceError(''); setSourceRefresh(v => v + 1) }}>重试</Button></p>

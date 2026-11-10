@@ -11,8 +11,8 @@ export default function NovelWorkspaceLinks({ novelId, title }: { novelId: strin
       {[
         { to: `/admin/chapters?novelId=${id}`, label: '章节管理', icon: BookOpen },
         { to: `/admin/ai?sub=agent&novel=${id}`, label: '对话创作', icon: MessageSquare },
-        { to: `/admin/ai?sub=analysis&novel=${id}`, label: '小说分析', icon: FileText },
-        { to: `/admin/ai?sub=writing&novel=${id}`, label: '续写与创作', icon: Sparkles },
+        { to: `/admin/ai?sub=writing&view=analysis&novel=${id}`, label: '分析报告', icon: FileText },
+        { to: `/admin/ai?sub=writing&novel=${id}`, label: 'AI 创作', icon: Sparkles },
         { to: `/admin/ai?sub=cover&novel=${id}`, label: '封面', icon: Image },
         { to: `/admin/ai?sub=graph&novel=${id}`, label: '故事档案', icon: Network },
         { to: `/admin/ai?sub=content&novel=${id}`, label: '草稿与产出', icon: FileText },

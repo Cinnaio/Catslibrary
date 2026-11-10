@@ -227,7 +227,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     if (task.kind === 'novel_analysis') {
       let reportId = ''
       try { reportId = String(JSON.parse(task.params || '{}').reportId || '') } catch { /* Historic metadata can be missing. */ }
-      return <Button variant="outline" size="sm" onClick={() => navigate(`/admin/ai?${new URLSearchParams({ sub: 'analysis', novel: task.novelId, report: reportId })}`)}>查看分析报告</Button>
+      return <Button variant="outline" size="sm" onClick={() => navigate(`/admin/ai?${new URLSearchParams({ sub: 'writing', view: 'analysis', novel: task.novelId, report: reportId })}`)}>查看分析报告</Button>
     }
     if (task.kind === 'agent_chat') {
       let sessionId = ''

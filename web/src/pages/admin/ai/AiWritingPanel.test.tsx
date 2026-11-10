@@ -77,8 +77,10 @@ vi.mock('./AiGenerationsPanel', () => ({
   ),
 }))
 
-import AiWritingPanel from './AiWritingPanel'
-const render = (ui: ReactNode) => renderBase(ui, { wrapper: MemoryRouter })
+import AiWritingWorkspace from './AiWritingWorkspace'
+const render = (ui: ReactNode, novelId = '') => renderBase(
+  <MemoryRouter initialEntries={[`/admin/ai?sub=writing&novel=${novelId}`]}>{ui}</MemoryRouter>,
+)
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -90,7 +92,7 @@ function deferred<T>() {
 
 /** 选中小说并等到画像读取完成，后续断言才有稳定的起点。 */
 async function selectNovel(novelId = 'novel_1', title = '测试小说') {
-  render(<AiWritingPanel />)
+  render(<AiWritingWorkspace />)
   switchToNew()
   await screen.findByRole('option', { name: title })
   fireEvent.change(await screen.findByRole('combobox', { name: '目标小说' }), { target: { value: novelId } })
@@ -298,7 +300,7 @@ describe('AiWritingPanel', () => {
   })
 
   it('离开页面不自动暂停已提交的后台任务', async () => {
-    const view = render(<AiWritingPanel initialNovelId="novel_1" />)
+    const view = render(<AiWritingWorkspace />, 'novel_1')
     await waitFor(() => expect(api.getPlotState).toHaveBeenCalledWith('novel_1'))
     await openAnalysis()
     await waitFor(() => expect(screen.getByRole('button', { name: '更新情节档案' })).toBeEnabled())
@@ -410,7 +412,7 @@ describe('AiWritingPanel', () => {
   })
 
   it('默认进入续写，内容尺度收在上下文中，续写档案收纳于弹窗', async () => {
-    render(<AiWritingPanel initialNovelId="novel_1" />)
+    render(<AiWritingWorkspace />, 'novel_1')
 
     expect(screen.getByRole('tab', { name: '续写' })).toHaveAttribute('data-state', 'active')
     expect(screen.getByRole('heading', { name: '接下来，故事如何发展？' })).toBeInTheDocument()
@@ -428,8 +430,8 @@ describe('AiWritingPanel', () => {
     expect(screen.getByText('风格画像')).toBeInTheDocument()
   })
 
-  it('从任务页带入小说参数时只在小说列表就绪后预选对应小说', async () => {
-    render(<AiWritingPanel initialNovelId="novel_2" />)
+  it('从任务页带入小说参数时在共享作品选择中显示对应小说', async () => {
+    render(<AiWritingWorkspace />, 'novel_2')
 
     const novelSelect = await screen.findByRole('combobox', { name: '目标小说' })
     await screen.findByRole('option', { name: '第二本书' })
@@ -452,7 +454,7 @@ describe('AiWritingPanel', () => {
     api.getStyleProfile.mockReturnValue(initialProfile.promise)
     api.refreshStyleProfile.mockResolvedValue({ profile: '最新风格画像' })
 
-    render(<AiWritingPanel />)
+    render(<AiWritingWorkspace />)
     await screen.findByRole('option', { name: '测试小说' })
     fireEvent.change(await screen.findByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_1' } })
     await waitFor(() => expect(api.getStyleProfile).toHaveBeenCalledWith('novel_1'))
