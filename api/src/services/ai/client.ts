@@ -64,6 +64,8 @@ export type AiResponseFormat =
 export interface AiChatOptions {
   messages: AiMessage[]
   tools?: AiFunctionTool[]
+  /** Explicitly close a tool conversation without relying on a prompt or omitted definitions. */
+  toolChoice?: 'auto' | 'none'
   /** Text requests stream by default; explicit false retains legacy providers/settings. */
   stream?: boolean
   onDelta?: AiChatDeltaHandler
@@ -165,7 +167,7 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
     max_tokens: opts.maxTokens ?? 800,
     stream: false,
     ...(opts.responseFormat ? { response_format: opts.responseFormat } : {}),
-    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: 'auto', parallel_tool_calls: false } : {}),
+    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: opts.toolChoice ?? 'auto', parallel_tool_calls: false } : opts.toolChoice === 'none' ? { tool_choice: 'none' } : {}),
     ...reasoningFields(model, opts.reasoningMode),
   })
 
@@ -207,7 +209,7 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
     stream: true,
     stream_options: { include_usage: true },
     ...(opts.responseFormat ? { response_format: opts.responseFormat } : {}),
-    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: 'auto', parallel_tool_calls: false } : {}),
+    ...(opts.tools?.length ? { tools: opts.tools, tool_choice: opts.toolChoice ?? 'auto', parallel_tool_calls: false } : opts.toolChoice === 'none' ? { tool_choice: 'none' } : {}),
     ...reasoningFields(model, opts.reasoningMode),
   })
 
@@ -285,7 +287,8 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
   const choice = data?.choices?.[0]
   const text = extractContent(choice?.message?.content)
   const finishReason = String(choice?.finish_reason || '')
-  const toolCalls = opts.tools?.length && Array.isArray(choice?.message?.tool_calls) ? choice.message.tool_calls : undefined
+  // Audited orchestrators must see unexpected calls too, especially after their tool budget ends.
+  const toolCalls = (opts.tools?.length || opts.returnIncompleteResult) && Array.isArray(choice?.message?.tool_calls) ? choice.message.tool_calls : undefined
 
   if (!text && !toolCalls?.length && !opts.returnIncompleteResult) {
     // 推理模型（deepseek-v4 等）会先把 max_tokens 花在 reasoning_content 上，
@@ -431,9 +434,12 @@ async function onceStream(
     cost = upstreamCost(data) ?? cost
 
     const choice = data.choices?.find((item) => item.index === undefined || item.index === 0)
-    const reasoning = extractContent(choice?.delta?.reasoning_content)
-    if (reasoning) {
-      reasoningCharacters += reasoning.length
+    const reasoning = extractContent(choice?.delta?.reasoning_content, false)
+    // Some gateways expose `reasoning` instead. Count it for progress only;
+    // do not turn an undocumented alias into tool continuation material.
+    const progressReasoning = reasoning || extractContent(choice?.delta?.reasoning, false)
+    if (progressReasoning) {
+      reasoningCharacters += progressReasoning.length
       if (opts.tools?.length) reasoningContent += reasoning
       if (reasoningContent.length > 1_000_000) throw new AiError('invalid', '模型工具上下文过长')
       await opts.onProgress?.({ phase: 'thinking', reasoningCharacters })
@@ -550,7 +556,7 @@ interface ChatCompletionResponse {
 interface ChatCompletionStreamChunk {
   model?: string
   refusal?: unknown
-  choices?: Array<{ index?: number; delta?: { content?: unknown; reasoning_content?: unknown; refusal?: unknown; tool_calls?: Array<{ index: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
+  choices?: Array<{ index?: number; delta?: { content?: unknown; reasoning_content?: unknown; reasoning?: unknown; refusal?: unknown; tool_calls?: Array<{ index: number; id?: string; type?: string; function?: { name?: string; arguments?: string } }> }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
   usage?: Record<string, unknown> | null
   usageMetadata?: Record<string, unknown>
   cost?: string | number

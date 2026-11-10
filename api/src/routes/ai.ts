@@ -2245,7 +2245,7 @@ aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
   const status = TASK_STATUSES.has(c.req.query('status') || '') ? c.req.query('status') : undefined
   const requestedKind = c.req.query('kind') || ''
-  const kind = RETRIABLE_TASK_KINDS.has(requestedKind) || requestedKind === 'agent_chat' ? requestedKind : undefined
+  const kind = RETRIABLE_TASK_KINDS.has(requestedKind) || ['agent_chat', 'novel_analysis'].includes(requestedKind) ? requestedKind : undefined
   const result = await listAiTasks(getDb(), { limit, offset, status, kind, viewerUserId: c.get('user').id })
   return c.json({ ...result, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })

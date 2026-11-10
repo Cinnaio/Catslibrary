@@ -1,4 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router-dom'
+import { act, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const streams = vi.hoisted(() => ({ listeners: new Map<string, (task: unknown) => void>() }))
@@ -76,6 +78,7 @@ vi.mock('./AiGenerationsPanel', () => ({
 }))
 
 import AiWritingPanel from './AiWritingPanel'
+const render = (ui: ReactNode) => renderBase(ui, { wrapper: MemoryRouter })
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -110,7 +113,7 @@ function switchToNew() {
 }
 
 async function openAnalysis() {
-  fireEvent.click(await screen.findByRole('button', { name: /小说分析/ }))
+  fireEvent.click(await screen.findByRole('button', { name: /续写档案/ }))
 }
 
 describe('AiWritingPanel', () => {
@@ -220,7 +223,7 @@ describe('AiWritingPanel', () => {
     expect(screen.getByText('尚余 30 章；阶段内容仅供查看，完整覆盖目标后才用于续写。')).toBeInTheDocument()
     fireEvent.click(screen.getByText('查看已保存的阶段内容'))
     expect(screen.getByText('阶段分析：钥匙来源待确认')).toBeVisible()
-    expect(screen.getByLabelText('可用 0 项小说分析')).toBeInTheDocument()
+    expect(screen.getByLabelText('可用 0 项续写档案')).toBeInTheDocument()
   })
 
   it('提交后台任务后只读订阅，完整结果返回后恢复操作', async () => {
@@ -361,7 +364,7 @@ describe('AiWritingPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(error)
     expect(screen.getByText('50', { selector: 'span' })).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: '情节状态章节覆盖进度' })).toHaveAttribute('value', '1')
-    expect(screen.getByLabelText('可用 0 项小说分析')).toBeInTheDocument()
+    expect(screen.getByLabelText('可用 0 项续写档案')).toBeInTheDocument()
     expect(api.startMemoryTask).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: '继续更新情节档案' }))
@@ -402,11 +405,11 @@ describe('AiWritingPanel', () => {
     switchToContinue()
     await openAnalysis()
     expect(await screen.findAllByText('待初始化')).toHaveLength(2)
-    expect(screen.getByLabelText('可用 0 项小说分析')).toBeInTheDocument()
+    expect(screen.getByLabelText('可用 0 项续写档案')).toBeInTheDocument()
     expect(screen.getByText('当前为旧版取样结果，请更新档案以完成全部历史初始化。')).toBeInTheDocument()
   })
 
-  it('默认进入续写，内容尺度收在上下文中，小说分析收纳于弹窗', async () => {
+  it('默认进入续写，内容尺度收在上下文中，续写档案收纳于弹窗', async () => {
     render(<AiWritingPanel initialNovelId="novel_1" />)
 
     expect(screen.getByRole('tab', { name: '续写' })).toHaveAttribute('data-state', 'active')
@@ -417,11 +420,11 @@ describe('AiWritingPanel', () => {
     fireEvent.click(scope.querySelector('summary')!)
     expect(screen.getByRole('switch', { name: /开启露骨/ })).toBeInTheDocument()
 
-    const analysisBtn = await screen.findByRole('button', { name: /小说分析/ })
+    const analysisBtn = await screen.findByRole('button', { name: /续写档案/ })
     expect(analysisBtn).toBeInTheDocument()
     await waitFor(() => expect(analysisBtn).toBeEnabled())
     fireEvent.click(analysisBtn)
-    expect(await screen.findByRole('heading', { name: '小说分析' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '续写档案' })).toBeInTheDocument()
     expect(screen.getByText('风格画像')).toBeInTheDocument()
   })
 

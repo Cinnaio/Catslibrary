@@ -1,0 +1,389 @@
+{
+  "date": "2026-11-10",
+  "scope": "独立小说分析：复用旧阅读记录，仅复核最终汇总，不重跑整书分组阅读",
+  "sourceHashesAtDelivery": {
+    "api/src/services/ai/novel-analysis.ts": "c6019e7940424755e82e8e3a6940c2136a5b5296e1d79c72b84d5eab1f4f37f8",
+    "api/src/services/ai/novel-analysis-prompts.ts": "4f2f4f546cd0af5a2c8ddc99e81e0e915562e0775e346ccec95301ff82230b6e",
+    "api/src/services/ai/novel-analysis-source.ts": "45d31a0ee53c60f6ee3a4ce361243587a9d393b84ff2911784eb04817e9613a1",
+    "api/scripts/review-novel-analysis-summary.ts": "151c475547f8e4c1a77eb0aca0df89a2e00110ac688a4016086d65f22758e1d6"
+  },
+  "totals": {
+    "calls": 36,
+    "promptTokens": 405962,
+    "completionTokens": 16962,
+    "reportedCost": 0.017742,
+    "unknownCostCalls": 0,
+    "currency": "USD"
+  },
+  "records": [
+    {
+      "phase": "synthetic",
+      "localDirectory": ".tmp/novel-analysis-summary-v2-2026-11-10-synthetic",
+      "status": "completed",
+      "error": "",
+      "reasoning": "inherit",
+      "models": [
+        "deepseek-v4.1-flash-uncensored"
+      ],
+      "sourceCount": 8,
+      "readingGroupsReused": 4,
+      "sourceHash": "d774b7a1ce12b006530d36e90869bf3c02f5112adbe8883b1fbf012057a1518c",
+      "notesHash": "fa2d5acb8b2b2db194fb69a64af65be6e058c5fae95f384dc7648410828d8484",
+      "promptHash": "807848497190b68db8721a8ed59fe0b20d8049ea8b7587d4a1f97fc8432b3ea0",
+      "checkedSourceIds": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "toolCalls": [
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S1"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S2"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S3"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S4"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S5"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S6"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S7"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S8"
+          }
+        }
+      ],
+      "reportCharacters": 1826,
+      "totals": {
+        "calls": 9,
+        "promptTokens": 19762,
+        "completionTokens": 6423,
+        "reportedCost": 0.002786,
+        "currencies": [
+          "USD"
+        ],
+        "unknownCostCalls": 0
+      }
+    },
+    {
+      "phase": "real",
+      "localDirectory": ".tmp/novel-analysis-summary-v2-2026-11-10-real",
+      "status": "failed",
+      "error": "模型返回空内容，已保存的阅读记录可继续使用",
+      "reasoning": "inherit",
+      "models": [
+        "deepseek-v4.1-flash-uncensored"
+      ],
+      "sourceCount": 99,
+      "readingGroupsReused": 17,
+      "sourceHash": "d1af445ce9161d9dce42c189d9935921a51b302f037655a02a5e98cf38e16e27",
+      "notesHash": "192584ee4c65ad396761a4f34f63dfce70e6ae3b903a15cd1ee2df9da663fa7c",
+      "promptHash": "807848497190b68db8721a8ed59fe0b20d8049ea8b7587d4a1f97fc8432b3ea0",
+      "checkedSourceIds": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "toolCalls": [
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S1"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S2"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S3"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S4"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S5"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S6"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S7"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S8"
+          }
+        }
+      ],
+      "reportCharacters": 0,
+      "totals": {
+        "calls": 9,
+        "promptTokens": 175316,
+        "completionTokens": 766,
+        "reportedCost": 0.005256,
+        "currencies": [
+          "USD"
+        ],
+        "unknownCostCalls": 0
+      }
+    },
+    {
+      "phase": "synthetic-final",
+      "localDirectory": ".tmp/novel-analysis-summary-v2-2026-11-10-synthetic-final",
+      "status": "completed",
+      "error": "",
+      "reasoning": "low",
+      "models": [
+        "deepseek-v4.1-flash-uncensored"
+      ],
+      "sourceCount": 8,
+      "readingGroupsReused": 4,
+      "sourceHash": "d774b7a1ce12b006530d36e90869bf3c02f5112adbe8883b1fbf012057a1518c",
+      "notesHash": "fa2d5acb8b2b2db194fb69a64af65be6e058c5fae95f384dc7648410828d8484",
+      "promptHash": "9e8e92168ffebd9730d942b204603f3dc065c0825be4530c6e168171f9fbf7c6",
+      "checkedSourceIds": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "toolCalls": [
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S1"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S2"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S3"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S4"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S5"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S6"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S7"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S8"
+          }
+        }
+      ],
+      "reportCharacters": 1995,
+      "totals": {
+        "calls": 9,
+        "promptTokens": 20545,
+        "completionTokens": 6859,
+        "reportedCost": 0.00295,
+        "currencies": [
+          "USD"
+        ],
+        "unknownCostCalls": 0
+      }
+    },
+    {
+      "phase": "real-final",
+      "localDirectory": ".tmp/novel-analysis-summary-v2-2026-11-10-real-final",
+      "status": "failed",
+      "error": "模型返回空内容，已保存的阅读记录可继续使用",
+      "reasoning": "low",
+      "models": [
+        "deepseek-v4.1-flash-uncensored"
+      ],
+      "sourceCount": 99,
+      "readingGroupsReused": 17,
+      "sourceHash": "d1af445ce9161d9dce42c189d9935921a51b302f037655a02a5e98cf38e16e27",
+      "notesHash": "192584ee4c65ad396761a4f34f63dfce70e6ae3b903a15cd1ee2df9da663fa7c",
+      "promptHash": "9e8e92168ffebd9730d942b204603f3dc065c0825be4530c6e168171f9fbf7c6",
+      "checkedSourceIds": [
+        "S1",
+        "S2",
+        "S12",
+        "S82",
+        "S92",
+        "S94",
+        "S96",
+        "S99"
+      ],
+      "toolCalls": [
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S1"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S2"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S12"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S82"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S92"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S94"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S96"
+          }
+        },
+        {
+          "name": "read_source",
+          "arguments": {
+            "sourceId": "S99"
+          }
+        }
+      ],
+      "reportCharacters": 0,
+      "totals": {
+        "calls": 9,
+        "promptTokens": 190339,
+        "completionTokens": 2914,
+        "reportedCost": 0.00675,
+        "currencies": [
+          "USD"
+        ],
+        "unknownCostCalls": 0
+      }
+    }
+  ],
+  "semanticReview": {
+    "reviewer": "implementation_assistant",
+    "synthetic": "最终合成样本中，获批搬迁、共同经历与手机解释、改口触发因素、目睹与听说、视角与规则条件、结果与具体指标、已执行与尚未执行等关键判断得到纠正。仍有次要人物是否知情的低价值疑问和冗余解释。",
+    "real": "两轮真实旧记录回放均以空正文结束；上游 finishReason 为 stop，无明确拒答字段，不能据此推断空回复的原因或宣称真实长篇改进已验收。",
+    "limitations": [
+      "合成样本为针对已知缺陷编写，不是独立盲测",
+      "首次使用脚本默认 inherit，最终与本地设置对齐为 low；原失败保留",
+      "源码中的分组阅读和压缩提示已修改，本轮未重跑其真实语义效果",
+      "真实原报告及阅读记录未修改",
+      "无独立人工验收，无准确率结论"
+    ]
+  },
+  "verification": {
+    "targetedTests": 12,
+    "apiTypecheck": "passed",
+    "evaluationTypecheck": "passed",
+    "changedFilesEslint": "passed",
+    "apiBuild": "passed",
+    "localPreview": "restarted; health/ready/page 200, anonymous report 401",
+    "fullSuite": false,
+    "browserAutomation": false,
+    "webBuild": false,
+    "newMigrations": false,
+    "deployment": false
+  }
+}

@@ -13,6 +13,7 @@
 import { isMaterialHeaderLine, isPipelineVersionLine } from '@/lib/prompt-view'
 
 const KIND_LABELS: Record<string, string> = {
+  novel_analysis: '小说分析报告',
   agent_chat: '创作对话',
   summary: '前情提要',
   catchup: '回顾总结',

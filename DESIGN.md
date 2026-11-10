@@ -245,6 +245,8 @@ Web 对话身份行与 iOS 会话工具栏提供「作品记忆」入口，有�
 
 ## CSS 所有权与验收
 
+独立小说分析通过 `/admin/ai?sub=analysis&novel=...&report=...` 进入，以章节范围、分析主题和可阅读报告为主。桌面左侧报告历史、右侧正文，900px 以下上下排列；表单在700px以下纵向展示，历史切页使用克制入场与加载过渡。使用共享 SearchSelect、FormField、Button、ReadingDialog，布局与 Markdown 由 `novel-analysis.module.css` 持有。来源编号只关联服务端提供的当前报告来源，阅读窗显示生成时正文快照；模型原稿与人工修订分开保留，未保存输入按账号和报告在浏览器会话暂存。失败刷新保留内容并允许手动重读，提交响应不确定时保持请求标识，切书隔离迟到响应。旧创作弹窗改称“续写档案”；新报告的功能与限制见 `docs/novel-analysis-reports.md`。
+
 全局仅承载基础令牌、reset、字体、主题和共享行为。页面和共享组件优先使用 CSS Modules，并由其所有者导入。迁移中的业务 CSS 允许保留，但必须跟随所属模块加载，并持续清理冲突规则。禁止在全局末尾添加整站覆盖层。
 
 保留 Radix 交互基础、React Router 和 Vite，不因参考项目采用 Next.js 或 React Aria 而迁移框架。组件展厅使用实际生产组件与主题令牌。

@@ -1,0 +1,224 @@
+{
+  "date": "2026-11-10",
+  "protocol": "bounded-source-review",
+  "sourceHashesAtDelivery": {
+    "api/src/services/ai/novel-analysis.ts": "a2b15cb7a9464e5915ea1c9ce98b927804ba3c4c6168c303430f0cd28b821878",
+    "api/src/services/ai/novel-analysis-source.ts": "07cf0b6fea1011c204f43f85e447afb4ecbc4938e0b5edfc12a0f6bf4998ada8",
+    "api/scripts/evaluate-novel-analysis.ts": "14d766cbd9c1488f661c97d1728580d306ced30fa42ede77c4a139d03cd63e54"
+  },
+  "totals": {
+    "calls": 9,
+    "promptTokens": 47862,
+    "completionTokens": 20594,
+    "reportedCost": 0.013026,
+    "currencies": [
+      "USD"
+    ],
+    "unknownCostCalls": 0
+  },
+  "records": [
+    {
+      "phase": "initial",
+      "sample": "known-v9-regression",
+      "localDirectory": ".tmp/novel-analysis-review-2026-11-10",
+      "sourceHash": "77fbea62bb170ac32cdd70b1320343d2c5b1007b692ecf29d5b6c35c0adbe89f",
+      "chapters": 3,
+      "sourceCharacters": 325,
+      "model": "deepseek-v4.1-flash-tiancai",
+      "reportStatus": "failed",
+      "processedSources": 0,
+      "totalSources": 3,
+      "reportCharacters": 0,
+      "reportError": "本次输出未完成，已保存的阅读记录可继续使用",
+      "calls": [
+        {
+          "stage": "pipeline",
+          "durationMs": 27131,
+          "finishReason": "length",
+          "promptTokens": 505,
+          "completionTokens": 2500,
+          "reasoningTokens": 2500,
+          "cost": 0.00105,
+          "costReported": true,
+          "costSource": "newapi-log",
+          "costCurrency": "USD"
+        },
+        {
+          "stage": "direct-baseline",
+          "durationMs": 19461,
+          "finishReason": "stop",
+          "promptTokens": 395,
+          "completionTokens": 2023,
+          "reasoningTokens": 1033,
+          "cost": 0.000848,
+          "costReported": true,
+          "costSource": "newapi-log",
+          "costCurrency": "USD"
+        }
+      ]
+    },
+    {
+      "phase": "initial",
+      "sample": "real-novel-first-three",
+      "localDirectory": ".tmp/novel-analysis-review-2026-11-10",
+      "sourceHash": "1ae95204e259fb2b43ed1cbca00fbf724ee458394352edeb16d45d98d1111706",
+      "chapters": 3,
+      "sourceCharacters": 5473,
+      "model": "deepseek-v4.1-flash-tiancai",
+      "reportStatus": "failed",
+      "processedSources": 0,
+      "totalSources": 3,
+      "reportCharacters": 0,
+      "reportError": "本次输出未完成，已保存的阅读记录可继续使用",
+      "calls": [
+        {
+          "stage": "pipeline",
+          "durationMs": 28834,
+          "finishReason": "length",
+          "promptTokens": 1237,
+          "completionTokens": 2500,
+          "reasoningTokens": 2500,
+          "cost": 0.001124,
+          "costReported": true,
+          "costSource": "newapi-log",
+          "costCurrency": "USD"
+        },
+        {
+          "stage": "direct-baseline",
+          "durationMs": 23632,
+          "finishReason": "stop",
+          "promptTokens": 4066,
+          "completionTokens": 2032,
+          "reasoningTokens": 1152,
+          "cost": 0.00122,
+          "costReported": true,
+          "costSource": "newapi-log",
+          "costCurrency": "USD"
+        }
+      ]
+    },
+    {
+      "phase": "direct-range",
+      "sample": "known-v9-regression",
+      "localDirectory": ".tmp/novel-analysis-review-2026-11-10-final",
+      "sourceHash": "77fbea62bb170ac32cdd70b1320343d2c5b1007b692ecf29d5b6c35c0adbe89f",
+      "chapters": 3,
+      "sourceCharacters": 325,
+      "model": "deepseek-v4.1-flash-tiancai",
+      "reportStatus": "completed",
+      "processedSources": 3,
+      "totalSources": 3,
+      "reportCharacters": 1351,
+      "reportError": "",
+      "calls": [
+        {
+          "stage": "pipeline",
+          "durationMs": 31526,
+          "finishReason": "stop",
+          "promptTokens": 537,
+          "completionTokens": 3297,
+          "reasoningTokens": 2388,
+          "cost": 0.001372,
+          "costReported": true,
+          "costSource": "newapi-log",
+          "costCurrency": "USD"
+        }
+      ]
+    },
+    {
+      "phase": "direct-range",
+      "sample": "real-novel-first-three",
+      "localDirectory": ".tmp/novel-analysis-review-2026-11-10-final",
+      "sourceHash": "1ae95204e259fb2b43ed1cbca00fbf724ee458394352edeb16d45d98d1111706",
+      "chapters": 3,
+      "sourceCharacters": 5473,
+      "model": "deepseek-v4.1-flash-tiancai",
+      "reportStatus": "completed",
+      "processedSources": 3,
+      "totalSources": 3,
+      "reportCharacters": 1314,
+      "reportError": "",
+      "calls": [
+        {
+          "stage": "pipeline",
+          "durationMs": 54065,
+          "finishReason": "stop",
+          "promptTokens": 4151,
+          "completionTokens": 5700,
+          "reasoningTokens": 4820,
+          "cost": 0.002696,
+          "costReported": true,
+          "costSource": "newapi-log",
+          "costCurrency": "USD"
+        }
+      ]
+    },
+    {
+      "phase": "grouped-range",
+      "sample": "real-novel-first-16",
+      "localDirectory": ".tmp/novel-analysis-review-2026-11-10-long",
+      "sourceHash": "2df816cdc1564bc973f97925bd6d8e28ba3e5c5c92103d7a0fff404cdc91bcc3",
+      "chapters": 16,
+      "sourceCharacters": 22931,
+      "model": "deepseek-v4.1-flash-tiancai",
+      "reportStatus": "failed",
+      "processedSources": 7,
+      "totalSources": 16,
+      "reportCharacters": 0,
+      "reportError": "本次生成要求被上游内容策略拒绝，请调整为非露骨表达后重新发起",
+      "calls": [
+        {
+          "stage": "pipeline",
+          "durationMs": 26153,
+          "finishReason": "stop",
+          "promptTokens": 7837,
+          "completionTokens": 2474,
+          "reasoningTokens": 1906,
+          "cost": 0.001774,
+          "costReported": true,
+          "costSource": "newapi-log",
+          "costCurrency": "USD"
+        },
+        {
+          "stage": "pipeline",
+          "durationMs": 4542,
+          "finishReason": "content_filter",
+          "promptTokens": 9638,
+          "completionTokens": 34,
+          "reasoningTokens": 0,
+          "cost": 0.000978,
+          "costReported": true,
+          "costSource": "newapi-log",
+          "costCurrency": "USD",
+          "refusal": "本次生成要求被上游内容策略拒绝，请调整为非露骨表达后重新发起"
+        },
+        {
+          "stage": "direct-baseline",
+          "durationMs": 10554,
+          "finishReason": "content_filter",
+          "promptTokens": 19496,
+          "completionTokens": 34,
+          "reasoningTokens": 0,
+          "cost": 0.001964,
+          "costReported": true,
+          "costSource": "newapi-log",
+          "costCurrency": "USD",
+          "refusal": "本次生成要求被上游内容策略拒绝，请调整为非露骨表达后重新发起"
+        }
+      ]
+    }
+  ],
+  "review": {
+    "reviewer": "implementation assistant",
+    "independentHumanAcceptance": false,
+    "findings": [
+      "Initial per-chapter notes exhausted 2500 output tokens in reasoning; neither report completed. Both direct-source baselines completed.",
+      "Short-range direct reports completed for the known v9 regression and the first three source chapters of the real novel.",
+      "Known regression report preserved transfer direction, cancelled search, unfinished replacement, and character misunderstanding; unsupported gender pronouns remain.",
+      "Real short report preserved current-versus-flashback ordering, attributed uncertainty about returning the book, and did not claim the bus-stage plan was already completed.",
+      "Some paragraphs lack citation markers. Source catalog remains available for manual checking. A short report treated the catalog ordinal as a textual chapter number; later model inputs omit catalog ordinals.",
+      "The 16-source pipeline saved its first seven sources before upstream content refusal. The full-source baseline also received content refusal. Long-range semantic acceptance remains incomplete.",
+      "Short reports were generated before the final source metadata simplification and reading-group update; the later long run uses those changes. No unbounded retuning or automatic paid retries."
+    ]
+  }
+}

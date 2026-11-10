@@ -20,6 +20,7 @@ import { ratingsRoutes } from './routes/ratings'
 import { commentsRoutes } from './routes/comments'
 import { scrapeRoutes } from './routes/scrape'
 import { aiRoutes } from './routes/ai'
+import { novelAnalysisRoutes } from './routes/novel-analysis'
 import { createAgentRoutes } from './routes/ai-agent'
 import { adminRoutes } from './routes/admin'
 import { adminUsersRoutes } from './routes/admin-users'
@@ -104,6 +105,7 @@ app.route('/api/ratings', ratingsRoutes)
 app.route('/api/comments', commentsRoutes)
 app.route('/api/scrape', scrapeRoutes)
 app.route('/api/ai', aiRoutes)
+app.route('/api/ai/analysis', novelAnalysisRoutes)
 app.route('/api/ai/agent', createAgentRoutes(request => app.fetch(request)))
 app.route('/api/admin', adminRoutes)
 app.route('/api/admin-users', adminUsersRoutes)

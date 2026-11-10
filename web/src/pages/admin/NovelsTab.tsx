@@ -719,6 +719,11 @@ export default function NovelsTab({
                           onSelect: () => navigate(`/admin/ai?sub=writing&novel=${encodeURIComponent(n.id)}`),
                         },
                         {
+                          label: '小说分析',
+                          icon: BookOpen,
+                          onSelect: () => navigate(`/admin/ai?sub=analysis&novel=${encodeURIComponent(n.id)}`),
+                        },
+                        {
                           label: '生成 AI 封面',
                           icon: Palette,
                           onSelect: () => navigate(`/admin/ai?sub=cover&novel=${encodeURIComponent(n.id)}`),
