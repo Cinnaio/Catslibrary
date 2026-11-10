@@ -127,6 +127,8 @@ export interface AgentSummaryDiagnostic {
   batchCharacters: number
   elapsedMs: number
   usageRecorded: boolean
+  /** Raw failed output is stored privately; false indicates audit storage failed. */
+  failureArchived?: boolean
   responseCharacters?: number
   finishReason?: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'other' | 'missing'
   field?: keyof AgentSummaryContent
@@ -178,6 +180,7 @@ export interface AgentArtifact {
 }
 
 export interface AgentSessionDetail {
+  turnUsage?: AgentTurnUsage[]
   messageReceipt?: { requestId: string; taskId: string } | null
   session: AgentSession
   events: AgentEvent[]
@@ -188,6 +191,22 @@ export interface AgentSessionDetail {
   memories?: AgentMemory[]
   summary?: AgentSummary | null
   recovery?: AgentRecovery | null
+}
+
+/** Recorded coordinating/summary calls only. Independent generation is excluded. */
+export interface AgentTurnUsage {
+  taskId: string
+  status: AgentTask['status']
+  startedAt: number
+  elapsedMs: number
+  tracked: boolean
+  chatCalls: number
+  summaryCalls: number
+  inputTokens: number
+  outputTokens: number
+  unknownTokenCalls: number
+  costs: Array<{ currency: string; amount: number }>
+  unknownCostCalls: number
 }
 
 export const agentTaskRunning = (task: AgentTask | null | undefined): boolean => !!task && ['queued', 'running'].includes(task.status)

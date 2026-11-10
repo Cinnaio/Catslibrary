@@ -1,0 +1,702 @@
+{
+  "date": "2026-11-10",
+  "committedBaseline": "ef8e0251",
+  "status": "follow-up changes not committed; pending independent human review",
+  "scope": "Synthetic memory handoff through real authentication and API handlers, isolated local PostgreSQL. No browser rendering or human confirmation automation claimed.",
+  "totals": {
+    "requests": 8,
+    "inputTokens": 35907,
+    "outputTokens": 1297,
+    "unknownCostCalls": 8
+  },
+  "firstRun": {
+    "classification": "harness false negative",
+    "explanation": "Two complete clauses were validly proposed as two pending memories; the old assertion required exactly one. Raw report is unchanged.",
+    "rawReport": "handoff-2026-11-10/report.json",
+    "rawSha256": "f07b2736a203817ed9071ea89908f868dcfd8d527c6e7d21e0d4ba4570f3be5e",
+    "sourceCommit": "ef8e0251582568014857513abf18839a65b77c90",
+    "sourceHashes": {
+      "api/src/app.ts": "cfc0ac998ac11c6c1b095712683b4dfe164cc0947704b5ae89c90b34b0d80c2a",
+      "api/src/routes/ai-agent.ts": "9900e25b037853936a82638ce12c36ccff0b903e3f319726de05866d9f7cfa05",
+      "api/src/routes/auth.ts": "aac8554e9a3be580167752c45f8005a9adc86acde8169584068ad0c8c4bc1352",
+      "api/src/middlewares/auth.ts": "b62afd237913a5c4c8dee59ae87ebb47ceb21044a3e8d0a8403af96365253a0e",
+      "api/src/middlewares/browser-security.ts": "2258f7e4921c1b9056e103717eda102684c7f856538e96e759f73eba3477aec8",
+      "api/src/services/ai/agent.ts": "7ba28370c478b8714c2158e01bc427a84ea5cfc7e50a496f6bcfb2d8d12228b0",
+      "api/src/services/ai/agent-tools.ts": "84ade074e5770f52e0f7233ac2f03e4a312db26726603d14753b6037cbaa1099",
+      "api/src/services/ai/agent-memory.ts": "00f7ee5bcc7f6d8827f5b5e15bf1d86901ac77d652bc086cbf4889e1afa24406",
+      "api/src/services/ai/agent-context.ts": "49c7e22b85fbb37375d20fe59e44c98e6e19a2ef847fc7ca30282850e329d869",
+      "api/src/services/ai/agent-store.ts": "f51cf9498aa2cb958b1a2dd4b5a71381fd2d9740cba91d7d84a4bb4a91d72914",
+      "api/src/services/ai/client.ts": "2b2601d2f313779283342ce177d4c61e926641a8a8a479ca58a5661a3c16bc90",
+      "api/scripts/evaluate-agent-memory-handoff.ts": "04de1e63443400ae7d2e0f978e7d1f2ce59fae529eecfe8bd263834fab31e862"
+    },
+    "providerRequests": 2,
+    "inputTokens": 9269,
+    "outputTokens": 411,
+    "unknownCostCalls": 2,
+    "checks": [
+      {
+        "name": "login_handoff_f0abd394bd_0",
+        "passed": true
+      },
+      {
+        "name": "cookie_handoff_f0abd394bd_0",
+        "passed": true
+      },
+      {
+        "name": "login_handoff_f0abd394bd_1",
+        "passed": true
+      },
+      {
+        "name": "cookie_handoff_f0abd394bd_1",
+        "passed": true
+      },
+      {
+        "name": "proposal_completed",
+        "passed": true
+      },
+      {
+        "name": "proposal_only_expected_tools",
+        "passed": true
+      },
+      {
+        "name": "one_pending_exact_quote",
+        "passed": false
+      }
+    ],
+    "failure": "one_pending_exact_quote",
+    "transitions": [],
+    "turns": [
+      {
+        "stage": "proposal",
+        "prompt": "请记住：本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。请按这两句完整原话提出作品记忆，跨对话保存等我在面板确认；本轮已提出的要求现在遵守。不查正文、不生成内容。",
+        "status": "completed",
+        "error": "",
+        "events": [
+          {
+            "id": 18,
+            "role": "user",
+            "content": "请记住：本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。请按这两句完整原话提出作品记忆，跨对话保存等我在面板确认；本轮已提出的要求现在遵守。不查正文、不生成内容。",
+            "taskId": "aitask_mw9zvf3w_3e731c83",
+            "requestId": "32338184-7aac-418a-b6dc-8433d553a269",
+            "metadata": {
+              "model": "deepseek-v4.1-flash-tiancai",
+              "providerPresetId": ""
+            },
+            "createdAt": 1794273092927
+          },
+          {
+            "id": 19,
+            "role": "activity",
+            "content": "提出创作记忆",
+            "taskId": "aitask_mw9zvf3w_3e731c83",
+            "metadata": {
+              "tool": "propose_memory",
+              "memoryId": "amem_mw9zviy1_2c05ec95"
+            },
+            "createdAt": 1794273097905
+          },
+          {
+            "id": 20,
+            "role": "activity",
+            "content": "提出创作记忆",
+            "taskId": "aitask_mw9zvf3w_3e731c83",
+            "metadata": {
+              "tool": "propose_memory",
+              "memoryId": "amem_mw9zviyg_85bacf74"
+            },
+            "createdAt": 1794273097915
+          },
+          {
+            "id": 21,
+            "role": "assistant",
+            "content": "已按两句原话分别提出记忆，现均待确认：\n\n1. “本书暂不让林岚与沈舟和解，除非我另行确认。”\n2. “后续章节保持克制文风，避免连续感叹号。”\n\n请在“作品记忆”面板确认后，它们才会跨对话生效。本轮我会按这两条要求执行，不查正文，也不生成内容。",
+            "taskId": "aitask_mw9zvf3w_3e731c83",
+            "metadata": {
+              "round": 1
+            },
+            "createdAt": 1794273101281
+          }
+        ],
+        "usage": {
+          "taskId": "aitask_mw9zvf3w_3e731c83",
+          "status": "completed",
+          "startedAt": 1794273092924,
+          "elapsedMs": 8361,
+          "tracked": true,
+          "chatCalls": 2,
+          "summaryCalls": 0,
+          "inputTokens": 9269,
+          "outputTokens": 411,
+          "unknownTokenCalls": 0,
+          "costs": [],
+          "unknownCostCalls": 2
+        }
+      }
+    ],
+    "contextSnapshots": [
+      {
+        "stage": "proposal",
+        "sent": true,
+        "creativeAgreements": [],
+        "response": {
+          "httpStatus": 200,
+          "text": "",
+          "model": "deepseek-v4.1-flash",
+          "captureIncomplete": false
+        }
+      },
+      {
+        "stage": "proposal",
+        "sent": true,
+        "creativeAgreements": [],
+        "response": {
+          "httpStatus": 200,
+          "text": "已按两句原话分别提出记忆，现均待确认：\n\n1. “本书暂不让林岚与沈舟和解，除非我另行确认。”\n2. “后续章节保持克制文风，避免连续感叹号。”\n\n请在“作品记忆”面板确认后，它们才会跨对话生效。本轮我会按这两条要求执行，不查正文，也不生成内容。",
+          "model": "deepseek-v4.1-flash",
+          "captureIncomplete": false
+        }
+      }
+    ]
+  },
+  "correctedRun": {
+    "classification": "27 executable checks passed; one semantic failure",
+    "explanation": "An existing session wrongly described its earlier accurate empty-list reply as a mistake after the memory became active between turns.",
+    "rawReport": "handoff-corrected-2026-11-10/report.json",
+    "rawSha256": "fb0f7e8743b29bf84a50e8767137511f19dd5a3cc013255ab0a363789d61cef1",
+    "sourceCommit": "ef8e0251582568014857513abf18839a65b77c90",
+    "sourceHashes": {
+      "api/src/app.ts": "cfc0ac998ac11c6c1b095712683b4dfe164cc0947704b5ae89c90b34b0d80c2a",
+      "api/src/routes/ai-agent.ts": "9900e25b037853936a82638ce12c36ccff0b903e3f319726de05866d9f7cfa05",
+      "api/src/routes/auth.ts": "aac8554e9a3be580167752c45f8005a9adc86acde8169584068ad0c8c4bc1352",
+      "api/src/middlewares/auth.ts": "b62afd237913a5c4c8dee59ae87ebb47ceb21044a3e8d0a8403af96365253a0e",
+      "api/src/middlewares/browser-security.ts": "2258f7e4921c1b9056e103717eda102684c7f856538e96e759f73eba3477aec8",
+      "api/src/services/ai/agent.ts": "7ba28370c478b8714c2158e01bc427a84ea5cfc7e50a496f6bcfb2d8d12228b0",
+      "api/src/services/ai/agent-tools.ts": "84ade074e5770f52e0f7233ac2f03e4a312db26726603d14753b6037cbaa1099",
+      "api/src/services/ai/agent-memory.ts": "00f7ee5bcc7f6d8827f5b5e15bf1d86901ac77d652bc086cbf4889e1afa24406",
+      "api/src/services/ai/agent-context.ts": "49c7e22b85fbb37375d20fe59e44c98e6e19a2ef847fc7ca30282850e329d869",
+      "api/src/services/ai/agent-store.ts": "f51cf9498aa2cb958b1a2dd4b5a71381fd2d9740cba91d7d84a4bb4a91d72914",
+      "api/src/services/ai/client.ts": "2b2601d2f313779283342ce177d4c61e926641a8a8a479ca58a5661a3c16bc90",
+      "api/scripts/evaluate-agent-memory-handoff.ts": "3c3cd76b3f33612683910a92dfd23fac8d6c473f0de052312f2f826fa25cdb84"
+    },
+    "providerRequests": 5,
+    "inputTokens": 22143,
+    "outputTokens": 602,
+    "unknownCostCalls": 5,
+    "checks": [
+      {
+        "name": "login_handoff_cce48d48ca_0",
+        "passed": true
+      },
+      {
+        "name": "cookie_handoff_cce48d48ca_0",
+        "passed": true
+      },
+      {
+        "name": "login_handoff_cce48d48ca_1",
+        "passed": true
+      },
+      {
+        "name": "cookie_handoff_cce48d48ca_1",
+        "passed": true
+      },
+      {
+        "name": "proposal_completed",
+        "passed": true
+      },
+      {
+        "name": "proposal_only_expected_tools",
+        "passed": true
+      },
+      {
+        "name": "pending_complete_exact_quotes",
+        "passed": true
+      },
+      {
+        "name": "before_confirmation_completed",
+        "passed": true
+      },
+      {
+        "name": "before_confirmation_only_expected_tools",
+        "passed": true
+      },
+      {
+        "name": "pending_absent_from_active_context",
+        "passed": true
+      },
+      {
+        "name": "pending_not_leaked_into_new_turn",
+        "passed": true
+      },
+      {
+        "name": "proposal_still_pending",
+        "passed": true
+      },
+      {
+        "name": "confirmed_active_exact_quote_1",
+        "passed": true
+      },
+      {
+        "name": "new_conversation_has_no_original_chat",
+        "passed": true
+      },
+      {
+        "name": "after_confirmation_completed",
+        "passed": true
+      },
+      {
+        "name": "after_confirmation_only_expected_tools",
+        "passed": true
+      },
+      {
+        "name": "confirmed_memory_in_new_context",
+        "passed": true
+      },
+      {
+        "name": "source_session_not_replayed",
+        "passed": true
+      },
+      {
+        "name": "new_conversation_can_read_memory_source_amem_mw9zx652_2b5573c8",
+        "passed": true
+      },
+      {
+        "name": "existing_session_after_confirmation_completed",
+        "passed": true
+      },
+      {
+        "name": "existing_session_after_confirmation_only_expected_tools",
+        "passed": true
+      },
+      {
+        "name": "existing_session_refreshes_active_context",
+        "passed": true
+      },
+      {
+        "name": "other_account_no_memory",
+        "passed": true
+      },
+      {
+        "name": "other_book_no_memory",
+        "passed": true
+      },
+      {
+        "name": "other_account_source_denied",
+        "passed": true
+      },
+      {
+        "name": "other_book_source_denied",
+        "passed": true
+      },
+      {
+        "name": "no_business_generation",
+        "passed": true
+      }
+    ],
+    "failure": "",
+    "transitions": [
+      {
+        "stage": "proposal",
+        "memories": [
+          {
+            "id": "amem_mw9zx652_2b5573c8",
+            "novelId": "handoff_cce48d48ca_book",
+            "sessionId": "agent_mw9zx1ng_e3b0f468",
+            "kind": "agreement",
+            "title": "林岚沈舟暂不和解；保持克制文风",
+            "content": "本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。",
+            "status": "pending",
+            "sourceEventId": 22,
+            "supersedesId": null,
+            "revision": 1,
+            "createdAt": 1794273174614,
+            "updatedAt": 1794273174614
+          }
+        ]
+      },
+      {
+        "stage": "confirmed_via_api",
+        "memories": [
+          {
+            "id": "amem_mw9zx652_2b5573c8",
+            "novelId": "handoff_cce48d48ca_book",
+            "sessionId": "agent_mw9zx1ng_e3b0f468",
+            "kind": "agreement",
+            "title": "林岚沈舟暂不和解；保持克制文风",
+            "content": "本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。",
+            "status": "active",
+            "sourceEventId": 22,
+            "supersedesId": null,
+            "revision": 2,
+            "createdAt": 1794273174614,
+            "updatedAt": 1794273181973
+          }
+        ]
+      }
+    ],
+    "turns": [
+      {
+        "stage": "proposal",
+        "prompt": "请记住：本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。请按这两句完整原话提出作品记忆，跨对话保存等我在面板确认；本轮已提出的要求现在遵守。不查正文、不生成内容。",
+        "status": "completed",
+        "error": "",
+        "events": [
+          {
+            "id": 22,
+            "role": "user",
+            "content": "请记住：本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。请按这两句完整原话提出作品记忆，跨对话保存等我在面板确认；本轮已提出的要求现在遵守。不查正文、不生成内容。",
+            "taskId": "aitask_mw9zx1nv_926e2fb8",
+            "requestId": "3208f466-021c-493d-9343-17efb5d8929e",
+            "metadata": {
+              "model": "deepseek-v4.1-flash-tiancai",
+              "providerPresetId": ""
+            },
+            "createdAt": 1794273168813
+          },
+          {
+            "id": 23,
+            "role": "activity",
+            "content": "提出创作记忆",
+            "taskId": "aitask_mw9zx1nv_926e2fb8",
+            "metadata": {
+              "tool": "propose_memory",
+              "memoryId": "amem_mw9zx652_2b5573c8"
+            },
+            "createdAt": 1794273174617
+          },
+          {
+            "id": 24,
+            "role": "assistant",
+            "content": "我已按你的两句原话提出作品记忆提议，完整内容如下：\n\n> 本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。\n\n当前状态是“待确认”，你需要在“作品记忆”面板确认后，它才会跨对话生效。在本轮对话中，我会直接遵守这两条要求；我没有查阅正文，也没有生成内容。",
+            "taskId": "aitask_mw9zx1nv_926e2fb8",
+            "metadata": {
+              "round": 1
+            },
+            "createdAt": 1794273178481
+          }
+        ],
+        "usage": {
+          "taskId": "aitask_mw9zx1nv_926e2fb8",
+          "status": "completed",
+          "startedAt": 1794273168811,
+          "elapsedMs": 9672,
+          "tracked": true,
+          "chatCalls": 2,
+          "summaryCalls": 0,
+          "inputTokens": 9036,
+          "outputTokens": 275,
+          "unknownTokenCalls": 0,
+          "costs": [],
+          "unknownCostCalls": 2
+        }
+      },
+      {
+        "stage": "before_confirmation",
+        "prompt": "本书当前有哪些已生效的长期创作约定？只根据当前清单回答，不查正文，不猜其他对话，也不要修改或提出记忆。",
+        "status": "completed",
+        "error": "",
+        "events": [
+          {
+            "id": 25,
+            "role": "user",
+            "content": "本书当前有哪些已生效的长期创作约定？只根据当前清单回答，不查正文，不猜其他对话，也不要修改或提出记忆。",
+            "taskId": "aitask_mw9zx993_f1ab704c",
+            "requestId": "3a3c5252-3b1f-42e1-aa10-9cb1320cb27f",
+            "metadata": {
+              "model": "deepseek-v4.1-flash-tiancai",
+              "providerPresetId": ""
+            },
+            "createdAt": 1794273178648
+          },
+          {
+            "id": 26,
+            "role": "assistant",
+            "content": "当前没有已生效的长期创作约定，清单为空。",
+            "taskId": "aitask_mw9zx993_f1ab704c",
+            "metadata": {
+              "round": 0
+            },
+            "createdAt": 1794273181897
+          }
+        ],
+        "usage": {
+          "taskId": "aitask_mw9zx993_f1ab704c",
+          "status": "completed",
+          "startedAt": 1794273178647,
+          "elapsedMs": 3252,
+          "tracked": true,
+          "chatCalls": 1,
+          "summaryCalls": 0,
+          "inputTokens": 4308,
+          "outputTokens": 52,
+          "unknownTokenCalls": 0,
+          "costs": [],
+          "unknownCostCalls": 1
+        }
+      },
+      {
+        "stage": "after_confirmation",
+        "prompt": "本书当前有哪些已生效的长期创作约定？只根据当前清单回答，不查正文，不猜其他对话，也不要修改或提出记忆。",
+        "status": "completed",
+        "error": "",
+        "events": [
+          {
+            "id": 27,
+            "role": "user",
+            "content": "本书当前有哪些已生效的长期创作约定？只根据当前清单回答，不查正文，不猜其他对话，也不要修改或提出记忆。",
+            "taskId": "aitask_mw9zxbu4_cada13b6",
+            "requestId": "d038754a-6cdc-4016-a0c9-7c94b5a250b3",
+            "metadata": {
+              "model": "deepseek-v4.1-flash-tiancai",
+              "providerPresetId": ""
+            },
+            "createdAt": 1794273181997
+          },
+          {
+            "id": 28,
+            "role": "assistant",
+            "content": "当前生效一条：\n\n**《林岚沈舟暂不和解；保持克制文风》**——原文为“本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。”",
+            "taskId": "aitask_mw9zxbu4_cada13b6",
+            "metadata": {
+              "round": 0
+            },
+            "createdAt": 1794273185294
+          }
+        ],
+        "usage": {
+          "taskId": "aitask_mw9zxbu4_cada13b6",
+          "status": "completed",
+          "startedAt": 1794273181996,
+          "elapsedMs": 3299,
+          "tracked": true,
+          "chatCalls": 1,
+          "summaryCalls": 0,
+          "inputTokens": 4375,
+          "outputTokens": 52,
+          "unknownTokenCalls": 0,
+          "costs": [],
+          "unknownCostCalls": 1
+        }
+      },
+      {
+        "stage": "existing_session_after_confirmation",
+        "prompt": "本书当前有哪些已生效的长期创作约定？只根据当前清单回答，不查正文，不猜其他对话，也不要修改或提出记忆。",
+        "status": "completed",
+        "error": "",
+        "events": [
+          {
+            "id": 29,
+            "role": "user",
+            "content": "本书当前有哪些已生效的长期创作约定？只根据当前清单回答，不查正文，不猜其他对话，也不要修改或提出记忆。",
+            "taskId": "aitask_mw9zxefg_79d2b920",
+            "requestId": "47ea4adf-4e17-49e0-b49a-7cdd0592d834",
+            "metadata": {
+              "model": "deepseek-v4.1-flash-tiancai",
+              "providerPresetId": ""
+            },
+            "createdAt": 1794273185358
+          },
+          {
+            "id": 30,
+            "role": "assistant",
+            "content": "当前有一项已生效的长期创作约定（我上轮误答为空，更正如下）：\n\n**林岚沈舟暂不和解；保持克制文风**——“本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。”",
+            "taskId": "aitask_mw9zxefg_79d2b920",
+            "metadata": {
+              "round": 0
+            },
+            "createdAt": 1794273189619
+          }
+        ],
+        "usage": {
+          "taskId": "aitask_mw9zxefg_79d2b920",
+          "status": "completed",
+          "startedAt": 1794273185356,
+          "elapsedMs": 4266,
+          "tracked": true,
+          "chatCalls": 1,
+          "summaryCalls": 0,
+          "inputTokens": 4424,
+          "outputTokens": 223,
+          "unknownTokenCalls": 0,
+          "costs": [],
+          "unknownCostCalls": 1
+        }
+      }
+    ],
+    "contextSnapshots": [
+      {
+        "stage": "proposal",
+        "sent": true,
+        "creativeAgreements": [],
+        "response": {
+          "httpStatus": 200,
+          "text": "",
+          "model": "deepseek-v4.1-flash",
+          "captureIncomplete": false
+        }
+      },
+      {
+        "stage": "proposal",
+        "sent": true,
+        "creativeAgreements": [],
+        "response": {
+          "httpStatus": 200,
+          "text": "我已按你的两句原话提出作品记忆提议，完整内容如下：\n\n> 本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。\n\n当前状态是“待确认”，你需要在“作品记忆”面板确认后，它才会跨对话生效。在本轮对话中，我会直接遵守这两条要求；我没有查阅正文，也没有生成内容。",
+          "model": "deepseek-v4.1-flash",
+          "captureIncomplete": false
+        }
+      },
+      {
+        "stage": "before_confirmation",
+        "sent": true,
+        "creativeAgreements": [],
+        "response": {
+          "httpStatus": 200,
+          "text": "当前没有已生效的长期创作约定，清单为空。",
+          "model": "deepseek-v4.1-flash",
+          "captureIncomplete": false
+        }
+      },
+      {
+        "stage": "after_confirmation",
+        "sent": true,
+        "creativeAgreements": [
+          {
+            "id": "amem_mw9zx652_2b5573c8",
+            "title": "林岚沈舟暂不和解；保持克制文风",
+            "content": "本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。",
+            "revision": 2
+          }
+        ],
+        "response": {
+          "httpStatus": 200,
+          "text": "当前生效一条：\n\n**《林岚沈舟暂不和解；保持克制文风》**——原文为“本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。”",
+          "model": "deepseek-v4.1-flash",
+          "captureIncomplete": false
+        }
+      },
+      {
+        "stage": "existing_session_after_confirmation",
+        "sent": true,
+        "creativeAgreements": [
+          {
+            "id": "amem_mw9zx652_2b5573c8",
+            "title": "林岚沈舟暂不和解；保持克制文风",
+            "content": "本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。",
+            "revision": 2
+          }
+        ],
+        "response": {
+          "httpStatus": 200,
+          "text": "当前有一项已生效的长期创作约定（我上轮误答为空，更正如下）：\n\n**林岚沈舟暂不和解；保持克制文风**——“本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号。”",
+          "model": "deepseek-v4.1-flash",
+          "captureIncomplete": false
+        }
+      }
+    ]
+  },
+  "stateFollowup": {
+    "classification": "4 executable checks passed; assistant preliminary semantic review acceptable",
+    "explanation": "One adapted synthetic sample stopped calling the old reply wrong; still added an unnecessary sentence about not inspecting the previous state. Not a full handoff rerun or stability proof.",
+    "rawReport": "memory-state-followup-2026-11-10.json",
+    "rawSha256": "c93456efd28d752df0cd1dc10d37a2c4e8296e9ba7d2c600ed9c0134efea24eb",
+    "sourceCommit": "ef8e0251582568014857513abf18839a65b77c90",
+    "sourceHashes": {
+      "api/src/routes/ai-agent.ts": "9900e25b037853936a82638ce12c36ccff0b903e3f319726de05866d9f7cfa05",
+      "api/src/services/ai/agent-context.ts": "49c7e22b85fbb37375d20fe59e44c98e6e19a2ef847fc7ca30282850e329d869",
+      "api/src/services/ai/agent-memory.ts": "00f7ee5bcc7f6d8827f5b5e15bf1d86901ac77d652bc086cbf4889e1afa24406",
+      "api/src/services/ai/agent-store.ts": "f51cf9498aa2cb958b1a2dd4b5a71381fd2d9740cba91d7d84a4bb4a91d72914",
+      "api/src/services/ai/agent-tools.ts": "84ade074e5770f52e0f7233ac2f03e4a312db26726603d14753b6037cbaa1099",
+      "api/src/services/ai/agent.ts": "d0e4e0e75625cd93a75aaa9560083e6c65f216dcff90c81b883878ea4c8a1869",
+      "shared/ai-agent.ts": "0b03d9519cef4e65b9f6f8de08f126a45d8646b1e9aae76231387e8beb20d698",
+      "api/scripts/evaluate-agent.ts": "1bbdc318a296307ee6e7164bdbc8f033a840f6995d044d7e569bcec5e0ded878",
+      "api/scripts/fixtures/agent-quality-cases.json": "1d1dce48c54c52241cec89831fe4413b38d94a886bf74f1295903935e2805c75"
+    },
+    "providerRequests": 1,
+    "inputTokens": 4495,
+    "outputTokens": 284,
+    "unknownCostCalls": 1,
+    "checks": [
+      {
+        "name": "turn_completed",
+        "passed": true
+      },
+      {
+        "name": "current_memory_unchanged",
+        "passed": true
+      },
+      {
+        "name": "only_expected_tools",
+        "passed": true
+      },
+      {
+        "name": "no_business_mutations_requested",
+        "passed": true
+      }
+    ],
+    "failure": "",
+    "transitions": [],
+    "turns": [
+      {
+        "stage": "Q18",
+        "prompt": "本书当前有哪些已生效的长期创作约定？只根据当前清单回答，不查正文，不猜其他对话，也不要修改或提出记忆。",
+        "status": "completed",
+        "error": "",
+        "events": [
+          {
+            "id": 3,
+            "role": "user",
+            "content": "本书当前有哪些已生效的长期创作约定？只根据当前清单回答，不查正文，不猜其他对话，也不要修改或提出记忆。",
+            "taskId": "aitask_mw9zymy9_81d1b7de",
+            "requestId": "2e93b176-ffac-4544-b29e-8f1b2ea5d975",
+            "metadata": {
+              "model": "deepseek-v4.1-flash-tiancai",
+              "providerPresetId": ""
+            },
+            "createdAt": 1794273243060
+          },
+          {
+            "id": 4,
+            "role": "assistant",
+            "content": "当前已生效的长期创作约定只有一条——**保留限制与克制文风**：其中写明“本书暂不让林岚与沈舟和解，除非我另行确认。后续章节保持克制文风，避免连续感叹号”。\n\n这是当前清单的状态；本次未查证上一轮的清单记录。",
+            "taskId": "aitask_mw9zymy9_81d1b7de",
+            "metadata": {
+              "round": 0
+            },
+            "createdAt": 1794273248135
+          }
+        ],
+        "usage": {
+          "taskId": "aitask_mw9zymy9_81d1b7de",
+          "status": "completed",
+          "startedAt": 1794273243057,
+          "elapsedMs": 5079,
+          "tracked": true,
+          "chatCalls": 1,
+          "summaryCalls": 0,
+          "inputTokens": 4495,
+          "outputTokens": 284,
+          "unknownTokenCalls": 0,
+          "costs": [],
+          "unknownCostCalls": 1
+        }
+      }
+    ],
+    "contextSnapshots": []
+  },
+  "humanReview": {
+    "status": "pending",
+    "originalTrial": {
+      "sessions": 2,
+      "userMessages": 5,
+      "memories": 0,
+      "summaries": 0,
+      "source": "local read-only snapshot; no private text included"
+    }
+  },
+  "limitations": [
+    "Confirmation in Q17 was executed by the harness on synthetic data.",
+    "Cross-account and cross-book checks use the real API/source endpoint without extra model calls.",
+    "No actual author long-context compaction or interruption/recovery evidence was added.",
+    "No provider switch, automatic retry, output format, reasoning default, or fixed tool-round cap was changed."
+  ]
+}

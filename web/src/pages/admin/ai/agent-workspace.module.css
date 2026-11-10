@@ -16,6 +16,17 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.usage {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.usageTurn {
+  display: grid;
+  gap: 6px;
+}
+.usageTurn p {
+  margin: 0;
+}
 .toolbar {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
@@ -336,17 +347,25 @@
 }
 .composerActions {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 8px;
   margin-top: 2px;
+}
+.composerTools {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
 }
 .composer .modelTrigger {
   --button-label-size: 12px;
   --button-icon-size: 12px;
   min-width: 0;
   min-height: 32px;
-  max-width: calc(100% - 52px);
+  max-width: 100%;
   padding: 4px 8px;
   gap: 6px;
   flex-shrink: 1;

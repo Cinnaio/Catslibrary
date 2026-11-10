@@ -8,7 +8,7 @@ import { pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage } fro
 
 const streams = vi.hoisted(() => ({ watch: vi.fn() }))
 vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: streams.watch }))
-const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn() }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn(), memories: vi.fn(), changeMemory: vi.fn() }))
 const providerMocks = vi.hoisted(() => ({ providerPresets: vi.fn(), status: vi.fn() }))
 vi.mock('@/lib/ai-agent-api', () => ({ agentApi: { ...mocks } }))
 vi.mock('@/lib/api', () => ({
@@ -99,6 +99,29 @@ beforeEach(() => {
 })
 
 describe('creative agent conversation', () => {
+  it('opens pending memories from the composer without sending its draft when saving a memory', async () => {
+    const memory = { id: 'memory', novelId: 'novel', sessionId: 'session', kind: 'agreement' as const, title: '保留悬念', content: '不要提前揭晓身份', status: 'pending' as const, sourceEventId: 1, supersedesId: null, revision: 1, createdAt: 1, updatedAt: 1 }
+    mocks.get.mockResolvedValue({ ...detail(), memories: [memory] })
+    mocks.memories.mockResolvedValue({ memories: [memory], hasMore: false, summary: null })
+    mocks.changeMemory.mockResolvedValue({ memory: { ...memory, revision: 2 } })
+    open()
+    const composer = await screen.findByRole('form', { name: '创作消息输入' })
+    const trigger = within(composer).getByRole('button', { name: '作品记忆 · 1 待确认' })
+    fireEvent.change(within(composer).getByLabelText('发送给创作助手的消息'), { target: { value: '还没准备发送' } })
+    fireEvent.click(trigger)
+    const dialog = await screen.findByRole('dialog', { name: '作品记忆' })
+    expect(await within(dialog).findByRole('button', { name: '确认记住' })).toBeEnabled()
+    expect(mocks.message).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: '编辑' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存提议' }))
+    await waitFor(() => expect(mocks.changeMemory).toHaveBeenCalledWith('session', 'memory', 'edit', 1, '保留悬念', '不要提前揭晓身份'))
+    await waitFor(() => expect(within(dialog).queryByRole('button', { name: '保存提议' })).not.toBeInTheDocument())
+    fireEvent.click(within(dialog).getByRole('button', { name: '关闭' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mocks.message).not.toHaveBeenCalled()
+    expect(within(composer).getByLabelText('发送给创作助手的消息')).toHaveValue('还没准备发送')
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
   it('restores an uncertain send after remount without POST and retries only its saved request', async () => {
     mocks.message.mockRejectedValueOnce(new Error('连接中断'))
     const view = open()

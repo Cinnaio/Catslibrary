@@ -36,7 +36,9 @@ export default function AiAgentMemory({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="ghost">作品记忆{pendingCount > 0 ? ` · ${pendingCount} 待确认` : ''}</Button>
+        <Button type="button" size="sm" variant={pendingCount > 0 ? 'secondary' : 'ghost'} className={styles.trigger}>
+          作品记忆{pendingCount > 0 ? ` · ${pendingCount} 待确认` : ''}
+        </Button>
       </DialogTrigger>
       {open && (
         <MemoryManager key={sessionId} sessionId={sessionId} disabled={disabled} onChanged={onChanged} onSaving={setSaving} onClose={() => setOpen(false)} />
@@ -234,6 +236,7 @@ function MemoryManager({
             className={styles.editor}
             onSubmit={(event) => {
               event.preventDefault()
+              event.stopPropagation()
               void mutate(() =>
                 draft.memory
                   ? agentApi.changeMemory(sessionId, draft.memory.id, 'edit', draft.memory.revision, draft.title, draft.content)

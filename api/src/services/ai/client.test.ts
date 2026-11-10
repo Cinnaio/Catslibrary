@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { outboundFetch } from '../outbound-fetch'
-import { AiError, chat, chatStream } from './client'
+import { AiError, chat, chatStream, type AiResponseFormat } from './client'
 
 const envKeys = ['AI_TEXT_BASE_URL', 'AI_TEXT_API_KEY', 'AI_TEXT_MODEL'] as const
 const previousEnv = new Map<string, string | undefined>()
@@ -24,6 +24,25 @@ afterEach(() => {
 const messages = [{ role: 'user' as const, content: '测试' }]
 
 describe('streaming tools and compatibility', () => {
+  it.each([false, true])('sends explicit JSON contracts without changing reasoning defaults (stream=%s)', async stream => {
+    const formats: AiResponseFormat[] = [{ type: 'json_object' }, { type: 'json_schema', json_schema: { name: 'test', strict: true, schema: { type: 'object', properties: {}, required: [], additionalProperties: false } } }]
+    const mock = vi.fn(async () => Response.json({ choices: [{ message: { content: '{}' }, finish_reason: 'stop' }] }))
+    vi.stubGlobal('fetch', mock)
+    for (const responseFormat of formats) {
+      await chat({ messages, stream, responseFormat, maxAttempts: 1 })
+      const payload = JSON.parse(String((mock.mock.calls as unknown as [unknown, RequestInit][]).at(-1)![1].body))
+      expect(payload.response_format).toEqual(responseFormat)
+      expect(payload).not.toHaveProperty('thinking')
+    }
+    await chat({ messages, stream })
+    expect(JSON.parse(String((mock.mock.calls as unknown as [unknown, RequestInit][]).at(-1)![1].body))).not.toHaveProperty('response_format')
+  })
+  it('never silently drops a rejected schema or retries it', async () => {
+    const mock = vi.fn(async () => Response.json({ error: { message: 'response_format json_schema not supported' } }, { status: 400 }))
+    vi.stubGlobal('fetch', mock)
+    await expect(chat({ messages, responseFormat: { type: 'json_object' }, maxAttempts: 1 })).rejects.toMatchObject({ status: 400 })
+    expect(mock).toHaveBeenCalledTimes(1)
+  })
   const tools = [{ type: 'function' as const, function: { name: 'read_context', description: 'read', parameters: { type: 'object' } } }]
   it('does not replay an accepted request when reading legacy JSON times out', async () => {
     const fetchMock = vi.fn(async () => new Response(new ReadableStream({ start(controller) { controller.error(new DOMException('body timeout', 'TimeoutError')) } }), { headers: { 'content-type': 'application/json' } }))
@@ -69,7 +88,7 @@ describe('streaming tools and compatibility', () => {
     const mock = vi.fn().mockResolvedValue(new Response('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"x","function":{"name":"read_context","arguments":"{"}}]}}],"usage":{"prompt_tokens":8,"completion_tokens":2}}\n\n', { headers: { 'content-type': 'text/event-stream' } }))
     vi.stubGlobal('fetch', mock)
     const audit = vi.fn().mockResolvedValue(undefined)
-    await expect(chat({ messages, tools, onIncomplete: audit })).rejects.toMatchObject({ partialResult: { promptTokens: 8, completionTokens: 2, costReported: false, text: '' } })
+    await expect(chat({ messages, tools, onIncomplete: audit })).rejects.toMatchObject({ partialResult: { promptTokens: 8, completionTokens: 2, tokenUsageReported: true, costReported: false, text: '' } })
     expect(audit).toHaveBeenCalledTimes(1)
     expect(mock).toHaveBeenCalledTimes(1)
     expect(audit.mock.calls[0]![0]).not.toHaveProperty('toolCalls')
@@ -77,6 +96,33 @@ describe('streaming tools and compatibility', () => {
 })
 
 describe('explicit reasoning and stream progress', () => {
+  it('preserves JSON fallback usage when the progress callback is cancelled', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ choices: [{ message: { content: '部分回复' }, finish_reason: 'stop' }], usage: { prompt_tokens: 12, completion_tokens: 5 } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const audit = vi.fn().mockResolvedValue(undefined)
+    await expect(chatStream({ messages, onIncomplete: audit }, () => { throw new AiError('cancelled', '已停止', 409) })).rejects.toMatchObject({ code: 'cancelled', partialResult: { text: '', promptTokens: 12, completionTokens: 5, tokenUsageReported: true } })
+    expect(audit).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it.each([false, true])('distinguishes missing tokens from explicit zero (stream=%s)', async (stream) => {
+    for (const usage of [undefined, { prompt_tokens: 0 }, { prompt_tokens: 0, completion_tokens: 0 }]) {
+      const data = { choices: [{ message: { content: 'OK' }, delta: { content: 'OK' }, finish_reason: 'stop' }], usage }
+      vi.stubGlobal('fetch', vi.fn(async () => stream
+        ? new Response(`data: ${JSON.stringify(data)}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+        : Response.json(data)))
+      const result = stream ? await chatStream({ messages }, () => {}) : await chat({ messages, stream: false })
+      expect(result).toMatchObject({ promptTokens: 0, completionTokens: 0, tokenUsageReported: usage?.completion_tokens === 0 })
+    }
+  })
+  it('retains token presence across separate SSE usage frames', async () => {
+    const frames = [
+      { choices: [{ delta: { content: 'OK' } }], usage: { prompt_tokens: 0 } },
+      { choices: [{ finish_reason: 'stop' }], usage: { completion_tokens: 7 } },
+      { choices: [], usage: null },
+    ]
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(frames.map(frame => `data: ${JSON.stringify(frame)}\n\n`).join('') + 'data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })))
+    expect(await chatStream({ messages }, () => {})).toMatchObject({ promptTokens: 0, completionTokens: 7, tokenUsageReported: true })
+  })
   it('rejects a cleanly closed connection without a completion marker', async () => {
     const fetchMock = vi.fn(async () => new Response('data: {"choices":[{"delta":{"content":"未完成正文"}}]}\n\n', { headers: { 'content-type': 'text/event-stream' } }))
     vi.stubGlobal('fetch', fetchMock)

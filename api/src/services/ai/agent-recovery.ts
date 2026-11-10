@@ -16,6 +16,7 @@ export const AGENT_READ_TOOLS = new Set([
   'list_covers',
   'read_task',
   'read_conversation',
+  'read_conversation_sources',
 ])
 
 export function agentTaskParams(task?: Pick<AiTask, 'params'>) {

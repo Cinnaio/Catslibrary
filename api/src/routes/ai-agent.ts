@@ -26,6 +26,7 @@ import {
 } from '../services/ai/agent-store'
 import { agentMemorySource, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories } from '../services/ai/agent-memory'
 import { agentTaskParams, getAgentRecovery, requireRecoveryTask } from '../services/ai/agent-recovery'
+import { readAgentTurnUsage } from '../services/ai/agent-usage'
 
 type Dispatch = (request: Request) => Response | Promise<Response>
 function numberParam(value: string | undefined, max = 10000) {
@@ -99,6 +100,7 @@ export function createAgentRoutes(dispatch: Dispatch) {
       messageReceipt: messageReceipt || null,
       ...history,
       activeTask,
+      turnUsage: await readAgentTurnUsage(db, c.get('user').id, session),
       recovery: await getAgentRecovery(db, session, activeTask),
       artifacts,
       actions: await listAgentActions(db, session.id),

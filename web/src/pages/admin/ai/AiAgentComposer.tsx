@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUp, ChevronDown, Square } from 'lucide-react'
 import { aiApi, type AiProviderPreset } from '@/lib/api'
@@ -26,11 +26,12 @@ interface Props {
   sendDisabled?: boolean
   providerPresetId: string
   onProviderChange: (id: string) => void
+  tools?: ReactNode
 }
 
 const DEFAULT_PROVIDER = '__default__'
 
-export default function AiAgentComposer({ value, onChange, onSend, onStop, busy, running, sendDisabled, providerPresetId, onProviderChange }: Props) {
+export default function AiAgentComposer({ value, onChange, onSend, onStop, busy, running, sendDisabled, providerPresetId, onProviderChange, tools }: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null)
   const hintId = useId()
   const [presets, setPresets] = useState<AiProviderPreset[]>([])
@@ -123,54 +124,57 @@ export default function AiAgentComposer({ value, onChange, onSend, onStop, busy,
         Enter 发送，Shift 加 Enter 换行，也支持 Ctrl 或 Command 加 Enter 发送。所选模型用于本轮对话与文本生成。
       </span>
       <div className={styles.composerActions}>
-        <DropdownMenu
-          onOpenChange={(open) => {
-            if (open) setRefresh((version) => version + 1)
-          }}
-        >
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={styles.modelTrigger}
-              disabled={busy || running}
-              aria-label={`切换模型，当前${modelLabel}`}
-              title={selected ? `${selected.name} · ${selected.model}` : `跟随默认 · ${modelLabel}`}
-            >
-              <span>{modelLabel}</span>
-              <ChevronDown size={14} aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top" className={styles.modelMenu}>
-            <DropdownMenuLabel>本轮对话与文本生成</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={providerPresetId || DEFAULT_PROVIDER} onValueChange={(id) => onProviderChange(id === DEFAULT_PROVIDER ? '' : id)}>
-              <DropdownMenuRadioItem value={DEFAULT_PROVIDER}>
-                <span className={styles.modelOption}>
-                  跟随默认<small>{defaultModel || '当前文本服务'}</small>
-                </span>
-              </DropdownMenuRadioItem>
-              {presets.map((preset) => (
-                <DropdownMenuRadioItem key={preset.id} value={preset.id} disabled={!preset.hasApiKey}>
+        <div className={styles.composerTools}>
+          <DropdownMenu
+            onOpenChange={(open) => {
+              if (open) setRefresh((version) => version + 1)
+            }}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={styles.modelTrigger}
+                disabled={busy || running}
+                aria-label={`切换模型，当前${modelLabel}`}
+                title={selected ? `${selected.name} · ${selected.model}` : `跟随默认 · ${modelLabel}`}
+              >
+                <span>{modelLabel}</span>
+                <ChevronDown size={14} aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className={styles.modelMenu}>
+              <DropdownMenuLabel>本轮对话与文本生成</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={providerPresetId || DEFAULT_PROVIDER} onValueChange={(id) => onProviderChange(id === DEFAULT_PROVIDER ? '' : id)}>
+                <DropdownMenuRadioItem value={DEFAULT_PROVIDER}>
                   <span className={styles.modelOption}>
-                    {preset.name}
-                    <small>
-                      {preset.model}
-                      {!preset.hasApiKey ? ' · 未配置密钥' : ''}
-                    </small>
+                    跟随默认<small>{defaultModel || '当前文本服务'}</small>
                   </span>
                 </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            {loading && <DropdownMenuLabel>正在读取模型…</DropdownMenuLabel>}
-            {loadError && <DropdownMenuItem onSelect={() => setRefresh((version) => version + 1)}>模型列表读取失败，重试</DropdownMenuItem>}
-            {!loading && !loadError && !presets.length && <DropdownMenuLabel>还没有保存的文本预设</DropdownMenuLabel>}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to="/admin/ai?sub=config">管理模型预设</Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                {presets.map((preset) => (
+                  <DropdownMenuRadioItem key={preset.id} value={preset.id} disabled={!preset.hasApiKey}>
+                    <span className={styles.modelOption}>
+                      {preset.name}
+                      <small>
+                        {preset.model}
+                        {!preset.hasApiKey ? ' · 未配置密钥' : ''}
+                      </small>
+                    </span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              {loading && <DropdownMenuLabel>正在读取模型…</DropdownMenuLabel>}
+              {loadError && <DropdownMenuItem onSelect={() => setRefresh((version) => version + 1)}>模型列表读取失败，重试</DropdownMenuItem>}
+              {!loading && !loadError && !presets.length && <DropdownMenuLabel>还没有保存的文本预设</DropdownMenuLabel>}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/admin/ai?sub=config">管理模型预设</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {tools}
+        </div>
         {running ? (
           <Button
             className={styles.composerButton}

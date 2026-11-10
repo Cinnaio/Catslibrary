@@ -1,0 +1,549 @@
+{
+  "date": "2026-11-10",
+  "status": "local uncommitted followup; coding assistant review complete; user reviewed and accepted this run",
+  "humanReview": {
+    "status": "accepted",
+    "date": "2026-11-10",
+    "reviewer": "user",
+    "quote": "已看过，认可本轮结果",
+    "scope": "S01 synthetic summary and recovery run plus the two targeted S01-A and S01-B replays",
+    "granularity": "overall acceptance; no item-by-item comments supplied",
+    "limitationsRetained": true,
+    "historicalReportsUnchanged": true
+  },
+  "scope": "in-process real API, cookie and CSRF; isolated local PostgreSQL",
+  "syntheticOnly": true,
+  "sourceCommit": "ef8e0251582568014857513abf18839a65b77c90",
+  "totals": {
+    "requests": 16,
+    "inputTokens": 88361,
+    "outputTokens": 15835,
+    "unknownCostCalls": 16
+  },
+  "mainRun": {
+    "rawReport": ".tmp/agent-evaluation/summary-review-2026-11-10/report.json",
+    "rawSha256": "8c0a65abbf8a6aaf273d8632ec7eeffd1ac2878aee77ca094af70e8ed20e05d1",
+    "sourceHashes": {
+      "api/src/app.ts": "cfc0ac998ac11c6c1b095712683b4dfe164cc0947704b5ae89c90b34b0d80c2a",
+      "api/src/routes/ai-agent.ts": "9900e25b037853936a82638ce12c36ccff0b903e3f319726de05866d9f7cfa05",
+      "api/src/middlewares/auth.ts": "b62afd237913a5c4c8dee59ae87ebb47ceb21044a3e8d0a8403af96365253a0e",
+      "api/src/middlewares/browser-security.ts": "2258f7e4921c1b9056e103717eda102684c7f856538e96e759f73eba3477aec8",
+      "api/src/services/ai/agent.ts": "d0e4e0e75625cd93a75aaa9560083e6c65f216dcff90c81b883878ea4c8a1869",
+      "api/src/services/ai/agent-tools.ts": "84ade074e5770f52e0f7233ac2f03e4a312db26726603d14753b6037cbaa1099",
+      "api/src/services/ai/agent-memory.ts": "00f7ee5bcc7f6d8827f5b5e15bf1d86901ac77d652bc086cbf4889e1afa24406",
+      "api/src/services/ai/agent-context.ts": "49c7e22b85fbb37375d20fe59e44c98e6e19a2ef847fc7ca30282850e329d869",
+      "api/src/services/ai/agent-store.ts": "f51cf9498aa2cb958b1a2dd4b5a71381fd2d9740cba91d7d84a4bb4a91d72914",
+      "api/src/services/ai/agent-recovery.ts": "b2f6358c536344c5d18a34aba3e58d57585b1fd2e4f874eb0899c4c71ae0eaa3",
+      "api/src/services/ai/client.ts": "2b2601d2f313779283342ce177d4c61e926641a8a8a479ca58a5661a3c16bc90",
+      "api/scripts/evaluate-agent-summary-review.ts": "ce7424616ca62f6908d4e2dc7506f2e80307b1c5cb393a32bac2d2fdb1e6ca08"
+    },
+    "usage": {
+      "requests": 14,
+      "inputTokens": 78195,
+      "outputTokens": 12676
+    },
+    "injectedResponses": 1,
+    "injectedCost": "no provider request",
+    "transcriptEvents": 206,
+    "seededTransitionEvents": 185,
+    "apiAuthorEvents": 10,
+    "checks": [
+      {
+        "name": "real_login",
+        "passed": true
+      },
+      {
+        "name": "session_cookie",
+        "passed": true
+      },
+      {
+        "name": "instruction_1_read_only",
+        "passed": true
+      },
+      {
+        "name": "instruction_1_completed",
+        "passed": true
+      },
+      {
+        "name": "summary_1_read_only",
+        "passed": true
+      },
+      {
+        "name": "summary_1_completed",
+        "passed": true
+      },
+      {
+        "name": "summary_1_advanced",
+        "passed": true
+      },
+      {
+        "name": "summary_1_outside_recent_window",
+        "passed": true
+      },
+      {
+        "name": "summary_1_no_long_term_memory",
+        "passed": true
+      },
+      {
+        "name": "instruction_2_read_only",
+        "passed": true
+      },
+      {
+        "name": "instruction_2_completed",
+        "passed": true
+      },
+      {
+        "name": "summary_2_read_only",
+        "passed": true
+      },
+      {
+        "name": "summary_2_completed",
+        "passed": true
+      },
+      {
+        "name": "summary_2_advanced",
+        "passed": true
+      },
+      {
+        "name": "summary_2_outside_recent_window",
+        "passed": true
+      },
+      {
+        "name": "summary_2_no_long_term_memory",
+        "passed": true
+      },
+      {
+        "name": "instruction_3_read_only",
+        "passed": true
+      },
+      {
+        "name": "instruction_3_completed",
+        "passed": true
+      },
+      {
+        "name": "summary_3_read_only",
+        "passed": true
+      },
+      {
+        "name": "summary_3_completed",
+        "passed": true
+      },
+      {
+        "name": "summary_3_advanced",
+        "passed": true
+      },
+      {
+        "name": "summary_3_outside_recent_window",
+        "passed": true
+      },
+      {
+        "name": "summary_3_no_long_term_memory",
+        "passed": true
+      },
+      {
+        "name": "before_interruption_read_only",
+        "passed": true
+      },
+      {
+        "name": "last_correction_completed",
+        "passed": true
+      },
+      {
+        "name": "interrupted_summary_read_only",
+        "passed": true
+      },
+      {
+        "name": "interruption_failed_in_summary_phase",
+        "passed": true
+      },
+      {
+        "name": "no_silent_paid_retry",
+        "passed": true
+      },
+      {
+        "name": "checkpoint_unchanged_after_failure",
+        "passed": true
+      },
+      {
+        "name": "failed_output_archived",
+        "passed": true
+      },
+      {
+        "name": "failure_after_checkpoint",
+        "passed": true
+      },
+      {
+        "name": "explicit_recovery_read_only",
+        "passed": true
+      },
+      {
+        "name": "explicit_recovery_completed",
+        "passed": true
+      },
+      {
+        "name": "recovery_summary_advanced",
+        "passed": true
+      },
+      {
+        "name": "recovery_reuses_checkpoint",
+        "passed": true
+      },
+      {
+        "name": "recovery_starts_at_failed_prefix",
+        "passed": true
+      },
+      {
+        "name": "after_recovery_read_only",
+        "passed": true
+      },
+      {
+        "name": "post_recovery_reply_completed",
+        "passed": true
+      },
+      {
+        "name": "short_next_turn_no_extra_summary",
+        "passed": true
+      },
+      {
+        "name": "all_pre_interruption_messages_unchanged",
+        "passed": true
+      },
+      {
+        "name": "four_real_summary_versions",
+        "passed": true
+      },
+      {
+        "name": "no_work_memories_created",
+        "passed": true
+      },
+      {
+        "name": "no_generation_tasks_or_actions",
+        "passed": true
+      },
+      {
+        "name": "chapter_unchanged",
+        "passed": true
+      }
+    ],
+    "turns": [
+      {
+        "stage": "instruction_1",
+        "prompt": "我们讨论虚构作品《雨港来信》的后续。选旧渡口调查，信使身份到第五章才揭晓；暂不让林岚和沈舟和解，不毁掉白瓷扣，不拆开密封信。信使是管理员只是一个备选假设，我尚未选定，也没有否定。今天只讨论，以上是已选但未写入正文的方案，不生成正文、不存作品记忆，不查章节。先简短复述边界。",
+        "status": "completed",
+        "reply": "边界确认：\n\n- 后续选**旧渡口调查**线，信使身份**第五章才揭晓**。\n- 林岚与沈舟**暂不和解**；**不毁**白瓷扣；**不拆**密封信。\n- 信使是管理员仅为**备选假设**，你尚未选定，也未否定。\n- 以上为已选方案，尚未写入正文。今天只讨论，不生成正文、不存作品记忆、不查章节。",
+        "summaryRevision": 0,
+        "recovery": null,
+        "tools": []
+      },
+      {
+        "stage": "summary_1",
+        "prompt": "请核对目前已经选定的调查地点、身份揭晓章节、仍有效的限制、已取消的限制和信使身份的确定程度。区分作者选定但未写入正文的方案、明确否定和仍待定事项。只整理这次对话的依据，不查章节或全书资源，不生成或保存记忆，不额外推进任务。简短回答，不展示内部编号。",
+        "status": "completed",
+        "reply": "**已选但未写入正文**：后续走旧渡口调查线；信使身份到第五章才揭晓。你当时的原话是“选旧渡口调查，信使身份到第五章才揭晓”。\n\n**仍有效的限制**：林岚与沈舟暂不和解；不毁白瓷扣；不拆密封信。这些都属于临时限制：“暂不”不等于永久取消。\n\n**已取消的限制**：这次对话没有记录任何被明确取消或否定的条目。\n\n**明确否定**：没有记录。\n\n**仍待定**：“信使是管理员”仅为备选假设，你“尚未选定，也没有否定”。\n\n此后的过渡讨论只涉及环境句密度、雨声与脚步声、句长衔接、视角切换等表达细节，均未新增设定或改变上述方案。",
+        "summaryRevision": 1,
+        "recovery": null,
+        "tools": []
+      },
+      {
+        "stage": "instruction_2",
+        "prompt": "更正两点：调查地点从旧渡口改为水文站；身份揭晓从第五章改为第七章。其余决定、限制和待定事项不变。只确认这两处改动，不生成或保存记忆。",
+        "status": "completed",
+        "reply": "已确认这两处更正：调查地点从旧渡口改为**水文站**，身份揭晓从第五章改为**第七章**。其余方案、限制和待定事项保持不变：暂不让林岚与沈舟和解，也不毁白瓷扣、不拆密封信；“信使是管理员”仍只是备选假设，尚未选定。以上都是已选但尚未写入正文的方案，本对话未生成或保存记忆。",
+        "summaryRevision": 1,
+        "recovery": null,
+        "tools": []
+      },
+      {
+        "stage": "summary_2",
+        "prompt": "请核对目前已经选定的调查地点、身份揭晓章节、仍有效的限制、已取消的限制和信使身份的确定程度。区分作者选定但未写入正文的方案、明确否定和仍待定事项。只整理这次对话的依据，不查章节或全书资源，不生成或保存记忆，不额外推进任务。简短回答，不展示内部编号。",
+        "status": "completed",
+        "reply": "**已选但未写入正文**：调查地点为水文站（原旧渡口），信使身份到第七章揭晓（原第五章）；旧地点和旧章节已作废。\n\n**仍有效的限制**：暂不让林岚与沈舟和解，不毁白瓷扣，不拆密封信。没有限制被取消。\n\n**信使身份**：“管理员”仍只是备选假设，你尚未选定，也未否定。\n\n以上仅为本次对话记录，未查正文，未生成或保存记忆。",
+        "summaryRevision": 2,
+        "recovery": null,
+        "tools": []
+      },
+      {
+        "stage": "instruction_3",
+        "prompt": "再改两点：取消水文站，调查地点确定为档案馆；取消不得拆信的限制，现在允许林岚拆开密封信。其他要求不变。这是已选方案，尚未写入正文，不需要再次确认。只简短说明改动，不生成或保存记忆。",
+        "status": "completed",
+        "reply": "已按你的更正更新本次对话记录：\n\n- **调查地点**：取消水文站，改为**档案馆**。\n- **密封信**：取消“不拆”限制，现在**允许林岚拆开**。\n- **其他不变**：信使身份仍在第七章揭晓；暂不让林岚与沈舟和解；不毁白瓷扣。“信使是管理员”仍只是备选假设，尚未选定。\n\n以上为已选方案，尚未写入正文；本轮未生成、未保存记忆。",
+        "summaryRevision": 2,
+        "recovery": null,
+        "tools": []
+      },
+      {
+        "stage": "summary_3",
+        "prompt": "请核对目前已经选定的调查地点、身份揭晓章节、仍有效的限制、已取消的限制和信使身份的确定程度。区分作者选定但未写入正文的方案、明确否定和仍待定事项。只整理这次对话的依据，不查章节或全书资源，不生成或保存记忆，不额外推进任务。简短回答，不展示内部编号。",
+        "status": "completed",
+        "reply": "当前对话记录如下（均为**已选定、尚未写入正文**的方案）：\n\n- **调查地点**：档案馆；旧渡口和水文站的说法都已取消。\n- **信使身份揭晓**：第七章；原定第五章的做法不再采用。\n- **仍有效限制**：暂不让林岚与沈舟和解；不毁白瓷扣。\n- **已取消限制**：原“不拆密封信”，现在允许林岚拆开。\n- **仍待定**：“信使是管理员”只是备选假设，你既未选定也未否定。\n\n未查正文或全书资源，未生成、未保存记忆。",
+        "summaryRevision": 3,
+        "recovery": null,
+        "tools": []
+      },
+      {
+        "stage": "before_interruption",
+        "prompt": "最后修正：取消档案馆，调查地点改为旧电报局。其他所有约定和待定事项照旧，只记录在本对话中，不生成、不保存作品记忆。请用一句话确认。",
+        "status": "completed",
+        "reply": "已记下：取消档案馆，调查地点改为**旧电报局**；其余约定与待定事项照旧，仅记录在本对话，未生成或保存作品记忆。",
+        "summaryRevision": 3,
+        "recovery": null,
+        "tools": []
+      },
+      {
+        "stage": "interrupted_summary",
+        "prompt": "请核对目前已经选定的调查地点、身份揭晓章节、仍有效的限制、已取消的限制和信使身份的确定程度。区分作者选定但未写入正文的方案、明确否定和仍待定事项。只整理这次对话的依据，不查章节或全书资源，不生成或保存记忆，不额外推进任务。简短回答，不展示内部编号。",
+        "status": "failed",
+        "reply": "",
+        "summaryRevision": 3,
+        "recovery": {
+          "taskId": "aitask_mwa1fphv_b48bf22c",
+          "phase": "summary",
+          "canResume": true,
+          "message": "本轮未完成。已保存的对话和产出仍可查看；继续整理会重新调用文本模型。"
+        },
+        "tools": []
+      },
+      {
+        "stage": "explicit_recovery",
+        "prompt": "Explicit confirmModelCall=true through recovery API",
+        "status": "completed",
+        "reply": "据本次对话记录：\n\n- **已选、未写入正文**：调查地点为旧电报局（先前的水文站、档案馆均已取消）；信使身份到第七章揭晓（第五章作废）；允许林岚拆开密封信。\n- **仍有效**：林岚与沈舟暂不和解；不毁白瓷扣。\n- **明确否定**：仅取消上述旧地点与第五章、拆信禁令，未见其他否定。\n- **待定**：“信使是管理员”只是备选假设，你既未选定也未否定，具体身份仍未确定。",
+        "summaryRevision": 4,
+        "recovery": null,
+        "tools": [
+          "read_conversation_sources"
+        ]
+      },
+      {
+        "stage": "after_recovery",
+        "prompt": "请核对目前已经选定的调查地点、身份揭晓章节、仍有效的限制、已取消的限制和信使身份的确定程度。区分作者选定但未写入正文的方案、明确否定和仍待定事项。只整理这次对话的依据，不查章节或全书资源，不生成或保存记忆，不额外推进任务。简短回答，不展示内部编号。",
+        "status": "completed",
+        "reply": "**已选定但未写入正文的**\n- 调查地点：旧电报局（此前各版均已取消）\n- 信使身份在第 **七** 章揭晓（原第五章方案作废）\n- 允许林岚拆开密封信\n\n**仍然有效的限制**\n- 林岚与沈舟暂不和解\n- 不毁白瓷扣\n\n**明确否定**\n- 以上被替换的旧调查地点、第五章揭晓及“不拆信”限制\n\n**仍待定**\n- “信使是管理员”只是备选假设，你尚未选定，也没有否定；具体身份未定。\n\n本次仅据对话记录，未查正文或资源。",
+        "summaryRevision": 4,
+        "recovery": null,
+        "tools": []
+      }
+    ],
+    "summaryVersions": [
+      {
+        "revision": 1,
+        "throughEventId": 93,
+        "content": {
+          "goal": "讨论《雨港来信》后续：按已选但未写入正文的方案走旧渡口调查线，信使身份到第五章才揭晓；暂不让林岚与沈舟和解，不毁白瓷扣，不拆密封信；今天只讨论，不生成正文、不存作品记忆、不查章节。",
+          "rejected": [],
+          "decisions": [
+            "#49 作者：选定后续走旧渡口调查线，信使身份到第五章才揭晓；林岚与沈舟暂不和解，不毁白瓷扣，不拆密封信；以上均已选但未写入正文。",
+            "#49 作者：今天只讨论，不生成正文、不存作品记忆、不查章节。"
+          ],
+          "nextSteps": [],
+          "references": [
+            "#49 作者提出边界与已选方案；#50 助手复述确认。",
+            "任务 aitask_mwa1drkz_3f015e4d：agent_chat，状态 completed（仅表示该对话任务已完成，不代表生成/审阅/发布）。"
+          ],
+          "openQuestions": [
+            "#49 作者：信使是管理员只是备选假设，尚未选定，也未否定。",
+            "#51–#93：仅就比较环境句密度、雨声与脚步声、句长衔接等表达细节作过渡讨论，均未选用新方案，不新增设定、决定或执行要求。"
+          ]
+        },
+        "backfilled": false
+      },
+      {
+        "revision": 2,
+        "throughEventId": 138,
+        "content": {
+          "goal": "讨论《雨港来信》后续：按作者已选但尚未写入正文的方案，走水文站调查线，信使身份到第七章揭晓；暂不让林岚与沈舟和解，不毁白瓷扣，不拆密封信；本轮只讨论与核对，不生成正文、不保存作品记忆、不查章节或全书资源。",
+          "rejected": [
+            "#115 作者：原定旧渡口调查线改为水文站，原定第五章揭晓改为第七章；旧地点与旧章节不再作为当前方案。"
+          ],
+          "decisions": [
+            "#115 作者：调查地点由旧渡口改为水文站；信使身份揭晓章节由第五章改为第七章；两处均为已选但尚未写入正文的方案。",
+            "#49 作者：暂不让林岚与沈舟和解，不毁白瓷扣，不拆密封信；#115 作者确认其余限制不变，这些限制仍然有效。",
+            "#49、#113 作者：本轮只讨论与核对，不生成正文、不保存作品记忆、不查章节或全书资源、不额外推进任务。"
+          ],
+          "nextSteps": [],
+          "references": [
+            "#49 作者提出边界与已选方案；#50 助手复述确认；#113 作者要求核对；#114 助手整理；#115 作者更正地点与章节；#116 助手确认更正。",
+            "任务 aitask_mwa1drkz_3f015e4d、aitask_mwa1dwfs_38eed325、aitask_mwa1eff2_80bc2bad：均为 agent_chat，状态 completed；completed 仅表示任务完成，不代表生成、审阅、发布或正文采纳。"
+          ],
+          "openQuestions": [
+            "#49 作者：信使是管理员只是备选假设，尚未选定，也未否定。",
+            "#51–#112、#117–#138：仅就比较环境句密度、雨声与脚步声、句长衔接、视角切换、物件细节、章节结尾节奏等表达细节作过渡讨论，均未选用新方案，不新增设定、决定或执行要求。"
+          ]
+        },
+        "backfilled": false
+      },
+      {
+        "revision": 3,
+        "throughEventId": 183,
+        "content": {
+          "goal": "讨论《雨港来信》后续：按作者已选但尚未写入正文的方案，调查地点为档案馆，信使身份到第七章揭晓，允许林岚拆开密封信；暂不让林岚与沈舟和解，不毁白瓷扣。本轮只讨论与核对，不生成正文、不保存作品记忆、不查章节或全书资源。",
+          "rejected": [
+            "#115 作者：旧渡口调查线、第五章揭晓已替换，不再作为当前方案。",
+            "#160 作者：取消水文站作为调查地点；取消“不拆密封信”限制，林岚现可拆信。"
+          ],
+          "decisions": [
+            "#160 作者：调查地点确定为档案馆，取消水文站；这是已选方案，尚未写入正文。",
+            "#160 作者：取消不得拆密封信的限制，允许林岚拆开密封信；这是已选方案，尚未写入正文。",
+            "#115 作者：信使身份揭晓章节为第七章，原第五章不再采用；这是已选方案，尚未写入正文。",
+            "#49、#160 作者：暂不让林岚与沈舟和解、不毁白瓷扣仍然有效；#160 明确其他要求不变。"
+          ],
+          "nextSteps": [],
+          "references": [
+            "#49 作者提出边界与已选方案；#50 助手复述；#113 作者要求核对；#114 助手整理；#115 作者更正地点与章节；#116 助手确认；#158 作者要求核对；#159 助手答复；#160 作者再次更正；#161 助手确认。",
+            "#139–#183：合成过渡讨论，仅涉及表达细节，无新决定。",
+            "任务 aitask_mwa1drkz_3f015e4d、aitask_mwa1dwfs_38eed325、aitask_mwa1eff2_80bc2bad、aitask_mwa1eis1_9f0b2cf4、aitask_mwa1f1ou_a1b76576：均为 agent_chat，状态 completed；completed 仅表示任务完成，不代表生成、审阅、发布或正文采纳。"
+          ],
+          "openQuestions": [
+            "#49 作者：信使是管理员只是备选假设，尚未选定，也未否定。",
+            "#51–#112、#117–#183：仅就比较同义词重复、环境句密度、雨声与脚步声、句长衔接、人物停顿、光线变化、转场留白、动作与心理比例、物件细节、章节结尾节奏、对话后留白、视角切换等表达细节作过渡讨论，均未选用新方案，不新增设定、决定或执行要求。"
+          ]
+        },
+        "backfilled": false
+      },
+      {
+        "revision": 4,
+        "throughEventId": 230,
+        "content": {
+          "goal": "讨论《雨港来信》后续：按作者已选但未写入正文的方案，调查地点为旧电报局，信使身份到第七章揭晓，允许林岚拆开密封信；暂不让林岚与沈舟和解，不毁白瓷扣。本轮只讨论与核对，不生成正文、不保存作品记忆、不查章节或全书资源。",
+          "rejected": [
+            "#205 作者：取消档案馆作为调查地点，明确改为旧电报局；旧档案馆调查方案不再生效。",
+            "#160 作者：取消水文站作为调查地点；水文站不再作为当前方案。",
+            "#115 作者：旧渡口调查线、第五章揭晓均被替换，不再作为当前方案。",
+            "#160 作者：原“不拆密封信”限制已取消，林岚现可拆信。"
+          ],
+          "decisions": [
+            "#205 作者：调查地点取消档案馆，改为旧电报局；这是已选方案，尚未写入正文。",
+            "#205 作者：除调查地点改为旧电报局外，其他约定与待定事项照旧，仅记录在本对话中。",
+            "#115 作者：信使身份揭晓章节为第七章，原第五章不再采用；这是已选方案，尚未写入正文。",
+            "#160 作者：取消不得拆密封信的限制，允许林岚拆开密封信；这是已选方案，尚未写入正文。",
+            "#49、#160 作者：暂不让林岚与沈舟和解、不毁白瓷扣仍然有效；#160 明确其他要求不变。"
+          ],
+          "nextSteps": [],
+          "references": [
+            "#49 作者提出边界与已选方案；#50 助手复述；#113 作者要求核对；#114 助手整理；#115 作者更正地点与章节；#116 助手确认。",
+            "#158 作者要求核对；#159 助手答复；#160 作者再次更正地点与拆信限制；#161 助手确认。",
+            "#203 作者要求核对当前选定与待定；#204 助手整理；#205 作者最后修正调查地点为旧电报局；#206 助手一句话确认。",
+            "#184–#202、#207–#230：合成过渡讨论，仅涉及表达细节，无新决定。",
+            "任务 aitask_mwa1drkz_3f015e4d、aitask_mwa1dwfs_38eed325、aitask_mwa1eff2_80bc2bad、aitask_mwa1eis1_9f0b2cf4、aitask_mwa1f1ou_a1b76576、aitask_mwa1f53e_ccdffc0d、aitask_mwa1fmgl_eacaf22a：均为 agent_chat，状态 completed；completed 仅表示任务完成，不代表生成、审阅、发布或正文采纳。"
+          ],
+          "openQuestions": [
+            "#49 作者：信使是管理员仅为备选假设，尚未选定，也未否定；具体身份仍未确定。",
+            "#184–#202、#207–#230：仅就比较同义词重复、环境句密度、雨声与脚步声、句长衔接、人物停顿、光线变化、转场留白、动作与心理比例、物件细节、章节结尾节奏、对话后留白、视角切换等表达细节作过渡讨论，均未选用新方案，不新增设定、决定或执行要求。"
+          ]
+        },
+        "backfilled": false
+      }
+    ],
+    "failureArchives": [
+      {
+        "diagnostic": {
+          "stage": "validate",
+          "reason": "incomplete",
+          "elapsedMs": 14,
+          "eventCount": 45,
+          "lastEventId": 228,
+          "finishReason": "length",
+          "firstEventId": 184,
+          "usageRecorded": true,
+          "batchCharacters": 5806,
+          "responseCharacters": 8,
+          "previousThroughEventId": 183
+        },
+        "response_received": true,
+        "response_text": "{\"goal\":",
+        "response_model": "evaluation-injected"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "S01-A",
+      "kind": "restriction_scope",
+      "stage": "summary_1",
+      "original": "这些都属于临时限制：“暂不”不等于永久取消。",
+      "assessment": "将仅修饰和解的“暂不”扩散到不毁物件、不拆信，超出原话。另在summary_3使用“均为已选定”总括仍待定身份，虽后文正确区分，标题范围仍不精确。",
+      "followup": "原summary_1冻结请求只替换当前系统提示；一次复测逐项保留限制，无一概临时的说法。未单独重跑summary_3的标题范围。"
+    },
+    {
+      "id": "S01-B",
+      "kind": "citation_scope",
+      "stage": "summary_3",
+      "original": "#139–#183：合成过渡讨论，仅涉及表达细节，无新决定。",
+      "assessment": "该区间包含#160作者明确改地点和允许拆信；同版openQuestions中#117–#183也过度概括。具体决定被正确保存，但区间标签与其相矛盾。",
+      "followup": "原summary_3摘要输入及已有摘要保持原样，只替换摘要系统提示；一次复测把过渡区间拆成#51–#112、#117–#157、#162–#183，避开关键修正。仍保留冗余过渡描述。"
+    }
+  ],
+  "targetedReplay": {
+    "rawReport": ".tmp/agent-evaluation/summary-review-followup-2026-11-10.json",
+    "rawSha256": "b9f90e7f62eb0dcdd987326723bef930f0bbbbf2b5b6d37867e9627c036c6c43",
+    "sourceHashes": {
+      "api/src/services/ai/agent.ts": "d18ed740146d5d85c035d8e07fb86475aec21fa549ac386c2c68987b7d053853",
+      "api/src/services/ai/agent-context.ts": "7ebb451024943ac76874890377d660848c7376ea2798a02e01512d41dd1baf7b",
+      "api/scripts/evaluate-agent-summary-replay.ts": "a4634617b9a5e488284d5f44ed672175cfbccb02e3d34409dd6500f656ba2c93",
+      "api/src/services/ai/agent-tools.ts": "84ade074e5770f52e0f7233ac2f03e4a312db26726603d14753b6037cbaa1099",
+      "api/src/services/ai/client.ts": "2b2601d2f313779283342ce177d4c61e926641a8a8a479ca58a5661a3c16bc90"
+    },
+    "scope": "one frozen model request per case; only current system prompt substituted; not an end-to-end rerun",
+    "usage": {
+      "requests": 2,
+      "inputTokens": 10166,
+      "outputTokens": 3159
+    },
+    "samples": [
+      {
+        "id": "S01-A",
+        "calls": 1,
+        "validOutput": true,
+        "text": "- **调查地点**：旧渡口调查线（已选，未写入正文）。\n- **身份揭晓**：信使身份到第五章才揭晓（已选，未写入正文）。\n- **仍有效限制**：林岚与沈舟暂不和解；不毁白瓷扣；不拆密封信——均未写入正文，仍有效。\n- **已取消限制**：本次对话未见取消任何一条。\n- **信使身份**：仍待定。“信使是管理员”只是备选假设，你尚未选定，也未否定。\n\n本次依据仅来自对话，未查章节。",
+        "inputTokens": 5945,
+        "outputTokens": 262
+      },
+      {
+        "id": "S01-B",
+        "calls": 1,
+        "validOutput": true,
+        "text": "{\"goal\":\"讨论《雨港来信》后续：按作者已选但尚未写入正文的方案，调查地点确定为档案馆，信使身份到第七章揭晓，允许林岚拆开密封信；仍暂不让林岚与沈舟和解，不毁白瓷扣；本轮只讨论与核对，不生成正文、不保存作品记忆、不查章节或全书资源、不额外推进任务。\",\"decisions\":[\"#160 作者：取消水文站，调查地点确定为档案馆；取消“不得拆信”的限制，现在允许林岚拆开密封信。此两项均为已选方案，尚未写入正文。\",\"#115 作者：信使身份揭晓章节由第五章改为第七章；该方案已选定但尚未写入正文。\",\"#49、#160 作者：暂不让林岚与沈舟和解，不毁白瓷扣；#160 作者说明其他要求不变，这些限制仍有效。\",\"#49、#113、#158、#160 作者：本轮只讨论与核对或简短说明改动，不生成正文、不保存作品记忆、不查章节或全书资源、不额外推进任务。\",\"#160 作者：档案馆与允许拆信不需要再次确认，直接按已选方案记录。\"],\"rejected\":[\"#115 作者：原定旧渡口调查线改为水文站；#160 作者进一步取消水文站，改为档案馆。旧渡口与水文站均不再作为当前调查地点。\",\"#115 作者：原定第五章揭晓改为第七章；第五章不再作为当前揭晓章节。\",\"#160 作者：取消“不拆密封信”的限制，现允许林岚拆开密封信。\"],\"openQuestions\":[\"#49 作者：信使是管理员仍只是备选假设，尚未选定，也未否定。\",\"#51–#112、#117–#157、#162–#183 合成过渡讨论：仅比较同义词重复、环境句密度、雨声与脚步声、句长衔接、人物停顿、光线变化、转场留白、动作与心理比例、物件细节、章节结尾节奏、对话留白长度、视角切换等表达细节；均未选用新方案，不新增设定、决定或执行要求。\"],\"nextSteps\":[],\"references\":[\"#158 作者要求核对已选地点、揭晓章节、仍有效与已取消的限制及信使身份的确定程度；#159 助手按当时记录整理。\",\"#160 作者最终更正：调查地点改为档案馆，允许拆信，其他不变；#161 助手确认更新。\",\"#115 作者早前将调查地点改为水文站、揭晓章节改为第七章；#116 助手确认；其中水文站已被 #160 作者替换。\",\"#49 作者提出边界与已选方案；#113 作者要求核对；#114 助手整理。\",\"任务 aitask_mwa1drkz_3f015e4d、aitask_mwa1dwfs_38eed325、aitask_mwa1eff2_80bc2bad、aitask_mwa1eis1_9f0b2cf4、aitask_mwa1f1ou_a1b76576：均为 agent_chat，状态 completed；completed 仅表示任务完成，不代表生成、审阅、发布或正文采纳。\"]}",
+        "parsedSummary": {
+          "goal": "讨论《雨港来信》后续：按作者已选但尚未写入正文的方案，调查地点确定为档案馆，信使身份到第七章揭晓，允许林岚拆开密封信；仍暂不让林岚与沈舟和解，不毁白瓷扣；本轮只讨论与核对，不生成正文、不保存作品记忆、不查章节或全书资源、不额外推进任务。",
+          "decisions": [
+            "#160 作者：取消水文站，调查地点确定为档案馆；取消“不得拆信”的限制，现在允许林岚拆开密封信。此两项均为已选方案，尚未写入正文。",
+            "#115 作者：信使身份揭晓章节由第五章改为第七章；该方案已选定但尚未写入正文。",
+            "#49、#160 作者：暂不让林岚与沈舟和解，不毁白瓷扣；#160 作者说明其他要求不变，这些限制仍有效。",
+            "#49、#113、#158、#160 作者：本轮只讨论与核对或简短说明改动，不生成正文、不保存作品记忆、不查章节或全书资源、不额外推进任务。",
+            "#160 作者：档案馆与允许拆信不需要再次确认，直接按已选方案记录。"
+          ],
+          "rejected": [
+            "#115 作者：原定旧渡口调查线改为水文站；#160 作者进一步取消水文站，改为档案馆。旧渡口与水文站均不再作为当前调查地点。",
+            "#115 作者：原定第五章揭晓改为第七章；第五章不再作为当前揭晓章节。",
+            "#160 作者：取消“不拆密封信”的限制，现允许林岚拆开密封信。"
+          ],
+          "openQuestions": [
+            "#49 作者：信使是管理员仍只是备选假设，尚未选定，也未否定。",
+            "#51–#112、#117–#157、#162–#183 合成过渡讨论：仅比较同义词重复、环境句密度、雨声与脚步声、句长衔接、人物停顿、光线变化、转场留白、动作与心理比例、物件细节、章节结尾节奏、对话留白长度、视角切换等表达细节；均未选用新方案，不新增设定、决定或执行要求。"
+          ],
+          "nextSteps": [],
+          "references": [
+            "#158 作者要求核对已选地点、揭晓章节、仍有效与已取消的限制及信使身份的确定程度；#159 助手按当时记录整理。",
+            "#160 作者最终更正：调查地点改为档案馆，允许拆信，其他不变；#161 助手确认更新。",
+            "#115 作者早前将调查地点改为水文站、揭晓章节改为第七章；#116 助手确认；其中水文站已被 #160 作者替换。",
+            "#49 作者提出边界与已选方案；#113 作者要求核对；#114 助手整理。",
+            "任务 aitask_mwa1drkz_3f015e4d、aitask_mwa1dwfs_38eed325、aitask_mwa1eff2_80bc2bad、aitask_mwa1eis1_9f0b2cf4、aitask_mwa1f1ou_a1b76576：均为 agent_chat，状态 completed；completed 仅表示任务完成，不代表生成、审阅、发布或正文采纳。"
+          ]
+        },
+        "inputTokens": 4221,
+        "outputTokens": 2897
+      }
+    ]
+  },
+  "limitations": [
+    "Author instructions are written by the coding assistant, not the human author.",
+    "Labelled transition messages are seeded fixtures, not provider replies.",
+    "The interruption is injected, not an observed provider outage.",
+    "Current production summary thresholds and provider defaults are unchanged.",
+    "Not a natural author conversation or real novel long-form review.",
+    "The final prompt changes were only tested in two frozen model requests; no full final-code S01 rerun.",
+    "No generation, adoption, publication, browser outage or service restart was tested.",
+    "Summary still includes redundant transition-topic notes; one sample does not establish stable semantic correctness.",
+    "No schema/format, provider, reasoning default or production threshold changed."
+  ]
+}

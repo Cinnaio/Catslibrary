@@ -170,7 +170,7 @@ export async function beginAgentTurn(
       kind: 'agent_chat',
       total: 1,
       prompt: content,
-      params: JSON.stringify({ sessionId, ...provider, ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }),
+      params: JSON.stringify({ sessionId, agentUsageVersion: 1, ...provider, ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }),
     })
     await appendAgentEvent(scoped, sessionId, 'user', content, task.id, { ...provider, ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }, requestId)
     await query(

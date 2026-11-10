@@ -57,6 +57,10 @@ export interface AiFunctionTool {
   function: { name: string; description: string; parameters: Record<string, unknown> }
 }
 
+export type AiResponseFormat =
+  | { type: 'json_object' }
+  | { type: 'json_schema'; json_schema: { name: string; strict: true; schema: Record<string, unknown> } }
+
 export interface AiChatOptions {
   messages: AiMessage[]
   tools?: AiFunctionTool[]
@@ -73,6 +77,8 @@ export interface AiChatOptions {
   /** 默认保持既有重试；长耗时分析可关闭本地超时和 HTTP 408/504 的自动重放。 */
   retryOnTimeout?: boolean
   reasoningMode?: AiReasoningMode
+  /** Opt-in contract; never inferred from a compatible endpoint or model alias. */
+  responseFormat?: AiResponseFormat
   onProgress?: (progress: AiChatProgress) => void | Promise<void>
   signal?: AbortSignal
   /** 审计调用方先记账，再自行拒绝空回复、拒答与截断。 */
@@ -85,6 +91,8 @@ export interface AiChatProgress {
 }
 
 export interface AiChatResult extends UpstreamUsage {
+  /** Both input and output token counts were explicitly provided, including zero. */
+  tokenUsageReported?: boolean
   toolCalls?: AiToolCall[]
   reasoningContent?: string
   streamed?: boolean
@@ -156,6 +164,7 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
     temperature: opts.temperature ?? 0.3,
     max_tokens: opts.maxTokens ?? 800,
     stream: false,
+    ...(opts.responseFormat ? { response_format: opts.responseFormat } : {}),
     ...(opts.tools?.length ? { tools: opts.tools, tool_choice: 'auto', parallel_tool_calls: false } : {}),
     ...reasoningFields(model, opts.reasoningMode),
   })
@@ -197,6 +206,7 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
     max_tokens: opts.maxTokens ?? 800,
     stream: true,
     stream_options: { include_usage: true },
+    ...(opts.responseFormat ? { response_format: opts.responseFormat } : {}),
     ...(opts.tools?.length ? { tools: opts.tools, tool_choice: 'auto', parallel_tool_calls: false } : {}),
     ...reasoningFields(model, opts.reasoningMode),
   })
@@ -299,6 +309,7 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
     ...(refusal ? { refusal: contentRefusalMessage(refusal) } : {}),
     model: String(data?.model || model),
     ...usage,
+    tokenUsageReported: usage.promptTokens !== null && usage.completionTokens !== null,
     promptTokens: usage.promptTokens ?? 0,
     completionTokens: usage.completionTokens ?? 0,
     finishReason,
@@ -357,8 +368,16 @@ async function onceStream(
     if (refusal && !opts.returnIncompleteResult) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
     const parsed = parseChatCompletion(data, model)
     if (!parsed.text && !parsed.toolCalls?.length && !opts.returnIncompleteResult) throw emptyChatResponseError(parsed.finishReason, data)
-    if (parsed.text) { await opts.onProgress?.({ phase: 'writing', reasoningCharacters: 0 }); await onDelta(parsed.text) }
-    return { ...parsed, streamed: false, ...(refusal ? { refusal: contentRefusalMessage(refusal) } : {}), ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, parsed.costReported ? parsed.cost : null, opts.signal) }
+    const result = { ...parsed, streamed: false, ...(refusal ? { refusal: contentRefusalMessage(refusal) } : {}), ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, parsed.costReported ? parsed.cost : null, opts.signal) }
+    try {
+      if (parsed.text) { await opts.onProgress?.({ phase: 'writing', reasoningCharacters: 0 }); await onDelta(parsed.text) }
+    } catch (err) {
+      const failure = err instanceof AiError ? err : new AiError('upstream', '回复进度未能保存')
+      failure.partialResult = { ...result, text: '', toolCalls: undefined, reasoningContent: undefined }
+      await opts.onIncomplete?.(failure.partialResult).catch((auditError) => console.error('[ai] incomplete usage audit failed', auditError))
+      throw failure
+    }
+    return result
   }
 
   if (!res.body) throw new AiError('upstream', 'AI 服务未返回流式内容')
@@ -368,6 +387,8 @@ async function onceStream(
   let responseModel = model
   let promptTokens = 0
   let completionTokens = 0
+  let promptTokensReported = false
+  let completionTokensReported = false
   let cost = 0
   let cacheReadTokens: number | null = null
   let cacheWriteTokens: number | null = null
@@ -399,6 +420,8 @@ async function onceStream(
 
     if (data.model) responseModel = String(data.model)
     const usage = upstreamUsage(data)
+    promptTokensReported ||= usage.promptTokens !== null
+    completionTokensReported ||= usage.completionTokens !== null
     promptTokens = usage.promptTokens ?? promptTokens
     completionTokens = usage.completionTokens ?? completionTokens
     cacheReadTokens = usage.cacheReadTokens ?? cacheReadTokens
@@ -442,6 +465,7 @@ async function onceStream(
     try { rethrowResponseTimeout(err, opts, timeout) } catch (timeoutError) { failure = timeoutError as AiError }
     failure.partialResult = {
       text: '', model: responseModel, promptTokens, completionTokens, finishReason,
+      tokenUsageReported: promptTokensReported && completionTokensReported,
       cacheReadTokens, cacheWriteTokens, reasoningTokens, streamed: true,
       ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, costReported ? cost : null),
     }
@@ -460,6 +484,7 @@ async function onceStream(
     text: cancellation ? stripCancellationTail(trimmed) : trimmed,
     ...(cancellation ? { truncated: true } : {}),
     model: responseModel,
+    tokenUsageReported: promptTokensReported && completionTokensReported,
     promptTokens,
     completionTokens,
     finishReason,
@@ -481,6 +506,7 @@ function parseChatCompletion(data: ChatCompletionResponse | null, model: string)
     ...(choice?.message?.tool_calls?.length ? { toolCalls: choice.message.tool_calls, reasoningContent: extractContent(choice.message.reasoning_content, false) } : {}),
     model: String(data?.model || model),
     ...usage,
+    tokenUsageReported: usage.promptTokens !== null && usage.completionTokens !== null,
     promptTokens: usage.promptTokens ?? 0,
     completionTokens: usage.completionTokens ?? 0,
     finishReason,
