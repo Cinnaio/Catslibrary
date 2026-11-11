@@ -1,5 +1,13 @@
 # 发布与版本管理
 
+## API 1.2.0 / Web 1.4.0 生产部署（2026-11-11）
+
+生产上线时间约为 08:04（Asia/Shanghai），源码 `2fe609a3bef14f77b3228c632f630e9167d86181`。Web 在本机 Windows 构建，API 与协议 2 发布包在本机隔离 Ubuntu 22.04／Linux x64 环境构建，随包 Node 为 22.23.4。归档 SHA-256 为 `85acfc8fda76395840a8a04db7017db1cd2a94c6cc5b09e9d899da246b3afc1c`。候选版本已在各 workspace 和锁文件中登记。
+
+API／Web 类型检查、五项发布包校验与回滚测试通过。隔离 PostgreSQL 18.6 上的归档启动与 078 → 083 升级检查在部署时已完成。通过 SSH 上传并调用服务器协议 2 发布工具。生产部署前的 PostgreSQL 备份保存在服务器受限目录。生产启动应用 079–083 迁移，发布工具确认目标 SHA、数据库就绪、首页、入口资源与只读书目接口均通过。
+
+本次未使用 GitHub Actions 部署，未构建或打包 iOS。下方候选与未部署状态保留为历史记录。
+
 ## 小说分析事实与引用核对（2026-11-10，本地提交）
 
 基于 `2a8e22bc` 按已批准方案实现自动引用核验、显式有界事实核对、作者修订及续写／Agent证据传播。沿用未发布API1.2.0／Web1.4.0／iOS1.3.0（27），包与锁文件版本不变，无新增依赖。源码来源为本节所在提交；未推送或部署。
@@ -977,8 +985,8 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
 | iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.3.0 / 27`（云端构建受阻；`1.2.2 / 26` 源码已有成功构建记录） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.2.0`（本地构建通过；生产为 `1.1.1`） | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `1.4.0`（本地构建通过；生产为 `1.3.0`） | 同步锁文件 `packages.web.version` |
+| API | `api/package.json` | `1.2.0`（生产已部署） | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.4.0`（生产已部署） | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。
