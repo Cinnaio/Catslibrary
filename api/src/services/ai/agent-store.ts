@@ -45,13 +45,30 @@ export async function getAgentSession(db: DbClient, userId: string, id: string):
   return mapSession(r)
 }
 
-export async function listAgentSessions(db: DbClient, userId: string, novelId: string, offset = 0) {
-  const rows = await all<SessionRow>(db, `${SESSION_SELECT} WHERE s.user_id=$1 AND s.novel_id=$2 ORDER BY s.updated_at DESC,s.id LIMIT 31 OFFSET $3`, [
-    userId,
-    novelId,
-    offset,
-  ])
+export async function listAgentSessions(db: DbClient, userId: string, novelId = '', offset = 0) {
+  const rows = await all<SessionRow>(db,
+    `${SESSION_SELECT} WHERE s.user_id=$1 ${novelId ? 'AND s.novel_id=$3' : ''} ORDER BY s.updated_at DESC,s.id LIMIT 31 OFFSET $2`,
+    novelId ? [userId, offset, novelId] : [userId, offset],
+  )
   return { sessions: rows.slice(0, 30).map(mapSession), hasMore: rows.length > 30 }
+}
+
+export async function deleteAgentSession(db: Db, userId: string, id: string) {
+  await withTx(db, async (query) => {
+    const scoped = { query }
+    const session = await first<{ active_task_id: string }>(scoped,
+      'SELECT active_task_id FROM ai_agent_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, userId])
+    if (!session) throw new AiError('invalid', '创作对话不存在', 404)
+    if (await first(scoped, "SELECT 1 FROM ai_tasks WHERE id=$1 AND status IN ('queued','running')", [session.active_task_id]))
+      throw new AiError('conflict', '请先等待或停止当前回复，再删除对话', 409)
+    if (await first(scoped, "SELECT 1 FROM ai_agent_actions WHERE session_id=$1 AND status='executing'", [id]))
+      throw new AiError('conflict', '请先核对正在执行的采纳操作，再删除对话', 409)
+
+    await query(`DELETE FROM ai_tasks WHERE user_id=$1 AND kind='agent_chat'
+      AND (id=$3 OR id IN (SELECT task_id FROM ai_agent_events WHERE session_id=$2 AND role='user'))`,
+    [userId, id, session.active_task_id])
+    await query('DELETE FROM ai_agent_sessions WHERE id=$1', [id])
+  })
 }
 
 export async function createAgentSession(

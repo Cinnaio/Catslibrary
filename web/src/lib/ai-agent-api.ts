@@ -15,9 +15,10 @@ import { request } from './api'
 const root = '/ai/agent/sessions'
 const path = (id: string) => `${root}/${encodeURIComponent(id)}`
 export const agentApi = {
-  sessions: (novelId: string, offset = 0) =>
-    request<{ sessions: AgentSession[]; hasMore: boolean }>('GET', `${root}?${new URLSearchParams({ novelId, offset: String(offset) })}`, null, true),
+  sessions: (novelId = '', offset = 0) =>
+    request<{ sessions: AgentSession[]; hasMore: boolean }>('GET', `${root}?${new URLSearchParams({ ...(novelId ? { novelId } : {}), offset: String(offset) })}`, null, true),
   create: (novelId: string, afterChapterId = '') => request<{ session: AgentSession }>('POST', root, { novelId, afterChapterId }, true),
+  remove: (id: string) => request<{ ok: boolean }>('DELETE', path(id), null, true),
   get: (id: string, requestId?: string) => request<AgentSessionDetail>('GET', `${path(id)}${requestId ? `?${new URLSearchParams({ requestId })}` : ''}`, null, true),
   events: (id: string, before: number) => request<{ events: AgentEvent[]; hasEarlier: boolean }>('GET', `${path(id)}/events?before=${before}`, null, true),
   message: (id: string, content: string, requestId: string, providerPresetId = '') =>

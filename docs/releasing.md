@@ -984,9 +984,9 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.3.0 / 27`（云端构建受阻；`1.2.2 / 26` 源码已有成功构建记录） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.2.0`（生产已部署） | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `1.4.0`（生产已部署） | 同步锁文件 `packages.web.version` |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.3.0 / 28` 候选（`1.2.2 / 26` 源码已有成功构建记录） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| API | `api/package.json` | `1.3.0` 候选（生产 `1.2.0`） | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.5.0` 候选（生产 `1.4.0`） | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。

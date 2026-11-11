@@ -145,6 +145,25 @@
   align-items: end;
   margin-bottom: 12px;
 }
+.recentHistory,
+.bookHistory {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.recentHistory {
+  max-width: 560px;
+  margin-bottom: 16px;
+}
+.recentHistory > :first-child,
+.bookHistory > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.recentHistory > [role='alert'] {
+  flex-basis: 100%;
+}
 .toolbar > *,
 .start,
 .workspace > * {
@@ -1097,6 +1116,13 @@
   }
   .toolbar > :first-child {
     grid-column: 1/-1;
+  }
+  .bookHistory .deleteConversation {
+    width: 48px;
+    height: 48px;
+  }
+  .recentHistory button {
+    min-height: 48px;
   }
   .settingsBody,
   .usageBody,

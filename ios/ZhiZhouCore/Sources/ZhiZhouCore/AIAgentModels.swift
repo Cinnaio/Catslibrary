@@ -234,4 +234,7 @@ public struct AIAgentDraftStore {
         guard !userID.isEmpty, !sessionID.isEmpty, let data = try? JSONEncoder().encode(draft) else { return }
         defaults.set(data, forKey: key(site: site, userID: userID, sessionID: sessionID))
     }
+    public func remove(site: String, userID: String, sessionID: String) {
+        defaults.removeObject(forKey: key(site: site, userID: userID, sessionID: sessionID))
+    }
 }

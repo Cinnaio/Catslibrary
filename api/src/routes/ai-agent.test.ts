@@ -317,6 +317,68 @@ afterAll(async () => {
   await t.close()
 })
 
+describe('agent session history and deletion', () => {
+  const root = '/api/ai/agent/sessions'
+
+  it('lists only the current account’s sessions across books in updated order and keeps the book filter', async () => {
+    const older = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const newer = await createAgentSession(t.db, 'admin', { novelId: 'other-novel' })
+    await createAgentSession(t.db, 'other', { novelId: 'other-novel' })
+    await t.db.query('UPDATE ai_agent_sessions SET updated_at=1 WHERE id=$1', [older.id])
+    const recent = await (await request(root)).json() as { sessions: AgentSession[] }
+    expect(recent.sessions.map(s => s.id)).toEqual([newer.id, older.id])
+    expect(recent.sessions[0]).toMatchObject({ novelId: 'other-novel', novelTitle: 'other-novel' })
+    const filtered = await (await request(`${root}?novelId=novel`)).json() as { sessions: AgentSession[] }
+    expect(filtered.sessions.map(s => s.id)).toEqual([older.id])
+    const later = await (await request(`${root}?offset=1`)).json() as { sessions: AgentSession[] }
+    expect(later.sessions.map(s => s.id)).toEqual([older.id])
+    expect((await request(root, 'GET', undefined, readerToken)).status).toBe(403)
+  })
+
+  it('blocks concurrent work and deletes only the owned conversation and its chat records', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const otherSession = await createAgentSession(t.db, 'other', { novelId: 'novel' })
+    const path = `${root}/${session.id}`
+    const memory = await createAgentMemory(t.db, 'admin', session, { title: '文风', content: '保持克制' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '聊聊情节', 'delete_test_turn')
+    const event = (await readAgentEvents(t.db, session.id)).events[0]!
+    await saveAgentSummary(t.db, session, event.id, summaryContent)
+    await draft()
+    const artifactId = await finishedRewrite(session.id)
+    const action = await prepareAgentAction(t.db, session, 'apply_rewrite', artifactId)
+
+    expect((await request(path, 'DELETE', undefined, otherToken)).status).toBe(404)
+    expect((await request(path, 'DELETE')).status).toBe(409)
+    await cancelAiTask(t.db, turn.taskId)
+
+    let entered!: () => void
+    let release!: (value: Record<string, unknown>) => void
+    const executing = new Promise<void>((resolve) => { entered = resolve })
+    const response = new Promise<Record<string, unknown>>((resolve) => { release = resolve })
+    const adopting = confirmAgentAction(t.db, session, action.id, async () => {
+      entered()
+      return response
+    })
+    try {
+      await Promise.race([executing, adopting])
+      expect((await request(path, 'DELETE')).status).toBe(409)
+    } finally {
+      release({})
+      await adopting
+    }
+
+    expect((await request(path, 'DELETE')).status).toBe(200)
+    expect((await request(path)).status).toBe(404)
+    expect((await readAgentEvents(t.db, session.id)).events).toEqual([])
+    expect(await getAgentSummary(t.db, session.id)).toBeNull()
+    expect(await getAiTask(t.db, turn.taskId)).toBeFalsy()
+    expect(await getAiTask(t.db, artifactId)).toMatchObject({ status: 'completed' })
+    expect(await first(t.db, 'SELECT result FROM ai_generations WHERE id=$1', ['draft'])).toEqual({ result: original })
+    expect((await listAgentMemories(t.db, 'admin', 'novel')).memories).toContainEqual(expect.objectContaining({ id: memory.id, sessionId: '', status: 'active' }))
+    expect((await request(`${root}/${otherSession.id}`, 'GET', undefined, otherToken)).status).toBe(200)
+  })
+})
+
 describe('creative memory and context regressions', () => {
   const setup = () => createAgentSession(t.db, 'admin', { novelId: 'novel' })
   const manual = (session: AgentSession, title = '文风', content = '保持克制') => createAgentMemory(t.db, 'admin', session, { title, content })

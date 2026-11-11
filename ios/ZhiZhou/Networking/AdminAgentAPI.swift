@@ -7,10 +7,14 @@ struct AdminAgentAPI {
     static let root = "/api/ai/agent/sessions"
     static func path(_ id: String) -> String { root + "/" + ReaderMediaAPI.pathSegment(id) }
 
-    func sessions(novelID: String, offset: Int = 0) async throws -> AIAgentSessions {
-        try await AdminAPI.parityRequest("GET", Self.root + "?" + HomeView.query([
-            "novelId": novelID, "offset": String(offset),
-        ]), token: token)
+    func sessions(novelID: String = "", offset: Int = 0) async throws -> AIAgentSessions {
+        var query = ["offset": String(offset)]
+        if !novelID.isEmpty { query["novelId"] = novelID }
+        return try await AdminAPI.parityRequest("GET", Self.root + "?" + HomeView.query(query), token: token)
+    }
+
+    func remove(_ id: String) async throws {
+        let _: EmptyResponse = try await AdminAPI.parityRequest("DELETE", Self.path(id), token: token)
     }
 
     func create(novelID: String, afterChapterID: String) async throws -> AIAgentSession {

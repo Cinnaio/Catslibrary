@@ -8,7 +8,7 @@ import { pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage } fro
 
 const streams = vi.hoisted(() => ({ watch: vi.fn() }))
 vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: streams.watch }))
-const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn(), memories: vi.fn(), changeMemory: vi.fn() }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), remove: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn(), memories: vi.fn(), changeMemory: vi.fn() }))
 const providerMocks = vi.hoisted(() => ({ providerPresets: vi.fn(), status: vi.fn() }))
 vi.mock('@/lib/ai-agent-api', () => ({ agentApi: { ...mocks } }))
 vi.mock('@/lib/api', () => ({
@@ -99,6 +99,41 @@ beforeEach(() => {
 })
 
 describe('creative agent conversation', () => {
+  it('opens a recent conversation directly from the unselected book workspace', async () => {
+    const other = detail('other-session', 'other')
+    mocks.sessions.mockImplementation(async (novelId: string) => ({ sessions: !novelId || novelId === 'other' ? [other.session] : [], hasMore: false }))
+    mocks.get.mockResolvedValue(other)
+    render(<MemoryRouter initialEntries={['/admin/ai?sub=agent']}><AiAgentPanel /></MemoryRouter>)
+
+    fireEvent.change(await screen.findByRole('combobox', { name: '选择最近的对话' }), { target: { value: other.session.id } })
+    expect(await screen.findByText('other-session 的既有回复')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '选择一本小说' })).toHaveValue('other')
+  })
+
+  it('requires confirmation, retains the conversation on failure and removes it from both histories on success', async () => {
+    mocks.sessions.mockResolvedValue({ sessions: [detail().session], hasMore: false })
+    mocks.remove.mockRejectedValueOnce(new Error('请先停止当前回复')).mockImplementationOnce(async () => {
+      mocks.sessions.mockResolvedValue({ sessions: [], hasMore: false })
+      return { ok: true }
+    })
+    open()
+    const remove = await screen.findByRole('button', { name: '删除对话' })
+    fireEvent.click(remove)
+    fireEvent.click(within(await screen.findByRole('dialog', { name: '删除对话' })).getByRole('button', { name: '取消' }))
+    expect(mocks.remove).not.toHaveBeenCalled()
+
+    fireEvent.click(remove)
+    const dialog = await screen.findByRole('dialog', { name: '删除对话' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除' }))
+    expect(await within(dialog).findByText('请先停止当前回复')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认删除' }))
+
+    expect(await screen.findByRole('heading', { name: '从一个想法开始' })).toBeInTheDocument()
+    expect(mocks.remove).toHaveBeenCalledWith('session')
+    expect(screen.queryByRole('combobox', { name: '选择最近的对话' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: '讨论情节' })).not.toBeInTheDocument()
+  })
+
   it('opens pending memories from the composer without sending its draft when saving a memory', async () => {
     const memory = { id: 'memory', novelId: 'novel', sessionId: 'session', kind: 'agreement' as const, title: '保留悬念', content: '不要提前揭晓身份', status: 'pending' as const, sourceEventId: 1, supersedesId: null, revision: 1, createdAt: 1, updatedAt: 1 }
     mocks.get.mockResolvedValue({ ...detail(), memories: [memory] })

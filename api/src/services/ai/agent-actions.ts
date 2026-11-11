@@ -154,17 +154,22 @@ export async function prepareAgentAction(db: Db, session: AgentSession, kind: Ag
 
 /** Confirmation consumes only the saved proposal; client/model payloads cannot replace it. */
 export async function confirmAgentAction(db: Db, session: AgentSession, id: string, call: AgentApi) {
-  const action = await first<AgentActionRow>(db, 'SELECT * FROM ai_agent_actions WHERE id=$1 AND session_id=$2', [id, session.id])
-  if (!action) throw new AiError('invalid', '操作不存在', 404)
+  const action = await withTx(db, async (query) => {
+    const scoped = { query }
+    await query('SELECT id FROM ai_agent_sessions WHERE id=$1 FOR UPDATE', [session.id])
+    const action = await first<AgentActionRow>(scoped, 'SELECT * FROM ai_agent_actions WHERE id=$1 AND session_id=$2', [id, session.id])
+    if (!action) throw new AiError('invalid', '操作不存在', 404)
+    if (action.status === 'completed') return action
+    const now = Date.now()
+    const claimed = await run(scoped,
+      `UPDATE ai_agent_actions SET status='executing',lease_until=$1,updated_at=$2 WHERE id=$3 AND
+      (status='pending' OR (status='executing' AND lease_until<$2))`,
+      [now + 120_000, now, id],
+    )
+    if (!claimed) throw new AiError('conflict', '操作已处理或正在执行，请刷新查看', 409)
+    return action
+  })
   if (action.status === 'completed') return publicAgentAction(action)
-  const now = Date.now()
-  const claimed = await run(
-    db,
-    `UPDATE ai_agent_actions SET status='executing',lease_until=$1,updated_at=$2 WHERE id=$3 AND
-    (status='pending' OR (status='executing' AND lease_until<$2))`,
-    [now + 120_000, now, id],
-  )
-  if (!claimed) throw new AiError('conflict', '操作已处理或正在执行，请刷新查看', 409)
   const p = action.payload
   try {
     let result: Record<string, unknown> = {}
@@ -190,18 +195,23 @@ export async function confirmAgentAction(db: Db, session: AgentSession, id: stri
         operationId: id,
       })
     } else {
-      result = await withTx(db, async (query) => {
+      await withTx(db, async (query) => {
+        await query('SELECT id FROM ai_agent_sessions WHERE id=$1 FOR UPDATE', [session.id])
         const row = (await query<GenerationRow>('SELECT * FROM ai_generations WHERE id=$1 AND novel_id=$2 FOR UPDATE', [p.draftId, session.novelId])).rows[0]
         if (!row || row.deleted_at || row.status !== 'draft' || generationContentRevision(row.result) !== p.baseRevision)
           throw new AiError('conflict', '草稿已变化，请重新检查恢复范围', 409)
         await query("UPDATE ai_generations SET result=$1 WHERE id=$2 AND status='draft'", [p.after, row.id])
         const restored = { draftId: row.id, revision: generationContentRevision(String(p.after)) }
         await query("UPDATE ai_agent_actions SET status='completed',result=$1,error='',updated_at=$2 WHERE id=$3", [JSON.stringify(restored), Date.now(), id])
-        return restored
+        await appendAgentEvent({ query }, session.id, 'activity', `已完成：${action.title}`, '', { actionId: id })
       })
+      return { ...publicAgentAction(action), status: 'completed' as const, error: '' }
     }
-    await run(db, "UPDATE ai_agent_actions SET status='completed',result=$1,error='',updated_at=$2 WHERE id=$3", [JSON.stringify(result), Date.now(), id])
-    await appendAgentEvent(db, session.id, 'activity', `已完成：${action.title}`, '', { actionId: id })
+    await withTx(db, async (query) => {
+      await query('SELECT id FROM ai_agent_sessions WHERE id=$1 FOR UPDATE', [session.id])
+      await query("UPDATE ai_agent_actions SET status='completed',result=$1,error='',updated_at=$2 WHERE id=$3", [JSON.stringify(result), Date.now(), id])
+      await appendAgentEvent({ query }, session.id, 'activity', `已完成：${action.title}`, '', { actionId: id })
+    })
     return { ...publicAgentAction(action), status: 'completed' as const, error: '' }
   } catch (error) {
     const message = error instanceof AiError ? error.message : '操作失败，请核对当前内容后重新预览'

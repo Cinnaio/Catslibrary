@@ -16,6 +16,7 @@ import {
   appendAgentEvent,
   beginAgentTurn,
   createAgentSession,
+  deleteAgentSession,
   getAgentSession,
   listAgentActions,
   listAgentSessions,
@@ -74,6 +75,10 @@ export function createAgentRoutes(dispatch: Dispatch) {
       contentPreferences: body.contentPreferences,
     })
     return c.json({ session }, 201)
+  })
+  routes.delete('/sessions/:id', async (c) => {
+    await deleteAgentSession(getDb(), c.get('user').id, c.req.param('id'))
+    return c.json({ ok: true })
   })
   routes.get('/sessions/:id', async (c) => {
     const db = getDb()

@@ -4,7 +4,7 @@ import type { AgentTask } from '@shared/ai-agent'
 import AiStreamPreview from '@/components/shared/AiStreamPreview'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowDown, BookOpen, Check, ChevronDown, Image as ImageIcon, Lightbulb, MessageSquare, PanelRight, PenLine, Plus, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowDown, BookOpen, Check, ChevronDown, Image as ImageIcon, Lightbulb, MessageSquare, PanelRight, PenLine, Plus, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import type { AdminNovelIndexItem, ChapterMeta } from '@shared/types'
 import {
   agentTaskRunning,
@@ -19,6 +19,7 @@ import {
 import { agentApi } from '@/lib/ai-agent-api'
 import { chaptersApi, newOperationId, url } from '@/lib/api'
 import { loadAdminNovelIndex } from '@/lib/admin-novel-index'
+import { formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -56,15 +57,35 @@ function AiAgentWorkspace() {
   const sessionId = params.get('session') || ''
   const [novels, setNovels] = useState<AdminNovelIndexItem[]>([])
   const [sessions, setSessions] = useState<AgentSession[]>([])
+  const [recent, setRecent] = useState<AgentSession[]>([])
+  const [openedSession, setOpenedSession] = useState<AgentSession | null>(null)
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [anchor, setAnchor] = useState(params.get('afterChapterId') || '')
   const [loading, setLoading] = useState(!!novelId)
+  const [loadingChapters, setLoadingChapters] = useState(!!novelId)
   const [creating, setCreating] = useState(false)
   const [hasMore, setHasMore] = useState(false)
+  const [hasMoreRecent, setHasMoreRecent] = useState(false)
+  const [loadingRecent, setLoadingRecent] = useState(true)
+  const [recentError, setRecentError] = useState('')
   const [error, setError] = useState('')
   const [indexError, setIndexError] = useState('')
   const [indexRefresh, setIndexRefresh] = useState(0)
+  const [historyRevision, setHistoryRevision] = useState(0)
+  const [deleteTarget, setDeleteTarget] = useState<AgentSession | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const sessionOffset = useRef(0)
+  const recentOffset = useRef(0)
+  const historyRequest = useRef(0)
+  const latestParams = useRef(params)
+  const deleteButton = useRef<HTMLButtonElement>(null)
+  const newButton = useRef<HTMLButtonElement>(null)
   const mounted = useRef(true)
+  const selectedSession = (openedSession?.id === sessionId ? openedSession : null)
+    ?? sessions.find((s) => s.id === sessionId) ?? recent.find((s) => s.id === sessionId)
+  const bookSessions = selectedSession?.novelId === novelId && !sessions.some((s) => s.id === sessionId) ? [selectedSession, ...sessions] : sessions
+  useLayoutEffect(() => { latestParams.current = params }, [params])
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -89,27 +110,53 @@ function AiAgentWorkspace() {
   }, [indexRefresh])
   useEffect(() => {
     let active = true
-    if (!novelId)
-      return () => {
-        active = false
-      }
-    void Promise.all([agentApi.sessions(novelId), chaptersApi.list(novelId)])
-      .then(([history, book]) => {
-        if (!active) return
-        setSessions(history.sessions)
-        setHasMore(history.hasMore)
-        setChapters(book.chapters)
-      })
+    if (novelId) void chaptersApi.list(novelId)
+      .then((book) => { if (active) setChapters(book.chapters) })
       .catch((e) => {
         if (active) setError(failure(e))
       })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
+      .finally(() => { if (active) setLoadingChapters(false) })
     return () => {
       active = false
     }
   }, [novelId])
+  const readHistory = useCallback(async (acrossBooks: boolean, more = false) => {
+    const setList = acrossBooks ? setRecent : setSessions
+    const setMore = acrossBooks ? setHasMoreRecent : setHasMore
+    const setBusy = acrossBooks ? setLoadingRecent : setLoading
+    const offsetRef = acrossBooks ? recentOffset : sessionOffset
+    const revision = historyRequest.current
+    const current = () => mounted.current && revision === historyRequest.current
+    const offset = more ? offsetRef.current : 0
+    try {
+      const result = await agentApi.sessions(acrossBooks ? '' : novelId, offset)
+      if (!current()) return
+      setList((old) => more ? [...old, ...result.sessions.filter((s) => !old.some((o) => o.id === s.id))] : result.sessions)
+      setMore(result.hasMore)
+      offsetRef.current = offset + result.sessions.length
+      if (acrossBooks) setRecentError('')
+    } catch (e) {
+      if (current()) (acrossBooks ? setRecentError : setError)(failure(e))
+    } finally {
+      if (current()) setBusy(false)
+    }
+  }, [novelId])
+  useEffect(() => {
+    if (novelId) void readHistory(false)
+    void readHistory(true)
+    return () => { historyRequest.current += 1 }
+  }, [novelId, historyRevision, readHistory])
+  function loadHistory(acrossBooks: boolean, more = false) {
+    if (acrossBooks ? loadingRecent : loading) return
+    if (acrossBooks) setLoadingRecent(true)
+    else setLoading(true)
+    void readHistory(acrossBooks, more)
+  }
+  function refreshHistory() {
+    if (novelId) setLoading(true)
+    setLoadingRecent(true)
+    setHistoryRevision(++historyRequest.current)
+  }
   function navigateBook(value: string) {
     const next = new URLSearchParams(params)
     next.set('novel', value)
@@ -118,9 +165,18 @@ function AiAgentWorkspace() {
     setParams(next)
   }
   function navigateSession(value: string) {
-    const next = new URLSearchParams(params)
+    const next = new URLSearchParams(latestParams.current)
     if (value) next.set('session', value)
     else next.delete('session')
+    setParams(next)
+  }
+  function openRecent(id: string) {
+    const session = recent.find((item) => item.id === id)
+    if (!session) return
+    const next = new URLSearchParams(params)
+    if (session.novelId !== novelId) next.delete('afterChapterId')
+    next.set('novel', session.novelId)
+    next.set('session', session.id)
     setParams(next)
   }
   async function create() {
@@ -131,6 +187,8 @@ function AiAgentWorkspace() {
       const { session } = await agentApi.create(novelId, anchor)
       if (!mounted.current) return
       setSessions((current) => [session, ...current])
+      setRecent((current) => [session, ...current])
+      refreshHistory()
       navigateSession(session.id)
     } catch (e) {
       if (mounted.current) setError(failure(e))
@@ -138,22 +196,74 @@ function AiAgentWorkspace() {
       if (mounted.current) setCreating(false)
     }
   }
-  async function loadMore() {
-    setLoading(true)
+  function updateSession(session: AgentSession) {
+    setOpenedSession(session)
+    const update = (list: AgentSession[]) => list.some((item) => item.id === session.id && item.updatedAt < session.updatedAt)
+      ? list.map((item) => item.id === session.id ? session : item).sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
+      : list
+    setSessions(update)
+    setRecent(update)
+  }
+  async function remove() {
+    if (!deleteTarget || deleting) return
+    setDeleting(true)
+    setDeleteError('')
+    const target = deleteTarget
+    const pendingKey = pendingAgentKey(target.novelId, target.id)
     try {
-      const result = await agentApi.sessions(novelId, sessions.length)
-      if (mounted.current) {
-        setSessions((old) => [...old, ...result.sessions.filter((s) => !old.some((o) => o.id === s.id))])
-        setHasMore(result.hasMore)
+      await agentApi.remove(target.id)
+      savePendingAgentMessage(pendingKey, null)
+      if (!mounted.current) return
+      setSessions((old) => old.filter((session) => session.id !== target.id))
+      setRecent((old) => old.filter((session) => session.id !== target.id))
+      setOpenedSession((old) => old?.id === target.id ? null : old)
+      refreshHistory()
+      setDeleteTarget(null)
+      const next = new URLSearchParams(latestParams.current)
+      if (next.get('session') === target.id) {
+        next.delete('session')
+        setParams(next, { replace: true })
       }
     } catch (e) {
-      if (mounted.current) setError(failure(e))
+      if (mounted.current) setDeleteError(failure(e))
     } finally {
-      if (mounted.current) setLoading(false)
+      if (mounted.current) setDeleting(false)
     }
   }
   return (
     <div className={styles.root}>
+      {(recent.length > 0 || recentError) && (
+        <div className={styles.recentHistory}>
+          {recent.length > 0 && (
+            <FormField label="最近对话">
+              <SearchSelect
+                options={recent.map((s) => ({
+                  value: s.id,
+                  label: s.title,
+                  sub: [formatDateTime(s.updatedAt), s.novelTitle, s.anchorTitle].filter(Boolean).join(' · '),
+                }))}
+                value={sessionId}
+                onChange={openRecent}
+                placeholder="选择最近的对话"
+                searchable
+                filter={(item, query) => `${item.label} ${item.sub || ''}`.toLowerCase().includes(query)}
+                matchTriggerWidth
+              />
+            </FormField>
+          )}
+          {hasMoreRecent && (
+            <Button size="sm" variant="ghost" disabled={loadingRecent} onClick={() => loadHistory(true, true)}>
+              加载更多最近对话
+            </Button>
+          )}
+          {recentError && (
+            <p className={styles.error} role="alert">
+              {recentError}{' '}
+              <Button size="sm" variant="ghost" disabled={loadingRecent} onClick={() => loadHistory(true)}>重新读取最近对话</Button>
+            </p>
+          )}
+        </div>
+      )}
       <div className={styles.toolbar}>
         <FormField label="当前作品">
           <SearchSelect
@@ -165,18 +275,36 @@ function AiAgentWorkspace() {
             matchTriggerWidth
           />
         </FormField>
-        <FormField label="创作对话">
-          <SearchSelect
-            options={sessions.map((s) => ({ value: s.id, label: s.title, sub: s.anchorTitle || '从新章节开始' }))}
-            value={sessionId}
-            onChange={navigateSession}
-            placeholder={loading ? '正在读取对话…' : '选择之前的对话'}
-            disabled={!novelId || loading}
-            searchable
-            matchTriggerWidth
-          />
-        </FormField>
-        <Button variant="outline" disabled={!novelId || creating || loading} onClick={() => navigateSession('')}>
+        <div className={styles.bookHistory}>
+          <FormField label="本书对话">
+            <SearchSelect
+              options={bookSessions.map((s) => ({ value: s.id, label: s.title, sub: s.anchorTitle || '从新章节开始' }))}
+              value={sessionId}
+              onChange={navigateSession}
+              placeholder={loading ? '正在读取对话…' : '选择之前的对话'}
+              disabled={!novelId || loading}
+              searchable
+              matchTriggerWidth
+            />
+          </FormField>
+          {selectedSession?.novelId === novelId && (
+            <Button
+              ref={deleteButton}
+              variant="ghost"
+              size="icon"
+              className={styles.deleteConversation}
+              aria-label="删除对话"
+              title="删除对话"
+              onClick={() => {
+                setDeleteError('')
+                setDeleteTarget(selectedSession)
+              }}
+            >
+              <Trash2 size={16} aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+        <Button ref={newButton} variant="outline" disabled={!novelId || creating} onClick={() => navigateSession('')}>
           <Plus size={16} />
           新对话
         </Button>
@@ -195,7 +323,7 @@ function AiAgentWorkspace() {
         </p>
       )}
       {hasMore && (
-        <Button size="sm" variant="ghost" disabled={loading} onClick={() => void loadMore()}>
+        <Button size="sm" variant="ghost" disabled={loading} onClick={() => loadHistory(false, true)}>
           加载更早的对话
         </Button>
       )}
@@ -215,7 +343,7 @@ function AiAgentWorkspace() {
                   matchTriggerWidth
                 />
               </FormField>
-              <Button disabled={creating || loading} onClick={() => void create()}>
+              <Button disabled={creating || loadingChapters} onClick={() => void create()}>
                 {creating ? '正在建立对话…' : '开始创作对话'}
               </Button>
             </div>
@@ -227,11 +355,28 @@ function AiAgentWorkspace() {
           key={`${novelId}:${sessionId}`}
           sessionId={sessionId}
           novelId={novelId}
-          onSession={(session) =>
-            setSessions((old) => (old.some((s) => s.id === session.id) ? old.map((s) => (s.id === session.id ? session : s)) : [session, ...old]))
-          }
+          onSession={updateSession}
         />
       )}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null) }}>
+        <ReadingDialog
+          title="删除对话"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            const trigger = deleteButton.current ?? newButton.current
+            trigger?.focus()
+          }}
+          footer={(
+            <div className={styles.dialogActions}>
+              <Button variant="ghost" disabled={deleting} onClick={() => setDeleteTarget(null)}>取消</Button>
+              <Button variant="destructive" disabled={deleting} onClick={() => void remove()}>{deleting ? '正在删除…' : '确认删除'}</Button>
+            </div>
+          )}
+        >
+          <p>将永久删除「{deleteTarget?.title}」的消息和摘要。已生成的产出和作品记忆会保留。</p>
+          {deleteError && <p className={styles.error} role="alert">{deleteError}</p>}
+        </ReadingDialog>
+      </Dialog>
     </div>
   )
 }

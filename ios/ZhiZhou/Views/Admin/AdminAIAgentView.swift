@@ -11,7 +11,7 @@ struct AdminAIAgentView: View {
     @State private var sessions: [AIAgentSession] = []
     @State private var hasMore = false
     @State private var loadingBooks = false
-    @State private var loadingSessions = false
+    @State private var loadingSessions = true
     @State private var error: String?
     @State private var booksError: String?
     @State private var showPicker = false
@@ -21,6 +21,13 @@ struct AdminAIAgentView: View {
     @State private var listRequest = UUID()
     @State private var listNovelID = ""
     @State private var nextSessionOffset = 0
+    @State private var filterByBook = false
+    @State private var deleteTarget: AIAgentSession?
+    @State private var showDelete = false
+    @State private var deleting = false
+    @State private var deleteError: String?
+
+    private var historyNovelID: String { filterByBook ? selectedID : "" }
 
     private var bookTitle: String {
         books.first(where: { $0.id == selectedID })?.title ?? (initialNovel?.id == selectedID ? initialNovel?.title : nil) ?? "选择小说"
@@ -37,11 +44,16 @@ struct AdminAIAgentView: View {
             if selectedID.isEmpty, let initialNovel { selectedID = initialNovel.id }
             await loadBooks()
         }
-        .task(id: selectedID) { await loadSessions() }
+        .task(id: historyNovelID) { await loadSessions() }
         .sheet(isPresented: $showPicker) {
             AdminNovelPickerSheet(options: books, selectedId: selectedID) { selectedID = $0 }
         }
-        .sheet(isPresented: $showCreate, onDismiss: { if created != nil { showCreated = true } }) {
+        .sheet(isPresented: $showCreate, onDismiss: {
+            if created != nil {
+                showCreated = true
+                Task { await loadSessions() }
+            }
+        }) {
             if let token = APIClient.shared.token {
                 AdminAIAgentCreateSheet(novelID: selectedID, novelTitle: bookTitle,
                     initialAnchor: initialNovel?.id == selectedID ? (afterChapterID ?? "") : "", token: token) { created = $0 }
@@ -50,6 +62,7 @@ struct AdminAIAgentView: View {
         .navigationDestination(isPresented: $showCreated) {
             if let created, let user = appState.user, let token = APIClient.shared.token {
                 AdminAIAgentConversationView(session: created, userID: user.id, token: token)
+                    .onDisappear { Task { await loadSessions() } }
             }
         }
     }
@@ -81,22 +94,40 @@ struct AdminAIAgentView: View {
                 Text("围绕这本小说讨论情节、调整草稿或生成封面。采纳前会先展示预览。")
             }
             Section("最近对话") {
+                if !selectedID.isEmpty && (!sessions.isEmpty || filterByBook) {
+                    Picker("对话范围", selection: $filterByBook) {
+                        Text("全部作品").tag(false)
+                        Text("当前作品").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                }
                 if let error {
                     LoadErrorNotice(message: error, isLoading: loadingSessions) { Task { await loadSessions() } }
+                }
+                if let deleteError {
+                    Text(deleteError).font(.footnote).foregroundStyle(.red)
                 }
                 if sessions.isEmpty {
                     if loadingSessions { ProgressView().frame(maxWidth: .infinity).padding() }
                     else if error == nil {
-                        ContentUnavailableView(selectedID.isEmpty ? "先选择一本小说" : "还没有对话",
+                        ContentUnavailableView(historyNovelID.isEmpty ? "还没有对话" : "这本书还没有对话",
                             systemImage: "bubble.left.and.bubble.right",
-                            description: Text(selectedID.isEmpty ? "选择作品后可继续历史会话。" : "从一个情节想法开始，与创作助手慢慢沟通。"))
+                            description: Text("选择一本小说即可开始新对话。"))
                     }
                 }
                 ForEach(sessions) { session in
                     if let user = appState.user, let token = APIClient.shared.token {
                         NavigationLink {
                             AdminAIAgentConversationView(session: session, userID: user.id, token: token)
+                                .onDisappear { Task { await loadSessions() } }
                         } label: { sessionRow(session) }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button("删除", systemImage: "trash", role: .destructive) {
+                                deleteTarget = session
+                                showDelete = true
+                            }
+                            .disabled(deleting)
+                        }
                     }
                 }
                 if hasMore {
@@ -107,11 +138,20 @@ struct AdminAIAgentView: View {
         }
         .appListStyle(.settings)
         .refreshable { await loadSessions() }
+        .alert("删除对话？", isPresented: $showDelete, presenting: deleteTarget) { session in
+            Button("取消", role: .cancel) { deleteTarget = nil }
+            Button("删除", role: .destructive) { Task { await remove(session) } }
+        } message: { session in
+            Text("将永久删除「\(session.title)」的消息和摘要。已生成的产出和作品记忆会保留。")
+        }
     }
 
     private func sessionRow(_ session: AIAgentSession) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(session.title.isEmpty ? "新的对话" : session.title).font(.headline).lineLimit(2)
+            if historyNovelID.isEmpty && !session.novelTitle.isEmpty {
+                Text(session.novelTitle).font(.subheadline).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
+            }
             Text(session.anchorTitle.isEmpty ? "从头创作" : "续写起点 · \(session.anchorTitle)")
                 .font(.caption).foregroundStyle(AppTheme.textSecondary).lineLimit(2)
             Text(Date(timeIntervalSince1970: Double(session.updatedAt) / 1000), style: .relative)
@@ -146,7 +186,7 @@ struct AdminAIAgentView: View {
     }
 
     private func loadSessions(more: Bool = false) async {
-        let novelID = selectedID
+        let novelID = historyNovelID
         let ticket = UUID()
         if more && loadingSessions { return }
         listRequest = ticket
@@ -154,7 +194,7 @@ struct AdminAIAgentView: View {
             sessions = []; hasMore = false; nextSessionOffset = 0; error = nil
             listNovelID = novelID
         }
-        guard !novelID.isEmpty, appState.user?.isAdmin == true, let token = APIClient.shared.token else {
+        guard appState.user?.isAdmin == true, let token = APIClient.shared.token else {
             loadingSessions = false
             return
         }
@@ -163,7 +203,7 @@ struct AdminAIAgentView: View {
         do {
             let offset = more ? nextSessionOffset : 0
             let result = try await AdminAgentAPI(token: token).sessions(novelID: novelID, offset: offset)
-            guard !Task.isCancelled, listRequest == ticket, selectedID == novelID, APIClient.shared.token == token else { return }
+            guard !Task.isCancelled, listRequest == ticket, historyNovelID == novelID, APIClient.shared.token == token else { return }
             let old = more ? sessions : []
             var seen = Set(old.map(\.id))
             sessions = old + result.sessions.filter { seen.insert($0.id).inserted }
@@ -173,6 +213,23 @@ struct AdminAIAgentView: View {
         } catch {
             guard !Task.isCancelled, listRequest == ticket, APIClient.shared.token == token else { return }
             self.error = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func remove(_ session: AIAgentSession) async {
+        guard !deleting, let user = appState.user, user.isAdmin, let token = APIClient.shared.token else { return }
+        let site = ServerConfig.shared.baseURL?.absoluteString ?? ""
+        deleting = true
+        deleteError = nil
+        defer { deleting = false; deleteTarget = nil }
+        do {
+            try await AdminAgentAPI(token: token).remove(session.id)
+            AIAgentDraftStore().remove(site: site, userID: user.id, sessionID: session.id)
+            guard APIClient.shared.token == token else { return }
+            sessions.removeAll { $0.id == session.id }
+            await loadSessions()
+        } catch {
+            if APIClient.shared.token == token { deleteError = AppCopy.friendlyError(error) }
         }
     }
 }
