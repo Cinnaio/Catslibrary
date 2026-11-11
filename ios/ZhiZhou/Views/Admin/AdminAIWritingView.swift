@@ -729,13 +729,15 @@ struct AdminAIWritingView: View {
     }
 
     private var analysisReferenceSection: some View {
-        Section("小说分析参考") {
+        Section {
             Text("生成时自动选取当前起点以内、正文未变化的各主题最新完整报告；没有可用报告时直接依据正文创作。")
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
             if let analysisURL {
                 Link("阅读与修订分析报告", destination: analysisURL)
             }
+        } header: {
+            Text("小说分析参考")
         } footer: {
             Text("报告可能包含推断，应结合原文核对。需要手动选择或取消参考时，可在网页创作工作区调整。")
         }
