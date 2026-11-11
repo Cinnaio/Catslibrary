@@ -230,7 +230,7 @@ describe('chapter ledger shared extraction and source integrity', () => {
     vi.mocked(getAiSettings).mockResolvedValue({ ...DEFAULT_AI_SETTINGS, storyMemoryEngine: 'incremental' })
     expect(await getStoryMemoryProgress(t.db, 'book', 'plot')).toMatchObject({ processedChapters: 0, totalChapters: 1, complete: false, previewContent: '' })
   })
-  it('extracts each chapter once for both archives, derives the graph without another model call, and reuses a completed prefix', async () => {
+  it('reuses one chapter extraction for both legacy archives without using them as graph sources', async () => {
     await chapter(1)
     vi.mocked(chat).mockResolvedValue(
       reply(
@@ -242,9 +242,8 @@ describe('chapter ledger shared extraction and source integrity', () => {
     const ledger = await ledgerAtAnchor(t.db, 'book')
     expect(ledger?.complete).toBe(true)
     expect(ledger?.state.facts).toHaveLength(2)
-    const graph = await generateStoryGraph(t.db, opts)
-    expect(graph.status).toBe('ready')
-    expect(graph.graph?.relationships[0]).toMatchObject({ directed: false, label: '共同调查' })
+    expect(ledger?.state.facts).toContainEqual(expect.objectContaining({ kind: 'relationship', directed: false, label: '共同调查' }))
+    await expect(generateStoryGraph(t.db, opts)).rejects.toMatchObject({ status: 422 })
     expect(chat).toHaveBeenCalledTimes(1)
     expect(recordUsage).toHaveBeenCalledTimes(1)
     expect(vi.mocked(recordUsage).mock.calls[0]![1]).toMatchObject({ generationType: 'story_memory', chapterId: 'c1' })
@@ -603,22 +602,14 @@ describe('chapter ledger shared extraction and source integrity', () => {
     expect((await getStoryMemoryProgress(t.db, 'book', 'plot'))?.running).toBe(false)
   })
 
-  it('validates selected review material against its full archive base and invalidates it after a manual correction', async () => {
+  it('treats an archive-based quality review as stale even while its archive revision is current', async () => {
     await chapter(1)
     await extractPlotState(t.db, opts)
     const profile = await getEffectiveProfileForAnchor(t.db, { ...opts, kind: 'plot' })
+    expect(profile.baseProfileRevision).toBeTruthy()
     const sources = [
       { id: 'plot', title: '关联记忆', text: '部分关联材料', fingerprint: 'selected-content-hash', profileBaseRevision: profile.baseProfileRevision },
     ]
-    expect(await reviewSourcesCurrent(t.db, 'book', sources, 'c1')).toBe(true)
-    await saveProfileOverride(t.db, {
-      ...opts,
-      kind: 'plot',
-      content: '作者校正',
-      expectedRevision: 0,
-      baseProfileRevision: profile.baseProfileRevision,
-      updatedBy: 'admin',
-    })
     expect(await reviewSourcesCurrent(t.db, 'book', sources, 'c1')).toBe(false)
   })
 
@@ -913,9 +904,8 @@ describe('chapter ledger shared extraction and source integrity', () => {
     await extractPlotState(t.db, opts)
     const ledger = (await ledgerAtAnchor(t.db, 'book'))!
     expect(ledger.state.entities).toHaveLength(1)
-    expect(ledger.state.entities[0]!.aliasEvidence?.[0]).toMatchObject({ chapterId: 'c1', quote: '林舟又名阿舟' })
+    expect(ledger.state.entities[0]).toMatchObject({ name: '林舟', aliases: ['阿舟'], aliasEvidence: [{ alias: '阿舟', chapterId: 'c1', quote: '林舟又名阿舟' }] })
     expect(input(1).previous.entities[0].name).toBe('林舟')
-    expect((await generateStoryGraph(t.db, opts)).graph?.people[0]?.aliases).toEqual(['阿舟'])
   })
 
   it('recovers explicit identity evidence from the chapter when identityQuote is omitted', async () => {

@@ -68,9 +68,10 @@ jobs:
           npm run test --workspace=@zhi-zhou/web -- src/lib/progress-sync.test.ts src/lib/api.progress.test.ts src/context/SessionContext.progress.test.tsx src/pages/admin/ai/AiAgentMemory.test.tsx src/pages/admin/ai/AiAgentPanel.test.tsx src/pages/admin/ai/AiAgentSources.test.tsx src/pages/admin/ai/AiAgentUsage.test.tsx src/pages/admin/ai/agent-task-state.test.ts src/lib/ai-task-stream.test.ts --maxWorkers=2 --minWorkers=1
           python3 scripts/test-release.py
 
-      - name: Story memory regressions
+      - name: Story memory and analysis regressions
         run: |
           npm run test --workspace=@zhi-zhou/api -- src/services/ai/story-ledger.test.ts src/services/ai/story-ledger-integrity.test.ts src/services/ai/story-ledger-state.test.ts src/services/ai/story-ledger-contracts.test.ts src/services/ai/story-ledger-review.test.ts src/routes/story-ledger.test.ts src/services/ai/writing-memory.test.ts --maxWorkers=1 --minWorkers=1
+          npm run test --workspace=@zhi-zhou/api -- src/services/ai/story-graph.test.ts src/services/ai/writing-workflow.test.ts --maxWorkers=1 --minWorkers=1
           npm run test --workspace=@zhi-zhou/web -- src/pages/admin/ai/AiWritingPanel.test.tsx --maxWorkers=1 --minWorkers=1
 
       # 产物里不能混入前一次构建的旧哈希资源。

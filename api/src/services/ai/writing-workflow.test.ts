@@ -6,6 +6,9 @@ import { AiError, chat } from './client'
 import { recordUsage } from './usage'
 import { generationContentRevision, type GenerationRow } from './generations'
 import { validateWritingBrief, type ContinuationSnapshotV1 } from './writing'
+import { readAnalysisReference } from './analysis-reference'
+import { captureAnalysisSources } from './novel-analysis-source'
+import { editAnalysis } from './novel-analysis-store'
 
 vi.mock('./client', async (original) => ({
   ...(await original<typeof import('./client')>()),
@@ -104,6 +107,22 @@ describe('writing history and quality workflow', () => {
     expect((await draft()).result).toBe(row.result)
     await t.db.query("UPDATE chapters SET content = '来源已修改' WHERE id = 'c1'")
     expect(await reviewSourcesCurrent(t.db, 'book', result.sources, result.anchorId)).toBe(false)
+  })
+  it('marks a draft review stale after the referenced analysis report is revised', async () => {
+    const request = { kind: 'plot' as const, startChapterId: 'c1', endChapterId: 'c1', question: '' }
+    const sources = await captureAnalysisSources(t.db, 'book', request)
+    await t.db.query(`INSERT INTO novel_analysis_reports(id,novel_id,user_id,request_id,request_json,source_json,content,task_id,created_at,updated_at)
+      VALUES('report-1','book','test','review-reference',$1::jsonb,$2::jsonb,'林舟把钥匙交给沈月。','deleted-task',1,1)`,
+    [JSON.stringify(request), JSON.stringify(sources)])
+    const report = await readAnalysisReference(t.db, 'book', 'c5', 'report-1')
+    const row = await draft()
+    const result = await reviewWritingDraft(t.db, row, { ...snapshot, version: 2, contextPolicyVersion: 2, analysisReferences: [report] },
+      { userId: 'test', expectedRevision: generationContentRevision(row.result) })
+    expect(result.sources).toContainEqual(expect.objectContaining({ reportId: report.id, reportRevision: report.revision }))
+    expect((await getWritingReview(t.db, row)).report?.stale).toBe(false)
+    await editAnalysis(t.db, 'book', report.id, '修订后的情节分析。', report.revision)
+    expect((await getWritingReview(t.db, row)).report?.stale).toBe(true)
+    expect(chat).toHaveBeenCalledTimes(1)
   })
   it('omits unverifiable findings, marks even an empty result partial, and accounts for invalid replies', async () => {
     const row = await draft()
