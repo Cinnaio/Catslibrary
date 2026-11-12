@@ -28,9 +28,6 @@ struct AdminAIAgentConversationView: View {
             }
         }
         .background(AppTheme.canvas)
-        .safeAreaInset(edge: .bottom, spacing: 12) {
-            if panel == 0 && model.hasLoaded { AgentComposerView(model: model) }
-        }
         .navigationTitle(model.session.title.isEmpty ? "对话创作" : model.session.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -78,8 +75,13 @@ struct AdminAIAgentConversationView: View {
 private struct AgentMessagesView: View {
     let model: AdminAIAgentConversationModel
     let showArtifacts: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
     @State private var followsBottom = true
-    @State private var userScrolling = false
+    @State private var scrollPhase: ScrollPhase = .idle
+
+    private var usesSolidBar: Bool { reduceTransparency || contrast == .increased }
 
     private var scrollMarker: String {
         "\(model.events.last?.id ?? 0):\(model.liveReply?.id ?? ""):\(model.liveReply?.progress?.updatedAt ?? 0)"
@@ -130,39 +132,55 @@ private struct AgentMessagesView: View {
                 .padding(16).frame(maxWidth: 820, alignment: .leading).frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onScrollPhaseChange { _, phase in
-                switch phase {
-                case .tracking, .interacting, .decelerating: userScrolling = true
-                default: userScrolling = false
+            .onScrollPhaseChange { previous, phase in
+                scrollPhase = phase
+                if previous == .animating && phase == .idle && followsBottom {
+                    proxy.scrollTo("agent-bottom", anchor: .bottom)
                 }
             }
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentSize.height - geometry.visibleRect.maxY < 90
             } action: { _, atBottom in
-                if userScrolling { followsBottom = atBottom }
-            }
-            .onChange(of: scrollMarker, initial: true) { _, _ in
-                if followsBottom { proxy.scrollTo("agent-bottom", anchor: .bottom) }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if !followsBottom {
-                    Button {
-                        followsBottom = true
-                        proxy.scrollTo("agent-bottom", anchor: .bottom)
-                    } label: {
-                        Label("回到最新", systemImage: "arrow.down")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(AppTheme.primary)
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("agent.scrollToLatest")
-                    .padding(.trailing, 12).padding(.bottom, 4)
+                switch scrollPhase {
+                case .tracking, .interacting, .decelerating: followsBottom = atBottom
+                default: break
                 }
             }
+            .onChange(of: scrollMarker, initial: true) { _, _ in
+                if followsBottom && scrollPhase == .idle { proxy.scrollTo("agent-bottom", anchor: .bottom) }
+            }
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectHidden(usesSolidBar, for: .bottom)
+            .safeAreaBar(edge: .bottom, spacing: 0) { composerBar(proxy) }
         }
+    }
+
+    private func composerBar(_ proxy: ScrollViewProxy) -> some View {
+        VStack(spacing: 6) {
+            if !followsBottom {
+                Button {
+                    followsBottom = true
+                    withAnimation(reduceMotion ? nil : AppMotion.structural) {
+                        proxy.scrollTo("agent-bottom", anchor: .bottom)
+                    }
+                } label: {
+                    Label("回到最新", systemImage: "arrow.down")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppTheme.primary)
+                        .padding(.horizontal, 14)
+                }
+                .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glass, fallback: AppTheme.surface))
+                .accessibilityIdentifier("agent.scrollToLatest")
+                .transition(reduceMotion ? .identity : .offset(y: 8).combined(with: .opacity))
+            }
+            AgentComposerView(model: model)
+        }
+        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
+        .background {
+            if usesSolidBar { AppTheme.canvas.ignoresSafeArea(.container, edges: .bottom) }
+        }
+        .animation(reduceMotion ? nil : AppMotion.panel, value: followsBottom)
     }
 }
 
@@ -282,46 +300,71 @@ private struct AgentComposerView: View {
     @Bindable var model: AdminAIAgentConversationModel
     @State private var showDiscard = false
 
+    private var modelName: String {
+        model.presets.first(where: { $0.id == model.localDraft.providerPresetId })?.name
+            ?? (model.localDraft.providerPresetId.isEmpty ? "默认文本模型" : "已保存的预设")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let error = model.operationError { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
             if let pending = model.localDraft.pending {
                 pendingMessage(pending)
             }
-            TextField("和创作助手聊聊…", text: $model.localDraft.input, axis: .vertical)
-                .lineLimit(1...6).padding(.horizontal, 4).padding(.top, 4)
-                .accessibilityIdentifier("agent.composer")
-            HStack(spacing: 12) {
+            HStack(alignment: .bottom, spacing: 8) {
                 modelMenu
-                Spacer(minLength: 0)
-                if model.replying, let taskID = model.activeTask?.id {
-                    Button { Task { await model.stop(taskID) } } label: {
-                        Image(systemName: "stop.fill").frame(width: 44, height: 44)
-                    }.accessibilityLabel("停止回复").disabled(model.working)
-                } else {
-                    Button { Task { await model.send() } } label: {
-                        Image(systemName: "arrow.up").font(.headline).frame(width: 44, height: 44)
-                            .foregroundStyle(model.canSend ? Color.white : AppTheme.textSecondary)
-                            .background(model.canSend ? AppTheme.primary : AppTheme.surfaceSecondary, in: Circle())
-                    }
-                    .accessibilityLabel(model.sending ? "正在发送" : "发送消息")
-                    .accessibilityIdentifier("agent.send")
-                    .disabled(!model.canSend)
-                    .keyboardShortcut(.return, modifiers: .command)
+                HStack(alignment: .bottom, spacing: 2) {
+                    TextField("和创作助手聊聊…", text: $model.localDraft.input, axis: .vertical)
+                        .lineLimit(1...6)
+                        .padding(.leading, 14)
+                        .padding(.vertical, 9)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .accessibilityIdentifier("agent.composer")
+                    messageAction
                 }
+                .padding(2)
+                .appGlassEffect(.regular, fallback: AppTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             }
             if model.localDraft.input.utf16.count > 8_000 {
                 Text("消息最多 8000 字，请缩短后发送。").font(.caption).foregroundStyle(.red)
             }
         }
-        .padding(12).paperCard(cornerRadius: 22)
-        .shadow(color: .black.opacity(0.04), radius: 8, y: 3)
-        .padding(.horizontal, 12).padding(.bottom, 6)
+        .padding(.horizontal, 16).padding(.bottom, 8)
         .frame(maxWidth: 820).frame(maxWidth: .infinity)
         .confirmationDialog("先核对消息是否已发送", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("取回文字，结束本次重试") { model.discardPending() }
             Button("取消", role: .cancel) {}
         } message: { Text("服务器可能已接收此消息。结束重试不会停止任务，再次发送会创建新的一轮。") }
+    }
+
+    @ViewBuilder private var messageAction: some View {
+        if model.replying, let taskID = model.activeTask?.id {
+            Button { Task { await model.stop(taskID) } } label: {
+                actionIcon("stop.fill", active: !model.working)
+            }
+            .accessibilityLabel("停止回复")
+            .disabled(model.working)
+            .buttonStyle(ScaleButtonStyle())
+        } else {
+            Button { Task { await model.send() } } label: {
+                actionIcon("arrow.up", active: model.canSend)
+            }
+            .accessibilityLabel(model.sending ? "正在发送" : "发送消息")
+            .accessibilityIdentifier("agent.send")
+            .disabled(!model.canSend)
+            .keyboardShortcut(.return, modifiers: .command)
+            .buttonStyle(ScaleButtonStyle())
+        }
+    }
+
+    private func actionIcon(_ symbol: String, active: Bool) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(active ? AppTheme.onPrimary : AppTheme.textSecondary)
+            .frame(width: 34, height: 34)
+            .background(active ? AppTheme.primary : AppTheme.controlFill.opacity(0.7), in: Circle())
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
     }
 
     private var modelMenu: some View {
@@ -338,15 +381,15 @@ private struct AgentComposerView: View {
             Button("刷新模型列表") { Task { await model.loadPresets() } }
             if let error = model.presetError { Text(error) }
         } label: {
-            HStack(spacing: 5) {
-                Text(model.presets.first(where: { $0.id == model.localDraft.providerPresetId })?.name
-                     ?? (model.localDraft.providerPresetId.isEmpty ? "默认文本模型" : "已保存的预设"))
-                    .lineLimit(1)
-                Image(systemName: "chevron.down").font(.caption2)
-            }.font(.caption).frame(minHeight: 44).foregroundStyle(AppTheme.textSecondary)
+            Image(systemName: "cpu")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(AppTheme.primary)
+                .frame(width: 48, height: 48)
+                .appGlassEffect(AppTheme.glass, fallback: AppTheme.surface, in: Circle())
         }
         .disabled(model.replying || model.sending || model.localDraft.pending != nil)
         .accessibilityLabel("切换文本模型")
+        .accessibilityValue(modelName)
     }
 
     private func pendingMessage(_ pending: AIAgentPendingMessage) -> some View {
