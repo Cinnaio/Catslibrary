@@ -1,123 +1,235 @@
 import SwiftUI
 import ZhiZhouCore
 
+private enum AgentOutputRoute: Hashable {
+    case artifact(String)
+    case action
+}
+
 struct AgentOutputSheet: View {
     let model: AdminAIAgentConversationModel
     var artifactID: String? = nil
     @Environment(\.dismiss) private var dismiss
-    @State private var attemptedLoad = false
-
-    private var artifact: AIAgentArtifact? {
-        guard let artifactID else { return nil }
-        return model.artifacts.first { $0.id == artifactID }
-    }
+    @State private var path: [AgentOutputRoute] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if let artifactID {
-                    artifactDetails(artifactID)
+                    AgentArtifactDetail(model: model, artifactID: artifactID)
                 } else {
                     AgentArtifactsView(model: model)
                 }
             }
-            .background(AppTheme.canvas)
-            .navigationTitle(artifact.map { AgentDisplay.kind($0.task.kind) } ?? (artifactID == nil ? "产出与采纳" : "产出详情"))
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }.disabled(model.working)
+                if path.isEmpty {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("关闭", systemImage: "xmark") { dismiss() }.disabled(model.working)
+                    }
                 }
             }
-            .navigationDestination(isPresented: Binding(get: { model.selectedAction != nil }, set: {
-                if !$0 { model.selectedAction = nil }
-            })) {
-                if let action = model.selectedAction {
-                    AgentActionPreview(model: model, initialAction: action)
+            .navigationDestination(for: AgentOutputRoute.self) { route in
+                switch route {
+                case .artifact(let id):
+                    AgentArtifactDetail(model: model, artifactID: id)
                         .navigationBarBackButtonHidden(model.working)
+                case .action:
+                    if let action = model.selectedAction {
+                        AgentActionPreview(model: model, initialAction: action)
+                            .navigationBarBackButtonHidden(model.working)
+                    }
                 }
             }
         }
         .interactiveDismissDisabled(model.working || model.selectedAction != nil)
-        .task(id: artifactID) {
-            if let artifactID { await load(artifactID) }
+        .onChange(of: model.selectedAction?.id) { _, id in
+            if id != nil, path.last != .action { path.append(.action) }
         }
-    }
-
-    @ViewBuilder private func artifactDetails(_ id: String) -> some View {
-        if let artifact {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if let error = model.operationError {
-                        Text(error).font(.footnote).foregroundStyle(.red).textSelection(.enabled)
-                    }
-                    AgentArtifactCard(model: model, artifact: artifact, standalone: true)
-                }
-                .padding(20).frame(maxWidth: 820, alignment: .leading).frame(maxWidth: .infinity)
-            }
-            .refreshable { await load(id) }
-        } else if !attemptedLoad || model.loadingArtifacts.contains(id) {
-            ProgressView("读取产出…").frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            ContentUnavailableView {
-                Label("暂时无法读取这项产出", systemImage: "doc.text.magnifyingglass")
-            } description: {
-                if let error = model.artifactErrors[id] { Text(error) }
-            } actions: {
-                Button("重试") { Task { await load(id) } }.frame(minHeight: 44)
-            }
+        .onChange(of: path) { oldPath, newPath in
+            if oldPath.last == .action, newPath.last != .action { model.selectedAction = nil }
         }
-    }
-
-    private func load(_ id: String) async {
-        await model.refreshArtifact(id)
-        attemptedLoad = true
     }
 }
 
-struct AgentArtifactsView: View {
+private struct AgentArtifactsView: View {
     let model: AdminAIAgentConversationModel
+    private var pendingActions: [AIAgentAction] { model.actions.filter(\.canConfirm) }
+    private var history: [AIAgentAction] { model.actions.filter { !$0.canConfirm } }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 24) {
-                if let error = model.operationError { Text(error).font(.footnote).foregroundStyle(.red).textSelection(.enabled) }
+                if let error = model.operationError {
+                    Text(error).font(.footnote).foregroundStyle(.red).textSelection(.enabled)
+                }
                 if let error = model.loadError {
                     LoadErrorNotice(message: error, isLoading: model.isRefreshing) { Task { await model.refresh() } }
                 }
-                if !model.actions.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("采纳记录").font(serifFont(.title3, .semibold))
-                        ForEach(model.actions.filter(\.canConfirm) + model.actions.filter { !$0.canConfirm }) { action in
-                            Button { Task { await model.openAction(action.id) } } label: {
-                                HStack(alignment: .top) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(action.title).foregroundStyle(AppTheme.textPrimary)
-                                        Text(AgentDisplay.status(action.status)).font(.caption).foregroundStyle(AppTheme.textSecondary)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(AppTheme.textSecondary)
-                                }.frame(minHeight: 44).contentShape(Rectangle())
-                            }.buttonStyle(.plain).disabled(model.working)
+                if !pendingActions.isEmpty { actionSection("待确认", actions: pendingActions) }
+                if !model.artifacts.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if !model.actions.isEmpty { sectionTitle("生成产出") }
+                        ForEach(model.artifacts) { artifact in
+                            NavigationLink(value: AgentOutputRoute.artifact(artifact.id)) {
+                                outputRow(artifact)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(model.working)
                         }
                     }
                 }
-                ForEach(model.artifacts) { artifact in AgentArtifactCard(model: model, artifact: artifact) }
-                if model.artifacts.isEmpty && model.actions.isEmpty {
-                    ContentUnavailableView("产出会保存在这里", systemImage: "doc.text.magnifyingglass",
-                        description: Text("生成的草稿、改写建议和封面候选都可以先预览，再决定是否采纳。"))
+                if !history.isEmpty { actionSection("采纳记录", actions: history) }
+                if model.artifacts.isEmpty, model.actions.isEmpty, model.loadError == nil {
+                    ContentUnavailableView("还没有产出", systemImage: "doc.on.doc",
+                        description: Text("生成的草稿、改写建议和封面候选会出现在这里。"))
                 }
             }
-            .padding(16).frame(maxWidth: 820, alignment: .leading).frame(maxWidth: .infinity)
+            .padding(.horizontal, 20).padding(.vertical, 16)
+            .frame(maxWidth: AppLayout.readableWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
+        }
+        .background(AppTheme.canvas)
+        .navigationTitle("产出与采纳")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("刷新列表", systemImage: "arrow.clockwise") { Task { await model.refresh() } }
+                    .disabled(model.isRefreshing)
+            }
         }
         .refreshable { await model.refresh() }
     }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.textSecondary)
+            .padding(.bottom, 4).accessibilityAddTraits(.isHeader)
+    }
+
+    private func actionSection(_ title: String, actions: [AIAgentAction]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            sectionTitle(title)
+            ForEach(actions) { action in
+                Button { Task { await model.openAction(action.id) } } label: {
+                    AgentOutputRow(title: action.title, subtitle: AgentDisplay.status(action.status),
+                                   symbol: action.canConfirm ? "checkmark.circle" : "clock.arrow.circlepath", highlighted: action.canConfirm)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.working)
+            }
+        }
+    }
+
+    private func outputRow(_ artifact: AIAgentArtifact) -> some View {
+        let task = model.tasks[artifact.id] ?? artifact.task
+        let kind = AgentDisplay.kind(task.kind)
+        let draft = artifact.drafts.count == 1 ? artifact.drafts.first : nil
+        let title = draft?.title ?? artifact.analysisReport?.title ?? kind
+        let status = task.status == "completed" ? draft.map { $0.status == "draft" ? "未发布" : "已发布" } : nil
+        let state = status ?? AgentDisplay.status(task.status)
+        return AgentOutputRow(title: title, subtitle: title == kind ? state : "\(kind) · \(state)", symbol: outputSymbol(task.kind))
+    }
+
+    private func outputSymbol(_ kind: String) -> String {
+        switch kind {
+        case "cover": return "photo"
+        case "rewrite_selection": return "pencil.line"
+        case "novel_analysis", "analyze_plot", "analyze_relationships": return "text.magnifyingglass"
+        default: return "doc.text"
+        }
+    }
 }
 
-private struct AgentArtifactCard: View {
+private struct AgentOutputRow: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+    var highlighted = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.body)
+                .foregroundStyle(highlighted ? AppTheme.primaryDeep : AppTheme.textSecondary)
+                .frame(width: 38, height: 38)
+                .background(highlighted ? AppTheme.primaryLight : AppTheme.surfaceSecondary, in: RoundedRectangle(cornerRadius: 10))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(verbatim: title).font(.body.weight(.medium)).foregroundStyle(AppTheme.textPrimary)
+                Text(verbatim: subtitle).font(.footnote).foregroundStyle(highlighted ? AppTheme.primaryDeep : AppTheme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary).accessibilityHidden(true)
+        }
+        .padding(.vertical, 8)
+        .frame(minHeight: AppLayout.minimumTouchTarget)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct AgentArtifactDetail: View {
+    let model: AdminAIAgentConversationModel
+    let artifactID: String
+    @State private var attemptedLoad = false
+
+    private var artifact: AIAgentArtifact? { model.artifacts.first { $0.id == artifactID } }
+    private var isLoading: Bool { model.loadingArtifacts.contains(artifactID) }
+
+    var body: some View {
+        Group {
+            if let artifact {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        if let error = model.operationError ?? model.artifactErrors[artifactID] {
+                            Text(error).font(.footnote).foregroundStyle(.red).textSelection(.enabled)
+                        }
+                        AgentArtifactContent(model: model, artifact: artifact)
+                    }
+                    .padding(20).frame(maxWidth: AppLayout.readableWidth, alignment: .leading).frame(maxWidth: .infinity)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .refreshable { await load() }
+            } else if !attemptedLoad || isLoading {
+                ProgressView("读取产出…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ContentUnavailableView {
+                    Label("暂时无法读取这项产出", systemImage: "doc.text.magnifyingglass")
+                } description: {
+                    if let error = model.artifactErrors[artifactID] { Text(error) }
+                } actions: {
+                    Button("重试") { Task { await load() } }.frame(minHeight: AppLayout.minimumTouchTarget)
+                }
+            }
+        }
+        .background(AppTheme.canvas)
+        .navigationTitle(artifact.map { AgentDisplay.kind($0.task.kind) } ?? "产出详情")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if isLoading, artifact != nil {
+                    ProgressView().accessibilityLabel("正在刷新产出")
+                } else if artifact != nil {
+                    Button("刷新产出", systemImage: "arrow.clockwise") { Task { await load() } }
+                        .disabled(model.working)
+                }
+            }
+        }
+        .task {
+            if !attemptedLoad { await load() }
+        }
+    }
+
+    private func load() async {
+        await model.refreshArtifact(artifactID)
+        if !Task.isCancelled { attemptedLoad = true }
+    }
+}
+
+private struct AgentArtifactContent: View {
     let model: AdminAIAgentConversationModel
     let artifact: AIAgentArtifact
-    var standalone = false
     private var task: AIAgentTask { model.tasks[artifact.id] ?? artifact.task }
     private var analysisURL: URL? {
         guard let report = artifact.analysisReport, report.url.hasPrefix("/admin/ai?"),
@@ -126,14 +238,8 @@ private struct AgentArtifactCard: View {
     }
 
     var body: some View {
-        if standalone { content }
-        else { content.padding(16).paperCard() }
-    }
-
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if !standalone { Text(AgentDisplay.kind(task.kind)).font(serifFont(.title3, .semibold)) }
-            AgentTaskStatusView(task: task)
+        VStack(alignment: .leading, spacing: 24) {
+            if task.status != "completed" || !task.error.isEmpty { AgentTaskStatusView(task: task) }
             if task.isRunning {
                 Button("停止此任务", systemImage: "stop.circle") { Task { await model.stop(task.id) } }
                     .disabled(model.working).frame(minHeight: 44)
@@ -146,18 +252,18 @@ private struct AgentArtifactCard: View {
             ForEach(artifact.drafts) { draft in
                 AgentDraftResultView(model: model, draft: draft, publishable: ["continue", "write_chapter"].contains(task.kind))
             }
-            if let analysisURL, let report = artifact.analysisReport {
-                Link("阅读\(report.title)", destination: analysisURL).frame(minHeight: 44)
+            if let report = artifact.analysisReport {
+                if let analysisURL {
+                    Link(destination: analysisURL) {
+                        AgentOutputRow(title: report.title, subtitle: "阅读报告", symbol: "text.magnifyingglass")
+                    }
+                } else {
+                    Label("暂时无法打开报告", systemImage: "doc.text.magnifyingglass")
+                        .font(.subheadline).foregroundStyle(AppTheme.textSecondary)
+                }
             }
             if let rewrite = artifact.rewrite {
-                DisclosureGroup("查看改写前后") {
-                    VStack(alignment: .leading, spacing: 16) {
-                        AgentPlainPreview(title: "原文", text: rewrite.before)
-                        AgentPlainPreview(title: "建议", text: rewrite.after)
-                    }.padding(.top, 12)
-                }
-                Button("预览采纳改写") { Task { await model.prepare(.applyRewrite, targetID: artifact.id) } }
-                    .buttonStyle(.bordered).frame(minHeight: 44).disabled(model.working)
+                rewriteResult(rewrite)
             }
             ForEach(artifact.covers) { cover in
                 VStack(alignment: .leading, spacing: 12) {
@@ -172,14 +278,46 @@ private struct AgentArtifactCard: View {
                     .font(.footnote).foregroundStyle(AppTheme.textSecondary)
                 NavigationLink("查看 AI 任务") { AdminAITasksView() }
             }
-            if let error = model.artifactErrors[artifact.id] {
-                Text(error).font(.footnote).foregroundStyle(.red).textSelection(.enabled)
-            }
-            Button(model.loadingArtifacts.contains(artifact.id) ? "正在刷新产出…" : "刷新这项产出", systemImage: "arrow.clockwise") {
-                Task { await model.refreshArtifact(artifact.id) }
-            }
-            .font(.footnote).frame(minHeight: 44).disabled(model.loadingArtifacts.contains(artifact.id))
         }
+    }
+
+    private func rewriteResult(_ rewrite: AIAgentArtifact.Rewrite) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            AppAdaptiveRow(spacing: 12) {
+                Text("改写后").font(serifFont(.title3, .semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                NavigationLink {
+                    AgentRewriteComparison(rewrite: rewrite)
+                } label: {
+                    Label("对照原文", systemImage: "text.alignleft")
+                        .font(.subheadline).frame(minHeight: AppLayout.minimumTouchTarget)
+                }
+            }
+            Text(verbatim: rewrite.after).textSelection(.enabled).lineSpacing(5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button { Task { await model.prepare(.applyRewrite, targetID: artifact.id) } } label: {
+                Text("预览采纳").frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+            }
+            .buttonStyle(.borderedProminent).disabled(model.working)
+        }
+    }
+}
+
+private struct AgentRewriteComparison: View {
+    let rewrite: AIAgentArtifact.Rewrite
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                AgentPlainPreview(title: "原文", text: rewrite.before)
+                AgentPlainPreview(title: "改写后", text: rewrite.after)
+            }
+            .padding(20).frame(maxWidth: AppLayout.readableWidth, alignment: .leading).frame(maxWidth: .infinity)
+        }
+        .background(AppTheme.canvas)
+        .navigationTitle("原文与改写")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -188,34 +326,85 @@ private struct AgentDraftResultView: View {
     let draft: AIAgentArtifact.Draft
     let publishable: Bool
     @State private var title: String
+    @State private var showsPublishFields = false
 
     init(model: AdminAIAgentConversationModel, draft: AIAgentArtifact.Draft, publishable: Bool) {
-        self.model = model; self.draft = draft; self.publishable = publishable
+        self.model = model
+        self.draft = draft
+        self.publishable = publishable
         _title = State(initialValue: draft.title == "未命名章节" ? "" : draft.title)
     }
 
+    private var excerpt: String {
+        let opening = draft.content.drop(while: \.isWhitespace).prefix(481)
+        if opening.count > 480 { return String(opening.prefix(480)) + "…" }
+        return String(opening)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(draft.title).font(.headline)
-            Text(draft.status == "draft" ? "未发布草稿" : "已发布").font(.caption).foregroundStyle(AppTheme.textSecondary)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(verbatim: draft.title).font(serifFont(.title2, .semibold))
+                    .foregroundStyle(AppTheme.textPrimary).accessibilityAddTraits(.isHeader)
+                Text(draft.status == "draft" ? "未发布" : "已发布")
+                    .font(.subheadline).foregroundStyle(AppTheme.textSecondary)
+            }
+            let opening = excerpt
+            if !opening.isEmpty {
+                Text(verbatim: opening).font(.body).lineSpacing(5).appTextLineLimit(5)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(AppTheme.surfaceSecondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
             NavigationLink {
-                ScrollView {
-                    Text(verbatim: draft.content).textSelection(.enabled).lineSpacing(5)
-                        .frame(maxWidth: 780, alignment: .leading).padding(20).frame(maxWidth: .infinity)
-                }
-                .background(AppTheme.canvas)
-                .navigationTitle(draft.title)
-                .navigationBarTitleDisplayMode(.inline)
+                draftReader
             } label: {
-                Label("阅读全文", systemImage: "doc.plaintext").frame(minHeight: 44)
+                Label("阅读全文", systemImage: "doc.plaintext")
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
             }
-            if publishable && draft.status == "draft" {
-                TextField("章节标题", text: $title, axis: .vertical).lineLimit(1...3)
-                    .padding(12).appFieldSurface().accessibilityLabel("发布章节标题")
-                Button("预览发布章节") { Task { await model.prepare(.publishDraft, targetID: draft.id, title: title) } }
-                    .buttonStyle(.bordered)
-                    .disabled(model.working || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || title.utf16.count > 200)
+            if publishable && draft.status == "draft" { publishFields }
+        }
+    }
+
+    private var draftReader: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(verbatim: draft.title).font(serifFont(.title2, .semibold)).accessibilityAddTraits(.isHeader)
+                Text(verbatim: draft.content).textSelection(.enabled).lineSpacing(5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(20).frame(maxWidth: AppLayout.readableWidth, alignment: .leading).frame(maxWidth: .infinity)
+        }
+        .background(AppTheme.canvas)
+        .navigationTitle("草稿全文")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var publishFields: some View {
+        DisclosureGroup(isExpanded: $showsPublishFields) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("发布章节标题").font(.subheadline).foregroundStyle(AppTheme.textSecondary)
+                TextField("输入章节标题", text: $title, axis: .vertical).lineLimit(1...3)
+                    .frame(minHeight: AppLayout.fieldMinHeight)
+                    .padding(.horizontal, AppLayout.fieldHorizontalInset)
+                    .appFieldSurface().accessibilityLabel("发布章节标题")
+                    .disabled(model.working)
+                if title.utf16.count > 200 {
+                    Text("章节标题过长，请缩短后再预览。").font(.footnote).foregroundStyle(AppTheme.warning)
+                }
+                Button {
+                    Task { await model.prepare(.publishDraft, targetID: draft.id, title: title) }
+                } label: {
+                    Text("预览发布章节").frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(model.working || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || title.utf16.count > 200)
+            }
+            .padding(.top, 8)
+        } label: {
+            Label("准备发布", systemImage: "square.and.arrow.up")
+                .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
         }
     }
 }
