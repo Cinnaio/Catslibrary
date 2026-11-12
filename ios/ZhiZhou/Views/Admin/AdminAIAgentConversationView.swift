@@ -106,7 +106,7 @@ private struct AgentMessagesView: View {
                     }
                     ForEach(AgentMessageGroup.grouped(model.events)) { group in
                         if group.activities.isEmpty {
-                            AgentMessageRow(event: group.firstEvent, model: model, showArtifacts: showArtifacts)
+                            AgentMessageRow(event: group.firstEvent, model: model, showArtifacts: showArtifacts) { followsBottom = false }
                         } else {
                             AgentActivityGroupView(events: group.activities) { followsBottom = false }
                         }
@@ -192,7 +192,7 @@ private struct AgentMessageGroup: Identifiable {
     private static let readingTools: Set<String> = [
         "read_overview", "search_chapters", "read_chapter", "read_story_memory",
         "search_story", "list_novel_analyses", "read_novel_analysis",
-        "list_drafts", "read_draft", "list_covers", "read_task", "read_conversation",
+        "list_drafts", "read_draft", "list_covers", "read_task", "read_conversation", "read_conversation_sources",
     ]
 
     static func grouped(_ events: [AIAgentEvent]) -> [Self] {
@@ -200,7 +200,7 @@ private struct AgentMessageGroup: Identifiable {
         for event in events {
             // Only successful read-only calls collapse; errors and actionable results remain visible.
             let canGroup = event.role == "activity" && event.metadata.error != true
-                && event.metadata.artifactTaskId == nil && event.metadata.actionId == nil
+                && event.metadata.artifactTaskId == nil && event.metadata.actionId == nil && event.metadata.memoryId == nil
                 && readingTools.contains(event.metadata.tool ?? "")
             if canGroup, let last = groups.last, !last.activities.isEmpty,
                last.firstEvent.taskId == event.taskId {
@@ -250,9 +250,17 @@ private struct AgentActivityGroupView: View {
                     ForEach(events) { event in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Image(systemName: "checkmark").font(.caption2).accessibilityHidden(true)
-                            Text(verbatim: event.content).textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(verbatim: event.content).textSelection(.enabled)
+                                if let sources = event.metadata.sources, !sources.isEmpty {
+                                    AgentEvidenceView(sources: sources, onExpand: onExpand)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                    }
+                    if !events.contains(where: { $0.metadata.sources?.isEmpty == false }) {
+                        Text("这组查阅没有已保存的依据片段。").font(.caption)
                     }
                 }
                 .font(.footnote).foregroundStyle(AppTheme.textSecondary)
@@ -267,8 +275,18 @@ private struct AgentMessageRow: View {
     let event: AIAgentEvent
     let model: AdminAIAgentConversationModel
     let showArtifacts: () -> Void
+    let onExpandEvidence: () -> Void
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            message
+            if let sources = event.metadata.sources, !sources.isEmpty {
+                AgentEvidenceView(sources: sources, onExpand: onExpandEvidence)
+            }
+        }
+    }
+
+    @ViewBuilder private var message: some View {
         if event.role == "user" {
             HStack {
                 Spacer(minLength: 28)
@@ -293,6 +311,93 @@ private struct AgentMessageRow: View {
                 }
             }
         }
+    }
+}
+
+private struct AgentEvidenceView: View {
+    let sources: [AIAgentEvidence]
+    let onExpand: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("以下是查阅时保存的片段。打开章节可查看当前原文。")
+                    .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                ForEach(sources) { source in
+                    AgentEvidenceRow(source: source)
+                }
+            }
+            .padding(.bottom, 4)
+        } label: {
+            Text("查阅依据 · \(sources.count) 条")
+                .font(.footnote.weight(.medium))
+                .frame(minHeight: 44, alignment: .leading)
+                .foregroundStyle(AppTheme.primary)
+        }
+        .tint(AppTheme.primary)
+        .onChange(of: isExpanded) { _, expanded in if expanded { onExpand() } }
+        .transaction { transaction in
+            if reduceMotion {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
+    }
+}
+
+private struct AgentEvidenceRow: View {
+    let source: AIAgentEvidence
+
+    private var link: URL? {
+        guard let base = ServerConfig.shared.baseURL, !source.novelId.isEmpty else { return nil }
+        if source.kind == "chapter", let chapter = source.chapterId, !chapter.isEmpty {
+            let path = "/read/\(ReaderMediaAPI.pathSegment(source.novelId))/\(ReaderMediaAPI.pathSegment(chapter))"
+            return APIRequestURL.resolve(path, relativeTo: base)
+        }
+        if source.kind == "analysis", let report = source.reportId, !report.isEmpty {
+            let query = HomeView.query(["sub": "writing", "view": "analysis", "novel": source.novelId, "report": report])
+            return APIRequestURL.resolve("/admin/ai?\(query)", relativeTo: base)
+        }
+        return nil
+    }
+
+    private var sourceLabel: String {
+        if source.origin == "published" { return "章节原文" }
+        if source.kind == "analysis" { return source.origin == "manual" ? "人工修订报告" : "自动分析报告" }
+        return source.origin == "manual" ? "人工修订档案" : "自动分析档案"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if let link {
+                Link(destination: link) {
+                    Text(verbatim: source.title)
+                        .foregroundStyle(AppTheme.primary)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .font(.footnote.weight(.semibold))
+            } else {
+                Text(verbatim: source.title)
+                    .font(.footnote.weight(.semibold)).foregroundStyle(AppTheme.textPrimary)
+            }
+            Text(verbatim: sourceLabel + (source.truncated ? " · 节选" : ""))
+                .font(.caption).foregroundStyle(AppTheme.textSecondary)
+            if source.kind == "analysis", let revision = source.reportRevision {
+                Text("查阅时修订版本 \(revision)").font(.caption).foregroundStyle(AppTheme.textSecondary)
+            }
+            if let end = source.throughChapter {
+                let range = source.fromChapter.map { "《\($0.title)》至《\(end.title)》" } ?? "截至《\(end.title)》"
+                Text("覆盖范围 \(range)，仅供对照原文。")
+                    .font(.caption).foregroundStyle(AppTheme.textSecondary)
+            }
+            Text(verbatim: source.excerpt)
+                .font(.footnote).foregroundStyle(AppTheme.textPrimary)
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

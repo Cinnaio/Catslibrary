@@ -77,12 +77,33 @@ public struct AIAgentTextProgress: Codable, Equatable, Sendable {
     }
 }
 
+/// Material saved when an Agent tool read a chapter, report, or historical archive.
+public struct AIAgentEvidence: Codable, Identifiable, Equatable, Sendable {
+    public struct Chapter: Codable, Equatable, Sendable {
+        public let title: String
+    }
+
+    public let id: String
+    public let kind: String
+    public let novelId: String
+    public let title: String
+    public let chapterId: String?
+    public let reportId: String?
+    public let reportRevision: Int?
+    public let origin: String
+    public let excerpt: String
+    public let truncated: Bool
+    public let fromChapter: Chapter?
+    public let throughChapter: Chapter?
+}
+
 public struct AIAgentEvent: Codable, Identifiable, Equatable, Sendable {
     public struct Metadata: Codable, Equatable, Sendable {
         public let tool: String?
         public let artifactTaskId: String?
         public let actionId: String?
         public let memoryId: String?
+        public let sources: [AIAgentEvidence]?
         public let error: Bool?
         public let providerPresetId: String?
         public let model: String?

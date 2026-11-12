@@ -29,10 +29,39 @@ final class AIAgentTests: XCTestCase {
         XCTAssertNil(value.activeTask)
         XCTAssertNil(value.memories)
         XCTAssertNil(value.summary)
+        XCTAssertNil(value.events.first?.metadata.sources)
         XCTAssertNil(value.artifacts.first?.task.result)
         XCTAssertEqual(value.artifacts.first?.drafts.first?.content, "正文 **原文**")
         XCTAssertNil(value.session.contentPreferences.consentRuleTier)
         XCTAssertTrue(value.actions[0].canConfirm)
+    }
+
+    func testReadingEventDecodesChapterReportAndLegacyEvidence() throws {
+        let json = #"""
+        {
+          "id":2,"role":"activity","content":"查阅资料","taskId":"task_1","createdAt":100,
+          "metadata":{"tool":"search_story","sources":[
+            {"id":"e1","kind":"chapter","novelId":"novel_1","chapterId":"c1","title":"第一章",
+             "origin":"published","revision":"hash","offset":0,"endOffset":4,"excerpt":"章节片段","truncated":true},
+            {"id":"e2","kind":"analysis","novelId":"novel_1","reportId":"report_1","reportRevision":2,
+             "title":"人物关系","origin":"manual","revision":"2","offset":0,"endOffset":4,"excerpt":"报告片段","truncated":false,
+             "fromChapter":{"id":"c1","title":"第一章"},"throughChapter":{"id":"c2","title":"第二章"}},
+            {"id":"e3","kind":"plot","novelId":"novel_1","title":"情节档案","origin":"automatic","revision":"hash",
+             "offset":0,"endOffset":4,"excerpt":"档案片段","truncated":false,"throughChapter":{"id":"c1","title":"第一章"}}
+          ]}
+        }
+        """#
+        let event = try JSONDecoder().decode(AIAgentEvent.self, from: Data(json.utf8))
+        let sources = try XCTUnwrap(event.metadata.sources)
+        XCTAssertEqual(sources.map(\.excerpt), ["章节片段", "报告片段", "档案片段"])
+        XCTAssertEqual(sources.first?.chapterId, "c1")
+        XCTAssertEqual(sources.first?.truncated, true)
+        let report = try XCTUnwrap(sources.first(where: { $0.kind == "analysis" }))
+        XCTAssertEqual(report.reportId, "report_1")
+        XCTAssertEqual(report.reportRevision, 2)
+        XCTAssertEqual(report.fromChapter?.title, "第一章")
+        XCTAssertEqual(report.throughChapter?.title, "第二章")
+        XCTAssertNil(sources.last?.fromChapter)
     }
 
     func testMemoryPageDecodesStatusesSourcesAndStructuredSummary() throws {
