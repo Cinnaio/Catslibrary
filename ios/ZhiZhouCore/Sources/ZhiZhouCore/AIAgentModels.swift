@@ -113,6 +113,7 @@ public struct AIAgentEvent: Codable, Identifiable, Equatable, Sendable {
     public let role: String
     public let content: String
     public let taskId: String
+    public let requestId: String?
     public let metadata: Metadata
     public let createdAt: Int64
 
@@ -186,7 +187,19 @@ public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {
     public var id: String { task.id }
 }
 
+public struct AIAgentRecovery: Codable, Equatable, Sendable {
+    public let taskId: String
+    public let phase: String
+    public let canResume: Bool
+    public let message: String
+}
+
 public struct AIAgentDetail: Codable, Sendable {
+    public struct MessageReceipt: Codable, Sendable {
+        public let requestId: String
+        public let taskId: String
+    }
+
     public let session: AIAgentSession
     public let events: [AIAgentEvent]
     public let hasEarlier: Bool
@@ -195,6 +208,12 @@ public struct AIAgentDetail: Codable, Sendable {
     public let actions: [AIAgentAction]
     public let memories: [AIAgentMemory]?
     public let summary: AIAgentSummary?
+    public let messageReceipt: MessageReceipt?
+    public let recovery: AIAgentRecovery?
+
+    public func confirmsDelivery(of requestID: String) -> Bool {
+        messageReceipt?.requestId == requestID || events.contains { $0.role == "user" && $0.requestId == requestID }
+    }
 }
 
 public struct AIAgentSessions: Decodable, Sendable {

@@ -29,11 +29,35 @@ final class AIAgentTests: XCTestCase {
         XCTAssertNil(value.activeTask)
         XCTAssertNil(value.memories)
         XCTAssertNil(value.summary)
+        XCTAssertNil(value.recovery)
+        XCTAssertFalse(value.confirmsDelivery(of: "ios_agent_unconfirmed"))
         XCTAssertNil(value.events.first?.metadata.sources)
         XCTAssertNil(value.artifacts.first?.task.result)
         XCTAssertEqual(value.artifacts.first?.drafts.first?.content, "正文 **原文**")
         XCTAssertNil(value.session.contentPreferences.consentRuleTier)
         XCTAssertTrue(value.actions[0].canConfirm)
+    }
+
+    func testDeliveryReceiptCanConfirmAnOlderMessageOutsideTheEventWindow() throws {
+        let json = #"""
+        {
+          "session":{"id":"agent_1","novelId":"novel_1","novelTitle":"测试作品","title":"创作对话",
+            "afterChapterId":"","anchorTitle":"","brief":"","contentPreferences":{"version":1,"adultContentMode":"off",
+            "intimacyWeight":"none","adultCharactersConfirmed":false},"activeTaskId":"task_2","createdAt":1,"updatedAt":2},
+          "events":[{"id":10,"role":"user","content":"后续消息","taskId":"task_2","requestId":"ios_agent_recent","metadata":{},"createdAt":2},
+                    {"id":11,"role":"activity","content":"活动记录","taskId":"task_2","requestId":"ios_agent_activity","metadata":{},"createdAt":3}],
+          "hasEarlier":true,"artifacts":[],"actions":[],
+          "messageReceipt":{"requestId":"ios_agent_earlier","taskId":"task_1"},
+          "recovery":{"taskId":"task_2","phase":"retrieval","canResume":false,"message":"请新建对话"}
+        }
+        """#
+        let detail = try JSONDecoder().decode(AIAgentDetail.self, from: Data(json.utf8))
+        XCTAssertTrue(detail.confirmsDelivery(of: "ios_agent_earlier"))
+        XCTAssertTrue(detail.confirmsDelivery(of: "ios_agent_recent"))
+        XCTAssertFalse(detail.confirmsDelivery(of: "ios_agent_activity"))
+        XCTAssertFalse(detail.confirmsDelivery(of: "ios_agent_unrelated"))
+        XCTAssertEqual(detail.recovery?.taskId, "task_2")
+        XCTAssertEqual(detail.recovery?.canResume, false)
     }
 
     func testReadingEventDecodesChapterReportAndLegacyEvidence() throws {

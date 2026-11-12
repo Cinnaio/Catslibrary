@@ -23,8 +23,9 @@ struct AdminAgentAPI {
         return value.session
     }
 
-    func detail(_ id: String) async throws -> AIAgentDetail {
-        try await AdminAPI.parityRequest("GET", Self.path(id), token: token)
+    func detail(_ id: String, requestID: String? = nil) async throws -> AIAgentDetail {
+        let query = requestID.map { "?" + HomeView.query(["requestId": $0]) } ?? ""
+        return try await AdminAPI.parityRequest("GET", Self.path(id) + query, token: token)
     }
 
     func events(_ id: String, before: Int64) async throws -> AIAgentEvents {
@@ -35,6 +36,11 @@ struct AdminAgentAPI {
         try await AdminAPI.parityRequest("POST", Self.path(id) + "/messages", body: [
             "content": pending.content, "requestId": pending.requestId, "providerPresetId": pending.providerPresetId,
         ], token: token)
+    }
+
+    func resume(_ id: String, taskID: String) async throws -> AIAgentTurn {
+        try await AdminAPI.parityRequest("POST", Self.path(id) + "/tasks/" + ReaderMediaAPI.pathSegment(taskID) + "/resume",
+                                        body: ["confirmModelCall": true], token: token)
     }
 
     func save(_ id: String, brief: String, preferences: AIAgentPreferences, updatedAt: Int64) async throws -> AIAgentSession {

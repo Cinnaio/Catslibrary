@@ -25,8 +25,13 @@ final class AdminAIAgentConversationModel {
     var working = false
     var loadError: String?
     var operationError: String?
+    var messageError: String?
     var presetError: String?
     var streamErrors: [String: String] = [:]
+    private(set) var loadingArtifacts: Set<String> = []
+    private(set) var artifactErrors: [String: String] = [:]
+    private var recovery: AIAgentRecovery?
+    private var checkedRequestID: String?
     private var awaitingTaskID: String?
     @ObservationIgnored private var streams: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var streamIDs: [String: UUID] = [:]
@@ -45,6 +50,16 @@ final class AdminAIAgentConversationModel {
     var isCurrentAccount: Bool { APIClient.shared.token == api.token }
     var activeTask: AIAgentTask? { tasks[awaitingTaskID ?? session.activeTaskId] }
     var replying: Bool { awaitingTaskID != nil || activeTask?.isRunning == true }
+    var pendingActionCount: Int { actions.filter(\.canConfirm).count }
+    var pendingReceiptChecked: Bool {
+        guard let pending = localDraft.pending else { return false }
+        return checkedRequestID == pending.requestId
+    }
+    var interruptedReply: AIAgentRecovery? {
+        guard !replying, let activeTask, activeTask.id == recovery?.taskId,
+              activeTask.status == "failed" || activeTask.status == "cancelled" else { return nil }
+        return recovery
+    }
     var canSend: Bool {
         hasLoaded && isCurrentAccount && !sending && !working && !replying && localDraft.pending == nil
             && !localDraft.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -98,9 +113,10 @@ final class AdminAIAgentConversationModel {
         guard isCurrentAccount, !isRefreshing, !Task.isCancelled else { return }
         isRefreshing = true
         let revision = dataRevision
+        let requestID = sending ? nil : localDraft.pending?.requestId
         defer { isRefreshing = false }
         do {
-            let value = try await api.detail(sessionID)
+            let value = try await api.detail(sessionID, requestID: requestID)
             let waiting = awaitingTaskID
             let acknowledged: AIAgentTask?
             if let waiting, value.activeTask?.id != waiting {
@@ -117,6 +133,14 @@ final class AdminAIAgentConversationModel {
             if let task = value.activeTask { receive(task) }
             if let acknowledged { receive(acknowledged) }
             if let waiting = awaitingTaskID, value.activeTask?.id == waiting { awaitingTaskID = nil }
+            recovery = value.recovery
+            if let requestID, localDraft.pending?.requestId == requestID {
+                checkedRequestID = requestID
+                if value.confirmsDelivery(of: requestID) {
+                    localDraft.pending = nil
+                    messageError = nil
+                }
+            }
             // The session endpoint deliberately omits child task.result. Keep live previews separately.
             for artifact in value.artifacts { receive(artifact.task, snapshot: true) }
             let latestIDs = Set(value.artifacts.map(\.id))
@@ -218,7 +242,9 @@ final class AdminAIAgentConversationModel {
 
     func send(retry: Bool = false) async {
         guard isCurrentAccount, !sending, !working else { return }
-        if !retry {
+        if retry {
+            guard pendingReceiptChecked, !replying else { return }
+        } else {
             guard canSend else { return }
             localDraft.pending = AIAgentPendingMessage(content: localDraft.input.trimmingCharacters(in: .whitespacesAndNewlines),
                                                        providerPresetId: localDraft.providerPresetId)
@@ -226,8 +252,9 @@ final class AdminAIAgentConversationModel {
         }
         guard let pending = localDraft.pending else { return }
         sending = true
+        checkedRequestID = nil
         dataRevision &+= 1
-        operationError = nil
+        messageError = nil
         defer { sending = false }
         do {
             let result = try await api.message(sessionID, pending: pending)
@@ -236,14 +263,36 @@ final class AdminAIAgentConversationModel {
             awaitingTaskID = result.taskId
             localDraft.pending = nil
             await refresh()
-        } catch { report(error) }
+        } catch {
+            guard isCurrentAccount else { return }
+            if !(error is CancellationError) { messageError = AppCopy.friendlyError(error) }
+            sending = false
+            await refresh()
+        }
     }
 
     func discardPending() {
         guard !sending, let pending = localDraft.pending else { return }
         localDraft.input = localDraft.input.isEmpty ? pending.content : pending.content + "\n\n" + localDraft.input
         localDraft.pending = nil
-        operationError = nil
+        checkedRequestID = nil
+        messageError = nil
+    }
+
+    func resume(_ offer: AIAgentRecovery) async {
+        guard offer.canResume, interruptedReply?.taskId == offer.taskId, localDraft.pending == nil,
+              !sending, beginWork() else { return }
+        defer { working = false }
+        do {
+            let result = try await api.resume(sessionID, taskID: offer.taskId)
+            guard isCurrentAccount else { return }
+            dataRevision &+= 1
+            awaitingTaskID = result.taskId
+            await refresh()
+        } catch {
+            report(error)
+            await refresh()
+        }
     }
 
     func stop(_ taskID: String) async {
@@ -258,19 +307,26 @@ final class AdminAIAgentConversationModel {
         catch { report(error) }
     }
 
-    func openArtifact(_ id: String) async -> AIAgentArtifact? {
-        guard beginWork() else { return nil }
-        defer { working = false }
+    func refreshArtifact(_ id: String) async {
+        guard isCurrentAccount, loadingArtifacts.insert(id).inserted else { return }
+        let previous = artifacts.first { $0.id == id }
+        artifactErrors.removeValue(forKey: id)
+        defer { loadingArtifacts.remove(id) }
         do {
             let artifact = try await api.artifact(sessionID, taskID: id)
-            guard isCurrentAccount else { return nil }
+            guard isCurrentAccount, !Task.isCancelled else { return }
+            let index = artifacts.firstIndex { $0.id == id }
+            // The session may have delivered a newer copy while this request was in flight.
+            if let index, artifacts[index] != previous { return }
             dataRevision &+= 1
             receive(artifact.task, snapshot: true)
-            artifacts.removeAll { $0.id == id }
-            artifacts.append(artifact)
+            if let index { artifacts[index] = artifact }
+            else { artifacts.append(artifact) }
             reconcileStreams()
-            return artifact
-        } catch { report(error); return nil }
+        } catch {
+            guard isCurrentAccount, !Task.isCancelled, !(error is CancellationError) else { return }
+            artifactErrors[id] = AppCopy.friendlyError(error)
+        }
     }
 
     func openAction(_ id: String) async {

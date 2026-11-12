@@ -4,21 +4,30 @@ import ZhiZhouCore
 struct AdminAIAgentConversationView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var model: AdminAIAgentConversationModel
-    @State private var panel = 0
-    @State private var showSettings = false
-    @State private var showMemory = false
+    @State private var panel: Panel?
+
+    private enum Panel: Identifiable {
+        case outputs, artifact(String), settings, memory
+        var id: String {
+            switch self {
+            case .outputs: "outputs"
+            case .artifact(let id): "artifact:\(id)"
+            case .settings: "settings"
+            case .memory: "memory"
+            }
+        }
+    }
 
     init(session: AIAgentSession, userID: String, token: String) {
         _model = State(initialValue: AdminAIAgentConversationModel(session: session, userID: userID, token: token))
     }
 
     var body: some View {
-        @Bindable var model = model
         VStack(spacing: 0) {
             context
             if model.hasLoaded {
-                if panel == 0 { AgentMessagesView(model: model) { panel = 1 } }
-                else { AgentArtifactsView(model: model) }
+                AgentMessagesView(model: model, readingOverlay: panel != nil || model.selectedAction != nil,
+                                  showArtifact: { panel = .artifact($0) }, showOutputs: { panel = .outputs })
             } else if let error = model.loadError {
                 ContentUnavailableView {
                     Label("暂时无法读取对话", systemImage: "bubble.left.and.exclamationmark.bubble.right")
@@ -33,17 +42,38 @@ struct AdminAIAgentConversationView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("作品记忆", systemImage: "bookmark") { showMemory = true }
-                    .disabled(!model.hasLoaded)
+                Button { panel = .outputs } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                        if model.pendingActionCount > 0 {
+                            Text(model.pendingActionCount, format: .number).font(.caption.weight(.semibold))
+                        }
+                    }
+                }
+                .accessibilityLabel("产出与采纳")
+                .accessibilityValue(model.pendingActionCount > 0 ? "\(model.pendingActionCount) 项待确认" : "无待确认操作")
+                .disabled(!model.hasLoaded)
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button("会话设置", systemImage: "slider.horizontal.3") { showSettings = true }
-                    .disabled(!model.hasLoaded)
+                Menu("更多", systemImage: "ellipsis") {
+                    Button("作品记忆", systemImage: "bookmark") { panel = .memory }
+                    Button("会话设置", systemImage: "slider.horizontal.3") { panel = .settings }
+                }
+                .disabled(!model.hasLoaded)
             }
         }
-        .sheet(isPresented: $showSettings) { AgentSettingsSheet(model: model) }
-        .sheet(isPresented: $showMemory) { AgentMemoryView(model: model) }
-        .sheet(item: $model.selectedAction) { action in AgentActionSheet(model: model, initialAction: action) }
+        .sheet(item: $panel) { panel in
+            switch panel {
+            case .outputs: AgentOutputSheet(model: model)
+            case .artifact(let id): AgentOutputSheet(model: model, artifactID: id)
+            case .settings: AgentSettingsSheet(model: model)
+            case .memory: AgentMemoryView(model: model)
+            }
+        }
+        .sheet(item: Binding(get: { panel == nil ? model.selectedAction : nil },
+                             set: { if panel == nil { model.selectedAction = $0 } })) { action in
+            AgentActionSheet(model: model, initialAction: action)
+        }
         .task(id: scenePhase) {
             guard scenePhase == .active else { model.pause(); return }
             await model.monitor()
@@ -52,107 +82,152 @@ struct AdminAIAgentConversationView: View {
     }
 
     private var context: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(model.session.novelTitle).font(.subheadline.weight(.medium)).lineLimit(2)
-                Spacer(minLength: 12)
-                Text(model.session.contentPreferences.adultContentMode == "explicit" ? "成人模式" : "常规模式")
-                    .font(.caption).foregroundStyle(AppTheme.textSecondary)
-            }
-            Picker("工作区", selection: $panel) {
-                Text("对话").tag(0)
-                Text("产出与采纳").tag(1)
-            }.pickerStyle(.segmented)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(model.session.novelTitle).font(.subheadline.weight(.medium))
+            Text(contextSummary).font(.caption).foregroundStyle(AppTheme.textSecondary)
             if model.pendingMemoryCount > 0 {
-                Button("作品记忆 · \(model.pendingMemoryCount) 条待确认") { showMemory = true }
+                Button("作品记忆 · \(model.pendingMemoryCount) 条待确认") { panel = .memory }
                     .font(.footnote).frame(minHeight: 44)
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
+        .frame(maxWidth: 820, alignment: .leading)
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var contextSummary: String {
+        let session = model.session
+        let origin = session.anchorTitle.isEmpty
+            ? (session.afterChapterId.isEmpty ? "从头创作" : "续写起点：原章节不可用")
+            : "续写起点：\(session.anchorTitle)"
+        return session.contentPreferences.adultContentMode == "explicit" ? origin + " · 成人模式" : origin
     }
 }
 
 private struct AgentMessagesView: View {
     let model: AdminAIAgentConversationModel
+    let readingOverlay: Bool
+    let showArtifact: (String) -> Void
     let showArtifacts: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var followsBottom = true
     @State private var scrollPhase: ScrollPhase = .idle
+    @State private var recoveryOffer: AIAgentRecovery?
 
     private var usesSolidBar: Bool { reduceTransparency || contrast == .increased }
 
     private var scrollMarker: String {
-        "\(model.events.last?.id ?? 0):\(model.liveReply?.id ?? ""):\(model.liveReply?.progress?.updatedAt ?? 0)"
+        "\(model.events.last?.id ?? 0):\(model.activeTask?.id ?? ""):\(model.activeTask?.status ?? ""):\(model.activeTask?.step ?? ""):\(model.liveReply?.progress?.updatedAt ?? 0):\(model.interruptedReply?.taskId ?? ""):\(!model.streamErrors.isEmpty)"
     }
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 22) {
-                    if model.hasEarlier {
-                        Button {
-                            followsBottom = false
-                            Task { await model.loadEarlier() }
-                        } label: {
-                            HStack { Text("查看更早的消息"); if model.loadingEarlier { ProgressView() } }
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }.disabled(model.loadingEarlier)
-                    }
-                    if model.events.isEmpty {
-                        ContentUnavailableView("一起把故事往下写", systemImage: "sparkles",
-                            description: Text("可以聊情节、调整草稿，也可以描述你想要的封面。"))
-                    }
-                    ForEach(AgentMessageGroup.grouped(model.events)) { group in
-                        if group.activities.isEmpty {
-                            AgentMessageRow(event: group.firstEvent, model: model, showArtifacts: showArtifacts) { followsBottom = false }
-                        } else {
-                            AgentActivityGroupView(events: group.activities) { followsBottom = false }
-                        }
-                    }
-                    if let live = model.liveReply, let progress = live.progress {
-                        VStack(alignment: .leading, spacing: 10) {
-                            AgentTaskStatusView(task: live)
-                            if !progress.preview.isEmpty { AgentMarkdownView(content: progress.preview) }
-                            if !live.isRunning { Text("未完成的回复").font(.caption).foregroundStyle(AppTheme.textSecondary) }
-                        }
-                    } else if let task = model.activeTask, task.isRunning || !task.error.isEmpty {
-                        AgentTaskStatusView(task: task)
-                    }
-                    if let error = model.loadError {
-                        LoadErrorNotice(message: error, isLoading: model.isRefreshing) { Task { await model.refresh() } }
-                    }
-                    if !model.streamErrors.isEmpty {
-                        Text("连接暂时中断，正在恢复进度；可以稍后返回继续查看。")
-                            .font(.caption).foregroundStyle(AppTheme.textSecondary)
-                    }
-                    Color.clear.frame(height: 1).id("agent-bottom")
-                }
-                .padding(16).frame(maxWidth: 820, alignment: .leading).frame(maxWidth: .infinity)
-            }
+            ScrollView { transcript }
             .scrollDismissesKeyboard(.interactively)
             .onScrollPhaseChange { previous, phase in
                 scrollPhase = phase
-                if previous == .animating && phase == .idle && followsBottom {
+                if previous == .animating && phase == .idle && followsBottom && !readingOverlay {
                     proxy.scrollTo("agent-bottom", anchor: .bottom)
                 }
             }
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentSize.height - geometry.visibleRect.maxY < 90
             } action: { _, atBottom in
+                guard !readingOverlay else { return }
                 switch scrollPhase {
                 case .tracking, .interacting, .decelerating: followsBottom = atBottom
                 default: break
                 }
             }
-            .onChange(of: scrollMarker, initial: true) { _, _ in
-                if followsBottom && scrollPhase == .idle { proxy.scrollTo("agent-bottom", anchor: .bottom) }
+            .onChange(of: scrollMarker, initial: true) { old, new in
+                if readingOverlay {
+                    if old != new { followsBottom = false }
+                } else if followsBottom && scrollPhase == .idle {
+                    proxy.scrollTo("agent-bottom", anchor: .bottom)
+                }
             }
             .scrollEdgeEffectStyle(.soft, for: .bottom)
             .scrollEdgeEffectHidden(usesSolidBar, for: .bottom)
             .safeAreaBar(edge: .bottom, spacing: 0) { composerBar(proxy) }
         }
+        .confirmationDialog("继续整理回复？", isPresented: Binding(get: { recoveryOffer != nil }, set: {
+            if !$0 { recoveryOffer = nil }
+        }), titleVisibility: .visible, presenting: recoveryOffer) { offer in
+            Button("确认继续整理") { Task { await model.resume(offer) } }
+            Button("取消", role: .cancel) {}
+        } message: { _ in
+            Text("会再次调用文本模型，仅查阅和答复。已有草稿、封面和采纳预览会保留，不会重新生成。")
+        }
+    }
+
+    private var transcript: some View {
+        LazyVStack(alignment: .leading, spacing: 22) {
+            if model.hasEarlier {
+                Button {
+                    followsBottom = false
+                    Task { await model.loadEarlier() }
+                } label: {
+                    HStack { Text("查看更早的消息"); if model.loadingEarlier { ProgressView() } }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }.disabled(model.loadingEarlier)
+            }
+            if model.events.isEmpty {
+                ContentUnavailableView("一起把故事往下写", systemImage: "sparkles",
+                    description: Text("可以聊情节、调整草稿，也可以描述你想要的封面。"))
+            }
+            ForEach(AgentMessageGroup.grouped(model.events)) { group in
+                if group.activities.isEmpty {
+                    AgentMessageRow(event: group.firstEvent, model: model, showArtifact: showArtifact,
+                                    pauseFollowing: { followsBottom = false })
+                } else {
+                    AgentActivityGroupView(events: group.activities) { followsBottom = false }
+                }
+            }
+            replyStatus
+            if let offer = model.interruptedReply { recoveryRow(offer) }
+            if let error = model.loadError {
+                LoadErrorNotice(message: error, isLoading: model.isRefreshing) { Task { await model.refresh() } }
+            }
+            if !model.streamErrors.isEmpty {
+                Text("实时进度暂时断开，正在重新连接。离开对话不会停止任务。")
+                    .font(.caption).foregroundStyle(AppTheme.textSecondary)
+            }
+            Color.clear.frame(height: 1).id("agent-bottom")
+        }
+        .padding(16).frame(maxWidth: 820, alignment: .leading).frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder private var replyStatus: some View {
+        if let live = model.liveReply, let progress = live.progress {
+            VStack(alignment: .leading, spacing: 10) {
+                AgentTaskStatusView(task: live, showsDetailedProgress: false)
+                if !progress.preview.isEmpty { AgentMarkdownView(content: progress.preview) }
+                if !live.isRunning { Text("未完成的回复").font(.caption).foregroundStyle(AppTheme.textSecondary) }
+            }
+        } else if let task = model.activeTask, task.isRunning || task.status == "failed" || task.status == "cancelled" {
+            AgentTaskStatusView(task: task, showsDetailedProgress: false)
+        } else if model.replying {
+            ProgressView("正在读取回复状态…").font(.footnote)
+        }
+    }
+
+    private func recoveryRow(_ offer: AIAgentRecovery) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(AgentDisplay.recoveryPhase(offer.phase)).font(.footnote.weight(.semibold))
+            Text(offer.message).font(.footnote).foregroundStyle(AppTheme.textSecondary)
+            if !model.artifacts.isEmpty || !model.actions.isEmpty {
+                Button("查看已有产出", systemImage: "doc.on.doc", action: showArtifacts)
+                    .font(.footnote).frame(minHeight: 44)
+            }
+            if offer.canResume {
+                Button("继续整理回复", systemImage: "arrow.clockwise") { recoveryOffer = offer }
+                    .font(.footnote).frame(minHeight: 44)
+                    .disabled(model.working || model.sending || model.localDraft.pending != nil)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func composerBar(_ proxy: ScrollViewProxy) -> some View {
@@ -274,14 +349,14 @@ private struct AgentActivityGroupView: View {
 private struct AgentMessageRow: View {
     let event: AIAgentEvent
     let model: AdminAIAgentConversationModel
-    let showArtifacts: () -> Void
-    let onExpandEvidence: () -> Void
+    let showArtifact: (String) -> Void
+    let pauseFollowing: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             message
             if let sources = event.metadata.sources, !sources.isEmpty {
-                AgentEvidenceView(sources: sources, onExpand: onExpandEvidence)
+                AgentEvidenceView(sources: sources, onExpand: pauseFollowing)
             }
         }
     }
@@ -301,16 +376,39 @@ private struct AgentMessageRow: View {
                     .foregroundStyle(event.metadata.error == true ? Color.red : AppTheme.textSecondary)
                     .font(.footnote)
                 if let id = event.metadata.artifactTaskId {
-                    Button("查看产出", systemImage: "doc.text.magnifyingglass") {
-                        Task { if await model.openArtifact(id) != nil { showArtifacts() } }
-                    }.font(.footnote).frame(minHeight: 44).disabled(model.working)
+                    artifactLink(id)
                 }
                 if let id = event.metadata.actionId {
-                    Button("查看采纳记录", systemImage: "checkmark.rectangle") { Task { await model.openAction(id) } }
-                        .font(.footnote).frame(minHeight: 44).disabled(model.working)
+                    let pending = model.actions.first(where: { $0.id == id })?.canConfirm == true
+                    Button(pending ? "查看待确认操作" : "查看采纳记录", systemImage: "checkmark.rectangle") {
+                        Task { await model.openAction(id) }
+                    }
+                    .font(.footnote).frame(minHeight: 44).disabled(model.working)
                 }
             }
         }
+    }
+
+    private func artifactLink(_ id: String) -> some View {
+        let artifact = model.artifacts.first(where: { $0.id == id })
+        let task = model.tasks[id] ?? artifact?.task
+        let kind = task.map { AgentDisplay.kind($0.kind) } ?? "查看产出"
+        let draft = artifact?.drafts.count == 1 ? artifact?.drafts.first : nil
+        let title = draft?.title ?? artifact?.analysisReport?.title ?? kind
+        let status = draft.map { $0.status == "draft" ? "未发布草稿" : "已发布" }
+            ?? task.map { AgentDisplay.status($0.status) }
+        return Button { showArtifact(id) } label: {
+            Label {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.subheadline.weight(.medium)).foregroundStyle(AppTheme.primary)
+                    if let status { Text(status).font(.caption).foregroundStyle(AppTheme.textSecondary) }
+                }
+            } icon: { Image(systemName: "doc.text").foregroundStyle(AppTheme.primary) }
+            .frame(minHeight: 44, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .disabled(model.working)
+        .accessibilityHint("打开这项产出")
     }
 }
 
@@ -413,6 +511,7 @@ private struct AgentComposerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let error = model.operationError { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
+            if let error = model.messageError { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
             if let pending = model.localDraft.pending {
                 pendingMessage(pending)
             }
@@ -499,39 +598,44 @@ private struct AgentComposerView: View {
 
     private func pendingMessage(_ pending: AIAgentPendingMessage) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(model.sending ? "正在发送…" : "上次消息尚未确认送达").font(.caption.weight(.medium))
+            Text(model.sending ? "正在发送…" : (model.pendingReceiptChecked ? "暂未查到送达回执" : "上次消息尚未确认送达"))
+                .font(.caption.weight(.medium))
             Text(verbatim: pending.content).font(.caption).lineLimit(2).foregroundStyle(AppTheme.textSecondary)
             if !model.sending {
                 ViewThatFits(in: .horizontal) {
-                    HStack { retryButton; discardButton }
-                    VStack(alignment: .leading) { retryButton; discardButton }
+                    HStack { pendingActions }
+                    VStack(alignment: .leading) { pendingActions }
                 }
             }
         }
     }
-    private var retryButton: some View {
-        Button("重试原消息") { Task { await model.send(retry: true) } }.font(.caption).frame(minHeight: 44)
-    }
-    private var discardButton: some View {
+    @ViewBuilder private var pendingActions: some View {
+        Button(model.isRefreshing ? "正在核对…" : "核对发送状态") { Task { await model.refresh() } }
+            .font(.caption).frame(minHeight: 44).disabled(model.isRefreshing)
+        if model.pendingReceiptChecked {
+            Button("重试原消息") { Task { await model.send(retry: true) } }
+                .font(.caption).frame(minHeight: 44).disabled(model.working || model.replying || model.isRefreshing)
+        }
         Button("取回文字") { showDiscard = true }.font(.caption).frame(minHeight: 44)
     }
 }
 
 struct AgentTaskStatusView: View {
     let task: AIAgentTask
+    var showsDetailedProgress = true
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
-                if task.isRunning { ProgressView().controlSize(.small) }
+                if task.isRunning && (!showsDetailedProgress || task.total <= 0) { ProgressView().controlSize(.small).accessibilityHidden(true) }
                 Text(task.step.isEmpty ? AgentDisplay.status(task.status)
                      : (task.isRunning ? task.step : "\(AgentDisplay.status(task.status)) · \(task.step)")).font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
             }
-            if task.isRunning && task.total > 0 {
+            if showsDetailedProgress && task.isRunning && task.total > 0 {
                 ProgressView(value: Double(max(0, min(task.current, task.total))), total: Double(task.total))
                     .tint(AppTheme.primary)
             }
-            if let progress = task.progress, task.isRunning {
+            if showsDetailedProgress, let progress = task.progress, task.isRunning {
                 Text(progress.phase == "thinking" ? "正在构思…" : "已输出 \(progress.generatedCharacters) 字")
                     .font(.caption).foregroundStyle(AppTheme.textSecondary)
             }
@@ -541,6 +645,11 @@ struct AgentTaskStatusView: View {
 }
 
 enum AgentDisplay {
+    static func recoveryPhase(_ value: String) -> String {
+        ["context": "准备对话时中断", "retrieval": "查阅资料时中断", "model": "整理回复时中断",
+         "generation": "提交创作操作时中断", "save": "保存回复时中断", "summary": "更新对话摘要时中断"][value] ?? "本轮回复中断"
+    }
+
     static func status(_ value: String) -> String {
         ["queued": "等待处理", "running": "正在处理", "completed": "已完成", "failed": "处理失败",
          "cancelled": "已停止", "pending": "待确认", "executing": "正在执行", "rejected": "已放弃"][value] ?? value
