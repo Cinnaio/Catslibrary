@@ -1,11 +1,12 @@
 import type { AgentActionKind, AgentArtifact, AgentSession } from '@shared/ai-agent'
 import { ANALYSIS_KINDS, type AnalysisKind } from '@shared/novel-analysis'
+import { assessWritingQuality } from '@shared/ai-writing-quality'
 import type { Db } from '../../db/pool'
 import { all, first, run, withTx } from '../../db/query'
 import { newId } from '../auth'
 import { getCurrentCoverState } from '../covers'
 import { AiError } from './client'
-import { generationContentRevision, getGeneration, listTaskGenerations, type GenerationRow } from './generations'
+import { generationContentRevision, generationWritingQuality, getGeneration, listTaskGenerations, type GenerationRow } from './generations'
 import { parseRewriteSuggestion, parseRewriteTaskParams } from './rewrite'
 import { appendAgentEvent, publicAgentAction, requireAgentArtifact, type AgentActionRow } from './agent-store'
 
@@ -41,14 +42,18 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
     const drafts = await listTaskGenerations(db, task.id, session.novelId)
     for (const item of drafts) {
       const draft = await scopedAgentDraft(db, session, item.id).catch(() => null)
-      if (draft)
+      if (draft) {
+        const minimumLengthWarning = generationWritingQuality(draft.kind, draft.result, draft.params_json)?.warnings
+          .find(warning => warning.code === 'minimum_length')?.message
         result.drafts.push({
           id: draft.id,
           title: agentDraftTitle(draft),
           content: draft.result,
           status: draft.status,
           revision: generationContentRevision(draft.result),
+          ...(minimumLengthWarning ? { minimumLengthWarning } : {}),
         })
+      }
     }
   }
   if (task.kind === 'cover') {
@@ -62,8 +67,16 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
   if (task.kind === 'rewrite_selection' && task.status === 'completed') {
     const params = parseRewriteTaskParams(JSON.parse(task.params || '{}'))
     const suggestion = params ? parseRewriteSuggestion(task.result, params) : undefined
-    if (params && suggestion)
-      result.rewrite = { draftId: params.draftId, before: params.selectedText, after: suggestion.suggestion, baseRevision: params.baseRevision }
+    if (params && suggestion) {
+      const length = params.agentContext?.length
+      const minimumLengthWarning = length?.kind === 'minimum'
+        ? assessWritingQuality({ text: suggestion.suggestion, minimumWords: length.words }).warnings[0]?.message
+        : undefined
+      result.rewrite = {
+        draftId: params.draftId, before: params.selectedText, after: suggestion.suggestion, baseRevision: params.baseRevision,
+        ...(minimumLengthWarning ? { minimumLengthWarning } : {}),
+      }
+    }
   }
   if (task.kind === 'novel_analysis') {
     const report = await first<{ id: string; kind: AnalysisKind }>(db,

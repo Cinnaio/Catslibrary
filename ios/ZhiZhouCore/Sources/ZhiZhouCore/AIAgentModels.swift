@@ -162,6 +162,7 @@ public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {
         public let content: String
         public let status: String
         public let revision: String
+        public let minimumLengthWarning: String?
     }
     public struct Cover: Codable, Identifiable, Equatable, Sendable {
         public let id: String
@@ -173,6 +174,7 @@ public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {
         public let before: String
         public let after: String
         public let baseRevision: String
+        public let minimumLengthWarning: String?
     }
     public struct AnalysisReport: Codable, Equatable, Sendable {
         public let id: String

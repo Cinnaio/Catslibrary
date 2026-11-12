@@ -17,6 +17,18 @@ function tool(name: string, description: string, properties: Record<string, Prop
 }
 const id: Property = { type: 'string', maxLength: 160 }
 const instruction: Property = { type: 'string', maxLength: 4000 }
+const writingReferences = {
+  sourceIds: { type: 'string', maxLength: 160, description: '相关正式原文片段 sources[].id，以逗号分隔，最多六段。选择实际涵盖人物说话、行动或本章事实的片段。' },
+  authorEventIds: { type: 'string', maxLength: 100, description: '本次仍适用的作者消息编号（不含 #），以逗号分隔，最多六条。选择作者已确认的要求与最新更正。' },
+} satisfies Record<string, Property>
+const writingLength = {
+  targetWords: { type: 'integer', minimum: 300, maximum: 30_000, description: '作者指定的约数。与 minimumWords 二选一。' },
+  minimumWords: { type: 'integer', minimum: 1, maximum: 30_000, description: '作者指定至少多少字时填写。与 targetWords 二选一。' },
+} satisfies Record<string, Property>
+const rewriteLength = {
+  targetWords: { ...writingLength.targetWords, minimum: 1, maximum: 12_000, description: '整章改写的目标字数。与 minimumWords 二选一。' },
+  minimumWords: { ...writingLength.minimumWords, maximum: 12_000, description: '整章改写的最低字数。与 targetWords 二选一。' },
+}
 export const AGENT_TOOLS: AiFunctionTool[] = [
   tool('read_overview', '读取当前小说、冻结的续写起点和最近章节目录。需要了解作品或定位章节时使用；核对聊天中的作者决定无需先读目录。'),
   tool('search_chapters', '在起点之前的正式章节中搜索原文或标题，返回命中片段和章节 ID。只做字面检索，不代表没有其他相关内容。', {
@@ -54,18 +66,25 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
     'generate_draft',
     '用户要求开始生成时，启动一章续写或新写草稿。仅讨论方向时不要调用。正文不会自动发布。',
     { instruction, title: { type: 'string', maxLength: 200 }, outline: { type: 'string', maxLength: 6000 },
+      ...writingReferences, ...writingLength,
+      characters: { type: 'string', maxLength: 400, description: '本章出场的已有角色，按原书姓名填写，逗号分隔。' },
+      priorDraftId: { ...id, description: '作者明确要接着写的未发布章节草稿。由 read_draft 或 read_task 取得。' },
+      priorDraftRevision: { ...id, description: '该次读取返回的 revision，与 priorDraftId 同时提交。' },
       analysisReferences: { type: 'string', maxLength: 2000, description: '可选：JSON 数组 [{"reportId":"报告ID","revision":1}]，版本来自已查阅报告。[] 表示不使用报告；省略则选各主题最新可用报告。最多五份。' } },
     ['instruction'],
   ),
   tool(
     'rewrite_draft',
     '生成选段改写建议。selectedText 必须逐字来自 read_draft；空字符串表示整章（最多6000字）。baseRevision 必须来自该次读取。不会自动覆盖草稿。',
-    { draftId: id, baseRevision: id, selectedText: { type: 'string', maxLength: 12000 }, instruction: { ...instruction, maxLength: 2000 } },
+    { draftId: id, baseRevision: id, selectedText: { type: 'string', maxLength: 12000 }, instruction: { ...instruction, maxLength: 2000 },
+      ...writingReferences, ...rewriteLength },
+    ['draftId', 'baseRevision', 'selectedText', 'instruction'],
   ),
   tool('refine_rewrite', '继续调整上次尚未采纳的改写建议，保留上次版本中作者未要求修改的部分。原草稿不会改变。', {
     taskId: id,
     instruction: { ...instruction, maxLength: 2000 },
-  }),
+    ...writingReferences, ...rewriteLength,
+  }, ['taskId', 'instruction']),
   tool('generate_cover', '按用户确定的画面要求生成一张封面候选。instruction 必须是完整画面描述，会原样提交给图像服务；现有能力是重新生成，不能承诺原图局部编辑或人物完全一致。', { instruction }),
   tool('analyze_novel', '仅在作者明确要求生成或更新小说分析时创建独立后台报告，会产生模型用量。不能因查不到资料而自动分析。范围不得超过本会话起点；省略范围时从第一章到当前起点。', {
     kind: { type: 'string', enum: ['plot', 'characters', 'relationships', 'style', 'custom'] },
@@ -225,6 +244,14 @@ export async function executeAgentTool(
     }, true) }
   }
   if (name === 'prepare_action') return { action: await prepareAgentAction(db, session, a.kind as AgentActionKind, String(a.targetId), String(a.title || '')) }
+  const agentWriting = {
+    sessionId: session.id,
+    authorTaskId: currentTaskId,
+    authorEventIds: a.authorEventIds,
+    sourceIds: a.sourceIds,
+    targetWords: a.targetWords,
+    minimumWords: a.minimumWords,
+  }
   let receipt: Record<string, unknown>
   if (name === 'generate_draft') {
     if (!String(a.instruction).trim()) throw new AiError('invalid', '请先确定本章创作要求', 422)
@@ -241,6 +268,8 @@ export async function executeAgentTool(
       afterChapterId: session.afterChapterId || null,
       contentPreferences: session.contentPreferences,
       analysisReferences: references.reports.map(report => ({ reportId: report.id, revision: report.revision })),
+      ...(a.characters ? { writingBrief: { version: 1, characters: String(a.characters).split(/[,，、]/u).map(name => name.trim()).filter(Boolean) } } : {}),
+      agentWriting: { ...agentWriting, priorDraftId: a.priorDraftId, priorDraftRevision: a.priorDraftRevision },
       operationId,
     })
   } else if (name === 'rewrite_draft') {
@@ -257,6 +286,7 @@ export async function executeAgentTool(
       selectedText,
       mode: 'custom',
       instruction: a.instruction,
+      agentWriting,
       clientRequestId: operationId,
     })
   } else if (name === 'refine_rewrite') {
@@ -276,6 +306,7 @@ export async function executeAgentTool(
       mode: 'custom',
       instruction: a.instruction,
       previousTaskId: previous.id,
+      agentWriting,
       clientRequestId: operationId,
     })
   } else if (name === 'generate_cover') {

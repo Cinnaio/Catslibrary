@@ -1,5 +1,6 @@
 import type { AnalysisReferenceSelection, WritingAnalysisReference } from '@shared/novel-analysis'
 import { getAnalysisReferences, formatAnalysisReferences } from './analysis-reference'
+import type { AgentWritingContext } from './agent-writing'
 import { partialUsageRecorder } from './partial-usage'
 import { removeAdPatterns } from '@shared/ad-cleaner'
 import { normalizePlotTimeoutSeconds } from '@shared/ai-plot-timeout'
@@ -459,6 +460,7 @@ export function buildContinuationChapterInstruction(opts: {
   hasPriorContext?: boolean
   instruction?: string
   targetWords?: number
+  lengthInOutput?: boolean
 }): string {
   const { chapterIndex, totalCount, chapterOutline, nextChapterOutline, hasPriorContext, instruction, targetWords } = opts
   const priorContextConstraint = hasPriorContext && chapterIndex === 0
@@ -482,7 +484,7 @@ export function buildContinuationChapterInstruction(opts: {
     : (instruction || '')
 
   const words = Math.max(300, Math.min(30000, Math.trunc(Number(targetWords) || 0)))
-  const countNotice = `这是续写的第 ${chapterIndex + 1} 章，共 ${totalCount} 章。目标字数为本章正文约 ${words} 字（不计标题和空白，包含标点）。篇幅统一以此处目标值为准，其他描述中的字数不另立目标。请围绕这个篇幅安排情节与自然结尾，避免额外铺陈造成明显超长。`
+  const countNotice = opts.lengthInOutput ? '' : `这是续写的第 ${chapterIndex + 1} 章，共 ${totalCount} 章。目标字数为本章正文约 ${words} 字（不计标题和空白，包含标点）。篇幅统一以此处目标值为准，其他描述中的字数不另立目标。请围绕这个篇幅安排情节与自然结尾，避免额外铺陈造成明显超长。`
 
   return [taskContent, boundaryNotice, priorContextConstraint, continuationConstraint, countNotice].filter(Boolean).join('\n\n')
 }
@@ -733,6 +735,7 @@ export async function generateWriting(db: Db, opts: {
   plotDirection?: string
   /** 服务端校验并冻结的用户创作要求。 */
   writingBrief?: WritingBriefV1
+  agentContext?: AgentWritingContext
   /** 新任务使用五层提示词编译器；旧任务缺字段时保留 legacy 消息协议。 */
   promptPipelineVersion?: number
   /** 新编译器使用独立的本批草稿材料；legacy 仍沿用拼接后的上下文。 */
@@ -766,6 +769,7 @@ export async function generateWriting(db: Db, opts: {
       outline: opts.outline,
       context: opts.context,
       targetWords: opts.targetWords,
+      agentContext: opts.agentContext,
       chapterCount: opts.chapterCount,
       batchIndex: opts.batchIndex,
       writingBrief: opts.writingBrief,
@@ -871,11 +875,12 @@ export async function generateWriting(db: Db, opts: {
         ...(parsedTitle ? { writingQuality: {
           version: 1, originalRevision: generationContentRevision(resultText), finishReason: res.finishReason || '',
           upstreamIncomplete: res.truncated === true, titleNeedsReview,
-          repeatedOpening: detectRepeatedOpening(resultText, opts.batchDrafts?.at(-1)?.text || opts.context || ''),
+          repeatedOpening: detectRepeatedOpening(resultText, opts.batchDrafts?.at(-1)?.text || opts.agentContext?.priorDraft?.text || opts.context || ''),
         } } : {}),
         // 章节边界仍可能存在歧义；保留截断前原文，避免误判后不可恢复地丢失正文。
         ...(parsedTitle?.truncation ? { chapterBoundaryTruncation: { ...parsedTitle.truncation, originalText: res.text } } : {}),
-        targetWords: opts.targetWords || 0,
+        targetWords: opts.agentContext?.length?.kind === 'minimum' ? 0 : opts.agentContext?.length?.words || opts.targetWords || 0,
+        ...(opts.agentContext?.length?.kind === 'minimum' ? { minimumWords: opts.agentContext.length.words } : {}),
         chapterCount: opts.chapterCount || 1,
         contentPreferences,
         // 编译期改写过的运营提示词条款必须留痕：管理员改了后台提示词却不知道
@@ -938,6 +943,7 @@ export async function generateContinuationChapters(db: Db, opts: {
   profileOverrides?: { style?: string; relationship?: string; plot?: string }
   continuationSnapshot?: ContinuationSnapshotV1
   writingBrief?: WritingBriefV1
+  agentContext?: AgentWritingContext
   promptPipelineVersion?: number
   contentPreferences?: WritingContentPreferencesV1
 }): Promise<WritingBatchResult> {
@@ -978,9 +984,10 @@ export async function generateContinuationChapters(db: Db, opts: {
       totalCount: count,
       chapterOutline,
       nextChapterOutline,
-      hasPriorContext: true,
+      hasPriorContext: !opts.agentContext?.priorDraft,
       instruction: opts.instruction,
       targetWords: opts.targetWords,
+      lengthInOutput: usePipeline && !!opts.agentContext?.length,
     })
     const result = await generateWriting(db, {
       ...opts,

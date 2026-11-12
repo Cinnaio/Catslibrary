@@ -57,6 +57,7 @@ import {
   validateWritingBrief,
 } from '../services/ai/writing'
 import { WRITING_PROMPT_PIPELINE_VERSION } from '../services/ai/writing-prompt'
+import { resolveAgentWritingContext, type AgentWritingContext } from '../services/ai/agent-writing'
 import { COVER_PROMPT_PIPELINE_VERSION } from '../services/ai/cover-brief'
 import { reviewWritingDraft, getWritingReview } from '../services/ai/writing-review'
 import { retrieveWritingHistory, writingMaterialRevision } from '../services/ai/writing-history'
@@ -502,6 +503,7 @@ function writingTaskParams(
   body: Record<string, any>,
   continuationSnapshot?: ContinuationSnapshotV1,
   promptPipelineVersion = WRITING_PROMPT_PIPELINE_VERSION,
+  agentContext?: AgentWritingContext,
 ): string {
   return JSON.stringify({
     analysisContextVersion: 2,
@@ -523,6 +525,7 @@ function writingTaskParams(
     contentPreferences: body.contentPreferences || { ...DEFAULT_WRITING_CONTENT_PREFERENCES },
     promptPipelineVersion,
     ...(continuationSnapshot ? { continuationSnapshot } : {}),
+    ...(agentContext ? { agentContext } : {}),
   })
 }
 
@@ -614,6 +617,7 @@ async function startWritingJob(
   resume?: { batchId: string; drafts: BatchResult[] },
   internalSnapshot?: ContinuationSnapshotV1,
   promptPipelineVersionOverride?: number,
+  storedAgentContext?: AgentWritingContext,
 ): Promise<StartWritingResult> {
   const novelId = String(body.novelId || '').trim()
   const title = String(body.title || '').trim()
@@ -639,7 +643,15 @@ async function startWritingJob(
   }
 
   let planningSnapshot: ContinuationSnapshotV1 | undefined
+  let agentContext = storedAgentContext
   try {
+    if (!agentContext && kind !== 'write_outline') {
+      agentContext = await resolveAgentWritingContext(db, {
+        userId: user.id, novelId, afterChapterId: String(body.afterChapterId || '').trim(),
+      }, body.agentWriting)
+      if (agentContext && kind === 'continue' && !String(body.afterChapterId || '').trim())
+        return { ok: false, status: 422, error: '当前会话没有正式章节起点，请使用新写' }
+    }
     const selections = parseAnalysisReferenceSelections(body.analysisReferences)
     if (internalSnapshot) await getAnalysisReferences(db, novelId, internalSnapshot.anchor.chapterId,
       (internalSnapshot.analysisReferences || []).map(report => ({ reportId: report.id, revision: report.revision })))
@@ -699,7 +711,7 @@ async function startWritingJob(
       novelId,
       kind,
       prompt: instruction || title,
-      params: writingTaskParams(body, planningSnapshot, promptPipelineVersion),
+      params: writingTaskParams(body, planningSnapshot, promptPipelineVersion, agentContext),
     })
     finalizeWritingTask(
       db,
@@ -715,6 +727,7 @@ async function startWritingJob(
         maxTokens: body.maxTokens,
         temperature: body.temperature,
         ...writingOptions(body),
+        agentContext,
         writingBrief,
         continuationSnapshot: planningSnapshot,
         promptPipelineVersion,
@@ -780,7 +793,7 @@ async function startWritingJob(
     total: count,
     batchId,
     prompt: finalInstruction,
-    params: writingTaskParams(body, snapshot, promptPipelineVersion),
+    params: writingTaskParams(body, snapshot, promptPipelineVersion, agentContext),
   })
   if (resume && maxExisting) await updateAiTask(db, task.id, { current: maxExisting, step: `已生成 ${maxExisting} / ${count} 章，断点恢复中` })
   void generateContinuationChapters(db, {
@@ -794,6 +807,7 @@ async function startWritingJob(
     maxTokens: body.maxTokens,
     temperature: body.temperature,
     ...writingOptions(body),
+    agentContext,
     batchId,
     taskId: task.id,
     startIndex: maxExisting,
@@ -1415,26 +1429,36 @@ aiRoutes.post('/writing/drafts/:id/rewrite', requireAdmin(), async (c) => {
   const operationKey = idempotencyKeyFromRequest(c, body, ['clientRequestId'])
   if (!operationKey) return c.json({ error: 'clientRequestId 必填以保证改写幂等' }, 422)
   const params = buildRewriteTaskParams(id, draft.result, validation.value)
+  let previousAgentContext: AgentWritingContext | undefined
   if (body.previousTaskId) {
     const previous = await getAiTask(db, String(body.previousTaskId))
     let previousParams: ReturnType<typeof parseRewriteTaskParams>
     try { previousParams = parseRewriteTaskParams(JSON.parse(previous?.params || '{}')) } catch { previousParams = undefined }
     const previousResult = previousParams && previous ? parseRewriteSuggestion(previous.result, previousParams) : undefined
-    if (!previous || previous.kind !== 'rewrite_selection' || previous.status !== 'completed' || !previousParams || !previousResult ||
+    if (!previous || previous.userId !== c.get('user').id || previous.kind !== 'rewrite_selection' || previous.status !== 'completed' || !previousParams || !previousResult ||
       previousParams.draftId !== id || previousParams.baseRevision !== baseRevision || previousParams.startUTF16 !== params.startUTF16 || previousParams.endUTF16 !== params.endUTF16)
       return c.json({ error: '上次改写版本与当前草稿选段不匹配' }, 409)
     params.previousSuggestion = previousResult.suggestion
     params.previousTaskId = previous.id
+    previousAgentContext = previousParams.agentContext
   }
   return withIdempotency(
     db,
     {
       scope: `ai.writing.rewrite.${c.get('user').id}.${id}`,
       operationKey,
-      payload: { ...params },
+      payload: { ...params, ...(body.agentWriting === undefined ? {} : { agentWriting: body.agentWriting }) },
       audit: { actorUserId: c.get('user').id, action: 'ai.writing.rewrite', targetCount: 1 },
     },
     async () => {
+      try {
+        params.agentContext = await resolveAgentWritingContext(db, {
+          userId: c.get('user').id, novelId: draft.novel_id, rewrite: true,
+          wholeDraft: params.startUTF16 === 0 && params.endUTF16 === draft.result.length,
+        }, body.agentWriting, previousAgentContext)
+      } catch (err) {
+        return aiErrorResponse(c, err)
+      }
       if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
       if ((await countActiveWritingTasks(db)) >= (await getAiSettings(db)).maxConcurrentWritingTasks)
         return c.json({ error: '已有过多创作任务在运行，请稍后重试' }, 429)
@@ -2066,6 +2090,7 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
         resume,
         continuationSnapshot,
         retryPromptPipelineVersion,
+        body.agentContext,
       )
       if (!result.ok) return c.json({ error: result.error }, result.status)
       return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)

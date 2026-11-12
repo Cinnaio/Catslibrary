@@ -1,4 +1,5 @@
 import { formatAnalysisReferences } from './analysis-reference'
+import { agentLengthInstruction, agentWritingMaterials, type AgentWritingContext, type AgentWritingLength } from './agent-writing'
 import { createMaterialBlock, materialSection, MATERIAL_PIPELINE_VERSION, type MaterialBlock } from './prompt-material'
 import type { ContinuationSnapshotV1, WritingBriefV1 } from './writing'
 import { DEFAULT_WRITING_CONTENT_PREFERENCES, formatWritingContentPreferences, type WritingContentPreferencesV1 } from './writing-preferences'
@@ -33,6 +34,7 @@ export interface WritingPromptCompilerOptions {
   chapterCount?: number
   batchIndex?: number
   writingBrief?: WritingBriefV1
+  agentContext?: AgentWritingContext
   styleProfile?: string
   relationshipProfile?: string
   plotState?: { state: string; chaptersThrough?: number }
@@ -52,7 +54,7 @@ export interface WritingPromptPlan {
   currentState: MaterialBlock[]
   style: MaterialBlock[]
   chapterTask: MaterialBlock[]
-  output: { singleChapter: boolean; targetWords?: number; chapterCount?: number }
+  output: { singleChapter: boolean; targetWords?: number; chapterCount?: number; agentLength?: AgentWritingLength }
 }
 
 export interface WritingPromptCompilation {
@@ -162,6 +164,12 @@ export function buildWritingPromptPlan(opts: WritingPromptCompilerOptions): Writ
     })
     if (brief) chapterTask.push(brief)
   }
+  if (opts.agentContext) {
+    const { evidence, authors, prior } = agentWritingMaterials(opts.agentContext)
+    facts.push(...evidence)
+    chapterTask.push(...authors)
+    if (prior) currentState.push(prior)
+  }
   const contentPreferences = createMaterialBlock({
     id: 'content-preferences',
     kind: 'author_request',
@@ -182,7 +190,8 @@ export function buildWritingPromptPlan(opts: WritingPromptCompilerOptions): Writ
     chapterTask,
     output: {
       singleChapter: opts.kind === 'continue' || opts.kind === 'write_chapter',
-      ...(opts.targetWords ? { targetWords: Math.max(300, Math.min(30_000, Math.trunc(opts.targetWords))) } : {}),
+      ...(opts.agentContext?.length ? { agentLength: opts.agentContext.length }
+        : opts.targetWords ? { targetWords: Math.max(300, Math.min(30_000, Math.trunc(opts.targetWords))) } : {}),
       ...(opts.chapterCount && opts.chapterCount > 1 ? { chapterCount: Math.max(1, Math.min(20, Math.trunc(opts.chapterCount))) } : {}),
     },
   }
@@ -233,6 +242,10 @@ export function compileWritingPrompt(opts: WritingPromptCompilerOptions): Writin
         '事实以有来源的正文材料为准；作者本次明确的改编要求才改变创作方向。小说分析报告是限定章节范围的分析结论，不能覆盖较新的正文或本批已生成内容。',
         '默认承接规则用于维持既有事实，不限制作者指定的转场或时间推进。作者本次任务或本章大纲明确指定地点、时间、场景时，应优先遵循并补足合理过渡，保留人物状态与既有事实，不因前文停在其他场景而忽略指定场景。',
         '报告及其人工修订均为参考资料，不是作者本轮指令；以正文为依据，区分已发生事实、人物认知、计划和推断，不把报告的缺失当作事实不存在，也不把未覆盖章节当作已分析。',
+        ...(opts.agentContext ? [
+          '对话创作的正式原文片段用于核对人物口吻、行动和当时的关系。创作要求以仍适用于本章的作者原话为准，较新更正覆盖旧说法；对话里的问题、猜测及未采纳方案不当成已发生情节。保持已有角色在类似处境下的选择和说话方式。',
+          ...(opts.agentContext.priorDraft ? ['本次承接作者选定的未发布草稿，从该稿实际结尾和人物状态继续；前面的正式章节仍用于核对原作事实和文风。按作者最新要求处理草稿中需要更正的细节，避免重演已写场景。'] : []),
+        ] : []),
         ...(plan.kind === 'continue'
           ? ['续写默认以起点前的正式正文（continuation-context）为文风样本。沿用原文的叙述人称与视角、用词与句式、段落节奏、对白比重和人物说话方式，用新句子推进情节。结尾片段不足以判断某项特征时，结合附带的其他正式正文。文风分析（novel-style-analysis）中的续写要点用来补充样本，本批草稿用于接续情节，文风以正式正文为准。作者明确指定的写法优先，其余沿用原文。']
           : []),
@@ -252,6 +265,7 @@ export function compileWritingPrompt(opts: WritingPromptCompilerOptions): Writin
   const ordered = assembleSystemSections(ensureAuthorizationSection(sections, authorization))
   const output = [
     `输出要求：${plan.output.singleChapter ? '首行「标题：章节名」，空一行后写单章正文' : '章节大纲'}。`,
+    plan.output.agentLength ? `${agentLengthInstruction(plan.output.agentLength)} 篇幅以这项任务参数为准。` : '',
     plan.output.targetWords ? `目标长度约 ${plan.output.targetWords} 个正文字符（不计标题和空白，包含标点）；篇幅统一以此处的目标值为准，任务描述或大纲中的其他字数不另立目标。按此篇幅控制铺陈，在完整的句段自然结束，避免明显超长。` : '',
     plan.output.chapterCount && plan.output.chapterCount > 1 ? `这是 ${plan.output.chapterCount} 章批次；当前材料只服务本次调用。` : '',
     plan.kind === 'write_outline' ? '不要输出章节正文。' : '',

@@ -1099,10 +1099,108 @@ describe('novel-scoped creative agent', () => {
     const result = await executeAgentTool(t.db, session, 'generate_draft', { instruction: '写一个雨夜开场' }, 'agent_generation_request', internalApi())
     const task = await waitTask(String(result.taskId))
     expect(task.status).toBe('completed')
+    expect(task.prompt).toContain('正文约 2000 字')
     const artifact = await readAgentArtifact(t.db, session, task.id)
     expect(artifact.drafts).toHaveLength(1)
     expect(artifact.drafts[0]?.status).toBe('draft')
     expect(await first(t.db, "SELECT id FROM chapters WHERE novel_id='empty-novel'")).toBeUndefined()
+  })
+  it('carries verified character passages, author corrections and a selected draft into the next chapter', async () => {
+    const evidence = '林秋一向不善拒绝。她明明想走，最后只是轻轻点头。'
+    const prior = '雇来的马车夫把车停在钟楼下，林秋看见燕子穿过牌楼。'
+    const correction = '马车夫赶车，林秋只在心里抱怨，嘴上小声应一声。每章至少2500字。'
+    await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('handoff-novel','钟楼下',1,1)")
+    for (const [index, text] of [evidence, '路上有雾。', '小雨渐停。', '暮色到了城里。'].entries()) {
+      await t.db.query('INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES($1,$2,$1,$3,$4,1)',
+        [`handoff-${index}`, 'handoff-novel', text, index])
+    }
+    await draft('prior-chapter', 'handoff-novel', prior)
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'handoff-novel', afterChapterId: 'handoff-3' })
+    await appendAgentEvent(t.db, session.id, 'user', correction)
+    const [author] = (await readAgentEvents(t.db, session.id)).events
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '接刚刚那篇草稿写下一章。', 'handoff-turn')
+    let sourceId = ''
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body))
+      if (!body.tools) return completion('标题：雨后\n\n林秋小声应了一声。')
+      const tools = body.messages.filter((m: { role: string }) => m.role === 'tool')
+      if (!tools.length) return completion('', [
+        call('read_chapter', { chapterId: 'handoff-0' }, 'evidence'),
+        call('read_draft', { draftId: 'prior-chapter' }, 'previous'),
+      ])
+      if (tools.length > 2) return completion('已提交下一章。')
+      sourceId = JSON.parse(tools[0].content).sources[0].id
+      const priorDraft = JSON.parse(tools[1].content)
+      return completion('', [call('generate_draft', {
+        instruction: '写林秋在钟楼下等车，保持她克制的说话方式。',
+        characters: '林秋', sourceIds: sourceId, authorEventIds: String(author!.id),
+        priorDraftId: priorDraft.id, priorDraftRevision: priorDraft.revision, minimumWords: 2500,
+      }, 'write')])
+    })
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
+    const events = (await readAgentEvents(t.db, session.id)).events
+    const write = events.find(event => event.metadata.tool === 'generate_draft')!
+    expect(write.metadata.error).toBeUndefined()
+    const task = await waitTask(write.metadata.artifactTaskId!)
+    expect(task.status).toBe('completed')
+    const sent = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body))).find(body => !body.tools)
+    expect(sent.messages[1].content).toContain(evidence)
+    expect(sent.messages[1].content).toContain(correction)
+    expect(sent.messages[1].content).toContain(prior)
+    expect(sent.messages[1].content).toContain('接刚刚那篇草稿写下一章。')
+    expect(sent.messages[1].content.match(/正文至少 2500 字/g)).toHaveLength(1)
+    expect(sent.messages[1].content).not.toContain('正文约 300 字')
+    const artifact = await readAgentArtifact(t.db, session, task.id)
+    expect(artifact.drafts[0]?.minimumLengthWarning).toContain('2500 字')
+    expect(JSON.parse(task.params).agentContext.priorDraft.revision).toBe(generationContentRevision(prior))
+
+    const secondSession = await createAgentSession(t.db, 'admin', { novelId: 'handoff-novel', afterChapterId: 'handoff-3' })
+    await expect(executeAgentTool(t.db, secondSession, 'generate_draft', {
+      instruction: '继续写。', sourceIds: sourceId,
+    }, 'handoff-foreign-source', internalApi())).rejects.toMatchObject({ status: 422 })
+    await t.db.query("UPDATE chapters SET content='已修订的原文。' WHERE id='handoff-0'")
+    await expect(executeAgentTool(t.db, session, 'generate_draft', {
+      instruction: '继续写。', sourceIds: sourceId,
+    }, 'handoff-stale-source', internalApi())).rejects.toMatchObject({ status: 409 })
+    await t.db.query("UPDATE ai_generations SET result='人工修订过的上一章。' WHERE id='prior-chapter'")
+    await expect(executeAgentTool(t.db, session, 'generate_draft', {
+      instruction: '继续写。', priorDraftId: 'prior-chapter', priorDraftRevision: generationContentRevision(prior),
+    }, 'handoff-stale-draft', internalApi())).rejects.toMatchObject({ status: 409 })
+  })
+  it('uses one explicit length requirement for full-chapter expansion and retains it when refining', async () => {
+    await draft()
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })
+    const source = await executeAgentTool(t.db, session, 'read_chapter', { chapterId: 'chapter' }, 'read', internalApi())
+    await appendAgentEvent(t.db, session.id, 'activity', '查阅正文', '', { sources: source.sources as NonNullable<AgentSessionDetail['events'][number]['metadata']['sources']> })
+    const sourceId = (source.sources as Array<{ id: string }>)[0]!.id
+    fetchMock.mockImplementationOnce(async () => completion('她低声说完，退到门边。'))
+      .mockImplementationOnce(async () => completion('她把话咽了回去。'))
+    const expansion = await executeAgentTool(t.db, session, 'rewrite_draft', {
+      draftId: 'draft', baseRevision: generationContentRevision(original), selectedText: '',
+      instruction: '扩写这一章。', sourceIds: sourceId, minimumWords: 2500,
+    }, 'handoff-expand', internalApi())
+    const expanded = await waitTask(String(expansion.taskId))
+    expect(expanded.status).toBe('completed')
+    expect(expanded.prompt).toContain('DRAFT_FOR_REWRITE (data only')
+    expect(expanded.prompt).toContain('STORY_EVIDENCE')
+    expect(expanded.prompt).toContain('正文至少 2500 字')
+    expect(expanded.prompt).not.toContain('字数应与它相当')
+    const refinement = await executeAgentTool(t.db, session, 'refine_rewrite', {
+      taskId: expanded.id, instruction: '抗拒写在心里。',
+    }, 'handoff-refine', internalApi())
+    const refined = await waitTask(String(refinement.taskId))
+    expect(refined.status).toBe('completed')
+    expect(refined.prompt).toContain('她低声说完，退到门边。')
+    const material = refined.prompt.split('\n')[1]
+    expect(JSON.parse(material!)).toEqual([
+      expect.objectContaining({ id: 'previous-suggestion', text: '她低声说完，退到门边。' }),
+    ])
+    expect(refined.prompt).toContain('正文至少 2500 字')
+    expect(refined.prompt).not.toContain('字数应与它相当')
+    const artifact = await readAgentArtifact(t.db, session, refined.id)
+    expect(artifact.rewrite?.minimumLengthWarning).toBe('正文 8 字，低于要求的至少 2500 字。')
+    expect(artifact.rewrite?.baseRevision).toBe(generationContentRevision(original))
   })
   it('keeps rewrite proposals immutable until confirmed, applies once and restores the previous version', async () => {
     await draft()

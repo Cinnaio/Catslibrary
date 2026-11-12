@@ -57,6 +57,7 @@ export function generationWritingQuality(kind: string, result: string, paramsJso
   return assessWritingQuality({
     text: result,
     targetWords: typeof params.targetWords === 'number' ? params.targetWords : 0,
+    minimumWords: typeof params.minimumWords === 'number' ? params.minimumWords : undefined,
     finishReason: typeof audit.finishReason === 'string' ? audit.finishReason : '',
     upstreamIncomplete: audit.upstreamIncomplete === true,
     editedSinceGeneration: typeof audit.originalRevision === 'string' && audit.originalRevision !== generationContentRevision(result),

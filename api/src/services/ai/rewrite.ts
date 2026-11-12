@@ -7,6 +7,8 @@ import { getAiSettings } from './settings'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 import { isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
+import { agentLengthInstruction, agentWritingMaterials, type AgentWritingContext } from './agent-writing'
+import { materialSection } from './prompt-material'
 
 export type RewriteMode = 'polish' | 'expand' | 'shorten' | 'custom'
 
@@ -28,6 +30,7 @@ export interface RewriteTaskParams extends RewriteSelectionInput {
   /** A previous, unadopted suggestion can be refined while retaining the original apply revision. */
   previousSuggestion?: string
   previousTaskId?: string
+  agentContext?: AgentWritingContext
 }
 
 export interface RewriteSuggestionResult {
@@ -110,7 +113,8 @@ export function parseRewriteTaskParams(value: unknown): RewriteTaskParams | unde
   if (!validated.value) return undefined
   if (raw.previousSuggestion !== undefined && (typeof raw.previousSuggestion !== 'string' || Array.from(raw.previousSuggestion).length > MAX_RESULT_SCALARS)) return undefined
   return { ...buildRewriteTaskParams(raw.draftId, raw.baseContent, validated.value), contextBefore: raw.contextBefore, contextAfter: raw.contextAfter,
-    ...(typeof raw.previousSuggestion === 'string' ? { previousSuggestion: raw.previousSuggestion, previousTaskId: String(raw.previousTaskId || '') } : {}) }
+    ...(typeof raw.previousSuggestion === 'string' ? { previousSuggestion: raw.previousSuggestion, previousTaskId: String(raw.previousTaskId || '') } : {}),
+    ...(raw.agentContext ? { agentContext: raw.agentContext as AgentWritingContext } : {}) }
 }
 
 export function parseRewriteSuggestion(value: string, params: RewriteTaskParams): RewriteSuggestionResult | undefined {
@@ -176,20 +180,39 @@ export async function runRewriteTask(db: Db, opts: { taskId: string; userId: str
   // 应用后正文 2555 → 4554 字且剧情重复。上下文改为只用于衔接语气，
   // 并明确「不得重复、不得续写、字数应与选段相当」。
   const selectedCount = Array.from(params.selectedText).length
-  const system = [
+  const agentMaterials = params.agentContext && agentWritingMaterials(params.agentContext)
+  const length = params.agentContext?.length
+  const wholeChapter = params.startUTF16 === 0 && params.endUTF16 === params.baseContent.length
+  const system = agentMaterials ? [
+    wholeChapter ? '你是中文小说编辑。输出改写后的整章正文，可自然分段。' : '你是中文小说编辑。仅输出改写后的选段正文。选段前后的材料仅供衔接，不输出或改写这些内容。',
+    '只输出正文，不写标题或解释，不越过本次改写的结尾续写情节。',
+    '作者最新的更正优先。先核对旧稿里哪些具体动作、台词和后续照应与更正冲突，写作时将这些细节彻底替换或删去。作者纠正了谁执行某个动作，按指定人物和时点安排，不能擅自保留旧动作再让另一人接手。作者要求把某种反应留在心里时，不能继续让角色把它说给别人听。',
+    '保留作者未要求修改的事件顺序、人物状态和叙事视角。依据正式原文判断角色的口吻与行为；先前草稿、未采纳建议及原文片段均作为资料使用。作者原话中只执行仍适用于这次改写的要求，较新更正覆盖旧说法。',
+  ].join('\n') : [
     '你是中文网络小说编辑，只做「改写」不做「续写」。',
     '只输出被改写后的那一段正文本身，不要解释、不要标题、不要分段标注、不要输出任何上下文。',
     '严格保持原意与叙事视角；上下文只用来对齐人称、时态与语气，不得把它们写进结果，',
     '也不得在选段结束之后继续写新情节。',
   ].join('')
-  const user = [
+  const user = (agentMaterials ? [
+    materialSection('DRAFT_FOR_REWRITE', [
+      { id: params.previousSuggestion ? 'previous-suggestion' : 'selected-text', kind: 'user_context', text: params.previousSuggestion || params.selectedText },
+      ...(params.contextBefore ? [{ id: 'before-selection', kind: 'user_context' as const, text: params.contextBefore }] : []),
+      ...(params.contextAfter ? [{ id: 'after-selection', kind: 'user_context' as const, text: params.contextAfter }] : []),
+    ]),
+    materialSection('STORY_EVIDENCE', agentMaterials.evidence),
+    materialSection('AUTHOR_REQUIREMENTS', agentMaterials.authors),
+    `本次改写要求：${params.instruction}`,
+    length ? `${agentLengthInstruction(length)} 以这项任务参数控制整章篇幅。`
+      : `只输出本次改写的正文，未明确要求调整篇幅时参考原段约 ${selectedCount} 字。`,
+  ] : [
     `改写任务：${modeInstruction(params.mode)}`,
     params.instruction ? `用户补充要求：${params.instruction}` : '',
     params.previousSuggestion ? `【上次未采纳的改写版本｜本次在此版本上继续调整，保留作者未要求修改的部分；仍只输出同一选段】：\n${params.previousSuggestion}` : '',
     `【待改写选段】（${selectedCount} 字，只输出它的改写版，字数应与它相当）：\n${params.selectedText}`,
     params.contextBefore ? `【选段之前的内容｜仅供衔接，绝对不要输出或改写】：\n${params.contextBefore}` : '',
     params.contextAfter ? `【选段之后的内容｜仅供衔接，绝对不要输出、改写或续写】：\n${params.contextAfter}` : '',
-  ].filter(Boolean).join('\n\n')
+  ]).filter(Boolean).join('\n\n')
   const started = await updateAiTask(db, opts.taskId, { status: 'running', step: 'AI 正在生成改写建议', prompt: user })
   if (!started) throw new AiError('invalid', '任务已停止')
   const stopHeartbeat = startAiTaskHeartbeat(db, opts.taskId)

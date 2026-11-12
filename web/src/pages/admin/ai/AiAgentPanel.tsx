@@ -1022,6 +1022,7 @@ function AgentArtifactView({
           <FormField label="章节标题">
             <Input value={chapterTitle} onChange={(e) => setChapterTitle(e.target.value)} maxLength={200} />
           </FormField>
+          {draft.minimumLengthWarning && <p className={styles.muted} role="status">{draft.minimumLengthWarning}</p>}
           <div className={styles.prose} tabIndex={0} role="region" aria-label="章节草稿正文">
             {draft.content}
           </div>
@@ -1040,6 +1041,7 @@ function AgentArtifactView({
       ))}
       {artifact.rewrite && (
         <>
+          {artifact.rewrite.minimumLengthWarning && <p className={styles.muted} role="status">{artifact.rewrite.minimumLengthWarning}</p>}
           <TextComparison before={artifact.rewrite.before} after={artifact.rewrite.after} />
           <div className={styles.artifactActions}>
             <Button variant="outline" size="sm" onClick={onDiscuss}>

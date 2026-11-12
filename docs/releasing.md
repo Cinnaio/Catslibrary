@@ -1,5 +1,12 @@
 # 发布与版本管理
 
+## Agent 续写与改写修复候选（2026-11-12）
+
+- API `1.4.1` 与 Web `1.5.1` 的版本来源已同步到锁文件，iOS 源码候选为 `1.3.2 / 30`。生产环境仍以实际部署记录为准。
+- 会话查阅记录中的原文片段随续写与改写传递，服务端校验作品、续写起点和正文版本。作者可接续指定的未发布草稿，整章扩写使用独立篇幅参数，产出可显示未达明确下限的提示。无需数据库迁移。
+- 隔离数据库中的虚构样本沿用同一文本预设，续写使用高思考。续写的实际请求包含原文、作者更正和指定草稿，正文 2,731 字。首次改写正文 3,323 字，仍保留了旧稿冲突动作及当面抱怨。调整改写提示后以同一输入复测，正文 3,225 字，由车夫驾车，两位角色同坐后排，抱怨留在内心。共 10 次上游请求。未在生产作品上重新生成。
+- API 114 项及 Web 21 项定向回归通过。普通续写起点及选段改写接口补测通过。API、Web 类型检查与本地生产模式构建通过。源码以本节所在提交为准，部署结果待工作流核实。Windows 上未构建 iOS 或 IPA。
+
 ## iOS 对话创作流程（2026-11-12，源码候选）
 
 在 iOS `1.3.1 / build 29` 源码候选上调整产出直达、采纳预览及回复恢复，复用 API 1.3.0 已有接口，无新增依赖或迁移。源码以本节所在提交为准。Swift 语法与 Git 差异检查通过，原生编译、打包和真机验收待完成。实际交付时按版本规则更新营销版本、构建号和构建记录。
@@ -998,9 +1005,9 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.3.1 / 29` 候选（[1.3.0 / 28 已构建](https://github.com/Cinnaio/Catslibrary/actions/runs/43031486739)） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.4.0` 候选（最近确认部署 `1.3.0`） | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `1.5.0`（已部署） | 同步锁文件 `packages.web.version` |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.3.2 / 30` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| API | `api/package.json` | `1.4.1` | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.5.1` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。

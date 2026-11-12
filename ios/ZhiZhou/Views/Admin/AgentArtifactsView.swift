@@ -294,6 +294,9 @@ private struct AgentArtifactContent: View {
                         .font(.subheadline).frame(minHeight: AppLayout.minimumTouchTarget)
                 }
             }
+            if let warning = rewrite.minimumLengthWarning {
+                Text(verbatim: warning).font(.footnote).foregroundStyle(AppTheme.textSecondary)
+            }
             Text(verbatim: rewrite.after).textSelection(.enabled).lineSpacing(5)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button { Task { await model.prepare(.applyRewrite, targetID: artifact.id) } } label: {
@@ -350,6 +353,9 @@ private struct AgentDraftResultView: View {
                     .font(.subheadline).foregroundStyle(AppTheme.textSecondary)
             }
             let opening = excerpt
+            if let warning = draft.minimumLengthWarning {
+                Text(verbatim: warning).font(.footnote).foregroundStyle(AppTheme.textSecondary)
+            }
             if !opening.isEmpty {
                 Text(verbatim: opening).font(.body).lineSpacing(5).appTextLineLimit(5)
                     .foregroundStyle(AppTheme.textPrimary)
