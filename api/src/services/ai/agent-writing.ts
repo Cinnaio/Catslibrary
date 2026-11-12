@@ -27,17 +27,12 @@ const MAX_REFERENCES = 6
 const DEFAULT_CHAPTER_WORDS = 2000
 const MAX_CITED_PASSAGES = 4
 
-export class InvalidAgentSourceIds extends AiError {
-  constructor() {
-    super('invalid', '原文依据请填写至多六个查阅结果的片段编号，可用数组或逗号分隔', 422)
-  }
-}
-
 export function parseAgentSourceIds(value: unknown): string[] {
   if (value === undefined || value === '') return []
   const items = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[,，、]/u) : [value]
   const ids = [...new Set(items.map(item => typeof item === 'string' ? item.trim() : ''))]
-  if (ids.length > MAX_REFERENCES || ids.some(id => !/^[a-f0-9]{24}$/u.test(id))) throw new InvalidAgentSourceIds()
+  if (ids.length > MAX_REFERENCES || ids.some(id => !/^[a-f0-9]{24}$/u.test(id)))
+    throw new AiError('invalid', '原文依据请填写至多六个查阅结果的片段编号，可用数组或逗号分隔', 422)
   return ids
 }
 

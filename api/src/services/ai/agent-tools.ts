@@ -113,6 +113,13 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   ),
 ]
 
+/** The provider selected a known tool with a usable call ID, but must correct its arguments. */
+export class AgentToolArgumentError extends AiError {
+  constructor(message: string) {
+    super('invalid', message, 422)
+  }
+}
+
 /** Provider schemas are hints. Every tool name and argument is checked again on the server. */
 export function validateAgentCall(call: AiToolCall): Record<string, string | number> {
   if (
@@ -132,23 +139,27 @@ export function validateAgentCall(call: AiToolCall): Record<string, string | num
   try {
     value = JSON.parse(call.function.arguments)
   } catch {
-    throw new AiError('invalid', '工具参数不是有效 JSON', 422)
+    throw new AgentToolArgumentError('工具参数不是有效 JSON')
   }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AiError('invalid', '工具参数必须是对象', 422)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AgentToolArgumentError('工具参数必须是对象')
   const args = value as Record<string, unknown>
   const schema = definition.function.parameters as { properties: Record<string, Property>; required: string[] }
-  for (const name of schema.required) if (!(name in args)) throw new AiError('invalid', `工具缺少参数 ${name}`, 422)
+  for (const name of schema.required) if (!Object.hasOwn(args, name)) throw new AgentToolArgumentError(`工具缺少参数 ${name}`)
   for (const [name, v] of Object.entries(args)) {
     const p = Object.hasOwn(schema.properties, name) ? schema.properties[name] : undefined
-    if (!p) throw new AiError('invalid', `工具不接受参数 ${name}`, 422)
+    if (!p) throw new AgentToolArgumentError(`工具不接受参数 ${name.slice(0, 80)}`)
     if (p.type === 'array') {
-      args[name] = parseAgentSourceIds(v).join(',')
+      try { args[name] = parseAgentSourceIds(v).join(',') }
+      catch (error) {
+        if (!(error instanceof AiError)) throw error
+        throw new AgentToolArgumentError(error.message)
+      }
       continue
     }
     if (p.type === 'string' && (typeof v !== 'string' || v.length > (p.maxLength ?? 8000) || (p.enum && !p.enum.includes(v))))
-      throw new AiError('invalid', `工具参数 ${name} 无效`, 422)
+      throw new AgentToolArgumentError(`工具参数 ${name} 无效，请按声明提供字符串`)
     if (p.type === 'integer' && (typeof v !== 'number' || !Number.isSafeInteger(v) || v < (p.minimum ?? 0) || v > (p.maximum ?? 10000)))
-      throw new AiError('invalid', `工具参数 ${name} 无效`, 422)
+      throw new AgentToolArgumentError(`工具参数 ${name} 无效，请填写 ${p.minimum ?? 0} 至 ${p.maximum ?? 10000} 之间的整数`)
   }
   return args as Record<string, string | number>
 }

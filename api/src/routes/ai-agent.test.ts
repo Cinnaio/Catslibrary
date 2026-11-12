@@ -1235,6 +1235,60 @@ describe('novel-scoped creative agent', () => {
     expect(artifact.rewrite?.after).toBe('他停了片刻。')
     expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))?.result).toBe(original)
   })
+  it('repairs unsupported and mistyped tool arguments in the same turn without partially running a batch', async () => {
+    await draft()
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '重写一下第二章。', 'repair-rewrite-args')
+    const args = { draftId: 'draft', baseRevision: generationContentRevision(original), selectedText: '', instruction: '展开她的犹豫。' }
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body))
+      if (!body.tools) return completion('她望着门口，没开口。')
+      const replies = body.messages.filter((message: { role: string }) => message.role === 'tool')
+      if (!replies.length) return completion('我正在整理。', [
+        call('generate_draft', { instruction: '这是参数有误的同批调用。' }, 'blocked'),
+        call('rewrite_draft', { ...args, characters: '林秋' }, 'unknown-parameter'),
+      ])
+      if (replies.length === 2) {
+        expect(JSON.parse(replies[0].content)).toMatchObject({ code: 'invalid_tool_arguments', executed: false })
+        expect(JSON.parse(replies[1].content)).toMatchObject({ error: '工具不接受参数 characters', executed: false })
+        return completion('', [call('rewrite_draft', { ...args, minimumWords: '2500' }, 'wrong-type')])
+      }
+      if (replies.length === 3) {
+        expect(JSON.parse(replies[2].content)).toMatchObject({ error: expect.stringContaining('minimumWords 无效'), executed: false })
+        return completion('', [call('rewrite_draft', { ...args, minimumWords: 2500 }, 'corrected')])
+      }
+      return completion('第二章改写已提交。')
+    })
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
+    const events = (await readAgentEvents(t.db, session.id)).events
+    const writes = events.filter(event => event.metadata.artifactTaskId)
+    expect(writes).toHaveLength(1)
+    expect(writes[0]?.metadata.tool).toBe('rewrite_draft')
+    expect((await waitTask(writes[0]!.metadata.artifactTaskId!)).status).toBe('completed')
+    expect(events.filter(event => event.metadata.error)).toHaveLength(0)
+    expect(fetchMock.mock.calls.filter(([, init]) => !JSON.parse(String(init?.body)).tools)).toHaveLength(1)
+  })
+  it('stops repeated malformed arguments with a readable error and no submitted operation', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '请查看原文。', 'repeated-invalid-args')
+    let calls = 0
+    fetchMock.mockImplementation(async () => {
+      const malformed = call('read_chapter', {}, `broken-${++calls}`)
+      malformed.function.arguments = '{"chapterId":'
+      return completion('', [malformed])
+    })
+    const api = vi.fn()
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', api)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(api).not.toHaveBeenCalled()
+    expect((await getAiTask(t.db, turn.taskId))).toMatchObject({
+      status: 'failed', error: '创作助手未能确认这次操作的参数。请重新发送刚才的要求。',
+    })
+    const events = (await readAgentEvents(t.db, session.id)).events
+    expect(events.filter(event => event.metadata.error)).toHaveLength(1)
+    expect(events.some(event => event.metadata.artifactTaskId)).toBe(false)
+  })
   it('follows the version containing the author quote and carries the cited line outside the saved chapter window', async () => {
     const book = 'quoted-version-book'
     const base = '她还没想好怎么开口。'

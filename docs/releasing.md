@@ -1,5 +1,11 @@
 # 发布与版本管理
 
+## Agent 工具参数修复候选（2026-11-12）
+
+- API `1.4.3` 已同步 workspace 锁文件。Agent 对已知工具的未知字段、缺失字段、非法格式及类型错误，在同一轮最多发起两次参数修正。参数不合格时整批不执行。只读恢复及工具白名单继续约束执行。
+- 脱敏回归覆盖改写误带 `characters`、篇幅整数误传为字符串、混合批次避免误提交，以及修正次数用尽后的提示。API 86 项 Agent 路由回归、类型检查和本地生产模式构建通过。
+- 源码以本节所在提交为准，当前为本地候选。生产会话中的原失败任务经只读核对，未提交第二章改写。无需数据库迁移或新客户端。
+
 ## API 1.4.2 / Web 1.5.2 生产部署（2026-11-12）
 
 - 部署源码为 `a71cfdf174cc2baa451c08f7222a954cae361846`。Linux 发布包构建、独立 PostgreSQL 冒烟检查、生产激活及部署后检查均通过。生产检查于 19:47:28（Asia/Shanghai）完成。公网就绪接口返回目标 SHA 与 API `1.4.2`，首页、入口资源、健康和只读书目接口均返回 HTTP 200。服务器发布清单确认 Web `1.5.2`。 [Deploy #78](https://github.com/Cinnaio/Catslibrary/actions/runs/43211428485)
@@ -1015,7 +1021,7 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
 | iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.3.2 / 30` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.4.2` | 同步 `package-lock.json` 的 `packages.api.version` |
+| API | `api/package.json` | `1.4.3` | 同步 `package-lock.json` 的 `packages.api.version` |
 | Web | `web/package.json` | `1.5.2` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 

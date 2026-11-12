@@ -8,7 +8,7 @@ import { activeAgentMemories } from './agent-memory'
 import { loadAgentContext } from './agent-context'
 import { AgentSummaryError } from './agent-summary-diagnostics'
 import type { AgentApi } from './agent-actions'
-import { AGENT_GENERATION_TOOLS, AGENT_TOOLS, AGENT_TOOL_LABELS, executeAgentTool, validateAgentCall } from './agent-tools'
+import { AGENT_GENERATION_TOOLS, AGENT_TOOLS, AGENT_TOOL_LABELS, AgentToolArgumentError, executeAgentTool, validateAgentCall } from './agent-tools'
 import { aiTaskRequestRecorder, getAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
 import { AGENT_READ_TOOLS, agentTaskParams, setAgentPhase } from './agent-recovery'
 import { recordUsage } from './usage'
@@ -16,7 +16,6 @@ import { usageAuditFields } from './upstream-usage'
 import { createTextProgressReporter } from './text-progress'
 import { readConversationSources } from './agent-conversation'
 import { resolveAgentDraftFocus } from './agent-draft-versions'
-import { InvalidAgentSourceIds } from './agent-writing'
 
 const SYSTEM = `你是 Cat’s Library 的创作助手，与作者围绕当前一本小说持续沟通。
 先理解意图，必要时提出简短的问题；对具体剧情、人物和原文的判断必须先读取相关资料并注明章节依据。
@@ -33,6 +32,7 @@ read_overview 提供简介、目录和起点章开头片段，不代表已阅读
 区分已发布事实、未发布草稿、讨论中的假设与作者已选方案。对话中的方案不会自动写入小说分析报告。资料不足或只读取了部分内容时明确说明。
 当前会话绑定作品和续写起点。只能使用开放工具。不能修改已发布正文、调用任意 URL、SQL 或系统命令。
 每次回复最多请求四个工具；更多查阅分到下一轮。需要先取得参数或来源的工具必须等待前一个结果，不能在同一批猜测参数。多轮取材可以继续，资料足够后回答。
+工具返回 invalid_tool_arguments 时，这批调用尚未执行。按该工具声明纠正参数，只重新提交完成当前要求所需的调用。去掉工具未声明的字段，作者对人物和写法的要求仍须保留在 instruction 中。不要重提已成功提交的任务。
 讨论情节时先给方案，只有作者明确要求开始写作/修改/生成封面/更新分析时才调用相应生成工具。每轮最多启动两项生成任务，默认只写一章。analyze_novel 会生成独立小说分析报告，只能在作者明确要求分析时调用；不能因报告缺失而自动付费分析。generate_draft 可传从已读报告取得的 analysisReferences 固定版本，传 [] 表示仅参考正文；省略时服务端选各主题最新可用报告。旧 read_story_memory、refresh_memory 已停用，历史档案快照不代表当前有效资料。
 提交续写或改写前，为主要出场人物查找能体现类似处境下的说话方式、选择和关系边界的正式原文。sourceIds 传实际包含所依据对白或行为的 sources[].id 数组。片段未覆盖所引句子时，用 read_chapter 的 quote 回读精确片段，不能仅凭同章标题选择。generate_draft 的 characters 填本章主要出场的原书人物姓名。
 提交任务时，在 instruction 写清作者已确认且仍适用于本章的具体情节、人物约束、关系进度、视角与写法。authorEventIds 指向实际支持这些要求的作者消息，后续更正优先。保留作者要求的强度和范围，不把“冷淡”“接送”等含糊说法自行具体化成与原书相冲突的动作。
@@ -78,6 +78,7 @@ export async function runAgentTurn(
   }, 1000)
   cancellation.unref?.()
   let generations = 0
+  let argumentRepairs = 0
   let phase: AgentPhase = 'context'
   const stage = async (next: AgentPhase, step: string) => {
     phase = next
@@ -191,18 +192,22 @@ export async function runAgentTurn(
         return
       }
       if (calls.length > 4) throw new AiError('invalid', '模型一次请求了过多工具，已停止本轮', 422)
-      // Validate the whole batch before executing any operation.
+      // A malformed batch never runs partially, including when a valid sibling could submit a job.
       const parsed = calls.map(call => {
         try { return { call, args: validateAgentCall(call) } }
         catch (error) {
-          if (!(error instanceof InvalidAgentSourceIds) || readOnly) throw error
-          return { call, args: {} as Record<string, string | number>, argumentError: error.message }
+          if (!(error instanceof AgentToolArgumentError)) throw error
+          return { call, argumentError: error.message }
         }
       })
       if (readOnly && calls.some(call => !AGENT_READ_TOOLS.has(call.function.name)))
         throw new AiError('invalid', '继续整理仅允许查阅，模型请求了写入操作；已有结果已保留', 422)
       if (new Set(calls.map((c) => c.id)).size !== calls.length || calls.some((c) => callsSeen.has(c.id)))
         throw new AiError('invalid', '模型重复使用工具调用标识，已停止本轮', 422)
+      const needsArgumentRepair = parsed.some(item => item.argumentError)
+      if (needsArgumentRepair && ++argumentRepairs > 2)
+        throw new AiError('invalid', '创作助手未能确认这次操作的参数。请重新发送刚才的要求。', 422)
+      calls.forEach(call => callsSeen.add(call.id))
       await stage('save', '正在保存回复与工具记录')
       messages.push({
         role: 'assistant',
@@ -210,18 +215,33 @@ export async function runAgentTurn(
         tool_calls: calls,
         ...(response.reasoningContent ? { reasoning_content: response.reasoningContent } : {}),
       })
-      if (response.text.trim()) await appendAgentEvent(db, session.id, 'assistant', response.text, taskId, { round })
       await updateAiTask(db, taskId, { result: '' })
-      for (const { call, args, argumentError } of parsed) {
+      if (needsArgumentRepair) {
+        await stage('model', '正在修正工具参数')
+        for (const { call, argumentError } of parsed) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify({
+              code: 'invalid_tool_arguments',
+              error: argumentError || '同批调用有参数错误，这次调用尚未执行',
+              executed: false,
+            }),
+          })
+        }
+        continue
+      }
+      if (response.text.trim()) await appendAgentEvent(db, session.id, 'assistant', response.text, taskId, { round })
+      for (const { call, args } of parsed) {
         await assertActive()
-        callsSeen.add(call.id)
+        if (!args) continue
         const name = call.function.name
         const label = AGENT_TOOL_LABELS[name] || name
         const toolPhase = AGENT_READ_TOOLS.has(name) ? 'retrieval' : 'generation'
         await stage(toolPhase, label)
         let result: Record<string, unknown>
         let toolError = ''
-        const generationKey = !argumentError && AGENT_GENERATION_TOOLS.has(name)
+        const generationKey = AGENT_GENERATION_TOOLS.has(name)
           ? createHash('sha256')
               .update(
                 JSON.stringify([
@@ -235,7 +255,6 @@ export async function runAgentTurn(
               .slice(0, 24)
           : ''
         try {
-          if (argumentError) throw new AiError('invalid', argumentError, 422)
           if (name === 'rewrite_draft' && !focusedVersion && draftFocus?.matches.some(version => version.read.draftId === args.draftId))
             throw new AiError('conflict', '作者引文出现在多个版本，请先确认要改哪一份', 409)
           const previous = generationKey ? generationResults.get(generationKey) : undefined
