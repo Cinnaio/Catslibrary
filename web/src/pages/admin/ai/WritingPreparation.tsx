@@ -226,6 +226,7 @@ export default function WritingPreparation(props: {
                           outline: '本次大纲',
                           'continuation-context': '近期正文尾部',
                           'novel-analysis': '本次小说分析参考',
+                          'novel-style-analysis': '本次文风分析参考',
                           'writing-brief': '章节目标与约束',
                           'author-instruction': '本次情节',
                           'content-preferences': '内容尺度',

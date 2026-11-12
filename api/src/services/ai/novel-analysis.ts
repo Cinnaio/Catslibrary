@@ -52,7 +52,10 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
     const notes = [...report.notes_json]
     const read = new Set(notes.flatMap(note => note.sourceIds))
     const checked = new Set(report.checked_source_ids)
-    const focus = `${ANALYSIS_KINDS[report.request_json.kind]}。作者要求：${report.request_json.question || '梳理所选章节中的主要变化、依据和未确定事项。'}`
+    const defaultQuestion = report.request_json.kind === 'style'
+      ? '归纳所选章节可延续的写法及原文依据。'
+      : '梳理所选章节中的主要变化、依据和未确定事项。'
+    const focus = `${ANALYSIS_KINDS[report.request_json.kind]}。作者要求：${report.request_json.question || defaultQuestion}`
     const selection = { chapterCount: new Set(report.source_json.map(s => s.chapterId)).size,
       firstChapter: report.source_json[0]?.chapterTitle, lastChapter: report.source_json.at(-1)?.chapterTitle }
     const request = async (messages: AiMessage[], maxTokens: number, tools?: AiFunctionTool[], toolChoice?: 'none') => {

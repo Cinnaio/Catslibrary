@@ -14,7 +14,12 @@ const materials = {
   recentContextPolicy: '历史原文按匹配片段补充',
   excludedProfiles: [],
   historicalPassages: [{ chapterId: 'c1', title: '旧承诺', text: '林舟将钥匙交给沈月。', start: 0, end: 12, matchedTerms: ['林舟'] }],
-  plan: { facts: [], currentState: [{ id: 'plot-state', text: '完整档案保留的旧伏笔' }], style: [], chapterTask: [] },
+  plan: {
+    facts: [],
+    currentState: [{ id: 'plot-state', text: '完整档案保留的旧伏笔' }],
+    style: [{ id: 'novel-style-analysis', text: '按说话人另起一段。' }],
+    chapterTask: [],
+  },
 }
 beforeEach(() => {
   vi.clearAllMocks()
@@ -51,6 +56,7 @@ it('edits chapter goals and character delimiters, previews evidence and marks ch
     expect.objectContaining({ writingBrief: expect.objectContaining({ characters: ['林舟', '沈月'], objective: '核对旧承诺' }) }),
   )
   expect(screen.getByText('完整档案保留的旧伏笔')).toBeInTheDocument()
+  expect(screen.getByText(/本次文风分析参考/)).toBeInTheDocument()
   fireEvent.change(screen.getByLabelText('本章目标'), { target: { value: '新的目标' } })
   expect(screen.getByText('要求或起点已变化，请重新预览。')).toBeInTheDocument()
   expect(screen.queryByLabelText('本次上下文材料')).not.toBeInTheDocument()

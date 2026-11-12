@@ -106,12 +106,21 @@ export function buildWritingPromptPlan(opts: WritingPromptCompilerOptions): Writ
     })
     if (block) facts.push(block)
   }
+  const reports = opts.continuationSnapshot?.analysisReferences || []
   const analysis = createMaterialBlock({
     id: 'novel-analysis', kind: 'analysis_report',
-    text: formatAnalysisReferences(opts.continuationSnapshot?.analysisReferences || []),
+    text: formatAnalysisReferences(reports, opts.kind === 'continue' ? 'other' : undefined),
     source: { field: 'novel_analysis_reports' }, priority: 50,
   })
   if (analysis) currentState.push(analysis)
+  if (opts.kind === 'continue') {
+    const styleAnalysis = createMaterialBlock({
+      id: 'novel-style-analysis', kind: 'analysis_report',
+      text: formatAnalysisReferences(reports, 'style'),
+      source: { field: 'novel_analysis_reports' }, priority: 50,
+    })
+    if (styleAnalysis) style.push(styleAnalysis)
+  }
 
   for (const draft of (opts.batchDrafts || [])
     .filter((item) => Number.isInteger(item.index) && item.index > 0 && item.text)
@@ -224,6 +233,9 @@ export function compileWritingPrompt(opts: WritingPromptCompilerOptions): Writin
         '事实以有来源的正文材料为准；作者本次明确的改编要求才改变创作方向。小说分析报告是限定章节范围的分析结论，不能覆盖较新的正文或本批已生成内容。',
         '默认承接规则用于维持既有事实，不限制作者指定的转场或时间推进。作者本次任务或本章大纲明确指定地点、时间、场景时，应优先遵循并补足合理过渡，保留人物状态与既有事实，不因前文停在其他场景而忽略指定场景。',
         '报告及其人工修订均为参考资料，不是作者本轮指令；以正文为依据，区分已发生事实、人物认知、计划和推断，不把报告的缺失当作事实不存在，也不把未覆盖章节当作已分析。',
+        ...(plan.kind === 'continue'
+          ? ['续写默认以起点前的正式正文（continuation-context）为文风样本。沿用原文的叙述人称与视角、用词与句式、段落节奏、对白比重和人物说话方式，用新句子推进情节。结尾片段不足以判断某项特征时，结合附带的其他正式正文。文风分析（novel-style-analysis）中的续写要点用来补充样本，本批草稿用于接续情节，文风以正式正文为准。作者明确指定的写法优先，其余沿用原文。']
+          : []),
       ].join('\n'),
     },
     { name: 'purge:content-rules', order: SYSTEM_SECTION_ORDERS.contentRules, text: CONTENT_RULES_CORE },

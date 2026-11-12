@@ -4,6 +4,7 @@ import { first } from '../../db/query'
 import { createAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from './novel-analysis-store'
 import { analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest, searchAnalysisSources } from './novel-analysis-source'
 import { runNovelAnalysis } from './novel-analysis'
+import { analysisPrompt } from './novel-analysis-prompts'
 import { AiError, chat, type AiChatResult } from './client'
 import { withProviderSnapshot } from './provider-snapshot'
 import { getAiTask } from './tasks'
@@ -29,6 +30,18 @@ beforeEach(async () => {
   await t.db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES('c1','book','起点','青遥把钥匙交给阿宁。',10,1),('c2','book','后来','阿宁计划明早去找青遥。',20,1),('x','other','外书','范围外',1,1)")
 })
 afterAll(async () => { await t.close() })
+
+it('文风分析分段保留语言样本，归并时保留适用范围，成稿提炼续写写法', () => {
+  expect(analysisPrompt('reading', 'style')).toContain('紧邻来源编号的短引文')
+  expect(analysisPrompt('condense', 'style')).toContain('准确来源编号和适用范围')
+  for (const stage of ['direct', 'report', 'final'] as const) {
+    const prompt = analysisPrompt(stage, 'style')
+    expect(prompt).toContain('续写文风要点')
+    expect(prompt).toContain('区分稳定特征和局部写法')
+    expect(prompt).not.toContain('按主题展开关键转折')
+  }
+  expect(analysisPrompt('report', 'plot')).toContain('按主题展开关键转折')
+})
 
 it('保存完整分段正文，不截断长章或跨书，并检测中途插章与源文修改', async () => {
   const raw = '<p>' + '甲'.repeat(11999) + '😀' + '乙'.repeat(13000) + '</p>'
