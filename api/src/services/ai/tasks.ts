@@ -97,6 +97,29 @@ export async function getAiTask(db: Db, id: string): Promise<AiTask | undefined>
   return row ? mapTask(row) : undefined
 }
 
+export function aiTaskRequestRecorder(db: Db, taskId: string) {
+  return async (bodyBytes: number): Promise<void> => {
+    await run(db, `UPDATE ai_tasks SET
+      upstream_request_count = COALESCE(upstream_request_count, 0) + 1,
+      upstream_request_body_bytes = COALESCE(upstream_request_body_bytes, 0) + $2::bigint,
+      upstream_max_request_body_bytes = GREATEST(upstream_max_request_body_bytes, $2::bigint)
+      WHERE id = $1`, [taskId, bodyBytes])
+  }
+}
+
+export async function readAiTaskRequestTraffic(db: Db, taskId: string, userId: string) {
+  const row = await first<{ upstream_request_count: string | number | null; upstream_request_body_bytes: string | number; upstream_max_request_body_bytes: string | number }>(db,
+    `SELECT upstream_request_count, upstream_request_body_bytes, upstream_max_request_body_bytes
+     FROM ai_tasks WHERE id = $1 AND (kind <> 'agent_chat' OR user_id = $2)`, [taskId, userId])
+  if (!row) return undefined
+  if (row.upstream_request_count === null) return null
+  return {
+    requestCount: Number(row.upstream_request_count),
+    totalRequestBodyBytes: Number(row.upstream_request_body_bytes),
+    maxRequestBodyBytes: Number(row.upstream_max_request_body_bytes),
+  }
+}
+
 export async function isAiTaskCancelled(db: Db, id: string): Promise<boolean> {
   const row = await first<{ status: string }>(db, 'SELECT status FROM ai_tasks WHERE id = $1', [id])
   return row?.status === 'cancelled'

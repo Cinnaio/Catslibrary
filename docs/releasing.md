@@ -1,5 +1,11 @@
 # 发布与版本管理
 
+## API 1.4.0 候选（2026-11-12）
+
+创作助手与续写请求体统计随 API 1.4.0 交付，发布包沿用 Web 1.5.0。API 版本已同步到锁文件，源码为本节所在提交。启动时应用迁移 084，随后可在 AI 调用审计接口按任务 ID 查询统计。API 类型检查和 6 项定向测试通过，生产构建和部署结果以该提交的 Deploy 运行记录为准。
+
+上一轮网站部署已成功交付 API 1.3.0 和 Web 1.5.0，源码为 `b3fa150f4fb010f90728d1d8079192a59166e629`。[GitHub Actions Deploy](https://github.com/Cinnaio/Catslibrary/actions/runs/43032937514)
+
 ## API 1.2.0 / Web 1.4.0 生产部署（2026-11-11）
 
 生产上线时间约为 08:04（Asia/Shanghai），源码 `2fe609a3bef14f77b3228c632f630e9167d86181`。Web 在本机 Windows 构建，API 与协议 2 发布包在本机隔离 Ubuntu 22.04／Linux x64 环境构建，随包 Node 为 22.23.4。归档 SHA-256 为 `85acfc8fda76395840a8a04db7017db1cd2a94c6cc5b09e9d899da246b3afc1c`。候选版本已在各 workspace 和锁文件中登记。
@@ -985,8 +991,8 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
 | iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.3.1 / 29` 候选（[1.3.0 / 28 已构建](https://github.com/Cinnaio/Catslibrary/actions/runs/43031486739)） | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.3.0` 候选（生产 `1.2.0`） | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `1.5.0` 候选（生产 `1.4.0`） | 同步锁文件 `packages.web.version` |
+| API | `api/package.json` | `1.4.0` 候选（最近确认部署 `1.3.0`） | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.5.0`（已部署） | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。

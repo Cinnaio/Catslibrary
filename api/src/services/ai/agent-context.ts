@@ -5,6 +5,7 @@ import { AiError, chat, providerLabel, textProvider, type AiChatResult } from '.
 import { getAgentSummary, saveAgentSummary } from './agent-memory'
 import { readAgentEvents } from './agent-store'
 import { recordUsage } from './usage'
+import { aiTaskRequestRecorder } from './tasks'
 import { usageAuditFields } from './upstream-usage'
 import { AgentSummaryValidationError, summaryFailure } from './agent-summary-diagnostics'
 
@@ -98,6 +99,7 @@ export async function loadAgentContext(
       ...audit,
     })
   await onSummarizing()
+  const onRequestAttempt = taskId ? aiTaskRequestRecorder(db, taskId) : undefined
   while (cutoff) {
     const rows = await all<{ id: number; role: AgentEvent['role']; content: string; task_id: string; metadata: AgentEvent['metadata'] }>(
       db,
@@ -137,6 +139,7 @@ export async function loadAgentContext(
       await assertActive()
       stage = 'request'
       response = await chat({
+        onRequestAttempt,
         messages: [
           { role: 'system', content: SUMMARY_SYSTEM },
           { role: 'user', content: JSON.stringify({ previousSummary: summary?.content || null, events: batch, taskStates }) },

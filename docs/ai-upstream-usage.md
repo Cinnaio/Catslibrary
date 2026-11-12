@@ -2,6 +2,12 @@
 
 项目调用协议仍为 OpenAI 兼容的 `/chat/completions` 与 `/images/generations`。用量在 `api/src/services/ai/upstream-usage.ts` 归一，所有真实生成与测试调用在记账前通过 `usageAuditFields` 持久化。普通 JSON、流式 JSON 回退、SSE 最终用量帧共用规则；流式计数按上游累计快照更新，不把每帧累计值重复相加。
 
+## 创作任务请求体统计
+
+管理员通过 `GET /api/ai/audit/calls?taskId=<任务 ID>` 查看该任务的用量明细和 `requestTraffic`。统计包含 `requestCount`（尝试次数）、`totalRequestBodyBytes`（累计字节）和 `maxRequestBodyBytes`（最大单次字节）。分页、类型和时间筛选只作用于 `calls`。未采集到请求的任务返回 `requestTraffic: null`，包括迁移前的旧任务。
+
+迁移 `084_ai_task_request_traffic.sql` 增加创作助手（含摘要）和续写的任务级计数。每次交给上游客户端的 JSON 请求体按 UTF-8 字节计量，失败、自动重试和流式回退各计一次。独立子任务按自己的任务 ID 统计。采集只保存三个数值，代表尝试发送的应用层请求体大小。实际链路流量还包括协议开销，并可能受连接中断影响。上游回传的 Token、缓存和费用继续通过 `calls` 对照，费用或用量未知时看相应回传标记。
+
 | 来源或格式 | 输入 / 输出 | 缓存读取 | 缓存写入 |
 | --- | --- | --- | --- |
 | OpenAI、NewAPI、OpenRouter 及 OpenAI 兼容中转 | `prompt_tokens` / `completion_tokens` | `prompt_tokens_details.cached_tokens` | `prompt_tokens_details.cache_write_tokens`；NewAPI 兼容 `cached_creation_tokens` |

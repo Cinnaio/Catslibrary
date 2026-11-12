@@ -13,7 +13,7 @@ import { saveGeneration, generationContentRevision, type Generation, type BatchD
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 import { getAiSettings } from './settings'
-import { createAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
+import { aiTaskRequestRecorder, createAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
 import { compileWritingPrompt, WRITING_PROMPT_PIPELINE_VERSION } from './writing-prompt'
 import type { OperatorPromptHit } from './writing-prompt-patches'
 import type { HistoryPassage } from './writing-history'
@@ -812,16 +812,33 @@ export async function generateWriting(db: Db, opts: {
   const started = await updateAiTask(db, taskId, { status: 'running', step: 'AI 正在生成', prompt: user })
   if (!started) throw new AiError('invalid', '任务已停止')
   const stopHeartbeat = startAiTaskHeartbeat(db, taskId)
-  const usageId = newId('aiuse')
+  const usageContext = {
+    usageId: newId('aiuse'),
+    taskId: opts.kind === 'continue' ? taskId : undefined,
+    userId: opts.userId,
+    provider: providerLabel(provider.baseUrl),
+    novelId: opts.novelId,
+    generationType: opts.kind,
+    ipAddress: opts.ipAddress,
+    userAgent: opts.userAgent,
+  }
   const progress = createTextProgressReporter(db, taskId)
   try {
     if (settings.writingStreamEnabled) await progress.start()
-    const request = { onIncomplete: partialUsageRecorder(db, { usageId, userId: opts.userId, provider: providerLabel(provider.baseUrl), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent }), messages: [{ role: 'system' as const, content: system }, { role: 'user' as const, content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000, reasoningMode: settings.writingReasoningMode }
+    const request: AiChatOptions = {
+      onIncomplete: partialUsageRecorder(db, usageContext),
+      onRequestAttempt: usageContext.taskId ? aiTaskRequestRecorder(db, usageContext.taskId) : undefined,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      temperature,
+      maxTokens: Math.min(1000000, Math.max(300, maxTokens)),
+      timeoutMs: 600000,
+      reasoningMode: settings.writingReasoningMode,
+    }
     const res = settings.writingStreamEnabled
       ? await chatStream({ ...request, onProgress: progress.onProgress }, progress.onDelta)
       : await chat({ ...request, stream: false })
     // 调用事实独立于任务是否接收产物；取消不能抹掉已经发生的上游用量。
-    await recordUsage(db, { usageId, userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
+    await recordUsage(db, { ...usageContext, model: res.model, tokenUsageReported: res.tokenUsageReported, promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000 })
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
     // 续写/新写章节：解析 AI 输出的首行标题（提示词要求输出标题），标题存入 params_json.draftTitle
     // 供发布时自动填充；若 AI 漏输出了标题行，优先使用大纲中提取的章节标题作为兜底；

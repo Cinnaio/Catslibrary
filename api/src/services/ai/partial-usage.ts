@@ -6,11 +6,12 @@ import { usageAuditFields } from './upstream-usage'
 /** Only received usage/exact billing is recorded. Missing cost remains explicitly unreported. */
 export function partialUsageRecorder(
   db: Db,
-  context: Pick<UsageRecord, 'userId' | 'provider' | 'novelId' | 'chapterId' | 'generationType' | 'ipAddress' | 'userAgent' | 'usageId' | 'createdAt'>,
+  context: Pick<UsageRecord, 'userId' | 'provider' | 'novelId' | 'chapterId' | 'generationType' | 'ipAddress' | 'userAgent' | 'usageId' | 'createdAt' | 'taskId'>,
 ) {
   return (result: AiChatResult) =>
     recordUsage(db, {
       ...context,
+      tokenUsageReported: result.tokenUsageReported,
       model: result.model,
       promptTokens: result.promptTokens,
       completionTokens: result.completionTokens,

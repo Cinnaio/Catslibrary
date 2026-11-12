@@ -70,6 +70,8 @@ export interface AiChatOptions {
   stream?: boolean
   onDelta?: AiChatDeltaHandler
   onIncomplete?: (result: AiChatResult) => Promise<void>
+  /** Serialized UTF-8 body size for each outbound attempt, including fallback and retries. */
+  onRequestAttempt?: (bodyBytes: number) => Promise<void>
   /** Tool orchestration uses one attempt; uncertain paid calls are never silently replayed. */
   maxAttempts?: number
   model?: string
@@ -250,22 +252,31 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
   throw lastError || new AiError('upstream', 'AI 请求失败')
 }
 
+function sendChatRequest(endpoint: string, apiKey: string, body: string, signal: AbortSignal, onRequestAttempt: AiChatOptions['onRequestAttempt']): Promise<Response> {
+  signal.throwIfAborted()
+  const response = outboundFetch(
+    endpoint,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body,
+      signal,
+    },
+    { scope: 'ai-text' },
+  )
+  if (!onRequestAttempt) return response
+  const recorded = Promise.resolve().then(() => onRequestAttempt(Buffer.byteLength(body, 'utf8'))).catch(() => {
+    console.warn('[ai] 上游请求体字节数写入失败')
+  })
+  return response.finally(() => recorded)
+}
+
 async function once(endpoint: string, apiKey: string, body: string, model: string, opts: AiChatOptions): Promise<AiChatResult> {
   const timeout = AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)
   const signal = opts.signal ? anySignal([timeout, opts.signal]) : timeout
-
   let res: Response
   try {
-    res = await outboundFetch(
-      endpoint,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body,
-        signal,
-      },
-      { scope: 'ai-text' },
-    )
+    res = await sendChatRequest(endpoint, apiKey, body, signal, opts.onRequestAttempt)
   } catch (err) {
     const name = (err as Error)?.name || ''
     if (name === 'TimeoutError' || name === 'AbortError') throw new AiError('timeout', 'AI 服务响应超时', 504)
@@ -335,16 +346,7 @@ async function onceStream(
 
   let res: Response
   try {
-    res = await outboundFetch(
-      endpoint,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body,
-        signal,
-      },
-      { scope: 'ai-text' },
-    )
+    res = await sendChatRequest(endpoint, apiKey, body, signal, opts.onRequestAttempt)
   } catch (err) {
     const name = (err as Error)?.name || ''
     if (name === 'TimeoutError' || name === 'AbortError') throw new AiError('timeout', 'AI 服务响应超时', 504)

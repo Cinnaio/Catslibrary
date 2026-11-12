@@ -1013,6 +1013,13 @@ describe('novel-scoped creative agent', () => {
     expect(Number(summaryUsage?.calls)).toBeGreaterThan(0)
     expect(restored.turnUsage?.[0]).toMatchObject({ taskId: turn.taskId, tracked: true, chatCalls: 2, summaryCalls: Number(summaryUsage?.calls), unknownTokenCalls: 0 })
     expect(await all(t.db, 'SELECT DISTINCT task_id FROM ai_usage')).toEqual([{ task_id: turn.taskId }])
+    const bytes = fetchMock.mock.calls.map(([, init]) => Buffer.byteLength(String(init?.body), 'utf8'))
+    const audit = await request(`/api/ai/audit/calls?taskId=${turn.taskId}`)
+    expect(audit.status).toBe(200)
+    expect(await audit.json()).toMatchObject({
+      total: bytes.length,
+      requestTraffic: { requestCount: bytes.length, totalRequestBodyBytes: bytes.reduce((sum, size) => sum + size, 0), maxRequestBodyBytes: Math.max(...bytes) },
+    })
   })
   it('continues beyond eight tool rounds with full context until the model answers', async () => {
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })

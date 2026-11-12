@@ -82,8 +82,10 @@ describe('streaming tools and compatibility', () => {
     const mock = vi.fn().mockResolvedValueOnce(Response.json({ error: { message: 'stream is not supported' } }, { status: 400 })).mockResolvedValueOnce(Response.json({ choices: [{ message: { content: '兼容回复' }, finish_reason: 'stop' }] }))
     vi.stubGlobal('fetch', mock)
     const delta = vi.fn()
-    expect(await chat({ messages, maxAttempts: 1, onDelta: delta })).toMatchObject({ text: '兼容回复', streamed: false })
+    const onRequestAttempt = vi.fn().mockResolvedValue(undefined)
+    expect(await chat({ messages, maxAttempts: 1, onDelta: delta, onRequestAttempt })).toMatchObject({ text: '兼容回复', streamed: false })
     expect(mock.mock.calls.map((call) => JSON.parse(call[1].body).stream)).toEqual([true, false])
+    expect(onRequestAttempt.mock.calls).toEqual(mock.mock.calls.map((call) => [Buffer.byteLength(call[1].body, 'utf8')]))
     expect(delta).toHaveBeenCalledExactlyOnceWith('兼容回复')
   })
   it('does not fall back for unrelated invalid parameters', async () => {

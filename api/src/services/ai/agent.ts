@@ -9,7 +9,7 @@ import { loadAgentContext } from './agent-context'
 import { AgentSummaryError } from './agent-summary-diagnostics'
 import type { AgentApi } from './agent-actions'
 import { AGENT_GENERATION_TOOLS, AGENT_TOOLS, AGENT_TOOL_LABELS, executeAgentTool, validateAgentCall } from './agent-tools'
-import { getAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
+import { aiTaskRequestRecorder, getAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
 import { AGENT_READ_TOOLS, agentTaskParams, setAgentPhase } from './agent-recovery'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
@@ -119,6 +119,7 @@ export async function runAgentTurn(
         content: e.role === 'activity' ? `[服务端操作记录] ${e.content} ${JSON.stringify(e.metadata)}` : e.content,
       })
     const callsSeen = new Set<string>()
+    const onRequestAttempt = aiTaskRequestRecorder(db, taskId)
     // Continue tool rounds until the model answers, the user stops, or a request fails.
     for (let round = 0; ; round++) {
       await assertActive()
@@ -131,6 +132,7 @@ export async function runAgentTurn(
       await progress.start()
       const response = await chat({
         messages: [...messages, { role: 'system', content: REPLY_GUIDANCE }],
+        onRequestAttempt,
         tools,
         maxTokens: 4096,
         temperature: 0.4,

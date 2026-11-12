@@ -68,7 +68,7 @@ import { checkQuota, ReaderQuotaExceededError, recordUsage, startOfToday, summar
 import { usageAuditFields } from '../services/ai/upstream-usage'
 import { userAvatarUrl } from '../services/auth'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
-import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
+import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, readAiTaskRequestTraffic, updateAiTask } from '../services/ai/tasks'
 import {
   adoptCoverCandidate,
   deleteCoverCandidate,
@@ -2122,9 +2122,12 @@ aiRoutes.get('/audit/users', requireAdmin(), async (c) => {
   )
 })
 
-/** 详细调用记录：支持用户、类型、时间筛选 */
+/** 详细调用记录：支持任务、用户、类型、时间筛选。 */
 aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
   const db = getDb()
+  const taskId = c.req.query('taskId')?.trim()
+  const requestTraffic = taskId ? await readAiTaskRequestTraffic(db, taskId, c.get('user').id) : undefined
+  if (taskId && requestTraffic === undefined) return c.json({ error: '任务不存在' }, 404)
   const userId = c.req.query('userId')
   const type = c.req.query('type')
   const from = Number.parseInt(c.req.query('from') || '0', 10) || 0
@@ -2135,6 +2138,10 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
 
   const conditions = ['u.created_at >= $1', 'u.created_at <= $2']
   const params: unknown[] = [from, to]
+  if (taskId) {
+    params.push(taskId)
+    conditions.push(`u.task_id <> '' AND u.task_id = $${params.length}`)
+  }
 
   if (userId) {
     params.push(userId)
@@ -2151,7 +2158,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
   const rows = await all<Record<string, unknown>>(
     db,
     `SELECT
-      u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens, u.image_count, u.ip_address, u.user_agent,
+      u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens, u.token_usage_reported, u.image_count, u.ip_address, u.user_agent,
       u.cost_millicents, u.cost_reported, u.upstream_request_id, u.cost_source, u.cost_currency, u.cache_read_tokens, u.cache_write_tokens, u.reasoning_tokens, u.created_at, u.user_id, u.novel_id, u.chapter_id,
       usr.id AS current_user_id, usr.username, usr.display_name, usr.updated_at AS user_updated_at,
       n.title AS novel_title,
@@ -2176,6 +2183,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
         model: String(r.model || ''),
         promptTokens: Number(r.prompt_tokens) || 0,
         completionTokens: Number(r.completion_tokens) || 0,
+        ...(taskId ? { tokenUsageReported: r.token_usage_reported ?? null } : {}),
         imageCount: Number(r.image_count) || 0,
         costMillicents: Number(r.cost_millicents) || 0,
         costReported: Boolean(r.cost_reported),
@@ -2200,6 +2208,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
       total: totalRow?.total || 0,
       limit,
       offset,
+      ...(taskId ? { requestTraffic } : {}),
     },
     200,
     { 'Cache-Control': 'no-store' },

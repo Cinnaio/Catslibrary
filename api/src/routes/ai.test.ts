@@ -1448,7 +1448,8 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
   it('后台续写上游失败时任务标记 failed 并携带错误信息', async () => {
     const novelId = await firstNovelId(t)
-    fetchMock.mockImplementationOnce(async () => new Response('upstream boom', { status: 400 }))
+    fetchMock.mockImplementationOnce(async () => new Response('busy', { status: 503 }))
+      .mockImplementationOnce(async () => new Response('upstream boom', { status: 400 }))
 
     const response = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 2 }, adminToken))
     expect(response.status).toBe(202)
@@ -1457,6 +1458,14 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const task = await waitForTask(taskId, adminToken)
     expect(task.status).toBe('failed')
     expect(task.error.length).toBeGreaterThan(0)
+    const bytes = fetchMock.mock.calls.map(([, init]) => Buffer.byteLength(String(init?.body), 'utf8'))
+    expect(bytes).toHaveLength(2)
+    const audit = await req(`/api/ai/audit/calls?taskId=${taskId}`, json('GET', undefined, adminToken))
+    expect(audit.status).toBe(200)
+    expect(await audit.json()).toMatchObject({
+      calls: [], total: 0,
+      requestTraffic: { requestCount: 2, totalRequestBodyBytes: bytes[0]! + bytes[1]!, maxRequestBodyBytes: Math.max(...bytes) },
+    })
   })
 
   it('GET /tasks/:id：任务不存在 404，非管理员 403', async () => {
@@ -1486,6 +1495,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const task = await waitForTask(taskId, adminToken)
     expect(task.status).toBe('completed')
     expect(task.current).toBe(2)
+    const bytes = fetchMock.mock.calls.map(([, init]) => Buffer.byteLength(String(init?.body), 'utf8'))
+    expect(bytes).toHaveLength(2)
+    const audit = await req(`/api/ai/audit/calls?taskId=${taskId}`, json('GET', undefined, adminToken))
+    expect(await audit.json()).toMatchObject({
+      calls: Array.from({ length: 2 }, () => ({ type: 'continue', promptTokens: 120, tokenUsageReported: true })), total: 2,
+      requestTraffic: { requestCount: 2, totalRequestBodyBytes: bytes[0]! + bytes[1]!, maxRequestBodyBytes: Math.max(...bytes) },
+    })
 
     const { rows } = await t.db.query<{ id: string }>(`SELECT id FROM ai_generations WHERE kind = 'continue' AND params_json LIKE $1`, [
       `%"batchId":"${batchId}"%`,
