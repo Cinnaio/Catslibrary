@@ -1,4 +1,3 @@
-import '@/styles/identity-layout.css'
 import '@/styles/site-branding.css'
 /**
  * Install 页 —— 首次安装向导（独立顶层路由，无 Layout）。
@@ -6,35 +5,63 @@ import '@/styles/site-branding.css'
  * → ③ 创建首个管理员。挂载时探测 /api/setup/status 决定起始步骤；
  * 安装已完成（有管理员）则跳 /auth。
  */
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, CircleAlert } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi, setupApi, type SetupDatabaseFields } from '../lib/api'
 import { useSession } from '../context/SessionContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import FormField from '@/components/shared/FormField'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { DEFAULT_SITE_BRANDING } from '@shared/site-settings'
+import styles from './install.module.css'
 
 type Step = 'database' | 'options' | 'admin'
 
-const STEPS: Array<{ id: Step; label: string }> = [
-  { id: 'database', label: '数据库' },
-  { id: 'options', label: '可选配置' },
-  { id: 'admin', label: '管理员' },
-]
+const STEPS = {
+  database: {
+    label: '数据库',
+    title: '连接数据库',
+    description: '填写 PostgreSQL 连接信息。连接成功后，安装向导会初始化数据表。',
+    action: '测试并保存',
+    pending: '测试连接中…',
+  },
+  options: {
+    label: '可选配置',
+    title: '配置 AI 与网络',
+    description: '可以先跳过，安装后仍可通过环境变量调整这些设置。',
+    action: '保存并继续',
+    pending: '保存中…',
+  },
+  admin: {
+    label: '管理员',
+    title: '创建管理员',
+    description: '设置首个站长账号，创建成功后会进入管理后台。',
+    action: '创建管理员',
+    pending: '创建中…',
+  },
+}
 
 export default function Install() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { refresh } = useSession()
   useDocumentTitle('安装向导')
 
-  const [checking, setChecking] = useState(true)
-  const [step, setStep] = useState<Step>('database')
+  const requestedPreview = import.meta.env.DEV ? searchParams.get('preview') : null
+  const previewStep = requestedPreview === 'options' || requestedPreview === 'admin' ? requestedPreview : null
+  const [checkingStatus, setCheckingStatus] = useState(true)
+  const [installStep, setInstallStep] = useState<Step>('database')
+  const step = previewStep ?? installStep
+  const checking = !previewStep && checkingStatus
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
+  const stepHeading = useRef<HTMLHeadingElement>(null)
+  const previousStep = useRef<Step | null>(null)
 
   // 步骤①：数据库分字段
   const [db, setDb] = useState<SetupDatabaseFields>({
@@ -71,7 +98,7 @@ export default function Install() {
           return
         }
         setMsg('')
-        setStep(r.needsSetup ? 'database' : 'admin')
+        setInstallStep(r.needsSetup ? 'database' : 'admin')
       } catch {
         if (alive && !alive()) return
         setMsg('无法连接服务器，请确认 API 已启动后重试')
@@ -81,14 +108,21 @@ export default function Install() {
   )
 
   useEffect(() => {
+    if (previewStep) return
     let alive = true
     void probeStatus(() => alive).finally(() => {
-      if (alive) setChecking(false)
+      if (alive) setCheckingStatus(false)
     })
     return () => {
       alive = false
     }
-  }, [probeStatus])
+  }, [previewStep, probeStatus])
+
+  useEffect(() => {
+    if (checking) return
+    if (previousStep.current !== null && previousStep.current !== step) stepHeading.current?.focus()
+    previousStep.current = step
+  }, [checking, step])
 
   function setDbField<K extends keyof SetupDatabaseFields>(key: K, value: SetupDatabaseFields[K]) {
     setDb((prev) => ({ ...prev, [key]: value }))
@@ -111,7 +145,7 @@ export default function Install() {
         return
       }
       await setupApi.database({ ...db, host: db.host.trim(), user: db.user.trim(), database: db.database.trim() })
-      setStep('options')
+      setInstallStep('options')
     } catch (err) {
       // 409「数据库已配置」：多为 env 已预设或另一端已完成本步 —— 重新探测并自动前进
       if ((err as { status?: number }).status === 409) {
@@ -132,7 +166,7 @@ export default function Install() {
         const patch = Object.fromEntries(Object.entries(opts).filter(([, v]) => v.trim()))
         if (Object.keys(patch).length > 0) await setupApi.options(patch)
       }
-      setStep('admin')
+      setInstallStep('admin')
     } catch (err) {
       setMsg((err as Error).message || '保存可选配置失败')
     } finally {
@@ -167,239 +201,216 @@ export default function Install() {
     }
   }
 
-  if (checking) {
-    return (
-      <div className="flex min-h-svh items-center justify-center bg-background">
-        <div className="size-8 animate-spin rounded-full border-2 border-border border-t-primary" />
-      </div>
-    )
-  }
-
-  const stepIndex = STEPS.findIndex((s) => s.id === step)
+  const currentStep = STEPS[step]
 
   return (
-    <main className="auth-page">
-      <div className="auth-shell">
-        <Card className="w-full max-w-md">
-          <CardContent className="flex flex-col gap-5 p-6">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <img src={DEFAULT_SITE_BRANDING.logoUrl} alt="Cat’s Library" className="site-logo h-9 w-9" />
-              <h1 className="text-xl font-semibold">Cat’s Library · 首次安装</h1>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                {STEPS.map((s, i) => (
-                  <span key={s.id} className="flex items-center gap-1.5">
-                    {i > 0 && <span aria-hidden>→</span>}
-                    <span className={i === stepIndex ? 'font-semibold text-primary' : i < stepIndex ? 'text-primary/60' : ''}>
-                      {i + 1}. {s.label}
-                    </span>
-                  </span>
-                ))}
+    <main className={styles.page}>
+      <div className={styles.shell}>
+        <Button asChild variant="ghost" className={styles.back}>
+          <Link to={previewStep ? '/install' : '/'}>
+            <ArrowLeft aria-hidden="true" />
+            {previewStep ? '返回安装' : '返回首页'}
+          </Link>
+        </Button>
+
+        <div className={styles.wizard}>
+          <header className={styles.rail}>
+            <div className={styles.identity}>
+              <div className={styles.brand}>
+                <img src={DEFAULT_SITE_BRANDING.logoUrl} width={34} height={34} alt="" className="site-logo" />
+                <span>{DEFAULT_SITE_BRANDING.name}</span>
               </div>
+              <h1>首次安装</h1>
             </div>
 
-            {step === 'database' && (
-              <form
-                className="flex flex-col gap-5"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void submitDatabase()
-                }}
-              >
-                <p className="text-sm text-muted-foreground">填写 PostgreSQL 连接信息。保存后会自动测试连接并初始化数据表。</p>
-                <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-[1fr_110px] gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="db-host">主机</Label>
-                      <Input id="db-host" placeholder="localhost" value={db.host} onChange={(e) => setDbField('host', e.target.value)} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="db-port">端口</Label>
-                      <Input id="db-port" inputMode="numeric" placeholder="5432" value={db.port} onChange={(e) => setDbField('port', e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="db-user">用户名</Label>
-                      <Input id="db-user" autoComplete="off" value={db.user} onChange={(e) => setDbField('user', e.target.value)} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="db-pass">密码</Label>
-                      <Input
-                        id="db-pass"
-                        type="password"
-                        autoComplete="new-password"
-                        value={db.password}
-                        onChange={(e) => setDbField('password', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="db-name">数据库名</Label>
-                    <Input id="db-name" placeholder="zhi_zhou" value={db.database} onChange={(e) => setDbField('database', e.target.value)} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="db-ssl" className="cursor-pointer">
-                      启用 SSL
-                    </Label>
-                    <Switch id="db-ssl" checked={db.ssl} onCheckedChange={(v) => setDbField('ssl', v)} />
-                  </div>
-                </div>
-                {msg && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {msg}
-                  </p>
-                )}
-                <Button type="submit" disabled={busy}>
-                  {busy ? '测试连接中…' : '测试并保存'}
-                </Button>
-              </form>
-            )}
+            <ol className={styles.steps} role="list" aria-label="安装步骤">
+              {Object.entries(STEPS).map(([id, info], index) => (
+                <li key={id} className={styles.step} aria-current={!checking && id === step ? 'step' : undefined}>
+                  <span className={styles.stepNumber} aria-hidden="true">{index + 1}</span>
+                  <span>{info.label}</span>
+                </li>
+              ))}
+            </ol>
+          </header>
 
-            {step === 'options' && (
-              <form
-                className="flex flex-col gap-5"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void submitOptions(false)
-                }}
-              >
-                <p className="text-sm text-muted-foreground">可选配置，均可留空跳过，安装后也能经环境变量调整。</p>
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="ai-base">AI 文本 Base URL</Label>
-                    <Input
-                      id="ai-base"
-                      placeholder="https://api.example.com/v1"
-                      value={opts.AI_TEXT_BASE_URL}
-                      onChange={(e) => setOpts((p) => ({ ...p, AI_TEXT_BASE_URL: e.target.value }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="ai-key">AI API Key</Label>
-                      <Input
-                        id="ai-key"
-                        type="password"
-                        autoComplete="off"
-                        value={opts.AI_TEXT_API_KEY}
-                        onChange={(e) => setOpts((p) => ({ ...p, AI_TEXT_API_KEY: e.target.value }))}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="ai-model">AI 模型</Label>
-                      <Input
-                        id="ai-model"
-                        placeholder="deepseek-v4-flash"
-                        value={opts.AI_TEXT_MODEL}
-                        onChange={(e) => setOpts((p) => ({ ...p, AI_TEXT_MODEL: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="proxy-base">出站代理地址</Label>
-                    <Input
-                      id="proxy-base"
-                      placeholder="http://127.0.0.1:7890"
-                      value={opts.PROXY_BASE}
-                      onChange={(e) => setOpts((p) => ({ ...p, PROXY_BASE: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="proxy-bypass">跳过代理（逗号分隔）</Label>
-                    <Input
-                      id="proxy-bypass"
-                      placeholder="localhost,127.0.0.1,::1"
-                      value={opts.PROXY_BYPASS}
-                      onChange={(e) => setOpts((p) => ({ ...p, PROXY_BYPASS: e.target.value }))}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="cors">CORS 来源（逗号分隔）</Label>
-                    <Input
-                      id="cors"
-                      placeholder="https://read.example.com"
-                      value={opts.CORS_ORIGINS}
-                      onChange={(e) => setOpts((p) => ({ ...p, CORS_ORIGINS: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                {msg && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {msg}
-                  </p>
-                )}
-                <div className="flex flex-col gap-2">
-                  <Button type="submit" disabled={busy}>
-                    {busy ? '保存中…' : '保存并继续'}
-                  </Button>
-                  <Button type="button" variant="ghost" disabled={busy} onClick={() => void submitOptions(true)}>
-                    跳过此步
-                  </Button>
-                </div>
-              </form>
-            )}
+          <div className={styles.content}>
+            {checking ? (
+              <div className={styles.loading} role="status">
+                <Spinner size="sm" aria-hidden="true" />
+                正在检查安装状态…
+              </div>
+            ) : (
+              <>
+                <header className={styles.heading}>
+                  {previewStep && <span className={styles.previewNote}>开发预览 · 仅展示表单</span>}
+                  <h2 id="install-step-heading" ref={stepHeading} tabIndex={-1}>{currentStep.title}</h2>
+                  <p>{currentStep.description}</p>
+                </header>
 
-            {step === 'admin' && (
-              <form
-                className="flex flex-col gap-5"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void submitAdmin()
-                }}
-              >
-                <p className="text-sm text-muted-foreground">创建站长管理员账号，完成后即可登录管理后台。</p>
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="admin-user">账号</Label>
-                    <Input
-                      id="admin-user"
-                      autoComplete="username"
-                      placeholder="3-32 位小写字母/数字/_/-"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="admin-pass">密码</Label>
-                    <Input
-                      id="admin-pass"
-                      type="password"
-                      autoComplete="new-password"
-                      placeholder="至少 8 位"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="admin-confirm">确认密码</Label>
-                    <Input
-                      id="admin-confirm"
-                      type="password"
-                      autoComplete="new-password"
-                      placeholder="再次输入密码"
-                      value={confirm}
-                      onChange={(e) => setConfirm(e.target.value)}
-                    />
-                  </div>
-                </div>
-                {msg && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {msg}
-                  </p>
-                )}
-                <Button type="submit" disabled={busy}>
-                  {busy ? '创建中…' : '创建管理员'}
-                </Button>
-              </form>
-            )}
+                <form
+                  className={styles.form}
+                  aria-labelledby="install-step-heading"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    if (previewStep || busy) return
+                    if (step === 'database') void submitDatabase()
+                    else if (step === 'options') void submitOptions(false)
+                    else void submitAdmin()
+                  }}
+                >
+                  {step === 'database' && (
+                    <div className={styles.fields}>
+                      <div className={styles.addressFields}>
+                        <FormField htmlFor="db-host" label="主机">
+                          <Input placeholder="localhost" value={db.host} onChange={(e) => setDbField('host', e.target.value)} />
+                        </FormField>
+                        <FormField htmlFor="db-port" label="端口">
+                          <Input inputMode="numeric" placeholder="5432" value={db.port} onChange={(e) => setDbField('port', e.target.value)} />
+                        </FormField>
+                      </div>
 
-            <div className="text-center">
-              <Link to="/" className="text-xs text-muted-foreground underline-offset-4 hover:underline">
-                返回首页
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+                      <div className={styles.fieldColumns}>
+                        <FormField htmlFor="db-user" label="用户名">
+                          <Input autoComplete="off" value={db.user} onChange={(e) => setDbField('user', e.target.value)} />
+                        </FormField>
+                        <FormField htmlFor="db-pass" label="密码">
+                          <Input
+                            type="password"
+                            autoComplete="new-password"
+                            value={db.password}
+                            onChange={(e) => setDbField('password', e.target.value)}
+                          />
+                        </FormField>
+                      </div>
+
+                      <FormField htmlFor="db-name" label="数据库名">
+                        <Input placeholder="zhi_zhou" value={db.database} onChange={(e) => setDbField('database', e.target.value)} />
+                      </FormField>
+
+                      <div className={styles.sslRow}>
+                        <div>
+                          <Label htmlFor="db-ssl">启用 SSL</Label>
+                          <p id="db-ssl-hint">数据库要求加密连接时开启。</p>
+                        </div>
+                        <Switch
+                          id="db-ssl"
+                          aria-describedby="db-ssl-hint"
+                          checked={db.ssl}
+                          onCheckedChange={(checked) => setDbField('ssl', checked)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {step === 'options' && (
+                    <div className={styles.groups}>
+                      <section className={styles.fields} aria-labelledby="install-ai-heading">
+                        <h3 id="install-ai-heading">AI 文本服务</h3>
+                        <FormField htmlFor="ai-base" label="Base URL">
+                          <Input
+                            placeholder="https://api.example.com/v1"
+                            value={opts.AI_TEXT_BASE_URL}
+                            onChange={(e) => setOpts((prev) => ({ ...prev, AI_TEXT_BASE_URL: e.target.value }))}
+                          />
+                        </FormField>
+                        <div className={styles.fieldColumns}>
+                          <FormField htmlFor="ai-key" label="API Key">
+                            <Input
+                              type="password"
+                              autoComplete="off"
+                              value={opts.AI_TEXT_API_KEY}
+                              onChange={(e) => setOpts((prev) => ({ ...prev, AI_TEXT_API_KEY: e.target.value }))}
+                            />
+                          </FormField>
+                          <FormField htmlFor="ai-model" label="模型">
+                            <Input
+                              placeholder="deepseek-v4-flash"
+                              value={opts.AI_TEXT_MODEL}
+                              onChange={(e) => setOpts((prev) => ({ ...prev, AI_TEXT_MODEL: e.target.value }))}
+                            />
+                          </FormField>
+                        </div>
+                      </section>
+
+                      <section className={styles.fields} aria-labelledby="install-network-heading">
+                        <h3 id="install-network-heading">网络设置</h3>
+                        <FormField htmlFor="proxy-base" label="出站代理地址">
+                          <Input
+                            placeholder="http://127.0.0.1:7890"
+                            value={opts.PROXY_BASE}
+                            onChange={(e) => setOpts((prev) => ({ ...prev, PROXY_BASE: e.target.value }))}
+                          />
+                        </FormField>
+                        <div className={styles.fieldColumns}>
+                          <FormField htmlFor="proxy-bypass" label="跳过代理（逗号分隔）">
+                            <Input
+                              placeholder="localhost,127.0.0.1,::1"
+                              value={opts.PROXY_BYPASS}
+                              onChange={(e) => setOpts((prev) => ({ ...prev, PROXY_BYPASS: e.target.value }))}
+                            />
+                          </FormField>
+                          <FormField htmlFor="cors" label="CORS 来源（逗号分隔）">
+                            <Input
+                              placeholder="https://read.example.com"
+                              value={opts.CORS_ORIGINS}
+                              onChange={(e) => setOpts((prev) => ({ ...prev, CORS_ORIGINS: e.target.value }))}
+                            />
+                          </FormField>
+                        </div>
+                      </section>
+                    </div>
+                  )}
+
+                  {step === 'admin' && (
+                    <div className={styles.fields}>
+                      <FormField htmlFor="admin-user" label="账号" hint="3–32 位小写字母、数字、下划线或短横线。">
+                        <Input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
+                      </FormField>
+
+                      <div className={styles.fieldColumns}>
+                        <FormField htmlFor="admin-pass" label="密码" hint="至少 8 位。">
+                          <Input
+                            type="password"
+                            autoComplete="new-password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                          />
+                        </FormField>
+                        <FormField htmlFor="admin-confirm" label="确认密码">
+                          <Input
+                            type="password"
+                            autoComplete="new-password"
+                            value={confirm}
+                            onChange={(e) => setConfirm(e.target.value)}
+                          />
+                        </FormField>
+                      </div>
+                    </div>
+                  )}
+
+                  {!previewStep && msg && (
+                    <div role="alert" className={styles.error}>
+                      <CircleAlert size={17} aria-hidden="true" />
+                      <span>{msg}</span>
+                    </div>
+                  )}
+
+                  <div className={styles.actions}>
+                    {step === 'options' && (
+                      <Button type="button" variant="ghost" disabled={!!previewStep || busy} onClick={() => void submitOptions(true)}>
+                        跳过此步
+                      </Button>
+                    )}
+                    <Button type="submit" className={styles.primaryAction} disabled={!!previewStep || busy} aria-busy={busy}>
+                      {busy && <Spinner size="sm" aria-hidden="true" />}
+                      {busy ? currentStep.pending : currentStep.action}
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </main>
   )
