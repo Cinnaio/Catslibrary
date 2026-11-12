@@ -108,7 +108,7 @@ private struct AgentMessagesView: View {
     let model: AdminAIAgentConversationModel
     let readingOverlay: Bool
     let showArtifact: (String) -> Void
-    let showArtifacts: () -> Void
+    let showOutputs: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
@@ -218,7 +218,7 @@ private struct AgentMessagesView: View {
             Text(AgentDisplay.recoveryPhase(offer.phase)).font(.footnote.weight(.semibold))
             Text(offer.message).font(.footnote).foregroundStyle(AppTheme.textSecondary)
             if !model.artifacts.isEmpty || !model.actions.isEmpty {
-                Button("查看已有产出", systemImage: "doc.on.doc", action: showArtifacts)
+                Button("查看已有产出", systemImage: "doc.on.doc", action: showOutputs)
                     .font(.footnote).frame(minHeight: 44)
             }
             if offer.canResume {
