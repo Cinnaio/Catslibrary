@@ -1,0 +1,33 @@
+.page {
+  display: grid;
+  gap: 18px;
+  max-width: 680px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+
+.page h1 {
+  margin: 0 0 6px;
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: var(--font-display);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.page p {
+  margin: 0;
+}
+
+.page a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .page h1 {
+    font-size: 25px;
+  }
+}

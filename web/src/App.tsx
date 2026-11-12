@@ -22,6 +22,7 @@ const Reader = lazy(() => import('./pages/Reader'))
 const Bookshelf = lazy(() => import('./pages/Bookshelf'))
 const Edge = lazy(() => import('./pages/Edge'))
 const Profile = lazy(() => import('./pages/Profile'))
+const Copyright = lazy(() => import('./pages/Copyright'))
 const Auth = lazy(() => import('./pages/Auth'))
 const AccountEmail = lazy(() => import('./pages/AccountEmail'))
 // Keep the gallery, fixture data and source browser out of production bundles.
@@ -51,6 +52,7 @@ export default function App() {
             <Route path="/tools/tempo" element={<Navigate to="/tools/edge" replace />} />
             <Route path="/tools/edge" element={<Edge />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/copyright" element={<Copyright />} />
           </Route>
           <Route path="/read/:novelId/:chapterId" element={<Reader />} />
           {/* 无站点页头：登录页只保留一条出口，与门禁页、安装页一致。 */}

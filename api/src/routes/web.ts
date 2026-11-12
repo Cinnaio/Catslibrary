@@ -153,7 +153,7 @@ export function createWebRoutes(
       }
     }
     if (new URL(c.req.url).search) indexable = false
-    if (!/^\/$|^\/novel\/[^/]+$|^\/read\/[^/]+\/[^/]+$|^\/bookshelf$|^\/profile$|^\/auth$|^\/install$|^\/(?:forgot-password|reset-password|verify-email)$|^\/admin(?:\/[^/]+)?$/.test(c.req.path)) status = 404
+    if (!/^\/$|^\/novel\/[^/]+$|^\/read\/[^/]+\/[^/]+$|^\/bookshelf$|^\/profile$|^\/copyright$|^\/auth$|^\/install$|^\/(?:forgot-password|reset-password|verify-email)$|^\/admin(?:\/[^/]+)?$/.test(c.req.path)) status = 404
     const robots = indexable && status === 200 ? 'index, follow' : 'noindex, follow'
     const canonical = origin() && (c.req.path === '/' || novelMatch) ? `${origin()}${novelMatch ? `/novel/${encodeURIComponent(novelId)}` : '/'}` : ''
     template = template.replace(/<meta\s+name="(?:robots|description)"[^>]*>/g, '').replace(/<title>[^<]*<\/title>/, '')

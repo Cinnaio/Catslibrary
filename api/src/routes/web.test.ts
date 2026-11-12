@@ -61,12 +61,13 @@ describe('public SEO responses', () => {
     '/verify-email',
     '/install',
     '/profile',
+    '/copyright',
     '/bookshelf',
     '/?search=book',
     '/novel/general?ref=test',
   ])('excludes %s from indexing', async (path) => {
     const response = await routes.request(path)
-    if (['/forgot-password', '/reset-password', '/verify-email'].includes(path)) expect(response.status).toBe(200)
+    if (['/forgot-password', '/reset-password', '/verify-email', '/copyright'].includes(path)) expect(response.status).toBe(200)
     expect(response.headers.get('X-Robots-Tag')).toBe('noindex, follow')
     const html = await response.text()
     expect(html).toContain('content="noindex, follow"')

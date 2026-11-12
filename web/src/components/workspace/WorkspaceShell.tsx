@@ -5,7 +5,7 @@ import '@/styles/site-branding.css'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Dialog, Switch } from 'radix-ui'
-import { ArrowUpRight, BookOpen, ChevronDown, Flame, History, Library, LogOut, Menu, Search, Settings2, Shield, X, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, BookOpen, ChevronDown, FileText, Flame, History, Library, LogOut, Menu, Search, Settings2, Shield, X, type LucideIcon } from 'lucide-react'
 import { useSession } from '../../context/SessionContext'
 import { useContentPolicy } from '../../context/ContentPolicyContext'
 import { useSiteBranding } from '../../lib/site-branding'
@@ -148,6 +148,7 @@ export default function WorkspaceShell({
   const [floating, setFloating] = useState(false)
   const [query, setQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  const isCopyrightPage = location.pathname === '/copyright'
   const pageTitle =
     title ||
     (location.pathname.startsWith('/novel/')
@@ -160,7 +161,9 @@ export default function WorkspaceShell({
             : '我的书架'
           : location.pathname === '/tools/edge'
             ? '节拍指令'
-            : '全部书库')
+            : isCopyrightPage
+              ? '版权说明与联系'
+              : '全部书库')
   useEffect(() => {
     setMenuOpen(false)
   }, [location.pathname, location.search])
@@ -319,6 +322,18 @@ export default function WorkspaceShell({
       )}
     </div>
   )
+  const copyrightLink = !admin && (
+    <Link
+      to="/copyright"
+      className={`${styles.navLink} ${styles.copyrightLink}`}
+      data-active={isCopyrightPage || undefined}
+      aria-current={isCopyrightPage ? 'page' : undefined}
+      onClick={() => setMenuOpen(false)}
+    >
+      <FileText size={18} aria-hidden="true" />
+      <span>版权说明</span>
+    </Link>
+  )
   const shortcuts = admin
     ? groups.flatMap((group) => group.items).filter((item) => ['novels', 'ai', 'tasks', 'dashboard'].includes(item.id))
     : readerGroups.flatMap((group) => group.items)
@@ -333,6 +348,7 @@ export default function WorkspaceShell({
             {brand}
             <Navigation groups={groups} />
             {secondary}
+            {copyrightLink}
             {account}
           </aside>
           <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}>
@@ -361,6 +377,7 @@ export default function WorkspaceShell({
                 </div>
                 <Navigation groups={groups} onNavigate={() => setMenuOpen(false)} />
                 {secondary}
+                {copyrightLink}
                 {account}
               </Dialog.Content>
             </Dialog.Portal>
