@@ -98,12 +98,24 @@ public struct AIAgentEvidence: Codable, Identifiable, Equatable, Sendable {
 }
 
 public struct AIAgentEvent: Codable, Identifiable, Equatable, Sendable {
+    public struct DraftRead: Codable, Identifiable, Equatable, Sendable {
+        public let kind: String
+        public let title: String
+        public let draftId: String
+        public let revision: String
+        public let taskId: String?
+        public let createdAt: Int64?
+        public let truncated: Bool?
+        public var id: String { "\(draftId)-\(taskId ?? "")-\(revision)" }
+    }
+
     public struct Metadata: Codable, Equatable, Sendable {
         public let tool: String?
         public let artifactTaskId: String?
         public let actionId: String?
         public let memoryId: String?
         public let sources: [AIAgentEvidence]?
+        public let draftReads: [DraftRead]?
         public let error: Bool?
         public let providerPresetId: String?
         public let model: String?

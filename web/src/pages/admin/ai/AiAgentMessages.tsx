@@ -17,6 +17,7 @@ const READ_TOOLS = new Set([
   'list_novel_analyses',
   'read_novel_analysis',
   'list_drafts',
+  'find_draft_version',
   'read_draft',
   'list_covers',
   'read_task',
@@ -134,6 +135,16 @@ export default function AiAgentMessages({
             {group.events.map((event) => (
               <div key={event.id} className={styles.activity}>
                 <div className={styles.prose}>{event.content}</div>
+                {event.metadata.draftReads?.map(read => {
+                  const time = read.kind === 'rewrite' && read.createdAt
+                    ? new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(read.createdAt) : ''
+                  const label = `《${read.title}》· ${read.kind === 'rewrite' ? '改写建议' : '草稿正文'}${time ? ` · ${time}` : ''}${read.truncated ? ' · 已读节选' : ''}`
+                  return read.kind === 'rewrite' && read.taskId ? (
+                    <Button key={read.taskId} size="sm" variant="link" disabled={busy} onClick={() => onArtifact(read.taskId!)}>
+                      {label}
+                    </Button>
+                  ) : <div key={read.draftId} className={styles.muted}>{label}</div>
+                })}
                 {event.metadata.sources?.length ? <AiAgentSources sources={event.metadata.sources} /> : null}
               </div>
             ))}

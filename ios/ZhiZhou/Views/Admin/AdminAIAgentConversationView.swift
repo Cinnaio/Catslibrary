@@ -182,7 +182,7 @@ private struct AgentMessagesView: View {
                     AgentMessageRow(event: group.firstEvent, model: model, showArtifact: showArtifact,
                                     pauseFollowing: { followsBottom = false })
                 } else {
-                    AgentActivityGroupView(events: group.activities) { followsBottom = false }
+                    AgentActivityGroupView(events: group.activities, showArtifact: showArtifact) { followsBottom = false }
                 }
             }
             replyStatus
@@ -267,7 +267,7 @@ private struct AgentMessageGroup: Identifiable {
     private static let readingTools: Set<String> = [
         "read_overview", "search_chapters", "read_chapter", "read_story_memory",
         "search_story", "list_novel_analyses", "read_novel_analysis",
-        "list_drafts", "read_draft", "list_covers", "read_task", "read_conversation", "read_conversation_sources",
+        "list_drafts", "find_draft_version", "read_draft", "list_covers", "read_task", "read_conversation", "read_conversation_sources",
     ]
 
     static func grouped(_ events: [AIAgentEvent]) -> [Self] {
@@ -290,6 +290,7 @@ private struct AgentMessageGroup: Identifiable {
 
 private struct AgentActivityGroupView: View {
     let events: [AIAgentEvent]
+    let showArtifact: (String) -> Void
     let onExpand: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isExpanded = false
@@ -327,6 +328,20 @@ private struct AgentActivityGroupView: View {
                             Image(systemName: "checkmark").font(.caption2).accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(verbatim: event.content).textSelection(.enabled)
+                                ForEach(event.metadata.draftReads ?? []) { read in
+                                    let label = draftReadLabel(read)
+                                    if read.kind == "rewrite", let taskId = read.taskId {
+                                        Button { showArtifact(taskId) } label: {
+                                            Text(verbatim: label)
+                                                .foregroundStyle(AppTheme.primary)
+                                                .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityHint("打开这份改写建议")
+                                    } else {
+                                        Text(verbatim: label).font(.caption)
+                                    }
+                                }
                                 if let sources = event.metadata.sources, !sources.isEmpty {
                                     AgentEvidenceView(sources: sources, onExpand: onExpand)
                                 }
@@ -334,15 +349,21 @@ private struct AgentActivityGroupView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    if !events.contains(where: { $0.metadata.sources?.isEmpty == false }) {
-                        Text("这组查阅没有已保存的依据片段。").font(.caption)
-                    }
                 }
                 .font(.footnote).foregroundStyle(AppTheme.textSecondary)
                 .padding(.leading, 4).padding(.top, 2).padding(.bottom, 8)
                 .transition(.opacity)
             }
         }
+    }
+
+    private func draftReadLabel(_ read: AIAgentEvent.DraftRead) -> String {
+        var label = "《\(read.title)》· \(read.kind == "rewrite" ? "改写建议" : "草稿正文")"
+        if read.kind == "rewrite", let time = read.createdAt {
+            label += " · " + Date(timeIntervalSince1970: Double(time) / 1000).formatted(.dateTime.month().day().hour().minute())
+        }
+        if read.truncated == true { label += " · 已读节选" }
+        return label
     }
 }
 

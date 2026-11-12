@@ -1,4 +1,4 @@
-import type { AgentActionKind, AgentSession } from '@shared/ai-agent'
+import type { AgentActionKind, AgentDraftRead, AgentSession } from '@shared/ai-agent'
 import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { AiError, type AiFunctionTool, type AiToolCall } from './client'
@@ -10,15 +10,18 @@ import { readAgentEvents, requireAgentArtifact, trackAgentArtifact } from './age
 import { createAgentMemory } from './agent-memory'
 import { isAuthorQuote, readConversationSources } from './agent-conversation'
 import { parseRewriteSuggestion, parseRewriteTaskParams } from './rewrite'
+import { findAgentDraftVersions } from './agent-draft-versions'
+import { parseAgentSourceIds } from './agent-writing'
+import { getAiTask } from './tasks'
 
-type Property = { type: 'string' | 'integer'; description?: string; enum?: string[]; maxLength?: number; minimum?: number; maximum?: number }
+type Property = { type: 'string' | 'integer' | 'array'; description?: string; enum?: string[]; maxLength?: number; minimum?: number; maximum?: number; items?: { type: 'string' }; maxItems?: number }
 function tool(name: string, description: string, properties: Record<string, Property> = {}, required = Object.keys(properties)): AiFunctionTool {
   return { type: 'function', function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } } }
 }
 const id: Property = { type: 'string', maxLength: 160 }
 const instruction: Property = { type: 'string', maxLength: 4000 }
 const writingReferences = {
-  sourceIds: { type: 'string', maxLength: 160, description: '相关正式原文片段 sources[].id，以逗号分隔，最多六段。选择实际涵盖人物说话、行动或本章事实的片段。' },
+  sourceIds: { type: 'array', items: { type: 'string' }, maxItems: 6, description: '相关正式原文片段 sources[].id 的数组，最多六段。选择实际覆盖人物对白或行为的片段。' },
   authorEventIds: { type: 'string', maxLength: 100, description: '本次仍适用的作者消息编号（不含 #），以逗号分隔，最多六条。选择作者已确认的要求与最新更正。' },
 } satisfies Record<string, Property>
 const writingLength = {
@@ -41,8 +44,8 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   }, ['query']),
   tool(
     'read_chapter',
-    '按章节 ID 分段读取原文；nextOffset 非空表示未读完。不能读取其他小说或续写起点之后的章节。',
-    { chapterId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id },
+    '按章节 ID 分段读取原文。要把准确引文传给写作模型时，填写 quote 取得包含该句的 sources 片段。nextOffset 非空表示还有正文。',
+    { chapterId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id, quote: { type: 'string', maxLength: 240 } },
     ['chapterId'],
   ),
   tool('list_novel_analyses', '分页查看本书小说分析报告及其可用状态。只列目录，不代表已读报告。没有报告仍可直接查阅正文，不自动发起分析。', {
@@ -53,6 +56,9 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
     offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id,
   }, ['reportId']),
   tool('list_drafts', '列出本书草稿与已发布产出，可分页。正文必须用 read_draft 读取。', { offset: { type: 'integer', minimum: 0, maximum: 10000 } }, []),
+  tool('find_draft_version', '按作者引用的逐字短句查找本书草稿和本会话已有的改写建议。命中后按返回的 draftId 或 taskId 阅读指定版本；有多个不同版本时先核对。', {
+    quote: { type: 'string', maxLength: 240 },
+  }),
   tool('read_draft', '读取指定草稿的当前正文和 revision，改写前必须调用。', { draftId: id }),
   tool('list_covers', '列出本书封面候选的描述词与 ID。只提供文本材料，不代表你看到了图像。'),
   tool('read_task', '读取本对话生成任务的真实进度和产出。任务未完成时不反复轮询，告知用户可稍后继续。', { taskId: id }),
@@ -129,18 +135,22 @@ export function validateAgentCall(call: AiToolCall): Record<string, string | num
     throw new AiError('invalid', '工具参数不是有效 JSON', 422)
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AiError('invalid', '工具参数必须是对象', 422)
-  const args = value as Record<string, string | number>
+  const args = value as Record<string, unknown>
   const schema = definition.function.parameters as { properties: Record<string, Property>; required: string[] }
   for (const name of schema.required) if (!(name in args)) throw new AiError('invalid', `工具缺少参数 ${name}`, 422)
   for (const [name, v] of Object.entries(args)) {
     const p = Object.hasOwn(schema.properties, name) ? schema.properties[name] : undefined
     if (!p) throw new AiError('invalid', `工具不接受参数 ${name}`, 422)
+    if (p.type === 'array') {
+      args[name] = parseAgentSourceIds(v).join(',')
+      continue
+    }
     if (p.type === 'string' && (typeof v !== 'string' || v.length > (p.maxLength ?? 8000) || (p.enum && !p.enum.includes(v))))
       throw new AiError('invalid', `工具参数 ${name} 无效`, 422)
     if (p.type === 'integer' && (typeof v !== 'number' || !Number.isSafeInteger(v) || v < (p.minimum ?? 0) || v > (p.maximum ?? 10000)))
       throw new AiError('invalid', `工具参数 ${name} 无效`, 422)
   }
-  return args
+  return args as Record<string, string | number>
 }
 
 export const AGENT_TOOL_LABELS: Record<string, string> = {
@@ -151,6 +161,7 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
   list_novel_analyses: '查看小说分析目录',
   read_novel_analysis: '查阅小说分析',
   list_drafts: '查找草稿',
+  find_draft_version: '定位草稿版本',
   read_draft: '读取草稿',
   list_covers: '查看封面候选',
   read_task: '读取任务结果',
@@ -175,6 +186,7 @@ export async function executeAgentTool(
   api: AgentApi,
   userId = '',
   currentTaskId = '',
+  focus?: { read: AgentDraftRead; authorEventId: number },
 ): Promise<Record<string, unknown>> {
   if (name === 'read_overview') {
     const novel = await first<{ title: string; author: string; description: string }>(db, 'SELECT title,author,description FROM novels WHERE id=$1', [
@@ -204,7 +216,7 @@ export async function executeAgentTool(
     }
   }
   if (name === 'search_story') return searchAgentStory(db, session, String(a.query), a.kind as 'all' | 'chapter' | 'analysis' | undefined, Number(a.chapterOffset || 0))
-  if (name === 'read_chapter') return readAgentChapter(db, session, String(a.chapterId), Number(a.offset || 0), String(a.expectedRevision || ''))
+  if (name === 'read_chapter') return readAgentChapter(db, session, String(a.chapterId), Number(a.offset || 0), String(a.expectedRevision || ''), String(a.quote || '').trim())
   if (name === 'list_novel_analyses') return listAgentAnalyses(db, session, Number(a.offset || 0))
   if (name === 'read_novel_analysis') return readAgentAnalysis(db, session, String(a.reportId), Number(a.offset || 0), String(a.expectedRevision || ''))
   if (name === 'list_drafts')
@@ -217,7 +229,13 @@ export async function executeAgentTool(
     }
   if (name === 'read_draft') {
     const draft = await scopedAgentDraft(db, session, String(a.draftId))
-    return { id: draft.id, title: agentDraftTitle(draft), status: draft.status, content: draft.result, revision: generationContentRevision(draft.result) }
+    const title = agentDraftTitle(draft)
+    const revision = generationContentRevision(draft.result)
+    const draftReads: AgentDraftRead[] = [{ kind: 'draft', title, draftId: draft.id, revision }]
+    return { id: draft.id, title, status: draft.status, content: draft.result, revision, draftReads }
+  }
+  if (name === 'find_draft_version') return {
+    versions: (await findAgentDraftVersions(db, session, String(a.quote))).map(({ read, excerpt }) => ({ ...read, excerpt })),
   }
   if (name === 'list_covers')
     return {
@@ -225,7 +243,24 @@ export async function executeAgentTool(
         session.novelId,
       ]),
     }
-  if (name === 'read_task') return { ...(await readAgentArtifact(db, session, String(a.taskId))) }
+  if (name === 'read_task') {
+    const artifact = await readAgentArtifact(db, session, String(a.taskId))
+    const draftReads: AgentDraftRead[] = artifact.drafts.map(draft => ({
+      kind: 'draft', title: draft.title, draftId: draft.id, revision: draft.revision, taskId: artifact.task.id,
+    }))
+    if (artifact.rewrite) {
+      const rewrite = artifact.rewrite
+      const draft = await scopedAgentDraft(db, session, rewrite.draftId).catch(error => {
+        if (error instanceof AiError && error.status === 404) return undefined
+        throw error
+      })
+      draftReads.push({ kind: 'rewrite', title: draft ? agentDraftTitle(draft) : '章节', draftId: rewrite.draftId,
+        revision: generationContentRevision(rewrite.after), taskId: artifact.task.id,
+        createdAt: (await getAiTask(db, artifact.task.id))?.createdAt })
+      return { ...artifact, task: { ...artifact.task, result: '' }, draftReads }
+    }
+    return { ...artifact, draftReads }
+  }
   if (name === 'read_conversation') return readAgentEvents(db, session.id, Number(a.beforeId), 20)
   if (name === 'read_conversation_sources') {
     const raw = String(a.eventIds)
@@ -249,9 +284,12 @@ export async function executeAgentTool(
     authorTaskId: currentTaskId,
     authorEventIds: a.authorEventIds,
     sourceIds: a.sourceIds,
+    focusAuthorEventId: focus?.authorEventId,
     targetWords: a.targetWords,
     minimumWords: a.minimumWords,
   }
+  const focusedRewriteTask = name === 'rewrite_draft' && focus?.read.kind === 'rewrite' && a.draftId === focus.read.draftId
+    ? focus.read.taskId : undefined
   let receipt: Record<string, unknown>
   if (name === 'generate_draft') {
     if (!String(a.instruction).trim()) throw new AiError('invalid', '请先确定本章创作要求', 422)
@@ -272,7 +310,7 @@ export async function executeAgentTool(
       agentWriting: { ...agentWriting, priorDraftId: a.priorDraftId, priorDraftRevision: a.priorDraftRevision },
       operationId,
     })
-  } else if (name === 'rewrite_draft') {
+  } else if (name === 'rewrite_draft' && !focusedRewriteTask) {
     const draft = await scopedAgentDraft(db, session, String(a.draftId))
     if (draft.status !== 'draft' || !['continue', 'write_chapter'].includes(draft.kind)) throw new AiError('conflict', '只能改写未发布的章节草稿', 409)
     if (generationContentRevision(draft.result) !== a.baseRevision) throw new AiError('conflict', '草稿已变化，请重新读取后改写', 409)
@@ -289,12 +327,14 @@ export async function executeAgentTool(
       agentWriting,
       clientRequestId: operationId,
     })
-  } else if (name === 'refine_rewrite') {
-    const previous = await requireAgentArtifact(db, session.id, String(a.taskId))
+  } else if (name === 'refine_rewrite' || focusedRewriteTask) {
+    const previous = await requireAgentArtifact(db, session.id, focusedRewriteTask || String(a.taskId))
     const params = parseRewriteTaskParams(JSON.parse(previous.params || '{}'))
     const suggestion = params ? parseRewriteSuggestion(previous.result, params) : undefined
     if (previous.kind !== 'rewrite_selection' || previous.status !== 'completed' || !params || !suggestion)
       throw new AiError('invalid', '上次改写尚未完成或结果无效', 409)
+    if (focus?.read.kind === 'rewrite' && focus.read.draftId === params.draftId && focus.read.taskId !== previous.id)
+      throw new AiError('conflict', '请选择作者引文所在的改写建议版本', 409)
     const draft = await scopedAgentDraft(db, session, params.draftId)
     if (draft.status !== 'draft' || generationContentRevision(draft.result) !== params.baseRevision)
       throw new AiError('conflict', '草稿已经变化，请读取当前正文后重新改写', 409)

@@ -13,6 +13,7 @@ export const AGENT_READ_TOOLS = new Set([
   'list_novel_analyses',
   'read_novel_analysis',
   'list_drafts',
+  'find_draft_version',
   'read_draft',
   'list_covers',
   'read_task',

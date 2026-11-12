@@ -71,7 +71,7 @@ function analysisEvidence(session: AgentSession, report: WritingAnalysisReferenc
 export const chapterEvidenceUrl = (source: AgentEvidence) =>
   source.kind === 'chapter' && source.chapterId ? `/read/${encodeURIComponent(source.novelId)}/${encodeURIComponent(source.chapterId)}` : undefined
 
-export async function readAgentChapter(db: Db, session: AgentSession, chapterId: string, offset = 0, expectedRevision = '') {
+export async function readAgentChapter(db: Db, session: AgentSession, chapterId: string, offset = 0, expectedRevision = '', quote = '') {
   const anchor = await agentAnchor(db, session)
   const row = anchor
     ? await first<Chapter>(db, 'SELECT id,title,content,sort_order FROM chapters WHERE id=$1 AND novel_id=$2 AND (sort_order,id)<=($3,$4)', [
@@ -83,8 +83,15 @@ export async function readAgentChapter(db: Db, session: AgentSession, chapterId:
     : undefined
   if (!row) throw new AiError('invalid', '章节不在当前小说与起点范围内', 404)
   if (offset > row.content.length) throw new AiError('invalid', '读取位置超出章节长度，请从头重新读取', 422)
+  const revision = chapterEvidence(session, row).revision
+  if (expectedRevision && revision !== expectedRevision) throw new AiError('conflict', '章节已变化，请重新检索后读取', 409)
+  if (quote) {
+    const hit = row.content.indexOf(quote, offset)
+    if (hit < 0 || quote.length > 240) throw new AiError('invalid', '未在该范围找到逐字引文，请重新查阅原文', 422)
+    offset = Math.max(0, hit - 220)
+    if (offset > 0 && /[\uDC00-\uDFFF]/u.test(row.content[offset]!)) offset--
+  }
   const source = chapterEvidence(session, row, offset)
-  if (expectedRevision && source.revision !== expectedRevision) throw new AiError('conflict', '章节已变化，请重新检索后读取', 409)
   return {
     id: row.id,
     title: row.title,

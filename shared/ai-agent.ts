@@ -140,6 +140,16 @@ export interface AgentSummaryDiagnostic {
   limit?: number
 }
 
+export interface AgentDraftRead {
+  kind: 'draft' | 'rewrite'
+  title: string
+  draftId: string
+  revision: string
+  taskId?: string
+  createdAt?: number
+  truncated?: boolean
+}
+
 export interface AgentEvent {
   id: number
   role: 'user' | 'assistant' | 'activity'
@@ -152,6 +162,7 @@ export interface AgentEvent {
     actionId?: string
     memoryId?: string
     sources?: AgentEvidence[]
+    draftReads?: AgentDraftRead[]
     summaryDiagnostic?: AgentSummaryDiagnostic
     failurePhase?: AgentPhase
     recoveryFromTaskId?: string

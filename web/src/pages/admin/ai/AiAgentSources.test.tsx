@@ -1,9 +1,29 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import type { AgentEvidence } from '@shared/ai-agent'
+import { describe, expect, it, vi } from 'vitest'
+import type { AgentEvent, AgentEvidence } from '@shared/ai-agent'
 import AiAgentSources from './AiAgentSources'
+import AiAgentMessages from './AiAgentMessages'
 
 describe('Agent evidence snapshots', () => {
+  it('shows the actual draft title and opens the precise rewrite version from the read log', () => {
+    const events: AgentEvent[] = [
+      { id: 1, role: 'activity', taskId: 'turn', createdAt: 1, content: '查找草稿 · 本页 2 项，仅返回开头摘要', metadata: { tool: 'list_drafts' } },
+      { id: 2, role: 'activity', taskId: 'turn', createdAt: 2, content: '读取草稿', metadata: {
+        tool: 'read_draft', draftReads: [{ draftId: 'draft', kind: 'draft', title: '一周', revision: 'private-draft-revision' }],
+      } },
+      { id: 3, role: 'activity', taskId: 'turn', createdAt: 3, content: '定位到作者引用的版本', metadata: {
+        tool: 'find_draft_version', draftReads: [{ draftId: 'draft', taskId: 'rewrite-1', kind: 'rewrite', title: '一周', revision: 'private-rewrite-revision' }],
+      } },
+    ]
+    const onArtifact = vi.fn()
+    const view = render(<AiAgentMessages events={events} busy={false} onArtifact={onArtifact} onAction={vi.fn()} />)
+    fireEvent.click(screen.getByText('查阅资料'))
+    expect(screen.getByText(/仅返回开头摘要/)).toBeInTheDocument()
+    expect(screen.getByText('《一周》· 草稿正文')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '《一周》· 改写建议' }))
+    expect(onArtifact).toHaveBeenCalledWith('rewrite-1')
+    expect(view.container.textContent).not.toContain('private-rewrite-revision')
+  })
   it('opens the precise report and shows its range, saved revision and human correction', () => {
     render(<AiAgentSources sources={[{ id: 'analysis-source', kind: 'analysis', novelId: 'book/id', reportId: 'report?id', reportRevision: 3,
       title: '人物分析', origin: 'manual', revision: '3', offset: 0, endOffset: 8, excerpt: '尚未和解。', truncated: true,

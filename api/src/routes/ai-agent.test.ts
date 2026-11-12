@@ -1235,6 +1235,73 @@ describe('novel-scoped creative agent', () => {
     expect(artifact.rewrite?.after).toBe('他停了片刻。')
     expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))?.result).toBe(original)
   })
+  it('follows the version containing the author quote and carries the cited line outside the saved chapter window', async () => {
+    const book = 'quoted-version-book'
+    const base = '她还没想好怎么开口。'
+    const suggestion = '妈妈放下碗。“行不行啊？”她问。后半段保留这个约定。'
+    const quote = '小溪，你觉得呢？'
+    const chapter = `${'雨还在下。'.repeat(230)}妈妈慢声问：“${quote}”`
+    await t.db.query('INSERT INTO novels(id,title,created_at,updated_at) VALUES($1,$1,1,1)', [book])
+    await t.db.query('INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES($1,$2,$3,$4,1,1)',
+      ['quoted-voice', book, '晚饭', chapter])
+    await draft('quoted-draft', book, base)
+    const session = await createAgentSession(t.db, 'admin', { novelId: book })
+    const other = await createAgentSession(t.db, 'admin', { novelId: book })
+    const baseRevision = generationContentRevision(base)
+    const params = buildRewriteTaskParams('quoted-draft', base, {
+      baseRevision, selectedText: base, startUTF16: 0, endUTF16: base.length, mode: 'custom', instruction: '扩写晚饭。',
+    })
+    const previous = await createAiTask(t.db, { userId: 'admin', novelId: book, kind: 'rewrite_selection', params: JSON.stringify(params) })
+    await updateAiTask(t.db, previous.id, { status: 'completed', result: JSON.stringify({ version: 1, suggestion }) })
+    await trackAgentArtifact(t.db, session.id, previous.id)
+    expect(await executeAgentTool(t.db, other, 'find_draft_version', { quote: '行不行啊' }, 'locate', internalApi()))
+      .toEqual({ versions: [] })
+    const read = await executeAgentTool(t.db, session, 'read_task', { taskId: previous.id }, 'read-version', internalApi())
+    expect(read.draftReads).toMatchObject([{ kind: 'rewrite', title: '雨后', taskId: previous.id }])
+
+    const evidence = await executeAgentTool(t.db, session, 'read_chapter', { chapterId: 'quoted-voice' }, 'read-source', internalApi())
+    const sources = evidence.sources as NonNullable<AgentSessionDetail['events'][number]['metadata']['sources']>
+    expect(sources[0]!.excerpt).not.toContain(quote)
+    const direct = await executeAgentTool(t.db, session, 'read_chapter', { chapterId: 'quoted-voice', quote }, 'read-quote', internalApi())
+    expect(direct.sources).toMatchObject([{ excerpt: expect.stringContaining(quote) }])
+    await appendAgentEvent(t.db, session.id, 'user', '这里的“行不行啊”不像妈妈的口吻。', 'review-turn')
+    await appendAgentEvent(t.db, session.id, 'activity', '阅读章节原文', 'review-turn', { tool: 'read_chapter', sources })
+    await appendAgentEvent(t.db, session.id, 'assistant',
+      `原书说“${quote}”（[晚饭](/read/${book}/quoted-voice)）。另有“不存在的原文”（[晚饭](/read/${book}/quoted-voice)）。`, 'review-turn')
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '开始改。', 'refine-quoted-version')
+    const rewriteArgs = { draftId: 'quoted-draft', baseRevision, selectedText: '', instruction: '母亲改成轻声征询，保留后半段。' }
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body))
+      if (!body.tools) return completion(`妈妈慢声问：“${quote}”后半段保留这个约定。`)
+      const tools = body.messages.filter((message: { role: string }) => message.role === 'tool')
+      if (!tools.length) {
+        expect(body.messages.some((message: { content: string }) => message.content.includes('quotedDraftVersions') && message.content.includes(suggestion))).toBe(true)
+        return completion('', [call('read_draft', { draftId: 'quoted-draft' }, 'read-old')])
+      }
+      if (tools.length === 1) return completion('', [call('rewrite_draft', { ...rewriteArgs, sourceIds: [42] }, 'bad-source')])
+      if (tools.length === 2) {
+        expect(tools[1].content).toContain('片段编号')
+        return completion('', [call('rewrite_draft', { ...rewriteArgs, sourceIds: [sources[0]!.id] }, 'write')])
+      }
+      return completion('已提交指定版本的改写。')
+    })
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
+    const events = (await readAgentEvents(t.db, session.id)).events
+    expect(events.find(event => event.metadata.tool === 'find_draft_version')?.metadata.draftReads)
+      .toMatchObject([{ kind: 'rewrite', title: '雨后', taskId: previous.id }])
+    expect(events.find(event => event.metadata.tool === 'read_draft')?.metadata.draftReads)
+      .toMatchObject([{ kind: 'draft', title: '雨后', draftId: 'quoted-draft' }])
+    const artifact = events.find(event => event.metadata.artifactTaskId)
+    const revised = await waitTask(artifact!.metadata.artifactTaskId!)
+    const frozen = JSON.parse(revised.params)
+    expect(revised.status).toBe('completed')
+    expect(frozen.previousTaskId).toBe(previous.id)
+    expect(frozen.agentContext.sources[0].excerpt).toContain(quote)
+    expect(frozen.agentContext.sources.some((source: { excerpt: string }) => source.excerpt.includes('不存在的原文'))).toBe(false)
+    expect(revised.prompt).toContain(suggestion)
+    expect(fetchMock.mock.calls.filter(([, init]) => !JSON.parse(String(init?.body)).tools)).toHaveLength(1)
+  })
   it('rejects a stale publish preview and publishes the reviewed version only once', async () => {
     await draft()
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })

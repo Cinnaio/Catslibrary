@@ -3,6 +3,13 @@ import type { Db } from '../../db/pool'
 import { all } from '../../db/query'
 import { AiError } from './client'
 
+/** Exact quotations. Positions are UTF-16 offsets in the supplied message. */
+export function quotedAgentText(text: string) {
+  return [...text.matchAll(/“([^”\r\n]{2,240})”|「([^」\r\n]{2,240})」|『([^』\r\n]{2,240})』|"([^"\r\n]{2,240})"/gu)]
+    .map(match => ({ text: (match[1] || match[2] || match[3] || match[4] || '').trim(), end: match.index! + match[0].length }))
+    .filter(quote => quote.text.length >= 2)
+}
+
 /** Exact source lookup, bounded independently of the distance between messages. */
 export async function readConversationSources(db: Db, session: AgentSession, userId: string, ids: number[]) {
   const requested = [...new Set(ids)]
