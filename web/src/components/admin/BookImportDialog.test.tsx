@@ -105,6 +105,26 @@ it('唯一候选也可以改为新建作品，并使用新目标预览提交', a
   await screen.findByText('测试停止提交')
   expect(api.commit).toHaveBeenCalledWith('run', expect.objectContaining({ targetNovelId: null, revision: 1 }))
 })
+it('书名带标签的候选需要确认后才加载已有作品的差异', async () => {
+  const novel = { id: 'older-book', title: '样本', author: '作者', chapterCount: 10 } as NonNullable<BookImportPreview['targetNovel']>
+  const tagged = { ...original, book: { ...original.book, title: '样本 NPH' }, candidates: [{ novel, matchReason: 'title-tag' as const, score: 70 }] }
+  api.previewFile.mockResolvedValue(tagged)
+  api.selectTarget.mockResolvedValue({ ...tagged, revision: 1, targetNovelId: novel.id, targetNovel: novel })
+  render(<BookImportDialog open onOpenChange={vi.fn()} />)
+  fireEvent.change(screen.getByLabelText('选择书籍文件'), { target: { files: [new File(['正文'], '样本 NPH.txt')] } })
+  fireEvent.click(screen.getByRole('button', { name: '生成预览' }))
+
+  const candidate = await screen.findByRole('button', { name: /作者一致 · 书名带标签/ })
+  expect(candidate).toHaveAttribute('aria-pressed', 'false')
+  fireEvent.click(screen.getByRole('button', { name: '查看差异' }))
+  expect(await screen.findByText('请选择一个已有作品，或选择新建作品。')).toBeVisible()
+  expect(api.selectTarget).not.toHaveBeenCalled()
+
+  fireEvent.click(candidate)
+  fireEvent.click(screen.getByRole('button', { name: '查看差异' }))
+  expect(await screen.findByRole('tab', { name: /章节差异/ })).toBeVisible()
+  expect(api.selectTarget).toHaveBeenCalledWith('run', novel.id, 0)
+})
 it('复核期间禁止提交和返回，完成后使用新版本逐条采纳并提示重新核对', async () => {
   let resolve!: (review: BookImportAiReview) => void
   api.aiReview.mockImplementation(
