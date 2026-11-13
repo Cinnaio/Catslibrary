@@ -13,6 +13,7 @@ import type {
   BookImportChapterDiff,
   BookImportCommitResult,
   BookImportMetadataDiff,
+  BookImportNovelCandidate,
   BookImportPreview,
   BookImportRollbackResult,
 } from '@shared/types'
@@ -58,6 +59,13 @@ const CHAPTER_STATUS: Record<BookImportChapterDiff['status'], { label: string; c
   changed: { label: '有变化', className: 'book-import__badge--changed' },
   unchanged: { label: '无变化', className: 'book-import__badge--unchanged' },
   conflict: { label: '需确认', className: 'book-import__badge--conflict' },
+}
+
+const MATCH_REASON: Record<BookImportNovelCandidate['matchReason'], string> = {
+  'source-url': '来源一致',
+  'title-author': '标题 + 作者',
+  'title-tag': '作者一致 · 书名带标签',
+  title: '标题一致',
 }
 
 function formatNumber(value: number): string {
@@ -707,7 +715,7 @@ export default function BookImportDialog({
                     <h3 id="book-import-match-title">书库匹配</h3>
                     <p>确认书名和作者后选择已有作品；候选都不符时，可选择新建作品。</p>
                   </div>
-                  <Badge variant="secondary">{preview.candidates.length ? `找到 ${preview.candidates.length} 个候选` : '没有同名作品'}</Badge>
+                  <Badge variant="secondary">{preview.candidates.length ? `找到 ${preview.candidates.length} 个候选` : '未匹配到已有作品'}</Badge>
                 </div>
                 {preview.candidates.length ? (
                   <div className="book-import__candidate-list">
@@ -735,7 +743,7 @@ export default function BookImportDialog({
                             </span>
                           </span>
                           <Badge variant="outline">
-                            {candidate.matchReason === 'source-url' ? '来源一致' : candidate.matchReason === 'title-author' ? '标题 + 作者' : '标题一致'}
+                            {MATCH_REASON[candidate.matchReason]}
                           </Badge>
                         </button>
                       )
@@ -764,7 +772,7 @@ export default function BookImportDialog({
                     <FileText aria-hidden="true" />
                     <div>
                       <strong>将创建一本新作品</strong>
-                      <p>当前书库没有同名作品。提交前仍会展示章节和元数据预览。</p>
+                      <p>提交前可以核对章节和作品信息。</p>
                     </div>
                   </div>
                 )}

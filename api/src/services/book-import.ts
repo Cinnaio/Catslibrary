@@ -493,13 +493,21 @@ function matchKey(value: unknown): string {
   )
 }
 
+// 只识别独立的标签，保留英文单词或编号末尾的相同字母。
+const TRAILING_TITLE_TAG = /(?:\(\s*NPH?\s*\)|\[\s*NPH?\s*\]|【\s*NPH?\s*】|(?<![\p{Script=Latin}\p{N}])NPH?)$/iu
+
+function titleKey(value: unknown, ignoreTag = false): string {
+  let title = text(value)
+  for (const pattern of FILE_NAME_NOISE) title = title.replace(pattern, '')
+  if (ignoreTag) {
+    title = title.normalize('NFKC').replace(/》$/u, '').trimEnd()
+      .replace(TRAILING_TITLE_TAG, '')
+  }
+  return matchKey(title)
+}
+
 /** 只允许清理导出标记后的完整书名相同，包含关系不能证明是同一本书。 */
 function titlesMatch(a: unknown, b: unknown): boolean {
-  const titleKey = (value: unknown) => {
-    let title = text(value)
-    for (const pattern of FILE_NAME_NOISE) title = title.replace(pattern, '')
-    return matchKey(title)
-  }
   const left = titleKey(a)
   const right = titleKey(b)
   return Boolean(left && right && left === right)
@@ -1635,24 +1643,31 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[], o
   return diffs
 }
 
-async function findCandidates(db: Db, book: BookImportPayload): Promise<BookImportNovelCandidate[]> {
+async function findCandidates(db: Db, book: BookImportPayload, sourceType: ImportPreviewOptions['sourceType']): Promise<BookImportNovelCandidate[]> {
   const rows = await all<NovelRow>(db, 'SELECT * FROM novels ORDER BY updated_at DESC')
   const incomingAuthor = knownAuthor(book.author)
   const incomingSource = safeSourceUrl(book.sourceUrl)
-  return rows
-    .map((row) => {
+  const untaggedTitle = sourceType === 'file' && incomingAuthor ? titleKey(book.title, true) : ''
+  const candidates = rows
+    .map<BookImportNovelCandidate | null>((row) => {
       const novel = rowToNovel(row)
       if (!novel) return null
       const sameSource = incomingSource && safeSourceUrl(novel.sourceUrl) === incomingSource
+      if (sameSource) return { novel, matchReason: 'source-url', score: 100 }
       const sameTitle = titlesMatch(novel.title, book.title)
-      if (!sameSource && !sameTitle) return null
       const sameAuthor = incomingAuthor && knownAuthor(novel.author) === incomingAuthor
-      const score = sameSource ? 100 : sameAuthor ? 95 : 80
-      const matchReason: BookImportNovelCandidate['matchReason'] = sameSource ? 'source-url' : sameAuthor ? 'title-author' : 'title'
-      return { novel, matchReason, score }
+      if (sameTitle) return sameAuthor
+        ? { novel, matchReason: 'title-author', score: 95 }
+        : { novel, matchReason: 'title', score: 80 }
+      if (sameAuthor && untaggedTitle && titleKey(novel.title, true) === untaggedTitle) {
+        return { novel, matchReason: 'title-tag', score: 70 }
+      }
+      return null
     })
     .filter((candidate): candidate is BookImportNovelCandidate => candidate !== null)
     .sort((a, b) => b.score - a.score || b.novel.updatedAt - a.novel.updatedAt)
+  const directMatches = candidates.filter(candidate => candidate.matchReason !== 'title-tag')
+  return directMatches.length ? directMatches : candidates
 }
 
 async function loadLocalChapters(db: Db, novelId: string): Promise<ChapterRow[]> {
@@ -1701,14 +1716,13 @@ export function resolvedChapterDiffs(base: BookImportChapterDiff[], local: Chapt
 
 export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise<BookImportPreview> {
   const payload = normalizeImportPayload(opts.payload)
-  const candidates = await findCandidates(db, payload)
+  const candidates = await findCandidates(db, payload, opts.sourceType)
   const unique = candidates.length === 1 ? candidates[0]! : null
-  const authorConflict = unique && knownAuthor(payload.author) && knownAuthor(unique.novel.author)
-    && knownAuthor(payload.author) !== knownAuthor(unique.novel.author)
+  const authorConflict = unique?.matchReason === 'title' && knownAuthor(payload.author) && knownAuthor(unique.novel.author)
   // undefined 表示首次自动匹配；null 表示管理员明确选择新建，不能回退到旧书。
   const targetNovelId = opts.targetNovelId !== undefined
     ? opts.targetNovelId
-    : unique && (unique.matchReason === 'source-url' || !authorConflict) ? unique.novel.id : null
+    : unique && unique.matchReason !== 'title-tag' && !authorConflict ? unique.novel.id : null
   const targetCandidate = candidates.find((candidate) => candidate.novel.id === targetNovelId)
   let targetNovel = targetCandidate?.novel || null
   // 附加源已由管理员确认别名，目标作品不必再次满足自动书名匹配。
@@ -1735,8 +1749,9 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
     conflictCount: chapters.filter((chapter) => chapter.status === 'conflict').length,
   }
   const warnings: string[] = []
-  if (opts.targetNovelId === undefined && candidates.length > 1 && !targetNovel) warnings.push('发现多个同名作品，请选择已有作品或新建作品。')
-  if (authorConflict && unique?.matchReason !== 'source-url') warnings.push('同名候选的作者与导入作品不同，请核对后选择已有作品或新建作品。')
+  if (opts.targetNovelId === undefined && candidates.length > 1 && !targetNovel) warnings.push('发现多个候选作品，请核对书名和作者后选择。')
+  if (opts.targetNovelId === undefined && unique?.matchReason === 'title-tag') warnings.push('忽略书名末尾的分类标签后，书名和作者一致。请核对后选择已有作品或新建作品。')
+  if (authorConflict) warnings.push('同名候选的作者与导入作品不同，请核对后选择已有作品或新建作品。')
   if (summary.conflictCount) warnings.push(`有 ${summary.conflictCount} 个章节存在对应关系冲突，默认不会导入。`)
   const versionCount = new Set(chapters.map(chapter => chapter.variantGroup).filter(Boolean)).size
   if (versionCount) warnings.push(`有 ${versionCount} 组同章不同版本，默认均不选择；请展开比较，每组只选一个版本。选择后保留该章首次出现的位置。`)

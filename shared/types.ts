@@ -116,7 +116,7 @@ export interface BookImportPayload {
 
 export interface BookImportNovelCandidate {
   novel: Novel
-  matchReason: 'title' | 'title-author' | 'source-url'
+  matchReason: 'title' | 'title-author' | 'title-tag' | 'source-url'
   score: number
 }
 

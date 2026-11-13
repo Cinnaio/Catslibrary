@@ -86,6 +86,44 @@ describe('book import normalization and diffing', () => {
     expect(preview.targetNovel).toBeNull()
   })
 
+  it('offers a file title with a trailing NPH tag as a manual same-author match', async () => {
+    await testDb.db.query(
+      `INSERT INTO novels (id, title, author, created_at, updated_at)
+       VALUES ('tagged-import-target', '雾港来信！', '归雾', $1, $1)`,
+      [Date.now()],
+    )
+    const file = '[更75]《雾港来信！NPH》作者：归雾.txt'
+    const payload = helpers.parseTextImport('书名：《雾港来信！NPH》\n作者：归雾\n第一章 初见\n灯亮了。', file)
+    const options = { sourceType: 'file' as const, sourceLabel: file, sourceUrl: '' }
+    const preview = await createPreview(testDb.db, { ...options, payload })
+
+    expect(preview.book.title).toBe('《雾港来信！NPH》')
+    expect(preview.candidates).toMatchObject([{ novel: { id: 'tagged-import-target' }, matchReason: 'title-tag' }])
+    expect(preview.targetNovelId).toBeNull()
+    expect(await createPreview(testDb.db, { ...options, payload, targetNovelId: 'tagged-import-target' }))
+      .toMatchObject({ targetNovelId: 'tagged-import-target', metadataDiff: expect.arrayContaining([
+        expect.objectContaining({ field: 'title', selected: false }),
+      ]) })
+
+    for (const title of ['雾港来信！（ＮＰＨ）', '雾港来信！ NPH']) {
+      expect((await createPreview(testDb.db, { ...options, payload: { ...payload, title } })).candidates)
+        .toMatchObject([{ novel: { id: 'tagged-import-target' }, matchReason: 'title-tag' }])
+    }
+    for (const details of [{ author: '另一位作者' }, { author: '未知作者' }, { title: '雾港来信！续篇' }, { title: '雾港来信！NPH续篇' }]) {
+      expect((await createPreview(testDb.db, { ...options, payload: { ...payload, ...details } })).candidates).toEqual([])
+    }
+
+    await testDb.db.query(
+      `INSERT INTO novels (id, title, author, created_at, updated_at)
+       VALUES ('exact-import-target', '雾港来信！NPH', '归雾', $1, $1)`,
+      [Date.now()],
+    )
+    expect(await createPreview(testDb.db, { ...options, payload })).toMatchObject({
+      candidates: [{ novel: { id: 'exact-import-target' }, matchReason: 'title-author' }],
+      targetNovelId: 'exact-import-target',
+    })
+  })
+
   it('respects choosing a new book even when a unique same-title candidate exists', async () => {
     const preview = await createPreview(testDb.db, {
       sourceType: 'file', sourceLabel: '同名.txt', sourceUrl: '',
