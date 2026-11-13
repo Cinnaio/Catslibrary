@@ -237,7 +237,7 @@ export default function WorkspaceShell({
   }
   const showWorkspaceLink = admin || isAdministrator(user?.role)
   const showContentMode = adultContentEnabled && !!user
-  const secondary = (showWorkspaceLink || showContentMode) ? (
+  const secondary = (
     <div className={styles.secondary}>
       {showWorkspaceLink && (
         <Link className={styles.navLink} to={admin ? '/' : '/admin'} onClick={() => setMenuOpen(false)}>
@@ -262,8 +262,20 @@ export default function WorkspaceShell({
           </span>
         </Switch.Root>
       )}
+      {!admin && (
+        <Link
+          to="/copyright"
+          className={styles.navLink}
+          data-active={isCopyrightPage || undefined}
+          aria-current={isCopyrightPage ? 'page' : undefined}
+          onClick={() => setMenuOpen(false)}
+        >
+          <FileText size={18} aria-hidden="true" />
+          <span>版权说明</span>
+        </Link>
+      )}
     </div>
-  ) : null
+  )
   const accountName = user?.displayName || user?.username || `${branding.name}读者`
   const accountHandle = user?.username || user?.id || ''
   async function handleLogout() {
@@ -322,18 +334,6 @@ export default function WorkspaceShell({
       )}
     </div>
   )
-  const copyrightLink = !admin && (
-    <Link
-      to="/copyright"
-      className={`${styles.navLink} ${styles.copyrightLink}`}
-      data-active={isCopyrightPage || undefined}
-      aria-current={isCopyrightPage ? 'page' : undefined}
-      onClick={() => setMenuOpen(false)}
-    >
-      <FileText size={18} aria-hidden="true" />
-      <span>版权说明</span>
-    </Link>
-  )
   const shortcuts = admin
     ? groups.flatMap((group) => group.items).filter((item) => ['novels', 'ai', 'tasks', 'dashboard'].includes(item.id))
     : readerGroups.flatMap((group) => group.items)
@@ -348,7 +348,6 @@ export default function WorkspaceShell({
             {brand}
             <Navigation groups={groups} />
             {secondary}
-            {copyrightLink}
             {account}
           </aside>
           <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}>
@@ -377,7 +376,6 @@ export default function WorkspaceShell({
                 </div>
                 <Navigation groups={groups} onNavigate={() => setMenuOpen(false)} />
                 {secondary}
-                {copyrightLink}
                 {account}
               </Dialog.Content>
             </Dialog.Portal>
