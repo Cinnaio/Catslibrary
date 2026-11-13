@@ -125,7 +125,7 @@ rg --files -g AGENTS.md
 
 审核队列与安全策略在 2026-09-13 版中是范本，本轮改为迁移目标：范本只保留小说与章节。总览与客户端监控虽为一级入口，仍按「其他后台页面」纳入统一收口。
 
-**不在本手册范围内的页面**：公共阅读页（Home / Novel / Reader / Bookshelf / Profile / Auth / Install）与其样式文件。`scrape/Po18AccountPanel.tsx` 跟随所属抓取页面检查外观，不因为有「Account」名称就搬到账户区。
+**不在本手册范围内的页面**：公共阅读页（Home / Novel / Reader / Bookshelf / Profile / Auth / Install）与其样式文件。`scrape/SourceAccountPanel.tsx` 跟随所属抓取页面检查外观，不因为有「Account」名称就搬到账户区。
 
 ### 3.3 当前实测状态矩阵
 
@@ -306,7 +306,7 @@ const columns: readonly AdminColumn[] = [
 
 #### 4.5.2 卡片内标题层级
 
-卡片内部的子分区标题（如 PO18 面板的「账号登录」「浏览器 Cookie 兜底」）需与上下两级都可区分：
+卡片内部的子分区标题（如 扩展书源 面板的「账号登录」「浏览器 Cookie 兜底」）需与上下两级都可区分：
 
 | 层级 | 字号/字重 | 图标 |
 | --- | --- | --- |
@@ -332,7 +332,7 @@ const columns: readonly AdminColumn[] = [
 
 优先复用当前组件；只有至少两个目标页面存在相同结构需求时，才增加轻量共享能力。
 
-`AdminWorkspace.tsx` 现导出：`AdminToolbar`、`AdminSearch`、`AdminContextPanel`、`AdminMetricStrip`、`AdminQueueSummary`、`AdminDataPanel`、`AdminPanelHeading` 与 `AdminColumn` 接口。原独立文件 `components/admin/AdminPanel.tsx`（`Card` 的薄包装）**已删除**：PO18.tw 账号面板改造后它失去唯一消费者，成为零引用死代码。**不存在** `AdminPageHeading` 或 `AdminFormSection`——需要时按证据新增，不要引用不存在的 API。需要「卡片 + 标题条」时直接用 `Card` + `AdminPanelHeading`，二者组合会被共享层识别（见 §4.2 的归零规则）。
+`AdminWorkspace.tsx` 现导出：`AdminToolbar`、`AdminSearch`、`AdminContextPanel`、`AdminMetricStrip`、`AdminQueueSummary`、`AdminDataPanel`、`AdminPanelHeading` 与 `AdminColumn` 接口。原独立文件 `components/admin/AdminPanel.tsx`（`Card` 的薄包装）**已删除**：扩展书源 账号面板改造后它失去唯一消费者，成为零引用死代码。**不存在** `AdminPageHeading` 或 `AdminFormSection`——需要时按证据新增，不要引用不存在的 API。需要「卡片 + 标题条」时直接用 `Card` + `AdminPanelHeading`，二者组合会被共享层识别（见 §4.2 的归零规则）。
 
 `AdminPanelHeading` 是最常用的面板标题（小说、章节、审核、任务、书源、抓取中心各步均在用）；`AdminContextPanel` 当前**零消费者**（`ChaptersTab.tsx:23` 的 import 是死 import，见 §6 P0）。
 

@@ -6,7 +6,6 @@ import SearchSelect from "@/components/shared/SearchSelect"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { CheckItem, DiscoverNovel } from '../types'
 import ScrapeChecks from './ScrapeChecks'
 import type { Selectors, TestResult } from './StepConfig'
@@ -43,8 +42,6 @@ interface ScrapeSetupPanelProps {
   hasMoreChapters: boolean
   /** 需订购/购买才能读取正文的章节数。 */
   protectedChapterCount: number
-  sitePreset: string
-  onSitePresetChange: (value: string) => void
   chapterListUrl: string
   onChapterListUrlChange: (value: string) => void
   encoding: string
@@ -82,16 +79,10 @@ const SELECTOR_FIELDS: Array<{ key: keyof Selectors; label: string; placeholder:
   { key: 'nextPage', label: '下一页', placeholder: '.next a（可选）' },
 ]
 
-/** 选择器来源分段的激活层位移索引，与 TabsTrigger 顺序一致。 */
-const PRESET_INDEX: Record<string, number> = {
-  po18: 0,
-  custom: 1,
-}
-
 export default function ScrapeSetupPanel({
   item, preview, onPreviewChange, coverUrl, novelId, confirming, starting, started,
   advancedOpen, onToggleAdvanced, chapterCount, hasMoreChapters, protectedChapterCount,
-  sitePreset, onSitePresetChange, chapterListUrl, onChapterListUrlChange,
+  chapterListUrl, onChapterListUrlChange,
   encoding, onEncodingChange, selectors, onSelectorsChange, testResult, testChecks,
   onTest, onConfirm, onStart, onReset,
 }: ScrapeSetupPanelProps) {
@@ -173,16 +164,9 @@ export default function ScrapeSetupPanel({
             <ChevronDown className={`${styles.chevron} ${advancedOpen ? styles.chevronOpen : ''}`} aria-hidden="true" />
             章节规则与校验
           </Button>
-          <span className={styles.foldAside}>{sitePreset === 'po18' ? 'PO18 预设' : '自动识别 / 自定义规则'}</span>
         </div>
         {!canStart && !advancedOpen && <p className={`${styles.hint} ${styles.danger}`}>章节来源或选择器不完整，请展开补充后启动。</p>}
         <MotionPresence asChild open={advancedOpen} mode="disclosure"><div id={advancedId} className={styles.config}>
-            <Tabs value={sitePreset} onValueChange={onSitePresetChange}>
-              <TabsList aria-label="选择器来源" data-active-index={PRESET_INDEX[sitePreset] ?? 0}>
-                <TabsTrigger value="po18" disabled={busy || started || testResult.loading}>PO18 预设</TabsTrigger>
-                <TabsTrigger value="custom" disabled={busy || started || testResult.loading}>自定义</TabsTrigger>
-              </TabsList>
-            </Tabs>
             <fieldset className={`${styles.metadata} ${styles.ruleFields}`} disabled={busy || started || testResult.loading}>
               <div className={styles.sourceFields}>
                 <ScrapeField label="章节列表页 URL">{({ id }) => <Input id={id} type="url" value={chapterListUrl} onChange={(event) => onChapterListUrlChange(event.target.value)} />}</ScrapeField>

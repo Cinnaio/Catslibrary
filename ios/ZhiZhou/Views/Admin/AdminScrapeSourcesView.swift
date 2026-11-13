@@ -28,11 +28,18 @@ struct AdminScrapeSourcesView: View {
 
     // Legado 导入
     @State private var showLegadoImport = false
-    @State private var showPo18Account = false
+    @State private var sourceAccounts: [ScrapeSourceCapability] = []
+    @State private var selectedAccount: ScrapeSourceCapability?
     @State private var legadoUrl = ""
     @State private var legadoText = ""
     @State private var legadoImporting = false
     @State private var legadoResult: String?
+
+    private func loadSourceAccounts() async {
+        let capabilities = try? await AdminAPI.scrapeSourceCapabilities()
+        guard !Task.isCancelled else { return }
+        sourceAccounts = capabilities?.sources.filter(\.account) ?? []
+    }
 
     var body: some View {
         List {
@@ -43,7 +50,11 @@ struct AdminScrapeSourcesView: View {
         .navigationTitle("源管理")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索主机 / 名称")
-        .refreshable { await load() }
+        .refreshable {
+            await load()
+            await loadSourceAccounts()
+        }
+        .task { await loadSourceAccounts() }
         .task(id: searchText) {
             try? await Task.sleep(nanoseconds: 350_000_000)
             guard !Task.isCancelled else { return }
@@ -66,8 +77,10 @@ struct AdminScrapeSourcesView: View {
                     Button("导入 Legado 书源", systemImage: "square.and.arrow.down") {
                         showLegadoImport = true
                     }
-                    Button("POPO 账号", systemImage: "person.badge.key") {
-                        showPo18Account = true
+                    ForEach(sourceAccounts) { source in
+                        Button("\(source.name) 账号", systemImage: "person.badge.key") {
+                            selectedAccount = source
+                        }
                     }
                 } label: {
                     if checkingConnectivity || cleaningUnreachable {
@@ -102,8 +115,8 @@ struct AdminScrapeSourcesView: View {
                 }
             )
         }
-        .sheet(isPresented: $showPo18Account) {
-            Po18AccountSheet()
+        .sheet(item: $selectedAccount) { source in
+            SourceAccountSheet(source: source)
         }
         .confirmationDialog(
             "批量启停书源",

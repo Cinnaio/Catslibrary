@@ -34,7 +34,7 @@ beforeEach(() => {
     ],
   })
   mocks.sourceBindings.mockResolvedValue({
-    bindings: [{ id: 'reference', site: 'PO18', sourceUrl: 'https://www.po18.tw/books/123', isPrimary: true, lastSyncedAt: 1 }],
+    bindings: [{ id: 'reference', site: 'PO18', sourceUrl: 'https://source.example/books/123', isPrimary: true, lastSyncedAt: 1 }],
   })
 })
 it('附加源和参考目录独立显示，候选文件不计为已确认新增章', async () => {
@@ -43,7 +43,7 @@ it('附加源和参考目录独立显示，候选文件不计为已确认新增�
   expect(screen.getByText('部分目录未完整读取', { exact: false })).toBeVisible()
   expect(screen.getByText('1 个版本 · 以预览为准')).toBeVisible()
   expect(screen.getByText(/跟随来源设置 · 每 6 小时/)).toBeVisible()
-  expect(await screen.findByText('https://www.po18.tw/books/123')).toBeVisible()
+  expect(await screen.findByText('https://source.example/books/123')).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: '查看候选版本' }))
   expect(await screen.findByRole('dialog', { name: '文件更新' })).toHaveTextContent('txt:folder')
   fireEvent.click(screen.getByRole('button', { name: '返回来源设置' }))
@@ -61,7 +61,7 @@ it('附加源读取失败仍可使用参考目录，支持单独重试', async (
   mocks.overview.mockRejectedValueOnce(new Error('附加源读取失败'))
   render(<NovelRelatedSources novel={novel} onUpdated={mocks.updated} />)
   expect(await screen.findByRole('alert')).toHaveTextContent('附加源读取失败')
-  expect(screen.getByText('https://www.po18.tw/books/123')).toBeVisible()
+  expect(screen.getByText('https://source.example/books/123')).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: '重新读取附加源' }))
   expect(await screen.findByText('共享书单')).toBeVisible()
 })

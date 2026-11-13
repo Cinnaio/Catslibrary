@@ -107,7 +107,7 @@ function FollowupRows({
               </div>
             </div>
             <div className="dashboard-row__aside">
-              <span>{book.result === 'running' ? '正在执行' : !book.enabled ? '未调度' : book.blockedReason ? '等待重新登录' : book.nextCheckAt <= now ? '等待调度' : '下次检查'}</span>
+              <span>{book.result === 'running' ? '正在执行' : !book.enabled ? '未调度' : book.blockedReason === 'source_unavailable' ? '书源未安装' : book.blockedReason ? '等待书源恢复' : book.nextCheckAt <= now ? '等待调度' : '下次检查'}</span>
               {book.enabled && book.result !== 'running' && book.nextCheckAt > now && (
                 <time dateTime={new Date(book.nextCheckAt).toISOString()}>{formatDateTime(book.nextCheckAt)}</time>
               )}

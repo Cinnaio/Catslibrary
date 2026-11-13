@@ -2,8 +2,6 @@ import SwiftUI
 import Combine
 import ZhiZhouCore
 
-/// 爬虫「发现」：PO18 / POPO 搜索（书名/作者）+ 榜单浏览 + 详情建书启动 + 批量抓取。
-/// 对齐 Web 端 admin scrape DiscoverView（/api/scrape action=discover / po18-search / popo-search）。
 struct AdminDiscoverView: View {
     enum SearchMode: String, CaseIterable, Identifiable {
         case search = "站内搜索"
@@ -12,8 +10,13 @@ struct AdminDiscoverView: View {
     }
 
     // 搜索
-    @State private var mode: SearchMode = .search
-    @State private var searchSource: DiscoverSource = .po18
+    @State private var mode: SearchMode = .list
+    @State private var sources: [ScrapeSourceCapability] = []
+    @State private var searchSourceId = ""
+    private var searchSources: [ScrapeSourceCapability] { sources.filter(\.search) }
+    private var searchSource: ScrapeSourceCapability? {
+        searchSources.first { $0.id == searchSourceId } ?? searchSources.first
+    }
     @State private var query = ""
     @State private var searchType = "articlename"
     @State private var listUrl = ""
@@ -42,7 +45,7 @@ struct AdminDiscoverView: View {
     @State private var requests = ListRequestGuard<[String]>()
 
     private var requestQuery: [String] {
-        [mode.rawValue, searchSource.rawValue, query, searchType, listUrl, rankingKind ?? "", rankingType ?? ""]
+        [mode.rawValue, searchSource?.id ?? "", query, searchType, listUrl, rankingKind ?? "", rankingType ?? ""]
     }
 
     var body: some View {
@@ -58,7 +61,11 @@ struct AdminDiscoverView: View {
         }
         .navigationTitle("发现小说")
         .navigationBarTitleDisplayMode(.large)
-        .refreshable { await reloadCurrent() }
+        .refreshable {
+            await loadCapabilities()
+            await reloadCurrent()
+        }
+        .task { await loadCapabilities() }
         .sheet(item: $detailItem) { item in
             DiscoverDetailSheet(item: item, autoStart: detailAutoStart) { refresh in
                 detailItem = nil
@@ -81,7 +88,7 @@ struct AdminDiscoverView: View {
     private var toolbarSection: some View {
         Section {
             Picker("模式", selection: $mode) {
-                ForEach(SearchMode.allCases) { m in
+                ForEach(SearchMode.allCases.filter { $0 != .search || !searchSources.isEmpty }) { m in
                     Text(m.rawValue).tag(m)
                 }
             }
@@ -96,10 +103,10 @@ struct AdminDiscoverView: View {
 
             if mode == .search {
                 AdminFilterBar {
-                    AdminFilterMenu("来源", value: searchSource.displayName) {
-                        Picker("来源", selection: $searchSource) {
-                            ForEach(DiscoverSource.allCases) { source in
-                                Text(source.displayName).tag(source)
+                    AdminFilterMenu("来源", value: searchSource?.name ?? "") {
+                        Picker("来源", selection: $searchSourceId) {
+                            ForEach(searchSources) { source in
+                                Text(source.name).tag(source.id)
                             }
                         }
                     }
@@ -113,29 +120,21 @@ struct AdminDiscoverView: View {
                         }
                     }
                 }
-                .onChange(of: searchSource) { _, _ in
+                .onChange(of: searchSourceId) { _, _ in
                     novels = []
                     totalText = nil
                     errorMessage = nil
                 }
                 searchInputRow
             } else {
-                AdminFilterBar {
-                    AdminFilterMenu(
-                        "榜单",
-                        value: sitePresetLabel.isEmpty ? "选择来源榜单" : sitePresetLabel
-                    ) {
-                        Section("PO18 · po18x.vip") {
-                            ForEach(DiscoverRankingPreset.allCases.filter { $0.source == .po18 }) { preset in
-                                Button(preset.label) {
-                                    selectRankingPreset(preset)
-                                }
-                            }
-                        }
-                        Section("POPO · po18.tw") {
-                            ForEach(DiscoverRankingPreset.allCases.filter { $0.source == .popo }) { preset in
-                                Button(preset.label) {
-                                    selectRankingPreset(preset)
+                if sources.contains(where: { !$0.rankings.isEmpty }) {
+                    AdminFilterBar {
+                        AdminFilterMenu("榜单", value: sitePresetLabel.isEmpty ? "选择来源榜单" : sitePresetLabel) {
+                            ForEach(sources.filter { !$0.rankings.isEmpty }) { source in
+                                Section(source.name) {
+                                    ForEach(source.rankings) { ranking in
+                                        Button(ranking.label) { selectRankingPreset(ranking) }
+                                    }
                                 }
                             }
                         }
@@ -183,7 +182,7 @@ struct AdminDiscoverView: View {
             .foregroundStyle(AppTheme.onPrimary)
             .buttonStyle(.plain)
             .disabled(isLoading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel("搜索 \(searchSource.displayName)")
+            .accessibilityLabel("搜索 \(searchSource?.name ?? "")")
         }
         .padding(.horizontal, AppLayout.fieldHorizontalInset)
         .padding(.vertical, AppLayout.fieldVerticalInset)
@@ -198,7 +197,15 @@ struct AdminDiscoverView: View {
         HStack(spacing: 10) {
             Image(systemName: "link")
                 .foregroundStyle(AppTheme.textSecondary)
-            TextField("粘贴榜单页面 URL", text: $listUrl)
+            TextField("粘贴榜单页面 URL", text: Binding(
+                get: { listUrl },
+                set: {
+                    listUrl = $0
+                    sitePresetLabel = ""
+                    rankingKind = nil
+                    rankingType = nil
+                }
+            ))
                 .keyboardType(.URL)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -301,7 +308,7 @@ struct AdminDiscoverView: View {
                 ContentUnavailableView {
                     Label("发现小说", systemImage: "scope")
                 } description: {
-                    Text(mode == .search ? "选择 PO18 或 POPO 搜索，或切到「榜单浏览」选择来源榜单。" : "选择来源榜单，或粘贴榜单 URL。")
+                    Text(mode == .search ? "选择书源后搜索书名或作者。" : "选择来源榜单，或粘贴榜单 URL。")
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -371,10 +378,10 @@ struct AdminDiscoverView: View {
                 .appTextLineLimit(1)
 
             HStack(spacing: 6) {
-                if let source = sourceForNovel(novel) {
+                if let source = novel.sourceName ?? novel.source {
                     AdminStatusBadge(
-                        source.displayName,
-                        tint: source == .popo ? AppTheme.warning : AppTheme.primary,
+                        source,
+                        tint: AppTheme.primary,
                         systemImage: "globe"
                     )
                 }
@@ -425,7 +432,7 @@ struct AdminDiscoverView: View {
 
     private func fetchSearch() async {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return }
+        guard !q.isEmpty, searchSource != nil else { return }
         listUrlRef = ""
         page = 1
         totalPages = 1
@@ -434,12 +441,18 @@ struct AdminDiscoverView: View {
         }
     }
 
-    private func searchDiscover(query: String, page: Int) async throws -> DiscoverResponse {
-        if searchSource == .popo {
-            let type = searchType == "author" ? "author" : "book"
-            return try await AdminAPI.scrapePopoSearch(query: query, searchType: type, page: page)
+    private func loadCapabilities() async {
+        let capabilities = try? await AdminAPI.scrapeSourceCapabilities()
+        guard !Task.isCancelled, let capabilities else { return }
+        sources = capabilities.sources
+        if !searchSources.contains(where: { $0.id == searchSourceId }) {
+            searchSourceId = searchSources.first?.id ?? ""
         }
-        return try await AdminAPI.scrapePo18Search(query: query, searchType: searchType, page: page)
+        if searchSources.isEmpty && mode == .search { mode = .list }
+    }
+
+    private func searchDiscover(query: String, page: Int) async throws -> DiscoverResponse {
+        try await AdminAPI.scrapeSourceSearch(sourceId: searchSource?.id ?? "", query: query, searchType: searchType, page: page)
     }
 
     private func fetchDiscoverList() async {
@@ -461,7 +474,7 @@ struct AdminDiscoverView: View {
         let next = page + 1
         if mode == .search {
             let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !q.isEmpty else { return }
+            guard !q.isEmpty, searchSource != nil else { return }
             page = next
             await renderDiscover {
                 try await searchDiscover(query: q, page: next)
@@ -497,7 +510,7 @@ struct AdminDiscoverView: View {
             guard !Task.isCancelled, requests.accepts(ticket, query: requestQuery) else { return }
             novels = r.novels
             selectedIndices = []
-            let sourceText = displaySourceLabel(r.site) ?? r.novels.compactMap { sourceForNovel($0)?.displayName }.first
+            let sourceText = r.site ?? r.novels.compactMap(\.sourceName).first
             if r.novels.isEmpty {
                 totalText = sourceText.map { "来源：\($0)" } ?? "没有找到小说"
             } else {
@@ -521,8 +534,8 @@ struct AdminDiscoverView: View {
         }
     }
 
-    private func selectRankingPreset(_ preset: DiscoverRankingPreset) {
-        let selectedURL = preset.url
+    private func selectRankingPreset(_ preset: ScrapeSourceRanking) {
+        let selectedURL = preset.listUrl
         let selectedKind = preset.rankingKind
         let selectedType = preset.rankingType
         sitePresetLabel = preset.label
@@ -530,27 +543,6 @@ struct AdminDiscoverView: View {
         rankingType = selectedType
         listUrl = selectedURL
         Task { await fetchDiscoverList(url: selectedURL, rankingKind: selectedKind, rankingType: selectedType) }
-    }
-
-    private func sourceForNovel(_ novel: DiscoverNovel) -> DiscoverSource? {
-        if novel.source == "po18tw" || novel.sourceName == "POPO" { return .popo }
-        if novel.source == "po18" || novel.sourceName == "PO18" { return .po18 }
-        guard let host = URL(string: novel.url)?.host?.lowercased() else { return nil }
-        if host == "po18.tw" || host.hasSuffix(".po18.tw") { return .popo }
-        if host == "po18x.vip" || host.hasSuffix(".po18x.vip") { return .po18 }
-        return nil
-    }
-
-    private func displaySourceLabel(_ site: String?) -> String? {
-        guard let site, !site.isEmpty else { return nil }
-        let normalized = site.lowercased()
-        if normalized.contains("po18.tw") || normalized.contains("popo") || normalized == "po18tw" {
-            return "POPO（po18.tw）"
-        }
-        if normalized.contains("po18") || normalized == "po18x" {
-            return "PO18（po18x.vip）"
-        }
-        return site
     }
 
     // MARK: - 选择 / 批量
@@ -643,117 +635,6 @@ struct AdminDiscoverView: View {
 }
 
 // MARK: - 发现来源 / 榜单预设
-
-private enum DiscoverSource: String, CaseIterable, Identifiable {
-    case po18
-    case popo
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .po18: return "PO18"
-        case .popo: return "POPO"
-        }
-    }
-}
-
-private enum DiscoverRankingPreset: String, CaseIterable, Identifiable {
-    case po18DayVisit = "日点击榜"
-    case po18WeekVisit = "周点击榜"
-    case po18MonthVisit = "月点击榜"
-    case po18AllVisit = "总点击榜"
-    case po18DayVote = "日推荐榜"
-    case po18WeekVote = "周推荐榜"
-    case po18MonthVote = "月推荐榜"
-    case po18AllVote = "总推荐榜"
-    case po18GoodNum = "总收藏榜"
-    case po18Size = "字数排行"
-    case po18Postdate = "最新入库"
-    case po18Lastupdate = "最近更新"
-    case popoPopularityWeekly = "人气榜 · 周"
-    case popoPopularityMonthly = "人气榜 · 月"
-    case popoPopularityTotal = "人气榜 · 总"
-    case popoPearlWeekly = "珍珠榜 · 周"
-    case popoPearlMonthly = "珍珠榜 · 月"
-    case popoPearlTotal = "珍珠榜 · 总"
-    case popoPurchaseWeekly = "订购榜 · 周"
-    case popoPurchaseMonthly = "订购榜 · 月"
-    case popoPurchaseTotal = "订购榜 · 总"
-    case popoCollectionWeekly = "收藏榜 · 周"
-    case popoCollectionMonthly = "收藏榜 · 月"
-    case popoCollectionTotal = "收藏榜 · 总"
-    case popoCommentWeekly = "留言人气榜 · 周"
-    case popoCommentMonthly = "留言人气榜 · 月"
-    case popoCommentTotal = "留言人气榜 · 总"
-    case popoRank = "整页榜单"
-
-    var id: String { rawValue }
-
-    var source: DiscoverSource {
-        switch self {
-        case .popoPopularityWeekly, .popoPopularityMonthly, .popoPopularityTotal,
-             .popoPearlWeekly, .popoPearlMonthly, .popoPearlTotal,
-             .popoPurchaseWeekly, .popoPurchaseMonthly, .popoPurchaseTotal,
-             .popoCollectionWeekly, .popoCollectionMonthly, .popoCollectionTotal,
-             .popoCommentWeekly, .popoCommentMonthly, .popoCommentTotal, .popoRank:
-            return .popo
-        default:
-            return .po18
-        }
-    }
-
-    var label: String {
-        "\(source.displayName) · \(rawValue)"
-    }
-
-    var url: String {
-        switch self {
-        case .po18DayVisit: return "https://wap.po18x.vip/top/dayvisit_1/"
-        case .po18WeekVisit: return "https://wap.po18x.vip/top/weekvisit_1/"
-        case .po18MonthVisit: return "https://wap.po18x.vip/top/monthvisit_1/"
-        case .po18AllVisit: return "https://wap.po18x.vip/top/allvisit_1/"
-        case .po18DayVote: return "https://wap.po18x.vip/top/dayvote_1/"
-        case .po18WeekVote: return "https://wap.po18x.vip/top/weekvote_1/"
-        case .po18MonthVote: return "https://wap.po18x.vip/top/monthvote_1/"
-        case .po18AllVote: return "https://wap.po18x.vip/top/allvote_1/"
-        case .po18GoodNum: return "https://wap.po18x.vip/top/goodnum_1/"
-        case .po18Size: return "https://wap.po18x.vip/top/size_1/"
-        case .po18Postdate: return "https://wap.po18x.vip/top/postdate_1/"
-        case .po18Lastupdate: return "https://wap.po18x.vip/top/lastupdate_1/"
-        case .popoPopularityWeekly, .popoPopularityMonthly, .popoPopularityTotal,
-             .popoPearlWeekly, .popoPearlMonthly, .popoPearlTotal,
-             .popoPurchaseWeekly, .popoPurchaseMonthly, .popoPurchaseTotal,
-             .popoCollectionWeekly, .popoCollectionMonthly, .popoCollectionTotal,
-             .popoCommentWeekly, .popoCommentMonthly, .popoCommentTotal, .popoRank:
-            return "https://www.po18.tw/rank/index"
-        }
-    }
-
-    var rankingKind: String? {
-        switch self {
-        case .popoPopularityWeekly, .popoPopularityMonthly, .popoPopularityTotal: return "sex"
-        case .popoPearlWeekly, .popoPearlMonthly, .popoPearlTotal: return "pearl"
-        case .popoPurchaseWeekly, .popoPurchaseMonthly, .popoPurchaseTotal: return "bestsale"
-        case .popoCollectionWeekly, .popoCollectionMonthly, .popoCollectionTotal: return "stocked"
-        case .popoCommentWeekly, .popoCommentMonthly, .popoCommentTotal: return "mostcomments"
-        default: return nil
-        }
-    }
-
-    var rankingType: String? {
-        switch self {
-        case .popoPopularityWeekly, .popoPearlWeekly, .popoPurchaseWeekly, .popoCollectionWeekly, .popoCommentWeekly:
-            return "weekly"
-        case .popoPopularityMonthly, .popoPearlMonthly, .popoPurchaseMonthly, .popoCollectionMonthly, .popoCommentMonthly:
-            return "monthly"
-        case .popoPopularityTotal, .popoPearlTotal, .popoPurchaseTotal, .popoCollectionTotal, .popoCommentTotal:
-            return "total"
-        default:
-            return nil
-        }
-    }
-}
 
 // MARK: - 详情 / 批量状态
 

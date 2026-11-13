@@ -2,12 +2,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-vi.mock('@/context/SessionContext', () => ({ useSession: () => ({ user: { role: 'super_admin' } }) }))
+vi.mock('@/context/SessionContext', () => ({ useSession: () => ({ user: { id: 'admin', role: 'super_admin' } }) }))
 
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
   scrapePost: vi.fn(),
   toast: vi.fn(),
+  sourceCapabilities: vi.fn(),
 }))
 
 vi.mock('@/components/feedback', () => ({
@@ -21,7 +22,19 @@ vi.mock('./utils', async () => {
 })
 
 import CenterView from './CenterView'
-import { POPO_RANKING_LIST_URL, RANKING_SITES } from './utils'
+vi.mock('@/lib/api', async (importOriginal) => {
+  const api = await importOriginal<typeof import('@/lib/api')>()
+  return { ...api, scrapeApi: { ...api.scrapeApi, sourceCapabilities: mocks.sourceCapabilities } }
+})
+
+const LIST_URL = 'https://source.example/rank'
+const SOURCE = { id: 'fixture', name: '示例书源', search: true, account: false, rankings: [
+  { id: 'monthly', label: '示例热门榜 · 月', listUrl: LIST_URL, rankingKind: 'popular', rankingType: 'monthly' },
+  { id: 'total', label: '示例收藏榜 · 总', listUrl: LIST_URL, rankingKind: 'saved', rankingType: 'total' },
+  { id: 'weekly', label: '示例热门榜 · 周', listUrl: LIST_URL, rankingKind: 'popular', rankingType: 'weekly' },
+] }
+
+mocks.sourceCapabilities.mockResolvedValue({ sources: [] })
 
 function renderCenter() {
   return render(<MemoryRouter><CenterView /></MemoryRouter>)
@@ -37,7 +50,7 @@ if (!globalThis.ResizeObserver) {
 Element.prototype.scrollIntoView = () => undefined
 
 function emptyDiscovery() {
-  return { novels: [], total: 0, totalPages: 1, site: 'POPO' }
+  return { novels: [], total: 0, totalPages: 1, site: '示例书源' }
 }
 
 async function selectRanking(label: string) {
@@ -45,7 +58,6 @@ async function selectRanking(label: string) {
   // 默认停在「链接导入」，先切到「榜单发现」才会渲染榜单控件。
   await user.click(screen.getByRole('tab', { name: '榜单发现' }))
   await user.click(await screen.findByRole('combobox', { name: '选择榜单来源' }))
-  // 选项可访问名 = label + sub（如「POPO 珍珠榜 · 月 po18.tw」），用正则匹配 label。
   await user.click(await screen.findByRole('option', { name: new RegExp(label) }))
 }
 
@@ -59,40 +71,33 @@ describe('CenterView 榜单入口', () => {
     vi.clearAllMocks()
     mocks.confirm.mockResolvedValue(false)
     mocks.scrapePost.mockResolvedValue(emptyDiscovery())
+    mocks.sourceCapabilities.mockResolvedValue({ sources: [SOURCE] })
   })
 
-  it('POPO 榜单面板覆盖 5 个榜单 × 周/月/总', () => {
-    const popo = RANKING_SITES.filter((site) => site.ranking)
-    expect(popo).toHaveLength(15)
-    // 值必须唯一，否则下拉里同 kind 的周/月/总会互相覆盖。
-    expect(new Set(popo.map((site) => site.value)).size).toBe(15)
-    expect(popo.every((site) => site.listUrl === POPO_RANKING_LIST_URL)).toBe(true)
-  })
-
-  it('选中 POPO 珍珠榜·月时提交 kind=pearl 与 type=monthly', async () => {
+  it('选中 示例热门榜·月时提交 kind=popular 与 type=monthly', async () => {
     renderCenter()
 
-    await selectRanking('POPO 珍珠榜 · 月')
+    await selectRanking('示例热门榜 · 月')
     fireEvent.click(screen.getByRole('button', { name: '加载榜单' }))
 
     await waitFor(() => expect(lastDiscoverBody().action).toBe('discover'))
     expect(lastDiscoverBody()).toMatchObject({
-      listUrl: POPO_RANKING_LIST_URL,
-      rankingKind: 'pearl',
+      listUrl: LIST_URL,
+      rankingKind: 'popular',
       rankingType: 'monthly',
     })
   })
 
-  it('选中 POPO 收藏榜·总时提交 kind=stocked 与 type=total', async () => {
+  it('选中 示例收藏榜·总时提交 kind=saved 与 type=total', async () => {
     renderCenter()
 
-    await selectRanking('POPO 收藏榜 · 总')
+    await selectRanking('示例收藏榜 · 总')
     fireEvent.click(screen.getByRole('button', { name: '加载榜单' }))
 
     await waitFor(() => expect(lastDiscoverBody().action).toBe('discover'))
     expect(lastDiscoverBody()).toMatchObject({
-      listUrl: POPO_RANKING_LIST_URL,
-      rankingKind: 'stocked',
+      listUrl: LIST_URL,
+      rankingKind: 'saved',
       rankingType: 'total',
     })
   })
@@ -111,12 +116,12 @@ describe('CenterView 榜单入口', () => {
     expect(body.rankingType).toBeUndefined()
   })
 
-  it('下拉选中后输入框展示 POPO 表单页地址，而非内部标识', async () => {
+  it('下拉选中后输入框展示榜单地址，而非内部标识', async () => {
     renderCenter()
 
-    await selectRanking('POPO 人气榜 · 周')
+    await selectRanking('示例热门榜 · 周')
 
-    expect(screen.getByPlaceholderText('也可以粘贴自定义榜单 URL')).toHaveValue(POPO_RANKING_LIST_URL)
+    expect(screen.getByPlaceholderText('也可以粘贴自定义榜单 URL')).toHaveValue(LIST_URL)
   })
 })
 
@@ -129,4 +134,15 @@ it('统计页带入来源只预填链接，不自动分析或启动任务', () =
     expect(screen.getByDisplayValue('https://example.com/book')).toBeInTheDocument()
     expect(mocks.scrapePost).not.toHaveBeenCalled()
   } finally { window.history.replaceState({}, '', previous) }
+})
+
+it('公开实例保留链接导入和自定义榜单，只在有已安装书源时显示搜索入口', async () => {
+  mocks.sourceCapabilities.mockResolvedValue({ sources: [] })
+  renderCenter()
+  await waitFor(() => expect(mocks.sourceCapabilities).toHaveBeenCalled())
+  expect(screen.getByRole('tab', { name: '链接导入' })).toBeInTheDocument()
+  expect(screen.queryByRole('tab', { name: '作品搜索' })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('tab', { name: '榜单发现' }))
+  expect(screen.getByPlaceholderText('也可以粘贴自定义榜单 URL')).toBeInTheDocument()
+  expect(screen.queryByRole('combobox', { name: '选择榜单来源' })).not.toBeInTheDocument()
 })

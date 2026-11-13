@@ -9,9 +9,8 @@ import { normalizeCategories, tokenizeConcatenatedTags } from '../categories'
 import type { FetchHtmlOptions, FetchResult } from './fetch'
 import type { ScrapeStore } from './store'
 import { getPresetForUrl } from './store'
+import { adapterForUrl, assertSourceAvailable } from './sources'
 import { simplifyNovelForSource } from '../zh-convert'
-import { isPo18twLoginPage, parsePo18twChapterLinks, po18ChapterListUrl } from './enrich'
-import { PO18TW_SELECTORS } from './presets'
 
 export interface ScrapeNovel {
   title: string
@@ -32,7 +31,7 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
   let coverUrl = extractByPattern(html, m.cover || '', 'src') || extractAttr(html, m.cover || '', 'src')
 
   const czbooksMeta = preset.name === '小說狂人' ? extractCzbooksMeta(html) : null
-  const po18Meta = preset.name === 'PO18.tw' ? extractPo18twMeta(html) : null
+  const adapterMeta = preset.readMeta?.(html)
   let categoriesOverride: string[] | null = null
   if (czbooksMeta) {
     title = czbooksMeta.title || title
@@ -40,12 +39,12 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
     description = czbooksMeta.description || description
     coverUrl = czbooksMeta.coverUrl || coverUrl
   }
-  if (po18Meta) {
-    title = po18Meta.title || title
-    author = po18Meta.author || author
-    description = po18Meta.description || description
-    coverUrl = po18Meta.coverUrl || coverUrl
-    categoriesOverride = po18Meta.categories
+  if (adapterMeta) {
+    title = adapterMeta.title || title
+    author = adapterMeta.author || author
+    description = adapterMeta.description || description
+    coverUrl = adapterMeta.coverUrl || coverUrl
+    categoriesOverride = adapterMeta.categories
   }
 
   if (!coverUrl || /(?:noimg|no_thumbnail|default_no_thumbnail)\.jpg/i.test(coverUrl)) {
@@ -55,7 +54,7 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
 
   let category = extractByPattern(html, m.category || '') || extractTextSmart(html, m.category || '')
   if (czbooksMeta?.category) category = czbooksMeta.category
-  if (po18Meta) category = po18Meta.categories[0] || ''
+  if (adapterMeta) category = adapterMeta.categories[0] || ''
   if (category) {
     category = category.replace(/^[^:：]+[：:]\s*/, '').replace(/^\s+/, '').trim()
   }
@@ -69,46 +68,17 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
     coverUrl: coverUrl ? resolveUrl(coverUrl, sourceUrl) : '',
     sourceUrl,
   }
-  if (czbooksMeta?.status || po18Meta?.status) novel.status = czbooksMeta?.status || po18Meta?.status
+  if (czbooksMeta?.status || adapterMeta?.status) novel.status = czbooksMeta?.status || adapterMeta?.status
   applyStatusFallback(novel, html, preset)
   return novel
 }
 
-interface Po18Meta {
-  title: string
-  author: string
-  description: string
-  categories: string[]
-  coverUrl: string
-  status: string
-}
-
 /** 状态文本先识别否定形式，不能仅凭「完」字推断已完结。 */
-function parseNovelStatus(text: string): string {
+export function parseNovelStatus(text: string): string {
   const statusText = text.normalize('NFKC').replace(/\s+/g, '')
   if (/(?:尚未|未|还未|還未|没有|沒有|不)(?:完[结結本]?|[结結]束)|连载|連載|更新中/i.test(statusText)) return 'ongoing'
   if (/已完(?:[结結本])?|完[结結本]|全集/i.test(statusText) || /^(?:状态[:：]?|狀態[:：]?)?[（(【\[]?完(?:$|[)）】\](（])/.test(statusText)) return 'completed'
   return ''
-}
-
-/** PO18.tw 新版详情页：元数据集中在 book_info/book_intro，不能依赖页面 title 或通用简介回退。 */
-function extractPo18twMeta(html: string): Po18Meta | null {
-  const title = htmlToText(extractInnerHtml(html, '.book_name'))
-  const author = htmlToText(extractInnerHtml(html, '.book_author'))
-  const descriptionHtml = extractInnerHtml(html, '.B_I_content')
-    // 详情页末尾常带浅灰色重复书名，是 PO18 的防复制标记，不属于作品简介。
-    .replace(/<span\b[^>]*color\s*:\s*#bdc3c7[^>]*>[\s\S]*?<\/span>/gi, '')
-  const description = htmlToText(descriptionHtml)
-  const coverHtml = extractInnerHtml(html, '.book_cover')
-  const coverUrl = coverHtml.match(/<img\b[^>]*src\s*=\s*["']([^"']+)["'][^>]*>/i)?.[1] || ''
-  const tagsHtml = extractInnerHtml(html, '.book_intro_tags')
-  const categories = [...tagsHtml.matchAll(/<a\b[^>]*class\s*=\s*["'][^"']*\btag\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi)]
-    .map((match) => htmlToText(match[1] || ''))
-    .filter(Boolean)
-  const statusText = htmlToText(extractInnerHtml(html, '.statu'))
-  const status = parseNovelStatus(statusText)
-  if (!title && !author && !description && !coverUrl && !categories.length && !status) return null
-  return { title, author, description, categories, coverUrl, status }
 }
 
 interface CzbooksMeta {
@@ -186,7 +156,7 @@ function extractCzbooksCover(html: string): string {
   return imgs.find((src) => !/(?:noimg|no_thumbnail|default_no_thumbnail)\.jpg/i.test(src)) || imgs[0] || ''
 }
 
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]*>/g, '')
@@ -243,7 +213,7 @@ export function extractMetaGeneric(html: string, sourceUrl: string): ScrapeNovel
   if (titleMatch) {
     title = titleMatch[1]!
       .replace(/<[^>]*>/g, '')
-      .replace(/[-_|]\s*(小说网|PO18|笔趣阁|起点|小说|全文阅读|TXT|在线阅读).*/i, '')
+      .replace(/[-_|]\s*(小说网|笔趣阁|起点|小说|全文阅读|TXT|在线阅读).*/i, '')
       .trim()
   }
   if (!title) {
@@ -323,43 +293,40 @@ export interface DetectMetaResult {
   chapterListUrl: string
   chapterCount: number
   hasMoreChapters: boolean
-  /** 需订购/购买才能读取正文的章节数（仅 PO18 目录有该语义，其余站点为 0）。 */
+  /** 需订购/购买才能读取正文的章节数。 */
   protectedChapterCount: number
   encoding: string
 }
 
 /** 智能分析：预设（静态/书源）→ 抓取 → 提取元数据 → 统计章节数。 */
 export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<DetectMetaResult> {
+  assertSourceAvailable(sourceUrl)
+  const chapters = adapterForUrl(sourceUrl)?.chapters
   const preset = (await getPresetForUrl(sourceUrl, deps.store)) as (SitePreset & { source?: string }) | null
-  const isPo18tw = preset?.name === 'PO18.tw'
 
-  const { html, encoding } = await deps.fetchHtml(sourceUrl, { forceEncoding: preset?.encoding })
-  if (isPo18tw && isPo18twLoginPage(html)) throw new Error('POPO 详情页需要登录，请先配置 POPO 账号或 Cookie')
+  const { html, encoding, finalUrl } = await deps.fetchHtml(sourceUrl, { forceEncoding: preset?.encoding })
+  chapters?.assertResponse(finalUrl || sourceUrl, html)
 
   const novel = preset?.meta ? extractMetaWithPreset(html, preset, sourceUrl) : extractMetaGeneric(html, sourceUrl)
   applyTitleCategories(novel)
   const simplified = simplifyNovelForSource(novel, sourceUrl)
 
   let chapterListUrl = sourceUrl
-  if (isPo18tw) chapterListUrl = po18ChapterListUrl(sourceUrl)
+  if (chapters) chapterListUrl = chapters.listUrl(sourceUrl)
   else if (preset?.urlTransform) chapterListUrl = preset.urlTransform(sourceUrl)
 
-  const selectors = isPo18tw ? PO18TW_SELECTORS : preset?.selectors || { chapterList: '', chapterTitle: 'h1', chapterContent: 'article, .content, #content' }
+  const selectors = preset?.selectors || { chapterList: '', chapterTitle: 'h1', chapterContent: 'article, .content, #content' }
 
   let chapterCount = 0
   let hasMoreChapters = false
-  // 受保护章节（需订购/购买）只在 PO18 目录里有明确语义；通用站点没有这个概念，恒为 0。
   let protectedChapterCount = 0
-  if (isPo18tw) {
+  if (chapters) {
     try {
       const list = await deps.fetchHtml(chapterListUrl, { forceEncoding: encoding })
-      if (isPo18twLoginPage(list.html)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
-      // parsePo18twChapterLinks 本就会把行分成可下载 / 受保护两类；
-      // 此前只取了 links.length（即可抓取数），protectedCount 被丢弃，
-      // 于是确认页无法在启动前告知用户有多少章抓不到。
-      const parsed = parsePo18twChapterLinks(list.html, chapterListUrl)
+      chapters.assertResponse(list.finalUrl || chapterListUrl, list.html)
+      const parsed = chapters.readDirectory(list.html, chapterListUrl)
       chapterCount = parsed.links.length
-      protectedChapterCount = parsed.protectedCount
+      protectedChapterCount = parsed.protectedChapterCount
     } catch {
       /* 章节统计失败不阻断分析 */
     }

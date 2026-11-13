@@ -9,7 +9,6 @@ import { useId } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { CheckItem, ConfigRow } from '../types'
 import ScrapeChecks from './ScrapeChecks'
 import ScrapeDisclosure from './ScrapeDisclosure'
@@ -33,8 +32,6 @@ interface StepConfigProps {
   summary: ConfigRow[]
   advancedOpen: boolean
   onToggleAdvanced: () => void
-  sitePreset: string
-  onSitePresetChange: (value: string) => void
   chapterListUrl: string
   onChapterListUrlChange: (value: string) => void
   encoding: string
@@ -58,8 +55,6 @@ export default function StepConfig({
   summary,
   advancedOpen,
   onToggleAdvanced,
-  sitePreset,
-  onSitePresetChange,
   chapterListUrl,
   onChapterListUrlChange,
   encoding,
@@ -96,13 +91,6 @@ export default function StepConfig({
 
       {advancedOpen && (
         <div id={advancedId} className="grid gap-3">
-          <Tabs value={sitePreset} onValueChange={onSitePresetChange}>
-            <TabsList>
-              <TabsTrigger value="po18">PO18</TabsTrigger>
-              <TabsTrigger value="custom">自定义</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
           <ScrapeField label="章节列表页 URL">
             {({ id }) => <Input id={id} type="url" value={chapterListUrl} onChange={(e) => onChapterListUrlChange(e.target.value)} />}
           </ScrapeField>

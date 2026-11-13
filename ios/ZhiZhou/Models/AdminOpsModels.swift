@@ -144,6 +144,7 @@ struct SourceSyncPreview: Codable, Hashable {
     let bindingId: String
     let novelId: String
     let site: String
+    let siteName: String?
     let sourceUrl: String
     let metadata: SourceSyncMetadata
     let sourceChapterCount: Int
@@ -164,7 +165,7 @@ struct SourceSyncApplyResponse: Codable {
     let mappings: Int
 }
 
-// MARK: - 原作者源站搜索与 POPO 账号
+// MARK: - 原作者源站搜索与书源账号
 
 struct TitleSourceCandidate: Codable, Identifiable, Hashable {
     let site: String
@@ -182,20 +183,16 @@ struct TitleSourceSearchBucket: Codable, Hashable {
     let ok: Bool
     let results: [TitleSourceCandidate]
     let error: String?
+    let siteName: String?
 }
 
 struct TitleSourceSearchResponse: Codable, Hashable {
     let title: String
     let author: String
-    let sources: SourceSearchSites
+    let sources: [String: TitleSourceSearchBucket]
 }
 
-struct SourceSearchSites: Codable, Hashable {
-    let jjwxc: TitleSourceSearchBucket
-    let po18tw: TitleSourceSearchBucket
-}
-
-struct Po18AccountStatus: Codable, Hashable {
+struct SourceAccountStatus: Codable, Hashable {
     let site: String
     let username: String
     let configured: Bool
@@ -207,14 +204,14 @@ struct Po18AccountStatus: Codable, Hashable {
     let lastError: String
 }
 
-struct Po18CaptchaResponse: Codable, Hashable {
+struct SourceAccountCaptcha: Codable, Hashable {
     let challengeId: String
     let imageDataUrl: String
     let expiresAt: Int64
     let captchaRequired: Bool
 }
 
-struct Po18LoginResponse: Codable, Hashable {
+struct SourceAccountLogin: Codable, Hashable {
     let site: String
     let username: String
     let configured: Bool

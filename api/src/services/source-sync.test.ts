@@ -1,5 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDb, type TestDb } from '../test/db'
+import { setScrapeAdaptersForTest } from './scraper/sources'
+import { parseNovelStatus } from './scraper/meta'
+import { cleanText, extractText } from './scraper/parse'
 import { PgScrapeStore } from './scraper/store'
 import {
   applySourceSync,
@@ -11,11 +14,40 @@ import {
   type SourceSyncMetadata,
 } from './source-sync'
 
-// 目录 HTML 使用夹具，账号会话也显式提供夹具，避免依赖部署账号。
-vi.mock('./source-account', async (importOriginal) => ({
-  ...await importOriginal<typeof import('./source-account')>(),
-  getPo18Session: vi.fn().mockResolvedValue({ accountId: 'fixture-account', cookie: 'fixture-session=1' }),
-}))
+setScrapeAdaptersForTest([{
+  id: 'fixture',
+  name: '测试书源',
+  hosts: ['source.example'],
+  presets: {
+    'source.example': {
+      name: '测试书源',
+      encoding: 'utf-8',
+      meta: { title: '.book_name' },
+      readMeta(html) {
+        return { title: extractText(html, '.book_name'), status: parseNovelStatus(extractText(html, '.statu').replace(/\(.*$/, '')), author: '', coverUrl: '', description: '', categories: [] }
+      },
+    },
+  },
+  async titles(url, fetchHtml) {
+    const first = new URL(url)
+    if (!first.pathname.endsWith('/articles')) first.pathname += '/articles'
+    const titles = []
+    const seen = new Set<string>()
+    for (let page = 1; page <= 5; page++) {
+      const address = new URL(first)
+      if (page > 1) address.searchParams.set('page', String(page))
+      const { html } = await fetchHtml(address.href)
+      for (const match of html.matchAll(/<a data-order="(\d+)" href="([^"]+)">([^<]+)<\/a>/g)) {
+        const chapterUrl = new URL(match[2]!, address).href
+        if (seen.has(chapterUrl)) continue
+        seen.add(chapterUrl)
+        titles.push({ title: cleanText(match[3]!), order: Number(match[1]), url: chapterUrl })
+      }
+      if (!html.includes('?page=')) break
+    }
+    return { titles }
+  },
+}])
 
 const metadata: SourceSyncMetadata = {
   title: '',
@@ -48,23 +80,23 @@ function reorderedBookCatalog() {
 it('截图中106→175的番外及关联正文可以按源站同步，不能因编排差异禁止修复', () => {
   const {source,local} = reorderedBookCatalog()
   const preview = sourceSyncTestHelpers().buildPreview(source,local,metadata,true,
-    {runId:'screenshot-order',bindingId:'binding',novelId:'novel',site:'po18tw',sourceUrl:metadata.sourceUrl},[])
+    {runId:'screenshot-order',bindingId:'binding',novelId:'novel',site:'fixture',sourceUrl:metadata.sourceUrl},[])
   expect(preview.orderChanges).toHaveLength(31)
   expect(preview.orderChanges).toContainEqual(expect.objectContaining({localChapterId:'l176',oldOrder:107,newOrder:176}))
   expect(preview.orderRepairSkipped).toContainEqual(expect.objectContaining({localChapterId:'l175',blockingChapterIds:['unmatched-game']}))
   expect(preview.unmatchedLocal.map(row=>row.id)).toEqual(['unmatched-game'])
   // 隔离回放：移除未知占位章后，76 条均应进入方案，而不是继续以编排差异拒绝。
   const cleared = sourceSyncTestHelpers().buildPreview(source,local.filter(row=>row.id!=='unmatched-game'),metadata,true,
-    {runId:'cleared-order',bindingId:'binding',novelId:'novel',site:'po18tw',sourceUrl:metadata.sourceUrl},[])
+    {runId:'cleared-order',bindingId:'binding',novelId:'novel',site:'fixture',sourceUrl:metadata.sourceUrl},[])
   expect(cleared.orderChanges).toHaveLength(76)
   expect(cleared.orderChanges).toContainEqual(expect.objectContaining({localChapterId:'l175',oldOrder:106,newOrder:175}))
 })
 
-function po18Directory(rows: Array<{ order: number; title: string }>): string {
+function fixtureDirectory(rows: Array<{ order: number; title: string }>): string {
   const chapters = rows
     .map(
       ({ order, title }) =>
-        `<div class="c_l"><div class="l_counter">${String(order).padStart(4, '0')}</div><div class="l_chaptname"><a href="/books/902326/articles/${order}">${title}</a></div><div class="l_btn"><a href="/books/902326/articles/${order}">免費閱讀</a></div></div>`,
+        `<a data-order="${order}" href="/books/902326/articles/${order}">${title}</a>`,
     )
     .join('')
   return `<html><head><title>本地书</title></head><body><div class="book_name">本地书</div>${chapters}</body></html>`
@@ -76,7 +108,7 @@ it.each([false,true])('番外重排事务可应用且可撤回，保留章节ID�
   const locals = shape.local.filter(row=>!cleared || row.id!=='unmatched-game').map(row=>({...row,id:`${novelId}-${row.id}`}))
   await testDb.db.query('INSERT INTO novels (id,title,author,created_at,updated_at) VALUES ($1,$2,$3,1,1)', [novelId,'排序回归书','作者'])
   for (const row of locals) await testDb.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,word_count,created_at) VALUES ($1,$2,$3,$4,$5,4,1)', [row.id,novelId,row.title,'正文保持',row.order])
-  const preview = await createSourceSyncPreview(testDb.db,{novelId,sourceUrl:'https://www.po18.tw/books/902326/articles',store:new PgScrapeStore(testDb.db),fetchHtml:async()=>({html:po18Directory(shape.source),encoding:'utf-8'})})
+  const preview = await createSourceSyncPreview(testDb.db,{novelId,sourceUrl:'https://source.example/books/902326/articles',store:new PgScrapeStore(testDb.db),fetchHtml:async()=>({html:fixtureDirectory(shape.source),encoding:'utf-8'})})
   expect(preview.orderChanges).toHaveLength(cleared?76:31)
   const result = await applySourceSync(testDb.db,{runId:preview.runId,repairOrder:true,confirmedOrderIds:preview.orderChanges.map(row=>row.localChapterId)})
   expect(result).toMatchObject({updated:0,orderUpdated:cleared?76:31})
@@ -130,7 +162,7 @@ describe('source sync chapter mapping', () => {
       { id: 'l45', order: 46, title: '不行了，累累' },
     ]
     const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-      { runId: 'duplicate-order', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+      { runId: 'duplicate-order', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
     expect(preview.mappings.map(row => [row.sourceOrder, row.localChapterIds[0]])).toEqual([
       [43, 'l43'], [44, 'l44'], [45, 'l45'], [46, 'l46'],
     ])
@@ -154,8 +186,8 @@ describe('source sync chapter mapping', () => {
         [`${novelId}-${chapter.order}`, novelId, chapter.title, `正文 ${chapter.order}`, chapter.order === 45 ? 46 : chapter.order])
     }
     const preview = await createSourceSyncPreview(testDb.db, {
-      novelId, sourceUrl: 'https://www.po18.tw/books/902326/articles', store: new PgScrapeStore(testDb.db),
-      fetchHtml: async () => ({ html: po18Directory(source), encoding: 'utf-8' }),
+      novelId, sourceUrl: 'https://source.example/books/902326/articles', store: new PgScrapeStore(testDb.db),
+      fetchHtml: async () => ({ html: fixtureDirectory(source), encoding: 'utf-8' }),
     })
     expect(preview.changes).toEqual([])
     expect(preview.orderChanges).toEqual([{ localChapterId: `${novelId}-45`, title: '不行了，累累', oldOrder: 46, newOrder: 45 }])
@@ -172,8 +204,8 @@ describe('source sync chapter mapping', () => {
     const noRepair = await applySourceSync(testDb.db, { runId: preview.runId })
     expect(noRepair.orderUpdated).toBe(0)
     const next = await createSourceSyncPreview(testDb.db, {
-      novelId, sourceUrl: 'https://www.po18.tw/books/902326/articles', store: new PgScrapeStore(testDb.db),
-      fetchHtml: async () => ({ html: po18Directory(source), encoding: 'utf-8' }),
+      novelId, sourceUrl: 'https://source.example/books/902326/articles', store: new PgScrapeStore(testDb.db),
+      fetchHtml: async () => ({ html: fixtureDirectory(source), encoding: 'utf-8' }),
     })
     const result = await applySourceSync(testDb.db, { runId: next.runId, repairOrder: true })
     expect(result).toMatchObject({ updated: 0, orderUpdated: 1 })
@@ -184,7 +216,7 @@ describe('source sync chapter mapping', () => {
   })
 
   it('重复标题、缺失本地匹配与拆分章节不开放序号修复', () => {
-    const base = { runId: 'blocked-order', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }
+    const base = { runId: 'blocked-order', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }
     const build = sourceSyncTestHelpers().buildPreview
     const cases = [
       { source: ['同名章节', '同名章节'], local: ['同名章节', '同名章节'] },
@@ -205,7 +237,7 @@ describe('source sync chapter mapping', () => {
     const source = sourceTitles.map((title, index) => ({ key: `s-${index}`, order: index + 1, title, url: '' }))
     const local = localTitles.map((title, index) => ({ id: `l-${index}`, order: index + 1, title }))
     const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-      { runId: 'numbered-import', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+      { runId: 'numbered-import', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
     expect(preview.mappings.map(row => [row.localChapterIds[0], row.sourceChapterKey])).toEqual(
       local.map((row, index) => [row.id, `s-${index === 0 ? 0 : index + 1}`]),
     )
@@ -219,7 +251,7 @@ describe('source sync chapter mapping', () => {
       [{ key: 'source-10', order: 1, title: '10.旧日来信', url: '' }],
       [{ id: 'local-11', order: 1, title: '11.雨后重逢' }],
       metadata, true,
-      { runId: 'conflicting-numbers', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [],
+      { runId: 'conflicting-numbers', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [],
     )
     expect(preview.mappings).toEqual([])
     expect(preview.changes).toEqual([])
@@ -332,7 +364,7 @@ describe('source sync chapter mapping', () => {
       local,
       metadata,
       true,
-      { runId: 'run-extra', bindingId: 'binding-1', novelId: 'novel-1', site: 'po18tw', sourceUrl: metadata.sourceUrl },
+      { runId: 'run-extra', bindingId: 'binding-1', novelId: 'novel-1', site: 'fixture', sourceUrl: metadata.sourceUrl },
       [],
     )
     const changesByLocalId = new Map(preview.changes.map((change) => [change.localChapterId, change]))
@@ -356,7 +388,7 @@ describe('source sync chapter mapping', () => {
       return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, 0, 1)`
     })
     await testDb.db.query(`INSERT INTO chapters (id, novel_id, title, sort_order, word_count, created_at) VALUES ${placeholders.join(',')}`, values)
-    const base = 'https://www.po18.tw/books/902326/articles'
+    const base = 'https://source.example/books/902326/articles'
     const directoryRequests: string[] = []
     const preview = await createSourceSyncPreview(testDb.db, {
       novelId, sourceUrl: base, store: new PgScrapeStore(testDb.db),
@@ -365,7 +397,7 @@ describe('source sync chapter mapping', () => {
         directoryRequests.push(url)
         const page = Number(new URL(url).searchParams.get('page') || 1)
         return {
-          html: po18Directory(source.slice((page - 1) * 100, page * 100)) + `<a href="${base}?page=3">末页</a>`,
+          html: fixtureDirectory(source.slice((page - 1) * 100, page * 100)) + `<a href="${base}?page=3">末页</a>`,
           encoding: 'utf-8',
         }
       },
@@ -392,9 +424,9 @@ describe('source sync chapter mapping', () => {
     await testDb.db.query('INSERT INTO novels (id, title, author, status, created_at, updated_at) VALUES ($1, $2, $3, $4, 1, 1)',
       [novelId, '状态测试', '作者', 'completed'])
     const preview = await createSourceSyncPreview(testDb.db, {
-      novelId, sourceUrl: 'https://www.po18.tw/books/902326', store: new PgScrapeStore(testDb.db),
+      novelId, sourceUrl: 'https://source.example/books/902326', store: new PgScrapeStore(testDb.db),
       fetchHtml: async () => ({
-        html: po18Directory([{ order: 1, title: '第一章' }]) + `<dd class="statu">${label}<span>(目前1章回)</span></dd>`,
+        html: fixtureDirectory([{ order: 1, title: '第一章' }]) + `<dd class="statu">${label}<span>(目前1章回)</span></dd>`,
         encoding: 'utf-8',
       }),
     })
@@ -416,9 +448,9 @@ describe('source sync chapter mapping', () => {
     )
     const preview = await createSourceSyncPreview(testDb.db, {
       novelId: 'sync-novel',
-      sourceUrl: 'https://www.po18.tw/books/902326/articles',
+      sourceUrl: 'https://source.example/books/902326/articles',
       store: new PgScrapeStore(testDb.db),
-      fetchHtml: async () => ({ html: po18Directory([{ order: 12, title: '第12章 暴雨' }]), encoding: 'utf-8' }),
+      fetchHtml: async () => ({ html: fixtureDirectory([{ order: 12, title: '第12章 暴雨' }]), encoding: 'utf-8' }),
     })
     await expect(applySourceSync(testDb.db, { runId: preview.runId, repairOrder: true })).rejects.toThrow('无法修复序号')
     const applied = await applySourceSync(testDb.db, { runId: preview.runId })
@@ -449,10 +481,10 @@ describe('source sync chapter mapping', () => {
 
     const preview = await createSourceSyncPreview(testDb.db, {
       novelId: 'manual-sync-novel',
-      sourceUrl: 'https://www.po18.tw/books/902326/articles',
+      sourceUrl: 'https://source.example/books/902326/articles',
       store: new PgScrapeStore(testDb.db),
       fetchHtml: async () => ({
-        html: po18Directory([
+        html: fixtureDirectory([
           { order: 1, title: '第一章 新标题' },
           { order: 2, title: '第二章 新标题' },
         ]),
@@ -485,9 +517,9 @@ describe('source sync chapter mapping', () => {
       ])
     }
     const preview = await createSourceSyncPreview(testDb.db, {
-      novelId: 'batch-manual-novel', sourceUrl: 'https://www.po18.tw/books/902326/articles',
+      novelId: 'batch-manual-novel', sourceUrl: 'https://source.example/books/902326/articles',
       store: new PgScrapeStore(testDb.db),
-      fetchHtml: async () => ({ html: po18Directory([1, 2, 3].map(order => ({ order, title: `第${order}章 新标题` }))), encoding: 'utf-8' }),
+      fetchHtml: async () => ({ html: fixtureDirectory([1, 2, 3].map(order => ({ order, title: `第${order}章 新标题` }))), encoding: 'utf-8' }),
     })
     expect(preview.changes).toHaveLength(3)
     expect(preview.changes.every(change => !change.eligible)).toBe(true)
@@ -518,7 +550,7 @@ it('连续偏移受阻时指出根本占用章节，并保留其他独立修复'
     { id: 'c', order: 4, title: '第三章 重逢' },
   ]
   const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-    { runId: 'blocked-chain', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'blocked-chain', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
   expect(preview.orderChanges.map(row => row.localChapterId)).toEqual(['c'])
   for (const id of ['a', 'b']) {
     const skipped = preview.orderRepairSkipped?.find(row => row.localChapterId === id)
@@ -576,7 +608,7 @@ it('污染标题不参与锚定，避免顶掉真实章节并推偏后续序号'
     { key: 's38', order: 38, title: '失踪', url: '' },
     { key: 's39', order: 39, title: '笼子', url: '' },
   ]
-  // 本地目录里插入了 PO18 防盜水印「首-发：」，把真实章节整体推后一位。
+  // 本地目录里插入了 源站防盜水印「首-发：」，把真实章节整体推后一位。
   const local = [
     { id: 'l37', order: 37, title: '项圈（微H）' },
     { id: 'l38', order: 38, title: '首-发：' },
@@ -584,7 +616,7 @@ it('污染标题不参与锚定，避免顶掉真实章节并推偏后续序号'
     { id: 'l40', order: 40, title: '笼子' },
   ]
   const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-    { runId: 'watermark', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'watermark', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
   // 水印章必须落进未匹配本地，而不是抢占源站第38章。
   expect(preview.unmatchedLocal.map(row => row.id)).toEqual(['l38'])
   expect(preview.mappings.map(row => [row.sourceOrder, row.localChapterIds[0]])).toEqual([[37, 'l37'], [38, 'l39'], [39, 'l40']])
@@ -596,7 +628,7 @@ it('同名章节按两侧序号顺序消歧，两个「自由」各归其位', (
   // 本地整体比源站靠后 1 位，两个「自由」分别位于第 92、99 章。
   const local = titles.map((title, index) => ({ id: `l${index}`, order: 91 + index, title }))
   const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-    { runId: 'dup-title', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'dup-title', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
 
   expect(preview.unmatchedLocal).toEqual([])
   expect(preview.unmatchedSource).toEqual([])
@@ -621,7 +653,7 @@ it('远离基准位置的巧合同名锚点被拒绝，不伪造确定性', () =
     { id: 'l112', order: 112, title: '游戏' },
   ]
   const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-    { runId: 'far-anchor', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'far-anchor', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
 
   // 正确匹配必须保住。
   expect(preview.mappings.find(row => row.localChapterIds.includes('l53'))).toMatchObject({ sourceOrder: 53, confidence: 'high' })
@@ -644,7 +676,7 @@ it('导入残留序号前缀制造的纯清理修正可自动应用', () => {
     { id: 'l86', order: 86, title: '巧克力（微H）' },
   ]
   const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-    { runId: 'import-prefix', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'import-prefix', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
 
   const change = preview.changes.find(row => row.localChapterId === 'l85')
   expect(change).toMatchObject({ newTitle: '首长和太子', sourceOrder: 84, confidence: 'high', eligible: true })
@@ -665,7 +697,7 @@ it('连续受阻记录按阻塞源聚合，明细逐章保留', () => {
     { id: 'd', order: 5, title: '第四章 远行' },
   ]
   const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-    { runId: 'aggregate-blockers', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'aggregate-blockers', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
 
   // 逐章明细保留原有契约字段。
   expect(preview.orderRepairSkipped?.length).toBeGreaterThan(1)
@@ -688,7 +720,7 @@ it('弱标题占位章占据的序号不会被静默覆盖', async () => {
     { order: 3, title: '笼子' },
   ]
   await testDb.db.query('INSERT INTO novels (id,title,author,created_at,updated_at) VALUES ($1,$1,\'作者\',1,1)', [novelId])
-  // 本地第2格被 PO18 防盜水印占据，导致「失踪」整体后移一位。
+  // 本地第2格被 源站防盜水印占据，导致「失踪」整体后移一位。
   const local = [
     { id: `${novelId}-n1`, title: '教室里', order: 1 },
     { id: `${novelId}-junk`, title: '首-发：', order: 2 },
@@ -700,8 +732,8 @@ it('弱标题占位章占据的序号不会被静默覆盖', async () => {
       [row.id, novelId, row.title, row.order])
   }
   const preview = await createSourceSyncPreview(testDb.db, {
-    novelId, sourceUrl: 'https://www.po18.tw/books/902326/articles', store: new PgScrapeStore(testDb.db),
-    fetchHtml: async () => ({ html: po18Directory(source), encoding: 'utf-8' }),
+    novelId, sourceUrl: 'https://source.example/books/902326/articles', store: new PgScrapeStore(testDb.db),
+    fetchHtml: async () => ({ html: fixtureDirectory(source), encoding: 'utf-8' }),
   })
 
   // 水印章不参与锚定，也不会被当成某章的配对目标。
@@ -734,7 +766,7 @@ it('差异仅来自被剥离的噪声标记时，修正可自动应用', () => {
     { id: 'l179', order: 179, title: '掉马「po1⒏homes」' },
   ]
   const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-    { runId: 'noise-only', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'noise-only', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
 
   expect(preview.changes).toHaveLength(3)
   expect(preview.changes.every(row => row.confidence === 'high' && row.matchReason === 'exact-title')).toBe(true)
@@ -747,7 +779,7 @@ it('目标标题仍含噪声标记时不算纯清理，不得自动应用', () =
     [{ key: 's', order: 1, title: '掉马', url: '' }],
     [{ id: 'l', order: 1, title: '掉马（H）推广' }],
     metadata, true,
-    { runId: 'not-noise-only', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'not-noise-only', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
 
   expect(preview.changes[0]?.eligible).toBe(false)
 })
@@ -756,7 +788,7 @@ it.each([true, false])('源站推广尾巴不得自动写回干净标题（onlyW
   const preview = sourceSyncTestHelpers().buildPreview(
     [{ key: 's', order: 1, title: '掉马po18.com', url: '' }],
     [{ id: 'l', order: 1, title: '掉马' }], metadata, onlyWeakTitles,
-    { runId: 'promo-direction', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'promo-direction', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
   expect(preview.changes).toHaveLength(1)
   expect(preview.changes[0]?.eligible).toBe(false)
 })
@@ -768,7 +800,7 @@ it.each([
   ['掉马，','掉马','typography'],
 ])('标题更新理由由服务端返回：%s → %s', (oldTitle,newTitle,reason) => {
   const preview = sourceSyncTestHelpers().buildPreview([{key:'s',order:1,title:newTitle,url:''}], [{id:'l',order:1,title:oldTitle}],metadata,true,
-    {runId:'title-reasons',bindingId:'binding',novelId:'novel',site:'po18tw',sourceUrl:metadata.sourceUrl},[])
+    {runId:'title-reasons',bindingId:'binding',novelId:'novel',site:'fixture',sourceUrl:metadata.sourceUrl},[])
   expect(preview.changes[0]).toMatchObject({eligible:true,titleUpdateReasons:[reason]})
 })
 
@@ -777,7 +809,7 @@ it('已对齐的同名章节无需序号修复，未匹配章不冒充占位阻�
   const preview = sourceSyncTestHelpers().buildPreview(
     titles.map((title, i) => ({key: `s${i}`, order:i+1, title, url:''})),
     [...titles.map((title, i) => ({id:`l${i}`, order:i+1, title})), {id:'missing',order:6,title:'独立附记'}],
-    metadata, true, {runId:'aligned-duplicates',bindingId:'binding',novelId:'novel',site:'po18tw',sourceUrl:metadata.sourceUrl}, [])
+    metadata, true, {runId:'aligned-duplicates',bindingId:'binding',novelId:'novel',site:'fixture',sourceUrl:metadata.sourceUrl}, [])
   expect(preview.orderChanges).toEqual([])
   expect(preview.orderRepairSkipped?.filter(row => ['l1','l3'].includes(row.localChapterId))).toEqual([])
   expect(preview.orderRepairBlockers).toEqual([])
@@ -789,13 +821,13 @@ it('拒绝旧预览中的反向广告自动更新，重新预览后未确认项�
   const novelId = 'legacy-promo-preview'
   await testDb.db.query('INSERT INTO novels (id,title,author,created_at,updated_at) VALUES ($1,$2,$3,1,1)', [novelId,'测试书','作者'])
   await testDb.db.query('INSERT INTO chapters (id,novel_id,title,sort_order,word_count,created_at) VALUES ($1,$2,$3,1,0,1)', ['legacy-promo-chapter',novelId,'掉马'])
-  const preview = await createSourceSyncPreview(testDb.db, {novelId,sourceUrl:'https://www.po18.tw/books/902326/articles',store:new PgScrapeStore(testDb.db),
-    fetchHtml:async()=>({html:po18Directory([{order:1,title:'掉马po18.com'}]),encoding:'utf-8'})})
+  const preview = await createSourceSyncPreview(testDb.db, {novelId,sourceUrl:'https://source.example/books/902326/articles',store:new PgScrapeStore(testDb.db),
+    fetchHtml:async()=>({html:fixtureDirectory([{order:1,title:'掉马po18.com'}]),encoding:'utf-8'})})
   // 目录提取器可能已经清理推广尾巴；直接模拟旧版本落库的建议验证应用边界。
   const legacyChanges = sourceSyncTestHelpers().buildPreview(
     [{key:'legacy-source',order:1,title:'掉马po18.com',url:''}],
     [{id:'legacy-promo-chapter',order:1,title:'掉马'}],metadata,true,
-    {runId:preview.runId,bindingId:preview.bindingId,novelId,site:'po18tw',sourceUrl:metadata.sourceUrl},[]).changes
+    {runId:preview.runId,bindingId:preview.bindingId,novelId,site:'fixture',sourceUrl:metadata.sourceUrl},[]).changes
   expect(legacyChanges[0]?.eligible).toBe(false)
   await testDb.db.query('UPDATE source_sync_runs SET changes_json=$1 WHERE id=$2', [JSON.stringify(legacyChanges.map(change=>({...change,eligible:true}))),preview.runId])
   await expect(applySourceSync(testDb.db,{runId:preview.runId,confirmedChangeIds:['legacy-promo-chapter']})).rejects.toThrow('重新生成预览')
@@ -817,7 +849,7 @@ it.each([
     [{ key: 's', order: 1, title: sourceTitle, url: '' }],
     [{ id: 'l', order: 1, title: localTitle }],
     metadata, true,
-    { runId: 'guard', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'guard', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
 
   for (const change of preview.changes) expect(change.eligible).toBe(false)
 })
@@ -828,7 +860,7 @@ it('弱标题不因顺序推断而被自动改写', () => {
     [{ key: 's', order: 1, title: 'H', url: '' }],
     [{ id: 'l', order: 1, title: '（H）' }],
     metadata, true,
-    { runId: 'weak-eligible', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'weak-eligible', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
 
   expect(preview.mappings[0]?.matchReason).toBe('sequence')
   for (const change of preview.changes) expect(change.eligible).toBe(false)
@@ -842,7 +874,7 @@ it('两侧都带多层前缀时差异不是纯导入噪声，不得据此自动�
     { id: 'l1', order: 1, title: '40 38.我怎么可能会喜欢她' },
   ]
   const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
-    { runId: 'both-prefix', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    { runId: 'both-prefix', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: metadata.sourceUrl }, [])
 
   expect(preview.mappings[0]).toMatchObject({ matchReason: 'exact-title', confidence: 'high' })
   const change = preview.changes[0]
@@ -875,8 +907,8 @@ describe('数值字段类型与快照往返一致性', () => {
         [row.id, novelId, row.title, row.order])
     }
     return createSourceSyncPreview(testDb.db, {
-      novelId, sourceUrl: 'https://www.po18.tw/books/902326/articles', store: new PgScrapeStore(testDb.db),
-      fetchHtml: async () => ({ html: po18Directory(source), encoding: 'utf-8' }),
+      novelId, sourceUrl: 'https://source.example/books/902326/articles', store: new PgScrapeStore(testDb.db),
+      fetchHtml: async () => ({ html: fixtureDirectory(source), encoding: 'utf-8' }),
     })
   }
 

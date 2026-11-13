@@ -39,4 +39,8 @@ jobs:
         run: npm test
 
       - name: Build
-        run: npm run build
+        env:
+          CATSLIBRARY_PRIVATE_SOURCES: '0'
+        run: |
+          npm run build
+          node scripts/check-public-source-build.mjs

@@ -131,7 +131,7 @@ describe('三级权限与初始化保护', () => {
     expect((await request('/admin/novel-index', undefined, 'reader')).status).toBe(403)
     expect((await request('/admin/site', undefined, 'manager')).status).toBe(200)
     expect((await request('/admin/site', { announcement: '禁止越权' }, 'manager', 'PUT')).status).toBe(403)
-    for (const route of ['/admin/content-policy', '/admin/site-settings/passkey', '/admin/backups/settings', '/ai/provider-presets', '/auth/mail-settings', '/scrape?action=po18-account', '/scrape?action=proxy-config']) {
+    for (const route of ['/admin/content-policy', '/admin/site-settings/passkey', '/admin/backups/settings', '/ai/provider-presets', '/auth/mail-settings', '/scrape?action=source-account', '/scrape?action=proxy-config']) {
       expect((await request(route, undefined, 'manager')).status, route).toBe(403)
     }
     expect((await request('/ai/settings', {}, 'manager', 'PUT')).status).toBe(403)

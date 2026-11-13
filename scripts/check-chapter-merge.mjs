@@ -7,7 +7,7 @@ const out = '.impeccable/review/chapter-merge'
 await mkdir(out, { recursive: true })
 const novel = { id: 'merge-book', title: '山雨来时：一段很长的书名用于检查弹窗换行', author: '测试作者', chapterCount: 272 }
 const changes = Array.from({ length: 97 }, (_, i) => ({ localChapterId: `c-${i}`, localOrder: i + 1, oldTitle: `第${i + 1}章`, newTitle: `山雨来时 · ${i + 1}`, eligible: i < 92, partIndex: 1, partCount: i % 4 === 0 ? 2 : 1 }))
-const fixture = { runId: 'fixture-run', site: 'po18tw', metadata: { title: novel.title, author: novel.author, description: '示例简介。'.repeat(140), coverUrl: '', categories: ['现代'], status: 'completed' }, sourceChapterCount: 100, localChapterCount: 272, matchedSourceCount: 97, unmatchedSource: Array.from({ length: 3 }, (_, i) => ({ key: `s-${i}`, order: 60 + i, title: `源站未匹配章节 · ${i + 1}` })), unmatchedLocal: Array.from({ length: 175 }, (_, i) => ({ id: `u-${i}`, order: 93 + i, title: `第${101 + i}章 山雨来时，沿着旧时的目录寻找线索；长标题保持完整，逐条核对而不截断。` })), warnings: [], mappings: [], changes }
+const fixture = { runId: 'fixture-run', site: 'fixture', metadata: { title: novel.title, author: novel.author, description: '示例简介。'.repeat(140), coverUrl: '', categories: ['现代'], status: 'completed' }, sourceChapterCount: 100, localChapterCount: 272, matchedSourceCount: 97, unmatchedSource: Array.from({ length: 3 }, (_, i) => ({ key: `s-${i}`, order: 60 + i, title: `源站未匹配章节 · ${i + 1}` })), unmatchedLocal: Array.from({ length: 175 }, (_, i) => ({ id: `u-${i}`, order: 93 + i, title: `第${101 + i}章 山雨来时，沿着旧时的目录寻找线索；长标题保持完整，逐条核对而不截断。` })), warnings: [], mappings: [], changes }
 const browser = await chromium.launch({ channel: 'msedge', headless: true })
 try {
   for (const [width, height, theme] of [[1440, 1000, 'light'], [676, 886, 'light'], [390, 844, 'light'], [1440, 1000, 'dark']]) {
@@ -23,8 +23,8 @@ try {
       else if (path.includes('novel-index')) data = { novels: [novel] }
       else if (path === '/api/chapters') data = { chapters: [{ id: 'c-0', title: '第1章', order: 1, novelId: novel.id, wordCount: 100 }] }
       else if (path === '/api/scrape') {
-        if (url.searchParams.get('action') === 'source-bindings') data = { bindings: [{ isPrimary: true, sourceUrl: 'https://www.po18.tw/books/12345' }] }
-        if (body.action === 'title-source-search') data = { sources: { jjwxc: { ok: true, results: [] }, po18tw: { ok: true, results: [{ site: 'po18tw', title: novel.title, author: novel.author, url: 'https://www.po18.tw/books/12345' }] } } }
+        if (url.searchParams.get('action') === 'source-bindings') data = { bindings: [{ isPrimary: true, sourceUrl: 'https://source.example/books/12345' }] }
+        if (body.action === 'title-source-search') data = { sources: { jjwxc: { ok: true, results: [] }, fixture: { ok: true, results: [{ site: 'fixture', title: novel.title, author: novel.author, url: 'https://source.example/books/12345' }] } } }
         if (body.action === 'source-sync-preview') {
           reads++
           if (delayed) await new Promise(resolve => setTimeout(resolve, 700))
@@ -144,7 +144,7 @@ try {
     await dialog.getByRole('button', { name: '读取源站', exact: true }).click()
     await dialog.getByRole('heading', { name: '可更新 92 个章节名' }).waitFor()
     await dialog.locator('.chapter-merge-dialog__source > summary').click()
-    await dialog.getByLabel('已有作品链接').fill('https://www.po18.tw/books/54321')
+    await dialog.getByLabel('已有作品链接').fill('https://source.example/books/54321')
     assert.equal(await dialog.getByRole('button', { name: '更新 92 个标题' }).count(), 0)
     assert.deepEqual(errors, [])
     console.log(`PASS ${width}px ${theme}: Enter search/read, 97-row paging/filter/search, individual/page/filtered/all manual confirmation and undo, 96 mixed/97 manual apply, selected metadata replacement, failure/retry, busy Escape, stale preview invalidation, footer/overflow; reads=${reads}`)

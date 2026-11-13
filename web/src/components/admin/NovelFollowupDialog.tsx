@@ -407,7 +407,7 @@ export default function NovelFollowupDialog({
                       </div>
                       <div>
                         <dt>下次检查</dt>
-                        <dd>{state.enabled ? state.result === 'running' ? '更新完成后安排' : state.blockedReason ? '等待重新登录 PO18' : <CheckTime value={state.nextCheckAt} /> : '已暂停'}</dd>
+                        <dd>{state.enabled ? state.result === 'running' ? '更新完成后安排' : state.blockedReason ? (state.blockedReason === 'source_unavailable' ? '书源未安装' : '等待书源恢复') : <CheckTime value={state.nextCheckAt} /> : '已暂停'}</dd>
                       </div>
                     </dl>
                   </section>

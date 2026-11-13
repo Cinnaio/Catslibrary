@@ -61,7 +61,7 @@ function stripObfuscatedDomains(text: string): string {
 export function removeAdPatterns(text: string | null | undefined): string {
   if (!text) return ''
   return stripObfuscatedDomains(text)
-    // PO18 specific
+    // 旧正文里的站点水印
     .replace(/免费精彩在线[：:]?\s*[「『【\[〔【]?\s*po1[⒏8]homes?\s*[」』】\]〕】]?/gi, '')
     .replace(/po18\s*[.·]?\s*co\s*m?\b/gi, '')
     .replace(/首[-\s]?发\s*[：:]\s*po18(?:vip|p)?\s*[.·]?\s*(?:biz|org|com|vip|net|cc|xyz)\s*[\(（][^\)）]*[\)）]/gi, '')

@@ -19,7 +19,7 @@ const state = { enabled: false, intervalHours: 6, nextCheckAt: 0, checkedAt: 0, 
 it('会话失效保留追更开关并明确等待重新登录', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...state, enabled: true, result: 'failed', blockedReason: '请重新登录 PO18', message: '请重新登录 PO18' }) }))
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
-  expect(await screen.findByText('等待重新登录 PO18')).toBeVisible()
+  expect(await screen.findByText('等待书源恢复')).toBeVisible()
   expect(screen.getByRole('checkbox', { name: '自动追更' })).toBeChecked()
 })
 afterEach(() => vi.unstubAllGlobals())
@@ -87,15 +87,15 @@ it('TXT 书可绑定网页来源，但来源保存不会隐式开启追更', asy
   const fetch = vi
     .fn()
     .mockResolvedValueOnce({ ok: true, json: async () => ({ ...state, hasConfig: false, chapterCount: 52, importSourceLabel: '测试书.txt' }) })
-    .mockResolvedValueOnce({ ok: true, json: async () => ({ ...state, enabled: false, sourceUrl: 'https://www.po18.tw/books/123' }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ ...state, enabled: false, sourceUrl: 'https://source.example/books/123' }) })
   vi.stubGlobal('fetch', fetch)
   render(<NovelFollowupDialog novel={{ id: 'txt', title: '测试书' }} onClose={() => {}} />)
   fireEvent.click(await screen.findByRole('button', { name: '绑定网页来源' }))
   expect(screen.getByText(/本地已入库 52 章/)).toHaveTextContent('测试书.txt')
-  fireEvent.change(screen.getByLabelText('作品目录链接'), { target: { value: 'https://www.po18.tw/books/123' } })
+  fireEvent.change(screen.getByLabelText('作品目录链接'), { target: { value: 'https://source.example/books/123' } })
   fireEvent.click(screen.getByRole('button', { name: '保存网页来源' }))
   expect(await screen.findByRole('checkbox', { name: '自动追更' })).not.toBeChecked()
-  expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({ novelId: 'txt', action: 'followup-source-save', sourceUrl: 'https://www.po18.tw/books/123' })
+  expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({ novelId: 'txt', action: 'followup-source-save', sourceUrl: 'https://source.example/books/123' })
   expect(fetch).toHaveBeenCalledTimes(2)
 })
 

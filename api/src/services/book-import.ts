@@ -32,7 +32,7 @@ import { evaluateContentRatingRules, loadContentRatingRuleSet } from './content-
 import { applyContentRatingChange } from './content-rating-governance'
 import { detectMeta, collectChapterLinks } from './scraper/meta'
 import { cleanHtml, cleanText, extractContent, extractLinks, extractText } from './scraper/parse'
-import { isPo18twLoginPage, parsePo18twChapterContent, parsePo18twChapterLinks, po18ChapterContentUrl } from './scraper/enrich'
+import { adapterForUrl } from './scraper/sources'
 import { getPresetForUrl, type ScrapeStore } from './scraper/store'
 import type { FetchHtmlOptions, FetchResult } from './scraper/fetch'
 import type { SitePreset } from './scraper/presets'
@@ -1347,15 +1347,6 @@ export interface UrlImportResult {
   diagnostics: BookImportDiagnostics
 }
 
-function isPo18ImportUrl(sourceUrl: string): boolean {
-  try {
-    const host = new URL(sourceUrl).hostname.toLowerCase()
-    return host === 'po18.tw' || host.endsWith('.po18.tw')
-  } catch {
-    return false
-  }
-}
-
 /**
  * URL 导入复用现有书源识别与正文清洗逻辑，只把结果落到书籍导入的统一结构。
  * 抓取在服务端执行，前端只接收预览所需的元数据和差异快照。
@@ -1373,16 +1364,16 @@ export async function parseBookUrl(sourceUrl: string, deps: UrlImportDeps): Prom
 
   const meta = await detectMeta(normalizedUrl, { store: deps.store, fetchHtml: deps.fetchHtml })
   const preset = (await getPresetForUrl(normalizedUrl, deps.store)) as (SitePreset & { source?: string }) | null
-  const po18 = isPo18ImportUrl(normalizedUrl) || meta.selectors.chapterList === '@po18tw:chapter-list'
+  const reader = adapterForUrl(normalizedUrl)?.chapters
   const selectors = meta.selectors || {}
   const listUrl = meta.chapterListUrl || normalizedUrl
   const listResult = await deps.fetchHtml(listUrl, { forceEncoding: meta.encoding })
-  if (po18 && isPo18twLoginPage(listResult.html)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
+  reader?.assertResponse(listResult.finalUrl || listUrl, listResult.html)
 
   let links: Array<{ href: string; text: string; order?: number }> = []
   const warnings: string[] = []
-  if (po18) {
-    links = parsePo18twChapterLinks(listResult.html, listUrl).links.map((link, index) => ({ ...link, order: index + 1 }))
+  if (reader) {
+    links = reader.readDirectory(listResult.html, listUrl).links.map((link, index) => ({ ...link, order: index + 1 }))
   } else if (preset?.selectors?.chapterList) {
     const collected = await collectChapterLinks(
       listResult.html,
@@ -1411,17 +1402,11 @@ export async function parseBookUrl(sourceUrl: string, deps: UrlImportDeps): Prom
       const link = uniqueLinks[index]
       if (!link || index >= chapters.length) return
       try {
-        const targetUrl = po18 ? po18ChapterContentUrl(link.href) : link.href
-        const requestOptions: FetchHtmlOptions = po18
-          ? {
-              forceEncoding: meta.encoding,
-              timeoutMs: 12000,
-              headers: { Referer: link.href, 'X-Requested-With': 'XMLHttpRequest' },
-            }
-          : { forceEncoding: meta.encoding, timeoutMs: 12000 }
-        const chapterResult = await deps.fetchHtml(targetUrl, requestOptions)
-        if (po18 && isPo18twLoginPage(chapterResult.html)) throw new Error('返回了登录页')
-        const parsed = po18 ? parsePo18twChapterContent(chapterResult.html, link.text || '') : null
+        const request = reader?.chapterRequest(link, meta.encoding, 12000) ??
+          { url: link.href, options: { forceEncoding: meta.encoding, timeoutMs: 12000 } }
+        const chapterResult = await deps.fetchHtml(request.url, request.options)
+        reader?.assertResponse(chapterResult.finalUrl || request.url, chapterResult.html)
+        const parsed = reader?.parseChapter(chapterResult.html, link.text || '')
         const title = cleanText(parsed?.title || extractText(chapterResult.html, selectors.chapterTitle || '') || link.text || `第 ${index + 1} 章`)
         const rawContent = parsed?.content || extractContent(chapterResult.html, selectors.chapterContent || '')
         const content = cleanText(cleanHtml(rawContent || '').trim())

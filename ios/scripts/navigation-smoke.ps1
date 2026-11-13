@@ -10,7 +10,7 @@ function Read-Utf8 {
 $homeView = Read-Utf8 (Join-Path $projectRoot 'ZhiZhou/Views/HomeView.swift')
 $bookshelfView = Read-Utf8 (Join-Path $projectRoot 'ZhiZhou/Views/BookshelfView.swift')
 $detailView = Read-Utf8 (Join-Path $projectRoot 'ZhiZhou/Views/NovelDetailView.swift')
-$adminRootView = Read-Utf8 (Join-Path $projectRoot 'ZhiZhou/Views/Admin/AdminRootView.swift')
+$adminSourcesView = Read-Utf8 (Join-Path $projectRoot 'ZhiZhou/Views/Admin/AdminScrapeSourcesView.swift')
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
@@ -78,9 +78,9 @@ Require-NavigationPattern 'reader entry links own a direct ReaderView destinatio
     $detailView -notmatch 'NavigationLink\(value: ReaderLaunch' -and
     $detailView -match 'NavigationLink[\s\S]*?ReaderView'
 )
-Require-NavigationPattern 'admin operations expose a direct POPO account entry' (
-    $adminRootView -match 'AdminModule\(id: "popo-account", title: "POPO \u8d26\u53f7", systemImage: "person\.badge\.key", destination: \.popoAccount\)' -and
-    $adminRootView -match 'case \.popoAccount: Po18AccountSheet\(\)'
+Require-NavigationPattern 'source management exposes account actions for available sources' (
+    $adminSourcesView -match 'ForEach\(sourceAccounts\)' -and
+    $adminSourcesView -match '\.sheet\(item: \$selectedAccount\)[\s\S]*?SourceAccountSheet\(source: source\)'
 )
 Require-NavigationPattern 'novel detail keeps synopsis expansion available when text is truncated' (
     $detailView -match 'synopsisFullHeight > synopsisCollapsedHeight \+ 1' -and

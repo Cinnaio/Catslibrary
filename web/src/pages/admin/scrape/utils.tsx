@@ -4,7 +4,6 @@
 import React from 'react'
 import { authHeaders, operationHeaders, url } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
-import type { SelectOption } from "@/components/shared/SearchSelect"
 import { DEFAULT_COVER_PATH } from '@shared/covers'
 
 // ---------- helpers ----------
@@ -44,87 +43,6 @@ export function fmtLogTime(ts: number | string | undefined): string {
   const t = Number(ts)
   if (Number.isFinite(t) && t > 0) return formatDateTime(t)
   return String(ts)
-}
-
-/** PO18 封面兜底：从 /book/<id> 推导。 */
-export function po18CoverFallback(sourceUrl: string): string {
-  const m = (sourceUrl || '').match(/\/book\/(\d+)/)
-  if (!m) return ''
-  const id = parseInt(m[1] || '', 10)
-  return `https://img.po18x.vip/image/${Math.floor(id / 1000)}/${m[1]}/${m[1]}s.jpg`
-}
-
-// ---------- 榜单来源 ----------
-
-/** 与 po18.tw 榜单表单的 kind 字段一一对应：人气 / 珍珠 / 订购 / 收藏 / 留言人气。 */
-export type Po18RankingKind = 'sex' | 'pearl' | 'bestsale' | 'stocked' | 'mostcomments'
-/** 与 po18.tw 榜单表单的 type 字段一一对应：周 / 月 / 总。 */
-export type Po18RankingType = 'weekly' | 'monthly' | 'total'
-
-/**
- * POPO 榜单入口。切换周/月/总是在页内提交 #rank-form1 到 /rank/more，
- * 并携带一次性 CSRF 字段与站点会话 Cookie；带 query 的 GET 会被拒，
- * 所以 kind/type 只能作为 POST 字段下发，不能拼进地址。
- */
-export const POPO_RANKING_LIST_URL = 'https://www.po18.tw/rank/index'
-
-export interface RankingOption extends SelectOption {
-  /** 榜单实际请求地址：POPO 为表单页，po18x.vip 为静态榜单 URL。 */
-  listUrl?: string
-  ranking?: { kind: Po18RankingKind; type: Po18RankingType }
-}
-
-export const PO18_SITES: RankingOption[] = [
-  { label: '日点击榜', value: 'https://wap.po18x.vip/top/dayvisit_1/', sub: 'po18x.vip' },
-  { label: '周点击榜', value: 'https://wap.po18x.vip/top/weekvisit_1/', sub: 'po18x.vip' },
-  { label: '月点击榜', value: 'https://wap.po18x.vip/top/monthvisit_1/', sub: 'po18x.vip' },
-  { label: '总点击榜', value: 'https://wap.po18x.vip/top/allvisit_1/', sub: 'po18x.vip' },
-  { label: '日推荐榜', value: 'https://wap.po18x.vip/top/dayvote_1/', sub: 'po18x.vip' },
-  { label: '周推荐榜', value: 'https://wap.po18x.vip/top/weekvote_1/', sub: 'po18x.vip' },
-  { label: '月推荐榜', value: 'https://wap.po18x.vip/top/monthvote_1/', sub: 'po18x.vip' },
-  { label: '总推荐榜', value: 'https://wap.po18x.vip/top/allvote_1/', sub: 'po18x.vip' },
-  { label: '总收藏榜', value: 'https://wap.po18x.vip/top/goodnum_1/', sub: 'po18x.vip' },
-  { label: '字数排行', value: 'https://wap.po18x.vip/top/size_1/', sub: 'po18x.vip' },
-  { label: '最新入库', value: 'https://wap.po18x.vip/top/postdate_1/', sub: 'po18x.vip' },
-  { label: '最近更新', value: 'https://wap.po18x.vip/top/lastupdate_1/', sub: 'po18x.vip' },
-]
-
-const POPO_RANKINGS: Array<{ kind: Po18RankingKind; label: string }> = [
-  { kind: 'sex', label: '人气榜' },
-  { kind: 'pearl', label: '珍珠榜' },
-  { kind: 'bestsale', label: '订购榜' },
-  { kind: 'stocked', label: '收藏榜' },
-  { kind: 'mostcomments', label: '留言人气榜' },
-]
-
-const POPO_PERIODS: Array<{ type: Po18RankingType; label: string }> = [
-  { type: 'weekly', label: '周' },
-  { type: 'monthly', label: '月' },
-  { type: 'total', label: '总' },
-]
-
-/** 5 个榜单 × 周/月/总 = 15 项，值用 #popo/<kind>/<type> 保持唯一。 */
-export const POPO_RANKING_SITES: RankingOption[] = POPO_RANKINGS.flatMap(({ kind, label }) =>
-  POPO_PERIODS.map(({ type, label: period }) => ({
-    value: `#popo/${kind}/${type}`,
-    label: `POPO ${label} · ${period}`,
-    sub: 'po18.tw',
-    listUrl: POPO_RANKING_LIST_URL,
-    ranking: { kind, type },
-  })),
-)
-
-/** POPO 在前：它是本项目的原生来源，po18x.vip 榜单作为补充。 */
-export const RANKING_SITES: RankingOption[] = [...POPO_RANKING_SITES, ...PO18_SITES]
-
-/** 榜单下拉选中项 → 发现请求参数；自定义 URL 不在此处理。 */
-export function resolveRankingSource(siteValue: string): { listUrl: string; rankingKind?: Po18RankingKind; rankingType?: Po18RankingType } | null {
-  const option = RANKING_SITES.find((item) => item.value === siteValue)
-  if (!option) return null
-  return {
-    listUrl: option.listUrl || option.value,
-    ...(option.ranking ? { rankingKind: option.ranking.kind, rankingType: option.ranking.type } : {}),
-  }
 }
 
 export { DEFAULT_COVER_PATH as FALLBACK_COVER } from '@shared/covers'

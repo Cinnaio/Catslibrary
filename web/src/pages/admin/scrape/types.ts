@@ -19,7 +19,7 @@ export interface DetectedMeta {
   chapterCount?: number
   /** 章节数仅统计了前几页目录（hasMoreChapters），真实章节数更多。 */
   hasMoreChapters?: boolean
-  /** 需订购/购买才能读取正文的章节数（仅 PO18 目录有该语义）。 */
+  /** 需订购/购买才能读取正文的章节数。 */
   protectedChapterCount?: number
   site?: { name?: string }
   error?: string

@@ -351,7 +351,7 @@ private struct SourceSyncSheet: View {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                         } else {
-                            Label("搜索晋江与 POPO", systemImage: "magnifyingglass")
+                            Label("搜索原作者作品", systemImage: "magnifyingglass")
                                 .frame(maxWidth: .infinity)
                         }
                     }
@@ -359,12 +359,15 @@ private struct SourceSyncSheet: View {
                 } header: {
                     Text("搜索原作者源站")
                 } footer: {
-                    Text("先选择准确的作品，再读取详情和章节目录。每个源站默认显示前 5 条结果，展开后可查看全部。POPO 详情页需要已配置账号或 Cookie。")
+                    Text("先选择准确的作品，再读取详情和章节目录。每个源站默认显示前 5 条结果，展开后可查看全部。")
                 }
 
                 if let sourceSearch {
-                    sourceCandidates(siteKey: "jjwxc", title: "晋江", bucket: sourceSearch.sources.jjwxc)
-                    sourceCandidates(siteKey: "po18tw", title: "POPO", bucket: sourceSearch.sources.po18tw)
+                    ForEach(sourceSearch.sources.keys.sorted(), id: \.self) { id in
+                        if let bucket = sourceSearch.sources[id] {
+                            sourceCandidates(siteKey: id, title: bucket.siteName ?? bucket.results.first?.siteName ?? siteName(id), bucket: bucket)
+                        }
+                    }
                 }
 
                 Section {
@@ -386,12 +389,12 @@ private struct SourceSyncSheet: View {
                 } header: {
                     Text("原作者源站")
                 } footer: {
-                    Text("支持晋江和 POPO。这里只读取小说信息和章节目录，不抓取正文；无法访问时请继续使用 Web 端的手动粘贴方式。")
+                    Text("这里只读取小说信息和章节目录。无法访问时可在 Web 端手动粘贴。")
                 }
 
                 if let preview {
                     Section {
-                        LabeledContent("源站", value: siteName(preview.site))
+                        LabeledContent("源站", value: preview.siteName ?? siteName(preview.site))
                         LabeledContent("目录章节", value: "\(preview.sourceChapterCount) 章")
                         LabeledContent("本地内容", value: "\(preview.localChapterCount) 节")
                         LabeledContent("已匹配", value: "\(preview.matchedSourceCount) 章")
@@ -798,7 +801,6 @@ private struct SourceSyncSheet: View {
     private func siteName(_ site: String) -> String {
         switch site {
         case "jjwxc": return "晋江"
-        case "po18tw": return "POPO"
         default: return site
         }
     }

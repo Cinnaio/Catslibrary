@@ -1277,8 +1277,8 @@
   100% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0); }
 }
 
-/* 2. PO18 账号折叠手风琴卡片 (Po18 Account Pill Card) */
-.po18-account-pill-card {
+/* 2. 书源 账号折叠手风琴卡片 (Source Account Pill Card) */
+.source-account-pill-card {
   background: var(--admin-panel, #ffffff);
   border: 1px solid var(--admin-border, #eae6df);
   border-radius: 16px;
@@ -1287,12 +1287,12 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.po18-account-pill-card:hover {
+.source-account-pill-card:hover {
   border-color: rgba(217, 119, 87, 0.35);
   box-shadow: none;
 }
 
-.po18-account-compact-bar {
+.source-account-compact-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1303,37 +1303,37 @@
   transition: background-color 0.15s ease;
 }
 
-.po18-account-compact-bar:hover {
+.source-account-compact-bar:hover {
   background: var(--admin-panel-muted, #faf9f5);
 }
 
-.po18-account-expand-wrapper {
+.source-account-expand-wrapper {
   display: grid;
   grid-template-rows: 0fr;
   overflow: hidden;
   transition: grid-template-rows 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.po18-account-pill-card.is-expanded .po18-account-expand-wrapper {
+.source-account-pill-card.is-expanded .source-account-expand-wrapper {
   grid-template-rows: 1fr;
 }
 
-.po18-account-expand-content {
+.source-account-expand-content {
   min-height: 0;
   overflow: hidden;
 }
 
-.po18-account-pill-card.is-collapsed .po18-account-expand-content {
+.source-account-pill-card.is-collapsed .source-account-expand-content {
   border-top: none;
   visibility: hidden;
 }
 
-.po18-account-pill-card.is-expanded .po18-account-expand-content {
+.source-account-pill-card.is-expanded .source-account-expand-content {
   border-top: 1px solid var(--admin-border, #eae6df);
   visibility: visible;
 }
 
-.po18-account-inner-padding {
+.source-account-inner-padding {
   padding: 1.5rem 1.5rem 1.75rem;
 }
 

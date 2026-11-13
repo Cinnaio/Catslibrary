@@ -7,7 +7,8 @@ import type { SourceChapterCandidate } from '../novel-update-summary'
 import type { Db } from '../../db/pool'
 import { all, first, withTx } from '../../db/query'
 import { newId } from '../auth'
-import { SITE_PRESETS } from './presets'
+import { presetForUrl } from './presets'
+import { assertSourceAvailable } from './sources'
 import { applyFollowupDefaults } from '../novel-followup-defaults'
 import { legadoHost, sourceToPreset } from './legado'
 
@@ -657,17 +658,12 @@ export class PgScrapeStore implements ScrapeStore {
   }
 }
 
-/** 运行时统一入口：先 SITE_PRESETS 子串匹配，未命中再查 scrape_sources（含 m./www. 前缀兜底）。 */
+/** 运行时统一入口：先匹配内置或已安装的站点预设，未命中再查 scrape_sources（含 m./www. 前缀兜底）。 */
 export async function getPresetForUrl(sourceUrl: string, store: ScrapeStore | null): Promise<Record<string, unknown> | null> {
   if (!sourceUrl) return null
-  try {
-    const host = new URL(sourceUrl).hostname
-    for (const [domain, p] of Object.entries(SITE_PRESETS)) {
-      if (host.includes(domain)) return { ...p, source: 'preset' }
-    }
-  } catch {
-    /* ignore */
-  }
+  assertSourceAvailable(sourceUrl)
+  const preset = presetForUrl(sourceUrl)
+  if (preset) return { ...preset, source: 'preset' }
   if (!store) return null
   const host = legadoHost(sourceUrl)
   if (!host) return null

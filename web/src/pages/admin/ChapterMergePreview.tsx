@@ -70,7 +70,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
   return <section className="chapter-merge-dialog__preview" aria-label="源站匹配预览">
     <div className="chapter-merge-dialog__preview-summary" role="status">
       <h3>可更新 <strong>{eligible + confirmedCount}</strong> 个章节名</h3>
-      <p>{preview.site === 'jjwxc' ? '晋江' : preview.site === 'po18tw' ? 'PO18.tw' : preview.site} · 源站 {preview.sourceChapterCount} 章 / 本地 {preview.localChapterCount} 节 · 已匹配 {preview.matchedSourceCount} 章</p>
+      <p>{preview.siteName || (preview.site === 'jjwxc' ? '晋江' : preview.site)} · 源站 {preview.sourceChapterCount} 章 / 本地 {preview.localChapterCount} 节 · 已匹配 {preview.matchedSourceCount} 章</p>
       {manual > 0 && <p className="chapter-merge-dialog__warning">{eligible} 个可自动更新；{manual} 个需人工核对，已确认 {confirmedCount} 个。未确认的标题保持原样。</p>}
       {(preview.unmatchedSource.length > 0 || preview.unmatchedLocal.length > 0) && <MotionDetails className="chapter-merge-dialog__unmatched">
         <summary><ChevronDown size={16} aria-hidden="true" /><span className="chapter-merge-dialog__unmatched-title">未匹配章节</span><span>源站 {preview.unmatchedSource.length} 章 · 本地 {preview.unmatchedLocal.length} 节</span></summary>

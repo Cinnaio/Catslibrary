@@ -26,7 +26,7 @@ export function requiresSuperAdministrator(path: string, method = 'GET', action 
     path === '/api/admin/content-policy' ||
     /^\/api\/ai\/(provider|provider-presets|test)(?:\/|$)/.test(path) ||
     (path === '/api/ai/settings' && method !== 'GET') ||
-    (path === '/api/scrape' && /^(proxy(?:-|$)|po18-account(?:-|$))/.test(action))
+    (path === '/api/scrape' && /^(proxy|source-account)(?:-|$)/.test(action))
 }
 
 export function requiresSuperAdministratorPage(path: string, search = ''): boolean {

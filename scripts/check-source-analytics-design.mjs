@@ -6,7 +6,7 @@ const output = process.env.SCREENSHOT_DIR || '/tmp/source-analytics-preview'
 await mkdir(output, { recursive: true })
 const now = Date.now()
 const categories = ['enabled', 'paused', 'completed', 'unconfigured', 'available']
-const hosts = ['po18.tw', 'jjwxc.net', 'example.org', '__none__']
+const hosts = ['source.example', 'jjwxc.net', 'example.org', '__none__']
 const books = Array.from({ length: 36 }, (_, i) => {
   const site = hosts[i % 4],
     category = categories[i % 5]
@@ -108,7 +108,7 @@ try {
         } else if (u.pathname === '/api/scrape')
           data =
             u.searchParams.get('action') === 'source-bindings'
-              ? { bindings: [{ isPrimary: true, sourceUrl: 'https://www.po18.tw/books/902326' }] }
+              ? { bindings: [{ isPrimary: true, sourceUrl: 'https://source.example/books/902326' }] }
               : {
                   enabled: true,
                   hasConfig: true,
@@ -122,7 +122,7 @@ try {
                   pendingProtectedChapterCount: 2,
                   pendingPublicChapterCount: 2,
                   pendingUnknownChapterCount: 0,
-                  sourceUrl: 'https://po18.tw/book/0',
+                  sourceUrl: 'https://source.example/book/0',
                   failures: 0,
                 }
         await route.fulfill({ json: data })
@@ -139,7 +139,7 @@ try {
       assert.equal(geometry.title, '20px')
       assert.equal(geometry.panel, '16px')
       await page.screenshot({ path: `${output}/${theme}-${width}-overview.png`, fullPage: width < 640 })
-      await page.getByRole('button', { name: 'po18.tw：已开启 2 本', exact: true }).click()
+      await page.getByRole('button', { name: 'source.example：已开启 2 本', exact: true }).click()
       await page.getByText('匹配 2 本', { exact: true }).waitFor()
       assert.equal(await page.locator('.source-book-name').count(), 2)
       await page.getByRole('button', { name: '清除筛选', exact: true }).click()

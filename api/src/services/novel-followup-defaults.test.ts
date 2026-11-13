@@ -67,12 +67,12 @@ it('无效链接或空选择器不默认开启，手动开启也被拒绝', asyn
 })
 it('导入或新建作品仅有已支持站点链接时补齐配置，未知来源不猜测规则', async () => {
   await t.db.query(`INSERT INTO novels(id,title,status,source_url,created_at,updated_at) VALUES
-    ('imported','网页导入','ongoing','https://www.po18.tw/books/902326',1,1),
+    ('imported','网页导入','ongoing','https://czbooks.net/n/test',1,1),
     ('unknown','未知来源','ongoing','https://unknown.example/book/1',1,1)`)
   expect(await getFollowup(t.db, 'imported')).toMatchObject({ enabled: true, hasConfig: true, intervalHours: 6 })
   expect(await getFollowup(t.db, 'unknown')).toMatchObject({ enabled: false, hasConfig: false })
   const config = await store.getScrapeConfig('imported')
-  expect(config?.selectors.chapterContent).toBe('@po18tw:chapter-content')
+  expect(config?.selectors.chapterContent).toBe('.content')
 })
 it('完结作品默认关闭，但有配置时允许单本手动开启并执行定时检查', async () => {
   await saveFollowup(t.db, 'done', true, 3)

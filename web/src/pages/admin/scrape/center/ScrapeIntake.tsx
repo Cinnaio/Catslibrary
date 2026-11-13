@@ -1,9 +1,9 @@
 import { ArrowRight, Flame, Link2, Search } from 'lucide-react'
-import SearchSelect from "@/components/shared/SearchSelect"
+import SearchSelect, { type SelectOption } from "@/components/shared/SearchSelect"
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { RANKING_SITES } from '../utils'
+import type { ScrapeSourceCapability } from '@/lib/api'
 import styles from '../workbench.module.css'
 
 export type IntakeMode = 'link' | 'search' | 'ranking'
@@ -13,6 +13,10 @@ interface ScrapeIntakeProps {
   onModeChange: (mode: IntakeMode) => void
   sourceUrl: string
   onSourceUrlChange: (value: string) => void
+  searchSources: ScrapeSourceCapability[]
+  searchSourceId: string
+  onSearchSourceChange: (id: string) => void
+  rankingOptions: SelectOption[]
   searchInput: string
   onSearchInputChange: (value: string) => void
   searchType: string
@@ -32,12 +36,6 @@ const MODES = [
   { value: 'ranking' as const, label: '榜单发现', icon: Flame },
 ]
 
-const INTAKE_MODE_INDEX: Record<IntakeMode, number> = {
-  link: 0,
-  search: 1,
-  ranking: 2,
-}
-
 const SEARCH_TYPE_INDEX = {
   articlename: 0,
   author: 1,
@@ -48,6 +46,10 @@ export default function ScrapeIntake({
   onModeChange,
   sourceUrl,
   onSourceUrlChange,
+  searchSources,
+  searchSourceId,
+  onSearchSourceChange,
+  rankingOptions,
   searchInput,
   onSearchInputChange,
   searchType,
@@ -60,11 +62,12 @@ export default function ScrapeIntake({
   disabled = false,
   onSubmit,
 }: ScrapeIntakeProps) {
+  const modes = MODES.filter(option => option.value !== 'search' || searchSources.length > 0)
   return (
     <div className={styles.intake} aria-label="抓取入口">
       <Tabs value={mode} onValueChange={(value) => onModeChange(value as IntakeMode)}>
-        <TabsList aria-label="选择抓取入口" data-active-index={INTAKE_MODE_INDEX[mode]} className={styles.modeList}>
-          {MODES.map(({ value, label, icon: Icon }) => (
+        <TabsList aria-label="选择抓取入口" data-active-index={modes.findIndex(option => option.value === mode)} className={styles.modeList}>
+          {modes.map(({ value, label, icon: Icon }) => (
             <TabsTrigger value={value} key={value} disabled={loading || disabled}>
               <Icon className="size-3.5 mr-1.5 opacity-70" aria-hidden="true" />
               <span>{label}</span>
@@ -105,15 +108,23 @@ export default function ScrapeIntake({
               </Button>
             </div>
             <p className={styles.hint}>
-              支持 PO18 预设与通用 HTML，分析后核对作品信息。
+              分析后核对作品信息和章节规则。
             </p>
           </div>
         )}
 
         {mode === 'search' && (
           <div className={styles.field}>
-            <label htmlFor="scrape-search-input" className={styles.label}>搜索 PO18 作品</label>
+            <label htmlFor="scrape-search-input" className={styles.label}>搜索作品</label>
             <div className={styles.controls}>
+              {searchSources.length > 1 && (
+                <SearchSelect
+                  options={searchSources.map(source => ({ value: source.id, label: source.name }))}
+                  value={searchSourceId}
+                  onChange={onSearchSourceChange}
+                  aria-label="搜索书源"
+                />
+              )}
               <Input
                 id="scrape-search-input"
                 data-search-field
@@ -149,7 +160,7 @@ export default function ScrapeIntake({
               </Button>
             </div>
             <p className={styles.hint}>
-              搜索 PO18 原创书库；结果可单本配置，也可勾选多本后批量加入抓取队列。
+              选择单本核对，或勾选多本加入抓取队列。
             </p>
           </div>
         )}
@@ -158,14 +169,14 @@ export default function ScrapeIntake({
           <div className={styles.field}>
             <label htmlFor="scrape-ranking-url" className={styles.label}>榜单来源</label>
             <div className={styles.controls}>
-              <SearchSelect
+              {rankingOptions.length > 0 && <SearchSelect
                 className={styles.site}
-                options={RANKING_SITES}
+                options={rankingOptions}
                 value={siteValue}
                 onChange={onSiteChange}
-                placeholder="选择 POPO / PO18 榜单"
+                placeholder="选择榜单"
                 aria-label="选择榜单来源"
-              />
+              />}
               <Input
                 id="scrape-ranking-url"
                 type="url"
@@ -192,7 +203,7 @@ export default function ScrapeIntake({
               </Button>
             </div>
             <p className={styles.hint}>
-              POPO 榜单可直接免密读取目录；详情与章节校验需登录或 Cookie。确认前不会写入书库或创建任务。
+              选择榜单或粘贴榜单链接。
             </p>
           </div>
         )}

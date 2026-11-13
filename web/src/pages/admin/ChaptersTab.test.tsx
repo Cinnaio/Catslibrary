@@ -48,7 +48,7 @@ it('融合撤回后刷新作品信息，重新打开弹窗显示恢复后的书�
 })
 it('融合标题没有变化时仍可单独修复序号，默认不勾选且提交前明确确认', async () => {
   mocks.sourcePreview.mockResolvedValue({
-    runId: 'sync-order', site: 'po18tw', sourceChapterCount: 46, localChapterCount: 46, matchedSourceCount: 46,
+    runId: 'sync-order', site: 'fixture', sourceChapterCount: 46, localChapterCount: 46, matchedSourceCount: 46,
     metadata: { title: '', author: '', description: '', coverUrl: '', categories: [], status: '' },
     changes: [], mappings: [{ sourceChapterKey: 'source-notice', sourceOrder: 45, sourceTitle: '不行了，累累', localChapterIds: ['notice'], relation: 'one_to_one', confidence: 'high', matchReason: 'exact-title' }], unmatchedSource: [], unmatchedLocal: [], warnings: [],
     localChapters: [{ id: 'notice', order: 46, title: '不行了，累累' }], sourceChapters: [{ key: 'source-notice', order: 45, title: '不行了，累累' }],
@@ -59,7 +59,7 @@ it('融合标题没有变化时仍可单独修复序号，默认不勾选且提�
   await screen.findByRole('option', { name: '测试书' })
   fireEvent.change(screen.getByLabelText('选择小说'), { target: { value: 'n' } })
   fireEvent.click(await screen.findByRole('button', { name: '融合章节名' }))
-  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://source.example/books/902326' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
   await screen.findByText('核对与调整映射')
   expect(screen.queryByRole('checkbox', { name: /按源站修复/ })).not.toBeInTheDocument()
@@ -132,7 +132,7 @@ it('插图弹窗的保存快捷键只保存插图，不提交或关闭父章节�
 
 it('全选映射直接加入标题及序号同步，小说信息默认不选且重开时清空', async () => {
   mocks.sourcePreview.mockResolvedValue({
-    runId: 'sync-selection', site: 'po18tw', sourceChapterCount: 2, localChapterCount: 2, matchedSourceCount: 2,
+    runId: 'sync-selection', site: 'fixture', sourceChapterCount: 2, localChapterCount: 2, matchedSourceCount: 2,
     metadata: { title: '源站书名', author: '源站作者', description: '简介', coverUrl: 'https://example.com/cover.png', categories: ['分类'], status: 'ongoing' },
     changes: [{ localChapterId: 'b', localOrder: 4, oldTitle: '旧名', newTitle: '新名', eligible: false, confidence: 'low', partCount: 1 }],
     mappings: [
@@ -149,7 +149,7 @@ it('全选映射直接加入标题及序号同步，小说信息默认不选且�
   await screen.findByRole('option', { name: '测试书' })
   fireEvent.change(screen.getByLabelText('选择小说'), { target: { value: 'n' } })
   fireEvent.click(await screen.findByRole('button', { name: '融合章节名' }))
-  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://source.example/books/902326' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
   await screen.findByText('可更新', { exact: false })
   fireEvent.click(screen.getByText('同步小说信息', { selector: 'summary' }))
@@ -172,7 +172,7 @@ it('全选映射直接加入标题及序号同步，小说信息默认不选且�
   expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('修复 1 个章节序号') }))
   await waitFor(() => expect(screen.queryByRole('button', { name: '应用已选更新' })).not.toBeInTheDocument())
   fireEvent.click(screen.getByRole('button', { name: '融合章节名' }))
-  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://source.example/books/902326' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
   await screen.findByText('可更新', { exact: false })
   fireEvent.click(screen.getByText('同步小说信息', { selector: 'summary' }))
@@ -180,7 +180,7 @@ it('全选映射直接加入标题及序号同步，小说信息默认不选且�
   expect(screen.getByRole('checkbox', { name: '书名' })).toBeChecked()
   fireEvent.click(screen.getByRole('button', { name: /^取消$/ }))
   fireEvent.click(screen.getByRole('button', { name: '融合章节名' }))
-  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://source.example/books/902326' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
   await screen.findByText('可更新', { exact: false })
   fireEvent.click(screen.getByText('同步小说信息', { selector: 'summary' }))
@@ -194,7 +194,7 @@ it('102章含未匹配项时全选35项差异，可以提交30个可修复序号
   const skippedOrders = [80, 81, 87, 85, 83]
   const orderChanges = shape.locals.flatMap((row, i) => row.sourceOrder === null || row.sourceOrder === row.order || skippedOrders.includes(row.order) ? [] : [{ localChapterId: localChapters[i]!.id, title: localChapters[i]!.title, oldOrder: row.order, newOrder: row.sourceOrder }])
   mocks.sourcePreview.mockResolvedValue({
-    runId: 'partial-order-run', site: 'po18tw', sourceChapterCount: 106, localChapterCount: 102, matchedSourceCount: 99,
+    runId: 'partial-order-run', site: 'fixture', sourceChapterCount: 106, localChapterCount: 102, matchedSourceCount: 99,
     metadata: { title: '源站书名', author: '源站作者', description: '', coverUrl: '', categories: [], status: 'ongoing' },
     changes: [], mappings, localChapters,
     sourceChapters: shape.sourceOrders.map(order => ({ key: `s${order}`, order, title: `测试故事 ${order}` })),
@@ -206,7 +206,7 @@ it('102章含未匹配项时全选35项差异，可以提交30个可修复序号
   await screen.findByRole('option', { name: '测试书' })
   fireEvent.change(screen.getByLabelText('选择小说'), { target: { value: 'n' } })
   fireEvent.click(await screen.findByRole('button', { name: '融合章节名' }))
-  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://source.example/books/902326' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
   await screen.findByText('核对与调整映射')
   expect(screen.queryByRole('checkbox', { name: /按源站修复/ })).not.toBeInTheDocument()
@@ -232,13 +232,13 @@ it('小说管理嵌入入口无需加载全库索引，直接使用当前作品�
 })
 it('嵌入融合应用成功通知小说列表刷新并关闭，不加载章节管理列表', async () => {
   const applied = vi.fn(), close = vi.fn()
-  mocks.sourcePreview.mockResolvedValue({ runId: 'embedded', site: 'po18tw', sourceChapterCount: 1, localChapterCount: 1, matchedSourceCount: 1,
+  mocks.sourcePreview.mockResolvedValue({ runId: 'embedded', site: 'fixture', sourceChapterCount: 1, localChapterCount: 1, matchedSourceCount: 1,
     metadata: { title: '', author: '', description: '', coverUrl: '', categories: [], status: '' }, changes: [{ localChapterId: 'c', oldTitle: '原章', newTitle: '新章', eligible: true }],
     mappings: [], unmatchedSource: [], unmatchedLocal: [], warnings: [], localChapters: [], sourceChapters: [], orderChanges: [] })
   mocks.sourceApply.mockResolvedValue({ updated: 1, orderUpdated: 0, metadataUpdated: [], mappings: 1 })
   renderChapters(<ChaptersTab mergeNovel={{ id: 'n', title: '测试书', author: '', chapterCount: 1 }} onMergeClose={close} onMergeApplied={applied} />)
   await screen.findByRole('heading', { name: '融合章节名' })
-  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://source.example/books/902326' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
   fireEvent.click(await screen.findByRole('button', { name: '更新 1 个标题' }))
   await waitFor(() => expect(applied).toHaveBeenCalledTimes(1))
@@ -249,7 +249,7 @@ it('嵌入融合应用成功通知小说列表刷新并关闭，不加载章节�
 
 function workflowPreview(runId = 'workflow') {
   return {
-    runId, revision: 0, site: 'po18tw', sourceChapterCount: 1, localChapterCount: 2, matchedSourceCount: 1,
+    runId, revision: 0, site: 'fixture', sourceChapterCount: 1, localChapterCount: 2, matchedSourceCount: 1,
     metadata: { title: '', author: '', description: '', coverUrl: '', categories: [], status: '' },
     changes: [{ localChapterId: 'c', localOrder: 1, oldTitle: '第1章', newTitle: '开始', eligible: true, confidence: 'high' }],
     mappings: [{ sourceChapterKey: 's1', sourceOrder: 1, sourceTitle: '开始', localChapterIds: ['c'], relation: 'one_to_one', confidence: 'high', matchReason: 'chapter-number' }],
@@ -263,7 +263,7 @@ async function openWorkflow(preview = workflowPreview()) {
   mocks.sourcePreview.mockResolvedValue(preview)
   renderChapters(<ChaptersTab mergeNovel={{ id: 'n', title: '测试书', author: '', chapterCount: 2 }} onMergeClose={close} onMergeApplied={applied} />)
   await screen.findByRole('heading', { name: '融合章节名' })
-  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://source.example/books/902326' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
   fireEvent.click(await screen.findByText('核对与调整映射'))
   return { close, applied }

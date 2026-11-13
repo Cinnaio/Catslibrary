@@ -22,7 +22,6 @@ struct AdminRootView: View {
         case discover
         case scrapeConfigs
         case scrapeSources
-        case popoAccount
         case proxy
         case aiService
         case siteOperations
@@ -60,7 +59,6 @@ struct AdminRootView: View {
             AdminModule(id: "discover", title: "发现小说", systemImage: "magnifyingglass", destination: .discover),
             AdminModule(id: "scrape-configs", title: "配置导入导出", systemImage: "arrow.left.arrow.right.square", destination: .scrapeConfigs),
             AdminModule(id: "scrape-sources", title: "源管理", systemImage: "antenna.radiowaves.left.and.right", destination: .scrapeSources),
-            AdminModule(id: "popo-account", title: "POPO 账号", systemImage: "person.badge.key", destination: .popoAccount),
             AdminModule(id: "proxy", title: "代理设置", systemImage: "network", destination: .proxy),
         ]),
         AdminModuleGroup(id: "runtime", title: "运行监控", modules: [
@@ -85,7 +83,7 @@ struct AdminRootView: View {
 
     private var moduleGroups: [AdminModuleGroup] {
         guard appState.user?.isSuperAdmin != true else { return allModuleGroups }
-        let restricted = ["popo-account", "proxy", "policy", "site-settings", "backups", "announcement"]
+        let restricted = ["proxy", "policy", "site-settings", "backups", "announcement"]
         return allModuleGroups.compactMap { group in
             let allowed = group.modules.filter { !restricted.contains($0.id) }
             return allowed.isEmpty ? nil : AdminModuleGroup(id: group.id, title: group.title, modules: allowed)
@@ -215,7 +213,6 @@ struct AdminRootView: View {
         case .discover: AdminDiscoverView()
         case .scrapeConfigs: AdminScrapeConfigsView()
         case .scrapeSources: AdminScrapeSourcesView()
-        case .popoAccount: Po18AccountSheet()
         case .proxy: AdminProxyView()
         case .aiService: AdminAIServiceView()
         case .siteOperations: AdminSiteOperationsView()

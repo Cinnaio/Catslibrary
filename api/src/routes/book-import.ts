@@ -9,7 +9,7 @@ import { all, first, withTx } from '../db/query'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { fetchHtml as fetchHtmlImpl } from '../services/scraper/fetch'
 import { PgScrapeStore } from '../services/scraper/store'
-import { withPo18Session } from '../services/po18-fetch'
+import { sourceFetcher } from '../services/scraper/sources'
 import {
   applyImport,
   createPreview,
@@ -206,7 +206,7 @@ bookImportRoutes.post('/preview', async (c) => {
       } else {
       if (!sourceUrl) return c.json({ error: 'sourceUrl 必填' }, 400)
       const store = new PgScrapeStore(db)
-      const result = await parseBookUrl(sourceUrl, { store, fetchHtml: withPo18Session(db, fetchHtmlImpl) })
+      const result = await parseBookUrl(sourceUrl, { store, fetchHtml: sourceFetcher(db, fetchHtmlImpl) })
       payload = result.payload
       warnings = result.warnings
       diagnostics = result.diagnostics

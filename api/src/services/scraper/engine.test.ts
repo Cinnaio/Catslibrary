@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PgScrapeStore, type JobData, type ScrapeStore } from './store'
-import { runScrapeJob, testSelectors, type ScrapeDeps } from './engine'
-import type { FetchHtmlOptions } from './fetch'
+import { runScrapeJob, type ScrapeDeps } from './engine'
 import { createTestDb, type TestDb } from '../../test/db'
 import { setDbForTests } from '../../db/pool'
 
@@ -168,7 +167,7 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
   })
 
   it('目录分页：通过 nextPage 翻页收集全部章节', async () => {
-    // 第一页含 2 章 + 下一页链接；第二页含 2 章（PO18 风格：每页若干章，多页目录）
+    // 第一页含 2 章 + 下一页链接；第二页含 2 章（每页若干章，多页目录）
     const PAGE1 = `<html><body>
 <div class="chapters">
   <ul>
@@ -231,154 +230,4 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
     expect(count.rows[0]!.c).toBe(4)
   })
 
-  it('POPO 专用目录应提取可读章节并请求 articlescontent 正文', async () => {
-    const requests: string[] = []
-    const contentOptions = new Map<string, FetchHtmlOptions>()
-    const popoList = `<html><body><div id="w0">
-      <div class="c_l">
-        <div class="l_counter">0001</div>
-        <div class="l_chaptname">第一章</div>
-        <div class="l_btn"><a href="/books/901935/articles/101">免費閱讀</a></div>
-      </div>
-      <div class="c_l">
-        <div class="l_counter">0002</div>
-        <div class="l_chaptname">第二章</div>
-        <div class="l_btn"><a href="/books/901935/articles/102">訂購</a></div>
-      </div>
-      <div class="c_l">
-        <div class="l_counter">0003</div>
-        <div class="l_chaptname">第三章</div>
-        <div class="l_btn"><a href="/books/901935/articles/103">免費閱讀</a></div>
-      </div>
-    </div></body></html>`
-    const popoContent = `<html><body><h1>第一章</h1><div class="article-content"><p>${LONG_BODY}</p></div></body></html>`
-
-    await t.db.query("INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ('n3', 'POPO 测试小说', '作者', $1, $1)", [Date.now()])
-    await store.upsertScrapeConfig({
-      novelId: 'n3',
-      sourceUrl: 'https://www.po18.tw/books/901935/articles',
-      selectors: {
-        chapterList: '@po18tw:chapter-list',
-        chapterTitle: '@po18tw:chapter-title',
-        chapterContent: '@po18tw:chapter-content',
-      },
-      encoding: 'utf-8',
-    })
-    const job: JobData = {
-      id: 'job_popo',
-      novelId: 'n3',
-      status: 'starting',
-      progress: 0,
-      current: 0,
-      total: 0,
-      chapterCount: 0,
-      startedAt: Date.now(),
-      updatedAt: Date.now(),
-    }
-    await store.saveJob(job)
-
-    const deps: ScrapeDeps = {
-      store,
-      fetchHtml: async (url, options) => {
-        requests.push(url)
-        if (url.includes('/articlescontent/')) {
-          contentOptions.set(url, options!)
-          return { html: popoContent, encoding: 'utf-8' }
-        }
-        return { html: popoList, encoding: 'utf-8' }
-      },
-      log: () => {},
-    }
-    await runScrapeJob('job_popo', deps)
-
-    const done = await store.loadJob('job_popo')
-    expect(done?.status).toBe('completed')
-    expect(done?.chapterCount).toBe(2)
-    expect(done?.publicChapterCount).toBe(2)
-    expect(done?.protectedChapterCount).toBe(1)
-    expect(requests).toContain('https://www.po18.tw/books/901935/articlescontent/101')
-    expect(new Headers(contentOptions.get('https://www.po18.tw/books/901935/articlescontent/101')?.headers).get('Referer')).toBe(
-      'https://www.po18.tw/books/901935/articles/101',
-    )
-    expect(new Headers(contentOptions.get('https://www.po18.tw/books/901935/articlescontent/101')?.headers).get('X-Requested-With')).toBe('XMLHttpRequest')
-    const chapters = await t.db.query<{ title: string; content: string; sort_order: number }>(
-      'SELECT title, content, sort_order FROM chapters WHERE novel_id = $1 ORDER BY sort_order',
-      ['n3'],
-    )
-    expect(chapters.rows).toHaveLength(2)
-    expect(chapters.rows[0]!.title).toBe('第一章')
-    expect(chapters.rows[0]!.content).toContain('章节正文内容')
-    expect(chapters.rows.map((chapter) => chapter.sort_order)).toEqual([1, 3])
-    expect(chapters.rows[1]!.title).toBe('第一章')
-    const items = await store.getJobItems('job_popo')
-    expect(items.map((item) => item.order)).toEqual([1, 3])
-
-    const preview = await testSelectors(
-      'https://www.po18.tw/books/901935',
-      { chapterList: '@po18tw:chapter-list', chapterTitle: '@po18tw:chapter-title', chapterContent: '@po18tw:chapter-content' },
-      'utf-8',
-      deps,
-    )
-    expect(preview.totalLinks).toBe(2)
-    expect(preview.publicChapterCount).toBe(2)
-    expect(preview.protectedChapterCount).toBe(1)
-    expect((preview.sampleChapters as Array<{ ok: boolean }>)[0]?.ok).toBe(true)
-
-    const directoryRequests = requests.filter((url) => url.includes('/books/901935/articles') && !url.includes('/articlescontent/'))
-    expect(directoryRequests).toEqual(['https://www.po18.tw/books/901935/articles', 'https://www.po18.tw/books/901935/articles'])
-  })
-
-  it('POPO 正文被重定向到登录页时不得把登录页保存为章节', async () => {
-    const popoList = `<html><body><div class="c_l">
-      <div class="l_counter">0001</div>
-      <div class="l_chaptname">第一章</div>
-      <div class="l_btn"><a href="/books/901936/articles/101">免費閱讀</a></div>
-    </div></body></html>`
-    const loginPage = `<html><head><title>登入</title></head><body>
-      <form action="/login" method="post"><input type="password" name="password"></form>
-      <p>請先登入後閱讀本章</p>
-    </body></html>`
-
-    await t.db.query("INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ('n4', 'POPO 登录测试小说', '作者', $1, $1)", [Date.now()])
-    await store.upsertScrapeConfig({
-      novelId: 'n4',
-      sourceUrl: 'https://www.po18.tw/books/901936/articles',
-      selectors: {
-        chapterList: '@po18tw:chapter-list',
-        chapterTitle: '@po18tw:chapter-title',
-        chapterContent: '@po18tw:chapter-content',
-      },
-      encoding: 'utf-8',
-    })
-    await store.saveJob({
-      id: 'job_popo_login',
-      novelId: 'n4',
-      status: 'starting',
-      startedAt: Date.now(),
-      updatedAt: Date.now(),
-    })
-
-    const runtimeLogs: string[] = []
-    const deps: ScrapeDeps = {
-      store,
-      fetchHtml: async (url) => ({
-        html: url.includes('/articlescontent/') ? loginPage : popoList,
-        encoding: 'utf-8',
-        finalUrl: url.includes('/articlescontent/') ? 'https://members.po18.tw/apps/login.php' : url,
-      }),
-      log: (_job, message) => runtimeLogs.push(message),
-    }
-    await runScrapeJob('job_popo_login', deps)
-
-    const done = await store.loadJob('job_popo_login')
-    expect(done?.status).toBe('failed')
-    expect(done?.step).toContain('登录页')
-    expect(runtimeLogs.some((message) => message.includes('抓取结束：抓取失败') && message.includes('登录页'))).toBe(true)
-    expect(runtimeLogs.some((message) => message.includes('抓取完成，成功 0 章'))).toBe(false)
-    const summary = await store.getJobSummary('job_popo_login')
-    expect(summary.successCount).toBe(0)
-    expect(summary.failedCount).toBe(1)
-    const chapters = await t.db.query<{ id: string }>('SELECT id FROM chapters WHERE novel_id = $1', ['n4'])
-    expect(chapters.rows).toHaveLength(0)
-  })
 })

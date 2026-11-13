@@ -4,6 +4,7 @@ import { getPendingChapterCounts, type SourceChapterCandidate } from './novel-up
 import { PgScrapeStore } from './scraper/store'
 import { runScrapeJob } from './scraper/engine'
 import { enqueueFollowup, finishFollowup, getFollowup } from './novel-followup'
+import { setScrapeAdaptersForTest } from './scraper/sources'
 
 let t: TestDb
 let store: PgScrapeStore
@@ -68,11 +69,31 @@ it('没有保护状态解析的书源保持未知，不推断可抓取', async (
   })
 })
 it('目录全为受保护章节时检查成功，权限变化后重新分类并正常入库', async () => {
+  const sourceUrl = 'https://locked.example/book'
+  const chapterUrl = 'https://locked.example/chapter/1'
+  setScrapeAdaptersForTest([{
+    id: 'locked', name: '保护状态夹具', hosts: ['locked.example'], presets: {},
+    chapters: {
+      matchesSelectors: selectors => selectors?.chapterList === '@fixture:chapter-list',
+      listUrl: url => url,
+      assertResponse() {},
+      readDirectory(html) {
+        const isPublic = html === 'public'
+        return {
+          links: isPublic ? [{ href: chapterUrl, text: '第一章', order: 1 }] : [],
+          protectedChapterCount: isPublic ? 0 : 1,
+          candidates: [{ url: chapterUrl, title: '第一章', order: 1, access: isPublic ? 'public' : 'protected' }],
+        }
+      },
+      chapterRequest: link => ({ url: link.href, options: {} }),
+      parseChapter: content => ({ title: '第一章', content }),
+    },
+  }])
   await novel('protected-only')
   await store.upsertScrapeConfig({
     novelId: 'protected-only',
-    sourceUrl: 'https://www.po18.tw/books/123/articles',
-    selectors: { chapterList: '@po18tw:chapter-list', chapterTitle: '@po18tw:chapter-title', chapterContent: '@po18tw:chapter-content' },
+    sourceUrl,
+    selectors: { chapterList: '@fixture:chapter-list', chapterTitle: '@fixture:chapter-title', chapterContent: '@fixture:chapter-content' },
   })
   let purchased = false
   const fetches: string[] = []
@@ -83,9 +104,7 @@ it('目录全为受保护章节时检查成功，权限变化后重新分类并�
       fetches.push(url)
       return {
         encoding: 'utf-8',
-        html: url.includes('articlescontent')
-          ? `<div class="read_chapter"><p>${'这是可以读取的章节正文。'.repeat(15)}</p></div>`
-          : `<div class="c_l"><div class="l_counter">1</div><div class="l_chaptname">第一章</div><div class="l_btn"><a href="/books/123/articles/1">${purchased ? '閱讀' : '訂購'}</a></div></div>`,
+        html: url === chapterUrl ? '这是可以读取的章节正文。'.repeat(15) : purchased ? 'public' : 'protected',
       }
     },
   }
@@ -100,7 +119,8 @@ it('目录全为受保护章节时检查成功，权限变化后重新分类并�
   await runScrapeJob(second.jobId, deps)
   await finishFollowup(t.db, second.jobId)
   expect(await getFollowup(t.db, 'protected-only')).toMatchObject({ result: 'updated', pendingChapterCount: 0, pendingProtectedChapterCount: 0 })
-  expect(fetches.some((url) => url.includes('articlescontent'))).toBe(true)
+  expect(fetches).toContain(chapterUrl)
+  setScrapeAdaptersForTest([])
 })
 
 it('换源后废弃旧的目录与保护状态', async () => {

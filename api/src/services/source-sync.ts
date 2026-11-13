@@ -6,10 +6,10 @@ import { all, first, withTx } from '../db/query'
 import type { Db } from '../db/pool'
 import { newId } from './auth'
 import { detectMeta } from './scraper/meta'
-import { extractJjwxcTitles, extractPo18twTitles } from './scraper/enrich'
+import { extractJjwxcTitles } from './scraper/enrich'
 import type { FetchHtmlOptions, FetchResult } from './scraper/fetch'
 import type { ScrapeStore } from './scraper/store'
-import { withPo18Session } from './po18-fetch'
+import { adapterById, adapterForUrl, assertSourceAvailable, sourceFetcher } from './scraper/sources'
 import { applyContentRatingChange, CONTENT_RATING_RULE_VERSION } from './content-rating-governance'
 import { evaluateContentRatingRules, loadContentRatingRuleSet } from './content-rating-rules'
 import { toContentRating } from '../db/mappers'
@@ -87,6 +87,7 @@ export interface SourceSyncPreview {
   bindingId: string
   novelId: string
   site: string
+  siteName?: string
   sourceUrl: string
   metadata: SourceSyncMetadata
   sourceChapterCount: number
@@ -161,7 +162,7 @@ export interface SourceSyncRollbackResult { runId: string; restored: number; con
 // 「正文」在测试里是占位章节，但真实目录中「正文」也可能是正式章名；
 // 仅当标题不含任何自定义正文（纯公告/占位）时才判弱，故此处对「正文」单独放宽。
 const GENERIC_WEAK_TITLES = /^(?:正文|无标题|未命名|空标题|首-?发|首发|防盗|防盗章|防盗章节|本章为防盗章|公告|请假|停更|通知)$/i
-// PO18 等站点在正文首行插入的防盜水印，会被目录抓取误当作章节名。
+// 部分站点在正文首行插入的防盜水印，会被目录抓取误当作章节名。
 const WATERMARK_TITLE = /^(?:首-?发|首发|防盗|本章为防盗章|防盜|獨發|独家首发)[:：、.。\s]*$/
 const INTRO_TITLES = /^(?:内容简介|作品简介|小说简介|文案|简介|楔子|序章|序言)$/i
 const SPLIT_MARKER = /(?:[（(]\s*(\d+)\s*[/／]\s*(\d+)\s*[)）]|(?:[-_ ]+)?(?:part|pt)\s*(\d+)(?:\s*[/／]\s*(\d+))?)$/i
@@ -208,11 +209,10 @@ function normalizeUrl(sourceUrl: string): URL {
   return url
 }
 
-function sourceSite(sourceUrl: string): 'jjwxc' | 'po18tw' | 'unsupported' {
+function sourceSite(sourceUrl: string): string {
   const host = normalizeUrl(sourceUrl).hostname.toLowerCase()
   if (/(^|\.)jjwxc\.net$/.test(host)) return 'jjwxc'
-  if (/(^|\.)po18\.tw$/.test(host)) return 'po18tw'
-  return 'unsupported'
+  return adapterForUrl(sourceUrl)?.id ?? 'unsupported'
 }
 
 function sourceBookId(url: URL): string {
@@ -981,15 +981,10 @@ async function fetchSourceChapters(
   fetchHtml: (url: string, opts?: FetchHtmlOptions) => Promise<FetchResult>,
 ): Promise<{ site: string; chapters: SourceChapter[] }> {
   const site = sourceSite(sourceUrl)
-  if (site === 'jjwxc') {
-    const result = await extractJjwxcTitles(sourceUrl, fetchHtml)
-    return { site: 'jjwxc', chapters: result.titles.map((item) => ({ key: item.url, order: item.order, title: cleanTitle(item.title), url: item.url })) }
-  }
-  if (site === 'po18tw') {
-    const result = await extractPo18twTitles(sourceUrl, fetchHtml)
-    return { site: 'po18tw', chapters: result.titles.map((item) => ({ key: item.url, order: item.order, title: cleanTitle(item.title), url: item.url })) }
-  }
-  throw new Error('目前支持的原作者源站为晋江和 PO18.tw')
+  const readTitles = site === 'jjwxc' ? extractJjwxcTitles : adapterForUrl(sourceUrl)?.titles
+  if (!readTitles) throw new Error('当前书源不支持读取参考目录')
+  const result = await readTitles(sourceUrl, fetchHtml)
+  return { site, chapters: result.titles.map((item) => ({ key: item.url, order: item.order, title: cleanTitle(item.title), url: item.url })) }
 }
 
 async function fetchSourceMetadata(
@@ -1177,8 +1172,10 @@ function buildPreview(
     })
   }
 
+  const siteName = base.site === 'jjwxc' ? '晋江' : adapterById(base.site)?.name
   return {
     ...base,
+    ...(siteName ? { siteName } : {}),
     revision: 0,
     sourceChapters,
     localChapters,
@@ -1212,10 +1209,11 @@ export async function createSourceSyncPreview(
   if (!novel) throw new Error('Novel not found')
   const url = normalizeUrl(opts.sourceUrl)
   const site = sourceSite(url.href)
-  if (site === 'unsupported') throw new Error('目前支持的原作者源站为晋江和 PO18.tw')
+  assertSourceAvailable(url.href)
+  if (site !== 'jjwxc' && !adapterForUrl(url.href)?.titles) throw new Error('当前书源不支持读取参考目录')
   const binding = await ensureBinding(db, opts.novelId, url.href, site)
   const warnings: string[] = []
-  const sourceFetchHtml = site === 'po18tw' ? withPo18Session(db, opts.fetchHtml) : opts.fetchHtml
+  const sourceFetchHtml = sourceFetcher(db, opts.fetchHtml)
   const source = await fetchSourceChapters(url.href, sourceFetchHtml)
   const metadataResult = await fetchSourceMetadata(url.href, opts.store, sourceFetchHtml)
   if (metadataResult.warning) warnings.push(metadataResult.warning)
@@ -1304,13 +1302,14 @@ export async function refreshSourceSync(db: Db, opts: { runId: string; revision:
     if (!(await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [previous.novel_id])).rows.length) throw new Error('Novel not found')
     const locals = normalizeLocalSnapshot((await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 ORDER BY sort_order ASC,id ASC FOR UPDATE', [previous.novel_id])).rows)
     const sources = safeJsonParse<SourceChapter[]>(previous.source_chapters_json, [])
+    const binding = (await q<{ site: string }>('SELECT site FROM novel_source_bindings WHERE id=$1', [previous.binding_id])).rows[0]
     const metadata = safeJsonParse<SourceSyncMetadata>(previous.metadata_json, {} as SourceSyncMetadata)
     const groups = groupLocalChapters(locals)
     const manual = safeJsonParse<SourceSyncManualMapping[]>(previous.manual_mappings_json || '[]', []).filter(mapping =>
       groups.some(group => group.chapters.length === 1 && !group.explicitSplit && group.chapters[0]!.id === mapping.localChapterId))
     const runId = newId('sync')
     const preview = buildPreview(sources, locals, metadata, Boolean(previous.only_weak_titles),
-      { runId, bindingId: previous.binding_id, novelId: previous.novel_id, site: sourceSite(metadata.sourceUrl), sourceUrl: metadata.sourceUrl }, [], manual)
+      { runId, bindingId: previous.binding_id, novelId: previous.novel_id, site: binding?.site || sourceSite(metadata.sourceUrl), sourceUrl: metadata.sourceUrl }, [], manual)
     await q(`INSERT INTO source_sync_runs
       (id,binding_id,novel_id,status,only_weak_titles,metadata_json,source_chapters_json,changes_json,mapping_json,local_snapshot_json,manual_mappings_json,created_at)
       VALUES ($1,$2,$3,'preview',$4,$5,$6,$7,$8,$9,$10,$11)`,
@@ -1341,8 +1340,9 @@ export async function remapSourceSync(db: Db, opts: { runId: string; revision: n
       if (!group || group.explicitSplit) throw new Error('人工映射目标无效或属于拆分章节')
       seen.add(row.localChapterId)
     }
+    const binding = (await q<{ site: string }>('SELECT site FROM novel_source_bindings WHERE id=$1', [run.binding_id])).rows[0]
     const metadata = safeJsonParse<SourceSyncMetadata>(run.metadata_json, {} as SourceSyncMetadata)
-    const base = { runId: run.id, bindingId: run.binding_id, novelId: run.novel_id, site: sourceSite(metadata.sourceUrl), sourceUrl: metadata.sourceUrl }
+    const base = { runId: run.id, bindingId: run.binding_id, novelId: run.novel_id, site: binding?.site || sourceSite(metadata.sourceUrl), sourceUrl: metadata.sourceUrl }
     const automatic = buildPreview(sources, locals, metadata, Boolean(run.only_weak_titles), base, [])
     const occupied = new Map<string, string>()
     for (const mapping of automatic.mappings) {

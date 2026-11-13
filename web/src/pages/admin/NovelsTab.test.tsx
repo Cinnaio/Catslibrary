@@ -95,7 +95,7 @@ it('编辑小说弹窗中的 AI 封面入口也进入封面子页并携带当前
 
 async function openMetadataSync() {
   mocks.sourcePreview.mockResolvedValue({
-    runId: 'metadata-only', site: 'po18tw', sourceChapterCount: 0, localChapterCount: 0, matchedSourceCount: 0,
+    runId: 'metadata-only', site: 'fixture', sourceChapterCount: 0, localChapterCount: 0, matchedSourceCount: 0,
     metadata: { title: '', author: '源站作者', description: '', coverUrl: '', categories: [], status: '' },
     changes: [], mappings: [], unmatchedSource: [], unmatchedLocal: [], warnings: [], orderChanges: [],
   })
@@ -103,7 +103,7 @@ async function openMetadataSync() {
   fireEvent.keyDown(await screen.findByRole('button', { name: '测试书：更多操作' }), { key: 'ArrowDown' })
   fireEvent.click(await screen.findByRole('menuitem', { name: '融合章节名' }))
   await screen.findByRole('heading', { name: '融合章节名' })
-  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/123456' } })
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://source.example/books/123456' } })
   fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
   fireEvent.click(await screen.findByText('同步小说信息', { selector: 'summary' }))
   fireEvent.click(screen.getByRole('checkbox', { name: '作者' }))

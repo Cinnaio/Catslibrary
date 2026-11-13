@@ -1,7 +1,6 @@
 import { MotionDetails } from '@/components/ui/motion'
 import type { TitleSource, TitleSourceSearchResponse } from '@/lib/api'
 
-const SITES = ['jjwxc', 'po18tw'] as const
 const priority = { high: 2, medium: 1, low: 0 }
 
 export default function TitleSourceSearchResults({ search, disabled, onSelect }: {
@@ -9,7 +8,8 @@ export default function TitleSourceSearchResults({ search, disabled, onSelect }:
   disabled: boolean
   onSelect: (url: string) => void
 }) {
-  const candidates = SITES.flatMap(site => search.sources?.[site]?.results || [])
+  const sources = Object.entries(search.sources ?? {})
+  const candidates = sources.flatMap(([, bucket]) => bucket.results || [])
     .sort((a, b) => priority[b.confidence || 'low'] - priority[a.confidence || 'low'] || (b.matchScore || 0) - (a.matchScore || 0))
   const preferred = candidates.filter(candidate => candidate.confidence === 'high' || candidate.confidence === 'medium').slice(0, 6)
   const preferredSet = new Set(preferred)
@@ -25,7 +25,7 @@ export default function TitleSourceSearchResults({ search, disabled, onSelect }:
       >
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
           <span>{candidate.title || '未识别书名'}</span>
-          <span className="text-xs font-normal text-muted-foreground">{candidate.site === 'jjwxc' ? '晋江' : 'PO18.tw'}</span>
+          <span className="text-xs font-normal text-muted-foreground">{candidate.siteName || candidate.site}</span>
           {candidate.confidence && <span className={`text-xs font-normal ${candidate.confidence === 'high' ? 'text-primary' : 'text-muted-foreground'}`}>
             {candidate.confidence === 'high' ? '高置信匹配' : candidate.confidence === 'medium' ? '待核对' : '低匹配'}
           </span>}
@@ -46,10 +46,9 @@ export default function TitleSourceSearchResults({ search, disabled, onSelect }:
           <div className="grid gap-2">{preferred.map(renderCandidate)}</div>
         </section>
       ) : <p className="dialog-frame-hint">没有找到高匹配候选，可展开源站结果手动查找。</p>}
-      {SITES.map(site => {
-        const bucket = search.sources?.[site]
+      {sources.map(([site, bucket]) => {
         const results = (bucket?.results || []).filter(candidate => !preferredSet.has(candidate))
-        const label = site === 'jjwxc' ? '晋江' : 'PO18.tw'
+        const label = bucket.siteName || bucket.results?.[0]?.siteName || site
         return (
           <div key={site}>
             {bucket?.error && <p className="mb-2 text-xs text-amber-600">{bucket.error}</p>}

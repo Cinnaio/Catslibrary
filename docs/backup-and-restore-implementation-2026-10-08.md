@@ -90,7 +90,7 @@ npm run backup:recover -- \
 - 灾备 CLI：向独立空数据库导入清单与归档，验证业务数据及维护标记恢复完成。
 - 浏览器实际页面：使用隔离 API 与真实临时数据库，在 1440/901/900/390/360px 和明暗主题下检查四个视图，共 40 组；无整页横向溢出或脚本错误，另检查手机目标表单弹窗。
 
-全量回归结果：前端 72 个测试文件、409 项通过；后端 73 个文件、658 项通过，另有代理来源判定与 PO18 源站同步的 3 项失败。已在未修改的 HEAD `573d190` 独立 worktree、相同环境配置下复现完全相同的 3 项失败，属于原有测试问题。本次备份组件/配置/API 与独立 PostgreSQL/SFTP 集成测试均通过。类型检查、构建与本次文件 ESLint 检查通过；构建仍有原有 CSS highlight 和包体积提示。
+全量回归结果：前端 72 个测试文件、409 项通过；后端 73 个文件、658 项通过，另有代理来源判定与 扩展书源 源站同步的 3 项失败。已在未修改的 HEAD `573d190` 独立 worktree、相同环境配置下复现完全相同的 3 项失败，属于原有测试问题。本次备份组件/配置/API 与独立 PostgreSQL/SFTP 集成测试均通过。类型检查、构建与本次文件 ESLint 检查通过；构建仍有原有 CSS highlight 和包体积提示。
 
 原生集成测试默认跳过。只在专用且可清空的 `backup_integration` 测试数据库设置 `BACKUP_INTEGRATION_DATABASE_URL` 与 `BACKUP_INTEGRATION_REHEARSAL_URL` 后运行 `api/src/services/backups/integration.test.ts`。测试库需完成上面的演练标记初始化。SFTP 验证另需显式指定测试主机、公钥及 rclone 路径，不会使用生产远程账号。
 

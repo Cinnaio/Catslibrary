@@ -49,6 +49,20 @@ describe('scrape 路由（免网络动作）', () => {
     adminToken = (await jsonOf<{ token: string }>(boot)).token
   })
 
+  it('公开实例不发布私有书源能力，并阻止旧抓取配置启动', async () => {
+    const capabilities = '/api/scrape?action=source-capabilities'
+    expect((await req(capabilities)).status).toBe(401)
+    const res = await req(capabilities, json('GET', undefined, adminToken))
+    expect(await res.json()).toEqual({ sources: [] })
+    const sourceUrl = 'https://www.po18.tw/books/1'
+    const denied = await req('/api/scrape', json('POST', {
+      action: 'start', novelId: 'unavailable-source', sourceUrl,
+      selectors: { chapterList: 'a', chapterContent: 'article' },
+    }, adminToken))
+    expect(denied.status).toBe(404)
+    expect(await denied.json()).toEqual({ error: '书源未安装' })
+  })
+
   it('追更设置要求管理员权限，并校验频率', async () => {
     expect((await req('/api/scrape?action=followup&novelId=follow-route')).status).toBe(401)
     const invalid = await req('/api/scrape', json('POST', { action: 'followup-save', novelId: 'follow-route', enabled: true, intervalHours: 2 }, adminToken))
@@ -57,7 +71,7 @@ describe('scrape 路由（免网络动作）', () => {
 
   it('单书绑定来源要求管理员，保存后不创建任务或隐式开启追更', async () => {
     await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('bind-route','绑定测试',1,1)")
-    const body = { action: 'followup-source-save', novelId: 'bind-route', sourceUrl: 'https://www.po18.tw/books/123' }
+    const body = { action: 'followup-source-save', novelId: 'bind-route', sourceUrl: 'https://czbooks.net/n/123' }
     expect((await req('/api/scrape', json('POST', body))).status).toBe(401)
     const invalid = await req('/api/scrape', json('POST', { ...body, sourceUrl: 'https://unknown.example/book' }, adminToken))
     expect(invalid.status).toBe(400)
@@ -68,7 +82,7 @@ describe('scrape 路由（免网络动作）', () => {
   })
   it('复用目录重新匹配要求管理员及当前版本，应用后可生成新预览', async () => {
     const novelId = 'refresh-route', bindingId = 'refresh-binding', runId = 'refresh-run'
-    const metadata = { title: '', author: '', description: '', coverUrl: '', category: '', categories: [], status: '', sourceUrl: 'https://www.po18.tw/books/1' }
+    const metadata = { title: '', author: '', description: '', coverUrl: '', category: '', categories: [], status: '', sourceUrl: 'https://source.example/books/1' }
     await t.db.query('INSERT INTO novels (id,title,created_at,updated_at) VALUES ($1,$1,1,1)', [novelId])
     await t.db.query('INSERT INTO novel_source_bindings (id,novel_id,source_url,created_at,updated_at) VALUES ($1,$2,$3,1,1)', [bindingId, novelId, metadata.sourceUrl])
     await t.db.query("INSERT INTO source_sync_runs (id,binding_id,novel_id,status,metadata_json,created_at) VALUES ($1,$2,$3,'applied',$4,1)", [runId, bindingId, novelId, JSON.stringify(metadata)])
@@ -87,7 +101,7 @@ describe('scrape 路由（免网络动作）', () => {
     const novelId = 'route-order-repair'
     const bindingId = 'route-order-binding'
     const runId = 'route-order-run'
-    const sourceUrl = 'https://www.po18.tw/books/902326/articles'
+    const sourceUrl = 'https://source.example/books/902326/articles'
     const source = [
       { key: 'notice', order: 45, title: '不行了，累累', url: `${sourceUrl}/45` },
       { key: 'chapter', order: 46, title: '没有喊哥哥', url: `${sourceUrl}/46` },
@@ -98,7 +112,7 @@ describe('scrape 路由（免网络动作）', () => {
     ]
     const preview = sourceSyncTestHelpers().buildPreview(source, locals,
       { title: '', author: '', description: '', coverUrl: '', category: '', categories: [], status: '', sourceUrl },
-      true, { runId, bindingId, novelId, site: 'po18tw', sourceUrl }, [])
+      true, { runId, bindingId, novelId, site: 'fixture', sourceUrl }, [])
     await t.db.query('INSERT INTO novels (id,title,created_at,updated_at) VALUES ($1,$1,1,1)', [novelId])
     for (const row of locals) await t.db.query('INSERT INTO chapters (id,novel_id,title,sort_order,created_at) VALUES ($1,$2,$3,$4,1)', [row.id, novelId, row.title, row.order])
     await t.db.query('INSERT INTO novel_source_bindings (id,novel_id,source_url,created_at,updated_at) VALUES ($1,$2,$3,1,1)', [bindingId, novelId, sourceUrl])
@@ -146,11 +160,11 @@ describe('scrape 路由（免网络动作）', () => {
 
   it('真实路由串联删除杂章、复用目录、修复序号与撤回，重试不重复删除', async () => {
     const novelId='delete-refresh-route',bindingId='delete-refresh-binding',runId='delete-refresh-run'
-    const sourceUrl='https://www.po18.tw/books/902326/articles'
+    const sourceUrl='https://source.example/books/902326/articles'
     const source=[{key:'s1',order:1,title:'起程',url:''},{key:'s2',order:2,title:'归途',url:''}]
     const locals=[{id:'cleanup-a',order:1,title:'起程'},{id:'cleanup-junk',order:2,title:'无关公告'},{id:'cleanup-b',order:3,title:'归途'}]
     const metadata={title:'',author:'',description:'',coverUrl:'',category:'',categories:[],status:'',sourceUrl}
-    const preview=sourceSyncTestHelpers().buildPreview(source,locals,metadata,true,{runId,bindingId,novelId,site:'po18tw',sourceUrl},[])
+    const preview=sourceSyncTestHelpers().buildPreview(source,locals,metadata,true,{runId,bindingId,novelId,site:'fixture',sourceUrl},[])
     expect(preview.orderChanges).toEqual([])
     await t.db.query('INSERT INTO novels (id,title,chapter_count,created_at,updated_at) VALUES ($1,$1,3,1,1)',[novelId])
     for(const row of locals) await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,$4,$5,1)',[row.id,novelId,row.title,'隔离正文',row.order])
@@ -211,268 +225,6 @@ describe('scrape 路由（免网络动作）', () => {
     const miss = await req('/api/scrape', json('POST', { action: 'detect', sourceUrl: 'https://unknown-site.example.com/book/1' }, adminToken))
     const missData = await jsonOf<{ detected: boolean }>(miss)
     expect(missData.detected).toBe(false)
-  })
-
-  it('PO18 账号只回传状态，不回传密码或 Cookie，并支持清除', async () => {
-    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
-    try {
-      const saved = await req(
-        '/api/scrape',
-        json(
-          'POST',
-          { action: 'po18-account-save', username: 'author-account', password: 'secret-pass', sessionCookie: 'PHPSESSID=abc==; theme=dark' },
-          adminToken,
-        ),
-      )
-      expect(saved.status).toBe(200)
-      const savedData = await jsonOf<{ username: string; hasSession: boolean; status: string; password?: string; sessionCookie?: string }>(saved)
-      expect(savedData).toMatchObject({ username: 'author-account', hasSession: true, status: 'session_saved' })
-      expect(savedData.password).toBeUndefined()
-      expect(savedData.sessionCookie).toBeUndefined()
-      const stored = await t.db.query<{ password_ciphertext: string; session_ciphertext: string }>(
-        'SELECT password_ciphertext, session_ciphertext FROM source_accounts WHERE site = $1',
-        ['po18tw'],
-      )
-      expect(stored.rows[0]?.password_ciphertext).toBeTruthy()
-      expect(stored.rows[0]?.session_ciphertext).toBeTruthy()
-      expect(stored.rows[0]?.password_ciphertext).not.toContain('secret-pass')
-      expect(stored.rows[0]?.session_ciphertext).not.toContain('PHPSESSID')
-
-      const status = await req('/api/scrape?action=po18-account', json('GET', undefined, adminToken))
-      expect(status.status).toBe(200)
-      await expect(status.json()).resolves.toMatchObject({ username: 'author-account', hasSession: true })
-
-      const cleared = await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
-      expect(cleared.status).toBe(200)
-      const empty = await req('/api/scrape?action=po18-account', json('GET', undefined, adminToken))
-      await expect(empty.json()).resolves.toMatchObject({ configured: false, hasSession: false })
-    } finally {
-      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
-    }
-  })
-
-  it('POPO 会话测试应携带成年确认 Cookie，并允许验证实际书源链接', async () => {
-    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
-    const popoList = `<div class="c_l">
-      <div class="l_counter">0001</div>
-      <div class="l_chaptname">第一章</div>
-      <div class="l_btn"><a href="/books/123456/articles/1">免費閱讀</a></div>
-    </div>`
-    const popoContent = `<h1>第一章</h1><div class="article-content"><p>${'章节正文内容。'.repeat(20)}</p></div>`
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = String(input)
-      return new Response(url.includes('/articlescontent/') ? popoContent : popoList, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      })
-    })
-    try {
-      await req('/api/scrape', json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken))
-      const checked = await req(
-        '/api/scrape',
-        json('POST', { action: 'po18-account-test', sourceUrl: 'https://www.po18.tw/books/123456/articles' }, adminToken),
-      )
-      expect(checked.status).toBe(200)
-      expect(fetchMock).toHaveBeenCalledTimes(2)
-      const request = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
-      expect(String(request?.[0])).toContain('/articlescontent/')
-      const requestInit = request?.[1] as RequestInit
-      const cookie = new Headers(requestInit?.headers).get('Cookie') || ''
-      expect(cookie).toContain('po18Limit=1')
-      expect(cookie).toContain('PHPSESSID=authenticated')
-    } finally {
-      fetchMock.mockRestore()
-      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
-      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
-    }
-  })
-
-  it('POPO 会话验证不能把正式抓取会跳过的短正文判定为正常', async () => {
-    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
-    const popoList = `<div class="c_l">
-      <div class="l_counter">0001</div>
-      <div class="l_chaptname">第一章</div>
-      <div class="l_btn"><a href="/books/123456/articles/1">免費閱讀</a></div>
-    </div>`
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = String(input)
-      return new Response(url.includes('/articlescontent/') ? '短正文。'.repeat(8) : popoList, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      })
-    })
-    try {
-      await req('/api/scrape', json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken))
-      const checked = await req(
-        '/api/scrape',
-        json('POST', { action: 'po18-account-test', sourceUrl: 'https://www.po18.tw/books/123456/articles' }, adminToken),
-      )
-      expect(checked.status).toBe(502)
-      await expect(checked.json()).resolves.toMatchObject({ error: expect.stringContaining('正文原始内容过短') })
-    } finally {
-      fetchMock.mockRestore()
-      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
-      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
-    }
-  })
-
-  it('POPO 详情分析应携带已保存会话并限制站内重定向', async () => {
-    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        `<div class="book_name">测试书名</div>
-         <div class="book_author"><a>作者甲</a></div>
-         <div class="B_I_content">这是一本测试小说。</div>
-         <div class="book_cover"><img src="https://cdn0.po18.tw/bc/1/123456/M.jpg"></div>`,
-        { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
-      ),
-    )
-    try {
-      await req(
-        '/api/scrape',
-        json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken),
-      )
-      const detected = await req(
-        '/api/scrape',
-        json('POST', { action: 'detect-meta', sourceUrl: 'https://www.po18.tw/books/123456' }, adminToken),
-      )
-      expect(detected.status, await detected.clone().text()).toBe(200)
-      await expect(detected.json()).resolves.toMatchObject({
-        novel: { title: '测试书名', author: '作者甲', coverUrl: 'https://cdn0.po18.tw/bc/1/123456/M.jpg' },
-      })
-      const request = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
-      const requestInit = request?.[1] as RequestInit
-      expect(new Headers(requestInit?.headers).get('Cookie')).toContain('PHPSESSID=authenticated')
-      expect(new Headers(requestInit?.headers).get('Cookie')).toContain('po18Limit=1')
-    } finally {
-      fetchMock.mockRestore()
-      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
-      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
-    }
-  })
-
-  it('POPO 抓取中心应携带已保存会话同时回查详情封面和简介', async () => {
-    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
-    const landingPage = `<form id="rank-form1" action="/rank/more" method="post">
-      <input type="hidden" name="_po18rf-tk001" value="csrf-token">
-      <input type="hidden" name="kind" value="">
-      <input type="hidden" name="type" value="weekly">
-    </form>`
-    const rankingPage = `<div class="table" id="R2_M">
-      <div class="row">
-        <div class="r1">5</div>
-        <div class="r2"><a class="l_bookname" href="/books/891916">淫龙驯服手册（人外 1v1 h）</a></div>
-        <div class="r4"><a class="l_author" href="/users/author-five">小甜包</a></div>
-      </div><!--row-->
-    </div>`
-    const detailPage = `<div class="book_cover R-rated"><img src="https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg"></div>
-      <div class="B_I_content"><p>作品简介。</p><p>第二段。</p><span style="color:#bdc3c7">重复书名</span></div>`
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = String(input)
-      if (url.endsWith('/rank/more')) return new Response(rankingPage, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
-      if (url.endsWith('/books/891916')) return new Response(detailPage, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
-      return new Response(landingPage, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
-    })
-    try {
-      await req(
-        '/api/scrape',
-        json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken),
-      )
-      const discovered = await req(
-        '/api/scrape',
-        json(
-          'POST',
-          { action: 'discover', listUrl: 'https://www.po18.tw/rank/index', rankingKind: 'pearl', rankingType: 'monthly' },
-          adminToken,
-        ),
-      )
-      expect(discovered.status, await discovered.clone().text()).toBe(200)
-      const result = await jsonOf<{ novels: Array<{ bookId: string; coverUrl: string }> }>(discovered)
-      expect(result.novels.find((novel) => novel.bookId === '891916')).toMatchObject({
-        coverUrl: 'https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg',
-        description: '作品简介。\n\n第二段。',
-      })
-
-      const detailCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/books/891916'))
-      const detailHeaders = new Headers(detailCall?.[1]?.headers)
-      expect(detailHeaders.get('Cookie')).toContain('PHPSESSID=authenticated')
-      expect(detailHeaders.get('Cookie')).toContain('po18Limit=1')
-    } finally {
-      fetchMock.mockRestore()
-      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
-      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
-    }
-  })
-
-  it('POPO 搜索接口回查简介应延续账号及搜索响应中的 Cookie', async () => {
-    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
-    const searchPage = '<form id="header-search-form" action="/search/index"><input name="name"><input type="hidden" name="searchtype" value="all"></form>'
-    const resultPage = `<div id="BOOK"><div class="book"><div class="book_name"><a href="/books/123456">搜索作品</a></div><div class="book_author">搜索作者</div></div></div>`
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = String(input)
-      return new Response(url.includes('/books/') ? '<div class="B_I_content"><p>详情提供的作品简介。</p></div>' : url.endsWith('/search/index') ? resultPage : searchPage, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': 'csrf=refreshed; Path=/' },
-      })
-    })
-    try {
-      await req('/api/scrape', json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken))
-      const response = await req('/api/scrape', json('POST', { action: 'popo-search', query: '搜索作品', searchType: 'book' }, adminToken))
-      expect(response.status, await response.clone().text()).toBe(200)
-      await expect(response.json()).resolves.toMatchObject({
-        novels: [{ title: '搜索作品', author: '搜索作者', description: '详情提供的作品简介。' }],
-      })
-      const detailCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/books/123456'))
-      expect(detailCall).toBeDefined()
-      const cookie = new Headers(detailCall?.[1]?.headers).get('Cookie') || ''
-      expect(cookie).toContain('po18Limit=1')
-      expect(cookie).toContain('PHPSESSID=authenticated')
-      expect(cookie).toContain('csrf=refreshed')
-    } finally {
-      fetchMock.mockRestore()
-      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
-      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
-      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
-    }
-  })
-
-  it('PO18 榜单发现接口应返回每本书自己的作者及详情简介', async () => {
-    const rankingPage = `<div class="articlegeneral"><p>[言情]</p><a href="/book/171348/">蜜糖表妹</a><a href="/author/gaga鸭">gaga鸭</a></div>
-      <div class="articlegeneral"><p>[其他]</p><a href="/book/164998/">肆虐韩娱</a><a href="/author/姬叉">姬叉</a></div>`
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = String(input)
-      const id = url.match(/\/book\/(\d+)/)?.[1]
-      return new Response(id ? `<div class="intro"><span>本书简介：</span><p>作品 ${id} 的独立简介。</p></div>` : rankingPage, {
-        status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' },
-      })
-    })
-    try {
-      const response = await req('/api/scrape', json('POST', {
-        action: 'discover', listUrl: 'https://wap.po18x.vip/top/dayvisit_1/?test=route-metadata',
-      }, adminToken))
-      expect(response.status, await response.clone().text()).toBe(200)
-      await expect(response.json()).resolves.toMatchObject({
-        site: 'PO18', total: 2,
-        novels: [
-          { title: '蜜糖表妹', author: 'gaga鸭', description: '作品 171348 的独立简介。' },
-          { title: '肆虐韩娱', author: '姬叉', description: '作品 164998 的独立简介。' },
-        ],
-      })
-      expect(fetchMock).toHaveBeenCalledTimes(3)
-    } finally {
-      fetchMock.mockRestore()
-    }
   })
 
   it('管理员可以保存开发代理，Docker 环境代理优先并可测试', async () => {

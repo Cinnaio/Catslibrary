@@ -1,6 +1,6 @@
 import type { Db } from '../db/pool'
 import { all } from '../db/query'
-import { SITE_PRESETS } from './scraper/presets'
+import { presetForUrl } from './scraper/presets'
 
 /** 来源必须实际可抓取，不能把一个来源链接当成完整配置。 */
 export function hasFollowupSource(sourceUrl: string | null, rawSelectors: string | null): boolean {
@@ -40,7 +40,7 @@ export async function applyFollowupDefaults(db: Db, novelId?: string) {
     } catch {
       continue
     }
-    const preset = SITE_PRESETS[url.hostname.replace(/^www\./, '')]
+    const preset = presetForUrl(url.href)
     if (!preset?.selectors || !hasFollowupSource(url.href, JSON.stringify(preset.selectors))) continue
     const source = preset.urlTransform ? preset.urlTransform(url.href) : url.href
     const inserted = await db.query<{ novel_id: string }>(

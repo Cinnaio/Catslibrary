@@ -3,9 +3,8 @@ import type { Db } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { newId } from './auth'
 import { applyFollowupDefaults, hasFollowupSource } from './novel-followup-defaults'
-import { SITE_PRESETS } from './scraper/presets'
-import { isPo18SessionBlocked, po18FollowupBlockedSql } from './po18-followups'
-import { isPo18twUrl, Po18SessionExpiredError, po18BlockedMessage, PO18_SESSION_REQUIRED } from './po18-session-policy'
+import { presetForUrl } from './scraper/presets'
+import { adapterForUrl, assertSourceAvailable, followupBlockMessage, followupBlockSql, isSourceUnavailable, SourceSessionError, SOURCE_UNAVAILABLE } from './scraper/sources'
 
 interface FollowupRow {
   novel_id: string
@@ -49,20 +48,22 @@ export async function getFollowup(db: Db, novelId: string) {
     AND status NOT IN ('completed','partial','failed','cancelled') LIMIT 1`,
     [novelId],
   )
-  const sessionBlocked = Boolean(config && isPo18twUrl(config.source_url) && await isPo18SessionBlocked(db))
+  const blocked = config ? followupBlockSql('f') : null
+  const reason = blocked ? (await first<{ reason: string }>(db,
+    `SELECT ${blocked} AS reason FROM novel_followups f WHERE f.novel_id=$1`, [novelId]))?.reason || '' : ''
   return {
     chapterCount: novel.chapter_count,
     author: novel.author,
     remoteChapterCount: novel.remote_chapter_count,
     enabled: row?.enabled || false,
     intervalHours: row?.interval_hours || 6,
-    nextCheckAt: !sessionBlocked && row?.enabled && (novel.status === 'ongoing' || row.user_configured) ? Number(row.next_check_at) : 0,
+    nextCheckAt: !reason && row?.enabled && (novel.status === 'ongoing' || row.user_configured) ? Number(row.next_check_at) : 0,
     checkedAt: Number(row?.checked_at || 0),
-    result: active ? 'running' : sessionBlocked && row?.enabled ? 'failed' : row?.result || 'idle',
-    message: active ? active.step || '正在检查目录并抓取新章节…' : sessionBlocked && row?.enabled ? po18BlockedMessage(row?.message) : row?.message || '',
+    result: active ? 'running' : reason && row?.enabled ? 'failed' : row?.result || 'idle',
+    message: active ? active.step || '正在检查目录并抓取新章节…' : reason && row?.enabled ? followupBlockMessage(reason, row?.message) : row?.message || '',
     addedCount: row?.added_count || 0,
     failures: row?.failures || 0,
-    ...(sessionBlocked && row?.enabled && !active ? { blockedReason: PO18_SESSION_REQUIRED } : {}),
+    ...(reason && row?.enabled && !active ? { blockedReason: reason } : {}),
     sourceUrl: config?.source_url || '',
     selectors: config?.selectors || '{}',
     encoding: config?.encoding || 'utf-8',
@@ -86,7 +87,8 @@ export async function bindFollowupSource(db: Db, novelId: string, rawUrl: string
     throw new Error('请填写有效的 HTTP 或 HTTPS 网页来源地址')
   if (customEncoding !== undefined && (typeof customEncoding !== 'string' || !/^[a-zA-Z0-9_-]{1,32}$/.test(customEncoding)))
     throw new Error('请填写有效的网页编码')
-  const preset = SITE_PRESETS[url.hostname.replace(/^www\./, '')]
+  assertSourceAvailable(url.href)
+  const preset = presetForUrl(url.href)
   const selectors = customSelectors ?? preset?.selectors
   if (
     !selectors ||
@@ -148,11 +150,16 @@ export async function enqueueFollowup(db: Db, novelId: string, dueOnly = false) 
     if (active) return { jobId: active.id, started: false }
     const cfg = (await q<{ selectors: string; source_url: string }>('SELECT selectors,source_url FROM scrape_configs WHERE novel_id=$1', [novelId])).rows[0]
     if (!cfg) throw new Error('未找到该小说的爬虫配置，请先配置爬虫')
-    if (isPo18twUrl(cfg.source_url) && await isPo18SessionBlocked({ query: q })) {
-      if (dueOnly) return { jobId: '', started: false }
-      throw new Po18SessionExpiredError()
-    }
     const selectors = JSON.parse(cfg.selectors)
+    if (isSourceUnavailable(cfg.source_url, selectors?.chapterList)) {
+      if (dueOnly) return { jobId: '', started: false }
+      throw new Error(SOURCE_UNAVAILABLE)
+    }
+    const followup = adapterForUrl(cfg.source_url)?.followup
+    if (followup && await followup.isBlocked({ query: q })) {
+      if (dueOnly) return { jobId: '', started: false }
+      throw new SourceSessionError(followup.message())
+    }
     if (!selectors.chapterList || !selectors.chapterContent) throw new Error('爬虫配置缺少目录或正文选择器')
     const jobId = newId('upd')
     await q(`INSERT INTO scrape_jobs (id,novel_id,status,update_mode,started_at,updated_at) VALUES ($1,$2,'starting',1,$3,$3)`, [jobId, novelId, now])
@@ -218,11 +225,13 @@ export async function finishFollowup(db: Db, jobId: string) {
                 ? `已新增 ${added} 章`
                 : '暂无新章'
     const now = Date.now()
-    const sessionBlocked = (await q<{ blocked: boolean }>(
-      `SELECT ${po18FollowupBlockedSql('f')} AS blocked FROM novel_followups f WHERE f.novel_id=$1`, [row.novel_id],
-    )).rows[0]?.blocked
+    const reason = (await q<{ reason: string }>(
+      `SELECT ${followupBlockSql('f')} AS reason FROM novel_followups f WHERE f.novel_id=$1`, [row.novel_id],
+    )).rows[0]?.reason
     // 旧请求返回时管理员可能已经重新登录；让新会话下一轮即可检查。
-    const nextCheck = sessionBlocked ? 0 : failed && message.includes(PO18_SESSION_REQUIRED) ? now : now + followupDelay(row.interval_hours, empty, failures)
+    const config = (await q<{ source_url: string }>('SELECT source_url FROM scrape_configs WHERE novel_id=$1', [row.novel_id])).rows[0]
+    const sessionMessage = config ? adapterForUrl(config.source_url)?.followup?.message() : undefined
+    const nextCheck = reason ? 0 : failed && sessionMessage && message.includes(sessionMessage) ? now : now + followupDelay(row.interval_hours, empty, failures)
     await q(
       `UPDATE novel_followups SET result=$2,message=$3,added_count=$4,checked_at=$5,empty_checks=$6,failures=$7,
       next_check_at=CASE WHEN enabled THEN $8::bigint ELSE 0 END WHERE novel_id=$1`,
@@ -259,7 +268,7 @@ export async function runFollowupTick(db: Db, startJob: (jobId: string) => void)
     db,
     `SELECT f.novel_id FROM novel_followups f JOIN novels n ON n.id=f.novel_id
     WHERE f.enabled AND (n.status='ongoing' OR f.user_configured) AND f.next_check_at<=$1
-    AND NOT ${po18FollowupBlockedSql('f')}
+    AND ${followupBlockSql('f')} = ''
     AND NOT EXISTS (SELECT 1 FROM scrape_jobs j WHERE j.novel_id=f.novel_id AND j.status NOT IN ('completed','partial','failed','cancelled'))
     ORDER BY f.next_check_at LIMIT $2`,
     [Date.now(), capacity],

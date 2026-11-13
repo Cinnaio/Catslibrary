@@ -51,7 +51,7 @@ describe('book import normalization and diffing', () => {
     const libraryTitle = '和哥哥在乱交世界里假装do爱'
     const created = await testDb.db.query<{ id: string }>(
       `INSERT INTO novels (id, title, author, description, cover_url, categories, status, content_rating, source_url, chapter_count, created_at, updated_at)
-       VALUES ('novel-target-1', $1, '归雾', '', '', '[]', 'ongoing', 'unknown', 'https://www.po18.tw/books/902326', 0, $2, $2) RETURNING id`,
+       VALUES ('novel-target-1', $1, '归雾', '', '', '[]', 'ongoing', 'unknown', 'https://source.example/books/902326', 0, $2, $2) RETURNING id`,
       [libraryTitle, Date.now()],
     )
     const preview = await createPreview(testDb.db, {
@@ -109,8 +109,8 @@ describe('book import normalization and diffing', () => {
 
   it('preserves source URL matching when the same work has changed its metadata', async () => {
     const preview = await createPreview(testDb.db, {
-      sourceType: 'url', sourceLabel: '同一来源', sourceUrl: 'https://www.po18.tw/books/902326',
-      payload: { title: '更新后的书名', author: '更新后的笔名', sourceUrl: 'https://www.po18.tw/books/902326', chapters: [{ title: '第一章', order: 1, content: '正文' }] },
+      sourceType: 'url', sourceLabel: '同一来源', sourceUrl: 'https://source.example/books/902326',
+      payload: { title: '更新后的书名', author: '更新后的笔名', sourceUrl: 'https://source.example/books/902326', chapters: [{ title: '第一章', order: 1, content: '正文' }] },
     })
     expect(preview.candidates).toHaveLength(1)
     expect(preview.candidates[0]?.matchReason).toBe('source-url')

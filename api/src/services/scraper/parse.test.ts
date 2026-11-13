@@ -10,7 +10,7 @@ import {
   extractTextSmart,
 } from './parse'
 import { decodeBytes } from './fetch'
-import { buildCoverUrl, SITE_PRESETS } from './presets'
+import { buildCoverUrl } from './presets'
 import { removeAdPatterns } from '@shared/ad-cleaner'
 
 describe('scraper parse 基础', () => {
@@ -73,8 +73,8 @@ describe('scraper fetch/presets', () => {
     expect(decodeBytes(new Uint8Array(buf), 'utf-8')).toBe('你好')
   })
 
-  it('buildCoverUrl 按 PO18 规则生成封面', () => {
-    const preset = SITE_PRESETS['wap.po18x.vip']!
-    expect(buildCoverUrl('https://wap.po18x.vip/book/1234/', preset)).toBe('https://img.po18x.vip/image/1/1234/1234s.jpg')
+  it('buildCoverUrl 使用预设中的封面规则', () => {
+    const preset = { name: '示例', encoding: 'utf-8', coverRule: (id: string) => `https://img.example.com/${id}.jpg` }
+    expect(buildCoverUrl('https://example.com/book/1234/', preset)).toBe('https://img.example.com/1234.jpg')
   })
 })

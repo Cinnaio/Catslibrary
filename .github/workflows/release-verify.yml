@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 30
     env:
       RELEASE_SHA: ${{ github.sha }}
+      CATSLIBRARY_PRIVATE_SOURCES: '0'
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       archive-sha256: ${{ steps.archive.outputs.sha256 }}
@@ -85,6 +86,7 @@ jobs:
           test -f web/dist/index.html
           test -f api/dist/index.js
           test -d api/dist/migrations
+          node scripts/check-public-source-build.mjs
           node -e "
             const fs = require('fs');
             const path = require('path');

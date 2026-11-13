@@ -7,6 +7,7 @@ export interface BuildInfo {
   lockHash: string
   nodeVersion: string
   migrations: Array<{ version: number; name: string }> | null
+  sourceAdapterRevision?: string
 }
 
 declare const __BUILD_INFO__: BuildInfo

@@ -624,6 +624,7 @@ export interface SourceSyncPreview {
   bindingId: string
   novelId: string
   site: string
+  siteName?: string
   sourceUrl: string
   metadata: {
     title: string
@@ -692,11 +693,27 @@ export interface TitleSource {
 export interface TitleSourceSearchResponse {
   title: string
   author: string
-  sources: Record<string, { ok: boolean; results: TitleSource[]; error?: string }>
+  sources: Record<string, { ok: boolean; results: TitleSource[]; error?: string; siteName?: string }>
 }
 
-export interface Po18AccountStatus {
-  site: 'po18tw'
+export interface ScrapeSourceRanking {
+  id: string
+  label: string
+  listUrl: string
+  rankingKind?: string
+  rankingType?: string
+}
+
+export interface ScrapeSourceCapability {
+  id: string
+  name: string
+  search: boolean
+  account: boolean
+  rankings: ScrapeSourceRanking[]
+}
+
+export interface SourceAccountStatus {
+  site: string
   username: string
   configured: boolean
   hasPassword: boolean
@@ -707,7 +724,7 @@ export interface Po18AccountStatus {
   lastError: string
 }
 
-export interface Po18CaptchaResponse {
+export interface SourceAccountCaptcha {
   challengeId: string
   imageDataUrl: string
   expiresAt: number
@@ -1786,6 +1803,9 @@ export const downloadLogsApi = {
 // ---------- Scrape ----------
 
 export const scrapeApi = {
+  sourceCapabilities(): Promise<{ sources: ScrapeSourceCapability[] }> {
+    return request('GET', '/scrape?action=source-capabilities', null, true)
+  },
   proxyConfig(): Promise<{
     config: { proxyBase: string; proxyBypass: string }
     effective: { proxyBase: string; proxyBypass: string }
@@ -1917,23 +1937,23 @@ export const scrapeApi = {
   sourceSyncRollback(runId: string, operationId: string): Promise<SourceSyncRollbackResult> {
     return request('POST', '/scrape', { action: 'source-sync-rollback', runId, operationId }, true, operationHeaders(operationId))
   },
-  po18Account(): Promise<Po18AccountStatus> {
-    return request('GET', '/scrape?action=po18-account', null, true)
+  sourceAccount(sourceId: string): Promise<SourceAccountStatus> {
+    return request('GET', `/scrape?action=source-account&sourceId=${encodeURIComponent(sourceId)}`, null, true)
   },
-  po18AccountSave(data: { username?: string; password?: string; sessionCookie?: string; clearSession?: boolean }): Promise<Po18AccountStatus> {
-    return request('POST', '/scrape', { action: 'po18-account-save', ...data }, true)
+  sourceAccountSave(sourceId: string, data: { username?: string; password?: string; sessionCookie?: string; clearSession?: boolean }): Promise<SourceAccountStatus> {
+    return request('POST', '/scrape', { action: 'source-account-save', sourceId, ...data }, true)
   },
-  po18AccountCaptcha(): Promise<Po18CaptchaResponse> {
-    return request('POST', '/scrape', { action: 'po18-account-captcha' }, true, {}, 30000)
+  sourceAccountCaptcha(sourceId: string): Promise<SourceAccountCaptcha> {
+    return request('POST', '/scrape', { action: 'source-account-captcha', sourceId }, true, {}, 30000)
   },
-  po18AccountLogin(challengeId: string, captcha = ''): Promise<Po18AccountStatus & { message: string }> {
-    return request('POST', '/scrape', { action: 'po18-account-login', challengeId, captcha }, true, {}, 30000)
+  sourceAccountLogin(sourceId: string, challengeId: string, captcha = ''): Promise<SourceAccountStatus & { message: string }> {
+    return request('POST', '/scrape', { action: 'source-account-login', sourceId, challengeId, captcha }, true, {}, 30000)
   },
-  po18AccountTest(sourceUrl?: string): Promise<Po18AccountStatus & { message: string }> {
-    return request('POST', '/scrape', { action: 'po18-account-test', ...(sourceUrl ? { sourceUrl } : {}) }, true, {}, 30000)
+  sourceAccountTest(sourceId: string, sourceUrl?: string): Promise<SourceAccountStatus & { message: string }> {
+    return request('POST', '/scrape', { action: 'source-account-test', sourceId, ...(sourceUrl ? { sourceUrl } : {}) }, true, {}, 30000)
   },
-  po18AccountClear(): Promise<{ ok: boolean }> {
-    return request('POST', '/scrape', { action: 'po18-account-clear' }, true)
+  sourceAccountClear(sourceId: string): Promise<{ ok: boolean }> {
+    return request('POST', '/scrape', { action: 'source-account-clear', sourceId }, true)
   },
 }
 

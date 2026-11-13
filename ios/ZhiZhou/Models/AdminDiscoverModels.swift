@@ -1,10 +1,8 @@
 import Foundation
 
 // MARK: - 爬虫「发现」模型
-// 字段与Cat’s Library仓库 web/src/pages/admin/scrape/types.ts 的 DiscoverNovel 及
-// api/src/routes/scrape.ts 的 discover / po18-search / popo-search 返回一一对应（camelCase）。
+// 字段与抓取 API 的发现结果一致。
 
-/// 「发现」列表中的一部小说（榜单浏览 / PO18 / POPO 搜索共用）。
 struct DiscoverNovel: Codable, Identifiable, Hashable {
     var id: String { url }
     let bookId: String?
@@ -90,4 +88,24 @@ struct BatchSourcesResponse: Codable {
     let enabled: Bool?
     let updated: Int?
     let deleted: Int?
+}
+
+struct ScrapeSourceCapabilities: Decodable {
+    let sources: [ScrapeSourceCapability]
+}
+
+struct ScrapeSourceCapability: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let search: Bool
+    let account: Bool
+    let rankings: [ScrapeSourceRanking]
+}
+
+struct ScrapeSourceRanking: Decodable, Identifiable {
+    let id: String
+    let label: String
+    let listUrl: String
+    let rankingKind: String?
+    let rankingType: String?
 }

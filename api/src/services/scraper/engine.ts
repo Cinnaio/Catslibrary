@@ -5,14 +5,12 @@ import type { SourceChapterCandidate } from '../novel-update-summary'
  * DB、网络与日志，不再依赖 env / Response / context.waitUntil。
  */
 import { sleep } from './utils'
-import { Po18SessionExpiredError } from '../po18-session-policy'
+import { adapterForUrl, assertSourceAvailable, SourceSessionError } from './sources'
 import type { FetchHtmlOptions, FetchResult } from './fetch'
 import { cleanHtml, cleanText, cleanTitle, extractContent, extractLinkHref, extractLinks, extractText } from './parse'
 import type { JobData, ScrapeLink, ScrapeStore } from './store'
 import { simplifyChapterForSource } from '../zh-convert'
-import { PO18TW_SELECTORS } from './presets'
 import { randomUUID } from 'node:crypto'
-import { isPo18twLoginPage, parsePo18twChapterRows, parsePo18twChapterContent, po18ResponseProblem, po18ChapterContentUrl, po18ChapterListUrl } from './enrich'
 
 export interface ScrapeDeps {
   store: ScrapeStore
@@ -36,59 +34,6 @@ function newChapterId(index: number): string {
 
 class ScrapeStopped extends Error {}
 
-function isPo18twSelectors(selectors: Record<string, string> | undefined): boolean {
-  return selectors?.chapterList === PO18TW_SELECTORS.chapterList
-}
-
-/** PO18 的 /articles 页面已包含完整目录，只解析首个页面，不构造 page=N 请求。 */
-function collectPo18twLinks(
-  firstHtml: string,
-  chapterListUrl: string,
-): { links: ScrapeLink[]; pages: number; publicChapterCount: number; protectedChapterCount: number; candidates: SourceChapterCandidate[] } {
-  if (isPo18twLoginPage(firstHtml)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
-
-  const links: ScrapeLink[] = []
-  const seen = new Set<string>()
-  const candidates: SourceChapterCandidate[] = []
-  let publicChapterCount = 0
-  let protectedChapterCount = 0
-
-  const appendPage = (html: string, pageUrl: string): { rowCount: number; newRowCount: number } => {
-    const rows = parsePo18twChapterRows(html, pageUrl)
-    let newRowCount = 0
-    for (const row of rows) {
-      if (seen.has(row.url)) continue
-      seen.add(row.url)
-      candidates.push({ url: row.url, title: row.title.trim(), order: row.order, access: row.protected ? 'protected' : row.downloadable ? 'public' : 'unknown' })
-      newRowCount++
-      if (row.downloadable && !row.url.includes('#')) {
-        links.push({ href: row.url, text: row.title, order: row.order })
-        publicChapterCount++
-      } else if (row.protected) {
-        protectedChapterCount++
-      }
-    }
-    return { rowCount: rows.length, newRowCount }
-  }
-
-  appendPage(firstHtml, chapterListUrl)
-  return { links, pages: 0, publicChapterCount, protectedChapterCount, candidates }
-}
-
-function po18ChapterFetchRequest(link: ScrapeLink, encoding: string, timeoutMs: number): { url: string; options: FetchHtmlOptions } {
-  return {
-    url: po18ChapterContentUrl(link.href),
-    options: {
-      forceEncoding: encoding,
-      timeoutMs,
-      headers: {
-        Referer: link.href,
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-    },
-  }
-}
-
 // ============================================================
 // 选择器测试
 // ============================================================
@@ -103,19 +48,21 @@ export async function testSelectors(
   }
 
   const _t = { t0: Date.now(), fetchList: 0, pages: 0, total: 0 }
-  const isPo18tw = isPo18twSelectors(selectors)
-  const chapterListUrl = isPo18tw ? po18ChapterListUrl(sourceUrl) : sourceUrl
-  const { html, encoding } = await deps.fetchHtml(chapterListUrl, { forceEncoding })
+  assertSourceAvailable(sourceUrl, selectors)
+  const adapter = adapterForUrl(sourceUrl)?.chapters
+  const reader = adapter?.matchesSelectors(selectors) ? adapter : undefined
+  const chapterListUrl = reader?.listUrl(sourceUrl) ?? sourceUrl
+  const { html, encoding, finalUrl } = await deps.fetchHtml(chapterListUrl, { forceEncoding })
   _t.fetchList = Date.now() - _t.t0
 
   let allLinks: ScrapeLink[]
   let publicChapterCount = 0
   let protectedChapterCount = 0
-  if (isPo18tw) {
-    const collected = collectPo18twLinks(html, chapterListUrl)
+  if (reader) {
+    reader.assertResponse(finalUrl || chapterListUrl, html)
+    const collected = reader.readDirectory(html, chapterListUrl)
     allLinks = collected.links
-    _t.pages = collected.pages
-    publicChapterCount = collected.publicChapterCount
+    publicChapterCount = collected.links.length
     protectedChapterCount = collected.protectedChapterCount
   } else {
     allLinks = extractLinks(html, selectors.chapterList, sourceUrl)
@@ -161,9 +108,9 @@ export async function testSelectors(
     const samples = await Promise.all(
       uniqueLinks.slice(0, 3).map(async (link) => {
         try {
-          const request = isPo18tw ? po18ChapterFetchRequest(link, encoding, 8000) : { url: link.href, options: { forceEncoding: encoding, timeoutMs: 8000 } }
+          const request = reader?.chapterRequest(link, encoding, 8000) ?? { url: link.href, options: { forceEncoding: encoding, timeoutMs: 8000 } }
           const chapter = await deps.fetchHtml(request.url, request.options)
-          const parsed = isPo18tw ? parsePo18twChapterContent(chapter.html, link.text || '') : null
+          const parsed = reader?.parseChapter(chapter.html, link.text || '')
           const title = parsed?.title || extractText(chapter.html, chapterTitleSel) || link.text || ''
           const rawContent = parsed?.content || extractContent(chapter.html, chapterContentSel)
           const cleanContent = cleanText(cleanHtml(rawContent || '').trim())
@@ -186,7 +133,7 @@ export async function testSelectors(
     timing: _t,
     links: uniqueLinks,
     totalLinks: uniqueLinks.length,
-    publicChapterCount: isPo18tw ? publicChapterCount : uniqueLinks.length,
+    publicChapterCount: reader ? publicChapterCount : uniqueLinks.length,
     protectedChapterCount,
     encoding,
     diagnostics: {
@@ -247,8 +194,10 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
   }
 
   try {
-    const isPo18tw = isPo18twSelectors(job.selectors)
-    const chapterListUrl = isPo18tw ? po18ChapterListUrl(job.sourceUrl) : job.sourceUrl
+    assertSourceAvailable(job.sourceUrl, job.selectors)
+    const adapter = adapterForUrl(job.sourceUrl)?.chapters
+    const reader = adapter?.matchesSelectors(job.selectors) ? adapter : undefined
+    const chapterListUrl = reader?.listUrl(job.sourceUrl) ?? job.sourceUrl
     log(job, `开始${job.updateMode ? '增量更新' : '抓取'}: ${job.sourceUrl}`)
     await updateStatus('fetching_list', {
       step: '正在连接源站获取章节目录…',
@@ -273,9 +222,11 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       return
     }
 
-    if (isPo18tw) {
-      const problem = po18ResponseProblem(finalUrl, html)
-      if (problem) {
+    if (reader) {
+      try {
+        reader.assertResponse(finalUrl, html)
+      } catch (error) {
+        const problem = (error as Error).message
         log(job, problem, 'warn')
         await store.appendJobLog(jobId, 'error', problem)
         await updateStatus('failed', {
@@ -306,14 +257,13 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       }))
       if (!publicChapterCount) publicChapterCount = links.length
       await store.appendJobLog(jobId, 'info', '重试失败章节模式：' + links.length + ' 章')
-    } else if (isPo18tw) {
-      const collected = collectPo18twLinks(html, chapterListUrl)
+    } else if (reader) {
+      const collected = reader.readDirectory(html, chapterListUrl)
       links = collected.links
       candidates = collected.candidates
-      publicChapterCount = collected.publicChapterCount
+      publicChapterCount = collected.links.length
       protectedChapterCount = collected.protectedChapterCount
       extractMs = Date.now() - extractStart
-      if (collected.pages > 0) log(job, `POPO 目录分页完成: 额外读取 ${collected.pages} 页`)
     } else {
       links = extractLinks(html, job.selectors?.chapterList || '', job.sourceUrl)
       extractMs = Date.now() - extractStart
@@ -349,7 +299,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     // 即使目录全为受保护章节，也保存完整检查结果，不误报目录解析失败。
     if (job.novelId && candidates && !job.retryLinks?.length) await store.saveCheckResult(job.novelId, candidates.length, candidates)
     if (links.length === 0 && !candidates?.length) {
-      const message = isPo18tw ? '未找到可抓取的 POPO 章节，可能需要先购买章节或重新配置账号' : '未找到任何章节链接，请检查章节列表选择器是否正确'
+      const message = reader ? '未找到可抓取的章节，请检查书源账号及章节权限' : '未找到任何章节链接，请检查章节列表选择器是否正确'
       log(job, `${message}: selector="${job.selectors?.chapterList}" (${extractMs}ms)`, 'warn')
       await updateStatus('failed', {
         step: message,
@@ -369,7 +319,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     const duplicateCount = originalLinkCount - links.length
     // 完整目录先保留原位置，再过滤已有章节；重试中间缺章时不会被追加到末尾。
     if (!job.updateMode && !job.retryLinks?.length) links = links.map((link, i) => ({ ...link, order: link.order || i + 1 }))
-    if (!isPo18tw && !(job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length)) {
+    if (!reader && !(job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length)) {
       publicChapterCount = links.length
     }
     job.publicChapterCount = publicChapterCount
@@ -512,9 +462,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           try {
             const timeout = isCF ? SCRAPE_FETCH_TIMEOUT : 28000
-            const request = isPo18tw
-              ? po18ChapterFetchRequest(link, encoding, timeout)
-              : { url: link.href, options: { forceEncoding: encoding, timeoutMs: timeout } }
+            const request = reader?.chapterRequest(link, encoding, timeout) ?? { url: link.href, options: { forceEncoding: encoding, timeoutMs: timeout } }
             const result = await deps.fetchHtml(request.url, request.options)
             chHtml = result.html
             fetchEncoding = result.encoding
@@ -523,7 +471,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
             break
           } catch (ferr) {
             lastErr = ferr as Error
-            if (ferr instanceof Po18SessionExpiredError) {
+            if (ferr instanceof SourceSessionError) {
               cancelled = true
               abortReason = ferr
               break
@@ -546,7 +494,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
           await store.appendJobLog(jobId, 'error', `Ch${i + 1}: 获取失败`, lastErr.message)
           addDebug(`Ch${i + 1}: 获取失败 (${SCRAPE_MAX_RETRIES}次重试后) - ${lastErr.message}`)
           log(job!, `Ch${i + 1} 获取失败: ${lastErr.message}`, 'warn')
-          if (lastErr instanceof Po18SessionExpiredError) break
+          if (lastErr instanceof SourceSessionError) break
           consecutiveFailures++
           if (isCF && consecutiveFailures >= SCRAPE_MAX_CONSECUTIVE_FAILURES) {
             addDebug(`连续 ${SCRAPE_MAX_CONSECUTIVE_FAILURES} 章失败，终止抓取（源站可能已限流或离线）`)
@@ -564,11 +512,8 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         if (!currentJob || ['cancelled', 'completed', 'partial', 'failed'].includes(currentJob.status)) { cancelled = true; break }
 
         try {
-          if (isPo18tw) {
-            const problem = po18ResponseProblem(chFinalUrl, chHtml)
-            if (problem) throw new Error(problem)
-          }
-          const parsed = isPo18tw ? parsePo18twChapterContent(chHtml, link.text || '') : null
+          reader?.assertResponse(chFinalUrl, chHtml)
+          const parsed = reader?.parseChapter(chHtml, link.text || '')
           const title = parsed?.title || extractText(chHtml, job!.selectors?.chapterTitle || '') || link.text || `第${i + 1}章`
           const rawContent = parsed?.content || extractContent(chHtml, job!.selectors?.chapterContent || '')
           const contentLen = rawContent ? rawContent.trim().length : 0
@@ -665,7 +610,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
 
     await flushBatch()
     const stoppedBy = abortReason as Error | null
-    if (stoppedBy instanceof Po18SessionExpiredError) {
+    if (stoppedBy instanceof SourceSessionError) {
       await updateStatus(count > 0 ? 'partial' : 'failed', { chapterCount: count, error: stoppedBy.message, step: stoppedBy.message })
       return
     }

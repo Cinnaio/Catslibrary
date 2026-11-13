@@ -1,16 +1,17 @@
 import SwiftUI
 import UIKit
 
-/// POPO（po18.tw）原作者账号管理：正常登录 + 浏览器 Cookie 兜底。
-struct Po18AccountSheet: View {
+/// 已安装书源的登录与会话管理。
+struct SourceAccountSheet: View {
+    let source: ScrapeSourceCapability
     @Environment(\.dismiss) private var dismiss
 
-    @State private var status: Po18AccountStatus?
+    @State private var status: SourceAccountStatus?
     @State private var username = ""
     @State private var password = ""
     @State private var sessionCookie = ""
     @State private var captchaText = ""
-    @State private var challenge: Po18CaptchaResponse?
+    @State private var challenge: SourceAccountCaptcha?
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showClearConfirmation = false
@@ -34,16 +35,16 @@ struct Po18AccountSheet: View {
                         }
                     }
                 } header: {
-                    Text("POPO 账号")
+                    Text("\(source.name) 账号")
                 } footer: {
-                    Text("密码和 Cookie 仅在服务端加密保存，不会回显。晋江无需配置账号。")
+                    Text("密码和 Cookie 仅在服务端加密保存，不会回显。")
                 }
 
                 Section("账号登录") {
-                    TextField("POPO 登录账号", text: $username)
+                    TextField("\(source.name) 登录账号", text: $username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    SecureField(status?.hasPassword == true ? "留空表示保持原密码" : "POPO 登录密码", text: $password)
+                    SecureField(status?.hasPassword == true ? "留空表示保持原密码" : "\(source.name) 登录密码", text: $password)
                     Button("保存账号") { Task { await saveAccount() } }
                         .disabled(isLoading || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button("获取验证码") { Task { await loadCaptcha() } }
@@ -80,19 +81,19 @@ struct Po18AccountSheet: View {
                 } header: {
                     Text("浏览器 Cookie 兜底")
                 } footer: {
-                    Text("如果登录页有验证码，先在浏览器登录 POPO（po18.tw），再复制 Cookie 粘贴到这里。不会绕过验证码或其他安全措施。")
+                    Text("在浏览器登录 \(source.name) 后，将会话 Cookie 粘贴到这里。")
                 }
 
                 Section {
                     Button("测试当前会话") { Task { await testSession() } }
                         .disabled(isLoading || status?.hasSession != true)
-                    Button("清除 POPO 账号", role: .destructive) { showClearConfirmation = true }
+                    Button("清除 \(source.name) 账号", role: .destructive) { showClearConfirmation = true }
                         .disabled(isLoading || status?.configured != true)
                 }
             }
             .scrollContentBackground(.hidden)
             .appListStyle(.settings)
-            .navigationTitle("POPO 账号")
+            .navigationTitle("\(source.name) 账号")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -119,7 +120,7 @@ struct Po18AccountSheet: View {
             } message: {
                 Text(errorMessage ?? "")
             }
-            .confirmationDialog("清除 POPO 账号？", isPresented: $showClearConfirmation, titleVisibility: .visible) {
+            .confirmationDialog("清除 \(source.name) 账号？", isPresented: $showClearConfirmation, titleVisibility: .visible) {
                 Button("清除账号", role: .destructive) { Task { await clearAccount() } }
                 Button("取消", role: .cancel) {}
             } message: {
@@ -153,7 +154,7 @@ struct Po18AccountSheet: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            let next = try await AdminAPI.po18Account()
+            let next = try await AdminAPI.sourceAccount(sourceId: source.id)
             status = next
             if !next.username.isEmpty { username = next.username }
         } catch {
@@ -167,7 +168,7 @@ struct Po18AccountSheet: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            status = try await AdminAPI.savePo18Account(username: name, password: password.trimmingCharacters(in: .whitespacesAndNewlines))
+            status = try await AdminAPI.saveSourceAccount(sourceId: source.id, username: name, password: password.trimmingCharacters(in: .whitespacesAndNewlines))
             password = ""
             errorMessage = nil
         } catch {
@@ -182,7 +183,7 @@ struct Po18AccountSheet: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            status = try await AdminAPI.savePo18Account(username: name, sessionCookie: cookie)
+            status = try await AdminAPI.saveSourceAccount(sourceId: source.id, username: name, sessionCookie: cookie)
             sessionCookie = ""
             errorMessage = nil
         } catch {
@@ -194,7 +195,7 @@ struct Po18AccountSheet: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            challenge = try await AdminAPI.po18Captcha()
+            challenge = try await AdminAPI.sourceAccountCaptcha(sourceId: source.id)
             captchaText = ""
             errorMessage = nil
         } catch {
@@ -207,7 +208,7 @@ struct Po18AccountSheet: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            let result = try await AdminAPI.po18Login(challengeId: challenge.challengeId, captcha: captchaText)
+            let result = try await AdminAPI.sourceAccountLogin(sourceId: source.id, challengeId: challenge.challengeId, captcha: captchaText)
             status = accountStatus(from: result)
             self.challenge = nil
             captchaText = ""
@@ -221,11 +222,11 @@ struct Po18AccountSheet: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            status = accountStatus(from: try await AdminAPI.testPo18Account())
+            status = accountStatus(from: try await AdminAPI.testSourceAccount(sourceId: source.id))
             errorMessage = nil
         } catch {
             errorMessage = AppCopy.friendlyError(error)
-            status = try? await AdminAPI.po18Account()
+            status = try? await AdminAPI.sourceAccount(sourceId: source.id)
         }
     }
 
@@ -233,7 +234,7 @@ struct Po18AccountSheet: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            try await AdminAPI.clearPo18Account()
+            try await AdminAPI.clearSourceAccount(sourceId: source.id)
             status = nil
             username = ""
             password = ""
@@ -245,8 +246,8 @@ struct Po18AccountSheet: View {
         }
     }
 
-    private func accountStatus(from response: Po18LoginResponse) -> Po18AccountStatus {
-        Po18AccountStatus(
+    private func accountStatus(from response: SourceAccountLogin) -> SourceAccountStatus {
+        SourceAccountStatus(
             site: response.site,
             username: response.username,
             configured: response.configured,

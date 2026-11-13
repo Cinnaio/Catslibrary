@@ -79,7 +79,7 @@
 
 ### P2：状态色的语义入口不完全统一
 
-- **位置**：大部分页面使用 `AppTheme.success/warning/danger`，但章节管理仍直接使用 `.orange`（`AdminChaptersView.swift:388-391, 575, 643`），存储错误直接使用 `.red`（`StorageManagerView.swift:58-62`），POPO 表单也直接使用 `.red/.orange`（`Po18AccountSheet.swift:35, 67`）。
+- **位置**：大部分页面使用 `AppTheme.success/warning/danger`，但章节管理仍直接使用 `.orange`（`AdminChaptersView.swift:388-391, 575, 643`），存储错误直接使用 `.red`（`StorageManagerView.swift:58-62`），扩展书源 表单也直接使用 `.red/.orange`（`SourceAccountSheet.swift:35, 67`）。
 - **影响**：同一类警告使用两套色值，后台状态标签与普通表单状态不一致。系统 `.red/.orange` 本身支持外观变化，这里是项目语义色使用不一致，不能直接认定深色模式损坏。
 - **建议**：把所有“警告/错误/成功/未检测”映射到 `AppTheme` 语义色；仅保留阅读纸面色板的固定 swatch（`ReaderSettingsView.swift:10-14`）作为用户可选内容色。
 
@@ -106,7 +106,7 @@
 | 后台入口与总览 | `AdminRootView`、`AdminDashboardView`、`AdminComponents` | 分组白面板、状态 badge、横向筛选胶囊 | 共享列表行、筛选、状态和面板 primitive |
 | 后台 AI | `AdminAIServiceView`、`AdminAIProviderView`、`AdminAISettingsView`、`AdminAIStatusView`、`AdminAIUsageView`、`AdminAITasksView`、`AdminAITaskProgressView`、`AdminAIWritingView`、`AdminAICoverView`、`AdminAIGenerationsView` | 原生 Form/List、输入 surface、候选卡、玻璃/边框按钮混用 | 表单和结果预览分层，统一操作状态 |
 | 后台内容与采集 | `AdminNovelsView`、`AdminChaptersView`、`AdminModerationView`、`AdminDiscoverView`、`AdminJobsView`、`AdminScrapeCenterView`、`AdminScrapeConfigsView`、`AdminScrapeSourcesView` | 多个筛选条、状态色、详情 sheet | 统一筛选条、列表密度和语义状态 |
-| 后台系统 | `AdminProxyView`、`AdminSiteOperationsView`、`AdminMobileTelemetryView`、`AdminUsersView`、`AdminLoginAuditView`、`AdminPolicyView`、`AdminAnnouncementView`、`Po18AccountSheet` | 监控表格/指标、表单、sheet 各自设置反馈和宽度 | 保留信息密度，统一标题层级、输入、保存和错误状态 |
+| 后台系统 | `AdminProxyView`、`AdminSiteOperationsView`、`AdminMobileTelemetryView`、`AdminUsersView`、`AdminLoginAuditView`、`AdminPolicyView`、`AdminAnnouncementView`、`SourceAccountSheet` | 监控表格/指标、表单、sheet 各自设置反馈和宽度 | 保留信息密度，统一标题层级、输入、保存和错误状态 |
 
 共享辅助文件还包括 `LoadErrorNotice.swift` 和 `KeyboardDismissal.swift`；键盘桥接没有独立视觉样式。`CachedAsyncImage` 已有按目标尺寸缓存/解码及重试占位，`SelectableTextView` 保留系统选区与编辑菜单；本轮不据此评价滚动帧率或整体性能。
 
@@ -150,7 +150,7 @@
 | 保存与反馈 | 公告与运行参数的整页保存放在 confirmationAction 工具栏，标题 inline；保存期间禁用编辑并显示进度。供应商保留文本/图像独立保存；公告、参数、供应商和代理保存共用 AppFeedback。反馈支持 VoiceOver 播报，警告使用 warning 语义色。 |
 | 触控与大字体 | 段评、重试、图片关闭及共享玻璃控件明确提供至少 44pt 的触控区。封面操作、大字体元信息、数值输入采用换行或纵向布局；大字体阅读面板优先完整高度。段评在辅助功能字号下把输入区放入可滚动内容，避免底部固定输入区占满可用高度。 |
 | 阅读纸面 | 正文继续使用 ReaderSettingsStore 的用户纸面与排版；目录和段评统一系统语义画布，段评输入区与内容同色；设置面板使用分组表面。8 项阅读偏好的原有存储键和即时更新方式保持兼容。 |
-| 状态色 | 章节管理、存储和 POPO 表单的警告/失败统一到 AppTheme；未配置状态使用 secondary。减少透明度或提高对比度时，共享材质控件使用有实色底层的回退表面。 |
+| 状态色 | 章节管理、存储和 扩展书源 表单的警告/失败统一到 AppTheme；未配置状态使用 secondary。减少透明度或提高对比度时，共享材质控件使用有实色底层的回退表面。 |
 | 入口收敛 | 存储中的离线管理入口合并到“已下载章节”摘要行；“我的 → 离线阅读”保留为主入口。 |
 
 本轮覆盖全部页面族；`SelectableTextView` 与 `KeyboardDismissal` 沿用既有系统文字选择和键盘桥接。没有改动 API、后台危险操作确认模型、正文缓存和阅读进度恢复机制，也没有改动既有的 `docs/home-discovery-preview.html`。

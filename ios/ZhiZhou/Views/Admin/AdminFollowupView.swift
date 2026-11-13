@@ -30,7 +30,7 @@ struct AdminFollowupView: View {
                 Section("最近检查") {
                     Text(state.message.isEmpty ? "尚未检查" : state.message)
                     LabeledContent("上次检查", value: state.checkedAt > 0 ? AdminFormat.dateTime(state.checkedAt) : "尚未检查")
-                    LabeledContent("下次检查", value: state.nextCheckAt > 0 ? AdminFormat.dateTime(state.nextCheckAt) : "尚未安排")
+                    LabeledContent("下次检查", value: nextCheckLabel(state))
                     LabeledContent("新增章节", value: String(state.addedCount))
                     if let job = state.jobId, !job.isEmpty {
                         NavigationLink("查看抓取任务") { AdminJobsView() }
@@ -48,6 +48,12 @@ struct AdminFollowupView: View {
         .navigationTitle("追更设置")
         .disabled(busy)
         .task(id: ContentAccessStore.shared.accountRevision) { requestID = UUID(); busy = false; state = nil; notice = nil; error = nil; await load() }
+    }
+
+    private func nextCheckLabel(_ state: NovelFollowup) -> String {
+        if state.blockedReason == "source_unavailable" { return "书源未安装" }
+        if state.blockedReason != nil { return "等待书源恢复" }
+        return state.nextCheckAt > 0 ? AdminFormat.dateTime(state.nextCheckAt) : "尚未安排"
     }
 
     private func load(updateDraft: Bool = true) async {

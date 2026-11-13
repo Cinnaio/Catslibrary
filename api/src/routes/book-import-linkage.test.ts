@@ -9,7 +9,7 @@ import { sourceSyncTestHelpers } from '../services/source-sync'
 let t: TestDb,
   token = ''
 const previousDatabaseUrl = process.env.DATABASE_URL
-const sourceUrl = 'https://www.po18.tw/books/123'
+const sourceUrl = 'https://source.example/books/123'
 const fileName = '[更2] 联动样本 作者：样本作者.txt'
 const fileUrl = 'https://dudu88.lanzov.com/iLinked'
 const text = '书名：联动样本\n作者：样本作者\n简介：样本介绍。\n第0001章 1.启程（微h）\n第一章的唯一正文。\n第0002章 2.归途（微h）\n第二章的唯一正文。'
@@ -129,7 +129,7 @@ it('导入 → 源站改名改序 → 附加源追加 → 重复预览 → 两�
     locals,
     metadata,
     true,
-    { runId: 'linked-sync', bindingId: 'linked-binding', novelId: id, site: 'po18tw', sourceUrl },
+    { runId: 'linked-sync', bindingId: 'linked-binding', novelId: id, site: 'fixture', sourceUrl },
     [],
   )
   await t.db.query('INSERT INTO novel_source_bindings(id,novel_id,source_url,created_at,updated_at) VALUES($1,$2,$3,1,1)', [sync.bindingId, id, sourceUrl])

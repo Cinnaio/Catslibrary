@@ -1,7 +1,7 @@
 import { saveBatchFollowups } from '../services/novel-followup-batch'
 /**
  * /api/scrape —— 爬虫动作分发（由 Novel-KV api/scrape.js 平移为 Hono 路由）。
- * 核心动作完整，并提供 discover / po18-search / popo-search 等发现与富化动作。
+ * 管理员可查询已安装书源的搜索、榜单和账号能力。
  */
 import { Hono, type Context } from 'hono'
 import { loadConfig } from '../config'
@@ -13,28 +13,14 @@ import { fetchHtml as fetchHtmlImpl, resolveProxyUrl } from '../services/scraper
 import { testSelectors } from '../services/scraper/engine'
 import { detectMeta } from '../services/scraper/meta'
 import { getPresetForUrl, PgScrapeStore, type JobData } from '../services/scraper/store'
-import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
+import { presetForUrl, buildCoverUrl } from '../services/scraper/presets'
 import {
   discoverList,
   extractJjwxcTitles,
-  extractPo18twTitles,
   proxyCover,
-  searchPo18,
-  searchPo18tw,
   searchTitleSources,
-  type Po18RankingKind,
-  type Po18RankingType,
 } from '../services/scraper/enrich'
 import { applySourceSync, createSourceSyncPreview, refreshSourceSync, listSourceBindings, remapSourceSync, listSourceSyncHistory, getSourceSyncHistoryDetail, rollbackSourceSync, type SourceSyncManualMapping } from '../services/source-sync'
-import {
-  clearPo18Account,
-  createPo18Captcha,
-  getPo18AccountStatus,
-  getPo18Session,
-  loginPo18Account,
-  savePo18Account,
-  testPo18Account,
-} from '../services/source-account'
 import { cacheCoverForNovel, getStoredCover } from '../services/covers'
 import {
   describeError,
@@ -47,8 +33,8 @@ import {
 import { readRuntimeConfig, syncRuntimeConfigToEnv, writeRuntimeConfig } from '../runtime-config'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
-import { makeDeps, withPo18Session, fireJob } from '../services/scraper/runtime'
-import { guardPo18SessionFetch } from '../services/po18-fetch'
+import { makeDeps, fireJob } from '../services/scraper/runtime'
+import { adapterById, adapterForUrl, assertSourceAvailable, scrapeAdapters, sourceFetcher, SOURCE_UNAVAILABLE } from '../services/scraper/sources'
 import { getFollowup, saveFollowup, enqueueFollowup, bindFollowupSource } from '../services/novel-followup'
 
 export const scrapeRoutes = new Hono<AuthEnv>()
@@ -219,8 +205,23 @@ scrapeRoutes.get('/', async (c) => {
     try { return c.json(await getSourceSyncHistoryDetail(db, String(c.req.query('runId') || '')), 200, { 'Cache-Control': 'no-store' }) }
     catch (err) { return c.json({ error: (err as Error).message }, 404) }
   }
-  if (action === 'po18-account') {
-    return c.json(await getPo18AccountStatus(db), 200, { 'Cache-Control': 'no-store' })
+  if (action === 'source-capabilities') {
+    return c.json({
+      sources: scrapeAdapters().map((adapter) => ({
+        id: adapter.id,
+        name: adapter.name,
+        search: Boolean(adapter.search),
+        account: c.get('user').role === 'super_admin' && Boolean(adapter.account),
+        rankings: adapter.rankings || [],
+      })),
+    }, 200, { 'Cache-Control': 'no-store' })
+  }
+  const legacyAccount = scrapeAdapters().find(adapter => adapter.legacyActions?.account === action)
+  if (action === 'source-account' || legacyAccount) {
+    if (c.get('user').role !== 'super_admin') return c.json({ error: '需要超级管理员权限' }, 403)
+    const account = (legacyAccount || adapterById(c.req.query('sourceId') || ''))?.account
+    if (!account) return c.json({ error: SOURCE_UNAVAILABLE }, 404)
+    return c.json(await account.status(db), 200, { 'Cache-Control': 'no-store' })
   }
   if (action === 'proxy-config') {
     return c.json(proxyConfigPayload(), 200, { 'Cache-Control': 'no-store' })
@@ -238,12 +239,71 @@ scrapeRoutes.post('/', async (c) => {
   const deps = makeDeps(db)
   const body = await c.req.json().catch(() => ({}))
   const action = body.action
-  if (!action) return c.json({ error: 'action is required' }, 400)
+  if (typeof action !== 'string' || !action) return c.json({ error: 'action is required' }, 400)
+
+  const adapters = scrapeAdapters()
+  const legacyAccount = adapters.find(adapter => adapter.legacyActions?.account && action.startsWith(adapter.legacyActions.account + '-'))
+  if (legacyAccount || action.startsWith('source-account-')) {
+    if (c.get('user').role !== 'super_admin') return c.json({ error: '需要超级管理员权限' }, 403)
+    const account = (legacyAccount || adapterById(String(body.sourceId || '')))?.account
+    if (!account) return c.json({ error: SOURCE_UNAVAILABLE }, 404)
+    const operation = legacyAccount ? action.slice(legacyAccount.legacyActions!.account!.length + 1) : action.slice('source-account-'.length)
+    const noStore = { 'Cache-Control': 'no-store' }
+    try {
+      switch (operation) {
+        case 'save':
+          return c.json(await account.save(db, {
+            username: body.username === undefined ? undefined : String(body.username || ''),
+            password: body.password === undefined ? undefined : String(body.password || ''),
+            sessionCookie: body.sessionCookie === undefined ? undefined : String(body.sessionCookie || ''),
+            clearSession: body.clearSession === true,
+          }), 200, noStore)
+        case 'captcha':
+          return c.json(await account.captcha(), 200, noStore)
+        case 'login': {
+          const challengeId = String(body.challengeId || '').trim()
+          if (!challengeId) return c.json({ error: '请先获取验证码' }, 400, noStore)
+          return c.json(await account.login(db, { challengeId, captcha: String(body.captcha || '') }), 200, noStore)
+        }
+        case 'test':
+          return c.json(await account.test(db, String(body.sourceUrl || '').trim() || undefined), 200, noStore)
+        case 'clear':
+          await account.clear(db)
+          return c.json({ ok: true }, 200, noStore)
+        default:
+          return c.json({ error: '未知书源账号操作' }, 400, noStore)
+      }
+    } catch (err) {
+      return c.json({ error: (err as Error).message || '书源账号操作失败' }, operation === 'save' ? 400 : 502, noStore)
+    }
+  }
+  const legacySearch = adapters.find(adapter => adapter.legacyActions?.search === action)
+  if (action === 'source-search' || legacySearch) {
+    const adapter = legacySearch || adapterById(String(body.sourceId || ''))
+    if (!adapter?.search) return c.json({ error: SOURCE_UNAVAILABLE }, 404)
+    const query = String(body.query || '').trim()
+    if (!query) return c.json({ error: 'query required' }, 400)
+    try {
+      return c.json(await adapter.search(query, String(body.searchType || ''), Number(body.page) || 1, { db, fetchHtml: deps.fetchHtml }))
+    } catch (err) {
+      return c.json({ error: `搜索失败: ${(err as Error).message}` }, 502)
+    }
+  }
+  const legacyTitles = adapters.find(adapter => adapter.legacyActions?.titles === action)
+  if (legacyTitles?.titles) {
+    if (!body.sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
+    try {
+      return c.json(await legacyTitles.titles(String(body.sourceUrl), sourceFetcher(db, deps.fetchHtml)))
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 502)
+    }
+  }
 
   switch (action) {
     case 'detect': {
       const { sourceUrl } = body
       if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
+      try { assertSourceAvailable(sourceUrl) } catch { return c.json({ error: SOURCE_UNAVAILABLE }, 404) }
       const preset = await getPresetForUrl(sourceUrl, deps.store)
       if (preset) {
         return c.json({
@@ -258,7 +318,7 @@ scrapeRoutes.post('/', async (c) => {
       const { sourceUrl } = body
       if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
       try {
-        const result = await detectMeta(sourceUrl, { store: deps.store, fetchHtml: withPo18Session(db, deps.fetchHtml) })
+        const result = await detectMeta(sourceUrl, { store: deps.store, fetchHtml: sourceFetcher(db, deps.fetchHtml) })
         return c.json(result)
       } catch (err) {
         return c.json({ error: `分析失败: ${(err as Error).message}` }, 502)
@@ -267,7 +327,7 @@ scrapeRoutes.post('/', async (c) => {
     case 'test': {
       const { sourceUrl, selectors, encoding } = body
       try {
-        return c.json(await testSelectors(sourceUrl, selectors || {}, encoding, { ...deps, fetchHtml: withPo18Session(db, deps.fetchHtml) }))
+        return c.json(await testSelectors(sourceUrl, selectors || {}, encoding, { ...deps, fetchHtml: sourceFetcher(db, deps.fetchHtml) }))
       } catch (err) {
         return c.json({ error: `Fetch failed: ${(err as Error).message}` }, 502)
       }
@@ -277,6 +337,7 @@ scrapeRoutes.post('/', async (c) => {
       if (!novelId || !sourceUrl || !selectors?.chapterList || !selectors?.chapterContent) {
         return c.json({ error: 'novelId, sourceUrl, selectors.chapterList, and selectors.chapterContent are required' }, 400)
       }
+      try { assertSourceAvailable(sourceUrl, selectors) } catch { return c.json({ error: SOURCE_UNAVAILABLE }, 404) }
       await deps.store.upsertScrapeConfig({ novelId, sourceUrl, selectors, encoding })
       const jobId = newId('job')
       const job: JobData = {
@@ -342,6 +403,7 @@ scrapeRoutes.post('/', async (c) => {
       if (!oldJob.novelId) return c.json({ error: '该任务没有关联小说，无法重试' }, 400)
       const cfg = await deps.store.getScrapeConfig(oldJob.novelId)
       if (!cfg) return c.json({ error: '未找到该小说的爬虫配置，请重新配置' }, 404)
+      try { assertSourceAvailable(cfg.sourceUrl, cfg.selectors) } catch { return c.json({ error: SOURCE_UNAVAILABLE }, 404) }
       const newJobId = newId('job')
       const job: JobData = {
         id: newJobId,
@@ -372,6 +434,7 @@ scrapeRoutes.post('/', async (c) => {
       if (!failedItems.length) return c.json({ error: '没有可重试的失败章节' }, 400)
       const cfg = await deps.store.getScrapeConfig(oldJob.novelId)
       if (!cfg) return c.json({ error: '未找到该小说的爬虫配置，请重新配置' }, 404)
+      try { assertSourceAvailable(cfg.sourceUrl, cfg.selectors) } catch { return c.json({ error: SOURCE_UNAVAILABLE }, 404) }
       const retryJobId = newId('retry')
       const job: JobData = {
         id: retryJobId,
@@ -534,52 +597,11 @@ scrapeRoutes.post('/', async (c) => {
         },
       )
     }
-    case 'po18-account-save': {
-      try {
-        return c.json(
-          await savePo18Account(db, {
-            username: body.username === undefined ? undefined : String(body.username || ''),
-            password: body.password === undefined ? undefined : String(body.password || ''),
-            sessionCookie: body.sessionCookie === undefined ? undefined : String(body.sessionCookie || ''),
-            clearSession: body.clearSession === true,
-          }),
-          200,
-          { 'Cache-Control': 'no-store' },
-        )
-      } catch (err) {
-        return c.json({ error: (err as Error).message || '保存 PO18.tw 账号失败' }, 400)
-      }
-    }
-    case 'po18-account-captcha': {
-      try {
-        return c.json(await createPo18Captcha(), 200, { 'Cache-Control': 'no-store' })
-      } catch (err) {
-        return c.json({ error: (err as Error).message || '读取 PO18.tw 验证码失败' }, 502)
-      }
-    }
-    case 'po18-account-login': {
-      const challengeId = String(body.challengeId || '').trim()
-      if (!challengeId) return c.json({ error: 'challengeId is required' }, 400)
-      try {
-        return c.json(await loginPo18Account(db, { challengeId, captcha: String(body.captcha || '') }), 200, { 'Cache-Control': 'no-store' })
-      } catch (err) {
-        return c.json({ error: (err as Error).message || 'PO18.tw 登录失败' }, 502)
-      }
-    }
-    case 'po18-account-test': {
-      try {
-        return c.json(await testPo18Account(db, String(body.sourceUrl || '').trim() || undefined), 200, { 'Cache-Control': 'no-store' })
-      } catch (err) {
-        return c.json({ error: (err as Error).message || 'PO18.tw 会话测试失败' }, 502)
-      }
-    }
-    case 'po18-account-clear':
-      await clearPo18Account(db)
-      return c.json({ ok: true })
     case 'proxy': {
       const { sourceUrl, encoding } = body
       if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
       try {
+        assertSourceAvailable(sourceUrl)
         const { html, encoding: enc } = await deps.fetchHtml(sourceUrl, { forceEncoding: encoding })
         return c.json({ html, encoding: enc, length: html.length })
       } catch (err) {
@@ -713,54 +735,22 @@ scrapeRoutes.post('/', async (c) => {
       if (!listUrl) return c.json({ error: 'listUrl required' }, 400)
       const rankingKind = String(body.rankingKind || '').trim()
       const rankingType = String(body.rankingType || '').trim()
-      const validKinds = ['sex', 'pearl', 'bestsale', 'stocked', 'mostcomments']
-      const validTypes = ['weekly', 'monthly', 'total']
-      if (Boolean(rankingKind) !== Boolean(rankingType) || (rankingKind && !validKinds.includes(rankingKind)) || (rankingType && !validTypes.includes(rankingType))) {
-        return c.json({ error: 'rankingKind/rankingType 无效，支持的人气、珍珠、订购、收藏、留言人气榜及周/月/总周期' }, 400)
-      }
       try {
-        const result = await discoverList(
-          String(listUrl),
-          { db, fetchHtml: withPo18Session(db, deps.fetchHtml), getPreset: (url) => getPresetForUrl(url, deps.store) },
-          rankingKind && rankingType
-            ? { po18Ranking: { kind: rankingKind as Po18RankingKind, type: rankingType as Po18RankingType } }
-            : undefined,
-        )
-        return c.json(result)
+        assertSourceAvailable(String(listUrl))
+        const ranking = adapterForUrl(String(listUrl))?.rankings?.find(item =>
+          item.listUrl === listUrl && item.rankingKind === rankingKind && item.rankingType === rankingType)
+        if ((rankingKind || rankingType) && !ranking) return c.json({ error: '无效的榜单参数' }, 400)
+        return c.json(await discoverList(String(listUrl), {
+          db, fetchHtml: sourceFetcher(db, deps.fetchHtml), getPreset: (url) => getPresetForUrl(url, deps.store),
+        }, ranking))
       } catch (err) {
         return c.json({ error: `获取列表失败: ${(err as Error).message}` }, 502)
-      }
-    }
-    case 'po18-search': {
-      const { query, searchType, page } = body
-      if (!query) return c.json({ error: 'query required' }, 400)
-      try {
-        return c.json(await searchPo18(String(query), String(searchType || 'articlename'), Number(page) || 1, db))
-      } catch (err) {
-        return c.json({ error: `搜索失败: ${(err as Error).message}` }, 502)
-      }
-    }
-    case 'popo-search': {
-      const { query, searchType, page } = body
-      if (!query) return c.json({ error: 'query required' }, 400)
-      try {
-        const account = await getPo18AccountStatus(db)
-        const session = account.hasSession ? await getPo18Session(db) : null
-        return c.json(await searchPo18tw(String(query), String(searchType || 'book'), Number(page) || 1, db, session?.cookie || '',
-          session ? guardPo18SessionFetch(db, session, deps.fetchHtml) : deps.fetchHtml))
-      } catch (err) {
-        return c.json({ error: `POPO 搜索失败: ${(err as Error).message}` }, 502)
       }
     }
     case 'title-source-search': {
       const { title, author } = body
       if (!title && !author) return c.json({ error: 'title or author required' }, 400)
-      const po18Account = await getPo18AccountStatus(db)
-      const po18Session = po18Account.hasSession ? await getPo18Session(db) : null
-      return c.json(await searchTitleSources(String(title || '').trim(), String(author || '').trim(), {
-        po18SessionCookie: po18Session?.cookie || '',
-        po18FetchHtml: po18Session ? guardPo18SessionFetch(db, po18Session, deps.fetchHtml) : deps.fetchHtml,
-      }))
+      return c.json(await searchTitleSources(String(title || '').trim(), String(author || '').trim(), { db, fetchHtml: deps.fetchHtml }))
     }
     case 'jjwxc-titles': {
       const { sourceUrl } = body
@@ -769,15 +759,6 @@ scrapeRoutes.post('/', async (c) => {
         return c.json(await extractJjwxcTitles(String(sourceUrl)))
       } catch (err) {
         return c.json({ error: (err as Error).message }, 400)
-      }
-    }
-    case 'po18tw-titles': {
-      const { sourceUrl } = body
-      if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
-      try {
-        return c.json(await extractPo18twTitles(String(sourceUrl), withPo18Session(db, deps.fetchHtml)))
-      } catch (err) {
-        return c.json({ error: (err as Error).message }, 502)
       }
     }
     case 'cover': {
@@ -828,18 +809,8 @@ async function handleFixCover(c: Context, body: any) {
   if (!novelId) return c.json({ error: 'novelId required' }, 400)
   const srcUrl = sourceUrl || (await new PgScrapeStore(db).getNovelSourceUrl(novelId))
   if (!srcUrl) return c.json({ error: '无法确定源站 URL' }, 400)
-  let preset = null
-  try {
-    const host = new URL(srcUrl).hostname
-    for (const [domain, p] of Object.entries(SITE_PRESETS)) {
-      if (host.includes(domain)) {
-        preset = p
-        break
-      }
-    }
-  } catch {
-    /* ignore */
-  }
+  try { assertSourceAvailable(srcUrl) } catch { return c.json({ error: SOURCE_UNAVAILABLE }, 404) }
+  const preset = presetForUrl(srcUrl)
   const coverUrl = buildCoverUrl(srcUrl, preset)
   if (!coverUrl) return c.json({ error: `${preset?.name || '该站点'} 尚未配置封面规则` }, 400)
   const row = await first<{ cover_url: string }>(db, 'SELECT cover_url FROM novels WHERE id = $1', [novelId])

@@ -10,7 +10,7 @@ const novel = { id: 'review-book', title: '山雨来时：一段较长的作品�
 const localChapters = [44, 46, 46].map((order, i) => ({ id: `c${i}`, order, title: ['他注视着她【900珠加更】', '不行了，累累', '没有喊哥哥'][i] }))
 localChapters.push(...Array.from({ length: 20 }, (_, i) => ({ id: `c${i + 3}`, order: i + 47, title: `后续章节 ${i + 1}` })))
 const sourceChapters = localChapters.map((row, i) => ({ key: `s${i}`, order: 44 + i, title: row.title }))
-const original = { runId: 'review-run', revision: 0, site: 'po18tw', metadata: { title: novel.title, author: novel.author, description: '', coverUrl: '', categories: [], status: 'ongoing' }, sourceChapterCount: 23, localChapterCount: 23, matchedSourceCount: 22, unmatchedLocal: [localChapters[1]], unmatchedSource: [sourceChapters[1]], warnings: [], changes: [], manualMappings: [], localChapters, sourceChapters, mappings: localChapters.flatMap((_, i) => i === 1 ? [] : [{ sourceChapterKey: `s${i}`, sourceOrder: 44 + i, sourceTitle: localChapters[i].title, localChapterIds: [`c${i}`], relation: 'one_to_one', confidence: 'high', matchReason: 'exact-title', matchEvidence: '完整标题一致，序号不同仍可独立定位。' }]) }
+const original = { runId: 'review-run', revision: 0, site: 'fixture', metadata: { title: novel.title, author: novel.author, description: '', coverUrl: '', categories: [], status: 'ongoing' }, sourceChapterCount: 23, localChapterCount: 23, matchedSourceCount: 22, unmatchedLocal: [localChapters[1]], unmatchedSource: [sourceChapters[1]], warnings: [], changes: [], manualMappings: [], localChapters, sourceChapters, mappings: localChapters.flatMap((_, i) => i === 1 ? [] : [{ sourceChapterKey: `s${i}`, sourceOrder: 44 + i, sourceTitle: localChapters[i].title, localChapterIds: [`c${i}`], relation: 'one_to_one', confidence: 'high', matchReason: 'exact-title', matchEvidence: '完整标题一致，序号不同仍可独立定位。' }]) }
 const browser = await chromium.launch({ channel: process.env.SOURCE_SYNC_CHECK_CHANNEL || undefined, headless: true })
 try {
   for (const [width, height, theme] of [[1440, 1000, 'light'], [390, 844, 'light'], [1440, 1000, 'dark']]) {
@@ -29,7 +29,7 @@ try {
       else if (url.pathname === '/api/chapters' && action === 'batch-delete') { assert.deepEqual(body.chapterIds, ['c1']); deleted = true; data = { success: true } }
       else if (url.pathname === '/api/chapters/c1') data = { chapter: { id: 'c1', novelId: novel.id, content: '隔离测试正文，用于确认混入章节。' } }
       else if (url.pathname === '/api/chapters') data = { chapters: localChapters.map(row => ({ ...row, novelId: novel.id, wordCount: 100 })) }
-      else if (action === 'source-bindings') data = { bindings: [{ isPrimary: true, sourceUrl: 'https://www.po18.tw/books/12345' }] }
+      else if (action === 'source-bindings') data = { bindings: [{ isPrimary: true, sourceUrl: 'https://source.example/books/12345' }] }
       else if (action === 'source-sync-preview') { previewReads++; data = original }
       else if (action === 'source-sync-remap') {
         assert.equal(body.revision, 0)
@@ -48,7 +48,7 @@ try {
           manualMappings: deleted ? [] : currentPreview.manualMappings, localChapterCount: deleted ? 22 : 23, matchedSourceCount: deleted ? 22 : 23,
           unmatchedSource: deleted ? [sourceChapters[1]] : [], unmatchedLocal: [] }
         currentPreview = data
-      } else if (action === 'source-sync-history') data = { total: 2, items: [{ runId: 'old-run', status: rolledBack ? 'rolled_back' : 'applied', appliedAt: Date.now(), summary: { novelTitle: novel.title, sourceUrl: 'https://www.po18.tw/books/12345', titleUpdated: 0, orderUpdated: 25, metadataUpdated: 0 }, canRollback: !rolledBack }, { runId: 'earlier-run', status: 'applied', appliedAt: Date.now() - 3600000, summary: { novelTitle: novel.title, sourceUrl: 'https://www.po18.tw/books/12345', titleUpdated: 49, orderUpdated: 0, metadataUpdated: 0 }, canRollback: true }] }
+      } else if (action === 'source-sync-history') data = { total: 2, items: [{ runId: 'old-run', status: rolledBack ? 'rolled_back' : 'applied', appliedAt: Date.now(), summary: { novelTitle: novel.title, sourceUrl: 'https://source.example/books/12345', titleUpdated: 0, orderUpdated: 25, metadataUpdated: 0 }, canRollback: !rolledBack }, { runId: 'earlier-run', status: 'applied', appliedAt: Date.now() - 3600000, summary: { novelTitle: novel.title, sourceUrl: 'https://source.example/books/12345', titleUpdated: 49, orderUpdated: 0, metadataUpdated: 0 }, canRollback: true }] }
       else if (action === 'source-sync-history-detail') data = { runId: 'old-run', changes: [{ kind: 'chapter', id: 'c1', before: { order: 46, title: '不行了，累累' }, after: { order: 45, title: '不行了，累累' } }] }
       else if (action === 'source-sync-rollback') { rolledBack = true; data = { runId: 'old-run', restored: 1, conflicts: [] } }
       await route.fulfill({ json: data })

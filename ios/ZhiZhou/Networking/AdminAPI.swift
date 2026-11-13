@@ -452,7 +452,7 @@ enum AdminAPI {
         return try await postScrape(body, idempotencyKey: operationID.isEmpty ? nil : operationID)
     }
 
-    /// POST /api/scrape action=title-source-search：同时搜索晋江与 POPO 原作者页面。
+    /// POST /api/scrape action=title-source-search：搜索已支持的原作者站点。
     static func titleSourceSearch(title: String, author: String = "") async throws -> TitleSourceSearchResponse {
         try await postScrape([
             "action": "title-source-search",
@@ -461,32 +461,34 @@ enum AdminAPI {
         ])
     }
 
-    /// POPO 账号状态、登录验证码与会话管理。
-    static func po18Account() async throws -> Po18AccountStatus {
-        try await APIClient.shared.get("/api/scrape?action=po18-account", auth: true)
+    /// 已安装书源的账号状态、登录验证码与会话管理。
+    static func sourceAccount(sourceId: String) async throws -> SourceAccountStatus {
+        var query = URLComponents()
+        query.queryItems = [URLQueryItem(name: "action", value: "source-account"), URLQueryItem(name: "sourceId", value: sourceId)]
+        return try await APIClient.shared.get("/api/scrape?" + (query.percentEncodedQuery ?? ""), auth: true)
     }
 
-    static func savePo18Account(username: String, password: String? = nil, sessionCookie: String? = nil) async throws -> Po18AccountStatus {
-        var body: [String: Any] = ["action": "po18-account-save", "username": username]
+    static func saveSourceAccount(sourceId: String, username: String, password: String? = nil, sessionCookie: String? = nil) async throws -> SourceAccountStatus {
+        var body: [String: Any] = ["action": "source-account-save", "sourceId": sourceId, "username": username]
         if let password, !password.isEmpty { body["password"] = password }
         if let sessionCookie, !sessionCookie.isEmpty { body["sessionCookie"] = sessionCookie }
         return try await postScrape(body)
     }
 
-    static func po18Captcha() async throws -> Po18CaptchaResponse {
-        try await postScrape(["action": "po18-account-captcha"])
+    static func sourceAccountCaptcha(sourceId: String) async throws -> SourceAccountCaptcha {
+        try await postScrape(["action": "source-account-captcha", "sourceId": sourceId])
     }
 
-    static func po18Login(challengeId: String, captcha: String = "") async throws -> Po18LoginResponse {
-        try await postScrape(["action": "po18-account-login", "challengeId": challengeId, "captcha": captcha])
+    static func sourceAccountLogin(sourceId: String, challengeId: String, captcha: String = "") async throws -> SourceAccountLogin {
+        try await postScrape(["action": "source-account-login", "sourceId": sourceId, "challengeId": challengeId, "captcha": captcha])
     }
 
-    static func testPo18Account() async throws -> Po18LoginResponse {
-        try await postScrape(["action": "po18-account-test"])
+    static func testSourceAccount(sourceId: String) async throws -> SourceAccountLogin {
+        try await postScrape(["action": "source-account-test", "sourceId": sourceId])
     }
 
-    static func clearPo18Account() async throws {
-        let _: OkEnvelope = try await postScrape(["action": "po18-account-clear"])
+    static func clearSourceAccount(sourceId: String) async throws {
+        let _: OkEnvelope = try await postScrape(["action": "source-account-clear", "sourceId": sourceId])
     }
 
     // MARK: - 爬虫：智能分析 / 测试 / 启动
@@ -681,7 +683,7 @@ enum AdminAPI {
         try await APIClient.shared.get("/api/admin/site", auth: true)
     }
 
-    // MARK: - 爬虫：发现小说（POST /api/scrape action=discover / po18-search / popo-search）
+    // MARK: - 爬虫：发现小说
 
     /// 榜单页 URL → 批量发现小说列表（分页）。
     static func scrapeDiscover(listUrl: String, rankingKind: String? = nil, rankingType: String? = nil) async throws -> DiscoverResponse {
@@ -693,14 +695,12 @@ enum AdminAPI {
         return try await postScrape(body)
     }
 
-    /// PO18 站内搜索：searchType = articlename（书名）| author（作者）。
-    static func scrapePo18Search(query: String, searchType: String = "articlename", page: Int = 1) async throws -> DiscoverResponse {
-        try await postScrape(["action": "po18-search", "query": query, "searchType": searchType, "page": page])
+    static func scrapeSourceCapabilities() async throws -> ScrapeSourceCapabilities {
+        try await APIClient.shared.get("/api/scrape?action=source-capabilities", auth: true)
     }
 
-    /// POPO（po18.tw）站内搜索：searchType = book（书名）| author（作者）。
-    static func scrapePopoSearch(query: String, searchType: String = "book", page: Int = 1) async throws -> DiscoverResponse {
-        try await postScrape(["action": "popo-search", "query": query, "searchType": searchType, "page": page])
+    static func scrapeSourceSearch(sourceId: String, query: String, searchType: String, page: Int) async throws -> DiscoverResponse {
+        try await postScrape(["action": "source-search", "sourceId": sourceId, "query": query, "searchType": searchType, "page": page])
     }
 
     // MARK: - 爬虫：配置导入导出（action=list-configs / import-configs / import-legado）

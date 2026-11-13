@@ -12,7 +12,7 @@ function change(overrides: Partial<SourceSyncChange> & { localChapterId: string 
 
 /** 真实书形态：5 条 change 全部 eligible=true，其中 1 条是「84.首长和太子」这类导入编号清理。 */
 const preview = {
-  runId: 'run', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: 'https://www.po18.tw/books/1',
+  runId: 'run', bindingId: 'binding', novelId: 'novel', site: 'fixture', sourceUrl: 'https://source.example/books/1',
   metadata: { title: '', author: '', description: '', coverUrl: '', categories: [], status: '' },
   sourceChapterCount: 182, localChapterCount: 181, splitLocalChapterCount: 0, matchedSourceCount: 179,
   unmatchedSource: [], unmatchedLocal: [], warnings: [],

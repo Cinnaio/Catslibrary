@@ -1,4 +1,4 @@
--- PO18.tw 登录凭证与会话：密码和 Cookie 均使用应用密钥加密保存，不向前端回传。
+-- 书源账号凭证与会话使用应用密钥加密保存。
 CREATE TABLE IF NOT EXISTS source_accounts (
   id                       TEXT PRIMARY KEY,
   site                     TEXT NOT NULL UNIQUE,

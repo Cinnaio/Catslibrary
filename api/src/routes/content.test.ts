@@ -4,7 +4,7 @@ import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
 import { run } from '../db/query'
 import { getDefaultCoverImage } from '../default-cover'
-import { LEGACY_DEFAULT_COVER_URL } from '@shared/covers'
+const LEGACY_DEFAULT_COVER_URL = 'https://covers.example/17mb/style/noimg.jpg'
 
 let t: TestDb
 

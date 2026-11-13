@@ -29,7 +29,7 @@ export default function StepAnalyze({ sourceUrl, onSourceUrlChange, analyzing, r
           type="url"
           className="min-w-64 flex-1 admin-input--compact"
           aria-label="小说网址"
-          placeholder="https://wap.po18x.vip/book/10075/"
+          placeholder="https://example.com/book/123"
           value={sourceUrl}
           onChange={(e) => onSourceUrlChange(e.target.value)}
           onKeyDown={(e) => {

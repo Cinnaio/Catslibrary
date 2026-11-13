@@ -654,7 +654,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
           </div>
           <MotionDetails className="chapter-merge-dialog__source" open={sourceExpanded} onToggle={(event) => setSourceExpanded(event.currentTarget.open)}>
             <summary>原作者源站<span>{sourcePreview ? '已读取 · 更换来源' : '搜索作品或粘贴链接'}</span></summary>
-            <p className="dialog-frame-hint">支持晋江与 PO18.tw。选择搜索结果后会直接读取并生成预览。</p>
+            <p className="dialog-frame-hint">选择已配置的源站作品后，读取目录并生成预览。</p>
             <div className="chapter-merge-dialog__source-grid grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
               <Input aria-label="搜索书名" placeholder="书名" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchTitle} onChange={(e) => setSourceSearchTitle(e.target.value)} />
               <Input aria-label="搜索作者" placeholder="作者（可选）" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchAuthor} onChange={(e) => setSourceSearchAuthor(e.target.value)} />
@@ -671,7 +671,7 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
                   disabled={renaming}
                   onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void previewSourceSync() }}
                   value={sourceUrl}
-                  placeholder="https://www.jjwxc.net/onebook.php?novelid=… 或 https://www.po18.tw/…"
+                  placeholder="粘贴原作者作品或目录链接"
                   onChange={(e) => {
                     ++mergeRequest.current
                     setSourceError('')

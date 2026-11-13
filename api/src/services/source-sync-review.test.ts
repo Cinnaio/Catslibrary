@@ -15,11 +15,11 @@ async function seed(localTitles = ['第一章 原标题', '第二章 原标题']
   const novelId = `review-novel-${++counter}`
   const runId = `review-run-${counter}`
   const bindingId = `review-binding-${counter}`
-  const sourceUrl = 'https://www.po18.tw/books/902326/articles'
+  const sourceUrl = 'https://source.example/books/902326/articles'
   const local: LocalChapterForSync[] = localTitles.map((title, index) => ({ id: `${novelId}-${index}`, title, order: orders?.[index] ?? index + 1 }))
   const source: SourceChapter[] = sourceTitles.map((title, index) => ({ key: `s${index}`, title, order: index + 1, url: `${sourceUrl}/${index}` }))
   const metadata = { title: '源站书名', author: '源站作者', description: '', coverUrl: '', category: '', categories: [], status: 'ongoing', sourceUrl }
-  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true, { runId, novelId, bindingId, site: 'po18tw', sourceUrl }, [])
+  const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true, { runId, novelId, bindingId, site: 'fixture', sourceUrl }, [])
   await t.db.query('INSERT INTO novels (id,title,author,created_at,updated_at) VALUES ($1,\'本地书名\',\'本地作者\',1,1)', [novelId])
   for (const row of local) await t.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,created_at) VALUES ($1,$2,$3,\'正文保持\',$4,1)', [row.id, novelId, row.title, row.order])
   await t.db.query('INSERT INTO novel_source_bindings (id,novel_id,source_url,created_at,updated_at) VALUES ($1,$2,$3,1,1)', [bindingId, novelId, sourceUrl])
@@ -37,8 +37,8 @@ it('匹配依据区分完整标题、编号、部分标题与顺序推断', () =
   ]
   for (const [source, local, reason] of cases) {
     const p = sourceSyncTestHelpers().buildPreview([{ key: 's', order: 1, title: source!, url: '' }], [{ id: 'l', order: 1, title: local! }],
-      { title: '', author: '', description: '', coverUrl: '', category: '', categories: [], status: '', sourceUrl: 'https://www.po18.tw/books/1' }, true,
-      { runId: 'r', novelId: 'n', bindingId: 'b', site: 'po18tw', sourceUrl: '' }, [])
+      { title: '', author: '', description: '', coverUrl: '', category: '', categories: [], status: '', sourceUrl: 'https://source.example/books/1' }, true,
+      { runId: 'r', novelId: 'n', bindingId: 'b', site: 'fixture', sourceUrl: '' }, [])
     expect(p.mappings[0]).toMatchObject({ matchReason: reason, matchEvidence: expect.any(String) })
   }
 })

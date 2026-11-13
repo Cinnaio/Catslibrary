@@ -22,7 +22,7 @@
   gap: 1.5rem;
 }
 
-/* PO18 账号凭据卡片 — 完全承接 Claude 标准卡片规范（与「从哪里开始？」完全同一视觉语言） */
+/* 书源 账号凭据卡片 — 完全承接 Claude 标准卡片规范（与「从哪里开始？」完全同一视觉语言） */
 .admin-redesign-page--scrape .scrape-account-card {
   padding: 1.5rem 1.75rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -32,7 +32,7 @@
   border-color: rgba(217, 119, 87, 0.35);
 }
 
-.admin-redesign-page--scrape .scrape-account-card .po18-claude-expand-content {
+.admin-redesign-page--scrape .scrape-account-card .source-claude-expand-content {
   display: grid;
   gap: var(--admin-space-4, 1rem);
   padding-top: 1.25rem;
@@ -40,7 +40,7 @@
 }
 
 /* 呼吸微光状态圆点（取代原先 40px 的笨重图标方块） */
-.admin-redesign-page--scrape .po18-claude-dot {
+.admin-redesign-page--scrape .source-claude-dot {
   width: 7px;
   height: 7px;
   border-radius: 9999px;
@@ -49,28 +49,28 @@
   transition: all 0.2s ease;
 }
 
-.admin-redesign-page--scrape .po18-claude-dot.is-healthy {
+.admin-redesign-page--scrape .source-claude-dot.is-healthy {
   background: #10b981;
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
 }
 
-.admin-redesign-page--scrape .po18-claude-dot.is-warning {
+.admin-redesign-page--scrape .source-claude-dot.is-warning {
   background: #f59e0b;
   box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
 }
 
-.admin-redesign-page--scrape .po18-claude-dot.is-danger {
+.admin-redesign-page--scrape .source-claude-dot.is-danger {
   background: #ef4444;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
 }
 
-.admin-redesign-page--scrape .po18-claude-dot.is-neutral {
+.admin-redesign-page--scrape .source-claude-dot.is-neutral {
   background: var(--accent);
   box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.2);
 }
 
 /* 紧凑测试按钮 */
-.admin-redesign-page--scrape .po18-claude-test-btn {
+.admin-redesign-page--scrape .source-claude-test-btn {
   height: 1.625rem !important;
   border-radius: 6px !important;
   font-size: 0.725rem !important;
@@ -82,14 +82,14 @@
   transition: all 0.15s ease !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-test-btn:hover:not(:disabled) {
+.admin-redesign-page--scrape .source-claude-test-btn:hover:not(:disabled) {
   border-color: rgba(217, 119, 87, 0.45) !important;
   background: #faf6f0 !important;
   color: #c15f3d !important;
 }
 
 /* 折叠/展开文字触发器 */
-.admin-redesign-page--scrape .po18-claude-toggle-trigger {
+.admin-redesign-page--scrape .source-claude-toggle-trigger {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -101,13 +101,13 @@
   transition: all 0.15s ease;
 }
 
-.admin-redesign-page--scrape .po18-claude-bar:hover .po18-claude-toggle-trigger {
+.admin-redesign-page--scrape .source-claude-bar:hover .source-claude-toggle-trigger {
   color: var(--text-primary);
   background: rgba(0, 0, 0, 0.04);
 }
 
 /* 展开区域内边距与细分割线 */
-.admin-redesign-page--scrape .po18-claude-expand-content {
+.admin-redesign-page--scrape .source-claude-expand-content {
   display: grid;
   gap: var(--admin-space-5, 1.25rem);
   padding: 1.25rem 1.5rem 1.5rem;
@@ -116,7 +116,7 @@
 }
 
 /* 输入控件 Claude 风格外壳 */
-.admin-redesign-page--scrape .po18-claude-input {
+.admin-redesign-page--scrape .source-claude-input {
   height: 2.5rem !important;
   border-radius: 8px !important;
   border: 1px solid var(--admin-border, #dedcd5) !important;
@@ -127,14 +127,14 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-input:focus-visible,
-.admin-redesign-page--scrape .po18-claude-textarea:focus-visible {
+.admin-redesign-page--scrape .source-claude-input:focus-visible,
+.admin-redesign-page--scrape .source-claude-textarea:focus-visible {
   border-color: var(--accent) !important;
   outline: none !important;
   box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.15) !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-textarea {
+.admin-redesign-page--scrape .source-claude-textarea {
   border-radius: 8px !important;
   border: 1px solid var(--admin-border, #dedcd5) !important;
   background: var(--admin-field, #ffffff) !important;
@@ -145,7 +145,7 @@
 }
 
 /* 操作按钮 Claude 陶土色与暖调 */
-.admin-redesign-page--scrape .po18-claude-primary-btn {
+.admin-redesign-page--scrape .source-claude-primary-btn {
   height: 2.25rem !important;
   border-radius: 8px !important;
   background: var(--accent) !important;
@@ -158,12 +158,12 @@
   transition: all 0.15s ease !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-primary-btn:hover:not(:disabled) {
+.admin-redesign-page--scrape .source-claude-primary-btn:hover:not(:disabled) {
   background: var(--accent-hover) !important;
   border-color: var(--accent-hover) !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-secondary-btn {
+.admin-redesign-page--scrape .source-claude-secondary-btn {
   height: 2.25rem !important;
   border-radius: 8px !important;
   font-size: 0.8rem !important;
@@ -175,12 +175,12 @@
   transition: all 0.15s ease !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-secondary-btn:hover:not(:disabled) {
+.admin-redesign-page--scrape .source-claude-secondary-btn:hover:not(:disabled) {
   background: var(--admin-panel-muted, #f4f2ec) !important;
   border-color: rgba(217, 119, 87, 0.4) !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-ghost-btn {
+.admin-redesign-page--scrape .source-claude-ghost-btn {
   height: 2.25rem !important;
   border-radius: 8px !important;
   font-size: 0.8rem !important;
@@ -188,12 +188,12 @@
   color: var(--text-muted) !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-ghost-btn:hover:not(:disabled) {
+.admin-redesign-page--scrape .source-claude-ghost-btn:hover:not(:disabled) {
   color: var(--text-primary) !important;
   background: var(--admin-panel-muted, #f4f2ec) !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-clear-btn {
+.admin-redesign-page--scrape .source-claude-clear-btn {
   height: 2rem !important;
   border-radius: 6px !important;
   font-size: 0.775rem !important;
@@ -201,13 +201,13 @@
   transition: all 0.15s ease !important;
 }
 
-.admin-redesign-page--scrape .po18-claude-clear-btn:hover:not(:disabled) {
+.admin-redesign-page--scrape .source-claude-clear-btn:hover:not(:disabled) {
   color: #e11d48 !important;
   background: rgba(225, 29, 72, 0.08) !important;
 }
 
 /* 兼容旧选择器 */
-.admin-redesign-page--scrape .po18-account-compact-bar {
+.admin-redesign-page--scrape .source-account-compact-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -218,7 +218,7 @@
   transition: background-color 0.15s ease;
 }
 
-.admin-redesign-page--scrape .po18-account-compact-bar:hover {
+.admin-redesign-page--scrape .source-account-compact-bar:hover {
   background: var(--admin-panel-muted, #f4f2ec);
 }
 
@@ -418,31 +418,31 @@
 }
 
 /* Dark Mode Overrides */
-:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-account-card,
-:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-account-pill-card,
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .source-claude-account-card,
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .source-account-pill-card,
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-intake,
 :is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .scrape-queue-card {
   background: #1c1c1a;
   border-color: #2e2e2b;
 }
 
-:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-bar:hover,
-:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-account-compact-bar:hover {
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .source-claude-bar:hover,
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .source-account-compact-bar:hover {
   background: #252522;
 }
 
-:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-expand-content {
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .source-claude-expand-content {
   background: #1c1c1a;
   border-color: #2e2e2b;
 }
 
-:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-test-btn {
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .source-claude-test-btn {
   background: #22221f !important;
   border-color: var(--bg-hover) !important;
   color: #eeece3 !important;
 }
 
-:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .po18-claude-test-btn:hover:not(:disabled) {
+:is(.dark, [data-theme='dark']) .admin-redesign-page--scrape .source-claude-test-btn:hover:not(:disabled) {
   border-color: rgba(217, 119, 87, 0.6) !important;
   background: #2a2521 !important;
   color: #e08a68 !important;

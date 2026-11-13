@@ -47,7 +47,7 @@ describe('连载追更', () => {
     await t.db.query(
       "INSERT INTO book_import_runs(id,target_novel_id,source_type,source_label,status,created_at,applied_at) VALUES('txt-run','txt-source','file','原书名.txt','applied',1,1)",
     )
-    await bindFollowupSource(t.db, 'txt-source', 'https://www.po18.tw/books/123')
+    await bindFollowupSource(t.db, 'txt-source', 'https://czbooks.net/n/123')
     expect(await getFollowup(t.db, 'txt-source')).toMatchObject({ enabled: false, intervalHours: 12, hasConfig: true, importSourceLabel: '原书名.txt', remoteChapterCount: 0, checkedAt: 0, result: 'idle', failures: 0, pendingChapterCount: null })
     const novel = await t.db.query("SELECT title,author,source_url FROM novels WHERE id='txt-source'")
     expect(novel.rows[0]).toEqual({ title: '原书名', author: '作者', source_url: 'https://original.example/book' })
@@ -56,7 +56,7 @@ describe('连载追更', () => {
     expect((await getFollowup(t.db, 'txt-source'))?.enabled).toBe(true)
   })
   it('未知站点要求明确规则，拒绝伪装域名与无效配置，并保留自定义编码', async () => {
-    await expect(bindFollowupSource(t.db, 'unconfigured', 'https://po18.tw.evil.example/books/123')).rejects.toThrow('暂无内置规则')
+    await expect(bindFollowupSource(t.db, 'unconfigured', 'https://czbooks.net.evil.example/n/123')).rejects.toThrow('暂无内置规则')
     await expect(bindFollowupSource(t.db, 'unconfigured', 'file:///secret')).rejects.toThrow('HTTP')
     await expect(bindFollowupSource(t.db, 'unconfigured', 'https://example.com/book', { chapterList: 'a' })).rejects.toThrow('选择器')
     await bindFollowupSource(t.db, 'unconfigured', 'https://example.com/book', { chapterList: 'a', chapterContent: '.body' }, 'gbk')
@@ -65,7 +65,7 @@ describe('连载追更', () => {
   it('活动任务阻止改绑来源，原配置保持不变', async () => {
     await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('binding-busy','执行中',1,1)")
     await t.db.query("INSERT INTO scrape_jobs(id,novel_id,status,started_at,updated_at) VALUES('binding-job','binding-busy','starting',1,1)")
-    await expect(bindFollowupSource(t.db, 'binding-busy', 'https://www.po18.tw/books/123')).rejects.toThrow('正在执行')
+    await expect(bindFollowupSource(t.db, 'binding-busy', 'https://czbooks.net/n/123')).rejects.toThrow('正在执行')
     expect((await t.db.query("SELECT * FROM scrape_configs WHERE novel_id='binding-busy'")).rows).toHaveLength(0)
     await t.db.query("UPDATE scrape_jobs SET status='cancelled' WHERE id='binding-job'")
   })
@@ -122,6 +122,31 @@ describe('连载追更', () => {
     expect((await getFollowup(t.db, 'follow'))?.result).toBe('failed')
     expect((await enqueueFollowup(t.db, 'follow')).started).toBe(true)
   })
+
+  it('未安装旧书源时保留绑定、开关及历史，其他书源仍可调度', async () => {
+    await t.db.query(`INSERT INTO novels(id,title,status,created_at,updated_at) VALUES
+      ('legacy','旧书源作品','ongoing',1,1),('available','可用书源作品','ongoing',1,1)`)
+    const selectors = { chapterList: 'a', chapterContent: 'article' }
+    const sourceUrl = 'https://wap.po18x.vip/book/1/'
+    await store.upsertScrapeConfig({ novelId: 'legacy', sourceUrl, selectors })
+    await store.upsertScrapeConfig({ novelId: 'available', sourceUrl: 'https://example.com/book', selectors })
+    await t.db.query(`INSERT INTO novel_followups (novel_id,enabled,interval_hours,next_check_at,user_configured,message)
+      VALUES ('legacy',TRUE,12,0,TRUE,'此前更新成功'),('available',TRUE,6,1,TRUE,'')
+      ON CONFLICT(novel_id) DO UPDATE SET enabled=EXCLUDED.enabled,interval_hours=EXCLUDED.interval_hours,
+        next_check_at=EXCLUDED.next_check_at,user_configured=EXCLUDED.user_configured,message=EXCLUDED.message`)
+
+    expect(await getFollowup(t.db, 'legacy')).toMatchObject({
+      sourceUrl, enabled: true, intervalHours: 12, nextCheckAt: 0,
+      blockedReason: 'source_unavailable', message: '书源未安装',
+    })
+    await expect(enqueueFollowup(t.db, 'legacy')).rejects.toThrow('书源未安装')
+    const started: string[] = []
+    await runFollowupTick(t.db, id => started.push(id))
+    expect(started).toHaveLength(1)
+    expect((await t.db.query('SELECT novel_id FROM scrape_jobs WHERE id=$1', [started[0]])).rows).toEqual([{ novel_id: 'available' }])
+    expect((await t.db.query("SELECT message FROM novel_followups WHERE novel_id='legacy'")).rows).toEqual([{ message: '此前更新成功' }])
+  })
+
   it('连续无更新降低频率，错误重试有上限', () => {
     expect(followupDelay(6, 7, 0)).toBe(12 * 3600000)
     expect(followupDelay(24, 100, 0)).toBe(7 * 86400000)

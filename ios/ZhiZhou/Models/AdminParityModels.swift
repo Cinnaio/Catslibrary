@@ -6,6 +6,7 @@ struct AdminRecordPage<Item: Decodable>: Decodable {
 }
 
 struct NovelFollowup: Decodable {
+    let blockedReason: String?
     let enabled: Bool
     let intervalHours: Int
     let nextCheckAt: Int64

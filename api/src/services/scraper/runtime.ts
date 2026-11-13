@@ -2,10 +2,8 @@ import { getDb } from '../../db/pool'
 import { fetchHtml as fetchHtmlImpl, type FetchHtmlOptions } from './fetch'
 import { runScrapeJob, type ScrapeDeps } from './engine'
 import { PgScrapeStore } from './store'
-import { withPo18Session } from '../po18-fetch'
+import { sourceFetcher } from './sources'
 import { finishFollowup } from '../novel-followup'
-
-export { withPo18Session } from '../po18-fetch'
 
 export function makeDeps(db: ReturnType<typeof getDb>): ScrapeDeps {
   const store = new PgScrapeStore(db)
@@ -24,7 +22,7 @@ export function makeDeps(db: ReturnType<typeof getDb>): ScrapeDeps {
 
 export function fireJob(jobId: string, deps: ScrapeDeps, db: ReturnType<typeof getDb>): void {
   // 异步执行，完成后持久化追更结果；中断任务由定时调度回收。
-  const jobDeps = { ...deps, fetchHtml: withPo18Session(db, deps.fetchHtml) }
+  const jobDeps = { ...deps, fetchHtml: sourceFetcher(db, deps.fetchHtml) }
   void runScrapeJob(jobId, jobDeps)
     .catch(async (err) => {
       const store = deps.store

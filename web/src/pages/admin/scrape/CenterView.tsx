@@ -5,26 +5,20 @@ import '@/styles/input-fields.css'
 // ============================================================
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { ArrowLeft, SearchX } from 'lucide-react'
-import { novelsApi, scrapeApi } from '@/lib/api'
+import { novelsApi, scrapeApi, type ScrapeSourceCapability } from '@/lib/api'
 import { useConfirm, useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import JobQueue from './center/JobQueue'
 import styles from './workbench.module.css'
 import type { CheckItem, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
-import { scrapePost, parseCategories, po18CoverFallback, resolveRankingSource } from './utils'
-import Po18AccountPanel from './Po18AccountPanel'
+import { scrapePost, parseCategories } from './utils'
+import SourceAccountPanel from './SourceAccountPanel'
 import DiscoveryPanel from './center/DiscoveryPanel'
 import ScrapeIntake, { type IntakeMode } from './center/ScrapeIntake'
 import ScrapeSetupPanel, { type SetupPreview } from './center/ScrapeSetupPanel'
 import type { Selectors, TestResult } from './center/StepConfig'
 import { useScrapeJobs } from './center/useScrapeJobs'
-
-const PO18_PRESET = {
-  name: 'PO18',
-  encoding: 'gbk',
-  selectors: { chapterList: '.chapters li a', chapterTitle: '#chaptertitle', chapterContent: '#novelcontent', nextPage: '.page a' },
-}
 
 // contentRating 必须与 SetupPreview 同批初始化：漏掉这一格不会报错，
 // 但 onPreviewChange({ ...preview, contentRating }) 会因为键不存在而静默丢字段。
@@ -52,6 +46,26 @@ export default function CenterView() {
   const [sourceUrl, setSourceUrl] = useState(() => new URLSearchParams(window.location.search).get('source') || '')
   const [searchInput, setSearchInput] = useState('')
   const [searchType, setSearchType] = useState('articlename')
+  const [searchSourceId, setSearchSourceId] = useState('')
+  const [capabilities, setCapabilities] = useState<{ userId: string; sources: ScrapeSourceCapability[]; error?: string } | null>(null)
+  const userId = sessionUser?.id
+  const currentCapabilities = capabilities?.userId === userId ? capabilities : null
+  const sources = currentCapabilities?.sources ?? []
+  const searchSources = sources.filter(source => source.search)
+  const searchSource = searchSources.find(source => source.id === searchSourceId) ?? searchSources[0]
+  const rankings = sources.flatMap(source => source.rankings.map(ranking => ({ ...ranking, sourceName: source.name })))
+
+  const [capabilityAttempt, retryCapabilities] = useState(0)
+  useEffect(() => {
+    if (!userId) return
+    let current = true
+    void scrapeApi.sourceCapabilities().then(({ sources }) => {
+      if (current) setCapabilities({ userId, sources })
+    }).catch((error: Error) => {
+      if (current) setCapabilities({ userId, sources: [], error: error.message || '无法读取书源能力' })
+    })
+    return () => { current = false }
+  }, [userId, capabilityAttempt])
   const [siteValue, setSiteValue] = useState('')
   const [discoverUrl, setDiscoverUrl] = useState('')
   const [intakeLoading, setIntakeLoading] = useState(false)
@@ -76,7 +90,6 @@ export default function CenterView() {
   const [started, setStarted] = useState(false)
   const [currentScrapeNovelId, setCurrentScrapeNovelId] = useState('')
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [sitePreset, setSitePreset] = useState('custom')
   const [chapterListUrl, setChapterListUrl] = useState('')
   const [selectors, setSelectors] = useState<Selectors>(EMPTY_SELECTORS)
   const [activeEncoding, setActiveEncoding] = useState('')
@@ -113,7 +126,7 @@ export default function CenterView() {
     const novel = data.novel || {}
     const rawCategories: string[] = Array.isArray(novel.categories) ? novel.categories : novel.category ? [novel.category] : []
     const fallbackUrl = novel.sourceUrl || item.url
-    const coverUrl = novel.coverUrl && !/noimg\.jpg/i.test(novel.coverUrl) ? novel.coverUrl : po18CoverFallback(fallbackUrl) || item.coverUrl || ''
+    const coverUrl = novel.coverUrl && !/noimg\.jpg/i.test(novel.coverUrl) ? novel.coverUrl : item.coverUrl || ''
     const nextSelectors: Selectors = {
       chapterList: data.selectors?.chapterList || '',
       chapterTitle: data.selectors?.chapterTitle || '',
@@ -135,7 +148,6 @@ export default function CenterView() {
     setChapterListUrl(data.chapterListUrl || fallbackUrl)
     setSelectors(nextSelectors)
     setActiveEncoding(data.encoding || '')
-    setSitePreset(data.site?.name?.toLowerCase().includes('po18') ? 'po18' : 'custom')
     setTestResult({ loading: false, data: null })
     setTestChecks([
       { label: '小说信息', ok: !!(novel.title || item.title) },
@@ -183,7 +195,7 @@ export default function CenterView() {
       const item: DiscoverNovel = {
         title: data.novel.title || '待确认作品',
         author: data.novel.author || '',
-        coverUrl: data.novel.coverUrl || po18CoverFallback(value),
+        coverUrl: data.novel.coverUrl,
         url: value,
         description: data.novel.description || '',
         chapterCount: data.chapterCount,
@@ -231,7 +243,7 @@ export default function CenterView() {
       return
     }
     // 下拉选中的预设携带 kind/type；地址被手改过就当自定义 URL，只按地址发现。
-    const preset = resolveRankingSource(siteValue)
+    const preset = rankings.find(ranking => ranking.id === siteValue)
     const usePreset = !!preset && preset.listUrl === value
     const listUrl = usePreset ? preset.listUrl : value
     const ranking = usePreset ? { rankingKind: preset.rankingKind, rankingType: preset.rankingType } : {}
@@ -242,7 +254,7 @@ export default function CenterView() {
     await renderDiscoverResults({ action: 'discover', listUrl, ...ranking }, '未在页面中找到小说')
   }
 
-  async function fetchPo18Search() {
+  async function fetchSourceSearch() {
     const value = searchInput.trim()
     if (!value) {
       toast('请输入搜索关键词', 'error')
@@ -251,12 +263,13 @@ export default function CenterView() {
     listUrlRef.current = ''
     rankingRef.current = {}
     setTotalPages(1)
-    await renderDiscoverResults({ action: 'po18-search', query: value, searchType }, '未找到搜索结果')
+    if (!searchSource) return
+    await renderDiscoverResults({ action: 'source-search', sourceId: searchSource.id, query: value, searchType }, '未找到搜索结果')
   }
 
   function submitIntake() {
-    if (intakeMode === 'link') void analyzeUrl()
-    else if (intakeMode === 'search') void fetchPo18Search()
+    if (intakeMode === 'link' || (intakeMode === 'search' && !searchSource)) void analyzeUrl()
+    else if (intakeMode === 'search') void fetchSourceSearch()
     else void fetchDiscoverList()
   }
 
@@ -285,15 +298,6 @@ export default function CenterView() {
       else next.add(index)
       return next
     })
-  }
-
-  function applySitePreset(key: string) {
-    clearSelectorTest()
-    setSitePreset(key)
-    if (key === 'custom') return
-    setSelectors(PO18_PRESET.selectors)
-    setActiveEncoding(PO18_PRESET.encoding)
-    toast(`已应用 ${PO18_PRESET.name} 预设`, 'success')
   }
 
   function clearSelectorTest() {
@@ -529,7 +533,13 @@ export default function CenterView() {
 
   return (
     <div className={styles.center}>
-      {sessionUserRole === 'super_admin' && <Po18AccountPanel active />}
+      {currentCapabilities?.error && <div className={styles.controls}>
+        <p className={styles.hint} role="status">{currentCapabilities.error}</p>
+        <Button variant="ghost" onClick={() => retryCapabilities(attempt => attempt + 1)}>重新读取书源</Button>
+      </div>}
+      {sessionUserRole === 'super_admin' && sources.filter(source => source.account).map(source => (
+        <SourceAccountPanel key={`${userId}:${source.id}`} sourceId={source.id} sourceName={source.name} />
+      ))}
       <section className={styles.panel} aria-labelledby="scrape-workbench-title">
         <div className={styles.heading}>
           <h2 id="scrape-workbench-title" className={styles.title}>导入作品</h2>
@@ -541,7 +551,11 @@ export default function CenterView() {
         </div>
         {!activeCandidate && <div ref={intakeRef}>
             <ScrapeIntake
-              mode={intakeMode}
+              mode={intakeMode === 'search' && !searchSource ? 'link' : intakeMode}
+              searchSources={searchSources}
+              searchSourceId={searchSource?.id || ''}
+              onSearchSourceChange={setSearchSourceId}
+              rankingOptions={rankings.map(ranking => ({ value: ranking.id, label: ranking.label, sub: ranking.sourceName }))}
               onModeChange={setIntakeMode}
               sourceUrl={sourceUrl}
               onSourceUrlChange={setSourceUrl}
@@ -552,8 +566,7 @@ export default function CenterView() {
               siteValue={siteValue}
               onSiteChange={(value) => {
                 setSiteValue(value)
-                // 输入框展示真实请求地址；POPO 的 15 个榜单共用 /rank/index，靠 kind/type 区分。
-                setDiscoverUrl(resolveRankingSource(value)?.listUrl || value)
+                setDiscoverUrl(rankings.find(ranking => ranking.id === value)?.listUrl || value)
               }}
               discoverUrl={discoverUrl}
               onDiscoverUrlChange={setDiscoverUrl}
@@ -621,8 +634,6 @@ export default function CenterView() {
                 chapterCount={activeCandidate.meta.chapterCount || 0}
                 hasMoreChapters={Boolean(activeCandidate.meta.hasMoreChapters)}
                 protectedChapterCount={activeCandidate.meta.protectedChapterCount || 0}
-                sitePreset={sitePreset}
-                onSitePresetChange={applySitePreset}
                 chapterListUrl={chapterListUrl}
                 onChapterListUrlChange={(value) => { setChapterListUrl(value); clearSelectorTest() }}
                 encoding={activeEncoding}

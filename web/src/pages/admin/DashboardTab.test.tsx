@@ -65,10 +65,10 @@ it('切换检查安排与最近结果，区分调度时间和新增章节', asyn
 })
 it('账号会话阻断时显示等待重新登录，不显示等待调度', async () => {
   const data = fixture()
-  data.followups.issues = [{ ...book('会话失效作品', 'failed'), nextCheckAt: 0, blockedReason: '请重新登录 PO18', message: '请重新登录 PO18' }]
+  data.followups.issues = [{ ...book('会话失效作品', 'failed'), nextCheckAt: 0, blockedReason: '请重新登录书源', message: '请重新登录书源' }]
   mocks.stats.mockResolvedValue(data)
   show()
-  expect(await screen.findByText('等待重新登录')).toBeVisible()
+  expect(await screen.findByText('等待书源恢复')).toBeVisible()
   expect(screen.queryByText('等待调度')).not.toBeInTheDocument()
 })
 it('没有异常时默认展示安排，空结果说明状态而非显示故障', async () => {

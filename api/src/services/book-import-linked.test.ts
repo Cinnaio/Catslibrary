@@ -61,7 +61,7 @@ describe('import / title fusion / supplementary update contracts', () => {
   it('reimport after source-title fusion uses a unique body match, preventing duplicate insertion', () => {
     const book = { title: '候选作品', author: '样本', chapters: [{ title: '第0011章 10.归途（微h）', order: 11, content: '一份能够唯一识别的原始正文。' }] }
     const local = [
-      { id: 'existing', title: '10.归途', sort_order: 10, content: book.chapters[0]!.content, source_url: 'https://www.po18.tw/books/1/articles/10' },
+      { id: 'existing', title: '10.归途', sort_order: 10, content: book.chapters[0]!.content, source_url: 'https://source.example/books/1/articles/10' },
     ]
     const [diff] = buildChapterDiff(book, local)
     expect(diff?.localChapterId).toBe('existing')

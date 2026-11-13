@@ -27,6 +27,20 @@
 
 `.github/workflows/deploy.yml` 先调用同一提交的验证工作流，全部通过后才启动部署作业。部署按不可变工件 ID 下载**同一次运行中验证过的原包**，核对源码 SHA 与归档 SHA-256 后才加载 SSH 密钥；之后只信任已核对的主机密钥，检查服务器协议 2，上传并执行 `/usr/local/bin/zhizhou-release <完整 SHA>`。部署作业不重新构建，也不根据名称搜索或下载其他运行的工件。单独验收后手动启动 Deploy，会在新的运行里重新构建并验证当前所选提交，不直接沿用之前的验收工件。
 
+### 安装扩展书源的部署
+
+公开工作流验证并部署核心版。使用扩展书源的实例从私有 CI 构建和保存发布包，沿用上面的归档校验、PostgreSQL 冒烟检查和协议 2 发布步骤。
+
+1. 在私有构建工作区检出核心的指定提交，再将适配器的指定提交检出到 `api/private-sources/`。入口 `index.ts` 导出 `installedAdapters` 数组，元素使用 `api/src/services/scraper/sources.ts` 的 `ScrapeAdapter` 类型。
+2. 使用 `.node-version` 的 Node 执行 `npm ci`。从两个检出目录分别取得完整提交 SHA，设置 `RELEASE_SHA`、`CATSLIBRARY_SOURCE_ADAPTER_SHA`，以及 `CATSLIBRARY_PRIVATE_SOURCES=1`，再运行 `npm run build`。发布清单会记录核心和适配器的提交。
+3. 运行适配器测试，并用核心的 `npm run release:package` 和 `npm run release:smoke` 验收私有包。核对 `api/dist/release.json` 的 `sourceAdapterRevision` 与检出的适配器提交一致，再上传到目标实例。
+
+适配器仓库可运行随源码提供的 **Verify private release package**。工作流以指定的核心 SHA 和当前适配器 SHA 构建，在临时 PostgreSQL 上验收，并在私有仓库保存归档。
+
+有历史书源账号的实例沿用原数据库和原 `SOURCE_ACCOUNT_ENCRYPTION_KEY`。切换前用数据库副本核对旧作品、章节、绑定和追更状态。可以用本地的 `CATSLIBRARY_PRIVATE_SOURCES=1` 构建验证适配器，正式归档需要两个源码提交的完整 SHA。
+
+### 服务器发布工具
+
 `zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）的行为：
 
 - 在站点所在文件系统内创建独立暂存目录；拒绝越界路径、软硬链接、特殊文件、重复路径、超限包以及清单不符的文件，核对平台、CPU、Node 策略、源码 SHA、完整摘要和锁文件

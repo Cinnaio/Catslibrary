@@ -20,6 +20,7 @@ coverage/
 data/
 .tmp/
 .visual/
+/api/private-sources/
 
 # ── OS / 编辑器 ──
 .DS_Store
