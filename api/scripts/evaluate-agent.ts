@@ -392,16 +392,19 @@ try {
         } else if (fixture.id === 'L02') {
           for (let stage = 0; stage < 3; stage++) await seedDiscussion(session, stage, stage === 0 ? 65 : 40)
           interruptSummaryAfter = 1
-          const failed = await turn(session, user, fixture.prompt)
-          const checkpoint = failed.summary
-          check('second_summary_interrupted_without_auto_retry', failed.status === 'failed' && caseCalls === 1 && sample.requests.length === 2)
+          const degraded = await turn(session, user, fixture.prompt)
+          const checkpoint = degraded.summary
+          const interrupted = sample.requests.find(row => row.kind === 'injected_summary_interruption_no_provider_call')
+          check('second_summary_interrupted_without_auto_retry', !!interrupted && sample.requests.filter(row => row.kind === 'summary').length === 1)
+          check('reply_completed_with_history_gap', degraded.status === 'completed' && degraded.events.some(event => !!event.metadata.summaryDiagnostic && !event.metadata.error))
           check('first_checkpoint_preserved', checkpoint?.revision === 1 && checkpoint.throughEventId > 0)
-          if (failed.status === 'failed' && checkpoint) {
-            const failedInput = JSON.parse((sample.requests.at(-1)!.messages as Array<{ content: string }>)[1]!.content) as { events: Array<{ id: number }> }
+          if (interrupted && checkpoint) {
+            const failedInput = JSON.parse((interrupted.messages as Array<{ content: string }>)[1]!.content) as { events: Array<{ id: number }> }
             check('failure_begins_after_checkpoint', Number(failedInput.events[0]?.id) > checkpoint.throughEventId)
+            await t.db.query('UPDATE ai_agent_summary_failures SET created_at=0 WHERE session_id=$1', [session.id])
             const nextRequest = sample.requests.length
-            const recovered = await turn(session, user, '继续整理已有讨论，只查阅并总结。', failed.taskId)
-            check('manual_recovery_completed', recovered.status === 'completed')
+            const recovered = await turn(session, user, fixture.prompt)
+            check('reply_after_cooldown_completed', recovered.status === 'completed')
             check('recovery_read_only', readOnly(recovered))
             const resumedInput = JSON.parse((sample.requests[nextRequest]!.messages as Array<{ content: string }>)[1]!.content) as { events: Array<{ id: number }>; previousSummary: unknown }
             check('recovery_reuses_saved_summary', JSON.stringify(resumedInput.previousSummary) === JSON.stringify(checkpoint.content))
@@ -433,16 +436,13 @@ try {
           const target = fixture.id === 'Q02' ? await createAgentSession(t.db, user, { novelId: book }) : session
           if (fixture.id === 'Q11') {
             interruptSummaryAfter = 0
-            const failed = await turn(target, user, fixture.prompt)
-            check('controlled_failure_without_auto_retry', failed.status === 'failed' && caseCalls === 0 && sample.requests.length === 1)
-            check('failed_summary_cursor_not_advanced', failed.summary === null)
+            const degraded = await turn(target, user, fixture.prompt)
+            check('reply_completed_after_injected_summary_interruption', degraded.status === 'completed' && degraded.events.some(event => !!event.metadata.summaryDiagnostic && !event.metadata.error))
+            check('failed_summary_cursor_not_advanced', degraded.summary === null)
             check('original_history_retained', (await readAgentEvents(t.db, target.id, 0, 200)).events.length >= 64)
-            const recovered = await turn(target, user, '继续整理回复，只查阅并总结已有讨论。', failed.taskId)
-            check('manual_recovery_completed', recovered.status === 'completed')
-            check(
-              'recovery_read_only_tools',
-              recovered.events.every((e) => !e.metadata.tool || AGENT_READ_TOOLS.has(e.metadata.tool)),
-            )
+            const next = await turn(target, user, '只回答本轮：刚才是否提交了生成任务？')
+            check('no_summary_retry_during_cooldown', sample.requests.filter(row => row.kind !== 'chat').length === 1)
+            check('next_read_only_turn_completed', next.status === 'completed' && readOnly(next))
           } else {
             const result = await turn(target, user, fixture.prompt)
             check('turn_completed', result.status === 'completed')

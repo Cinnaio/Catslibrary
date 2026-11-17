@@ -19,7 +19,7 @@ for (let i = 0; i < args.length; i++) {
 const maxRequests = Number(options.get('--max-requests') || 24)
 assert(Number.isSafeInteger(maxRequests) && maxRequests >= 1 && maxRequests <= 30, 'Invalid request budget')
 if (!args.includes('--live')) {
-  console.log(JSON.stringify({ mode: 'plan', modelCalls: 0, databaseWrites: false, maxRequests, scope: 'synthetic author turns, labelled transition fixtures, three summaries and injected interruption followed by explicit API recovery' }))
+  console.log(JSON.stringify({ mode: 'plan', modelCalls: 0, databaseWrites: false, maxRequests, scope: 'synthetic author turns, labelled transition fixtures, three summaries and a reply with a history gap after injected interruption' }))
   process.exit(0)
 }
 assert(options.get('--directory') && options.get('--output'), 'Local review directory and new output directory required')
@@ -63,7 +63,7 @@ type Trace = { stage: string; kind: 'summary' | 'chat'; sent: boolean; injected?
 type Version = { revision: number; throughEventId: number; content: AgentSummaryContent; backfilled: boolean }
 const report = {
   capturedAt: new Date().toISOString(), sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), sourceHashes,
-  scenario: 'S01 multi-summary author simulation and explicit recovery', syntheticOnly: true,
+  scenario: 'S01 multi-summary author simulation, fallback and checkpoint recovery', syntheticOnly: true,
   apiTransport: 'in-process real API, cookie and CSRF; isolated local PostgreSQL', humanReview: 'pending',
   limitations: ['Author instructions are written by the coding assistant, not the human author.', 'Labelled transition messages are seeded fixtures, not provider replies.', 'The interruption is injected, not an observed provider outage.', 'Current production summary thresholds and provider defaults are unchanged.'],
   model: provider.model, maxRequests, providerRequests: 0, injectedResponses: 0, sessionId: '', novelId: '',
@@ -226,21 +226,21 @@ try {
   await pad(4)
   const before = await getAgentSummary(db, session.id)
   const originals = (await db.query<{ id: number; role: string; content: string }>('SELECT id,role,content FROM ai_agent_events WHERE session_id=$1 ORDER BY id', [session.id])).rows
-  const beforeCalls = report.providerRequests
   injectSummary = true
   const failed = await turn('interrupted_summary', question)
-  check('interruption_failed_in_summary_phase', failed.status === 'failed' && failed.recovery?.phase === 'summary' && !!failed.recovery.canResume)
-  check('no_silent_paid_retry', report.providerRequests === beforeCalls && report.injectedResponses === 1)
+  check('reply_completed_with_history_gap', failed.status === 'completed' && failed.events.some(event => !!event.metadata.summaryDiagnostic && !event.metadata.error))
+  check('no_silent_summary_retry', report.requests.filter(trace => trace.stage === 'interrupted_summary' && trace.kind === 'summary').length === 1 && report.injectedResponses === 1)
   check('checkpoint_unchanged_after_failure', JSON.stringify(failed.summary) === JSON.stringify(before) && (await versions()).length === 3)
   report.failures = (await db.query('SELECT diagnostic,response_received,response_text,response_model FROM ai_agent_summary_failures WHERE session_id=$1 ORDER BY id', [session.id])).rows
   check('failed_output_archived', report.failures.length === 1)
   const failedTrace = report.requests.find(trace => trace.injected)!
   const failedInput = JSON.parse(failedTrace.messages[1]!.content!) as { events: Array<{ id: number }> }
   check('failure_after_checkpoint', failedInput.events[0]!.id > before!.throughEventId)
-  const recovered = await turn('explicit_recovery', 'Explicit confirmModelCall=true through recovery API', failed.taskId)
-  check('explicit_recovery_completed', recovered.status === 'completed')
+  await db.query('UPDATE ai_agent_summary_failures SET created_at=0 WHERE session_id=$1', [session.id])
+  const recovered = await turn('summary_after_cooldown', question)
+  check('reply_after_cooldown_completed', recovered.status === 'completed')
   check('recovery_summary_advanced', !!recovered.summary && recovered.summary.revision === 4 && recovered.summary.throughEventId > before!.throughEventId)
-  const recoveryTrace = report.requests.find(trace => trace.stage === 'explicit_recovery' && trace.kind === 'summary')!
+  const recoveryTrace = report.requests.find(trace => trace.stage === 'summary_after_cooldown' && trace.kind === 'summary')!
   const recoveryInput = JSON.parse(recoveryTrace.messages[1]!.content!) as { events: Array<{ id: number }>; previousSummary: unknown }
   check('recovery_reuses_checkpoint', JSON.stringify(recoveryInput.previousSummary) === JSON.stringify(before!.content))
   check('recovery_starts_at_failed_prefix', recoveryInput.events[0]!.id === failedInput.events[0]!.id)

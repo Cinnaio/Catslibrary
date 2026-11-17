@@ -16,7 +16,7 @@ struct AgentOutputSheet: View {
         NavigationStack(path: $path) {
             Group {
                 if let artifactID {
-                    AgentArtifactDetail(model: model, artifactID: artifactID)
+                    AgentArtifactDetail(model: model, artifactID: artifactID, returnToConversation: { dismiss() })
                 } else {
                     AgentArtifactsView(model: model)
                 }
@@ -31,7 +31,7 @@ struct AgentOutputSheet: View {
             .navigationDestination(for: AgentOutputRoute.self) { route in
                 switch route {
                 case .artifact(let id):
-                    AgentArtifactDetail(model: model, artifactID: id)
+                    AgentArtifactDetail(model: model, artifactID: id, returnToConversation: { dismiss() })
                         .navigationBarBackButtonHidden(model.working)
                 case .action:
                     if let action = model.selectedAction {
@@ -172,6 +172,7 @@ private struct AgentOutputRow: View {
 private struct AgentArtifactDetail: View {
     let model: AdminAIAgentConversationModel
     let artifactID: String
+    let returnToConversation: () -> Void
     @State private var attemptedLoad = false
 
     private var artifact: AIAgentArtifact? { model.artifacts.first { $0.id == artifactID } }
@@ -185,7 +186,7 @@ private struct AgentArtifactDetail: View {
                         if let error = model.operationError ?? model.artifactErrors[artifactID] {
                             Text(error).font(.footnote).foregroundStyle(.red).textSelection(.enabled)
                         }
-                        AgentArtifactContent(model: model, artifact: artifact)
+                        AgentArtifactContent(model: model, artifact: artifact, returnToConversation: returnToConversation)
                     }
                     .padding(20).frame(maxWidth: AppLayout.readableWidth, alignment: .leading).frame(maxWidth: .infinity)
                 }
@@ -230,6 +231,7 @@ private struct AgentArtifactDetail: View {
 private struct AgentArtifactContent: View {
     let model: AdminAIAgentConversationModel
     let artifact: AIAgentArtifact
+    let returnToConversation: () -> Void
     private var task: AIAgentTask { model.tasks[artifact.id] ?? artifact.task }
     private var analysisURL: URL? {
         guard let report = artifact.analysisReport, report.url.hasPrefix("/admin/ai?"),
@@ -250,7 +252,8 @@ private struct AgentArtifactContent: View {
                 }
             }
             ForEach(artifact.drafts) { draft in
-                AgentDraftResultView(model: model, draft: draft, publishable: ["continue", "write_chapter"].contains(task.kind))
+                AgentDraftResultView(model: model, draft: draft, publishable: ["continue", "write_chapter"].contains(task.kind),
+                                     returnToConversation: returnToConversation)
             }
             if let report = artifact.analysisReport {
                 if let analysisURL {
@@ -328,13 +331,15 @@ private struct AgentDraftResultView: View {
     let model: AdminAIAgentConversationModel
     let draft: AIAgentArtifact.Draft
     let publishable: Bool
+    let returnToConversation: () -> Void
     @State private var title: String
     @State private var showsPublishFields = false
 
-    init(model: AdminAIAgentConversationModel, draft: AIAgentArtifact.Draft, publishable: Bool) {
+    init(model: AdminAIAgentConversationModel, draft: AIAgentArtifact.Draft, publishable: Bool, returnToConversation: @escaping () -> Void) {
         self.model = model
         self.draft = draft
         self.publishable = publishable
+        self.returnToConversation = returnToConversation
         _title = State(initialValue: draft.title == "未命名章节" ? "" : draft.title)
     }
 
@@ -355,6 +360,9 @@ private struct AgentDraftResultView: View {
             let opening = excerpt
             if let warning = draft.minimumLengthWarning {
                 Text(verbatim: warning).font(.footnote).foregroundStyle(AppTheme.textSecondary)
+            } else if let length = draft.lengthCheck {
+                let target = length.minimumWords.map { "要求至少 \($0) 字" } ?? length.targetWords.map { "目标约 \($0) 字" } ?? ""
+                Text("正文 \(length.actualWords) 字（\(target)）").font(.footnote).foregroundStyle(AppTheme.textSecondary)
             }
             if !opening.isEmpty {
                 Text(verbatim: opening).font(.body).lineSpacing(5).appTextLineLimit(5)
@@ -369,7 +377,13 @@ private struct AgentDraftResultView: View {
                 Label("阅读全文", systemImage: "doc.plaintext")
                     .frame(minHeight: AppLayout.minimumTouchTarget)
             }
-            if publishable && draft.status == "draft" { publishFields }
+            if publishable && draft.status == "draft" {
+                DisclosureGroup("核对草稿") {
+                    AgentDraftReviewContent(model: model, draft: draft, returnToConversation: returnToConversation)
+                        .id(draft.revision)
+                }
+                publishFields
+            }
         }
     }
 
@@ -411,6 +425,79 @@ private struct AgentDraftResultView: View {
         } label: {
             Label("准备发布", systemImage: "square.and.arrow.up")
                 .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+        }
+    }
+}
+
+private struct AgentDraftReviewContent: View {
+    let model: AdminAIAgentConversationModel
+    let draft: AIAgentArtifact.Draft
+    let returnToConversation: () -> Void
+    @State private var report: AgentDraftReview?
+    @State private var checking = false
+    @State private var error: String?
+    @State private var requestVersion = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("核对任务保存的作者要求和作品资料。检查会调用文本模型，完整结果可复用。")
+                .font(.footnote).foregroundStyle(AppTheme.textSecondary)
+            Button(checking ? "正在检查…" : "检查草稿") { Task { await load(run: true) } }
+                .frame(minHeight: AppLayout.minimumTouchTarget)
+                .disabled(checking || model.working)
+            if let error { Text(verbatim: error).font(.footnote).foregroundStyle(.red) }
+            if let report {
+                let stale = report.stale == true || report.draftRevision != draft.revision
+                if stale { Text("草稿或来源已变化，请重新检查。").font(.footnote) }
+                if report.completeness == "partial" { Text("检查结果不完整，下方仅显示通过校验的条目。").font(.footnote) }
+                if report.findings.isEmpty && report.completeness != "partial" {
+                    Text("本次材料范围内未发现有依据的问题。").font(.footnote)
+                }
+                ForEach(report.findings.indices, id: \.self) { index in
+                    let finding = report.findings[index]
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(finding.label).font(.subheadline.weight(.semibold))
+                        Text(verbatim: finding.description)
+                        if !finding.draftQuote.isEmpty {
+                            AgentPlainPreview(title: "草稿原文", text: finding.draftQuote)
+                        }
+                        ForEach(finding.evidence.indices, id: \.self) { evidenceIndex in
+                            let evidence = finding.evidence[evidenceIndex]
+                            let title = report.sources.first(where: { $0.id == evidence.sourceId })?.title ?? "引用依据"
+                            AgentPlainPreview(title: title, text: evidence.quote)
+                        }
+                        if !stale && !finding.draftQuote.isEmpty {
+                            Button("带到对话中修改") {
+                                let prompt = "请读取草稿 \(draft.id)。质量检查指出：\(finding.description)\n对应原文：“\(finding.draftQuote)”\n请核对原文与作者要求。若问题确实存在，请只针对这一点提出改写建议。"
+                                let input = model.localDraft.input
+                                model.localDraft.input = input.isEmpty ? prompt : input + "\n\n" + prompt
+                                returnToConversation()
+                            }
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                            .disabled(model.working)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.top, 8)
+        .task { await load(run: false) }
+    }
+
+    private func load(run: Bool) async {
+        guard model.isCurrentAccount, !checking else { return }
+        requestVersion += 1
+        let version = requestVersion
+        if run { checking = true }
+        defer { if run { checking = false } }
+        error = nil
+        do {
+            let result = try await model.api.draftReview(draft, run: run)
+            guard model.isCurrentAccount, !Task.isCancelled, version == requestVersion else { return }
+            report = result
+        } catch {
+            guard model.isCurrentAccount, !Task.isCancelled, version == requestVersion else { return }
+            self.error = AppCopy.friendlyError(error)
         }
     }
 }
@@ -477,7 +564,7 @@ private struct AgentActionPreview: View {
     private var confirmLabel: String {
         if action.status == "executing" { return "核对后继续执行" }
         switch action.kind {
-        case .publishDraft: return "发布章节"
+        case .publishDraft: return "按此位置发布"
         case .applyRewrite: return "替换草稿中的选段"
         case .adoptCover: return "设为当前封面"
         case .restoreDraft: return "恢复上一版草稿"

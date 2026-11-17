@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { aiApi, type AiWritingReview, type AiWritingReviewAttempt } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 
-export default function DraftReview(props: { draftId: string; contentRevision: string; disabled?: boolean }) {
+export default function DraftReview(props: {
+  draftId: string
+  contentRevision: string
+  disabled?: boolean
+  onDiscussFinding?: (finding: AiWritingReview['findings'][number]) => void
+}) {
   const [report, setReport] = useState<AiWritingReview | null>(null)
   const [attempt, setAttempt] = useState<AiWritingReviewAttempt | null>(null)
   const [busy, setBusy] = useState(false)
@@ -55,8 +60,11 @@ export default function DraftReview(props: { draftId: string; contentRevision: s
     <section className="grid gap-3 pt-4" aria-label="草稿质量检查">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium">草稿质量检查</h3>
-          <p className="mt-1 text-xs text-muted-foreground">检查连续性、未解伏笔与关系发展。完整结果按正文与材料版本复用；重试失败或不完整的检查会再次调用模型。</p>
+          {!props.onDiscussFinding && <h3 className="text-sm font-medium">草稿质量检查</h3>}
+          <p className="mt-1 text-xs text-muted-foreground">
+            {props.onDiscussFinding ? '核对任务保存的作者要求，以及正文与已有材料是否一致。检查会调用文本模型，完整结果可复用。'
+              : '检查连续性、未解伏笔与关系发展。完整结果按正文与材料版本复用；重试失败或不完整的检查会再次调用模型。'}
+          </p>
         </div>
         <Button type="button" size="sm" variant="outline" disabled={props.disabled || busy} onClick={() => void check()}>
           {busy ? '检查中…' : error || failedAttempt || partial ? '重试检查' : report ? '重新检查' : '检查草稿'}
@@ -82,9 +90,9 @@ export default function DraftReview(props: { draftId: string; contentRevision: s
           {partial && <p role="status" className="text-sm text-muted-foreground">检查不完整：{report.rejectedFindings || 0} 项未通过引句或格式校验，未予展示。下面仅保留可核验的 {report.findings.length} 项；这不表示其余内容没有问题，可重试检查。</p>}
           {!partial && !report.findings.length && <p className="text-sm">在本次提供的材料范围内未发现有证据支持的问题，仍需人工审阅。</p>}
           {report.findings.map((finding, i) => (
-            <div key={i} className="grid gap-2 border-b border-border pb-3">
+            <div key={i} className={props.onDiscussFinding ? 'grid gap-2 pb-3' : 'grid gap-2 border-b border-border pb-3'}>
               <p className="text-sm font-medium">
-                {{ consistency: '一致性', foreshadow: '伏笔提醒', relationship: '关系发展' }[finding.category]} ·{' '}
+                {{ consistency: '一致性', foreshadow: '伏笔提醒', relationship: '关系发展', requirement: '作者要求' }[finding.category]} ·{' '}
                 {finding.severity === 'warning' ? '建议核对' : '供参考'}
               </p>
               <p className="whitespace-pre-wrap break-words text-sm">{finding.description}</p>
@@ -96,6 +104,13 @@ export default function DraftReview(props: { draftId: string; contentRevision: s
                   来源 {report.sources.find((s) => s.id === e.sourceId)?.title || e.sourceId}：“{e.quote}”
                 </p>
               ))}
+              {props.onDiscussFinding && !stale && finding.draftQuote && (
+                <div>
+                  <Button size="sm" variant="outline" disabled={props.disabled || busy} onClick={() => props.onDiscussFinding?.(finding)}>
+                    带到对话中修改
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </>

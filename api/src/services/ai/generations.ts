@@ -30,6 +30,11 @@ export interface GenerationRow {
   deleted_at?: number
 }
 
+export function latestPublishedChapter(db: DbClient, novelId: string) {
+  return first<{ id: string; title: string; sort_order: number }>(db,
+    'SELECT id,title,sort_order FROM chapters WHERE novel_id=$1 ORDER BY sort_order DESC,id DESC LIMIT 1', [novelId])
+}
+
 export interface Generation {
   id: string
   novelId: string

@@ -1,8 +1,9 @@
-import type { AgentEvidence } from '@shared/ai-agent'
+import type { AgentEvidence, AgentMemory } from '@shared/ai-agent'
 import type { Db } from '../../db/pool'
 import { all } from '../../db/query'
 import { quotedAgentText } from './agent-conversation'
 import { readAgentChapter } from './agent-retrieval'
+import { activeAgentMemories } from './agent-memory'
 import { getAgentSession } from './agent-store'
 import { AiError } from './client'
 import { generationContentRevision, getGeneration } from './generations'
@@ -18,6 +19,8 @@ export interface AgentWritingContext {
   sessionId: string
   sources: AgentEvidence[]
   authorMessages: Array<{ id: number; content: string }>
+  agreements?: Array<Pick<AgentMemory, 'id' | 'revision' | 'title' | 'content'>>
+  afterChapterId?: string
   brief: string
   priorDraft?: { id: string; revision: string; text: string }
   length?: AgentWritingLength
@@ -167,7 +170,12 @@ export async function resolveAgentWritingContext(
     priorDraft = { id: draft.id, revision, text: limitMaterialText(draft.result, 6000, 'tail') }
   }
   const passages = [...new Map([...cited, ...sources].map(source => [source.id, source])).values()].slice(0, MAX_REFERENCES + MAX_CITED_PASSAGES)
-  return { sessionId: session.id, sources: passages, authorMessages, brief: session.brief, ...(priorDraft ? { priorDraft } : {}), ...(length ? { length } : {}) }
+  const agreements = (await activeAgentMemories(db, scope.userId, scope.novelId))
+    .map(({ id, revision, title, content }) => ({ id, revision, title, content }))
+  return {
+    sessionId: session.id, afterChapterId: session.afterChapterId, sources: passages, authorMessages, agreements,
+    brief: session.brief, ...(priorDraft ? { priorDraft } : {}), ...(length ? { length } : {}),
+  }
 }
 
 export function agentWritingMaterials(context: AgentWritingContext) {
@@ -178,6 +186,10 @@ export function agentWritingMaterials(context: AgentWritingContext) {
     source: { field: 'agent_chapter_excerpt', chapterId: source.chapterId, revision: source.revision },
   })).filter((block): block is MaterialBlock => !!block)
   const authors = [
+    ...(context.agreements || []).map(agreement => createMaterialBlock({
+      id: `agreement-${agreement.id}-${agreement.revision}`, kind: 'author_request',
+      text: `作品长期约定（本次明确要求优先）：${agreement.title}\n${agreement.content}`,
+    })),
     createMaterialBlock({ id: 'agent-brief', kind: 'author_request', text: context.brief }),
     ...context.authorMessages.map(message => createMaterialBlock({
       id: `author-message-${message.id}`,

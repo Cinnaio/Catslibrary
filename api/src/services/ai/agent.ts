@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import type { Db } from '../../db/pool'
 import { all } from '../../db/query'
 import { AiError, chat, providerLabel, textProvider, type AiMessage } from './client'
-import { appendAgentEvent, listAgentActions } from './agent-store'
+import { appendAgentEvent, finishAgentReply, listAgentActions } from './agent-store'
 import { activeAgentMemories } from './agent-memory'
 import { loadAgentContext } from './agent-context'
 import { AgentSummaryError } from './agent-summary-diagnostics'
@@ -97,9 +97,14 @@ export async function runAgentTurn(
     const recovery = params.recoveryFromTaskId ? await getAiTask(db, params.recoveryFromTaskId) : undefined
     const readOnly = !!params.recoveryFromTaskId
     const tools = readOnly ? AGENT_TOOLS.filter(tool => AGENT_READ_TOOLS.has(tool.function.name)) : AGENT_TOOLS
-    const { history, summary } = await loadAgentContext(db, session, userId, controller.signal, assertActive, audit, async () => {
+    const { history, summary, gap } = await loadAgentContext(db, session, userId, controller.signal, assertActive, audit, async () => {
       await stage('summary', '正在整理早前对话')
-    }, taskId)
+    }, taskId, true)
+    if (gap) {
+      await appendAgentEvent(db, session.id, 'activity', '部分早前消息尚未整理。本轮会继续使用近期消息，涉及早前决定时会查阅原话。', taskId, {
+        summaryDiagnostic: gap.diagnostic,
+      })
+    }
     const draftFocus = await resolveAgentDraftFocus(db, session, history.events)
     const focusedVersion = draftFocus?.matches.length === 1 ? draftFocus.matches[0] : undefined
     if (focusedVersion) {
@@ -119,7 +124,8 @@ export async function runAgentTurn(
     const selectedIds = citedIds.length > 8 ? [...citedIds.slice(0, 4), ...citedIds.slice(-4)] : citedIds
     const summaryOriginalMessages = selectedIds.length ? await readConversationSources(db, session, userId, selectedIds) : null
     const messages: AiMessage[] = [
-      { role: 'system', content: SYSTEM + (readOnly ? '\n本轮是作者确认的只读恢复：利用已保存的资料、对话和产出继续回答。仅允许查阅工具，不能再次提交生成、修改记忆或创建采纳操作。未完成的生成仍在原任务中查看；需要新生成时告知作者另发明确要求。不要把继续整理说成从中断位置自动恢复了生成。' : '') },
+      { role: 'system', content: SYSTEM + (readOnly ? '\n本轮是作者确认的只读恢复：利用已保存的资料、对话和产出继续回答。仅允许查阅工具，不能再次提交生成、修改记忆或创建采纳操作。未完成的生成仍在原任务中查看；需要新生成时告知作者另发明确要求。不要把继续整理说成从中断位置自动恢复了生成。' : '') +
+        (gap ? `\n摘要后至近期窗口之前有未整理原文（从消息 ${gap.firstEventId} 起，到 ${gap.beforeEventId} 之前）。涉及早前决定时，用 read_conversation 从 beforeId=${gap.beforeEventId} 开始查找最新更正，或用 read_conversation_sources 回查已知原话。摘要中的决定可能已被更改。仅依赖本轮和近期消息的问题直接回答；所需的旧约定未核实时，请作者确认后再生成或准备采纳。` : '') },
       ...(readOnly ? [{ role: 'user' as const, content: `待整理的旧任务（资料）：${JSON.stringify({ taskId: recovery?.id, request: recovery?.prompt, status: recovery?.status })}` }] : []),
       {
         role: 'user',
@@ -187,8 +193,7 @@ export async function runAgentTurn(
       if (!calls.length) {
         if (!response.text.trim()) throw new AiError('invalid', '模型未返回回复；请确认当前文本模型支持工具调用', 422)
         await stage('save', '正在保存本轮回复')
-        await appendAgentEvent(db, session.id, 'assistant', response.text, taskId, { round })
-        await updateAiTask(db, taskId, { status: 'completed', current: round + 1, total: round + 1, step: '本轮对话已完成', result: '' })
+        await finishAgentReply(db, session.id, taskId, response.text, round)
         return
       }
       if (calls.length > 4) throw new AiError('invalid', '模型一次请求了过多工具，已停止本轮', 422)

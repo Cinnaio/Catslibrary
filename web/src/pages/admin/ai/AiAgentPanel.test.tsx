@@ -9,7 +9,9 @@ import { pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage } fro
 const streams = vi.hoisted(() => ({ watch: vi.fn() }))
 vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: streams.watch }))
 const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), remove: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn(), memories: vi.fn(), changeMemory: vi.fn() }))
-const providerMocks = vi.hoisted(() => ({ providerPresets: vi.fn(), status: vi.fn() }))
+const providerMocks = vi.hoisted(() => ({
+  providerPresets: vi.fn(), status: vi.fn(), writing: { getDraftReview: vi.fn(), reviewDraft: vi.fn() },
+}))
 vi.mock('@/lib/ai-agent-api', () => ({ agentApi: { ...mocks } }))
 vi.mock('@/lib/api', () => ({
   aiApi: providerMocks,
@@ -96,9 +98,40 @@ beforeEach(() => {
     ],
   })
   providerMocks.status.mockResolvedValue({ model: 'default-model', configured: true })
+  providerMocks.writing.getDraftReview.mockResolvedValue({ report: null })
 })
 
 describe('creative agent conversation', () => {
+  it('offers a draft check and brings the selected finding into the composer without sending', async () => {
+    const value = detail()
+    value.artifacts = [{
+      task: { id: 'write-task', status: 'completed', kind: 'continue', step: '', current: 1, total: 1, error: '' },
+      drafts: [{ id: 'aigen_test', title: '雨后', content: '我推开门。', revision: 'rev', status: 'draft',
+        lengthCheck: { actualWords: 5, minimumWords: 3 } }],
+      covers: [],
+    }]
+    mocks.get.mockResolvedValue(value)
+    providerMocks.writing.reviewDraft.mockResolvedValue({ report: {
+      draftRevision: 'rev', inputHash: 'hash', updatedAt: 1,
+      findings: [{ category: 'requirement', severity: 'warning', description: '本段变成了第一人称。', draftQuote: '我推开门。',
+        evidence: [{ sourceId: 'task-instruction', quote: '请用第三人称。' }] }],
+      sources: [{ id: 'task-instruction', title: '提交时的写作指令' }],
+    } })
+    open()
+    const composer = await screen.findByRole('textbox', { name: '发送给创作助手的消息' })
+    fireEvent.change(composer, { target: { value: '现在的输入。' } })
+    fireEvent.click(screen.getByRole('button', { name: '产出与采纳', expanded: false }))
+    expect(screen.getByText('正文 5 字（要求至少 3 字）')).toBeInTheDocument()
+    expect(providerMocks.writing.getDraftReview).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('核对草稿'))
+    fireEvent.click(await screen.findByRole('button', { name: '检查草稿' }))
+    expect(providerMocks.writing.reviewDraft).toHaveBeenCalledWith('aigen_test', 'rev', expect.any(Function))
+    fireEvent.click(await screen.findByRole('button', { name: '带到对话中修改' }))
+    expect((composer as HTMLTextAreaElement).value).toContain('现在的输入。\n\n请读取草稿 aigen_test')
+    expect((composer as HTMLTextAreaElement).value).toContain('我推开门。')
+    expect(mocks.message).not.toHaveBeenCalled()
+  })
+
   it('opens a recent conversation directly from the unselected book workspace', async () => {
     const other = detail('other-session', 'other')
     mocks.sessions.mockImplementation(async (novelId: string) => ({ sessions: !novelId || novelId === 'other' ? [other.session] : [], hasMore: false }))

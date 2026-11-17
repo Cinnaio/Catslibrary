@@ -887,6 +887,8 @@ export async function generateWriting(db: Db, opts: {
         // 它被削过，是这类改写最危险的失败模式。
         ...(operatorPromptRemoved.length ? { systemPromptPatch: operatorPromptRemoved } : {}),
         ...(opts.taskId ? { taskId: opts.taskId } : {}),
+        ...(opts.agentContext?.afterChapterId !== undefined ? { agentAfterChapterId: opts.agentContext.afterChapterId } : {}),
+        ...(opts.agentContext?.priorDraft ? { agentPriorDraft: { id: opts.agentContext.priorDraft.id, revision: opts.agentContext.priorDraft.revision } } : {}),
         ...(effectiveDraftTitle ? { draftTitle: effectiveDraftTitle } : {}),
         ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}),
         ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}),

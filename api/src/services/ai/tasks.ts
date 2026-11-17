@@ -66,7 +66,7 @@ export async function createAiTask(db: DbClient, input: { userId: string; novelI
   return mapTask((await first<AiTaskRow>(db, 'SELECT * FROM ai_tasks WHERE id = $1', [id]))!)
 }
 
-export async function updateAiTask(db: DbClient, id: string, patch: { status?: AiTaskStatus; current?: number; total?: number; step?: string; prompt?: string; result?: string; batchId?: string; error?: string }): Promise<boolean> {
+export async function updateAiTask(db: DbClient, id: string, patch: { status?: AiTaskStatus; current?: number; total?: number; step?: string; prompt?: string; result?: string; batchId?: string; error?: string }, options: { publish?: boolean } = {}): Promise<boolean> {
   const values: unknown[] = []
   const parts: string[] = []
   for (const [key, value] of Object.entries(patch)) {
@@ -88,7 +88,7 @@ export async function updateAiTask(db: DbClient, id: string, patch: { status?: A
   parts.push(`lease_expires_at = ${DB_NOW} + $${values.length}`)
   const updated = (await run(db, `UPDATE ai_tasks SET ${parts.join(', ')} WHERE id = $${idIndex} AND (${activeOrSameTerminal})
     AND owner_id=$${idIndex + 1} AND lease_expires_at>${DB_NOW}`, values)) > 0
-  if (updated) publishAiTask(id, { ...patch, updatedAt: Date.now(), ...(finished ? { finishedAt: finished } : {}) })
+  if (updated && options.publish !== false) publishAiTask(id, { ...patch, updatedAt: Date.now(), ...(finished ? { finishedAt: finished } : {}) })
   return updated
 }
 

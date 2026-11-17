@@ -38,6 +38,7 @@ import {
   restoreGenerations,
   getGeneration,
   getGenerationDetail,
+  latestPublishedChapter,
   updateGenerationResult,
   generationWritingQuality,
   generationContentRevision,
@@ -1323,6 +1324,9 @@ aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), withAiResponseStream
     const report = await reviewWritingDraft(db, draft, snapshot, {
       userId: c.get('user').id,
       expectedRevision: String(body.expectedRevision || ''),
+      ...(taskParams.agentContext ? {
+        authorRequest: { context: taskParams.agentContext, instruction: String(taskParams.instruction || ''), outline: String(taskParams.outline || '') },
+      } : {}),
       ...(await auditRequestContext(c, db)),
     })
     return c.json({ report }, 200, { 'Cache-Control': 'no-store' })
@@ -1550,6 +1554,8 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
   const db = getDb()
   const id = String(c.req.param('id') || '').trim()
   const body = await c.req.json().catch(() => ({}))
+  if (body.expectedTailId !== undefined && typeof body.expectedTailId !== 'string')
+    return c.json({ error: '发布位置无效，请重新预览' }, 422)
   const rowHint = await getGeneration(db, id)
   if (!rowHint || !['write_chapter', 'continue'].includes(rowHint.kind)) return c.json({ error: '可发布的章节草稿不存在' }, 404)
   const requestedNovelId = String(body.novelId || '').trim()
@@ -1576,6 +1582,9 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
       if (row.status !== 'draft') throw new PublishError(409, '草稿已被发布或不可发布')
       if (body.expectedContentRevision && generationContentRevision(row.result) !== String(body.expectedContentRevision))
         throw new PublishError(409, '草稿已变化，请重新预览后发布', 'content_changed')
+      const tail = await latestPublishedChapter({ query: q }, novelId)
+      if (body.expectedTailId !== undefined && (tail?.id || '') !== body.expectedTailId)
+        throw new PublishError(409, '作品末章已变化，请重新预览发布位置', 'publish_position_changed')
       // 兼容修复前落库的草稿：标题可能仍在正文首行，发布时再解析一次并剥离。
       const parsed = parseContinuationTitle(row.result)
       const storedTitle = draftBatchParams(row.params_json).draftTitle
@@ -1589,8 +1598,7 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
       // 带条件更新原子占用草稿：同一草稿并发发布时只有一个请求能成功
       const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, id])
       if (!claimed.rowCount) throw new PublishError(409, '草稿已被发布或不可发布')
-      const max = await q<{ max_order: number }>('SELECT COALESCE(MAX(sort_order), 0)::int AS max_order FROM chapters WHERE novel_id = $1', [novelId])
-      const nextOrder = Number(max.rows[0]?.max_order || 0) + 1
+      const nextOrder = Number(tail?.sort_order ?? 0) + 1
       await q(
         'INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, source_type, ai_task_id, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
         [chapterId, novelId, title, content, nextOrder, content.replace(/<[^>]*>/g, '').length, '', policy.metadata.sourceType, policy.metadata.aiTaskId, now],

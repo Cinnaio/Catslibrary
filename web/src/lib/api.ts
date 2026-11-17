@@ -2199,7 +2199,7 @@ export interface AiWritingReview {
   rejectedFindings?: number
   sources: Array<{ id: string; title: string; text: string }>
   findings: Array<{
-    category: 'consistency' | 'foreshadow' | 'relationship'
+    category: 'consistency' | 'foreshadow' | 'relationship' | 'requirement'
     severity: 'warning' | 'info'
     description: string
     draftQuote: string

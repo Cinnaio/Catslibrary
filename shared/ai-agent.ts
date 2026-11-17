@@ -189,7 +189,15 @@ export interface AgentAction {
 
 export interface AgentArtifact {
   task: AgentTask
-  drafts: Array<{ id: string; title: string; content: string; status: string; revision: string; minimumLengthWarning?: string }>
+  drafts: Array<{
+    id: string
+    title: string
+    content: string
+    status: string
+    revision: string
+    minimumLengthWarning?: string
+    lengthCheck?: { actualWords: number; minimumWords?: number; targetWords?: number }
+  }>
   covers: Array<{ id: string; prompt: string; imageUrl: string }>
   rewrite?: { draftId: string; before: string; after: string; baseRevision: string; minimumLengthWarning?: string }
   analysisReport?: { id: string; title: string; url: string }

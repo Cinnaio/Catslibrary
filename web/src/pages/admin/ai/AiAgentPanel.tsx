@@ -34,6 +34,7 @@ import AiAgentComposer from './AiAgentComposer'
 import AiAgentMemory from './AiAgentMemory'
 import AiAgentRecovery from './AiAgentRecovery'
 import AiAgentUsage from './AiAgentUsage'
+import DraftReview from './DraftReview'
 import { currentAgentTask, pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage, type PendingAgentMessage } from './agent-task-state'
 import AiAgentMessages, { AgentMarkdown } from './AiAgentMessages'
 import styles from './agent-workspace.module.css'
@@ -853,6 +854,11 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
               busy={busy}
               onStop={() => void perform(() => agentApi.stop(sessionId, artifact.task.id))}
               onPrepare={prepare}
+            onReviewFinding={(prompt) => {
+              setInput(current => current.trim() ? `${current}\n\n${prompt}` : prompt)
+              setMobileView('chat')
+              setFocusRequest((value) => value + 1)
+            }}
               onDiscuss={() => {
                 setInput(`请读取任务 ${artifact.task.id} 的结果，我们继续讨论这一版。`)
                 setMobileView('chat')
@@ -932,7 +938,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                       }
                     >
                       <Check size={15} />
-                      {busy ? '正在处理…' : action.status === 'executing' ? '核对并继续采纳' : '确认采纳'}
+                      {busy ? '正在处理…' : action.status === 'executing' ? '核对并继续采纳' : action.kind === 'publish_draft' ? '确认按此位置发布' : '确认采纳'}
                     </Button>
                   </>
                 )}
@@ -989,14 +995,17 @@ function AgentArtifactView({
   onStop,
   onPrepare,
   onDiscuss,
+  onReviewFinding,
 }: {
   artifact: AgentArtifact
   busy: boolean
   onStop: () => void
   onPrepare: (kind: AgentActionKind, targetId: string, title?: string) => Promise<void>
   onDiscuss: () => void
+  onReviewFinding: (prompt: string) => void
 }) {
   const [editedTitle, setChapterTitle] = useState<string | null>(null)
+  const [openedReviews, setOpenedReviews] = useState<string[]>([])
   const chapterTitle = editedTitle ?? artifact.drafts[0]?.title ?? ''
   return (
     <div className={styles.artifact}>
@@ -1022,10 +1031,24 @@ function AgentArtifactView({
           <FormField label="章节标题">
             <Input value={chapterTitle} onChange={(e) => setChapterTitle(e.target.value)} maxLength={200} />
           </FormField>
-          {draft.minimumLengthWarning && <p className={styles.muted} role="status">{draft.minimumLengthWarning}</p>}
+          {draft.minimumLengthWarning ? <p className={styles.muted} role="status">{draft.minimumLengthWarning}</p>
+            : draft.lengthCheck && <p className={styles.muted}>
+              正文 {draft.lengthCheck.actualWords} 字（{draft.lengthCheck.minimumWords ? `要求至少 ${draft.lengthCheck.minimumWords}` : `目标约 ${draft.lengthCheck.targetWords}`} 字）
+            </p>}
           <div className={styles.prose} tabIndex={0} role="region" aria-label="章节草稿正文">
             {draft.content}
           </div>
+          {draft.status === 'draft' && (
+            <MotionDetails className={styles.history} onToggle={(event) => {
+              if (event.currentTarget.open) setOpenedReviews(current => current.includes(draft.id) ? current : [...current, draft.id])
+            }}>
+              <summary>核对草稿</summary>
+              {openedReviews.includes(draft.id) && <DraftReview draftId={draft.id} contentRevision={draft.revision} disabled={busy}
+                onDiscussFinding={(finding) => onReviewFinding(
+                  `请读取草稿 ${draft.id}。质量检查指出：${finding.description}\n对应原文：“${finding.draftQuote}”\n请核对原文与作者要求。若问题确实存在，请只针对这一点提出改写建议。`,
+                )} />}
+            </MotionDetails>
+          )}
           <div className={styles.artifactActions}>
             <Button variant="outline" size="sm" onClick={onDiscuss}>
               继续讨论这一版

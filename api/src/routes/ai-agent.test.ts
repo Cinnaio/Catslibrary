@@ -5,7 +5,7 @@ import { setDbForTests } from '../db/pool'
 import { all, first } from '../db/query'
 import { createTestDb, type TestDb } from '../test/db'
 import { createSession } from '../services/sessions'
-import { createAgentSession, beginAgentTurn, readAgentEvents, trackAgentArtifact, appendAgentEvent } from '../services/ai/agent-store'
+import { createAgentSession, beginAgentTurn, finishAgentReply, readAgentEvents, trackAgentArtifact, appendAgentEvent } from '../services/ai/agent-store'
 import { agentApiAdapter } from './ai-agent'
 import { confirmAgentAction, prepareAgentAction, readAgentArtifact } from '../services/ai/agent-actions'
 import { executeAgentTool, validateAgentCall } from '../services/ai/agent-tools'
@@ -186,19 +186,46 @@ describe('manual agent recovery', () => {
     const turn = await beginAgentTurn(t.db, 'admin', session.id, '先查阅资料', 'failed_save_request')
     fetchMock.mockResolvedValueOnce(role === 'assistant' ? completion('未保存的回复') : completion('', [call('read_overview')]))
     let rejectSave = true
-    const failingDb: typeof t.db = { ...t.db, query: async <T>(sql: string, params?: unknown[]) => {
+    const injectFailure = (sql: string, params?: unknown[]) => {
       if (rejectSave && sql.includes('INSERT INTO ai_agent_events') && params?.[1] === role) {
         rejectSave = false
         throw new Error('模拟保存中断')
       }
-      return t.db.query<T>(sql, params)
-    } }
+    }
+    const failingDb: typeof t.db = {
+      ...t.db,
+      query: async <T>(sql: string, params?: unknown[]) => {
+        injectFailure(sql, params)
+        return t.db.query<T>(sql, params)
+      },
+      async connect() {
+        const client = await t.db.connect()
+        return { ...client, query: async <T>(sql: string, params?: unknown[]) => {
+          injectFailure(sql, params)
+          return client.query<T>(sql, params)
+        } }
+      },
+    }
     await runAgentTurn(failingDb, session, turn.taskId, 'admin', internalApi())
     expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
     const result = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
     expect(result.recovery?.phase).toBe('save')
     expect(result.events.some(e => e.content === '未保存的回复')).toBe(false)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it('saves exactly one final answer and never reports a completed turn as stopped', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const stop = `/api/ai/agent/sessions/${session.id}/stop`
+    const first = await beginAgentTurn(t.db, 'admin', session.id, '讨论一下。', 'finish-first')
+    await finishAgentReply(t.db, session.id, first.taskId, '完整回复。', 0)
+    await expect(finishAgentReply(t.db, session.id, first.taskId, '重复回复。', 0)).rejects.toMatchObject({ code: 'cancelled' })
+    expect(await (await request(stop, 'POST', { taskId: first.taskId })).json()).toMatchObject({ status: 'completed' })
+    const second = await beginAgentTurn(t.db, 'admin', session.id, '继续讨论。', 'stop-first')
+    expect(await (await request(stop, 'POST', { taskId: second.taskId })).json()).toMatchObject({ status: 'cancelled' })
+    await expect(finishAgentReply(t.db, session.id, second.taskId, '迟到的回复。', 0)).rejects.toMatchObject({ code: 'cancelled' })
+    const events = (await readAgentEvents(t.db, session.id)).events
+    expect(events.filter(event => event.role === 'assistant').map(event => event.content)).toEqual(['完整回复。'])
+    expect(events.filter(event => event.role === 'activity').map(event => event.taskId)).toEqual([second.taskId])
   })
 })
 function completion(text: string, calls?: AiToolCall[], reasoning?: string) {
@@ -668,18 +695,23 @@ describe('creative memory and context regressions', () => {
   })
   it('diagnoses an oversized history record without sending or discarding it', async () => {
     const session = await setup()
-    await appendAgentEvent(t.db, session.id, 'user', '密'.repeat(90001))
+    await appendAgentEvent(t.db, session.id, 'user', '密'.repeat(90001) + '最后一条限定')
     await longHistory(session)
     await expect(context(session)).rejects.toMatchObject({ diagnostic: { stage: 'prepare', reason: 'input_too_long', eventCount: 1, limit: 90000, usageRecorded: false } })
     expect(fetchMock).not.toHaveBeenCalled()
     expect(await getAgentSummary(t.db, session.id)).toBeNull()
-    expect((await readAgentEvents(t.db, session.id, 0, 200)).events[0]?.content.length).toBe(90001)
+    const oldest = (await readAgentEvents(t.db, session.id, 0, 200)).events[0]!
+    expect(oldest.content.length).toBeGreaterThan(90001)
+    const original = await executeAgentTool(t.db, session, 'read_conversation_sources', { eventIds: String(oldest.id), offset: 90001 },
+      'read-uncompacted-tail', internalApi(), 'admin')
+    expect(original.messages).toEqual([expect.objectContaining({ content: '最后一条限定', nextOffset: null, offset: 90001 })])
     const turn = await beginAgentTurn(t.db, 'admin', session.id, '继续', 'oversized_history')
     await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
     const detail = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
-    expect(detail.recovery).toMatchObject({ phase: 'summary', canResume: false })
-    expect((await request(`/api/ai/agent/sessions/${session.id}/tasks/${turn.taskId}/resume`, 'POST', { confirmModelCall: true })).status).toBe(409)
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(detail.activeTask?.status).toBe('completed')
+    expect(detail.events.find(event => event.metadata.summaryDiagnostic)?.metadata.summaryDiagnostic?.reason).toBe('input_too_long')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(String(fetchMock.mock.calls[0]?.[1]?.body)).not.toContain('密'.repeat(10))
   })
   it.each(['usage', 'persist'] as const)('diagnoses %s storage failure and preserves raw history', async (stage) => {
     const session = await setup()
@@ -717,9 +749,9 @@ describe('creative memory and context regressions', () => {
     const turn = await beginAgentTurn(t.db, 'admin', session.id, '继续', `diagnostic-${reason}`)
     fetchMock.mockResolvedValueOnce(completion(output))
     await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
-    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
-    const failure = (await readAgentEvents(t.db, session.id)).events.at(-1)!
-    expect(failure.content).toContain('再次发送“继续”')
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
+    const failure = (await readAgentEvents(t.db, session.id)).events.find(event => event.metadata.summaryDiagnostic)!
+    expect(failure.content).toContain('早前消息尚未整理')
     expect(failure.metadata.summaryDiagnostic).toMatchObject({ stage: 'validate', reason, previousThroughEventId: 0, eventCount: 46, usageRecorded: true, finishReason: 'stop', responseCharacters: output.length })
     expect(failure.metadata.summaryDiagnostic?.field).toBe(field)
     expect(failure.metadata.summaryDiagnostic?.observed).toBe(observed)
@@ -730,11 +762,18 @@ describe('creative memory and context regressions', () => {
     expect(JSON.stringify(failure)).not.toContain('密密')
     expect(await getAgentSummary(t.db, session.id)).toBeNull()
     expect((await readAgentEvents(t.db, session.id, 0, 200)).events.filter(event => event.id <= originalEvents.at(-1)!.id)).toEqual(originalEvents)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect((await all(t.db, 'SELECT generation_type FROM ai_usage'))).toEqual([{ generation_type: 'agent_summary' }])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect((await all(t.db, 'SELECT generation_type FROM ai_usage'))).toEqual([{ generation_type: 'agent_summary' }, { generation_type: 'agent_chat' }])
     const detail = await (await request(`/api/ai/agent/sessions/${session.id}`)).json() as AgentSessionDetail
-    expect(detail.events.at(-1)?.metadata.summaryDiagnostic).toEqual(failure.metadata.summaryDiagnostic)
-    expect(detail.recovery).toMatchObject({ taskId: turn.taskId, phase: 'summary', canResume: true })
+    expect(detail.events.find(event => event.metadata.summaryDiagnostic)?.metadata.summaryDiagnostic).toEqual(failure.metadata.summaryDiagnostic)
+    expect(detail.recovery).toBeNull()
+    if (reason === 'invalid_json') {
+      const next = await beginAgentTurn(t.db, 'admin', session.id, '这轮只回答眼前的问题。', 'summary-cooldown')
+      await runAgentTurn(t.db, session, next.taskId, 'admin', internalApi())
+      expect((await getAiTask(t.db, next.taskId))?.status).toBe('completed')
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(String(fetchMock.mock.calls[2]?.[1]?.body)).toContain('有未整理原文')
+    }
   })
   it.each(['length', 'refusal', 'tool_calls'] as const)('diagnoses incomplete summary %s instead of saving partial content', async (kind) => {
     const session = await setup()
@@ -746,11 +785,11 @@ describe('creative memory and context regressions', () => {
       usage: { prompt_tokens: 100, completion_tokens: 20 }, cost: 0.0001,
     }))
     await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
-    const failure = (await readAgentEvents(t.db, session.id)).events.at(-1)!
+    const failure = (await readAgentEvents(t.db, session.id)).events.find(event => event.metadata.summaryDiagnostic)!
     expect(failure.metadata.summaryDiagnostic).toMatchObject({ stage: 'validate', reason: kind === 'length' ? 'incomplete' : kind === 'refusal' ? 'refusal' : 'unexpected_tools' })
     expect(JSON.stringify(failure)).not.toContain('私密')
     expect(await getAgentSummary(t.db, session.id)).toBeNull()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
   it('accounts interrupted summary usage once without misclassifying it as chat', async () => {
     const session = await setup()
@@ -759,11 +798,15 @@ describe('creative memory and context regressions', () => {
     const frame = { model: 'mock-agent', choices: [{ delta: { content: '{"goal":' } }], usage: { prompt_tokens: 100, completion_tokens: 2 }, cost: 0.0001 }
     fetchMock.mockResolvedValueOnce(new Response(`data: ${JSON.stringify(frame)}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } }))
     await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
-    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
     expect(await getAgentSummary(t.db, session.id)).toBeNull()
-    expect(await all(t.db, 'SELECT task_id,generation_type,completion_tokens,token_usage_reported FROM ai_usage')).toEqual([{ task_id: turn.taskId, generation_type: 'agent_summary', completion_tokens: 2, token_usage_reported: true }])
-    expect((await readAgentEvents(t.db, session.id)).events.at(-1)?.metadata.summaryDiagnostic).toMatchObject({ stage: 'request', reason: 'request_failed', usageRecorded: true, finishReason: 'missing' })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(await all(t.db, 'SELECT task_id,generation_type,completion_tokens,token_usage_reported FROM ai_usage')).toEqual([
+      { task_id: turn.taskId, generation_type: 'agent_summary', completion_tokens: 2, token_usage_reported: true },
+      { task_id: turn.taskId, generation_type: 'agent_chat', completion_tokens: 20, token_usage_reported: true },
+    ])
+    expect((await readAgentEvents(t.db, session.id)).events.find(event => event.metadata.summaryDiagnostic)?.metadata.summaryDiagnostic)
+      .toMatchObject({ stage: 'request', reason: 'request_failed', usageRecorded: true, finishReason: 'missing' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
   it('never overwrites a newer persisted summary with a stale checkpoint', async () => {
     const session = await setup()
@@ -1115,6 +1158,8 @@ describe('novel-scoped creative agent', () => {
         [`handoff-${index}`, 'handoff-novel', text, index])
     }
     await draft('prior-chapter', 'handoff-novel', prior)
+    const earlierSession = await createAgentSession(t.db, 'admin', { novelId: 'handoff-novel' })
+    const agreement = await createAgentMemory(t.db, 'admin', earlierSession, { title: '视角', content: '全书使用第三人称限制视角。' })
     const session = await createAgentSession(t.db, 'admin', { novelId: 'handoff-novel', afterChapterId: 'handoff-3' })
     await appendAgentEvent(t.db, session.id, 'user', correction)
     const [author] = (await readAgentEvents(t.db, session.id)).events
@@ -1147,13 +1192,32 @@ describe('novel-scoped creative agent', () => {
     const sent = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body))).find(body => !body.tools)
     expect(sent.messages[1].content).toContain(evidence)
     expect(sent.messages[1].content).toContain(correction)
+    expect(sent.messages[1].content).toContain(agreement.content)
     expect(sent.messages[1].content).toContain(prior)
     expect(sent.messages[1].content).toContain('接刚刚那篇草稿写下一章。')
     expect(sent.messages[1].content.match(/正文至少 2500 字/g)).toHaveLength(1)
     expect(sent.messages[1].content).not.toContain('正文约 300 字')
     const artifact = await readAgentArtifact(t.db, session, task.id)
     expect(artifact.drafts[0]?.minimumLengthWarning).toContain('2500 字')
+    expect(artifact.drafts[0]?.lengthCheck).toMatchObject({ minimumWords: 2500, actualWords: 9 })
     expect(JSON.parse(task.params).agentContext.priorDraft.revision).toBe(generationContentRevision(prior))
+    expect(JSON.parse(task.params).agentContext.agreements).toEqual([
+      { id: agreement.id, revision: agreement.revision, title: agreement.title, content: agreement.content },
+    ])
+
+    await changeAgentMemory(t.db, 'admin', earlierSession, agreement.id, { operation: 'archive', expectedRevision: agreement.revision })
+    fetchMock.mockImplementationOnce(async (_url, init) => {
+      const payload = JSON.parse(JSON.parse(String(init?.body)).messages[1].content)
+      const source = payload.sources.find((item: { id: string }) => item.id === `agreement-${agreement.id}-${agreement.revision}`)
+      expect(source).toMatchObject({ authorRequirement: true, text: expect.stringContaining(agreement.content) })
+      return completion(JSON.stringify({ findings: [{
+        category: 'requirement', severity: 'info', description: '建议检查视角稳定性。',
+        draftQuote: '林秋小声应了一声。', evidence: [{ sourceId: source.id, quote: agreement.content }],
+      }] }))
+    })
+    const review = await request(`/api/ai/writing/drafts/${artifact.drafts[0]!.id}/review`, 'POST', { expectedRevision: artifact.drafts[0]!.revision })
+    expect(review.status).toBe(200)
+    expect(await review.json()).toMatchObject({ report: { findings: [{ category: 'requirement', draftQuote: '林秋小声应了一声。' }] } })
 
     const secondSession = await createAgentSession(t.db, 'admin', { novelId: 'handoff-novel', afterChapterId: 'handoff-3' })
     await expect(executeAgentTool(t.db, secondSession, 'generate_draft', {
@@ -1206,6 +1270,13 @@ describe('novel-scoped creative agent', () => {
     await draft()
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
     const taskId = await finishedRewrite(session.id)
+    const version = await executeAgentTool(t.db, session, 'read_task', { taskId }, 'read-full-rewrite', internalApi())
+    const located = await executeAgentTool(t.db, session, 'find_draft_version', { quote: '他在门边停住了。' }, 'locate-rewrite', internalApi())
+    const fullText = '他在门边停住了。她没有开口。'
+    const revision = generationContentRevision(fullText)
+    expect(version.version).toMatchObject({ revision, content: fullText, nextOffset: null })
+    expect(version.draftReads).toEqual([expect.objectContaining({ revision })])
+    expect(located.versions).toEqual([expect.objectContaining({ revision, taskId })])
     const action = await prepareAgentAction(t.db, session, 'apply_rewrite', taskId)
     expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))?.result).toBe(original)
     expect((await confirmAgentAction(t.db, session, action.id, internalApi())).status).toBe('completed')
@@ -1366,6 +1437,24 @@ describe('novel-scoped creative agent', () => {
     await confirmAgentAction(t.db, session, valid.id, internalApi())
     await confirmAgentAction(t.db, session, valid.id, internalApi())
     expect((await first<{ count: number }>(t.db, "SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id='novel' AND title='雨后'"))?.count).toBe(1)
+  })
+  it('invalidates the publish preview after another chapter arrives and shows the new position for confirmation', async () => {
+    const novelId = 'publish-position-book'
+    await t.db.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES($1,'衔接测试',1,1)", [novelId])
+    await t.db.query("INSERT INTO chapters(id,novel_id,title,sort_order,created_at) VALUES('publish-anchor',$1,'原续写起点',8,1)", [novelId])
+    await draft('position-draft', novelId)
+    await t.db.query("UPDATE ai_generations SET params_json=$1 WHERE id='position-draft'", [JSON.stringify({ agentAfterChapterId: 'publish-anchor' })])
+    const session = await createAgentSession(t.db, 'admin', { novelId })
+    const preview = await prepareAgentAction(t.db, session, 'publish_draft', 'position-draft', '雨后')
+    expect(preview.preview.description).toContain('追加到当前末章「原续写起点」之后')
+    await t.db.query("INSERT INTO chapters(id,novel_id,title,sort_order,created_at) VALUES('publish-tail',$1,'刚发布的章节',9,1)", [novelId])
+    await expect(confirmAgentAction(t.db, session, preview.id, internalApi())).rejects.toMatchObject({ status: 409, message: '作品末章已变化，请重新预览发布位置' })
+    expect(await first(t.db, "SELECT status FROM ai_generations WHERE id='position-draft'")).toEqual({ status: 'draft' })
+    const next = await prepareAgentAction(t.db, session, 'publish_draft', 'position-draft', '雨后')
+    expect(next.preview.description).toContain('草稿承接「原续写起点」')
+    expect(next.preview.description).toContain('追加到当前末章「刚发布的章节」之后')
+    expect((await confirmAgentAction(t.db, session, next.id, internalApi())).status).toBe('completed')
+    expect(await first(t.db, "SELECT sort_order FROM chapters WHERE novel_id=$1 AND title='雨后'", [novelId])).toEqual({ sort_order: 10 })
   })
   it.each([0, 10])('cancels after %i tool rounds before a returned generation tool can execute', async (rounds) => {
     const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })

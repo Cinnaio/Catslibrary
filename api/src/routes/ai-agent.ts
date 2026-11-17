@@ -237,17 +237,20 @@ export function createAgentRoutes(dispatch: Dispatch) {
     const taskId = String(body.taskId || session.activeTaskId)
     if (taskId !== session.activeTaskId) await requireAgentArtifact(db, session.id, taskId)
     const task = await getAiTask(db, taskId)
-    if (task && task.kind !== 'agent_chat')
+    if (!task) throw new AiError('invalid', '任务已移除', 404)
+    if (task.kind === 'agent_chat' && !(await cancelAiTask(db, task.id))) {
+      return c.json({ ok: true, status: (await getAiTask(db, task.id))?.status })
+    }
+    if (task.kind !== 'agent_chat')
       await agentApiAdapter(c.req.raw, dispatch)(`/api/ai/tasks/${encodeURIComponent(task.id)}/cancel`, 'POST', { operationId: `agent_cancel_${task.id}` })
-    else if (task) await cancelAiTask(db, task.id)
     await appendAgentEvent(
       db,
       session.id,
       'activity',
-      task?.kind === 'agent_chat' ? '已停止本轮回复；已提交的生成任务可在产出区单独停止' : '已请求停止生成任务',
+      task.kind === 'agent_chat' ? '已停止本轮回复；已提交的生成任务可在产出区单独停止' : '已请求停止生成任务',
       taskId,
     )
-    return c.json({ ok: true })
+    return c.json({ ok: true, ...(task.kind === 'agent_chat' ? { status: 'cancelled' } : {}) })
   })
   routes.get('/sessions/:id/artifacts/:taskId', async (c) => {
     const session = await getAgentSession(getDb(), c.get('user').id, c.req.param('id'))

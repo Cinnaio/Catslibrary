@@ -8,6 +8,7 @@ export interface WritingQualityReport {
   warnings: WritingQualityWarning[]
   bodyCharacters: number
   targetWords: number
+  minimumWords?: number
   finishReason: string
   editedSinceGeneration: boolean
 }
@@ -46,7 +47,7 @@ export function assessWritingQuality(input: WritingQualityInput): WritingQuality
     warnings.push({ code: 'title_format', source: 'current', message: '正文首行可能残留标题，请核对标题与正文；系统保留了原文。' })
   if (!editedSinceGeneration && input.repeatedOpening)
     warnings.push({ code: 'repeated_opening', source: 'current', message: '开头与前章片段高度重复，请检查是否重复开场或回到了旧场景。' })
-  return { warnings, bodyCharacters, targetWords, finishReason, editedSinceGeneration }
+  return { warnings, bodyCharacters, targetWords, ...(input.minimumWords ? { minimumWords: input.minimumWords } : {}), finishReason, editedSinceGeneration }
 }
 
 export function detectRepeatedOpening(text: string, previous: string): boolean {

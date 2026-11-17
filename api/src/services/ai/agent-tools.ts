@@ -10,7 +10,7 @@ import { readAgentEvents, requireAgentArtifact, trackAgentArtifact } from './age
 import { createAgentMemory } from './agent-memory'
 import { isAuthorQuote, readConversationSources } from './agent-conversation'
 import { parseRewriteSuggestion, parseRewriteTaskParams } from './rewrite'
-import { findAgentDraftVersions } from './agent-draft-versions'
+import { agentRewriteVersion, findAgentDraftVersions } from './agent-draft-versions'
 import { parseAgentSourceIds } from './agent-writing'
 import { getAiTask } from './tasks'
 
@@ -61,13 +61,17 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   }),
   tool('read_draft', '读取指定草稿的当前正文和 revision，改写前必须调用。', { draftId: id }),
   tool('list_covers', '列出本书封面候选的描述词与 ID。只提供文本材料，不代表你看到了图像。'),
-  tool('read_task', '读取本对话生成任务的真实进度和产出。任务未完成时不反复轮询，告知用户可稍后继续。', { taskId: id }),
-  tool('read_conversation', '读取本会话 beforeId 之前最近 20 条原始消息。可用当前最早消息 ID 向前翻页；若摘要引用消息 #123，用 beforeId=124 直接定位包含该消息的页面。hasEarlier=true 表示仍有更早记录，未翻到不能说原文不存在。', {
+  tool('read_task', '读取本对话生成任务的真实进度和产出。改写任务的 version 是应用建议后拼接的整章，按 nextOffset 继续读取；rewrite 只用于查看改动段。任务未完成时不反复轮询。', {
+    taskId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 },
+  }, ['taskId']),
+  tool('read_conversation', '读取本会话 beforeId 之前最近最多 20 条原始消息。结果过长时减小 limit；用当前页最早消息 ID 向前翻页。已知编号时优先用 read_conversation_sources。', {
     beforeId: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
-  }),
-  tool('read_conversation_sources', '按编号直接核对本会话的 1–8 条原始消息，编号用英文逗号分隔。摘要已有来源编号时优先使用，无需逐页遍历；作者原话、助手建议和操作记录须分别解释。', {
+    limit: { type: 'integer', minimum: 1, maximum: 20 },
+  }, ['beforeId']),
+  tool('read_conversation_sources', '按编号直接核对本会话的 1–8 条原始消息，编号用英文逗号分隔。指定 offset 时只传一条编号，并用返回的 nextOffset 继续读取长消息。作者原话、助手建议和操作记录须分别解释。', {
     eventIds: { type: 'string', maxLength: 160 },
-  }),
+    offset: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
+  }, ['eventIds']),
   tool(
     'generate_draft',
     '用户要求开始生成时，启动一章续写或新写草稿。仅讨论方向时不要调用。正文不会自动发布。',
@@ -261,22 +265,33 @@ export async function executeAgentTool(
     }))
     if (artifact.rewrite) {
       const rewrite = artifact.rewrite
+      const task = await getAiTask(db, artifact.task.id)
+      const params = parseRewriteTaskParams(JSON.parse(task?.params || '{}'))
+      if (!params) throw new AiError('invalid', '无法读取改写版本', 422)
+      const full = agentRewriteVersion(params, rewrite.after)
+      const offset = Number(a.offset || 0)
+      if (offset > full.content.length) throw new AiError('invalid', '读取位置超出改写版本长度', 422)
+      let end = Math.min(offset + 12000, full.content.length)
+      if (end < full.content.length && /[\uDC00-\uDFFF]/u.test(full.content[end]!)) end--
+      const version = { revision: full.revision, content: full.content.slice(offset, end), offset,
+        nextOffset: end < full.content.length ? end : null }
       const draft = await scopedAgentDraft(db, session, rewrite.draftId).catch(error => {
         if (error instanceof AiError && error.status === 404) return undefined
         throw error
       })
       draftReads.push({ kind: 'rewrite', title: draft ? agentDraftTitle(draft) : '章节', draftId: rewrite.draftId,
-        revision: generationContentRevision(rewrite.after), taskId: artifact.task.id,
-        createdAt: (await getAiTask(db, artifact.task.id))?.createdAt })
-      return { ...artifact, task: { ...artifact.task, result: '' }, draftReads }
+        revision: full.revision, taskId: artifact.task.id, createdAt: task?.createdAt, truncated: offset > 0 || version.nextOffset !== null })
+      const { before, after, ...change } = rewrite
+      return { ...artifact, task: { ...artifact.task, result: '' }, version, draftReads,
+        rewrite: { ...change, ...(before.length + after.length <= 6000 ? { before, after } : {}) } }
     }
     return { ...artifact, draftReads }
   }
-  if (name === 'read_conversation') return readAgentEvents(db, session.id, Number(a.beforeId), 20)
+  if (name === 'read_conversation') return readAgentEvents(db, session.id, Number(a.beforeId), Number(a.limit || 20))
   if (name === 'read_conversation_sources') {
     const raw = String(a.eventIds)
     if (!/^\d+(?:\s*,\s*\d+){0,7}$/.test(raw)) throw new AiError('invalid', '请提供逗号分隔的 1–8 个消息编号', 422)
-    return readConversationSources(db, session, userId, raw.split(',').map(Number))
+    return readConversationSources(db, session, userId, raw.split(',').map(Number), a.offset === undefined ? undefined : Number(a.offset))
   }
   if (name === 'propose_memory') {
     const source = await first<{ id: number; content: string }>(db, "SELECT id,content FROM ai_agent_events WHERE session_id=$1 AND task_id=$2 AND role='user' ORDER BY id DESC LIMIT 1", [session.id, currentTaskId])

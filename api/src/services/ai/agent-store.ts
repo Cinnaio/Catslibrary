@@ -3,7 +3,8 @@ import type { Db, DbClient } from '../../db/pool'
 import { all, first, run, withTx } from '../../db/query'
 import { newId } from '../auth'
 import { AiError } from './client'
-import { createAiTask, getAiTask } from './tasks'
+import { createAiTask, getAiTask, isAiTaskActive, updateAiTask } from './tasks'
+import { publishAiTask } from './task-events'
 import { DEFAULT_WRITING_CONTENT_PREFERENCES, validateWritingContentPreferences } from './writing-preferences'
 
 interface SessionRow {
@@ -136,6 +137,19 @@ export async function readAgentEvents(db: DbClient, sessionId: string, before = 
       .reverse()
       .map((r) => ({ id: Number(r.id), role: r.role, content: r.content, taskId: r.task_id, ...(r.request_id ? { requestId: r.request_id } : {}), metadata: r.metadata, createdAt: Number(r.created_at) })),
   }
+}
+
+export async function finishAgentReply(db: Db, sessionId: string, taskId: string, content: string, round: number) {
+  const patch = { status: 'completed' as const, current: round + 1, total: round + 1, step: '本轮对话已完成', result: '' }
+  await withTx(db, async (query) => {
+    const scoped = { query }
+    const session = await first(scoped, 'SELECT id FROM ai_agent_sessions WHERE id=$1 AND active_task_id=$2 FOR UPDATE', [sessionId, taskId])
+    if (!session || !(await isAiTaskActive(scoped, taskId)) || !(await updateAiTask(scoped, taskId, patch, { publish: false })))
+      throw new AiError('cancelled', '本轮已停止或执行权已过期', 409)
+    await appendAgentEvent(scoped, sessionId, 'assistant', content, taskId, { round })
+  })
+  const time = Date.now()
+  publishAiTask(taskId, { ...patch, updatedAt: time, finishedAt: time })
 }
 
 /** Session lock serializes turns across API processes. Request IDs survive lost responses. */

@@ -6,7 +6,7 @@ import { all, first, run, withTx } from '../../db/query'
 import { newId } from '../auth'
 import { getCurrentCoverState } from '../covers'
 import { AiError } from './client'
-import { generationContentRevision, generationWritingQuality, getGeneration, listTaskGenerations, type GenerationRow } from './generations'
+import { generationContentRevision, generationWritingQuality, getGeneration, latestPublishedChapter, listTaskGenerations, type GenerationRow } from './generations'
 import { parseRewriteSuggestion, parseRewriteTaskParams } from './rewrite'
 import { appendAgentEvent, publicAgentAction, requireAgentArtifact, type AgentActionRow } from './agent-store'
 
@@ -30,6 +30,35 @@ export function agentDraftTitle(draft: Pick<GenerationRow, 'params_json' | 'resu
   return draft.result.match(/^标题[：:]\s*(.+)/)?.[1]?.trim() || '未命名章节'
 }
 
+async function publishPosition(db: Db, draft: GenerationRow) {
+  const latest = await latestPublishedChapter(db, draft.novel_id)
+  let params: {
+    agentAfterChapterId?: string
+    agentPriorDraft?: { id: string; revision: string }
+    continuationSnapshot?: { anchor?: { chapterId?: string } }
+  } = {}
+  try { params = JSON.parse(draft.params_json) || {} } catch { /* Older drafts may lack a saved starting point. */ }
+  let anchorId = params.agentAfterChapterId ?? params.continuationSnapshot?.anchor?.chapterId
+  let from = '草稿原始起点未记录。'
+  let matches = false
+  if (params.agentPriorDraft) {
+    const prior = await getGeneration(db, params.agentPriorDraft.id)
+    anchorId = prior?.novel_id === draft.novel_id && !prior.deleted_at && prior.status === 'published' &&
+      generationContentRevision(prior.result) === params.agentPriorDraft.revision ? prior.chapter_id : undefined
+    if (!anchorId) from = '草稿承接的上一份草稿尚未按原版本发布。'
+  }
+  if (anchorId !== undefined) {
+    const anchor = anchorId ? await first<{ title: string }>(db, 'SELECT title FROM chapters WHERE id=$1 AND novel_id=$2', [anchorId, draft.novel_id]) : undefined
+    from = anchorId ? (anchor ? `草稿承接「${anchor.title}」。` : '草稿承接的原章节已找不到。') : '草稿从空作品开始写作。'
+    matches = anchorId === (latest?.id || '')
+  }
+  const destination = latest ? `追加到当前末章「${latest.title}」之后` : '发布为作品的第一章'
+  return {
+    expectedTailId: latest?.id || '',
+    description: `${from} 本次将${destination}。${matches ? '' : '请确认该发布位置符合预期。'}`,
+  }
+}
+
 export async function readAgentArtifact(db: Db, session: AgentSession, taskId: string): Promise<AgentArtifact> {
   const task = await requireAgentArtifact(db, session.id, taskId)
   if (task.novelId !== session.novelId) throw new AiError('invalid', '任务小说不匹配', 409)
@@ -43,8 +72,8 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
     for (const item of drafts) {
       const draft = await scopedAgentDraft(db, session, item.id).catch(() => null)
       if (draft) {
-        const minimumLengthWarning = generationWritingQuality(draft.kind, draft.result, draft.params_json)?.warnings
-          .find(warning => warning.code === 'minimum_length')?.message
+        const quality = generationWritingQuality(draft.kind, draft.result, draft.params_json)
+        const minimumLengthWarning = quality?.warnings.find(warning => warning.code === 'minimum_length')?.message
         result.drafts.push({
           id: draft.id,
           title: agentDraftTitle(draft),
@@ -52,6 +81,9 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
           status: draft.status,
           revision: generationContentRevision(draft.result),
           ...(minimumLengthWarning ? { minimumLengthWarning } : {}),
+          ...(quality && (quality.minimumWords || quality.targetWords) ? {
+            lengthCheck: { actualWords: quality.bodyCharacters, minimumWords: quality.minimumWords, targetWords: quality.targetWords || undefined },
+          } : {}),
         })
       }
     }
@@ -115,9 +147,10 @@ export async function prepareAgentAction(db: Db, session: AgentSession, kind: Ag
     if (draft.status !== 'draft' || !['continue', 'write_chapter'].includes(draft.kind)) throw new AiError('conflict', '该内容不是可发布的章节草稿', 409)
     const chapterTitle = title.trim() || agentDraftTitle(draft)
     if (!chapterTitle || chapterTitle === '未命名章节' || chapterTitle.length > 200) throw new AiError('invalid', '发布前请提供有效章节标题', 422)
-    payload = { draftId: draft.id, baseRevision: generationContentRevision(draft.result), title: chapterTitle, after: draft.result }
+    const position = await publishPosition(db, draft)
+    payload = { draftId: draft.id, baseRevision: generationContentRevision(draft.result), title: chapterTitle, after: draft.result, expectedTailId: position.expectedTailId }
     label = `发布「${chapterTitle}」`
-    preview = { description: `将此草稿作为「${session.novelTitle}」的新章节追加发布。`, draftId: draft.id, after: draft.result }
+    preview = { description: `发布到「${session.novelTitle}」。${position.description}`, draftId: draft.id, after: draft.result }
   } else if (kind === 'adopt_cover') {
     const candidate = await first<{ id: string; prompt: string }>(db, 'SELECT id,prompt FROM ai_cover_candidates WHERE id=$1 AND novel_id=$2', [
       targetId,
@@ -196,12 +229,15 @@ export async function confirmAgentAction(db: Db, session: AgentSession, id: stri
       // A lost response can be reconciled without publishing a second chapter.
       if (draft.status === 'published' && draft.chapter_id && generationContentRevision(draft.result) === p.baseRevision)
         result = { chapterId: draft.chapter_id, alreadyPublished: true }
-      else
+      else {
+        if (typeof p.expectedTailId !== 'string') throw new AiError('conflict', '这张发布预览没有记录发布位置，请重新预览后确认', 409)
         result = await call(`/api/ai/writing/drafts/${encodeURIComponent(draft.id)}/publish`, 'POST', {
           novelId: session.novelId,
           title: p.title,
           expectedContentRevision: p.baseRevision,
+          expectedTailId: p.expectedTailId,
         })
+      }
     } else if (action.kind === 'adopt_cover') {
       result = await call(`/api/ai/cover/candidates/${encodeURIComponent(String(p.candidateId))}/adopt`, 'POST', {
         expectedCoverVersion: p.expectedCoverVersion,

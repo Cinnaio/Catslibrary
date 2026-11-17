@@ -169,12 +169,18 @@ public struct AIAgentAction: Codable, Identifiable, Equatable, Sendable {
 
 public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {
     public struct Draft: Codable, Identifiable, Equatable, Sendable {
+        public struct LengthCheck: Codable, Equatable, Sendable {
+            public let actualWords: Int
+            public let minimumWords: Int?
+            public let targetWords: Int?
+        }
         public let id: String
         public let title: String
         public let content: String
         public let status: String
         public let revision: String
         public let minimumLengthWarning: String?
+        public let lengthCheck: LengthCheck?
     }
     public struct Cover: Codable, Identifiable, Equatable, Sendable {
         public let id: String

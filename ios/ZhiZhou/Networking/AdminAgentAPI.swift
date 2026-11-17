@@ -86,6 +86,14 @@ struct AdminAgentAPI {
         try await AdminAPI.parityRequest("GET", Self.path(id) + "/artifacts/" + ReaderMediaAPI.pathSegment(taskID), token: token)
     }
 
+    func draftReview(_ draft: AIAgentArtifact.Draft, run: Bool = false) async throws -> AgentDraftReview? {
+        let path = "/api/ai/writing/drafts/" + ReaderMediaAPI.pathSegment(draft.id) + "/review"
+        let value: AgentDraftReviewResponse = try await AdminAPI.parityRequest(
+            run ? "POST" : "GET", path, body: run ? ["expectedRevision": draft.revision] : nil,
+            token: token, timeout: run ? 150 : 30)
+        return value.report
+    }
+
     func prepare(_ id: String, kind: AIAgentActionKind, targetID: String, title: String = "") async throws -> AIAgentAction {
         let value: AIAgentActionResponse = try await AdminAPI.parityRequest("POST", Self.path(id) + "/actions",
             body: ["kind": kind.rawValue, "targetId": targetID, "title": title], token: token)
@@ -148,4 +156,33 @@ struct AdminAgentAPI {
         guard let base = ServerConfig.shared.baseURL else { return nil }
         return APIRequestURL.resolve(path(sessionID) + "/covers/" + ReaderMediaAPI.pathSegment(candidateID), relativeTo: base)
     }
+}
+
+private struct AgentDraftReviewResponse: Decodable {
+    let report: AgentDraftReview?
+}
+
+struct AgentDraftReview: Decodable {
+    struct Source: Decodable { let id: String; let title: String }
+    struct Finding: Decodable {
+        struct Evidence: Decodable { let sourceId: String; let quote: String }
+        let category: String
+        let description: String
+        let draftQuote: String
+        let evidence: [Evidence]
+
+        var label: String {
+            switch category {
+            case "requirement": "作者要求"
+            case "foreshadow": "伏笔提醒"
+            case "relationship": "关系发展"
+            default: "一致性"
+            }
+        }
+    }
+    let draftRevision: String
+    let stale: Bool?
+    let completeness: String?
+    let sources: [Source]
+    let findings: [Finding]
 }

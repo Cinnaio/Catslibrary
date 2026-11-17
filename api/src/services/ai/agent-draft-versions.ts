@@ -4,7 +4,7 @@ import { all } from '../../db/query'
 import { agentDraftTitle } from './agent-actions'
 import { quotedAgentText } from './agent-conversation'
 import { generationContentRevision } from './generations'
-import { parseRewriteSuggestion, parseRewriteTaskParams } from './rewrite'
+import { parseRewriteSuggestion, parseRewriteTaskParams, type RewriteTaskParams } from './rewrite'
 
 export interface AgentDraftVersion {
   read: AgentDraftRead
@@ -14,6 +14,11 @@ export interface AgentDraftVersion {
 
 const MAX_MATCHES = 8
 const WHOLE_READ_LIMIT = 12_000
+
+export function agentRewriteVersion(params: RewriteTaskParams, suggestion: string) {
+  const content = params.baseContent.slice(0, params.startUTF16) + suggestion + params.baseContent.slice(params.endUTF16)
+  return { content, revision: generationContentRevision(content) }
+}
 
 /** Matches actual saved text, including unadopted suggestions in this conversation. */
 export async function findAgentDraftVersions(db: Db, session: AgentSession, phrase: string) {
@@ -47,13 +52,12 @@ export async function findAgentDraftVersions(db: Db, session: AgentSession, phra
     const params = parseRewriteTaskParams(JSON.parse(row.params))
     const rewrite = params && parseRewriteSuggestion(row.result, params)
     if (!params || !rewrite || params.draftId !== row.draft_id || !rewrite.suggestion.includes(quote)) continue
-    const versionText = params.baseContent.slice(0, params.startUTF16) + rewrite.suggestion + params.baseContent.slice(params.endUTF16)
-    const revision = generationContentRevision(versionText)
+    const { content, revision } = agentRewriteVersion(params, rewrite.suggestion)
     if (matches.some(match => match.read.draftId === row.draft_id && match.read.revision === revision)) continue
     matches.push(describe({
       kind: 'rewrite', title: agentDraftTitle({ params_json: row.draft_params, result: params.baseContent }),
       draftId: row.draft_id, taskId: row.id, revision, createdAt: Number(row.created_at),
-    }, versionText))
+    }, content))
   }
   return matches.sort((a, b) => (b.read.createdAt || 0) - (a.read.createdAt || 0)).slice(0, MAX_MATCHES)
 }
