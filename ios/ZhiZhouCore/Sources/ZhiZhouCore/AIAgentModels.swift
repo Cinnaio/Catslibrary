@@ -27,6 +27,7 @@ public struct AIAgentSession: Codable, Identifiable, Equatable, Sendable {
     public let anchorTitle: String
     public let brief: String
     public let contentPreferences: AIAgentPreferences
+    public let bookSettingsRevision: Int?
     public let activeTaskId: String
     public let createdAt: Int64
     public let updatedAt: Int64

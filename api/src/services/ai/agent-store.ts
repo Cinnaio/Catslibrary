@@ -20,9 +20,13 @@ interface SessionRow {
   updated_at: number
   novel_title: string
   anchor_title: string
+  book_settings_revision: number
 }
-const SESSION_SELECT = `SELECT s.*, n.title AS novel_title, COALESCE(c.title,'') AS anchor_title
-  FROM ai_agent_sessions s JOIN novels n ON n.id=s.novel_id LEFT JOIN chapters c ON c.id=s.after_chapter_id AND c.novel_id=s.novel_id`
+const SESSION_SELECT = `SELECT s.*, n.title AS novel_title, COALESCE(c.title,'') AS anchor_title,
+  COALESCE(b.revision,0) AS book_settings_revision
+  FROM ai_agent_sessions s JOIN novels n ON n.id=s.novel_id
+  LEFT JOIN chapters c ON c.id=s.after_chapter_id AND c.novel_id=s.novel_id
+  LEFT JOIN ai_agent_book_settings b ON b.user_id=s.user_id AND b.novel_id=s.novel_id`
 
 function mapSession(r: SessionRow): AgentSession {
   return {
@@ -34,6 +38,7 @@ function mapSession(r: SessionRow): AgentSession {
     anchorTitle: r.anchor_title,
     brief: r.brief,
     contentPreferences: r.content_preferences,
+    bookSettingsRevision: r.book_settings_revision,
     activeTaskId: r.active_task_id,
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
@@ -77,8 +82,8 @@ export async function createAgentSession(
   userId: string,
   input: { novelId: string; afterChapterId?: string; brief?: string; contentPreferences?: unknown },
 ) {
-  const preferences = validateWritingContentPreferences(input.contentPreferences)
-  if (preferences.error) throw new AiError('invalid', preferences.error, 422)
+  const suppliedPreferences = validateWritingContentPreferences(input.contentPreferences)
+  if (suppliedPreferences.error) throw new AiError('invalid', suppliedPreferences.error, 422)
   const novel = await first(db, 'SELECT id FROM novels WHERE id=$1', [input.novelId])
   if (!novel) throw new AiError('invalid', '小说不存在', 404)
   const anchor = await first<{ id: string }>(
@@ -87,6 +92,11 @@ export async function createAgentSession(
     input.afterChapterId ? [input.novelId, input.afterChapterId] : [input.novelId],
   )
   if (input.afterChapterId && !anchor) throw new AiError('invalid', '续写起点不属于当前小说', 422)
+  const defaults = await first<Pick<SessionRow, 'brief' | 'content_preferences'>>(db,
+    'SELECT brief,content_preferences FROM ai_agent_book_settings WHERE user_id=$1 AND novel_id=$2', [userId, input.novelId])
+  const preferences = input.contentPreferences === undefined
+    ? validateWritingContentPreferences(defaults?.content_preferences)
+    : suppliedPreferences
   const id = newId('agent')
   await run(
     db,
@@ -96,12 +106,49 @@ export async function createAgentSession(
       userId,
       input.novelId,
       anchor?.id || '',
-      String(input.brief || '').slice(0, 4000),
+      (input.brief ?? defaults?.brief ?? '').slice(0, 4000),
       JSON.stringify(preferences.preferences || DEFAULT_WRITING_CONTENT_PREFERENCES),
       Date.now(),
     ],
   )
   return getAgentSession(db, userId, id)
+}
+
+export async function saveAgentSessionSettings(
+  db: Db,
+  userId: string,
+  id: string,
+  input: { brief?: string; contentPreferences?: unknown; expectedUpdatedAt: number; expectedBookSettingsRevision?: unknown },
+) {
+  const expectedRevision = input.expectedBookSettingsRevision
+  if (expectedRevision !== undefined && (typeof expectedRevision !== 'number' || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || expectedRevision > 2147483647))
+    throw new AiError('invalid', '作品创作设置版本无效', 422)
+  return withTx(db, async (query) => {
+    const scoped = { query }
+    const session = await first<SessionRow>(scoped,
+      'SELECT * FROM ai_agent_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, userId])
+    if (!session) throw new AiError('invalid', '创作对话不存在', 404)
+    if (await first(scoped, "SELECT 1 FROM ai_tasks WHERE id=$1 AND status IN ('queued','running')", [session.active_task_id]))
+      throw new AiError('conflict', '请先等待或停止当前回复，再调整会话设置', 409)
+    if (Number(session.updated_at) !== input.expectedUpdatedAt) throw new AiError('conflict', '会话已变化，请刷新后再保存', 409)
+    const brief = input.brief ?? session.brief
+    if (brief.length > 4000) throw new AiError('invalid', '创作约定最多 4000 字', 422)
+    const preferences = validateWritingContentPreferences(input.contentPreferences ?? session.content_preferences)
+    if (preferences.error) throw new AiError('invalid', preferences.error, 422)
+    const contentPreferences = JSON.stringify(preferences.preferences)
+    if (expectedRevision !== undefined) {
+      const values = [userId, session.novel_id, brief, contentPreferences]
+      const saved = expectedRevision === 0
+        ? await run(scoped, `INSERT INTO ai_agent_book_settings(user_id,novel_id,brief,content_preferences)
+          VALUES($1,$2,$3,$4) ON CONFLICT (user_id,novel_id) DO NOTHING`, values)
+        : await run(scoped, `UPDATE ai_agent_book_settings SET brief=$3,content_preferences=$4,revision=revision+1
+          WHERE user_id=$1 AND novel_id=$2 AND revision=$5`, [...values, expectedRevision])
+      if (!saved) throw new AiError('conflict', '本书的默认创作设置已更新，请刷新后再保存', 409)
+    }
+    await query('UPDATE ai_agent_sessions SET brief=$1,content_preferences=$2,updated_at=GREATEST(updated_at+1,$3) WHERE id=$4',
+      [brief, contentPreferences, Date.now(), id])
+    return getAgentSession(scoped, userId, id)
+  })
 }
 
 export async function appendAgentEvent(

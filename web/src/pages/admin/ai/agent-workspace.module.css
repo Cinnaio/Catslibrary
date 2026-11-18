@@ -325,7 +325,8 @@
   gap: 8px;
   margin-left: auto;
 }
-.confirmAdults {
+.confirmAdults,
+.settingsToggle {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -334,7 +335,8 @@
   font-size: 12px;
   line-height: 1.7;
 }
-.confirmAdults > :first-child {
+.confirmAdults > :first-child,
+.settingsToggle > :first-child {
   flex-shrink: 0;
 }
 .workspace {
@@ -1137,6 +1139,7 @@
   .settings > .settingsSummary,
   .usageHistory > summary,
   .confirmAdults,
+  .settingsToggle,
   .settingsActions > button,
   .usageReminder button {
     min-height: 48px;

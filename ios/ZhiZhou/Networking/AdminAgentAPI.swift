@@ -56,12 +56,14 @@ struct AdminAgentAPI {
                                         body: ["confirmModelCall": true], token: token)
     }
 
-    func save(_ id: String, brief: String, preferences: AIAgentPreferences, updatedAt: Int64) async throws -> AIAgentSession {
+    func save(_ id: String, brief: String, preferences: AIAgentPreferences, updatedAt: Int64, bookSettingsRevision: Int?) async throws -> AIAgentSession {
         let encoded = try JSONEncoder().encode(preferences.normalized)
         let fields = try JSONSerialization.jsonObject(with: encoded)
-        let value: AIAgentSessionResponse = try await AdminAPI.parityRequest("PATCH", Self.path(id), body: [
+        var body: [String: Any] = [
             "brief": brief, "contentPreferences": fields, "expectedUpdatedAt": updatedAt,
-        ], token: token)
+        ]
+        if let bookSettingsRevision { body["expectedBookSettingsRevision"] = bookSettingsRevision }
+        let value: AIAgentSessionResponse = try await AdminAPI.parityRequest("PATCH", Self.path(id), body: body, token: token)
         return value.session
     }
 

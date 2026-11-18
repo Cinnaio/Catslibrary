@@ -33,6 +33,35 @@ function pgliteMigrationDb(pg: PGlite): Pick<Db, 'query' | 'connect'> {
 
 /** 走真实的 runMigrations 记账逻辑（migrations.test.ts 只裸执行 SQL，覆盖不到迁移器本身）。 */
 describe('迁移器 runMigrations', () => {
+  it('085 为每个账号和作品迁移最近一条实际设置，不改动历史会话', async () => {
+    const pg = new PGlite()
+    try {
+      await pg.exec(`CREATE TABLE users (id TEXT PRIMARY KEY);
+        CREATE TABLE novels (id TEXT PRIMARY KEY);
+        INSERT INTO users VALUES ('a'),('b');
+        INSERT INTO novels VALUES ('one'),('two'),('three');`)
+      await pg.exec(await readFile(path.join(MIGRATIONS_DIR, '078_ai_agent.sql'), 'utf8'))
+      await pg.exec(`INSERT INTO ai_agent_sessions (id,user_id,novel_id,brief,content_preferences,created_at,updated_at) VALUES
+        ('older','a','one','旧约定','{}',1,1),
+        ('latest-custom','a','one','第一人称','{}',2,3),
+        ('latest-empty','a','one','','{}',4,4),
+        ('other-account','b','one','简短对话','{}',4,4),
+        ('only-preferences','a','two','','{"version":1,"adultContentMode":"explicit","intimacyWeight":"low","adultCharactersConfirmed":true}',4,4),
+        ('empty-book','a','three','','{}',4,4)`)
+      await pg.exec(await readFile(path.join(MIGRATIONS_DIR, '085_ai_agent_book_settings.sql'), 'utf8'))
+      const { rows } = await pg.query(`SELECT user_id,novel_id,brief,content_preferences,revision
+        FROM ai_agent_book_settings ORDER BY user_id,novel_id`)
+      expect(rows).toEqual([
+        { user_id: 'a', novel_id: 'one', brief: '第一人称', content_preferences: {}, revision: 1 },
+        { user_id: 'a', novel_id: 'two', brief: '', content_preferences: expect.objectContaining({ intimacyWeight: 'low' }), revision: 1 },
+        { user_id: 'b', novel_id: 'one', brief: '简短对话', content_preferences: {}, revision: 1 },
+      ])
+      expect((await pg.query("SELECT brief FROM ai_agent_sessions WHERE id='older'")).rows).toEqual([{ brief: '旧约定' }])
+    } finally {
+      await pg.close()
+    }
+  })
+
   it('全新数据库：所有迁移各应用一次且记账完整，重复执行为空操作', async () => {
     const pg = new PGlite()
     const db = pgliteMigrationDb(pg)

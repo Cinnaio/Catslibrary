@@ -7,6 +7,8 @@ struct AgentSettingsSheet: View {
     @State private var brief: String
     @State private var preferences: AIAgentPreferences
     @State private var updatedAt: Int64
+    @State private var bookSettingsRevision: Int?
+    @State private var useForNewConversations = true
     @State private var saving = false
     @State private var error: String?
 
@@ -15,6 +17,7 @@ struct AgentSettingsSheet: View {
         _brief = State(initialValue: model.session.brief)
         _preferences = State(initialValue: model.session.contentPreferences)
         _updatedAt = State(initialValue: model.session.updatedAt)
+        _bookSettingsRevision = State(initialValue: model.session.bookSettingsRevision)
     }
 
     var body: some View {
@@ -47,7 +50,13 @@ struct AgentSettingsSheet: View {
                             .font(.footnote).foregroundStyle(AppTheme.textSecondary)
                     }
                 } header: { Text("内容偏好") } footer: {
-                    Text("偏好只影响本次会话的创作方向，作品发布仍遵循现有分级规则。")
+                    Text("作品发布仍遵循现有分级规则。")
+                }
+                if bookSettingsRevision != nil {
+                    Section {
+                        Toggle("同时设为本书新对话的默认设置", isOn: $useForNewConversations)
+                            .disabled(saving || model.working || model.replying || model.sending)
+                    }
                 }
                 if model.replying { Text("请等待或停止当前回复后再保存设置。").font(.footnote) }
                 if let error {
@@ -76,7 +85,8 @@ struct AgentSettingsSheet: View {
         saving = true
         defer { saving = false }
         do {
-            try await model.saveSettings(brief: brief, preferences: preferences, updatedAt: updatedAt)
+            try await model.saveSettings(brief: brief, preferences: preferences, updatedAt: updatedAt,
+                                         bookSettingsRevision: useForNewConversations ? bookSettingsRevision : nil)
             dismiss()
         } catch { self.error = AppCopy.friendlyError(error) }
     }
@@ -87,6 +97,7 @@ struct AgentSettingsSheet: View {
         brief = model.session.brief
         preferences = model.session.contentPreferences
         updatedAt = model.session.updatedAt
+        bookSettingsRevision = model.session.bookSettingsRevision
         error = nil
     }
 }

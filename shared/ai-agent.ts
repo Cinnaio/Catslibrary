@@ -36,6 +36,7 @@ export interface AgentSession {
   anchorTitle: string
   brief: string
   contentPreferences: AgentContentPreferences
+  bookSettingsRevision?: number
   activeTaskId: string
   createdAt: number
   updatedAt: number

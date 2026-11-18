@@ -2,14 +2,13 @@ import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { AgentActionKind } from '@shared/ai-agent'
 import { getDb } from '../db/pool'
-import { all, first, run, withTx } from '../db/query'
+import { all, first, run } from '../db/query'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { AiError, isTextAiConfigured, textProvider } from '../services/ai/client'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { withProviderSnapshot } from '../services/ai/provider-snapshot'
 import { getProviderPreset } from '../services/ai/provider-presets'
 import { cancelAiTask, getAiTask } from '../services/ai/tasks'
-import { validateWritingContentPreferences } from '../services/ai/writing-preferences'
 import { runAgentTurn } from '../services/ai/agent'
 import { confirmAgentAction, prepareAgentAction, readAgentArtifact, type AgentApi } from '../services/ai/agent-actions'
 import {
@@ -23,6 +22,7 @@ import {
   publicAgentAction,
   readAgentEvents,
   requireAgentArtifact,
+  saveAgentSessionSettings,
   type AgentActionRow,
 } from '../services/ai/agent-store'
 import { agentMemorySource, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories } from '../services/ai/agent-memory'
@@ -71,7 +71,7 @@ export function createAgentRoutes(dispatch: Dispatch) {
     const session = await createAgentSession(getDb(), c.get('user').id, {
       novelId: String(body.novelId || ''),
       afterChapterId: String(body.afterChapterId || ''),
-      brief: String(body.brief || ''),
+      brief: body.brief === undefined ? undefined : String(body.brief || ''),
       contentPreferences: body.contentPreferences,
     })
     return c.json({ session }, 201)
@@ -118,33 +118,14 @@ export function createAgentRoutes(dispatch: Dispatch) {
     return c.json(await readAgentEvents(getDb(), session.id, numberParam(c.req.query('before'), Number.MAX_SAFE_INTEGER)))
   })
   routes.patch('/sessions/:id', async (c) => {
-    const db = getDb()
-    const session = await getAgentSession(db, c.get('user').id, c.req.param('id'))
     const body = await c.req.json().catch(() => ({}))
-    const preferences = validateWritingContentPreferences(body.contentPreferences ?? session.contentPreferences)
-    if (preferences.error) throw new AiError('invalid', preferences.error, 422)
-    const brief = body.brief === undefined ? session.brief : String(body.brief)
-    if (brief.length > 4000) throw new AiError('invalid', '创作约定最多 4000 字', 422)
-    await withTx(db, async (query) => {
-      await query('SELECT id FROM ai_agent_sessions WHERE id=$1 FOR UPDATE', [session.id])
-      if (
-        await first(
-          { query },
-          "SELECT 1 FROM ai_agent_sessions s JOIN ai_tasks t ON t.id=s.active_task_id WHERE s.id=$1 AND t.status IN ('queued','running')",
-          [session.id],
-        )
-      )
-        throw new AiError('conflict', '请先等待或停止当前回复，再调整会话设置', 409)
-      if (
-        !(await run(
-          { query },
-          'UPDATE ai_agent_sessions SET brief=$1,content_preferences=$2,updated_at=GREATEST(updated_at+1,$3) WHERE id=$4 AND updated_at=$5',
-          [brief, JSON.stringify(preferences.preferences), Date.now(), session.id, Number(body.expectedUpdatedAt)],
-        ))
-      )
-        throw new AiError('conflict', '会话已变化，请刷新后再保存', 409)
+    const session = await saveAgentSessionSettings(getDb(), c.get('user').id, c.req.param('id'), {
+      brief: body.brief === undefined ? undefined : String(body.brief),
+      contentPreferences: body.contentPreferences,
+      expectedUpdatedAt: Number(body.expectedUpdatedAt),
+      expectedBookSettingsRevision: body.expectedBookSettingsRevision,
     })
-    return c.json({ session: await getAgentSession(db, c.get('user').id, session.id) })
+    return c.json({ session })
   })
   routes.get('/sessions/:id/memories', async (c) => {
     const db = getDb()

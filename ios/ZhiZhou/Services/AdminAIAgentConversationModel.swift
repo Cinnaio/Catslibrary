@@ -385,12 +385,13 @@ final class AdminAIAgentConversationModel {
         } catch { report(error) }
     }
 
-    func saveSettings(brief: String, preferences: AIAgentPreferences, updatedAt: Int64) async throws {
+    func saveSettings(brief: String, preferences: AIAgentPreferences, updatedAt: Int64, bookSettingsRevision: Int?) async throws {
         guard isCurrentAccount, !replying, !sending, !working else { throw CancellationError() }
         working = true
         dataRevision &+= 1
         defer { working = false }
-        let value = try await api.save(sessionID, brief: brief, preferences: preferences, updatedAt: updatedAt)
+        let value = try await api.save(sessionID, brief: brief, preferences: preferences, updatedAt: updatedAt,
+                                       bookSettingsRevision: bookSettingsRevision)
         guard isCurrentAccount else { throw CancellationError() }
         dataRevision &+= 1
         session = value

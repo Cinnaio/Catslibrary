@@ -25,8 +25,8 @@ export const agentApi = {
     request<{ taskId: string; created: boolean }>('POST', `${path(id)}/messages`, { content, requestId, providerPresetId }, true),
   resume: (id: string, taskId: string) =>
     request<{ taskId: string; created: boolean }>('POST', `${path(id)}/tasks/${encodeURIComponent(taskId)}/resume`, { confirmModelCall: true }, true),
-  save: (id: string, brief: string, contentPreferences: AgentContentPreferences, expectedUpdatedAt: number) =>
-    request<{ session: AgentSession }>('PATCH', path(id), { brief, contentPreferences, expectedUpdatedAt }, true),
+  save: (id: string, brief: string, contentPreferences: AgentContentPreferences, expectedUpdatedAt: number, expectedBookSettingsRevision?: number) =>
+    request<{ session: AgentSession }>('PATCH', path(id), { brief, contentPreferences, expectedUpdatedAt, expectedBookSettingsRevision }, true),
   memories: (id: string, offset = 0) => request<AgentMemoryPage>('GET', `${path(id)}/memories?offset=${offset}`, null, true),
   memorySource: (id: string, memoryId: string) =>
     request<{ source: AgentMemorySource | null }>('GET', `${path(id)}/memories/${encodeURIComponent(memoryId)}/source`, null, true),

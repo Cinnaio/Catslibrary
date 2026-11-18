@@ -329,6 +329,7 @@ beforeEach(async () => {
   fetchMock.mockImplementation(async () => completion('可以先保留分歧，让合作推动关系。'))
   await t.db.query('DELETE FROM ai_agent_memories')
   await t.db.query('DELETE FROM ai_agent_sessions')
+  await t.db.query('DELETE FROM ai_agent_book_settings')
   await t.db.query('DELETE FROM ai_generations')
   await t.db.query('DELETE FROM ai_tasks')
   await t.db.query('DELETE FROM ai_usage')
@@ -342,6 +343,73 @@ afterAll(async () => {
     else process.env[key] = value
   }
   await t.close()
+})
+
+describe('book defaults for new agent conversations', () => {
+  const root = '/api/ai/agent/sessions'
+  const off = { version: 1, adultContentMode: 'off', intimacyWeight: 'none', adultCharactersConfirmed: false, consentRuleTier: 'default' }
+  const explicit = { ...off, adultContentMode: 'explicit', intimacyWeight: 'low', adultCharactersConfirmed: true }
+
+  async function create(body: Record<string, unknown> = {}, token = adminToken) {
+    const response = await request(root, 'POST', { novelId: 'novel', ...body }, token)
+    expect(response.status).toBe(201)
+    return ((await response.json()) as { session: AgentSession }).session
+  }
+
+  it('inherits saved settings within the same book and account, even after deleting the source session', async () => {
+    const earlierSession = await create()
+    const source = await create()
+    const sourcePath = `${root}/${source.id}`
+    const save = await request(sourcePath, 'PATCH', {
+      brief: '保持第一人称。', contentPreferences: explicit,
+      expectedUpdatedAt: source.updatedAt, expectedBookSettingsRevision: 0,
+    })
+    expect(save.status).toBe(200)
+    expect(await save.json()).toMatchObject({ session: { brief: '保持第一人称。', contentPreferences: explicit, bookSettingsRevision: 1 } })
+    expect((await request(sourcePath, 'DELETE')).status).toBe(200)
+    expect(await create()).toMatchObject({ brief: '保持第一人称。', contentPreferences: explicit, afterChapterId: 'future' })
+    expect(await create({ brief: '', contentPreferences: off })).toMatchObject({ brief: '', contentPreferences: off })
+    expect(await create({ novelId: 'other-novel' })).toMatchObject({ brief: '', contentPreferences: off, bookSettingsRevision: 0 })
+    expect(await create({}, otherToken)).toMatchObject({ brief: '', contentPreferences: off, bookSettingsRevision: 0 })
+    const earlier = await request(`${root}/${earlierSession.id}`)
+    expect(await earlier.json()).toMatchObject({ session: { brief: '', contentPreferences: off, bookSettingsRevision: 1 } })
+    const local = await create()
+    expect((await request(`${root}/${local.id}`, 'PATCH', { brief: '仅这轮改用第三人称。', expectedUpdatedAt: local.updatedAt })).status).toBe(200)
+    expect(await create()).toMatchObject({ brief: '保持第一人称。', contentPreferences: explicit })
+  })
+
+  it('checks the book revision, keeps both settings unchanged on conflict, and can clear the defaults', async () => {
+    const firstSession = await create({ brief: '旧约定' })
+    const stale = await create({ brief: '另一条旧约定' })
+    const firstPath = `${root}/${firstSession.id}`
+    const current = await request(firstPath, 'PATCH', {
+      brief: '新默认', expectedUpdatedAt: firstSession.updatedAt, expectedBookSettingsRevision: 0,
+    })
+    expect(current.status).toBe(200)
+    const { session: saved } = (await current.json()) as { session: AgentSession }
+    const stalePath = `${root}/${stale.id}`
+    const failed = await request(stalePath, 'PATCH', {
+      brief: '覆盖', expectedUpdatedAt: stale.updatedAt, expectedBookSettingsRevision: 0,
+    })
+    expect(failed.status).toBe(409)
+    expect(await failed.json()).toMatchObject({ error: expect.stringContaining('本书的默认创作设置已更新') })
+    expect(await (await request(stalePath)).json()).toMatchObject({ session: { brief: stale.brief, updatedAt: stale.updatedAt } })
+    const inherited = await create()
+    expect(inherited.brief).toBe('新默认')
+    const turn = await request(`${root}/${inherited.id}/messages`, 'POST', { content: '先聊下一章的方向', requestId: 'inherit-settings' })
+    expect(turn.status).toBe(202)
+    const { taskId } = (await turn.json()) as { taskId: string }
+    expect((await waitTask(taskId))?.status).toBe('completed')
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).messages[1].content).toContain('"authorBrief":"新默认"')
+    const cleared = await request(firstPath, 'PATCH', {
+      brief: '', contentPreferences: off, expectedUpdatedAt: saved.updatedAt, expectedBookSettingsRevision: saved.bookSettingsRevision,
+    })
+    expect(cleared.status).toBe(200)
+    expect((await request(stalePath, 'PATCH', {
+      brief: '迟到的更新', expectedUpdatedAt: stale.updatedAt, expectedBookSettingsRevision: 1,
+    })).status).toBe(409)
+    expect(await create()).toMatchObject({ brief: '', contentPreferences: off, bookSettingsRevision: 2 })
+  })
 })
 
 describe('agent session history and deletion', () => {

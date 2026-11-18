@@ -692,8 +692,8 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
           key={data.session.id}
           session={data.session}
           disabled={busy || running}
-          onSave={async (brief, preferences, expectedUpdatedAt) => {
-            const result = await agentApi.save(sessionId, brief, preferences, expectedUpdatedAt)
+          onSave={async (brief, preferences, expectedUpdatedAt, expectedBookSettingsRevision) => {
+            const result = await agentApi.save(sessionId, brief, preferences, expectedUpdatedAt, expectedBookSettingsRevision)
             if (mounted.current) {
               setData((current) => (current ? { ...current, session: result.session } : current))
               onSessionRef.current(result.session)
@@ -1140,23 +1140,34 @@ function AgentSettings({
 }: {
   session: AgentSession
   disabled: boolean
-  onSave: (brief: string, preferences: AgentContentPreferences, expectedUpdatedAt: number) => Promise<void>
+  onSave: (brief: string, preferences: AgentContentPreferences, expectedUpdatedAt: number, expectedBookSettingsRevision?: number) => Promise<void>
 }) {
-  const [draft, setDraft] = useState<{ brief: string; preferences: AgentContentPreferences; expectedUpdatedAt: number } | null>(null)
+  const [draft, setDraft] = useState<{
+    brief: string
+    preferences: AgentContentPreferences
+    expectedUpdatedAt: number
+    expectedBookSettingsRevision?: number
+  } | null>(null)
+  const [useForNewConversations, setUseForNewConversations] = useState(true)
   const brief = draft?.brief ?? session.brief
   const preferences = draft?.preferences ?? session.contentPreferences
   const dirty = draft !== null
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  function change(next: AgentContentPreferences) {
-    setDraft({ brief, preferences: next, expectedUpdatedAt: draft?.expectedUpdatedAt ?? session.updatedAt })
+  function change(nextBrief: string, nextPreferences: AgentContentPreferences) {
+    setDraft({
+      brief: nextBrief,
+      preferences: nextPreferences,
+      expectedUpdatedAt: draft?.expectedUpdatedAt ?? session.updatedAt,
+      expectedBookSettingsRevision: draft ? draft.expectedBookSettingsRevision : session.bookSettingsRevision,
+    })
   }
   async function save() {
     if (!draft || saving) return
     setSaving(true)
     setError('')
     try {
-      await onSave(brief, preferences, draft.expectedUpdatedAt)
+      await onSave(brief, preferences, draft.expectedUpdatedAt, useForNewConversations ? draft.expectedBookSettingsRevision : undefined)
       setDraft(null)
     } catch (e) {
       setError(failure(e))
@@ -1176,14 +1187,12 @@ function AgentSettings({
         <ChevronDown size={14} className={styles.settingsChevron} aria-hidden="true" />
       </summary>
       <div className={styles.settingsBody}>
-        <FormField className={styles.settingsBrief} label="这段对话始终遵循的创作约定" hint="只影响本次对话，不改写正文或分析报告。">
+        <FormField className={styles.settingsBrief} label="这段对话始终遵循的创作约定">
           <Textarea
             rows={5}
             placeholder="写下人物性格、叙事视角，或希望保留的情节…"
             value={brief}
-            onChange={(e) => {
-              setDraft({ brief: e.target.value, preferences, expectedUpdatedAt: draft?.expectedUpdatedAt ?? session.updatedAt })
-            }}
+            onChange={(e) => change(e.target.value, preferences)}
             maxLength={4000}
             disabled={disabled || saving}
           />
@@ -1197,7 +1206,7 @@ function AgentSettings({
                 { value: 'explicit', label: 'R18 创作' },
               ]}
               onChange={(value) =>
-                change({
+                change(brief, {
                   ...preferences,
                   adultContentMode: value as 'off' | 'explicit',
                   intimacyWeight: value === 'off' ? 'none' : 'high',
@@ -1217,7 +1226,7 @@ function AgentSettings({
                     { value: 'medium', label: '中' },
                     { value: 'high', label: '高' },
                   ]}
-                  onChange={(value) => change({ ...preferences, intimacyWeight: value as AgentContentPreferences['intimacyWeight'] })}
+                  onChange={(value) => change(brief, { ...preferences, intimacyWeight: value as AgentContentPreferences['intimacyWeight'] })}
                   disabled={disabled || saving}
                 />
               </FormField>
@@ -1225,7 +1234,7 @@ function AgentSettings({
                 <Checkbox
                   checked={preferences.adultCharactersConfirmed}
                   disabled={disabled || saving}
-                  onCheckedChange={(checked) => change({ ...preferences, adultCharactersConfirmed: checked === true })}
+                  onCheckedChange={(checked) => change(brief, { ...preferences, adultCharactersConfirmed: checked === true })}
                 />
                 <span>我确认相关角色均为成年人</span>
               </label>
@@ -1238,7 +1247,16 @@ function AgentSettings({
           </p>
         )}
         <div className={styles.settingsFooter}>
-          <span className={styles.muted}>{dirty ? '保存后供下一条消息使用' : '约定会随本次对话保存'}</span>
+          {session.bookSettingsRevision !== undefined && (
+            <label className={styles.settingsToggle}>
+              <Checkbox
+                checked={useForNewConversations}
+                disabled={disabled || saving}
+                onCheckedChange={(checked) => setUseForNewConversations(checked === true)}
+              />
+              <span>同时设为本书新对话的默认设置</span>
+            </label>
+          )}
           <div className={styles.settingsActions}>
             {dirty && (
               <Button
