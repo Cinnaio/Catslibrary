@@ -84,6 +84,14 @@ struct AdminAIAgentView: View {
                 if let booksError {
                     LoadErrorNotice(message: booksError, isLoading: loadingBooks) { Task { await loadBooks() } }
                 }
+                if let token = APIClient.shared.token {
+                    NavigationLink {
+                        AdminAgentBookDiscoveryView(token: token)
+                    } label: {
+                        Label("找书入库", systemImage: "magnifyingglass")
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                    }
+                }
                 Button("新建对话", systemImage: "square.and.pencil") {
                     created = nil
                     showCreate = true
@@ -230,6 +238,117 @@ struct AdminAIAgentView: View {
             await loadSessions()
         } catch {
             if APIClient.shared.token == token { deleteError = AppCopy.friendlyError(error) }
+        }
+    }
+}
+
+struct AdminAgentBookDiscoveryView: View {
+    let token: String
+    @Environment(AppState.self) private var appState
+    @State private var query = ""
+    @State private var author = ""
+    @State private var result: AgentBookDiscoveryResult?
+    @State private var busy = false
+    @State private var error: String?
+    @State private var session: AIAgentSession?
+    @State private var showConversation = false
+
+    private var title: String {
+        let quoted = query.range(of: #"《[^》]+》|「[^」]+」|『[^』]+』"#, options: .regularExpression)
+        return (quoted.map { String(query[$0].dropFirst().dropLast()) } ?? query)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var candidates: [AgentBookDiscoveryResult.Source] {
+        var seen = Set<String>()
+        return (result?.sources.values.flatMap(\.results) ?? [])
+            .sorted { ($0.matchScore ?? 0) > ($1.matchScore ?? 0) }
+            .filter { seen.insert($0.url).inserted }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("书名，或帮我找《书名》", text: $query)
+                    .submitLabel(.search).onSubmit { Task { await search() } }
+                TextField("作者（可选）", text: $author)
+                Button("找书", systemImage: "magnifyingglass") { Task { await search() } }
+                    .disabled(busy || title.isEmpty)
+                if busy { ProgressView("正在处理…") }
+                if let error { Text(verbatim: error).foregroundStyle(AppTheme.danger) }
+            }
+            if let result, !result.local.isEmpty {
+                Section("书库已有作品") {
+                    ForEach(result.local) { book in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(verbatim: book.title).font(.headline)
+                            Text("\(book.author) · \(book.chapterCount) 章").foregroundStyle(.secondary)
+                            Button("开始对话") { Task { await open(book.id) } }
+                                .disabled(busy || book.chapterCount == 0)
+                                .frame(minHeight: AppLayout.minimumTouchTarget)
+                        }
+                    }
+                }
+            } else if let result {
+                Section("书源候选") {
+                    ForEach(candidates) { item in
+                        NavigationLink {
+                            AdminBookImportView(discoverySourceURL: item.url, discoveryToken: token)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(verbatim: item.title).font(.headline)
+                                Text("\(item.author) · \(item.siteName)").foregroundStyle(.secondary)
+                            }
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                        }
+                    }
+                    if candidates.isEmpty {
+                        Text(result.sources.values.contains(where: \.ok)
+                             ? "已查完的书源没有匹配结果。" : "当前没有可完成搜索的书源。")
+                    }
+                    let unavailable = result.sources.values.filter { !$0.ok }.compactMap(\.siteName).sorted()
+                    if !unavailable.isEmpty { Text("暂未查完的书源：\(unavailable.joined(separator: "、"))").foregroundStyle(.secondary) }
+                }
+            }
+        }
+        .appListStyle(.settings)
+        .navigationTitle("找书入库")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showConversation) {
+            if let session, let user = appState.user, APIClient.shared.token == token {
+                AdminAIAgentConversationView(session: session, userID: user.id, token: token)
+            }
+        }
+        .onChange(of: ContentAccessStore.shared.accountRevision) { _, _ in
+            query = ""; author = ""; result = nil; session = nil; error = nil; showConversation = false
+        }
+    }
+
+    private func search() async {
+        guard !title.isEmpty, !busy, APIClient.shared.token == token else { return }
+        result = nil; error = nil; busy = true
+        defer { busy = false }
+        do {
+            let found = try await AdminAgentAPI(token: token).discoverBook(title: title, author: author)
+            guard !Task.isCancelled, APIClient.shared.token == token else { return }
+            result = found
+        } catch {
+            guard !Task.isCancelled, APIClient.shared.token == token else { return }
+            self.error = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func open(_ novelID: String) async {
+        guard !busy, APIClient.shared.token == token else { return }
+        error = nil; busy = true
+        defer { busy = false }
+        do {
+            let opened = try await AdminAgentAPI(token: token).startBookConversation(novelID)
+            guard !Task.isCancelled, APIClient.shared.token == token else { return }
+            session = opened; showConversation = true
+        } catch {
+            guard !Task.isCancelled, APIClient.shared.token == token else { return }
+            self.error = AppCopy.friendlyError(error)
         }
     }
 }

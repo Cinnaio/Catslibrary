@@ -7,13 +7,14 @@ struct AdminAIAgentConversationView: View {
     @State private var panel: Panel?
 
     private enum Panel: Identifiable {
-        case outputs, artifact(String), settings, memory
+        case outputs, artifact(String), settings, memory, findBook
         var id: String {
             switch self {
             case .outputs: "outputs"
             case .artifact(let id): "artifact:\(id)"
             case .settings: "settings"
             case .memory: "memory"
+            case .findBook: "find-book"
             }
         }
     }
@@ -58,6 +59,7 @@ struct AdminAIAgentConversationView: View {
                 Menu("更多", systemImage: "ellipsis") {
                     Button("作品记忆", systemImage: "bookmark") { panel = .memory }
                     Button("会话设置", systemImage: "slider.horizontal.3") { panel = .settings }
+                    Button("找书入库", systemImage: "magnifyingglass") { panel = .findBook }
                 }
                 .disabled(!model.hasLoaded)
             }
@@ -68,6 +70,13 @@ struct AdminAIAgentConversationView: View {
             case .artifact(let id): AgentOutputSheet(model: model, artifactID: id)
             case .settings: AgentSettingsSheet(model: model)
             case .memory: AgentMemoryView(model: model)
+            case .findBook:
+                NavigationStack {
+                    AdminAgentBookDiscoveryView(token: model.api.token)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) { Button("关闭") { self.panel = nil } }
+                        }
+                }
             }
         }
         .sheet(item: Binding(get: { panel == nil ? model.selectedAction : nil },

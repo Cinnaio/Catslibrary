@@ -491,6 +491,9 @@ export const supplementarySourceApi = {
 }
 
 export const bookImportApi = {
+  discover(title: string, author = ''): Promise<BookDiscoveryResponse> {
+    return request('POST', '/book-import/discover', { title, author }, true, {}, 60000)
+  },
   previewZip(file: File): Promise<{ previews: BookImportPreview[] }> {
     const form = new FormData()
     form.append('file', file)
@@ -535,6 +538,7 @@ export const bookImportApi = {
       metadataFields: string[]
       metadataMode: 'missing' | 'replace'
       revision: number
+      requireNewBook?: true
     },
     operationId = newOperationId('book-import-commit'),
   ): Promise<BookImportCommitResult> {
@@ -694,6 +698,11 @@ export interface TitleSourceSearchResponse {
   title: string
   author: string
   sources: Record<string, { ok: boolean; results: TitleSource[]; error?: string; siteName?: string }>
+}
+
+export interface BookDiscoveryResponse {
+  local: import('@shared/types').AdminNovelIndexItem[]
+  sources: TitleSourceSearchResponse['sources']
 }
 
 export interface ScrapeSourceRanking {

@@ -23,7 +23,7 @@ import type {
 } from '@shared/types'
 import { all, withTx } from '../db/query'
 import { planImportInsertions } from '@shared/book-import-resolution'
-import type { Db } from '../db/pool'
+import type { Db, DbClient } from '../db/pool'
 import { newId } from './auth'
 import { normalizeCategories } from './categories'
 import { rowToNovel, safeJsonParse, type NovelRow } from '../db/mappers'
@@ -1628,7 +1628,7 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[], o
   return diffs
 }
 
-async function findCandidates(db: Db, book: BookImportPayload, sourceType: ImportPreviewOptions['sourceType']): Promise<BookImportNovelCandidate[]> {
+async function findCandidates(db: DbClient, book: BookImportPayload, sourceType: ImportPreviewOptions['sourceType']): Promise<BookImportNovelCandidate[]> {
   const rows = await all<NovelRow>(db, 'SELECT * FROM novels ORDER BY updated_at DESC')
   const incomingAuthor = knownAuthor(book.author)
   const incomingSource = safeSourceUrl(book.sourceUrl)
@@ -1653,6 +1653,13 @@ async function findCandidates(db: Db, book: BookImportPayload, sourceType: Impor
     .sort((a, b) => b.score - a.score || b.novel.updatedAt - a.novel.updatedAt)
   const directMatches = candidates.filter(candidate => candidate.matchReason !== 'title-tag')
   return directMatches.length ? directMatches : candidates
+}
+
+export async function findLibraryBooks(db: DbClient, title: string, author: string) {
+  const matches = await findCandidates(db, { title, author, chapters: [] }, 'url')
+  return matches
+    .filter(match => !knownAuthor(author) || match.matchReason === 'title-author')
+    .map(({ novel: { id, title, author, chapterCount, updatedAt } }) => ({ id, title, author, chapterCount, updatedAt }))
 }
 
 async function loadLocalChapters(db: Db, novelId: string): Promise<ChapterRow[]> {
@@ -1832,6 +1839,7 @@ export async function applyImport(
     metadataFields: string[]
     metadataMode: 'missing' | 'replace'
     actorUserId: string
+    requireNewBook?: boolean
   },
 ): Promise<BookImportCommitResult> {
   let preview = safeJsonParse<BookImportPreview>(opts.run.preview_json, {} as BookImportPreview)
@@ -1855,6 +1863,17 @@ export async function applyImport(
     if (Number(lockedRun.rows[0]!.revision || 0) !== Number(opts.run.revision || 0)) throw new Error('预览版本已变化，请重新预览后提交')
     preview = safeJsonParse<BookImportPreview>(lockedRun.rows[0]!.preview_json, preview)
     payload = normalizeImportPayload(safeJsonParse<BookImportPayload>(lockedRun.rows[0]!.payload_json, payload))
+    if (opts.requireNewBook) {
+      if (novelId || lockedRun.rows[0]!.target_novel_id) throw new Error('找书入库只创建新作品，已有作品请直接打开')
+      if (!preview.chapters.some(chapter => chapter.status === 'new' && selectedChapters.has(chapter.id)))
+        throw new Error('请选择至少一章可阅读的正文')
+      // Serialize find-and-add confirmations before checking the current library.
+      await q('SELECT pg_advisory_xact_lock(730086)')
+      const candidates = await findCandidates({ query: q }, payload, 'url')
+      const sameBook = candidates.some(({ matchReason, novel }) =>
+        matchReason !== 'title' || !knownAuthor(payload.author) || !knownAuthor(novel.author))
+      if (sameBook) throw new Error('书库已收录相同或可能相同的作品，请重新搜索或预览')
+    }
     const chosenVariants = new Set<string>()
     for (const [index, group] of importVariantGroups(payload.chapters)) {
       if (!selectedChapters.has(`chapter-${index + 1}`)) continue

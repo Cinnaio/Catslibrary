@@ -209,7 +209,11 @@ export async function searchTitleSources(title: string, author: string, deps: Di
   const buckets = await Promise.all([
     searchJjwxcTitlesSource(title, author).then(result => ['jjwxc', { ...result, siteName: '晋江' }] as const),
     ...scrapeAdapters().flatMap(adapter => adapter.searchTitles ? [
-      adapter.searchTitles(title, author, deps).then(result => [adapter.id, { ...result, siteName: adapter.name }] as const),
+      Promise.resolve().then(() => adapter.searchTitles!(title, author, deps))
+        .catch((error: unknown): TitleSearchResult => ({
+          ok: false, results: [], error: error instanceof Error ? error.message : '书源搜索失败',
+        }))
+        .then(result => [adapter.id, { ...result, siteName: adapter.name }] as const),
     ] : []),
   ])
   const sources: Record<string, TitleSearchResult> = Object.fromEntries(buckets.map(([id, result]) =>

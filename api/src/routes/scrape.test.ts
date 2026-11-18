@@ -6,9 +6,15 @@ import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
 import { sourceSyncTestHelpers } from '../services/source-sync'
+import { createPreview } from '../services/book-import'
 
 // 本文件模拟所有 HTTP 响应，也固定 DNS，避免依赖真实源站及本机代理的 fake-ip 模式。
 vi.mock('node:dns/promises', () => ({ lookup: vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]) }))
+const discoverSources = vi.hoisted(() => vi.fn())
+vi.mock('../services/scraper/enrich', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/scraper/enrich')>()),
+  searchTitleSources: discoverSources,
+}))
 
 let t: TestDb
 
@@ -47,6 +53,48 @@ describe('scrape 路由（免网络动作）', () => {
   it('bootstrap 管理员（爬虫动作均为 admin-only）', async () => {
     const boot = await req('/api/auth/bootstrap-admin', json('POST', { username: 'admin', password: 'adminpass123' }))
     adminToken = (await jsonOf<{ token: string }>(boot)).token
+  })
+
+  it('找书入库先核对书名和作者，只有缺书才调用书源且不写入书库', async () => {
+    await t.db.query("INSERT INTO novels(id,title,author,created_at,updated_at) VALUES('discover-local','海边来信','林岸',1,1)")
+    const path = '/api/book-import/discover'
+    expect((await req(path, json('POST', { title: '海边来信' }))).status).toBe(401)
+    expect((await req(path, json('POST', { title: ' ' }, adminToken))).status).toBe(422)
+    const local = await req(path, json('POST', { title: '《海边来信》', author: '林岸' }, adminToken))
+    expect(local.status).toBe(200)
+    expect(await local.json()).toMatchObject({ local: [{ id: 'discover-local' }], sources: {} })
+    expect(discoverSources).not.toHaveBeenCalled()
+    const sources = {
+      available: { ok: true, results: [{ title: '海边来信', author: '余山', url: 'https://source.example/books/1' }] },
+      unavailable: { ok: false, results: [], siteName: '暂不可用的来源' },
+    }
+    discoverSources.mockResolvedValueOnce({ sources })
+    const missing = await req(path, json('POST', { title: '海边来信', author: '余山' }, adminToken))
+    expect(await missing.json()).toEqual({ local: [], sources })
+    expect(discoverSources).toHaveBeenCalledWith('海边来信', '余山', expect.anything())
+    expect((await t.db.query("SELECT id FROM novels WHERE title='海边来信'")).rows).toEqual([{ id: 'discover-local' }])
+  })
+
+  it('找书入库确认丢失回执后可用原请求读取同一结果', async () => {
+    const sourceUrl = 'https://source.example/books/confirm-replay'
+    const payload = { title: '找书回执样本', author: '测试作者', sourceUrl,
+      chapters: [{ title: '第一章', order: 1, content: '章节正文。' }] }
+    const preview = await createPreview(t.db, { sourceType: 'url', sourceLabel: sourceUrl, sourceUrl, payload })
+    const { rows: [admin] } = await t.db.query<{ id: string }>("SELECT id FROM users WHERE username='admin'")
+    await t.db.query(`INSERT INTO book_import_runs
+      (id,actor_user_id,source_type,source_label,source_url,status,payload_json,preview_json,created_at)
+      VALUES($1,$2,'url',$3,$3,'preview',$4,$5,1)`,
+    [preview.runId, admin!.id, sourceUrl, JSON.stringify(payload), JSON.stringify(preview)])
+    const path = `/api/book-import/${preview.runId}/commit`
+    const body = { revision: 0, requireNewBook: true, selectedChapterIds: ['chapter-1'], operationId: 'discover-commit-receipt' }
+    const first = await req(path, json('POST', body, adminToken))
+    expect(first.status).toBe(200)
+    const receipt = await first.json()
+    expect(receipt).toMatchObject({ created: 1, novelCreated: true })
+    const replay = await req(path, json('POST', body, adminToken))
+    expect(replay.status).toBe(200)
+    expect(await replay.json()).toEqual(receipt)
+    expect((await t.db.query('SELECT id FROM novels WHERE title=$1', [payload.title])).rows).toHaveLength(1)
   })
 
   it('公开实例不发布私有书源能力，并阻止旧抓取配置启动', async () => {

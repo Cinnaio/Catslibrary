@@ -600,4 +600,28 @@ describe('book import normalization and diffing', () => {
     const afterRollback = await testDb.db.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM novels WHERE id = $1', [result.novelId])
     expect(afterRollback.rows[0]?.count).toBe(0)
   })
+
+  it('requires readable chapters and rejects a stale second find-and-add confirmation', async () => {
+    const sourceUrl = 'https://source.example/readable-book'
+    const payload = { title: '独立的找书入库样本', author: '原作者', sourceUrl,
+      chapters: [{ title: '初见', order: 1, content: '令人能读到这一章的测试正文。' }] }
+    async function prepare() {
+      const preview = await createPreview(testDb.db, { sourceType: 'url', sourceLabel: sourceUrl, sourceUrl, payload })
+      const { rows: [run] } = await testDb.db.query<StoredImportRun>(`INSERT INTO book_import_runs
+        (id, actor_user_id, source_type, source_label, source_url, target_novel_id, status, payload_json, preview_json, created_at)
+        VALUES ($1,'test','url',$2,$2,'','preview',$3,$4,$5) RETURNING *`,
+      [preview.runId, sourceUrl, JSON.stringify(payload), JSON.stringify(preview), Date.now()])
+      return run!
+    }
+    const first = await prepare()
+    const second = await prepare()
+    const options = { metadataFields: [], metadataMode: 'missing' as const, actorUserId: 'test', requireNewBook: true }
+    await expect(applyImport(testDb.db, { ...options, run: first, selectedChapterIds: [] }))
+      .rejects.toThrow('至少一章可阅读')
+    await expect(applyImport(testDb.db, { ...options, run: first, selectedChapterIds: ['chapter-1'] }))
+      .resolves.toMatchObject({ novelCreated: true, created: 1 })
+    await expect(applyImport(testDb.db, { ...options, run: second, selectedChapterIds: ['chapter-1'] }))
+      .rejects.toThrow('书库已收录')
+    expect((await testDb.db.query('SELECT id FROM novels WHERE title=$1', [payload.title])).rows).toHaveLength(1)
+  })
 })

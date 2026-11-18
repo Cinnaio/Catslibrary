@@ -7,7 +7,7 @@ import BookImportChapterResolver, { type ChapterResolutionChoice } from './BookI
 import { planImportInsertions } from '@shared/book-import-resolution'
 import ImportDiagnosticsPanel from '@/components/admin/ImportDiagnosticsPanel'
 import { useEffect, useRef, useState } from 'react'
-import { bookImportApi } from '@/lib/api'
+import { bookImportApi, newOperationId } from '@/lib/api'
 import type {
   BookImportBoundaryOverride,
   BookImportChapterDiff,
@@ -97,11 +97,13 @@ export default function BookImportDialog({
   onOpenChange,
   onCompleted,
   initialPreview,
+  onStartConversation,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCompleted?: () => void
   initialPreview?: BookImportPreview
+  onStartConversation?: (novelId: string) => Promise<void>
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -121,7 +123,9 @@ export default function BookImportDialog({
   const [targetNovelId, setTargetNovelId] = useState<string | null>(initialPreview?.targetNovelId || null)
   const [createNewSelected, setCreateNewSelected] = useState(false)
   const [selectedChapterIds, setSelectedChapterIds] = useState<Set<string>>(new Set(initialPreview?.chapters.filter(c=>c.selected).map(c=>c.id)))
-  const [metadataFields, setMetadataFields] = useState<Set<string>>(new Set())
+  const [metadataFields, setMetadataFields] = useState<Set<string>>(() => new Set(
+    onStartConversation ? initialPreview?.metadataDiff.filter(field => field.selected).map(field => field.field) : [],
+  ))
   const [metadataMode, setMetadataMode] = useState<'missing' | 'replace'>('missing')
   const [expandedChapterId, setExpandedChapterId] = useState<string | null>(null)
   const [resolvingChapterId, setResolvingChapterId] = useState<string | null>(null)
@@ -130,8 +134,10 @@ export default function BookImportDialog({
   /** 复核与提交/目标变更互斥，避免确认中的预览被旧响应覆盖。 */
   const [reviewBusy, setReviewBusy] = useState(false)
   const [reviewProgress, setReviewProgress] = useState<AiTextProgress | null>(null)
-  const operationBusy = busy || reviewBusy
+  const [openingConversation, setOpeningConversation] = useState(false)
+  const operationBusy = busy || reviewBusy || openingConversation
   const operationLock = useRef(false)
+  const lastDiscoveryCommit = useRef<{ signature: string; id: string } | null>(null)
   const requestGeneration = useRef(0)
   useEffect(
     () => () => {
@@ -354,13 +360,20 @@ export default function BookImportDialog({
     operationLock.current = true
     setBusy(true)
     try {
-      const next = await bookImportApi.commit(preview.runId, {
+      const selection = {
         targetNovelId,
         selectedChapterIds: Array.from(selectedChapterIds),
         metadataFields: Array.from(metadataFields),
         metadataMode,
         revision: preview.revision || 0,
-      })
+      }
+      const signature = JSON.stringify([preview.runId, selection])
+      if (onStartConversation && lastDiscoveryCommit.current?.signature !== signature) {
+        lastDiscoveryCommit.current = { signature, id: newOperationId('agent-book-import') }
+      }
+      const next = onStartConversation
+        ? await bookImportApi.commit(preview.runId, { ...selection, requireNewBook: true }, lastDiscoveryCommit.current?.id)
+        : await bookImportApi.commit(preview.runId, selection)
       setResult(next)
       setStep('result')
       onCompleted?.()
@@ -472,7 +485,22 @@ export default function BookImportDialog({
   const changedMetadata = preview?.metadataDiff.filter((field) => field.changed) || []
   const selectedChapterCount = selectedChapterIds.size
   const selectedMetadataCount = metadataFields.size
-  const hasImportableChanges = selectedChapterCount > 0 || selectedMetadataCount > 0
+  const hasImportableChanges = selectedChapterCount > 0 || (!onStartConversation && selectedMetadataCount > 0)
+
+  async function startConversation() {
+    if (!result || !onStartConversation || operationBusy || operationLock.current) return
+    operationLock.current = true
+    setOpeningConversation(true)
+    setError('')
+    try {
+      await onStartConversation(result.novelId)
+    } catch (err) {
+      setError((err as Error).message || '未能打开作品对话，请重试。')
+    } finally {
+      setOpeningConversation(false)
+      operationLock.current = false
+    }
+  }
   const allResolutions = preview?.chapters.flatMap(chapter => (preview.chapterResolutions || []).filter(item => item.chapterId === chapter.id)) || []
   const insertionPlan = planImportInsertions(preview?.localChapters || [], allResolutions, selectedChapterIds)
   const plannedOrders = new Map(insertionPlan.insertOrders)
@@ -999,7 +1027,7 @@ export default function BookImportDialog({
               <div className="book-import__progress" aria-live="polite">
                 <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
                 <span>
-                  {reviewBusy
+                  {openingConversation ? '正在打开作品对话…' : reviewBusy
                     ? '正在复核或更新章节边界，请稍候…'
                     : step === 'source'
                       ? '正在分析来源并生成预览…'
@@ -1047,7 +1075,7 @@ export default function BookImportDialog({
             )}
             {step === 'diff' && (
               <>
-                <Button variant="ghost" onClick={() => preview?.supplementary ? onOpenChange(false) : setStep('match')} disabled={operationBusy}>
+                <Button variant="ghost" onClick={() => preview?.supplementary || onStartConversation ? onOpenChange(false) : setStep('match')} disabled={operationBusy}>
                   <ArrowLeft aria-hidden="true" />
                   返回
                 </Button>
@@ -1064,13 +1092,15 @@ export default function BookImportDialog({
             )}
             {step === 'result' && (
               <>
-                <Button variant="ghost" onClick={startOver} disabled={operationBusy || !!preview?.supplementary}>
-                  <RotateCcw aria-hidden="true" />
-                  再导入一本
-                </Button>
-                <Button onClick={() => onOpenChange(false)} disabled={operationBusy}>
+                {!onStartConversation && <Button variant="ghost" onClick={startOver} disabled={operationBusy || !!preview?.supplementary}>
+                    <RotateCcw aria-hidden="true" />
+                    再导入一本
+                  </Button>}
+                <Button variant={onStartConversation && !rollbackResult ? 'ghost' : 'default'} onClick={() => onOpenChange(false)} disabled={operationBusy}>
                   完成
                 </Button>
+                {onStartConversation && !rollbackResult && result && result.created > 0 &&
+                  <Button onClick={() => void startConversation()} disabled={operationBusy}>开始对话</Button>}
               </>
             )}
           </div>

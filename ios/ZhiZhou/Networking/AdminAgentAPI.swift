@@ -23,6 +23,19 @@ struct AdminAgentAPI {
         return value.session
     }
 
+    func discoverBook(title: String, author: String) async throws -> AgentBookDiscoveryResult {
+        try await AdminAPI.parityRequest("POST", "/api/book-import/discover",
+            body: ["title": title, "author": author], token: token, timeout: 65)
+    }
+
+    func startBookConversation(_ novelID: String) async throws -> AIAgentSession {
+        struct Directory: Decodable { let chapters: [ChapterMeta] }
+        let directory: Directory = try await AdminAPI.parityRequest("GET",
+            "/api/chapters?" + HomeView.query(["novelId": novelID]), token: token)
+        guard !directory.chapters.isEmpty else { throw AgentBookNotReady() }
+        return try await create(novelID: novelID, afterChapterID: "")
+    }
+
     func detail(_ id: String, requestID: String? = nil) async throws -> AIAgentDetail {
         let query = requestID.map { "?" + HomeView.query(["requestId": $0]) } ?? ""
         return try await AdminAPI.parityRequest("GET", Self.path(id) + query, token: token)
@@ -156,6 +169,34 @@ struct AdminAgentAPI {
         guard let base = ServerConfig.shared.baseURL else { return nil }
         return APIRequestURL.resolve(path(sessionID) + "/covers/" + ReaderMediaAPI.pathSegment(candidateID), relativeTo: base)
     }
+}
+
+private struct AgentBookNotReady: LocalizedError {
+    var errorDescription: String? { "这本书还没有可读章节，请稍后重试。" }
+}
+
+struct AgentBookDiscoveryResult: Decodable {
+    struct Local: Decodable, Identifiable {
+        let id: String
+        let title: String
+        let author: String
+        let chapterCount: Int
+    }
+    struct Source: Decodable, Identifiable {
+        let title: String
+        let author: String
+        let siteName: String
+        let url: String
+        let matchScore: Int?
+        var id: String { url }
+    }
+    struct Bucket: Decodable {
+        let ok: Bool
+        let siteName: String?
+        let results: [Source]
+    }
+    let local: [Local]
+    let sources: [String: Bucket]
 }
 
 private struct AgentDraftReviewResponse: Decodable {

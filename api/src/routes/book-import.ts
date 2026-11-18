@@ -10,9 +10,11 @@ import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { fetchHtml as fetchHtmlImpl } from '../services/scraper/fetch'
 import { PgScrapeStore } from '../services/scraper/store'
 import { sourceFetcher } from '../services/scraper/sources'
+import { searchTitleSources } from '../services/scraper/enrich'
 import {
   applyImport,
   createPreview,
+  findLibraryBooks,
   IMPORT_HEURISTIC_VERSION,
   parseBookUrl,
   parseUploadedBookDetailed,
@@ -100,6 +102,19 @@ function errorStatus(message: string): 400 | 409 | 502 | 500 {
   if (/文件|格式|URL|章节|书名|必须|支持|请选择/i.test(message)) return 400
   return 500
 }
+
+bookImportRoutes.post('/discover', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const title = typeof body?.title === 'string' ? body.title.trim() : ''
+  const author = typeof body?.author === 'string' ? body.author.trim() : ''
+  if (!title || title.length > 200 || author.length > 100)
+    return c.json({ error: '请输入书名（最多 200 字）和可选作者（最多 100 字）' }, 422)
+  const db = getDb()
+  const local = await findLibraryBooks(db, title, author)
+  if (local.length) return c.json({ local, sources: {} }, 200, { 'Cache-Control': 'no-store' })
+  const { sources } = await searchTitleSources(title, author, { db, fetchHtml: sourceFetcher(db, fetchHtmlImpl) })
+  return c.json({ local, sources }, 200, { 'Cache-Control': 'no-store' })
+})
 
 /** ZIP is expanded only into import snapshots; library writes still require each book's commit. */
 bookImportRoutes.post('/preview-zip', bodyLimit({ maxSize: 66 * 1024 * 1024, onError: (c) => c.json({ error: 'ZIP 文件不能超过 64 MB' }, 413) }), async (c) => {
@@ -324,12 +339,17 @@ bookImportRoutes.post('/:runId/commit', async (c) => {
   const runId = String(c.req.param('runId') || '').trim()
   const run = await loadRun(db, runId, c.get('user').id)
   if (!run) return c.json({ error: '导入预览不存在' }, 404)
-  if (run.status !== 'preview') return c.json({ error: '这次导入已经提交，不能重复提交' }, 409)
   const body: Record<string, unknown> = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>)
-  try {
-    checkImportRevision(run, body.revision)
-  } catch (err) {
-    return c.json({ error: (err as Error).message }, 409)
+  const requireNewBook = body.requireNewBook === true
+  if (!requireNewBook) {
+    if (run.status !== 'preview') return c.json({ error: '这次导入已经提交，不能重复提交' }, 409)
+    try {
+      checkImportRevision(run, body.revision)
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 409)
+    }
+  } else if (body.targetNovelId) {
+    return c.json({ error: '找书入库不能修改已有作品，请直接打开该作品' }, 409)
   }
   const preview = previewPayload(run)
   const selectedChapterIds = Array.isArray(body.selectedChapterIds)
@@ -339,8 +359,10 @@ bookImportRoutes.post('/:runId/commit', async (c) => {
     ? stringArray(body.metadataFields)
     : preview.metadataDiff.filter((field) => field.selected).map((field) => field.field)
   const metadataMode = body.metadataMode === 'replace' ? 'replace' : 'missing'
-  const targetNovelId = body.targetNovelId ? String(body.targetNovelId).trim() : run.target_novel_id || preview.targetNovelId || null
-  if ((targetNovelId || '') !== (run.target_novel_id || '')) {
+  const targetNovelId = requireNewBook
+    ? null
+    : body.targetNovelId ? String(body.targetNovelId).trim() : run.target_novel_id || preview.targetNovelId || null
+  if (!requireNewBook && (targetNovelId || '') !== (run.target_novel_id || '')) {
     return c.json({ error: '导入目标已变化，请先回到预览页重新选择目标' }, 409)
   }
   const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
@@ -349,17 +371,23 @@ bookImportRoutes.post('/:runId/commit', async (c) => {
     {
       scope: `book-import.commit.${c.get('user').id}.${runId}`,
       operationKey,
-      payload: { runId, revision: body.revision, targetNovelId: targetNovelId || '', selectedChapterIds, metadataFields, metadataMode },
+      payload: { runId, revision: body.revision, targetNovelId: targetNovelId || '', selectedChapterIds, metadataFields, metadataMode,
+        ...(requireNewBook ? { requireNewBook } : {}) },
       audit: { actorUserId: c.get('user').id, action: 'book-import-commit', targetCount: selectedChapterIds.length },
     },
     async () => {
       try {
+        if (requireNewBook) {
+          if (run.status !== 'preview') return c.json({ error: '这次导入已经提交，请重新搜索书库中的作品' }, 409)
+          checkImportRevision(run, body.revision)
+        }
         const result = await applyImport(db, {
           run,
           targetNovelId,
           selectedChapterIds,
           metadataFields,
           metadataMode,
+          requireNewBook,
           actorUserId: c.get('user').id,
         })
         return c.json(result, 200, { 'Cache-Control': 'no-store' })

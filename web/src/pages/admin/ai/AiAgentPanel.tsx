@@ -34,6 +34,7 @@ import AiAgentComposer from './AiAgentComposer'
 import AiAgentMemory from './AiAgentMemory'
 import AiAgentRecovery from './AiAgentRecovery'
 import AiAgentUsage from './AiAgentUsage'
+import AgentBookDiscovery from './AgentBookDiscovery'
 import DraftReview from './DraftReview'
 import { currentAgentTask, pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage, type PendingAgentMessage } from './agent-task-state'
 import AiAgentMessages, { AgentMarkdown } from './AiAgentMessages'
@@ -56,6 +57,7 @@ function AiAgentWorkspace() {
   const [params, setParams] = useSearchParams()
   const novelId = params.get('novel') || ''
   const sessionId = params.get('session') || ''
+  const findingBook = params.get('findBook') === '1'
   const [novels, setNovels] = useState<AdminNovelIndexItem[]>([])
   const [sessions, setSessions] = useState<AgentSession[]>([])
   const [recent, setRecent] = useState<AgentSession[]>([])
@@ -82,11 +84,17 @@ function AiAgentWorkspace() {
   const latestParams = useRef(params)
   const deleteButton = useRef<HTMLButtonElement>(null)
   const newButton = useRef<HTMLButtonElement>(null)
+  const findBookButton = useRef<HTMLButtonElement>(null)
+  const wasFindingBook = useRef(findingBook)
   const mounted = useRef(true)
   const selectedSession = (openedSession?.id === sessionId ? openedSession : null)
     ?? sessions.find((s) => s.id === sessionId) ?? recent.find((s) => s.id === sessionId)
   const bookSessions = selectedSession?.novelId === novelId && !sessions.some((s) => s.id === sessionId) ? [selectedSession, ...sessions] : sessions
   useLayoutEffect(() => { latestParams.current = params }, [params])
+  useLayoutEffect(() => {
+    if (!findingBook && wasFindingBook.current) findBookButton.current?.focus()
+    wasFindingBook.current = findingBook
+  }, [findingBook])
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -158,12 +166,28 @@ function AiAgentWorkspace() {
     setLoadingRecent(true)
     setHistoryRevision(++historyRequest.current)
   }
-  function navigateBook(value: string) {
-    const next = new URLSearchParams(params)
+  function navigateBook(value: string, newSessionId = '') {
+    const next = new URLSearchParams(latestParams.current)
     next.set('novel', value)
-    next.delete('session')
+    if (newSessionId) next.set('session', newSessionId)
+    else next.delete('session')
     next.delete('afterChapterId')
+    next.delete('findBook')
     setParams(next)
+  }
+  function showBookDiscovery(open: boolean) {
+    const next = new URLSearchParams(latestParams.current)
+    if (open) next.set('findBook', '1')
+    else next.delete('findBook')
+    setParams(next)
+  }
+  async function startImportedConversation(id: string) {
+    const { chapters: imported } = await chaptersApi.list(id)
+    if (!imported.length) throw new Error('这本书还没有可读章节，请稍后重试。')
+    const current = () => mounted.current && latestParams.current.get('findBook') === '1'
+    if (!current()) return
+    const { session } = await agentApi.create(id, '')
+    if (current()) navigateBook(id, session.id)
   }
   function navigateSession(value: string) {
     const next = new URLSearchParams(latestParams.current)
@@ -232,7 +256,11 @@ function AiAgentWorkspace() {
     }
   }
   return (
-    <div className={styles.root}>
+    <>
+    {findingBook && <AgentBookDiscovery onClose={() => showBookDiscovery(false)}
+      onOpen={id => { if (id === novelId) showBookDiscovery(false); else navigateBook(id) }}
+      onStart={startImportedConversation} />}
+    <div className={styles.root} hidden={findingBook}>
       {(recent.length > 0 || recentError) && (
         <div className={styles.recentHistory}>
           {recent.length > 0 && (
@@ -266,16 +294,19 @@ function AiAgentWorkspace() {
         </div>
       )}
       <div className={styles.toolbar}>
-        <FormField label="当前作品">
-          <SearchSelect
-            options={novels.map((n) => ({ value: n.id, label: n.title, sub: n.author }))}
-            value={novelId}
-            onChange={navigateBook}
-            placeholder="选择一本小说"
-            searchable
-            matchTriggerWidth
-          />
-        </FormField>
+        <div className={styles.bookHistory}>
+          <FormField label="当前作品">
+            <SearchSelect
+              options={novels.map((n) => ({ value: n.id, label: n.title, sub: n.author }))}
+              value={novelId}
+              onChange={(id) => navigateBook(id)}
+              placeholder="选择一本小说"
+              searchable
+              matchTriggerWidth
+            />
+          </FormField>
+          <Button ref={findBookButton} variant="outline" onClick={() => showBookDiscovery(true)}>找书入库</Button>
+        </div>
         <div className={styles.bookHistory}>
           <FormField label="本书对话">
             <SearchSelect
@@ -379,6 +410,7 @@ function AiAgentWorkspace() {
         </ReadingDialog>
       </Dialog>
     </div>
+    </>
   )
 }
 

@@ -27,14 +27,18 @@ extension AdminAPI {
         try await parityRequest("POST", "/api/book-import/preview", body: ["sourceUrl": url], token: token, timeout: 180)
     }
 
-    static func importTarget(runID: String, novelID: String?, token: String) async throws -> BookImportPreview {
+    static func importTarget(runID: String, novelID: String?, revision: Int, token: String) async throws -> BookImportPreview {
         try await parityRequest("POST", "/api/book-import/\(ReaderMediaAPI.pathSegment(runID))/target",
-                                body: ["targetNovelId": novelID.map { $0 as Any } ?? NSNull()], token: token)
+                                body: ["targetNovelId": novelID.map { $0 as Any } ?? NSNull(), "revision": revision], token: token)
     }
 
-    static func commitImport(runID: String, chapters: Set<String>, metadata: Set<String>, token: String, key: String) async throws -> BookImportResult {
-        try await parityRequest("POST", "/api/book-import/\(ReaderMediaAPI.pathSegment(runID))/commit", body: [
-            "selectedChapterIds": chapters.sorted(), "metadataFields": metadata.sorted(), "metadataMode": "replace",
-        ], token: token, idempotencyKey: key, timeout: 180)
+    static func commitImport(runID: String, chapters: Set<String>, metadata: Set<String>, revision: Int, token: String, key: String,
+                             requireNewBook: Bool = false) async throws -> BookImportResult {
+        var body: [String: Any] = [
+            "selectedChapterIds": chapters.sorted(), "metadataFields": metadata.sorted(), "metadataMode": "replace", "revision": revision,
+        ]
+        if requireNewBook { body["requireNewBook"] = true }
+        return try await parityRequest("POST", "/api/book-import/\(ReaderMediaAPI.pathSegment(runID))/commit",
+                                      body: body, token: token, idempotencyKey: key, timeout: 180)
     }
 }

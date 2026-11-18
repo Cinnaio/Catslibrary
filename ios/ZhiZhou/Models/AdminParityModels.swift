@@ -89,6 +89,7 @@ struct BookImportPreview: Decodable {
     }
     let runId: String
     let book: Book
+    let revision: Int?
     let candidates: [Candidate]
     let targetNovelId: String?
     let metadataDiff: [Metadata]

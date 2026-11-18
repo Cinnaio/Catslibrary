@@ -2,20 +2,23 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentAction, AgentSessionDetail } from '@shared/ai-agent'
+import type { BookImportPreview } from '@shared/types'
 import AiAgentPanel from './AiAgentPanel'
 import { setStorageUser } from '@/lib/storage'
 import { pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage } from './agent-task-state'
 
 const streams = vi.hoisted(() => ({ watch: vi.fn() }))
 vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: streams.watch }))
-const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), remove: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn(), memories: vi.fn(), changeMemory: vi.fn() }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), remove: vi.fn(), create: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn(), memories: vi.fn(), changeMemory: vi.fn() }))
+const books = vi.hoisted(() => ({ discover: vi.fn(), previewUrl: vi.fn(), commit: vi.fn(), chapters: vi.fn() }))
 const providerMocks = vi.hoisted(() => ({
   providerPresets: vi.fn(), status: vi.fn(), writing: { getDraftReview: vi.fn(), reviewDraft: vi.fn() },
 }))
 vi.mock('@/lib/ai-agent-api', () => ({ agentApi: { ...mocks } }))
 vi.mock('@/lib/api', () => ({
   aiApi: providerMocks,
-  chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [] }) },
+  chaptersApi: { list: books.chapters },
+  bookImportApi: books,
   newOperationId: () => `request_${Math.random().toString(36).slice(2)}`,
   url: (p: string) => p,
 }))
@@ -99,9 +102,65 @@ beforeEach(() => {
   })
   providerMocks.status.mockResolvedValue({ model: 'default-model', configured: true })
   providerMocks.writing.getDraftReview.mockResolvedValue({ report: null })
+  books.chapters.mockResolvedValue({ chapters: [] })
 })
 
 describe('creative agent conversation', () => {
+  it('opens discovery separately and preserves the current unsent message when returning', async () => {
+    books.discover.mockResolvedValue({ local: [{ id: 'novel', title: '雨夜', author: '作者', chapterCount: 4 }], sources: {} })
+    open()
+    const composer = await screen.findByRole('textbox', { name: '发送给创作助手的消息' })
+    fireEvent.change(composer, { target: { value: '还没发送的想法' } })
+    fireEvent.click(screen.getByRole('button', { name: '找书入库' }))
+    expect(screen.queryByRole('textbox', { name: '发送给创作助手的消息' })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: '书名' }), { target: { value: '帮我找《雨夜》' } })
+    fireEvent.click(screen.getByRole('button', { name: '找书' }))
+    fireEvent.click(await screen.findByRole('button', { name: '打开作品' }))
+    expect(books.discover).toHaveBeenCalledWith('雨夜', '')
+    expect(books.previewUrl).not.toHaveBeenCalled()
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: '发送给创作助手的消息' })).toHaveValue('还没发送的想法')
+  })
+
+  it('previews and confirms a source import before allowing a conversation for the new book', async () => {
+    Element.prototype.scrollTo = vi.fn()
+    const sourceUrl = 'https://source.example/books/1'
+    books.discover.mockResolvedValue({ local: [], sources: {
+      found: { ok: true, siteName: '测试书源', results: [{ title: '晨光', author: '作者', siteName: '测试书源', url: sourceUrl }] },
+      unavailable: { ok: false, siteName: '暂时离线', results: [] },
+    } })
+    const preview: BookImportPreview = {
+      runId: 'import-run', sourceType: 'url', sourceLabel: '测试书源', sourceUrl, revision: 0,
+      book: { title: '晨光', author: '作者', chapters: [] }, candidates: [], targetNovelId: null, targetNovel: null,
+      metadataDiff: [], warnings: [],
+      chapters: [{ id: 'chapter-1', status: 'new', incomingOrder: 1, incomingTitle: '第一章', incomingContent: '章节正文', confidence: 'high', reason: '新增', selected: true }],
+      summary: { newCount: 1, changedCount: 0, unchangedCount: 0, conflictCount: 0 },
+    }
+    books.previewUrl.mockResolvedValue(preview)
+    books.commit.mockResolvedValue({ novelId: 'other', novelCreated: true, created: 1, updated: 0, skipped: 0, conflicts: [] })
+    books.chapters.mockImplementation(async (id: string) => ({ chapters: id === 'other' ? [{ id: 'chapter', title: '第一章' }] : [] }))
+    const newDetail = detail('new-session', 'other')
+    mocks.create.mockResolvedValue({ session: newDetail.session })
+    mocks.get.mockImplementation(async (id: string) => id === 'new-session' ? newDetail : detail())
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: '找书入库' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '书名' }), { target: { value: '晨光' } })
+    fireEvent.click(screen.getByRole('button', { name: '找书' }))
+    expect(await screen.findByText(/暂未查完的书源：暂时离线/)).toBeVisible()
+    expect(books.previewUrl).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '预览入库' }))
+    const confirm = await screen.findByRole('button', { name: /确认导入/ })
+    expect(books.previewUrl).toHaveBeenCalledWith(sourceUrl)
+    expect(books.commit).not.toHaveBeenCalled()
+    fireEvent.click(confirm)
+    const start = await screen.findByRole('button', { name: '开始对话' })
+    expect(books.commit).toHaveBeenCalledWith('import-run', expect.objectContaining({ requireNewBook: true, selectedChapterIds: ['chapter-1'] }), expect.any(String))
+    expect(mocks.create).not.toHaveBeenCalled()
+    fireEvent.click(start)
+    expect(await screen.findByText('new-session 的既有回复')).toBeVisible()
+    expect(mocks.create).toHaveBeenCalledWith('other', '')
+  })
+
   it('offers a draft check and brings the selected finding into the composer without sending', async () => {
     const value = detail()
     value.artifacts = [{
