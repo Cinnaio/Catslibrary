@@ -1376,7 +1376,7 @@ export async function parseBookUrl(sourceUrl: string, deps: UrlImportDeps): Prom
   const selectors = meta.selectors || {}
   const listUrl = meta.chapterListUrl || normalizedUrl
   const listResult = await deps.fetchHtml(listUrl, { forceEncoding: meta.encoding })
-  reader?.assertResponse(listResult.finalUrl || listUrl, listResult.html)
+  reader?.assertResponse(listResult.finalUrl || listUrl, listResult.html, 'directory')
 
   let links: Array<{ href: string; text: string; order?: number }> = []
   const warnings: string[] = []
@@ -1413,7 +1413,7 @@ export async function parseBookUrl(sourceUrl: string, deps: UrlImportDeps): Prom
         const request = reader?.chapterRequest(link, meta.encoding, 12000) ??
           { url: link.href, options: { forceEncoding: meta.encoding, timeoutMs: 12000 } }
         const chapterResult = await deps.fetchHtml(request.url, request.options)
-        reader?.assertResponse(chapterResult.finalUrl || request.url, chapterResult.html)
+        reader?.assertResponse(chapterResult.finalUrl || request.url, chapterResult.html, 'chapter')
         const parsed = reader?.parseChapter(chapterResult.html, link.text || '')
         const title = cleanText(parsed?.title || extractText(chapterResult.html, selectors.chapterTitle || '') || link.text || `第 ${index + 1} 章`)
         const rawContent = parsed?.content || extractContent(chapterResult.html, selectors.chapterContent || '')

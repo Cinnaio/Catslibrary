@@ -36,8 +36,9 @@ interface ScrapeSetupPanelProps {
   started: boolean
   advancedOpen: boolean
   onToggleAdvanced: () => void
-  /** 智能分析得到的可抓取章节数。统计失败时为 0，界面显示为「—」。 */
+  /** 智能分析得到的可抓取章节数。 */
   chapterCount: number
+  directoryChapterCount?: number
   /** 章节数只是目录前几页的统计（长目录书）。 */
   hasMoreChapters: boolean
   /** 需订购/购买才能读取正文的章节数。 */
@@ -81,7 +82,7 @@ const SELECTOR_FIELDS: Array<{ key: keyof Selectors; label: string; placeholder:
 
 export default function ScrapeSetupPanel({
   item, preview, onPreviewChange, coverUrl, novelId, confirming, starting, started,
-  advancedOpen, onToggleAdvanced, chapterCount, hasMoreChapters, protectedChapterCount,
+  advancedOpen, onToggleAdvanced, chapterCount, directoryChapterCount, hasMoreChapters, protectedChapterCount,
   chapterListUrl, onChapterListUrlChange,
   encoding, onEncodingChange, selectors, onSelectorsChange, testResult, testChecks,
   onTest, onConfirm, onStart, onReset,
@@ -92,7 +93,8 @@ export default function ScrapeSetupPanel({
   const [metadataOpen, setMetadataOpen] = useState(!preview.title.trim() || !preview.author.trim())
   const [failedCover, setFailedCover] = useState('')
   const links: Array<{ text?: string; href: string }> = testResult.data?.links || []
-  const chapterText = chapterCount > 0 ? `${chapterCount}${hasMoreChapters ? '+' : ''}` : '尚未确认'
+  const detectedChapterCount = directoryChapterCount ?? (chapterCount + protectedChapterCount)
+  const chapterText = detectedChapterCount > 0 ? `${detectedChapterCount}${hasMoreChapters ? '+' : ''} 章` : '尚未确认'
   const busy = confirming || starting
   const canStart = Boolean(chapterListUrl.trim() && selectors.chapterList.trim() && selectors.chapterContent.trim())
 
@@ -122,8 +124,8 @@ export default function ScrapeSetupPanel({
             {preview.author || item.author || '未知作者'} · {preview.status === 'completed' ? '已完结' : '连载中'} · {CONTENT_RATING_OPTIONS.find((option) => option.value === preview.contentRating)?.label || '未标注'}
           </p>
           <p className={styles.hint}>
-            检测章节：{chapterText}{chapterCount > 0 ? ' 章' : ''}
-            {protectedChapterCount > 0 ? `，其中 ${protectedChapterCount} 章需要账号读取权限` : ''}
+            目录章节 {chapterText}
+            {protectedChapterCount > 0 ? `，可抓取 ${chapterCount} 章，受保护 ${protectedChapterCount} 章` : ''}
           </p>
           <a href={item.url} target="_blank" rel="noreferrer" className={styles.source} title={item.url}>
             <span>{item.url}</span><ExternalLink className="size-3.5" aria-hidden="true" />

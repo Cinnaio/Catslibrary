@@ -39,6 +39,8 @@
 
 有历史书源账号的实例沿用原数据库和原 `SOURCE_ACCOUNT_ENCRYPTION_KEY`。切换前用数据库副本核对旧作品、章节、绑定和追更状态。可以用本地的 `CATSLIBRARY_PRIVATE_SOURCES=1` 构建验证适配器，正式归档需要两个源码提交的完整 SHA。
 
+本地同步适配器后，在仓库根目录用 `npm run dev:private` 启动 API。日志会列出已加载的私有书源。Web 开发服务器可通过 `npm run dev:web` 启动。
+
 ### 服务器发布工具
 
 `zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）的行为：

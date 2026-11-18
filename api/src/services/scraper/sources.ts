@@ -34,10 +34,13 @@ interface AccountActions {
   clear(db: Db): Promise<void>
 }
 
+export type ScrapeResponseStage = 'book' | 'directory' | 'chapter'
+
 interface ChapterReader {
   matchesSelectors(selectors: Record<string, string> | undefined): boolean
   listUrl(url: string): string
-  assertResponse(url: string | undefined, html: string): void
+  assertResponse(url: string | undefined, html: string, stage: ScrapeResponseStage): void
+  /** links 仅包含可抓取正文，candidates 保留完整目录与章节访问状态。 */
   readDirectory(html: string, url: string): { links: ScrapeLink[]; protectedChapterCount: number; candidates: SourceChapterCandidate[] }
   chapterRequest(link: ScrapeLink, encoding: string, timeoutMs: number): { url: string; options: FetchHtmlOptions }
   parseChapter(html: string, fallbackTitle: string): { title: string; content: string }
@@ -71,6 +74,14 @@ const legacyChapterList = '@po18tw:chapter-list'
 export const SOURCE_UNAVAILABLE = '书源未安装'
 
 let adapters = installedAdapters
+
+/**
+ * 运行时注入书源适配器。私有构建在打包期替换 installed-sources，开发态由
+ * private-sources/dev.ts 在启动前调用，避免公开仓库引用私有目录。
+ */
+export function registerScrapeAdapters(value: readonly ScrapeAdapter[]): void {
+  adapters = value
+}
 
 /** Private test suites can supply the same adapters used by the private build. */
 export function setScrapeAdaptersForTest(value: readonly ScrapeAdapter[]): void {

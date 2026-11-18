@@ -12,6 +12,7 @@
     "dev": "node scripts/dev.mjs",
     "dev:web": "npm run dev --workspace=@zhi-zhou/web",
     "dev:api": "npm run dev --workspace=@zhi-zhou/api",
+    "dev:private": "npm run dev:private --workspace=@zhi-zhou/api",
     "build": "npm run build --workspace=@zhi-zhou/web && npm run build --workspace=@zhi-zhou/api",
     "release:package": "node scripts/package-release.mjs",
     "release:smoke": "node scripts/smoke-release.mjs",

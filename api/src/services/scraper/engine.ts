@@ -56,12 +56,14 @@ export async function testSelectors(
   _t.fetchList = Date.now() - _t.t0
 
   let allLinks: ScrapeLink[]
+  let directoryChapterCount: number | undefined
   let publicChapterCount = 0
   let protectedChapterCount = 0
   if (reader) {
-    reader.assertResponse(finalUrl || chapterListUrl, html)
+    reader.assertResponse(finalUrl || chapterListUrl, html, 'directory')
     const collected = reader.readDirectory(html, chapterListUrl)
     allLinks = collected.links
+    directoryChapterCount = collected.candidates.length
     publicChapterCount = collected.links.length
     protectedChapterCount = collected.protectedChapterCount
   } else {
@@ -110,6 +112,7 @@ export async function testSelectors(
         try {
           const request = reader?.chapterRequest(link, encoding, 8000) ?? { url: link.href, options: { forceEncoding: encoding, timeoutMs: 8000 } }
           const chapter = await deps.fetchHtml(request.url, request.options)
+          reader?.assertResponse(chapter.finalUrl || request.url, chapter.html, 'chapter')
           const parsed = reader?.parseChapter(chapter.html, link.text || '')
           const title = parsed?.title || extractText(chapter.html, chapterTitleSel) || link.text || ''
           const rawContent = parsed?.content || extractContent(chapter.html, chapterContentSel)
@@ -133,6 +136,7 @@ export async function testSelectors(
     timing: _t,
     links: uniqueLinks,
     totalLinks: uniqueLinks.length,
+    directoryChapterCount: directoryChapterCount ?? uniqueLinks.length,
     publicChapterCount: reader ? publicChapterCount : uniqueLinks.length,
     protectedChapterCount,
     encoding,
@@ -224,7 +228,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
 
     if (reader) {
       try {
-        reader.assertResponse(finalUrl, html)
+        reader.assertResponse(finalUrl, html, 'directory')
       } catch (error) {
         const problem = (error as Error).message
         log(job, problem, 'warn')
@@ -249,21 +253,28 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     let protectedChapterCount = job.protectedChapterCount || 0
     let extractMs = 0
     const extractStart = Date.now()
-    if (job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length) {
-      links = job.retryLinks.map((item) => ({
+    const retryLinks = Array.isArray(job.retryLinks) && job.retryLinks.length
+      ? job.retryLinks.map((item) => ({
         href: item.href || item.chapterUrl || '',
         text: item.text || item.chapterTitle || '',
         order: item.order,
       }))
-      if (!publicChapterCount) publicChapterCount = links.length
-      await store.appendJobLog(jobId, 'info', '重试失败章节模式：' + links.length + ' 章')
-    } else if (reader) {
+      : undefined
+    if (reader) {
       const collected = reader.readDirectory(html, chapterListUrl)
       links = collected.links
       candidates = collected.candidates
       publicChapterCount = collected.links.length
       protectedChapterCount = collected.protectedChapterCount
+      if (retryLinks) {
+        // 重试也以当前目录的可抓取范围为准。旧任务可能记录了试读章或后来上锁的章节。
+        const readableUrls = new Set(collected.links.map((link) => link.href))
+        links = retryLinks.filter((link) => readableUrls.has(link.href))
+      }
       extractMs = Date.now() - extractStart
+    } else if (retryLinks) {
+      links = retryLinks
+      if (!publicChapterCount) publicChapterCount = links.length
     } else {
       links = extractLinks(html, job.selectors?.chapterList || '', job.sourceUrl)
       extractMs = Date.now() - extractStart
@@ -297,7 +308,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     job.protectedChapterCount = protectedChapterCount
 
     // 即使目录全为受保护章节，也保存完整检查结果，不误报目录解析失败。
-    if (job.novelId && candidates && !job.retryLinks?.length) await store.saveCheckResult(job.novelId, candidates.length, candidates)
+    if (job.novelId && candidates && !retryLinks) await store.saveCheckResult(job.novelId, candidates.length, candidates)
     if (links.length === 0 && !candidates?.length) {
       const message = reader ? '未找到可抓取的章节，请检查书源账号及章节权限' : '未找到任何章节链接，请检查章节列表选择器是否正确'
       log(job, `${message}: selector="${job.selectors?.chapterList}" (${extractMs}ms)`, 'warn')
@@ -318,17 +329,17 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     })
     const duplicateCount = originalLinkCount - links.length
     // 完整目录先保留原位置，再过滤已有章节；重试中间缺章时不会被追加到末尾。
-    if (!job.updateMode && !job.retryLinks?.length) links = links.map((link, i) => ({ ...link, order: link.order || i + 1 }))
-    if (!reader && !(job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length)) {
+    if (!job.updateMode && !retryLinks) links = links.map((link, i) => ({ ...link, order: link.order || i + 1 }))
+    if (!reader && !retryLinks) {
       publicChapterCount = links.length
     }
     job.publicChapterCount = publicChapterCount
-    if (job.novelId && !job.retryLinks?.length && !candidates) {
+    if (job.novelId && !retryLinks && !candidates) {
       const snapshot = links.map((link, i): SourceChapterCandidate => ({ url: link.href, title: simplifyChapterForSource({ title: link.text.trim() }, job.sourceUrl).title, order: link.order || i + 1, access: 'unknown' }))
       await store.saveCheckResult(job.novelId, links.length, snapshot)
     }
 
-    if (job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length) {
+    if (retryLinks) {
       await store.appendJobLog(jobId, 'info', '重试章节去重完成：' + links.length + ' 章')
     } else {
       await store.appendJobLog(jobId, 'info', '目录解析完成：发现 ' + originalLinkCount + ' 条，去重 ' + duplicateCount + ' 条')
@@ -343,7 +354,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         return true
       })
       job.skippedCount = links.length - newLinks.length
-      if (job.updateMode && !job.retryLinks?.length && newLinks.length && (existing.urls.size || existing.titles.size) && await store.hasFileImport?.(job.novelId)) {
+      if (job.updateMode && !retryLinks && newLinks.length && (existing.urls.size || existing.titles.size) && await store.hasFileImport?.(job.novelId)) {
         if (!job.skippedCount) throw new Error('网页目录与已导入文件尚无可靠章节对应关系，请先在「更新与来源」中读取参考目录并确认融合')
         const lastMatched = links.reduce((last, link, index) => existing.urls.has(link.href) || existing.titles.has(link.text.trim()) ? index : last, -1)
         if (links.slice(0, lastMatched).some(link => !existing.urls.has(link.href) && !existing.titles.has(link.text.trim()))) {
@@ -360,7 +371,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     let lastOrder = baseOrder
     const orderedLinks = newLinks.map((link) => {
       const sourceOrder = Number.isInteger(link.order) && link.order! > 0 ? link.order! : 0
-      const order = (!job.updateMode || job.retryLinks?.length) && sourceOrder ? sourceOrder : sourceOrder > lastOrder ? sourceOrder : lastOrder + 1
+      const order = (!job.updateMode || retryLinks) && sourceOrder ? sourceOrder : sourceOrder > lastOrder ? sourceOrder : lastOrder + 1
       lastOrder = Math.max(lastOrder, order)
       return { ...link, order }
     })
@@ -368,9 +379,10 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
 
     job.total = newLinks.length
     await store.replaceJobItems(job.id, newLinks)
+    const directorySize = retryLinks ? links.length : (candidates?.length ?? links.length)
     const label = job.updateMode
-      ? `发现 ${links.length} 章，其中 ${newLinks.length} 章为新章节；公开章节 ${publicChapterCount}，受保护正文 ${protectedChapterCount} (${extractMs}ms)`
-      : `共发现 ${links.length} 章；公开章节 ${publicChapterCount}，受保护正文 ${protectedChapterCount} (${extractMs}ms)`
+      ? `目录共 ${directorySize} 章，其中 ${newLinks.length} 章待抓取；公开章节 ${publicChapterCount}，受保护正文 ${protectedChapterCount} (${extractMs}ms)`
+      : `共发现 ${directorySize} 章；公开章节 ${publicChapterCount}，受保护正文 ${protectedChapterCount} (${extractMs}ms)`
     log(job, label)
     await updateStatus('preflight', {
       step: '抓取前检查完成，准备抓取章节…',
@@ -512,7 +524,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         if (!currentJob || ['cancelled', 'completed', 'partial', 'failed'].includes(currentJob.status)) { cancelled = true; break }
 
         try {
-          reader?.assertResponse(chFinalUrl, chHtml)
+          reader?.assertResponse(chFinalUrl, chHtml, 'chapter')
           const parsed = reader?.parseChapter(chHtml, link.text || '')
           const title = parsed?.title || extractText(chHtml, job!.selectors?.chapterTitle || '') || link.text || `第${i + 1}章`
           const rawContent = parsed?.content || extractContent(chHtml, job!.selectors?.chapterContent || '')

@@ -16,6 +16,7 @@ export interface DetectedMeta {
   selectors?: { chapterList?: string; chapterTitle?: string; chapterContent?: string; nextPage?: string }
   encoding?: string
   chapterListUrl?: string
+  directoryChapterCount?: number
   chapterCount?: number
   /** 章节数仅统计了前几页目录（hasMoreChapters），真实章节数更多。 */
   hasMoreChapters?: boolean

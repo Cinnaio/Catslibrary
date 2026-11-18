@@ -149,12 +149,13 @@ export default function CenterView() {
     setSelectors(nextSelectors)
     setActiveEncoding(data.encoding || '')
     setTestResult({ loading: false, data: null })
+    const directoryChapterCount = data.directoryChapterCount ?? ((data.chapterCount ?? 0) + (data.protectedChapterCount ?? 0))
     setTestChecks([
       { label: '小说信息', ok: !!(novel.title || item.title) },
       {
         label: '章节目录',
-        ok: (data.chapterCount || 0) > 0,
-        detail: data.chapterCount ? `${data.chapterCount}${data.hasMoreChapters ? '+' : ''} 章` : '待测试',
+        ok: directoryChapterCount > 0,
+        detail: directoryChapterCount ? `${directoryChapterCount}${data.hasMoreChapters ? '+' : ''} 章` : '待测试',
       },
       { label: '编码', ok: true, detail: data.encoding || 'utf-8' },
     ])
@@ -190,7 +191,7 @@ export default function CenterView() {
     setDiscoveryError('')
     setActiveCandidate({ item: { title: '正在分析…', author: '', url: value }, loading: true, error: '', meta: null })
     try {
-      const data = (await scrapeApi.detectMeta(value)) as unknown as DetectedMeta & { chapterListUrl?: string; chapterCount?: number }
+      const data = (await scrapeApi.detectMeta(value)) as unknown as DetectedMeta
       if (!data.novel) throw new Error(data.error || '源站没有返回小说信息')
       const item: DiscoverNovel = {
         title: data.novel.title || '待确认作品',
@@ -198,7 +199,7 @@ export default function CenterView() {
         coverUrl: data.novel.coverUrl,
         url: value,
         description: data.novel.description || '',
-        chapterCount: data.chapterCount,
+        chapterCount: data.directoryChapterCount ?? data.chapterCount,
         status: data.novel.status,
       }
       hydrateFromMeta(item, data)
@@ -632,6 +633,7 @@ export default function CenterView() {
                 advancedOpen={advancedOpen}
                 onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
                 chapterCount={activeCandidate.meta.chapterCount || 0}
+                directoryChapterCount={activeCandidate.meta.directoryChapterCount}
                 hasMoreChapters={Boolean(activeCandidate.meta.hasMoreChapters)}
                 protectedChapterCount={activeCandidate.meta.protectedChapterCount || 0}
                 chapterListUrl={chapterListUrl}

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   scrapePost: vi.fn(),
   toast: vi.fn(),
   sourceCapabilities: vi.fn(),
+  detectMeta: vi.fn(),
 }))
 
 vi.mock('@/components/feedback', () => ({
@@ -24,7 +25,7 @@ vi.mock('./utils', async () => {
 import CenterView from './CenterView'
 vi.mock('@/lib/api', async (importOriginal) => {
   const api = await importOriginal<typeof import('@/lib/api')>()
-  return { ...api, scrapeApi: { ...api.scrapeApi, sourceCapabilities: mocks.sourceCapabilities } }
+  return { ...api, scrapeApi: { ...api.scrapeApi, sourceCapabilities: mocks.sourceCapabilities, detectMeta: mocks.detectMeta } }
 })
 
 const LIST_URL = 'https://source.example/rank'
@@ -134,6 +135,21 @@ it('统计页带入来源只预填链接，不自动分析或启动任务', () =
     expect(screen.getByDisplayValue('https://example.com/book')).toBeInTheDocument()
     expect(mocks.scrapePost).not.toHaveBeenCalled()
   } finally { window.history.replaceState({}, '', previous) }
+})
+
+it('链接分析预览分别显示目录、可抓取和受保护章节数', async () => {
+  const sourceUrl = 'https://source.example/book'
+  mocks.detectMeta.mockResolvedValueOnce({
+    novel: { title: '预览测试书', author: '测试作者' },
+    directoryChapterCount: 2,
+    chapterCount: 1,
+    protectedChapterCount: 1,
+  })
+  renderCenter()
+  fireEvent.change(screen.getByRole('textbox', { name: '小说源站链接' }), { target: { value: sourceUrl } })
+  await userEvent.click(screen.getByRole('button', { name: '分析链接' }))
+  expect(await screen.findByText('目录章节 2 章，可抓取 1 章，受保护 1 章')).toBeInTheDocument()
+  expect(mocks.detectMeta).toHaveBeenCalledWith(sourceUrl)
 })
 
 it('公开实例保留链接导入和自定义榜单，只在有已安装书源时显示搜索入口', async () => {
