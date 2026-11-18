@@ -32,7 +32,7 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
 
   const czbooksMeta = preset.name === '小說狂人' ? extractCzbooksMeta(html) : null
   const adapterMeta = preset.readMeta?.(html)
-  let categoriesOverride: string[] | null = null
+  const categoriesOverride = adapterMeta?.categories
   if (czbooksMeta) {
     title = czbooksMeta.title || title
     author = czbooksMeta.author || author
@@ -44,7 +44,6 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
     author = adapterMeta.author || author
     description = adapterMeta.description || description
     coverUrl = adapterMeta.coverUrl || coverUrl
-    categoriesOverride = adapterMeta.categories
   }
 
   if (!coverUrl || /(?:noimg|no_thumbnail|default_no_thumbnail)\.jpg/i.test(coverUrl)) {
@@ -54,7 +53,7 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
 
   let category = extractByPattern(html, m.category || '') || extractTextSmart(html, m.category || '')
   if (czbooksMeta?.category) category = czbooksMeta.category
-  if (adapterMeta) category = adapterMeta.categories[0] || ''
+  if (categoriesOverride) category = categoriesOverride[0] || ''
   if (category) {
     category = category.replace(/^[^:：]+[：:]\s*/, '').replace(/^\s+/, '').trim()
   }

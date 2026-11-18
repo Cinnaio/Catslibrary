@@ -3,6 +3,7 @@ import iconv from 'iconv-lite'
 import {
   cleanHtml,
   cleanTitle,
+  extractAttr,
   extractContent,
   extractInnerHtml,
   extractLinks,
@@ -41,6 +42,15 @@ describe('scraper parse 基础', () => {
     expect(extractTextSmart(html, '.cataloginfo h3')).toBe('书名')
     // extractText 剥标签后取全部文本
     expect(extractText(html, '.cataloginfo')).toBe('书名作者')
+  })
+
+  it('extractAttr 按标签和完整类名读取属性，支持任意属性顺序和 URL 实体', () => {
+    const html = `
+      <div class="cover" src="/wrong-tag"></div>
+      <img class="cover-placeholder" src="/wrong-class" />
+      <img src="//images.example/cover?v=1&amp;size=2" data-src="/thumbnail" class="cover loaded" alt="作品封面" />
+    `
+    expect(extractAttr(html, 'img.cover', 'src')).toBe('//images.example/cover?v=1&size=2')
   })
 
   it('cleanHtml 去除脚本/导航标签', () => {

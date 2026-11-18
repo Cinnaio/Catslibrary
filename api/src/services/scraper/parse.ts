@@ -4,6 +4,7 @@
  */
 import { escapeRegex, resolveUrl } from './utils'
 import { removeAdPatterns } from '@shared/ad-cleaner'
+import { decodeHTMLAttribute } from 'entities'
 
 export interface ScrapeLink {
   href: string
@@ -313,21 +314,24 @@ export function extractTextSmart(html: string, selector: string): string {
 
 export function extractAttr(html: string, selector: string, attr: string): string {
   if (!selector) return ''
-  const idMatch = selector.match(/#([a-zA-Z0-9_-]+)/)
-  const classMatch = selector.match(/\.([a-zA-Z0-9_-]+)/g)
-
-  let elemPattern = '<[a-zA-Z][a-zA-Z0-9]*\\s[^>]*'
-  if (idMatch) elemPattern += `id\\s*=\\s*["']${escapeRegex(idMatch[1]!)}["'][^>]*`
-  if (classMatch) {
-    for (const cls of classMatch) {
-      elemPattern += `class\\s*=\\s*["'][^"']*\\b${escapeRegex(cls.slice(1))}\\b[^"']*["'][^>]*`
+  const tagName = selector.match(/^[a-z][\w-]*/i)?.[0] ?? '[a-z][\\w-]*'
+  const id = selector.match(/#([\w-]+)/)?.[1]
+  const classes = [...selector.matchAll(/\.([\w-]+)/g)].map((match) => match[1]!)
+  const attribute = attr.toLowerCase()
+  const tags = new RegExp('<' + tagName + '(?=[\\s/>])(?:[^<>"\']|"[^"]*"|\'[^\']*\')*>', 'gi')
+  for (const [tag] of html.matchAll(tags)) {
+    const attributes = new Map<string, string>()
+    for (const [, name, doubleQuoted, singleQuoted, unquoted] of tag.matchAll(/\s([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+))/g)) {
+      const key = name!.toLowerCase()
+      if (!attributes.has(key)) attributes.set(key, decodeHTMLAttribute(doubleQuoted ?? singleQuoted ?? unquoted ?? ''))
     }
+    if (id && attributes.get('id') !== id) continue
+    const classNames = attributes.get('class')?.split(/\s+/) ?? []
+    if (!classes.every((name) => classNames.includes(name))) continue
+    const value = attributes.get(attribute)
+    if (value) return value
   }
-  elemPattern += `${attr}\\s*=\\s*["']([^"']+)["'][^>]*>`
-
-  const re = new RegExp(elemPattern, 'i')
-  const m = html.match(re)
-  return m ? m[1]! : ''
+  return ''
 }
 
 export function extractCategory(html: string, selector: string): string {

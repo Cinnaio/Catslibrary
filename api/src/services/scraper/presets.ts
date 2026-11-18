@@ -21,7 +21,7 @@ export interface SitePreset {
   selectors?: Record<string, string>
   urlTransform?: (srcUrl: string) => string
   coverRule?: (bookId: string) => string
-  readMeta?: (html: string) => { title: string; author: string; description: string; coverUrl: string; categories: string[]; status: string } | null
+  readMeta?: (html: string) => { title?: string; author?: string; description?: string; coverUrl?: string; categories?: string[]; status?: string } | null
 }
 
 const builtinPresets: Record<string, SitePreset> = {
