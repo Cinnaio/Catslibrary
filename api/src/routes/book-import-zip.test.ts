@@ -12,11 +12,11 @@ import type { BookImportPreview, BookImportCommitResult } from '@shared/types'
 let t: TestDb
 const token = 'zip-test-admin'
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf1sAAAAASUVORK5CYII=', 'base64')
-function txt(title: string) {
-  return strToU8(formatExportText({ title, author: '作者', description: '简介' }, [{ title: '无编号续写', content: '完整正文。' }]))
+function txt(title: string, categories?: string[]) {
+  return strToU8(formatExportText({ title, author: '作者', description: '简介', categories }, [{ title: '无编号续写', content: '完整正文。' }]))
 }
 function pack(title: string) {
-  return zipSync({ [`${title}/正文.txt`]: txt(title), [`${title}/封面.png`]: png })
+  return zipSync({ [`${title}/正文.txt`]: txt(title, ['奇幻', '群像']), [`${title}/封面.png`]: png })
 }
 async function preview(data: Uint8Array, auth = true) {
   const form = new FormData()
@@ -75,9 +75,12 @@ it('ZIP 仅管理员可预览；预览批量目录不写入书库，不把封面
   expect(JSON.stringify(result)).not.toContain(png.toString('base64'))
   expect((await t.db.query('SELECT id FROM novels')).rows).toHaveLength(0)
 })
-it('单本提交恢复正文和本地封面，撤回删除本轮新书', async () => {
+it('单本提交恢复正文、分类和本地封面，撤回删除本轮新书', async () => {
   const p = await getPreview('ZIP新建')
+  expect(p.metadataDiff.find((f) => f.field === 'categories')).toMatchObject({ selected: true, incomingValue: '奇幻、群像' })
   const result = await commit(p)
+  const novel = await t.db.query<{ categories: string }>('SELECT categories FROM novels WHERE id=$1', [result.novelId])
+  expect(JSON.parse(novel.rows[0]!.categories)).toEqual(['奇幻', '群像'])
   expect((await t.db.query<{ content: string }>('SELECT content FROM chapters WHERE novel_id=$1', [result.novelId])).rows[0]?.content).toBe('完整正文。')
   const image = await t.db.query<{ data: Uint8Array; source: string }>('SELECT data,source FROM novel_covers WHERE novel_id=$1', [result.novelId])
   expect(Buffer.from(image.rows[0]!.data)).toEqual(png)
@@ -116,12 +119,13 @@ it('导入后封面被修改时撤回保留整本，避免覆盖后续更改', a
   expect(body.conflicts.length).toBeGreaterThan(0)
   expect((await t.db.query('SELECT id FROM novels WHERE id=$1', [r.novelId])).rows).toHaveLength(1)
 })
-it('本站真实导出的多书封面包能直接识别，章节和封面一致', async () => {
+it('本站真实导出的封面包能直接识别，章节、分类和封面一致', async () => {
   await t.db.query("UPDATE novel_covers SET data=$1 WHERE novel_id='existing'", [png])
   const data = await exportNovels(t.db, ['existing'], true, true)
   const parsed = await parseBookZip(data.data)
   expect(parsed).toHaveLength(1)
   expect(parsed[0]!.detail.payload.title).toBe('ZIP已有')
+  expect(parsed[0]!.detail.payload.categories).toEqual(['奇幻', '群像'])
   expect(parsed[0]!.detail.payload.chapters).toHaveLength(1)
   expect(parsed[0]!.detail.payload.coverImage?.dataBase64).toBe(png.toString('base64'))
 })

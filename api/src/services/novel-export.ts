@@ -3,6 +3,7 @@ import { coverDataToBody } from './covers'
 import { isDefaultCoverSource } from '@shared/covers'
 import { HTTPException } from 'hono/http-exception'
 import { strToU8, zip, type Zippable } from 'fflate'
+import { safeJsonParse } from '../db/mappers'
 import { withTx } from '../db/query'
 import type { Db } from '../db/pool'
 
@@ -42,8 +43,8 @@ export async function exportNovels(
   const books = await withTx(db, async (query) => {
     // Size check and chapter reads must observe the same snapshot.
     await query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
-    const { rows } = await query<{ id: string; title: string; author: string; description: string; cover_url: string }>(
-      'SELECT id, title, author, description, cover_url FROM novels WHERE id = ANY($1::text[])',
+    const { rows } = await query<{ id: string; title: string; author: string; description: string; cover_url: string; categories: string }>(
+      'SELECT id, title, author, description, cover_url, categories FROM novels WHERE id = ANY($1::text[])',
       [ids],
     )
     if (rows.length !== ids.length) throw new HTTPException(404, { message: '部分作品已不存在，请刷新列表后重试' })
@@ -51,7 +52,7 @@ export async function exportNovels(
       `SELECT COALESCE(SUM(octet_length(content) + octet_length(title) + 8), 0)::text AS bytes FROM chapters WHERE novel_id = ANY($1::text[])`,
       [ids],
     )
-    const metadataBytes = rows.reduce((sum, book) => sum + Buffer.byteLength(book.title + book.author + book.description, 'utf8') + 100, 0)
+    const metadataBytes = rows.reduce((sum, book) => sum + Buffer.byteLength(book.title + book.author + book.description + (book.categories || ''), 'utf8') + 100, 0)
     if (Number(size.rows[0]?.bytes || 0) + metadataBytes > MAX_EXPORT_BYTES)
       throw new HTTPException(413, { message: '所选正文超过 64 MiB，请减少作品数量后分批导出' })
     const result: Array<{ title: string; data: Uint8Array; cover?: { data: Uint8Array; extension: string } }> = []
@@ -62,7 +63,9 @@ export async function exportNovels(
         'SELECT title, content FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC, created_at ASC, id ASC',
         [id],
       )
-      const data = strToU8('\uFEFF' + formatExportText(book, chapters).replace(/\n/g, '\r\n') + '\r\n')
+      const storedCategories = safeJsonParse<unknown>(book.categories, [])
+      const categories = Array.isArray(storedCategories) ? storedCategories.filter((tag): tag is string => typeof tag === 'string') : []
+      const data = strToU8('\uFEFF' + formatExportText({ ...book, categories }, chapters).replace(/\n/g, '\r\n') + '\r\n')
       let cover: { data: Uint8Array; extension: string } | undefined
       if (includeCover) {
         const stored = await query<{ data: unknown; content_type: string; source: string }>(

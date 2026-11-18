@@ -1,6 +1,8 @@
 import type { BookImportPayload } from '@shared/types'
+import { safeJsonParse } from '../db/mappers'
 
 const MARKER = '知舟书籍导出 v1'
+const CATEGORIES_PREFIX = '分类：'
 const line = (value: string) =>
   value
     .replace(/[\r\n]+/g, ' ')
@@ -15,11 +17,15 @@ const indent = (value: string) =>
     .join('\n')
 
 /** Explicit numbered boundaries and indented bodies remain readable in plain-text readers. */
-export function formatExportText(book: { title: string; author: string; description: string }, chapters: Array<{ title: string; content: string }>): string {
+export function formatExportText(
+  book: { title: string; author: string; description: string; categories?: string[] },
+  chapters: Array<{ title: string; content: string }>,
+): string {
   return [
     MARKER,
     `书名：${line(book.title)}`,
     `作者：${line(book.author) || '未知作者'}`,
+    ...(book.categories?.length ? [`${CATEGORIES_PREFIX}${JSON.stringify(book.categories)}`] : []),
     '简介：',
     indent(book.description),
     '',
@@ -35,8 +41,17 @@ export function parseExportText(
     .replace(/^\uFEFF/, '')
     .replace(/\r\n?/g, '\n')
     .split('\n')
-  if (lines[0] !== MARKER || !lines[1]?.startsWith('书名：') || !lines[2]?.startsWith('作者：') || lines[3] !== '简介：') return null
+  if (lines[0] !== MARKER || !lines[1]?.startsWith('书名：') || !lines[2]?.startsWith('作者：')) return null
   const payload: BookImportPayload = { title: lines[1].slice(3), author: lines[2].slice(3), description: '', chapters: [] }
+  let descriptionIndex = 3
+  const categoryLine = lines[descriptionIndex]
+  if (categoryLine?.startsWith(CATEGORIES_PREFIX)) {
+    const categories = safeJsonParse<unknown>(categoryLine.slice(CATEGORIES_PREFIX.length), null)
+    if (!Array.isArray(categories) || !categories.every((tag) => typeof tag === 'string')) return null
+    payload.categories = categories
+    descriptionIndex++
+  }
+  if (lines[descriptionIndex] !== '简介：') return null
   const boundaries: number[] = []
   const ranges: Array<{ startLine: number; endLine: number }> = []
   let body: string[] = []
@@ -45,7 +60,7 @@ export function parseExportText(
     if (payload.chapters.length) payload.chapters[payload.chapters.length - 1]!.content = body.join('\n')
     body = []
   }
-  for (let index = 4; index < lines.length; index++) {
+  for (let index = descriptionIndex + 1; index < lines.length; index++) {
     const raw = lines[index]!
     const match = raw.match(/^第([1-9]\d*)章 (.*)$/)
     if (match && Number(match[1]) === payload.chapters.length + 1) {

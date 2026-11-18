@@ -45,6 +45,8 @@ beforeAll(async () => {
       now,
     ])
   }
+  await t.db.query("UPDATE novels SET categories = $1 WHERE id = 'a'", [JSON.stringify(['悬疑', '古言'])])
+  await t.db.query("UPDATE novels SET categories = $1 WHERE id = 'b'", [JSON.stringify(['科幻'])])
   for (const [id, order, content] of [
     ['later', 2, '后章正文'],
     ['first', 1, '首章正文\n第二段'],
@@ -76,7 +78,7 @@ describe('管理员书籍导出', () => {
     const bytes = new Uint8Array(await res.arrayBuffer())
     expect(Array.from(bytes.slice(0, 3))).toEqual([239, 187, 191])
     const text = strFromU8(bytes)
-    for (const part of ['测试作者', '这是简介', '首章正文\r\n    第二段', '后章正文']) expect(text).toContain(part)
+    for (const part of ['测试作者', '分类：["悬疑","古言"]', '这是简介', '首章正文\r\n    第二段', '后章正文']) expect(text).toContain(part)
     expect(text.indexOf('首章正文')).toBeLessThan(text.indexOf('后章正文'))
     expect(text).not.toContain('未发布草稿')
     expect(text).not.toContain('第二本正文')
@@ -89,8 +91,12 @@ describe('管理员书籍导出', () => {
     const names = Object.keys(entries)
     expect(names).toHaveLength(2)
     expect(names.every((name) => name.split('/').length === 2 && !name.includes('..') && !name.includes('\\') && name.endsWith('/正文.txt'))).toBe(true)
-    expect(strFromU8(entries[names[0]!]!)).toContain('第二本正文')
-    expect(strFromU8(entries[names[1]!]!)).toContain('首章正文')
+    const first = strFromU8(entries[names[0]!]!)
+    const second = strFromU8(entries[names[1]!]!)
+    expect(first).toContain('第二本正文')
+    expect(second).toContain('首章正文')
+    expect(parseTextImport(first).categories).toEqual(['科幻'])
+    expect(parseTextImport(second).categories).toEqual(['悬疑', '古言'])
   })
   it('批量只选一本仍返回 ZIP；无章节作品保留书籍信息', async () => {
     const res = await request({ novelIds: ['empty'], archive: true }, 'admin')
@@ -123,9 +129,11 @@ describe('管理员书籍导出', () => {
     const entries = unzipSync(new Uint8Array(await zipped.arrayBuffer()))
     expect(strFromU8(Object.values(entries)[0]!)).toContain('续写正文哨兵')
   })
-  it('导出后重导保留无编号 AI 标题和正文中的伪章节行', async () => {
+  it('导出后重导保留分类、无编号 AI 标题和正文中的伪章节行', async () => {
+    const categories = ['悬疑', '日常，群像', '引号"内外']
     await t.db.query(
-      "INSERT INTO novels(id,title,author,description,created_at,updated_at) VALUES('roundtrip','往返书','作者','两行简介' || chr(10) || '第二行',1,1)",
+      "INSERT INTO novels(id,title,author,description,categories,created_at,updated_at) VALUES('roundtrip','往返书','作者','两行简介' || chr(10) || '第二行',$1,1,1)",
+      [JSON.stringify(categories)],
     )
     for (const [index, title, content] of [
       [1, '第1章 原作', '原作正文。\n\n第九章 正文中的引文\n这行仍在原作正文内。'],
@@ -141,9 +149,20 @@ describe('管理员书籍导出', () => {
     const res = await request({ novelIds: ['roundtrip'] }, 'admin')
     const parsed = parseTextImport(await res.text(), '往返书.txt')
     expect(parsed.title).toBe('往返书')
+    expect(parsed.categories).toEqual(categories)
+    expect(parsed.description).toBe('两行简介\n第二行')
     expect(parsed.chapters.map((chapter) => chapter.title)).toEqual(['第1章 原作', '新都夜话', '夜火照新宫'])
     expect(parsed.chapters[0]!.content).toContain('第九章 正文中的引文')
     expect(parsed.chapters[1]!.content).toBe('续写第一段。\n\n续写第二段。')
+  })
+  it('仍可重导没有分类行的旧版 TXT', () => {
+    const text = '知舟书籍导出 v1\n书名：旧版书\n作者：作者\n简介：\n    简介\n\n第1章 无编号续写\n    正文'
+    expect(parseTextImport(text)).toMatchObject({
+      title: '旧版书',
+      description: '简介',
+      categories: [],
+      chapters: [{ title: '无编号续写', content: '正文' }],
+    })
   })
   it('含封面书籍包仅附当前本地封面，缺失与通用封面提供说明', async () => {
     const cover = new Uint8Array([137, 80, 78, 71, 1, 2, 3])
@@ -182,7 +201,7 @@ describe('管理员书籍导出', () => {
   it('正文超过容量上限时在读取整章内容之前拒绝导出', async () => {
     let contentRead = false
     const query = async (sql: string) => {
-      if (sql.startsWith('SELECT id, title')) return { rows: [{ id: 'a', title: '大书', author: '', description: '' }], rowCount: 1 }
+      if (sql.startsWith('SELECT id, title')) return { rows: [{ id: 'a', title: '大书', author: '', description: '', categories: '[]' }], rowCount: 1 }
       if (sql.includes('SUM(octet_length')) return { rows: [{ bytes: String(65 * 1024 * 1024) }], rowCount: 1 }
       if (sql.startsWith('SELECT title, content')) contentRead = true
       return { rows: [], rowCount: 0 }
