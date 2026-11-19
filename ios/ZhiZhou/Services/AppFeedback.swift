@@ -142,45 +142,31 @@ private struct AppFeedbackBanner: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius)
-
         Button(action: onDismiss) {
-            HStack(spacing: 12) {
+            HStack(spacing: 9) {
                 Image(systemName: message.kind.systemImage)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(message.kind.tint)
-                    .padding(6)
-                    .background(message.kind.tint.opacity(0.12), in: Circle())
                     .accessibilityHidden(true)
 
                 Text(message.text)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
                     .appTextLineLimit(2)
-                    .frame(maxWidth: showsCloseIcon ? .infinity : nil, alignment: .leading)
 
                 if showsCloseIcon {
                     Image(systemName: "xmark")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .padding(6)
+                        .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
             .frame(minHeight: AppLayout.minimumTouchTarget)
-            .background(AppTheme.surface, in: shape)
-            .overlay {
-                shape.strokeBorder(AppTheme.border.opacity(0.75), lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
-            .contentShape(shape)
-            .shadow(color: AppTheme.cardShadow, radius: 14, y: 5)
         }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.capsule)
         .frame(maxWidth: 380)
-        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
         .accessibilityLabel(message.text)
         .accessibilityHint("点按关闭提示")
     }

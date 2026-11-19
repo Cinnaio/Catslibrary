@@ -51,9 +51,9 @@ struct BookSearchView: View {
     let onSelect: (BookSearchHit, String) -> Void
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var queryFocused: Bool
+    @State private var searchPresented = true
     @State private var query = ""
     @State private var searched = ""
     @State private var items: [BookSearchHit] = []
@@ -68,29 +68,44 @@ struct BookSearchView: View {
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var queryTooLong: Bool { trimmedQuery.utf16.count > 80 }
     private var canSearch: Bool { !busy && !trimmedQuery.isEmpty && !queryTooLong }
-    private var stacksSearchControls: Bool { dynamicTypeSize >= .xxxLarge }
     private var searchAnimation: Animation? { reduceMotion ? nil : AppMotion.micro }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    searchForm
-                    if !searched.isEmpty && searched == trimmedQuery {
-                        results
-                    }
+            List {
+                Section {
+                    Text(novel.title)
+                        .font(.headline)
+                        .appTextLineLimit(2)
+                        .accessibilityAddTraits(.isHeader)
+                } footer: {
+                    Text("仅检索本书已收录的正文，按字面匹配。")
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
-                .frame(maxWidth: AppLayout.readableWidth)
-                .frame(maxWidth: .infinity)
+
+                if queryTooLong {
+                    Label("关键词过长，请缩短至 80 个字符以内。", systemImage: "exclamationmark.circle")
+                        .foregroundStyle(.secondary)
+                } else if !searched.isEmpty && searched == trimmedQuery {
+                    results
+                }
             }
+            .listStyle(.insetGrouped)
             .scrollDismissesKeyboard(.interactively)
-            .pageBackground(.browsing)
-            .tint(AppTheme.primaryDeep)
             .navigationTitle("书内正文搜索")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } } }
+            .searchable(
+                text: Binding(get: { query }, set: updateQuery),
+                isPresented: $searchPresented,
+                prompt: "人物、句子或关键词"
+            )
+            .searchFocused($queryFocused)
+            .onSubmit(of: .search) { search() }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭", systemImage: "xmark") { dismiss() }
+                        .labelStyle(.iconOnly)
+                }
+            }
             .onChange(of: appState.user?.id) { _, _ in invalidate(clear: true) }
             .onChange(of: ContentAccessStore.shared.revision) { _, _ in invalidate(clear: true) }
             .onDisappear { invalidate(clear: false) }
@@ -98,119 +113,25 @@ struct BookSearchView: View {
         .readerContentAccess(isRestricted: novel.isRestricted)
     }
 
-    private var searchForm: some View {
-        let layout = stacksSearchControls
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout(spacing: 8))
-
-        return VStack(alignment: .leading, spacing: 12) {
-            Text(novel.title)
-                .font(SongtiFont.font(.title2, weight: .semibold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .appTextLineLimit(2)
-                .accessibilityAddTraits(.isHeader)
-
-            layout {
-                queryField
-                Button {
-                    search()
-                } label: {
-                    Text("搜索")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, AppLayout.fieldHorizontalInset)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: stacksSearchControls ? .infinity : nil, minHeight: AppLayout.fieldMinHeight)
-                        .foregroundStyle(canSearch ? AppTheme.onPrimary : AppTheme.textSecondary)
-                        .background(
-                            canSearch ? AppTheme.primaryDeep : AppTheme.controlFill,
-                            in: RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius)
-                        )
-                }
-                .buttonStyle(ScaleButtonStyle())
-                .disabled(!canSearch)
-            }
-
-            if queryTooLong {
-                Label("关键词过长，请缩短至 80 个字符以内。", systemImage: "exclamationmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.danger)
-            } else {
-                Text("仅检索本书已收录的正文，按字面匹配。")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-        }
-        .padding(.bottom, 12)
-    }
-
-    private var queryField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(queryFocused ? AppTheme.primaryDeep : AppTheme.textSecondary)
-                .accessibilityHidden(true)
-
-            TextField(
-                "正文关键词",
-                text: Binding(get: { query }, set: updateQuery),
-                prompt: Text("人物、句子或关键词").foregroundStyle(AppTheme.textSecondary)
-            )
-            .font(.body)
-            .foregroundStyle(AppTheme.textPrimary)
-            .tint(AppTheme.primary)
-            .textFieldStyle(.plain)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .focused($queryFocused)
-            .submitLabel(.search)
-            .onSubmit { search() }
-            .frame(minHeight: AppLayout.minimumTouchTarget)
-            .padding(.vertical, AppLayout.fieldVerticalInset)
-            .layoutPriority(1)
-            .accessibilityHint("输入人物、句子或关键词")
-
-            if !query.isEmpty {
-                Button {
-                    updateQuery("")
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.body)
-                        .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
-                        .contentShape(Rectangle())
-                }
-                .foregroundStyle(AppTheme.textSecondary)
-                .buttonStyle(ScaleButtonStyle())
-                .accessibilityLabel("清除关键词")
-            }
-        }
-        .padding(.leading, 14)
-        .padding(.trailing, query.isEmpty ? 14 : 4)
-        .appFieldSurface(isFocused: queryFocused)
-        .animation(searchAnimation, value: queryFocused)
-    }
-
-    @ViewBuilder
     private var results: some View {
-        if scanned > 0 || (!busy && error == nil) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(items.count) 章匹配")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .accessibilityAddTraits(.isHeader)
-                Text(cursor == nil ? "已检索 \(scanned) 章" : "已检索 \(scanned) 章 · 后续章节待检索")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
+        Section {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, hit in
+                resultRow(hit)
+                    .transition(resultTransition(at: index))
             }
-            .monospacedDigit()
+            resultStatus
+                .transition(.opacity)
+        } header: {
+            if scanned > 0 || (!busy && error == nil) {
+                Text("\(items.count) 章匹配")
+                    .monospacedDigit()
+            }
+        } footer: {
+            if scanned > 0 || (!busy && error == nil) {
+                Text(cursor == nil ? "已检索 \(scanned) 章" : "已检索 \(scanned) 章 · 后续章节待检索")
+                    .monospacedDigit()
+            }
         }
-
-        ForEach(Array(items.enumerated()), id: \.element.id) { index, hit in
-            resultRow(hit)
-                .transition(resultTransition(at: index))
-        }
-
-        resultStatus
-            .transition(.opacity)
     }
 
     private func resultRow(_ hit: BookSearchHit) -> some View {
@@ -218,60 +139,45 @@ struct BookSearchView: View {
             onSelect(hit, searched)
             dismiss()
         } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text(hit.chapterTitle)
                         .font(.headline)
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Image(systemName: "chevron.forward")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .accessibilityHidden(true)
+                        .foregroundStyle(.primary)
+                    Text("本章 \(hit.matchCount) 处命中")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    excerpt(hit.snippet)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                Text("本章 \(hit.matchCount) 处命中")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(AppTheme.primaryDeep)
-                excerpt(hit.snippet)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineSpacing(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.forward")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .paperCard(cornerRadius: 12)
-            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.vertical, 4)
+            .frame(minHeight: AppLayout.minimumTouchTarget)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
     private var resultStatus: some View {
         if busy {
             ProgressView(cursor == nil ? "正在搜索本书正文…" : "正在检索后续章节…")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-                .frame(minHeight: AppLayout.minimumTouchTarget)
         } else if let error {
             LoadErrorNotice(message: error, isLoading: false) { search(more: cursor != nil) }
         } else {
             if items.isEmpty {
                 Text(cursor == nil ? "试试更短的关键词，或换一段原文。" : "已检索的章节没有匹配，可以继续查找。")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(.secondary)
             }
             if cursor != nil {
-                Button {
-                    search(more: true)
-                } label: {
-                    Label("继续检索后续章节", systemImage: "arrow.down")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: AppLayout.minimumTouchTarget)
-                        .contentShape(Rectangle())
-                }
-                .foregroundStyle(AppTheme.primaryDeep)
-                .buttonStyle(ScaleButtonStyle())
+                Button("继续检索后续章节", systemImage: "arrow.down") { search(more: true) }
             }
         }
     }

@@ -1,12 +1,13 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// 章节目录（阅读器内 sheet）：点选跳转章节，打开时自动定位到当前章节。
+/// 阅读器目录与作品详情的原生目录搜索共用筛选和章节选择。
 struct ChapterListView: View {
     let novel: Novel
-    let currentOrder: Int
-    var initialChapters: [ChapterMeta] = []
-    var offlineOnly = false
+    let currentOrder: Int?
+    let initialChapters: [ChapterMeta]
+    let offlineOnly: Bool
+    let directorySort: Binding<Bool>?
     let onSelect: (Int) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -18,28 +19,52 @@ struct ChapterListView: View {
     @State private var hasScrolledToCurrent = false
     @State private var isShowingOffline = false
     @State private var search = ""
+    @State private var searchPresented: Bool
     @State private var descending = false
     @State private var showJump = false
     @State private var jumpOrder = ""
 
+    init(
+        novel: Novel,
+        currentOrder: Int?,
+        initialChapters: [ChapterMeta] = [],
+        offlineOnly: Bool = false,
+        directorySort: Binding<Bool>? = nil,
+        onSelect: @escaping (Int) -> Void
+    ) {
+        self.novel = novel
+        self.currentOrder = currentOrder
+        self.initialChapters = initialChapters
+        self.offlineOnly = offlineOnly
+        self.directorySort = directorySort
+        self.onSelect = onSelect
+        _searchPresented = State(initialValue: directorySort != nil)
+    }
+
+    private var availableChapters: [ChapterMeta] { directorySort == nil ? chapters : initialChapters }
+    private var showsOfflineCatalog: Bool { directorySort == nil ? isShowingOffline : offlineOnly }
+    private var sortOrder: Binding<Bool> { directorySort ?? $descending }
+    private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     private var visibleChapters: [ChapterMeta] {
-        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        let matches = chapters.filter { query.isEmpty || $0.title.localizedStandardContains(query) || String($0.order) == query }
-        return descending ? Array(matches.reversed()) : matches
+        let matches = query.isEmpty ? availableChapters : availableChapters.filter {
+            $0.title.localizedStandardContains(query) || String($0.order) == query
+        }
+        return sortOrder.wrappedValue ? Array(matches.reversed()) : matches
     }
 
     private var jumpTarget: ChapterMeta? {
         guard let order = Int(jumpOrder) else { return nil }
-        return chapters.first { $0.order == order }
+        return availableChapters.first { $0.order == order }
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if isLoading && chapters.isEmpty {
+                if isLoading && availableChapters.isEmpty {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let errorMessage, chapters.isEmpty {
+                } else if let errorMessage, availableChapters.isEmpty {
                     ContentUnavailableView {
                         Label("目录加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -48,54 +73,20 @@ struct ChapterListView: View {
                         Button("重试") { Task { await load() } }
                             .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
                     }
-                } else if chapters.isEmpty {
+                } else if availableChapters.isEmpty {
                     ContentUnavailableView("暂无章节", systemImage: "list.bullet", description: Text("这本书尚未发布章节"))
                 } else {
                     ScrollViewReader { proxy in
-                        List(visibleChapters) { chapter in
-                            Button {
-                                dismiss()
-                                onSelect(chapter.order)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Text("\(chapter.order)")
-                                        .font(.caption.monospacedDigit())
-                                        .foregroundStyle(chapter.order == currentOrder ? AppTheme.primary : Color.secondary)
-                                        .frame(minWidth: 28, alignment: .trailing)
-                                    Text(chapter.title)
-                                        .chapterTitleStyle()
-                                        .foregroundStyle(chapter.order == currentOrder ? AppTheme.primary : AppTheme.textPrimary)
-                                    if chapter.order == currentOrder {
-                                        Image(systemName: "checkmark")
-                                            .font(.subheadline.weight(.bold))
-                                            .foregroundStyle(AppTheme.primary)
-                                            .accessibilityHidden(true)
-                                    }
+                        if directorySort == nil {
+                            chapterList
+                                .refreshable { await load(refresh: true) }
+                                .onAppear { scrollToCurrent(proxy) }
+                                .onChange(of: chapters) { _, _ in
+                                    hasScrolledToCurrent = false
+                                    scrollToCurrent(proxy)
                                 }
-                                .frame(minHeight: AppLayout.minimumTouchTarget)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
-                            .listRowBackground(
-                                chapter.order == currentOrder
-                                    ? AppTheme.primary.opacity(0.12)
-                                    : Color.clear
-                            )
-                            .id(chapter.id)
-                            .accessibilityAddTraits(chapter.order == currentOrder ? [.isSelected] : [])
-                        }
-                        .appListStyle(.browsing)
-                        .listRowSeparatorTint(AppTheme.border)
-                        .overlay {
-                            if visibleChapters.isEmpty { ContentUnavailableView.search(text: search) }
-                        }
-                        .refreshable { await load(refresh: true) }
-                        .onAppear {
-                            scrollToCurrent(proxy)
-                        }
-                        .onChange(of: chapters) { _, _ in
-                            hasScrolledToCurrent = false
-                            scrollToCurrent(proxy)
+                        } else {
+                            chapterList
                         }
                     }
                 }
@@ -110,13 +101,15 @@ struct ChapterListView: View {
                     .background(AppTheme.canvas)
                 }
             }
-            .navigationTitle("目录")
+            .navigationTitle(directorySort == nil ? "目录" : "章节目录")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, prompt: "搜索章节名或章号")
+            .searchable(text: Binding(get: { search }, set: { value in
+                withAnimation(reduceMotion ? nil : AppMotion.micro) { search = value }
+            }), isPresented: $searchPresented, prompt: "搜索章名或章号")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Toggle("倒序排列", isOn: $descending)
+                        Toggle("倒序排列", isOn: sortOrder)
                         Button("跳转章节", systemImage: "number") {
                             jumpOrder = ""
                             showJump = true
@@ -124,9 +117,9 @@ struct ChapterListView: View {
                     } label: {
                         Label("目录选项", systemImage: "line.3.horizontal.decrease.circle")
                     }
-                    .disabled(chapters.isEmpty)
+                    .disabled(availableChapters.isEmpty)
                 }
-                if isShowingOffline {
+                if showsOfflineCatalog {
                     ToolbarItem(placement: .topBarLeading) {
                         Label("离线", systemImage: "wifi.slash")
                             .font(.caption)
@@ -134,10 +127,12 @@ struct ChapterListView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { dismiss() }
+                    Button(directorySort == nil ? "完成" : "关闭") { dismiss() }
                 }
             }
-            .task(id: ContentAccessStore.shared.mode) { await load() }
+            .task(id: ContentAccessStore.shared.mode) {
+                if directorySort == nil { await load() }
+            }
             .alert("跳转章节", isPresented: $showJump) {
                 TextField("章号", text: $jumpOrder).keyboardType(.numberPad)
                 Button("开始阅读") {
@@ -154,6 +149,66 @@ struct ChapterListView: View {
         .presentationBackground(AppTheme.canvas)
         .presentationDragIndicator(.visible)
         .readerContentAccess(isRestricted: novel.isRestricted)
+    }
+
+    private var chapterList: some View {
+        let matches = visibleChapters
+
+        return List {
+            if matches.isEmpty {
+                ContentUnavailableView.search(text: query)
+                    .listRowSeparator(.hidden)
+            } else {
+                Section {
+                    ForEach(Array(matches.enumerated()), id: \.element.id) { index, chapter in
+                        chapterButton(chapter)
+                            .id(chapter.id)
+                            .transition(reduceMotion ? .identity : .asymmetric(
+                                insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index, 12)) * 0.008)),
+                                removal: .opacity
+                            ))
+                    }
+                } header: {
+                    if !query.isEmpty { Text("\(matches.count) 章匹配") }
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func chapterButton(_ chapter: ChapterMeta) -> some View {
+        let isCurrent = chapter.order == currentOrder
+
+        return Button {
+            dismiss()
+            onSelect(chapter.order)
+        } label: {
+            HStack(spacing: 12) {
+                Text(chapter.order, format: .number.grouping(.never))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 28, alignment: .trailing)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(chapter.title)
+                        .chapterTitleStyle()
+                    if directorySort != nil {
+                        Text("\(chapter.wordCount) 字")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if isCurrent {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.tint)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(minHeight: AppLayout.minimumTouchTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
     }
 
     private func load(refresh: Bool = false) async {
@@ -192,7 +247,7 @@ struct ChapterListView: View {
     }
 
     private func scrollToCurrent(_ proxy: ScrollViewProxy) {
-        guard !hasScrolledToCurrent,
+        guard !hasScrolledToCurrent, let currentOrder,
               let current = chapters.first(where: { $0.order == currentOrder }) else { return }
         hasScrolledToCurrent = true
         // 等一次 runloop，让 List 完成数据更新后的布局

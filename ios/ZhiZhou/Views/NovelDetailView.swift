@@ -19,9 +19,9 @@ struct NovelDetailView: View {
     @State private var errorMessage: String?
     @State private var progress: ReadingProgress?
     @State private var isLoadingProgress = false
-    @State private var chapterSearch = ""
-    @FocusState private var isChapterSearchFocused: Bool
     @State private var chaptersDescending = false
+    @State private var showChapterSearch = false
+    @State private var selectedSearchChapter: ChapterMeta?
     @State private var displayNovel: Novel?
     @State private var bookshelfBusy = false
     @State private var showBookshelfError = false
@@ -102,6 +102,20 @@ struct NovelDetailView: View {
         .navigationDestination(item: $searchLaunch) { launch in
             ReaderView(novel: currentNovel, chapterOrder: launch.hit.chapterOrder, searchQuery: launch.query, searchChapterID: launch.hit.chapterId)
         }
+        .sheet(isPresented: $showChapterSearch) {
+            ChapterListView(
+                novel: currentNovel,
+                currentOrder: chapters.first { $0.id == progress?.chapterId }?.order,
+                initialChapters: chapters,
+                offlineOnly: isShowingOffline,
+                directorySort: $chaptersDescending
+            ) { order in
+                selectedSearchChapter = chapters.first { $0.order == order }
+            }
+        }
+        .navigationDestination(item: $selectedSearchChapter) { chapter in
+            ReaderView(novel: currentNovel, chapterOrder: chapter.order, preloadedChapters: chapters)
+        }
         .sheet(isPresented: $showOfflineOptions) {
             offlineDownloadSheet
         }
@@ -139,9 +153,7 @@ struct NovelDetailView: View {
     }
 
     private func detailList(sideInset: CGFloat, compactHeader: Bool) -> some View {
-        let displayedChapters = visibleChapters
-
-        return List {
+        List {
             bookHeader(compact: compactHeader)
                 .listRowInsets(EdgeInsets(top: 16, leading: sideInset, bottom: 24, trailing: sideInset))
                 .listRowSeparator(.hidden)
@@ -176,18 +188,13 @@ struct NovelDetailView: View {
                     chapterEmptyState
                         .listRowSeparator(.hidden)
                 }
-                if !chapters.isEmpty && displayedChapters.isEmpty {
-                    ContentUnavailableView.search(text: chapterQuery)
-                        .transition(.opacity)
-                }
-                ForEach(Array(displayedChapters.enumerated()), id: \.element.id) { index, chapter in
+                ForEach(visibleChapters) { chapter in
                     chapterRow(chapter)
                         .id(chapter.id)
                         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                        .transition(chapterSearchTransition(at: index))
                 }
             } header: {
-                chapterSectionHeader(displayedCount: displayedChapters.count)
+                chapterSectionHeader
                     .textCase(nil)
                     .listRowInsets(EdgeInsets(top: 8, leading: sideInset, bottom: 8, trailing: sideInset))
             }
@@ -221,17 +228,8 @@ struct NovelDetailView: View {
 
     private var currentNovel: Novel { displayNovel ?? novel }
 
-    private var chapterQuery: String {
-        chapterSearch.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private var visibleChapters: [ChapterMeta] {
-        guard !isSelectingOffline else { return chapters }
-        let query = chapterQuery
-        let matches = query.isEmpty ? chapters : chapters.filter {
-            $0.title.localizedStandardContains(query) || String($0.order) == query
-        }
-        return chaptersDescending ? Array(matches.reversed()) : matches
+        chaptersDescending && !isSelectingOffline ? Array(chapters.reversed()) : chapters
     }
 
     private var continueChapter: ChapterMeta? {
@@ -937,115 +935,51 @@ struct NovelDetailView: View {
             .lineSpacing(4)
     }
 
-    private func chapterSectionHeader(displayedCount: Int) -> some View {
+    private var chapterSectionHeader: some View {
         let headerLayout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
-            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
 
-        return VStack(alignment: .leading, spacing: 8) {
-            headerLayout {
-                Text(isSelectingOffline ? "选择章节" : "目录")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .accessibilityAddTraits(.isHeader)
+        return headerLayout {
+            Text(isSelectingOffline ? "选择章节" : "目录")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
 
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    chapterCountLabel(displayedCount: displayedCount)
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(AppTheme.textSecondary)
-                    if !isSelectingOffline {
+            HStack(spacing: 8) {
+                Text(isLoading && chapters.isEmpty ? "加载中" : "\(chapters.count) 章")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                if !isSelectingOffline {
+                    Button {
+                        chaptersDescending.toggle()
+                    } label: {
+                        Label(chaptersDescending ? "倒序" : "正序", systemImage: chaptersDescending ? "arrow.up" : "arrow.down")
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(chaptersDescending ? "目录倒序，点按改为正序" : "目录正序，点按改为倒序")
+
+                    if !chapters.isEmpty {
                         Button {
-                            chaptersDescending.toggle()
+                            showChapterSearch = true
                         } label: {
-                            Label(chaptersDescending ? "倒序" : "正序", systemImage: chaptersDescending ? "arrow.up" : "arrow.down")
+                            Label("搜索目录", systemImage: "magnifyingglass")
+                                .labelStyle(.iconOnly)
                                 .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
                                 .contentShape(Rectangle())
                         }
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.primary)
-                        .buttonStyle(ScaleButtonStyle())
-                        .accessibilityLabel(chaptersDescending ? "目录倒序，点按改为正序" : "目录正序，点按改为倒序")
+                        .buttonStyle(.borderless)
+                        .accessibilityHint("按章名或章号查找")
+                        .accessibilityIdentifier("detail.chapterSearch")
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
             }
-            if !isSelectingOffline && !chapters.isEmpty {
-                chapterSearchField
-            }
+            .font(.subheadline)
+            .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
         }
-    }
-
-    private func chapterCountLabel(displayedCount: Int) -> Text {
-        if isLoading && chapters.isEmpty {
-            return Text("加载中")
-        }
-        if !isSelectingOffline && !chapterQuery.isEmpty && !chapters.isEmpty {
-            return Text("匹配 \(displayedCount) 章")
-        }
-        return Text("\(chapters.count) 章")
-    }
-
-    private var chapterSearchField: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isChapterSearchFocused ? AppTheme.primary : AppTheme.textSecondary)
-                .accessibilityHidden(true)
-
-            TextField(
-                "搜索目录",
-                text: Binding(get: { chapterSearch }, set: updateChapterSearch),
-                prompt: Text("章名或章号").foregroundStyle(AppTheme.textSecondary)
-            )
-            .font(.body)
-            .foregroundStyle(AppTheme.textPrimary)
-            .tint(AppTheme.primary)
-            .textFieldStyle(.plain)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .focused($isChapterSearchFocused)
-            .submitLabel(.done)
-            .onSubmit { isChapterSearchFocused = false }
-            .frame(minHeight: AppLayout.minimumTouchTarget)
-            .padding(.vertical, 3)
-            .layoutPriority(1)
-            .accessibilityIdentifier("detail.chapterSearch")
-            .accessibilityHint("可输入章名或章号")
-
-            if !chapterSearch.isEmpty {
-                Button {
-                    updateChapterSearch("")
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.body)
-                        .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
-                        .contentShape(Rectangle())
-                }
-                .foregroundStyle(AppTheme.textSecondary)
-                .buttonStyle(ScaleButtonStyle())
-                .accessibilityLabel("清除章节搜索")
-                .transition(.opacity)
-            }
-        }
-        .padding(.leading, 14)
-        .padding(.trailing, chapterSearch.isEmpty ? 14 : 4)
-        .appFieldSurface(isFocused: isChapterSearchFocused)
-        .animation(reduceMotion ? nil : AppMotion.micro, value: isChapterSearchFocused)
-    }
-
-    private func updateChapterSearch(_ value: String) {
-        withAnimation(reduceMotion ? nil : AppMotion.micro) {
-            chapterSearch = value
-        }
-    }
-
-    private func chapterSearchTransition(at index: Int) -> AnyTransition {
-        guard !reduceMotion, !isSelectingOffline else { return .identity }
-        return .asymmetric(
-            insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index, 12)) * 0.008)),
-            removal: .opacity
-        )
     }
 
     private func toggleBookshelf() {
