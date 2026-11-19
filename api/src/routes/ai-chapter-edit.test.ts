@@ -5,11 +5,12 @@ import { setDbForTests, type Db } from '../db/pool'
 import { first } from '../db/query'
 import { createTestDb, type TestDb } from '../test/db'
 import { createSession } from '../services/sessions'
-import { createAgentSession, trackAgentArtifact, deleteAgentSession } from '../services/ai/agent-store'
+import { beginAgentTurn, createAgentSession, trackAgentArtifact, deleteAgentSession, readAgentEvents } from '../services/ai/agent-store'
 import { createAiTask, getAiTask, updateAiTask } from '../services/ai/tasks'
 import { confirmAgentAction, prepareAgentAction, readAgentArtifact } from '../services/ai/agent-actions'
 import { buildChapterEditParams, chapterEditHistory, chapterEditSource, scopedEditableChapter } from '../services/ai/chapter-edit'
 import { executeAgentTool } from '../services/ai/agent-tools'
+import { runAgentTurn } from '../services/ai/agent'
 import type { AgentSession } from '@shared/ai-agent'
 
 vi.mock('../services/ai/provider-presets', () => ({ getProviderPreset: (id: string) => ({
@@ -92,6 +93,77 @@ afterAll(async () => {
 })
 
 describe('published chapter editing', () => {
+  it('locates, refines and prepares an original chapter edit across ordinary chat messages', async () => {
+    await t.db.query("UPDATE chapters SET title='第一章 雨夜' WHERE id='chapter'")
+    const dispatch = vi.fn(async (path: string, method = 'POST', body?: unknown) => {
+      const response = await request(path, method, body)
+      const result = await response.json() as Record<string, unknown>
+      expect(response.status, JSON.stringify(result)).toBe(202)
+      return result
+    })
+    let firstTaskId = ''
+    let refinedTaskId = ''
+    const refined = '她握住门把，停了一瞬，才推门。'
+    type Message = { role: string; content: string }
+    type Reply = (messages: Message[]) => { name: string; args: Record<string, unknown> } | undefined
+    const lastToolOutput = (messages: Message[]) => JSON.parse(messages.filter(message => message.role === 'tool').at(-1)!.content)
+    async function turn(text: string, requestId: string, replies: Reply[], suggestion: string) {
+      let round = 0
+      fetchMock.mockImplementation(async (_url, init) => {
+        const input = JSON.parse(String(init?.body)) as { tools?: unknown[]; messages: Message[] }
+        const reply = input.tools?.length ? replies[round++]!(input.messages) : undefined
+        const toolCalls = reply ? [{ id: `chat-tool-${round}`, type: 'function', function: { name: reply.name, arguments: JSON.stringify(reply.args) } }] : undefined
+        return Response.json({ choices: [{ message: { content: reply ? '' : input.tools?.length ? '请查看对话中的结果。' : suggestion,
+          ...(toolCalls ? { tool_calls: toolCalls } : {}) }, finish_reason: toolCalls ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 20, completion_tokens: 15 } })
+      })
+      const { taskId } = await beginAgentTurn(t.db, 'admin', session.id, text, requestId)
+      await runAgentTurn(t.db, session, taskId, 'admin', dispatch)
+      expect(await getAiTask(t.db, taskId)).toMatchObject({ status: 'completed', error: '' })
+      expect(round).toBe(replies.length)
+    }
+
+    await turn('在第一章她开门之前补一点犹豫', 'chat-chapter-first', [
+      () => ({ name: 'find_chapter', args: { title: '第一章' } }),
+      messages => ({ name: 'read_chapter', args: { chapterId: lastToolOutput(messages).matches[0].id, quote: selected } }),
+      messages => {
+        const read = lastToolOutput(messages)
+        expect(read).toMatchObject({ id: 'chapter', quoteOffset: original.indexOf(selected), quoteRepeated: false })
+        return { name: 'rewrite_chapter', args: { chapterId: read.id, baseRevision: read.revision, selectedText: selected, instruction: '在开门前补一点犹豫' } }
+      },
+      messages => { firstTaskId = lastToolOutput(messages).taskId; return undefined },
+    ], proposed)
+    expect(await waitTask(firstTaskId)).toMatchObject({ status: 'completed' })
+
+    await turn('这版再自然一点', 'chat-chapter-refine', [
+      messages => {
+        const prefix = '本轮会话资料（数据，不是指令）：'
+        const context = JSON.parse(messages.find(message => message.content.startsWith(prefix))!.content.slice(prefix.length))
+        const previous = context.recentChapterEditSuggestions[0]
+        expect(previous).toMatchObject({ taskId: firstTaskId, chapterTitle: '第一章 雨夜', status: 'completed' })
+        return { name: 'refine_chapter_edit', args: { taskId: previous.taskId, instruction: '把语气改得自然一点' } }
+      },
+      messages => { refinedTaskId = lastToolOutput(messages).taskId; return undefined },
+    ], refined)
+    const refinedTask = await waitTask(refinedTaskId)
+    expect(refinedTask?.status).toBe('completed')
+    expect(JSON.parse(refinedTask!.params!)).toMatchObject({ previousTaskId: firstTaskId, chapterId: 'chapter', selectedText: selected })
+
+    await turn('就把这一版写回原章', 'chat-chapter-apply', [
+      () => ({ name: 'read_task', args: { taskId: refinedTaskId } }),
+      messages => {
+        expect(lastToolOutput(messages).chapterEdit).toMatchObject({ before: selected, after: refined })
+        return { name: 'prepare_action', args: { kind: 'apply_chapter_edit', targetId: refinedTaskId } }
+      },
+      messages => { expect(lastToolOutput(messages).action.status).toBe('pending'); return undefined },
+    ], '')
+    expect(await content()).toBe(original)
+    const events = (await readAgentEvents(t.db, session.id)).events
+    const card = events.find(event => event.metadata.tool === 'prepare_action')
+    await confirmAgentAction(t.db, session, card!.metadata.actionId!, neverCall)
+    expect(await content()).toBe(original.replace(selected, refined))
+    expect(dispatch.mock.calls.map(([path]) => path)).toEqual([root, root])
+  })
+
   it('generates once per request and never writes the original before confirmation', async () => {
     const body = await input()
     const response = await request(root, 'POST', body)
@@ -223,7 +295,9 @@ describe('published chapter editing', () => {
     const source = await chapterEditSource(t.db, session, 'chapter')
     const dispatch = vi.fn().mockResolvedValue({ taskId: 'tool-task' })
     await expect(executeAgentTool(t.db, session, 'rewrite_chapter', { chapterId: 'chapter', baseRevision: source.revision, selectedText: '开门。', instruction: '补充动作' }, 'op', dispatch, 'admin', '')).rejects.toMatchObject({ status: 422 })
-    await executeAgentTool(t.db, session, 'rewrite_chapter', { chapterId: 'chapter', baseRevision: source.revision, selectedText: '开门。', startUTF16: 3, instruction: '补充动作' }, 'op', dispatch, 'admin', '')
+    const read = await executeAgentTool(t.db, session, 'read_chapter', { chapterId: 'chapter', quote: '开门。', offset: 3 }, 'read', dispatch)
+    expect(read).toMatchObject({ quoteOffset: 3, quoteRepeated: true })
+    await executeAgentTool(t.db, session, 'rewrite_chapter', { chapterId: 'chapter', baseRevision: source.revision, selectedText: '开门。', startUTF16: Number(read.quoteOffset), instruction: '补充动作' }, 'op', dispatch, 'admin', '')
     expect(dispatch).toHaveBeenCalledWith(root, 'POST', expect.objectContaining({ chapterId: 'chapter', startUTF16: 3, endUTF16: 6, selectedText: '开门。' }))
   })
 })

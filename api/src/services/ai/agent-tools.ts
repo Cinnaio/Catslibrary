@@ -4,7 +4,7 @@ import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { AiError, type AiFunctionTool, type AiToolCall } from './client'
 import { generationContentRevision } from './generations'
-import { agentAnchor, listAgentAnalyses, readAgentChapter, readAgentAnalysis, searchAgentStory } from './agent-retrieval'
+import { agentAnchor, findAgentChapter, listAgentAnalyses, readAgentChapter, readAgentAnalysis, searchAgentStory } from './agent-retrieval'
 import { getAnalysisReferences, parseAnalysisReferenceSelections } from './analysis-reference'
 import { agentDraftTitle, prepareAgentAction, readAgentArtifact, scopedAgentDraft, type AgentApi } from './agent-actions'
 import { readAgentEvents, requireAgentArtifact, trackAgentArtifact } from './agent-store'
@@ -35,6 +35,10 @@ const rewriteLength = {
 }
 export const AGENT_TOOLS: AiFunctionTool[] = [
   tool('read_overview', '读取当前小说、冻结的续写起点和最近章节目录。需要了解作品或定位章节时使用；核对聊天中的作者决定无需先读目录。'),
+  tool('find_chapter', '按目录序号或章名定位正式章节，查找范围截至本会话起点，支持比最近目录更早的章节。两项只填一项。章名优先核对完整匹配；有歧义时请进一步定位。', {
+    ordinal: { type: 'integer', minimum: 1, maximum: 1000000, description: '按目录从 1 开始的正序位置，不是存储排序值。' },
+    title: { type: 'string', maxLength: 200, description: '章名或章名中明确的文字。' },
+  }, []),
   tool('search_chapters', '在起点之前的正式章节中搜索原文或标题，返回命中片段和章节 ID。只做字面检索，不代表没有其他相关内容。', {
     query: { type: 'string', maxLength: 100 },
   }),
@@ -45,7 +49,7 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   }, ['query']),
   tool(
     'read_chapter',
-    '按章节 ID 分段读取原文。要把准确引文传给写作模型时，填写 quote 取得包含该句的 sources 片段。nextOffset 非空表示还有正文。',
+    '按章节 ID 分段读取原文。quote 可定位逐字引文，返回 UTF-16 的 quoteOffset 和是否重复。重复时用更长的逐字选段核对所指位置。nextOffset 非空表示还有正文。',
     { chapterId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id, quote: { type: 'string', maxLength: 240 } },
     ['chapterId'],
   ),
@@ -62,7 +66,7 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   }),
   tool('read_draft', '读取指定草稿的当前正文和 revision，改写前必须调用。', { draftId: id }),
   tool('list_covers', '列出本书封面候选的描述词与 ID。只提供文本材料，不代表你看到了图像。'),
-  tool('read_task', '读取本对话生成任务的真实进度和产出。改写任务的 version 是应用建议后拼接的整章，按 nextOffset 继续读取；rewrite 只用于查看改动段。任务未完成时不反复轮询。', {
+  tool('read_task', '读取本对话生成任务的真实进度和产出。改写任务的 version 是应用建议后拼接的整章，按 nextOffset 继续读取；rewrite 和 chapterEdit 描述改动段，章改前后对照省略时可从 chapterEdit.startUTF16 读取建议正文。任务未完成时不反复轮询。', {
     taskId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 },
   }, ['taskId']),
   tool('read_conversation', '读取本会话 beforeId 之前最近最多 20 条原始消息。结果过长时减小 limit；用当前页最早消息 ID 向前翻页。已知编号时优先用 read_conversation_sources。', {
@@ -91,12 +95,12 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
       ...writingReferences, ...rewriteLength },
     ['draftId', 'baseRevision', 'selectedText', 'instruction'],
   ),
-  tool('rewrite_chapter', '为正式原章节生成增补或改写建议。先 read_chapter 获取原文和 revision；selectedText 逐字引用，空字符串表示整章（最多6000字）。重复段落须同时指定 startUTF16。不会自动写回。', {
+  tool('rewrite_chapter', '为正式原章节生成增补或改写建议。先 read_chapter 获取原文和 revision；增补时选取插入点附近的原文并在 instruction 指定插入位置。selectedText 逐字引用；只有明确改整章时才传空字符串（最多6000字）。重复段落须使用核对过的 startUTF16。不会自动写回。', {
     chapterId: id, baseRevision: id, selectedText: { type: 'string', maxLength: 12000 },
     startUTF16: { type: 'integer', minimum: 0, maximum: 1000000 }, instruction: { ...instruction, maxLength: 2000 },
     ...writingReferences, ...rewriteLength,
   }, ['chapterId', 'baseRevision', 'selectedText', 'instruction']),
-  tool('refine_chapter_edit', '继续调整当前对话中尚未采纳的原章节建议，保留原选段和版本。', {
+  tool('refine_chapter_edit', '根据作者的后续反馈调整本会话已经生成的指定原章节建议。taskId 用 recentChapterEditSuggestions 或 read_task 确认，保留原章节、原选段和底稿版本。', {
     taskId: id, instruction: { ...instruction, maxLength: 2000 }, ...writingReferences, ...rewriteLength,
   }, ['taskId', 'instruction']),
   tool('list_chapter_edits', '查看原章节的已保存修改历史。canRestore=true 的版本可以用 restore_chapter 预览恢复。', {
@@ -182,6 +186,7 @@ export function validateAgentCall(call: AiToolCall): Record<string, string | num
 
 export const AGENT_TOOL_LABELS: Record<string, string> = {
   read_overview: '读取小说和章节目录',
+  find_chapter: '定位原章节',
   search_chapters: '检索章节依据',
   search_story: '检索人物与情节依据',
   read_chapter: '阅读章节原文',
@@ -237,6 +242,7 @@ export async function executeAgentTool(
       scope: '目录只覆盖最近 25 章，附起点章开头片段。不能据此断言全部正文事实；具体人物或情节先用 search_story 定位，再按需要 read_chapter。草稿另行读取。',
     }
   }
+  if (name === 'find_chapter') return findAgentChapter(db, session, a.ordinal as number | undefined, String(a.title || ''))
   if (name === 'search_chapters') {
     const result = await searchAgentStory(db, session, String(a.query), 'chapter', 0, true)
     return {
@@ -288,7 +294,10 @@ export async function executeAgentTool(
       if (offset > full.length) throw new AiError('invalid', '读取位置超出章节建议长度', 422)
       let end = Math.min(full.length, offset + 12000)
       if (end < full.length && /[\uDC00-\uDFFF]/u.test(full[end]!)) end--
-      return { ...artifact, task: { ...artifact.task, result: '' }, chapterEdit: { ...artifact.chapterEdit, before: undefined, after: undefined },
+      const { before, after, ...change } = artifact.chapterEdit
+      return { ...artifact, task: { ...artifact.task, result: '' },
+        chapterEdit: { ...change, startUTF16: edit.params.startUTF16, endUTF16: edit.params.endUTF16,
+          ...(before.length + after.length <= 6000 ? { before, after } : {}) },
         version: { content: full.slice(offset, end), offset, nextOffset: end < full.length ? end : null } }
     }
     if (artifact.rewrite) {

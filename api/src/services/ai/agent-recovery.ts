@@ -7,6 +7,7 @@ import { publishAiTask } from './task-events'
 
 export const AGENT_READ_TOOLS = new Set([
   'read_overview',
+  'find_chapter',
   'search_chapters',
   'search_story',
   'read_chapter',

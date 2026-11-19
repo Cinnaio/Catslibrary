@@ -5,6 +5,15 @@ import AiAgentSources from './AiAgentSources'
 import AiAgentMessages from './AiAgentMessages'
 
 describe('Agent evidence snapshots', () => {
+  it('opens the pending original chapter confirmation from its chat activity', () => {
+    const onAction = vi.fn()
+    render(<AiAgentMessages busy={false} onArtifact={vi.fn()} onAction={onAction}
+      events={[{ id: 1, role: 'activity', taskId: 'turn', createdAt: 1, content: '待确认写回原章', metadata: { actionId: 'chapter-action' } }]}
+      actions={[{ id: 'chapter-action', kind: 'apply_chapter_edit', status: 'pending', title: '保存改写到原章节',
+        error: '', createdAt: 1, preview: { description: '核对后保存' } }]} />)
+    fireEvent.click(screen.getByRole('button', { name: '核对并确认写回原章' }))
+    expect(onAction).toHaveBeenCalledWith('chapter-action')
+  })
   it('shows the actual draft title and opens the precise rewrite version from the read log', () => {
     const events: AgentEvent[] = [
       { id: 1, role: 'activity', taskId: 'turn', createdAt: 1, content: '查找草稿 · 本页 2 项，仅返回开头摘要', metadata: { tool: 'list_drafts' } },

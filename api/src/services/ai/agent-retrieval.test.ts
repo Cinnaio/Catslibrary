@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { createTestDb, type TestDb } from '../../test/db'
 import { createAgentSession } from './agent-store'
 import { executeAgentTool, validateAgentCall } from './agent-tools'
-import { listAgentAnalyses, readAgentChapter, readAgentAnalysis, searchAgentStory } from './agent-retrieval'
+import { findAgentChapter, listAgentAnalyses, readAgentChapter, readAgentAnalysis, searchAgentStory } from './agent-retrieval'
 import { createAnalysis, editAnalysis } from './novel-analysis-store'
 import { getAnalysisReferences, readAnalysisReference, formatAnalysisReferences, parseAnalysisReferenceSelections } from './analysis-reference'
 import { createAiTask } from './tasks'
@@ -44,6 +44,18 @@ afterAll(async () => {
 })
 
 describe('Agent evidence retrieval', () => {
+  it('finds scoped chapters by directory position or title, including chapters outside the recent overview', async () => {
+    await chapter('prologue', '序', -9, 'book', '序幕')
+    for (let i = 0; i < 26; i++) await chapter(`middle-${i}`, '正文', -1, 'book', `插章 ${i}`)
+    const overview = await executeAgentTool(t.db, session, 'read_overview', {}, 'overview', async () => ({}))
+    expect(overview.chapters).not.toContainEqual(expect.objectContaining({ id: 'prologue' }))
+    expect((await findAgentChapter(t.db, session, 1)).matches).toEqual([{ id: 'prologue', title: '序幕', ordinal: 1, exactTitle: false }])
+    expect((await findAgentChapter(t.db, session, undefined, '序幕')).matches[0]).toMatchObject({ id: 'prologue', ordinal: 1, exactTitle: true })
+    expect(await findAgentChapter(t.db, session, undefined, '插章')).toMatchObject({ hasMore: true, matches: expect.any(Array) })
+    expect((await findAgentChapter(t.db, session, 30)).matches).toEqual([])
+    for (const name of ['z-tied-future', 'foreign', '%']) expect((await findAgentChapter(t.db, session, undefined, name)).matches).toEqual([])
+  })
+
   it('ranks multi-keyword passages and keeps source offsets and original text', async () => {
     const result = await searchAgentStory(t.db, session, '林岚 灯塔 铜钥匙')
     expect(result.sources[0]).toMatchObject({ chapterId: 'early', origin: 'published', excerpt: '林岚在灯塔找到铜钥匙。沈舟尚未和她和解。', offset: 0 })

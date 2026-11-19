@@ -792,7 +792,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                 <div className={styles.empty}>
                   <span className={styles.emptyEyebrow}>写作，从对话开始</span>
                   <h3>这次想一起完成什么？</h3>
-                  <p>一个情节、一段草稿，或还没成形的灵感。</p>
+                  <p>{data.session.afterChapterId ? '可以直接说「在第一章开头补一点环境描写」。' : '一个情节、一段草稿，或还没成形的灵感。'}</p>
                   <div className={styles.suggestions}>
                     {STARTERS.map(({ title, description, icon: Icon, prompt }) => (
                       <Button key={title} variant="outline" onClick={() => {
@@ -806,7 +806,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                   </div>
                 </div>
               )}
-              <AiAgentMessages events={allEvents} busy={busy} onArtifact={(id) => void showArtifact(id)} onAction={(id) => void showAction(id)} />
+              <AiAgentMessages events={allEvents} busy={busy} actions={data.actions} onArtifact={(id) => void showArtifact(id)} onAction={(id) => void showAction(id)} />
               {previewVisible && partial.preview && (
                 <article className={styles.message} data-role="assistant" aria-label="助手回复预览">
                   <span className={styles.speaker}>创作助手{running ? ' · 正在回复' : ' · 未完成'}</span>
@@ -895,7 +895,12 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
               setFocusRequest((value) => value + 1)
             }}
               onDiscuss={() => {
-                setInput(`请读取任务 ${artifact.task.id} 的结果，我们继续讨论这一版。`)
+                if (artifact.chapterEdit) {
+                  const prompt = `请继续调整「${artifact.chapterEdit.chapterTitle}」的这版建议（任务 ${artifact.task.id}）：`
+                  setInput(current => `${prompt}\n${current}`.slice(0, 8000))
+                } else {
+                  setInput(`请读取任务 ${artifact.task.id} 的结果，我们继续讨论这一版。`)
+                }
                 setMobileView('chat')
                 setFocusRequest((value) => value + 1)
               }}

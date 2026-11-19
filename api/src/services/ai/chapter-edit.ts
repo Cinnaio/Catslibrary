@@ -44,6 +44,21 @@ export function parseChapterEdit(params: string, result: string) {
   } catch { return undefined }
 }
 
+export async function recentChapterEditSuggestions(db: DbClient, session: AgentSession) {
+  const rows = await all<{ id: string; status: string; params: string }>(db,
+    `SELECT t.id,t.status,t.params FROM ai_agent_artifacts a JOIN ai_tasks t ON t.id=a.task_id
+     WHERE a.session_id=$1 AND t.novel_id=$2 AND t.kind='chapter_edit'
+     ORDER BY a.created_at DESC,t.id DESC LIMIT 8`, [session.id, session.novelId])
+  return rows.flatMap(row => {
+    try {
+      const p = JSON.parse(row.params) as Partial<ChapterEditParams>
+      if (!p?.chapterId || !p.chapterTitle) return []
+      return [{ taskId: row.id, status: row.status, chapterId: p.chapterId, chapterTitle: p.chapterTitle,
+        instruction: p.instruction?.slice(0, 300), previousTaskId: p.previousTaskId }]
+    } catch { return [] }
+  })
+}
+
 export async function chapterEditHistory(db: DbClient, session: AgentSession, chapterId: string, offset = 0) {
   const chapter = await scopedEditableChapter(db, session, chapterId)
   const rows = await all<{ id: string; chapter_title: string; kind: string; created_at: number; after_revision: string }>(db,

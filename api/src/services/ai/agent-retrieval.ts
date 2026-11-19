@@ -71,6 +71,23 @@ function analysisEvidence(session: AgentSession, report: WritingAnalysisReferenc
 export const chapterEvidenceUrl = (source: AgentEvidence) =>
   source.kind === 'chapter' && source.chapterId ? `/read/${encodeURIComponent(source.novelId)}/${encodeURIComponent(source.chapterId)}` : undefined
 
+export async function findAgentChapter(db: Db, session: AgentSession, ordinal?: number, title = '') {
+  const name = title.trim()
+  if ((ordinal !== undefined) === !!name) throw new AiError('invalid', '请只提供目录序号或章名中的一项', 422)
+  const anchor = await agentAnchor(db, session)
+  if (!anchor) return { matches: [], hasMore: false }
+  const matches = await all<{ id: string; title: string; ordinal: number; exactTitle: boolean }>(db,
+    `WITH directory AS (
+       SELECT id,title,ROW_NUMBER() OVER (ORDER BY sort_order,id)::int AS ordinal
+       FROM chapters WHERE novel_id=$1 AND (sort_order,id)<=($2,$3)
+     )
+     SELECT id,title,ordinal,LOWER(TRIM(title))=LOWER($5) AS "exactTitle" FROM directory
+     WHERE ordinal=$4 OR ($4 IS NULL AND title ILIKE $6 ESCAPE '\\')
+     ORDER BY "exactTitle" DESC,ordinal LIMIT 11`,
+    [session.novelId, anchor.order, anchor.id, ordinal ?? null, name, `%${escapeLike(name)}%`])
+  return { matches: matches.slice(0, 10), hasMore: matches.length > 10 }
+}
+
 export async function readAgentChapter(db: Db, session: AgentSession, chapterId: string, offset = 0, expectedRevision = '', quote = '') {
   const anchor = await agentAnchor(db, session)
   const row = anchor
@@ -85,21 +102,24 @@ export async function readAgentChapter(db: Db, session: AgentSession, chapterId:
   if (offset > row.content.length) throw new AiError('invalid', '读取位置超出章节长度，请从头重新读取', 422)
   const revision = chapterEvidence(session, row).revision
   if (expectedRevision && revision !== expectedRevision) throw new AiError('conflict', '章节已变化，请重新检索后读取', 409)
+  const quoteOffset = quote ? row.content.indexOf(quote, offset) : -1
   if (quote) {
-    const hit = row.content.indexOf(quote, offset)
-    if (hit < 0 || quote.length > 240) throw new AiError('invalid', '未在该范围找到逐字引文，请重新查阅原文', 422)
-    offset = Math.max(0, hit - 220)
-    if (offset > 0 && /[\uDC00-\uDFFF]/u.test(row.content[offset]!)) offset--
+    if (quoteOffset < 0 || quote.length > 240) throw new AiError('invalid', '未在该范围找到逐字引文，请重新查阅原文', 422)
+    offset = Math.max(0, quoteOffset - 220)
   }
+  if (offset > 0 && /[\uDC00-\uDFFF]/u.test(row.content[offset]!)) offset--
+  let end = Math.min(row.content.length, offset + 12000)
+  if (end < row.content.length && /[\uDC00-\uDFFF]/u.test(row.content[end]!)) end--
   const source = chapterEvidence(session, row, offset)
   return {
     id: row.id,
     title: row.title,
-    content: row.content.slice(offset, offset + 12000),
+    content: row.content.slice(offset, end),
     offset,
+    ...(quote ? { quoteOffset, quoteRepeated: row.content.indexOf(quote) !== quoteOffset || row.content.indexOf(quote, quoteOffset + 1) >= 0 } : {}),
     revision: source.revision,
     url: chapterEvidenceUrl(source),
-    nextOffset: offset + 12000 < row.content.length ? offset + 12000 : null,
+    nextOffset: end < row.content.length ? end : null,
     sources: [source],
   }
 }

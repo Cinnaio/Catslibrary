@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Markdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Check, ChevronRight, Copy } from 'lucide-react'
-import type { AgentEvent } from '@shared/ai-agent'
+import type { AgentAction, AgentEvent } from '@shared/ai-agent'
 import { Button } from '@/components/ui/button'
 import { MotionDetails } from '@/components/ui/motion'
 import AiAgentSources from './AiAgentSources'
@@ -10,6 +10,7 @@ import styles from './agent-workspace.module.css'
 
 const READ_TOOLS = new Set([
   'read_overview',
+  'find_chapter',
   'search_chapters',
   'search_story',
   'read_chapter',
@@ -107,11 +108,13 @@ function CopyReply({ content }: { content: string }) {
 export default function AiAgentMessages({
   events,
   busy,
+  actions = [],
   onArtifact,
   onAction,
 }: {
   events: AgentEvent[]
   busy: boolean
+  actions?: AgentAction[]
   onArtifact: (id: string) => void
   onAction: (id: string) => void
 }) {
@@ -152,6 +155,7 @@ export default function AiAgentMessages({
         </MotionDetails>
       )
     const event = group.events[0]
+    const action = event.metadata.actionId ? actions.find(item => item.id === event.metadata.actionId) : undefined
     return (
       <article key={event.id} className={event.role === 'activity' ? styles.activity : styles.message} data-role={event.role}>
         {event.role === 'assistant' && <span className={styles.speaker}>创作助手</span>}
@@ -168,7 +172,7 @@ export default function AiAgentMessages({
         )}
         {event.metadata.actionId && (
           <Button size="sm" variant="link" disabled={busy} onClick={() => onAction(event.metadata.actionId!)}>
-            查看操作记录
+            {action?.status === 'pending' && action.kind === 'apply_chapter_edit' ? '核对并确认写回原章' : '查看操作记录'}
           </Button>
         )}
         {event.role === 'assistant' && !event.metadata.error && event.content && <CopyReply content={event.content} />}

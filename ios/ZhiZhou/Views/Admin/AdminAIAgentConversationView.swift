@@ -274,7 +274,7 @@ private struct AgentMessageGroup: Identifiable {
     var id: Int64 { firstEvent.id }
 
     private static let readingTools: Set<String> = [
-        "read_overview", "search_chapters", "read_chapter", "read_story_memory",
+        "read_overview", "find_chapter", "search_chapters", "read_chapter", "read_story_memory",
         "search_story", "list_novel_analyses", "read_novel_analysis",
         "list_drafts", "find_draft_version", "read_draft", "list_covers", "read_task", "read_conversation", "read_conversation_sources",
     ]
