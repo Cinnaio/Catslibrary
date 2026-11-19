@@ -1,5 +1,11 @@
 # 发布与版本管理
 
+## API 1.6.1 / Web 1.7.2 私有书源恢复部署（2026-11-19）
+
+- 15:44（Asia/Shanghai）完成私有包切换，核心源码为 `2de4628648c25abc069c416ca9c6f1e17da33983`，私有适配器为 `558e852144712291815365e7dff5c59ed4bdd016`。API `1.6.1`、Web `1.7.2` 与工作区锁文件一致，无新增数据库迁移，沿用现有番茄中转。
+- 私有 API 构建和适配器类型检查通过；复用相同锁文件的 Linux Node、API 依赖和 Web 工件。发布包通过文件摘要、Linux 原生依赖和隔离 PostgreSQL 18 验收，归档 SHA-256 为 `b499c85a81e0627e10e2ca22eb5050b2597af452591b3c1e658fa9829d6f2174`。
+- 部署时保留切换前产物备份，公网就绪、首页、入口资源及只读书目检查通过；匿名书源能力请求返回 401。真实源站抓取未执行。本节补记已有交付，不代表后续私有会话修复已部署。
+
 ## API 1.6.1 / Web 1.7.1 生产部署（2026-11-18）
 
 - 生产于 11:37:09（Asia/Shanghai）启用核心 `54c30982143a0694ca5865fd22f6a330da377101` 和私有适配器 `6f50690d2fb8ee373183ae992a65b07a843702e1`。上一版核心为 `86b51a13`，发布工具已备份对应 API 和 Web 工件。数据库迁移清单与上一版一致。
@@ -1061,8 +1067,8 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
 | iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.4.0 / 31` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.5.0` | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `1.6.0` | 同步锁文件 `packages.web.version` |
+| API | `api/package.json` | `1.6.1` | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.7.2` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。
