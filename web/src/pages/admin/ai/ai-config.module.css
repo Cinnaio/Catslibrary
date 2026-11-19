@@ -69,7 +69,6 @@
 }
 .connection {
   min-width: 0;
-  border-top: 1px solid var(--border);
 }
 .connection > summary {
   display: flex;
@@ -345,7 +344,6 @@
 }
 .usageHistory {
   padding-top: 24px;
-  border-top: 1px solid var(--border);
 }
 .periodLabel {
   display: flex;

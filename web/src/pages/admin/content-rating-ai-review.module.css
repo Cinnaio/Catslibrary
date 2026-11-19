@@ -161,12 +161,19 @@
 }
 
 .excerpts {
+  display: grid;
+  gap: 4px;
   min-width: 0;
 }
 
-.excerpt {
-  padding-block: 8px;
-  border-top: 1px solid var(--border);
+.excerpt > summary {
+  padding: 4px 12px;
+  border-radius: var(--radius-compact);
+}
+
+.excerpt[open] > summary,
+.excerpt > summary:hover {
+  background: var(--bg-secondary);
 }
 
 .excerptHeading {
@@ -178,8 +185,8 @@
 
 .excerptContent {
   display: grid;
-  gap: 12px;
-  padding-block: 12px;
+  gap: 8px;
+  padding: 12px 12px 16px;
 }
 
 .excerptContent blockquote {
@@ -194,8 +201,9 @@
 }
 
 .confirmation {
-  padding-block: 20px;
-  border-block: 1px solid var(--border);
+  padding: 16px;
+  border-radius: var(--radius-compact);
+  background: var(--bg-secondary);
 }
 
 .reasonInput {
@@ -230,12 +238,19 @@
 }
 
 .footer {
-  display: grid;
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.footer > .hint {
+  flex: 1 1 15rem;
 }
 
 .actions {
   justify-content: flex-end;
+  margin-inline-start: auto;
 }
 
 @media (max-width: 700px) {

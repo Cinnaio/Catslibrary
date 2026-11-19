@@ -86,7 +86,6 @@
 
 /* 映射核对：沿用纸面、字号与间距契约，以列对照和留白组织信息。 */
 .chapter-merge-dialog__mapping-review {
-  border-top: 1px solid var(--admin-border);
   padding-top: var(--admin-space-4);
 }
 
@@ -440,7 +439,6 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
 }
 
 .chapter-quick-reader__header {
-  border-bottom: 1px solid var(--admin-border, #e6e4dc);
   padding-bottom: 1rem;
 }
 
@@ -502,7 +500,6 @@ p.chapter-merge-dialog__shift-summary > span { flex: 1 1 22rem; min-width: 0; }
 }
 
 .chapter-quick-reader__footer {
-  border-top: 1px solid var(--admin-border, #e6e4dc);
   padding-top: 0.75rem;
 }
 

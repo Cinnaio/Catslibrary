@@ -273,10 +273,6 @@
   overflow-wrap: anywhere;
 }
 
-.help {
-  border-top: 1px solid var(--border);
-}
-
 .help summary {
   display: flex;
   align-items: center;
@@ -346,7 +342,6 @@
     padding-left: 0;
     padding-top: var(--management-section-gap);
     border-left: 0;
-    border-top: 1px solid var(--border-light);
   }
 }
 

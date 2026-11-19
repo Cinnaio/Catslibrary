@@ -2,8 +2,8 @@ import { chromium } from 'playwright'
 import assert from 'node:assert/strict'
 import { mkdir } from 'node:fs/promises'
 const base = process.env.WEB_URL || 'http://127.0.0.1:5198'
-const out = process.env.SCREENSHOT_DIR || '/tmp/content-rating-review'
-await mkdir(out, { recursive: true })
+const out = process.env.SCREENSHOT_DIR
+if (out) await mkdir(out, { recursive: true })
 const suggestion = {
   id: 'fixture',
   novelId: 'fixture',
@@ -48,21 +48,28 @@ const suggestion = {
           origin: 'match',
           weakKeywords: ['胸口'],
           strongKeywords: [],
-          text: '此处为原文片段的布局示例。审核员应结合前后文判断语境，再决定是否采纳模型建议。\n段落保持原有换行，纸面上的阅读区用细线与摘要区分开，便于核对较长文本。',
+          text: '此处为原文片段的布局示例。审核员应结合前后文判断语境，再决定是否采纳模型建议。\n段落保持原有换行，便于核对较长文本。',
         },
-        { chapter: '第142章 · 翌日', origin: 'uniform', weakKeywords: [], strongKeywords: [], text: '第二段原文采样示例。' },
+        ...Array.from({ length: 9 }, (_, index) => ({
+          chapter: `第${142 + index}章 · 翌日`,
+          origin: 'uniform',
+          weakKeywords: [],
+          strongKeywords: [],
+          text: '原文采样示例。'.repeat(40),
+        })),
       ],
     },
   },
 }
 // Only isolated API fixtures are used; review confirmations are never submitted.
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH })
 try {
   for (const theme of ['light', 'dark'])
-    for (const width of [1440, 390, 320]) {
-      const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' })
+    for (const width of [1920, 1440, 960, 900, 701, 700, 390, 320]) {
+      const height = width > 700 ? 900 : width === 320 ? 568 : 720
+      const context = await browser.newContext({ viewport: { width, height }, colorScheme: theme, reducedMotion: 'reduce' })
       await context.addInitScript((theme) => {
-        localStorage.setItem('user_session_token', 'design-fixture')
+        localStorage.setItem('user_session_marker', 'design-fixture')
         localStorage.setItem('theme', theme)
       }, theme)
       await context.route('**/api/**', async (route) => {
@@ -81,49 +88,45 @@ try {
       await page.goto(`${base}/admin/content-ratings?view=ai`)
       await page.getByRole('button', { name: '审核建议', exact: true }).click()
       const dialog = page.getByRole('dialog')
-      await dialog.getByRole('heading', { name: '正文采样', exact: true }).waitFor()
+      const body = dialog.getByRole('region', { name: '分级建议与原文审阅' })
+      const approve = dialog.getByRole('button', { name: '进入批准确认' })
+      assert.equal(await page.locator('html').getAttribute('data-theme'), theme)
       const box = await dialog.boundingBox()
-      assert(box.x >= 0 && box.x + box.width <= width + 1)
-      assert(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'dialog overflow')
-      assert(await dialog.locator('.admin-dialog__body').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'body overflow')
-      assert.equal(await dialog.locator('[data-slot="dialog-header"]').evaluate((el) => getComputedStyle(el).textAlign), 'center')
-      const contract = await dialog.evaluate((el) => {
-        const css = (selector) => getComputedStyle(el.querySelector(selector))
-        const header = css('[data-slot="dialog-header"]'),
-          footer = css('[data-slot="dialog-footer"]'),
-          label = css('.admin-dialog-section-label'),
-          excerpt = css('.content-ratings-excerpt')
-        const body = el.querySelector('.admin-dialog__body').getBoundingClientRect(),
-          head = el.querySelector('[data-slot="dialog-header"]').getBoundingClientRect(),
-          foot = el.querySelector('[data-slot="dialog-footer"]').getBoundingClientRect()
+      assert(box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0 && box.y + box.height <= height + 1)
+      const contract = await body.evaluate((el) => {
+        const header = el.previousElementSibling
+        const footer = el.nextElementSibling
         return {
-          headerLine: header.borderBottomWidth,
-          footerLine: footer.borderTopWidth,
-          labelSize: label.fontSize,
-          labelWeight: label.fontWeight,
-          labelColor: label.color,
-          muted: getComputedStyle(el).getPropertyValue('--text-muted').trim(),
-          excerptBackground: excerpt.backgroundColor,
-          topGap: body.top - head.bottom,
-          bottomGap: foot.top - body.bottom,
+          headerLine: getComputedStyle(header).borderBottomWidth,
+          footerLine: getComputedStyle(footer).borderTopWidth,
+          horizontalOverflow: [el.parentElement, el, footer].some(node => node.scrollWidth > node.clientWidth + 1),
+          scrollable: el.scrollHeight > el.clientHeight,
         }
       })
       assert.equal(contract.headerLine, '0px')
       assert.equal(contract.footerLine, '0px')
-      assert.equal(contract.labelSize, '12px')
-      assert.equal(contract.labelWeight, '500')
-      assert.equal(contract.excerptBackground, 'rgba(0, 0, 0, 0)')
-      assert(contract.topGap >= 16 && contract.bottomGap >= 16, 'scroll area keeps external spacing')
-      await page.screenshot({ path: `${out}/${theme}-${width}.png` })
-      await dialog.locator('.admin-dialog__body').evaluate((el) => (el.scrollTop = el.scrollHeight))
-      await dialog.getByText('模型与版本信息', { exact: true }).click()
+      assert(!contract.horizontalOverflow, 'dialog and actions fit the viewport')
+      assert(contract.scrollable, 'long review scrolls independently')
+      if (out) await page.screenshot({ path: `${out}/${theme}-${width}.png` })
+      const footerY = (await approve.boundingBox()).y
+      const excerpt = body.getByText('第142章 · 翌日', { exact: true })
+      await excerpt.click()
+      assert(await excerpt.evaluate(el => el.closest('details').open))
+      assert.equal((await approve.boundingBox()).y, footerY, 'footer stays fixed while the body scrolls')
+      await dialog.getByText('审核口径与模型信息', { exact: true }).click()
       await dialog.getByText('deepseek-v4.1-flash', { exact: true }).waitFor()
-      await dialog.getByRole('button', { name: '进入批准确认', exact: true }).click()
-      await dialog.getByLabel('批准理由').fill('已核对原文与模型证据')
-      await dialog.getByLabel('批准理由').scrollIntoViewIfNeeded()
-      const footer = await dialog.locator('[data-slot="dialog-footer"]').boundingBox()
-      assert(footer.y + footer.height <= 1000)
-      await page.screenshot({ path: `${out}/${theme}-${width}-confirm.png` })
+      await approve.click()
+      const reason = dialog.getByLabel('批准理由')
+      await reason.waitFor()
+      assert(await reason.evaluate(el => el === document.activeElement), 'approve moves focus to the reason')
+      await reason.fill('已核对原文与模型证据')
+      const confirm = await dialog.getByRole('button', { name: '确认批准建议' }).boundingBox()
+      assert(confirm.y + confirm.height <= height)
+      if (out) await page.screenshot({ path: `${out}/${theme}-${width}-confirm.png` })
+      await dialog.getByRole('button', { name: '返回查看' }).click()
+      assert(await approve.evaluate(el => el === document.activeElement), 'return restores focus to approve')
+      await dialog.getByRole('button', { name: '拒绝建议', exact: true }).click()
+      assert(await dialog.getByLabel('拒绝理由').evaluate(el => el === document.activeElement), 'reject moves focus to the reason')
       await page.keyboard.press('Escape')
       await dialog.waitFor({ state: 'hidden' })
       await page.waitForFunction(() => document.activeElement?.textContent?.includes('审核建议'))

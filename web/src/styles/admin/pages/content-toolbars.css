@@ -36,7 +36,6 @@
 }
 .dialog-frame [data-slot='dialog-header'] {
   gap: 0.25rem;
-  border-bottom: 1px solid var(--admin-border);
   padding: 1.25rem 1.5rem 1rem;
 }
 .dialog-frame__body {

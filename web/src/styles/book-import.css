@@ -664,8 +664,9 @@
 }
 
 .book-import__resolution {
-  padding-block: 1rem;
-  border-block: 1px solid var(--admin-border);
+  padding: 1rem;
+  border-radius: var(--radius-compact);
+  background: var(--bg-secondary);
 }
 
 .book-import__resolution h4 {
@@ -1167,7 +1168,6 @@
   gap: var(--admin-space-3);
   min-width: 0;
   padding-block: var(--admin-space-3);
-  border-block-start: 1px solid var(--admin-border);
 }
 .book-import__boundary-choice {
   display: flex;

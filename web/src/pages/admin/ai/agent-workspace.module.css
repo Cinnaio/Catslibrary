@@ -593,7 +593,9 @@
   font-weight: 600;
 }
 .markdown hr {
+  width: 3rem;
   margin-block: 1.5em;
+  margin-inline: auto;
   border: 0;
   border-top: 1px solid var(--border);
 }

@@ -167,7 +167,6 @@
   display: grid;
   gap: 20px;
   padding-top: 24px;
-  border-top: 1px solid var(--border);
 }
 .root :global(.ai-writing-number-input) {
   display: flex;
@@ -304,7 +303,6 @@
   justify-content: space-between;
   gap: 12px;
   padding: 20px var(--management-panel-padding);
-  border-top: 1px solid var(--border);
   color: var(--text-muted);
   font-size: 12px;
 }
@@ -468,7 +466,6 @@
   }
   .context {
     border-left: 0;
-    border-top: 1px solid var(--border);
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .context > h2 {

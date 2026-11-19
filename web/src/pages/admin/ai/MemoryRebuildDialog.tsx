@@ -284,7 +284,7 @@ export default function MemoryRebuildDialog({
               />
             </FormField>
             {plan && (
-              <div ref={impact} role="status" className="grid gap-4 border-y border-border py-4">
+              <div ref={impact} role="status" className="grid gap-4 rounded-[var(--radius-compact)] bg-[var(--bg-secondary)] p-4">
                 {plan.items.map((item) => (
                   <div key={item.kind} className="text-sm leading-7">
                     <h4 className="font-medium">{labels[item.kind]}</h4>
@@ -324,7 +324,7 @@ export default function MemoryRebuildDialog({
               {history &&
                 (history.length ? (
                   history.map((item) => (
-                    <MotionDetails key={item.id} className="border-t border-border py-3 text-sm">
+                    <MotionDetails key={item.id} className="py-3 text-sm">
                       <summary>
                         {labels[kind]} · {new Date(item.created_at).toLocaleString('zh-CN')} · 只读
                       </summary>

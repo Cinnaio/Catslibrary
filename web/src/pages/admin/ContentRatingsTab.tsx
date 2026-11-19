@@ -1403,8 +1403,6 @@ export default function ContentRatingsTab() {
                 })()}
               </div>
 
-              <hr className="content-ratings-policy-divider" />
-
               <p>
                 未标注不等于一般。R18 对应限制级；规则与 LLM
                 只提出限制级或继续未标注的判断，不自动标为一般。规则批准前预览影响范围，模型建议经人工审核才可修改分级；人工修改必须填写理由并保留审计记录。
@@ -1995,7 +1993,7 @@ export default function ContentRatingsTab() {
                   </div>
                 )}
 
-                <div className="pt-2 text-xs text-muted-foreground space-y-2 border-t border-border/40">
+                <div className="pt-2 text-xs text-muted-foreground space-y-2">
                   {evidenceNovel.ruleVersion && (
                     <div className="flex items-center justify-between">
                       <span>生效规则链</span>

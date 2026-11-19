@@ -152,7 +152,7 @@ export default function ContentRatingAiReview({ suggestion, decision, reason, er
         }}
         footer={
           <div className={styles.footer}>
-            <p className={styles.hint}>{decision ? impact : '核对模型依据与原文后，再决定是否采纳。'}</p>
+            {!decision && <p className={styles.hint}>核对模型依据与原文后，再决定是否采纳。</p>}
             <div className={styles.actions}>
               {!decision ? (
                 <>

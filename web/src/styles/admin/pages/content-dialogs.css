@@ -4,7 +4,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-  border-bottom: 1px solid var(--admin-border);
   padding-bottom: 0.875rem;
 }
 
@@ -89,7 +88,6 @@
   display: grid;
   gap: var(--admin-space-1);
   padding-bottom: var(--admin-space-4);
-  border-bottom: 1px solid var(--admin-border);
 }
 .chapter-merge-dialog__context strong { font-size: 0.95rem; font-weight: 500; overflow-wrap: anywhere; }
 .chapter-merge-dialog__context > span,
@@ -156,7 +154,7 @@
 .chapter-merge-dialog__filters { display: flex; flex-wrap: wrap; gap: var(--admin-space-1); }
 .chapter-merge-dialog__filters [aria-pressed='true'] { background: var(--accent-subtle); color: var(--accent-hover); }
 .chapter-merge-dialog__review-toolbar > input { flex: 1 1 10rem; width: 10rem; }
-.chapter-merge-dialog__confirmation-bar { display: grid; gap: var(--admin-space-2); padding-block: var(--admin-space-3); border-top: 1px solid var(--admin-border); }
+.chapter-merge-dialog__confirmation-bar { display: grid; gap: var(--admin-space-2); padding-block: var(--admin-space-3); }
 .chapter-merge-dialog__confirmation-bar > p { color: var(--text-secondary); font-size: 0.8125rem; }
 .chapter-merge-dialog__confirmation-bar > div { display: flex; flex-wrap: wrap; gap: var(--admin-space-2); }
 .chapter-merge-dialog__confirmation-bar button { min-height: 2.75rem; white-space: normal; }
@@ -178,7 +176,7 @@
 .chapter-merge-dialog__pagination { display: flex; flex-wrap: wrap; align-items: center; gap: var(--admin-space-2); font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--text-muted); }
 .chapter-merge-dialog__pagination > span:first-child { margin-right: auto; }
 .chapter-merge-dialog__empty { padding: var(--admin-space-4) 0; color: var(--text-muted); }
-.chapter-merge-dialog__metadata { border-top: 1px solid var(--admin-border); padding-top: var(--admin-space-2); }
+.chapter-merge-dialog__metadata { padding-top: var(--admin-space-2); }
 .chapter-merge-dialog__metadata-actions { display: flex; gap: var(--admin-space-2); margin-block: var(--admin-space-2); }
 .chapter-merge-dialog__metadata-field { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--admin-space-3); padding-block: var(--admin-space-3); border-bottom: 1px solid var(--admin-border); }
 .chapter-merge-dialog__metadata-field > label { align-self: start; min-height: 1.5rem; }

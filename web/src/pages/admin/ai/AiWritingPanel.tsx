@@ -565,7 +565,7 @@ export default function AiWritingPanel(props: {
   /** 内容边界收在上下文区域；折叠标题持续展示真实生效状态。 */
   const continuationContentScale =
     mode === 'continue' ? (
-      <section className="ai-writing-content-scope mt-3.5 pt-3.5 border-t border-border/60" aria-labelledby="ai-writing-content-scope-title">
+      <section className="ai-writing-content-scope mt-3.5 pt-3.5" aria-labelledby="ai-writing-content-scope-title">
         <div className="ai-writing-section-heading flex items-center justify-between gap-3 mb-2">
           <div className="flex items-center gap-2">
             <h3 id="ai-writing-content-scope-title" className="text-xs font-semibold text-foreground">
@@ -1116,7 +1116,7 @@ export default function AiWritingPanel(props: {
                     </div>
                   </section>
                 )}
-                <div className="ai-writing-actions grid gap-3 border-t pt-5">
+                <div className="ai-writing-actions grid gap-3 pt-5">
                   {isContinuationMode && (
                     <MotionDetails className="ai-writing-submit-preview text-xs text-muted-foreground">
                       <summary className="cursor-pointer hover:text-foreground inline-flex items-center gap-1 select-none py-0.5">
@@ -1275,7 +1275,7 @@ export default function AiWritingPanel(props: {
                   </summary>
                   {continuationContentScale}
                   {mode === 'new' && (
-                    <div className="grid gap-3 border-t pt-5">
+                    <div className="grid gap-3 pt-5">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-medium">成人内容</p>
@@ -1364,7 +1364,7 @@ export default function AiWritingPanel(props: {
               </aside>
             </div>
             {recentTasks.length > 0 && (
-              <MotionDetails className="ai-writing-recent-drawer border-t pt-4 text-xs">
+              <MotionDetails className="ai-writing-recent-drawer pt-4 text-xs">
                 <summary className="flex cursor-pointer select-none items-center justify-between text-muted-foreground hover:text-foreground font-medium py-1">
                   <span>最近创作任务 ({recentTasks.length})</span>
                   <span className="text-[11px] font-normal text-muted-foreground/80">展开 / 收起</span>

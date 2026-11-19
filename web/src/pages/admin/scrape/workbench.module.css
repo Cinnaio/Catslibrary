@@ -9,19 +9,17 @@
 .connectionIntro, .connectionFooter { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .connectionIntro > p { flex: 1 1 20rem; }
 .connectionSection { display: grid; gap: 20px; min-width: 0; }
-.connectionSection + .connectionSection { padding-top: 24px; border-top: 1px solid var(--border-light); }
 .sectionIntro { display: grid; gap: 6px; }
 .sectionIntro h3 { margin: 0; font-size: 14px; font-weight: 500; }
 .connectionFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--management-form-gap); max-width: 720px; }
 .captcha { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; padding: 16px; background: var(--bg-secondary); border-radius: var(--radius-compact); }
 .captcha img { align-self: center; max-width: 160px; max-height: 64px; object-fit: contain; }
 .captcha > div { flex: 0 1 12rem; min-width: 0; }
-.connectionAlternative { border-block: 1px solid var(--border-light); padding-block: 4px; }
+.connectionAlternative { padding-block: 4px; }
 .connectionAlternative summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-height: var(--management-control-height); font-size: 13px; color: var(--text-secondary); cursor: pointer; }
 .connectionAlternative summary > span:first-child::before { content: '›'; display: inline-block; margin-right: 10px; }
 .connectionAlternative[open] summary > span:first-child::before { transform: rotate(90deg); }
 .alternativeBody { display: grid; gap: 20px; padding-block: 16px 20px; max-width: 880px; }
-.connectionFooter { border-top: 1px solid var(--border-light); padding-top: 16px; }
 .chevron { transition: transform 160ms ease; }
 .chevronOpen { transform: rotate(180deg); }
 .panel { min-width: 0; padding: var(--management-panel-padding); border: 1px solid var(--border); border-radius: var(--radius-container); background: var(--bg-card); }
@@ -67,7 +65,7 @@
 .metadata { border: 0; padding: 0; margin: 0; min-width: 0; }
 .config { display: grid; gap: 24px; padding-block: 12px 24px; min-width: 0; }
 .actions { padding-top: 20px; }
-.checkResults { display: grid; gap: 16px; border-top: 1px solid var(--border-light); padding-top: 20px; }
+.checkResults { display: grid; gap: 16px; padding-top: 20px; }
 .checks { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; padding: 0; }
 .check { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-secondary); }
 .check svg { flex-shrink: 0; color: var(--color-warning); }
@@ -105,7 +103,7 @@
 .logs time { color: var(--text-muted); }
 .results { margin-top: 24px; min-width: 0; }
 .results:empty { display: none; }
-.discovery { display: grid; gap: 16px; padding-top: 24px; border-top: 1px solid var(--border-light); min-width: 0; }
+.discovery { display: grid; gap: 16px; padding-top: 24px; min-width: 0; }
 .resultsHeading, .selectionRow, .batchHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-width: 0; }
 .resultsHeading h3, .batchHeading h4 { margin: 0; font-size: 14px; font-weight: 500; }
 .loadingLine { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; margin: 0; }
@@ -125,7 +123,7 @@
 .resultTitle h4 { margin: 0; color: var(--text-primary); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .resultDescription { color: var(--text-secondary); font-size: 12px; line-height: 1.7; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .resultActions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.batch { display: grid; gap: 16px; border-top: 1px solid var(--border-light); padding-top: 20px; }
+.batch { display: grid; gap: 16px; padding-top: 20px; }
 .batchProgress { height: 4px; }
 .batchProgress [data-slot='progress-indicator'] { background: var(--accent); }
 .batchDetails { font-size: 12px; color: var(--text-secondary); }

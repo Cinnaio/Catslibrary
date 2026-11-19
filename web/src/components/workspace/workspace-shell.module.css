@@ -618,7 +618,6 @@
     height: 65px;
     padding: 0 16px;
     background: var(--bg-primary);
-    border-bottom: 1px solid var(--border);
   }
   .mobileHeader .brand {
     min-height: 0;
@@ -639,7 +638,6 @@
     gap: 6px;
     padding: 7px 14px;
     background: var(--bg-primary);
-    border-bottom: 1px solid var(--border);
     scrollbar-width: none;
   }
   .quicknav a {
