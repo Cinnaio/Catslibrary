@@ -1,56 +1,52 @@
-## 免责声明
+> **免责声明**　本仓库提供的代码、文档及相关功能仅供学习与技术交流。部署者应对自身部署、运营和使用本项目的行为及其后果负责，相关行为与仓库所有者无关。
 
-本仓库提供的代码、文档及相关功能仅供学习与技术交流。部署者应对自身部署、运营和使用本项目的行为及其后果负责，相关行为与仓库所有者无关。
-
-![Cat’s Library：猫咪、书页与暖灯相伴的安静书房](docs/assets/readme/hero.webp)
+# ![Cat’s Library — 猫咪蜷在摊开的书上，桌边亮着一盏暖灯](docs/assets/readme/hero.webp)
 
 <div align="center">
 
-**藏一些故事，留一处安静。**
+**一间可以自己搭建的中文小说书房**
 
-自托管的中文小说阅读与 AI 创作空间 · Web & iOS
+把手边的小说收进书架，在网页和 iPhone 上接着读。想写下一章时，也能带着前文和人物设定，与 AI 一起起草。
 
-当前正式版本：**1.0.0** · [发布与下载](https://github.com/Cinnaio/zhi-zhou/releases/tag/v1.0.0)
-
-[快速开始](#快速开始) · [文档](docs/README.md) · [部署指南](docs/deployment.md) · [iOS 客户端](ios/README.md) · [更新记录](CHANGELOG.md)
+[快速开始](#快速开始) · [部署到服务器](docs/deployment.md) · [iOS 客户端](ios/README.md) · [发布与下载](https://github.com/Cinnaio/Catslibrary/releases)
 
 </div>
 
-## 阅读 · 收藏 · 创作
+## 书房里有什么
 
-![三只猫分别阅读、整理书架和陪伴写作，代表阅读、收藏与创作](docs/assets/readme/features.webp)
+![从左到右，三只猫分别在灯下读书、整理书架、伏案写作](docs/assets/readme/features.webp)
 
-| 安静地读 | 慢慢地藏 | 自由地写 |
-| :---: | :---: | :---: |
-| 自定义主题、字体与排版<br>让每一页都读得舒服 | 导入作品、多源抓取与连载追更<br>把喜欢的故事放进自己的书库 | AI 续写、情节大纲与故事记忆<br>让灵感接着生长 |
+**读到哪儿，就从哪儿继续。** 在阅读器里调好字体、行距和纸面颜色，遇到喜欢的一段就留个书签。用同一账号登录同一站点，换到另一台设备也能接着读。
 
-书架、书签与阅读进度跨端同步，配合内容审核、账户权限和备份恢复，打理属于自己的阅读空间。
+**把散落的小说收成一架书。** 管理员可以导入 TXT，先核对分章，再把作品放进书库。连载作品绑定已支持的书源后，可以定时检查更新，把新章节接到原来的目录里。
+
+**写下一章时，翻得回前文。** 配好模型后，管理员可以围绕一本书讨论情节、查阅人物关系，或让 AI 起草续篇。草稿可以逐段读、反复改，最后由你决定是否发布。[对话创作说明](docs/ai-agent.md)
 
 ## 快速开始
 
-准备根目录 **`.node-version` 指定的 Node.js** 和可连接的 **PostgreSQL 14+**，在仓库根目录运行：
+本地运行需要 Git、仓库 [`.node-version`](.node-version) 指定的 Node.js，以及一个可连接的 **PostgreSQL 14 或更高版本**数据库。
 
 ```bash
-npm install
+git clone https://github.com/Cinnaio/Catslibrary.git
+cd Catslibrary
+npm ci
 npm run dev
 ```
 
-打开 **[localhost:5173/install](http://localhost:5173/install)**，跟随安装向导连接数据库并创建首个管理员，首次连接时自动执行迁移。
+1. 打开[本地安装向导](http://localhost:5173/install)，填写数据库连接信息并创建首个管理员。首次连接时会自动执行数据库迁移。
+2. 登录后台，在「导入与抓取」中选一本 TXT，核对书名和章节后确认入库。
+3. 回到书库，打开刚导入的作品，点进第一章开始阅读。
 
-也可以将 [.env.example](.env.example) 复制为 `.env` 后填写配置。开发环境 Web 使用 `5173`、API 使用 `8787`，`/api` 请求自动代理。
+开发时 Web 默认使用 `5173` 端口，并将 `/api` 请求转发到 `8787`。也可以通过环境变量配置服务，字段见[环境变量示例](.env.example)。
 
-## 打理你的书房
+## 继续探索
 
-| 想做什么 | 从这里开始 |
+| 接下来想做什么 | 从这里开始 |
 | --- | --- |
-| 本地开发、查看项目结构与命令 | [开发指南](docs/development.md) |
-| 部署自己的阅读站 | [部署指南](docs/deployment.md) |
-| 配置 AI、追更与备份 | [功能与配置](docs/configuration.md) |
-| 构建与安装 iOS 客户端 | [iOS 开发说明](ios/README.md) |
-| 查阅专题、已知问题与发布状态 | [文档导航](docs/README.md) |
+| 把书房部署到自己的服务器 | [部署指南](docs/deployment.md) |
+| 在 iPhone 上阅读，或为自己的站点构建客户端 | [iOS 构建与安装](ios/README.md) · [客户端内置的站点地址](ios/ZhiZhou/Networking/ServerConfig.swift) |
+| 接入模型、调整追更频率、备份书库 | [功能与配置](docs/configuration.md) |
+| 修改网页、API 或原生客户端 | [开发指南](docs/development.md) · [界面设计规范](DESIGN.md) |
+| 查看各端的版本变化和交付情况 | [更新记录](CHANGELOG.md) · [发布记录](docs/releasing.md) |
 
-<div align="center">
-
-<sub>React · Vite · Tailwind CSS · Hono · PostgreSQL · SwiftUI</sub>
-
-</div>
+[完整文档索引 →](docs/README.md)
