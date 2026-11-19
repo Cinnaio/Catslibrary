@@ -1,0 +1,14 @@
+.root, .history {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.root[aria-busy='true'] { opacity: .7; }
+.root { transition: opacity 160ms ease; }
+.source { min-height: 240px; max-height: 420px; resize: vertical; }
+.actions, .historyRow { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.actions { justify-content: flex-end; }
+.historyRow { justify-content: space-between; animation: chapter-row-enter 180ms ease-out both; }
+.muted { color: var(--text-secondary); font-size: 13px; line-height: 1.7; margin: 0; }
+@keyframes chapter-row-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .root { transition: none; } .historyRow { animation: none; } }

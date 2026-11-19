@@ -175,14 +175,14 @@ export interface AgentEvent {
   createdAt: number
 }
 
-export type AgentActionKind = 'apply_rewrite' | 'publish_draft' | 'adopt_cover' | 'restore_draft'
+export type AgentActionKind = 'apply_rewrite' | 'publish_draft' | 'adopt_cover' | 'restore_draft' | 'apply_chapter_edit' | 'restore_chapter'
 
 export interface AgentAction {
   id: string
   kind: AgentActionKind
   title: string
   status: 'pending' | 'executing' | 'completed' | 'rejected' | 'failed'
-  preview: { description: string; before?: string; after?: string; candidateId?: string; draftId?: string }
+  preview: { description: string; before?: string; after?: string; candidateId?: string; draftId?: string; chapterId?: string; chapterTitle?: string }
   error: string
   createdAt: number
   canResume?: boolean
@@ -201,6 +201,7 @@ export interface AgentArtifact {
   }>
   covers: Array<{ id: string; prompt: string; imageUrl: string }>
   rewrite?: { draftId: string; before: string; after: string; baseRevision: string; minimumLengthWarning?: string }
+  chapterEdit?: { chapterId: string; chapterTitle: string; before: string; after: string; baseRevision: string }
   analysisReport?: { id: string; title: string; url: string }
 }
 
@@ -235,3 +236,18 @@ export interface AgentTurnUsage {
 }
 
 export const agentTaskRunning = (task: AgentTask | null | undefined): boolean => !!task && ['queued', 'running'].includes(task.status)
+
+export interface AgentChapterEditSource {
+  id: string
+  title: string
+  content: string
+  revision: string
+}
+
+export interface AgentChapterHistory {
+  id: string
+  chapterTitle: string
+  kind: string
+  createdAt: number
+  canRestore: boolean
+}

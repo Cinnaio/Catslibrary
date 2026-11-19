@@ -1,3 +1,4 @@
+import { chapterEditRoutes } from './ai-chapter-edit'
 import type { AnalysisReferenceSelection } from '@shared/novel-analysis'
 import { getAnalysisReferences, listAnalysisReferences, parseAnalysisReferenceSelections } from '../services/ai/analysis-reference'
 import { taskStreamResponse } from '../services/ai/task-stream'
@@ -102,6 +103,8 @@ aiRoutes.use('*', (c, next) => {
   const management = /\/ai\/(?:provider(?:-presets)?|settings|test|status|usage)(?:\/|$)/.test(c.req.path)
   return c.req.method === 'POST' && !management ? withProviderSnapshot(next) : next()
 })
+
+aiRoutes.route('/writing/chapter-edits', chapterEditRoutes)
 
 function presetErrorResponse(c: Context, err: unknown) {
   if (err instanceof SyntaxError) return c.json({ error: '配置格式无效', code: 'invalid' }, 400)
@@ -1827,7 +1830,7 @@ aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
   const status = TASK_STATUSES.has(c.req.query('status') || '') ? c.req.query('status') : undefined
   const requestedKind = c.req.query('kind') || ''
-  const kind = RETRIABLE_TASK_KINDS.has(requestedKind) || ['agent_chat', 'novel_analysis', 'novel_analysis_review'].includes(requestedKind) ? requestedKind : undefined
+  const kind = RETRIABLE_TASK_KINDS.has(requestedKind) || ['agent_chat', 'chapter_edit', 'novel_analysis', 'novel_analysis_review'].includes(requestedKind) ? requestedKind : undefined
   const result = await listAiTasks(getDb(), { limit, offset, status, kind, viewerUserId: c.get('user').id })
   return c.json({ ...result, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })

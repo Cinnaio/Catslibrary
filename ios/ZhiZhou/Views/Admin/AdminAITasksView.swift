@@ -187,7 +187,7 @@ struct AdminAITasksView: View {
                                 requestCancel(task)
                             }
                         } else {
-                            if task.kind != "novel_analysis_review" {
+                            if task.kind != "novel_analysis_review", task.kind != "chapter_edit" {
                                 Button("重试", systemImage: "arrow.clockwise") {
                                     Task { await retry(task) }
                                 }
@@ -214,7 +214,7 @@ struct AdminAITasksView: View {
                     requestCancel(task)
                 }
             } else {
-                if task.kind != "novel_analysis_review" {
+                if task.kind != "novel_analysis_review", task.kind != "chapter_edit" {
                     Button("重试", systemImage: "arrow.clockwise") {
                         Task { await retry(task) }
                     }

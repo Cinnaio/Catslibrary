@@ -21,9 +21,8 @@ export interface RewriteSelectionInput {
   instruction: string
 }
 
-export interface RewriteTaskParams extends RewriteSelectionInput {
+export interface TextRewriteTaskParams extends RewriteSelectionInput {
   version: 1
-  draftId: string
   baseContent: string
   contextBefore: string
   contextAfter: string
@@ -31,6 +30,10 @@ export interface RewriteTaskParams extends RewriteSelectionInput {
   previousSuggestion?: string
   previousTaskId?: string
   agentContext?: AgentWritingContext
+}
+
+export interface RewriteTaskParams extends TextRewriteTaskParams {
+  draftId: string
 }
 
 export interface RewriteSuggestionResult {
@@ -87,15 +90,18 @@ export function validateRewriteSelection(content: string, input: Partial<Rewrite
   return { value: { baseRevision, startUTF16, endUTF16, selectedText, mode, instruction } }
 }
 
-export function buildRewriteTaskParams(draftId: string, content: string, input: RewriteSelectionInput): RewriteTaskParams {
+export function buildTextRewriteTaskParams(content: string, input: RewriteSelectionInput): TextRewriteTaskParams {
   return {
     version: 1,
-    draftId,
     baseContent: content,
     ...input,
     contextBefore: content.slice(Math.max(0, input.startUTF16 - MAX_CONTEXT_UTF16), input.startUTF16),
     contextAfter: content.slice(input.endUTF16, Math.min(content.length, input.endUTF16 + MAX_CONTEXT_UTF16)),
   }
+}
+
+export function buildRewriteTaskParams(draftId: string, content: string, input: RewriteSelectionInput): RewriteTaskParams {
+  return { ...buildTextRewriteTaskParams(content, input), draftId }
 }
 
 export function parseRewriteTaskParams(value: unknown): RewriteTaskParams | undefined {
@@ -169,7 +175,7 @@ export function detectRewriteContinuation(suggestion: string, params: Pick<Rewri
   return undefined
 }
 
-export async function runRewriteTask(db: Db, opts: { taskId: string; userId: string; params: RewriteTaskParams; ipAddress?: string; userAgent?: string }): Promise<RewriteSuggestionResult> {
+export async function runRewriteTask(db: Db, opts: { taskId: string; userId: string; params: TextRewriteTaskParams & { draftId?: string }; generationType?: 'rewrite_selection' | 'chapter_edit'; ipAddress?: string; userAgent?: string }): Promise<RewriteSuggestionResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
   const settings = await getAiSettings(db)
@@ -220,7 +226,7 @@ export async function runRewriteTask(db: Db, opts: { taskId: string; userId: str
   const progress = createTextProgressReporter(db, opts.taskId)
   try {
     await progress.start()
-    const res = await chat({ onIncomplete: partialUsageRecorder(db, { userId: opts.userId, provider: providerLabel(provider.baseUrl), generationType: 'rewrite_selection', ipAddress: opts.ipAddress, userAgent: opts.userAgent }), onDelta: progress.onDelta, onProgress: progress.onProgress, retryOnTimeout: false, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: settings.writingTemperature, maxTokens: settings.writingMaxTokens, timeoutMs: 600_000 })
+    const res = await chat({ onIncomplete: partialUsageRecorder(db, { userId: opts.userId, provider: providerLabel(provider.baseUrl), generationType: opts.generationType || 'rewrite_selection', ipAddress: opts.ipAddress, userAgent: opts.userAgent }), onDelta: progress.onDelta, onProgress: progress.onProgress, retryOnTimeout: false, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: settings.writingTemperature, maxTokens: settings.writingMaxTokens, timeoutMs: 600_000 })
     await progress.flush(true)
     if (!(await isAiTaskActive(db, opts.taskId))) throw new AiError('invalid', '任务已停止')
     const suggestion = res.text.trim()
@@ -232,8 +238,8 @@ export async function runRewriteTask(db: Db, opts: { taskId: string; userId: str
     if (continuation) {
       throw new AiError('invalid', continuation === 'after' ? '改写建议续写了选段之后的内容，未通过校验，请缩小选段或重试' : '改写建议重复了选段之前的内容，未通过校验，请缩小选段或重试')
     }
-    const result: RewriteSuggestionResult = { version: 1, draftId: params.draftId, baseRevision: params.baseRevision, startUTF16: params.startUTF16, endUTF16: params.endUTF16, selectedText: params.selectedText, mode: params.mode, suggestion }
-    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, generationType: 'rewrite_selection', ipAddress: opts.ipAddress, userAgent: opts.userAgent })
+    const result: RewriteSuggestionResult = { version: 1, draftId: params.draftId || '', baseRevision: params.baseRevision, startUTF16: params.startUTF16, endUTF16: params.endUTF16, selectedText: params.selectedText, mode: params.mode, suggestion }
+    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, generationType: opts.generationType || 'rewrite_selection', ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     await updateAiTask(db, opts.taskId, { status: 'completed', current: 1, total: 1, step: '改写建议已生成', result: JSON.stringify(result) })
     return result
   } finally {

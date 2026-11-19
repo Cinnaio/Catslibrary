@@ -686,7 +686,7 @@ enum AgentDisplay {
     }
     static func kind(_ value: String) -> String {
         ["continue": "续写草稿", "write_chapter": "章节草稿", "write_outline": "章节大纲", "cover": "封面候选",
-         "rewrite_selection": "改写建议", "analyze_plot": "情节档案", "analyze_relationships": "关系档案",
+         "rewrite_selection": "改写建议", "chapter_edit": "原章节改写", "analyze_plot": "情节档案", "analyze_relationships": "关系档案",
          "novel_analysis": "小说分析报告", "agent_chat": "助手回复"][value] ?? "创作任务"
     }
 }

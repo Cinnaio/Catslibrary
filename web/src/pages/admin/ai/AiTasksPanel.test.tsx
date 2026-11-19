@@ -58,3 +58,15 @@ it('小说分析核对任务返回对应报告，不提供通用重试或继续�
   const query = new URLSearchParams(screen.getByTestId('route').textContent || '')
   expect(Object.fromEntries(query)).toEqual({ sub: 'writing', view: 'analysis', novel: 'book', report: 'report-review' })
 })
+
+
+it('原章节建议失败后返回原对话，不调用通用重试', async () => {
+  const task = data('章节改写作品', 'failed')
+  mocks.tasks.mockResolvedValue({ ...task, items: [{ ...task.items[0], kind: 'chapter_edit', params: JSON.stringify({ agentContext: { sessionId: 'chapter-session' } }) }] })
+  function Location() { const location = useLocation(); return <output data-testid="route">{location.search}</output> }
+  render(<MemoryRouter><AiTasksPanel /><Location /></MemoryRouter>)
+  await screen.findByText(/原章节改写/)
+  expect(screen.queryByRole('button', { name: '重试' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '返回对话' }))
+  expect(Object.fromEntries(new URLSearchParams(screen.getByTestId('route').textContent || ''))).toEqual({ sub: 'agent', novel: 'book', session: 'chapter-session' })
+})

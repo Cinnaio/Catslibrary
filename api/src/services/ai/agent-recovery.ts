@@ -10,6 +10,7 @@ export const AGENT_READ_TOOLS = new Set([
   'search_chapters',
   'search_story',
   'read_chapter',
+  'list_chapter_edits',
   'list_novel_analyses',
   'read_novel_analysis',
   'list_drafts',

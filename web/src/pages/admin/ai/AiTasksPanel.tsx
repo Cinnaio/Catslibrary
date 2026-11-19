@@ -229,9 +229,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       try { reportId = String(JSON.parse(task.params || '{}').reportId || '') } catch { /* Historic metadata can be missing. */ }
       return <Button variant="outline" size="sm" onClick={() => navigate(`/admin/ai?${new URLSearchParams({ sub: 'writing', view: 'analysis', novel: task.novelId, report: reportId })}`)}>查看分析报告</Button>
     }
-    if (task.kind === 'agent_chat') {
+    if (task.kind === 'agent_chat' || task.kind === 'chapter_edit') {
       let sessionId = ''
-      try { sessionId = String(JSON.parse(task.params || '{}').sessionId || '') } catch { /* Historic metadata can be missing. */ }
+      try { const params = JSON.parse(task.params || '{}'); sessionId = String(params.sessionId || params.agentContext?.sessionId || '') } catch { /* Historic metadata can be missing. */ }
       return <Button variant="outline" size="sm" onClick={() => navigate(`/admin/ai?${new URLSearchParams({ sub: 'agent', novel: task.novelId, session: sessionId })}`)}>返回对话</Button>
     }
     if (!['failed', 'cancelled'].includes(task.status) || !task.params) return null

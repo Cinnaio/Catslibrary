@@ -1,3 +1,4 @@
+import { confirmChapterAction, parseChapterEdit, prepareChapterAction } from './chapter-edit'
 import type { AgentActionKind, AgentArtifact, AgentSession } from '@shared/ai-agent'
 import { ANALYSIS_KINDS, type AnalysisKind } from '@shared/novel-analysis'
 import { assessWritingQuality } from '@shared/ai-writing-quality'
@@ -110,6 +111,11 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
       }
     }
   }
+  if (task.kind === 'chapter_edit' && task.status === 'completed') {
+    const edit = parseChapterEdit(task.params || '{}', task.result)
+    if (edit) result.chapterEdit = { chapterId: edit.params.chapterId, chapterTitle: edit.params.chapterTitle,
+      before: edit.params.selectedText, after: edit.suggestion, baseRevision: edit.params.baseRevision }
+  }
   if (task.kind === 'novel_analysis') {
     const report = await first<{ id: string; kind: AnalysisKind }>(db,
       "SELECT id,request_json->>'kind' AS kind FROM novel_analysis_reports WHERE novel_id=$1 AND task_id=$2", [session.novelId, taskId])
@@ -123,7 +129,12 @@ export async function prepareAgentAction(db: Db, session: AgentSession, kind: Ag
   let payload: Record<string, unknown>
   let preview: AgentActionRow['preview']
   let label: string
-  if (kind === 'apply_rewrite') {
+  if (kind === 'apply_chapter_edit' || kind === 'restore_chapter') {
+    const proposal = await prepareChapterAction(db, session, kind, targetId)
+    payload = proposal.payload
+    preview = proposal.preview
+    label = proposal.label
+  } else if (kind === 'apply_rewrite') {
     const task = await requireAgentArtifact(db, session.id, targetId)
     if (task.novelId !== session.novelId || task.kind !== 'rewrite_selection' || task.status !== 'completed')
       throw new AiError('invalid', '改写建议尚未完成', 409)
@@ -219,7 +230,10 @@ export async function confirmAgentAction(db: Db, session: AgentSession, id: stri
   const p = action.payload
   try {
     let result: Record<string, unknown> = {}
-    if (action.kind === 'apply_rewrite') {
+    if (action.kind === 'apply_chapter_edit' || action.kind === 'restore_chapter') {
+      await confirmChapterAction(db, session, action)
+      return { ...publicAgentAction(action), status: 'completed' as const, error: '' }
+    } else if (action.kind === 'apply_rewrite') {
       result = await call(`/api/ai/writing/drafts/${encodeURIComponent(String(p.draftId))}/rewrite/${encodeURIComponent(String(p.taskId))}/apply`, 'POST', {
         baseRevision: p.baseRevision,
         operationId: id,
@@ -243,7 +257,7 @@ export async function confirmAgentAction(db: Db, session: AgentSession, id: stri
         expectedCoverVersion: p.expectedCoverVersion,
         operationId: id,
       })
-    } else {
+    } else if (action.kind === 'restore_draft') {
       await withTx(db, async (query) => {
         await query('SELECT id FROM ai_agent_sessions WHERE id=$1 FOR UPDATE', [session.id])
         const row = (await query<GenerationRow>('SELECT * FROM ai_generations WHERE id=$1 AND novel_id=$2 FOR UPDATE', [p.draftId, session.novelId])).rows[0]
@@ -256,6 +270,7 @@ export async function confirmAgentAction(db: Db, session: AgentSession, id: stri
       })
       return { ...publicAgentAction(action), status: 'completed' as const, error: '' }
     }
+    if (!['apply_rewrite', 'publish_draft', 'adopt_cover'].includes(action.kind)) throw new AiError('invalid', '不支持的采纳操作', 422)
     await withTx(db, async (query) => {
       await query('SELECT id FROM ai_agent_sessions WHERE id=$1 FOR UPDATE', [session.id])
       await query("UPDATE ai_agent_actions SET status='completed',result=$1,error='',updated_at=$2 WHERE id=$3", [JSON.stringify(result), Date.now(), id])

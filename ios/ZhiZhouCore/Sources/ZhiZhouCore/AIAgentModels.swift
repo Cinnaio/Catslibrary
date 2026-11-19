@@ -147,6 +147,8 @@ public enum AIAgentActionKind: String, Codable, Sendable {
     case publishDraft = "publish_draft"
     case adoptCover = "adopt_cover"
     case restoreDraft = "restore_draft"
+    case applyChapterEdit = "apply_chapter_edit"
+    case restoreChapter = "restore_chapter"
 }
 
 public struct AIAgentAction: Codable, Identifiable, Equatable, Sendable {
@@ -156,6 +158,8 @@ public struct AIAgentAction: Codable, Identifiable, Equatable, Sendable {
         public let after: String?
         public let candidateId: String?
         public let draftId: String?
+        public let chapterId: String?
+        public let chapterTitle: String?
     }
     public let id: String
     public let kind: AIAgentActionKind
@@ -195,6 +199,13 @@ public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {
         public let baseRevision: String
         public let minimumLengthWarning: String?
     }
+    public struct ChapterEdit: Codable, Equatable, Sendable {
+        public let chapterId: String
+        public let chapterTitle: String
+        public let before: String
+        public let after: String
+        public let baseRevision: String
+    }
     public struct AnalysisReport: Codable, Equatable, Sendable {
         public let id: String
         public let title: String
@@ -204,6 +215,7 @@ public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {
     public let drafts: [Draft]
     public let covers: [Cover]
     public let rewrite: Rewrite?
+    public let chapterEdit: ChapterEdit?
     public let analysisReport: AnalysisReport?
     public var id: String { task.id }
 }

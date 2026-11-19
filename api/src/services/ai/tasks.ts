@@ -231,7 +231,7 @@ export async function countActiveWritingTasks(db: Db): Promise<number> {
   const row = await first<{ total: number }>(
     db,
     `SELECT COUNT(*)::int AS total FROM ai_tasks
-     WHERE status IN ('queued','running') AND kind IN ('continue','write_outline','write_chapter','rewrite_selection')`,
+     WHERE status IN ('queued','running') AND kind IN ('continue','write_outline','write_chapter','rewrite_selection','chapter_edit')`,
   )
   return Number(row?.total) || 0
 }

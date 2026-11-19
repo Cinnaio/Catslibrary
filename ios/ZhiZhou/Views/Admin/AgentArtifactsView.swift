@@ -132,7 +132,7 @@ private struct AgentArtifactsView: View {
     private func outputSymbol(_ kind: String) -> String {
         switch kind {
         case "cover": return "photo"
-        case "rewrite_selection": return "pencil.line"
+        case "rewrite_selection", "chapter_edit": return "pencil.line"
         case "novel_analysis", "analyze_plot", "analyze_relationships": return "text.magnifyingglass"
         default: return "doc.text"
         }
@@ -268,6 +268,15 @@ private struct AgentArtifactContent: View {
             if let rewrite = artifact.rewrite {
                 rewriteResult(rewrite)
             }
+            if let edit = artifact.chapterEdit {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("原章节：\(edit.chapterTitle)").font(.headline)
+                    AgentPlainPreview(title: "修改前", text: edit.before)
+                    AgentPlainPreview(title: "建议正文", text: edit.after)
+                    Button("预览写回原章节") { Task { await model.prepare(.applyChapterEdit, targetID: artifact.id) } }
+                        .buttonStyle(.bordered).frame(minHeight: 44).disabled(model.working)
+                }
+            }
             ForEach(artifact.covers) { cover in
                 VStack(alignment: .leading, spacing: 12) {
                     AgentCoverPreview(sessionID: model.sessionID, candidateID: cover.id)
@@ -276,7 +285,7 @@ private struct AgentArtifactContent: View {
                         .buttonStyle(.bordered).frame(minHeight: 44).disabled(model.working)
                 }
             }
-            if task.status == "completed", artifact.drafts.isEmpty, artifact.covers.isEmpty, artifact.rewrite == nil, artifact.analysisReport == nil {
+            if task.status == "completed", artifact.drafts.isEmpty, artifact.covers.isEmpty, artifact.rewrite == nil, artifact.chapterEdit == nil, artifact.analysisReport == nil {
                 Text(task.kind == "cover" ? "候选可能已采纳或移除，可在产出与采纳中查看记录。" : "任务已完成，详细结果可在 AI 任务中查看。")
                     .font(.footnote).foregroundStyle(AppTheme.textSecondary)
                 NavigationLink("查看 AI 任务") { AdminAITasksView() }
@@ -568,6 +577,8 @@ private struct AgentActionPreview: View {
         case .applyRewrite: return "替换草稿中的选段"
         case .adoptCover: return "设为当前封面"
         case .restoreDraft: return "恢复上一版草稿"
+        case .applyChapterEdit: return "确认写回原章节"
+        case .restoreChapter: return "确认恢复原章节"
         }
     }
 
@@ -608,6 +619,10 @@ private struct AgentActionPreview: View {
             if action.status == "pending" {
                 Button("放弃这次采纳", role: .destructive) { Task { await model.reject(action) } }
                     .frame(minHeight: 44).disabled(model.working)
+            }
+            if action.status == "completed", action.kind == .applyChapterEdit || action.kind == .restoreChapter {
+                Button("预览恢复修改前的章节") { Task { await model.prepare(.restoreChapter, targetID: action.id) } }
+                    .buttonStyle(.bordered).disabled(model.working)
             }
             if action.status == "completed", action.kind == .applyRewrite || action.kind == .restoreDraft {
                 Button("预览恢复修改前的草稿") { Task { await model.prepare(.restoreDraft, targetID: action.id) } }

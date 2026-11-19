@@ -1,3 +1,4 @@
+import { chapterEditSource, chapterEditHistory } from '../services/ai/chapter-edit'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { AgentActionKind } from '@shared/ai-agent'
@@ -79,6 +80,16 @@ export function createAgentRoutes(dispatch: Dispatch) {
   routes.delete('/sessions/:id', async (c) => {
     await deleteAgentSession(getDb(), c.get('user').id, c.req.param('id'))
     return c.json({ ok: true })
+  })
+  routes.get('/sessions/:id/chapters/:chapterId', async c => {
+    const db = getDb()
+    const session = await getAgentSession(db, c.get('user').id, c.req.param('id'))
+    return c.json({ chapter: await chapterEditSource(db, session, c.req.param('chapterId')) })
+  })
+  routes.get('/sessions/:id/chapters/:chapterId/history', async c => {
+    const db = getDb()
+    const session = await getAgentSession(db, c.get('user').id, c.req.param('id'))
+    return c.json(await chapterEditHistory(db, session, c.req.param('chapterId'), numberParam(c.req.query('offset'))))
   })
   routes.get('/sessions/:id', async (c) => {
     const db = getDb()

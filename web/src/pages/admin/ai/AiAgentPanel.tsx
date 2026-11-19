@@ -1,3 +1,4 @@
+import AiAgentChapterEdit from './AiAgentChapterEdit'
 import { watchAiTask, type AiTaskConnection } from '@/lib/ai-task-stream'
 import { parseAiTextProgress } from '@shared/ai-text-progress'
 import type { AgentTask } from '@shared/ai-agent'
@@ -840,7 +841,9 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
             providerPresetId={providerPresetId}
             onProviderChange={setProviderPresetId}
             focusRequest={focusRequest}
-            tools={<AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} />}
+            tools={<><AiAgentChapterEdit session={data.session} providerPresetId={providerPresetId} disabled={busy || running || !!pending}
+              onCreated={taskId => { reload(); void showArtifact(taskId) }} onPrepared={action => { setPreview(action); reload() }} />
+              <AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} /></>}
           />
         </section>
         <aside id={outputsId} className={styles.outputs} aria-label="产出与采纳">
@@ -914,8 +917,8 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                     <Button size="sm" variant="link" onClick={() => setPreview(a)}>
                       {a.title} · {ACTION_STATUS[a.status]}
                     </Button>
-                    {a.status === 'completed' && ['apply_rewrite', 'restore_draft'].includes(a.kind) && (
-                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => void prepare('restore_draft', a.id)}>
+                    {a.status === 'completed' && ['apply_rewrite', 'restore_draft', 'apply_chapter_edit', 'restore_chapter'].includes(a.kind) && (
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => void prepare(a.preview.chapterId ? 'restore_chapter' : 'restore_draft', a.id)}>
                         恢复之前版本
                       </Button>
                     )}
@@ -970,7 +973,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                       }
                     >
                       <Check size={15} />
-                      {busy ? '正在处理…' : action.status === 'executing' ? '核对并继续采纳' : action.kind === 'publish_draft' ? '确认按此位置发布' : '确认采纳'}
+                      {busy ? '正在处理…' : action.status === 'executing' ? '核对并继续采纳' : action.kind === 'publish_draft' ? '确认按此位置发布' : action.preview.chapterId ? '确认写回原章节' : '确认采纳'}
                     </Button>
                   </>
                 )}
@@ -1108,6 +1111,14 @@ function AgentArtifactView({
           </div>
         </>
       )}
+      {artifact.chapterEdit && <>
+        <p>原章节：<strong>{artifact.chapterEdit.chapterTitle}</strong></p>
+        <TextComparison before={artifact.chapterEdit.before} after={artifact.chapterEdit.after} />
+        <div className={styles.artifactActions}>
+          <Button variant="outline" size="sm" onClick={onDiscuss}>继续调整</Button>
+          <Button size="sm" disabled={busy} onClick={() => void onPrepare('apply_chapter_edit', artifact.task.id)}>预览写回原章</Button>
+        </div>
+      </>}
       {artifact.covers.map((cover) => (
         <section key={cover.id}>
           <img className={styles.cover} src={url(cover.imageUrl)} alt="本次生成的封面候选" />
@@ -1126,7 +1137,7 @@ function AgentArtifactView({
         </section>
       ))}
       {artifact.analysisReport && <Link to={artifact.analysisReport.url}>查看{artifact.analysisReport.title}</Link>}
-      {artifact.task.status === 'completed' && !artifact.drafts.length && !artifact.rewrite && !artifact.covers.length && !artifact.analysisReport && (
+      {artifact.task.status === 'completed' && !artifact.drafts.length && !artifact.rewrite && !artifact.chapterEdit && !artifact.covers.length && !artifact.analysisReport && (
         <p className={styles.muted}>任务已完成。结果仍可在对应作品中查看。</p>
       )}
     </div>

@@ -1,5 +1,12 @@
 # 发布与版本管理
 
+## API 1.7.0 / Web 1.8.0 原章节改写候选（2026-11-19）
+
+- Agent 可对当前会话范围内的正式章节创建增补／改写建议、继续调整建议，并通过用户确认写回原章节。Web 输入区新增选章、选段和修改历史入口；沿用既有模型预设、任务进度和前后对照。
+- 新增迁移 086_ai_agent_chapter_edits.sql。原章节 ID、顺序和来源链接保留；生成建议不修改正文。写回和恢复均校验版本，正文、历史、操作回执与事件在同一事务保存。历史独立于对话与生成任务，删除对话后仍可恢复。
+- API/Web 版本来源及工作区锁文件已同步，无新增 npm 依赖。iOS 接入新增操作类型与建议／恢复界面，继续并入未交付的 1.4.0 / build 31 候选；旧 iOS 客户端需更新后识别新增动作，尚未原生编译或真机验收。
+- API 107 项与 Web 31 项定向检查通过，API/Web 类型检查和本地生产构建通过；迁移已打入 API 工件。变更源码 Lint 无错误，任务列表保留一条既有 effect 清理警告；Web 构建仍提示大分块。源码以本节所在提交为准，父提交为 168beffa；此次仅提交到本地，未推送或部署；未执行真实模型调用与生产数据库迁移。使用说明见 [原章节增补与改写](ai-chapter-edit.md)。
+
 ## API 1.6.1 / Web 1.7.2 私有书源恢复部署（2026-11-19）
 
 - 15:44（Asia/Shanghai）完成私有包切换，核心源码为 `2de4628648c25abc069c416ca9c6f1e17da33983`，私有适配器为 `558e852144712291815365e7dff5c59ed4bdd016`。API `1.6.1`、Web `1.7.2` 与工作区锁文件一致，无新增数据库迁移，沿用现有番茄中转。
@@ -1067,8 +1074,8 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
 | iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.4.0 / 31` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.6.1` | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `1.7.2` | 同步锁文件 `packages.web.version` |
+| API | `api/package.json` | `1.7.0` | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.8.0` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。

@@ -22,6 +22,7 @@ const KIND_LABELS: Record<string, string> = {
   write_chapter: '创作章节',
   continue: '续写',
   rewrite_selection: '选段改写',
+  chapter_edit: '原章节改写',
   cover: '封面',
   cover_prompt: '封面描述词',
   selection_image: '划选插画',

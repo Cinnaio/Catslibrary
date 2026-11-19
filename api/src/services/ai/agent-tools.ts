@@ -1,3 +1,4 @@
+import { chapterEditHistory, chapterRevision, parseChapterEdit, scopedEditableChapter } from './chapter-edit'
 import type { AgentActionKind, AgentDraftRead, AgentSession } from '@shared/ai-agent'
 import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
@@ -90,6 +91,17 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
       ...writingReferences, ...rewriteLength },
     ['draftId', 'baseRevision', 'selectedText', 'instruction'],
   ),
+  tool('rewrite_chapter', '为正式原章节生成增补或改写建议。先 read_chapter 获取原文和 revision；selectedText 逐字引用，空字符串表示整章（最多6000字）。重复段落须同时指定 startUTF16。不会自动写回。', {
+    chapterId: id, baseRevision: id, selectedText: { type: 'string', maxLength: 12000 },
+    startUTF16: { type: 'integer', minimum: 0, maximum: 1000000 }, instruction: { ...instruction, maxLength: 2000 },
+    ...writingReferences, ...rewriteLength,
+  }, ['chapterId', 'baseRevision', 'selectedText', 'instruction']),
+  tool('refine_chapter_edit', '继续调整当前对话中尚未采纳的原章节建议，保留原选段和版本。', {
+    taskId: id, instruction: { ...instruction, maxLength: 2000 }, ...writingReferences, ...rewriteLength,
+  }, ['taskId', 'instruction']),
+  tool('list_chapter_edits', '查看原章节的已保存修改历史。canRestore=true 的版本可以用 restore_chapter 预览恢复。', {
+    chapterId: id, offset: { type: 'integer', minimum: 0, maximum: 10000 },
+  }, ['chapterId']),
   tool('refine_rewrite', '继续调整上次尚未采纳的改写建议，保留上次版本中作者未要求修改的部分。原草稿不会改变。', {
     taskId: id,
     instruction: { ...instruction, maxLength: 2000 },
@@ -107,9 +119,9 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   }, ['title', 'content']),
   tool(
     'prepare_action',
-    '创建待用户确认的操作卡。只预览，不执行。apply_rewrite 的 targetId 是改写任务 ID，publish_draft 是草稿 ID，adopt_cover 是候选 ID，restore_draft 是之前已完成操作的 ID。',
+    '创建待用户确认的操作卡。只预览，不执行。apply_rewrite 的 targetId 是改写任务 ID，publish_draft 是草稿 ID，adopt_cover 是候选 ID，restore_draft 是之前已完成操作的 ID。apply_chapter_edit 是章节改写任务 ID；restore_chapter 是章节历史 ID 或已完成章节操作 ID。',
     {
-      kind: { type: 'string', enum: ['apply_rewrite', 'publish_draft', 'adopt_cover', 'restore_draft'] },
+      kind: { type: 'string', enum: ['apply_rewrite', 'publish_draft', 'adopt_cover', 'restore_draft', 'apply_chapter_edit', 'restore_chapter'] },
       targetId: id,
       title: { type: 'string', maxLength: 200 },
     },
@@ -183,6 +195,9 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
   read_conversation: '查阅早前对话',
   read_conversation_sources: '核对作者原话',
   generate_draft: '生成章节草稿',
+  rewrite_chapter: '生成原章节改写建议',
+  refine_chapter_edit: '调整原章节建议',
+  list_chapter_edits: '查看章节修改历史',
   rewrite_draft: '生成改写建议',
   refine_rewrite: '调整上一版改写建议',
   generate_cover: '生成封面候选',
@@ -190,7 +205,7 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
   propose_memory: '提出创作记忆',
   prepare_action: '准备采纳预览',
 }
-export const AGENT_GENERATION_TOOLS = new Set(['generate_draft', 'rewrite_draft', 'refine_rewrite', 'generate_cover', 'analyze_novel'])
+export const AGENT_GENERATION_TOOLS = new Set(['generate_draft', 'rewrite_chapter', 'refine_chapter_edit', 'rewrite_draft', 'refine_rewrite', 'generate_cover', 'analyze_novel'])
 
 export async function executeAgentTool(
   db: Db,
@@ -258,11 +273,24 @@ export async function executeAgentTool(
         session.novelId,
       ]),
     }
+  if (name === 'list_chapter_edits') return chapterEditHistory(db, session, String(a.chapterId), Number(a.offset || 0))
   if (name === 'read_task') {
     const artifact = await readAgentArtifact(db, session, String(a.taskId))
     const draftReads: AgentDraftRead[] = artifact.drafts.map(draft => ({
       kind: 'draft', title: draft.title, draftId: draft.id, revision: draft.revision, taskId: artifact.task.id,
     }))
+    if (artifact.chapterEdit) {
+      const task = await requireAgentArtifact(db, session.id, artifact.task.id)
+      const edit = parseChapterEdit(task.params || '{}', task.result)
+      if (!edit) throw new AiError('invalid', '无法读取章节建议', 422)
+      const full = edit.params.baseContent.slice(0, edit.params.startUTF16) + edit.suggestion + edit.params.baseContent.slice(edit.params.endUTF16)
+      const offset = Number(a.offset || 0)
+      if (offset > full.length) throw new AiError('invalid', '读取位置超出章节建议长度', 422)
+      let end = Math.min(full.length, offset + 12000)
+      if (end < full.length && /[\uDC00-\uDFFF]/u.test(full[end]!)) end--
+      return { ...artifact, task: { ...artifact.task, result: '' }, chapterEdit: { ...artifact.chapterEdit, before: undefined, after: undefined },
+        version: { content: full.slice(offset, end), offset, nextOffset: end < full.length ? end : null } }
+    }
     if (artifact.rewrite) {
       const rewrite = artifact.rewrite
       const task = await getAiTask(db, artifact.task.id)
@@ -317,7 +345,33 @@ export async function executeAgentTool(
   const focusedRewriteTask = name === 'rewrite_draft' && focus?.read.kind === 'rewrite' && a.draftId === focus.read.draftId
     ? focus.read.taskId : undefined
   let receipt: Record<string, unknown>
-  if (name === 'generate_draft') {
+  if (name === 'rewrite_chapter' || name === 'refine_chapter_edit') {
+    let chapterId = String(a.chapterId || '')
+    let revision = String(a.baseRevision || '')
+    let selectedText = String(a.selectedText || '')
+    let start = a.startUTF16 === undefined ? undefined : Number(a.startUTF16)
+    let previousTaskId: string | undefined
+    if (name === 'refine_chapter_edit') {
+      const previous = await requireAgentArtifact(db, session.id, String(a.taskId))
+      const edit = parseChapterEdit(previous.params || '{}', previous.result)
+      if (previous.kind !== 'chapter_edit' || previous.status !== 'completed' || !edit) throw new AiError('invalid', '章节建议尚未完成', 409)
+      chapterId = edit.params.chapterId
+      revision = edit.params.baseRevision
+      selectedText = edit.params.selectedText
+      start = edit.params.startUTF16
+      previousTaskId = previous.id
+    }
+    const chapter = await scopedEditableChapter(db, session, chapterId)
+    if (chapterRevision(session, chapter) !== revision) throw new AiError('conflict', '章节已变化，请重新读取', 409)
+    selectedText ||= chapter.content
+    if (start === undefined) {
+      start = chapter.content.indexOf(selectedText)
+      if (start < 0 || chapter.content.indexOf(selectedText, start + 1) >= 0) throw new AiError('invalid', '选段必须唯一匹配，或指定准确的 startUTF16', 422)
+    }
+    receipt = await api('/api/ai/writing/chapter-edits', 'POST', { sessionId: session.id, chapterId, baseRevision: revision,
+      startUTF16: start, endUTF16: start + selectedText.length, selectedText, instruction: a.instruction,
+      previousTaskId, agentWriting, clientRequestId: operationId })
+  } else if (name === 'generate_draft') {
     if (!String(a.instruction).trim()) throw new AiError('invalid', '请先确定本章创作要求', 422)
     let selection: unknown
     try { selection = a.analysisReferences === undefined ? undefined : JSON.parse(String(a.analysisReferences)) }

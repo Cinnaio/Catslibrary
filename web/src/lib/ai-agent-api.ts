@@ -1,3 +1,4 @@
+import type { AgentChapterEditSource, AgentChapterHistory } from '@shared/ai-agent'
 import type {
   AgentAction,
   AgentActionKind,
@@ -15,6 +16,10 @@ import { request } from './api'
 const root = '/ai/agent/sessions'
 const path = (id: string) => `${root}/${encodeURIComponent(id)}`
 export const agentApi = {
+  chapter: (id: string, chapterId: string) => request<{ chapter: AgentChapterEditSource }>('GET', path(id) + '/chapters/' + encodeURIComponent(chapterId), null, true),
+  chapterHistory: (id: string, chapterId: string, offset = 0) => request<{ history: AgentChapterHistory[]; hasMore: boolean }>('GET', path(id) + '/chapters/' + encodeURIComponent(chapterId) + '/history?offset=' + offset, null, true),
+  editChapter: (sessionId: string, input: { chapterId: string; baseRevision: string; startUTF16: number; endUTF16: number; selectedText: string; instruction: string; clientRequestId: string; providerPresetId: string }) =>
+    request<{ taskId: string }>('POST', '/ai/writing/chapter-edits', { ...input, sessionId }, true),
   sessions: (novelId = '', offset = 0) =>
     request<{ sessions: AgentSession[]; hasMore: boolean }>('GET', `${root}?${new URLSearchParams({ ...(novelId ? { novelId } : {}), offset: String(offset) })}`, null, true),
   create: (novelId: string, afterChapterId = '') => request<{ session: AgentSession }>('POST', root, { novelId, afterChapterId }, true),
