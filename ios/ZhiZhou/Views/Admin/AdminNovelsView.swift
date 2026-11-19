@@ -4,6 +4,7 @@ import ZhiZhouCore
 /// 小说管理：搜索 / 状态过滤 / 分页列表 / 编辑 / 新建 / 删除 / 增量更新。
 /// 对齐 Web 端 admin NovelsTab（管理维护用 /api/novels 系列接口）。
 struct AdminNovelsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var novels: [Novel] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -28,18 +29,6 @@ struct AdminNovelsView: View {
 
     var body: some View {
         List {
-            Section {
-                AdminFilterBar {
-                    AdminFilterMenu("状态", value: novelStatusLabel) {
-                        Picker("状态", selection: $statusFilter) {
-                            Text("全部").tag("all")
-                            Text("连载").tag("ongoing")
-                            Text("完结").tag("completed")
-                        }
-                    }
-                }
-            }
-
             if isLoading && novels.isEmpty {
                 Section {
                     ProgressView("加载中…")
@@ -59,6 +48,10 @@ struct AdminNovelsView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
+                if isLoading {
+                    ProgressView("正在更新小说列表…")
+                        .controlSize(.small)
+                }
                 if let errorMessage {
                     LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                         Task { await reload() }
@@ -68,8 +61,12 @@ struct AdminNovelsView: View {
                     ContentUnavailableView("没有匹配的小说", systemImage: "books.vertical")
                         .listRowBackground(Color.clear)
                 }
-                ForEach(novels) { novel in
+                ForEach(Array(novels.enumerated()), id: \.element.id) { index, novel in
                     novelRow(novel)
+                        .transition(reduceMotion ? .identity : .asymmetric(
+                            insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index % 20, 10)) * 0.016)),
+                            removal: .opacity
+                        ))
                 }
                 if hasMore {
                     Button {
@@ -83,7 +80,7 @@ struct AdminNovelsView: View {
                             } else {
                                 Text("加载更多（\(novels.count)/\(loadedTotal)）")
                                     .font(.subheadline)
-                                    .foregroundStyle(AppTheme.primary)
+                                    .foregroundStyle(.tint)
                             }
                             Spacer()
                         }
@@ -93,8 +90,7 @@ struct AdminNovelsView: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
+        .listStyle(.insetGrouped)
         .navigationTitle("小说管理")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索书名 / 作者")
@@ -105,12 +101,24 @@ struct AdminNovelsView: View {
             await reload()
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    editorDestination = NovelEditorDestination(novel: nil)
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Menu {
+                    Picker("状态", selection: $statusFilter) {
+                        Text("全部状态").tag("all")
+                        Text("连载").tag("ongoing")
+                        Text("完结").tag("completed")
+                    }
+                    .pickerStyle(.inline)
                 } label: {
-                    Label("新建小说", systemImage: "plus")
+                    Label("筛选小说", systemImage: statusFilter == "all" ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                        .labelStyle(.iconOnly)
                 }
+                .accessibilityValue(novelStatusLabel)
+
+                Button("新建小说", systemImage: "plus") {
+                    editorDestination = NovelEditorDestination(novel: nil)
+                }
+                .labelStyle(.iconOnly)
             }
         }
         .sheet(item: $followupNovel) { novel in
@@ -168,7 +176,13 @@ struct AdminNovelsView: View {
     }
 
     private func novelRow(_ novel: Novel) -> some View {
-        HStack(spacing: 10) {
+        let metadata = [
+            novel.author.isEmpty ? "佚名" : novel.author,
+            "\(novel.chapterCount) 章",
+            novel.statusLabel,
+        ].compactMap { $0 }.joined(separator: " · ")
+
+        return HStack(spacing: 12) {
             CachedAsyncImage(
                 url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
                 targetSize: AppLayout.coverListThumbnail
@@ -176,47 +190,29 @@ struct AdminNovelsView: View {
                 image.resizable().scaledToFill()
             } placeholder: {
                 ZStack {
-                    RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
-                        .fill(AppTheme.surface.opacity(0.6))
+                    Rectangle().fill(.quaternary)
                     Image(systemName: "book")
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(width: AppLayout.coverListThumbnail.width, height: AppLayout.coverListThumbnail.height)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(novel.title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .appTextLineLimit(1)
-                    if novel.hasUpdate {
-                        AdminStatusBadge("有更新", tint: AppTheme.primary, systemImage: "arrow.triangle.2.circlepath")
-                    }
-                }
-                Text(novel.author)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .appTextLineLimit(1)
-                HStack(spacing: 8) {
-                    Text("\(novel.chapterCount) 章")
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.textSecondary)
-                    if novel.remoteChapterCount > novel.chapterCount {
-                        Text("远端 \(novel.remoteChapterCount)")
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.primary)
-                    }
-                    if let label = novel.statusLabel {
-                        Text(label)
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(novel.title)
+                    .font(.headline)
+                    .appTextLineLimit(2)
+                Text(metadata)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .appTextLineLimit(2)
+                if novel.hasUpdate {
+                    Label("可更新至 \(novel.remoteChapterCount) 章", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.footnote)
+                        .foregroundStyle(.tint)
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
             if busyNovelId == novel.id || updatingNovelId == novel.id {
                 AdminInlineProgress()
             } else {
@@ -233,8 +229,7 @@ struct AdminNovelsView: View {
                         deleteTarget = novel
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.title3)
+                    Image(systemName: "ellipsis")
                         .frame(width: 44, height: 44)
                 }
                 .disabled(busyNovelId != nil || updatingNovelId != nil)
@@ -271,7 +266,7 @@ struct AdminNovelsView: View {
         do {
             let r = try await AdminAPI.novels(search: ticket.query[0], status: ticket.query[1], page: 1, limit: 20)
             guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
-            novels = r.novels
+            withAnimation(reduceMotion ? nil : AppMotion.micro) { novels = r.novels }
             page = r.page
             hasMore = r.hasMore
             loadedTotal = r.total
@@ -298,7 +293,9 @@ struct AdminNovelsView: View {
             let r = try await AdminAPI.novels(search: ticket.query[0], status: ticket.query[1], page: page + 1, limit: 20)
             guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             let existing = Set(novels.map(\.id))
-            novels.append(contentsOf: r.novels.filter { !existing.contains($0.id) })
+            withAnimation(reduceMotion ? nil : AppMotion.micro) {
+                novels.append(contentsOf: r.novels.filter { !existing.contains($0.id) })
+            }
             page = r.page
             hasMore = r.hasMore
             loadedTotal = r.total

@@ -12,62 +12,49 @@ struct AdminDashboardView: View {
 
     var body: some View {
         List {
-            if let errorMessage, stats != nil {
-                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
-                    Task { await load() }
+            if let stats {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) { Task { await load() } }
                 }
-            }
-            if isLoading && stats == nil {
-                Section {
-                    ProgressView("加载中…")
-                        .frame(maxWidth: .infinity, minHeight: 200)
-                        .listRowBackground(Color.clear)
-                }
-            } else if let errorMessage, stats == nil {
-                Section {
-                    ContentUnavailableView {
-                        Label("加载失败", systemImage: "wifi.slash")
-                    } description: {
-                        Text(errorMessage)
-                    } actions: {
-                        Button("重试") { Task { await load() } }
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-            } else if let stats {
                 Section("内容规模") {
                     statsGrid(stats.totals)
-                    LabeledContent("数据库占用") {
-                        Text(AdminFormat.byteSize(stats.totals.dbSize))
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
+                    LabeledContent("数据库占用", value: AdminFormat.byteSize(stats.totals.dbSize))
                 }
-
-                Section("任务状态") {
+                Section("抓取任务状态") {
                     jobStatusRow(stats.jobStatus)
                 }
-
                 if !stats.recentJobs.isEmpty {
-                    Section("最近任务") {
-                        ForEach(stats.recentJobs.indices, id: \.self) { index in
-                            jobRow(stats.recentJobs[index])
+                    Section("最近抓取任务") {
+                        ForEach(stats.recentJobs) { job in
+                            NavigationLink { AdminJobsView(jobID: job.id) } label: { jobRow(job) }
                         }
                     }
                 }
-
                 if !stats.recentNovels.isEmpty {
                     Section("最近更新") {
-                        ForEach(stats.recentNovels.indices, id: \.self) { index in
-                            novelRow(stats.recentNovels[index])
+                        ForEach(stats.recentNovels) { novel in
+                            NavigationLink { AdminNovelWorkspaceLoader(novelID: novel.id) } label: { novelRow(novel) }
                         }
                     }
                 }
+            } else if let errorMessage, !isLoading {
+                ContentUnavailableView {
+                    Label("加载失败", systemImage: "wifi.slash")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("重试") { Task { await load() } }
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            } else {
+                ProgressView("正在读取后台总览…")
+                    .frame(maxWidth: .infinity, minHeight: 160)
+                    .listRowBackground(Color.clear)
             }
         }
-        .appListStyle(.settings)
-        .navigationTitle("总览")
-        .navigationBarTitleDisplayMode(.large)
+        .listStyle(.insetGrouped)
+        .navigationTitle("后台总览")
         .refreshable { await load() }
         .task { await load() }
     }
@@ -95,63 +82,45 @@ struct AdminDashboardView: View {
     // MARK: - 内容规模
 
     private func statsGrid(_ totals: AdminTotals) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 240 : 140), spacing: 12)], spacing: 12) {
-            statCell("小说", systemImage: "book", value: totals.novels, tint: AppTheme.primary)
-            statCell("章节", systemImage: "doc.text", value: totals.chapters, tint: AppTheme.primary)
-            statCell("用户", systemImage: "person", value: totals.users, tint: AppTheme.primary)
-            statCell("封面", systemImage: "photo", value: totals.covers, tint: AppTheme.primary)
-            statCell("今日章节", systemImage: "text.badge.plus", value: totals.todayChapters, tint: AppTheme.success)
-            statCell("失败任务", systemImage: "exclamationmark.triangle", value: totals.failedJobs, tint: totals.failedJobs > 0 ? AppTheme.danger : AppTheme.success)
+        let columns = [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 240 : 124), spacing: 16)]
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+            metric("小说", systemImage: "book", value: totals.novels)
+            metric("章节", systemImage: "doc.text", value: totals.chapters)
+            metric("用户", systemImage: "person", value: totals.users)
+            metric("封面", systemImage: "photo", value: totals.covers)
+            metric("今日章节", systemImage: "text.badge.plus", value: totals.todayChapters)
+            metric("失败抓取", systemImage: "exclamationmark.triangle", value: totals.failedJobs)
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
     }
 
-    private func statCell(_ title: String, systemImage: String, value: Int, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: systemImage)
-                    .font(.caption)
-                    .foregroundStyle(tint)
-                Text(title)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            Text("\(value)")
-                .font(.title3.weight(.semibold))
+    private func jobStatusRow(_ status: AdminJobStatus) -> some View {
+        let layout = dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+
+        return layout {
+            metric("进行中", systemImage: "clock", value: status.running)
+            metric("已完成", systemImage: "checkmark.circle", value: status.completed)
+            metric("失败", systemImage: "exclamationmark.circle", value: status.failed)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func metric(_ title: String, systemImage: String, value: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value, format: .number)
+                .font(.title2.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(AppTheme.textPrimary)
                 .contentTransition(reduceMotion ? .opacity : .numericText())
-                .animation(reduceMotion ? AppMotion.micro : AppMotion.value, value: value)
+                .animation(reduceMotion ? nil : AppMotion.value, value: value)
+            Label(title, systemImage: systemImage)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: 62, alignment: .leading)
-        .padding(.horizontal, 4)
-    }
-
-    // MARK: - 任务状态
-
-    private func jobStatusRow(_ jobStatus: AdminJobStatus) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 180 : 80))], spacing: 12) {
-            statusChip("进行中", value: jobStatus.running, tint: AppTheme.warning)
-            statusChip("已完成", value: jobStatus.completed, tint: AppTheme.success)
-            statusChip("失败", value: jobStatus.failed, tint: jobStatus.failed > 0 ? AppTheme.danger : AppTheme.success)
-        }
-        .padding(.vertical, 16)
-    }
-
-    private func statusChip(_ title: String, value: Int, tint: Color) -> some View {
-        VStack(spacing: 4) {
-            Text("\(value)")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(tint)
-                .contentTransition(reduceMotion ? .opacity : .numericText())
-                .animation(reduceMotion ? AppMotion.micro : AppMotion.value, value: value)
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - 行
@@ -162,47 +131,48 @@ struct AdminDashboardView: View {
                 Text(job.novelTitle.isEmpty ? "（未知书名）" : job.novelTitle)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .foregroundStyle(.primary)
                     .appTextLineLimit(1)
                 Spacer()
-                AdminStatusBadge(
-                    AdminFormat.jobStatus(job.status),
-                    tint: jobStatusTint(job.status)
-                )
+                Text(AdminFormat.jobStatus(job.status))
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
             }
             ProgressView(value: min(max(job.progress, 0), 1))
                 .progressViewStyle(.linear)
                 .tint(jobStatusTint(job.status))
             Text("章节 \(job.current)/\(job.total) · \(AdminFormat.relativeTime(job.updatedAt))")
                 .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+                .foregroundStyle(.secondary)
             if !job.error.isEmpty {
                 Text(job.error)
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.danger)
+                    .font(.caption)
+                    .foregroundStyle(.red)
                     .appTextLineLimit(2)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func novelRow(_ novel: AdminNovelSummary) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(novel.title)
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundStyle(AppTheme.textPrimary)
-                .appTextLineLimit(1)
-            Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章 · \(AdminFormat.relativeTime(novel.updatedAt))")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+        Label {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(novel.title)
+                    .font(.headline)
+                Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章 · \(AdminFormat.relativeTime(novel.updatedAt))")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: "book.closed")
         }
     }
 
     private func jobStatusTint(_ status: String) -> Color {
         switch status {
-        case "completed", "partial": return AppTheme.success
-        case "failed", "cancelled": return AppTheme.danger
-        default: return AppTheme.warning
+        case "completed", "partial": return .green
+        case "failed", "cancelled": return .red
+        default: return .accentColor
         }
     }
 }

@@ -6,10 +6,12 @@ enum AdminInboxFilter: String, CaseIterable, Identifiable {
     case attention = "失败与中断"
     case all = "全部"
     var id: String { rawValue }
-    func includes(_ status: String) -> Bool {
+    func includes(_ item: AdminInboxItem) -> Bool {
         switch self {
-        case .active: return ["queued", "pending", "running"].contains(status)
-        case .attention: return ["failed", "cancelled", "canceled", "interrupted", "partial"].contains(status)
+        case .active:
+            if case .scrape = item, AdminFormat.isJobRunning(item.status) { return true }
+            return ["queued", "pending", "running"].contains(item.status)
+        case .attention: return ["failed", "cancelled", "canceled", "interrupted", "partial"].contains(item.status)
         case .all: return true
         }
     }
@@ -46,6 +48,7 @@ final class AdminWorkspaceOverview {
     private(set) var jobs: [AdminJobItem] = []
     private(set) var bookTitles: [String: String] = [:]
     private(set) var draftCount: Int?
+    private(set) var hasCompleteTaskSnapshot = false
     private(set) var loading = false
     private(set) var errors: [String] = []
     private var requestID = UUID()
@@ -61,33 +64,43 @@ final class AdminWorkspaceOverview {
         guard AppState.shared.user?.isAdmin == true, let token = APIClient.shared.token else { return }
         let id = UUID(); requestID = id; loading = true; errors = []
         defer { if requestID == id { loading = false } }
-        async let ai: Void = loadAI(id: id, token: token)
-        async let scrape: Void = loadJobs(id: id, token: token)
+        async let ai: Bool = loadAI(id: id, token: token)
+        async let scrape: Bool = loadJobs(id: id, token: token)
         if forceMetadata || metadataLoadedAt == nil || Date().timeIntervalSince(metadataLoadedAt!) >= 60 {
             async let books: Void = loadBooks(id: id, token: token)
             async let drafts: Void = loadDrafts(id: id, token: token)
             _ = await (books, drafts)
             if accepts(id, token) { metadataLoadedAt = Date() }
         }
-        _ = await (ai, scrape)
+        let (aiLoaded, scrapeLoaded) = await (ai, scrape)
+        if accepts(id, token) { hasCompleteTaskSnapshot = aiLoaded && scrapeLoaded }
     }
 
     private func accepts(_ id: UUID, _ token: String) -> Bool {
         !Task.isCancelled && requestID == id && APIClient.shared.token == token
     }
-    private func loadAI(id: UUID, token: String) async {
+    private func loadAI(id: UUID, token: String) async -> Bool {
         do {
             let response: AiTasksResponse = try await AdminAPI.parityRequest("GET", "/api/ai/tasks?status=all&limit=100&offset=0", token: token)
-            guard accepts(id, token) else { return }
+            guard accepts(id, token) else { return false }
             aiTasks = response.items
             AdminAITaskCoordinator.shared.reconcile(response.items)
-        } catch { if accepts(id, token) { errors.append("AI 任务：\(AppCopy.friendlyError(error))") } }
+            return true
+        } catch {
+            if accepts(id, token) { errors.append("AI 任务：\(AppCopy.friendlyError(error))") }
+            return false
+        }
     }
-    private func loadJobs(id: UUID, token: String) async {
+    private func loadJobs(id: UUID, token: String) async -> Bool {
         do {
             let response: AdminJobsResponse = try await AdminAPI.parityRequest("GET", "/api/scrape?action=jobs", token: token)
-            guard accepts(id, token) else { return }; jobs = response.jobs
-        } catch { if accepts(id, token) { errors.append("抓取任务：\(AppCopy.friendlyError(error))") } }
+            guard accepts(id, token) else { return false }
+            jobs = response.jobs
+            return true
+        } catch {
+            if accepts(id, token) { errors.append("抓取任务：\(AppCopy.friendlyError(error))") }
+            return false
+        }
     }
     private func loadBooks(id: UUID, token: String) async {
         do {

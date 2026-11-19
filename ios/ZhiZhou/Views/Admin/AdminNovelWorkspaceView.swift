@@ -6,6 +6,7 @@ struct AdminNovelWorkspaceView: View {
     let novel: Novel
     var afterChapterID: String? = nil
     @Environment(AppState.self) private var appState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var current: Novel?
     @State private var showEditor = false
     @State private var updating = false
@@ -32,24 +33,16 @@ struct AdminNovelWorkspaceView: View {
 
     private var workspace: some View {
         List {
-            Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(book.title).font(serifFont(.title2, .semibold))
-                    Text("\(book.author) · \(book.chapterCount) 章").foregroundStyle(AppTheme.textSecondary)
-                }
-                .padding(.vertical, 8)
-                .accessibilityIdentifier("admin.workspace.book")
-            }
+            Section { bookHeader }
             if let error { LoadErrorNotice(message: error, isLoading: updating) { Task { await refresh() } } }
-            if let notice { Text(notice).foregroundStyle(AppTheme.success) }
+            if let notice {
+                Label(notice, systemImage: "checkmark.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             Section("作品与章节") {
-                Button("修改作品资料", systemImage: "pencil") { showEditor = true }
-                NavigationLink { AdminChaptersView(initialNovel: book) } label: {
-                    Label("管理章节", systemImage: "doc.text")
-                }
-                NavigationLink { AdminFollowupView(novel: book) } label: {
-                    Label("追更设置", systemImage: "clock.arrow.circlepath")
-                }
+                workspaceLink("管理章节", systemImage: "doc.text") { AdminChaptersView(initialNovel: book) }
+                workspaceLink("追更设置", systemImage: "clock.arrow.circlepath") { AdminFollowupView(novel: book) }
                 Button {
                     Task { await updateChapters() }
                 } label: {
@@ -62,31 +55,83 @@ struct AdminNovelWorkspaceView: View {
                 .accessibilityIdentifier("admin.workspace.update")
             }
             Section("创作与封面") {
-                NavigationLink {
-                    AdminAIAgentView(initialNovel: book, afterChapterID: afterChapterID)
-                } label: { Label("对话创作", systemImage: "bubble.left.and.bubble.right") }
-                .accessibilityIdentifier("admin.workspace.agent")
-                NavigationLink {
+                workspaceLink(afterChapterID == nil ? "创作与续写" : "从当前章节续写", systemImage: "pencil.and.outline") {
                     AdminAIWritingView(initialNovel: book, afterChapterID: afterChapterID)
-                } label: { Label(afterChapterID == nil ? "创作与续写" : "从当前章节续写", systemImage: "pencil.and.outline") }
+                }
                 .accessibilityIdentifier("admin.workspace.writing")
-                NavigationLink { AdminAICoverView(initialNovel: book) } label: {
-                    Label("生成与管理封面", systemImage: "photo.on.rectangle.angled")
+                workspaceLink("对话创作", systemImage: "bubble.left.and.bubble.right") {
+                    AdminAIAgentView(initialNovel: book, afterChapterID: afterChapterID)
                 }
-                .accessibilityIdentifier("admin.workspace.cover")
-                NavigationLink { AdminAIGenerationsView(novelID: book.id) } label: {
-                    Label("本书草稿与发布记录", systemImage: "doc.text.magnifyingglass")
-                }
-                .accessibilityIdentifier("admin.workspace.generations")
+                .accessibilityIdentifier("admin.workspace.agent")
+                workspaceLink("生成与管理封面", systemImage: "photo.on.rectangle.angled") { AdminAICoverView(initialNovel: book) }
+                    .accessibilityIdentifier("admin.workspace.cover")
+                workspaceLink("本书草稿与发布记录", systemImage: "doc.text.magnifyingglass") { AdminAIGenerationsView(novelID: book.id) }
+                    .accessibilityIdentifier("admin.workspace.generations")
             }
             Section {
-                NavigationLink { AdminTaskInboxView(novelID: book.id) } label: {
-                    Label("本书任务", systemImage: "shippingbox")
+                workspaceLink("本书任务", systemImage: "shippingbox") { AdminTaskInboxView(novelID: book.id) }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("修改作品资料", systemImage: "pencil") { showEditor = true }
+                    .labelStyle(.iconOnly)
+            }
+        }
+        .refreshable { await refresh() }
+    }
+
+    private var bookHeader: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 14))
+
+        return layout {
+            CachedAsyncImage(
+                url: APIClient.shared.coverURL(novelId: book.id, updatedAt: book.updatedAt),
+                targetSize: AppLayout.coverListThumbnail
+            ) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                ZStack {
+                    Rectangle().fill(.quaternary)
+                    Image(systemName: "book.closed")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: AppLayout.coverListThumbnail.width, height: AppLayout.coverListThumbnail.height)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(book.title)
+                    .font(.title2.weight(.semibold))
+                    .appTextLineLimit(2)
+                    .accessibilityAddTraits(.isHeader)
+                Text("\(book.author.isEmpty ? "佚名" : book.author) · \(book.chapterCount) 章")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if let status = book.statusLabel {
+                    Text(status)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .appListStyle(.settings)
-        .refreshable { await refresh() }
+        .padding(.vertical, 6)
+        .accessibilityIdentifier("admin.workspace.book")
+    }
+
+    private func workspaceLink<Destination: View>(
+        _ title: String,
+        systemImage: String,
+        @ViewBuilder destination: () -> Destination
+    ) -> some View {
+        NavigationLink(destination: destination) {
+            Label(title, systemImage: systemImage)
+        }
     }
 
     private func recordRecent(_ novel: Novel) {

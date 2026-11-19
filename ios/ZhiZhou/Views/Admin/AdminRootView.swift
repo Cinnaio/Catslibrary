@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// 管理后台首页：模块入口列表。入口在「我的」页（管理员与超级管理员可见），
-/// 此处再兜底校验一次权限，防止误入。
+/// 入口在「我的」页。工作台、功能目录和搜索共用同一份权限过滤后的模块表。
 struct AdminRootView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var searchText = ""
+    @State private var overview = AdminWorkspaceOverview()
 
-    private enum Destination {
+    private enum Destination: Hashable {
         case dashboard
         case moderation
         case contentRatings
@@ -36,6 +37,7 @@ struct AdminRootView: View {
         let title: String
         let systemImage: String
         let destination: Destination
+        let summary: String
     }
 
     private struct AdminModuleGroup: Identifiable {
@@ -45,152 +47,168 @@ struct AdminRootView: View {
     }
 
     private let allModuleGroups: [AdminModuleGroup] = [
-        AdminModuleGroup(id: "monitoring", title: "监控", modules: [
-            AdminModule(id: "dashboard", title: "后台总览", systemImage: "gauge", destination: .dashboard),
+        AdminModuleGroup(id: "library", title: "作品", modules: [
+            AdminModule(id: "novels", title: "小说管理", systemImage: "books.vertical", destination: .novels, summary: "查找作品、编辑资料与封面"),
+            AdminModule(id: "chapters", title: "章节管理", systemImage: "doc.text", destination: .chapters, summary: "查找、编辑与排序章节"),
+            AdminModule(id: "book-import", title: "书籍导入", systemImage: "square.and.arrow.down", destination: .bookImport, summary: "导入 TXT 或 ZIP，确认后入库"),
+            AdminModule(id: "discover", title: "发现小说", systemImage: "magnifyingglass", destination: .discover, summary: "按书名或作者搜索书源"),
         ]),
-        AdminModuleGroup(id: "library", title: "内容库", modules: [
-            AdminModule(id: "novels", title: "小说管理", systemImage: "books.vertical", destination: .novels),
-            AdminModule(id: "chapters", title: "章节管理", systemImage: "doc.text", destination: .chapters),
-            AdminModule(id: "book-import", title: "书籍导入", systemImage: "square.and.arrow.down", destination: .bookImport),
+        AdminModuleGroup(id: "creation", title: "创作", modules: [
+            AdminModule(id: "ai-service", title: "AI 服务", systemImage: "sparkles", destination: .aiService, summary: "对话创作、续写、封面及调用记录"),
         ]),
-        AdminModuleGroup(id: "production", title: "内容生产", modules: [
-            AdminModule(id: "scrape-center", title: "爬虫抓取", systemImage: "scope", destination: .scrapeCenter),
-            AdminModule(id: "ai-service", title: "AI 服务", systemImage: "sparkles", destination: .aiService),
-            AdminModule(id: "discover", title: "发现小说", systemImage: "magnifyingglass", destination: .discover),
-            AdminModule(id: "scrape-configs", title: "配置导入导出", systemImage: "arrow.left.arrow.right.square", destination: .scrapeConfigs),
-            AdminModule(id: "scrape-sources", title: "源管理", systemImage: "antenna.radiowaves.left.and.right", destination: .scrapeSources),
-            AdminModule(id: "proxy", title: "代理设置", systemImage: "network", destination: .proxy),
+        AdminModuleGroup(id: "runtime", title: "运行", modules: [
+            AdminModule(id: "tasks", title: "任务中心", systemImage: "shippingbox", destination: .jobs, summary: "跟踪 AI 与抓取任务的进度"),
+            AdminModule(id: "dashboard", title: "后台总览", systemImage: "gauge", destination: .dashboard, summary: "内容规模、任务状态与最近更新"),
+            AdminModule(id: "calls", title: "调用与用量", systemImage: "chart.bar.xaxis", destination: .calls, summary: "AI 调用、Token 用量与出站请求"),
+            AdminModule(id: "scrape-center", title: "爬虫抓取", systemImage: "scope", destination: .scrapeCenter, summary: "按作品链接抓取、更新章节"),
+            AdminModule(id: "scrape-sources", title: "源管理", systemImage: "antenna.radiowaves.left.and.right", destination: .scrapeSources, summary: "管理书源、账号与可用状态"),
+            AdminModule(id: "scrape-configs", title: "配置导入导出", systemImage: "arrow.left.arrow.right.square", destination: .scrapeConfigs, summary: "迁移或备份抓取配置"),
         ]),
-        AdminModuleGroup(id: "runtime", title: "运行监控", modules: [
-            AdminModule(id: "tasks", title: "任务中心", systemImage: "shippingbox", destination: .jobs),
-            AdminModule(id: "calls", title: "调用与用量", systemImage: "chart.bar.xaxis", destination: .calls),
+        AdminModuleGroup(id: "governance", title: "治理", modules: [
+            AdminModule(id: "moderation", title: "内容审核", systemImage: "bubble.left.and.bubble.right", destination: .moderation, summary: "查看举报与处理评论"),
+            AdminModule(id: "content-ratings", title: "分级管理", systemImage: "checkmark.shield", destination: .contentRatings, summary: "核查作品分级与规则"),
+            AdminModule(id: "policy", title: "内容安全", systemImage: "shield.lefthalf.filled", destination: .policy, summary: "设置内容访问条件"),
         ]),
-        AdminModuleGroup(id: "governance", title: "内容治理", modules: [
-            AdminModule(id: "moderation", title: "内容审核", systemImage: "bubble.left.and.bubble.right", destination: .moderation),
-            AdminModule(id: "content-ratings", title: "分级管理", systemImage: "checkmark.shield", destination: .contentRatings),
-            AdminModule(id: "policy", title: "内容安全", systemImage: "shield.lefthalf.filled", destination: .policy),
-        ]),
-        AdminModuleGroup(id: "platform", title: "平台运营", modules: [
-            AdminModule(id: "site-operations", title: "站点运营", systemImage: "chart.bar.xaxis", destination: .siteOperations),
-            AdminModule(id: "users", title: "账户与注册", systemImage: "person.2", destination: .users),
-            AdminModule(id: "login-audit", title: "登录审计", systemImage: "lock.shield", destination: .loginAudit),
-            AdminModule(id: "operations-audit", title: "操作审计", systemImage: "list.bullet.clipboard", destination: .operationsAudit),
-            AdminModule(id: "site-settings", title: "站点设置", systemImage: "gearshape", destination: .siteSettings),
-            AdminModule(id: "backups", title: "备份与恢复", systemImage: "externaldrive", destination: .backups),
-            AdminModule(id: "announcement", title: "站点公告", systemImage: "megaphone", destination: .announcement),
+        AdminModuleGroup(id: "platform", title: "系统", modules: [
+            AdminModule(id: "site-operations", title: "站点运营", systemImage: "chart.bar.xaxis", destination: .siteOperations, summary: "查看流量、趋势及站点运营数据"),
+            AdminModule(id: "users", title: "账户与注册", systemImage: "person.2", destination: .users, summary: "管理用户、注册方式与邀请码"),
+            AdminModule(id: "login-audit", title: "登录审计", systemImage: "lock.shield", destination: .loginAudit, summary: "检查登录方式、时间和结果"),
+            AdminModule(id: "operations-audit", title: "操作审计", systemImage: "list.bullet.clipboard", destination: .operationsAudit, summary: "查找后台操作与执行回执"),
+            AdminModule(id: "site-settings", title: "站点设置", systemImage: "gearshape", destination: .siteSettings, summary: "管理站点信息和品牌资源"),
+            AdminModule(id: "proxy", title: "代理设置", systemImage: "network", destination: .proxy, summary: "配置代理与测试出站连接"),
+            AdminModule(id: "backups", title: "备份与恢复", systemImage: "externaldrive", destination: .backups, summary: "检查备份、存储目标与恢复范围"),
+            AdminModule(id: "announcement", title: "站点公告", systemImage: "megaphone", destination: .announcement, summary: "编辑面向读者的公告"),
         ]),
     ]
 
     private var moduleGroups: [AdminModuleGroup] {
-        guard appState.user?.isSuperAdmin != true else { return allModuleGroups }
-        let restricted = ["proxy", "policy", "site-settings", "backups", "announcement"]
-        return allModuleGroups.compactMap { group in
-            let allowed = group.modules.filter { !restricted.contains($0.id) }
-            return allowed.isEmpty ? nil : AdminModuleGroup(id: group.id, title: group.title, modules: allowed)
+        allModuleGroups.compactMap { group in
+            let modules = group.modules.filter { canOpen($0.destination) }
+            return modules.isEmpty ? nil : AdminModuleGroup(id: group.id, title: group.title, modules: modules)
         }
     }
+
+    private let restricted: Set<Destination> = [.proxy, .policy, .siteSettings, .backups, .announcement]
+    private var searchTerms: [Substring] { searchText.split(whereSeparator: \.isWhitespace) }
 
     var body: some View {
         Group {
             if appState.user?.isAdmin == true {
-                moduleList
+                workspace
             } else {
-                ContentUnavailableView {
-                    Label("需要管理员权限", systemImage: "lock.shield")
-                } description: {
-                    Text("当前账号没有访问管理后台的权限。")
-                }
-                .pageBackground(.browsing)
+                ContentUnavailableView("需要管理员权限", systemImage: "lock.shield")
             }
         }
         .navigationTitle("管理后台")
-        .navigationBarTitleDisplayMode(.large)
     }
 
-    private var moduleList: some View {
+    private var workspace: some View {
         List {
-            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                AdminWorkspaceHomeSections()
-                Section("常用操作") {
-                    ForEach(moduleGroups.flatMap(\.modules).filter {
-                        ["novels", "tasks", "book-import", "discover", "ai-service", "moderation", "users"].contains($0.id)
-                    }) { module in moduleLink(module) }
-                }
-                Section {
-                    NavigationLink {
-                        List { moduleSections }
-                            .appListStyle(.settings)
-                            .navigationTitle("全部管理功能")
-                    } label: { AppIconLabel("全部管理功能", systemImage: "square.grid.2x2") }
-                    .accessibilityIdentifier("admin.allModules")
-                } footer: {
-                    Text("书源、代理、供应商、站点配置及完整审计记录可在全部功能中找到。")
-                }
+            if searchTerms.isEmpty {
+                shortcuts
+                AdminWorkspaceHomeSections(overview: overview)
             } else {
-                searchSections
+                let matches = matchingGroups
+                if matches.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } else {
+                    moduleSections(matches, animateRows: true)
+                }
             }
         }
-        .appListStyle(.settings)
-        .searchable(text: $searchText, prompt: "搜索后台功能")
+        .listStyle(.insetGrouped)
+        .searchable(text: Binding(get: { searchText }, set: updateSearch), prompt: "搜索管理功能")
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("刷新工作台", systemImage: "arrow.clockwise") {
+                    Task { await overview.load(forceMetadata: true) }
+                }
+                .labelStyle(.iconOnly)
+                .disabled(overview.loading)
+
+                NavigationLink {
+                    List { moduleSections(moduleGroups) }
+                        .listStyle(.insetGrouped)
+                        .navigationTitle("全部管理功能")
+                } label: {
+                    Label("全部功能", systemImage: "square.grid.2x2")
+                        .labelStyle(.iconOnly)
+                }
+                .accessibilityIdentifier("admin.allModules")
+            }
+        }
+        .refreshable { await overview.load(forceMetadata: true) }
+        .task(id: ContentAccessStore.shared.accountRevision) {
+            await overview.load(forceMetadata: true)
+        }
     }
 
-    @ViewBuilder
-    private var moduleSections: some View {
-        ForEach(moduleGroups) { group in
+    private var shortcuts: some View {
+        let modules = moduleGroups.flatMap(\.modules)
+        let frequent: [Destination] = [.novels, .bookImport, .jobs, .aiService]
+        return Section("常用操作") {
+            ForEach(frequent.compactMap { destination in modules.first { $0.destination == destination } }) { module in
+                moduleLink(module, showsSummary: false)
+            }
+        }
+    }
+
+    private func moduleSections(_ groups: [AdminModuleGroup], animateRows: Bool = false) -> some View {
+        ForEach(groups) { group in
             Section(group.title) {
-                ForEach(group.modules) { module in
-                    moduleLink(module)
+                ForEach(Array(group.modules.enumerated()), id: \.element.id) { index, module in
+                    moduleLink(module, showsSummary: true)
+                        .transition(
+                            animateRows && !reduceMotion
+                                ? .opacity.animation(AppMotion.micro.delay(Double(index) * 0.018))
+                                : .identity
+                        )
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var searchSections: some View {
-        if filteredModules.isEmpty {
-            ContentUnavailableView {
-                Label("没有匹配的功能", systemImage: "magnifyingglass")
-            } description: {
-                Text("试试搜索“小说”“任务”或“用户”。")
+    private var matchingGroups: [AdminModuleGroup] {
+        let terms = searchTerms.map { String($0) }
+        return moduleGroups.compactMap { group in
+            let matches = group.modules.filter { module in
+                let searchable = "\(group.title) \(module.title) \(module.summary)"
+                return terms.allSatisfy { searchable.localizedStandardContains($0) }
             }
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-        } else {
-            ForEach(moduleGroups) { group in
-                let matches = matchingModules(in: group)
-                if !matches.isEmpty {
-                    Section(group.title) {
-                        ForEach(matches) { module in
-                            moduleLink(module)
-                        }
+            return matches.isEmpty ? nil : AdminModuleGroup(id: group.id, title: group.title, modules: matches)
+        }
+    }
+
+    private func updateSearch(_ value: String) {
+        withAnimation(reduceMotion ? nil : AppMotion.micro) { searchText = value }
+    }
+
+    private func canOpen(_ destination: Destination) -> Bool {
+        appState.user?.isAdmin == true && (!restricted.contains(destination) || appState.user?.isSuperAdmin == true)
+    }
+
+    private func moduleLink(_ module: AdminModule, showsSummary: Bool) -> some View {
+        NavigationLink {
+            if canOpen(module.destination) {
+                destination(for: module.destination)
+            } else {
+                ContentUnavailableView("需要管理员权限", systemImage: "lock.shield")
+            }
+        } label: {
+            Label {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(module.title)
+                    if showsSummary {
+                        Text(module.summary)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
+            } icon: {
+                Image(systemName: module.systemImage)
             }
-        }
-    }
-
-    private var filteredModules: [AdminModule] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return moduleGroups.flatMap { matchingModules(in: $0, query: query) }
-    }
-
-    private func matchingModules(
-        in group: AdminModuleGroup,
-        query: String? = nil
-    ) -> [AdminModule] {
-        let normalized = (query ?? searchText).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return group.modules }
-        return group.modules.filter { module in
-            module.title.localizedCaseInsensitiveContains(normalized)
-                || group.title.localizedCaseInsensitiveContains(normalized)
-        }
-    }
-
-    private func moduleLink(_ module: AdminModule) -> some View {
-        NavigationLink {
-            destination(for: module.destination)
-        } label: {
-            AppIconLabel(module.title, systemImage: module.systemImage)
         }
         .accessibilityIdentifier("admin.module.\(module.id)")
     }

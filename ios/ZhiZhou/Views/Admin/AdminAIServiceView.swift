@@ -20,7 +20,7 @@ struct AdminAIServiceView: View {
                 Section("正在处理") {
                     ForEach(activeTasks) { task in
                         NavigationLink {
-                            AdminAITasksView()
+                            AdminAITasksView(taskID: task.id)
                         } label: {
                             AdminAITaskProgressView(task: task, compact: true)
                         }
@@ -28,19 +28,19 @@ struct AdminAIServiceView: View {
                 }
             }
 
-            Section("生成") {
+            Section("创作") {
                 NavigationLink { AdminAIAgentView() } label: {
-                    AppIconLabel("对话创作", systemImage: "bubble.left.and.bubble.right")
+                    Label("对话创作", systemImage: "bubble.left.and.bubble.right")
                 }
                 NavigationLink {
                     AdminAIWritingView()
                 } label: {
-                    AppIconLabel("AI 创作", systemImage: "pencil.and.outline")
+                    Label("AI 创作", systemImage: "pencil.and.outline")
                 }
                 NavigationLink {
                     AdminAICoverView()
                 } label: {
-                    AppIconLabel("封面生成", systemImage: "photo.on.rectangle.angled")
+                    Label("封面生成", systemImage: "photo.on.rectangle.angled")
                 }
             }
 
@@ -48,42 +48,43 @@ struct AdminAIServiceView: View {
                 NavigationLink {
                     AdminAITasksView()
                 } label: {
-                    AppIconLabel("AI 任务", systemImage: "list.bullet.rectangle")
+                    Label("AI 任务", systemImage: "list.bullet.rectangle")
                 }
                 NavigationLink {
                     AdminAIGenerationsView()
                 } label: {
-                    AppIconLabel("已生成内容", systemImage: "doc.text.magnifyingglass")
+                    Label("已生成内容", systemImage: "doc.text.magnifyingglass")
                 }
             }
 
-            Section("观测与设置") {
+            Section("运行") {
                 NavigationLink {
                     AdminAIStatusView()
                 } label: {
-                    AppIconLabel("状态与用量", systemImage: "gauge.with.dots.needle.50percent")
+                    Label("状态与用量", systemImage: "gauge.with.dots.needle.50percent")
                 }
                 NavigationLink {
                     AdminAIUsageView()
                 } label: {
-                    AppIconLabel("AI 调用与用量", systemImage: "chart.bar.xaxis")
+                    Label("AI 调用与用量", systemImage: "chart.bar.xaxis")
                 }
-                if appState.user?.isSuperAdmin == true {
+            }
+            if appState.user?.isSuperAdmin == true {
+                Section("配置") {
                     NavigationLink {
                         AdminAIProviderView()
                     } label: {
-                        AppIconLabel("供应商配置", systemImage: "server.rack")
+                        Label("供应商配置", systemImage: "server.rack")
                     }
                     NavigationLink {
                         AdminAISettingsView()
                     } label: {
-                        AppIconLabel("运行参数", systemImage: "slider.horizontal.3")
+                        Label("运行参数", systemImage: "slider.horizontal.3")
                     }
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
+        .listStyle(.insetGrouped)
         .navigationTitle("AI 服务")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadActiveTasks() }

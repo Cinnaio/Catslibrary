@@ -12,6 +12,8 @@ struct AdminChaptersView: View {
             _novelOptions = State(initialValue: [summary])
         }
     }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var requests = ListRequestGuard<String?>()
     @State private var novelOptions: [AdminNovelSummary] = []
     @State private var selectedNovel: AdminNovelSummary?
@@ -34,25 +36,24 @@ struct AdminChaptersView: View {
                 }
             }
             if let selectedNovel {
-                Section {
-                    HStack(spacing: 10) {
-                        Image(systemName: "book.closed.fill")
-                            .foregroundStyle(AppTheme.primary)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(selectedNovel.title)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundStyle(AppTheme.textPrimary)
-                                .appTextLineLimit(1)
-                            Text("\(selectedNovel.author) · \(selectedNovel.chapterCount) 章")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
-                        Spacer()
+                Section("当前作品") {
+                    LabeledContent {
                         Button("换一本") { showNovelPicker = true }
-                            .font(.subheadline)
+                            .buttonStyle(.borderless)
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(selectedNovel.title)
+                                    .font(.headline)
+                                    .appTextLineLimit(2)
+                                Text("\(selectedNovel.author) · \(selectedNovel.chapterCount) 章")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "book.closed")
+                        }
                     }
-                    .listRowBackground(Color.clear)
                 }
             }
 
@@ -99,35 +100,42 @@ struct AdminChaptersView: View {
                     }
                 } else {
                     Section("章节（\(filteredChapters.count)）") {
-                        ForEach(filteredChapters) { chapter in
+                        ForEach(Array(filteredChapters.enumerated()), id: \.element.id) { index, chapter in
                             chapterRow(chapter)
+                                .transition(reduceMotion ? .identity : .asymmetric(
+                                    insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index, 12)) * 0.014)),
+                                    removal: .opacity
+                                ))
                         }
                     }
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
+        .listStyle(.insetGrouped)
         .navigationTitle("章节管理")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $chapterSearch, prompt: "搜索章节标题")
+        .searchable(text: Binding(get: { chapterSearch }, set: { value in
+            withAnimation(reduceMotion ? nil : AppMotion.micro) { chapterSearch = value }
+        }), prompt: "搜索章节标题")
         .refreshable { await loadChapters() }
         .task { await loadChapters() }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
                     Button("选择小说", systemImage: "book.closed") { showNovelPicker = true }
                     Button("从源站融合", systemImage: "arrow.triangle.2.circlepath") {
                         showSourceSync = true
                     }
                     .disabled(selectedNovel == nil)
-                    Button("新建章节", systemImage: "plus") {
-                        editorIntent = .create
-                    }
-                    .disabled(selectedNovel == nil)
                 } label: {
-                    Label("更多", systemImage: "ellipsis.circle")
+                    Label("更多", systemImage: "ellipsis")
+                        .labelStyle(.iconOnly)
                 }
+                Button("新建章节", systemImage: "plus") {
+                    editorIntent = .create
+                }
+                .labelStyle(.iconOnly)
+                .disabled(selectedNovel == nil)
             }
         }
         .sheet(isPresented: $showNovelPicker) {
@@ -205,15 +213,14 @@ struct AdminChaptersView: View {
         HStack(spacing: 10) {
             Text("\(chapter.order)")
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(AppTheme.textSecondary)
+                .foregroundStyle(.secondary)
                 .frame(minWidth: 28, alignment: .trailing)
             VStack(alignment: .leading, spacing: 3) {
                 Text(chapter.title)
                     .chapterTitleStyle()
-                    .foregroundStyle(AppTheme.textPrimary)
                 Text("\(chapter.wordCount) 字 · \(AdminFormat.relativeTime(chapter.createdAt))")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             if busyChapterId == chapter.id {
@@ -227,8 +234,7 @@ struct AdminChaptersView: View {
                         deleteTarget = chapter
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.title3)
+                    Image(systemName: "ellipsis")
                         .frame(width: 44, height: 44)
                 }
                 .disabled(busyChapterId != nil)

@@ -1,48 +1,36 @@
 import SwiftUI
 
 struct AdminTaskInboxView: View {
-    var novelID: String? = nil
+    let novelID: String?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var overview = AdminWorkspaceOverview()
-    @State private var filter: AdminInboxFilter = .all
+    @State private var filter: AdminInboxFilter
+
+    init(novelID: String? = nil, initialFilter: AdminInboxFilter = .all) {
+        self.novelID = novelID
+        _filter = State(initialValue: initialFilter)
+    }
 
     private var visibleTasks: [AdminInboxItem] {
-        overview.tasks.filter { (novelID == nil || $0.novelID == novelID) && filter.includes($0.status) }
+        overview.tasks.filter { (novelID == nil || $0.novelID == novelID) && filter.includes($0) }
     }
 
     var body: some View {
         List {
             Section {
-                Picker("任务状态", selection: $filter) {
-                    ForEach(AdminInboxFilter.allCases) { Text($0.rawValue).tag($0) }
+                taskFilters
+                if !overview.errors.isEmpty {
+                    LoadErrorNotice(message: overview.errors.joined(separator: "\n"), isLoading: overview.loading) {
+                        Task { await overview.load() }
+                    }
                 }
             }
-            if !overview.errors.isEmpty {
-                LoadErrorNotice(message: overview.errors.joined(separator: "\n"), isLoading: overview.loading) {
-                    Task { await overview.load() }
-                }
-            }
-            if overview.loading && overview.tasks.isEmpty { ProgressView("读取任务…") }
-            if !overview.loading && visibleTasks.isEmpty {
-                ContentUnavailableView("没有匹配的近期任务", systemImage: "tray")
-            }
-            Section("近期任务") {
-                ForEach(visibleTasks) { item in
-                    AdminInboxTaskLink(item: item, bookTitle: item.novelID.flatMap { overview.bookTitles[$0] })
-                }
-            }
-            Section {
-                NavigationLink("待处理草稿") { AdminAIGenerationsView(novelID: novelID, initialStatus: "draft") }
-                NavigationLink("下载记录") { AdminDownloadRecordsView() }
-                NavigationLink("全部 AI 任务") { AdminAITasksView() }
-                NavigationLink("全部抓取任务") { AdminJobsView() }
-            } header: {
-                Text("记录与内容")
-            } footer: {
-                Text("汇总最近 100 项 AI 任务及服务端返回的近期抓取任务。更早记录可进入各类任务查看。")
-            }
+            Section("近期任务") { taskResults }
+            records
         }
-        .appListStyle(.settings)
+        .listStyle(.insetGrouped)
         .navigationTitle(novelID == nil ? "任务中心" : "本书任务")
         .refreshable { await overview.load(forceMetadata: true) }
         .task(id: "\(scenePhase)-\(ContentAccessStore.shared.accountRevision)") {
@@ -53,11 +41,71 @@ struct AdminTaskInboxView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var taskFilters: some View {
+        let selection = Binding(get: { filter }, set: { value in
+            withAnimation(reduceMotion ? nil : AppMotion.micro) { filter = value }
+        })
+        let picker = Picker("任务状态", selection: selection) {
+            ForEach([AdminInboxFilter.all, .active, .attention]) { option in
+                Text(option.rawValue).tag(option)
+            }
+        }
+        if dynamicTypeSize >= .xxxLarge {
+            picker.pickerStyle(.menu)
+        } else {
+            picker.pickerStyle(.segmented)
+                .frame(minHeight: AppLayout.minimumTouchTarget)
+        }
+    }
+
+    @ViewBuilder
+    private var taskResults: some View {
+        let tasks = visibleTasks
+        if tasks.isEmpty {
+            if overview.hasCompleteTaskSnapshot {
+                ContentUnavailableView("没有匹配的近期任务", systemImage: "tray")
+            } else if overview.loading || overview.errors.isEmpty {
+                ProgressView("读取近期任务…")
+            }
+        } else {
+            ForEach(Array(tasks.enumerated()), id: \.element.id) { index, item in
+                AdminInboxTaskLink(item: item, bookTitle: item.novelID.flatMap { overview.bookTitles[$0] })
+                    .transition(reduceMotion ? .identity : .asymmetric(
+                        insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index, 10)) * 0.016)),
+                        removal: .opacity
+                    ))
+            }
+        }
+    }
+
+    private var records: some View {
+        Section {
+            NavigationLink { AdminAIGenerationsView(novelID: novelID, initialStatus: "draft") } label: {
+                Label("待处理草稿", systemImage: "doc.text")
+            }
+            NavigationLink { AdminDownloadRecordsView() } label: {
+                Label("下载记录", systemImage: "arrow.down.circle")
+            }
+            NavigationLink { AdminAITasksView() } label: {
+                Label("AI 任务", systemImage: "sparkles")
+            }
+            NavigationLink { AdminJobsView() } label: {
+                Label("抓取任务", systemImage: "scope")
+            }
+        } header: {
+            Text("完整记录")
+        } footer: {
+            Text("近期任务汇总最近 100 项 AI 任务及服务端返回的抓取任务。")
+        }
+    }
 }
 
 struct AdminInboxTaskLink: View {
     let item: AdminInboxItem
     let bookTitle: String?
+
     var body: some View {
         NavigationLink {
             switch item {
@@ -65,14 +113,34 @@ struct AdminInboxTaskLink: View {
             case .scrape(let job): AdminJobsView(jobID: job.id)
             }
         } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(bookTitle ?? item.title).font(.headline)
-                Text("\(item.title) · \(AdminFormat.aiTaskStatus(item.status))")
-                    .font(.subheadline).foregroundStyle(AppTheme.textSecondary)
-                if !item.detail.isEmpty { Text(item.detail).font(.caption).appTextLineLimit(2).foregroundStyle(AppTheme.textSecondary) }
+            switch item {
+            case .ai:
+                taskRow(status: AdminFormat.aiTaskStatus(item.status), systemImage: "sparkles")
+            case .scrape:
+                taskRow(status: AdminFormat.jobStatus(item.status), systemImage: "scope")
             }
-            .padding(.vertical, 4)
         }
         .accessibilityIdentifier("admin.inbox.\(item.id)")
+    }
+
+    private func taskRow(status: String, systemImage: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(bookTitle ?? item.title)
+                    .font(.headline)
+                Text(bookTitle == nil ? status : "\(item.title) · \(status)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if !item.detail.isEmpty {
+                    Text(item.detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .appTextLineLimit(2)
+                }
+            }
+            .padding(.vertical, 4)
+        } icon: {
+            Image(systemName: systemImage)
+        }
     }
 }
