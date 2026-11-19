@@ -33,6 +33,7 @@ import AiAgentComposer from './AiAgentComposer'
 import AiAgentMemory from './AiAgentMemory'
 import AiAgentRecovery from './AiAgentRecovery'
 import AiAgentUsage from './AiAgentUsage'
+import AiAgentTextReview from './AiAgentTextReview'
 import AiAgentHistory from './AiAgentHistory'
 import AgentBookDiscovery from './AgentBookDiscovery'
 import DraftReview from './DraftReview'
@@ -824,88 +825,92 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         <aside id={outputsId} className={styles.outputs} aria-label="产出与采纳">
           <div className={styles.outputHeader}>
             <h3 ref={outputHeading} tabIndex={-1}>产出与采纳</h3>
+            <Link className={styles.outputWorkspaceLink} to={`/admin/ai?sub=writing&novel=${encodeURIComponent(novelId)}&view=review`}>草稿工作区</Link>
             <Button size="icon" variant="ghost" aria-label="收起产出，返回对话" title="收起产出" onClick={closeOutputs}><X size={16} aria-hidden="true" /></Button>
           </div>
-          <div className={styles.outputWorkspaceLink}>
-            <Link to={`/admin/ai?sub=writing&novel=${encodeURIComponent(novelId)}&view=review`}>打开草稿工作区</Link>
-          </div>
-          {data.actions
-            .filter((a) => ['pending', 'executing'].includes(a.status))
-            .map((a) => (
-              <div className={styles.pending} key={a.id}>
-                <div>
-                  <strong>{a.title}</strong>
-                  <p>{a.preview.description}</p>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => setPreview(a)}>
-                  {a.status === 'executing' ? '查看执行状态' : '查看并确认'}
-                </Button>
-              </div>
-            ))}
-          {data.artifacts.length > 0 && (
-            <FormField label="本次与之前的产出">
-              <SearchSelect
-                value={artifact?.task.id || ''}
-                options={data.artifacts.map((a, index) => ({
-                  value: a.task.id,
-                  label: `${data.artifacts.length - index} · ${kindLabel(a.task.kind)}`,
-                  sub: taskStatusLabel(a.task.status),
-                }))}
-                onChange={setSelectedTask}
-                searchable
-                matchTriggerWidth
-              />
-            </FormField>
-          )}
-          {artifact ? (
-            <AgentArtifactView
-              key={artifact.task.id}
-              artifact={artifact}
-              busy={busy}
-              onStop={() => void perform(() => agentApi.stop(sessionId, artifact.task.id))}
-              onPrepare={prepare}
-            onReviewFinding={(prompt) => {
-              setInput(current => current.trim() ? `${current}\n\n${prompt}` : prompt)
-              setMobileView('chat')
-              setFocusRequest((value) => value + 1)
-            }}
-              onDiscuss={() => {
-                if (artifact.chapterEdit) {
-                  const prompt = `请继续调整「${artifact.chapterEdit.chapterTitle}」的这版建议（任务 ${artifact.task.id}）：`
-                  setInput(current => `${prompt}\n${current}`.slice(0, 8000))
-                } else {
-                  setInput(`请读取任务 ${artifact.task.id} 的结果，我们继续讨论这一版。`)
-                }
-                setMobileView('chat')
-                setFocusRequest((value) => value + 1)
-              }}
-            />
-          ) : (
-            <div className={styles.empty}>
-              <ImageIcon size={25} />
-              <p>{selectedTask ? (busy ? '正在读取所选产出…' : '未能读取所选产出，请重新选择。') : '草稿、改写对比和封面候选会显示在这里。'}</p>
-              <span className={styles.muted}>讨论中的想法会留在会话中，采纳后才影响作品。</span>
-            </div>
-          )}
-          {data.actions.some((a) => !['pending', 'executing'].includes(a.status)) && (
-            <MotionDetails className={styles.history}>
-              <summary>查看采纳与版本记录</summary>
-              {data.actions
-                .filter((a) => !['pending', 'executing'].includes(a.status))
-                .map((a) => (
-                  <div className={styles.historyRow} key={a.id}>
-                    <Button size="sm" variant="link" onClick={() => setPreview(a)}>
-                      {a.title} · {ACTION_STATUS[a.status]}
-                    </Button>
-                    {a.status === 'completed' && ['apply_rewrite', 'restore_draft', 'apply_chapter_edit', 'restore_chapter'].includes(a.kind) && (
-                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => void prepare(a.preview.chapterId ? 'restore_chapter' : 'restore_draft', a.id)}>
-                        恢复之前版本
-                      </Button>
-                    )}
+          <div className={styles.outputControls}>
+            {data.actions
+              .filter((a) => ['pending', 'executing'].includes(a.status))
+              .map((a) => (
+                <div className={styles.pending} key={a.id}>
+                  <div>
+                    <strong>{a.title}</strong>
+                    <p>{a.preview.description}</p>
                   </div>
-                ))}
-            </MotionDetails>
-          )}
+                  <Button size="sm" variant="outline" onClick={() => setPreview(a)}>
+                    {a.status === 'executing' ? '查看执行状态' : '查看并确认'}
+                  </Button>
+                </div>
+              ))}
+            {data.artifacts.length > 0 && (
+              <FormField label="本次与之前的产出">
+                <SearchSelect
+                  value={artifact?.task.id || ''}
+                  options={data.artifacts.map((a, index) => ({
+                    value: a.task.id,
+                    label: `${data.artifacts.length - index} · ${kindLabel(a.task.kind)}`,
+                    sub: taskStatusLabel(a.task.status),
+                  }))}
+                  onChange={setSelectedTask}
+                  searchable
+                  matchTriggerWidth
+                />
+              </FormField>
+            )}
+            {data.actions.some((a) => !['pending', 'executing'].includes(a.status)) && (
+              <MotionDetails className={styles.history}>
+                <summary>查看采纳与版本记录</summary>
+                {data.actions
+                  .filter((a) => !['pending', 'executing'].includes(a.status))
+                  .map((a) => (
+                    <div className={styles.historyRow} key={a.id}>
+                      <Button size="sm" variant="link" onClick={() => setPreview(a)}>
+                        {a.title} · {ACTION_STATUS[a.status]}
+                      </Button>
+                      {a.status === 'completed' && ['apply_rewrite', 'restore_draft', 'apply_chapter_edit', 'restore_chapter'].includes(a.kind) && (
+                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => void prepare(a.preview.chapterId ? 'restore_chapter' : 'restore_draft', a.id)}>
+                          恢复之前版本
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+              </MotionDetails>
+            )}
+          </div>
+          <div className={styles.outputViewport} data-text-review={!!(artifact?.chapterEdit || artifact?.rewrite)}>
+            {artifact ? (
+              <AgentArtifactView
+                key={artifact.task.id}
+                artifact={artifact}
+                actions={data.actions}
+                onViewAction={(id) => void showAction(id)}
+                busy={busy}
+                onStop={() => void perform(() => agentApi.stop(sessionId, artifact.task.id))}
+                onPrepare={prepare}
+                onReviewFinding={(prompt) => {
+                  setInput(current => current.trim() ? `${current}\n\n${prompt}` : prompt)
+                  setMobileView('chat')
+                  setFocusRequest((value) => value + 1)
+                }}
+                onDiscuss={() => {
+                  if (artifact.chapterEdit) {
+                    const prompt = `请继续调整「${artifact.chapterEdit.chapterTitle}」的这版建议（任务 ${artifact.task.id}）：`
+                    setInput(current => `${prompt}\n${current}`.slice(0, 8000))
+                  } else {
+                    setInput(`请读取任务 ${artifact.task.id} 的结果，我们继续讨论这一版。`)
+                  }
+                  setMobileView('chat')
+                  setFocusRequest((value) => value + 1)
+                }}
+              />
+            ) : (
+              <div className={styles.empty}>
+                <ImageIcon size={25} />
+                <p>{selectedTask ? (busy ? '正在读取所选产出…' : '未能读取所选产出，请重新选择。') : '草稿、改写对比和封面候选会显示在这里。'}</p>
+                <span className={styles.muted}>讨论中的想法会留在会话中，采纳后才影响作品。</span>
+              </div>
+            )}
+          </div>
         </aside>
       </div>
       <Dialog
@@ -1006,6 +1011,8 @@ function TextComparison({ before, after }: { before?: string; after?: string }) 
 
 function AgentArtifactView({
   artifact,
+  actions,
+  onViewAction,
   busy,
   onStop,
   onPrepare,
@@ -1013,6 +1020,8 @@ function AgentArtifactView({
   onReviewFinding,
 }: {
   artifact: AgentArtifact
+  actions: AgentAction[]
+  onViewAction: (id: string) => void
   busy: boolean
   onStop: () => void
   onPrepare: (kind: AgentActionKind, targetId: string, title?: string) => Promise<void>
@@ -1022,13 +1031,29 @@ function AgentArtifactView({
   const [editedTitle, setChapterTitle] = useState<string | null>(null)
   const [openedReviews, setOpenedReviews] = useState<string[]>([])
   const chapterTitle = editedTitle ?? artifact.drafts[0]?.title ?? ''
+  const edit = artifact.chapterEdit || artifact.rewrite
+  const editAction = edit ? actions
+    .filter(action => action.kind === (artifact.chapterEdit ? 'apply_chapter_edit' : 'apply_rewrite')
+      && (artifact.chapterEdit ? action.preview.chapterId === artifact.chapterEdit.chapterId : action.preview.draftId === artifact.rewrite?.draftId)
+      && action.preview.before === edit.before && action.preview.after === edit.after)
+    .sort((a, b) => b.createdAt - a.createdAt)[0] : undefined
+  const saved = editAction?.status === 'completed'
+  const reusableAction = editAction && ['pending', 'executing', 'completed'].includes(editAction.status)
+  const editStatus = editAction?.status === 'executing' ? '正在执行写回'
+    : editAction?.status === 'pending' ? '建议已生成 · 等待确认'
+    : saved ? artifact.chapterEdit ? '建议已写回原章' : '建议已采纳到草稿'
+    : editAction?.status === 'failed' ? '写回未完成 · 请核对后重试'
+    : '建议已生成 · ' + (artifact.chapterEdit ? '尚未写回' : '尚未采纳')
+  const editActionLabel = saved ? '查看采纳记录'
+    : editAction?.status === 'executing' ? '查看写回状态'
+    : artifact.chapterEdit ? '预览写回原章' : '预览采纳'
   return (
-    <div className={styles.artifact}>
-      <div className={styles.taskStatus}>
+    <div className={styles.artifact} data-text-review={!!edit}>
+      {!edit && <><div className={styles.taskStatus}>
         <strong>{kindLabel(artifact.task.kind)}</strong>
         <span>{taskStatusLabel(artifact.task.status)}</span>
       </div>
-      <p className={styles.muted}>{artifact.task.step}</p>
+      <p className={styles.muted}>{artifact.task.step}</p></>}
       {agentTaskRunning(artifact.task) && (
         <div className={styles.taskProgress}>
           <div className={styles.taskProgressTrack}>
@@ -1077,28 +1102,20 @@ function AgentArtifactView({
           </div>
         </section>
       ))}
-      {artifact.rewrite && (
-        <>
-          {artifact.rewrite.minimumLengthWarning && <p className={styles.muted} role="status">{artifact.rewrite.minimumLengthWarning}</p>}
-          <TextComparison before={artifact.rewrite.before} after={artifact.rewrite.after} />
-          <div className={styles.artifactActions}>
-            <Button variant="outline" size="sm" onClick={onDiscuss}>
-              继续调整
-            </Button>
-            <Button size="sm" disabled={busy} onClick={() => void onPrepare('apply_rewrite', artifact.task.id)}>
-              预览采纳
-            </Button>
-          </div>
-        </>
-      )}
-      {artifact.chapterEdit && <>
-        <p>原章节：<strong>{artifact.chapterEdit.chapterTitle}</strong></p>
-        <TextComparison before={artifact.chapterEdit.before} after={artifact.chapterEdit.after} />
-        <div className={styles.artifactActions}>
-          <Button variant="outline" size="sm" onClick={onDiscuss}>继续调整</Button>
-          <Button size="sm" disabled={busy} onClick={() => void onPrepare('apply_chapter_edit', artifact.task.id)}>预览写回原章</Button>
-        </div>
-      </>}
+      {edit && <AiAgentTextReview
+        title={artifact.chapterEdit?.chapterTitle || '草稿改写建议'}
+        before={edit.before}
+        after={edit.after}
+        status={editStatus}
+        actionLabel={editActionLabel}
+        busy={busy}
+        warning={artifact.rewrite?.minimumLengthWarning}
+        onDiscuss={onDiscuss}
+        onAdopt={() => {
+          if (reusableAction) onViewAction(editAction.id)
+          else void onPrepare(artifact.chapterEdit ? 'apply_chapter_edit' : 'apply_rewrite', artifact.task.id)
+        }}
+      />}
       {artifact.covers.map((cover) => (
         <section key={cover.id}>
           <img className={styles.cover} src={url(cover.imageUrl)} alt="本次生成的封面候选" />

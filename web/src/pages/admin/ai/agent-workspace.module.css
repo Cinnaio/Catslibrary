@@ -777,14 +777,19 @@
   color: var(--text-muted);
 }
 .outputs {
-  display: grid;
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  height: clamp(460px, 72dvh, 820px);
+  overflow: hidden;
   padding: 20px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-container);
   background: var(--bg-card);
 }
 .outputHeader {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -792,14 +797,37 @@
   flex-wrap: wrap;
 }
 .outputHeader h3 {
+  flex: 1;
   margin: 0;
   font-family: var(--font-serif, serif);
   font-size: 20px;
   font-weight: 500;
 }
-.outputWorkspaceLink a {
+.outputWorkspaceLink {
   color: var(--accent);
   font-size: 12px;
+}
+.outputControls {
+  display: grid;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 40%;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.outputViewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.outputViewport[data-text-review='true'] { overflow: hidden; }
+.artifact[data-text-review='true'] {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 .pending {
   display: grid;
@@ -878,15 +906,7 @@
   display: grid;
   gap: 20px;
 }
-.draft > .prose {
-  max-height: 64vh;
-  overflow: auto;
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  scrollbar-gutter: stable;
-}
+.draft > .prose { padding-block: 4px; }
 .artifactActions,
 .dialogActions {
   display: flex;
@@ -907,14 +927,6 @@
 }
 .comparison > section {
   min-width: 0;
-}
-.artifact > .comparison {
-  max-height: 64vh;
-  overflow: auto;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--bg-card);
 }
 .cover {
   display: block;
@@ -1326,11 +1338,18 @@
     display: none;
   }
   .workspace[data-mobile-view='outputs'] > .outputs {
-    display: grid;
+    display: flex;
   }
   .chat {
     height: clamp(380px, 68dvh, 720px);
   }
+  .outputs {
+    height: clamp(520px, 78dvh, 820px);
+  }
+  .outputControls { max-height: 30%; }
+  .outputHeader > button,
+  .outputControls button,
+  .outputControls summary { min-height: 48px; }
   .feed {
     padding: 16px 16px 24px;
   }
