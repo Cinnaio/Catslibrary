@@ -1,4 +1,3 @@
-import AiAgentChapterEdit from './AiAgentChapterEdit'
 import { watchAiTask, type AiTaskConnection } from '@/lib/ai-task-stream'
 import { parseAiTextProgress } from '@shared/ai-text-progress'
 import type { AgentTask } from '@shared/ai-agent'
@@ -819,9 +818,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
             providerPresetId={providerPresetId}
             onProviderChange={setProviderPresetId}
             focusRequest={focusRequest}
-            tools={<><AiAgentChapterEdit session={data.session} providerPresetId={providerPresetId} disabled={busy || running || !!pending}
-              onCreated={taskId => { reload(); void showArtifact(taskId) }} onPrepared={action => { setPreview(action); reload() }} />
-              <AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} /></>}
+            tools={<AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} />}
           />
         </section>
         <aside id={outputsId} className={styles.outputs} aria-label="产出与采纳">
