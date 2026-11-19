@@ -9,9 +9,14 @@ struct AdminDiscoverView: View {
         var id: String { rawValue }
     }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     // 搜索
     @State private var mode: SearchMode = .list
     @State private var sources: [ScrapeSourceCapability] = []
+    @State private var isLoadingCapabilities = false
+    @State private var hasLoadedCapabilities = false
+    @State private var capabilityError: String?
     @State private var searchSourceId = ""
     private var searchSources: [ScrapeSourceCapability] { sources.filter(\.search) }
     private var searchSource: ScrapeSourceCapability? {
@@ -20,7 +25,8 @@ struct AdminDiscoverView: View {
     @State private var query = ""
     @State private var searchType = "articlename"
     @State private var listUrl = ""
-    @State private var sitePresetLabel = ""
+    @State private var selectedRanking: ScrapeSourceRanking?
+    @State private var hasEditedRankingURL = false
 
     // 结果
     @State private var novels: [DiscoverNovel] = []
@@ -31,8 +37,6 @@ struct AdminDiscoverView: View {
     @State private var page = 1
     @State private var totalPages = 1
     @State private var listUrlRef = ""
-    @State private var rankingKind: String?
-    @State private var rankingType: String?
 
     // 详情
     @State private var detailItem: DiscoverNovel?
@@ -44,8 +48,23 @@ struct AdminDiscoverView: View {
     @State private var actionError: String?
     @State private var requests = ListRequestGuard<[String]>()
 
+    private var rankingSources: [ScrapeSourceCapability] { sources.filter { !$0.rankings.isEmpty } }
+    private var searchTerm: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var rankingURL: String { listUrl.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     private var requestQuery: [String] {
-        [mode.rawValue, searchSource?.id ?? "", query, searchType, listUrl, rankingKind ?? "", rankingType ?? ""]
+        switch mode {
+        case .search: return [mode.rawValue, searchSource?.id ?? "", searchTerm, searchType]
+        case .list: return [mode.rawValue, rankingURL, selectedRanking?.id ?? ""]
+        }
+    }
+
+    private var nextRankingURL: String? {
+        guard !listUrlRef.isEmpty, selectedRanking?.rankingKind == nil, selectedRanking?.rankingType == nil else { return nil }
+        let nextURL = listUrlRef.replacingOccurrences(
+            of: #"_([0-9]+)/$"#, with: "_\(page + 1)/", options: .regularExpression
+        )
+        return nextURL == listUrlRef ? nil : nextURL
     }
 
     var body: some View {
@@ -53,19 +72,27 @@ struct AdminDiscoverView: View {
             toolbarSection
             resultsSection
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
+        .listStyle(.insetGrouped)
         // Liquid Glass 标签栏会悬浮在内容上方，给最后一条结果保留可见的滚动终点。
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 16)
         }
         .navigationTitle("发现小说")
         .navigationBarTitleDisplayMode(.large)
-        .refreshable {
-            await loadCapabilities()
-            await reloadCurrent()
+        .refreshable { await refreshAvailableSources(reloadResults: true) }
+        .task { await refreshAvailableSources() }
+        .onChange(of: mode) { _, selected in
+            resetDiscoveryResults()
+            if selected == .list {
+                Task { await openRanking() }
+            }
         }
-        .task { await loadCapabilities() }
+        .onChange(of: searchSourceId) { _, _ in
+            if mode == .search { resetDiscoveryResults() }
+        }
+        .onChange(of: searchType) { _, _ in
+            if mode == .search { resetDiscoveryResults() }
+        }
         .sheet(item: $detailItem) { item in
             DiscoverDetailSheet(item: item, autoStart: detailAutoStart) { refresh in
                 detailItem = nil
@@ -87,169 +114,153 @@ struct AdminDiscoverView: View {
 
     private var toolbarSection: some View {
         Section {
-            Picker("模式", selection: $mode) {
-                ForEach(SearchMode.allCases.filter { $0 != .search || !searchSources.isEmpty }) { m in
-                    Text(m.rawValue).tag(m)
+            if !searchSources.isEmpty {
+                Picker("模式", selection: $mode) {
+                    ForEach(SearchMode.allCases) { option in
+                        Text(option.rawValue).tag(option)
+                    }
                 }
+                .accessibleSegmentedPicker()
             }
-            .accessibleSegmentedPicker()
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .onChange(of: mode) { _, _ in
-                novels = []
-                totalText = nil
-                errorMessage = nil
+
+            if let capabilityError {
+                LoadErrorNotice(message: capabilityError, isLoading: isLoadingCapabilities) {
+                    Task { await refreshAvailableSources() }
+                }
+            } else if !hasLoadedCapabilities || (isLoadingCapabilities && sources.isEmpty) {
+                ProgressView("正在读取书源…")
             }
 
             if mode == .search {
-                AdminFilterBar {
-                    AdminFilterMenu("来源", value: searchSource?.name ?? "") {
-                        Picker("来源", selection: $searchSourceId) {
-                            ForEach(searchSources) { source in
-                                Text(source.name).tag(source.id)
-                            }
-                        }
-                    }
-                    AdminFilterMenu(
-                        "查找",
-                        value: searchType == "author" ? "作者" : "书名"
-                    ) {
-                        Picker("搜索类型", selection: $searchType) {
-                            Text("书名").tag("articlename")
-                            Text("作者").tag("author")
-                        }
+                Picker("来源", selection: $searchSourceId) {
+                    ForEach(searchSources) { source in
+                        Text(source.name).tag(source.id)
                     }
                 }
-                .onChange(of: searchSourceId) { _, _ in
-                    novels = []
-                    totalText = nil
-                    errorMessage = nil
+                .pickerStyle(.menu)
+                Picker("查找方式", selection: $searchType) {
+                    Text("书名").tag("articlename")
+                    Text("作者").tag("author")
                 }
+                .pickerStyle(.menu)
                 searchInputRow
             } else {
-                if sources.contains(where: { !$0.rankings.isEmpty }) {
-                    AdminFilterBar {
-                        AdminFilterMenu("榜单", value: sitePresetLabel.isEmpty ? "选择来源榜单" : sitePresetLabel) {
-                            ForEach(sources.filter { !$0.rankings.isEmpty }) { source in
-                                Section(source.name) {
-                                    ForEach(source.rankings) { ranking in
-                                        Button(ranking.label) { selectRankingPreset(ranking) }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                if !rankingSources.isEmpty {
+                    rankingMenu
+                } else if hasLoadedCapabilities && capabilityError == nil {
+                    Text("当前服务器未提供预设榜单。可粘贴榜单页面 URL 继续。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 rankingInputRow
             }
         } header: {
-            Text(mode == .search ? "按书名或作者搜索外部书源" : "从站点榜单批量发现小说")
+            Text(mode == .search ? "搜索书源" : "浏览榜单")
         }
+    }
+
+    private var rankingMenu: some View {
+        Menu {
+            ForEach(rankingSources) { source in
+                Section(source.name) {
+                    ForEach(source.rankings) { ranking in
+                        Button {
+                            selectRankingPreset(ranking)
+                        } label: {
+                            if ranking.id == selectedRanking?.id {
+                                Label(ranking.label, systemImage: "checkmark")
+                            } else {
+                                Text(ranking.label)
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            LabeledContent("来源榜单") {
+                Text(selectedRanking?.label ?? "选择榜单")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityIdentifier("admin.discover.ranking")
     }
 
     private var searchInputRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(AppTheme.textSecondary)
-            TextField("搜索书名 / 作者", text: $query)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .textFieldStyle(.plain)
-                .submitLabel(.search)
-                .onSubmit { Task { await fetchSearch() } }
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("清除搜索")
-            }
+        HStack(spacing: 8) {
+            TextField("搜索书名或作者", text: Binding(get: { query }, set: { value in
+                guard query != value else { return }
+                query = value
+                resetDiscoveryResults()
+            }))
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .submitLabel(.search)
+            .onSubmit { Task { await fetchSearch() } }
+
             Button {
                 Task { await fetchSearch() }
             } label: {
-                if isLoading {
-                    ProgressView()
-                        .tint(AppTheme.onPrimary)
-                } else {
-                    Image(systemName: "magnifyingglass")
-                }
+                Label("搜索书源", systemImage: "magnifyingglass")
+                    .labelStyle(.iconOnly)
+                    .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
+                    .contentShape(Rectangle())
             }
-            .frame(width: 44, height: 44)
-            .background(AppTheme.primary, in: Circle())
-            .foregroundStyle(AppTheme.onPrimary)
-            .buttonStyle(.plain)
-            .disabled(isLoading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel("搜索 \(searchSource?.name ?? "")")
+            .buttonStyle(.borderless)
+            .disabled(isLoading || searchTerm.isEmpty || searchSource == nil)
         }
-        .padding(.horizontal, AppLayout.fieldHorizontalInset)
-        .padding(.vertical, AppLayout.fieldVerticalInset)
-        .frame(minHeight: AppLayout.fieldMinHeight)
-        .appFieldSurface()
-        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 
     private var rankingInputRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: "link")
-                .foregroundStyle(AppTheme.textSecondary)
-            TextField("粘贴榜单页面 URL", text: Binding(
-                get: { listUrl },
-                set: {
-                    listUrl = $0
-                    sitePresetLabel = ""
-                    rankingKind = nil
-                    rankingType = nil
-                }
-            ))
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .textFieldStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField("粘贴榜单页面 URL", text: Binding(get: { listUrl }, set: { value in
+                guard listUrl != value else { return }
+                listUrl = value
+                selectedRanking = nil
+                hasEditedRankingURL = true
+                resetDiscoveryResults()
+            }))
+            .keyboardType(.URL)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .submitLabel(.go)
+            .onSubmit { Task { await fetchDiscoverList() } }
+
             Button {
                 Task { await fetchDiscoverList() }
             } label: {
-                if isLoading {
-                    ProgressView()
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                }
+                Label("获取榜单", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
+                    .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
+                    .contentShape(Rectangle())
             }
-            .frame(width: 44, height: 44)
-            .background(AppTheme.primary, in: Circle())
-            .foregroundStyle(AppTheme.onPrimary)
-            .buttonStyle(.plain)
-            .disabled(isLoading || listUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel("获取榜单")
+            .buttonStyle(.borderless)
+            .disabled(isLoading || rankingURL.isEmpty)
         }
-        .padding(.horizontal, AppLayout.fieldHorizontalInset)
-        .padding(.vertical, AppLayout.fieldVerticalInset)
-        .frame(minHeight: AppLayout.fieldMinHeight)
-        .appFieldSurface()
-        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 
     // MARK: - 结果区
 
     @ViewBuilder
     private var resultsSection: some View {
+        if isLoading {
+            Section {
+                ProgressView(mode == .list ? "正在读取榜单…" : "正在搜索书源…")
+            }
+        }
         if let errorMessage {
             Section {
-                ContentUnavailableView {
-                    Label("没有结果", systemImage: "magnifyingglass")
-                } description: {
-                    Text(errorMessage)
+                LoadErrorNotice(
+                    message: mode == .list ? "无法读取榜单：\(errorMessage)" : "搜索失败：\(errorMessage)",
+                    isLoading: isLoading
+                ) {
+                    Task { await reloadCurrent() }
                 }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
             }
-        } else if let totalText, novels.isEmpty {
+        }
+        if let totalText, novels.isEmpty && !isLoading && errorMessage == nil {
             Section {
                 ContentUnavailableView {
                     Label("没有结果", systemImage: "tray")
@@ -287,9 +298,13 @@ struct AdminDiscoverView: View {
             Section("找到 \(novels.count) 本\(totalText.map { " · \($0)" } ?? "")") {
                 ForEach(Array(novels.enumerated()), id: \.element.id) { index, novel in
                     discoverRow(novel, index: index)
+                        .transition(reduceMotion ? .identity : .asymmetric(
+                            insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index, 12)) * 0.012)),
+                            removal: .opacity
+                        ))
                 }
             }
-            if page < totalPages && (mode == .search || !listUrlRef.isEmpty) {
+            if page < totalPages && (mode == .search || nextRankingURL != nil) {
                 Button {
                     Task { await goNextPage() }
                 } label: {
@@ -301,18 +316,8 @@ struct AdminDiscoverView: View {
                         Spacer()
                     }
                 }
+                .disabled(isLoading)
                 .listRowBackground(Color.clear)
-            }
-        } else {
-            Section {
-                ContentUnavailableView {
-                    Label("发现小说", systemImage: "scope")
-                } description: {
-                    Text(mode == .search ? "选择书源后搜索书名或作者。" : "选择来源榜单，或粘贴榜单 URL。")
-                }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .frame(maxWidth: .infinity, minHeight: 220)
             }
         }
     }
@@ -430,75 +435,89 @@ struct AdminDiscoverView: View {
 
     // MARK: - 数据
 
-    private func fetchSearch() async {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty, searchSource != nil else { return }
-        listUrlRef = ""
-        page = 1
-        totalPages = 1
-        await renderDiscover {
-            try await searchDiscover(query: q, page: 1)
+    private func refreshAvailableSources(reloadResults: Bool = false) async {
+        guard !isLoadingCapabilities else { return }
+        let token = APIClient.shared.token
+        await loadCapabilities()
+        guard !Task.isCancelled, APIClient.shared.token == token else { return }
+
+        if mode == .list && rankingURL.isEmpty && !hasEditedRankingURL {
+            await openRanking()
+        } else if reloadResults {
+            await reloadCurrent()
         }
     }
 
     private func loadCapabilities() async {
-        let capabilities = try? await AdminAPI.scrapeSourceCapabilities()
-        guard !Task.isCancelled, let capabilities else { return }
-        sources = capabilities.sources
-        if !searchSources.contains(where: { $0.id == searchSourceId }) {
-            searchSourceId = searchSources.first?.id ?? ""
+        let token = APIClient.shared.token
+        isLoadingCapabilities = true
+        defer { isLoadingCapabilities = false }
+
+        do {
+            let capabilities = try await AdminAPI.scrapeSourceCapabilities()
+            guard !Task.isCancelled, APIClient.shared.token == token else { return }
+            sources = capabilities.sources
+            hasLoadedCapabilities = true
+            capabilityError = nil
+            if !searchSources.contains(where: { $0.id == searchSourceId }) {
+                searchSourceId = searchSources.first?.id ?? ""
+            }
+            if let selectedRanking, !rankingSources.contains(where: { source in
+                source.rankings.contains { $0.id == selectedRanking.id }
+            }) {
+                self.selectedRanking = nil
+                listUrl = ""
+                if mode == .list { resetDiscoveryResults() }
+            }
+            if searchSources.isEmpty && mode == .search { mode = .list }
+        } catch {
+            guard !Task.isCancelled, APIClient.shared.token == token else { return }
+            capabilityError = "无法读取书源：\(AppCopy.friendlyError(error))"
         }
-        if searchSources.isEmpty && mode == .search { mode = .list }
     }
 
-    private func searchDiscover(query: String, page: Int) async throws -> DiscoverResponse {
-        try await AdminAPI.scrapeSourceSearch(sourceId: searchSource?.id ?? "", query: query, searchType: searchType, page: page)
+    private func openRanking() async {
+        guard mode == .list else { return }
+        if rankingURL.isEmpty, !hasEditedRankingURL, let first = rankingSources.first?.rankings.first {
+            applyRankingPreset(first)
+        }
+        await fetchDiscoverList()
     }
 
-    private func fetchDiscoverList() async {
-        let u = listUrl.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !u.isEmpty else { return }
-        await fetchDiscoverList(url: u, rankingKind: rankingKind, rankingType: rankingType)
+    private func fetchSearch(page targetPage: Int = 1) async {
+        let term = searchTerm
+        let type = searchType
+        guard mode == .search, !term.isEmpty, let source = searchSource, !isLoading else { return }
+        await renderDiscover(page: targetPage) {
+            try await AdminAPI.scrapeSourceSearch(sourceId: source.id, query: term, searchType: type, page: targetPage)
+        }
     }
 
-    private func fetchDiscoverList(url u: String, rankingKind kind: String?, rankingType type: String?) async {
-        listUrlRef = u
-        page = 1
-        totalPages = 1
-        await renderDiscover {
-            try await AdminAPI.scrapeDiscover(listUrl: u, rankingKind: kind, rankingType: type)
+    private func fetchDiscoverList(page targetPage: Int = 1, url: String? = nil) async {
+        let targetURL = url ?? rankingURL
+        let preset = selectedRanking
+        guard mode == .list, !targetURL.isEmpty, !isLoading else { return }
+        await renderDiscover(page: targetPage, listPageURL: targetURL) {
+            try await AdminAPI.scrapeDiscover(listUrl: targetURL, rankingKind: preset?.rankingKind, rankingType: preset?.rankingType)
         }
     }
 
     private func goNextPage() async {
-        let next = page + 1
+        guard page < totalPages else { return }
         if mode == .search {
-            let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !q.isEmpty, searchSource != nil else { return }
-            page = next
-            await renderDiscover {
-                try await searchDiscover(query: q, page: next)
-            }
-            return
-        }
-        guard !listUrlRef.isEmpty else { return }
-        // 榜单 URL 形如 .../top/xxx_1/，翻页把页码段替换为下一页
-        let replaced = listUrlRef.replacingOccurrences(
-            of: #"_([0-9]+)/$"#,
-            with: "_\(next)/",
-            options: .regularExpression
-        )
-        listUrlRef = replaced
-        listUrl = replaced
-        page = next
-        await renderDiscover {
-            try await AdminAPI.scrapeDiscover(listUrl: replaced, rankingKind: rankingKind, rankingType: rankingType)
+            await fetchSearch(page: page + 1)
+        } else if let nextRankingURL {
+            await fetchDiscoverList(page: page + 1, url: nextRankingURL)
         }
     }
 
-    private func renderDiscover(_ operation: () async throws -> DiscoverResponse) async {
+    private func renderDiscover(
+        page targetPage: Int, listPageURL: String? = nil, operation: () async throws -> DiscoverResponse
+    ) async {
         let ticket = requests.begin(requestQuery)
+        let token = APIClient.shared.token
         isLoading = true
+        errorMessage = nil
         defer {
             if requests.accepts(ticket, query: ticket.query) {
                 requests.finish(ticket)
@@ -506,43 +525,61 @@ struct AdminDiscoverView: View {
             }
         }
         do {
-            let r = try await operation()
-            guard !Task.isCancelled, requests.accepts(ticket, query: requestQuery) else { return }
-            novels = r.novels
-            selectedIndices = []
-            let sourceText = r.site ?? r.novels.compactMap(\.sourceName).first
-            if r.novels.isEmpty {
-                totalText = sourceText.map { "来源：\($0)" } ?? "没有找到小说"
-            } else {
-                totalText = sourceText.map { "来源：\($0)" }
+            let result = try await operation()
+            guard !Task.isCancelled, APIClient.shared.token == token, requests.accepts(ticket, query: requestQuery) else { return }
+            let source = (result.site ?? result.novels.compactMap(\.sourceName).first)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let sourceText: String? = source.flatMap { $0.isEmpty ? nil : "来源：\($0)" }
+            withAnimation(reduceMotion ? nil : AppMotion.micro) {
+                novels = result.novels
+                selectedIndices = []
+                page = targetPage
+                totalPages = max(1, result.totalPages ?? 1)
+                listUrlRef = listPageURL ?? ""
+                if novels.isEmpty {
+                    let empty = listPageURL == nil ? "没有找到匹配的小说。" : "这个榜单没有返回小说。"
+                    totalText = sourceText.map { "\(empty)\n\($0)" } ?? empty
+                } else {
+                    totalText = sourceText
+                }
             }
-            if let tp = r.totalPages, tp > 1 { totalPages = tp }
-            errorMessage = nil
         } catch {
-            guard !Task.isCancelled, requests.accepts(ticket, query: requestQuery) else { return }
-            novels = []
-            totalText = nil
+            guard !Task.isCancelled, APIClient.shared.token == token, requests.accepts(ticket, query: requestQuery) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
 
     private func reloadCurrent() async {
-        if mode == .search, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if mode == .search {
             await fetchSearch()
-        } else if !listUrlRef.isEmpty {
+        } else {
             await fetchDiscoverList()
         }
     }
 
     private func selectRankingPreset(_ preset: ScrapeSourceRanking) {
-        let selectedURL = preset.listUrl
-        let selectedKind = preset.rankingKind
-        let selectedType = preset.rankingType
-        sitePresetLabel = preset.label
-        rankingKind = selectedKind
-        rankingType = selectedType
-        listUrl = selectedURL
-        Task { await fetchDiscoverList(url: selectedURL, rankingKind: selectedKind, rankingType: selectedType) }
+        applyRankingPreset(preset)
+        Task { await fetchDiscoverList() }
+    }
+
+    private func applyRankingPreset(_ preset: ScrapeSourceRanking) {
+        selectedRanking = preset
+        listUrl = preset.listUrl
+        hasEditedRankingURL = false
+        resetDiscoveryResults()
+    }
+
+    private func resetDiscoveryResults() {
+        // Invalidate the in-flight generation even if the user returns to the same query.
+        let cancelled = requests.begin(requestQuery)
+        requests.finish(cancelled)
+        isLoading = false
+        novels = []
+        selectedIndices = []
+        totalText = nil
+        errorMessage = nil
+        page = 1
+        totalPages = 1
+        listUrlRef = ""
     }
 
     // MARK: - 选择 / 批量

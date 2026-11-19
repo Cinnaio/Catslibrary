@@ -93,6 +93,7 @@ private final class VisualAuditProtocol: URLProtocol {
     private static var otherSessionRemoved = false
     private static var followupEnabled = false
     private static var followupHours = 6
+    private static var discoverCapabilityRequests = 0
     private static var importApplied = false
     private static var importTargetID: String?
     private static var backupRequests = 0
@@ -314,6 +315,34 @@ private final class VisualAuditProtocol: URLProtocol {
                 "thoughts": thoughts,
                 "totals": ["favorites": favoriteCount, "thoughts": thoughtCount],
             ] as [String: Any]
+        case ("GET", "/api/scrape") where queryValue("action") == "source-capabilities":
+            Self.discoverCapabilityRequests += 1
+            switch VisualAudit.scenario {
+            case "admin-discover-retry" where Self.discoverCapabilityRequests == 1:
+                status = 503
+                body = ["error": "书源暂时无法读取"]
+            case "admin-discover-ranking", "admin-discover-retry":
+                let rankings = [
+                    ["id": "fixture-week", "label": "本周榜单", "listUrl": "https://ranking.example/rank/index", "rankingKind": "popular", "rankingType": "week"],
+                    ["id": "fixture-month", "label": "本月榜单", "listUrl": "https://ranking.example/rank/index", "rankingKind": "popular", "rankingType": "month"],
+                ]
+                let source: [String: Any] = ["id": "fixture", "name": "示例书源", "search": false, "account": false, "rankings": rankings]
+                body = ["sources": [source]]
+            default:
+                body = ["sources": []]
+            }
+        case ("POST", "/api/scrape") where payload["action"] as? String == "discover":
+            if payload["listUrl"] as? String == "https://ranking.example/rank/index",
+               payload["rankingKind"] as? String == "popular",
+               let period = payload["rankingType"] as? String, ["week", "month"].contains(period) {
+                let novel = [
+                    "title": period == "week" ? "周榜示例作品" : "月榜示例作品", "url": "https://ranking.example/books/\(period)",
+                ]
+                body = ["site": "示例书源", "total": 1, "totalPages": 1, "novels": [novel]] as [String: Any]
+            } else {
+                status = 400
+                body = ["error": "缺少榜单周期"]
+            }
         case ("GET", "/api/scrape") where queryValue("action") == "followup":
             body = Self.followupFixture
         case ("POST", "/api/scrape") where payload["action"] as? String == "followup-save":

@@ -322,21 +322,17 @@ extension View {
             )
     }
 
-    /// 统一输入控件表面：聚焦时用品牌色描边，保持清晰的键盘输入反馈。
+    /// 独立输入区沿用系统填充色，聚焦时保留清晰的描边。
     func appFieldSurface(isFocused: Bool = false) -> some View {
-        self
-            .background(
-                isFocused ? AppTheme.primaryLight.opacity(0.58) : AppTheme.controlFill,
-                in: RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius, style: .continuous)
-            )
+        let shape = RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius, style: .continuous)
+        return self
+            .background(Color(uiColor: .tertiarySystemFill), in: shape)
             .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius, style: .continuous)
-                    .strokeBorder(
-                        isFocused
-                            ? AppTheme.primary.opacity(0.78)
-                            : AppTheme.border.opacity(0.3),
-                        lineWidth: isFocused ? 1.4 : 0.7
-                    )
+                shape.strokeBorder(
+                    isFocused ? Color.accentColor : Color(uiColor: .separator),
+                    lineWidth: isFocused ? 1.5 : 0.75
+                )
+                .allowsHitTesting(false)
             }
     }
 

@@ -720,6 +720,34 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testAdminDiscoverLoadsDefaultRankingAndSwitchesPeriod() {
+        let app = launch("admin-discover-ranking")
+        openAdminModule("discover", app: app)
+        XCTAssertTrue(app.buttons["查看周榜示例作品"].waitForExistence(timeout: 10))
+
+        tap(app.buttons["admin.discover.ranking"])
+        tap(app.buttons["本月榜单"])
+        XCTAssertTrue(app.buttons["查看月榜示例作品"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["查看周榜示例作品"].exists)
+    }
+
+    @MainActor
+    func testAdminDiscoverRetriesSourceCapabilities() {
+        let app = launch("admin-discover-retry")
+        openAdminModule("discover", app: app)
+        tap(app.buttons["重试"])
+        XCTAssertTrue(app.buttons["查看周榜示例作品"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testAdminDiscoverExplainsUnavailableRankingPresets() {
+        let app = launch("admin-discover-no-presets")
+        openAdminModule("discover", app: app)
+        XCTAssertTrue(app.staticTexts["当前服务器未提供预设榜单。可粘贴榜单页面 URL 继续。"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.textFields["粘贴榜单页面 URL"].exists)
+    }
+
+    @MainActor
     func testAdminTaskCenterDownloadRecords() {
         let app = launch("admin-parity")
         openAdminModule("tasks", app: app)
