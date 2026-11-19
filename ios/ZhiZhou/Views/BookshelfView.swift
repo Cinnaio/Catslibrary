@@ -10,6 +10,7 @@ struct BookshelfView: View {
     @State private var errorMessage: String?
     @State private var actionError: String?
     @State private var isPerformingAction = false
+    @State private var actionFeedback = AppFeedbackCenter()
     @State private var selection: BookshelfRoute?
     @State private var compactDetailNovel: Novel?
     @State private var pendingRemove: FavoriteItem?
@@ -75,6 +76,9 @@ struct BookshelfView: View {
     private var bookshelfList: some View {
         bookshelfContent
             .appListStyle(.browsing)
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                AppFeedbackOverlay(center: actionFeedback, edge: .bottom)
+            }
             .overlay(alignment: .center) {
                 if isLoading && response == nil {
                     ProgressView()
@@ -91,6 +95,7 @@ struct BookshelfView: View {
             .onChange(of: ContentAccessStore.shared.mode) { _, mode in
                 if mode == "safe" { response = nil }
             }
+            .onDisappear { actionFeedback.dismiss() }
             .task(id: shelfQuery) {
                 await load(debounce: true)
             }
@@ -565,7 +570,7 @@ struct BookshelfView: View {
                 selection = nil
             }
             await load(animate: true)
-            AppFeedback.success("已移出书架")
+            AppFeedback.success("已移出书架", using: actionFeedback)
         } catch {
             AppFeedback.error()
             actionError = "移出书架失败，请检查网络后重试。"
@@ -582,6 +587,6 @@ struct BookshelfView: View {
             return
         }
         await load(animate: true)
-        AppFeedback.success("已删除阅读记录")
+        AppFeedback.success("已删除阅读记录", using: actionFeedback)
     }
 }

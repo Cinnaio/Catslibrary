@@ -78,12 +78,13 @@ enum AppFeedback {
         UISelectionFeedbackGenerator().selectionChanged()
     }
 
-    static func success(_ message: String? = nil) {
+    static func success(_ message: String? = nil, using center: AppFeedbackCenter? = nil) {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+        let center = center ?? AppFeedbackCenter.shared
         if let message {
-            AppFeedbackCenter.shared.show(message)
+            center.show(message)
         } else {
-            AppFeedbackCenter.shared.dismiss()
+            center.dismiss()
         }
     }
 
@@ -109,19 +110,21 @@ enum AppFeedback {
 @MainActor
 struct AppFeedbackOverlay: View {
     let center: AppFeedbackCenter
+    var edge: VerticalEdge = .top
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack {
             if let message = center.message {
-                AppFeedbackBanner(message: message) {
+                AppFeedbackBanner(message: message, showsCloseIcon: edge == .bottom) {
                     center.dismiss()
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, AppLayout.pageInset)
+                .padding(.vertical, edge == .bottom ? 8 : 0)
                 .transition(
                     reduceMotion
                         ? .opacity
-                        : .move(edge: .top).combined(with: .opacity)
+                        : .offset(y: edge == .bottom ? 8 : -8).combined(with: .opacity)
                 )
             }
         }
@@ -135,37 +138,50 @@ struct AppFeedbackOverlay: View {
 
 private struct AppFeedbackBanner: View {
     let message: AppFeedbackCenter.Message
+    let showsCloseIcon: Bool
     let onDismiss: () -> Void
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius)
+
         Button(action: onDismiss) {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 Image(systemName: message.kind.systemImage)
-                    .font(.title3.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(message.kind.tint)
+                    .padding(6)
+                    .background(message.kind.tint.opacity(0.12), in: Circle())
+                    .accessibilityHidden(true)
 
                 Text(message.text)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .multilineTextAlignment(.leading)
                     .appTextLineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: showsCloseIcon ? .infinity : nil, alignment: .leading)
+
+                if showsCloseIcon {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .padding(6)
+                        .accessibilityHidden(true)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .frame(minHeight: 48)
-            .contentShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
+            .frame(minHeight: AppLayout.minimumTouchTarget)
+            .background(AppTheme.surface, in: shape)
             .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
-                    .strokeBorder(AppTheme.border.opacity(0.65), lineWidth: 0.5)
+                shape.strokeBorder(AppTheme.border.opacity(0.75), lineWidth: 1)
+                    .allowsHitTesting(false)
             }
-            .shadow(color: Color.black.opacity(0.12), radius: 12, y: 4)
+            .contentShape(shape)
+            .shadow(color: AppTheme.cardShadow, radius: 14, y: 5)
         }
-        .frame(maxWidth: AppLayout.readableWidth)
+        .frame(maxWidth: 380)
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
         .accessibilityLabel(message.text)
         .accessibilityHint("点按关闭提示")
-        .accessibilityAddTraits(.updatesFrequently)
     }
 }
