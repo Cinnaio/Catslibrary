@@ -5,7 +5,7 @@ import type { AgentTask } from '@shared/ai-agent'
 import AiStreamPreview from '@/components/shared/AiStreamPreview'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowDown, BookOpen, Check, ChevronDown, Image as ImageIcon, Lightbulb, MessageSquare, PanelRight, PenLine, Plus, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { ArrowDown, BookOpen, Check, History, Image as ImageIcon, Lightbulb, MessageSquare, PanelRight, PenLine, Plus, SlidersHorizontal, X } from 'lucide-react'
 import type { AdminNovelIndexItem, ChapterMeta } from '@shared/types'
 import {
   agentTaskRunning,
@@ -20,12 +20,11 @@ import {
 import { agentApi } from '@/lib/ai-agent-api'
 import { chaptersApi, newOperationId, url } from '@/lib/api'
 import { loadAdminNovelIndex } from '@/lib/admin-novel-index'
-import { formatDateTime } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog } from '@/components/ui/dialog'
+import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { MotionDetails } from '@/components/ui/motion'
 import FormField from '@/components/shared/FormField'
 import SearchSelect from '@/components/shared/SearchSelect'
@@ -35,6 +34,7 @@ import AiAgentComposer from './AiAgentComposer'
 import AiAgentMemory from './AiAgentMemory'
 import AiAgentRecovery from './AiAgentRecovery'
 import AiAgentUsage from './AiAgentUsage'
+import AiAgentHistory from './AiAgentHistory'
 import AgentBookDiscovery from './AgentBookDiscovery'
 import DraftReview from './DraftReview'
 import { currentAgentTask, pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage, type PendingAgentMessage } from './agent-task-state'
@@ -72,6 +72,8 @@ function AiAgentWorkspace() {
   const [hasMoreRecent, setHasMoreRecent] = useState(false)
   const [loadingRecent, setLoadingRecent] = useState(true)
   const [recentError, setRecentError] = useState('')
+  const [historyError, setHistoryError] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [error, setError] = useState('')
   const [indexError, setIndexError] = useState('')
   const [indexRefresh, setIndexRefresh] = useState(0)
@@ -84,6 +86,8 @@ function AiAgentWorkspace() {
   const historyRequest = useRef(0)
   const latestParams = useRef(params)
   const deleteButton = useRef<HTMLButtonElement>(null)
+  const historyButton = useRef<HTMLButtonElement>(null)
+  const historySearch = useRef<HTMLInputElement>(null)
   const newButton = useRef<HTMLButtonElement>(null)
   const findBookButton = useRef<HTMLButtonElement>(null)
   const wasFindingBook = useRef(findingBook)
@@ -145,8 +149,9 @@ function AiAgentWorkspace() {
       setMore(result.hasMore)
       offsetRef.current = offset + result.sessions.length
       if (acrossBooks) setRecentError('')
+      else setHistoryError('')
     } catch (e) {
-      if (current()) (acrossBooks ? setRecentError : setError)(failure(e))
+      if (current()) (acrossBooks ? setRecentError : setHistoryError)(failure(e))
     } finally {
       if (current()) setBusy(false)
     }
@@ -194,15 +199,6 @@ function AiAgentWorkspace() {
     const next = new URLSearchParams(latestParams.current)
     if (value) next.set('session', value)
     else next.delete('session')
-    setParams(next)
-  }
-  function openRecent(id: string) {
-    const session = recent.find((item) => item.id === id)
-    if (!session) return
-    const next = new URLSearchParams(params)
-    if (session.novelId !== novelId) next.delete('afterChapterId')
-    next.set('novel', session.novelId)
-    next.set('session', session.id)
     setParams(next)
   }
   async function create() {
@@ -258,159 +254,142 @@ function AiAgentWorkspace() {
   }
   return (
     <>
-    {findingBook && <AgentBookDiscovery onClose={() => showBookDiscovery(false)}
-      onOpen={id => { if (id === novelId) showBookDiscovery(false); else navigateBook(id) }}
-      onStart={startImportedConversation} />}
-    <div className={styles.root} hidden={findingBook}>
-      {(recent.length > 0 || recentError) && (
-        <div className={styles.recentHistory}>
-          {recent.length > 0 && (
-            <FormField label="最近对话">
-              <SearchSelect
-                options={recent.map((s) => ({
-                  value: s.id,
-                  label: s.title,
-                  sub: [formatDateTime(s.updatedAt), s.novelTitle, s.anchorTitle].filter(Boolean).join(' · '),
-                }))}
-                value={sessionId}
-                onChange={openRecent}
-                placeholder="选择最近的对话"
-                searchable
-                filter={(item, query) => `${item.label} ${item.sub || ''}`.toLowerCase().includes(query)}
-                matchTriggerWidth
-              />
-            </FormField>
-          )}
-          {hasMoreRecent && (
-            <Button size="sm" variant="ghost" disabled={loadingRecent} onClick={() => loadHistory(true, true)}>
-              加载更多最近对话
-            </Button>
-          )}
-          {recentError && (
-            <p className={styles.error} role="alert">
-              {recentError}{' '}
-              <Button size="sm" variant="ghost" disabled={loadingRecent} onClick={() => loadHistory(true)}>重新读取最近对话</Button>
-            </p>
-          )}
-        </div>
+      {findingBook && (
+        <AgentBookDiscovery
+          onClose={() => showBookDiscovery(false)}
+          onOpen={(id) => {
+            if (id === novelId) showBookDiscovery(false)
+            else navigateBook(id)
+          }}
+          onStart={startImportedConversation}
+        />
       )}
-      <div className={styles.toolbar}>
-        <div className={styles.bookHistory}>
-          <FormField label="当前作品">
+      <div className={styles.root} hidden={findingBook}>
+        <header className={styles.workspaceHeader}>
+          <div className={styles.workspaceIdentity}>
             <SearchSelect
+              className={styles.bookPicker}
+              aria-label="当前作品"
+              leadingIcon={<BookOpen size={16} />}
               options={novels.map((n) => ({ value: n.id, label: n.title, sub: n.author }))}
               value={novelId}
               onChange={(id) => navigateBook(id)}
               placeholder="选择一本小说"
               searchable
+              searchPlaceholder="搜索作品或作者…"
+              filter={(option, query) => `${option.label} ${option.sub || ''}`.toLocaleLowerCase().includes(query)}
               matchTriggerWidth
             />
-          </FormField>
-          <Button ref={findBookButton} variant="outline" onClick={() => showBookDiscovery(true)}>找书入库</Button>
-        </div>
-        <div className={styles.bookHistory}>
-          <FormField label="本书对话">
-            <SearchSelect
-              options={bookSessions.map((s) => ({ value: s.id, label: s.title, sub: s.anchorTitle || '从新章节开始' }))}
-              value={sessionId}
-              onChange={navigateSession}
-              placeholder={loading ? '正在读取对话…' : '选择之前的对话'}
-              disabled={!novelId || loading}
-              searchable
-              matchTriggerWidth
-            />
-          </FormField>
-          {selectedSession?.novelId === novelId && (
-            <Button
-              ref={deleteButton}
-              variant="ghost"
-              size="icon"
-              className={styles.deleteConversation}
-              aria-label="删除对话"
-              title="删除对话"
-              onClick={() => {
-                setDeleteError('')
-                setDeleteTarget(selectedSession)
-              }}
-            >
-              <Trash2 size={16} aria-hidden="true" />
+          </div>
+          <div className={styles.workspaceActions} aria-label="创作工作区操作">
+            <Button ref={historyButton} variant="ghost" onClick={() => setHistoryOpen(true)}>
+              <History size={16} aria-hidden="true" />
+              历史对话
             </Button>
-          )}
-        </div>
-        <Button ref={newButton} variant="outline" disabled={!novelId || creating} onClick={() => navigateSession('')}>
-          <Plus size={16} />
-          新对话
-        </Button>
-      </div>
-      {indexError && (
-        <p className={styles.error} role="alert">
-          {indexError}{' '}
-          <Button size="sm" variant="ghost" onClick={() => setIndexRefresh((v) => v + 1)}>
-            重新读取书目
-          </Button>
-        </p>
-      )}
-      {error && (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-      {hasMore && (
-        <Button size="sm" variant="ghost" disabled={loading} onClick={() => loadHistory(false, true)}>
-          加载更早的对话
-        </Button>
-      )}
-      {!sessionId ? (
-        <section className={styles.welcome}>
-          <MessageSquare size={30} aria-hidden="true" />
-          <h2>从一个想法开始</h2>
-          <p>一起讨论情节、打磨草稿，或构思新的封面。每次对话和产出都会保存在当前作品下。</p>
-          {novelId && (
-            <div className={styles.start}>
-              <FormField label="本次续写起点" hint="对话会固定这个起点，只查阅它及之前的正式章节。">
-                <SearchSelect
-                  options={[{ value: '', label: '创建时的最新章节' }, ...chapters.map((c) => ({ value: c.id, label: c.title }))]}
-                  value={anchor}
-                  onChange={setAnchor}
-                  searchable
-                  matchTriggerWidth
-                />
-              </FormField>
-              <Button disabled={creating || loadingChapters} onClick={() => void create()}>
-                {creating ? '正在建立对话…' : '开始创作对话'}
-              </Button>
-            </div>
-          )}
-          {!novelId && <p className={styles.muted}>先在上方选择一本小说。</p>}
-        </section>
-      ) : (
-        <AgentConversation
-          key={`${novelId}:${sessionId}`}
-          sessionId={sessionId}
+            <Button ref={findBookButton} variant="ghost" onClick={() => showBookDiscovery(true)}>
+              找书入库
+            </Button>
+            <Button ref={newButton} disabled={!novelId || creating} onClick={() => navigateSession('')}>
+              <Plus size={16} aria-hidden="true" />
+              新对话
+            </Button>
+          </div>
+        </header>
+        {indexError && (
+          <p className={styles.error} role="alert">
+            {indexError}{' '}
+            <Button size="sm" variant="ghost" onClick={() => setIndexRefresh((v) => v + 1)}>
+              重新读取书目
+            </Button>
+          </p>
+        )}
+        {error && (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        )}
+        {!sessionId ? (
+          <section className={styles.welcome}>
+            <MessageSquare size={30} aria-hidden="true" />
+            <h2>从一个想法开始</h2>
+            <p>一起讨论情节、打磨草稿，或构思新的封面。每次对话和产出都会保存在当前作品下。</p>
+            {novelId && (
+              <div className={styles.start}>
+                <FormField label="本次续写起点" hint="对话会固定这个起点，只查阅它及之前的正式章节。">
+                  <SearchSelect
+                    options={[{ value: '', label: '创建时的最新章节' }, ...chapters.map((c) => ({ value: c.id, label: c.title }))]}
+                    value={anchor}
+                    onChange={setAnchor}
+                    searchable
+                    matchTriggerWidth
+                  />
+                </FormField>
+                <Button disabled={creating || loadingChapters} onClick={() => void create()}>
+                  {creating ? '正在建立对话…' : '开始创作对话'}
+                </Button>
+              </div>
+            )}
+            {!novelId && <p className={styles.muted}>先在上方选择一本小说。</p>}
+          </section>
+        ) : (
+          <AgentConversation key={`${novelId}:${sessionId}`} sessionId={sessionId} novelId={novelId} onSession={updateSession} />
+        )}
+        <AiAgentHistory
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
           novelId={novelId}
-          onSession={updateSession}
-        />
-      )}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null) }}>
-        <ReadingDialog
-          title="删除对话"
+          sessionId={sessionId}
+          searchRef={historySearch}
+          book={{ sessions: bookSessions, loading, hasMore, error: historyError, load: (more) => loadHistory(false, more) }}
+          recent={{ sessions: recent, loading: loadingRecent, hasMore: hasMoreRecent, error: recentError, load: (more) => loadHistory(true, more) }}
+          onSelect={(session) => {
+            setHistoryOpen(false)
+            if (session.novelId === novelId) navigateSession(session.id)
+            else navigateBook(session.novelId, session.id)
+          }}
+          onDelete={(session, trigger) => {
+            deleteButton.current = trigger
+            setDeleteError('')
+            setDeleteTarget(session)
+          }}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
-            const trigger = deleteButton.current ?? newButton.current
-            trigger?.focus()
+            if (!deleteTarget) historyButton.current?.focus({ preventScroll: true })
           }}
-          footer={(
-            <div className={styles.dialogActions}>
-              <Button variant="ghost" disabled={deleting} onClick={() => setDeleteTarget(null)}>取消</Button>
-              <Button variant="destructive" disabled={deleting} onClick={() => void remove()}>{deleting ? '正在删除…' : '确认删除'}</Button>
-            </div>
-          )}
+        />
+        <Dialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => {
+            if (!open && !deleting) setDeleteTarget(null)
+          }}
         >
-          <p>将永久删除「{deleteTarget?.title}」的消息和摘要。已生成的产出和作品记忆会保留。</p>
-          {deleteError && <p className={styles.error} role="alert">{deleteError}</p>}
-        </ReadingDialog>
-      </Dialog>
-    </div>
+          <ReadingDialog
+            title="删除对话"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              const trigger = deleteButton.current?.isConnected ? deleteButton.current : historyOpen ? historySearch.current : newButton.current
+              trigger?.focus({ preventScroll: true })
+            }}
+            footer={
+              <div className={styles.dialogActions}>
+                <Button variant="ghost" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+                  取消
+                </Button>
+                <Button variant="destructive" disabled={deleting} onClick={() => void remove()}>
+                  {deleting ? '正在删除…' : '确认删除'}
+                </Button>
+              </div>
+            }
+          >
+            <p>将永久删除「{deleteTarget?.title}」的消息和摘要。已生成的产出和作品记忆会保留。</p>
+            {deleteError && (
+              <p className={styles.error} role="alert">
+                {deleteError}
+              </p>
+            )}
+          </ReadingDialog>
+        </Dialog>
+      </div>
     </>
   )
 }
@@ -683,26 +662,33 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
     )
   return (
     <>
-      <div className={styles.identity}>
-        <BookOpen size={16} />
-        <span>{data.session.anchorTitle ? `续写起点：${data.session.anchorTitle}` : '新章节创作'}</span>
-        <span className={styles.muted}>{data.session.title}</span>
-      </div>
-      <div className={styles.sessionOptions}>
-        <AgentSettings
-          key={data.session.id}
-          session={data.session}
-          disabled={busy || running}
-          onSave={async (brief, preferences, expectedUpdatedAt, expectedBookSettingsRevision) => {
-            const result = await agentApi.save(sessionId, brief, preferences, expectedUpdatedAt, expectedBookSettingsRevision)
-            if (mounted.current) {
-              setData((current) => (current ? { ...current, session: result.session } : current))
-              onSessionRef.current(result.session)
-              reload()
-            }
-          }}
-        />
-        {!!data.turnUsage?.length && <AiAgentUsage turns={data.turnUsage} />}
+      <div className={styles.sessionHeader}>
+        <div className={styles.identity}>
+          <MessageSquare size={16} aria-hidden="true" />
+          <span className={styles.conversationTitle} title={data.session.title}>{data.session.title || '创作对话'}</span>
+          <span className={styles.muted}>{data.session.anchorTitle ? `续写自 ${data.session.anchorTitle}` : '新章节创作'}</span>
+        </div>
+        <div className={styles.sessionOptions} role="group" aria-label="对话工具">
+          <AgentSettings
+            key={data.session.id}
+            session={data.session}
+            disabled={busy || running}
+            onSave={async (brief, preferences, expectedUpdatedAt, expectedBookSettingsRevision) => {
+              const result = await agentApi.save(sessionId, brief, preferences, expectedUpdatedAt, expectedBookSettingsRevision)
+              if (mounted.current) {
+                setData((current) => (current ? { ...current, session: result.session } : current))
+                onSessionRef.current(result.session)
+                reload()
+              }
+            }}
+          />
+          {!!data.turnUsage?.length && <AiAgentUsage turns={data.turnUsage} />}
+          <Button ref={outputToggle} className={styles.outputToggle} size="sm" variant={outputsOpen ? 'secondary' : 'ghost'} aria-controls={outputsId} aria-expanded={outputsOpen} onClick={() => outputsOpen ? closeOutputs() : openOutputs()}>
+            <PanelRight size={16} aria-hidden="true" />
+            产出与采纳
+            {pendingActions > 0 && <span className={styles.outputCount}>{pendingActions} 待确认</span>}
+          </Button>
+        </div>
       </div>
       <div className={styles.mobileTabs} aria-label="切换工作区">
         <Button ref={chatTab} aria-pressed={mobileView === 'chat'} variant={mobileView === 'chat' ? 'secondary' : 'ghost'} onClick={() => setMobileView('chat')}>
@@ -750,17 +736,9 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
           <div className={styles.chatBody} data-running={running}>
             <div className={styles.chatHeading}>
               <div className={styles.chatHeadingText}>
-                <span className={styles.chatTitle}>
-                  <MessageSquare size={16} aria-hidden="true" />
-                  创作助手
-                </span>
+                <span className={styles.chatIndicator} aria-hidden="true" />
                 <span className={styles.chatState}>{running ? activeTask?.step || '正在处理' : activeTask?.status === 'failed' ? '本轮未完成' : activeTask?.status === 'cancelled' ? '本轮已停止' : pendingActions ? '有待确认的操作' : data.actions.some(item => item.status === 'executing') ? '正在采纳产出' : '随时接着聊'}</span>
               </div>
-              <Button ref={outputToggle} className={styles.outputToggle} size="sm" variant={outputsOpen ? 'secondary' : 'ghost'} aria-controls={outputsId} aria-expanded={outputsOpen} onClick={() => outputsOpen ? closeOutputs() : openOutputs()}>
-                <PanelRight size={16} aria-hidden="true" />
-                产出与采纳
-                {pendingActions > 0 && <span className={styles.outputCount}>{pendingActions} 待确认</span>}
-              </Button>
             </div>
             <div
               ref={feed}
@@ -1158,6 +1136,7 @@ function AgentSettings({
   disabled: boolean
   onSave: (brief: string, preferences: AgentContentPreferences, expectedUpdatedAt: number, expectedBookSettingsRevision?: number) => Promise<void>
 }) {
+  const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<{
     brief: string
     preferences: AgentContentPreferences
@@ -1185,6 +1164,7 @@ function AgentSettings({
     try {
       await onSave(brief, preferences, draft.expectedUpdatedAt, useForNewConversations ? draft.expectedBookSettingsRevision : undefined)
       setDraft(null)
+      setOpen(false)
     } catch (e) {
       setError(failure(e))
     } finally {
@@ -1192,112 +1172,127 @@ function AgentSettings({
     }
   }
   return (
-    <MotionDetails className={styles.settings}>
-      <summary className={styles.settingsSummary}>
-        <SlidersHorizontal size={15} className={styles.settingsIcon} aria-hidden="true" />
-        <span className={styles.settingsTitle}>创作约定与偏好</span>
-        <span className={styles.settingsState} data-active={session.contentPreferences.adultContentMode === 'explicit'}>
-          {session.contentPreferences.adultContentMode === 'explicit' ? 'R18 已开启' : '成人内容关闭'}
-        </span>
-        {dirty && <span className={styles.settingsUnsaved}>有未保存调整</span>}
-        <ChevronDown size={14} className={styles.settingsChevron} aria-hidden="true" />
-      </summary>
-      <div className={styles.settingsBody}>
-        <FormField className={styles.settingsBrief} label="这段对话始终遵循的创作约定">
-          <Textarea
-            rows={5}
-            placeholder="写下人物性格、叙事视角，或希望保留的情节…"
-            value={brief}
-            onChange={(e) => change(e.target.value, preferences)}
-            maxLength={4000}
-            disabled={disabled || saving}
-          />
-        </FormField>
-        <div className={styles.settingsPreferences}>
-          <FormField label="成人内容偏好">
-            <SearchSelect
-              value={preferences.adultContentMode}
-              options={[
-                { value: 'off', label: '关闭' },
-                { value: 'explicit', label: 'R18 创作' },
-              ]}
-              onChange={(value) =>
-                change(brief, {
-                  ...preferences,
-                  adultContentMode: value as 'off' | 'explicit',
-                  intimacyWeight: value === 'off' ? 'none' : 'high',
-                  adultCharactersConfirmed: false,
-                })
-              }
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className={styles.sessionTool}>
+          <SlidersHorizontal size={15} className={styles.settingsIcon} aria-hidden="true" />
+          <span className={styles.settingsTitle}>创作设置</span>
+          <span className={styles.settingsState} data-active={session.contentPreferences.adultContentMode === 'explicit'}>
+            {session.contentPreferences.adultContentMode === 'explicit' ? 'R18 已开启' : '成人内容关闭'}
+          </span>
+          {dirty && <span className={styles.settingsUnsaved}>{saving ? '正在保存…' : '未保存'}</span>}
+        </Button>
+      </DialogTrigger>
+      <ReadingDialog
+        title="创作约定与偏好"
+        description="调整这段对话的创作约定，也可保存为本书新对话的默认设置。关闭窗口会保留未保存的调整。"
+        bodyLabel="创作设置内容"
+        className={styles.settingsDialog}
+        footer={
+          <div className={styles.settingsFooter}>
+            {session.bookSettingsRevision !== undefined && (
+              <label className={styles.settingsToggle}>
+                <Checkbox
+                  checked={useForNewConversations}
+                  disabled={disabled || saving}
+                  onCheckedChange={(checked) => setUseForNewConversations(checked === true)}
+                />
+                <span>同时设为本书新对话的默认设置</span>
+              </label>
+            )}
+            <div className={styles.settingsActions}>
+              {dirty && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={disabled || saving}
+                  onClick={() => {
+                    setDraft(null)
+                    setError('')
+                  }}
+                >
+                  取消调整
+                </Button>
+              )}
+              <Button
+                variant={dirty ? 'default' : 'outline'}
+                size="sm"
+                disabled={!dirty || disabled || saving || (preferences.adultContentMode === 'explicit' && !preferences.adultCharactersConfirmed)}
+                onClick={() => void save()}
+              >
+                {saving ? '正在保存…' : '保存创作约定'}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className={styles.settingsBody}>
+          {disabled && (
+            <p role="status" className={`${styles.muted} ${styles.settingsHint}`}>
+              当前对话正在处理请求，请等待完成或停止回复后再修改。
+            </p>
+          )}
+          <FormField className={styles.settingsBrief} label="这段对话始终遵循的创作约定">
+            <Textarea
+              rows={5}
+              placeholder="写下人物性格、叙事视角，或希望保留的情节…"
+              value={brief}
+              onChange={(e) => change(e.target.value, preferences)}
+              maxLength={4000}
               disabled={disabled || saving}
             />
           </FormField>
-          {preferences.adultContentMode === 'explicit' && (
-            <>
-              <FormField label="亲密内容权重">
-                <SearchSelect
-                  value={preferences.intimacyWeight}
-                  options={[
-                    { value: 'low', label: '低' },
-                    { value: 'medium', label: '中' },
-                    { value: 'high', label: '高' },
-                  ]}
-                  onChange={(value) => change(brief, { ...preferences, intimacyWeight: value as AgentContentPreferences['intimacyWeight'] })}
-                  disabled={disabled || saving}
-                />
-              </FormField>
-              <label className={styles.confirmAdults}>
-                <Checkbox
-                  checked={preferences.adultCharactersConfirmed}
-                  disabled={disabled || saving}
-                  onCheckedChange={(checked) => change(brief, { ...preferences, adultCharactersConfirmed: checked === true })}
-                />
-                <span>我确认相关角色均为成年人</span>
-              </label>
-            </>
-          )}
-        </div>
-        {error && (
-          <p role="alert" className={`${styles.error} ${styles.settingsError}`}>
-            {error}
-          </p>
-        )}
-        <div className={styles.settingsFooter}>
-          {session.bookSettingsRevision !== undefined && (
-            <label className={styles.settingsToggle}>
-              <Checkbox
-                checked={useForNewConversations}
+          <div className={styles.settingsPreferences}>
+            <FormField label="成人内容偏好">
+              <SearchSelect
+                value={preferences.adultContentMode}
+                options={[
+                  { value: 'off', label: '关闭' },
+                  { value: 'explicit', label: 'R18 创作' },
+                ]}
+                onChange={(value) =>
+                  change(brief, {
+                    ...preferences,
+                    adultContentMode: value as 'off' | 'explicit',
+                    intimacyWeight: value === 'off' ? 'none' : 'high',
+                    adultCharactersConfirmed: false,
+                  })
+                }
                 disabled={disabled || saving}
-                onCheckedChange={(checked) => setUseForNewConversations(checked === true)}
               />
-              <span>同时设为本书新对话的默认设置</span>
-            </label>
-          )}
-          <div className={styles.settingsActions}>
-            {dirty && (
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={disabled || saving}
-                onClick={() => {
-                  setDraft(null)
-                  setError('')
-                }}
-              >
-                取消调整
-              </Button>
+            </FormField>
+            {preferences.adultContentMode === 'explicit' && (
+              <>
+                <FormField label="亲密内容权重">
+                  <SearchSelect
+                    value={preferences.intimacyWeight}
+                    options={[
+                      { value: 'low', label: '低' },
+                      { value: 'medium', label: '中' },
+                      { value: 'high', label: '高' },
+                    ]}
+                    onChange={(value) => change(brief, { ...preferences, intimacyWeight: value as AgentContentPreferences['intimacyWeight'] })}
+                    disabled={disabled || saving}
+                  />
+                </FormField>
+                <label className={styles.confirmAdults}>
+                  <Checkbox
+                    checked={preferences.adultCharactersConfirmed}
+                    disabled={disabled || saving}
+                    onCheckedChange={(checked) => change(brief, { ...preferences, adultCharactersConfirmed: checked === true })}
+                  />
+                  <span>我确认相关角色均为成年人</span>
+                </label>
+              </>
             )}
-            <Button
-              variant={dirty ? 'default' : 'outline'}
-              size="sm"
-              disabled={!dirty || disabled || saving || (preferences.adultContentMode === 'explicit' && !preferences.adultCharactersConfirmed)}
-              onClick={() => void save()}
-            >
-              {saving ? '正在保存…' : '保存创作约定'}
-            </Button>
           </div>
+          {error && (
+            <p role="alert" className={`${styles.error} ${styles.settingsError}`}>
+              {error}
+            </p>
+          )}
         </div>
-      </div>
-    </MotionDetails>
+      </ReadingDialog>
+    </Dialog>
   )
 }

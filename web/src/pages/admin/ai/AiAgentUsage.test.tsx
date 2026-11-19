@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { AgentTurnUsage } from '@shared/ai-agent'
 import { setStorageUser } from '@/lib/storage'
@@ -28,7 +28,10 @@ beforeEach(() => {
 describe('agent usage panel', () => {
   it('separates currencies, incomplete usage and independent generation costs', () => {
     render(<AiAgentUsage turns={[current]} />)
-    fireEvent.click(screen.getByText('本轮用量'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /本轮用量/ })).toHaveTextContent('已记录 3 次')
+    fireEvent.click(screen.getByRole('button', { name: /本轮用量/ }))
+    expect(screen.getByRole('dialog', { name: '本轮用量' })).toBeInTheDocument()
     expect(screen.getByText(/助手 2 次 · 摘要 1 次/)).toBeInTheDocument()
     const details = within(screen.getByRole('region', { name: '本轮用量明细' }))
     expect(details.getByText('已记录输入 Token').nextElementSibling).toHaveTextContent('2,000')
@@ -38,13 +41,17 @@ describe('agent usage panel', () => {
     expect(screen.getByText(/1 次调用未完整回传 Token/)).toBeInTheDocument()
     expect(screen.getByText(/不含独立草稿、封面和分析生成/)).toBeInTheDocument()
   })
-  it('keeps reminders opt-in, persists per account and never automatically stops work', () => {
+  it('keeps reminders opt-in, persists per account and never automatically stops work', async () => {
     const view = render(<AiAgentUsage turns={[current]} />)
     expect(screen.queryByText(/达到 .* 的提醒值/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('本轮用量'))
+    fireEvent.click(screen.getByText('用量提醒'))
     fireEvent.change(screen.getByLabelText('单轮 Token 提醒值'), { target: { value: '2000' } })
     fireEvent.click(screen.getByText('保存提醒'))
-    expect(screen.getByText(/达到 2,000 的提醒值.*不会自动停止任务/)).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('dialog', { name: '本轮用量' }), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('status')).toHaveTextContent(/达到 2,000 的提醒值.*不会自动停止任务/)
+    await waitFor(() => expect(screen.getByRole('button', { name: /本轮用量/ })).toHaveFocus())
     setStorageUser('other')
     view.rerender(<AiAgentUsage turns={[current]} />)
     expect(screen.queryByText(/达到 .* 的提醒值/)).not.toBeInTheDocument()
