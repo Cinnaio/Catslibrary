@@ -1,0 +1,64 @@
+.comparison { min-width: 0; }
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-block: 0 4px;
+  background: var(--bg-card);
+}
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.legend, .placeholder {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-inline-start: auto; }
+.legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border: 1px solid var(--border); border-radius: 3px; }
+.beforeSwatch { background: var(--bg-secondary); }
+.afterSwatch { background: color-mix(in srgb, var(--accent) 16%, var(--bg-card)); }
+.mobileVersions { display: none; gap: 4px; margin-inline-start: auto; }
+.mobileVersions button[aria-pressed='true'] { color: var(--accent); background: var(--bg-secondary); }
+.diff { min-width: 0; }
+.columnHeadings, .diffRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.columnHeadings { padding: 0 16px 12px; color: var(--text-secondary); font-size: 13px; }
+.diffRow { margin-bottom: 8px; }
+.diffCell, .prose {
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.95;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.diffCell { min-width: 0; padding: 14px 16px; border-radius: var(--radius-compact); }
+.diffRow:not([data-kind='equal']) .diffCell[data-side='before'] { background: var(--bg-secondary); }
+.diffRow:not([data-kind='equal']) .diffCell[data-side='after'] { background: color-mix(in srgb, var(--accent) 9%, var(--bg-card)); }
+.diffCell del, .diffCell ins { text-decoration: none; }
+.changeLabel { display: block; margin-bottom: 6px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.diffCell[data-side='after'] .changeLabel { color: var(--accent); }
+.single h4 { margin: 0 0 12px; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+@media (max-width: 800px) {
+  .toolbar button, .filter { min-height: 48px; }
+  .mobileVersions { display: flex; }
+  .columnHeadings { display: none; }
+  .diffRow { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .diff[data-side='after'] .diffCell[data-side='before'],
+  .diff[data-side='before'] .diffCell[data-side='after'] { display: none; }
+  .legend { flex-basis: 100%; margin-inline-start: 0; }
+  .diffCell { padding: 12px; }
+}
+@media (forced-colors: active) {
+  .diffRow:not([data-kind='equal']) .diffCell { border: 1px solid CanvasText; }
+}

@@ -789,35 +789,76 @@
   background: var(--bg-card);
 }
 .outputHeader {
-  flex-shrink: 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   justify-content: space-between;
   flex-wrap: wrap;
 }
 .outputHeader h3 {
-  flex: 1;
   margin: 0;
   font-family: var(--font-serif, serif);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 500;
+  white-space: nowrap;
 }
-.outputWorkspaceLink {
+.outputTitle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+.outputHeaderActions {
+  display: flex;
+  flex: 1 1 11rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+.outputHeaderActions > button:not([role='combobox']) { flex-shrink: 0; }
+.outputHeaderActions .outputPicker {
+  --select-compact-width: 9rem;
+  flex: 0 1 9rem;
+  min-width: 0;
+}
+.outputPendingCount {
   color: var(--accent);
   font-size: 12px;
 }
-.outputControls {
+.outputActionList {
   display: grid;
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 40%;
+  min-width: 0;
+  gap: 24px;
+}
+.outputActionEntry {
+  display: grid;
   gap: 12px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.outputActionEntry h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.7;
+}
+.outputActionEntry p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.outputActionButtons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .outputViewport {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -828,27 +869,6 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-}
-.pending {
-  display: grid;
-  gap: 16px;
-  padding: 20px;
-  background: color-mix(in srgb, var(--accent-subtle) 36%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
-  border-radius: var(--radius-container);
-}
-.pending strong {
-  font-size: 14px;
-  font-weight: 500;
-}
-.pending p {
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--text-muted);
-  margin: 8px 0 0;
-}
-.pending > button {
-  justify-self: start;
 }
 .artifact {
   min-width: 0;
@@ -914,19 +934,6 @@
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-}
-.comparison {
-  display: grid;
-  gap: 24px;
-}
-.comparison h4 {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-  margin: 0 0 10px;
-}
-.comparison > section {
-  min-width: 0;
 }
 .cover {
   display: block;
@@ -1065,18 +1072,6 @@
 }
 .history {
   font-size: 12px;
-}
-.historyRow {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-.historyRow button {
-  white-space: normal;
-  text-align: left;
 }
 .history > .prose {
   font-size: 12px;
@@ -1346,10 +1341,8 @@
   .outputs {
     height: clamp(520px, 78dvh, 820px);
   }
-  .outputControls { max-height: 30%; }
-  .outputHeader > button,
-  .outputControls button,
-  .outputControls summary { min-height: 48px; }
+  .outputHeader button,
+  .outputActionButtons button { min-height: 48px; }
   .feed {
     padding: 16px 16px 24px;
   }

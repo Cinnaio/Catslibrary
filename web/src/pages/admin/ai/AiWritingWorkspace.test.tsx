@@ -61,14 +61,13 @@ function activate(label: string) {
 }
 function route() { return new URL(screen.getByTestId('route').textContent!, 'https://workspace.local').searchParams }
 
-it('opens lost drafts without a book and clears the missing-book URL context', async () => {
-  open('sub=writing&view=outputs&novel=missing&batch=old-batch&afterChapterId=old-chapter')
-  fireEvent.click(await screen.findByRole('button', { name: '查看失联草稿' }))
+it('旧失联草稿深链无需选书仍可打开', async () => {
+  open('sub=writing&view=outputs&association=missing')
   expect(route().get('association')).toBe('missing')
   expect(route().has('novel')).toBe(false)
   expect(route().has('batch')).toBe(false)
   expect(route().has('afterChapterId')).toBe(false)
-  expect(screen.getByText('失联草稿视图')).toBeInTheDocument()
+  expect(await screen.findByText('失联草稿视图')).toBeInTheDocument()
 })
 
 beforeEach(() => {

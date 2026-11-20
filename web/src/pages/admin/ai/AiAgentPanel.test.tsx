@@ -658,7 +658,7 @@ describe('creative agent conversation', () => {
     expect(mocks.prepare).not.toHaveBeenCalled()
     expect(mocks.confirm).not.toHaveBeenCalled()
     fireEvent.click(within(comparison).getByRole('button', { name: '预览写回原章' }))
-    const preview = await screen.findByRole('dialog', { name: action.title })
+    const preview = await screen.findByRole('dialog', { name: '核对原章改写' })
     expect(mocks.prepare).toHaveBeenCalledWith('session', 'apply_chapter_edit', 'edit-task', '')
     expect(screen.queryByRole('dialog', { name: '第十二章 雨夜 · 改写对比' })).not.toBeInTheDocument()
     expect(mocks.confirm).not.toHaveBeenCalled()
@@ -681,7 +681,7 @@ describe('creative agent conversation', () => {
     open()
     await screen.findByText('建议已写回原章')
     fireEvent.click(screen.getByRole('button', { name: '查看采纳记录' }))
-    await screen.findByRole('dialog', { name: '已保存雨夜改写' })
+    await screen.findByRole('dialog', { name: '查看原章改写记录' })
     expect(mocks.prepare).not.toHaveBeenCalled()
     expect(mocks.confirm).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: '确认写回原章节' })).not.toBeInTheDocument()
@@ -699,14 +699,32 @@ describe('creative agent conversation', () => {
     mocks.get.mockResolvedValue({ ...detail(), actions: [action] })
     mocks.confirm.mockResolvedValue({ action: { ...action, status: 'completed' } })
     open()
-    await screen.findByText('采纳改写到草稿')
+    await screen.findByRole('button', { name: '1 项待确认' })
     expect(mocks.confirm).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: '查看并确认' }))
+    fireEvent.click(screen.getByRole('button', { name: '1 项待确认' }))
     expect(await screen.findByText('原来的段落')).toBeInTheDocument()
     expect(screen.getByText('建议的新段落')).toBeInTheDocument()
     expect(mocks.confirm).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '确认采纳' }))
     await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith('session', 'action'))
+  })
+  it('reuses the current saved chapter preview from the reader without preparing another write', async () => {
+    const initial = detail()
+    initial.artifacts = [{ task: { id: 'edit-task', kind: 'chapter_edit', status: 'completed', step: '', current: 1, total: 1, error: '' }, drafts: [], covers: [],
+      chapterEdit: { chapterId: 'chapter', chapterTitle: '雨夜', before: '原文段落', after: '建议段落', baseRevision: 'version' } }]
+    initial.actions = [{ id: 'saved-action', kind: 'apply_chapter_edit', title: '保存雨夜改写', status: 'pending', error: '', createdAt: 2,
+      preview: { chapterId: 'chapter', description: '确认后更新本章，之前版本保留', before: '原文段落', after: '建议段落' } }]
+    mocks.get.mockResolvedValue(initial)
+    open()
+    await screen.findByText('待确认 · 尚未写回')
+    expect(screen.queryByText('确认后更新本章，之前版本保留')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '核对并确认' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: '核对并确认' }))
+    const preview = await screen.findByRole('dialog', { name: '核对原章改写' })
+    expect(within(preview).getByText('原文段落')).toBeInTheDocument()
+    expect(within(preview).getByText('建议段落')).toBeInTheDocument()
+    expect(mocks.prepare).not.toHaveBeenCalled()
+    expect(mocks.confirm).not.toHaveBeenCalled()
   })
   it('does not let a late response replace the newly selected book and conversation', async () => {
     let resolveOld!: (value: AgentSessionDetail) => void

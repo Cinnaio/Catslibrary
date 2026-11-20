@@ -14,10 +14,11 @@ interface ReadingDialogProps extends Omit<ComponentProps<typeof DialogFrame>, 't
   bodyLabel?: string
   children: ReactNode
   footer?: ReactNode
+  toolbar?: ReactNode
 }
 
 /** 正文优先的通用阅读窗；业务数据、操作和关闭时机均由使用方提供。 */
-export function ReadingDialog({ title, description, eyebrow, bodyLabel = '内容', children, footer, className, onOpenAutoFocus, ...props }: ReadingDialogProps) {
+export function ReadingDialog({ title, description, eyebrow, bodyLabel = '内容', children, footer, toolbar, className, onOpenAutoFocus, ...props }: ReadingDialogProps) {
   const titleRef = useRef<HTMLHeadingElement>(null)
   return (
     <DialogFrame
@@ -36,6 +37,7 @@ export function ReadingDialog({ title, description, eyebrow, bodyLabel = '内容
         <DialogTitle ref={titleRef} tabIndex={-1} className={styles.title}>{title}</DialogTitle>
         <DialogDescription className={styles.description} hidden={!description}>{description}</DialogDescription>
       </DialogHeader>
+      {toolbar && <div className={styles.tools} data-slot="reading-dialog-toolbar">{toolbar}</div>}
       <DialogBody className={styles.body} tabIndex={0} role="region" aria-label={bodyLabel}>
         {children}
       </DialogBody>
