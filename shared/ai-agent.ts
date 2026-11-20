@@ -46,6 +46,25 @@ export interface AgentReferenceSelection {
 export const AGENT_REFERENCE_LIMIT = 6
 export const AGENT_REFERENCE_BUDGET = 24000
 
+export interface AgentChapterPlanInput {
+  title: string
+  goal: string
+  beats: string
+  characters: string
+  ending: string
+  constraints: string
+  targetWords: number
+}
+
+/** A session-scoped proposal. Only an explicit author message can snapshot it for writing. */
+export interface AgentChapterPlan extends AgentChapterPlanInput {
+  version: 1
+  revision: number
+  updatedAt: number
+}
+
+export const AGENT_CHAPTER_PLAN_LIMITS = { title: 200, goal: 1200, beats: 4000, characters: 1200, ending: 1200, constraints: 1200 } as const
+
 export interface AgentSession {
   id: string
   novelId: string
@@ -189,6 +208,8 @@ export interface AgentEvent {
     recoveryFromTaskId?: string
     error?: boolean
     writingReferences?: Array<Pick<AgentWritingReference, 'id' | 'title' | 'revision'>>
+    planningOnly?: true
+    chapterPlanRevision?: number
     referenceSelection?: AgentReferenceSelection
     providerPresetId?: string
     model?: string
@@ -235,6 +256,7 @@ export interface AgentArtifact {
 }
 
 export interface AgentSessionDetail {
+  chapterPlan?: AgentChapterPlan | null
   writingReferences?: AgentWritingReferenceSnapshot[]
   turnUsage?: AgentTurnUsage[]
   messageReceipt?: { requestId: string; taskId: string } | null

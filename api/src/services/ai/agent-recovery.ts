@@ -26,6 +26,9 @@ export const AGENT_READ_TOOLS = new Set([
 export function agentTaskParams(task?: Pick<AiTask, 'params'>) {
   try {
     return JSON.parse(task?.params || '{}') as {
+      chapterPlan?: import('@shared/ai-agent').AgentChapterPlan
+      chapterPlanProposed?: boolean
+      planningOnly?: true
       writingReferences?: AgentWritingReferenceSnapshot[]
       sessionId?: string
       providerPresetId?: string

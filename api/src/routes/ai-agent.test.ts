@@ -345,6 +345,70 @@ afterAll(async () => {
   await t.close()
 })
 
+describe('chapter plan routes', () => {
+  const plan = { title: '来信', goal: '发现线索', beats: '回家\n拆信', characters: '', ending: '留下悬念', constraints: '不揭露身份', targetWords: 2000 }
+  it('persists chapter plan edits, checks ownership and confirms only a current revision', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const url = '/api/ai/agent/sessions/' + session.id
+    expect((await request(url + '/chapter-plan', 'PATCH', { plan, expectedRevision: 0 }, otherToken)).status).toBe(404)
+    expect((await request(url + '/chapter-plan', 'PATCH', { plan, expectedRevision: 0 }, readerToken)).status).toBe(403)
+    expect((await request(url + '/chapter-plan', 'PATCH', { plan, expectedRevision: 0 })).status).toBe(200)
+    expect(await (await request(url)).json()).toMatchObject({ chapterPlan: { ...plan, revision: 1 } })
+    expect((await request(url + '/chapter-plan', 'PATCH', { plan, expectedRevision: 0 })).status).toBe(409)
+    expect((await request(url + '/messages', 'POST', { content: '确认', requestId: 'plan-stale-http', chapterPlanRevision: 2 })).status).toBe(409)
+    const response = await request(url + '/messages', 'POST', { content: '确认', requestId: 'plan-confirm-http', chapterPlanRevision: 1 })
+    expect(response.status).toBe(202)
+    const { taskId } = await response.json() as { taskId: string }
+    await vi.waitFor(async () => expect((await getAiTask(t.db, taskId))?.status).toBe('completed'))
+    expect(JSON.parse((await getAiTask(t.db, taskId))!.params).chapterPlan).toMatchObject({ ...plan, revision: 1 })
+  })
+  it('generates a draft from the confirmed chapter plan snapshot without publishing or duplicating it', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'empty-novel' })
+    await request('/api/ai/agent/sessions/' + session.id + '/chapter-plan', 'PATCH', { plan, expectedRevision: 0 })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '确认计划并写作', 'plan-writing-integration', undefined, '', undefined, 1)
+    fetchMock.mockImplementation(async () => completion('标题：来信\n\n' + '清晨的雨落在窗沿，屋里的人终于收起了信。'.repeat(50)))
+    const args = { instruction: '按已确认计划写作', title: '模型起的标题', outline: '模型提纲' }
+    const result = await executeAgentTool(t.db, session, 'generate_draft', args, 'plan-first-attempt', internalApi(), 'admin', turn.taskId)
+    const task = await waitTask(String(result.taskId))
+    expect(task.status).toBe('completed')
+    expect(JSON.parse(task.params).agentContext.chapterPlan).toMatchObject({ ...plan, revision: 1 })
+    expect(task.prompt).toContain(plan.ending)
+    expect(task.prompt).toContain(plan.constraints)
+    const again = await executeAgentTool(t.db, session, 'generate_draft', args, 'plan-second-attempt', internalApi(), 'admin', turn.taskId)
+    expect(again.taskId).toBe(result.taskId)
+    expect((await readAgentArtifact(t.db, session, task.id)).drafts).toHaveLength(1)
+    expect(await first(t.db, "SELECT id FROM chapters WHERE novel_id='empty-novel'")).toBeUndefined()
+    await updateAiTask(t.db, turn.taskId, { status: 'completed' })
+  })
+  it('keeps the chapter plan turn read-and-propose only even if the model requests generation', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    fetchMock.mockResolvedValueOnce(completion('', [call('generate_draft', { instruction: '越过规划阶段' })]))
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '先拟计划', 'plan-only-http', undefined, '', undefined, undefined, true)
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
+    const sent = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+    expect(sent.tools.some((tool: { function: { name: string } }) => tool.function.name === 'propose_chapter_plan')).toBe(true)
+    expect(sent.tools.some((tool: { function: { name: string } }) => tool.function.name === 'generate_draft')).toBe(false)
+    expect(await all(t.db, 'SELECT task_id FROM ai_agent_artifacts WHERE session_id=$1', [session.id])).toEqual([])
+  })
+  it('saves a model chapter plan as an unconfirmed proposal and exposes it to the next turn', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    fetchMock.mockResolvedValueOnce(completion('', [call('propose_chapter_plan', { ...plan, expectedRevision: 0 })]))
+    fetchMock.mockResolvedValueOnce(completion('计划已保存，请先核对。'))
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '先拟计划', 'plan-propose-http', undefined, '', undefined, undefined, true)
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    expect((await getAiTask(t.db, turn.taskId))?.status).toBe('completed')
+    expect(await (await request('/api/ai/agent/sessions/' + session.id)).json()).toMatchObject({ chapterPlan: { ...plan, revision: 1 } })
+    const next = await beginAgentTurn(t.db, 'admin', session.id, '再讨论', 'plan-next-http')
+    await runAgentTurn(t.db, session, next.taskId, 'admin', internalApi())
+    const sent = JSON.parse(String(fetchMock.mock.calls[2]![1]?.body))
+    const context = JSON.parse(sent.messages.find((message: { content: string }) => message.content.startsWith('本轮会话资料')).content.split('：').slice(1).join('：'))
+    expect(context.proposedChapterPlan).toMatchObject({ ...plan, revision: 1 })
+    expect(context.confirmedChapterPlan).toBeUndefined()
+    expect(await all(t.db, 'SELECT task_id FROM ai_agent_artifacts WHERE session_id=$1', [session.id])).toEqual([])
+  })
+})
+
 describe('writing reference routes', () => {
   it('isolates library management and sends only the selected snapshot to the coordinator', async () => {
     const response = await app.request('/api/ai/agent/writing-references', {

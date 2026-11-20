@@ -1,0 +1,11 @@
+.content { display: grid; gap: 24px; }
+.discussion { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.discussion p, .note { color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+.fields { display: grid; gap: 18px; }
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.reading { margin: 0; display: grid; gap: 24px; }
+.reading dt { color: var(--text-secondary); font-size: 12px; margin-bottom: 8px; }
+.reading dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; color: var(--text-primary); }
+@media (max-width: 800px) {
+  .actions button, .discussion button { min-height: 48px; }
+}

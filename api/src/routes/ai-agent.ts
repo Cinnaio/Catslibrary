@@ -29,6 +29,7 @@ import {
 import { agentMemorySource, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories } from '../services/ai/agent-memory'
 import { agentTaskParams, getAgentRecovery, requireRecoveryTask } from '../services/ai/agent-recovery'
 import { readAgentTurnUsage } from '../services/ai/agent-usage'
+import { readChapterPlan, saveChapterPlan } from '../services/ai/agent-chapter-plan'
 
 import { changeWritingReference, createWritingReference, listWritingReferences, referenceSelection, snapshotWritingReferences } from '../services/ai/agent-writing-references'
 
@@ -122,6 +123,7 @@ export function createAgentRoutes(dispatch: Dispatch) {
       'SELECT request_id AS "requestId",task_id AS "taskId" FROM ai_agent_events WHERE session_id=$1 AND request_id=$2', [session.id, requestId]) : null
     return c.json({
       session,
+      chapterPlan: await readChapterPlan(db, c.get('user').id, session.id),
       writingReferences: await snapshotWritingReferences(db, c.get('user').id, session.writingReferenceIds || [], false, false),
       messageReceipt: messageReceipt || null,
       ...history,
@@ -133,6 +135,10 @@ export function createAgentRoutes(dispatch: Dispatch) {
       memories: (await listAgentMemories(db, c.get('user').id, session.novelId)).memories.filter((memory) => memory.status === 'active' || memory.status === 'pending'),
       summary: await getAgentSummary(db, session.id),
     })
+  })
+  routes.patch('/sessions/:id/chapter-plan', async c => {
+    const body = await c.req.json().catch(() => ({}))
+    return c.json({ plan: await saveChapterPlan(getDb(), c.get('user').id, c.req.param('id'), body.plan, body.expectedRevision) })
   })
   routes.get('/sessions/:id/events', async (c) => {
     const session = await getAgentSession(getDb(), c.get('user').id, c.req.param('id'))
@@ -194,7 +200,7 @@ export function createAgentRoutes(dispatch: Dispatch) {
         const turn = await beginAgentTurn(db, c.get('user').id, session.id, String(body.content || ''), String(body.requestId || ''), {
           providerPresetId,
           model: textProvider().model,
-        }, '', referenceSelection(body.referenceSelection))
+        }, '', referenceSelection(body.referenceSelection), body.chapterPlanRevision, body.planningOnly)
         if (turn.created) {
           const current = await getAgentSession(db, c.get('user').id, session.id)
           void runAgentTurn(db, current, turn.taskId, c.get('user').id, agentApiAdapter(c.req.raw, dispatch), {

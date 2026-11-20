@@ -18,6 +18,7 @@ export interface AgentWritingLength {
 
 /** Resolved at submission, stored with the task so a retry uses the same material. */
 export interface AgentWritingContext {
+  chapterPlan?: import('@shared/ai-agent').AgentChapterPlan
   writingReferences?: AgentWritingReferenceSnapshot[]
   sessionId: string
   sources: AgentEvidence[]
@@ -126,7 +127,7 @@ export async function resolveAgentWritingContext(
   if (previous && previous.sessionId !== session.id)
     throw new AiError('conflict', '上次改写不属于当前会话', 409)
 
-  const length = readLength(raw, !!scope.rewrite, previous?.length)
+  let length = readLength(raw, !!scope.rewrite, previous?.length)
   if (length && scope.rewrite && !scope.wholeDraft)
     throw new AiError('invalid', '整章篇幅只适用于整章改写', 422)
 
@@ -154,6 +155,8 @@ export async function resolveAgentWritingContext(
   const authorTask = taskId ? await first<{ params: string }>(db, `SELECT params FROM ai_tasks
     WHERE id=$1 AND user_id=$2 AND kind='agent_chat' AND params::jsonb->>'sessionId'=$3`, [taskId, scope.userId, session.id]) : undefined
   if (taskId && !authorTask) throw new AiError('invalid', '写作参考必须来自当前会话的作者轮次', 422)
+  const chapterPlan = !scope.rewrite && authorTask ? agentTaskParams(authorTask).chapterPlan : undefined
+  if (chapterPlan) length = { kind: 'target', words: chapterPlan.targetWords }
   const writingReferences = authorTask ? agentTaskParams(authorTask).writingReferences || [] : previous?.writingReferences || []
   const messages = authorIds.length || taskId ? await all<{ id: number; content: string; task_id: string }>(db, `
     SELECT id,content,task_id FROM ai_agent_events WHERE session_id=$1 AND role='user'
@@ -180,6 +183,7 @@ export async function resolveAgentWritingContext(
   const agreements = (await activeAgentMemories(db, scope.userId, scope.novelId))
     .map(({ id, revision, title, content }) => ({ id, revision, title, content }))
   return {
+    ...(chapterPlan ? { chapterPlan } : {}),
     sessionId: session.id, afterChapterId: session.afterChapterId, sources: passages, authorMessages, agreements, writingReferences,
     brief: session.brief, ...(priorDraft ? { priorDraft } : {}), ...(length ? { length } : {}),
   }
@@ -198,6 +202,11 @@ export function agentWritingMaterials(context: AgentWritingContext) {
     source: { field: 'agent_writing_reference', revision: String(reference.revision) }, required: true,
   })).filter((block): block is MaterialBlock => !!block)
   const authors = [
+    ...(context.chapterPlan ? [createMaterialBlock({
+      id: 'confirmed-chapter-plan', kind: 'author_request', required: true,
+      text: '作者已确认的本章计划（待创作情节，不是既有正文事实）：' + JSON.stringify(context.chapterPlan),
+      source: { field: 'agent_chapter_plan', revision: String(context.chapterPlan.revision) },
+    })] : []),
     ...(references.length ? [createMaterialBlock({ id: 'writing-reference-guidance', kind: 'author_request', text: WRITING_REFERENCE_GUIDANCE })] : []),
     ...(context.agreements || []).map(agreement => createMaterialBlock({
       id: `agreement-${agreement.id}-${agreement.revision}`, kind: 'author_request',

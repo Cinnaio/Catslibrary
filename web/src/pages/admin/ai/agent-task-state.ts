@@ -13,6 +13,8 @@ export interface PendingAgentMessage {
   content: string
   id: string
   providerPresetId: string
+  planningOnly?: true
+  chapterPlanRevision?: number
   referenceSelection?: AgentReferenceSelection
 }
 export function pendingAgentKey(novelId: string, sessionId: string) {
@@ -30,6 +32,8 @@ export function readPendingAgentMessage(key: string): PendingAgentMessage | null
       /^[a-zA-Z0-9_-]{8,160}$/.test(item.id) &&
       typeof item.providerPresetId === 'string' &&
       item.providerPresetId.length <= 160 &&
+      (item.planningOnly === undefined || (item.planningOnly === true && item.chapterPlanRevision === undefined)) &&
+      (item.chapterPlanRevision === undefined || (Number.isSafeInteger(item.chapterPlanRevision) && item.chapterPlanRevision > 0)) &&
       (item.referenceSelection === undefined || (item.referenceSelection &&
         ['turn', 'session'].includes(item.referenceSelection.scope) && Array.isArray(item.referenceSelection.ids) &&
         item.referenceSelection.ids.length <= 6 && item.referenceSelection.ids.every((id: unknown) => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,160}$/.test(id))))

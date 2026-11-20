@@ -106,6 +106,30 @@ beforeEach(() => {
 })
 
 describe('creative agent conversation', () => {
+  it('freezes the chapter plan revision in an uncertain send and retries it unchanged', async () => {
+    const state = detail()
+    state.chapterPlan = { version: 1, revision: 3, updatedAt: 1, title: '雨夜来信', goal: '发现线索', beats: '拆信', characters: '', ending: '', constraints: '', targetWords: 2000 }
+    mocks.get.mockResolvedValue(state)
+    mocks.message.mockRejectedValueOnce(new Error('计划请求连接中断'))
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: /章节计划/ }))
+    fireEvent.click(screen.getByRole('button', { name: '确认计划并写作' }))
+    await screen.findByText(/计划请求连接中断/)
+    expect(mocks.message).toHaveBeenLastCalledWith('session', expect.stringContaining('章节计划第 3 版'), expect.any(String), '', undefined, 3)
+    expect(readPendingAgentMessage(pendingAgentKey('novel', 'session'))?.chapterPlanRevision).toBe(3)
+    const original = mocks.message.mock.calls[0]
+    fireEvent.click(screen.getByRole('button', { name: '重试原消息' }))
+    await waitFor(() => expect(mocks.message).toHaveBeenCalledTimes(2))
+    expect(mocks.message.mock.calls[1]).toEqual(original)
+  })
+  it('requests chapter planning in a dedicated mode without sending a writing confirmation', async () => {
+    mocks.get.mockResolvedValue({ ...detail(), chapterPlan: null })
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: /章节计划/ }))
+    fireEvent.click(screen.getByRole('button', { name: '请助手拟定计划' }))
+    await waitFor(() => expect(mocks.message).toHaveBeenCalledOnce())
+    expect(mocks.message).toHaveBeenCalledWith('session', expect.stringContaining('暂不生成正文'), expect.any(String), '', undefined, undefined, true)
+  })
   it('attaches selected references to the saved request and retries the same selection', async () => {
     const reference = { id: 'writing-card', title: '雨夜参考', tags: ['氛围'], content: '雨声中逐步推进对话。', usage: '参考节奏。', revision: 1, createdAt: 1, updatedAt: 1 }
     mocks.writingReferences.mockResolvedValue({ references: [reference], hasMore: false })

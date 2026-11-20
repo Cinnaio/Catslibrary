@@ -8,9 +8,12 @@ import { publishAiTask } from './task-events'
 import { DEFAULT_WRITING_CONTENT_PREFERENCES, validateWritingContentPreferences } from './writing-preferences'
 
 import { agentTaskParams } from './agent-recovery'
+import { snapshotChapterPlan } from './agent-chapter-plan'
+import type { AgentChapterPlan } from '@shared/ai-agent'
 import { referenceSelection, snapshotWritingReferences } from './agent-writing-references'
 
 interface SessionRow {
+  chapter_plan: AgentChapterPlan | null
   id: string
   user_id: string
   novel_id: string
@@ -214,7 +217,11 @@ export async function beginAgentTurn(
   provider: { providerPresetId: string; model: string } = { providerPresetId: '', model: '' },
   recoveryFromTaskId = '',
   references?: AgentReferenceSelection,
+  chapterPlanRevision?: unknown,
+  planningOnly?: unknown,
 ) {
+  if (planningOnly !== undefined && planningOnly !== true) throw new AiError('invalid', '章节规划模式无效', 422)
+  if (planningOnly && chapterPlanRevision !== undefined) throw new AiError('invalid', '拟定计划与确认写作不能同时提交', 422)
   const selection = referenceSelection(references)
   if (!content.trim() || content.length > 8000) throw new AiError('invalid', '请输入 1–8000 字的消息', 422)
   if (!/^[a-zA-Z0-9_-]{8,160}$/.test(requestId)) throw new AiError('invalid', '消息请求标识无效', 422)
@@ -228,12 +235,15 @@ export async function beginAgentTurn(
       [sessionId, requestId],
     )
     if (previous) {
+      if (previous.metadata.planningOnly !== planningOnly) throw new AiError('conflict', '同一消息不能切换规划模式', 409)
+      if (previous.metadata.chapterPlanRevision !== chapterPlanRevision) throw new AiError('conflict', '同一消息不能更换章节计划版本', 409)
       if (previous.content !== content) throw new AiError('conflict', '同一请求标识不能提交不同消息', 409)
       if ((previous.metadata.providerPresetId || '') !== provider.providerPresetId) throw new AiError('conflict', '同一请求标识不能切换模型预设', 409)
       if ((previous.metadata.recoveryFromTaskId || '') !== recoveryFromTaskId) throw new AiError('conflict', '同一请求标识不能切换恢复来源', 409)
       if (JSON.stringify(previous.metadata.referenceSelection) !== JSON.stringify(selection)) throw new AiError('conflict', '同一请求标识不能更换写作参考', 409)
       return { taskId: previous.task_id, created: false }
     }
+    const chapterPlan = snapshotChapterPlan(session.chapter_plan, chapterPlanRevision)
     if (recoveryFromTaskId) {
       const source = await first(scoped, `SELECT id FROM ai_tasks WHERE id=$1 AND user_id=$2 AND kind='agent_chat'
         AND status IN ('failed','cancelled') AND params::jsonb->>'sessionId'=$3`, [recoveryFromTaskId, userId, sessionId])
@@ -261,9 +271,9 @@ export async function beginAgentTurn(
       kind: 'agent_chat',
       total: 1,
       prompt: content,
-      params: JSON.stringify({ sessionId, agentUsageVersion: 1, ...provider, writingReferences, ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }),
+      params: JSON.stringify({ sessionId, agentUsageVersion: 1, ...provider, writingReferences, ...(planningOnly ? { planningOnly: true } : {}), ...(chapterPlan ? { chapterPlan } : {}), ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }),
     })
-    await appendAgentEvent(scoped, sessionId, 'user', content, task.id, { ...provider, referenceSelection: selection, ...(referenceMetadata.length ? { writingReferences: referenceMetadata } : {}), ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }, requestId)
+    await appendAgentEvent(scoped, sessionId, 'user', content, task.id, { ...provider, ...(planningOnly ? { planningOnly: true } : {}), ...(chapterPlan ? { chapterPlanRevision: chapterPlan.revision } : {}), referenceSelection: selection, ...(referenceMetadata.length ? { writingReferences: referenceMetadata } : {}), ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }, requestId)
     await query(
       "UPDATE ai_agent_sessions SET active_task_id=$1,title=CASE WHEN title='新的创作对话' THEN $2 ELSE title END,updated_at=GREATEST(updated_at+1,$3) WHERE id=$4",
       [task.id, content.slice(0, 32), Date.now(), sessionId],

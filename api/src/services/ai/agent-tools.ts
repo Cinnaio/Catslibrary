@@ -14,6 +14,8 @@ import { parseRewriteSuggestion, parseRewriteTaskParams } from './rewrite'
 import { agentRewriteVersion, findAgentDraftVersions } from './agent-draft-versions'
 import { parseAgentSourceIds } from './agent-writing'
 import { getAiTask } from './tasks'
+import { readChapterPlan, saveChapterPlan } from './agent-chapter-plan'
+import { agentTaskParams } from './agent-recovery'
 
 type Property = { type: 'string' | 'integer' | 'array'; description?: string; enum?: string[]; maxLength?: number; minimum?: number; maximum?: number; items?: { type: 'string' }; maxItems?: number }
 function tool(name: string, description: string, properties: Record<string, Property> = {}, required = Object.keys(properties)): AiFunctionTool {
@@ -34,6 +36,14 @@ const rewriteLength = {
   minimumWords: { ...writingLength.minimumWords, maximum: 12_000, description: '整章改写的最低字数。与 targetWords 二选一。' },
 }
 export const AGENT_TOOLS: AiFunctionTool[] = [
+  tool('propose_chapter_plan', '保存本会话的章节计划卡，不生成正文、不代表作者确认。修改时传本轮资料中的当前 revision；首次为 0。待定的可选文字字段传空字符串。保存后请作者在章节计划入口确认。', {
+    title: { type: 'string', maxLength: 200 }, goal: { type: 'string', maxLength: 1200 },
+    beats: { type: 'string', maxLength: 4000, description: '按发生顺序分行填写主要情节。' },
+    characters: { type: 'string', maxLength: 1200, description: '出场人物、动机和关系变化；不要把计划当已发生事实。' },
+    ending: { type: 'string', maxLength: 1200 }, constraints: { type: 'string', maxLength: 1200 },
+    targetWords: { type: 'integer', minimum: 300, maximum: 30000 },
+    expectedRevision: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
+  }),
   tool('read_overview', '读取当前小说、冻结的续写起点和最近章节目录。需要了解作品或定位章节时使用；核对聊天中的作者决定无需先读目录。'),
   tool('find_chapter', '按目录序号或章名定位正式章节，查找范围截至本会话起点，支持比最近目录更早的章节。两项只填一项。章名优先核对完整匹配；有歧义时请进一步定位。', {
     ordinal: { type: 'integer', minimum: 1, maximum: 1000000, description: '按目录从 1 开始的正序位置，不是存储排序值。' },
@@ -199,6 +209,7 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
   read_task: '读取任务结果',
   read_conversation: '查阅早前对话',
   read_conversation_sources: '核对作者原话',
+  propose_chapter_plan: '整理章节计划',
   generate_draft: '生成章节草稿',
   rewrite_chapter: '生成原章节改写建议',
   refine_chapter_edit: '调整原章节建议',
@@ -223,6 +234,11 @@ export async function executeAgentTool(
   currentTaskId = '',
   focus?: { read: AgentDraftRead; authorEventId: number },
 ): Promise<Record<string, unknown>> {
+  if (name === 'propose_chapter_plan') {
+    if (!currentTaskId || !operationId) throw new AiError('invalid', '章节计划需要当前作者轮次', 422)
+    return { plan: await saveChapterPlan(db, userId, session.id, a, a.expectedRevision, { taskId: currentTaskId, operationId }),
+      message: '计划已保存，尚未确认。请作者打开章节计划，核对后确认计划并写作。' }
+  }
   if (name === 'read_overview') {
     const novel = await first<{ title: string; author: string; description: string }>(db, 'SELECT title,author,description FROM novels WHERE id=$1', [
       session.novelId,
@@ -342,6 +358,9 @@ export async function executeAgentTool(
     }, true) }
   }
   if (name === 'prepare_action') return { action: await prepareAgentAction(db, session, a.kind as AgentActionKind, String(a.targetId), String(a.title || '')) }
+  const currentTurn = currentTaskId ? agentTaskParams(await getAiTask(db, currentTaskId)) : undefined
+  if (currentTurn?.planningOnly || (currentTurn?.chapterPlanProposed && AGENT_GENERATION_TOOLS.has(name)))
+    throw new AiError('conflict', '本轮只拟定计划，请作者确认计划后再写作', 409)
   const agentWriting = {
     sessionId: session.id,
     authorTaskId: currentTaskId,
@@ -381,6 +400,13 @@ export async function executeAgentTool(
       startUTF16: start, endUTF16: start + selectedText.length, selectedText, instruction: a.instruction,
       previousTaskId, agentWriting, clientRequestId: operationId })
   } else if (name === 'generate_draft') {
+    const confirmedPlan = currentTurn?.chapterPlan
+    if (!confirmedPlan && userId && await readChapterPlan(db, userId, session.id))
+      throw new AiError('conflict', '本会话有章节计划，请作者在章节计划入口确认后写作', 409)
+    if (confirmedPlan) {
+      agentWriting.targetWords = confirmedPlan.targetWords
+      agentWriting.minimumWords = undefined
+    }
     if (!String(a.instruction).trim()) throw new AiError('invalid', '请先确定本章创作要求', 422)
     let selection: unknown
     try { selection = a.analysisReferences === undefined ? undefined : JSON.parse(String(a.analysisReferences)) }
@@ -388,16 +414,16 @@ export async function executeAgentTool(
     const references = await getAnalysisReferences(db, session.novelId, session.afterChapterId, parseAnalysisReferenceSelections(selection))
     receipt = await api(`/api/ai/writing/${session.afterChapterId ? 'continue' : 'chapter'}`, 'POST', {
       novelId: session.novelId,
-      title: a.title || session.novelTitle,
+      title: confirmedPlan?.title || a.title || session.novelTitle,
       instruction: a.instruction,
-      outline: a.outline || '',
+      outline: confirmedPlan?.beats || a.outline || '',
       chapterCount: 1,
       afterChapterId: session.afterChapterId || null,
       contentPreferences: session.contentPreferences,
       analysisReferences: references.reports.map(report => ({ reportId: report.id, revision: report.revision })),
       ...(a.characters ? { writingBrief: { version: 1, characters: String(a.characters).split(/[,，、]/u).map(name => name.trim()).filter(Boolean) } } : {}),
       agentWriting: { ...agentWriting, priorDraftId: a.priorDraftId, priorDraftRevision: a.priorDraftRevision },
-      operationId,
+      operationId: confirmedPlan ? currentTaskId + '_chapter_plan_' + confirmedPlan.revision : operationId,
     })
   } else if (name === 'rewrite_draft' && !focusedRewriteTask) {
     const draft = await scopedAgentDraft(db, session, String(a.draftId))

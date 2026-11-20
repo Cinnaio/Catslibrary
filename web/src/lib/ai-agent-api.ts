@@ -1,5 +1,7 @@
 import type { AgentChapterEditSource, AgentChapterHistory } from '@shared/ai-agent'
 import type {
+  AgentChapterPlan,
+  AgentChapterPlanInput,
   AgentWritingReference,
   AgentRewriteSelection,
   AgentReferenceSelection,
@@ -19,6 +21,8 @@ import { request } from './api'
 const root = '/ai/agent/sessions'
 const path = (id: string) => `${root}/${encodeURIComponent(id)}`
 export const agentApi = {
+  saveChapterPlan: (id: string, plan: AgentChapterPlanInput, expectedRevision: number) =>
+    request<{ plan: AgentChapterPlan }>('PATCH', path(id) + '/chapter-plan', { plan, expectedRevision }, true),
   writingReferences: (query = '', offset = 0) => request<{ references: AgentWritingReference[]; hasMore: boolean }>('GET', `/ai/agent/writing-references?${new URLSearchParams({ q: query, offset: String(offset) })}`, null, true),
   createWritingReference: (value: Pick<AgentWritingReference, 'title' | 'tags' | 'content' | 'usage'>) => request<{ reference: AgentWritingReference }>('POST', '/ai/agent/writing-references', value, true),
   editWritingReference: (id: string, value: Pick<AgentWritingReference, 'title' | 'tags' | 'content' | 'usage'>, expectedRevision: number) => request<{ reference: AgentWritingReference }>('PATCH', `/ai/agent/writing-references/${encodeURIComponent(id)}`, { ...value, expectedRevision }, true),
@@ -33,8 +37,8 @@ export const agentApi = {
   remove: (id: string) => request<{ ok: boolean }>('DELETE', path(id), null, true),
   get: (id: string, requestId?: string) => request<AgentSessionDetail>('GET', `${path(id)}${requestId ? `?${new URLSearchParams({ requestId })}` : ''}`, null, true),
   events: (id: string, before: number) => request<{ events: AgentEvent[]; hasEarlier: boolean }>('GET', `${path(id)}/events?before=${before}`, null, true),
-  message: (id: string, content: string, requestId: string, providerPresetId = '', referenceSelection?: AgentReferenceSelection) =>
-    request<{ taskId: string; created: boolean }>('POST', `${path(id)}/messages`, { content, requestId, providerPresetId, referenceSelection }, true),
+  message: (id: string, content: string, requestId: string, providerPresetId = '', referenceSelection?: AgentReferenceSelection, chapterPlanRevision?: number, planningOnly?: true) =>
+    request<{ taskId: string; created: boolean }>('POST', `${path(id)}/messages`, { content, requestId, providerPresetId, referenceSelection, ...(planningOnly ? { planningOnly } : {}), ...(chapterPlanRevision === undefined ? {} : { chapterPlanRevision }) }, true),
   resume: (id: string, taskId: string) =>
     request<{ taskId: string; created: boolean }>('POST', `${path(id)}/tasks/${encodeURIComponent(taskId)}/resume`, { confirmModelCall: true }, true),
   save: (id: string, brief: string, contentPreferences: AgentContentPreferences, expectedUpdatedAt: number, expectedBookSettingsRevision?: number) =>

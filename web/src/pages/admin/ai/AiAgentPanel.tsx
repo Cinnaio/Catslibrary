@@ -38,6 +38,7 @@ import AiAgentUsage from './AiAgentUsage'
 import AiAgentTextReview from './AiAgentTextReview'
 import { compareAgentText } from './agent-text-diff'
 import AiAgentOutputHeader from './AiAgentOutputHeader'
+import AiAgentChapterPlan from './AiAgentChapterPlan'
 import AiAgentActionDialog from './AiAgentActionDialog'
 import AiAgentHistory from './AiAgentHistory'
 import AgentBookDiscovery from './AgentBookDiscovery'
@@ -573,9 +574,9 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
       if (mounted.current) setBusy(false)
     }
   }
-  async function send(content = input) {
+  async function send(content = input, chapterPlanRevision?: number, planningOnly?: true) {
     if (!content.trim() || busyRef.current || running || pendingRequest.current) return
-    await submitMessage({ content, id: newOperationId('agent-message'), providerPresetId, ...(writingReferences && (writingReferences.references.length || writingReferences.scope === 'session' || data?.session.writingReferenceIds?.length) ? { referenceSelection: { ids: writingReferences.references.map(item => item.id), scope: writingReferences.scope } } : {}) })
+    await submitMessage({ content, id: newOperationId('agent-message'), providerPresetId, ...(planningOnly ? { planningOnly } : {}), ...(chapterPlanRevision === undefined ? {} : { chapterPlanRevision }), ...(writingReferences && (writingReferences.references.length || writingReferences.scope === 'session' || data?.session.writingReferenceIds?.length) ? { referenceSelection: { ids: writingReferences.references.map(item => item.id), scope: writingReferences.scope } } : {}) })
   }
   async function submitMessage(request: PendingAgentMessage) {
     if (busyRef.current) return
@@ -583,7 +584,9 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
     setPending(request)
     savePendingAgentMessage(pendingKey, request)
     await perform(async () => {
-      if (request.referenceSelection) await agentApi.message(sessionId, request.content, request.id, request.providerPresetId, request.referenceSelection)
+      if (request.planningOnly) await agentApi.message(sessionId, request.content, request.id, request.providerPresetId, request.referenceSelection, undefined, true)
+      else if (request.chapterPlanRevision !== undefined) await agentApi.message(sessionId, request.content, request.id, request.providerPresetId, request.referenceSelection, request.chapterPlanRevision)
+      else if (request.referenceSelection) await agentApi.message(sessionId, request.content, request.id, request.providerPresetId, request.referenceSelection)
       else await agentApi.message(sessionId, request.content, request.id, request.providerPresetId)
       clearPending(request)
       if (mounted.current) {
@@ -843,7 +846,11 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
             providerPresetId={providerPresetId}
             onProviderChange={setProviderPresetId}
             focusRequest={focusRequest}
-            tools={<><AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} /><AiAgentWritingReferences value={writingReferences || { references: [], scope: 'turn' }} onChange={setWritingReferences} disabled={busy || running || !!pending || !writingReferences} /></>}
+            tools={<>{data.chapterPlan !== undefined && <AiAgentChapterPlan key={sessionId} sessionId={sessionId} plan={data.chapterPlan || null}
+              disabled={busy || running || !!pending} onChanged={reload}
+              onDiscuss={prompt => send(prompt, undefined, true)}
+              onStart={plan => send('我已确认章节计划第 ' + plan.revision + ' 版《' + plan.title + '》，请按这版计划生成一章草稿，暂不发布。', plan.revision)} />}
+              <AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} /><AiAgentWritingReferences value={writingReferences || { references: [], scope: 'turn' }} onChange={setWritingReferences} disabled={busy || running || !!pending || !writingReferences} /></>}
           />
         </section>
         <aside id={outputsId} className={styles.outputs} aria-label="产出与采纳">
