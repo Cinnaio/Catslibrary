@@ -1,9 +1,24 @@
 name: Deploy
 
-# 复用独立发布包验证，部署只接收本次验证通过的原包。
+# Public standard runner; private sources and archives stay on this one ephemeral runner.
 on:
-  # 在 Actions 中选择分支并手动运行，推送与 PR 均不发布网站。
   workflow_dispatch:
+    inputs:
+      core_ref:
+        description: '核心分支、标签或完整 SHA'
+        required: true
+        default: main
+        type: string
+      adapter_ref:
+        description: '私有书源版本（留空保留线上版本；首次安装使用私有 main）'
+        required: false
+        default: ''
+        type: string
+      build_only:
+        description: '只合并构建和验收，不切换生产版本'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -13,92 +28,70 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify:
-    uses: ./.github/workflows/release-verify.yml
-
   deploy:
-    needs: verify
+    name: Build private release and deploy
+    if: github.repository == 'Cinnaio/Catslibrary' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
-    env:
-      RELEASE_SHA: ${{ needs.verify.outputs.release-sha }}
-      RELEASE_ARCHIVE_SHA256: ${{ needs.verify.outputs.archive-sha256 }}
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: release_smoke
+          POSTGRES_PASSWORD: release_smoke
+          POSTGRES_DB: release_smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U release_smoke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
-      - name: Check verification outputs
-        env:
-          RELEASE_ARTIFACT_ID: ${{ needs.verify.outputs.artifact-id }}
-        run: |
-          [[ "$RELEASE_ARTIFACT_ID" =~ ^[0-9]+$ ]]
-          [[ "$RELEASE_ARCHIVE_SHA256" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [ "$RELEASE_SHA" = "$GITHUB_SHA" ]
-
-      - name: Download this run's verified release
-        uses: actions/download-artifact@v4
+      - name: Check out trusted deployment tools
+        uses: actions/checkout@v4
         with:
-          artifact-ids: ${{ needs.verify.outputs.artifact-id }}
-          merge-multiple: true
-
-      - name: Verify the exact archive before connecting to production
-        run: |
-          printf '%s  release.tgz\n' "$RELEASE_ARCHIVE_SHA256" | sha256sum --check --strict -
-
-      - name: Start ssh-agent
-        uses: webfactory/ssh-agent@v0.9.0
+          path: tooling
+          persist-credentials: false
+      - name: Check out core revision
+        uses: actions/checkout@v4
         with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
-
-      - name: Trust host key
+          ref: ${{ inputs.core_ref }}
+          path: core
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: core/.node-version
+          # No Actions cache: build content must stay on this runner.
+      - name: Check deployment and log isolation
+        run: node --test tooling/.github/scripts/private-deploy.test.mjs
+      - name: Pin versions and privately fetch adapters
         env:
+          ADAPTER_REF: ${{ inputs.adapter_ref }}
+          PRIVATE_SOURCES_REPOSITORY: ${{ vars.PRIVATE_SOURCES_REPOSITORY }}
+          PRIVATE_SOURCES_SSH_KEY: ${{ secrets.PRIVATE_SOURCES_SSH_KEY }}
+          PRIVATE_SOURCES_KNOWN_HOSTS: ${{ secrets.PRIVATE_SOURCES_KNOWN_HOSTS }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_KNOWN_HOSTS"
-          mkdir -p ~/.ssh
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-          ssh-keygen -F "$DEPLOY_HOST" -f ~/.ssh/known_hosts > /dev/null
-
-      - name: Check installed release protocol
+        run: node tooling/.github/scripts/private-deploy.mjs prepare
+      # These processes receive neither Secrets nor Actions file-command channels.
+      - name: Install isolated build dependencies
+        run: node tooling/.github/scripts/private-deploy.mjs install
+      - name: Verify core and private adapters
+        run: node tooling/.github/scripts/private-deploy.mjs verify
+      - name: Build and smoke test the final archive
+        run: node tooling/.github/scripts/private-deploy.mjs build
+      - name: Activate verified archive and check production
+        if: ${{ !inputs.build_only }}
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: |
-          protocol=$(ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" 'sudo -n /usr/local/bin/zhizhou-release --protocol-version')
-          [ "$protocol" = 3 ] || { echo '请先按部署文档升级服务器发布工具至协议 3（保护私有书源）'; exit 1; }
-
-      - name: Upload release to server
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: |
-          scp -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" release.tgz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/release-${RELEASE_SHA}.tgz"
-
-      - name: Activate release and restart service
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: |
-          ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "sudo -n /usr/local/bin/zhizhou-release '$RELEASE_SHA' --archive-sha256 '$RELEASE_ARCHIVE_SHA256'"
-
-      - name: Verify production
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: |
-          ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- '$RELEASE_SHA'" <<'REMOTE'
-          set -eu
-          systemctl is-active --quiet zhizhou.service
-          base=http://127.0.0.1:8080
-          ready=$(curl -fsS --max-time 5 "$base/api/ready")
-          printf '%s' "$ready" | python3 -c 'import json,sys; p=json.load(sys.stdin); assert p.get("ready") is True and p.get("release")==sys.argv[1]' "$1"
-          health=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "$base/api/health")
-          home=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "$base/")
-          entry=$(curl -s --max-time 5 "$base/" | grep -o '/assets/index-[A-Za-z0-9_.-]*\.js' | head -1 || true)
-          entry_code=000
-          if [ -n "${entry:-}" ]; then entry_code=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' "$base$entry"); fi
-          curl -fsS --max-time 5 "$base/api/novels?limit=1" > /dev/null
-          printf 'health=%s home=%s entry=%s(%s)\n' "$health" "$home" "${entry:-none}" "$entry_code"
-          [ "$health" = 200 ] && [ "$home" = 200 ] && [ "$entry_code" = 200 ]
-          REMOTE
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: node tooling/.github/scripts/private-deploy.mjs publish
+      - name: Remove private source, logs, keys and build output
+        if: always()
+        run: node tooling/.github/scripts/private-deploy.mjs cleanup

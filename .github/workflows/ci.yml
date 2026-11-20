@@ -36,7 +36,7 @@ jobs:
         run: python3 scripts/test-release.py
 
       - name: Private deployment policy
-        run: node --test scripts/test-private-deploy.mjs
+        run: node --test scripts/test-private-deploy.mjs .github/scripts/private-deploy.test.mjs
 
       - name: Test
         run: npm test

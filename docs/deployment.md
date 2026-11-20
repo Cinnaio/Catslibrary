@@ -11,7 +11,7 @@
 发布包验收、网站部署和 iOS 构建分别手动选择运行，推送或创建/更新 PR 均不会自动触发它们：
 
 - 发布包验收：进入仓库 **Actions → Verify release package → Run workflow**，选择待验证分支；只构建、验证并保存发布工件，不连接生产服务器，也不需要 `DEPLOY_*` Secrets。
-- 网站：进入仓库 **Actions → Deploy → Run workflow**，选择要部署的分支（通常为 `main`）并运行。
+- 网站：进入仓库 **Actions → Deploy → Run workflow**，工作流分支选择 `main`，按下文参数构建核心＋私有书源并部署。
 - iOS：进入 **Actions → Build and Test iOS (unsigned IPA) → Run workflow**，选择分支并运行；完成后下载 `ZhiZhou-unsigned-ipa` 工件。
 - 普通 CI 与备份集成检查继续按各自工作流的现有规则触发。
 
@@ -25,13 +25,42 @@
 
 成功后的工件名为 `release-<完整 SHA>-<运行尝试次数>`，保留 14 天，包含 `release.tgz`、`release.tgz.sha256` 和 `release-manifest.json`。运行摘要显示源码 SHA、API/Web 版本、平台、Node、归档摘要与工件 ID。验证失败时不发布供部署使用的工件；验收成功不代表已部署或完成真实客户端验收。
 
-`.github/workflows/deploy.yml` 先调用同一提交的验证工作流，全部通过后才启动部署作业。部署按不可变工件 ID 下载**同一次运行中验证过的原包**，核对源码 SHA 与归档 SHA-256 后才加载 SSH 密钥；之后只信任已核对的主机密钥，检查服务器协议 3，上传并执行 `/usr/local/bin/zhizhou-release <完整 SHA>`。部署作业不重新构建，也不根据名称搜索或下载其他运行的工件。单独验收后手动启动 Deploy，会在新的运行里重新构建并验证当前所选提交，不直接沿用之前的验收工件。
+### GitHub 页面一键合并部署（私有实例默认入口）
+
+在公开核心仓库 **Actions → Deploy → Run workflow** 操作，工作流分支固定选择 **main**；待部署核心版本通过参数选择。整个任务使用标准 Ubuntu 22.04 GitHub 托管 runner，私有书源仓库保持私有。不要改用付费大型 runner。
+
+| 参数 | 默认值 | 含义 |
+| --- | --- | --- |
+| core_ref | main | 要构建的核心分支、标签或完整 SHA；开始时固定版本 |
+| adapter_ref | 留空 | 保留线上当前书源 SHA；显式填写 main 等版本才更新书源；首次安装使用私有 main |
+| build_only | 不勾选 | 默认构建验收通过后部署；勾选时只读取线上版本、构建和验收，结束后删除临时包 |
+
+主仓库 Settings → Secrets and variables → Actions 需要以下配置：
+
+| 类型 | 名称 | 用途 |
+| --- | --- | --- |
+| Variable | PRIVATE_SOURCES_REPOSITORY | 私有适配器仓库的 owner/repo |
+| Secret | PRIVATE_SOURCES_SSH_KEY | 新建的专用只读 Deploy Key 私钥；公钥只绑定适配器仓库，禁止启用写权限 |
+| Secret | PRIVATE_SOURCES_KNOWN_HOSTS | 从可信 GitHub 官方来源核对的 github.com SSH 主机密钥 |
+| Secret | DEPLOY_HOST / DEPLOY_USER | 生产 SSH 主机与部署用户 |
+| Secret | DEPLOY_SSH_KEY | 专用生产发布私钥 |
+| Secret | DEPLOY_KNOWN_HOSTS | 预先核对的生产主机密钥 |
+
+现有四个 DEPLOY_* Secrets 可以沿用。私有拉取使用独立只读密钥；不要把个人 PAT 或个人 SSH 管理密钥作为拉取凭证。运行凭据仅在准备和发布步骤传入，npm、测试及构建子进程使用环境变量白名单，不继承 Secrets、GitHub 文件命令通道或调试注入选项。源码快照没有 Git 凭据。
+
+流程在同一临时 runner 内依次读取协议 3 与线上双版本、固定两个仓库 SHA、完成类型/Lint/关键回归、构建完整包、重新解包验证 Linux 原生运行时、用独立 PostgreSQL 验收迁移和就绪，随后核对归档摘要并通过 SSH 直接传给 story。发布前及服务器锁内均校验预期线上双版本；不允许纯核心包覆盖私有实例，也不允许并发版本被静默覆盖。story 不运行依赖安装或构建。
+
+**公开可见范围**：只输出固定步骤名称、通过/失败、核心提交、应用版本及归档摘要；私有子进程 stdout/stderr 捕获在临时目录，不回显原始异常，不上传 Artifact、不保存 Actions 缓存。结束时删除源码、日志、密钥和发布包；取消或机器异常时仍依赖 GitHub 临时 runner 销毁。adapter_ref 是工作流输入，运行管理员可查看，因此不要填写密码或其他秘密。分支名称本身若敏感，应保持留空或填写完整 SHA。
+
+这是受信任维护者手动发布流程，不是执行不可信源码的沙箱。仅允许本仓库 main 的 workflow_dispatch；不要接入 PR、pull_request_target 或外部未审核代码，也不要为本流程打开 Actions runner 调试。构建工具由 main 的本次提交提供，core_ref 和 adapter_ref 必须是审核过的版本。
+
+失败时公开日志保留失败阶段，完整私有诊断不会上传。需要看原始错误时，用已有独立构建机入口在私有环境复现，或在私有 Actions 额度恢复后运行私有验收；不要为了排查向公开日志追加 cat/tail。只构建运行不保留可下载包；重新运行会重新构建并验收，只有生产部署步骤成功才代表上线。
 
 ### 安装扩展书源的部署
 
-私有书源静态编译进 API，单独保留旧文件不能兼顾新核心。**已安装私有书源的实例必须合并构建核心与适配器**。协议 3 在停止服务、执行包内代码及备份之前拒绝用纯核心包覆盖私有实例；主仓库 Deploy 仍产出核心包，因此对这类实例会安全失败，不会卸载已有书源。
+私有书源静态编译进 API，单独保留旧文件不能兼顾新核心。**已安装私有书源的实例必须合并构建核心与适配器**。协议 3 在停止服务、执行包内代码及备份之前拒绝用纯核心包覆盖私有实例；主仓库 Deploy 已改为完整私有合并发布，独立 Verify release package 仍只验证纯核心包。
 
-#### 无需 Actions 的合并部署（推荐）
+#### 无需 Actions 的合并部署（备用与私有诊断）
 
 在本地核心仓库执行（Windows PowerShell、Linux 均可）：
 
