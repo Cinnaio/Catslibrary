@@ -4,30 +4,31 @@ import { watchAiTask } from '@/lib/ai-task-stream'
 import AiStreamPreview from '@/components/shared/AiStreamPreview'
 import { MotionDetails } from '@/components/ui/motion'
 import WritingPreparation from './WritingPreparation'
+import { useWritingPreparationState } from './writing-preparation-state'
 import AiGenerationsPanel from './AiGenerationsPanel'
 import styles from './writing-workspace.module.css'
 import { emptyWritingBrief } from './writing-brief'
 import { normalizePlotTimeoutSeconds, PLOT_TIMEOUT_MIN_SECONDS, PLOT_TIMEOUT_MAX_SECONDS } from '@shared/ai-plot-timeout'
 import type { AiWritingBrief } from '@/lib/api'
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
-import type { AdminNovelIndexItem } from '@shared/types'
 import { parseAiTextProgress, type AiTextProgress } from '@shared/ai-text-progress'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import FormField from "@/components/shared/FormField"
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { aiApi, chaptersApi, newOperationId, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogClose, DialogTrigger } from '@/components/ui/dialog'
+import { ReadingDialog } from '@/components/shared/ReadingDialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import SearchSelect from "@/components/shared/SearchSelect"
 import { kindLabel as taskKindLabel, taskStatusLabel } from './labels'
 import { Textarea } from '@/components/ui/textarea'
-import { url } from '@/lib/api'
-import { Sparkles, ArrowRight, BookOpen, Cpu, FileText } from 'lucide-react'
 
 // 后台化的创作任务类型
 const WRITING_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter'])
@@ -144,7 +145,6 @@ export default function AiWritingPanel(props: {
   active?: boolean
   view: WritingView
   novelId: string
-  novels: AdminNovelIndexItem[]
   focusBatchId?: string
   onAfterChapterChange?: (chapterId: string) => void
   onViewBatch?: (batchId?: string, novelId?: string, view?: 'review' | 'outputs') => void
@@ -158,7 +158,7 @@ export default function AiWritingPanel(props: {
   // AI 创作的主要使用场景是给既有小说续写；新写仍保留为并列入口，而非默认落点。
   const [mode, setMode] = useState<'new' | 'continue'>('continue')
   const [recentTasks, setRecentTasks] = useState<AiTaskInfo[]>([])
-  const { novelId, novels, view } = props
+  const { novelId, view } = props
   function openDrafts(batchId?: string, targetNovelId = novelId, nextView: 'review' | 'outputs' = 'review') {
     props.onViewBatch?.(batchId, targetNovelId, nextView)
   }
@@ -238,19 +238,9 @@ export default function AiWritingPanel(props: {
    * 记录替换前的原文，提供一个「撤销填入」，让这个动作可逆。
    */
   const [suggestionFill, setSuggestionFill] = useState<{ applied: string; previous: string } | null>(null)
-  /**
-   * 候选列表的展开 / 收起。
-   * 收起只隐藏列表，不清空已取回的数据 —— 此前「收起」直接 setSuggestions([])，
-   * 右列随即退回「这里会列出可直接填入的续写方向」的空态，与用户刚取回候选的
-   * 事实相矛盾；想再看只能重新点「推荐情节」，等于为一个已经拿到的结果重复付费。
-   */
-  const [suggestCollapsed, setSuggestCollapsed] = useState(false)
   const [focus, setFocus] = useState('')
   /** 用选中的情节方向生成多章大纲。 */
   const [outlineBusy, setOutlineBusy] = useState(false)
-  useEffect(() => {
-    if (outlineBusy || suggestBusy || suggestions.length > 0) setDeckOpen(true)
-  }, [outlineBusy, suggestBusy, suggestions.length])
   /** 作者本次任务的成人内容参数；不传时后端按关闭处理，与旧客户端行为一致。 */
   const [adultContentMode, setAdultContentMode] = useState<'off' | 'explicit'>('off')
   const [consentRuleTier, setConsentRuleTier] = useState<'default' | 'fictional_nonconsent'>('default')
@@ -270,13 +260,10 @@ export default function AiWritingPanel(props: {
     setSuggestions([])
     setSuggestionFill(null)
     setSuggestBusy(false)
-    setOutlineBusy(false)
   }, [draftKey, afterChapterId])
   const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
   const isContinuationMode = mode === 'continue'
   const isMultiChapter = isContinuationMode && chapterCount > 1
-  const selectedNovel = novels.find((novel) => novel.id === novelId)
-  const selectedNovelTitle = selectedNovel?.title || ''
   useEffect(() => {
     initialGraphAnchor.current = { novelId, chapterId: props.initialAfterChapterId }
     setAfterChapterId(props.initialAfterChapterId || '')
@@ -468,8 +455,8 @@ export default function AiWritingPanel(props: {
     const seq = ++suggestionSeq.current
     const requestedNovelId = novelId
     setSuggestBusy(true)
+    setDeckOpen(true)
     setDeckTab('suggestions')
-    setSuggestCollapsed(false)
     setRequestProgress(null)
     try {
       const res = await aiApi.writing.plotSuggestions({
@@ -484,8 +471,6 @@ export default function AiWritingPanel(props: {
       // 期间切了书或又发起了新一轮：这一份已过期，丢弃而不是写进当前页面
       if (seq !== suggestionSeq.current || requestedNovelId !== novelId) return
       setSuggestions(res.suggestions)
-      // 取回新一批就展开：用户刚点过按钮，期待看到结果
-      setSuggestCollapsed(false)
       if (!res.suggestions.length) toast('未返回可用的情节方向', 'error')
     } catch (err) {
       if (seq !== suggestionSeq.current) return
@@ -497,16 +482,16 @@ export default function AiWritingPanel(props: {
   }
 
   /**
-   * 按当前章节数生成多章大纲，填进大纲框。
+   * 按本次情节和当前章节数生成大纲，填进大纲框。
    * 大纲会被后端按章拆分后逐章下发，因此要按「第N章」逐段给出。
    */
-  async function generateOutlineForContinuation(overrideDirection?: string) {
+  async function generateOutlineForContinuation() {
     if (!novelId) return toast('请选择小说', 'error')
     const seq = ++outlineSeq.current
-    const direction = (overrideDirection ?? instruction).trim()
+    const direction = instruction.trim()
     setOutlineBusy(true)
+    setDeckOpen(true)
     setDeckTab('outline')
-    setSuggestCollapsed(false)
     setRequestProgress(null)
     try {
       const res = await aiApi.writing.plotSuggestions({
@@ -562,64 +547,8 @@ export default function AiWritingPanel(props: {
     }
   }
 
-  /** 内容边界收在上下文区域；折叠标题持续展示真实生效状态。 */
-  const continuationContentScale =
-    mode === 'continue' ? (
-      <section className="ai-writing-content-scope mt-3.5 pt-3.5" aria-labelledby="ai-writing-content-scope-title">
-        <div className="ai-writing-section-heading flex items-center justify-between gap-3 mb-2">
-          <div className="flex items-center gap-2">
-            <h3 id="ai-writing-content-scope-title" className="text-xs font-semibold text-foreground">
-              内容尺度
-            </h3>
-            <span className="text-[11px] text-muted-foreground hidden sm:inline">
-              影响续写正文与情节推荐方向
-            </span>
-          </div>
-          <AdminStatusBadge tone={adultContentMode === 'explicit' ? 'accent' : 'muted'} className="text-[10px]">
-            {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
-          </AdminStatusBadge>
-        </div>
-        <label className="ai-writing-content-scope__toggle">
-          <span className="min-w-0">
-            <span className="block text-xs font-medium text-foreground">开启露骨 R18 模式</span>
-            <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
-              开启后以成人场景为章节主体；推荐情节也会按相同尺度提供方向。
-            </span>
-          </span>
-          <Switch
-            checked={adultContentMode === 'explicit'}
-            disabled={busy || taskActive}
-            onCheckedChange={(checked) => {
-              setAdultContentMode(checked ? 'explicit' : 'off')
-            }}
-          />
-        </label>
-        {adultContentMode === 'explicit' && (
-          <div className="ai-writing-consent grid gap-2 mt-2.5">
-            <div className="grid gap-1.5">
-              <Label id="ai-writing-consent-tier-label" className="text-xs">
-                同意规则档位
-              </Label>
-              <SearchSelect
-                options={[
-                  { value: 'default', label: '严格（默认，适用于绝大多数作品）' },
-                  { value: 'fictional_nonconsent', label: '虚构题材分级（原作主线即含强迫/下药等情节时使用）' },
-                ]}
-                value={consentRuleTier}
-                onChange={(value) => setConsentRuleTier(value as 'default' | 'fictional_nonconsent')}
-                className={styles.contextSelect}
-                aria-labelledby="ai-writing-consent-tier-label"
-              />
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                放宽档只适用于原作主线本身涉及对应题材且角色均为成年人的情况；它不解除成年前提。
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
-    ) : null
-
   const rawBrief = briefs[novelId] || emptyWritingBrief()
+  const preparationState = useWritingPreparationState(novelId, rawBrief.characters?.join('、') || '')
   const currentWritingBrief = { ...rawBrief, chapterGoals: rawBrief.chapterGoals.filter((goal) => goal.index <= chapterCount) }
   const parsedOutlineSections = parseOutlineSections(outline)
   const materialRequest = {
@@ -635,60 +564,24 @@ export default function AiWritingPanel(props: {
     contentPreferences: buildContentPreferences(),
   }
   const materialKey = JSON.stringify(materialRequest)
+  const instructionLength = instruction.replace(/\s/g, '').length
 
   return (
     <div className={styles.root}>
-      {requestProgress && <section aria-label={requestProgress.kind}><AiStreamPreview progress={requestProgress.value} structured={requestProgress.kind === '情节方向'} /></section>}
       <section aria-label="作品创作台">
-        <div className={styles.toolbar} hidden={view !== 'compose'}>
-          {mode === 'continue' && (
-            <div className={styles.anchor}>
-              {chapterOptions.length > 1 && (
-                <FormField
-                  label="续写起点"
-                  labelId="ai-writing-after-chapter-label"
-                  className="ai-writing-continuation-start"
-                >
-                  <SearchSelect
-                    options={chapterOptions}
-                    value={afterChapterId}
-                    onChange={(id) => {
-                      setAfterChapterId(id)
-                      props.onAfterChapterChange?.(id)
-                    }}
-                    placeholder="从最新章节续写（默认）"
-                    searchable
-                    searchPlaceholder="搜索章节…"
-                    dropdownSide="bottom"
-                    aria-labelledby="ai-writing-after-chapter-label"
-                  />
-                </FormField>
-              )}
-              {chapterOptions.length <= 1 && (
-                <p className="ai-writing-continuation-start__status">
-                  {novelId ? '续写起点：将从最新已发布章节继续。' : '选择小说后，可在这里确认续写起点。'}
-                </p>
-              )}
-            </div>
-          )}
-          <div className={styles.mode}>
-            <span className={styles.caption}>创作方式</span>
-            <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>
-              <TabsList aria-label="创作方式">
-                <TabsTrigger value="continue">续写</TabsTrigger>
-                <TabsTrigger value="new">新写</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </div>
           <div hidden={view !== 'compose'}>
-            <div className={styles.layout}>
-              <div className={styles.editor}>
-                <div className={styles.sectionHeading}>
-                  <h2>{mode === 'continue' ? '接下来，故事如何发展？' : '从一个故事设想开始'}</h2>
-                  <span className={styles.caption}>
-                    {mode === 'continue' ? '承接已发布正文' : '先构思大纲，再生成章节'}
-                  </span>
+            <div className={styles.compose}>
+              <section className={styles.editor}>
+                <div className={styles.editorHeader}>
+                  <div className={styles.editorHeading}>
+                    <h2><label htmlFor="ai-writing-instruction">本次情节</label></h2>
+                  </div>
+                  <Tabs className={styles.mode} value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>
+                    <TabsList aria-label="创作方式">
+                      <TabsTrigger value="continue">续写</TabsTrigger>
+                      <TabsTrigger value="new">新写</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
                 </div>
                 {mode === 'new' && (
                   <div className={styles.newFields}>
@@ -700,386 +593,307 @@ export default function AiWritingPanel(props: {
                         placeholder="例如：雾城来信"
                       />
                     </FormField>
-                    {mode === 'new' && (
-                      <FormField
-                        label="章节标题"
-                        htmlFor="ai-writing-chapter-title"
-                        className="ai-writing-chapter-title"
-                      >
-                        <Input
-                          id="ai-writing-chapter-title"
-                          value={chapterTitle}
-                          onChange={(event) => setChapterTitle(event.target.value)}
-                          placeholder="例如：第一章 雾中来客"
-                        />
-                      </FormField>
-                    )}
-                    {mode === 'new' && (
-                      <div className={styles.newWords}>
-                        {' '}
-                        <FormField label="目标字数" htmlFor="ai-writing-target-words" hint="篇幅以此处数值为准，请与创作要求保持一致。">
-                          <div className="ai-writing-number-input">
-                            <Input
-                              id="ai-writing-target-words"
-                              type="number"
-                              min={300}
-                              max={30000}
-                              step={100}
-                              value={targetWordsInput.text}
-                              onChange={(event) => targetWordsInput.onChangeText(event.target.value)}
-                              onBlur={targetWordsInput.commit}
-                            />
-                            <span>字</span>
-                          </div>
-                        </FormField>
-                      </div>
-                    )}
+                    <FormField label="章节标题" htmlFor="ai-writing-chapter-title">
+                      <Input
+                        id="ai-writing-chapter-title"
+                        value={chapterTitle}
+                        onChange={(event) => setChapterTitle(event.target.value)}
+                        placeholder="例如：第一章 雾中来客"
+                      />
+                    </FormField>
                   </div>
                 )}
-                <section className="ai-writing-brief">
-                  <div className="ai-writing-brief__head">
-                    <Label htmlFor="ai-writing-instruction">本次情节</Label>
-                    <span className="ai-writing-brief__count">
-                      {instruction.replace(/\s/g, '').length > 0
-                        ? `${instruction.replace(/\s/g, '').length} 字`
-                        : '未填写'}
-                    </span>
-                  </div>
+                <div className={styles.storySheet}>
                   <Textarea
                     id="ai-writing-instruction"
-                    className="field-sizing-fixed min-h-[8rem] shadow-none text-sm"
+                    className={styles.storyInput}
                     value={instruction}
                     onChange={(event) => setInstruction(event.target.value)}
                     aria-describedby="ai-writing-instruction-hint"
-                    placeholder={
-                      '写下本章要发生的事、人物的选择，以及你希望留下的悬念。\n例如：主角循着旧信来到渡口，却与失踪多年的师兄重逢。'
-                    }
+                    placeholder={mode === 'continue' ? '写下接下来想发生的情节…' : '写下开篇的场景、人物或悬念…'}
                   />
-                  <p id="ai-writing-instruction-hint" className="ai-writing-brief__hint">
-                    {instruction.trim()
-                      ? mode === 'continue' && chapterCount > 1
-                        ? `本要求会随续写任务下发。可点击下方「整理成大纲」推演各章安排，确认后开启按纲续写。`
-                        : '本要求会随生成请求下发；可先「寻找灵感」挑选方向，或点击「整理成大纲」推演剧情细纲。'
-                      : '留空时模型自行发挥。建议先在下方「寻找灵感」挑一条，或写下设想后「整理成大纲」。'}
-                  </p>
-                </section>
-                <div className={styles.assist}>
-                  <span className="text-xs font-medium text-foreground/80 shrink-0">推荐侧重点</span>
-                  <Input
-                    aria-label="推荐侧重点（可选）"
-                    value={focus}
-                    onChange={(event) => setFocus(event.target.value)}
-                    placeholder="可留空，例如：感情升温的日常互动"
-                    className={styles.focusInput}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-
-                    disabled={busy || suggestBusy || !novelId}
-                    onClick={() => void loadSuggestions()}
-                  >
-                    {suggestBusy ? (
-                      '推荐中…'
-                    ) : (
-                      <>
-                        <Sparkles className="size-3.5 mr-1" aria-hidden="true" />
-                        寻找灵感
-                      </>
-                    )}
-                  </Button>
-                  {mode === 'continue' && (
+                  <div className={styles.storyFooter}>
+                    <p id="ai-writing-instruction-hint" className={styles.caption}>
+                      {mode === 'new' ? '大纲和章节会参考本次情节。' : '可留空，由模型构思后续情节。'}
+                    </p>
+                    <span className={styles.wordCount}>{instructionLength} 字</span>
+                  </div>
+                </div>
+                <div className={styles.assist} aria-busy={suggestBusy || outlineBusy}>
+                  <h3 className={styles.assistHeading}>需要一点灵感？</h3>
+                  <FormField label="推荐侧重点" htmlFor="ai-writing-focus">
+                    <Input
+                      id="ai-writing-focus"
+                      aria-label="推荐侧重点（可选）"
+                      value={focus}
+                      onChange={(event) => setFocus(event.target.value)}
+                      placeholder="选填，例如：人物关系升温"
+                      className={styles.focusInput}
+                    />
+                  </FormField>
+                  <div className={styles.assistActions}>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
-
-                      disabled={busy || taskActive || outlineBusy || !novelId}
-                      onClick={() => void generateOutlineForContinuation()}
-                      aria-label={isMultiChapter ? '整理成分章大纲' : '整理成大纲'}
+                      disabled={busy || suggestBusy || outlineBusy || !novelId}
+                      onClick={() => void loadSuggestions()}
                     >
-                      {outlineBusy ? (
-                        '生成中…'
-                      ) : (
-                        <>
-                          <FileText className="size-3.5 mr-1" aria-hidden="true" />
-                          {isMultiChapter ? '整理成分章大纲' : '整理成大纲'}
-                        </>
-                      )}
+                      {suggestBusy ? '推荐中…' : '寻找灵感'}
                     </Button>
-                  )}
+                    {mode === 'continue' && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy || taskActive || suggestBusy || outlineBusy || !novelId}
+                        onClick={() => void generateOutlineForContinuation()}
+                        aria-label={isMultiChapter ? '整理成分章大纲' : '整理成大纲'}
+                      >
+                        {outlineBusy ? '生成中…' : isMultiChapter ? '整理成分章大纲' : '整理成大纲'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                {mode === 'continue' && (
-                  <MotionDetails
-                    className={styles.outline}
-                    open={deckOpen}
-                    onToggle={(event) => setDeckOpen(event.currentTarget.open)}
-                  >
-                    <summary>
-                      大纲与灵感 <span>可手写大纲，或先寻找灵感</span>
-                    </summary>
-                    <div className="ai-writing-deck-block">
-                      {/* 头部 Tab 切换与控制 */}
-                      <div className="ai-writing-deck-head">
-                        <Tabs
-                          value={deckTab}
-                          onValueChange={(value) => {
-                            setDeckTab(value as 'outline' | 'suggestions')
-                            setSuggestCollapsed(false)
-                          }}
-                        >
-                          <TabsList aria-label="构思材料">
-                            <TabsTrigger value="outline">续写大纲</TabsTrigger>
-                            <TabsTrigger value="suggestions">
-                              灵感候选{suggestions.length > 0 ? ` · ${suggestions.length}` : ''}
-                            </TabsTrigger>
-                          </TabsList>
-                        </Tabs>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs text-muted-foreground"
-                            aria-expanded={!suggestCollapsed}
-                            onClick={() => setSuggestCollapsed((v) => !v)}
-                          >
-                            {suggestCollapsed ? '展开' : '收起'}
-                          </Button>
+                {requestProgress && <section className={styles.editorProgress} aria-label={requestProgress.kind}>
+                  <AiStreamPreview progress={requestProgress.value} structured={requestProgress.kind === '情节方向'} />
+                </section>}
+                <MotionDetails
+                  className={styles.outline}
+                  open={deckOpen}
+                  onToggle={(event) => setDeckOpen(event.currentTarget.open)}
+                >
+                  <summary>
+                    <span className={styles.outlineLabel}>大纲与灵感</span>
+                    <span>{outline.trim() ? '已有大纲' : '选填'}{suggestions.length > 0 && ` · ${suggestions.length} 条灵感`}</span>
+                  </summary>
+                  <Tabs className={styles.deck} value={deckTab} onValueChange={(value) => setDeckTab(value as 'outline' | 'suggestions')}>
+                    <TabsList variant="line" aria-label="构思材料">
+                      <TabsTrigger value="outline">{mode === 'continue' ? '续写大纲' : '大纲'}</TabsTrigger>
+                      <TabsTrigger value="suggestions">灵感候选{suggestions.length > 0 ? ` · ${suggestions.length}` : ''}</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value={deckTab} className={styles.deckBody}>
+                      {deckTab === 'outline' && mode === 'new' ? (
+                        <div className="grid gap-3">
+                          <Label htmlFor="ai-writing-outline-new">大纲（生成章节时使用）</Label>
+                          <Textarea
+                            id="ai-writing-outline-new"
+                            className="field-sizing-fixed min-h-[140px] shadow-none"
+                            value={outline}
+                            onChange={(event) => setOutline(event.target.value)}
+                            placeholder="先生成大纲，或直接粘贴已有大纲"
+                          />
                         </div>
-                      </div>
-
-                      {!suggestCollapsed && (
-                        <div className="ai-writing-deck-body pt-2 space-y-3">
-                          {deckTab === 'outline' ? (
-                            /* 大纲推演视图 */
-                            <div className="grid gap-2.5">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <Label htmlFor="ai-writing-outline" className="text-xs font-medium text-foreground/90">
-                                  {isMultiChapter ? '多章续写大纲' : '本章大纲（可选）'}
-                                </Label>
-                                <div className="flex items-center gap-3">
-                                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs select-none">
-                                    <Switch
-                                      checked={useOutline && Boolean(outline.trim())}
-                                      disabled={!outline.trim()}
-                                      onCheckedChange={(checked) => setUseOutline(checked)}
-                                    />
-                                    <span
-                                      className={
-                                        useOutline && outline.trim()
-                                          ? 'font-medium text-foreground'
-                                          : 'text-muted-foreground'
-                                      }
-                                    >
-                                      续写时采用此大纲
-                                    </span>
-                                  </label>
-                                  {outline.trim() && (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 px-1.5 text-xs text-muted-foreground hover:text-destructive"
-                                      onClick={() => {
-                                        setOutline('')
-                                        setUseOutline(false)
-                                      }}
-                                    >
-                                      清空
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-
-                              <Textarea
-                                id="ai-writing-outline"
-                                className="field-sizing-fixed min-h-[140px] shadow-none text-xs leading-relaxed"
-                                value={outline}
-                                onChange={(event) => setOutline(event.target.value)}
-                                placeholder={
-                                  isMultiChapter
-                                    ? '点击上方「整理成大纲」，或直接在此编写/粘贴：\n第1章 渡口重逢\n主角与师兄试探彼此来意。\n第2章 旧信之谜\n旧物揭示信中隐藏的线索。'
-                                    : '可留空。单章建议优先写清本次情节；若有详细分镜头或剧情转折，可在此补充提纲。'
-                                }
-                              />
-
-                              {outlineBusy && (
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
-                                  <div className="size-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                                  <span>正在基于你的设想与前文脉络生成大纲…</span>
-                                </div>
-                              )}
-
-                              {/* 识别章节段落快速填入胶囊 */}
-                              {parsedOutlineSections.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                  <span className="text-[11px] text-muted-foreground shrink-0">点击填入本次情节：</span>
-                                  {parsedOutlineSections.map((sec, idx) => (
-                                    <Button
-                                      key={idx}
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-
-                                      title={`点击将「${sec.chapter}${sec.title ? ` ${sec.title}` : ''}」内容填入本次情节`}
-                                      onClick={() => {
-                                        const textToFill =
-                                          `${sec.chapter}${sec.title ? ` ${sec.title}` : ''}\n${sec.content}`.trim()
-                                        setSuggestionFill({ applied: textToFill, previous: instruction })
-                                        setInstruction(textToFill)
-                                        toast(`已将「${sec.chapter}」大纲填入本次情节`)
-                                      }}
-                                    >
-                                      <span>
-                                        {sec.chapter}
-                                        {sec.title ? ` · ${sec.title}` : ''}
-                                      </span>
-                                    </Button>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* 大纲章数状态对比 */}
-                              {isMultiChapter && outline.trim() && (
-                                <div
-                                  className={`ai-writing-outline-status${countOutlineChapters(outline) >= chapterCount ? ' is-ok' : ' is-short'}`}
+                      ) : deckTab === 'outline' ? (
+                        /* 大纲推演视图 */
+                        <div className="grid gap-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <Label htmlFor="ai-writing-outline" className="text-foreground/90">
+                              {isMultiChapter ? '多章续写大纲' : '本章大纲（可选）'}
+                            </Label>
+                            <div className="flex items-center gap-3">
+                              <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                                <Switch
+                                  checked={useOutline && Boolean(outline.trim())}
+                                  disabled={!outline.trim()}
+                                  onCheckedChange={(checked) => setUseOutline(checked)}
+                                />
+                                <span
+                                  className={
+                                    useOutline && outline.trim()
+                                      ? 'font-medium text-foreground'
+                                      : 'text-muted-foreground'
+                                  }
                                 >
-                                  <span className="ai-writing-outline-status__figure">
-                                    {countOutlineChapters(outline)}
-                                    <span aria-hidden="true"> / </span>
-                                    {chapterCount}
-                                  </span>
-                                  <span className="ai-writing-outline-status__text">
-                                    {countOutlineChapters(outline) >= chapterCount
-                                      ? `已识别 ${countOutlineChapters(outline)} 个章节段落，够这 ${chapterCount} 章逐章下发。${useOutline ? '（已启用续写下发）' : '（当前未勾选采用，仅作备忘）'}`
-                                      : `已识别 ${countOutlineChapters(outline)} 个章节段落，不足 ${chapterCount} 章：多出的续写章会按创作要求生成，可能与已写内容重复。建议补足大纲或调小续写章数。`}
-                                  </span>
-                                </div>
+                                  续写时采用此大纲
+                                </span>
+                              </label>
+                              {outline.trim() && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-muted-foreground hover:text-destructive"
+                                  onClick={() => {
+                                    setOutline('')
+                                    setUseOutline(false)
+                                  }}
+                                >
+                                  清空
+                                </Button>
                               )}
                             </div>
-                          ) : (
-                            /* 灵感候选视图 */
-                            <div className="ai-writing-suggest-block">
-                              <p className="text-xs text-muted-foreground">
-                                点选方向填入本次情节，填入后可继续编辑或以此生成大纲
-                              </p>
-                              <div id="ai-writing-suggest-list" className="ai-writing-suggest">
-                                {suggestions.map((item, index) => (
-                                  <div
-                                    key={`${index}-${item.direction.slice(0, 12)}`}
-                                    className="flex items-start gap-1"
-                                  >
-                                    <button
-                                      type="button"
-                                      className="ai-writing-suggest__item flex-1"
-                                      aria-pressed={instruction === item.direction}
-                                      onClick={() => {
-                                        if (instruction !== item.direction) {
-                                          setSuggestionFill({ applied: item.direction, previous: instruction })
-                                        }
-                                        setInstruction(item.direction)
-                                      }}
-                                    >
-                                      <span className="ai-writing-suggest__index" aria-hidden="true">
-                                        {index + 1}
-                                      </span>
-                                      <span className="ai-writing-suggest__body">
-                                        <span className="ai-writing-suggest__direction">{item.direction}</span>
-                                        {item.effect && (
-                                          <span className="ai-writing-suggest__effect">
-                                            <ArrowRight className="size-3" aria-hidden="true" />
-                                            <span>{item.effect}</span>
-                                          </span>
-                                        )}
-                                      </span>
-                                    </button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
+                          </div>
 
-                                      title="以此方向作为设想，直接生成分章大纲"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setInstruction(item.direction)
-                                        void generateOutlineForContinuation(item.direction)
-                                      }}
-                                    >
-                                      <FileText className="size-3 mr-1" />
-                                      生大纲
-                                    </Button>
-                                  </div>
-                                ))}
+                          <Textarea
+                            id="ai-writing-outline"
+                            className="field-sizing-fixed min-h-[140px] shadow-none leading-relaxed"
+                            value={outline}
+                            onChange={(event) => setOutline(event.target.value)}
+                            placeholder={
+                              isMultiChapter
+                                ? '点击上方「整理成大纲」，或直接在此编写/粘贴：\n第1章 渡口重逢\n主角与师兄试探彼此来意。\n第2章 旧信之谜\n旧物揭示信中隐藏的线索。'
+                                : '可留空。单章建议优先写清本次情节；若有详细分镜头或剧情转折，可在此补充提纲。'
+                            }
+                          />
+
+                          {outlineBusy && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                              <div className="size-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                              <span>正在基于你的设想与前文脉络生成大纲…</span>
+                            </div>
+                          )}
+
+                          {/* 识别章节段落快速填入胶囊 */}
+                          {parsedOutlineSections.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                              <span className="text-xs text-muted-foreground shrink-0">点击填入本次情节：</span>
+                              {parsedOutlineSections.map((sec, idx) => (
+                                <Button
+                                  key={idx}
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  title={`点击将「${sec.chapter}${sec.title ? ` ${sec.title}` : ''}」内容填入本次情节`}
+                                  onClick={() => {
+                                    const textToFill =
+                                      `${sec.chapter}${sec.title ? ` ${sec.title}` : ''}\n${sec.content}`.trim()
+                                    setSuggestionFill({ applied: textToFill, previous: instruction })
+                                    setInstruction(textToFill)
+                                    toast(`已将「${sec.chapter}」大纲填入本次情节`)
+                                  }}
+                                >
+                                  <span>
+                                    {sec.chapter}
+                                    {sec.title ? ` · ${sec.title}` : ''}
+                                  </span>
+                                </Button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* 大纲章数状态对比 */}
+                          {isMultiChapter && outline.trim() && (
+                            <div
+                              className={`ai-writing-outline-status${countOutlineChapters(outline) >= chapterCount ? ' is-ok' : ' is-short'}`}
+                            >
+                              <span className="ai-writing-outline-status__figure">
+                                {countOutlineChapters(outline)}
+                                <span aria-hidden="true"> / </span>
+                                {chapterCount}
+                              </span>
+                              <span className="ai-writing-outline-status__text">
+                                {countOutlineChapters(outline) >= chapterCount
+                                  ? `已识别 ${countOutlineChapters(outline)} 个章节段落，够这 ${chapterCount} 章逐章下发。${useOutline ? '（已启用续写下发）' : '（当前未勾选采用，仅作备忘）'}`
+                                  : `已识别 ${countOutlineChapters(outline)} 个章节段落，不足 ${chapterCount} 章：多出的续写章会按创作要求生成，可能与已写内容重复。建议补足大纲或调小续写章数。`}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* 灵感候选视图 */
+                        <div className="ai-writing-suggest-block">
+                          <p className={styles.caption} aria-live="polite">
+                            {suggestBusy ? '正在寻找合适的情节方向…' : suggestions.length > 0
+                              ? '选择一个方向填入本次情节，再编辑或整理成大纲。'
+                              : '点击「寻找灵感」获取候选情节。'}
+                          </p>
+                          <div id="ai-writing-suggest-list" className="ai-writing-suggest" aria-busy={suggestBusy}>
+                            {suggestions.map((item, index) => (
+                              <div
+                                key={`${index}-${item.direction.slice(0, 12)}`}
+                                style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, suggestions.length)}ms` }}
+                              >
+                                <button
+                                  type="button"
+                                  className="ai-writing-suggest__item"
+                                  aria-pressed={instruction === item.direction}
+                                  onClick={() => {
+                                    if (instruction !== item.direction) {
+                                      setSuggestionFill({ applied: item.direction, previous: instruction })
+                                    }
+                                    setInstruction(item.direction)
+                                  }}
+                                >
+                                  <span className="ai-writing-suggest__body">
+                                    <span className="ai-writing-suggest__direction">{item.direction}</span>
+                                    {item.effect && (
+                                      <span className="ai-writing-suggest__effect">{item.effect}</span>
+                                    )}
+                                  </span>
+                                </button>
                               </div>
-                              {suggestionFill && instruction === suggestionFill.applied && (
-                                <div className="ai-writing-suggest-undo">
-                                  <span>已填入该条候选，原内容已被替换</span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-2 text-xs"
-                                    onClick={() => {
-                                      setInstruction(suggestionFill.previous)
-                                      setSuggestionFill(null)
-                                    }}
-                                  >
-                                    撤销填入
-                                  </Button>
-                                </div>
-                              )}
+                            ))}
+                          </div>
+                          {suggestionFill && instruction === suggestionFill.applied && (
+                            <div className="ai-writing-suggest-undo">
+                              <span>已填入该条候选，原内容已被替换</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2"
+                                onClick={() => {
+                                  setInstruction(suggestionFill.previous)
+                                  setSuggestionFill(null)
+                                }}
+                              >
+                                撤销填入
+                              </Button>
                             </div>
                           )}
                         </div>
                       )}
-                    </div>
-                  </MotionDetails>
-                )}
-                {mode === 'new' && (
-                  <MotionDetails className="ai-writing-outline-details">
-                    <summary>
-                      大纲 <span>生成章节时使用</span>
-                    </summary>
-                    <div className="grid gap-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Label htmlFor="ai-writing-outline-new">大纲（生成章节时使用）</Label>
+                    </TabsContent>
+                  </Tabs>
+                </MotionDetails>
+              </section>
+              <section className={styles.runSettings} aria-labelledby="ai-writing-settings-heading">
+                <header className={styles.runHeader}>
+                  <h2 id="ai-writing-settings-heading">生成安排</h2>
+                  <div className={styles.model}>
+                    <span>{props.model || '未配置模型'}</span>
+                  </div>
+                </header>
+                <div className={styles.runControls} data-mode={mode} data-multiple={isMultiChapter || undefined}>
+                  {isContinuationMode && (
+                    <>
+                      <FormField className={styles.anchor} label="续写起点" labelId="ai-writing-after-chapter-label">
+                        <SearchSelect
+                          options={chapterOptions}
+                          value={afterChapterId}
+                          onChange={(id) => {
+                            setAfterChapterId(id)
+                            props.onAfterChapterChange?.(id)
+                          }}
+                          placeholder={novelId ? '从最新章节续写' : '请先选择作品'}
+                          disabled={chapterOptions.length <= 1}
+                          searchable
+                          searchPlaceholder="搜索章节…"
+                          dropdownSide="bottom"
+                          aria-labelledby="ai-writing-after-chapter-label"
+                        />
+                      </FormField>
+                      <div className={styles.strategy}>
+                        <span id="ai-writing-strategy-label">续写策略</span>
+                        <ToggleGroup
+                          type="single"
+                          className={styles.scaleChoices}
+                          aria-labelledby="ai-writing-strategy-label"
+                          value={isMultiChapter ? 'multiple' : 'single'}
+                          disabled={busy || taskActive}
+                          onValueChange={(value) => {
+                            if (value === 'single') chapterCountInput.setCommittedValue(1)
+                            else if (value === 'multiple') chapterCountInput.setCommittedValue(Math.max(2, chapterCount))
+                          }}
+                        >
+                          <ToggleGroupItem value="single">单章精写</ToggleGroupItem>
+                          <ToggleGroupItem value="multiple">多章规划</ToggleGroupItem>
+                        </ToggleGroup>
                       </div>
-                      <Textarea
-                        id="ai-writing-outline-new"
-                        className="field-sizing-fixed min-h-[140px] shadow-none text-sm"
-                        value={outline}
-                        onChange={(event) => setOutline(event.target.value)}
-                        placeholder="先生成大纲，或直接粘贴已有大纲"
-                      />
-                    </div>
-                  </MotionDetails>
-                )}
-
-                {mode === 'continue' && (
-                  <section className={styles.scale} aria-label="生成安排">
-                    <div className={styles.sectionHeading}>
-                      <h3>生成安排</h3>
-                      <ToggleGroup
-                        type="single"
-                        className="ai-writing-run-scale__choices shrink-0"
-                        aria-label="续写策略"
-                        value={isMultiChapter ? 'multiple' : 'single'}
-                        disabled={busy || taskActive}
-                        onValueChange={(value) => {
-                          if (value === 'single') chapterCountInput.setCommittedValue(1)
-                          else if (value === 'multiple') chapterCountInput.setCommittedValue(Math.max(2, chapterCount))
-                        }}
-                      >
-                        <ToggleGroupItem value="single">单章精写</ToggleGroupItem>
-                        <ToggleGroupItem value="multiple">多章规划</ToggleGroupItem>
-                      </ToggleGroup>
-                    </div>
-                    <div className="ai-writing-baseline-scale-fields grid grid-cols-2 gap-3 items-start">
                       {isMultiChapter && (
-                        <FormField label="续写章节数" htmlFor="ai-writing-chapter-count">
-                          <div className="ai-writing-number-input">
+                        <FormField className={styles.numberField} label="续写章节数" htmlFor="ai-writing-chapter-count">
+                          <div className={styles.numberInput}>
                             <Input
                               id="ai-writing-chapter-count"
                               type="number"
@@ -1093,69 +907,159 @@ export default function AiWritingPanel(props: {
                           </div>
                         </FormField>
                       )}
-                      <FormField
-                        label={isMultiChapter ? '每章目标字数' : '目标字数'}
-                        htmlFor="ai-writing-target-words"
-                        hint="正文篇幅以此处数值为准，不计标题和空白，包含标点。"
-                        className={isMultiChapter ? '' : 'col-span-2'}
-                      >
-                        <div className="ai-writing-number-input">
-                          <Input
-                            id="ai-writing-target-words"
-                            type="number"
-                            min={300}
-                            max={30000}
-                            step={100}
-                            value={targetWordsInput.text}
-                            onChange={(event) => targetWordsInput.onChangeText(event.target.value)}
-                            onBlur={targetWordsInput.commit}
-                          />
-                          <span>字</span>
-                        </div>
-                      </FormField>
-                    </div>
-                  </section>
-                )}
-                <div className="ai-writing-actions grid gap-3 pt-5">
-                  {isContinuationMode && (
-                    <MotionDetails className="ai-writing-submit-preview text-xs text-muted-foreground">
-                      <summary className="cursor-pointer hover:text-foreground inline-flex items-center gap-1 select-none py-0.5">
-                        <span>查看本次上下文摘要</span>
-                      </summary>
-                      <p className="ai-writing-launch-summary" aria-live="polite">
-                        {novelId ? (
-                          <>
-                            将续写《{selectedNovelTitle || '当前小说'}》
-                            {afterChapterId ? '指定章节之后' : '最新已发布章节之后'} ·{' '}
-                            {isMultiChapter ? `${chapterCount} 章规划` : '单章精写'} ·{' '}
-                            {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
-                            {` · 分析参考：${analysisReferences === undefined ? '自动选择' : `${analysisReferences.length} 份报告`}`}
-                          </>
-                        ) : (
-                          '先选择小说；续写基线会随所选作品加载。'
-                        )}
-                      </p>
-                    </MotionDetails>
+                    </>
                   )}
-                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <FormField className={`${styles.numberField} ${styles.wordField}`} label={isMultiChapter ? '每章目标字数' : '目标字数'} htmlFor="ai-writing-target-words">
+                    <div className={styles.numberInput}>
+                      <Input
+                        id="ai-writing-target-words"
+                        type="number"
+                        min={300}
+                        max={30000}
+                        step={100}
+                        value={targetWordsInput.text}
+                        onChange={(event) => targetWordsInput.onChangeText(event.target.value)}
+                        onBlur={targetWordsInput.commit}
+                        aria-describedby="ai-writing-length-note"
+                      />
+                      <span>字</span>
+                    </div>
+                  </FormField>
+                  <div className={styles.wordPresets} role="group" aria-label="常用目标字数">
+                    {[1500, 3000, 5000].map(words => (
+                      <Button
+                        key={words} type="button" variant="ghost" size="sm"
+                        aria-pressed={targetWordsInput.value === words}
+                        disabled={busy || taskActive}
+                        onClick={() => targetWordsInput.setCommittedValue(words)}
+                      >{words.toLocaleString('zh-CN')} 字</Button>
+                    ))}
+                  </div>
+                </div>
+                <p className={`${styles.caption} ${styles.lengthNote}`} id="ai-writing-length-note">篇幅包含标点，标题和空白不计入。</p>
+                {mode === 'continue' && pendingDrafts > 0 && (
+                  <div className={styles.draftNotice}>
+                    <p>本书有 {pendingDrafts} 章未发布的续写草稿，当前续写只参考已发布正文。</p>
+                    <Button type="button" variant="outline" size="sm" onClick={() => openDrafts()}>
+                      先审阅草稿
+                    </Button>
+                  </div>
+                )}
+                <div className={styles.referenceEntry}>
+                  <Dialog key={`${novelId}:${view}:${props.active !== false}`}>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="outline" aria-describedby="ai-writing-reference-state">
+                        <span>参考与约束</span>
+                      </Button>
+                    </DialogTrigger>
+                    <ReadingDialog
+                      className={styles.root}
+                      title="参考与约束"
+                      description="按需选择分析参考、调整内容尺度，或补充创作约束。"
+                      bodyLabel="本次创作参考设置"
+                      footer={
+                        <div className={styles.dialogActions}>
+                          <p className={styles.caption}>关闭后保留本页设置</p>
+                          <DialogClose asChild><Button type="button">完成设置</Button></DialogClose>
+                        </div>
+                      }
+                    >
+                      <Tabs defaultValue="analysis" className={styles.referenceTabs}>
+                        <div className={styles.referenceNavigation}>
+                          <TabsList aria-label="参考设置分类">
+                            <TabsTrigger value="analysis">分析参考</TabsTrigger>
+                            <TabsTrigger value="content">内容尺度</TabsTrigger>
+                            <TabsTrigger value="preparation">约束与材料</TabsTrigger>
+                          </TabsList>
+                        </div>
+                        <TabsContent value="analysis" forceMount className={styles.referencePanel}>
+                          <AnalysisReferencePicker
+                            key={referenceKey} novelId={novelId} afterChapterId={afterChapterId}
+                            active={props.active !== false && view === 'compose'}
+                            value={analysisReferences} onChange={setAnalysisReferences}
+                            disabled={busy || taskActive} onOpenAnalysis={props.onOpenAnalysis}
+                          />
+                        </TabsContent>
+                        <TabsContent value="content" forceMount className={styles.referencePanel}>
+                          <label className={styles.contentOption}>
+                            <span className={styles.contentOptionText}>
+                              <span className={styles.fieldLabel}>开启露骨 R18 模式</span>
+                              <span className={styles.caption}>
+                                以成人场景为章节主体，灵感推荐也采用相同尺度。
+                              </span>
+                            </span>
+                            <Switch
+                              checked={adultContentMode === 'explicit'}
+                              disabled={busy || taskActive}
+                              onCheckedChange={(checked) => setAdultContentMode(checked ? 'explicit' : 'off')}
+                            />
+                          </label>
+                          {adultContentMode === 'explicit' ? (
+                            <FormField label="同意规则档位" labelId="ai-writing-consent-tier-label" hint="放宽档仅适用于原作主线涉及对应题材、且角色均为成年人的情况；不解除成年前提。">
+                              <SearchSelect
+                                options={[
+                                  { value: 'default', label: '严格（默认，适用于绝大多数作品）' },
+                                  { value: 'fictional_nonconsent', label: '虚构题材分级（原作主线即含强迫/下药等情节时使用）' },
+                                ]}
+                                value={consentRuleTier}
+                                onChange={(value) => setConsentRuleTier(value as 'default' | 'fictional_nonconsent')}
+                                disabled={busy || taskActive}
+                                className={styles.contextSelect}
+                                aria-labelledby="ai-writing-consent-tier-label"
+                              />
+                            </FormField>
+                          ) : (
+                            <p className={styles.caption}>当前采用常规内容尺度。</p>
+                          )}
+                        </TabsContent>
+                        <TabsContent value="preparation" forceMount className={styles.referencePanel}>
+                          <WritingPreparation
+                            {...preparationState}
+                            brief={currentWritingBrief}
+                            onChange={(brief) => setBriefs((previous) => ({ ...previous, [novelId]: brief }))}
+                            request={materialRequest}
+                            requestKey={materialKey}
+                            chapterCount={chapterCount}
+                            disabled={busy || taskActive}
+                            continuation={mode === 'continue'}
+                            onPreview={(revision, key) => setMaterialPreview({ revision, key })}
+                            plotTimeout={{
+                              value: plotTimeoutInput.text,
+                              min: PLOT_TIMEOUT_MIN_SECONDS,
+                              max: PLOT_TIMEOUT_MAX_SECONDS,
+                              onChange: plotTimeoutInput.onChangeText,
+                              onBlur: commitPlotTimeout,
+                            }}
+                          />
+                        </TabsContent>
+                      </Tabs>
+                    </ReadingDialog>
+                  </Dialog>
+                  <p id="ai-writing-reference-state" className={styles.caption}>
+                    {analysisReferences === undefined ? '分析自动选择' : `已选 ${analysisReferences.length} 份分析`} · {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
+                  </p>
+                </div>
+                <footer className={styles.runFooter}>
+                  <div className={styles.runReceipt}>
+                    <p className={styles.runPlan}>
+                      {isMultiChapter ? `${chapterCount} 章 · 每章` : '目标篇幅'} {targetWordsInput.value.toLocaleString('zh-CN')} 字
+                    </p>
+                    <p className={styles.caption}>{isContinuationMode && !novelId ? '先选择当前作品，即可开始续写。' : '生成后保存为草稿，审阅后可发布。'}</p>
+                  </div>
+                  <section className={styles.launchButtons} aria-label="生成操作">
                     {mode === 'new' ? (
                       <>
-                        <Button
-                          variant="outline"
-
-                          disabled={busy || taskActive}
-                          onClick={() => void generateOutline()}
-                        >
+                        <Button variant="outline" disabled={busy || taskActive} onClick={() => void generateOutline()}>
                           {taskActive && task?.kind === 'write_outline' ? '生成中…' : '生成大纲'}
                         </Button>
-                        <Button disabled={busy || taskActive} onClick={() => void generateChapter()}>
-                          <Sparkles className="size-4 mr-1.5" />
+                        <Button size="lg" disabled={busy || taskActive} onClick={() => void generateChapter()}>
                           {taskActive && task?.kind === 'write_chapter' ? '生成中…' : '生成章节'}
                         </Button>
                       </>
                     ) : (
                       <Button
-                        disabled={busy || taskActive}
+                        size="lg"
+                        disabled={busy || taskActive || !novelId}
                         onClick={() => void continueNovel()}
                         aria-label={
                           taskActive && task?.kind === 'continue'
@@ -1169,7 +1073,6 @@ export default function AiWritingPanel(props: {
                                 : '生成续写'
                         }
                       >
-                        <Sparkles className="size-4 mr-1.5" />
                         {taskActive && task?.kind === 'continue'
                           ? '生成中…'
                           : useOutline && outline.trim()
@@ -1181,205 +1084,67 @@ export default function AiWritingPanel(props: {
                               : '生成续写'}
                       </Button>
                     )}
-                    <span className="ai-writing-draft-note text-xs text-muted-foreground ml-1">
-                      生成结果先保存为草稿，审阅后再发布。
-                    </span>
-                  </div>
-                  {task && (
-                    <div className="ai-writing-live-task rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3 mt-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`size-2 shrink-0 rounded-full ${taskDotClass(task.status)}`}
-                          aria-hidden="true"
-                        />
-                        <span className="font-semibold text-sm text-foreground">
-                          本次任务：{taskKindLabel(task.kind)} · {taskStatusLabel(task.status)}
-                        </span>
-                        {task.kind === 'continue' && (
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {task.current} / {task.total} 章
-                          </span>
-                        )}
-                        {taskActive && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="ml-auto h-8 text-xs font-medium"
-                            onClick={() => void cancelTask()}
-                          >
-                            取消任务
-                          </Button>
-                        )}
-                        {!taskActive && task.current > 0 && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="ml-auto h-8 text-xs font-medium"
-                            onClick={() => openDrafts(task.batchId || undefined, task.novelId || novelId)}
-                          >
-                            {task.batchId ? `查看本批草稿（${task.current} 章）` : '查看草稿'}
-                          </Button>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">{task.step || '等待处理'}</p>
-                      {taskActive && <AiStreamPreview progress={parseAiTextProgress(task.result)} />}
-                      {task.error && <p className="text-xs text-destructive">{task.error}</p>}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <aside className={styles.context} aria-label="本次上下文">
-                <h2>本次上下文</h2>
-                {selectedNovel ? (
-                  <div className={styles.book}>
-                    <div className={styles.cover}>
-                      <BookOpen className="size-4" aria-hidden="true" />
-                      <img
-                        key={selectedNovel.id}
-                        src={url(
-                          `/cover/${encodeURIComponent(selectedNovel.id)}?v=${encodeURIComponent(selectedNovel.updatedAt || 0)}&cover=4`,
-                        )}
-                        alt=""
-                        onError={(event) => {
-                          event.currentTarget.style.display = 'none'
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <p>{selectedNovel.title}</p>
-                      <span className={styles.caption}>{selectedNovel.author || '未知作者'}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className={styles.caption}>选择作品后，查看本次使用的分析报告与写作材料。</p>
-                )}
-                <div className={styles.contextSection}>
-                  <AnalysisReferencePicker
-                    key={referenceKey} novelId={novelId} afterChapterId={afterChapterId}
-                    active={props.active !== false && view === 'compose'}
-                    value={analysisReferences} onChange={setAnalysisReferences}
-                    disabled={busy || taskActive} onOpenAnalysis={props.onOpenAnalysis}
-                  />
-                </div>
-                {mode === 'continue' && pendingDrafts > 0 && (
-                  <div className={styles.draftNotice}>
-                    <p>本书有 {pendingDrafts} 章未发布的续写草稿，当前续写只参考已发布正文。</p>
-                    <Button type="button" variant="outline" size="sm" onClick={() => openDrafts()}>
-                      先审阅草稿
-                    </Button>
-                  </div>
-                )}
-                <MotionDetails className={styles.contextDetails}>
-                  <summary>
-                    内容尺度 <span>{adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}</span>
-                  </summary>
-                  {continuationContentScale}
-                  {mode === 'new' && (
-                    <div className="grid gap-3 pt-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium">成人内容</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            开启后本次任务按成人向写作；推荐情节也会给出以成人场景为主体的方向。关闭时行为与以往一致。
-                          </p>
-                        </div>
-                        {/* 状态徽标与「AI 设置」页的「已配置 / 未配置」同构：
-                    开关收起时正文没有「当前是否启用」的落点，徽标把它提到标题行。 */}
-                        <AdminStatusBadge tone={adultContentMode === 'explicit' ? 'accent' : 'muted'}>
-                          {adultContentMode === 'explicit' ? '已启用' : '未启用'}
-                        </AdminStatusBadge>
-                      </div>
-                      {/* 用 Switch 替代原生 checkbox：原生框实测 13×13，低于 WCAG 2.2 AA
-                  的 24×24；同面板族的「参数调优」也用 Switch 表达同一类布尔开关。
+                  </section>
+                </footer>
+              </section>
 
-                  外层用 <label> 包裹即可，不必手写 onClick + aria-labelledby：
-                  button 是 labelable 元素，label 既转发点击又提供可访问名称
-                  （最小复现页与真实页面均实测转发，CDP 无障碍树确认名称正确）。
-                  刻意不抄一份切换逻辑到文字上 —— 那样会有两处需要同步。 */}
-                      <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
-                        <span className="min-w-0">
-                          <span className="block text-sm font-medium text-foreground">开启露骨 R18 模式</span>
-                          <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                            按作者本次给出的成人内容参数写作；成人场景是章节主体而非情节之外的点缀。
-                          </span>
-                        </span>
-                        <Switch
-                          checked={adultContentMode === 'explicit'}
-                          disabled={busy || taskActive}
-                          onCheckedChange={(checked) => {
-                            setAdultContentMode(checked ? 'explicit' : 'off')
-                          }}
-                        />
-                      </label>
-                      {adultContentMode === 'explicit' && (
-                        <div className="ai-writing-consent grid gap-3">
-                          <div className="grid gap-1.5">
-                            <Label id="ai-writing-consent-tier-label" className="text-xs">
-                              同意规则档位
-                            </Label>
-                            <SearchSelect
-                              options={[
-                                { value: 'default', label: '严格（默认，适用于绝大多数作品）' },
-                                {
-                                  value: 'fictional_nonconsent',
-                                  label: '虚构题材分级（原作主线即含强迫/下药等情节时使用）',
-                                },
-                              ]}
-                              value={consentRuleTier}
-                              onChange={(value) => setConsentRuleTier(value as 'default' | 'fictional_nonconsent')}
-                              className={styles.contextSelect}
-                              aria-labelledby="ai-writing-consent-tier-label"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              放宽档只在作品原作本身即以此类情节为主线、且角色均为成年人时使用；它解除的是写法与篇幅限制，不解除成年前提。
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </MotionDetails>
-                <WritingPreparation
-                  key={novelId}
-                  brief={currentWritingBrief}
-                  onChange={(brief) => setBriefs((previous) => ({ ...previous, [novelId]: brief }))}
-                  request={materialRequest}
-                  requestKey={materialKey}
-                  chapterCount={chapterCount}
-                  disabled={busy || taskActive}
-                  continuation={mode === 'continue'}
-                  onPreview={(revision, key) => setMaterialPreview({ revision, key })}
-                  plotTimeout={{
-                    value: plotTimeoutInput.text,
-                    min: PLOT_TIMEOUT_MIN_SECONDS,
-                    max: PLOT_TIMEOUT_MAX_SECONDS,
-                    onChange: plotTimeoutInput.onChangeText,
-                    onBlur: commitPlotTimeout,
-                  }}
-                />
-                <div className={styles.model}>
-                  <Cpu className="size-3.5" aria-hidden="true" />
-                  <span>{props.model || '未配置模型'}</span>
-                </div>
-              </aside>
             </div>
+            {task && <section className={styles.taskRegion} aria-label="本次任务">
+              <div className="ai-writing-live-task rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3 mt-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`size-2 shrink-0 rounded-full ${taskDotClass(task.status)}`}
+                    aria-hidden="true"
+                  />
+                  <span className="font-semibold text-sm text-foreground">
+                    本次任务：{taskKindLabel(task.kind)} · {taskStatusLabel(task.status)}
+                  </span>
+                  {task.kind === 'continue' && (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {task.current} / {task.total} 章
+                    </span>
+                  )}
+                  {taskActive && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-auto h-8"
+                      onClick={() => void cancelTask()}
+                    >
+                      取消任务
+                    </Button>
+                  )}
+                  {!taskActive && task.current > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-auto h-8"
+                      onClick={() => openDrafts(task.batchId || undefined, task.novelId || novelId)}
+                    >
+                      {task.batchId ? `查看本批草稿（${task.current} 章）` : '查看草稿'}
+                    </Button>
+                  )}
+                </div>
+                <p role="status" className="text-xs text-muted-foreground">{task.step || '等待处理'}</p>
+                {taskActive && <AiStreamPreview progress={parseAiTextProgress(task.result)} />}
+                {task.error && <p className="text-xs text-destructive">{task.error}</p>}
+              </div>
+            </section>}
             {recentTasks.length > 0 && (
-              <MotionDetails className="ai-writing-recent-drawer pt-4 text-xs">
-                <summary className="flex cursor-pointer select-none items-center justify-between text-muted-foreground hover:text-foreground font-medium py-1">
-                  <span>最近创作任务 ({recentTasks.length})</span>
-                  <span className="text-[11px] font-normal text-muted-foreground/80">展开 / 收起</span>
-                </summary>
+              <MotionDetails className={styles.recentTasks}>
+                <summary>最近创作任务 ({recentTasks.length})</summary>
                 <ul className="mt-3 space-y-2">
-                  {recentTasks.map((item) => (
+                  {recentTasks.map((item, index) => (
                     <li
                       key={item.id}
+                      style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, recentTasks.length)}ms` }}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 p-2.5 transition-colors hover:bg-muted/40"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-medium text-xs text-foreground truncate">
                           {item.novelTitle || taskKindLabel(item.kind)}
                         </span>
-                        <span className="text-muted-foreground text-[11px]">·</span>
+                        <span className="text-muted-foreground text-xs">·</span>
                         <span className="text-xs text-muted-foreground">
                           {taskKindLabel(item.kind)} ·{' '}
                           <span className="font-mono text-foreground/80">
@@ -1391,7 +1156,6 @@ export default function AiWritingPanel(props: {
                       <div className="flex items-center gap-2 shrink-0">
                         <AdminStatusBadge
                           tone={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'danger' : 'muted'}
-                          className="text-[10px]"
                         >
                           {taskStatusLabel(item.status)}
                         </AdminStatusBadge>
@@ -1399,7 +1163,7 @@ export default function AiWritingPanel(props: {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 px-2 text-xs text-accent hover:text-accent/80 font-medium"
+                            className="h-6 px-2 text-accent hover:text-accent/80 font-medium"
                             onClick={() => openDrafts(item.batchId, item.novelId || novelId, 'outputs')}
                           >
                             查看产出 →
@@ -1413,20 +1177,18 @@ export default function AiWritingPanel(props: {
             )}
           </div>
           {view !== 'compose' && (
-            <div className={styles.results}>
-              {novelId ? (
-                <AiGenerationsPanel
-                  key={`${novelId}:${view}`}
-                  scope="writing"
-                  status={view === 'review' ? 'draft' : 'all'}
-                  novelId={novelId}
-                  focusBatchId={props.focusBatchId}
-                  refreshToken={!taskActive && task?.novelId === novelId ? `${task.id}:${task.status}` : undefined}
-                />
-              ) : (
-                <p className={styles.caption}>先在上方选择作品，再查看本书的草稿与产出。</p>
-              )}
-            </div>
+            novelId ? (
+              <AiGenerationsPanel
+                key={`${novelId}:${view}`}
+                scope="writing"
+                status={view === 'review' ? 'draft' : 'all'}
+                novelId={novelId}
+                focusBatchId={props.focusBatchId}
+                refreshToken={!taskActive && task?.novelId === novelId ? `${task.id}:${task.status}` : undefined}
+              />
+            ) : (
+              <p className={styles.caption}>先在上方选择作品，再查看本书的草稿与产出。</p>
+            )
           )}
         <footer className={styles.footer}>
           <span>离开本页后，已提交的任务仍会在后台继续。</span>

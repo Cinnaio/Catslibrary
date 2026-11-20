@@ -24,10 +24,10 @@ import { getStorageScope } from '@/lib/storage'
 const VALID_SUBS = ['writing', 'cover', 'content', 'graph', 'agent', 'analysis'] as const
 type SubTab = (typeof VALID_SUBS)[number]
 
-const AI_SUBTAB_META: Record<Exclude<SubTab, 'analysis'>, { title: string; description: string }> = {
+const AI_SUBTAB_META: Record<Exclude<SubTab, 'analysis'>, { title: string; description?: string }> = {
   agent: { title: '对话创作', description: '围绕一本小说讨论情节、打磨草稿与构思封面，让想法在对话中逐步成形。' },
   graph: { title: '故事档案', description: '查看本书人物关系、当前处境与未解情节，核对分析档案依据。' },
-  writing: { title: 'AI 创作', description: '围绕同一部作品阅读分析、构思情节、生成章节与审阅草稿。' },
+  writing: { title: 'AI 创作' },
   cover: { title: '封面生成', description: '生成、比较并应用小说封面候选图。' },
   content: { title: '草稿与产出', description: '审阅、编辑和管理 AI 生成的章节与摘要。' },
 }

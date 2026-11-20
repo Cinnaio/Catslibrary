@@ -61,7 +61,7 @@
   line-height: 1.55;
 }
 
-.dialog-frame [data-slot='dialog-close'] {
+.dialog-frame > [data-slot='dialog-close'] {
   top: 1.25rem;
   right: 1.25rem;
   display: grid;
@@ -74,7 +74,7 @@
   color: var(--text-muted);
 }
 
-.dialog-frame [data-slot='dialog-close']:hover {
+.dialog-frame > [data-slot='dialog-close']:hover {
   border-color: var(--border);
   background: var(--bg-secondary);
   color: var(--text-primary);

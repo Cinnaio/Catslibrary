@@ -60,12 +60,12 @@ export default function AnalysisReferencePicker({ novelId, afterChapterId, activ
 
   const selected = value || []
   return <section className={styles.root} aria-label="本次分析参考" aria-busy={loading}>
-    <div className={styles.heading}><span>小说分析参考</span><span>{value === undefined ? '自动选择' : `已选 ${selected.length} / 5`}</span></div>
-    <p className={styles.hint}>用于情节推荐、大纲和正文。仅可参考当前起点以内、正文未变化的完整报告；可取消全部选择，直接基于正文创作。</p>
+    <div className={styles.heading}><span>选择本次使用的报告</span><span>{value === undefined ? '自动选择' : `已选 ${selected.length} / 5`}</span></div>
+    <p className={styles.hint}>用于灵感、大纲和正文。仅参考续写起点以内、正文未变化的完整报告；可取消全部，直接基于正文创作。</p>
     {loading && <p role="status" className={styles.hint}>正在核对报告…</p>}
     {error && <div role="alert" className={styles.error}>{error}<Button variant="ghost" size="sm" onClick={() => setReload(n => n + 1)}>重新加载参考</Button></div>}
-    {!loading && !error && !reports.length && <p className={styles.hint}>暂无分析报告，仍可使用正文创作。</p>}
-    <div className={styles.list}>
+    {!loading && !error && !reports.length && <p className={styles.empty}>暂无分析报告，仍可使用正文创作。</p>}
+    {reports.length > 0 && <div className={styles.list}>
       {reports.map((report, index) => {
         const choice = selected.find(item => item.reportId === report.id)
         const changed = !!choice && choice.revision !== report.revision
@@ -84,7 +84,7 @@ export default function AnalysisReferencePicker({ novelId, afterChapterId, activ
           </span>
         </label>
       })}
-    </div>
+    </div>}
     {limited && <p className={styles.hint}>自动选择只检查最近 50 份已完成报告，可继续翻阅并选择更早的报告。</p>}
     <div className={styles.actions}>
       {nextOffset !== null && <Button variant="ghost" size="sm" disabled={loading} onClick={() => void loadMore()}>更多报告</Button>}

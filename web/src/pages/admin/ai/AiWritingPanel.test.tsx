@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
   plotSuggestions: vi.fn(),
   continueNovel: vi.fn(),
   chapterNovel: vi.fn(),
+  materials: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({
@@ -38,6 +39,7 @@ vi.mock('@/lib/api', () => ({
       plotSuggestions: api.plotSuggestions,
       continue: api.continueNovel,
       chapter: api.chapterNovel,
+      materials: api.materials,
     },
   },
   chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [] }) },
@@ -60,8 +62,12 @@ vi.mock('@/components/feedback', () => ({
 }))
 
 vi.mock("@/components/shared/SearchSelect", () => ({
-  default: (props: { options: Array<{ value: string; label: string }>; value: string; onChange: (value: string) => void }) => (
-    <select aria-label="目标小说" value={props.value} onChange={(event) => props.onChange(event.target.value)}>
+  default: (props: {
+    options: Array<{ value: string; label: string }>; value: string; onChange: (value: string) => void;
+    disabled?: boolean; 'aria-labelledby'?: string
+  }) => (
+    <select aria-labelledby={props['aria-labelledby']} value={props.value} disabled={props.disabled}
+      onChange={(event) => props.onChange(event.target.value)}>
       <option value="">请选择小说</option>
       {props.options.map((option) => (
         <option key={option.value} value={option.value}>
@@ -91,13 +97,31 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-/** 选中小说并等到画像读取完成，后续断言才有稳定的起点。 */
+/** 选中小说；参考报告在弹窗打开时才读取。 */
 async function selectNovel(novelId = 'novel_1', title = '测试小说') {
   render(<AiWritingWorkspace />)
   switchToNew()
   await screen.findByRole('option', { name: title })
-  fireEvent.change(await screen.findByRole('combobox', { name: '目标小说' }), { target: { value: novelId } })
+  fireEvent.change(await screen.findByRole('combobox', { name: '当前作品' }), { target: { value: novelId } })
+  await screen.findByRole('button', { name: '参考与约束' })
+}
+
+async function openReferences() {
+  fireEvent.click(screen.getByRole('button', { name: '参考与约束' }))
+  await screen.findByRole('dialog', { name: '参考与约束' })
   await screen.findByText('暂无分析报告，仍可使用正文创作。')
+}
+
+function selectReferenceTab(name: '分析参考' | '内容尺度' | '约束与材料') {
+  const tab = screen.getByRole('tab', { name })
+  tab.focus()
+  fireEvent.keyDown(tab, { key: 'Enter' })
+  fireEvent.keyDown(tab, { key: ' ' })
+}
+
+async function closeReferences() {
+  fireEvent.click(screen.getByRole('button', { name: '完成设置' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 }
 
 /** Radix Tabs 用键盘事件切换，click 不触发；切到续写模式后再断言。 */
@@ -138,19 +162,33 @@ describe('AiWritingPanel', () => {
     api.chapterNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
   })
 
-  it('进阶约束默认收起，折叠后保留并传给推荐和大纲', async () => {
+  it('参考弹窗关闭重开保留进阶输入与材料预览，并传给推荐和大纲', async () => {
     await selectNovel()
     switchToContinue()
-    const details = screen.getByLabelText('进阶约束与材料') as HTMLDetailsElement
-    expect(details.open).toBe(false)
-    fireEvent.click(details.querySelector('summary')!)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await openReferences()
+    selectReferenceTab('约束与材料')
     fireEvent.change(screen.getByLabelText('本次禁止发生的事件'), { target: { value: '不得揭露真实身份' } })
     fireEvent.change(screen.getByLabelText('本章目标'), { target: { value: '建立初步信任' } })
-    fireEvent.click(details.querySelector('summary')!)
-    expect(details.open).toBe(false)
-    expect(details.querySelector('summary')?.textContent).toContain('已填写')
-    expect((screen.getByLabelText('本次禁止发生的事件') as HTMLTextAreaElement).value).toBe('不得揭露真实身份')
+    selectReferenceTab('内容尺度')
+    selectReferenceTab('约束与材料')
+    expect(screen.getByLabelText('本次禁止发生的事件')).toHaveValue('不得揭露真实身份')
+    fireEvent.change(screen.getByLabelText('出场人物'), { target: { value: '林舟、' } })
+    api.materials.mockResolvedValue({
+      revision: 'preview-1', anchor: { title: '渡口' }, characterCount: 100,
+      historicalPassages: [], plan: { facts: [], currentState: [], style: [], chapterTask: [] },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '预览本次上下文' }))
+    await screen.findByLabelText('本次上下文材料')
+    await closeReferences()
+    await openReferences()
+    selectReferenceTab('约束与材料')
+    expect(screen.getByLabelText('出场人物')).toHaveValue('林舟、')
+    expect(screen.getByLabelText('本章目标')).toHaveValue('建立初步信任')
+    expect(screen.getByLabelText('本次禁止发生的事件')).toHaveValue('不得揭露真实身份')
+    expect(screen.getByLabelText('本次上下文材料')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('推荐情节超时'), { target: { value: '300' } })
+    await closeReferences()
     fireEvent.click(screen.getByRole('button', { name: '寻找灵感' }))
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalledWith(expect.objectContaining({
       writingBrief: expect.objectContaining({ objective: '建立初步信任', forbiddenEvents: '不得揭露真实身份' }),
@@ -169,7 +207,7 @@ describe('AiWritingPanel', () => {
   it('从任务页带入小说参数时在共享作品选择中显示对应小说', async () => {
     render(<AiWritingWorkspace />, 'novel_2')
 
-    const novelSelect = await screen.findByRole('combobox', { name: '目标小说' })
+    const novelSelect = await screen.findByRole('combobox', { name: '当前作品' })
     await screen.findByRole('option', { name: '第二本书' })
     await waitFor(() => expect(novelSelect).toHaveValue('novel_2'))
   })
@@ -185,7 +223,7 @@ describe('AiWritingPanel', () => {
     expect(screen.getByRole('button', { name: /整理成.*大纲/ })).toBeEnabled()
   })
 
-  it('点击候选项把情节方向填入创作要求', async () => {
+  it('候选只填入情节，统一大纲入口采用作者编辑后的方向', async () => {
     await selectNovel()
     switchToContinue()
 
@@ -196,6 +234,28 @@ describe('AiWritingPanel', () => {
 
     const textarea = screen.getByLabelText('本次情节') as HTMLTextAreaElement
     expect(textarea.value).toBe('夭夜在寝宫与他独处，借双修稳固修为。')
+    expect(api.plotSuggestions).toHaveBeenCalledTimes(1)
+
+    fireEvent.change(textarea, { target: { value: '保留人物试探，将场景改为雨夜渡口' } })
+    api.plotSuggestions.mockResolvedValueOnce({ suggestions: [], outline: '第1章 雨夜渡口' })
+    fireEvent.click(screen.getByRole('button', { name: '整理成大纲' }))
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalledTimes(2))
+    expect(api.plotSuggestions).toHaveBeenLastCalledWith(expect.objectContaining({
+      plotDirection: '保留人物试探，将场景改为雨夜渡口',
+      chapterCount: 1,
+    }), expect.any(Function))
+    expect(await screen.findByLabelText('本章大纲（可选）')).toHaveValue('第1章 雨夜渡口')
+  })
+
+  it('新写模式显示灵感候选，并允许撤销填入', async () => {
+    await selectNovel()
+    const instruction = screen.getByLabelText('本次情节')
+    fireEvent.change(instruction, { target: { value: '原有设想' } })
+    fireEvent.click(screen.getByRole('button', { name: '寻找灵感' }))
+    fireEvent.click(await screen.findByRole('button', { name: /苏越以斗宗身份现身朝堂/ }))
+    expect(instruction).toHaveValue('苏越以斗宗身份现身朝堂，当众治愈加刑天。')
+    fireEvent.click(screen.getByRole('button', { name: '撤销填入' }))
+    expect(instruction).toHaveValue('原有设想')
   })
 
   it('填入候选后可以撤销，恢复被覆盖的原文', async () => {
@@ -272,9 +332,11 @@ describe('AiWritingPanel', () => {
     await selectNovel()
 
     fireEvent.change(screen.getByPlaceholderText(/例如：第一章 雾中来客/), { target: { value: '第一章' } })
-    fireEvent.click(screen.getByText('内容尺度', { selector: 'summary' }))
+    await openReferences()
+    selectReferenceTab('内容尺度')
     fireEvent.click(screen.getByRole('switch', { name: /开启露骨/ }))
     expect(screen.queryByRole('checkbox', { name: /已确认本次涉及角色均为成年人/ })).toBeNull()
+    await closeReferences()
     fireEvent.click(screen.getByRole('button', { name: /生成章节/ }))
 
     await waitFor(() => expect(api.chapterNovel).toHaveBeenCalled())
@@ -294,9 +356,11 @@ describe('AiWritingPanel', () => {
     await selectNovel()
     switchToContinue()
 
-    fireEvent.click(screen.getByText('内容尺度', { selector: 'summary' }))
+    await openReferences()
+    selectReferenceTab('内容尺度')
     fireEvent.click(screen.getByRole('switch', { name: /开启露骨/ }))
     expect(screen.queryByRole('checkbox', { name: /已确认本次涉及角色均为成年人/ })).toBeNull()
+    await closeReferences()
     fireEvent.click(screen.getByRole('button', { name: '生成续写' }))
 
     await waitFor(() => expect(api.continueNovel).toHaveBeenCalled())
@@ -388,7 +452,7 @@ describe('AiWritingPanel', () => {
     await waitFor(() => expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2))
 
     // 候选属于某一部小说，切书后留在右列会被误认成新书的方向
-    fireEvent.change(screen.getByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_2' } })
+    fireEvent.change(screen.getByRole('combobox', { name: '当前作品' }), { target: { value: 'novel_2' } })
     await waitFor(() => expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(0))
     expect(screen.getByLabelText('本章大纲（可选）')).toBeInTheDocument()
   })
@@ -407,7 +471,7 @@ describe('AiWritingPanel', () => {
 
     // 慢响应：请求发出后先切到另一本书。
     // 切书 effect 会同步清空候选，故等 value 落地即可确认已切过去。
-    const select = screen.getByRole('combobox', { name: '目标小说' }) as HTMLSelectElement
+    const select = screen.getByRole('combobox', { name: '当前作品' }) as HTMLSelectElement
     fireEvent.change(select, { target: { value: 'novel_2' } })
     await waitFor(() => expect(select.value).toBe('novel_2'))
 
@@ -435,18 +499,17 @@ describe('AiWritingPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '寻找灵感' }))
     await waitFor(() => expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2))
 
-    // 收起只切换显示：此前实现是 setSuggestions([])，会把已取回的结果直接丢掉，
-    // 右列随即退回空态，想再看只能重新请求（等于为已拿到的结果重复付费）。
-    fireEvent.click(screen.getByRole('button', { name: '收起' }))
-    expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(0)
-    // 关键：不得回到「尚未取候选」的空态，也不得退出分栏
-    expect(document.querySelector('.ai-writing-deck-empty')).toBeNull()
-    // 收起后要交代「有什么被收起来了」
-    expect(screen.getByRole('tab', { name: /灵感候选.*2/ })).toBeInTheDocument()
+    const summary = screen.getByText('大纲与灵感', { exact: true }).closest('summary')!
+    const disclosure = summary.closest('details')!
+    expect(disclosure.open).toBe(true)
+    fireEvent.click(summary)
+    expect(disclosure.open).toBe(false)
+    expect(summary).toHaveTextContent('2 条灵感')
 
-    // 无需重新请求即可展开回来
-    fireEvent.click(screen.getByRole('button', { name: '展开' }))
-    expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2)
+    fireEvent.click(summary)
+    expect(disclosure.open).toBe(true)
+    expect(screen.getByRole('tab', { name: /灵感候选.*2/ })).toHaveAttribute('aria-selected', 'true')
+    expect(document.querySelectorAll('.ai-writing-suggest__item')).toHaveLength(2)
     expect(api.plotSuggestions).toHaveBeenCalledTimes(1)
   })
 
@@ -476,10 +539,10 @@ describe('AiWritingPanel', () => {
     expect(screen.getByLabelText('本次情节')).toHaveValue('')
     fireEvent.change(screen.getByLabelText('本次情节'), { target: { value: '续写的剧情' } })
     fireEvent.change(screen.getByLabelText('本章大纲（可选）'), { target: { value: '第1章 渡口重逢' } })
-    fireEvent.change(screen.getByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_2' } })
+    fireEvent.change(screen.getByRole('combobox', { name: '当前作品' }), { target: { value: 'novel_2' } })
     expect(screen.getByLabelText('本次情节')).toHaveValue('')
     expect(screen.getByLabelText('本章大纲（可选）')).toHaveValue('')
-    fireEvent.change(screen.getByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_1' } })
+    fireEvent.change(screen.getByRole('combobox', { name: '当前作品' }), { target: { value: 'novel_1' } })
     expect(screen.getByLabelText('本次情节')).toHaveValue('续写的剧情')
     expect(screen.getByLabelText('本章大纲（可选）')).toHaveValue('第1章 渡口重逢')
     switchToNew()
@@ -493,7 +556,7 @@ describe('AiWritingPanel', () => {
     switchToContinue()
     fireEvent.click(screen.getByRole('button', { name: '整理成大纲' }))
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
-    fireEvent.change(screen.getByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_2' } })
+    fireEvent.change(screen.getByRole('combobox', { name: '当前作品' }), { target: { value: 'novel_2' } })
     await act(async () => { pending.resolve({ suggestions: [], outline: '第1章 旧书的情节' }) })
     expect(screen.getByLabelText('本章大纲（可选）')).toHaveValue('')
     expect(screen.getByRole('button', { name: '整理成大纲' })).toBeEnabled()

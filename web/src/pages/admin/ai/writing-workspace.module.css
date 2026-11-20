@@ -1,300 +1,546 @@
-.root {
+.root,
+.workbench,
+.writingContent {
   min-width: 0;
   width: 100%;
   color: var(--text-primary);
 }
-
 .workbench {
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-container);
-  background: var(--bg-card);
+  container: writing-workspace / inline-size;
 }
-
-.toolbar {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
-  align-items: end;
-  gap: 24px;
-  padding: var(--management-panel-padding);
+.workbench .viewTabs {
+  gap: 26px;
 }
-
-.toolbar[hidden] { display: none; }
-
-.bookToolbar { padding: var(--management-panel-padding); }
-.bookToolbar > * { max-width: 540px; }
-.analysisContent { padding: var(--management-panel-padding); }
-
-.toolbar > *,
-.anchor,
-.editor,
-.context,
-.newFields > * {
-  min-width: 0;
-}
-
-.mode {
-  display: grid;
-  gap: 8px;
-}
-.viewTabs {
-  gap: 0;
-}
-
-.caption {
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.7;
-  overflow-wrap: anywhere;
-}
-
-.navigation {
-  padding-inline: var(--management-panel-padding);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.navigation::-webkit-scrollbar {
+.writingContent[hidden],
+.analysisContent[hidden] {
   display: none;
 }
-.navigation [data-slot='tabs-list'] {
-  gap: 20px;
-}
-.navigation [data-slot='tabs-trigger'] {
-  flex: none;
-  min-height: 48px;
-  padding-inline: 0;
-}
 
-.layout {
+/* Book context and navigation stay outside the writing paper. */
+.workspaceHeader {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
-  align-items: start;
-}
-
-.editor {
-  display: grid;
-  gap: 24px;
-  padding: var(--management-panel-padding);
-}
-.sectionHeading {
-  display: flex;
-  flex-wrap: wrap;
+  grid-template-columns: minmax(240px, 440px) max-content;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 20px 24px;
 }
-.sectionHeading h2 {
-  margin: 0;
-  font: 500 21px / 1.6 var(--font-serif);
-}
-.sectionHeading h3,
-.context > h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.newFields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-}
-.newWords {
-  grid-column: 1 / -1;
-}
-.root .newFields [data-slot='input'] {
-  width: 100%;
-}
-.root .newWords [data-slot='input'] {
-  width: 140px;
-}
-
-.assist {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-.root .assist .focusInput {
-  width: min(100%, 260px);
-  flex: 1 1 180px;
-  min-width: 0;
-}
-.assist > span {
-  width: 100%;
-  color: var(--text-muted);
-}
-
-.outline {
-  min-width: 0;
-}
-.outline > summary,
-.contextDetails > summary,
-.root :global(.ai-writing-outline-details) > summary {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-block: 10px;
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 13px;
-  list-style: none;
-}
-
-.outline > summary::before,
-.contextDetails > summary::before,
-.root :global(.ai-writing-outline-details) > summary::before {
-  content: '+';
-  flex: 0 0 auto;
-  color: var(--text-muted);
-}
-.outline[open] > summary::before,
-.contextDetails[open] > summary::before,
-.root :global(.ai-writing-outline-details)[open] > summary::before {
-  content: '−';
-}
-.outline > summary span,
-.contextDetails > summary span {
-  margin-left: auto;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.scale {
-  display: grid;
-  gap: 20px;
-  padding-top: 24px;
-}
-.root :global(.ai-writing-number-input) {
+.bookToolbar {
+  width: min(100%, 440px);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
+  min-width: 0;
 }
-.root :global(.ai-writing-number-input) span {
-  color: var(--text-muted);
-  font-size: 13px;
-}
-.root :global(.ai-writing-number-input) [data-slot='input'] {
+.bookContext {
+  display: grid;
   flex: 1;
+  gap: 5px;
   min-width: 0;
+}
+.bookToolbar .bookField {
+  min-width: 0;
+  gap: 5px;
+}
+.bookField [role='combobox'] {
   width: 100%;
-  max-width: 180px;
+  max-width: none;
 }
-
-.context {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  gap: 24px;
-  border-left: 1px solid var(--border);
-  padding: var(--management-panel-padding);
-  overflow-wrap: anywhere;
-}
-
-/* 长选项不能用最小内容宽度撑开上下文区及其嵌套表单网格。 */
-.context > *,
-.contextDetails,
-.contextDetails :global(.grid),
-.contextDetails :global(.ai-writing-content-scope),
-.contextDetails :global(.grid) > *,
-.contextDetails :global(.ai-writing-content-scope) > * {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.contextDetails :global(.grid),
-.contextDetails :global(.ai-writing-content-scope) {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.root .contextSelect {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.contextSection {
-  display: grid;
-  justify-items: start;
-  gap: 12px;
-}
-.book {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  overflow-wrap: anywhere;
-}
-.book p {
-  margin: 0;
-  font-size: 14px;
-}
-.cover {
+.bookMark {
   position: relative;
-  flex: 0 0 40px;
-  height: 60px;
   display: grid;
+  flex: 0 0 48px;
+  height: 68px;
   place-items: center;
   overflow: hidden;
-  border-radius: 6px;
-  background: var(--bg-secondary);
-  color: var(--text-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 6px var(--radius-compact) var(--radius-compact) 6px;
+  background: var(--accent-subtle);
+  color: var(--accent);
 }
-.cover img {
+.bookMark img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.profileStatus {
-  display: grid;
-  gap: 10px;
-  width: 100%;
+.bookMeta,
+.caption {
   margin: 0;
+  color: var(--text-muted);
   font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
 }
-.profileStatus > div {
+.navigation {
+  justify-self: end;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.navigation [data-slot='tabs-list'] {
+  width: max-content;
+  max-width: none;
+}
+.analysisContent {
+  min-width: 0;
+  padding: var(--management-panel-padding);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+  background: var(--bg-card);
+}
+
+/* A wide writing paper and one quiet, persistent generation rail. */
+.compose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 320px);
+  align-items: start;
+  gap: 24px;
+  --writing-gutter: clamp(24px, 2.5cqi, 36px);
+  --writing-footer: color-mix(in srgb, var(--bg-secondary) 48%, var(--bg-card));
+}
+.editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-feature);
+  background: var(--bg-card);
+}
+.editorHeader,
+.newFields,
+.storySheet,
+.assist,
+.editorProgress,
+.outline {
+  padding-inline: var(--writing-gutter);
+}
+.editorHeader {
   display: flex;
-  justify-content: space-between;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 28px;
+}
+.editorHeading {
+  display: grid;
   gap: 8px;
 }
-.profileStatus dt {
+.editorHeader h2 {
+  margin: 0;
+  font: 500 var(--ui-section-title-size, var(--management-section-title-size)) / 1.5 var(--font-serif);
+}
+.mode [data-slot='tabs-trigger'] {
+  min-width: 56px;
+}
+.storySheet {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.root .storyInput {
+  field-sizing: fixed;
+  height: 160px;
+  min-height: 128px;
+  padding: 16px;
+  resize: vertical;
+  line-height: 1.8;
+}
+.storyFooter {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wordCount {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.root textarea {
+  min-width: 0;
+  width: 100%;
+  font-size: var(--font-ui-body);
+}
+.newFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.newFields > * {
+  min-width: 0;
+}
+.root .newFields [data-slot='input'] {
+  width: 100%;
+}
+.assist {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 14px;
+  min-width: 0;
+}
+.assistHeading {
+  grid-column: 1 / -1;
+  color: var(--text-secondary);
+}
+.assist h3 {
+  margin: 0;
+  font-size: var(--management-control-label-size);
+  font-weight: 500;
+}
+.assist[aria-busy='true'] h3 {
+  color: var(--accent);
+}
+.root .assist .focusInput {
+  width: 100%;
+  min-width: 0;
+}
+.assistActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.assistActions > button {
+  min-height: 40px;
+  padding-inline: 10px;
+}
+.outline {
+  min-width: 0;
+}
+.outline {
+  border-radius: 0 0 var(--radius-feature) var(--radius-feature);
+  background: var(--writing-footer);
+}
+.outlineLabel {
+  font-weight: 500;
+}
+.outline > summary,
+.recentTasks > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-height: 44px;
+  padding-block: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: var(--management-control-label-size);
+  list-style: none;
+}
+.outline > summary::-webkit-details-marker,
+.recentTasks > summary::-webkit-details-marker {
+  display: none;
+}
+.outline > summary::after,
+.recentTasks > summary::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-inline-start: auto;
+  margin-inline-end: 2px;
+  border: solid var(--text-muted);
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 180ms;
+}
+.outline[open] > summary::after,
+.recentTasks[open] > summary::after {
+  transform: translateY(2px) rotate(225deg);
+}
+.outline > summary span:last-child {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.outline > summary::after {
+  margin-inline-start: 0;
+}
+.outline > summary:hover,
+.recentTasks > summary:hover {
+  color: var(--accent);
+}
+.outline > summary:focus-visible,
+.recentTasks > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-compact);
+}
+.outline > summary {
+  min-height: 56px;
+}
+.outline .deck {
+  gap: 16px;
+  min-width: 0;
+  padding-bottom: 24px;
+}
+.deckBody {
+  min-width: 0;
+}
+.runSettings {
+  position: sticky;
+  top: 104px;
+  display: grid;
+  grid-column: 2;
+  gap: 22px;
+  min-width: 0;
+  padding-top: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+  background: var(--bg-card);
+}
+.runHeader {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding-inline: 24px;
+}
+.runHeader h2 {
+  margin: 0;
+  font: 500 var(--ui-section-title-size, var(--management-section-title-size)) / 1.5 var(--font-serif);
+}
+.runControls,
+.runControls[data-multiple],
+.runControls[data-mode='new'] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 20px 14px;
+  min-width: 0;
+  padding-inline: 24px;
+}
+.runControls .anchor,
+.runControls .strategy,
+.runControls:not([data-multiple]) .numberField {
+  grid-column: 1 / -1;
+}
+.runControls .anchor {
+  grid-template-columns: minmax(0, 1fr);
+}
+.runControls .anchor [role='combobox'] {
+  max-width: none;
+}
+.strategy {
+  display: grid;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: var(--management-control-label-size);
+  font-weight: 500;
+  line-height: 1.5;
+}
+.scaleChoices {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-card);
+}
+.scaleChoices > button {
+  flex: 1;
+  min-width: 0;
+  min-height: calc(var(--field-control-height, var(--control-height)) - 2px);
+  padding-inline: 8px;
+  border-radius: var(--radius-compact);
+}
+.scaleChoices > button[data-state='on'] {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+.numberInput {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.numberInput span {
+  color: var(--text-muted);
+  font-size: var(--management-control-label-size);
+}
+.root .numberInput [data-slot='input'] {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+.wordPresets {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.wordPresets > button {
+  flex: 1 1 auto;
+  min-height: 30px;
+  padding: 4px 6px;
   color: var(--text-muted);
 }
-.profileStatus dd {
-  margin: 0;
+.wordPresets > button[aria-pressed='true'] {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+.lengthNote,
+.draftNotice {
+  margin-inline: 24px;
+}
+.lengthNote {
+  margin-top: -12px;
+  font-size: 12px;
 }
 .draftNotice {
   display: grid;
   justify-items: start;
-  gap: 12px;
+  gap: 10px;
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.8;
 }
 .draftNotice p {
   margin: 0;
 }
+.runFooter {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding: 22px 24px 24px;
+  border-radius: 0 0 var(--radius-container) var(--radius-container);
+  background: var(--writing-footer);
+}
+.runReceipt {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.runPlan {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-ui-body);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.launchButtons {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.launchButtons > button {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+}
 .model {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
   color: var(--text-muted);
   font-size: 12px;
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
-.model svg {
-  flex-shrink: 0;
-}
-.context :global([class~='sm:grid-cols-2']) {
-  grid-template-columns: minmax(0, 1fr);
-}
-.results {
+.referenceEntry {
+  display: grid;
+  gap: 8px;
   min-width: 0;
-  padding: var(--management-panel-padding);
+  padding-inline: 24px;
+}
+.referenceEntry > button {
+  justify-content: flex-start;
+  width: 100%;
+}
+.dialogActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dialogActions > button {
+  flex: 0 0 auto;
+}
+.referenceTabs {
+  gap: 24px;
+}
+.referenceNavigation {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.referenceNavigation [data-slot='tabs-list'] {
+  width: max-content;
+  max-width: none;
+}
+.referencePanel,
+.preparation {
+  display: grid;
+  min-width: 0;
+  gap: 24px;
+}
+.referencePanel[data-state='inactive'] {
+  display: none;
+}
+.contentOption {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  cursor: pointer;
+}
+.contentOptionText {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+.contentOption > [data-slot='switch'] {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.preparationFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 20px 24px;
+}
+.preparation textarea {
+  field-sizing: fixed;
+  min-height: 88px;
+  resize: vertical;
+}
+@media (max-width: 600px) {
+  .preparationFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.root .contextSelect {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+.fieldLabel {
+  display: block;
+  font-size: var(--management-control-label-size);
+  font-weight: 500;
+  line-height: 1.5;
+}
+.taskRegion {
+  margin-top: 24px;
+  min-width: 0;
+}
+.root :global(.ai-writing-live-task) {
+  margin: 0;
+  padding: 20px 24px;
+  border-radius: var(--radius-container);
+  background: var(--bg-card);
+}
+.root .recentTasks {
+  margin: 24px 0 0;
+}
+.recentTasks li {
+  animation: rowEnter 200ms both;
 }
 .footer {
   display: flex;
@@ -302,55 +548,37 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 20px var(--management-panel-padding);
+  padding: 24px 4px 0;
   color: var(--text-muted);
   font-size: 12px;
+  line-height: 1.8;
 }
 .footer > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
 }
 .footer a {
   color: var(--accent);
 }
 
-/* The writing module owns its reused business sections; controls keep their shared skins. */
-.root :global(.ai-writing-brief),
-.root :global(.ai-writing-suggest-block),
-.root :global(.ai-writing-deck-block) {
+/* The writing module owns reused business sections; controls keep shared skins. */
+.root :global(.ai-writing-suggest-block) {
   display: grid;
   min-width: 0;
   gap: 12px;
-}
-.root :global(.ai-writing-brief__head),
-.root :global(.ai-writing-deck-head) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.root :global(.ai-writing-brief__count),
-.root :global(.ai-writing-brief__hint) {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.8;
-}
-.root :global(.ai-writing-brief) textarea {
-  min-height: 180px;
-  line-height: 1.9;
-}
-.root textarea {
-  min-width: 0;
-  width: 100%;
-}
-.root :global(.ai-writing-deck-block) {
-  padding-top: 12px;
 }
 .root :global(.ai-writing-suggest) {
   display: grid;
   gap: 8px;
+  transition: opacity 160ms;
+}
+.root :global(.ai-writing-suggest)[aria-busy='true'] {
+  opacity: 0.55;
+}
+.root :global(.ai-writing-suggest) > div {
+  min-width: 0;
+  animation: rowEnter 200ms both;
 }
 .root :global(.ai-writing-suggest__item) {
   display: flex;
@@ -360,19 +588,15 @@
   width: 100%;
   padding: 14px;
   text-align: left;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-card);
+  border: 0;
+  border-radius: var(--radius-compact);
+  background: transparent;
   cursor: pointer;
   transition: background 160ms;
 }
 .root :global(.ai-writing-suggest__item):hover,
 .root :global(.ai-writing-suggest__item)[aria-pressed='true'] {
-  background: var(--bg-secondary);
-}
-.root :global(.ai-writing-suggest__index) {
-  color: var(--accent);
-  font-size: 12px;
+  background: var(--accent-subtle);
 }
 .root :global(.ai-writing-suggest__body) {
   display: grid;
@@ -381,18 +605,12 @@
   overflow-wrap: anywhere;
 }
 .root :global(.ai-writing-suggest__direction) {
-  font-size: 13px;
+  font-size: var(--management-control-label-size);
   line-height: 1.8;
 }
 .root :global(.ai-writing-suggest__effect) {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
   color: var(--text-muted);
   font-size: 12px;
-}
-.root :global(.ai-writing-suggest__effect) svg {
-  flex-shrink: 0;
 }
 .root :global(.ai-writing-suggest-undo) {
   display: flex;
@@ -411,118 +629,184 @@
 .root :global(.ai-writing-outline-status__figure) {
   color: var(--text-primary);
 }
-.root :global(.ai-writing-actions) {
-  min-width: 0;
-}
-.root :global(.ai-writing-actions) > .flex {
-  justify-content: flex-end;
-}
-.root :global(.ai-writing-draft-note) {
-  flex-basis: 100%;
-  margin: 0;
-  text-align: right;
-}
-.root :global(.ai-writing-launch-summary) {
-  margin: 12px 0 0;
-  line-height: 1.8;
-}
-.root :global(.ai-writing-recent-drawer) {
-  margin: 0 var(--management-panel-padding) 24px;
-}
-.root :global(.ai-writing-content-scope) {
-  display: grid;
-  gap: 12px;
-  padding: 12px 0 0;
-  margin: 0;
-  border: 0;
-}
-.root :global(.ai-writing-content-scope__toggle) {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  cursor: pointer;
-}
-.root :global(.ai-writing-content-scope__toggle) > button {
-  flex-shrink: 0;
-}
-.root :global(.ai-writing-section-heading) {
-  display: none;
-}
 .root :global(.ai-writing-continuation-start__status) {
   margin: 0;
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.8;
 }
-.analysis :global(.ai-writing-profile-list) {
-  display: grid;
-  gap: 24px;
-}
 
-@media (max-width: 1100px) {
-  .layout {
+@keyframes rowEnter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@container writing-workspace (max-width: 62rem) {
+  .assist {
     grid-template-columns: minmax(0, 1fr);
   }
-  .context {
-    border-left: 0;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .context > h2 {
-    grid-column: 1 / -1;
+  .assistHeading {
+    grid-column: auto;
   }
 }
-
-@media (max-width: 700px) {
-  .toolbar {
+@container writing-workspace (max-width: 54rem) {
+  .root :global(.ai-generations-filter-rail) {
+    display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
-  }
-  .mode {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    justify-items: stretch;
     gap: 12px;
   }
-  .context,
+  .root :global(.ai-generations-filter-rail) > :global(.search-field) {
+    width: 100%;
+    max-width: none;
+  }
+  .root :global(.ai-generations-filter-rail) > :global(.select-filter-chips) {
+    width: 100%;
+    flex-wrap: wrap;
+    margin-inline: 0;
+    padding-inline: 0;
+    overflow: visible;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+  .workspaceHeader {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .compose {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .runSettings {
+    position: static;
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .runControls,
+  .runControls[data-multiple],
+  .runControls[data-mode='new'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .runControls:not([data-multiple]) .anchor,
+  .runControls:not([data-multiple]) .strategy,
+  .runControls:not([data-multiple]) .numberField {
+    grid-column: auto;
+  }
+  .runControls .anchor,
+  .runControls .wordField {
+    grid-column: 1 / -1;
+  }
+  .runControls[data-mode='continue']:not([data-multiple]) .wordField {
+    grid-column: auto;
+  }
+  .runControls[data-multiple] .strategy {
+    grid-column: 1 / -1;
+  }
+  .runFooter {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .launchButtons {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .launchButtons > button {
+    width: auto;
+  }
+}
+@container writing-workspace (max-width: 38rem) {
+  .compose {
+    --writing-gutter: 20px;
+    gap: 18px;
+  }
+  .editorHeader {
+    padding-top: 22px;
+  }
   .newFields {
     grid-template-columns: minmax(0, 1fr);
   }
-  .editor {
-    gap: 20px;
+  .runHeader,
+  .runControls,
+  .runControls[data-mode='new'],
+  .runControls[data-multiple] {
+    padding-inline: 20px;
   }
-  .sectionHeading h2 {
-    font-size: 19px;
+  .runControls .anchor,
+  .runControls .strategy,
+  .runControls:not([data-multiple]) .numberField {
+    grid-column: 1 / -1;
   }
-  .navigation [data-slot='tabs-list'] {
-    gap: 16px;
+  .runFooter {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px;
   }
-  .assist {
-    align-items: stretch;
+  .lengthNote,
+  .draftNotice {
+    margin-inline: 20px;
   }
-  .root .assist .focusInput {
-    flex-basis: 100%;
-    width: 100%;
+  .referenceEntry {
+    padding-inline: 20px;
   }
-  .root :global(.ai-writing-suggest) > div {
-    flex-wrap: wrap;
-  }
-  .root :global(.ai-writing-number-input) [data-slot='input'] {
-    max-width: none;
-  }
-  .root :global(.ai-writing-suggest__item) {
-    min-height: 48px;
-  }
-  .root :global(.ai-writing-actions) > .flex {
-    justify-content: flex-start;
-  }
-  .root :global(.ai-writing-draft-note) {
-    text-align: left;
+  .launchButtons > button {
+    flex: 1 1 auto;
   }
 }
-
+@media (max-width: 767px) {
+  .root textarea {
+    font-size: var(--field-control-font-size, 16px);
+  }
+}
+@media (max-width: 700px) {
+  .workbench .viewTabs {
+    gap: 18px;
+  }
+  .bookToolbar {
+    gap: 12px;
+  }
+  .bookField [role='combobox'],
+  .runControls {
+    --field-control-height: 48px;
+  }
+  .bookMark {
+    flex-basis: 42px;
+    height: 62px;
+  }
+  .mode [data-slot='tabs-trigger'],
+  .scaleChoices > button {
+    min-height: 48px;
+  }
+  .mode [data-slot='tabs-list'] {
+    height: auto;
+  }
+  .assistActions > button {
+    flex: 1 1 auto;
+    min-height: 48px;
+  }
+  .wordPresets > button {
+    min-height: 44px;
+  }
+  .root :global(.ai-writing-suggest__item),
+  .root .launchButtons > button,
+  .outline > summary,
+    .recentTasks > summary {
+    min-height: 48px;
+  }
+  .footer {
+    padding-top: 18px;
+  }
+  .footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 48px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .root :global(.ai-writing-suggest__item) {
+  .outline > summary::after,
+    .recentTasks > summary::after,
+  .root :global(.ai-writing-suggest__item),
+  .root :global(.ai-writing-suggest) {
     transition: none;
+  }
+  .root :global(.ai-writing-suggest) > div,
+  .recentTasks li {
+    animation: none;
   }
 }

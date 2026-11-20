@@ -1,7 +1,9 @@
+import { BookOpen } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { AdminNovelIndexItem } from '@shared/types'
 import { loadAdminNovelIndex } from '@/lib/admin-novel-index'
+import { url } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import FormField from '@/components/shared/FormField'
@@ -42,6 +44,7 @@ export default function AiWritingWorkspace({ model, active = true, defaultView =
   const [reload, setReload] = useState(0)
 
   const loading = loadedRevision !== reload
+  const selectedNovel = novels.find(novel => novel.id === novelId)
 
   useEffect(() => {
     let alive = true
@@ -85,29 +88,44 @@ export default function AiWritingWorkspace({ model, active = true, defaultView =
   }, [novelId, setParams])
 
   return <section className={styles.workbench} aria-label="作品创作工作区">
-    <div className={styles.bookToolbar}>
-      <FormField label="当前作品" labelId="ai-writing-novel-label">
-        <SearchSelect
-          options={novels.map(novel => ({ value: novel.id, label: novel.title, sub: `${novel.author || '未知作者'} · ${novel.chapterCount} 章` }))}
-          value={novelId} onChange={changeNovel}
-          placeholder={loading ? '正在加载书目…' : '选择小说'} disabled={loading || !!error}
-          searchable searchPlaceholder="搜索书名或作者…" dropdownSide="bottom"
-          filter={(option, query) => `${option.label} ${option.sub || ''}`.toLowerCase().includes(query)}
-          aria-labelledby="ai-writing-novel-label"
-        />
-        {error && <div role="alert" className="text-sm text-destructive">{error}
-          <Button variant="ghost" size="sm" disabled={loading} onClick={() => setReload(v => v + 1)}>重新加载书目</Button>
-        </div>}
-      </FormField>
-    </div>
-    <Tabs value={view} onValueChange={value => changeView(value as WorkspaceView)} className={styles.viewTabs}>
-      <div className={styles.navigation}>
-        <TabsList variant="line" aria-label="本书创作视图">
-          <TabsTrigger value="analysis">分析报告</TabsTrigger>
-          <TabsTrigger value="compose">构思与生成</TabsTrigger>
-          <TabsTrigger value="review">草稿审阅</TabsTrigger>
-          <TabsTrigger value="outputs">本书产出</TabsTrigger>
-        </TabsList>
+    <Tabs value={view} activationMode="manual" onValueChange={value => changeView(value as WorkspaceView)} className={styles.viewTabs}>
+      <div className={styles.workspaceHeader}>
+        <div className={styles.bookToolbar}>
+          <span className={styles.bookMark} aria-hidden="true">
+            <BookOpen className="size-5" />
+            {selectedNovel && <img
+              key={`${selectedNovel.id}:${selectedNovel.updatedAt}`}
+              src={url(`/cover/${encodeURIComponent(selectedNovel.id)}?v=${selectedNovel.updatedAt || 0}&cover=4`)}
+              alt="" onError={event => { event.currentTarget.hidden = true }}
+            />}
+          </span>
+          <div className={styles.bookContext}>
+            <FormField className={styles.bookField} label="当前作品" labelId="ai-writing-novel-label">
+              <SearchSelect
+                options={novels.map(novel => ({ value: novel.id, label: novel.title, sub: `${novel.author || '未知作者'} · ${novel.chapterCount} 章` }))}
+                value={novelId} onChange={changeNovel}
+                placeholder={loading ? '正在加载书目…' : '选择小说'} disabled={loading || !!error}
+                searchable searchPlaceholder="搜索书名或作者…" dropdownSide="bottom"
+                filter={(option, query) => `${option.label} ${option.sub || ''}`.toLowerCase().includes(query)}
+                aria-labelledby="ai-writing-novel-label"
+              />
+              {error && <div role="alert" className="text-sm text-destructive">{error}
+                <Button variant="ghost" size="sm" disabled={loading} onClick={() => setReload(v => v + 1)}>重新加载书目</Button>
+              </div>}
+            </FormField>
+            <p className={styles.bookMeta}>{selectedNovel
+              ? [selectedNovel.author || '未知作者', selectedNovel.chapterCount.toLocaleString('zh-CN') + ' 章已入库'].join(' · ')
+              : '选择一本作品开始续写，或在下方切换新写。'}</p>
+          </div>
+        </div>
+        <div className={styles.navigation}>
+          <TabsList aria-label="本书创作视图">
+            <TabsTrigger value="analysis">分析报告</TabsTrigger>
+            <TabsTrigger value="compose">构思与生成</TabsTrigger>
+            <TabsTrigger value="review">草稿审阅</TabsTrigger>
+            <TabsTrigger value="outputs">本书产出</TabsTrigger>
+          </TabsList>
+        </div>
       </div>
       <TabsContent value="analysis" forceMount hidden={view !== 'analysis'} className={styles.analysisContent}>
         {visits.analysis && <NovelAnalysisPanel
@@ -115,10 +133,10 @@ export default function AiWritingWorkspace({ model, active = true, defaultView =
           active={active && view === 'analysis'}
         />}
       </TabsContent>
-      <TabsContent value={writingView} forceMount hidden={view === 'analysis'}>
+      <TabsContent value={writingView} forceMount hidden={view === 'analysis'} className={styles.writingContent}>
         {visits.writing && <AiWritingPanel
           active={active && view !== 'analysis'}
-          novelId={novelId} novels={novels} view={writingView} model={model}
+          novelId={novelId} view={writingView} model={model}
           focusBatchId={params.get('batch') || undefined}
           initialAfterChapterId={params.get('afterChapterId') || undefined}
           onAfterChapterChange={chapterId => setParams(current => {

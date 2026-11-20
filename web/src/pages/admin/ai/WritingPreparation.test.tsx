@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import WritingPreparation from './WritingPreparation'
+import { useWritingPreparationState } from './writing-preparation-state'
 import { emptyWritingBrief } from './writing-brief'
 import DraftReview from './DraftReview'
 
@@ -29,9 +30,11 @@ beforeEach(() => {
 })
 function Preparation() {
   const [brief, setBrief] = useState(emptyWritingBrief())
+  const state = useWritingPreparationState('book', '')
   const request = { novelId: 'book', writingBrief: brief }
   return (
     <WritingPreparation
+      {...state}
       brief={brief}
       onChange={setBrief}
       request={request}
