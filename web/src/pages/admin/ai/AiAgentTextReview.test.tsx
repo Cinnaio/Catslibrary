@@ -48,4 +48,42 @@ describe('Agent suggestion reading', () => {
     expect(onAdopt).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+  it('keeps stable choices through filtering, previews merged text, and refuses an unchanged result', async () => {
+    const onAdopt = vi.fn()
+    const before = '开头。\n第一旧段。\n共同段。\n第二旧段。\n结尾。'
+    const after = '开头。\n第一新段。\n共同段。\n第二新段。\n结尾。'
+    render(<AiAgentTextReview title="选择改动" before={before} after={after} status="待选择" actionLabel="预览采纳"
+      busy={false} selectionRevision="revision" onDiscuss={vi.fn()} onAdopt={onAdopt} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: '查看差异' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('checkbox', { name: /采用第 2 处改动/ }))
+    await user.click(within(dialog).getByRole('checkbox', { name: '只看改动' }))
+    expect(within(dialog).getByRole('checkbox', { name: /采用第 1 处改动/ })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: /采用第 2 处改动/ })).not.toBeChecked()
+    expect(onAdopt).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: '全部保留原文' }))
+    expect(within(dialog).getByRole('button', { name: '预览所选结果' })).toBeDisabled()
+    await user.click(within(dialog).getByRole('checkbox', { name: /采用第 1 处改动/ }))
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('tabpanel', { name: '合并结果' })).toHaveTextContent('第一新段。')
+    expect(screen.getByRole('tabpanel', { name: '合并结果' })).toHaveTextContent('第二旧段。')
+    await user.click(screen.getByRole('button', { name: '预览所选结果' }))
+    expect(onAdopt).toHaveBeenCalledExactlyOnceWith({ version: 1, revision: 'revision', acceptedChanges: [0] })
+  })
+
+  it('shows and locks the persisted partial result after adoption', async () => {
+    const onAdopt = vi.fn()
+    render(<AiAgentTextReview title="已采纳" before={'旧一。\n共同段。\n旧二。'} after={'新一。\n共同段。\n新二。'}
+      status="已采纳" actionLabel="查看采纳记录" busy={false} selectionRevision="revision" selectionLocked
+      savedSelection={{ version: 1, revision: 'revision', acceptedChanges: [1] }} onDiscuss={vi.fn()} onAdopt={onAdopt} />)
+    expect(screen.getByRole('tabpanel', { name: '合并结果' })).toHaveTextContent('旧一。')
+    expect(screen.getByRole('tabpanel', { name: '合并结果' })).toHaveTextContent('新二。')
+    fireEvent.click(screen.getByRole('button', { name: '查看差异' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('checkbox', { name: /采用第 1 处改动/ })).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: '查看采纳记录' }))
+    expect(onAdopt).toHaveBeenCalledExactlyOnceWith()
+  })
+
 })

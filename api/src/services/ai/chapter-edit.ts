@@ -1,3 +1,4 @@
+import { resolveRewriteSelection } from './rewrite-selection'
 import type { AgentActionKind, AgentChapterEditSource, AgentChapterHistory, AgentSession } from '@shared/ai-agent'
 import type { Db, DbClient } from '../../db/pool'
 import { all, first, withTx } from '../../db/query'
@@ -70,7 +71,8 @@ export async function chapterEditHistory(db: DbClient, session: AgentSession, ch
   return { history, hasMore: rows.length > 20 }
 }
 
-export async function prepareChapterAction(db: Db, session: AgentSession, kind: Extract<AgentActionKind, 'apply_chapter_edit' | 'restore_chapter'>, targetId: string) {
+export async function prepareChapterAction(db: Db, session: AgentSession, kind: Extract<AgentActionKind, 'apply_chapter_edit' | 'restore_chapter'>, targetId: string, selection?: unknown) {
+  let selected: ReturnType<typeof resolveRewriteSelection> | undefined
   let chapter: EditableChapter
   let after: string
   let beforePreview: string
@@ -84,8 +86,9 @@ export async function prepareChapterAction(db: Db, session: AgentSession, kind: 
     chapter = await scopedEditableChapter(db, session, edit.params.chapterId)
     baseRevision = edit.params.baseRevision
     beforePreview = edit.params.selectedText
-    afterPreview = edit.suggestion
-    after = edit.params.baseContent.slice(0, edit.params.startUTF16) + edit.suggestion + edit.params.baseContent.slice(edit.params.endUTF16)
+    selected = resolveRewriteSelection(beforePreview, edit.suggestion, selection)
+    afterPreview = selected.text
+    after = edit.params.baseContent.slice(0, edit.params.startUTF16) + afterPreview + edit.params.baseContent.slice(edit.params.endUTF16)
   } else {
     // History IDs survive conversation deletion. Completed action IDs also work as a shortcut.
     const previous = await first<{ chapter_id: string; before_content: string; after_revision: string }>(db,
@@ -101,9 +104,12 @@ export async function prepareChapterAction(db: Db, session: AgentSession, kind: 
   if (chapter.content === after) throw new AiError('invalid', '建议与当前章节相同，无需保存', 422)
   const label = kind === 'apply_chapter_edit' ? '保存改写到原章节' : '恢复修改前的章节'
   return {
-    payload: { chapterId: chapter.id, baseRevision, before: chapter.content, after },
+    payload: { chapterId: chapter.id, baseRevision, before: chapter.content, after,
+      ...(selected ? { taskId: targetId, selection: selected.selection } : {}) },
     label: label + '「' + chapter.title + '」',
-    preview: { description: '将直接更新「' + session.novelTitle + '」中的「' + chapter.title + '」。确认后读者将看到新正文，修改前的版本会保留。',
+    preview: { description: '将直接更新「' + session.novelTitle + '」中的「' + chapter.title + '」。确认后读者将看到新正文，修改前的版本会保留。' +
+      (selected ? `采用 ${selected.selection.acceptedChanges.length} / ${selected.total} 处改动，未选处保留原文。` : ''),
+      ...(selected ? { sourceTaskId: targetId, selection: selected.selection } : {}),
       chapterId: chapter.id, chapterTitle: chapter.title, before: beforePreview, after: afterPreview },
   }
 }

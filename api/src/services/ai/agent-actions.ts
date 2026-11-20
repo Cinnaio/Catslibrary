@@ -1,3 +1,4 @@
+import { resolveRewriteSelection, rewriteSelectionRevision } from './rewrite-selection'
 import { confirmChapterAction, parseChapterEdit, prepareChapterAction } from './chapter-edit'
 import type { AgentActionKind, AgentArtifact, AgentSession } from '@shared/ai-agent'
 import { ANALYSIS_KINDS, type AnalysisKind } from '@shared/novel-analysis'
@@ -107,6 +108,7 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
         : undefined
       result.rewrite = {
         draftId: params.draftId, before: params.selectedText, after: suggestion.suggestion, baseRevision: params.baseRevision,
+        selectionRevision: rewriteSelectionRevision(params.selectedText, suggestion.suggestion),
         ...(minimumLengthWarning ? { minimumLengthWarning } : {}),
       }
     }
@@ -114,7 +116,8 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
   if (task.kind === 'chapter_edit' && task.status === 'completed') {
     const edit = parseChapterEdit(task.params || '{}', task.result)
     if (edit) result.chapterEdit = { chapterId: edit.params.chapterId, chapterTitle: edit.params.chapterTitle,
-      before: edit.params.selectedText, after: edit.suggestion, baseRevision: edit.params.baseRevision }
+      before: edit.params.selectedText, after: edit.suggestion, baseRevision: edit.params.baseRevision,
+      selectionRevision: rewriteSelectionRevision(edit.params.selectedText, edit.suggestion) }
   }
   if (task.kind === 'novel_analysis') {
     const report = await first<{ id: string; kind: AnalysisKind }>(db,
@@ -125,12 +128,14 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
   return result
 }
 
-export async function prepareAgentAction(db: Db, session: AgentSession, kind: AgentActionKind, targetId: string, title = '') {
+export async function prepareAgentAction(db: Db, session: AgentSession, kind: AgentActionKind, targetId: string, title = '', selection?: unknown) {
+  if (selection !== undefined && kind !== 'apply_rewrite' && kind !== 'apply_chapter_edit')
+    throw new AiError('invalid', '此操作不支持选择改动', 422)
   let payload: Record<string, unknown>
   let preview: AgentActionRow['preview']
   let label: string
   if (kind === 'apply_chapter_edit' || kind === 'restore_chapter') {
-    const proposal = await prepareChapterAction(db, session, kind, targetId)
+    const proposal = await prepareChapterAction(db, session, kind, targetId, selection)
     payload = proposal.payload
     preview = proposal.preview
     label = proposal.label
@@ -144,14 +149,18 @@ export async function prepareAgentAction(db: Db, session: AgentSession, kind: Ag
     const draft = await scopedAgentDraft(db, session, params.draftId)
     if (draft.status !== 'draft' || generationContentRevision(draft.result) !== params.baseRevision)
       throw new AiError('conflict', '草稿已经变化，请基于当前版本重新改写', 409)
-    const after = draft.result.slice(0, params.startUTF16) + suggestion.suggestion + draft.result.slice(params.endUTF16)
-    payload = { draftId: draft.id, taskId: task.id, baseRevision: params.baseRevision, before: draft.result, after }
+    const selected = resolveRewriteSelection(params.selectedText, suggestion.suggestion, selection)
+    const after = draft.result.slice(0, params.startUTF16) + selected.text + draft.result.slice(params.endUTF16)
+    if (!after.trim() || Array.from(after).length > 12000) throw new AiError('invalid', '应用后的正文超出允许范围', 422)
+    payload = { draftId: draft.id, taskId: task.id, baseRevision: params.baseRevision, before: draft.result, after,
+      selection: selected.selection }
     label = '采纳改写到草稿'
     preview = {
-      description: '仅替换这个草稿中已选的段落，原版本保留在本次记录中。',
+      description: `采用 ${selected.selection.acceptedChanges.length} / ${selected.total} 处改动，未选处保留原文。原版本保留在本次记录中。`,
+      sourceTaskId: task.id, selection: selected.selection,
       draftId: draft.id,
       before: params.selectedText,
-      after: suggestion.suggestion,
+      after: selected.text,
     }
   } else if (kind === 'publish_draft') {
     const draft = await scopedAgentDraft(db, session, targetId)
@@ -236,6 +245,7 @@ export async function confirmAgentAction(db: Db, session: AgentSession, id: stri
     } else if (action.kind === 'apply_rewrite') {
       result = await call(`/api/ai/writing/drafts/${encodeURIComponent(String(p.draftId))}/rewrite/${encodeURIComponent(String(p.taskId))}/apply`, 'POST', {
         baseRevision: p.baseRevision,
+        ...(p.selection === undefined ? {} : { selection: p.selection }),
         operationId: id,
       })
     } else if (action.kind === 'publish_draft') {

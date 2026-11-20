@@ -199,12 +199,19 @@ export interface AgentEvent {
 
 export type AgentActionKind = 'apply_rewrite' | 'publish_draft' | 'adopt_cover' | 'restore_draft' | 'apply_chapter_edit' | 'restore_chapter'
 
+/** Versioned choices over the exact original and proposed text; never replacement text. */
+export interface AgentRewriteSelection {
+  version: 1
+  revision: string
+  acceptedChanges: number[]
+}
+
 export interface AgentAction {
   id: string
   kind: AgentActionKind
   title: string
   status: 'pending' | 'executing' | 'completed' | 'rejected' | 'failed'
-  preview: { description: string; before?: string; after?: string; candidateId?: string; draftId?: string; chapterId?: string; chapterTitle?: string }
+  preview: { description: string; before?: string; after?: string; candidateId?: string; draftId?: string; chapterId?: string; chapterTitle?: string; sourceTaskId?: string; selection?: AgentRewriteSelection }
   error: string
   createdAt: number
   canResume?: boolean
@@ -222,8 +229,8 @@ export interface AgentArtifact {
     lengthCheck?: { actualWords: number; minimumWords?: number; targetWords?: number }
   }>
   covers: Array<{ id: string; prompt: string; imageUrl: string }>
-  rewrite?: { draftId: string; before: string; after: string; baseRevision: string; minimumLengthWarning?: string }
-  chapterEdit?: { chapterId: string; chapterTitle: string; before: string; after: string; baseRevision: string }
+  rewrite?: { draftId: string; before: string; after: string; baseRevision: string; selectionRevision?: string; minimumLengthWarning?: string }
+  chapterEdit?: { chapterId: string; chapterTitle: string; before: string; after: string; baseRevision: string; selectionRevision?: string }
   analysisReport?: { id: string; title: string; url: string }
 }
 

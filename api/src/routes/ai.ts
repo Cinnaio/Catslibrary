@@ -1,3 +1,4 @@
+import { resolveRewriteSelection } from '../services/ai/rewrite-selection'
 import { chapterEditRoutes } from './ai-chapter-edit'
 import { generationAssociationRoutes } from './ai-generation-association'
 import type { AnalysisReferenceSelection } from '@shared/novel-analysis'
@@ -1511,12 +1512,16 @@ aiRoutes.post('/writing/drafts/:id/rewrite/:taskId/apply', requireAdmin(), async
   const requestedBaseRevision = String(body.baseRevision || '').trim()
   if (!requestedBaseRevision || requestedBaseRevision !== params.baseRevision)
     return c.json({ error: '应用基底版本不匹配，请重新读取建议', code: 'content_changed' }, 409)
+  let selected: ReturnType<typeof resolveRewriteSelection>
+  try { selected = resolveRewriteSelection(params.selectedText, suggestion.suggestion, body.selection) }
+  catch (error) { return aiErrorResponse(c, error) }
   return withIdempotency(
     db,
     {
       scope: `ai.writing.rewrite.apply.${c.get('user').id}.${id}.${taskId}`,
       operationKey,
-      payload: { draftId: id, taskId, baseRevision: requestedBaseRevision },
+      payload: { draftId: id, taskId, baseRevision: requestedBaseRevision,
+        ...(body.selection === undefined ? {} : { selection: selected.selection }) },
       audit: { actorUserId: c.get('user').id, action: 'ai.writing.rewrite.apply', targetCount: 1 },
     },
     async () => {
@@ -1528,9 +1533,9 @@ aiRoutes.post('/writing/drafts/:id/rewrite/:taskId/apply', requireAdmin(), async
             throw new AiError('conflict', '草稿已发布、删除或不可编辑', 409)
           const currentRevision = generationContentRevision(row.result)
           if (currentRevision !== params!.baseRevision) throw new AiError('conflict', '草稿正文已变化，请重新选择选段', 409)
-          const selected = validateRewriteSelection(row.result, params!)
-          if (!selected.value) throw new AiError('conflict', selected.error || '原选段已变化，请重新选择', 409)
-          const result = row.result.slice(0, params!.startUTF16) + suggestion!.suggestion + row.result.slice(params!.endUTF16)
+          const validated = validateRewriteSelection(row.result, params!)
+          if (!validated.value) throw new AiError('conflict', validated.error || '原选段已变化，请重新选择', 409)
+          const result = row.result.slice(0, params!.startUTF16) + selected.text + row.result.slice(params!.endUTF16)
           if (!result.trim() || Array.from(result).length > 12000) throw new AiError('invalid', '应用后的正文超出允许范围', 422)
           await q("UPDATE ai_generations SET result = $1 WHERE id = $2 AND status = 'draft' AND deleted_at = 0", [result, id])
           return { id, result, contentRevision: generationContentRevision(result) }

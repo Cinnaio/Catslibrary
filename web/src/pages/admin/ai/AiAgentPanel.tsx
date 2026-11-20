@@ -11,6 +11,7 @@ import {
   type AgentAction,
   type AgentActionKind,
   type AgentArtifact,
+  type AgentRewriteSelection,
   type AgentContentPreferences,
   type AgentEvent,
   type AgentSession,
@@ -35,6 +36,7 @@ import AiAgentWritingReferences, { type WritingReferenceChoice } from './AiAgent
 import AiAgentRecovery from './AiAgentRecovery'
 import AiAgentUsage from './AiAgentUsage'
 import AiAgentTextReview from './AiAgentTextReview'
+import { compareAgentText } from './agent-text-diff'
 import AiAgentOutputHeader from './AiAgentOutputHeader'
 import AiAgentActionDialog from './AiAgentActionDialog'
 import AiAgentHistory from './AiAgentHistory'
@@ -56,8 +58,14 @@ function artifactEditAction(artifact: AgentArtifact | null | undefined, actions:
   if (!edit || !artifact) return undefined
   return actions.filter(action => action.kind === (artifact.chapterEdit ? 'apply_chapter_edit' : 'apply_rewrite')
     && (artifact.chapterEdit ? action.preview.chapterId === artifact.chapterEdit.chapterId : action.preview.draftId === artifact.rewrite?.draftId)
-    && action.preview.before === edit.before && action.preview.after === edit.after)
-    .sort((a, b) => b.createdAt - a.createdAt)[0]
+    && action.preview.before === edit.before
+    && (action.preview.sourceTaskId
+      ? action.preview.sourceTaskId === artifact.task.id && action.preview.selection?.revision === edit.selectionRevision
+      : action.preview.after === edit.after))
+    .sort((a, b) => {
+      const priority = (action: AgentAction) => action.status === 'completed' ? 2 : action.status === 'executing' ? 1 : 0
+      return priority(b) - priority(a) || b.createdAt - a.createdAt
+    })[0]
 }
 
 export default function AiAgentPanel() {
@@ -596,9 +604,10 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
       } : current)
     })
   }
-  async function prepare(kind: AgentActionKind, targetId: string, title = '') {
+  async function prepare(kind: AgentActionKind, targetId: string, title = '', selection?: AgentRewriteSelection) {
     await perform(async () => {
-      const result = await agentApi.prepare(sessionId, kind, targetId, title)
+      const result = selection ? await agentApi.prepare(sessionId, kind, targetId, title, selection)
+        : await agentApi.prepare(sessionId, kind, targetId, title)
       if (mounted.current) setPreview(result.action)
     })
   }
@@ -912,7 +921,7 @@ function AgentArtifactView({
   onViewAction: (id: string) => void
   busy: boolean
   onStop: () => void
-  onPrepare: (kind: AgentActionKind, targetId: string, title?: string) => Promise<void>
+  onPrepare: (kind: AgentActionKind, targetId: string, title?: string, selection?: AgentRewriteSelection) => Promise<void>
   onDiscuss: () => void
   onReviewFinding: (prompt: string) => void
 }) {
@@ -988,6 +997,7 @@ function AgentArtifactView({
         </section>
       ))}
       {edit && <AiAgentTextReview
+        key={artifact.task.id}
         title={artifact.chapterEdit?.chapterTitle || '草稿改写建议'}
         before={edit.before}
         after={edit.after}
@@ -995,10 +1005,16 @@ function AgentArtifactView({
         actionLabel={editActionLabel}
         busy={busy}
         warning={artifact.rewrite?.minimumLengthWarning}
+        selectionRevision={edit.selectionRevision}
+        savedSelection={editAction?.preview.selection}
+        selectionLocked={saved || editAction?.status === 'executing'}
         onDiscuss={onDiscuss}
-        onAdopt={() => {
-          if (reusableAction) onViewAction(editAction.id)
-          else void onPrepare(artifact.chapterEdit ? 'apply_chapter_edit' : 'apply_rewrite', artifact.task.id)
+        onAdopt={selection => {
+          const sameSelection = !selection || (editAction?.preview.selection
+            ? JSON.stringify(editAction.preview.selection) === JSON.stringify(selection)
+            : selection.acceptedChanges.length === compareAgentText(edit.before, edit.after).filter(part => part.kind !== 'equal').length)
+          if (reusableAction && sameSelection) onViewAction(editAction.id)
+          else void onPrepare(artifact.chapterEdit ? 'apply_chapter_edit' : 'apply_rewrite', artifact.task.id, '', selection)
         }}
       />}
       {artifact.covers.map((cover) => (

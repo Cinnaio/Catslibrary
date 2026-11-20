@@ -16,7 +16,7 @@ import { setAgentPhase } from '../services/ai/agent-recovery'
 import { generationContentRevision } from '../services/ai/generations'
 import { replaceCoverForAdmin } from '../services/covers'
 import { AiError, type AiToolCall } from '../services/ai/client'
-import type { AgentSession, AgentSessionDetail } from '@shared/ai-agent'
+import type { AgentAction, AgentSession, AgentSessionDetail } from '@shared/ai-agent'
 import { subscribeAiTask } from '../services/ai/task-events'
 import { activeAgentMemories, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories, saveAgentSummary } from '../services/ai/agent-memory'
 import { loadAgentContext, parseAgentSummary } from '../services/ai/agent-context'
@@ -1386,6 +1386,46 @@ describe('novel-scoped creative agent', () => {
     expect(reapplied.status).toBe('pending')
     await confirmAgentAction(t.db, session, reapplied.id, internalApi())
     expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))?.result).toBe('他在门边停住了。她没有开口。')
+  })
+  it('partially adopts a saved rewrite preview once, rejects changed retry choices, and restores the exact original', async () => {
+    const before = '开头。\n旧段一。\n共同段。\n旧段二。\n结尾。'
+    const after = '开头。\n新段一。\n共同段。\n新段二。\n结尾。'
+    await draft('draft', 'novel', before)
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const params = buildRewriteTaskParams('draft', before, { baseRevision: generationContentRevision(before),
+      selectedText: before, startUTF16: 0, endUTF16: before.length, mode: 'custom', instruction: '修改两处' })
+    const task = await createAiTask(t.db, { userId: 'admin', novelId: 'novel', kind: 'rewrite_selection', params: JSON.stringify(params) })
+    await updateAiTask(t.db, task.id, { status: 'completed', result: JSON.stringify({ version: 1, suggestion: after }) })
+    await trackAgentArtifact(t.db, session.id, task.id)
+    const artifact = await readAgentArtifact(t.db, session, task.id)
+    const selection = { version: 1, revision: artifact.rewrite!.selectionRevision, acceptedChanges: [1] }
+    const root = `/api/ai/agent/sessions/${session.id}/actions`
+    const response = await request(root, 'POST', { kind: 'apply_rewrite', targetId: task.id, selection })
+    expect(response.status).toBe(201)
+    const { action } = await response.json() as { action: AgentAction }
+    const merged = before.replace('旧段二', '新段二')
+    expect(action.preview).toMatchObject({ before, after: merged, sourceTaskId: task.id, selection })
+    const retry = await request(root, 'POST', { kind: 'apply_rewrite', targetId: task.id, selection })
+    expect((await retry.json() as { action: AgentAction }).action.id).toBe(action.id)
+    expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))!.result).toBe(before)
+    // Confirmation is authorized by the saved action alone; extra client text cannot replace it.
+    expect((await request(`${root}/${action.id}/confirm`, 'POST', { after: '不应写入', selection: { ...selection, acceptedChanges: [0] } })).status).toBe(200)
+    expect((await confirmAgentAction(t.db, session, action.id, internalApi())).status).toBe('completed')
+    expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))!.result).toBe(merged)
+    const changedRetry = await request(`/api/ai/writing/drafts/draft/rewrite/${task.id}/apply`, 'POST', {
+      operationId: action.id, baseRevision: params.baseRevision, selection: { ...selection, acceptedChanges: [0] },
+    })
+    expect(changedRetry.status).toBe(409)
+    const restore = await prepareAgentAction(t.db, session, 'restore_draft', action.id)
+    await confirmAgentAction(t.db, session, restore.id, internalApi())
+    expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))!.result).toBe(before)
+    const full = await prepareAgentAction(t.db, session, 'apply_rewrite', task.id)
+    const fullSelection = { ...selection, acceptedChanges: [0, 1] }
+    expect((await prepareAgentAction(t.db, session, 'apply_rewrite', task.id, '', fullSelection)).id).toBe(full.id)
+    const pending = await prepareAgentAction(t.db, session, 'apply_rewrite', task.id, '', selection)
+    await t.db.query("UPDATE ai_generations SET result='作者另存正文' WHERE id='draft'")
+    await expect(confirmAgentAction(t.db, session, pending.id, internalApi())).rejects.toMatchObject({ status: 409 })
+    expect((await first<{ result: string }>(t.db, "SELECT result FROM ai_generations WHERE id='draft'"))!.result).toBe('作者另存正文')
   })
   it('refines an unadopted suggestion and preserves the original apply revision', async () => {
     await draft()

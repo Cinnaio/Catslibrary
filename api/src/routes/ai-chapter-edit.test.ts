@@ -11,7 +11,7 @@ import { confirmAgentAction, prepareAgentAction, readAgentArtifact } from '../se
 import { buildChapterEditParams, chapterEditHistory, chapterEditSource, scopedEditableChapter } from '../services/ai/chapter-edit'
 import { executeAgentTool } from '../services/ai/agent-tools'
 import { runAgentTurn } from '../services/ai/agent'
-import type { AgentSession } from '@shared/ai-agent'
+import type { AgentAction, AgentSession } from '@shared/ai-agent'
 
 vi.mock('../services/ai/provider-presets', () => ({ getProviderPreset: (id: string) => ({
   id, scope: 'text', baseUrl: 'https://chosen-model.test/v1', apiKey: 'chosen-key', model: 'chosen-model',
@@ -238,6 +238,39 @@ describe('published chapter editing', () => {
     expect(row).toMatchObject({ id: 'chapter', sort_order: 1, source_url: 'https://source.test/chapter', word_count: original.replace(selected, proposed).replace(/<[^>]*>/g, '').length })
     expect(await first(t.db, "SELECT status FROM ai_generations WHERE id='summary'")).toMatchObject({ status: 'rejected' })
     expect((await chapterEditHistory(t.db, session, 'chapter')).history).toHaveLength(1)
+  })
+  it('partially adopts chapter changes and restores only the recorded merged version', async () => {
+    const before = '原段一。\r\n共同段。\r\n原段二。'
+    const after = '新段一。\r\n共同段。\r\n新段二。'
+    await t.db.query("UPDATE chapters SET content=$1 WHERE id='chapter'", [before])
+    const source = await chapterEditSource(t.db, session, 'chapter')
+    const params = buildChapterEditParams(session, await scopedEditableChapter(t.db, session, 'chapter'), {
+      baseRevision: source.revision, selectedText: before, startUTF16: 0, endUTF16: before.length, instruction: '修改两处',
+    })
+    const task = await createAiTask(t.db, { userId: 'admin', novelId: 'book', kind: 'chapter_edit', params: JSON.stringify(params) })
+    await updateAiTask(t.db, task.id, { status: 'completed', result: JSON.stringify({ version: 1, suggestion: after }) })
+    await trackAgentArtifact(t.db, session.id, task.id)
+    const artifact = await readAgentArtifact(t.db, session, task.id)
+    const selection = { version: 1, revision: artifact.chapterEdit!.selectionRevision, acceptedChanges: [0] }
+    const actionRoot = `/api/ai/agent/sessions/${session.id}/actions`
+    const response = await request(actionRoot, 'POST', { kind: 'apply_chapter_edit', targetId: task.id, selection })
+    expect(response.status).toBe(201)
+    const { action } = await response.json() as { action: AgentAction }
+    expect(action.preview).toMatchObject({ before, after: before.replace('原段一', '新段一'), selection })
+    expect(await content()).toBe(before)
+    await confirmAgentAction(t.db, session, action.id, neverCall)
+    await confirmAgentAction(t.db, session, action.id, neverCall)
+    expect(await content()).toBe(before.replace('原段一', '新段一'))
+    expect((await chapterEditHistory(t.db, session, 'chapter')).history).toHaveLength(1)
+    const undo = await prepareAgentAction(t.db, session, 'restore_chapter', action.id)
+    await confirmAgentAction(t.db, session, undo.id, neverCall)
+    expect(await content()).toBe(before)
+    const invalid = await request(actionRoot, 'POST', { kind: 'apply_chapter_edit', targetId: task.id, selection: { ...selection, revision: 'old' } })
+    expect(invalid.status).toBe(409)
+    const pending = await prepareAgentAction(t.db, session, 'apply_chapter_edit', task.id, '', selection)
+    await t.db.query("UPDATE chapters SET content='后来手工保存' WHERE id='chapter'")
+    await expect(confirmAgentAction(t.db, session, pending.id, neverCall)).rejects.toMatchObject({ status: 409 })
+    expect(await content()).toBe('后来手工保存')
   })
   it('rejects a stale confirmation and does not create a history record', async () => {
     const taskId = await finished()

@@ -262,7 +262,7 @@ export function createAgentRoutes(dispatch: Dispatch) {
     const session = await getAgentSession(getDb(), c.get('user').id, c.req.param('id'))
     const body = await c.req.json().catch(() => ({}))
     return c.json(
-      { action: await prepareAgentAction(getDb(), session, body.kind as AgentActionKind, String(body.targetId || ''), String(body.title || '')) },
+      { action: await prepareAgentAction(getDb(), session, body.kind as AgentActionKind, String(body.targetId || ''), String(body.title || ''), body.selection) },
       201,
     )
   })

@@ -726,6 +726,53 @@ describe('creative agent conversation', () => {
     expect(mocks.prepare).not.toHaveBeenCalled()
     expect(mocks.confirm).not.toHaveBeenCalled()
   })
+  it('keeps a completed partial adoption ahead of a newer unconfirmed variant', async () => {
+    const initial = detail()
+    const before = '旧一。\n中间。\n旧二。'
+    const after = '新一。\n中间。\n新二。'
+    const selection = { version: 1 as const, revision: 'selection-version', acceptedChanges: [0] }
+    initial.artifacts = [{ task: { id: 'edit-task', kind: 'chapter_edit', status: 'completed', step: '', current: 1, total: 1, error: '' }, drafts: [], covers: [],
+      chapterEdit: { chapterId: 'chapter', chapterTitle: '雨夜', before, after, baseRevision: 'version', selectionRevision: selection.revision } }]
+    const action: AgentAction = { id: 'done-partial', kind: 'apply_chapter_edit', title: '保存雨夜改写', status: 'completed', error: '', createdAt: 2,
+      preview: { chapterId: 'chapter', description: '已采用一处改动', before, after: before.replace('旧一', '新一'), sourceTaskId: 'edit-task', selection } }
+    initial.actions = [action, { ...action, id: 'other-preview', status: 'pending', createdAt: 3,
+      preview: { ...action.preview, after, selection: { ...selection, acceptedChanges: [0, 1] } } }]
+    mocks.get.mockResolvedValue(initial)
+    open()
+    await screen.findByText('建议已写回原章')
+    expect(screen.getByRole('tabpanel', { name: '合并结果' })).toHaveTextContent('旧二。')
+    fireEvent.click(screen.getByRole('button', { name: '查看采纳记录' }))
+    expect(await screen.findByRole('dialog', { name: '查看原章改写记录' })).toBeInTheDocument()
+    expect(mocks.prepare).not.toHaveBeenCalled()
+  })
+  it('reuses saved partial choices and prepares a new preview only when choices change', async () => {
+    const initial = detail()
+    const before = '旧一。\n中间。\n旧二。'
+    const after = '新一。\n中间。\n新二。'
+    const selection = { version: 1 as const, revision: 'selection-version', acceptedChanges: [0] }
+    initial.artifacts = [{ task: { id: 'edit-task', kind: 'chapter_edit', status: 'completed', step: '', current: 1, total: 1, error: '' }, drafts: [], covers: [],
+      chapterEdit: { chapterId: 'chapter', chapterTitle: '雨夜', before, after, baseRevision: 'version', selectionRevision: selection.revision } }]
+    const action: AgentAction = { id: 'partial-action', kind: 'apply_chapter_edit', title: '保存雨夜改写', status: 'pending', error: '', createdAt: 2,
+      preview: { chapterId: 'chapter', description: '采用一处改动', before, after: before.replace('旧一', '新一'), sourceTaskId: 'edit-task', selection } }
+    initial.actions = [action]
+    mocks.get.mockResolvedValue(initial)
+    mocks.prepare.mockResolvedValue({ action: { ...action, id: 'new-preview', preview: { ...action.preview, after, selection: { ...selection, acceptedChanges: [0, 1] } } } })
+    open()
+    await screen.findByText('待确认 · 尚未写回')
+    expect(screen.getByRole('tabpanel', { name: '合并结果' })).toHaveTextContent('旧二。')
+    fireEvent.click(screen.getByRole('button', { name: '预览所选结果' }))
+    let dialog = await screen.findByRole('dialog', { name: '核对原章改写' })
+    expect(within(dialog).getByText('采用一处改动')).toBeInTheDocument()
+    expect(mocks.prepare).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: '返回阅读' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看差异' }))
+    dialog = await screen.findByRole('dialog', { name: '雨夜 · 改写对比' })
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: /采用第 2 处改动/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '预览所选结果' }))
+    await waitFor(() => expect(mocks.prepare).toHaveBeenCalledWith('session', 'apply_chapter_edit', 'edit-task', '', { ...selection, acceptedChanges: [0, 1] }))
+    expect(mocks.confirm).not.toHaveBeenCalled()
+    expect(await screen.findByRole('dialog', { name: '核对原章改写' })).toBeInTheDocument()
+  })
   it('does not let a late response replace the newly selected book and conversation', async () => {
     let resolveOld!: (value: AgentSessionDetail) => void
     mocks.get.mockImplementation((id: string) =>

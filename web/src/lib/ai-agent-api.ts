@@ -1,6 +1,7 @@
 import type { AgentChapterEditSource, AgentChapterHistory } from '@shared/ai-agent'
 import type {
   AgentWritingReference,
+  AgentRewriteSelection,
   AgentReferenceSelection,
   AgentAction,
   AgentActionKind,
@@ -46,8 +47,8 @@ export const agentApi = {
     request<{ memory: AgentMemory }>('PATCH', `${path(id)}/memories/${encodeURIComponent(memoryId)}`, { operation, expectedRevision, title, content }, true),
   stop: (id: string, taskId: string) => request('POST', `${path(id)}/stop`, { taskId }, true),
   artifact: (id: string, taskId: string) => request<AgentArtifact>('GET', `${path(id)}/artifacts/${encodeURIComponent(taskId)}`, null, true),
-  prepare: (id: string, kind: AgentActionKind, targetId: string, title = '') =>
-    request<{ action: AgentAction }>('POST', `${path(id)}/actions`, { kind, targetId, title }, true),
+  prepare: (id: string, kind: AgentActionKind, targetId: string, title = '', selection?: AgentRewriteSelection) =>
+    request<{ action: AgentAction }>('POST', `${path(id)}/actions`, { kind, targetId, title, ...(selection ? { selection } : {}) }, true),
   action: (id: string, actionId: string) => request<{ action: AgentAction }>('GET', `${path(id)}/actions/${encodeURIComponent(actionId)}`, null, true),
   confirm: (id: string, actionId: string) => request<{ action: AgentAction }>('POST', `${path(id)}/actions/${encodeURIComponent(actionId)}/confirm`, {}, true),
   reject: (id: string, actionId: string) => request('POST', `${path(id)}/actions/${encodeURIComponent(actionId)}/reject`, {}, true),
