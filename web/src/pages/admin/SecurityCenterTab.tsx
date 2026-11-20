@@ -1,5 +1,5 @@
 import { MotionDetails, MotionPresence, MotionView } from '@/components/ui/motion'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { RefreshCw, ShieldCheck, Mail, Plus, CirclePlus, ChevronDown, Check, Ban } from 'lucide-react'
 import { request } from '@/lib/api'
@@ -54,6 +54,8 @@ import {
 } from './security-center-format'
 import styles from './security-center.module.css'
 
+const ReadingAccessTab = lazy(() => import('./reading-access/ReadingAccessTab'))
+
 const viewDescriptions = {
   overview: '查看邮件额度、投递状态与需要处理的异常。',
   service: '配置邮件连接、发件身份，检查实际投递。',
@@ -68,6 +70,8 @@ type Operation = { title: string; description: string; target?: string; run: (re
 
 export default function SecurityCenterTab() {
   const { user } = useSession()
+  const [params] = useSearchParams()
+  if (params.get('view') === 'reading-access') return <ReadingAccessTab key={user?.id} />
   return <SecurityCenterContent key={`${user?.id}:${user?.role}`} />
 }
 

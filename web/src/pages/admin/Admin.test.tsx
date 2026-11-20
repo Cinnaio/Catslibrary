@@ -17,7 +17,7 @@ vi.mock('./AdminShell', () => ({
 }))
 
 vi.mock('./admin-registry', () => {
-  const ids = ['dashboard', 'novels', 'scrape', 'content-policy', 'site-settings', 'ai'] as const
+  const ids = ['dashboard', 'novels', 'scrape', 'content-policy', 'site-settings', 'ai', 'security', 'site-operations'] as const
   const labels: Record<(typeof ids)[number], string> = {
     dashboard: '总览',
     novels: '小说管理',
@@ -25,6 +25,8 @@ vi.mock('./admin-registry', () => {
     'content-policy': '内容安全',
     'site-settings': '站点设置',
     ai: '创作工作区',
+    security: '安全与风控',
+    'site-operations': '流量分析',
   }
   const component = (name: string) => () => <div>{name}</div>
   return {
@@ -38,6 +40,8 @@ vi.mock('./admin-registry', () => {
       'content-policy': component('legacy-policy-content'),
       'site-settings': component('site-settings-content'),
       ai: component('ai-content'),
+      security: component('security-content'),
+      'site-operations': component('site-traffic-content'),
     },
     isAdminTab: (id: string | undefined) => !!id && ids.includes(id as (typeof ids)[number]),
     adminTabPath: (id: string) => `/admin/${encodeURIComponent(id)}`,
@@ -89,6 +93,12 @@ describe('Admin URL navigation', () => {
     expect(screen.getByTestId('admin-shell')).toHaveAttribute('data-active', 'site-settings')
     expect(screen.getByRole('heading', { name: '内容安全' })).toBeInTheDocument()
     await waitFor(() => expect(localStorage.getItem('admin_active_tab')).toBe('site-settings'))
+  })
+
+  it('旧阅读防护地址跳转到安全与风控并保留筛选和锚点', async () => {
+    renderAdmin('/admin/site-operations?view=reading-access&subject=ip&hours=48#signals')
+    await screen.findByText('security-content')
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin/security?view=reading-access&subject=ip&hours=48#signals')
   })
 
   it('可通过深链接直接打开指定模块并记住位置', async () => {

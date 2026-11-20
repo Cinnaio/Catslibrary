@@ -49,9 +49,9 @@ it('非管理员切换账号先登出，等待期间禁用，再携带原地址�
   expect(await screen.findByText(/"from":"\/admin\/novels\?novelId=test"/)).toBeInTheDocument()
 })
 
-it('管理员直接展示原管理内容', () => {
+it.each(['/admin/novels?novelId=test', '/admin/security?view=reading-access'])('管理员可访问 %s', (entry) => {
   mocks.session.user = { role: 'admin', displayName: '管理员', username: 'admin' }
-  mountGate()
+  mountGate(entry)
   expect(screen.getByText('管理内容')).toBeInTheDocument()
   expect(screen.queryByRole('main')).not.toBeInTheDocument()
   expect(mocks.status).not.toHaveBeenCalled()

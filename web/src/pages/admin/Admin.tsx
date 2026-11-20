@@ -85,6 +85,10 @@ export default function Admin() {
     return <Navigate to={{ pathname: adminTabPath('site-settings'), search: params.toString(), hash: location.hash }} replace />
   }
 
+  if (active === 'site-operations' && new URLSearchParams(location.search).get('view') === 'reading-access') {
+    return <Navigate to={{ pathname: adminTabPath('security'), search: location.search, hash: location.hash }} replace />
+  }
+
   const redirect = monitoringRedirect(active, location.search, localStorage.getItem('ai_active_subtab'))
   if (redirect) return <Navigate to={redirect} replace />
 

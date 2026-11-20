@@ -13,13 +13,12 @@ describe('admin registry routes', () => {
     expect(getSiteSettingsView('/admin/ai', '', 'params')).toBe('params')
     expect(getSiteSettingsView('/admin/ai', '?sub=writing', 'config')).toBeNull()
   })
-  it('站点运营提供流量分析和阅读防护', () => {
-    const operations = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === 'site-operations')
-    expect(operations?.children?.map((child) => ({ label: child.label, to: child.to }))).toEqual([
-      { label: '流量分析', to: '/admin/site-operations?view=traffic' },
-      { label: '阅读防护', to: '/admin/site-operations?view=reading-access' },
-    ])
-    expect(getAdminViewLabel('site-operations', '?view=reading-access&subject=guest')).toBe('阅读防护')
+  it('运行提供流量分析，安全与风控提供阅读防护', () => {
+    const operations = NAV_GROUPS.find(group => group.label === '运行')?.items.find(item => item.id === 'site-operations')
+    expect(operations).toMatchObject({ label: '流量分析' })
+    const security = NAV_GROUPS.find(group => group.label === '系统')?.items.find(item => item.id === 'security')
+    expect(security?.children).toContainEqual({ id: 'reading-access', label: '阅读防护', to: '/admin/security?view=reading-access' })
+    expect(getAdminViewLabel('security', '?view=reading-access&subject=guest')).toBe('阅读防护')
   })
   it('识别有效后台模块并生成稳定地址', () => {
     expect(isAdminTab('dashboard')).toBe(true)
@@ -48,7 +47,7 @@ describe('admin registry routes', () => {
   })
   it('将监控入口收拢为任务中心和调用与用量', () => {
     const group = NAV_GROUPS.find((item) => item.label === '运行')
-    expect(group?.items.map((item) => item.label)).toEqual(['任务中心', '调用与用量', '书源与追更'])
+    expect(group?.items.map((item) => item.label)).toEqual(['任务中心', '调用与用量', '书源与追更', '流量分析'])
     const children = NAV_GROUPS.flatMap((item) => item.items.flatMap((entry) => entry.children || []))
     for (const id of ['ai-tasks', 'ai-usage', 'ai-audit', 'jobs']) expect(children.map((item) => item.id)).not.toContain(id)
     expect(isAdminTab('tasks')).toBe(true)

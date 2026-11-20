@@ -35,11 +35,12 @@ beforeEach(() => {
 })
 
 function renderTab() {
-  render(<MemoryRouter initialEntries={['/admin/site-operations?view=reading-access']}><ReadingAccessTab /></MemoryRouter>)
+  render(<MemoryRouter initialEntries={['/admin/security?view=reading-access']}><ReadingAccessTab /></MemoryRouter>)
 }
 
 it('管理员可以读取阈值和空统计，配置入口仅对超级管理员开放', async () => {
   renderTab()
+  expect(screen.getByText('监测正文访问与限流情况，查看异常窗口和生效配额。')).toBeVisible()
   expect(await screen.findByText('所选时段暂无游客正文请求记录。')).toBeVisible()
   expect(screen.getByRole('region', { name: '当前生效阈值' })).toHaveTextContent('240 次')
   expect(screen.queryByRole('button', { name: '防护配置' })).toBeNull()

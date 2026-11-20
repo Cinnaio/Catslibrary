@@ -19,7 +19,6 @@ import { Dialog } from '@/components/ui/dialog'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import styles from './site-traffic.module.css'
-import ReadingAccessTab from './reading-access/ReadingAccessTab'
 
 const COUNTRY_NAMES: Record<string, string> = {
   CN: '中国', HK: '中国香港', MO: '中国澳门', TW: '中国台湾', JP: '日本', KR: '韩国', SG: '新加坡',
@@ -43,11 +42,6 @@ type Metric = 'both' | 'pageViews' | 'visitors'
 type Dimension = { title: string; visits: number; definition: string; total: number; range: string; generatedAt: number }
 
 export default function SiteOperationsTab() {
-  const [params] = useSearchParams()
-  return params.get('view') === 'reading-access' ? <ReadingAccessTab /> : <SiteTrafficView />
-}
-
-function SiteTrafficView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedDays = Number(searchParams.get('days') || 7)
   const days: TrafficDays = requestedDays === 30 || requestedDays === 90 ? requestedDays : 7

@@ -84,7 +84,7 @@ export default function ReadingAccessTab() {
     })
   }
 
-  return <AdminPage title="阅读防护" actions={
+  return <AdminPage title="阅读防护" description="监测正文访问与限流情况，查看异常窗口和生效配额。" actions={
       <div className={styles.pageActions}>
         <Select value={String(hours)} onValueChange={value => select('hours', value)}>
           <SelectTrigger aria-label="统计时段"><SelectValue /></SelectTrigger>

@@ -33,7 +33,7 @@ export function requiresSuperAdministratorPage(path: string, search = ''): boole
   path = path.replace(/\/+$/, '')
   const params = new URLSearchParams(search)
   return ['/admin/site-settings', '/admin/backups', '/admin/content-policy'].includes(path) ||
-    (path === '/admin/security' && !['mail','events'].includes(params.get('view') || '')) ||
+    (path === '/admin/security' && !['mail', 'events', 'reading-access'].includes(params.get('view') || '')) ||
     (path === '/admin/ai' && ['config', 'params'].includes(params.get('sub') || '')) ||
     (path === '/admin/scrape' && params.get('view') === 'proxy') ||
     (path === '/admin/calls' && params.get('view') === 'outbound')

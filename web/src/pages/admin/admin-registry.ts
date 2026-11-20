@@ -110,6 +110,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
       { id: 'tasks', label: '任务中心', icon: ListChecks },
       { id: 'calls', label: '调用与用量', icon: Activity },
       { id: 'source-analytics', label: '书源与追更', icon: BarChart3 },
+      { id: 'site-operations', label: '流量分析', icon: BarChart3 },
     ],
   },
   {
@@ -133,11 +134,14 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         id: 'security',
         label: '安全与风控',
         icon: ShieldCheck,
-        children: Object.entries(SECURITY_CENTER_VIEWS).map(([view, label]) => ({
-          id: `security-${view}`,
-          label,
-          to: `${adminTabPath('security')}?view=${view}`,
-        })),
+        children: [
+          ...Object.entries(SECURITY_CENTER_VIEWS).map(([view, label]) => ({
+            id: `security-${view}`,
+            label,
+            to: `${adminTabPath('security')}?view=${view}`,
+          })),
+          { id: 'reading-access', label: '阅读防护', to: `${adminTabPath('security')}?view=reading-access` },
+        ],
       },
       {
         id: 'backups',
@@ -149,15 +153,6 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
           { id: 'backups-schedule', label: '自动备份', to: `${adminTabPath('backups')}?view=schedule` },
           { id: 'backups-logs', label: '操作日志', to: `${adminTabPath('backups')}?view=logs` },
           { id: 'backups-settings', label: '备份设置', to: `${adminTabPath('backups')}?view=settings` },
-        ],
-      },
-      {
-        id: 'site-operations',
-        label: '站点运营',
-        icon: BarChart3,
-        children: [
-          { id: 'site-traffic', label: '流量分析', to: `${adminTabPath('site-operations')}?view=traffic` },
-          { id: 'reading-access', label: '阅读防护', to: `${adminTabPath('site-operations')}?view=reading-access` },
         ],
       },
       {
