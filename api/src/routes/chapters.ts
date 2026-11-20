@@ -13,6 +13,8 @@ import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess }
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 import { checkContentRate } from '../services/content-rate-limit'
 import { checkChapterProtection } from '../services/reading-access'
+import { getReadingAccessSettings } from '../services/reading-access-settings'
+import { isAdministrator } from '@shared/roles'
 import { chapterIllustrationsRoutes } from './chapter-illustrations'
 import { BOOK_SEARCH_MAX_QUERY } from '@shared/book-search'
 import { parseSearchCursor, searchableChapterText, searchBook } from '../services/book-search'
@@ -86,7 +88,8 @@ chaptersRoutes.delete('/', requireAdmin(), async (c) => {
 // ---------- 详情 / 更新 / 删除 ----------
 
 chaptersRoutes.get('/:id', optionalUser(), async (c) => {
-  const limited = await checkContentRate(c, 'chapter')
+  const policy = isAdministrator(c.get('user')?.role) ? undefined : await getReadingAccessSettings()
+  const limited = await checkContentRate(c, 'chapter', policy)
   if (limited) return limited
   const db = getDb()
   const id = c.req.param('id')
@@ -105,7 +108,7 @@ chaptersRoutes.get('/:id', optionalUser(), async (c) => {
     const access = await resolveContentAccess(c)
     if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
   }
-  const protection = await checkChapterProtection(c, { chapterId: id, novelId: String(row.novel_id) })
+  const protection = await checkChapterProtection(c, { chapterId: id, novelId: String(row.novel_id) }, policy)
   if (protection) return protection
   const chapter = rowToChapterFull(row)!
   // Native search navigation reads the exact same visible text used by the search service.

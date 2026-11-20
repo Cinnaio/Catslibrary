@@ -1,20 +1,19 @@
 import type { Context } from 'hono'
 import type { AuthEnv } from '../middlewares/auth'
 import { isAdministrator } from '@shared/roles'
+import type { ReadingAccessHour, ReadingAccessPolicy, ReadingAccessSignal, ReadingAccessSubject, ReadingAccessSummary } from '@shared/reading-access'
 import { getDb, type DbClient } from '../db/pool'
 import { loadConfig } from '../config'
 import { hashToken } from './auth'
 import { clientIpFromContext } from './ai/audit-context'
 import { resolveContentAccess } from './content-access'
+import { getReadingAccessSettings } from './reading-access-settings'
 
 const MINUTE = 60_000
 const RETENTION = 48 * 60 * MINUTE
-const WINDOWS = [10, 60, 1440] as const
-type Subject = 'account' | 'guest' | 'ip'
-type Mode = 'observe' | 'enforce'
 interface Bucket {
   subject_hash: string
-  subject_kind: Subject
+  subject_kind: ReadingAccessSubject
   window_minutes: number
   window_start: number
   expires_at: number
@@ -22,21 +21,7 @@ interface Bucket {
   novel_limit: number
 }
 interface Count extends Bucket { request_count: number; unique_chapters: number; unique_novels: number }
-const DEFAULTS: Record<Subject, readonly number[]> = { guest: [60, 300, 1200], account: [180, 1200, 6000], ip: [720, 4800, 24000] }
-const NOVEL_LIMITS: Record<Subject, readonly number[]> = { guest: [6, 20, 80], account: [10, 30, 120], ip: [40, 120, 480] }
 const nextCleanup = new WeakMap<DbClient, number>()
-const WINDOW_NAMES = ['10_MINUTES', 'HOUR', 'DAY']
-const ENV_NAMES: Record<Subject, string> = { guest: 'GUEST', account: 'USER', ip: 'IP' }
-
-export function readingAccessPolicy() {
-  const mode: Mode = process.env.CHAPTER_PROTECTION_MODE === 'enforce' ? 'enforce' : 'observe'
-  const limits = Object.fromEntries((['guest', 'account', 'ip'] as const).map(kind => [kind, WINDOWS.map((minutes, index) => {
-    const configured = Number(process.env[`CHAPTER_${ENV_NAMES[kind]}_UNIQUE_${WINDOW_NAMES[index]}`])
-    const chapters = Number.isSafeInteger(configured) && configured > 0 && configured <= 100000 ? configured : DEFAULTS[kind][index]!
-    return { minutes, chapters, novels: NOVEL_LIMITS[kind][index]! }
-  })])) as Record<Subject, Array<{ minutes: number; chapters: number; novels: number }>>
-  return { mode, limits }
-}
 
 // Atomically deduplicate resource IDs and increment all identity/window counters in one statement.
 // Stop retaining new IDs once a threshold is crossed. Counts saturate at limit + 1 (plus in-flight requests).
@@ -76,11 +61,11 @@ WITH inputs AS (
 SELECT u.*, i.chapter_limit, i.novel_limit FROM updated u JOIN inputs i USING(subject_hash, window_minutes, window_start)
 `
 
-async function record(c: Context<AuthEnv>, resource?: { chapterId: string; novelId: string }, limited = false) {
+async function record(c: Context<AuthEnv>, policy: ReadingAccessPolicy, resource?: { chapterId: string; novelId: string }) {
   const user = c.get('user')
   if (isAdministrator(user?.role)) return []
   const salt = loadConfig().sessionHashSalt
-  const subjects: Array<[Subject, string]> = []
+  const subjects: Array<[ReadingAccessSubject, string]> = []
   const accountId = user?.id || (await resolveContentAccess(c)).accountId
   if (accountId) subjects.push(['account', accountId])
   const ip = clientIpFromContext(c)
@@ -92,7 +77,6 @@ async function record(c: Context<AuthEnv>, resource?: { chapterId: string; novel
   if (!subjects.length) return []
   const now = Date.now()
   await pruneReadingAccess(getDb(), now)
-  const policy = readingAccessPolicy()
   const buckets: Bucket[] = []
   for (const [kind, identity] of subjects) {
     const digest = await hashToken(`reading-access:${kind}:${identity}`, salt)
@@ -104,17 +88,21 @@ async function record(c: Context<AuthEnv>, resource?: { chapterId: string; novel
   }
   const chapterHash = resource ? await hashToken(`chapter:${resource.chapterId}`, salt) : null
   const novelHash = resource ? await hashToken(`novel:${resource.novelId}`, salt) : null
-  return (await getDb().query<Count>(RECORD_SQL, [JSON.stringify(buckets), chapterHash, novelHash, limited ? 1 : 0])).rows
+  return (await getDb().query<Count>(RECORD_SQL, [JSON.stringify(buckets), chapterHash, novelHash, resource ? 0 : 1])).rows
 }
 
 /** Count minute-limit rejections without looking up or retaining requested resource IDs. */
-export async function recordChapterRateLimit(c: Context<AuthEnv>) { await record(c, undefined, true) }
+export async function recordChapterRateLimit(c: Context<AuthEnv>, policy?: ReadingAccessPolicy) {
+  await record(c, policy ?? await getReadingAccessSettings())
+}
 
-export async function checkChapterProtection(c: Context<AuthEnv>, resource: { chapterId: string; novelId: string }) {
-  const counts = await record(c, resource)
+export async function checkChapterProtection(c: Context<AuthEnv>, resource: { chapterId: string; novelId: string }, policy?: ReadingAccessPolicy) {
+  if (isAdministrator(c.get('user')?.role)) return null
+  const current = policy ?? await getReadingAccessSettings()
+  const counts = await record(c, current, resource)
   const flagged = counts.filter(row => row.unique_chapters > row.chapter_limit || row.unique_novels > row.novel_limit)
   if (!flagged.length) return null
-  const { mode } = readingAccessPolicy()
+  const { mode } = current
   const db = getDb()
   await db.query(`UPDATE reading_access_windows w SET flagged_count = w.flagged_count + 1,
     blocked_count = w.blocked_count + $2::int
@@ -136,21 +124,22 @@ async function pruneReadingAccess(db: DbClient, now: number) {
   }
 }
 
-export async function readingAccessSummary(db: DbClient, hours: number) {
+export async function readingAccessSummary(db: DbClient, hours: number): Promise<ReadingAccessSummary> {
   const now = Date.now()
   await pruneReadingAccess(db, now)
-  const { rows } = await db.query(`SELECT window_start AS "hour", subject_kind AS "subjectKind", COUNT(*)::int AS subjects,
+  const { rows } = await db.query<ReadingAccessHour>(`SELECT window_start AS "hour", subject_kind AS "subjectKind", COUNT(*)::int AS subjects,
     SUM(request_count)::bigint AS requests, SUM(unique_chapters)::bigint AS "uniqueChapterReads",
     SUM(unique_novels)::bigint AS "uniqueNovelReads", SUM(limited_count)::bigint AS "rateLimited",
     SUM(flagged_count)::bigint AS flagged, SUM(blocked_count)::bigint AS blocked
     FROM reading_access_windows WHERE window_minutes = 60 AND window_start >= $1 AND expires_at > $2
     GROUP BY window_start, subject_kind ORDER BY window_start DESC, subject_kind`,
   [Math.floor(now / (60 * MINUTE)) * 60 * MINUTE - (hours - 1) * 60 * MINUTE, now])
-  const signals = await db.query(`SELECT window_minutes AS "windowMinutes", window_start AS "windowStart",
+  const signals = await db.query<ReadingAccessSignal>(`SELECT window_minutes AS "windowMinutes", window_start AS "windowStart",
     subject_kind AS "subjectKind", COUNT(*)::int AS subjects, SUM(flagged_count)::bigint AS flagged,
     SUM(blocked_count)::bigint AS blocked
     FROM reading_access_windows WHERE flagged_count > 0 AND window_start + window_minutes * 60000 > $1 AND expires_at > $2
     GROUP BY window_minutes, window_start, subject_kind ORDER BY window_start DESC, window_minutes, subject_kind`,
   [now - hours * 60 * MINUTE, now])
-  return { ...readingAccessPolicy(), hours, countsAreCapped: true, byHour: rows, signals: signals.rows }
+  const { mode, limits, minuteLimits } = await getReadingAccessSettings(db)
+  return { mode, limits, minuteLimits, hours, generatedAt: now, countsAreCapped: true, byHour: rows, signals: signals.rows }
 }

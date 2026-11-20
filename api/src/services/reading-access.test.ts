@@ -5,7 +5,8 @@ import type { AuthEnv } from '../middlewares/auth'
 import type { UserRow } from './auth'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
-import { checkChapterProtection, recordChapterRateLimit, readingAccessSummary, readingAccessPolicy } from './reading-access'
+import { checkChapterProtection, recordChapterRateLimit, readingAccessSummary } from './reading-access'
+import { getReadingAccessSettings } from './reading-access-settings'
 import { checkContentRate } from './content-rate-limit'
 
 vi.mock('./content-access', () => ({ resolveContentAccess: async () => ({ accountId: undefined }) }))
@@ -26,7 +27,8 @@ const read = (chapter: string, novel = 'novel', headers: Record<string, string> 
 beforeAll(async () => {
   t = await createTestDb()
   const connection = await t.db.connect()
-  await connection.query(await readFile(new URL('../db/migrations/043_content_access_sessions.sql', import.meta.url), 'utf8').then(sql => sql.slice(sql.indexOf('CREATE TABLE'))))
+  await connection.query(await readFile(new URL('../db/migrations/001_init.sql', import.meta.url), 'utf8'))
+  await connection.query(await readFile(new URL('../db/migrations/043_content_access_sessions.sql', import.meta.url), 'utf8'))
   await connection.query(await readFile(new URL('../db/migrations/088_reading_access_protection.sql', import.meta.url), 'utf8'))
   connection.release()
   setDbForTests(t.db)
@@ -126,6 +128,6 @@ describe('普通正文防护：真实 PostgreSQL 计数语义', () => {
     expect(row?.unique_chapters).toBe(2)
     vi.stubEnv('CHAPTER_GUEST_UNIQUE_10_MINUTES', 'NaN')
     vi.stubEnv('CHAPTER_PROTECTION_MODE', 'invalid')
-    expect(readingAccessPolicy()).toMatchObject({ mode: 'observe', limits: { guest: [{ minutes: 10, chapters: 60 }, { minutes: 60 }, { minutes: 1440 }] } })
+    expect(await getReadingAccessSettings()).toMatchObject({ mode: 'observe', limits: { guest: [{ minutes: 10, chapters: 60 }, { minutes: 60 }, { minutes: 1440 }] } })
   })
 })

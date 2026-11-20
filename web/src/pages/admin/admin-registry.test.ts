@@ -13,11 +13,13 @@ describe('admin registry routes', () => {
     expect(getSiteSettingsView('/admin/ai', '', 'params')).toBe('params')
     expect(getSiteSettingsView('/admin/ai', '?sub=writing', 'config')).toBeNull()
   })
-  it('站点运营导航只保留流量分析', () => {
+  it('站点运营提供流量分析和阅读防护', () => {
     const operations = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === 'site-operations')
     expect(operations?.children?.map((child) => ({ label: child.label, to: child.to }))).toEqual([
       { label: '流量分析', to: '/admin/site-operations?view=traffic' },
+      { label: '阅读防护', to: '/admin/site-operations?view=reading-access' },
     ])
+    expect(getAdminViewLabel('site-operations', '?view=reading-access&subject=guest')).toBe('阅读防护')
   })
   it('识别有效后台模块并生成稳定地址', () => {
     expect(isAdminTab('dashboard')).toBe(true)

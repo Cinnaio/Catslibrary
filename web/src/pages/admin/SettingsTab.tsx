@@ -417,6 +417,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   function operationAuditActionLabel(action: string): string {
     const labels: Record<string, string> = {
       'initialize-site': '初始化超级管理员',
+      'reading-access-settings-save': '保存阅读防护配置',
       'recover-super-admin': '服务器恢复管理权',
       'user-role': '调整账号角色',
       'user-status': '调整账号状态',

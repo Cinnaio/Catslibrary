@@ -15,6 +15,7 @@ import { requestHash } from '../services/idempotency'
 import { newId } from '../services/auth'
 import { getDb } from '../db/pool'
 import { circularBrandingAsset } from '../services/site-branding-image'
+import { getReadingAccessSettings, parseReadingAccessSettings, saveReadingAccessSettings } from '../services/reading-access-settings'
 
 const MAX_IMAGE_BYTES = BRANDING_IMAGE_UPLOAD.maxBytes
 const MAX_IMAGE_DIMENSION = BRANDING_IMAGE_UPLOAD.maxDimension
@@ -44,6 +45,15 @@ adminSiteSettingsRoutes.use('*', (c, next) => bodyLimit({
   onError: c => c.json({ error: c.req.path.includes('/assets/') ? `图片请求过大，${BRANDING_IMAGE_SIZE_HINT}` : '站点设置请求过大' }, 413),
 })(c, next))
 adminSiteSettingsRoutes.use('*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
+adminSiteSettingsRoutes.get('/reading-access', async c => c.json(await getReadingAccessSettings()))
+adminSiteSettingsRoutes.put('/reading-access', async c => {
+  const input = parseReadingAccessSettings(await c.req.json().catch(() => null))
+  if (!input) return c.json({ error: '阅读防护模式或额度无效，额度须为 1–100000 的整数。' }, 400)
+  const result = await saveReadingAccessSettings(input, c.get('user').id)
+  if (result.status === 'conflict') return c.json({ error: '配置已被更新，请重新读取后再修改。' }, 409)
+  if (result.status === 'managed') return c.json({ error: '此字段由部署环境管理，请重新读取配置。' }, 400)
+  return c.json(result.settings)
+})
 adminSiteSettingsRoutes.get('/branding', async c => c.json(await getSiteBranding()))
 adminSiteSettingsRoutes.put('/branding', async c => {
   const body = await c.req.json().catch(() => null)

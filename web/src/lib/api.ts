@@ -1483,6 +1483,14 @@ export interface AdminContentRatingAiLatestBatch {
 }
 
 export const adminApi = {
+  readingAccess: {
+    summary: (hours: number) =>
+      request<import('@shared/reading-access').ReadingAccessSummary>('GET', `/admin/reading-access?hours=${hours}`, null, true),
+    settings: () =>
+      request<import('@shared/reading-access').ReadingAccessSettings>('GET', '/admin/site-settings/reading-access', null, true),
+    save: (value: Pick<import('@shared/reading-access').ReadingAccessSettings, 'revision' | 'overrides'>) =>
+      request<import('@shared/reading-access').ReadingAccessSettings>('PUT', '/admin/site-settings/reading-access', value, true),
+  },
   site: {
     traffic(days: import('./site-traffic').TrafficDays = 7): Promise<import('./site-traffic').SiteTraffic> {
       return request('GET', `/admin/site/traffic?days=${days}`, null, true)

@@ -1,4 +1,4 @@
-import type { Db } from '../db/pool'
+import type { Db, DbClient } from '../db/pool'
 import { all, first, run } from '../db/query'
 import { newId } from './auth'
 
@@ -44,7 +44,7 @@ function boundedCount(value: unknown): number {
 }
 
 /** 创建审计记录；重复操作 ID 返回原记录，便于幂等请求继续收尾。 */
-export async function startAdminOperationAudit(db: Db, input: AdminOperationAuditInput): Promise<string> {
+export async function startAdminOperationAudit(db: DbClient, input: AdminOperationAuditInput): Promise<string> {
   const operationId = String(input.operationId || '')
     .trim()
     .slice(0, 160)
@@ -77,7 +77,7 @@ export async function startAdminOperationAudit(db: Db, input: AdminOperationAudi
 }
 
 export async function finishAdminOperationAudit(
-  db: Db,
+  db: DbClient,
   id: string,
   result: { status: Exclude<AdminOperationAuditStatus, 'pending'>; responseStatus: number; error?: string },
 ): Promise<void> {

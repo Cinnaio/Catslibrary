@@ -7,6 +7,7 @@ import { setAdultContentEnabled } from '../services/content-policy'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
+import type { ReadingAccessSettings } from '@shared/reading-access'
 
 let t: TestDb
 
@@ -497,5 +498,53 @@ describe('限制级内容服务端访问闭环', () => {
     expect((await t.db.query('SELECT token_hash FROM user_sessions WHERE adult_access_until > 0')).rows).toHaveLength(0)
     await setAdultContentEnabled(true)
     expect((await req('/api/content-policy/refresh', json('POST', {}, readerToken))).status).toBe(403)
+  })
+
+  it('超级管理员可保存并恢复防护设置，真实章节请求即时使用新额度', async () => {
+    const path = '/api/admin/site-settings/reading-access'
+    const chapter = '/api/chapters/chapter_general_access_test'
+    const ordinaryAdminId = 'reading-access-ordinary-admin'
+    await t.db.query("INSERT INTO users (id, username, role, password_hash, password_salt, created_at, updated_at) VALUES ($1, $1, 'admin', '', '', $2, $2)", [ordinaryAdminId, Date.now()])
+    const ordinaryAdmin = await createSession(t.db, ordinaryAdminId, 'reading-access-config', loadConfig().sessionHashSalt)
+    const noOverrides = { mode: null, quotas: {} }
+    const initial = { revision: null, overrides: noOverrides }
+    expect((await req(path)).status).toBe(401)
+    expect((await req(path, json('GET', undefined, ordinaryAdmin))).status).toBe(403)
+    expect((await req(path, json('PUT', initial, ordinaryAdmin))).status).toBe(403)
+    expect((await req('/api/admin/reading-access', json('GET', undefined, ordinaryAdmin))).status).toBe(200)
+    expect((await req(path, json('PUT', { ...initial, overrides: { mode: null, quotas: { 'account:1': 0 } } }, adminToken))).status).toBe(400)
+
+    vi.stubEnv('CHAPTER_PROTECTION_MODE', '')
+    vi.stubEnv('CHAPTER_READ_LIMIT_PER_MINUTE', '')
+    vi.stubEnv('CHAPTER_USER_UNIQUE_HOUR', '50')
+    const current = await jsonOf<ReadingAccessSettings>(await req(path, json('GET', undefined, adminToken)))
+    expect(current).toMatchObject({ ...initial, mode: 'observe', managedByEnv: ['account:60'] })
+    const overrides = { mode: 'enforce', quotas: { 'account:1': 1, 'account:10': 10 } }
+    const save = (revision: string | null, value: unknown) => req(path, json('PUT', { revision, overrides: value }, adminToken))
+    expect((await save(null, { ...overrides, quotas: { 'account:60': 51 } })).status).toBe(400)
+    const response = await save(null, overrides)
+    expect(response.status).toBe(200)
+    const saved = await jsonOf<ReadingAccessSettings>(response)
+    expect(saved).toMatchObject({ mode: 'enforce', minuteLimits: { account: 1, guest: 2, ip: 2 }, overrides })
+    expect((await save(null, noOverrides)).status).toBe(409)
+    expect((await t.db.query("SELECT status FROM admin_operation_audit WHERE action='reading-access-settings-save'")).rows)
+      .toEqual([{ status: 'completed' }])
+
+    await t.db.query('TRUNCATE content_request_limits, reading_access_items, reading_access_windows')
+    expect((await req(chapter, json('GET', undefined, readerToken))).status).toBe(200)
+    expect((await req(chapter, json('GET', undefined, readerToken))).status).toBe(429)
+    expect((await req(chapter, json('GET', undefined, adminToken))).status).toBe(200)
+    expect(await jsonOf(await req('/api/admin/reading-access', json('GET', undefined, ordinaryAdmin))))
+      .toMatchObject({ mode: 'enforce', minuteLimits: { account: 1 }, byHour: [expect.objectContaining({ subjectKind: 'account', rateLimited: 1 })] })
+
+    const daily = await jsonOf<ReadingAccessSettings>(await save(saved.revision, { mode: 'enforce', quotas: { 'account:1440': 1 } }))
+    await t.db.query(
+      "INSERT INTO chapters (id, novel_id, title, content, sort_order, created_at) VALUES ('reading-access-quota-test', $1, '第二章', '第二章正文', 2, $2)",
+      [generalId, Date.now()],
+    )
+    const secondChapter = '/api/chapters/reading-access-quota-test'
+    expect((await req(secondChapter, json('GET', undefined, readerToken))).status).toBe(429)
+    expect(await jsonOf(await save(daily.revision, noOverrides))).toMatchObject({ mode: 'observe', minuteLimits: { account: 120 } })
+    expect((await req(secondChapter, json('GET', undefined, readerToken))).status).toBe(200)
   })
 })
