@@ -5,6 +5,7 @@ import ZhiZhouCore
 struct AdminAIAgentView: View {
     var initialNovel: Novel? = nil
     var afterChapterID: String? = nil
+    var showsRoomCover = false
     @Environment(AppState.self) private var appState
     @State private var selectedID = ""
     @State private var books: [AdminNovelSummary] = []
@@ -41,7 +42,7 @@ struct AdminAIAgentView: View {
         }
         .navigationTitle("对话创作")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
+        .toolbar(showsRoomCover ? .hidden : .visible, for: .navigationBar)
         .task {
             if selectedID.isEmpty, let initialNovel { selectedID = initialNovel.id }
             await loadBooks()
@@ -62,7 +63,10 @@ struct AdminAIAgentView: View {
             }
         }
         .navigationDestination(isPresented: $showDiscovery) {
-            if let token = APIClient.shared.token { AdminAgentBookDiscoveryView(token: token) }
+            if let token = APIClient.shared.token {
+                AdminAgentBookDiscoveryView(token: token)
+                    .toolbar(.visible, for: .navigationBar)
+            }
         }
         .navigationDestination(isPresented: $showCreated) {
             if let created, let user = appState.user, let token = APIClient.shared.token {
@@ -74,8 +78,11 @@ struct AdminAIAgentView: View {
 
     private var workspace: some View {
         List {
-            creationDesk
-                .listRowInsets(EdgeInsets(top: 16, leading: 20, bottom: 28, trailing: 20))
+            if showsRoomCover {
+                ReadingSpaceRoomHeader(title: "对话创作", symbol: "square.and.pencil")
+            }
+            creationControls
+                .listRowInsets(EdgeInsets(top: showsRoomCover ? 4 : 16, leading: 22, bottom: 18, trailing: 22))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .readingSpaceEntrance()
@@ -118,7 +125,7 @@ struct AdminAIAgentView: View {
                                 .onDisappear { Task { await loadSessions() } }
                         } label: { sessionRow(session) }
                         .listRowSeparator(.visible, edges: .bottom)
-                        .listRowSeparatorTint(ReadingSpace.line)
+                        .listRowSeparatorTint(ReadingSpace.profileLine)
                         .readingSpaceEntrance(index)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button("删除", systemImage: "trash", role: .destructive) {
@@ -143,15 +150,14 @@ struct AdminAIAgentView: View {
                     .padding(.bottom, 8)
                     .accessibilityAddTraits(.isHeader)
             }
-            .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
+            .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 22))
             .listRowBackground(Color.clear)
             .listSectionSeparator(.hidden)
         }
-        // Keep List directly in the navigation safe area; this page needs no geometry wrapper.
-        .appListStyle(.readingSpace, maximumWidth: nil)
+        .modifier(ReadingSpaceRoomListStyle())
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
-        .background(ReadingSpace.canvas)
+        .background(ReadingSpace.profilePaper)
         .refreshable { await loadSessions() }
         .alert("删除对话？", isPresented: $showDelete, presenting: deleteTarget) { session in
             Button("取消", role: .cancel) { deleteTarget = nil }
@@ -161,85 +167,84 @@ struct AdminAIAgentView: View {
         }
     }
 
-    private var creationDesk: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("把下一页，\n慢慢写出来。")
-                    .font(serifFont(.largeTitle, .semibold))
-                    .foregroundStyle(ReadingSpace.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                Text("从一个念头，到故事的新一章。")
-                    .font(.subheadline).foregroundStyle(AppTheme.textSecondary)
+    private var creationControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            creationDesk
+            if let booksError {
+                LoadErrorNotice(message: booksError, isLoading: loadingBooks) { Task { await loadBooks() } }
             }
-            VStack(alignment: .leading, spacing: 14) {
-                bookSelection
-                if let booksError {
-                    LoadErrorNotice(message: booksError, isLoading: loadingBooks) { Task { await loadBooks() } }
-                }
-                Button {
-                    created = nil
-                    showCreate = true
-                } label: {
-                    Label("新建对话", systemImage: "square.and.pencil")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(selectedID.isEmpty ? AppTheme.textSecondary : AppTheme.onPrimary)
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                        .padding(.horizontal, 16)
-                        .background(selectedID.isEmpty ? ReadingSpace.fill : AppTheme.primary,
-                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            if APIClient.shared.token != nil {
+                Button { showDiscovery = true } label: {
+                    HStack(spacing: 8) {
+                        Label("找书入库", systemImage: "magnifyingglass")
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.right").accessibilityHidden(true)
+                    }
+                    .font(.subheadline).foregroundStyle(AppTheme.primary)
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(selectedID.isEmpty)
-                .accessibilityIdentifier("agent.create")
-                Text("聊情节、调整草稿或生成封面，采纳前都可以先看预览。")
-                    .font(.footnote).foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if APIClient.shared.token != nil {
-                    Button { showDiscovery = true } label: {
-                        HStack(spacing: 8) {
-                            Label("找书入库", systemImage: "magnifyingglass")
-                            Spacer(minLength: 8)
-                            Image(systemName: "arrow.right").accessibilityHidden(true)
-                        }
-                        .font(.subheadline).foregroundStyle(AppTheme.primary)
-                        .frame(minHeight: AppLayout.minimumTouchTarget)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
             }
         }
     }
 
+    private var creationDesk: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            bookSelection
+            Button {
+                created = nil
+                showCreate = true
+            } label: {
+                Label("新建对话", systemImage: "square.and.pencil")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(selectedID.isEmpty ? ReadingSpace.summarySecondary : ReadingSpace.summary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(selectedID.isEmpty ? .white.opacity(0.1) : ReadingSpace.onSummary,
+                                in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .disabled(selectedID.isEmpty)
+            .accessibilityIdentifier("agent.create")
+        }
+        .padding(16)
+        .background(ReadingSpace.summary, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
+    }
+
     private var bookSelection: some View {
         Button { showPicker = true } label: {
-            HStack(alignment: .center, spacing: 14) {
+            HStack(spacing: 12) {
                 Image(systemName: "book.closed")
-                    .font(.title2.weight(.light)).foregroundStyle(AppTheme.primary)
-                    .frame(width: 48, height: 60)
-                    .background(ReadingSpace.fill, in: RoundedRectangle(cornerRadius: 10))
+                    .font(.system(size: 21, weight: .light)).foregroundStyle(ReadingSpace.profileToday)
+                    .frame(width: 42, height: 52)
+                    .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 10))
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(selectedID.isEmpty ? "先选一本作品" : "当前作品")
-                        .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    if !selectedID.isEmpty {
+                        Text("当前作品")
+                            .font(.caption).foregroundStyle(ReadingSpace.summarySecondary)
+                    }
                     Text(bookTitle)
-                        .font(serifFont(.headline, .medium)).foregroundStyle(ReadingSpace.ink)
+                        .font(serifFont(.headline, .medium)).foregroundStyle(ReadingSpace.onSummary)
+                        .multilineTextAlignment(.leading)
                         .appTextLineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                if loadingBooks { ProgressView() }
-                else {
+                if loadingBooks {
+                    ProgressView()
+                        .tint(ReadingSpace.onSummary)
+                        .accessibilityLabel("正在加载作品")
+                } else {
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                        .font(.caption).foregroundStyle(ReadingSpace.summarySecondary)
                         .accessibilityHidden(true)
                 }
             }
-            .padding(16)
             .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
-            .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(loadingBooks || books.isEmpty)

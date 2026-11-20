@@ -137,6 +137,10 @@ final class FrontendAuditTests: XCTestCase {
     func testBookshelfCanReachFiftyFirstFavoriteAndDetailKnowsItIsSaved() {
         let app = launch("bookshelf-many")
         selectTab("书架", app: app)
+        let favorites = app.buttons["bookshelf.section.favorites"]
+        if favorites.exists {
+            tap(favorites)
+        }
         let more = app.buttons["bookshelf.loadMore"]
         for _ in 0..<60 {
             if more.isHittable { break }

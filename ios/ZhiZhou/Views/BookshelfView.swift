@@ -7,6 +7,7 @@ struct BookshelfView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var editMode: EditMode = .inactive
+    @State private var shelfSection: ShelfSection?
     @State private var displayedQuery: [String]?
     @State private var response: BookshelfResponse?
     @State private var isLoading = false
@@ -28,17 +29,51 @@ struct BookshelfView: View {
     @State private var hasMore = false
     private let pageSize = 50
 
+    private enum ShelfSection: String, CaseIterable {
+        case recent, favorites
+
+        var title: String {
+            switch self {
+            case .recent: return "在读"
+            case .favorites: return "收藏"
+            }
+        }
+    }
+
+    private var usesShelfSections: Bool { horizontalSizeClass != .regular }
+
+    private var searchTerm: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private var filtersFavorites: Bool { !searchTerm.isEmpty || !reading.isEmpty }
+
+    private var visibleSection: ShelfSection {
+        if filtersFavorites { return .favorites }
+        if let shelfSection { return shelfSection }
+        if let response = visibleResponse, response.recent.isEmpty, !response.favorites.isEmpty {
+            return .favorites
+        }
+        return .recent
+    }
+
+    private var showsRecent: Bool { !filtersFavorites && (!usesShelfSections || visibleSection == .recent) }
+    private var showsFavorites: Bool { !usesShelfSections || visibleSection == .favorites }
+
+    private var hasEditableItems: Bool {
+        guard displayedQuery == shelfQuery, let response = visibleResponse else { return false }
+        return (showsRecent && !response.recent.isEmpty) || (showsFavorites && !response.favorites.isEmpty)
+    }
+
     private var showsCoverGrid: Bool {
-        horizontalSizeClass != .regular && dynamicTypeSize < .xxxLarge && !editMode.isEditing
+        usesShelfSections && dynamicTypeSize < .xxxLarge && !editMode.isEditing
     }
 
     private var shelfQuery: [String] {
-        [search.trimmingCharacters(in: .whitespacesAndNewlines), sort, reading, ContentAccessStore.shared.mode]
+        [searchTerm, sort, reading, ContentAccessStore.shared.mode]
     }
 
     @ViewBuilder
     var body: some View {
-        if horizontalSizeClass != .regular {
+        if usesShelfSections {
             NavigationStack {
                 bookshelfList
             }
@@ -82,24 +117,18 @@ struct BookshelfView: View {
 
     private var bookshelfList: some View {
         bookshelfContent
-            .appListStyle(.readingSpace)
+            .modifier(ReadingSpaceRoomListStyle())
             .safeAreaBar(edge: .bottom, spacing: 0) {
                 AppFeedbackOverlay(center: actionFeedback, edge: .bottom)
             }
-            .overlay(alignment: .center) {
-                if isLoading && response == nil {
-                    ProgressView()
-                        .accessibilityLabel("正在加载书架")
-                        .allowsHitTesting(false)
-                }
-            }
-            .navigationTitle("书架")
+            .navigationTitle(usesShelfSections ? "" : "书架")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $search, prompt: "搜索收藏的书名或作者")
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             .toolbar { bookshelfToolbar }
             .environment(\.editMode, $editMode)
             .refreshable { await load() }
+            .onChange(of: sort) { _, _ in shelfSection = .favorites }
             .onChange(of: ContentAccessStore.shared.mode) { _, mode in
                 if mode == "safe" { response = nil }
             }
@@ -158,16 +187,18 @@ struct BookshelfView: View {
     // Give each section its own type-checking boundary as the list grows.
     private var bookshelfContent: some View {
         List(selection: $selection) {
-            ReadingSpaceHeading(title: "书架", subtitle: "让故事，停在你喜欢的地方。")
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            if isLoading && response != nil {
-                HStack(spacing: 10) {
-                    ProgressView()
-                    Text("正在更新书架…").font(.footnote).foregroundStyle(AppTheme.textSecondary)
+            if usesShelfSections {
+                ReadingSpaceRoomHeader(title: "书架", symbol: "books.vertical")
+                if !filtersFavorites {
+                    shelfSectionPicker
                 }
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                .accessibilityElement(children: .combine)
+            }
+            if isLoading {
+                ProgressView(response == nil ? "正在加载书架…" : "正在更新书架…")
+                    .font(.footnote)
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
             if let errorMessage, (response == nil || displayedQuery != shelfQuery), !isLoading {
                 ContentUnavailableView {
@@ -185,38 +216,81 @@ struct BookshelfView: View {
         }
     }
 
+    private var shelfSectionPicker: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 10))
+        return layout {
+            ForEach(ShelfSection.allCases, id: \.self) { section in
+                let selected = visibleSection == section
+                Button {
+                    shelfSection = section
+                } label: {
+                    Text(section.title)
+                        .font(.subheadline)
+                        .foregroundStyle(selected ? ReadingSpace.profilePaper : ReadingSpace.profileMuted)
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                        .background(selected ? ReadingSpace.ink : .clear, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? [.isSelected] : [])
+                .accessibilityIdentifier("bookshelf.section.\(section.rawValue)")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 12)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("书架分区")
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
     @ViewBuilder
     private func loadedContent(_ response: BookshelfResponse) -> some View {
-        if response.favorites.isEmpty && (response.recent.isEmpty || !search.isEmpty || !reading.isEmpty) && errorMessage == nil {
-            Section {
-                ContentUnavailableView(
-                    search.isEmpty && reading.isEmpty ? "书架空空" : "没有匹配的收藏",
-                    systemImage: "books.vertical",
-                    description: Text(search.isEmpty && reading.isEmpty ? "去发现页找一本喜欢的书吧" : "换个关键词或筛选条件试试")
-                )
+        let hasRecent = showsRecent && !response.recent.isEmpty
+        let hasFavorites = showsFavorites && !response.favorites.isEmpty
+        if !hasRecent && !hasFavorites && errorMessage == nil && !isLoading {
+            shelfEmptyState
                 .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden, edges: .all)
-            }
-            .listSectionSeparator(.hidden, edges: .all)
+                .listRowSeparator(.hidden)
         }
         if let errorMessage {
             LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                 Task { await load() }
             }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
-        if search.isEmpty && reading.isEmpty && !response.recent.isEmpty {
+        if hasRecent {
             recentSection(response.recent)
         }
 
-        if !response.favorites.isEmpty {
+        if hasFavorites || (showsFavorites && hasMore) {
             favoritesSection(response)
         }
     }
 
+    @ViewBuilder
+    private var shelfEmptyState: some View {
+        if filtersFavorites {
+            ContentUnavailableView("没有匹配的收藏", systemImage: "books.vertical",
+                                   description: Text("换个关键词或筛选条件试试"))
+        } else if usesShelfSections && visibleSection == .recent {
+            ContentUnavailableView("还没有阅读记录", systemImage: "book.pages",
+                                   description: Text("打开一本书，阅读记录会出现在这里"))
+        } else {
+            ContentUnavailableView("还没有收藏", systemImage: "books.vertical",
+                                   description: Text("去发现页找一本喜欢的书吧"))
+        }
+    }
+
     private func recentSection(_ recent: [RecentItem]) -> some View {
-        Section("最近阅读") {
-            ForEach(recent) { item in
-                recentLink(item, featured: showsCoverGrid && item.id == recent.first?.id)
+        Section {
+            ForEach(Array(recent.enumerated()), id: \.element.id) { index, item in
+                recentLink(item, featured: showsCoverGrid && index == 0)
+                    .readingSpaceEntrance(index)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .swipeActions(edge: .trailing) {
@@ -231,11 +305,15 @@ struct BookshelfView: View {
                 else { return }
                 pendingRecentRemove = recent[index]
             }
+        } header: {
+            if !usesShelfSections {
+                Text("最近阅读")
+            }
         }
     }
 
     private func favoritesSection(_ response: BookshelfResponse) -> some View {
-        Section("我的书架（\(response.totals?.favorites ?? response.favorites.count)）") {
+        Section("\(response.totals?.favorites ?? response.favorites.count) 本收藏") {
             if showsCoverGrid {
                 coverRows(response.favorites)
             } else {
@@ -321,7 +399,7 @@ struct BookshelfView: View {
                     ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
             }
         }
-        if response?.favorites.isEmpty == false || response?.recent.isEmpty == false {
+        if hasEditableItems || editMode.isEditing || isPerformingAction {
             if isPerformingAction {
                 ToolbarItem(placement: .topBarTrailing) {
                     ProgressView()
@@ -456,41 +534,52 @@ struct BookshelfView: View {
     }
 
     private func recentRow(_ item: RecentItem, featured: Bool = false) -> some View {
-        HStack(spacing: featured ? 18 : 12) {
+        let titleColor = featured ? ReadingSpace.onSummary : ReadingSpace.ink
+        let detailColor = featured ? ReadingSpace.summarySecondary : ReadingSpace.profileMuted
+        let progress = Self.percentValue(item.scrollPercent)
+
+        return HStack(spacing: featured ? 16 : 12) {
             CachedAsyncImage(
                 url: APIClient.shared.coverURL(novelId: item.novelId, updatedAt: item.updatedAt),
                 targetSize: CGSize(width: featured ? 78 : 60, height: featured ? 112 : 86)
             ) { image in
                 image.resizable().scaledToFill()
             } placeholder: {
-                AppTheme.primaryLight
+                featured ? ReadingSpace.profileReadDay : AppTheme.primaryLight
             }
             .frame(width: featured ? 78 : 60, height: featured ? 112 : 86)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 7) {
-                if featured { Text("接着读").font(.caption.weight(.medium)).foregroundStyle(AppTheme.primary) }
+                if featured {
+                    Text("继续阅读").font(.caption.weight(.medium)).foregroundStyle(detailColor)
+                }
                 Text(item.novelTitle)
                     .font(serifFont(.headline, .semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .foregroundStyle(titleColor)
                     .appTextLineLimit(2)
                 Text(item.chapterTitle)
                     .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(detailColor)
                     .appTextLineLimit(1)
-                Text(Self.percentText(item.scrollPercent))
+                if featured {
+                    ProgressView(value: Double(progress), total: 100)
+                        .tint(ReadingSpace.profileToday)
+                        .accessibilityHidden(true)
+                }
+                Text("本章 \(progress)%")
                     .font(.caption.monospacedDigit())
                     .contentTransition(.numericText())
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .accessibilityLabel("阅读进度")
-                    .accessibilityValue("百分之 \(Self.percentValue(item.scrollPercent))")
+                    .foregroundStyle(detailColor)
+                    .accessibilityLabel("本章阅读进度")
+                    .accessibilityValue("百分之 \(progress)")
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(featured ? 18 : 0)
         .background {
-            if featured { RoundedRectangle(cornerRadius: ReadingSpace.panelRadius).fill(ReadingSpace.paper) }
+            if featured { RoundedRectangle(cornerRadius: ReadingSpace.panelRadius).fill(ReadingSpace.summary) }
         }
         .padding(.vertical, featured ? 6 : 4)
         .accessibilityElement(children: .combine)
