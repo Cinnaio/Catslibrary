@@ -65,7 +65,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           protocol=$(ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" 'sudo -n /usr/local/bin/zhizhou-release --protocol-version')
-          [ "$protocol" = 2 ] || { echo '请先按部署文档升级服务器发布工具至协议 2'; exit 1; }
+          [ "$protocol" = 3 ] || { echo '请先按部署文档升级服务器发布工具至协议 3（保护私有书源）'; exit 1; }
 
       - name: Upload release to server
         env:
@@ -80,7 +80,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           ssh -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "sudo -n /usr/local/bin/zhizhou-release '$RELEASE_SHA'"
+            "sudo -n /usr/local/bin/zhizhou-release '$RELEASE_SHA' --archive-sha256 '$RELEASE_ARCHIVE_SHA256'"
 
       - name: Verify production
         env:

@@ -4,6 +4,10 @@ import { fileURLToPath } from 'node:url'
 
 const root = dirname(fileURLToPath(import.meta.url))
 const manifest = JSON.parse(await readFile(resolve(root, 'release.json'), 'utf8'))
+const { buildInfo } = await import('./build-info.js')
+for (const key of ['releaseSha', 'sourceAdapterRevision', 'apiVersion', 'webVersion', 'lockHash', 'nodeVersion', 'migrations']) {
+  if (JSON.stringify(buildInfo[key]) !== JSON.stringify(manifest[key])) throw new Error(`编译产物与发布清单的 ${key} 不一致`)
+}
 if (manifest.format !== 2 || process.versions.node !== manifest.nodeVersion || process.platform !== manifest.platform || process.arch !== manifest.arch) {
   throw new Error('运行时与发布清单不匹配')
 }

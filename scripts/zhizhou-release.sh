@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 协议 2：代码、依赖与 Node 一起切换；切换后任何失败均尝试整组回滚。
+# 协议 3：保护已安装私有书源，并在发布锁内核对预期线上版本；归档格式仍为 2。
 set -euo pipefail
 umask 022
 SITE_ROOT=/var/www/zhi-zhou
@@ -11,14 +11,35 @@ LOCK_FILE=/var/lock/zhizhou-release.lock
 BASE_URL=http://127.0.0.1:8080
 ARCHIVE_ROOT=/tmp
 log() { printf '[release] %s\n' "$*" >&2; }
-if [ "${1:-}" = --protocol-version ]; then printf '2\n'; exit 0; fi
+if [ "${1:-}" = --protocol-version ]; then printf '3\n'; exit 0; fi
 [ "$(id -u)" -eq 0 ] || { log '必须以 root 运行'; exit 1; }
+if [ "${1:-}" = --deployment-state ]; then
+  python3 "$VALIDATOR" --state "$SITE_ROOT/api/dist/release.json"
+  exit 0
+fi
 SHA="${1:-}"
+if [ "$#" -gt 0 ]; then shift; fi
+EXPECTED=()
+ARCHIVE_DIGEST=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --expect-current)
+      [ "$#" -ge 3 ] || { log '--expect-current 需要核心和私有书源两个版本'; exit 2; }
+      EXPECTED=("$2" "$3"); shift 3 ;;
+    --archive-sha256)
+      [ "$#" -ge 2 ] && [[ "$2" =~ ^[0-9a-f]{64}$ ]] || { log '归档摘要必须是 SHA-256'; exit 2; }
+      ARCHIVE_DIGEST="$2"; shift 2 ;;
+    *) log "未知参数: $1"; exit 2 ;;
+  esac
+done
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { log '发布标识必须是完整的 Git SHA'; exit 2; }
 ARCHIVE="$ARCHIVE_ROOT/release-${SHA}.tgz"
 [ -f "$ARCHIVE" ] || { log "找不到发布包: $ARCHIVE"; exit 3; }
 exec 9>"$LOCK_FILE"
 flock -n 9 || { log '另一个发布正在执行'; exit 3; }
+if [ -n "$ARCHIVE_DIGEST" ]; then
+  printf '%s  %s\n' "$ARCHIVE_DIGEST" "$ARCHIVE" | sha256sum --check --strict - || { log '上传的归档摘要不匹配'; exit 4; }
+fi
 STAGE="$(mktemp -d "$SITE_ROOT/.release-stage-XXXXXX")"
 STAMP="$(date +%Y%m%d-%H%M%S)-${SHA:0:7}-$$"
 PREV_WEB="$SITE_ROOT/web/dist.prev-$STAMP"
@@ -78,7 +99,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 log '解包并校验完整发布包'
-python3 "$VALIDATOR" "$ARCHIVE" "$STAGE" "$SHA"
+python3 "$VALIDATOR" "$ARCHIVE" "$STAGE" "$SHA" "$SITE_ROOT/api/dist/release.json" "${EXPECTED[@]}"
+log '已核对线上书源保留策略与预期版本'
 chmod 755 "$STAGE"
 # 绝不以 root 执行包内 Node 或 JS；原生依赖、glibc 与模块解析在服务账号下预检。
 runuser -u "$SERVICE_USER" -- env -u NODE_OPTIONS -u NODE_PATH "$STAGE/api/dist/runtime/node" "$STAGE/api/dist/check-release-runtime.mjs"

@@ -27,11 +27,11 @@ spec.loader.exec_module(validator)
 
 def write(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(value, encoding='utf-8', newline='\n')
+    with path.open('w', encoding='utf-8', newline='\n') as stream: stream.write(value)
     path.chmod(0o755)
 
 
-def make_archive(root, extra=None, corrupt=False):
+def make_archive(root, extra=None, corrupt=False, adapter=None):
     source = root / 'candidate'
     files = {
         'api/dist/index.js': 'new-api', 'api/dist/build-info.js': 'build-info',
@@ -47,6 +47,7 @@ def make_archive(root, extra=None, corrupt=False):
                 'executable': 'api/dist/runtime/node', 'migrations': [{'version': 1, 'name': '001_initial.sql'}],
                 'lockHash': hashlib.sha256(b'{}').hexdigest(),
                 'files': {name: hashlib.sha256(data.encode()).hexdigest() for name, data in files.items()}}
+    if adapter is not None: manifest['sourceAdapterRevision'] = adapter
     write(source / 'api/dist/release.json', json.dumps(manifest))
     if corrupt:
         write(source / 'api/dist/index.js', 'tampered-api')
@@ -152,12 +153,28 @@ class ReleaseTests(unittest.TestCase):
                 stage.mkdir()
                 with self.assertRaises(ValueError): validator.validate_archive(archive, stage, sha, version)
 
+    def test_adapter_metadata_and_transition_guard(self):
+        with tempfile.TemporaryDirectory(prefix='zhi-release-policy-') as name:
+            current = pathlib.Path(name) / 'release.json'
+            write(current, json.dumps({'releaseSha': 'b' * 40, 'sourceAdapterRevision': 'c' * 40}))
+            with self.assertRaisesRegex(ValueError, '纯核心包'):
+                validator.validate_replacement({}, current)
+            for invalid in ('', 'short', 123, None, 'A' * 40):
+                with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                    validator.adapter_revision({'sourceAdapterRevision': invalid})
+            validator.validate_replacement({'sourceAdapterRevision': 'd' * 40}, current, ['b' * 40, 'c' * 40])
+            with self.assertRaisesRegex(ValueError, '并发发布'):
+                validator.validate_replacement({'sourceAdapterRevision': 'd' * 40}, current, ['b' * 40, 'e' * 40])
+            current.unlink()
+            validator.validate_replacement({}, current, ['none', 'none'])
+
     def test_real_shell_success_and_rollback_paths(self):
         bash = os.environ.get('RELEASE_TEST_BASH') or shutil.which('bash')
         self.assertTrue(bash, '需要 Bash 执行发布脚本回归')
         modes = ['', 'runtime-fail', 'stop-fail', 'restart-fail', 'move-old-web', 'move-new-web',
                  'move-old-api', 'move-new-api', 'readiness-fail', 'wrong-sha', 'asset-fail', 'business-fail',
-                 'restart-fail-protocol2', 'move-completed-error']
+                 'restart-fail-protocol2', 'move-completed-error', 'private-to-public', 'private-retained',
+                 'private-upgrade', 'public-to-private', 'stale-core', 'stale-adapter', 'bad-current', 'wrong-archive']
         for mode in modes:
             with self.subTest(mode=mode or 'success'), tempfile.TemporaryDirectory(prefix='zhi-release-shell-') as name:
                 root = pathlib.Path(name)
@@ -167,7 +184,15 @@ class ReleaseTests(unittest.TestCase):
                     write(site / file, text)
                 if mode == 'restart-fail-protocol2':
                     write(site / 'api/dist/release.json', json.dumps({'releaseSha': 'b' * 40}))
-                archive = make_archive(root)
+                private_modes = ('private-to-public', 'private-retained', 'private-upgrade', 'stale-core', 'stale-adapter')
+                if mode in private_modes:
+                    write(site / 'api/dist/release.json', json.dumps({'releaseSha': 'b' * 40, 'sourceAdapterRevision': 'c' * 40}))
+                if mode == 'public-to-private':
+                    write(site / 'api/dist/release.json', json.dumps({'releaseSha': 'b' * 40}))
+                if mode == 'bad-current': write(site / 'api/dist/release.json', '{broken')
+                adapter = 'c' * 40 if mode in ('private-retained', 'stale-core', 'stale-adapter') else None
+                if mode in ('private-upgrade', 'public-to-private'): adapter = 'd' * 40
+                archive = make_archive(root, adapter=adapter)
                 trusted = root / 'trusted'
                 write(trusted / 'validate-release.py', (ROOT / 'scripts/validate-release.py').read_text('utf-8'))
                 write(trusted / 'node-version', NODE)
@@ -197,8 +222,12 @@ class ReleaseTests(unittest.TestCase):
                 if os.name == 'nt':
                     bins_path = subprocess.check_output([bash, '-c', 'cygpath -u "$1"', '--', bins_path], text=True).strip()
                 command = 'export PATH=' + shlex.quote(bins_path) + ':"$PATH"; exec bash ' + shlex.quote((root / 'release.sh').as_posix()) + ' ' + SHA
+                if mode in ('stale-core', 'stale-adapter', 'private-retained'):
+                    command += ' --expect-current ' + ('e' * 40 if mode == 'stale-core' else 'b' * 40)
+                    command += ' ' + ('e' * 40 if mode == 'stale-adapter' else 'c' * 40)
+                if mode == 'wrong-archive': command += ' --archive-sha256 ' + '0' * 64
                 result = subprocess.run([bash, '-c', command], env=env, capture_output=True, text=True, encoding='utf-8', timeout=40)
-                if not mode:
+                if mode in ('', 'private-retained', 'private-upgrade', 'public-to-private'):
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertEqual((site / 'api/dist/index.js').read_text(), 'new-api')
                     self.assertEqual((site / 'api/dist/runtime/node').read_text(), 'new-node')
@@ -210,7 +239,9 @@ class ReleaseTests(unittest.TestCase):
                         self.assertEqual((site / file).read_text(), value, result.stdout + result.stderr)
                     self.assertTrue(archive.exists())
                     calls = (root / 'calls').read_text() if (root / 'calls').exists() else ''
-                    if mode == 'runtime-fail': self.assertNotIn('systemctl stop', calls)
+                    if mode in ('runtime-fail', 'private-to-public', 'stale-core', 'stale-adapter', 'bad-current', 'wrong-archive'):
+                        self.assertNotIn('systemctl stop', calls)
+                        self.assertFalse((root / 'backups').exists())
                     else: self.assertIn('systemctl restart', calls)
                     if mode == 'restart-fail-protocol2':
                         self.assertIn('/api/ready', calls)

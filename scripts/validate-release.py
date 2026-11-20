@@ -4,6 +4,7 @@ import hashlib
 import json
 import pathlib
 import platform
+import re
 import shutil
 import sys
 import tarfile
@@ -54,6 +55,7 @@ def validate_archive(archive, destination, sha, node_version):
     if metadata.stat().st_size > 8 * 1024 * 1024:
         raise ValueError('发布清单过大')
     manifest = json.loads(metadata.read_text('utf-8'))
+    adapter_revision(manifest)
     arch = {'x86_64': 'x64', 'AMD64': 'x64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(platform.machine())
     if manifest.get('format') != 2 or manifest.get('releaseSha') != sha:
         raise ValueError('发布协议或源码 SHA 不匹配')
@@ -80,6 +82,44 @@ def validate_archive(archive, destination, sha, node_version):
     return manifest
 
 
+def adapter_revision(manifest):
+    if not isinstance(manifest, dict):
+        raise ValueError('发布清单必须是对象')
+    if 'sourceAdapterRevision' not in manifest:
+        return None
+    revision = manifest['sourceAdapterRevision']
+    if not isinstance(revision, str) or not re.fullmatch(r'[0-9a-f]{40}', revision):
+        raise ValueError('私有书源版本必须是完整的 Git SHA，核心版应省略该字段')
+    return revision
+
+
+def deployment_state(current_path):
+    current_path = pathlib.Path(current_path)
+    if not current_path.exists():
+        return {'releaseSha': None, 'sourceAdapterRevision': None}
+    current = json.loads(current_path.read_text('utf-8'))
+    revision = adapter_revision(current)
+    sha = current.get('releaseSha')
+    if not isinstance(sha, str) or not re.fullmatch(r'[0-9a-f]{40}', sha):
+        raise ValueError('线上发布清单无有效源码 SHA，拒绝猜测当前版本')
+    return {'releaseSha': sha, 'sourceAdapterRevision': revision}
+
+
+def validate_replacement(candidate, current_path, expected=None):
+    current = deployment_state(current_path)
+    if expected is not None:
+        core, adapter = expected
+        if not all(value == 'none' or re.fullmatch(r'[0-9a-f]{40}', value) for value in expected):
+            raise ValueError('预期线上版本必须是完整 SHA 或 none')
+        wanted = {'releaseSha': None if core == 'none' else core,
+                  'sourceAdapterRevision': None if adapter == 'none' else adapter}
+        if current != wanted:
+            raise ValueError('构建期间线上核心或私有书源已变化，请重新读取版本并构建，禁止覆盖并发发布')
+    if current['sourceAdapterRevision'] and not adapter_revision(candidate):
+        raise ValueError('线上已安装私有书源，拒绝用纯核心包覆盖；请使用 npm run deploy:private 合并构建并部署')
+    return current
+
+
 def hash_stream(reader):
     digest = hashlib.sha256()
     for chunk in iter(lambda: reader.read(1024 * 1024), b''):
@@ -89,10 +129,18 @@ def hash_stream(reader):
 
 if __name__ == '__main__':
     try:
-        archive, stage, sha = sys.argv[1:]
-        pinned = pathlib.Path(__file__).with_name('node-version').read_text('utf-8').strip()
-        validate_archive(archive, stage, sha, pinned)
-        print('发布清单、平台、完整文件摘要与运行时策略校验通过')
+        if len(sys.argv) == 3 and sys.argv[1] == '--state':
+            print(json.dumps(deployment_state(sys.argv[2])))
+        else:
+            args = sys.argv[1:]
+            if len(args) not in (3, 4, 6):
+                raise ValueError('用法：validate-release.py archive stage sha [current-manifest [expected-core expected-adapter]]')
+            archive, stage, sha = args[:3]
+            pinned = pathlib.Path(__file__).with_name('node-version').read_text('utf-8').strip()
+            manifest = validate_archive(archive, stage, sha, pinned)
+            if len(args) >= 4:
+                validate_replacement(manifest, args[3], args[4:] if len(args) == 6 else None)
+            print('发布清单、平台、完整文件摘要与运行时策略校验通过')
     except Exception as error:
         print(f'发布包拒绝：{error}', file=sys.stderr)
         sys.exit(4)

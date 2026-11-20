@@ -4,7 +4,7 @@
 
 ## 部署
 
-生产环境由 GitHub Actions 构建与发布，**不要在服务器上跑 `npm run build`**：生产机内存很小，`vite build` 会撞 V8 堆上限；而且 `vite build` 会先清空 `web/dist` 再打包，构建失败会直接把线上页面删空。
+生产发布可使用独立 Linux 构建机或手动运行 GitHub Actions；两种方式均交付完整发布包。**不要在服务器上跑 `npm run build`**：生产机内存很小，`vite build` 会撞 V8 堆上限；而且 `vite build` 会先清空 `web/dist` 再打包，构建失败会直接把线上页面删空。
 
 ### 按需发布（GitHub Actions）
 
@@ -25,11 +25,35 @@
 
 成功后的工件名为 `release-<完整 SHA>-<运行尝试次数>`，保留 14 天，包含 `release.tgz`、`release.tgz.sha256` 和 `release-manifest.json`。运行摘要显示源码 SHA、API/Web 版本、平台、Node、归档摘要与工件 ID。验证失败时不发布供部署使用的工件；验收成功不代表已部署或完成真实客户端验收。
 
-`.github/workflows/deploy.yml` 先调用同一提交的验证工作流，全部通过后才启动部署作业。部署按不可变工件 ID 下载**同一次运行中验证过的原包**，核对源码 SHA 与归档 SHA-256 后才加载 SSH 密钥；之后只信任已核对的主机密钥，检查服务器协议 2，上传并执行 `/usr/local/bin/zhizhou-release <完整 SHA>`。部署作业不重新构建，也不根据名称搜索或下载其他运行的工件。单独验收后手动启动 Deploy，会在新的运行里重新构建并验证当前所选提交，不直接沿用之前的验收工件。
+`.github/workflows/deploy.yml` 先调用同一提交的验证工作流，全部通过后才启动部署作业。部署按不可变工件 ID 下载**同一次运行中验证过的原包**，核对源码 SHA 与归档 SHA-256 后才加载 SSH 密钥；之后只信任已核对的主机密钥，检查服务器协议 3，上传并执行 `/usr/local/bin/zhizhou-release <完整 SHA>`。部署作业不重新构建，也不根据名称搜索或下载其他运行的工件。单独验收后手动启动 Deploy，会在新的运行里重新构建并验证当前所选提交，不直接沿用之前的验收工件。
 
 ### 安装扩展书源的部署
 
-公开工作流验证并部署核心版。使用扩展书源的实例从私有 CI 构建和保存发布包，沿用上面的归档校验、PostgreSQL 冒烟检查和协议 2 发布步骤。
+私有书源静态编译进 API，单独保留旧文件不能兼顾新核心。**已安装私有书源的实例必须合并构建核心与适配器**。协议 3 在停止服务、执行包内代码及备份之前拒绝用纯核心包覆盖私有实例；主仓库 Deploy 仍产出核心包，因此对这类实例会安全失败，不会卸载已有书源。
+
+#### 无需 Actions 的合并部署（推荐）
+
+在本地核心仓库执行（Windows PowerShell、Linux 均可）：
+
+```sh
+npm run deploy:private
+# 本次同时更新私有仓库时，显式选取已提交的新适配器版本：
+npm run deploy:private -- --adapter-ref HEAD
+# 只构建验收，保留归档，不切换线上：
+npm run deploy:private -- --build-only
+```
+
+默认读取核心本地 `HEAD` 和**线上正在运行的适配器完整 SHA**；更新核心不会擅自升级或回退适配器。脚本只归档两个仓库已提交的快照，未提交的本地改动不进入包。先按需 fetch／提交源码；若本地缺少线上核心的 Git 对象，或目标核心不是线上提交的后继，脚本会拒绝，应先同步仓库。
+
+默认 `--private-repo ../Catslibrary-private-sources --build-host catr --deploy-host story`；可通过同名参数更换目录与 SSH 别名。SSH 必须已配置并登记主机密钥，使用 BatchMode 与严格主机校验。构建机须为独立 Linux 主机，安装 `.node-version` 指定的 Node（默认 `/opt/node-v<版本>-linux-x64/bin`，可传 `--node-bin`）、Python 3、tar、可免交互执行的 `sudo docker`，并预先准备 `postgres:18-alpine` 镜像（可传 `--postgres-image`）。生产机须先安装下文的协议 3 工具；脚本不会在生产机安装依赖或构建。
+
+合并流程使用独立临时目录执行锁定依赖安装、核心和适配器类型检查、私有测试、Web/API 构建及标准 `release:package`，再从最终归档解包，验证清单／摘要／编译内嵌版本与真实 Linux 运行时，并在临时 PostgreSQL 容器验证迁移、就绪、首页、资源和书目。容器及其临时卷在结束时清理；成功下载后清理构建机目录，本地 `.tmp/private-deploy-*` 保留归档、清单、`plan.json` 与 `result.json`。构建失败保留远端临时目录用于排查。
+
+上传后，发布锁内再次检查归档 SHA-256 和构建前读取的**核心＋私有书源两个版本**；任何一个发生变化都拒绝覆盖，需重新准备发布。`--build-only` 只表示包通过验证，只有 `result.json` 的 `deployed: true` 才表示本次脚本已完成发布并核对线上版本。此命令不触发任何 GitHub 工作流。
+
+#### 私有 CI（额度恢复后可选）
+
+已有私有工作流继续按双仓库指定提交构建：
 
 1. 在私有构建工作区检出核心的指定提交，再将适配器的指定提交检出到 `api/private-sources/`。入口 `index.ts` 导出 `installedAdapters` 数组，元素使用 `api/src/services/scraper/sources.ts` 的 `ScrapeAdapter` 类型。
 2. 使用 `.node-version` 的 Node 执行 `npm ci`。从两个检出目录分别取得完整提交 SHA，设置 `RELEASE_SHA`、`CATSLIBRARY_SOURCE_ADAPTER_SHA`，以及 `CATSLIBRARY_PRIVATE_SOURCES=1`，再运行 `npm run build`。发布清单会记录核心和适配器的提交。
@@ -43,10 +67,11 @@
 
 ### 服务器发布工具
 
-`zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）的行为：
+`zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）使用协议 **3**，发布归档格式仍为 **2**。`--deployment-state` 只输出线上核心与适配器 SHA；`SHA --expect-current <核心或none> <适配器或none> --archive-sha256 <摘要>` 在锁内核对预期版本与原始归档。其行为：
 
 - 在站点所在文件系统内创建独立暂存目录；拒绝越界路径、软硬链接、特殊文件、重复路径、超限包以及清单不符的文件，核对平台、CPU、Node 策略、源码 SHA、完整摘要和锁文件
-- 在服务账号下执行随包 Node，验证全部 API 直接依赖都来自包内，并实际运行 Sharp；操作系统／glibc／原生模块不兼容或 systemd 尚未使用新启动器时，在切换前拒绝
+- 线上清单无法解析、私有版本字段非法、纯核心包覆盖已有私有书源、预期线上版本变化或指定的归档摘要不符时，在停服前拒绝；不提供自动卸载私有书源的绕过开关
+- 在服务账号下执行随包 Node，核对编译内嵌版本与清单一致，再验证全部 API 直接依赖都来自包内，并实际运行 Sharp；操作系统／glibc／原生模块不兼容或 systemd 尚未使用新启动器时，在切换前拒绝
 - 备份现有产物，停止服务后成组替换 `web/dist`、`api/dist`；依赖和运行时位于 `api/dist` 内，跟随代码一起切换。此流程存在短暂停机，不是零停机发布
 - 启动后验证 `/api/ready` 返回的目标 SHA、数据库与迁移就绪状态，以及首页、入口资源和只读书目接口；停止、重启、目录切换或上述检查失败均触发恢复旧目录并重启
 - 回滚协议 2 版本时继续验证旧 SHA 和业务就绪；首次迁移若回退旧产物，只能使用旧 `/api/health` 存活检查。数据库迁移不自动降级，发布前仍须核对迁移兼容窗口与备份
@@ -57,7 +82,7 @@
 
 ### 发布前的一次性准备
 
-**服务器**：从已审核的本次源码更新发布脚本、校验器、Node 策略及启动器。现有协议 1 工具不能直接接收新包；工作流会提前拒绝。以下是待运维执行的准备步骤，本地修改这些文件不代表服务器已更新。
+**服务器**：从已审核的本次源码更新发布脚本、校验器、Node 策略及启动器。现有协议 1／2 工具没有本次保护；新入口和工作流会提前拒绝旧工具。以下是待运维执行的准备步骤，本地修改这些文件不代表服务器已更新。
 
 先核对 `zhizhou.service` 的 `User`、`ExecStart`、环境配置与原 Node 路径。脚本默认站点 `/var/www/zhi-zhou`、用户 `cinnaio`、端口 8080；部署不同路径时统一修改脚本常量。启动器遇到旧产物会使用 PATH 中的 `node`，若旧服务使用其他绝对路径，应在启动器的旧版分支保留该命令，保证首次升级失败时可启动旧版本。服务器需具备 Bash、Python 3.10+、curl、tar、flock、runuser 和 systemd。
 
@@ -74,7 +99,7 @@ sudo systemctl daemon-reload
 echo 'cinnaio ALL=(root) NOPASSWD: /usr/local/bin/zhizhou-release' | sudo tee /etc/sudoers.d/zhizhou-release
 sudo chmod 0440 /etc/sudoers.d/zhizhou-release
 sudo visudo -c
-sudo /usr/local/bin/zhizhou-release --protocol-version  # 应输出 2
+sudo /usr/local/bin/zhizhou-release --protocol-version  # 应输出 3
 ```
 
 不覆盖原服务的 `User`、环境文件、数据目录和安全配置。新的 Node 与生产依赖由 CI 提供，服务器无需执行 `npm ci`。未来修改 `.node-version` 时也要同步安装该策略文件；旧策略会拒绝新运行时包。生产平台不是 Linux x64 时，应先调整 runner／原生依赖构建平台，不能强行使用不匹配的包。
