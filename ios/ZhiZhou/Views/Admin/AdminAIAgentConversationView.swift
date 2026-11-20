@@ -28,7 +28,8 @@ struct AdminAIAgentConversationView: View {
             context
             if model.hasLoaded {
                 AgentMessagesView(model: model, readingOverlay: panel != nil || model.selectedAction != nil,
-                                  showArtifact: { panel = .artifact($0) }, showOutputs: { panel = .outputs })
+                                  showArtifact: { panel = .artifact($0) }, showOutputs: { panel = .outputs },
+                                  showMemory: { panel = .memory })
             } else if let error = model.loadError {
                 ContentUnavailableView {
                     Label("暂时无法读取对话", systemImage: "bubble.left.and.exclamationmark.bubble.right")
@@ -38,10 +39,21 @@ struct AdminAIAgentConversationView: View {
             }
         }
         .background(ReadingSpace.canvas)
-        .navigationTitle(model.session.title.isEmpty ? "对话创作" : model.session.title)
+        .navigationTitle(model.session.novelTitle.isEmpty ? "对话创作" : model.session.novelTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
+        .toolbar(.visible, for: .navigationBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 2) {
+                    Text(model.session.novelTitle.isEmpty ? "对话创作" : model.session.novelTitle)
+                        .font(serifFont(.headline, .semibold)).foregroundStyle(ReadingSpace.ink)
+                        .lineLimit(1)
+                    Text("创作对话").font(.caption2).foregroundStyle(AppTheme.textSecondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityHint(model.session.title)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { panel = .outputs } label: {
                     HStack(spacing: 4) {
@@ -57,6 +69,7 @@ struct AdminAIAgentConversationView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu("更多", systemImage: "ellipsis") {
+                    if !model.session.title.isEmpty { Text(model.session.title) }
                     Button("作品记忆", systemImage: "bookmark") { panel = .memory }
                     Button("会话设置", systemImage: "slider.horizontal.3") { panel = .settings }
                     Button("找书入库", systemImage: "magnifyingglass") { panel = .findBook }
@@ -91,19 +104,28 @@ struct AdminAIAgentConversationView: View {
     }
 
     private var context: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(model.session.novelTitle).font(serifFont(.headline, .semibold))
-                .foregroundStyle(ReadingSpace.ink).fixedSize(horizontal: false, vertical: true)
-            Text(contextSummary).font(.caption).foregroundStyle(AppTheme.textSecondary)
-            if model.pendingMemoryCount > 0 {
-                Button("作品记忆 · \(model.pendingMemoryCount) 条待确认") { panel = .memory }
-                    .font(.footnote).frame(minHeight: 44)
+        AppAdaptiveRow(spacing: 10) {
+            Label(contextSummary, systemImage: "text.book.closed")
+                .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                .appTextLineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button { panel = .memory } label: {
+                Label(model.pendingMemoryCount > 0 ? "记忆 · \(model.pendingMemoryCount)" : "作品记忆",
+                      systemImage: "bookmark")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(AppTheme.primary)
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("作品记忆")
+            .accessibilityValue(model.pendingMemoryCount > 0 ? "\(model.pendingMemoryCount) 条待确认" : "无待确认提议")
+            .disabled(!model.hasLoaded)
         }
-        .padding(18)
+        .padding(.horizontal, 20).padding(.vertical, 2)
         .frame(maxWidth: 760, alignment: .leading)
-        .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .padding(.horizontal, 16).padding(.vertical, 10)
+        .overlay(alignment: .bottom) { ReadingSpace.line.frame(height: 1).padding(.horizontal, 20) }
         .frame(maxWidth: .infinity)
     }
 
@@ -121,6 +143,7 @@ private struct AgentMessagesView: View {
     let readingOverlay: Bool
     let showArtifact: (String) -> Void
     let showOutputs: () -> Void
+    let showMemory: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
@@ -260,7 +283,7 @@ private struct AgentMessagesView: View {
                 .accessibilityIdentifier("agent.scrollToLatest")
                 .transition(reduceMotion ? .identity : .offset(y: 8).combined(with: .opacity))
             }
-            AgentComposerView(model: model)
+            AgentComposerView(model: model, showMemory: showMemory)
         }
         .padding(.top, 8)
         .frame(maxWidth: .infinity)
@@ -401,26 +424,33 @@ private struct AgentMessageRow: View {
                 Text(verbatim: event.content).textSelection(.enabled)
                     .foregroundStyle(ReadingSpace.ink).lineSpacing(4)
                     .padding(.horizontal, 18).padding(.vertical, 14)
-                    .background(ReadingSpace.userMessage, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .background(ReadingSpace.userMessage, in: UnevenRoundedRectangle(
+                        topLeadingRadius: 20, bottomLeadingRadius: 20, bottomTrailingRadius: 6, topTrailingRadius: 20))
             }
         } else if event.role == "assistant" && event.metadata.error != true {
             VStack(alignment: .leading, spacing: 12) {
                 Label("创作助手", systemImage: "sparkle")
-                    .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                    .font(.caption.weight(.medium)).foregroundStyle(AppTheme.primary)
                 AgentMarkdownView(content: event.content)
                     .foregroundStyle(ReadingSpace.ink)
             }
-            .padding(event.content.count > 700 ? 20 : 0)
-            .background {
-                if event.content.count > 700 {
-                    RoundedRectangle(cornerRadius: ReadingSpace.panelRadius).fill(ReadingSpace.paper)
-                }
-            }
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text(verbatim: event.content).textSelection(.enabled)
-                    .foregroundStyle(event.metadata.error == true ? Color.red : AppTheme.textSecondary)
-                    .font(.footnote)
+                if event.metadata.error == true {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.circle")
+                            .foregroundStyle(AppTheme.danger).accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("操作未完成").font(.footnote.weight(.semibold)).foregroundStyle(AppTheme.danger)
+                            Text(verbatim: event.content).font(.footnote).foregroundStyle(ReadingSpace.ink)
+                                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                } else if event.metadata.artifactTaskId == nil {
+                    Text(verbatim: event.content).textSelection(.enabled)
+                        .font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                }
                 if let id = event.metadata.artifactTaskId {
                     artifactLink(id)
                 }
@@ -438,25 +468,72 @@ private struct AgentMessageRow: View {
     private func artifactLink(_ id: String) -> some View {
         let artifact = model.artifacts.first(where: { $0.id == id })
         let task = model.tasks[id] ?? artifact?.task
-        let kind = task.map { AgentDisplay.kind($0.kind) } ?? "查看产出"
+        let kind = task.map { AgentDisplay.kind($0.kind) } ?? "创作产出"
         let draft = artifact?.drafts.count == 1 ? artifact?.drafts.first : nil
-        let title = draft?.title ?? artifact?.analysisReport?.title ?? kind
-        let status = draft.map { $0.status == "draft" ? "未发布草稿" : "已发布" }
-            ?? task.map { AgentDisplay.status($0.status) }
+        let title = draft?.title ?? artifact?.chapterEdit?.chapterTitle ?? artifact?.analysisReport?.title ?? kind
+        let excerpt = draft?.content ?? artifact?.rewrite?.after ?? artifact?.chapterEdit?.after ?? ""
+        let status = artifactStatus(task: task, draft: draft, artifact: artifact)
+        let warning = draft?.minimumLengthWarning ?? artifact?.rewrite?.minimumLengthWarning
+        let hasSuggestion = artifact?.rewrite != nil || artifact?.chapterEdit != nil
         return Button { showArtifact(id) } label: {
-            Label {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(serifFont(.headline, .semibold)).foregroundStyle(ReadingSpace.ink)
-                    if let status { Text(status).font(.caption).foregroundStyle(AppTheme.textSecondary) }
+            VStack(alignment: .leading, spacing: 12) {
+                AppAdaptiveRow(spacing: 6) {
+                    Label(title == kind ? "创作产出" : kind, systemImage: "doc.text")
+                        .foregroundStyle(AppTheme.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let status {
+                        Text(status)
+                            .foregroundStyle(task?.status == "failed" ? AppTheme.danger : AppTheme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-            } icon: { Image(systemName: "doc.text").foregroundStyle(AppTheme.primary) }
+                .font(.caption)
+                Text(title).font(serifFont(.title3, .semibold)).foregroundStyle(ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                // The activity belongs to this result; keep its wording once inside the preview.
+                if event.metadata.error != true && !event.content.isEmpty && event.content != title {
+                    Text(verbatim: event.content).font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if task?.status == "completed" && !excerpt.isEmpty {
+                    Text(verbatim: String(excerpt.prefix(360)))
+                        .font(serifFont(.body)).foregroundStyle(ReadingSpace.ink).lineSpacing(5)
+                        .lineLimit(4)
+                }
+                if let warning, !warning.isEmpty {
+                    Text(verbatim: warning).font(.caption).foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ReadingSpace.line.frame(height: 1)
+                HStack {
+                    Text(draft != nil ? "阅读草稿" : (hasSuggestion ? "查看建议" : "查看产出"))
+                    Spacer(minLength: 8)
+                    Image(systemName: "arrow.up.right").accessibilityHidden(true)
+                }
+                .font(.footnote.weight(.medium)).foregroundStyle(AppTheme.primary)
+            }
             .padding(18)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(ReadingSpace.line, lineWidth: 0.5) }
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(model.working)
-        .accessibilityHint("打开这项产出")
+        .accessibilityHint("打开完整产出与采纳预览")
+    }
+
+    private func artifactStatus(task: AIAgentTask?, draft: AIAgentArtifact.Draft?, artifact: AIAgentArtifact?) -> String? {
+        if let task, task.status != "completed" { return AgentDisplay.status(task.status) }
+        if let draft {
+            switch draft.status {
+            case "draft": return "未发布草稿"
+            case "published": return "已发布"
+            default: return draft.status
+            }
+        }
+        if artifact?.rewrite != nil || artifact?.chapterEdit != nil { return "已生成建议" }
+        return task.map { $0.status == "completed" ? "生成完成" : AgentDisplay.status($0.status) }
     }
 }
 
@@ -549,6 +626,8 @@ private struct AgentEvidenceRow: View {
 
 private struct AgentComposerView: View {
     @Bindable var model: AdminAIAgentConversationModel
+    let showMemory: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showDiscard = false
 
     private var modelName: String {
@@ -563,20 +642,33 @@ private struct AgentComposerView: View {
             if let pending = model.localDraft.pending {
                 pendingMessage(pending)
             }
-            HStack(alignment: .bottom, spacing: 8) {
-                modelMenu
-                HStack(alignment: .bottom, spacing: 2) {
-                    TextField("和创作助手聊聊…", text: $model.localDraft.input, axis: .vertical)
-                        .lineLimit(1...6)
-                        .padding(.leading, 14)
-                        .padding(.vertical, 9)
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        .accessibilityIdentifier("agent.composer")
-                    messageAction
+            VStack(alignment: .leading, spacing: 4) {
+                TextField("和创作助手聊聊…", text: $model.localDraft.input, axis: .vertical)
+                    .lineLimit(2...6)
+                    .foregroundStyle(ReadingSpace.ink)
+                    .padding(.horizontal, 4).padding(.top, 4)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .accessibilityLabel("消息")
+                    .accessibilityIdentifier("agent.composer")
+                if dynamicTypeSize >= .xxxLarge {
+                    modelMenu
+                    HStack(spacing: 12) {
+                        memoryButton
+                        Spacer(minLength: 0)
+                        messageAction
+                    }
+                } else {
+                    HStack(spacing: 12) {
+                        memoryButton
+                        modelMenu
+                        Spacer(minLength: 0)
+                        messageAction
+                    }
                 }
-                .padding(2)
-                .appGlassEffect(.regular, fallback: ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             }
+            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 6)
+            .appGlassEffect(.regular, fallback: ReadingSpace.paper,
+                            in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             if model.localDraft.input.utf16.count > 8_000 {
                 Text("消息最多 8000 字，请缩短后发送。").font(.caption).foregroundStyle(.red)
             }
@@ -633,15 +725,29 @@ private struct AgentComposerView: View {
             Button("刷新模型列表") { Task { await model.loadPresets() } }
             if let error = model.presetError { Text(error) }
         } label: {
-            Image(systemName: "cpu")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(AppTheme.primary)
-                .frame(width: 48, height: 48)
-                .appGlassEffect(AppTheme.glass, fallback: ReadingSpace.paper, in: Circle())
+            HStack(spacing: 5) {
+                Text(modelName).appTextLineLimit(1)
+                Image(systemName: "chevron.down").font(.caption2).accessibilityHidden(true)
+            }
+            .font(.caption).foregroundStyle(AppTheme.textSecondary)
+            .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .disabled(model.replying || model.sending || model.localDraft.pending != nil)
         .accessibilityLabel("切换文本模型")
         .accessibilityValue(modelName)
+    }
+
+    private var memoryButton: some View {
+        Button(action: showMemory) {
+            Label("记忆", systemImage: "bookmark")
+                .font(.caption).foregroundStyle(AppTheme.primary)
+                .frame(minWidth: 44, minHeight: AppLayout.minimumTouchTarget)
+                .fixedSize(horizontal: true, vertical: false)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("作品记忆")
     }
 
     private func pendingMessage(_ pending: AIAgentPendingMessage) -> some View {

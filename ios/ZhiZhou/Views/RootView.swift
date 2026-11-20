@@ -119,25 +119,29 @@ struct BrandMark: View {
 
 struct MainTabView: View {
     @Environment(AppState.self) private var appState
+    @State private var selectedTab = "discover"
     var body: some View {
-        TabView {
-            Tab("发现", systemImage: "sparkle.magnifyingglass") {
+        TabView(selection: $selectedTab) {
+            Tab("发现", systemImage: "sparkle.magnifyingglass", value: "discover") {
                 HomeView()
             }
-            Tab("书架", systemImage: "books.vertical") {
+            Tab("书架", systemImage: "books.vertical", value: "shelf") {
                 BookshelfView()
             }
             if appState.user?.isAdmin == true {
-                Tab("创作", systemImage: "bubble.left.and.bubble.right") {
+                Tab("创作", systemImage: "bubble.left.and.bubble.right", value: "create") {
                     NavigationStack { AdminAIAgentView() }
                 }
             }
-            Tab("我的", systemImage: "person") {
-                NavigationStack { ProfileView() }
+            Tab("我的", systemImage: "person", value: "profile") {
+                NavigationStack { ProfileView(openBookshelf: { selectedTab = "shelf" }) }
             }
         }
         .tint(AppTheme.primary)
         .toolbarBackground(.visible, for: .tabBar)
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+        .onChange(of: appState.user?.isAdmin) { _, isAdmin in
+            if isAdmin != true, selectedTab == "create" { selectedTab = "discover" }
+        }
     }
 }
