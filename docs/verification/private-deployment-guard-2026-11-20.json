@@ -1,0 +1,90 @@
+{
+  "checkedAt": "2026-11-20T09:47:02.714270+08:00",
+  "coreSha": "595730ca596644864d06d6eafb490b2ab8a9d84e",
+  "sourceAdapterRevision": "431d9d4ed3bf10a06e2476125534befdd8493a24",
+  "apiVersion": "1.8.0",
+  "webVersion": "1.9.0",
+  "archiveSha256": "1115afc7c63b501a9d364eeed24f969a57e24659d284c686168e9de05ca70493",
+  "productionInventoryVerified": true,
+  "inventoryFiles": 3248,
+  "releaseProtocol": "3",
+  "migrations": 88,
+  "service": {
+    "NRestarts": "0",
+    "MemoryCurrent": "111611904",
+    "ActiveState": "active",
+    "ActiveEnterTimestamp": "Fri 2026-11-20 09:45:06 CST"
+  },
+  "http": [
+    {
+      "url": "http://127.0.0.1:8080/api/health",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8080/api/ready",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8080/",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8080/api/novels?limit=1",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8080/assets/index-CD7r8AxC.js",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:8080/api/scrape?action=source-capabilities",
+      "status": 401
+    },
+    {
+      "url": "https://catrr.uk/api/health",
+      "status": 200
+    },
+    {
+      "url": "https://catrr.uk/api/ready",
+      "status": 200
+    },
+    {
+      "url": "https://catrr.uk/",
+      "status": 200
+    },
+    {
+      "url": "https://catrr.uk/api/novels?limit=1",
+      "status": 200
+    },
+    {
+      "url": "https://catrr.uk/assets/index-CD7r8AxC.js",
+      "status": 200
+    },
+    {
+      "url": "https://catrr.uk/api/scrape?action=source-capabilities",
+      "status": 401
+    }
+  ],
+  "actionsUsed": false,
+  "privateSourceSmoke": {
+    "isolatedPostgresSmokePassed": true,
+    "installedSourceCount": 3,
+    "accountWithoutSession": 200,
+    "anonymousCapabilities": 401
+  },
+  "publicOnlyArchiveRejectedBeforeStop": true,
+  "servicePidUnchangedDuringRejection": true,
+  "tests": {
+    "privateTests": 223,
+    "privateTestFiles": 14,
+    "releaseSuiteMethods": 6,
+    "releaseShellScenarios": 23,
+    "nodePolicyTests": 3
+  },
+  "githubWorkflowRunsForBuildCommit": 0,
+  "installedTools": {
+    "releaseSha256": "d1789915987521ea856fd15accd1a88324e27e9b781c60a04427b59a278f67d9",
+    "validatorSha256": "2e1317162f1f8a860bcf9c98ada8cce0160a898aa8a7ad99ded7f107e05b7732"
+  },
+  "note": "应用包来自 595730ca；后续工具快照加固已单独安装，不改变应用包核心或私有版本。"
+}

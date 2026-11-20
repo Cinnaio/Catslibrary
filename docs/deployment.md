@@ -67,7 +67,7 @@ npm run deploy:private -- --build-only
 
 ### 服务器发布工具
 
-`zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）使用协议 **3**，发布归档格式仍为 **2**。`--deployment-state` 只输出线上核心与适配器 SHA；`SHA --expect-current <核心或none> <适配器或none> --archive-sha256 <摘要>` 在锁内核对预期版本与原始归档。其行为：
+`zhizhou-release`（仓库内 `scripts/zhizhou-release.sh`）使用协议 **3**，发布归档格式仍为 **2**。`--deployment-state` 只输出线上核心与适配器 SHA；`SHA --expect-current <核心或none> <适配器或none> --archive-sha256 <摘要>` 在锁内核对预期版本与原始归档。上传文件先复制到 root 独占写入的暂存目录，摘要与解包共用该快照，避免同 SHA 并发上传替换文件。其行为：
 
 - 在站点所在文件系统内创建独立暂存目录；拒绝越界路径、软硬链接、特殊文件、重复路径、超限包以及清单不符的文件，核对平台、CPU、Node 策略、源码 SHA、完整摘要和锁文件
 - 线上清单无法解析、私有版本字段非法、纯核心包覆盖已有私有书源、预期线上版本变化或指定的归档摘要不符时，在停服前拒绝；不提供自动卸载私有书源的绕过开关

@@ -90,6 +90,14 @@ elif command == 'curl':
         print('<script src="/assets/index-new.js"></script>')
     elif '/assets/' in url and mode == 'asset-fail': sys.exit(22)
     elif '/api/novels' in url and mode == 'business-fail': sys.exit(22)
+elif command == 'cp':
+    result = subprocess.call([os.environ['RELEASE_REAL_CP'], *args])
+    if mode == 'upload-replaced' and result == 0:
+        source = pathlib.Path(args[-2])
+        replacement = source.with_suffix('.other')
+        replacement.write_bytes(b'concurrent upload')
+        replacement.replace(source)
+    sys.exit(result)
 elif command == 'mv':
     paths = [arg.replace(chr(92), '/') for arg in args if arg != '--']
     source, target = paths
@@ -174,7 +182,7 @@ class ReleaseTests(unittest.TestCase):
         modes = ['', 'runtime-fail', 'stop-fail', 'restart-fail', 'move-old-web', 'move-new-web',
                  'move-old-api', 'move-new-api', 'readiness-fail', 'wrong-sha', 'asset-fail', 'business-fail',
                  'restart-fail-protocol2', 'move-completed-error', 'private-to-public', 'private-retained',
-                 'private-upgrade', 'public-to-private', 'stale-core', 'stale-adapter', 'bad-current', 'wrong-archive']
+                 'private-upgrade', 'public-to-private', 'stale-core', 'stale-adapter', 'bad-current', 'wrong-archive', 'upload-replaced']
         for mode in modes:
             with self.subTest(mode=mode or 'success'), tempfile.TemporaryDirectory(prefix='zhi-release-shell-') as name:
                 root = pathlib.Path(name)
@@ -209,7 +217,7 @@ class ReleaseTests(unittest.TestCase):
                 write(root / 'stub.py', STUB)
                 bins = root / 'bin'
                 python = shlex.quote(pathlib.Path(sys.executable).as_posix())
-                for command in ['id', 'flock', 'sleep', 'runuser', 'systemctl', 'curl', 'mv']:
+                for command in ['id', 'flock', 'sleep', 'runuser', 'systemctl', 'curl', 'mv', 'cp']:
                     write(bins / command, '#!/usr/bin/env bash\nexec ' + python + ' ' + shlex.quote((root / 'stub.py').as_posix()) + ' ' + command + ' "$@"\n')
                 write(bins / 'python3', '#!/usr/bin/env bash\nexec ' + python + ' "$@"\n')
                 env = dict(os.environ, RELEASE_FIXTURE=root.as_posix(), RELEASE_FAILURE=mode, PYTHONUTF8='1', PYTHONIOENCODING='utf-8')
@@ -217,6 +225,9 @@ class ReleaseTests(unittest.TestCase):
                 if os.name == 'nt':
                     real_mv = subprocess.check_output([bash, '-c', 'cygpath -w "$(command -v mv)"'], text=True).strip()
                 env['RELEASE_REAL_MV'] = real_mv
+                real_cp = subprocess.check_output([bash, '-c', 'command -v cp'], text=True).strip()
+                if os.name == 'nt': real_cp = subprocess.check_output([bash, '-c', 'cygpath -w "$(command -v cp)"'], text=True).strip()
+                env['RELEASE_REAL_CP'] = real_cp
                 # Bash PATH 使用冒号；不修改父进程或开发环境 PATH。
                 bins_path = bins.as_posix()
                 if os.name == 'nt':
@@ -226,8 +237,9 @@ class ReleaseTests(unittest.TestCase):
                     command += ' --expect-current ' + ('e' * 40 if mode == 'stale-core' else 'b' * 40)
                     command += ' ' + ('e' * 40 if mode == 'stale-adapter' else 'c' * 40)
                 if mode == 'wrong-archive': command += ' --archive-sha256 ' + '0' * 64
+                if mode == 'upload-replaced': command += ' --archive-sha256 ' + hashlib.sha256(archive.read_bytes()).hexdigest()
                 result = subprocess.run([bash, '-c', command], env=env, capture_output=True, text=True, encoding='utf-8', timeout=40)
-                if mode in ('', 'private-retained', 'private-upgrade', 'public-to-private'):
+                if mode in ('', 'private-retained', 'private-upgrade', 'public-to-private', 'upload-replaced'):
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertEqual((site / 'api/dist/index.js').read_text(), 'new-api')
                     self.assertEqual((site / 'api/dist/runtime/node').read_text(), 'new-node')

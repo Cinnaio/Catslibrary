@@ -37,10 +37,8 @@ ARCHIVE="$ARCHIVE_ROOT/release-${SHA}.tgz"
 [ -f "$ARCHIVE" ] || { log "找不到发布包: $ARCHIVE"; exit 3; }
 exec 9>"$LOCK_FILE"
 flock -n 9 || { log '另一个发布正在执行'; exit 3; }
-if [ -n "$ARCHIVE_DIGEST" ]; then
-  printf '%s  %s\n' "$ARCHIVE_DIGEST" "$ARCHIVE" | sha256sum --check --strict - || { log '上传的归档摘要不匹配'; exit 4; }
-fi
-STAGE="$(mktemp -d "$SITE_ROOT/.release-stage-XXXXXX")"
+WORK="$(mktemp -d "$SITE_ROOT/.release-stage-XXXXXX")"
+STAGE="$WORK/content"
 STAMP="$(date +%Y%m%d-%H%M%S)-${SHA:0:7}-$$"
 PREV_WEB="$SITE_ROOT/web/dist.prev-$STAMP"
 PREV_API="$SITE_ROOT/api/dist.prev-$STAMP"
@@ -91,17 +89,23 @@ finish() {
   local status=$?
   trap - EXIT INT TERM
   if [ "$status" -ne 0 ] && [ "$SWITCH_STARTED" -eq 1 ]; then rollback || log "回滚未完成；备份位于 $BACKUP_ROOT"; fi
-  rm -rf -- "$STAGE" || log "暂存目录清理失败: $STAGE"
+  rm -rf -- "$WORK" || log "暂存目录清理失败: $WORK"
   exit "$status"
 }
 trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# 将上传包复制进 root 独占写入的目录；摘要与解包使用同一快照，避免同 SHA 并发上传换包。
+mkdir "$STAGE"
+cp -- "$ARCHIVE" "$WORK/release.tgz"
+if [ -n "$ARCHIVE_DIGEST" ]; then
+  printf '%s  %s\n' "$ARCHIVE_DIGEST" "$WORK/release.tgz" | sha256sum --check --strict - || { log '上传的归档摘要不匹配'; exit 4; }
+fi
 log '解包并校验完整发布包'
-python3 "$VALIDATOR" "$ARCHIVE" "$STAGE" "$SHA" "$SITE_ROOT/api/dist/release.json" "${EXPECTED[@]}"
+python3 "$VALIDATOR" "$WORK/release.tgz" "$STAGE" "$SHA" "$SITE_ROOT/api/dist/release.json" "${EXPECTED[@]}"
 log '已核对线上书源保留策略与预期版本'
-chmod 755 "$STAGE"
+chmod 755 "$WORK" "$STAGE"
 # 绝不以 root 执行包内 Node 或 JS；原生依赖、glibc 与模块解析在服务账号下预检。
 runuser -u "$SERVICE_USER" -- env -u NODE_OPTIONS -u NODE_PATH "$STAGE/api/dist/runtime/node" "$STAGE/api/dist/check-release-runtime.mjs"
 systemctl show -p ExecStart --value "$SERVICE" | grep -Fq '/usr/local/bin/zhizhou-start' || { log '请先安装发布启动器并更新 systemd ExecStart'; exit 4; }
