@@ -1,6 +1,7 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
 import type { ChallengeConfiguration, SecurityAction } from '@shared/security'
 import { requestSecurityChallenge } from './security-challenge'
+import { withChapterRetry } from './chapter-retry'
 import type { MailSettings, MailSettingsInput } from '@shared/mail-settings'
 import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import type { StoryGraphResponse } from '@shared/story-graph'
@@ -179,6 +180,7 @@ function migrateBrowserSession(): Promise<void> {
 export interface ApiError extends Error {
   status?: number
   data?: unknown
+  retryAfter?: number
 }
 
 /** 服务端拒绝读取限制级内容时，页面应展示解锁提示而不是误报资源不存在。 */
@@ -277,6 +279,10 @@ export async function request<T = unknown>(
     const err = new Error((data as { error?: string }).error || `HTTP ${res.status}`) as ApiError
     err.status = res.status
     err.data = data
+    const retryHeader = res.headers.get('Retry-After')
+    const seconds = retryHeader && /^\d+(?:\.\d+)?$/.test(retryHeader) ? Number(retryHeader)
+      : retryHeader ? Math.ceil((Date.parse(retryHeader) - Date.now()) / 1000) : NaN
+    if (Number.isFinite(seconds) && seconds > 0) err.retryAfter = seconds
     throw err
   }
   return data
@@ -432,7 +438,10 @@ export const chaptersApi = {
     return request('GET', `/chapters?novelId=${encodeURIComponent(novelId)}`, null, true)
   },
   get(id: string): Promise<{ chapter: ChapterFull }> {
-    return request('GET', `/chapters/${encodeURIComponent(id)}`, null, true)
+    const owner = getToken()
+    const scope = getStorageScope()
+    return withChapterRetry(() => request('GET', `/chapters/${encodeURIComponent(id)}`, null, true),
+      () => owner === getToken() && scope === getStorageScope(), scope + ':' + owner)
   },
   getByOrder(novelId: string, order: number): Promise<{ chapter: ChapterFull }> {
     return request('GET', `/chapters?novelId=${encodeURIComponent(novelId)}&order=${encodeURIComponent(order)}`, null, true)

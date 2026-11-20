@@ -42,7 +42,8 @@
 
 ## 限流与源站边界
 
-- 正文 `GET /api/chapters/:id` 默认每账号每分钟 120 次、每可信 IP 每分钟 240 次。`CHAPTER_READ_LIMIT_PER_MINUTE` 可配置正整数；IP 上限为两倍。有效管理员 Bearer 读取用于管理，免正文限流。
+- 正文 `GET /api/chapters/:id` 默认每账号每分钟 120 次、每可信 IP 每分钟 240 次。`CHAPTER_READ_LIMIT_PER_MINUTE` 可配置账号额度；IP 默认两倍，也可通过 `CHAPTER_IP_READ_LIMIT_PER_MINUTE` 独立设置。游客分钟额度使用 `CHAPTER_GUEST_READ_LIMIT_PER_MINUTE`；默认观察模式保持原上限，启用增强拦截后默认 60 次。有效管理员会话读取用于管理，免正文限流。
+- 普通与受限正文共享新增十分钟／小时／天去重统计，默认仅观察，显式设置 `CHAPTER_PROTECTION_MODE=enforce` 才拦截长窗口超量。管理员统计接口、阈值、隐私与跨端重试见 [阅读访问防护](reading-access-protection.md)，依赖新增迁移 088。
 - R18 解锁默认每账号每分钟 5 次、每可信 IP 每分钟 20 次；失败验证也计数。
 - PostgreSQL 原子固定窗口计数，多个 API 实例共享；超限返回 `429 content_rate_limited` 和 `Retry-After`。不能保证固定窗口边界没有突发；如需更强防爬应结合边缘 WAF 和行为监控。
 - `TRUST_PROXY=1` 只用于已限制可信反代入口的部署。IP 取不到时不信任客户端伪造的转发头；账号限流仍有效。生产需核验 Cloudflare Tunnel 或防火墙限制源站入口，避免绕过边缘防护与伪造代理头。

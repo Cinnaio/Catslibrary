@@ -12,6 +12,7 @@ import { getAdultContentEnabled, setAdultContentEnabled } from '../services/cont
 import { effectiveTurnstile } from '../services/turnstile'
 import { getDashboardFollowups } from '../services/dashboard-followups'
 import { getSourceAnalytics } from '../services/source-analytics'
+import { readingAccessSummary } from '../services/reading-access'
 
 export const adminRoutes = new Hono<AuthEnv>()
 
@@ -30,6 +31,13 @@ adminRoutes.put('/content-policy', async (c) => {
   }
   await setAdultContentEnabled(body.adultContentEnabled)
   return c.json({ adultContentEnabled: body.adultContentEnabled })
+})
+
+// 阅读流量：只返回按小时／身份类型聚合的数据，不暴露 IP、账号或阅读资源摘要。
+adminRoutes.get('/reading-access', async c => {
+  const hours = Number(c.req.query('hours') || 24)
+  if (!Number.isSafeInteger(hours) || hours < 1 || hours > 48) return c.json({ error: 'hours 必须为 1–48 的整数' }, 400)
+  return c.json(await readingAccessSummary(getDb(), hours), 200, { 'Cache-Control': 'private, no-store' })
 })
 
 // ---------- 总览统计 ----------

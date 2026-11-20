@@ -182,9 +182,17 @@ describe('限制级内容服务端访问闭环', () => {
     const chapterList = await req(`/api/chapters?novelId=${encodeURIComponent(restrictedId)}`, json('GET', undefined, undefined, cookie))
     expect(chapterList.status).toBe(200)
 
+    const account = (await t.db.query<{ id: string }>("SELECT id FROM users WHERE username='access-reader'")).rows[0]!
+    const subjectHash = await hashToken('reading-access:account:' + account.id, loadConfig().sessionHashSalt)
+    const beforeReads = (await t.db.query<{ count: number }>(
+      'SELECT COALESCE(SUM(request_count), 0)::int AS count FROM reading_access_windows WHERE subject_hash=$1 AND window_minutes=60', [subjectHash])).rows[0]!.count
     const chapter = await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, undefined, cookie))
     expect(chapter.status).toBe(200)
     expect((await jsonOf<{ chapter: { content: string } }>(chapter)).chapter.content).toBe('受限正文')
+    // 只有旧阅读凭证而无 Bearer 时，仍按已验证账号计入长窗口统计。
+    const afterReads = (await t.db.query<{ count: number }>(
+      'SELECT COALESCE(SUM(request_count), 0)::int AS count FROM reading_access_windows WHERE subject_hash=$1 AND window_minutes=60', [subjectHash])).rows[0]!.count
+    expect(afterReads).toBe(beforeReads + 1)
 
     const categories = await jsonOf<{ categories: string[] }>(await req('/api/categories', json('GET', undefined, undefined, cookie)))
     expect(categories.categories).toContain('h')
@@ -460,6 +468,21 @@ describe('限制级内容服务端访问闭环', () => {
     expect((await req('/api/chapters/chapter_general_access_test', { headers })).status).toBe(200)
     expect((await req('/api/chapters/chapter_general_access_test', { headers })).status).toBe(200)
     expect((await req('/api/chapters/chapter_general_access_test', { headers })).status).toBe(429)
+  })
+
+  it('阅读统计只允许管理员查看，拒绝的资源不进入不同章节统计', async () => {
+    vi.stubEnv('CHAPTER_READ_LIMIT_PER_MINUTE', '120')
+    expect((await req('/api/admin/reading-access')).status).toBe(401)
+    expect((await req('/api/admin/reading-access', json('GET', undefined, readerToken))).status).toBe(403)
+    expect((await req('/api/admin/reading-access?hours=49', json('GET', undefined, adminToken))).status).toBe(400)
+    const stats = await req('/api/admin/reading-access?hours=24', json('GET', undefined, adminToken))
+    expect(stats.status).toBe(200)
+    expect(stats.headers.get('cache-control')).toBe('private, no-store')
+    const before = await jsonOf<{ byHour: unknown[] }>(stats)
+    expect((await req('/api/chapters/missing-protection-resource', json('GET', undefined, readerToken))).status).toBe(404)
+    const after = await jsonOf<{ byHour: unknown[] }>(await req('/api/admin/reading-access', json('GET', undefined, adminToken)))
+    expect(after.byHour).toEqual(before.byHour)
+    expect(JSON.stringify(after)).not.toContain('subject_hash')
   })
 
   it('验证过程中全站关闭不能留下新授权，重新开放也不会恢复旧授权', async () => {

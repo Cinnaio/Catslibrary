@@ -12,6 +12,7 @@ import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 import { checkContentRate } from '../services/content-rate-limit'
+import { checkChapterProtection } from '../services/reading-access'
 import { chapterIllustrationsRoutes } from './chapter-illustrations'
 import { BOOK_SEARCH_MAX_QUERY } from '@shared/book-search'
 import { parseSearchCursor, searchableChapterText, searchBook } from '../services/book-search'
@@ -104,6 +105,8 @@ chaptersRoutes.get('/:id', optionalUser(), async (c) => {
     const access = await resolveContentAccess(c)
     if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
   }
+  const protection = await checkChapterProtection(c, { chapterId: id, novelId: String(row.novel_id) })
+  if (protection) return protection
   const chapter = rowToChapterFull(row)!
   // Native search navigation reads the exact same visible text used by the search service.
   if (c.req.query('format') === 'text') chapter.content = searchableChapterText(chapter.content)

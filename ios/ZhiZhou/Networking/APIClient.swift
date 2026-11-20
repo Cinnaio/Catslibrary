@@ -102,6 +102,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         return cache
     }()
     private let chapterCacheScope = ChapterCacheScope()
+    private let chapterRequestThrottle = ChapterRequestThrottle()
 
     /// 兼容旧调用，仅清理章节内存缓存。
     func clearMemoryCaches() {
@@ -361,9 +362,36 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await performIdempotent(req, key: idempotencyKey)
+            let isChapterBody = method == "GET" && isReaderChapterPath(path)
+                && url.path.split(separator: "/").count == 3
+            if isChapterBody {
+                let capturedToken = token
+                let throttleScope = url.deletingLastPathComponent().absoluteString + ":" + (capturedToken ?? "guest")
+                var result: (Data, URLResponse)?
+                var waited: TimeInterval = 0
+                for attempt in 0...2 {
+                    try Task.checkCancellation()
+                    guard token == capturedToken else { throw CancellationError() }
+                    if let cacheScope, !(await chapterCacheScope.isCurrent(cacheScope)) { throw CancellationError() }
+                    waited += try await chapterRequestThrottle.wait(scope: throttleScope, maxWait: min(65, 125 - waited))
+                    try Task.checkCancellation()
+                    guard token == capturedToken else { throw CancellationError() }
+                    if let cacheScope, !(await chapterCacheScope.isCurrent(cacheScope)) { throw CancellationError() }
+                    let received = try await performIdempotent(req, key: idempotencyKey)
+                    result = received
+                    guard let http = received.1 as? HTTPURLResponse else { break }
+                    let retry = await chapterRequestThrottle.record(response: http, data: received.0, scope: throttleScope)
+                    if !retry || attempt == 2 { break }
+                }
+                guard let result else { throw APIError.invalidResponse }
+                (data, response) = result
+            } else {
+                (data, response) = try await performIdempotent(req, key: idempotencyKey)
+            }
         } catch is CancellationError {
             throw CancellationError()
+        } catch let APIError.http(status, message) where status == 429 {
+            throw APIError.http(status: status, message: message)
         } catch let error as URLError {
             if error.code == .cancelled || Task.isCancelled {
                 throw CancellationError()

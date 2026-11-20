@@ -17,6 +17,8 @@ export const volatileTables = new Set([
   'api_idempotency',
   'login_failures',
   'content_request_limits',
+  'reading_access_windows',
+  'reading_access_items',
   'account_security_audit',
   'security_counters',
   'security_events',
