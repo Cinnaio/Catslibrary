@@ -24,9 +24,9 @@ vi.mock('./AiCoverPanel', () => ({ default: () => null }))
 vi.mock('./StoryGraphPanel', () => ({ default: () => null }))
 vi.mock('./AiGenerationsPanel', () => ({ default: () => null }))
 vi.mock('./AiWritingPanel', () => ({
-  default: function Writing({ novelId }: { novelId: string }) {
+  default: function Writing({ novelId, showMissingGenerations }: { novelId: string; showMissingGenerations?: boolean }) {
     const [draft, setDraft] = useState('')
-    return <div><span>创作对象：{novelId}</span><textarea aria-label="构思草稿" value={draft} onChange={e => setDraft(e.target.value)} /></div>
+    return <div><span>创作对象：{novelId}</span>{showMissingGenerations && <span>失联草稿视图</span>}<textarea aria-label="构思草稿" value={draft} onChange={e => setDraft(e.target.value)} /></div>
   },
 }))
 vi.mock('@/components/shared/SearchSelect', () => ({ default: (props: {
@@ -60,6 +60,16 @@ function activate(label: string) {
   fireEvent.keyDown(tab, { key: 'Enter' })
 }
 function route() { return new URL(screen.getByTestId('route').textContent!, 'https://workspace.local').searchParams }
+
+it('opens lost drafts without a book and clears the missing-book URL context', async () => {
+  open('sub=writing&view=outputs&novel=missing&batch=old-batch&afterChapterId=old-chapter')
+  fireEvent.click(await screen.findByRole('button', { name: '查看失联草稿' }))
+  expect(route().get('association')).toBe('missing')
+  expect(route().has('novel')).toBe(false)
+  expect(route().has('batch')).toBe(false)
+  expect(route().has('afterChapterId')).toBe(false)
+  expect(screen.getByText('失联草稿视图')).toBeInTheDocument()
+})
 
 beforeEach(() => {
   vi.clearAllMocks()

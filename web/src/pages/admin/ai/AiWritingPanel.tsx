@@ -147,6 +147,7 @@ export default function AiWritingPanel(props: {
   view: WritingView
   novelId: string
   focusBatchId?: string
+  showMissingGenerations?: boolean
   onAfterChapterChange?: (chapterId: string) => void
   onViewBatch?: (batchId?: string, novelId?: string, view?: 'review' | 'outputs') => void
   onOpenGraph?: (novelId: string, afterChapterId?: string) => void
@@ -1184,12 +1185,13 @@ export default function AiWritingPanel(props: {
             </div>
           </div>
           {view !== 'compose' && (
-            novelId ? (
+            novelId || props.showMissingGenerations ? (
               <AiGenerationsPanel
-                key={`${novelId}:${view}`}
+                key={`${novelId}:${view}:${props.showMissingGenerations || false}`}
                 scope="writing"
                 status={view === 'review' ? 'draft' : 'all'}
                 novelId={novelId}
+                initialAssociation={props.showMissingGenerations ? 'missing' : undefined}
                 focusBatchId={props.focusBatchId}
                 refreshToken={!taskActive && task?.novelId === novelId ? `${task.id}:${task.status}` : undefined}
               />

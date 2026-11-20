@@ -4,12 +4,14 @@ import DraftReview from './DraftReview'
 import WritingQualityNotice from './WritingQualityNotice'
 import type { WritingQualityReport } from '@shared/ai-writing-quality'
 import PublishedMemoryUpdate from './PublishedMemoryUpdate'
+import GenerationAssociationDialog from './GenerationAssociationDialog'
+import type { GenerationAssociation } from '@shared/ai-generation-association'
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
 import { ReadingDialog, ReadingDialogDisclosure, ReadingDialogEditor, ReadingDialogText, ReadingDialogToolbar } from '@/components/shared/ReadingDialog'
 import FormField from "@/components/shared/FormField"
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, CirclePlus, CornerDownRight, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, ChevronDown, CirclePlus, CornerDownRight, Link2, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from "@/components/shared/AsyncStates"
@@ -38,6 +40,7 @@ import { useDebouncedValue } from '@/hooks/useDebounce'
 import styles from './AiGenerationDialog.module.css'
 
 interface AiGenerationListItem {
+  association?: GenerationAssociation
   id: string
   kind: string
   model: string
@@ -67,6 +70,8 @@ const EDITABLE_KINDS = new Set(['write_chapter', 'continue', 'write_outline'])
 /** 可改写选段的类型：与后端 POST /writing/drafts/:id/rewrite 的白名单一致。
  *  大纲不作为散文改写，故不在其列。 */
 const REWRITABLE_KINDS = new Set(['write_chapter', 'continue'])
+const canReassociate = (item: AiGenerationListItem) => item.status === 'draft' && EDITABLE_KINDS.has(item.kind) &&
+  (item.association?.state === 'missing' || item.association?.state === 'unassigned')
 
 /** 与样稿一致的五列目录；选择框并入关联内容，模型和时间共用一列。 */
 const AI_GENERATION_COLUMNS: readonly AdminColumn[] = [
@@ -89,12 +94,16 @@ export default function AiGenerationsPanel(props: {
   search?: string
   focusBatchId?: string
   novelId?: string
+  initialAssociation?: 'missing'
   /** 任务结束后刷新列表，保留正在审阅或编辑的草稿。 */
   refreshToken?: string
 }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const configured = useAiConfigured()
+  const navigate = useNavigate()
+  const [associationIds, setAssociationIds] = useState<string[] | null>(null)
+  const [associationFilter, setAssociationFilter] = useState(props.initialAssociation || 'all')
   const [items, setItems] = useState<AiGenerationListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -166,12 +175,12 @@ export default function AiGenerationsPanel(props: {
   // 从任务面板 / 创作页跳转过来时，自动展开对应批次并滚动到可见位置
   useEffect(() => {
     if (!props.focusBatchId) return
-    setExpandedBatchId(props.focusBatchId)
+    setExpandedBatchId(items.find(item => item.batchId === props.focusBatchId)?.id || props.focusBatchId)
     const timer = setTimeout(() => {
       document.querySelector(`[data-focus-batch="${props.focusBatchId}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
     }, 120)
     return () => clearTimeout(timer)
-  }, [props.focusBatchId])
+  }, [props.focusBatchId, items])
 
   const load = useCallback(async () => {
     const version = ++requestVersion.current
@@ -179,6 +188,7 @@ export default function AiGenerationsPanel(props: {
     try {
       const res = await aiApi.generations({
         groupBatches: true,
+        association: associationFilter === 'missing' ? 'missing' : undefined,
         novelId: props.novelId || undefined,
         kind: filterKind === 'all' ? undefined : filterKind,
         scope: props.scope,
@@ -203,7 +213,7 @@ export default function AiGenerationsPanel(props: {
       const filtered = res.items.filter((item) => allowedKinds.has(item.kind))
       const groups = new Map<string, AiGenerationListItem[]>()
       for (const item of filtered) {
-        const key = item.kind === 'continue' && item.batchId ? item.batchId : item.id
+        const key = item.kind === 'continue' && item.batchId ? `${item.novelId.length}:${item.novelId}:batch:${item.batchId}` : item.id
         const group = groups.get(key) || []
         group.push(item)
         groups.set(key, group)
@@ -232,7 +242,7 @@ export default function AiGenerationsPanel(props: {
     } finally {
       if (version === requestVersion.current) setLoading(false)
     }
-  }, [filterKind, filterStatus, query, limit, offset, props.scope, props.status, props.novelId])
+  }, [associationFilter, filterKind, filterStatus, query, limit, offset, props.scope, props.status, props.novelId])
 
   useEffect(() => {
     void load()
@@ -470,11 +480,22 @@ export default function AiGenerationsPanel(props: {
     { value: 'rejected', label: '已拒绝' },
   ]
 
-  const hasActiveFilter = Boolean(search || (props.status === 'all' && filterStatus !== 'all') || filterKind !== 'all')
+  const hasActiveFilter = Boolean(search || associationFilter !== 'all' || (props.status === 'all' && filterStatus !== 'all') || filterKind !== 'all')
+  const selectedRecords = items.flatMap(item => item.groupItems || [item]).filter(item => selectedIds.has(item.id))
+  const reassociateSelected = selectedRecords.length > 0 && selectedRecords.every(canReassociate)
   const batchChapters = viewingBatch?.groupItems || []
 
   return (
     <div className="ai-service-stack">
+      {associationIds && <GenerationAssociationDialog ids={associationIds} onClose={() => setAssociationIds(null)} onApplied={(novelId, count) => {
+        setAssociationIds(null)
+        setViewing(null)
+        setViewingBatch(null)
+        setAssociationFilter('all')
+        toast(`已将 ${count} 条草稿重新关联到作品`, 'success')
+        if (props.novelId || props.initialAssociation === 'missing') navigate(`/admin/ai?sub=writing&view=outputs&novel=${encodeURIComponent(novelId)}`)
+        void load()
+      }} />}
       {memoryUpdate && <PublishedMemoryUpdate key={memoryUpdate.key} novelId={memoryUpdate.novelId} novelTitle={memoryUpdate.novelTitle} autoStart={memoryUpdate.autoStart} onClose={() => setMemoryUpdate(null)} />}
       {/* Claude 风格单层控制流：搜索框与多维状态/类型胶囊外置于统一胶囊轨道 */}
       <AdminToolbar layout="inline" className="admin-filter-rail ai-generations-filter-rail" ariaLive="polite">
@@ -491,6 +512,9 @@ export default function AiGenerationsPanel(props: {
           }}
         />
         <div className="select-filter-chips">
+          {props.scope !== 'reader' && <SearchSelect compact chip filterChip aria-label="按作品关联筛选生成内容"
+            value={associationFilter} onChange={value => { setAssociationFilter(value); setOffset(0) }}
+            options={[{ value: 'all', label: '全部关联' }, { value: 'missing', label: '关联失效' }]} />}
           {props.status === 'all' && (
             <SearchSelect
               compact
@@ -529,6 +553,7 @@ export default function AiGenerationsPanel(props: {
                 setSearch('')
                 if (props.status === 'all') setFilterStatus('all')
                 setFilterKind('all')
+                setAssociationFilter('all')
                 setOffset(0)
               }}
             >
@@ -564,6 +589,7 @@ export default function AiGenerationsPanel(props: {
         clearLabel="取消选择"
         clearPlacement="actions"
       >
+        {reassociateSelected && <Button variant="outline" size="sm" disabled={batchDeleting} onClick={() => setAssociationIds(selectedRecords.map(item => item.id))}>重新关联作品</Button>}
         <Button variant="destructive" size="sm" className="ai-generation-delete" disabled={!selectedCount || batchDeleting} onClick={() => void removeSelected()}>
           {batchDeleting ? '正在删除…' : '删除所选'}
         </Button>
@@ -631,7 +657,7 @@ export default function AiGenerationsPanel(props: {
                             />
                             <div className={styles.relatedContent}>
                               <div className={styles.titleLine}>
-                                {item.novelId ? (
+                                {item.novelId && item.association?.state !== 'missing' ? (
                                   <Link
                                     to={`/novel/${encodeURIComponent(item.novelId)}`}
                                     className="ai-generation-related__title"
@@ -640,8 +666,10 @@ export default function AiGenerationsPanel(props: {
                                     {item.novelTitle || <span className="text-muted-foreground">—</span>}
                                   </Link>
                                 ) : (
-                                  <div className="ai-generation-related__title">{item.novelTitle || <span className="text-muted-foreground">—</span>}</div>
+                                  <div className="ai-generation-related__title">{item.novelTitle || item.association?.source.title || <span className="text-muted-foreground">原作品信息未保存</span>}</div>
                                 )}
+                                {item.association?.state === 'missing' && <AdminStatusBadge tone="warning">关联失效</AdminStatusBadge>}
+                                {item.association?.state === 'unassigned' && EDITABLE_KINDS.has(item.kind) && <AdminStatusBadge tone="muted">未关联作品</AdminStatusBadge>}
                                 {item.groupItems && (
                                   <Button
                                     variant="ghost"
@@ -713,6 +741,8 @@ export default function AiGenerationsPanel(props: {
                             label={item.draftTitle || item.chapterTitle || item.novelTitle || '生成记录'}
                             className="justify-end"
                             items={[
+                              ...((item.groupItems || [item]).every(canReassociate) ? [{ label: '重新关联作品', icon: Link2,
+                                onSelect: () => setAssociationIds((item.groupItems || [item]).map(chapter => chapter.id)) }] : []),
                               ...(REWRITABLE_KINDS.has(item.kind) && item.novelId && (item.groupItems ? item.groupItems.some(chapter => chapter.status === 'published') : item.status === 'published')
                                 ? [
                                     {
@@ -743,7 +773,7 @@ export default function AiGenerationsPanel(props: {
                                     variant="secondary"
                                     size="sm"
                                     className="content-ratings-edit-button shrink-0"
-                                    disabled={publishingBatchId === item.batchId}
+                                    disabled={publishingBatchId === item.batchId || item.association?.state === 'missing'}
                                     onClick={() => void publishBatch(item)}
                                   >
                                     {publishingBatchId === item.batchId ? '发布中…' : '整批发布'}
@@ -967,7 +997,7 @@ export default function AiGenerationsPanel(props: {
               </FormField>
               <Button
                 className={styles.publishSubmit}
-                disabled={publishing || generatingTitles || !publishTitle.trim()}
+                disabled={publishing || generatingTitles || !publishTitle.trim() || viewing.association?.state === 'missing' || viewing.association?.state === 'unassigned'}
                 onClick={() => void publish(viewing)}
               >
                 {publishing ? '发布中…' : '发布为正式章节'}
@@ -1023,6 +1053,18 @@ export default function AiGenerationsPanel(props: {
           )}
           {viewing && (
             <>
+              {canReassociate(viewing) && <ReadingDialogToolbar label={viewing.association?.state === 'missing' ? '原作品关联已失效' : '草稿尚未关联作品'}
+                actions={<Button variant="outline" size="sm" onClick={() => { setAssociationIds([viewing.id]); setViewing(null); setViewingBatch(null) }}>重新关联作品</Button>} />}
+              {!!viewing.association?.revision && <p className={styles.help}>作品已重新关联。重新检查将参考当前作品的末章；继续创作前请重新选择续写起点。</p>}
+              {viewing.association && (viewing.association.source.title || viewing.association.history.length > 0) &&
+                <ReadingDialogDisclosure label="作品来源与关联记录">
+                  {[
+                    `来源作品：${viewing.association.source.title || '旧记录未保存书名'}`,
+                    viewing.association.source.author && `作者：${viewing.association.source.author}`,
+                    viewing.association.source.anchor?.title && `原续写起点：${viewing.association.source.anchor.title}`,
+                    ...viewing.association.history.map(change => `${new Date(change.createdAt).toLocaleString('zh-CN')} · 重新关联到《${change.target.title}》${change.target.author ? ` · ${change.target.author}` : ''}`),
+                  ].filter(Boolean).join('\n')}
+                </ReadingDialogDisclosure>}
               {/* 中间区是唯一的滚动所有者，发布区常驻可见 */}
               {viewingBatch && (
                 <ReadingDialogToolbar
@@ -1101,7 +1143,7 @@ export default function AiGenerationsPanel(props: {
 
               {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
                 <>
-                  <DraftReview draftId={viewing.id} contentRevision={viewing.contentRevision || ''} disabled={publishing} />
+                  <DraftReview draftId={viewing.id} contentRevision={viewing.contentRevision || ''} disabled={publishing || viewing.association?.state === 'missing' || viewing.association?.state === 'unassigned'} />
                   <DraftRewrite
                     draftId={viewing.id}
                     content={viewing.result}

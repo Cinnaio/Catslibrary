@@ -32,6 +32,7 @@ export interface ReviewFinding {
   evidence: Array<{ sourceId: string; quote: string }>
 }
 export interface WritingReview {
+  associationRevision?: number
   draftRevision: string
   inputHash: string
   findings: ReviewFinding[]
@@ -78,7 +79,7 @@ export async function getWritingReview(db: Db, draft: GenerationRow): Promise<Re
   if (record.report) {
     const report = record.report
     const current = await reviewSourcesCurrent(db, draft.novel_id, report.sources, report.anchorId).catch(() => false)
-    record.report = { ...report, stale: draft.status !== 'draft' || report.draftRevision !== generationContentRevision(draft.result) || !current }
+    record.report = { ...report, stale: draft.status !== 'draft' || (report.associationRevision || 0) !== (draft.association_revision || 0) || report.draftRevision !== generationContentRevision(draft.result) || !current }
   }
   if (record.attempt?.status === 'running' && Number(latest?.lease_until || 0) < Date.now()) {
     record.attempt = { ...record.attempt, status: 'failed', retryable: true, code: 'interrupted', message: '上次质量检查未完成，可以重试。' }
@@ -228,7 +229,7 @@ export async function reviewWritingDraft(
   ].filter(source => source.text.trim()).map(source => ({ ...source, fingerprint: hash(source.text), authorRequirement: true as const })) : []
   sources.push(...authorSources)
   if (!sources.length) throw new AiError('invalid', '没有可核对的已发布正文或有效小说分析，请先准备故事材料', 422)
-  const inputHash = hash(JSON.stringify({ version: authorSources.length ? 3 : 2, draftRevision, sources }))
+  const inputHash = hash(JSON.stringify({ version: authorSources.length ? 3 : 2, draftRevision, sources, ...(draft.association_revision ? { associationRevision: draft.association_revision } : {}) }))
   const previous = await first<{ status: string; report_json: string }>(
     db,
     'SELECT status, report_json FROM ai_writing_reviews WHERE draft_id = $1 AND input_hash = $2',
@@ -240,6 +241,8 @@ export async function reviewWritingDraft(
       !current ||
       current.status !== 'draft' ||
       current.deleted_at ||
+      current.novel_id !== draft.novel_id ||
+      (current.association_revision || 0) !== (draft.association_revision || 0) ||
       generationContentRevision(current.result) !== draftRevision ||
       !(await reviewSourcesCurrent(db, draft.novel_id, sources, snapshot?.anchor.chapterId))
     )
@@ -309,11 +312,11 @@ export async function reviewWritingDraft(
     attempt.stage = 'validating'
     const parsed = parseReview(response.text, draft.result, sources)
     const current = await first<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE id = $1', [draft.id])
-    if (!current || current.deleted_at || current.status !== 'draft' || generationContentRevision(current.result) !== draftRevision)
+    if (!current || current.deleted_at || current.status !== 'draft' || current.novel_id !== draft.novel_id || (current.association_revision || 0) !== (draft.association_revision || 0) || generationContentRevision(current.result) !== draftRevision)
       throw new AiError('conflict', '草稿在检查期间已变化，本次检查已失效', 409)
     if (!(await reviewSourcesCurrent(db, draft.novel_id, sources, snapshot?.anchor.chapterId)))
       throw new AiError('conflict', '来源正文或分析报告在检查期间已变化，请重新检查', 409)
-    const report: WritingReview = { draftRevision, inputHash, ...parsed, sources, updatedAt: Date.now(), anchorId: snapshot?.anchor.chapterId }
+    const report: WritingReview = { draftRevision, inputHash, ...parsed, sources, updatedAt: Date.now(), anchorId: snapshot?.anchor.chapterId, associationRevision: draft.association_revision || 0 }
     retainedReport = report
     attempt.stage = 'saving'
     await persistAttempt(parsed.completeness === 'partial' ? 'partial' : 'completed')

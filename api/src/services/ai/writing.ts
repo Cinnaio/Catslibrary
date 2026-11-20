@@ -11,6 +11,7 @@ import { newId } from '../auth'
 import { chat, chatStream, isTextAiConfigured, providerLabel, textProvider, AiError, type AiChatOptions } from './client'
 import { createTextProgressReporter } from './text-progress'
 import { saveGeneration, generationContentRevision, type Generation, type BatchDraft } from './generations'
+import { captureBookSnapshot } from './generation-book-snapshot'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 import { getAiSettings } from './settings'
@@ -753,6 +754,8 @@ export async function generateWriting(db: Db, opts: {
   const contentPreferencesResult = validateWritingContentPreferences(opts.contentPreferences)
   if (contentPreferencesResult.error) throw new AiError('invalid', contentPreferencesResult.error, 422)
   const contentPreferences = contentPreferencesResult.preferences || { ...DEFAULT_WRITING_CONTENT_PREFERENCES }
+  const bookSnapshot = await captureBookSnapshot(db, opts.novelId, JSON.stringify({ continuationSnapshot: opts.continuationSnapshot }))
+  bookSnapshot.title = opts.title || bookSnapshot.title
   const provider = textProvider()
   const settings = await getAiSettings(db)
   const analysisReferences = opts.continuationSnapshot?.analysisReferences || []
@@ -860,6 +863,7 @@ export async function generateWriting(db: Db, opts: {
       if (!['queued', 'running'].includes(active.rows[0]?.status || '')) throw new AiError('invalid', '任务已停止')
       if (!await isAiTaskActive({ query: q }, taskId)) throw new AiError('invalid', '任务租约已失效')
       return saveGeneration({ query: q }, {
+      bookSnapshot,
       novelId: opts.novelId,
       chapterId: '',
       kind: opts.kind,

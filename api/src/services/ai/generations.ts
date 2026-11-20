@@ -8,6 +8,8 @@ import { assessWritingQuality, type WritingQualityReport } from '@shared/ai-writ
 import type { Db, DbClient } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
+import type { GenerationAssociation, GenerationBookSnapshot } from '@shared/ai-generation-association'
+import { captureBookSnapshot, generationAssociation, readBookSnapshot } from './generation-book-snapshot'
 
 /** 删除/发布撤销窗口（毫秒）：10 秒内可通过 restore/unpublish 恢复。 */
 export const UNDO_WINDOW_MS = 10_000
@@ -28,6 +30,9 @@ export interface GenerationRow {
   created_by: string
   created_at: number
   deleted_at?: number
+  book_snapshot_json?: string
+  association_revision?: number
+  association_history_json?: GenerationAssociation['history']
 }
 
 export function latestPublishedChapter(db: DbClient, novelId: string) {
@@ -104,6 +109,7 @@ export async function findPublished(db: Db, kind: GenerationKind, chapterId: str
 }
 
 export interface SaveGenerationInput {
+  bookSnapshot?: GenerationBookSnapshot
   novelId: string
   chapterId: string
   kind: GenerationKind
@@ -118,10 +124,11 @@ export interface SaveGenerationInput {
 export async function saveGeneration(db: DbClient, input: SaveGenerationInput): Promise<Generation> {
   const id = newId('aigen')
   const createdAt = Date.now()
+  const snapshot = input.bookSnapshot || await captureBookSnapshot(db, input.novelId || '', input.paramsJson, input.chapterId)
   await run(
     db,
-    `INSERT INTO ai_generations (id, novel_id, chapter_id, kind, model, params_json, prompt, result, status, created_by, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    `INSERT INTO ai_generations (id, novel_id, chapter_id, kind, model, params_json, prompt, result, status, created_by, created_at, book_snapshot_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     [
       id,
       input.novelId || '',
@@ -134,6 +141,7 @@ export async function saveGeneration(db: DbClient, input: SaveGenerationInput): 
       input.status,
       input.createdBy || '',
       createdAt,
+      JSON.stringify(snapshot),
     ],
   )
   const quality = generationWritingQuality(input.kind, input.result, input.paramsJson)
@@ -160,6 +168,7 @@ export async function listGenerations(db: Db, opts: { status?: string; limit?: n
 }
 
 export interface GenerationDetail extends Generation {
+  association: GenerationAssociation
   /** 续写时选定的情节，与生成正文及完整提示词分开。 */
   plotDirection?: string
   novelTitle: string
@@ -265,6 +274,7 @@ export async function listTaskGenerations(db: Db, taskId: string, novelId?: stri
     })
     .map((row) => ({
       ...rowToGeneration(row),
+      association: generationAssociation(row),
       novelTitle: String(row.novel_title || ''),
       chapterTitle: String(row.chapter_title || ''),
       ...batchFields(row.params_json),
@@ -280,13 +290,14 @@ export async function listTaskGenerations(db: Db, taskId: string, novelId?: stri
 /** 「已生成内容」管理列表：带小说/章节标题、行数与分页。 */
 export async function listGenerationDetails(
   db: Db,
-  opts: { q?: string; novelId?: string; kind?: string; kinds?: string[]; status?: string; limit?: number; offset?: number; groupBatches?: boolean } = {},
+  opts: { q?: string; novelId?: string; kind?: string; kinds?: string[]; status?: string; limit?: number; offset?: number; groupBatches?: boolean; association?: string } = {},
 ): Promise<{ items: GenerationDetail[]; total: number }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
   const offset = Math.max(Math.trunc(opts.offset || 0), 0)
 
   const conditions: string[] = []
   const params: unknown[] = []
+  if (opts.association === 'missing') conditions.push("g.novel_id <> '' AND n.id IS NULL")
   if (opts.novelId) {
     params.push(opts.novelId)
     conditions.push(`g.novel_id = $${params.length}`)
@@ -312,7 +323,7 @@ export async function listGenerationDetails(
     const parameter = `$${params.length}`
     // POSITION performs a literal search, so user-entered % and _ are not wildcards.
     conditions.push(
-      `(POSITION(LOWER(${parameter}) IN LOWER(COALESCE(n.title, ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(COALESCE(c.title, ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(g.result)) > 0)`,
+      `(POSITION(LOWER(${parameter}) IN LOWER(COALESCE(n.title, g.book_snapshot_json::jsonb->>'title', ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(COALESCE(c.title, ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(g.result)) > 0)`,
     )
   }
   conditions.push('g.deleted_at = 0')
@@ -323,7 +334,7 @@ export async function listGenerationDetails(
   // 仅续写参与合并，独立产物使用不同前缀，防止 batchId 与记录 id 碰撞。
   const groupKey = `CASE WHEN g.kind = 'continue'
     AND NULLIF(SUBSTRING(g.params_json FROM '"batchId"[[:space:]]*:[[:space:]]*"([[:alnum:]_-]+)"'), '') IS NOT NULL
-    THEN 'batch:' || SUBSTRING(g.params_json FROM '"batchId"[[:space:]]*:[[:space:]]*"([[:alnum:]_-]+)"')
+    THEN length(g.novel_id)::text || ':' || g.novel_id || ':batch:' || SUBSTRING(g.params_json FROM '"batchId"[[:space:]]*:[[:space:]]*"([[:alnum:]_-]+)"')
     ELSE 'item:' || g.id END`
   if (opts.groupBatches) {
     // 先筛选，再按合集分页；一页可以返回超过 limit 条章节，但只有 limit 个目录项。
@@ -352,6 +363,7 @@ export async function listGenerationDetails(
     return {
       items: rows.map((row) => ({
         ...rowToGeneration(row),
+        association: generationAssociation(row),
         novelTitle: String(row.novel_title || ''),
         chapterTitle: String(row.chapter_title || ''),
         ...batchFields(row.params_json),
@@ -383,6 +395,7 @@ export async function listGenerationDetails(
   return {
     items: rows.map((r) => ({
       ...rowToGeneration(r),
+      association: generationAssociation(r),
       novelTitle: String(r.novel_title || ''),
       chapterTitle: String(r.chapter_title || ''),
       ...batchFields(r.params_json),
@@ -422,7 +435,8 @@ async function continuationDirections(db: Db, rows: GenerationRow[]): Promise<Ma
     [[...new Set(pending.map((item) => item.taskId).filter(Boolean))], [...new Set(pending.map((item) => item.batchId).filter(Boolean))]],
   )
   for (const item of pending) {
-    const task = tasks.find((task) => task.novel_id === item.row.novel_id && (item.taskId ? task.id === item.taskId : task.batch_id === item.batchId))
+    const originalNovelId = readBookSnapshot(item.row.book_snapshot_json, item.row.novel_id).novelId
+    const task = tasks.find((task) => (task.novel_id === item.row.novel_id || task.novel_id === originalNovelId) && (item.taskId ? task.id === item.taskId : task.batch_id === item.batchId))
     if (!task) continue
     try {
       const request = JSON.parse(task.params) as Record<string, unknown>
@@ -505,6 +519,7 @@ export async function getGenerationDetail(db: Db, id: string): Promise<Generatio
   if (!row) return undefined
   return {
     ...rowToGeneration(row),
+    association: generationAssociation(row),
     novelTitle: String(row.novel_title || ''),
     chapterTitle: String(row.chapter_title || ''),
     ...batchFields(row.params_json),

@@ -72,7 +72,7 @@ export default function AiWritingWorkspace({ model, active = true, defaultView =
       next.set('view', view)
       if (id) next.set('novel', id)
       else next.delete('novel')
-      for (const key of ['report', 'batch', 'afterChapterId']) next.delete(key)
+      for (const key of ['report', 'batch', 'afterChapterId', 'association']) next.delete(key)
       return next
     })
   }
@@ -115,7 +115,13 @@ export default function AiWritingWorkspace({ model, active = true, defaultView =
             </FormField>
             <p className={styles.bookMeta}>{selectedNovel
               ? [selectedNovel.author || '未知作者', selectedNovel.chapterCount.toLocaleString('zh-CN') + ' 章已入库'].join(' · ')
-              : '选择一本作品开始续写，或在下方切换新写。'}</p>
+              : novelId && !loading ? '原作品关联已失效，可在下方重新关联草稿。' : '选择一本作品开始续写，或在下方切换新写。'}</p>
+            <Button variant="ghost" size="sm" onClick={() => setParams(current => {
+              const next = new URLSearchParams(current)
+              next.set('sub', 'writing'); next.set('view', 'outputs'); next.set('association', 'missing')
+              for (const key of ['novel', 'batch', 'report', 'afterChapterId']) next.delete(key)
+              return next
+            })}>查看失联草稿</Button>
           </div>
         </div>
         <div className={styles.navigation}>
@@ -138,6 +144,7 @@ export default function AiWritingWorkspace({ model, active = true, defaultView =
           active={active && view !== 'analysis'}
           novelId={novelId} view={writingView} model={model}
           focusBatchId={params.get('batch') || undefined}
+          showMissingGenerations={params.get('association') === 'missing'}
           initialAfterChapterId={params.get('afterChapterId') || undefined}
           onAfterChapterChange={chapterId => setParams(current => {
             const next = new URLSearchParams(current)
@@ -151,6 +158,7 @@ export default function AiWritingWorkspace({ model, active = true, defaultView =
             setParams(current => {
               const next = new URLSearchParams(current)
               next.set('sub', 'writing'); next.set('view', nextView)
+              next.delete('association')
               if (targetNovelId) next.set('novel', targetNovelId)
               if (targetNovelId && targetNovelId !== current.get('novel')) {
                 next.delete('report'); next.delete('afterChapterId')

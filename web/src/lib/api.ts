@@ -1,4 +1,5 @@
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
+import type { GenerationAssociation, GenerationAssociationPreview, GenerationAssociationRequest } from '@shared/ai-generation-association'
 import type { ChallengeConfiguration, SecurityAction } from '@shared/security'
 import { requestSecurityChallenge } from './security-challenge'
 import { withChapterRetry } from './chapter-retry'
@@ -2804,6 +2805,7 @@ export const aiApi = {
   generations(
     filters: {
       groupBatches?: boolean
+      association?: 'missing'
       q?: string
       novelId?: string
       kind?: 'summary' | 'catchup' | 'continue' | 'write_outline' | 'write_chapter'
@@ -2815,6 +2817,7 @@ export const aiApi = {
   ): Promise<{
     items: Array<{
       plotDirection?: string
+      association?: GenerationAssociation
       id: string
       novelId: string
       novelTitle: string
@@ -2842,6 +2845,7 @@ export const aiApi = {
   }> {
     const params = new URLSearchParams()
     if (filters.groupBatches) params.set('groupBatches', 'true')
+    if (filters.association) params.set('association', filters.association)
     if (filters.q) params.set('q', filters.q.trim().slice(0, 100))
     if (filters.novelId) params.set('novelId', filters.novelId)
     if (filters.kind) params.set('kind', filters.kind)
@@ -2852,8 +2856,15 @@ export const aiApi = {
     return request('GET', `/ai/generations?${params}`, null, true)
   },
   /** 单条生成详情：改写/保存后用它取权威的 result 与 contentRevision。 */
+  previewGenerationAssociation(input: GenerationAssociationRequest): Promise<GenerationAssociationPreview> {
+    return request('POST', '/ai/generations/association/preview', input, true)
+  },
+  confirmGenerationAssociation(input: GenerationAssociationRequest & { revision: string }, operationId: string): Promise<{ ok: boolean; count: number; novelId: string }> {
+    return request('POST', '/ai/generations/association/confirm', { ...input, operationId }, true, operationHeaders(operationId))
+  },
   generation(id: string): Promise<{
     item: {
+      association?: GenerationAssociation
       id: string
       novelId: string
       novelTitle: string

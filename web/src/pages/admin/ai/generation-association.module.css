@@ -1,0 +1,13 @@
+.content,
+.preview { display: grid; gap: 24px; min-width: 0; }
+.batchChoice { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 14px; }
+.batchChoice > button { flex-shrink: 0; }
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.target { margin: 0; font-size: 16px; color: var(--text-primary); overflow-wrap: anywhere; }
+.note { margin: 0; font-size: 12px; line-height: 1.7; color: var(--text-muted); overflow-wrap: anywhere; }
+.records { display: grid; gap: 16px; padding: 0; margin: 0; list-style: none; }
+.records > li { display: grid; gap: 4px; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .actions > button { min-height: 48px; }
+  .batchChoice { min-height: 48px; }
+}

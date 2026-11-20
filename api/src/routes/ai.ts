@@ -1,4 +1,5 @@
 import { chapterEditRoutes } from './ai-chapter-edit'
+import { generationAssociationRoutes } from './ai-generation-association'
 import type { AnalysisReferenceSelection } from '@shared/novel-analysis'
 import { getAnalysisReferences, listAnalysisReferences, parseAnalysisReferenceSelections } from '../services/ai/analysis-reference'
 import { taskStreamResponse } from '../services/ai/task-stream'
@@ -105,6 +106,7 @@ aiRoutes.use('*', (c, next) => {
 })
 
 aiRoutes.route('/writing/chapter-edits', chapterEditRoutes)
+aiRoutes.route('/generations/association', generationAssociationRoutes)
 
 function presetErrorResponse(c: Context, err: unknown) {
   if (err instanceof SyntaxError) return c.json({ error: '配置格式无效', code: 'invalid' }, 400)
@@ -1314,10 +1316,10 @@ aiRoutes.post('/writing/drafts/:id/review', requireAdmin(), withAiResponseStream
     }
     const frozen = parseContinuationSnapshot(taskParams.continuationSnapshot)
     const brief = validateWritingBrief(taskParams.writingBrief, Number(taskParams.chapterCount) || 1).brief
-    const snapshot = taskParams.analysisContextVersion === 2 && taskParams.afterChapterId === null ? undefined : await buildContinuationSnapshot(
+    const snapshot = !draft.association_revision && taskParams.analysisContextVersion === 2 && taskParams.afterChapterId === null ? undefined : await buildContinuationSnapshot(
       db,
       draft.novel_id,
-      frozen?.anchor.chapterId || String(taskParams.afterChapterId || '').trim() || undefined,
+      draft.association_revision ? undefined : frozen?.anchor.chapterId || String(taskParams.afterChapterId || '').trim() || undefined,
       frozen?.contentPreferences,
       brief,
       [String(taskParams.instruction || ''), draft.result].join('\n'),
@@ -2323,7 +2325,7 @@ aiRoutes.get('/generations', requireAdmin(), async (c) => {
 
   const groupBatches = c.req.query('groupBatches') === 'true'
   const novelId = c.req.query('novelId')?.trim().slice(0, 200)
-  const { items, total } = await listGenerationDetails(db, { q: c.req.query('q'), novelId, kind, kinds: scopedKinds, status, limit, offset, groupBatches })
+  const { items, total } = await listGenerationDetails(db, { q: c.req.query('q'), novelId, kind, kinds: scopedKinds, status, limit, offset, groupBatches, association: c.req.query('association') })
   return c.json({ items, total, limit, offset, novelId: novelId || null }, 200, { 'Cache-Control': 'no-store' })
 })
 

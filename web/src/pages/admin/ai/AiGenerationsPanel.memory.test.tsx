@@ -123,3 +123,14 @@ it('does not show unrelated drafts when an older server ignores the novel filter
   expect(screen.queryByText('其他作品')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '审阅' })).not.toBeInTheDocument()
 })
+
+it('shows lost-book evidence without a broken link and offers bulk repair while keeping different books in separate batches', async () => {
+  const missing = (id: string, novelId: string) => ({ ...chapter(id), novelId, novelTitle: '',
+    association: { state: 'missing' as const, revision: 0, history: [], source: { novelId, title: `原书名${id}`, author: '原作者', sourceUrl: '' } } })
+  open([missing('first', 'old-one'), missing('second', 'old-two')])
+  await waitFor(() => expect(screen.getAllByRole('button', { name: '审阅' })).toHaveLength(2))
+  expect(screen.getAllByText('关联失效')).toHaveLength(2)
+  expect(screen.getByText('原书名first').closest('a')).toBeNull()
+  fireEvent.click(screen.getByRole('checkbox', { name: '全选当前列表' }))
+  expect(await screen.findByRole('button', { name: '重新关联作品' })).toBeEnabled()
+})

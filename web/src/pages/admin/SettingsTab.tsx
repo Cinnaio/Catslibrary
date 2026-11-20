@@ -440,6 +440,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       'ai.task.cancel': '终止 AI 任务',
       'ai.task.retry': '重试 AI 任务',
       'ai.generations.batch-delete': '删除 AI 生成内容',
+      'ai.generations.reassociate': '重新关联 AI 创作草稿',
       'ai.cover.adopt': '采纳 AI 封面',
       'ai.cover.upload': '上传并覆盖封面',
       'ai.cover.generate': '生成 AI 封面',
