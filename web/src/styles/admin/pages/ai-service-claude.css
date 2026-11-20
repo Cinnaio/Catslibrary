@@ -791,21 +791,6 @@
   font-size: 0.75rem;
   font-weight: 400;
 }
-.ai-service .ai-generation-identity {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.ai-service .ai-generation-identity > button {
-  flex-shrink: 0;
-}
-.ai-service .ai-generation-classification {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
 .ai-service .ai-generation-row [data-actions] {
   height: auto;
   overflow: visible;
@@ -826,10 +811,6 @@
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-}
-.ai-service .ai-generation-sort-hint {
-  color: var(--text-muted, #736d65);
-  font-size: 0.775rem;
 }
 .ai-service .ai-generation-row td {
   padding: 0.875rem 1.25rem;
@@ -860,56 +841,6 @@
 }
 .ai-service .ai-generation-row .ai-generation-related__title:hover {
   color: var(--accent);
-}
-/* 展开按钮胶囊：Claude 风格温润药丸与微型展开指示 */
-.ai-service .ai-generation-expand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.15rem 0.55rem;
-  height: 1.5rem;
-  min-height: 1.5rem;
-  border-radius: var(--radius-control) !important;
-  background: var(--admin-panel-muted, #f8f7f3);
-  border: 1px solid var(--admin-border, #e5e3dc);
-  color: var(--text-muted, #736d65);
-  font-size: 0.75rem;
-  font-weight: 550;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-:root[data-theme='dark'] .ai-service .ai-generation-expand,
-[data-theme='dark'] .ai-service .ai-generation-expand {
-  background: var(--admin-panel-muted, #23221f);
-  border-color: var(--admin-border, #2a2825);
-  color: var(--text-muted, #9a938a);
-}
-.ai-service .ai-generation-expand:hover {
-  background: var(--hover-tint, #f5f2ee);
-  border-color: var(--admin-accent, #d97757);
-  color: var(--admin-accent, #d97757);
-}
-:root[data-theme='dark'] .ai-service .ai-generation-expand:hover,
-[data-theme='dark'] .ai-service .ai-generation-expand:hover {
-  background: var(--admin-panel, #1c1b18);
-  border-color: var(--admin-accent, #d97757);
-  color: var(--admin-accent, #d97757);
-}
-.ai-service .ai-generation-expand--active {
-  background: color-mix(in srgb, var(--admin-accent, #d97757) 10%, transparent);
-  border-color: color-mix(in srgb, var(--admin-accent, #d97757) 40%, transparent);
-  color: var(--admin-accent, #d97757);
-}
-:root[data-theme='dark'] .ai-service .ai-generation-expand--active,
-[data-theme='dark'] .ai-service .ai-generation-expand--active {
-  background: color-mix(in srgb, var(--admin-accent, #d97757) 16%, transparent);
-  border-color: color-mix(in srgb, var(--admin-accent, #d97757) 50%, transparent);
-  color: #e58b70;
-}
-.ai-service .ai-generation-title-line {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
 }
 .ai-service .ai-generation-delete {
   height: 2rem;
@@ -987,72 +918,6 @@
   background: rgba(255, 255, 255, 0.035);
 }
 
-/* 子行第 1 列：层级缩进 + 树状折线分支 + 选择框 + 章节编号胶囊 + 章节名 */
-.ai-service .ai-generation-child-identity {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding-left: 0.75rem;
-  min-width: 0;
-}
-
-.ai-service .ai-generation-child-tree {
-  width: 0.875rem;
-  height: 0.875rem;
-  flex-shrink: 0;
-  color: var(--text-muted, #8c877e);
-  opacity: 0.7;
-}
-
-:root[data-theme='dark'] .ai-service .ai-generation-child-tree,
-[data-theme='dark'] .ai-service .ai-generation-child-tree {
-  color: #7d776f;
-}
-
-.ai-service .ai-generation-child-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-width: 0;
-}
-
-.ai-service .ai-generation-child-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.08rem 0.45rem;
-  border-radius: 4px;
-  background: var(--admin-panel, #ffffff);
-  border: 1px solid var(--admin-border, #e5e3dc);
-  color: var(--text-muted, #736d65);
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-:root[data-theme='dark'] .ai-service .ai-generation-child-index,
-[data-theme='dark'] .ai-service .ai-generation-child-index {
-  background: var(--bg-secondary);
-  border-color: #2e2c28;
-  color: #9a938a;
-}
-
-.ai-service .ai-generation-child-title {
-  font-weight: 550;
-  font-size: 0.8125rem;
-  color: var(--text-primary, #211e1a);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-:root[data-theme='dark'] .ai-service .ai-generation-child-title,
-[data-theme='dark'] .ai-service .ai-generation-child-title {
-  color: var(--dark-text, #e7e0d6);
-}
-
 /* 子行第 3 列：单行紧凑摘要 */
 .ai-service .ai-generation-preview--child {
   -webkit-line-clamp: 1 !important;
@@ -1064,24 +929,6 @@
   color: var(--text-muted);
 }
 
-/* 子行第 4 列：字数指示 + 模型时间 */
-.ai-service .ai-generation-child-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.ai-service .ai-generation-child-words {
-  font-size: 0.725rem;
-  font-weight: 550;
-  color: var(--text-muted, #736d65);
-}
-
-:root[data-theme='dark'] .ai-service .ai-generation-child-stats .ai-generation-child-words,
-[data-theme='dark'] .ai-service .ai-generation-child-stats .ai-generation-child-words {
-  color: #8c877e;
-}
-
 /* 子行第 5 列：微型药丸操作组 */
 .ai-service .ai-generation-row--child [data-slot='button'] {
   height: 1.75rem;
@@ -1090,11 +937,6 @@
   padding-inline: 0.625rem;
 }
 
-.ai-service .ai-generation-help {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 12px;
-}
 @media (max-width: 900px) {
   .ai-service .ai-generation-heading {
     align-items: flex-start;
@@ -1110,13 +952,6 @@
   .ai-service .ai-generation-row > td:nth-last-child(2),
   .ai-service .ai-generation-row > td[data-actions] {
     border-bottom: 0;
-  }
-  .ai-service .ai-generation-row .ai-generation-identity {
-    justify-content: flex-start;
-  }
-  .ai-service .ai-generation-row .ai-generation-title-line {
-    flex-direction: row;
-    align-items: center;
   }
   .ai-service .ai-generation-row .ai-generation-related__title {
     white-space: normal;
@@ -1141,9 +976,5 @@
   }
   .ai-service .ai-generation-chapter {
     padding: 0.5rem 0.625rem;
-  }
-  .ai-service .ai-generation-sort-hint {
-    margin-left: 0;
-    width: 100%;
   }
 }

@@ -330,25 +330,7 @@
     transform: translate(-50%, -50%);
   }
 
-  /* 内容预览的标题链接：同一单元格内「书名链接」与「📖 章节链接」上下紧贴，
-     中心距实测仅 17.4px，两个目标都低于 24 —— 间距例外也救不了（例外要求相邻
-     目标中心距 ≥24），故必须实打实放大命中盒。
-
-     难点是要在不移动文字的前提下把盒子从 16~18.8px 撑到 24px：单纯加
-     padding-block 会把文字下推；加 padding 再用负 margin 抵消，负 margin 又会在
-     块级容器里与相邻块合并，实测造成后续链接累计下移 4~8px、行高 +4px。
-
-     解法是把包裹链接的 div 变成 flex column —— flex 项的 margin 不与任何东西
-     合并，于是 padding-block: 4px 把盒子撑到 24~26.8px，margin-block: -4px 再把
-     占位高度扣回原值，净占位与文字位置都不变，只有可点击区域变大。
-     链接带 Tailwind 的 truncate（overflow: hidden），不能用绝对定位的 ::after
-     扩命中区（实测伪元素确实为 294×24，但被裁剪后命中高度只有 20px）。 */
-  .ai-generation-row td div:has(> a) {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
+  /* 关联内容布局由组件持有；书名和章节链接在窄屏补足触控范围。 */
   .ai-generation-row td a {
     padding-block: 4px;
     margin-block: -4px;

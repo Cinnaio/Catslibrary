@@ -65,21 +65,19 @@ const DEFAULT_PROMPT_DIGEST_MAX = 48
  * 字数；没有这些结构化片段时，再取第一条不是大写资料头、不是版本标记的内容。
  */
 export function promptDigest(prompt: string, max = DEFAULT_PROMPT_DIGEST_MAX): string {
-  const raw = String(prompt || '').trim()
+  const raw = readablePrompt(String(prompt || '')).trim()
   if (!raw) return '无'
 
   const limit = Number.isFinite(max) ? Math.max(1, Math.trunc(max)) : DEFAULT_PROMPT_DIGEST_MAX
   const normalized = raw.replace(/\s+/g, ' ').trim()
   const semantic: string[] = []
 
-  const goal = raw
-    .replace(/\\r?\\n/g, '\n')
-    .match(/chapterGoal\[\d+\]\s*=\s*([^\n"'}\]]{2,180})/i)?.[1]
+  const goal = raw.match(/chapterGoal\[\d+\]\s*=\s*([^\n"'}\]]{2,180})/i)?.[1]
     ?.replace(/\s+/g, ' ')
     .trim()
   if (goal) semantic.push(`章节目标：${goal}`)
 
-  const viewpoint = normalized.match(/(?:viewpoint|叙事视角|视角)\s*(?:[=:：，,])\s*([^"'}\]\n，,；;。]{2,100})/i)?.[1]?.trim()
+  const viewpoint = raw.match(/(?:viewpoint|叙事视角|视角)\s*(?:[=:：，,])\s*([^"'}\]\n，,；;。]{2,100})/i)?.[1]?.trim()
   if (viewpoint) semantic.push(`视角：${viewpoint}`)
 
   const targetWords = normalized.match(/(?:目标长度约|目标字数(?:约|为)?|targetWords\s*[=:：])\s*([\d,]+)(?:\s*个?中文字符?|\s*字)?/i)?.[0]
@@ -87,14 +85,51 @@ export function promptDigest(prompt: string, max = DEFAULT_PROMPT_DIGEST_MAX): s
 
   if (semantic.length) return truncatePromptDigest(semantic.join(' · '), limit)
 
-  const lines = raw
-    .replace(/\r\n?/g, '\n')
-    .replace(/\\r?\\n/g, '\n')
-    .split(/\n+/)
+  const lines = raw.split(/\n+/)
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
   const fallback = lines.find((line) => !isPromptNoiseLine(line)) || normalized
   return truncatePromptDigest(fallback, limit)
+}
+
+/** 最近创作记录优先展示作者填写的情节，旧任务才从编译材料中提取。 */
+export function writingTaskDigest(task: { params: string; prompt: string }, max = 64): string {
+  const limit = Number.isFinite(max) ? Math.max(1, Math.trunc(max)) : 64
+  try {
+    const params: unknown = JSON.parse(task.params)
+    if (params && typeof params === 'object' && !Array.isArray(params)) {
+      const record = params as Record<string, unknown>
+      const brief = record.writingBrief && typeof record.writingBrief === 'object' && !Array.isArray(record.writingBrief)
+        ? record.writingBrief as Record<string, unknown>
+        : undefined
+      const goals: unknown[] = Array.isArray(brief?.chapterGoals) ? brief.chapterGoals : []
+      const goal = goals.find((value): value is { goal: string } => value !== null && typeof value === 'object'
+        && 'goal' in value && typeof value.goal === 'string' && Boolean(value.goal.trim()))
+      const candidates = [record.instruction, goal?.goal, brief?.objective, record.title]
+      for (const candidate of candidates) {
+        if (typeof candidate !== 'string' || !candidate.trim()) continue
+        const text = firstPromptContent(readablePrompt(candidate))
+        if (text) return truncatePromptDigest(text, limit)
+      }
+    }
+  } catch {
+    // 历史任务可能没有请求快照或仍使用旧参数格式，继续读取语义片段。
+  }
+  const raw = readablePrompt(String(task.prompt || ''))
+  const goal = raw.match(/chapterGoal\[\d+\]\s*=\s*([^\n"'}\]]+)/i)?.[1]?.trim()
+  const text = goal || firstPromptContent(raw)
+  return text ? truncatePromptDigest(text, limit) : ''
+}
+
+/** 编译材料既有真实换行，也可能把 JSON 字符串中的换行保留为转义文本。 */
+function readablePrompt(value: string): string {
+  return value.replace(/\r\n?/g, '\n').replace(/\\+(?:r\\+n|n|r)/g, '\n')
+}
+
+function firstPromptContent(value: string): string {
+  return value.split(/\n+/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .find((line) => line && !isPromptNoiseLine(line)) || ''
 }
 
 /**
@@ -104,7 +139,7 @@ export function promptDigest(prompt: string, max = DEFAULT_PROMPT_DIGEST_MAX): s
 function isPromptNoiseLine(line: string): boolean {
   if (isPipelineVersionLine(line)) return true
   if (isMaterialHeaderLine(line)) return true
-  return /^[\[{]/.test(line)
+  return /^[\[{]/.test(line) || /^(?:viewpoint|pace|objective|requiredFacts|forbiddenEvents|chapterGoal\[\d+\]|出场人物)\s*[=:：]/i.test(line)
 }
 
 function truncatePromptDigest(value: string, max: number): string {

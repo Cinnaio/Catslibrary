@@ -96,8 +96,9 @@
 .compose {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(290px, 320px);
+  grid-template-rows: min-content min-content 1fr;
   align-items: start;
-  gap: 24px;
+  column-gap: 24px;
   --writing-gutter: clamp(24px, 2.5cqi, 36px);
   --writing-footer: color-mix(in srgb, var(--bg-secondary) 48%, var(--bg-card));
 }
@@ -289,6 +290,7 @@
   top: 104px;
   display: grid;
   grid-column: 2;
+  grid-row: 1 / -1;
   gap: 22px;
   min-width: 0;
   padding-top: 24px;
@@ -527,6 +529,7 @@
   line-height: 1.5;
 }
 .taskRegion {
+  grid-column: 1;
   margin-top: 24px;
   min-width: 0;
 }
@@ -537,21 +540,142 @@
   background: var(--bg-card);
 }
 .root .recentTasks {
+  grid-column: 1;
+  min-width: 0;
   margin: 24px 0 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-container);
+  background: var(--bg-card);
 }
-.recentTasks li {
+.recentTasks > summary {
+  gap: 8px 12px;
+  min-height: 68px;
+  padding: 20px var(--writing-gutter);
+  border-radius: var(--radius-container);
+  background: var(--writing-footer);
+}
+.recentTasks[open] > summary {
+  border-bottom: 1px solid var(--border-light);
+  border-radius: var(--radius-container) var(--radius-container) 0 0;
+}
+.recentTasks > summary:focus-visible {
+  outline-offset: -4px;
+  border-radius: var(--radius-container);
+}
+.recentTasks[open] > summary:focus-visible {
+  border-radius: var(--radius-container) var(--radius-container) 0 0;
+}
+.recentTasksLabel {
+  font: 500 var(--ui-section-title-size, var(--management-section-title-size)) / 1.5 var(--font-serif);
+}
+.recentTasksCount {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.recentTaskList {
+  container: recent-writing-tasks / inline-size;
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--writing-gutter) 4px;
+  list-style: none;
+}
+.recentTask {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-block: 20px;
   animation: rowEnter 200ms both;
 }
+.recentTask + .recentTask {
+  border-top: 1px solid var(--border-light);
+}
+.recentTaskHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  line-height: 1.7;
+}
+.recentTaskIdentity {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  min-width: 0;
+}
+.recentTaskKind {
+  color: var(--text-primary);
+  font-size: var(--management-control-label-size);
+  font-weight: 500;
+}
+.recentTaskBook {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recentTaskHeading > :global(.admin-status-badge) {
+  flex-shrink: 0;
+}
+.recentTaskTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--font-ui-body);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.recentTaskFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  min-width: 0;
+}
+.recentTaskMeta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+@container recent-writing-tasks (max-width: 32rem) {
+  .recentTaskFooter {
+    flex-wrap: wrap;
+  }
+  .recentTaskMeta {
+    flex: 1 1 180px;
+  }
+  .recentTaskFooter > button {
+    margin-inline-start: auto;
+  }
+}
+
 .footer {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 24px 4px 0;
+  padding: 24px 0 0;
   color: var(--text-muted);
   font-size: 12px;
-  line-height: 1.8;
+  line-height: 1.7;
 }
 .footer > div {
   display: flex;
@@ -674,6 +798,12 @@
   }
   .compose {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    gap: 24px;
+  }
+  .taskRegion,
+  .root .recentTasks {
+    margin-top: 0;
   }
   .runSettings {
     position: static;
@@ -786,7 +916,7 @@
   .root :global(.ai-writing-suggest__item),
   .root .launchButtons > button,
   .outline > summary,
-    .recentTasks > summary {
+  .recentTasks > summary {
     min-height: 48px;
   }
   .footer {
@@ -800,7 +930,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .outline > summary::after,
-    .recentTasks > summary::after,
+  .recentTasks > summary::after,
   .root :global(.ai-writing-suggest__item),
   .root :global(.ai-writing-suggest) {
     transition: none;

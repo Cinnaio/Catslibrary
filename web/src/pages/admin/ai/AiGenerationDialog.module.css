@@ -1,4 +1,104 @@
-/* 续写集合目录与草稿发布的业务布局；阅读窗口外观由 shared/ReadingDialog 持有。 */
+/* 生成列表、续写集合目录与草稿发布的业务布局；阅读窗口外观由 shared/ReadingDialog 持有。 */
+/* Table internals remain usable without the legacy .ai-service page shell. */
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.identity > button,
+.childIdentity > button {
+  flex-shrink: 0;
+}
+.relatedContent {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.titleLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.titleLine > a {
+  min-width: 0;
+}
+.classification {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--management-control-label-size);
+}
+.classification > :global(.admin-status-badge) {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.kind {
+  flex-basis: 100%;
+  color: var(--text-secondary);
+}
+.sortHint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.expand {
+  flex-shrink: 0;
+}
+.expandActive {
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+.childIdentity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-inline-start: 12px;
+}
+.childTree {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+}
+.childMeta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.childIndex,
+.childWords {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.childTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--management-control-label-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.childStats {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.help {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
 .batchChapters {
   margin: 0;
   padding: 0;
@@ -73,6 +173,13 @@
 
 .publishSubmit {
   flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .childTitle {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
 }
 
 @media (max-width: 700px) {

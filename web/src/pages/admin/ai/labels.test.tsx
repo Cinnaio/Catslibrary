@@ -9,7 +9,7 @@
  * 一旦有人把实现改回「直接透传 step」或删掉映射项，这些用例会失败。
  */
 import { describe, expect, it } from 'vitest'
-import { isPolicyRefusedTask, kindLabel, promptDigest, retryMode, taskStatusLabel, taskStepText, type TaskStepInput } from './labels'
+import { isPolicyRefusedTask, kindLabel, promptDigest, writingTaskDigest, retryMode, taskStatusLabel, taskStepText, type TaskStepInput } from './labels'
 
 /** 只填 taskStepText 会用到的字段。 */
 function task(over: Partial<TaskStepInput> = {}): TaskStepInput {
@@ -118,6 +118,14 @@ describe('AI 任务 Prompt 摘要', () => {
     expect(digest).not.toContain('version=2')
   })
 
+  it('识别 JSON 材料中的单层及多层转义换行，不把后续字段带入章节目标', () => {
+    for (const newline of ['\n', String.raw`\n`, String.raw`\r\n`, String.raw`\\n`]) {
+      const prompt = ['CREATIVE_TASK_PIPELINE version=2', 'CHAPTER_TASK', 'chapterGoal[1]=调查渡口失踪的船只', '出场人物=甲、乙', 'pace=紧凑', 'objective=找到来信'].join(newline)
+      expect(promptDigest(prompt)).toBe('章节目标：调查渡口失踪的船只')
+      expect(writingTaskDigest({ prompt, params: '' })).toBe('调查渡口失踪的船只')
+    }
+  })
+
   it('封面长 Prompt 使用第一条非大写资料头并按上限省略', () => {
     const digest = promptDigest('COVER_PIPELINE VERSION=3\nCOVER_PROMPT\nChinese web novel cover design with a moonlit city, two characters, and a warm paper texture.', 32)
     expect(digest).toMatch(/Chinese web novel cover design/)
@@ -146,5 +154,35 @@ describe('AI 任务重试操作语义', () => {
 
   it('零进度的网络超时仍然允许按原参数重试', () => {
     expect(retryMode({ ...base, error: '上游请求超时，请稍后重试' })).toBe('retry')
+  })
+})
+
+describe('最近创作任务摘要', () => {
+  const prompt = 'CREATIVE_TASK_PIPELINE version=2\nCHAPTER_TASK\nchapterGoal[1]=旧任务的章节目标\npace=紧凑'
+
+  it('优先展示请求快照里的作者情节，只取第一段并按上限省略', () => {
+    const params = JSON.stringify({ instruction: '渡口重逢，一封旧信揭开误会。\n出场人物=甲、乙', writingBrief: { objective: '其他目标' } })
+    expect(writingTaskDigest({ params, prompt })).toBe('渡口重逢，一封旧信揭开误会。')
+    expect(writingTaskDigest({ params, prompt }, 8)).toBe('渡口重逢，一封…')
+  })
+
+  it('情节留空时依次读取章节目标、写作目标和标题，跳过非法字段', () => {
+    for (const params of [
+      { instruction: '', writingBrief: { chapterGoals: [null, { goal: 3 }, { goal: '找到失踪者' }] } },
+      { instruction: 123, writingBrief: { objective: '找到失踪者' } },
+      { instruction: null, writingBrief: [], title: '找到失踪者' },
+    ]) {
+      expect(writingTaskDigest({ params: JSON.stringify(params), prompt })).toBe('找到失踪者')
+    }
+  })
+
+  it('旧参数、空快照或损坏 JSON 继续读取任务语义', () => {
+    for (const params of ['', '{broken', 'null', '[]', '{}']) {
+      expect(writingTaskDigest({ params, prompt })).toBe('旧任务的章节目标')
+    }
+  })
+
+  it('没有可读情节时省略摘要，不展示流水线或内部参数', () => {
+    expect(writingTaskDigest({ params: '', prompt: 'CREATIVE_TASK_PIPELINE version=2\nCHAPTER_TASK\nviewpoint=第一人称\npace=紧凑\nobjective=unspecified\n出场人物=甲、乙' })).toBe('')
   })
 })

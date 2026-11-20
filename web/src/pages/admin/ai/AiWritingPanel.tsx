@@ -27,7 +27,8 @@ import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import SearchSelect from "@/components/shared/SearchSelect"
-import { kindLabel as taskKindLabel, taskStatusLabel } from './labels'
+import { kindLabel as taskKindLabel, writingTaskDigest, taskStatusLabel } from './labels'
+import { formatDateTime } from '@/lib/format'
 import { Textarea } from '@/components/ui/textarea'
 
 // 后台化的创作任务类型
@@ -1087,94 +1088,100 @@ export default function AiWritingPanel(props: {
                   </section>
                 </footer>
               </section>
-
-            </div>
-            {task && <section className={styles.taskRegion} aria-label="本次任务">
-              <div className="ai-writing-live-task rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3 mt-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`size-2 shrink-0 rounded-full ${taskDotClass(task.status)}`}
-                    aria-hidden="true"
-                  />
-                  <span className="font-semibold text-sm text-foreground">
-                    本次任务：{taskKindLabel(task.kind)} · {taskStatusLabel(task.status)}
-                  </span>
-                  {task.kind === 'continue' && (
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {task.current} / {task.total} 章
+              {task && <section className={styles.taskRegion} aria-label="本次任务">
+                <div className="ai-writing-live-task rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3 mt-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`size-2 shrink-0 rounded-full ${taskDotClass(task.status)}`}
+                      aria-hidden="true"
+                    />
+                    <span className="font-semibold text-sm text-foreground">
+                      本次任务：{taskKindLabel(task.kind)} · {taskStatusLabel(task.status)}
                     </span>
-                  )}
-                  {taskActive && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="ml-auto h-8"
-                      onClick={() => void cancelTask()}
-                    >
-                      取消任务
-                    </Button>
-                  )}
-                  {!taskActive && task.current > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="ml-auto h-8"
-                      onClick={() => openDrafts(task.batchId || undefined, task.novelId || novelId)}
-                    >
-                      {task.batchId ? `查看本批草稿（${task.current} 章）` : '查看草稿'}
-                    </Button>
-                  )}
+                    {task.kind === 'continue' && (
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {task.current} / {task.total} 章
+                      </span>
+                    )}
+                    {taskActive && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto h-8"
+                        onClick={() => void cancelTask()}
+                      >
+                        取消任务
+                      </Button>
+                    )}
+                    {!taskActive && task.current > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto h-8"
+                        onClick={() => openDrafts(task.batchId || undefined, task.novelId || novelId)}
+                      >
+                        {task.batchId ? `查看本批草稿（${task.current} 章）` : '查看草稿'}
+                      </Button>
+                    )}
+                  </div>
+                  <p role="status" className="text-xs text-muted-foreground">{task.step || '等待处理'}</p>
+                  {taskActive && <AiStreamPreview progress={parseAiTextProgress(task.result)} />}
+                  {task.error && <p className="text-xs text-destructive">{task.error}</p>}
                 </div>
-                <p role="status" className="text-xs text-muted-foreground">{task.step || '等待处理'}</p>
-                {taskActive && <AiStreamPreview progress={parseAiTextProgress(task.result)} />}
-                {task.error && <p className="text-xs text-destructive">{task.error}</p>}
-              </div>
-            </section>}
-            {recentTasks.length > 0 && (
-              <MotionDetails className={styles.recentTasks}>
-                <summary>最近创作任务 ({recentTasks.length})</summary>
-                <ul className="mt-3 space-y-2">
-                  {recentTasks.map((item, index) => (
-                    <li
-                      key={item.id}
-                      style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, recentTasks.length)}ms` }}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 p-2.5 transition-colors hover:bg-muted/40"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-medium text-xs text-foreground truncate">
-                          {item.novelTitle || taskKindLabel(item.kind)}
-                        </span>
-                        <span className="text-muted-foreground text-xs">·</span>
-                        <span className="text-xs text-muted-foreground">
-                          {taskKindLabel(item.kind)} ·{' '}
-                          <span className="font-mono text-foreground/80">
-                            {item.current} / {item.total}
-                          </span>{' '}
-                          章
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <AdminStatusBadge
-                          tone={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'danger' : 'muted'}
+              </section>}
+              {recentTasks.length > 0 && (
+                <MotionDetails className={styles.recentTasks}>
+                  <summary>
+                    <span className={styles.recentTasksLabel}>最近创作任务</span>
+                    <span className={styles.recentTasksCount}>{recentTasks.length} 项</span>
+                  </summary>
+                  <ul className={styles.recentTaskList} aria-label="最近创作任务">
+                    {recentTasks.map((item, index) => {
+                      const digest = writingTaskDigest(item, 64)
+                      const createdAt = new Date(item.createdAt)
+                      const hasCreatedAt = item.createdAt > 0 && Number.isFinite(createdAt.getTime())
+                      return (
+                        <li
+                          key={item.id}
+                          style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, recentTasks.length)}ms` }}
+                          className={styles.recentTask}
                         >
-                          {taskStatusLabel(item.status)}
-                        </AdminStatusBadge>
-                        {item.batchId && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-accent hover:text-accent/80 font-medium"
-                            onClick={() => openDrafts(item.batchId, item.novelId || novelId, 'outputs')}
-                          >
-                            查看产出 →
-                          </Button>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </MotionDetails>
-            )}
+                          <div className={styles.recentTaskHeading}>
+                            <div className={styles.recentTaskIdentity}>
+                              <span className={styles.recentTaskKind}>{taskKindLabel(item.kind)}</span>
+                              {item.novelId !== novelId && item.novelTitle && (
+                                <span className={styles.recentTaskBook} title={item.novelTitle}>{item.novelTitle}</span>
+                              )}
+                            </div>
+                            <AdminStatusBadge
+                              tone={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'danger' : 'muted'}
+                            >
+                              {taskStatusLabel(item.status)}
+                            </AdminStatusBadge>
+                          </div>
+                          {digest && <p className={styles.recentTaskTitle}>{digest}</p>}
+                          <div className={styles.recentTaskFooter}>
+                            <p className={styles.recentTaskMeta}>
+                              {hasCreatedAt && <time dateTime={createdAt.toISOString()}>{formatDateTime(item.createdAt)}</time>}
+                              <span>{item.current} / {item.total} {item.kind === 'write_outline' ? '项' : '章'}</span>
+                            </p>
+                            {item.batchId && (
+                              <Button
+                                variant="link"
+                                size="sm"
+                                onClick={() => openDrafts(item.batchId, item.novelId || novelId, 'outputs')}
+                              >
+                                查看产出
+                              </Button>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </MotionDetails>
+              )}
+            </div>
           </div>
           {view !== 'compose' && (
             novelId ? (

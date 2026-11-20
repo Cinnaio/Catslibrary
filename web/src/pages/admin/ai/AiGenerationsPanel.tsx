@@ -70,11 +70,11 @@ const REWRITABLE_KINDS = new Set(['write_chapter', 'continue'])
 
 /** 与样稿一致的五列目录；选择框并入关联内容，模型和时间共用一列。 */
 const AI_GENERATION_COLUMNS: readonly AdminColumn[] = [
-  { key: 'related', label: '关联内容', width: '29%', primary: true },
-  { key: 'kind', label: '类型与状态', width: '14%' },
-  { key: 'preview', label: '内容预览', width: '24%' },
+  { key: 'related', label: '关联内容', width: '25%', primary: true },
+  { key: 'kind', label: '类型与状态', width: '18%' },
+  { key: 'preview', label: '内容预览', width: '22%' },
   { key: 'modelTime', label: '模型与时间', width: '17%' },
-  { key: 'actions', actions: true, width: '16%' },
+  { key: 'actions', actions: true, width: '18%' },
 ]
 
 const generationStatusLabel = (status: string) => ({ draft: '待审草稿', published: '已发布', rejected: '已拒绝' })[status] || status
@@ -540,7 +540,7 @@ export default function AiGenerationsPanel(props: {
               {loading && !items.length ? '读取中…' : error && !items.length ? '读取失败' : `${total} 项`}
             </span>
             <span aria-hidden="true" className="opacity-40">·</span>
-            <span className="ai-generation-sort-hint">最新优先 · 批次可展开</span>
+            <span className={styles.sortHint}>最新优先 · 批次可展开</span>
             <Button
               variant="ghost"
               size="icon"
@@ -601,7 +601,7 @@ export default function AiGenerationsPanel(props: {
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">
-                    <div className="ai-generation-identity">
+                    <div className={styles.identity}>
                       <Checkbox
                         aria-label="全选当前列表"
                         checked={headerCheckedState}
@@ -623,14 +623,14 @@ export default function AiGenerationsPanel(props: {
                     <Fragment key={item.id}>
                       <TableRow style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, items.length)}ms` }} className="ai-generation-row" data-focus-batch={item.groupItems ? item.batchId : undefined}>
                         <TableCell data-primary="" data-label="关联内容">
-                          <div className="ai-generation-identity">
+                          <div className={styles.identity}>
                             <Checkbox
                               aria-label={`选择${item.chapterTitle || item.kind}`}
                               checked={getItemCheckedState(item)}
                               onCheckedChange={(checked) => toggleItem(item, checked === true)}
                             />
-                            <div className="min-w-0">
-                              <div className="ai-generation-title-line">
+                            <div className={styles.relatedContent}>
+                              <div className={styles.titleLine}>
                                 {item.novelId ? (
                                   <Link
                                     to={`/novel/${encodeURIComponent(item.novelId)}`}
@@ -647,8 +647,8 @@ export default function AiGenerationsPanel(props: {
                                     variant="ghost"
                                     size="xs"
                                     className={cn(
-                                      'ai-generation-expand',
-                                      expandedBatchId === item.id && 'ai-generation-expand--active',
+                                      styles.expand,
+                                      expandedBatchId === item.id && styles.expandActive,
                                     )}
                                     aria-expanded={expandedBatchId === item.id}
                                     aria-controls={`ai-generation-batch-${item.id}`}
@@ -682,8 +682,8 @@ export default function AiGenerationsPanel(props: {
                           </div>
                         </TableCell>
                         <TableCell data-label="类型与状态">
-                          <div className="ai-generation-classification">
-                            <span>{kindLabel(item.kind)}</span>
+                          <div className={styles.classification}>
+                            <span className={styles.kind}>{kindLabel(item.kind)}</span>
                             <AdminStatusBadge tone={item.status === 'draft' ? 'accent' : item.status === 'published' ? 'success' : 'muted'}>
                               {item.groupItems
                                 ? item.groupItems.every((chapter) => chapter.status === item.groupItems?.[0]?.status)
@@ -785,8 +785,8 @@ export default function AiGenerationsPanel(props: {
                               data-child-of={item.id}
                             >
                               <TableCell data-primary="" data-label="关联内容">
-                                <div className="ai-generation-child-identity">
-                                  <CornerDownRight className="ai-generation-child-tree" aria-hidden="true" />
+                                <div className={styles.childIdentity}>
+                                  <CornerDownRight className={styles.childTree} aria-hidden="true" />
                                   <Checkbox
                                     aria-label={`选择${chapter.draftTitle || chapter.chapterTitle || `第 ${chapter.batchIndex} 章`}`}
                                     checked={isChapterChecked}
@@ -799,10 +799,10 @@ export default function AiGenerationsPanel(props: {
                                       })
                                     }}
                                   />
-                                  <div className="ai-generation-child-meta min-w-0">
-                                    <span className="ai-generation-child-index">第 {chapter.batchIndex} 章</span>
+                                  <div className={styles.childMeta}>
+                                    <span className={styles.childIndex}>第 {chapter.batchIndex} 章</span>
                                     <span
-                                      className="ai-generation-child-title"
+                                      className={styles.childTitle}
                                       title={chapter.draftTitle || chapter.chapterTitle || '待命名章节'}
                                     >
                                       {chapter.draftTitle || chapter.chapterTitle || '待命名章节'}
@@ -811,8 +811,8 @@ export default function AiGenerationsPanel(props: {
                                 </div>
                               </TableCell>
                               <TableCell data-label="类型与状态">
-                                <div className="ai-generation-classification">
-                                  <span>{kindLabel(chapter.kind)}</span>
+                                <div className={styles.classification}>
+                                  <span className={styles.kind}>{kindLabel(chapter.kind)}</span>
                                   <AdminStatusBadge
                                     tone={chapter.status === 'draft' ? 'accent' : chapter.status === 'published' ? 'success' : 'muted'}
                                   >
@@ -827,8 +827,8 @@ export default function AiGenerationsPanel(props: {
                                 </p>
                               </TableCell>
                               <TableCell data-label="模型与时间">
-                                <div className="ai-generation-child-stats">
-                                  <span className="ai-generation-child-words tabular-nums">约 {wordCount.toLocaleString()} 字</span>
+                                <div className={styles.childStats}>
+                                  <span className={styles.childWords}>约 {wordCount.toLocaleString()} 字</span>
                                   <AdminModelTime model={chapter.model} timestamp={chapter.createdAt} />
                                 </div>
                               </TableCell>
@@ -889,7 +889,7 @@ export default function AiGenerationsPanel(props: {
           }}
         />
       )}
-      <p className="ai-generation-help">草稿经审阅后发布；删除生成记录前，会提示对应内容及影响。</p>
+      <p className={styles.help}>草稿经审阅后发布；删除生成记录前，会提示对应内容及影响。</p>
       <Dialog
         open={!!viewing || !!viewingBatch}
         onOpenChange={(open) => {
