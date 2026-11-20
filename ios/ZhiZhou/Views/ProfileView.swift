@@ -62,13 +62,10 @@ struct ProfileView: View {
         }
         .frame(height: max(222, topInset + 160))
         .overlay(alignment: .top) {
-            // 保留系统状态栏前景色，用自适应渐变保证照片上的时间与信号可读。
-            LinearGradient(stops: [
-                .init(color: ReadingSpace.profilePaper.opacity(0.95), location: 0),
-                .init(color: ReadingSpace.profilePaper.opacity(0.95), location: 0.65),
-                .init(color: .clear, location: 1)
-            ], startPoint: .top, endPoint: .bottom)
-                .frame(height: topInset + 12)
+            // 轻薄渐变保留照片细节，同时照顾系统状态栏的文字对比度。
+            LinearGradient(colors: [ReadingSpace.profilePaper.opacity(0.4), .clear],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: topInset + 40)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

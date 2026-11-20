@@ -1,7 +1,7 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// 书架页：侧栏书单，详情列接着读或打开详情。
+/// 书架以续读和封面为主，宽屏保留侧栏与详情分栏。
 struct BookshelfView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -188,10 +188,7 @@ struct BookshelfView: View {
     private var bookshelfContent: some View {
         List(selection: $selection) {
             if usesShelfSections {
-                ReadingSpaceRoomHeader(title: "书架", symbol: "books.vertical")
-                if !filtersFavorites {
-                    shelfSectionPicker
-                }
+                shelfHeading
             }
             if isLoading {
                 ProgressView(response == nil ? "正在加载书架…" : "正在更新书架…")
@@ -216,35 +213,54 @@ struct BookshelfView: View {
         }
     }
 
-    private var shelfSectionPicker: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: 6))
-            : AnyLayout(HStackLayout(spacing: 10))
+    private var shelfHeading: some View {
+        let layout = dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 20))
         return layout {
+            Text("书架")
+                .font(serifFont(.largeTitle, .medium))
+                .foregroundStyle(ReadingSpace.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
+            if !filtersFavorites {
+                shelfSectionPicker
+            }
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+        .listRowInsets(EdgeInsets(top: 8, leading: 22, bottom: 8, trailing: 22))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private var shelfSectionPicker: some View {
+        HStack(spacing: 16) {
             ForEach(ShelfSection.allCases, id: \.self) { section in
                 let selected = visibleSection == section
                 Button {
-                    shelfSection = section
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                        shelfSection = section
+                    }
                 } label: {
                     Text(section.title)
-                        .font(.subheadline)
-                        .foregroundStyle(selected ? ReadingSpace.profilePaper : ReadingSpace.profileMuted)
-                        .padding(.horizontal, 20)
-                        .frame(minHeight: AppLayout.minimumTouchTarget)
-                        .background(selected ? ReadingSpace.ink : .clear, in: Capsule())
-                        .contentShape(Capsule())
+                        .font(.subheadline.weight(selected ? .medium : .regular))
+                        .foregroundStyle(selected ? ReadingSpace.ink : ReadingSpace.profileMuted)
+                        .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
+                        .background(alignment: .bottom) {
+                            Capsule()
+                                .fill(selected ? AppTheme.primary : .clear)
+                                .frame(height: 2)
+                        }
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(selected ? [.isSelected] : [])
                 .accessibilityIdentifier("bookshelf.section.\(section.rawValue)")
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.bottom, 12)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("书架分区")
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 
     @ViewBuilder
@@ -291,6 +307,7 @@ struct BookshelfView: View {
             ForEach(Array(recent.enumerated()), id: \.element.id) { index, item in
                 recentLink(item, featured: showsCoverGrid && index == 0)
                     .readingSpaceEntrance(index)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 22, bottom: 8, trailing: 22))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .swipeActions(edge: .trailing) {
@@ -360,6 +377,7 @@ struct BookshelfView: View {
             }
             .buttonStyle(.plain)
             .padding(.vertical, 12)
+            .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 22))
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
         }
@@ -548,7 +566,7 @@ struct BookshelfView: View {
                 featured ? ReadingSpace.profileReadDay : AppTheme.primaryLight
             }
             .frame(width: featured ? 78 : 60, height: featured ? 112 : 86)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 7) {
@@ -642,7 +660,7 @@ struct BookshelfView: View {
                 AppTheme.primaryLight
             }
             .frame(width: 60, height: 86)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {

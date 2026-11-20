@@ -5,7 +5,7 @@ import ZhiZhouCore
 struct AdminAIAgentView: View {
     var initialNovel: Novel? = nil
     var afterChapterID: String? = nil
-    var showsRoomCover = false
+    var isTabRoot = false
     @Environment(AppState.self) private var appState
     @State private var selectedID = ""
     @State private var books: [AdminNovelSummary] = []
@@ -42,7 +42,7 @@ struct AdminAIAgentView: View {
         }
         .navigationTitle("对话创作")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(showsRoomCover ? .hidden : .visible, for: .navigationBar)
+        .toolbar(isTabRoot ? .hidden : .visible, for: .navigationBar)
         .task {
             if selectedID.isEmpty, let initialNovel { selectedID = initialNovel.id }
             await loadBooks()
@@ -78,11 +78,17 @@ struct AdminAIAgentView: View {
 
     private var workspace: some View {
         List {
-            if showsRoomCover {
-                ReadingSpaceRoomHeader(title: "对话创作", symbol: "square.and.pencil")
+            if isTabRoot {
+                Text("对话创作")
+                    .font(serifFont(.largeTitle, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .accessibilityAddTraits(.isHeader)
+                    .listRowInsets(EdgeInsets(top: 28, leading: 22, bottom: 20, trailing: 22))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
             creationControls
-                .listRowInsets(EdgeInsets(top: showsRoomCover ? 4 : 16, leading: 22, bottom: 18, trailing: 22))
+                .listRowInsets(EdgeInsets(top: isTabRoot ? 0 : 16, leading: 22, bottom: 22, trailing: 22))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .readingSpaceEntrance()
@@ -147,6 +153,7 @@ struct AdminAIAgentView: View {
                     .font(serifFont(.title3, .semibold))
                     .foregroundStyle(ReadingSpace.ink)
                     .textCase(nil)
+                    .padding(.top, 8)
                     .padding(.bottom, 8)
                     .accessibilityAddTraits(.isHeader)
             }
@@ -168,7 +175,7 @@ struct AdminAIAgentView: View {
     }
 
     private var creationControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             creationDesk
             if let booksError {
                 LoadErrorNotice(message: booksError, isLoading: loadingBooks) { Task { await loadBooks() } }
@@ -190,56 +197,61 @@ struct AdminAIAgentView: View {
     }
 
     private var creationDesk: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 20) {
             bookSelection
             Button {
                 created = nil
                 showCreate = true
             } label: {
-                Label("新建对话", systemImage: "square.and.pencil")
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(selectedID.isEmpty ? ReadingSpace.summarySecondary : ReadingSpace.summary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(selectedID.isEmpty ? .white.opacity(0.1) : ReadingSpace.onSummary,
-                                in: RoundedRectangle(cornerRadius: 14))
+                HStack(spacing: 12) {
+                    Text("新建对话")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "arrow.right")
+                        .accessibilityHidden(true)
+                }
+                .font(.body.weight(.medium))
+                .foregroundStyle(selectedID.isEmpty ? ReadingSpace.profileMuted : ReadingSpace.onSummary)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(selectedID.isEmpty ? ReadingSpace.profileFill : ReadingSpace.summary,
+                            in: RoundedRectangle(cornerRadius: 14))
             }
             .buttonStyle(.plain)
             .disabled(selectedID.isEmpty)
             .accessibilityIdentifier("agent.create")
         }
-        .padding(16)
-        .background(ReadingSpace.summary, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
+        .padding(20)
+        .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: ReadingSpace.panelRadius)
+                .strokeBorder(ReadingSpace.profileLine, lineWidth: 0.8)
+                .allowsHitTesting(false)
+        }
     }
 
     private var bookSelection: some View {
         Button { showPicker = true } label: {
             HStack(spacing: 12) {
-                Image(systemName: "book.closed")
-                    .font(.system(size: 21, weight: .light)).foregroundStyle(ReadingSpace.profileToday)
-                    .frame(width: 42, height: 52)
-                    .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 10))
+                selectedBookCover
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
-                    if !selectedID.isEmpty {
-                        Text("当前作品")
-                            .font(.caption).foregroundStyle(ReadingSpace.summarySecondary)
-                    }
+                    Text(selectedID.isEmpty ? "先选一本作品" : "创作作品")
+                        .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
                     Text(bookTitle)
-                        .font(serifFont(.headline, .medium)).foregroundStyle(ReadingSpace.onSummary)
+                        .font(serifFont(.headline, .medium)).foregroundStyle(ReadingSpace.ink)
                         .multilineTextAlignment(.leading)
                         .appTextLineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if loadingBooks {
                     ProgressView()
-                        .tint(ReadingSpace.onSummary)
+                        .tint(ReadingSpace.ink)
                         .accessibilityLabel("正在加载作品")
                 } else {
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption).foregroundStyle(ReadingSpace.summarySecondary)
+                        .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
                         .accessibilityHidden(true)
                 }
             }
@@ -249,6 +261,27 @@ struct AdminAIAgentView: View {
         .buttonStyle(.plain)
         .disabled(loadingBooks || books.isEmpty)
         .accessibilityIdentifier("agent.novelPicker")
+    }
+
+    private var selectedBookCover: some View {
+        let book = books.first(where: { $0.id == selectedID })
+        let updatedAt = book?.updatedAt ?? initialNovel?.updatedAt ?? 0
+        return CachedAsyncImage(
+            url: selectedID.isEmpty ? nil : APIClient.shared.coverURL(novelId: selectedID, updatedAt: updatedAt),
+            targetSize: CGSize(width: 42, height: 60),
+            showsRetry: false
+        ) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            ZStack {
+                ReadingSpace.profileFill
+                Image(systemName: "book.closed")
+                    .font(.system(size: 21, weight: .light))
+                    .foregroundStyle(AppTheme.primary)
+            }
+        }
+        .frame(width: 42, height: 60)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     private func sessionRow(_ session: AIAgentSession) -> some View {
