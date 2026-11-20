@@ -11,7 +11,6 @@ struct NovelDetailView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .title2) private var bookTitleSize: CGFloat = 24
 
     @State private var chapters: [ChapterMeta] = []
     @State private var isLoading = true
@@ -61,7 +60,7 @@ struct NovelDetailView: View {
         .onPreferenceChange(OfflineChapterFramePreferenceKey.self) { frames in
             selectionRowFrames = frames
         }
-        .pageBackground(.browsing)
+        .background { ReadingSpace.profilePaper.ignoresSafeArea() }
         .refreshable { await load(refresh: true) }
         .navigationTitle(currentNovel.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -155,7 +154,14 @@ struct NovelDetailView: View {
     private func detailList(sideInset: CGFloat, compactHeader: Bool) -> some View {
         List {
             bookHeader(compact: compactHeader)
-                .listRowInsets(EdgeInsets(top: 16, leading: sideInset, bottom: 24, trailing: sideInset))
+                .padding(.horizontal, sideInset)
+                .padding(.top, compactHeader ? 14 : 26)
+                .padding(.bottom, compactHeader ? 22 : 30)
+                .background {
+                    LinearGradient(colors: [ReadingSpace.profileFill, ReadingSpace.profilePaper],
+                                   startPoint: .top, endPoint: .bottom)
+                }
+                .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
 
@@ -192,6 +198,7 @@ struct NovelDetailView: View {
                     chapterRow(chapter)
                         .id(chapter.id)
                         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                        .listRowSeparatorTint(ReadingSpace.profileLine)
                 }
             } header: {
                 chapterSectionHeader
@@ -201,7 +208,7 @@ struct NovelDetailView: View {
             .listRowInsets(EdgeInsets(top: 10, leading: sideInset, bottom: 10, trailing: sideInset))
             .listRowBackground(Color.clear)
         }
-        .appListStyle(.browsing, maximumWidth: nil)
+        .modifier(ReadingSpaceRoomListStyle())
         .scrollDismissesKeyboard(.interactively)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
     }
@@ -390,6 +397,9 @@ struct NovelDetailView: View {
             )
             .accessibilityHint("点按选择或取消选择")
         } else {
+            let entryIndex = chaptersDescending
+                ? (chapters.last?.order ?? chapter.order) - chapter.order
+                : chapter.order - (chapters.first?.order ?? chapter.order)
             NavigationLink {
                 ReaderView(
                     novel: currentNovel,
@@ -398,33 +408,42 @@ struct NovelDetailView: View {
                 )
             } label: {
                 chapterRowLabel(chapter, selectionMode: false)
+                    .readingSpaceEntrance(max(0, entryIndex))
+                    .id(chaptersDescending)
             }
             .accessibilityHint("点按进入阅读")
         }
     }
 
     private func chapterRowLabel(_ chapter: ChapterMeta, selectionMode: Bool) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        let isCurrent = chapter.id == progress?.chapterId
+        return HStack(alignment: .center, spacing: 14) {
             if selectionMode {
                 selectionIndicator(for: chapter)
                     .highPriorityGesture(selectionGesture(for: chapter))
+            } else {
+                Text(chapter.order, format: .number.grouping(.never))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(isCurrent ? AppTheme.primaryDeep : ReadingSpace.profileMuted)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(minWidth: 28, alignment: .trailing)
+                    .accessibilityLabel("第 \(chapter.order) 章")
             }
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(chapter.title)
                     .chapterTitleStyle()
-                    .foregroundStyle(AppTheme.textPrimary)
-                HStack(spacing: 8) {
+                    .foregroundStyle(isCurrent ? AppTheme.primaryDeep : ReadingSpace.ink)
+                AppAdaptiveRow(spacing: 8) {
                     Text("\(chapter.wordCount) 字")
-                    if chapter.id == progress?.chapterId {
+                    if isCurrent {
                         Label("上次读到", systemImage: "bookmark.fill")
-                            .foregroundStyle(AppTheme.primary)
+                            .foregroundStyle(AppTheme.primaryDeep)
                     }
                 }
                 .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+                .foregroundStyle(ReadingSpace.profileMuted)
             }
-            Spacer(minLength: 0)
 
             if !selectionMode && offlineStore.isDownloaded(chapter.id) {
                 Image(systemName: "arrow.down.circle.fill")
@@ -612,13 +631,13 @@ struct NovelDetailView: View {
         Group {
             if compact && !dynamicTypeSize.isAccessibilitySize {
                 HStack(alignment: .center, spacing: 20) {
-                    bookCover
+                    bookCover(size: AppLayout.coverDetail)
                     bookInformation(centered: false)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
-                VStack(spacing: 18) {
-                    bookCover
+                VStack(spacing: 20) {
+                    bookCover(size: CGSize(width: 126, height: 180))
                     bookInformation(centered: true)
                 }
                 .frame(maxWidth: .infinity)
@@ -626,41 +645,50 @@ struct NovelDetailView: View {
         }
     }
 
-    private var bookCover: some View {
+    private func bookCover(size: CGSize) -> some View {
         CachedAsyncImage(
             url: APIClient.shared.coverURL(novelId: currentNovel.id, updatedAt: currentNovel.updatedAt),
-            targetSize: AppLayout.coverDetail
+            targetSize: size
         ) { image in
             image.resizable().scaledToFill()
         } placeholder: {
             ZStack {
-                AppTheme.surfaceSecondary
+                ReadingSpace.paper
                 Image(systemName: "book.closed")
                     .font(.largeTitle)
                     .foregroundStyle(AppTheme.primary)
             }
         }
-        .frame(width: AppLayout.coverDetail.width, height: AppLayout.coverDetail.height)
+        .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .shadow(color: AppTheme.cardShadow, radius: 10, y: 5)
+        .shadow(color: AppTheme.cardShadow, radius: 13, y: 7)
         .accessibilityHidden(true)
     }
 
     private func bookInformation(centered: Bool) -> some View {
         VStack(alignment: centered ? .center : .leading, spacing: 8) {
             Text(currentNovel.title)
-                .font(SongtiFont.font(size: bookTitleSize, weight: .semibold))
-                .foregroundStyle(AppTheme.textPrimary)
+                .font(serifFont(.title, .medium))
+                .foregroundStyle(ReadingSpace.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-            Text(currentNovel.author)
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if !currentNovel.author.isEmpty {
+                Text(currentNovel.author)
+                    .font(.subheadline)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !bookMetadata.isEmpty {
                 Text(bookMetadata)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if currentNovel.updatedAt > 0 {
+                let date = Date(timeIntervalSince1970: Double(currentNovel.updatedAt) / 1000)
+                Text("更新于 \(date.formatted(.dateTime.year().month().day()))")
+                    .font(.caption)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if currentNovel.hasUpdate {
@@ -711,12 +739,13 @@ struct NovelDetailView: View {
     }
 
     private func readingSubtitle(for chapter: ChapterMeta) -> String {
-        let chapterLabel = "第 \(chapter.order) 章"
-        if let progress, progress.chapterId == chapter.id {
-            let value = min(max(progress.scrollPercent, 0), 1)
-            return "\(chapterLabel) · 本章已读 \(Int((value * 100).rounded()))%"
+        let title = chapter.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let chapterLabel = title.isEmpty ? "第 \(chapter.order) 章" : title
+        guard let progress, progress.chapterId == chapter.id, progress.scrollPercent.isFinite else {
+            return chapterLabel
         }
-        return chapterLabel
+        let value = min(max(progress.scrollPercent, 0), 1)
+        return "\(chapterLabel) · 本章已读 \(Int((value * 100).rounded()))%"
     }
 
     @ViewBuilder
@@ -729,33 +758,57 @@ struct NovelDetailView: View {
                     preloadedChapters: chapters
                 )
             } label: {
-                primaryActionLabel(
+                readingActionLabel(
                     continueTitle,
-                    systemImage: "book.fill",
-                    subtitle: isLoadingProgress ? "正在读取阅读位置…" : readingSubtitle(for: chapter)
+                    subtitle: isLoadingProgress ? "正在读取阅读位置…" : readingSubtitle(for: chapter),
+                    enabled: !isLoadingProgress
                 )
             }
-            .buttonStyle(AppGlassButtonStyle(
-                glass: AppTheme.glassProminent,
-                fallback: AppTheme.primaryLight
-            ))
+            .buttonStyle(ScaleButtonStyle())
             .accessibilityHint("从第 \(chapter.order) 章开始，\(chapter.title)")
             .accessibilityIdentifier("detail.read")
             .disabled(isLoadingProgress)
         } else {
             Button {} label: {
-                primaryActionLabel(
+                readingActionLabel(
                     "开始阅读",
-                    systemImage: "book.fill",
-                    subtitle: isLoading ? "正在加载章节" : "章节暂不可用"
+                    subtitle: isLoading ? "正在加载章节" : "章节暂不可用",
+                    enabled: false
                 )
             }
-            .buttonStyle(AppGlassButtonStyle(
-                glass: AppTheme.glassProminent,
-                fallback: AppTheme.primaryLight
-            ))
+            .buttonStyle(.plain)
             .disabled(true)
         }
+    }
+
+    private func readingActionLabel(_ title: String, subtitle: String, enabled: Bool) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(enabled ? ReadingSpace.onSummary : ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(enabled ? ReadingSpace.summarySecondary : ReadingSpace.profileMuted)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if enabled && !dynamicTypeSize.isAccessibilitySize {
+                Image(systemName: "arrow.right")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ReadingSpace.onSummary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .multilineTextAlignment(.leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56)
+        .background(enabled ? ReadingSpace.summary : ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: 17))
+        .contentShape(RoundedRectangle(cornerRadius: 17))
+        .accessibilityElement(children: .combine)
     }
 
     private var bookshelfButton: some View {
@@ -850,8 +903,8 @@ struct NovelDetailView: View {
     private var synopsisBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("简介")
-                .font(.headline)
-                .foregroundStyle(AppTheme.textPrimary)
+                .font(serifFont(.title3, .semibold))
+                .foregroundStyle(ReadingSpace.ink)
                 .accessibilityAddTraits(.isHeader)
             synopsisContent
 
@@ -865,7 +918,7 @@ struct NovelDetailView: View {
                     HStack(spacing: 6) {
                         Text(expandDescription ? "收起简介" : "展开简介")
                             .contentTransition(.opacity)
-                            .animation(.easeOut(duration: 0.16), value: expandDescription)
+                            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: expandDescription)
                         Image(systemName: "chevron.down")
                             .font(.caption.weight(.semibold))
                             .rotationEffect(.degrees(expandDescription ? 180 : 0))
@@ -911,10 +964,10 @@ struct NovelDetailView: View {
                         .lineLimit(4)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(AppTheme.canvas)
+                        .background(ReadingSpace.profilePaper)
                         .opacity(expandDescription ? 0 : 1)
                 }
-                .animation(.easeOut(duration: 0.16), value: expandDescription)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: expandDescription)
                 .allowsHitTesting(false)
             }
             .clipped()
@@ -931,8 +984,8 @@ struct NovelDetailView: View {
     private var synopsisText: some View {
         Text(currentNovel.description)
             .font(.body)
-            .foregroundStyle(AppTheme.textSecondary)
-            .lineSpacing(4)
+            .foregroundStyle(ReadingSpace.ink)
+            .lineSpacing(6)
     }
 
     private var chapterSectionHeader: some View {
@@ -942,21 +995,22 @@ struct NovelDetailView: View {
 
         return headerLayout {
             Text(isSelectingOffline ? "选择章节" : "目录")
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .font(serifFont(.title3, .semibold))
+                .foregroundStyle(ReadingSpace.ink)
                 .accessibilityAddTraits(.isHeader)
 
             HStack(spacing: 8) {
                 Text(isLoading && chapters.isEmpty ? "加载中" : "\(chapters.count) 章")
                     .font(.caption)
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                 if !isSelectingOffline {
                     Button {
                         chaptersDescending.toggle()
                     } label: {
                         Label(chaptersDescending ? "倒序" : "正序", systemImage: chaptersDescending ? "arrow.up" : "arrow.down")
-                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                            .labelStyle(.iconOnly)
+                            .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
@@ -977,7 +1031,8 @@ struct NovelDetailView: View {
                     }
                 }
             }
-            .font(.subheadline)
+            .font(.subheadline.weight(.medium))
+            .tint(AppTheme.primaryDeep)
             .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
         }
     }
