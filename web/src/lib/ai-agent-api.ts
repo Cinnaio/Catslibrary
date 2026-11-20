@@ -2,6 +2,7 @@ import type { AgentChapterEditSource, AgentChapterHistory } from '@shared/ai-age
 import type {
   AgentChapterPlan,
   AgentChapterPlanInput,
+  AgentChapterPlanBranchState,
   AgentWritingReference,
   AgentRewriteSelection,
   AgentReferenceSelection,
@@ -21,6 +22,13 @@ import { request } from './api'
 const root = '/ai/agent/sessions'
 const path = (id: string) => `${root}/${encodeURIComponent(id)}`
 export const agentApi = {
+  planBranches: (id: string) => request<AgentChapterPlanBranchState>('GET', path(id) + '/chapter-plan/branches', null, true),
+  savePlanBranch: (id: string, name: string, expectedRevision: number, operationId: string) =>
+    request<AgentChapterPlanBranchState>('POST', path(id) + '/chapter-plan/branches', { name, expectedRevision, operationId }, true),
+  selectPlanBranch: (id: string, branchId: string, expectedRevision: number, operationId: string) =>
+    request<AgentChapterPlanBranchState>('POST', path(id) + '/chapter-plan/branches/' + encodeURIComponent(branchId) + '/select', { expectedRevision, operationId }, true),
+  removePlanBranch: (id: string, branchId: string) =>
+    request<AgentChapterPlanBranchState>('DELETE', path(id) + '/chapter-plan/branches/' + encodeURIComponent(branchId), null, true),
   saveChapterPlan: (id: string, plan: AgentChapterPlanInput, expectedRevision: number) =>
     request<{ plan: AgentChapterPlan }>('PATCH', path(id) + '/chapter-plan', { plan, expectedRevision }, true),
   writingReferences: (query = '', offset = 0) => request<{ references: AgentWritingReference[]; hasMore: boolean }>('GET', `/ai/agent/writing-references?${new URLSearchParams({ q: query, offset: String(offset) })}`, null, true),

@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import type { AgentChapterPlan } from '@shared/ai-agent'
 import AiAgentChapterPlan from './AiAgentChapterPlan'
 
-const api = vi.hoisted(() => ({ saveChapterPlan: vi.fn() }))
+const api = vi.hoisted(() => ({ saveChapterPlan: vi.fn(), planBranches: vi.fn(), selectPlanBranch: vi.fn() }))
 vi.mock('@/lib/ai-agent-api', () => ({ agentApi: api }))
 const plan: AgentChapterPlan = { version: 1, revision: 3, updatedAt: 1, title: '雨夜', goal: '发现线索', beats: '归家\n拆信', characters: '', ending: '门外响起脚步', constraints: '不揭露身份', targetWords: 2000 }
 const props = () => ({ sessionId: 'session', plan, disabled: false, onChanged: vi.fn(), onStart: vi.fn().mockResolvedValue(undefined), onDiscuss: vi.fn().mockResolvedValue(undefined) })
@@ -62,4 +62,37 @@ it('offers planning without creating a draft and blocks invalid manual plans', a
   expect(p.onDiscuss).toHaveBeenCalledWith(expect.stringContaining('暂不生成正文'))
   expect(p.onStart).not.toHaveBeenCalled()
   expect(api.saveChapterPlan).not.toHaveBeenCalled()
+})
+
+it('returns a selected branch to plan review and confirms only the new revision', async () => {
+  const p = props()
+  const user = userEvent.setup()
+  const alternative = { ...plan, goal: '先找同伴', revision: 1 }
+  const branch = { id: 'route-b', name: '同伴路线', plan: alternative, source: 'saved', createdAt: 1 }
+  const next = { ...alternative, revision: 4, sourceBranch: { id: branch.id, name: branch.name } }
+  api.planBranches.mockResolvedValue({ plan, branches: [branch] })
+  api.selectPlanBranch.mockResolvedValue({ plan: next, branches: [branch] })
+  render(<AiAgentChapterPlan {...p} branchesAvailable />)
+  await user.click(screen.getByRole('button', { name: /章节计划/ }))
+  await user.click(screen.getByRole('button', { name: '分支对比' }))
+  await screen.findByRole('button', { name: '同伴路线' })
+  expect(screen.queryByRole('button', { name: '确认计划并写作' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '设为当前计划' }))
+  await screen.findByRole('button', { name: '确认计划并写作' })
+  expect(p.onStart).not.toHaveBeenCalled()
+  expect(screen.getByText('先找同伴')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '确认计划并写作' }))
+  expect(p.onStart).toHaveBeenCalledExactlyOnceWith(next)
+})
+it('hides branch management on an older API and while there are unsaved edits', async () => {
+  const p = props()
+  const user = userEvent.setup()
+  const view = render(<AiAgentChapterPlan {...p} />)
+  await user.click(screen.getByRole('button', { name: /章节计划/ }))
+  expect(screen.queryByRole('button', { name: '分支对比' })).not.toBeInTheDocument()
+  view.rerender(<AiAgentChapterPlan {...p} branchesAvailable />)
+  expect(screen.getByRole('button', { name: '分支对比' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '编辑计划' }))
+  expect(screen.queryByRole('button', { name: '分支对比' })).not.toBeInTheDocument()
+  expect(api.planBranches).not.toHaveBeenCalled()
 })

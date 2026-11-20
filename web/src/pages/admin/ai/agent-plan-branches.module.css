@@ -1,0 +1,28 @@
+.root, .save, .comparison { display: grid; gap: 24px; min-width: 0; }
+.root p { margin: 0; line-height: 1.7; }
+.save { gap: 12px; }
+.saveRow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.saveRow > :first-child { flex: 1; min-width: min(220px, 100%); }
+.actions, .compareHeading { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.actions { justify-content: flex-end; }
+.compareHeading { justify-content: space-between; }
+.branches { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 16px; padding: 0; margin: 0; list-style: none; }
+.branch { display: grid; gap: 6px; min-width: 0; animation: branch-enter 180ms ease-out both; }
+.branch button { height: auto; min-height: 40px; white-space: normal; overflow-wrap: anywhere; text-align: left; justify-content: flex-start; }
+.branch span, .note, .save p { color: var(--text-muted); font-size: 12px; }
+.filter { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; font-size: 12px; cursor: pointer; }
+.field { border-top: 1px solid var(--border); padding-top: 16px; min-width: 0; }
+.field h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+.field h3 span { color: var(--text-muted); font-size: 12px; font-weight: 400; margin-left: 8px; }
+.columns { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.columns > div { min-width: 0; }
+.columns dt { color: var(--text-secondary); font-size: 12px; margin-bottom: 8px; overflow-wrap: anywhere; }
+.columns dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; }
+.confirm { display: grid; gap: 12px; border-top: 1px solid var(--border); padding-top: 16px; }
+@keyframes branch-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 800px) {
+  .columns { grid-template-columns: 1fr; gap: 16px; }
+  .root button, .actions button, .filter { min-height: 48px; }
+  .saveRow > * { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .branch { animation: none; } }

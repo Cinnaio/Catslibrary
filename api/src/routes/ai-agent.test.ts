@@ -345,6 +345,53 @@ afterAll(async () => {
   await t.close()
 })
 
+describe('chapter plan branch routes', () => {
+  const plan = { title: '来信', goal: '独自赴约', beats: '查验信件\n独自赴约', characters: '', ending: '留下悬念', constraints: '不揭露身份', targetWords: 2000 }
+  it('exposes branch support and enforces ownership and admin access on every branch endpoint', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const url = '/api/ai/agent/sessions/' + session.id
+    await request(url + '/chapter-plan', 'PATCH', { plan, expectedRevision: 0 })
+    expect(await (await request(url)).json()).toMatchObject({ chapterPlanBranchesAvailable: true })
+    const body = { name: '独自行动', expectedRevision: 1, operationId: 'branch-route-save' }
+    const saved = await request(url + '/chapter-plan/branches', 'POST', body)
+    expect(saved.status).toBe(200)
+    const result = await saved.json() as import('@shared/ai-agent').AgentChapterPlanBranchState
+    const id = result.branches[0]!.id
+    for (const [suffix, method, payload] of [
+      ['/chapter-plan/branches', 'GET', undefined],
+      ['/chapter-plan/branches', 'POST', body],
+      ['/chapter-plan/branches/' + id + '/select', 'POST', { expectedRevision: 1, operationId: 'branch-route-select' }],
+      ['/chapter-plan/branches/' + id, 'DELETE', undefined],
+    ] as const) {
+      expect((await request(url + suffix, method, payload, otherToken)).status).toBe(404)
+      expect((await request(url + suffix, method, payload, readerToken)).status).toBe(403)
+    }
+    expect(await (await request(url + '/chapter-plan/branches')).json()).toMatchObject({ branches: [{ id, plan }] })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('round-trips a branch switch, rejects old confirmations and preserves drafts behind explicit author confirmation', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const url = '/api/ai/agent/sessions/' + session.id
+    await request(url + '/chapter-plan', 'PATCH', { plan, expectedRevision: 0 })
+    const saved = await (await request(url + '/chapter-plan/branches', 'POST', { name: '独自行动', expectedRevision: 1, operationId: 'branch-http-save' })).json() as import('@shared/ai-agent').AgentChapterPlanBranchState
+    const id = saved.branches[0]!.id
+    const alternative = { ...plan, goal: '先去求助' }
+    await request(url + '/chapter-plan', 'PATCH', { plan: alternative, expectedRevision: 1 })
+    const choose = { expectedRevision: 2, operationId: 'branch-http-select' }
+    expect(await (await request(url + '/chapter-plan/branches/' + id + '/select', 'POST', choose)).json()).toMatchObject({ plan: { ...plan, revision: 3, sourceBranch: { id } } })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect((await request(url + '/messages', 'POST', { content: '旧版确认', requestId: 'branch-http-stale-confirm', chapterPlanRevision: 2 })).status).toBe(409)
+    const response = await request(url + '/messages', 'POST', { content: '确认当前路线', requestId: 'branch-http-confirm', chapterPlanRevision: 3 })
+    expect(response.status).toBe(202)
+    const { taskId } = await response.json() as { taskId: string }
+    await vi.waitFor(async () => expect((await getAiTask(t.db, taskId))?.status).toBe('completed'))
+    expect(JSON.parse((await getAiTask(t.db, taskId))!.params)).toMatchObject({ chapterPlan: { ...plan, revision: 3, sourceBranch: { id } } })
+    await request(url + '/chapter-plan', 'PATCH', { plan: alternative, expectedRevision: 3 })
+    await request(url + '/chapter-plan/branches/' + id, 'DELETE')
+    expect(await (await request(url + '/chapter-plan/branches/' + id + '/select', 'POST', choose)).json()).toMatchObject({ plan: { ...alternative, revision: 4 } })
+  })
+})
+
 describe('chapter plan routes', () => {
   const plan = { title: '来信', goal: '发现线索', beats: '回家\n拆信', characters: '', ending: '留下悬念', constraints: '不揭露身份', targetWords: 2000 }
   it('persists chapter plan edits, checks ownership and confirms only a current revision', async () => {

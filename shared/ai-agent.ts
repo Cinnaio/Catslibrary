@@ -61,7 +61,22 @@ export interface AgentChapterPlan extends AgentChapterPlanInput {
   version: 1
   revision: number
   updatedAt: number
+  sourceBranch?: { id: string; name: string }
 }
+
+export interface AgentChapterPlanBranch {
+  id: string
+  name: string
+  plan: AgentChapterPlan
+  source: 'saved' | 'switch'
+  createdAt: number
+}
+export interface AgentChapterPlanBranchState {
+  plan: AgentChapterPlan | null
+  branches: AgentChapterPlanBranch[]
+}
+export const AGENT_PLAN_BRANCH_LIMIT = 8
+export const AGENT_PLAN_BRANCH_NAME_LIMIT = 60
 
 export const AGENT_CHAPTER_PLAN_LIMITS = { title: 200, goal: 1200, beats: 4000, characters: 1200, ending: 1200, constraints: 1200 } as const
 
@@ -257,6 +272,7 @@ export interface AgentArtifact {
 
 export interface AgentSessionDetail {
   chapterPlan?: AgentChapterPlan | null
+  chapterPlanBranchesAvailable?: true
   writingReferences?: AgentWritingReferenceSnapshot[]
   turnUsage?: AgentTurnUsage[]
   messageReceipt?: { requestId: string; taskId: string } | null
