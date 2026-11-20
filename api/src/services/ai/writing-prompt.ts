@@ -165,9 +165,9 @@ export function buildWritingPromptPlan(opts: WritingPromptCompilerOptions): Writ
     if (brief) chapterTask.push(brief)
   }
   if (opts.agentContext) {
-    const { evidence, authors, prior } = agentWritingMaterials(opts.agentContext)
+    const { evidence, authors, prior, references } = agentWritingMaterials(opts.agentContext)
     facts.push(...evidence)
-    chapterTask.push(...authors)
+    chapterTask.push(...authors, ...references)
     if (prior) currentState.push(prior)
   }
   const contentPreferences = createMaterialBlock({

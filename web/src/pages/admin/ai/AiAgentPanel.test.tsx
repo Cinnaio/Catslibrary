@@ -9,7 +9,7 @@ import { pendingAgentKey, readPendingAgentMessage, savePendingAgentMessage } fro
 
 const streams = vi.hoisted(() => ({ watch: vi.fn() }))
 vi.mock('@/lib/ai-task-stream', () => ({ watchAiTask: streams.watch }))
-const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), remove: vi.fn(), create: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn(), memories: vi.fn(), changeMemory: vi.fn() }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), sessions: vi.fn(), remove: vi.fn(), create: vi.fn(), message: vi.fn(), save: vi.fn(), confirm: vi.fn(), reject: vi.fn(), prepare: vi.fn(), resume: vi.fn(), stop: vi.fn(), memories: vi.fn(), changeMemory: vi.fn(), writingReferences: vi.fn() }))
 const books = vi.hoisted(() => ({ discover: vi.fn(), previewUrl: vi.fn(), commit: vi.fn(), chapters: vi.fn() }))
 const providerMocks = vi.hoisted(() => ({
   providerPresets: vi.fn(), status: vi.fn(), writing: { getDraftReview: vi.fn(), reviewDraft: vi.fn() },
@@ -106,6 +106,25 @@ beforeEach(() => {
 })
 
 describe('creative agent conversation', () => {
+  it('attaches selected references to the saved request and retries the same selection', async () => {
+    const reference = { id: 'writing-card', title: '雨夜参考', tags: ['氛围'], content: '雨声中逐步推进对话。', usage: '参考节奏。', revision: 1, createdAt: 1, updatedAt: 1 }
+    mocks.writingReferences.mockResolvedValue({ references: [reference], hasMore: false })
+    mocks.message.mockRejectedValueOnce(new Error('连接中断'))
+    open()
+    const input = await screen.findByRole('textbox', { name: '发送给创作助手的消息' })
+    fireEvent.click(screen.getByRole('button', { name: '写作参考' }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: '选择参考 雨夜参考' }))
+    fireEvent.click(screen.getByRole('button', { name: '完成选择' }))
+    fireEvent.change(input, { target: { value: '按所选参考继续讨论' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/连接中断/)
+    expect(mocks.message).toHaveBeenLastCalledWith('session', '按所选参考继续讨论', expect.any(String), '', { ids: [reference.id], scope: 'turn' })
+    const original = mocks.message.mock.calls[0]
+    fireEvent.click(screen.getByRole('button', { name: '重试原消息' }))
+    await waitFor(() => expect(mocks.message).toHaveBeenCalledTimes(2))
+    expect(mocks.message.mock.calls[1]).toEqual(original)
+  })
+
   it('opens discovery separately and preserves the current unsent message when returning', async () => {
     books.discover.mockResolvedValue({ local: [{ id: 'novel', title: '雨夜', author: '作者', chapterCount: 4 }], sources: {} })
     open()

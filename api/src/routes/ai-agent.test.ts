@@ -345,6 +345,33 @@ afterAll(async () => {
   await t.close()
 })
 
+describe('writing reference routes', () => {
+  it('isolates library management and sends only the selected snapshot to the coordinator', async () => {
+    const response = await app.request('/api/ai/agent/writing-references', {
+      method: 'POST', headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: '雨夜氛围', tags: ['节奏'], content: '先写环境，再推进对话。', usage: '仅借鉴节奏，遵循原书人物。' }),
+    })
+    expect(response.status).toBe(201)
+    const { reference } = await response.json() as { reference: { id: string; revision: number; content: string } }
+    const foreign = await app.request('/api/ai/agent/writing-references', { headers: { Authorization: `Bearer ${otherToken}` } })
+    expect(await foreign.json()).toMatchObject({ references: [] })
+    const denied = await app.request(`/api/ai/agent/writing-references/${reference.id}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${otherToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision: reference.revision }),
+    })
+    expect(denied.status).toBe(404)
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '使用所选参考讨论下一章', 'selected-reference', undefined, '', { ids: [reference.id], scope: 'turn' })
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    const input = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+    const context = JSON.parse(input.messages.find((message: { content: string }) => message.content.startsWith('本轮会话资料')).content.split('：').slice(1).join('：'))
+    expect(context.writingReferences).toMatchObject([{ id: reference.id, revision: reference.revision, content: reference.content }])
+    expect(input.messages[0].content).toContain('保留原书人物性格')
+    const detail = await app.request(`/api/ai/agent/sessions/${session.id}`, { headers: { Authorization: `Bearer ${adminToken}` } })
+    expect(detail.status).toBe(200)
+    expect(await detail.json()).toMatchObject({ writingReferences: [] })
+  })
+})
+
 describe('book defaults for new agent conversations', () => {
   const root = '/api/ai/agent/sessions'
   const off = { version: 1, adultContentMode: 'off', intimacyWeight: 'none', adultCharactersConfirmed: false, consentRuleTier: 'default' }

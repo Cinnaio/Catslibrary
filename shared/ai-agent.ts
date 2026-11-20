@@ -27,6 +27,25 @@ export interface AgentRecovery {
   message: string
 }
 
+/** Personal reusable writing material, never a published story fact or permission. */
+export interface AgentWritingReference {
+  id: string
+  title: string
+  tags: string[]
+  content: string
+  usage: string
+  revision: number
+  createdAt: number
+  updatedAt: number
+}
+export type AgentWritingReferenceSnapshot = Omit<AgentWritingReference, 'createdAt' | 'updatedAt'>
+export interface AgentReferenceSelection {
+  ids: string[]
+  scope: 'turn' | 'session'
+}
+export const AGENT_REFERENCE_LIMIT = 6
+export const AGENT_REFERENCE_BUDGET = 24000
+
 export interface AgentSession {
   id: string
   novelId: string
@@ -36,6 +55,7 @@ export interface AgentSession {
   anchorTitle: string
   brief: string
   contentPreferences: AgentContentPreferences
+  writingReferenceIds?: string[]
   bookSettingsRevision?: number
   activeTaskId: string
   createdAt: number
@@ -168,6 +188,8 @@ export interface AgentEvent {
     failurePhase?: AgentPhase
     recoveryFromTaskId?: string
     error?: boolean
+    writingReferences?: Array<Pick<AgentWritingReference, 'id' | 'title' | 'revision'>>
+    referenceSelection?: AgentReferenceSelection
     providerPresetId?: string
     model?: string
     round?: number
@@ -206,6 +228,7 @@ export interface AgentArtifact {
 }
 
 export interface AgentSessionDetail {
+  writingReferences?: AgentWritingReferenceSnapshot[]
   turnUsage?: AgentTurnUsage[]
   messageReceipt?: { requestId: string; taskId: string } | null
   session: AgentSession

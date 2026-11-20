@@ -31,6 +31,7 @@ import { ReadingDialog } from '@/components/shared/ReadingDialog'
 import { taskStatusLabel, kindLabel } from './labels'
 import AiAgentComposer from './AiAgentComposer'
 import AiAgentMemory from './AiAgentMemory'
+import AiAgentWritingReferences, { type WritingReferenceChoice } from './AiAgentWritingReferences'
 import AiAgentRecovery from './AiAgentRecovery'
 import AiAgentUsage from './AiAgentUsage'
 import AiAgentTextReview from './AiAgentTextReview'
@@ -406,6 +407,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   const [hasEarlier, setHasEarlier] = useState<boolean | null>(null)
   const [input, setInput] = useState(pending?.content || '')
   const [providerPresetId, setProviderPresetId] = useState(pending?.providerPresetId || '')
+  const [writingReferences, setWritingReferences] = useState<WritingReferenceChoice | null>(null)
   const providerInitialized = useRef(!!pending)
   const [error, setError] = useState('')
   const [loadError, setLoadError] = useState('')
@@ -442,6 +444,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
     pendingRequest.current = null
     if (mounted.current) {
       setPending(null)
+      setWritingReferences(null)
       setError('')
       setInput(current => current === request.content ? '' : current)
     }
@@ -474,6 +477,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         for (const event of next.events) observedEvents.current.set(event.id, event)
         setEarlier([...observedEvents.current.values()].filter((event) => !next.events.some((e) => e.id === event.id)).sort((a, b) => a.id - b.id))
         setData(next)
+        setWritingReferences(current => current ?? { references: next.writingReferences || [], scope: (next.session.writingReferenceIds?.length || 0) > 0 ? 'session' : 'turn' })
         onSessionRef.current(next.session)
         setLoadError('')
         timer = setTimeout(() => void load(), 12000)
@@ -553,7 +557,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
   }
   async function send(content = input) {
     if (!content.trim() || busyRef.current || running || pendingRequest.current) return
-    await submitMessage({ content, id: newOperationId('agent-message'), providerPresetId })
+    await submitMessage({ content, id: newOperationId('agent-message'), providerPresetId, ...(writingReferences && (writingReferences.references.length || writingReferences.scope === 'session' || data?.session.writingReferenceIds?.length) ? { referenceSelection: { ids: writingReferences.references.map(item => item.id), scope: writingReferences.scope } } : {}) })
   }
   async function submitMessage(request: PendingAgentMessage) {
     if (busyRef.current) return
@@ -561,7 +565,8 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
     setPending(request)
     savePendingAgentMessage(pendingKey, request)
     await perform(async () => {
-      await agentApi.message(sessionId, request.content, request.id, request.providerPresetId)
+      if (request.referenceSelection) await agentApi.message(sessionId, request.content, request.id, request.providerPresetId, request.referenceSelection)
+      else await agentApi.message(sessionId, request.content, request.id, request.providerPresetId)
       clearPending(request)
       if (mounted.current) {
         followBottom.current = true
@@ -819,7 +824,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
             providerPresetId={providerPresetId}
             onProviderChange={setProviderPresetId}
             focusRequest={focusRequest}
-            tools={<AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} />}
+            tools={<><AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} /><AiAgentWritingReferences value={writingReferences || { references: [], scope: 'turn' }} onChange={setWritingReferences} disabled={busy || running || !!pending || !writingReferences} /></>}
           />
         </section>
         <aside id={outputsId} className={styles.outputs} aria-label="产出与采纳">

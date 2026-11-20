@@ -30,6 +30,8 @@ import { agentMemorySource, changeAgentMemory, createAgentMemory, getAgentSummar
 import { agentTaskParams, getAgentRecovery, requireRecoveryTask } from '../services/ai/agent-recovery'
 import { readAgentTurnUsage } from '../services/ai/agent-usage'
 
+import { changeWritingReference, createWritingReference, listWritingReferences, referenceSelection, snapshotWritingReferences } from '../services/ai/agent-writing-references'
+
 type Dispatch = (request: Request) => Response | Promise<Response>
 function numberParam(value: string | undefined, max = 10000) {
   const n = Number(value || 0)
@@ -62,6 +64,13 @@ export function createAgentRoutes(dispatch: Dispatch) {
       return c.json({ error: err.message, code: err.code }, (err.status >= 400 && err.status <= 599 ? err.status : 500) as ContentfulStatusCode)
     console.error('[ai-agent]', err)
     return c.json({ error: '创作助手暂时不可用，请稍后重试' }, 500)
+  })
+  routes.get('/writing-references', async c => c.json(await listWritingReferences(getDb(), c.get('user').id, c.req.query('q') || '', numberParam(c.req.query('offset')))))
+  routes.post('/writing-references', async c => c.json({ reference: await createWritingReference(getDb(), c.get('user').id, await c.req.json().catch(() => ({}))) }, 201))
+  routes.patch('/writing-references/:id', async c => c.json({ reference: await changeWritingReference(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => ({}))) }))
+  routes.delete('/writing-references/:id', async c => {
+    await changeWritingReference(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => ({})), true)
+    return c.json({ ok: true })
   })
   routes.get('/sessions', async (c) => {
     const novelId = String(c.req.query('novelId') || '')
@@ -113,6 +122,7 @@ export function createAgentRoutes(dispatch: Dispatch) {
       'SELECT request_id AS "requestId",task_id AS "taskId" FROM ai_agent_events WHERE session_id=$1 AND request_id=$2', [session.id, requestId]) : null
     return c.json({
       session,
+      writingReferences: await snapshotWritingReferences(db, c.get('user').id, session.writingReferenceIds || [], false, false),
       messageReceipt: messageReceipt || null,
       ...history,
       activeTask,
@@ -184,7 +194,7 @@ export function createAgentRoutes(dispatch: Dispatch) {
         const turn = await beginAgentTurn(db, c.get('user').id, session.id, String(body.content || ''), String(body.requestId || ''), {
           providerPresetId,
           model: textProvider().model,
-        })
+        }, '', referenceSelection(body.referenceSelection))
         if (turn.created) {
           const current = await getAgentSession(db, c.get('user').id, session.id)
           void runAgentTurn(db, current, turn.taskId, c.get('user').id, agentApiAdapter(c.req.raw, dispatch), {

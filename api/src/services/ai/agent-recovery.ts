@@ -1,4 +1,4 @@
-import type { AgentPhase, AgentRecovery, AgentSession } from '@shared/ai-agent'
+import type { AgentWritingReferenceSnapshot, AgentPhase, AgentRecovery, AgentSession } from '@shared/ai-agent'
 import type { Db } from '../../db/pool'
 import { first, run } from '../../db/query'
 import { AiError } from './client'
@@ -26,6 +26,7 @@ export const AGENT_READ_TOOLS = new Set([
 export function agentTaskParams(task?: Pick<AiTask, 'params'>) {
   try {
     return JSON.parse(task?.params || '{}') as {
+      writingReferences?: AgentWritingReferenceSnapshot[]
       sessionId?: string
       providerPresetId?: string
       model?: string

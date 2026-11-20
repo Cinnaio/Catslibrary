@@ -1,5 +1,7 @@
 import type { AgentChapterEditSource, AgentChapterHistory } from '@shared/ai-agent'
 import type {
+  AgentWritingReference,
+  AgentReferenceSelection,
   AgentAction,
   AgentActionKind,
   AgentArtifact,
@@ -16,6 +18,10 @@ import { request } from './api'
 const root = '/ai/agent/sessions'
 const path = (id: string) => `${root}/${encodeURIComponent(id)}`
 export const agentApi = {
+  writingReferences: (query = '', offset = 0) => request<{ references: AgentWritingReference[]; hasMore: boolean }>('GET', `/ai/agent/writing-references?${new URLSearchParams({ q: query, offset: String(offset) })}`, null, true),
+  createWritingReference: (value: Pick<AgentWritingReference, 'title' | 'tags' | 'content' | 'usage'>) => request<{ reference: AgentWritingReference }>('POST', '/ai/agent/writing-references', value, true),
+  editWritingReference: (id: string, value: Pick<AgentWritingReference, 'title' | 'tags' | 'content' | 'usage'>, expectedRevision: number) => request<{ reference: AgentWritingReference }>('PATCH', `/ai/agent/writing-references/${encodeURIComponent(id)}`, { ...value, expectedRevision }, true),
+  removeWritingReference: (id: string, expectedRevision: number) => request<{ ok: boolean }>('DELETE', `/ai/agent/writing-references/${encodeURIComponent(id)}`, { expectedRevision }, true),
   chapter: (id: string, chapterId: string) => request<{ chapter: AgentChapterEditSource }>('GET', path(id) + '/chapters/' + encodeURIComponent(chapterId), null, true),
   chapterHistory: (id: string, chapterId: string, offset = 0) => request<{ history: AgentChapterHistory[]; hasMore: boolean }>('GET', path(id) + '/chapters/' + encodeURIComponent(chapterId) + '/history?offset=' + offset, null, true),
   editChapter: (sessionId: string, input: { chapterId: string; baseRevision: string; startUTF16: number; endUTF16: number; selectedText: string; instruction: string; clientRequestId: string; providerPresetId: string }) =>
@@ -26,8 +32,8 @@ export const agentApi = {
   remove: (id: string) => request<{ ok: boolean }>('DELETE', path(id), null, true),
   get: (id: string, requestId?: string) => request<AgentSessionDetail>('GET', `${path(id)}${requestId ? `?${new URLSearchParams({ requestId })}` : ''}`, null, true),
   events: (id: string, before: number) => request<{ events: AgentEvent[]; hasEarlier: boolean }>('GET', `${path(id)}/events?before=${before}`, null, true),
-  message: (id: string, content: string, requestId: string, providerPresetId = '') =>
-    request<{ taskId: string; created: boolean }>('POST', `${path(id)}/messages`, { content, requestId, providerPresetId }, true),
+  message: (id: string, content: string, requestId: string, providerPresetId = '', referenceSelection?: AgentReferenceSelection) =>
+    request<{ taskId: string; created: boolean }>('POST', `${path(id)}/messages`, { content, requestId, providerPresetId, referenceSelection }, true),
   resume: (id: string, taskId: string) =>
     request<{ taskId: string; created: boolean }>('POST', `${path(id)}/tasks/${encodeURIComponent(taskId)}/resume`, { confirmModelCall: true }, true),
   save: (id: string, brief: string, contentPreferences: AgentContentPreferences, expectedUpdatedAt: number, expectedBookSettingsRevision?: number) =>

@@ -209,6 +209,7 @@ export async function runRewriteTask(db: Db, opts: { taskId: string; userId: str
     ]),
     materialSection('STORY_EVIDENCE', agentMaterials.evidence),
     materialSection('AUTHOR_REQUIREMENTS', agentMaterials.authors),
+    materialSection('WRITING_REFERENCES', agentMaterials.references),
     `本次改写要求：${params.instruction}`,
     length ? `${agentLengthInstruction(length)} 以这项任务参数控制整章篇幅。`
       : `只输出本次改写的正文，未明确要求调整篇幅时参考原段约 ${selectedCount} 字。`,

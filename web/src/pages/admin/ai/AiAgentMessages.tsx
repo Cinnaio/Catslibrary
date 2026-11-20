@@ -1,3 +1,4 @@
+import { WritingReferenceHistory } from './AiAgentWritingReferences'
 import { useEffect, useRef, useState } from 'react'
 import Markdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -148,7 +149,8 @@ export default function AiAgentMessages({
                     </Button>
                   ) : <div key={read.draftId} className={styles.muted}>{label}</div>
                 })}
-                {event.metadata.sources?.length ? <AiAgentSources sources={event.metadata.sources} /> : null}
+                {!!event.metadata.writingReferences?.length && <WritingReferenceHistory references={event.metadata.writingReferences} />}
+        {event.metadata.sources?.length ? <AiAgentSources sources={event.metadata.sources} /> : null}
               </div>
             ))}
           </div>

@@ -1,8 +1,10 @@
-import type { AgentEvidence, AgentMemory } from '@shared/ai-agent'
+import type { AgentEvidence, AgentMemory, AgentWritingReferenceSnapshot } from '@shared/ai-agent'
 import type { Db } from '../../db/pool'
-import { all } from '../../db/query'
+import { all, first } from '../../db/query'
 import { quotedAgentText } from './agent-conversation'
 import { readAgentChapter } from './agent-retrieval'
+import { WRITING_REFERENCE_GUIDANCE } from './agent-writing-references'
+import { agentTaskParams } from './agent-recovery'
 import { activeAgentMemories } from './agent-memory'
 import { getAgentSession } from './agent-store'
 import { AiError } from './client'
@@ -16,6 +18,7 @@ export interface AgentWritingLength {
 
 /** Resolved at submission, stored with the task so a retry uses the same material. */
 export interface AgentWritingContext {
+  writingReferences?: AgentWritingReferenceSnapshot[]
   sessionId: string
   sources: AgentEvidence[]
   authorMessages: Array<{ id: number; content: string }>
@@ -148,6 +151,10 @@ export async function resolveAgentWritingContext(
     : referenceList(raw.authorEventIds, /^\d{1,15}$/).map(Number)
   if (Number.isSafeInteger(raw.focusAuthorEventId)) authorIds.push(Number(raw.focusAuthorEventId))
   const taskId = String(raw.authorTaskId || '')
+  const authorTask = taskId ? await first<{ params: string }>(db, `SELECT params FROM ai_tasks
+    WHERE id=$1 AND user_id=$2 AND kind='agent_chat' AND params::jsonb->>'sessionId'=$3`, [taskId, scope.userId, session.id]) : undefined
+  if (taskId && !authorTask) throw new AiError('invalid', '写作参考必须来自当前会话的作者轮次', 422)
+  const writingReferences = authorTask ? agentTaskParams(authorTask).writingReferences || [] : previous?.writingReferences || []
   const messages = authorIds.length || taskId ? await all<{ id: number; content: string; task_id: string }>(db, `
     SELECT id,content,task_id FROM ai_agent_events WHERE session_id=$1 AND role='user'
     AND (id=ANY($2::bigint[]) OR ($3<>'' AND task_id=$3)) ORDER BY id`, [session.id, authorIds, taskId]) : []
@@ -173,7 +180,7 @@ export async function resolveAgentWritingContext(
   const agreements = (await activeAgentMemories(db, scope.userId, scope.novelId))
     .map(({ id, revision, title, content }) => ({ id, revision, title, content }))
   return {
-    sessionId: session.id, afterChapterId: session.afterChapterId, sources: passages, authorMessages, agreements,
+    sessionId: session.id, afterChapterId: session.afterChapterId, sources: passages, authorMessages, agreements, writingReferences,
     brief: session.brief, ...(priorDraft ? { priorDraft } : {}), ...(length ? { length } : {}),
   }
 }
@@ -185,7 +192,13 @@ export function agentWritingMaterials(context: AgentWritingContext) {
     text: `《${source.title}》\n${source.excerpt}`,
     source: { field: 'agent_chapter_excerpt', chapterId: source.chapterId, revision: source.revision },
   })).filter((block): block is MaterialBlock => !!block)
+  const references = (context.writingReferences || []).map(reference => createMaterialBlock({
+    id: `writing-reference-${reference.id}-${reference.revision}`, kind: 'user_context',
+    text: JSON.stringify({ title: reference.title, tags: reference.tags, usage: reference.usage, content: reference.content }),
+    source: { field: 'agent_writing_reference', revision: String(reference.revision) }, required: true,
+  })).filter((block): block is MaterialBlock => !!block)
   const authors = [
+    ...(references.length ? [createMaterialBlock({ id: 'writing-reference-guidance', kind: 'author_request', text: WRITING_REFERENCE_GUIDANCE })] : []),
     ...(context.agreements || []).map(agreement => createMaterialBlock({
       id: `agreement-${agreement.id}-${agreement.revision}`, kind: 'author_request',
       text: `作品长期约定（本次明确要求优先）：${agreement.title}\n${agreement.content}`,
@@ -207,7 +220,7 @@ export function agentWritingMaterials(context: AgentWritingContext) {
     maxChars: 6000,
     mode: 'tail',
   })
-  return { evidence, authors, prior }
+  return { evidence, authors, prior, references }
 }
 
 export function agentLengthInstruction(length: AgentWritingLength) {
