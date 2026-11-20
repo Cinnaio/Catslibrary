@@ -1,0 +1,58 @@
+{
+  "date": "2026-11-20",
+  "timezone": "Asia/Shanghai",
+  "implementationCommit": "eaccb82f09fcea48c7c1f8dbac6b09604d3b9b56",
+  "workflow": "Cinnaio/Catslibrary/.github/workflows/deploy.yml",
+  "runId": 44735039560,
+  "jobId": 136284181689,
+  "runUrl": "https://github.com/Cinnaio/Catslibrary/actions/runs/44735039560",
+  "createdAt": "2026-11-20T12:21:01Z",
+  "inputs": {
+    "core_ref": "main",
+    "adapter_ref": "",
+    "build_only": true
+  },
+  "runner": "ubuntu-22.04 GitHub-hosted standard runner",
+  "conclusion": "success",
+  "verified": {
+    "privateCheckout": true,
+    "pinnedProductionAdapter": true,
+    "dependencyInstall": true,
+    "coreAndAdapterChecks": true,
+    "combinedBuild": true,
+    "linuxRuntime": true,
+    "finalArchiveValidation": true,
+    "isolatedPostgresSmoke": true,
+    "cleanup": true
+  },
+  "privacyAudit": {
+    "run_id": 44735039560,
+    "head_sha": "eaccb82f09fcea48c7c1f8dbac6b09604d3b9b56",
+    "conclusion": "success",
+    "public_artifact_count": 0,
+    "private_marker_checks": 44,
+    "private_markers_found": 0,
+    "log_files_checked": 18
+  },
+  "credentials": {
+    "privateRepositoryUnchanged": true,
+    "readOnlyRepositoryDeployKey": true,
+    "localTemporaryPrivateKeyDeleted": true
+  },
+  "production": {
+    "activation": "skipped (build_only=true)",
+    "observedAt": "2026-11-20T20:25:42+08:00",
+    "coreSha": "595730ca596644864d06d6eafb490b2ab8a9d84e",
+    "adapterRevisionUnchanged": true,
+    "apiVersion": "1.8.0",
+    "ready": true,
+    "activeState": "active",
+    "subState": "running",
+    "nRestarts": 0,
+    "activeEnterTimestamp": "2026-11-20 09:45:06 CST"
+  },
+  "limitations": [
+    "This validation did not upload or activate a release on production.",
+    "Marker audit checks 44 known private markers, not a formal proof of absence of every possible disclosure."
+  ]
+}

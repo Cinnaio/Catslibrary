@@ -5,7 +5,8 @@
 - 主仓库 Deploy 改为标准 GitHub Ubuntu runner 同任务拉取私有书源、验证、合并构建及 SSH 发布；私有仓库分钟额度耗尽时仍可从公开仓库启动，story 只接收完整发布包。
 - 默认保留线上适配器提交；专用只读 Deploy Key、固定主机密钥、原始日志隔离和无公开工件/缓存，沿用双版本并发保护、归档摘要及协议 3。
 - build_only 只构建验收，不上线；独立公开 Verify release package 继续关闭私有书源并验证核心包。部署流程变化不递增 API/Web/iOS 版本。
-- 本地 8 项部署与日志隔离回归、actionlint 检查通过；实际 GitHub 构建与上线状态另记，不以源码提交代替部署成功。
+- 实现提交 `eaccb82f` 已推送；本地 8 项新回归、3 项既有部署回归与 actionlint 通过。2026-11-20 20:21（Asia/Shanghai）启动公开仓库运行 `44735039560`，私有拉取、依赖安装、合并构建、完整包与临时 PostgreSQL 验收全部成功。
+- 本次 `build_only=true`，未上传或激活生产版本；story 仍就绪、原启动时间不变。公开 Artifact 数为 0，18 份日志中 44 个已知私有标记未命中；完整记录见 [验收证据](docs/verification/public-actions-private-deploy-2026-11-20.json)。
 
 ## iOS 1.4.0 阅读空间视觉更新 — 2026-11-20（源码候选）
 

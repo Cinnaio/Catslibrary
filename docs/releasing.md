@@ -4,7 +4,8 @@
 
 - 交付范围：主仓库 Deploy 的手动合并构建、独立只读适配器凭证、公开日志隔离、单 runner 内直接 SSH 发布；生产协议仍为 3，归档格式仍为 2。
 - API/Web/iOS 交付内容未因发布工具变化而改变，沿用既有候选版本和锁文件。核心及适配器完整 SHA 在每次运行开始固定，默认适配器沿用线上版本。
-- 本地 8 项定向回归与 actionlint 通过；GitHub 真实运行、是否切换生产与验收结果需分别记录。操作与失败排查见 [部署指南](deployment.md)。
+- 实现源码 `eaccb82f09fcea48c7c1f8dbac6b09604d3b9b56`；公开 Actions 运行 `44735039560` 于 20:21 CST 发起并成功完成私有合并构建及临时 PostgreSQL 验收。新 8 项、既有 3 项定向回归与 actionlint 通过。
+- 本次 build_only=true，生产激活跳过；20:25 CST 只读复查 story 仍运行核心 `595730ca`、API 1.8.0，适配器版本和 09:45:06 启动时间不变，ready=true、NRestarts=0。公开 Artifact 为 0，已知私有标记日志检查未命中。证据见 [运行记录](verification/public-actions-private-deploy-2026-11-20.json)，操作见 [部署指南](deployment.md)。
 
 ## iOS 阅读空间视觉候选（2026-11-20）
 

@@ -1,6 +1,6 @@
 name: Verify release package
 
-# 可独立手动验收，也供 Deploy 在同一源码提交上复用；本工作流不读取部署密钥。
+# 纯核心发布包独立验收及可复用入口；私有实例由 Deploy 单任务合并构建。
 on:
   workflow_dispatch:
   workflow_call:
@@ -165,7 +165,7 @@ jobs:
               f"- release.tgz SHA-256：`{os.environ['ARCHIVE_SHA256']}`",
               f"- 工件 ID：`{os.environ['ARTIFACT_ID']}`（保留 14 天）",
               '- 已验证：类型、Lint、关键回归、归档完整性、随包依赖与 Sharp、临时 PostgreSQL 16 上的迁移和业务就绪、首页及入口资源。',
-              '- 本作业未连接生产服务器。单独运行 Verify release package 到此结束；由 Deploy 调用时，后续部署作业使用本次验证的原包。',
+              '- 本作业未连接生产服务器。本工作流只验收纯核心包；私有实例请从 Deploy 启动新的合并构建与发布。',
               '',
           ]
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
