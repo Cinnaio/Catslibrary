@@ -5,6 +5,9 @@ import ZhiZhouCore
 struct BookshelfView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var editMode: EditMode = .inactive
+    @State private var displayedQuery: [String]?
     @State private var response: BookshelfResponse?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -24,6 +27,10 @@ struct BookshelfView: View {
     @State private var nextOffset = 0
     @State private var hasMore = false
     private let pageSize = 50
+
+    private var showsCoverGrid: Bool {
+        horizontalSizeClass != .regular && dynamicTypeSize < .xxxLarge && !editMode.isEditing
+    }
 
     private var shelfQuery: [String] {
         [search.trimmingCharacters(in: .whitespacesAndNewlines), sort, reading, ContentAccessStore.shared.mode]
@@ -75,7 +82,7 @@ struct BookshelfView: View {
 
     private var bookshelfList: some View {
         bookshelfContent
-            .appListStyle(.browsing)
+            .appListStyle(.readingSpace)
             .safeAreaBar(edge: .bottom, spacing: 0) {
                 AppFeedbackOverlay(center: actionFeedback, edge: .bottom)
             }
@@ -87,10 +94,11 @@ struct BookshelfView: View {
                 }
             }
             .navigationTitle("书架")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $search, prompt: "搜索收藏的书名或作者")
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             .toolbar { bookshelfToolbar }
+            .environment(\.editMode, $editMode)
             .refreshable { await load() }
             .onChange(of: ContentAccessStore.shared.mode) { _, mode in
                 if mode == "safe" { response = nil }
@@ -150,7 +158,18 @@ struct BookshelfView: View {
     // Give each section its own type-checking boundary as the list grows.
     private var bookshelfContent: some View {
         List(selection: $selection) {
-            if let errorMessage, response == nil, !isLoading {
+            ReadingSpaceHeading(title: "书架", subtitle: "让故事，停在你喜欢的地方。")
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            if isLoading && response != nil {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("正在更新书架…").font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                }
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                .accessibilityElement(children: .combine)
+            }
+            if let errorMessage, (response == nil || displayedQuery != shelfQuery), !isLoading {
                 ContentUnavailableView {
                     Label("加载失败", systemImage: "wifi.slash")
                 } description: {
@@ -160,7 +179,7 @@ struct BookshelfView: View {
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
-            } else if let response = visibleResponse {
+            } else if let response = visibleResponse, displayedQuery == shelfQuery {
                 loadedContent(response)
             }
         }
@@ -197,7 +216,9 @@ struct BookshelfView: View {
     private func recentSection(_ recent: [RecentItem]) -> some View {
         Section("最近阅读") {
             ForEach(recent) { item in
-                recentLink(item)
+                recentLink(item, featured: showsCoverGrid && item.id == recent.first?.id)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                     .swipeActions(edge: .trailing) {
                         Button("删除记录", role: .destructive) {
                             pendingRecentRemove = item
@@ -215,23 +236,54 @@ struct BookshelfView: View {
 
     private func favoritesSection(_ response: BookshelfResponse) -> some View {
         Section("我的书架（\(response.totals?.favorites ?? response.favorites.count)）") {
-            ForEach(response.favorites) { favorite in
-                favoriteLink(favorite)
-                    .swipeActions(edge: .trailing) {
-                        Button("移出书架", role: .destructive) {
-                            pendingRemove = favorite
+            if showsCoverGrid {
+                coverRows(response.favorites)
+            } else {
+                ForEach(Array(response.favorites.enumerated()), id: \.element.id) { index, favorite in
+                    favoriteLink(favorite)
+                        .readingSpaceEntrance(index)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .swipeActions(edge: .trailing) {
+                            Button("移出书架", role: .destructive) {
+                                pendingRemove = favorite
+                            }
                         }
-                    }
-            }
-            .onDelete { offsets in
-                guard let index = offsets.first,
-                      response.favorites.indices.contains(index)
-                else { return }
-                pendingRemove = response.favorites[index]
+                }
+                .onDelete { offsets in
+                    guard let index = offsets.first,
+                          response.favorites.indices.contains(index)
+                    else { return }
+                    pendingRemove = response.favorites[index]
+                }
             }
             if hasMore {
-                loadMoreButton
+                loadMoreButton.listRowBackground(Color.clear).listRowSeparator(.hidden)
             }
+        }
+    }
+
+    // 每行只承载两张封面，让原生 List 继续按需创建长书架的行。
+    private func coverRows(_ favorites: [FavoriteItem]) -> some View {
+        ForEach(Array(stride(from: 0, to: favorites.count, by: 2)), id: \.self) { offset in
+            HStack(alignment: .top, spacing: 22) {
+                favoriteLink(favorites[offset], cover: true)
+                    .frame(minWidth: 0, maxWidth: .infinity)
+                    .readingSpaceEntrance(offset)
+                    .id(favorites[offset].id)
+                if offset + 1 < favorites.count {
+                    favoriteLink(favorites[offset + 1], cover: true)
+                        .frame(minWidth: 0, maxWidth: .infinity)
+                        .readingSpaceEntrance(offset + 1)
+                        .id(favorites[offset + 1].id)
+                } else {
+                    Color.clear.frame(maxWidth: .infinity).accessibilityHidden(true)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 12)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 
@@ -313,13 +365,13 @@ struct BookshelfView: View {
     }
 
     @ViewBuilder
-    private func recentLink(_ item: RecentItem) -> some View {
+    private func recentLink(_ item: RecentItem, featured: Bool = false) -> some View {
         let route = BookshelfRoute.read(item.asLaunch)
         if horizontalSizeClass != .regular {
             NavigationLink {
                 destination(for: route)
             } label: {
-                recentRow(item)
+                recentRow(item, featured: featured)
             }
             .contextMenu {
                 Button {
@@ -338,7 +390,7 @@ struct BookshelfView: View {
             Button {
                 selection = route
             } label: {
-                recentRow(item)
+                recentRow(item, featured: featured)
             }
             .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
             .tag(route)
@@ -359,13 +411,13 @@ struct BookshelfView: View {
     }
 
     @ViewBuilder
-    private func favoriteLink(_ favorite: FavoriteItem) -> some View {
+    private func favoriteLink(_ favorite: FavoriteItem, cover: Bool = false) -> some View {
         let route = favorite.asLaunch.map { BookshelfRoute.read($0) } ?? .detail(favorite.asNovel)
         if horizontalSizeClass != .regular {
             NavigationLink {
                 destination(for: route)
             } label: {
-                favoriteRow(favorite)
+                favoriteLabel(favorite, cover: cover)
             }
             .contextMenu {
                 Button {
@@ -379,12 +431,12 @@ struct BookshelfView: View {
                     Label("移出书架", systemImage: "trash")
                 }
             }
-            .accessibilityHint("打开后接着读")
+            .accessibilityHint(favorite.asLaunch == nil ? "打开书籍详情" : "打开后接着读")
         } else {
             Button {
                 selection = route
             } label: {
-                favoriteRow(favorite)
+                favoriteLabel(favorite, cover: cover)
             }
             .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
             .tag(route)
@@ -403,21 +455,22 @@ struct BookshelfView: View {
         }
     }
 
-    private func recentRow(_ item: RecentItem) -> some View {
-        HStack(spacing: 10) {
+    private func recentRow(_ item: RecentItem, featured: Bool = false) -> some View {
+        HStack(spacing: featured ? 18 : 12) {
             CachedAsyncImage(
                 url: APIClient.shared.coverURL(novelId: item.novelId, updatedAt: item.updatedAt),
-                targetSize: CGSize(width: 60, height: 86)
+                targetSize: CGSize(width: featured ? 78 : 60, height: featured ? 112 : 86)
             ) { image in
                 image.resizable().scaledToFill()
             } placeholder: {
                 AppTheme.primaryLight
             }
-            .frame(width: 60, height: 86)
+            .frame(width: featured ? 78 : 60, height: featured ? 112 : 86)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
             .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 7) {
+                if featured { Text("接着读").font(.caption.weight(.medium)).foregroundStyle(AppTheme.primary) }
                 Text(item.novelTitle)
                     .font(serifFont(.headline, .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
@@ -433,9 +486,60 @@ struct BookshelfView: View {
                     .accessibilityLabel("阅读进度")
                     .accessibilityValue("百分之 \(Self.percentValue(item.scrollPercent))")
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
+        .padding(featured ? 18 : 0)
+        .background {
+            if featured { RoundedRectangle(cornerRadius: ReadingSpace.panelRadius).fill(ReadingSpace.paper) }
+        }
+        .padding(.vertical, featured ? 6 : 4)
         .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private func favoriteLabel(_ favorite: FavoriteItem, cover: Bool) -> some View {
+        if cover { favoriteCover(favorite) }
+        else { favoriteRow(favorite) }
+    }
+
+    private func favoriteCover(_ favorite: FavoriteItem) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Color.clear
+                .aspectRatio(0.7, contentMode: .fit)
+                .overlay {
+                    CachedAsyncImage(
+                        url: APIClient.shared.coverURL(novelId: favorite.novelId, updatedAt: favorite.novelUpdatedAt),
+                        targetSize: CGSize(width: 180, height: 258)
+                    ) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        ZStack {
+                            AppTheme.primaryLight
+                            Image(systemName: "book.closed").font(.largeTitle).foregroundStyle(AppTheme.primary)
+                        }
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .shadow(color: AppTheme.cardShadow, radius: 8, x: 0, y: 4)
+                .accessibilityHidden(true)
+            Text(favorite.title)
+                .font(serifFont(.headline, .semibold))
+                .foregroundStyle(ReadingSpace.ink).appTextLineLimit(2)
+            Text(favorite.author)
+                .font(.caption).foregroundStyle(AppTheme.textSecondary).appTextLineLimit(1)
+            Text(favoriteProgress(favorite))
+                .font(.caption).foregroundStyle(AppTheme.primary)
+                .appTextLineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private func favoriteProgress(_ favorite: FavoriteItem) -> String {
+        guard favorite.asLaunch != nil else { return "尚未开始" }
+        guard let percent = favorite.scrollPercent else { return "接着读" }
+        return "接着读 · \(Self.percentText(percent))"
     }
 
     private func favoriteRow(_ favorite: FavoriteItem) -> some View {
@@ -482,7 +586,8 @@ struct BookshelfView: View {
 
     /// 进度百分比 clamp 到 0...100，防止服务端异常值显示 >100%。
     private static func percentValue(_ raw: Double) -> Int {
-        min(100, max(0, Int((raw * 100).rounded())))
+        guard raw.isFinite else { return 0 }
+        return Int((min(1, max(0, raw)) * 100).rounded())
     }
 
     private static func percentText(_ raw: Double) -> String {
@@ -541,6 +646,7 @@ struct BookshelfView: View {
             } else {
                 response = updated
             }
+            displayedQuery = ticket.query
             nextOffset = offset + r.favorites.count
             hasMore = r.favorites.count == pageSize && nextOffset < (r.totals?.favorites ?? Int.max)
             errorMessage = nil

@@ -2,11 +2,13 @@ import SwiftUI
 
 enum AppPageStyle {
     case browsing
+    case readingSpace
     case settings
 
     var background: Color {
         switch self {
         case .browsing: return AppTheme.canvas
+        case .readingSpace: return ReadingSpace.canvas
         case .settings: return AppTheme.background
         }
     }
@@ -129,7 +131,7 @@ private struct AppListStyleModifier: ViewModifier {
     func body(content: Content) -> some View {
         Group {
             switch style {
-            case .browsing:
+            case .browsing, .readingSpace:
                 if let maximumWidth {
                     GeometryReader { geometry in
                         content

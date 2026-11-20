@@ -37,7 +37,7 @@ struct AdminAIAgentConversationView: View {
                 ProgressView("读取对话…").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(AppTheme.canvas)
+        .background(ReadingSpace.canvas)
         .navigationTitle(model.session.title.isEmpty ? "对话创作" : model.session.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -91,16 +91,19 @@ struct AdminAIAgentConversationView: View {
     }
 
     private var context: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(model.session.novelTitle).font(.subheadline.weight(.medium))
+        VStack(alignment: .leading, spacing: 7) {
+            Text(model.session.novelTitle).font(serifFont(.headline, .semibold))
+                .foregroundStyle(ReadingSpace.ink).fixedSize(horizontal: false, vertical: true)
             Text(contextSummary).font(.caption).foregroundStyle(AppTheme.textSecondary)
             if model.pendingMemoryCount > 0 {
                 Button("作品记忆 · \(model.pendingMemoryCount) 条待确认") { panel = .memory }
                     .font(.footnote).frame(minHeight: 44)
             }
         }
-        .frame(maxWidth: 820, alignment: .leading)
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        .padding(18)
+        .frame(maxWidth: 760, alignment: .leading)
+        .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(.horizontal, 16).padding(.vertical, 10)
         .frame(maxWidth: .infinity)
     }
 
@@ -205,7 +208,7 @@ private struct AgentMessagesView: View {
             }
             Color.clear.frame(height: 1).id("agent-bottom")
         }
-        .padding(16).frame(maxWidth: 820, alignment: .leading).frame(maxWidth: .infinity)
+        .padding(20).frame(maxWidth: 760, alignment: .leading).frame(maxWidth: .infinity)
     }
 
     @ViewBuilder private var replyStatus: some View {
@@ -253,7 +256,7 @@ private struct AgentMessagesView: View {
                         .foregroundStyle(AppTheme.primary)
                         .padding(.horizontal, 14)
                 }
-                .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glass, fallback: AppTheme.surface))
+                .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glass, fallback: ReadingSpace.paper))
                 .accessibilityIdentifier("agent.scrollToLatest")
                 .transition(reduceMotion ? .identity : .offset(y: 8).combined(with: .opacity))
             }
@@ -262,7 +265,7 @@ private struct AgentMessagesView: View {
         .padding(.top, 8)
         .frame(maxWidth: .infinity)
         .background {
-            if usesSolidBar { AppTheme.canvas.ignoresSafeArea(.container, edges: .bottom) }
+            if usesSolidBar { ReadingSpace.canvas.ignoresSafeArea(.container, edges: .bottom) }
         }
         .animation(reduceMotion ? nil : AppMotion.panel, value: followsBottom)
     }
@@ -395,11 +398,24 @@ private struct AgentMessageRow: View {
         if event.role == "user" {
             HStack {
                 Spacer(minLength: 28)
-                Text(verbatim: event.content).textSelection(.enabled).padding(14)
-                    .background(AppTheme.surfaceSecondary, in: RoundedRectangle(cornerRadius: 18))
+                Text(verbatim: event.content).textSelection(.enabled)
+                    .foregroundStyle(ReadingSpace.ink).lineSpacing(4)
+                    .padding(.horizontal, 18).padding(.vertical, 14)
+                    .background(ReadingSpace.userMessage, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
         } else if event.role == "assistant" && event.metadata.error != true {
-            AgentMarkdownView(content: event.content)
+            VStack(alignment: .leading, spacing: 12) {
+                Label("创作助手", systemImage: "sparkle")
+                    .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                AgentMarkdownView(content: event.content)
+                    .foregroundStyle(ReadingSpace.ink)
+            }
+            .padding(event.content.count > 700 ? 20 : 0)
+            .background {
+                if event.content.count > 700 {
+                    RoundedRectangle(cornerRadius: ReadingSpace.panelRadius).fill(ReadingSpace.paper)
+                }
+            }
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 Text(verbatim: event.content).textSelection(.enabled)
@@ -430,11 +446,13 @@ private struct AgentMessageRow: View {
         return Button { showArtifact(id) } label: {
             Label {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.subheadline.weight(.medium)).foregroundStyle(AppTheme.primary)
+                    Text(title).font(serifFont(.headline, .semibold)).foregroundStyle(ReadingSpace.ink)
                     if let status { Text(status).font(.caption).foregroundStyle(AppTheme.textSecondary) }
                 }
             } icon: { Image(systemName: "doc.text").foregroundStyle(AppTheme.primary) }
-            .frame(minHeight: 44, alignment: .leading)
+            .padding(18)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(model.working)
@@ -557,14 +575,14 @@ private struct AgentComposerView: View {
                     messageAction
                 }
                 .padding(2)
-                .appGlassEffect(.regular, fallback: AppTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .appGlassEffect(.regular, fallback: ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             }
             if model.localDraft.input.utf16.count > 8_000 {
                 Text("消息最多 8000 字，请缩短后发送。").font(.caption).foregroundStyle(.red)
             }
         }
-        .padding(.horizontal, 16).padding(.bottom, 8)
-        .frame(maxWidth: 820).frame(maxWidth: .infinity)
+        .padding(.horizontal, 16).padding(.bottom, 12)
+        .frame(maxWidth: 760).frame(maxWidth: .infinity)
         .confirmationDialog("先核对消息是否已发送", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("取回文字，结束本次重试") { model.discardPending() }
             Button("取消", role: .cancel) {}
@@ -619,7 +637,7 @@ private struct AgentComposerView: View {
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(AppTheme.primary)
                 .frame(width: 48, height: 48)
-                .appGlassEffect(AppTheme.glass, fallback: AppTheme.surface, in: Circle())
+                .appGlassEffect(AppTheme.glass, fallback: ReadingSpace.paper, in: Circle())
         }
         .disabled(model.replying || model.sending || model.localDraft.pending != nil)
         .accessibilityLabel("切换文本模型")

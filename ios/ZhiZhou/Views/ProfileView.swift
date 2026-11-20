@@ -7,120 +7,136 @@ struct ProfileView: View {
     @State private var showReaderSettings = false
 
     var body: some View {
-        List {
-            if let user = appState.user {
-                Section {
-                    NavigationLink {
-                        ProfileAccountView()
-                    } label: {
-                        ProfileIdentityRow(user: user, subtitle: "账户与安全")
+        ScrollView {
+            VStack(spacing: 24) {
+                profileHeader
+                ProfileReadingOverview()
+                    .readingSpaceEntrance()
+                preferences
+                    .readingSpaceEntrance(1)
+                general
+                    .readingSpaceEntrance(2)
+                if appState.user?.isAdmin == true {
+                    NavigationLink { AdminRootView() } label: {
+                        profileRow("管理后台", symbol: "slider.horizontal.3")
                     }
-                    .accessibilityIdentifier("profile.account")
+                    .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
                 }
             }
-
-            Section("阅读积累") {
-                NavigationLink {
-                    ReadingStatsView()
-                } label: {
-                    AppIconLabel("阅读统计", systemImage: "chart.bar.xaxis")
-                }
-                .accessibilityIdentifier("profile.reading-stats")
-                NavigationLink {
-                    ReaderBookmarksView()
-                } label: {
-                    AppIconLabel("我的书签", systemImage: "bookmark")
-                }
-                .accessibilityIdentifier("profile.bookmarks")
-                NavigationLink {
-                    MyThoughtsView()
-                } label: {
-                    AppIconLabel("我的想法", systemImage: "text.bubble")
-                }
-                .accessibilityIdentifier("profile.thoughts")
-            }
-
-            Section("阅读偏好") {
-                NavigationLink {
-                    ContentModeView()
-                } label: {
-                    LabeledContent {
-                        Text(ContentAccessStore.shared.mode == "adult" ? "R18 · 在线" : "安全模式")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    } label: {
-                        AppIconLabel("内容模式", systemImage: "eye")
-                    }
-                }
-                .accessibilityIdentifier("profile.content-mode")
-                Button {
-                    showReaderSettings = true
-                } label: {
-                    HStack(spacing: 12) {
-                        AppIconLabel("阅读设置", systemImage: "textformat")
-                        Spacer(minLength: 12)
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(AppTheme.textMuted)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .accessibilityIdentifier("profile.reader-settings")
-
-                NavigationLink {
-                    OfflineReadingView()
-                } label: {
-                    LabeledContent {
-                        if offlineStore.totalChapterCount > 0 {
-                            Text("\(offlineStore.totalChapterCount) 章")
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textSecondary)
-                                .monospacedDigit()
-                        }
-                    } label: {
-                        AppIconLabel("离线阅读", systemImage: "arrow.down.circle")
-                    }
-                }
-                .accessibilityIdentifier("profile.offline")
-            }
-
-            Section("通用") {
-                NavigationLink {
-                    StorageManagerView()
-                } label: {
-                    AppIconLabel("存储管理", systemImage: "internaldrive")
-                }
-                NavigationLink {
-                    PrivacyNoticeView()
-                } label: {
-                    AppIconLabel("隐私说明", systemImage: "hand.raised")
-                }
-                NavigationLink {
-                    ProfileAboutView()
-                } label: {
-                    AppIconLabel("关于 Cat’s Library", systemImage: "info.circle")
-                }
-            }
-
-            if appState.user?.isAdmin == true {
-                Section("管理") {
-                    NavigationLink {
-                        AdminRootView()
-                    } label: {
-                        AppIconLabel("管理后台", systemImage: "slider.horizontal.3")
-                    }
-                }
-            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 28)
+            .frame(maxWidth: 700)
+            .frame(maxWidth: .infinity)
         }
-        .appListStyle(.settings)
+        .background(ReadingSpace.canvas)
         .navigationTitle("我的")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task { await offlineStore.refresh() }
         .sheet(isPresented: $showReaderSettings) {
             ReaderSettingsView()
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationBackground(AppTheme.background)
         }
+    }
+
+    private var profileHeader: some View {
+        VStack(spacing: 0) {
+            GeometryReader { geometry in
+                Image("ReadingWindow")
+                    .resizable().scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+            }
+            .frame(height: 190)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .accessibilityHidden(true)
+            if let user = appState.user {
+                NavigationLink { ProfileAccountView() } label: {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ProfileAvatar(user: user, size: 76)
+                            .padding(5)
+                            .background(ReadingSpace.paper, in: Circle())
+                            .padding(.top, -34)
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(user.displayName.isEmpty ? user.username : user.displayName)
+                                .font(serifFont(.title, .semibold))
+                                .foregroundStyle(ReadingSpace.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .accessibilityHidden(true)
+                        }
+                        Text("账户与安全")
+                            .font(.subheadline).foregroundStyle(AppTheme.textSecondary)
+                    }
+                    .padding(.horizontal, 20).padding(.bottom, 22)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .padding(.top, -20)
+                    .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("profile.account")
+            }
+        }
+    }
+
+    private var preferences: some View {
+        profileSection("阅读偏好") {
+            NavigationLink { ContentModeView() } label: {
+                profileRow("内容模式", symbol: "eye",
+                           detail: ContentAccessStore.shared.mode == "adult" ? "R18 · 在线" : "安全模式")
+            }
+            .accessibilityIdentifier("profile.content-mode")
+            Button { showReaderSettings = true } label: {
+                profileRow("阅读设置", symbol: "textformat")
+            }
+            .accessibilityIdentifier("profile.reader-settings")
+            NavigationLink { OfflineReadingView() } label: {
+                profileRow("离线阅读", symbol: "arrow.down.circle",
+                           detail: offlineStore.totalChapterCount > 0 ? "\(offlineStore.totalChapterCount) 章" : nil)
+            }
+            .accessibilityIdentifier("profile.offline")
+        }
+    }
+
+    private var general: some View {
+        profileSection("通用") {
+            NavigationLink { StorageManagerView() } label: { profileRow("存储管理", symbol: "internaldrive") }
+            NavigationLink { PrivacyNoticeView() } label: { profileRow("隐私说明", symbol: "hand.raised") }
+            NavigationLink { ProfileAboutView() } label: { profileRow("关于 Cat’s Library", symbol: "info.circle") }
+        }
+    }
+
+    private func profileSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.subheadline).foregroundStyle(AppTheme.textSecondary)
+                .padding(.leading, 6).accessibilityAddTraits(.isHeader)
+            VStack(spacing: 0, content: content)
+                .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
+        }
+    }
+
+    private func profileRow(_ title: String, symbol: String, detail: String? = nil) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol).foregroundStyle(AppTheme.primary)
+                .frame(width: 24).accessibilityHidden(true)
+            AppAdaptiveRow(spacing: 8) {
+                Text(title).foregroundStyle(AppTheme.textPrimary)
+                if let detail {
+                    Text(detail).font(.subheadline).foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary).accessibilityHidden(true)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 18).padding(.vertical, 14)
+        .frame(minHeight: 52)
+        .contentShape(Rectangle())
     }
 }
 

@@ -374,11 +374,11 @@ private struct AgentDraftResultView: View {
                 Text("正文 \(length.actualWords) 字（\(target)）").font(.footnote).foregroundStyle(AppTheme.textSecondary)
             }
             if !opening.isEmpty {
-                Text(verbatim: opening).font(.body).lineSpacing(5).appTextLineLimit(5)
+                Text(verbatim: opening).font(serifFont(.body)).lineSpacing(7).appTextLineLimit(5)
                     .foregroundStyle(AppTheme.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
-                    .background(AppTheme.surfaceSecondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
             NavigationLink {
                 draftReader
@@ -400,12 +400,15 @@ private struct AgentDraftResultView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text(verbatim: draft.title).font(serifFont(.title2, .semibold)).accessibilityAddTraits(.isHeader)
-                Text(verbatim: draft.content).textSelection(.enabled).lineSpacing(5)
+                Text(verbatim: draft.content).font(serifFont(.body)).textSelection(.enabled).lineSpacing(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(20).frame(maxWidth: AppLayout.readableWidth, alignment: .leading).frame(maxWidth: .infinity)
+            .foregroundStyle(ReadingSpace.ink)
+            .padding(24).frame(maxWidth: AppLayout.readableWidth, alignment: .leading)
+            .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
+            .padding(.horizontal, 16).padding(.vertical, 20).frame(maxWidth: .infinity)
         }
-        .background(AppTheme.canvas)
+        .background(ReadingSpace.canvas)
         .navigationTitle("草稿全文")
         .navigationBarTitleDisplayMode(.inline)
     }

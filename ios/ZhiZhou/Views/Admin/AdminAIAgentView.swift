@@ -39,7 +39,7 @@ struct AdminAIAgentView: View {
             else { ContentUnavailableView("需要管理员权限", systemImage: "lock.shield") }
         }
         .navigationTitle("对话创作")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             if selectedID.isEmpty, let initialNovel { selectedID = initialNovel.id }
             await loadBooks()
@@ -69,6 +69,8 @@ struct AdminAIAgentView: View {
 
     private var workspace: some View {
         List {
+            ReadingSpaceHeading(title: "对话创作", subtitle: "在这里，把下一页慢慢写出来。")
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
             Section {
                 Button { showPicker = true } label: {
                     HStack {
@@ -107,10 +109,13 @@ struct AdminAIAgentView: View {
                         Text("全部作品").tag(false)
                         Text("当前作品").tag(true)
                     }
-                    .pickerStyle(.segmented)
+                    .accessibleSegmentedPicker()
                 }
                 if let error {
                     LoadErrorNotice(message: error, isLoading: loadingSessions) { Task { await loadSessions() } }
+                }
+                if loadingSessions && !sessions.isEmpty {
+                    ProgressView("正在更新对话…").font(.footnote)
                 }
                 if let deleteError {
                     Text(deleteError).font(.footnote).foregroundStyle(.red)
@@ -123,12 +128,15 @@ struct AdminAIAgentView: View {
                             description: Text("选择一本小说即可开始新对话。"))
                     }
                 }
-                ForEach(sessions) { session in
+                ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
                     if let user = appState.user, let token = APIClient.shared.token {
                         NavigationLink {
                             AdminAIAgentConversationView(session: session, userID: user.id, token: token)
                                 .onDisappear { Task { await loadSessions() } }
                         } label: { sessionRow(session) }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .readingSpaceEntrance(index)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button("删除", systemImage: "trash", role: .destructive) {
                                 deleteTarget = session
@@ -144,7 +152,7 @@ struct AdminAIAgentView: View {
                 }
             }
         }
-        .appListStyle(.settings)
+        .appListStyle(.readingSpace)
         .refreshable { await loadSessions() }
         .alert("删除对话？", isPresented: $showDelete, presenting: deleteTarget) { session in
             Button("取消", role: .cancel) { deleteTarget = nil }
@@ -156,7 +164,8 @@ struct AdminAIAgentView: View {
 
     private func sessionRow(_ session: AIAgentSession) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(session.title.isEmpty ? "新的对话" : session.title).font(.headline).lineLimit(2)
+            Text(session.title.isEmpty ? "新的对话" : session.title)
+                .font(serifFont(.headline, .semibold)).foregroundStyle(ReadingSpace.ink).appTextLineLimit(2)
             if historyNovelID.isEmpty && !session.novelTitle.isEmpty {
                 Text(session.novelTitle).font(.subheadline).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
             }
@@ -165,7 +174,7 @@ struct AdminAIAgentView: View {
             Text(Date(timeIntervalSince1970: Double(session.updatedAt) / 1000), style: .relative)
                 .font(.caption2).foregroundStyle(AppTheme.textSecondary)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 12)
     }
 
     private func loadBooks() async {
