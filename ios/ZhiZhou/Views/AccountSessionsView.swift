@@ -21,40 +21,52 @@ struct AccountSessionsView: View {
     @State private var pendingRemoval: AccountSession?
     @State private var confirmAll = false
     @State private var requestID = UUID()
+    @State private var removingSessionID: String?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        List {
+        AccountSettingsList {
+            AccountSettingsHeading("管理登录设备", detail: "查看账号的登录会话，退出不再使用的设备。")
+                .padding(.bottom, 28)
+
             if let error {
-                LoadErrorNotice(message: error, isLoading: loading) { Task { await load() } }
-            }
-            if loading && sessions.isEmpty { ProgressView("加载登录设备…") }
-            if busy { ProgressView("正在更新登录设备…") }
-            Section("已登录的设备") {
-                ForEach(sessions) { session in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(session.deviceName.isEmpty ? "未知设备" : session.deviceName)
-                            if session.current { Text("当前设备").font(.caption).foregroundStyle(AppTheme.primary) }
-                        }
-                        Text("登录于 \(Date(timeIntervalSince1970: Double(session.createdAt) / 1000).formatted(date: .abbreviated, time: .shortened))")
-                            .font(.footnote).foregroundStyle(.secondary)
-                        if !session.current {
-                            Button("退出此设备", role: .destructive) { pendingRemoval = session }
-                                .frame(minHeight: AppLayout.minimumTouchTarget)
-                                .accessibilityIdentifier("sessions.remove.\(session.id)")
-                        }
+                VStack(alignment: .leading, spacing: 8) {
+                    AccountSettingsNote(error, isError: true)
+                    Button { Task { await load() } } label: {
+                        AccountSettingsActionLabel(title: "重新加载", symbol: "arrow.clockwise", isWorking: loading)
                     }
+                    .disabled(loading)
                 }
+                .padding(.bottom, 20)
             }
-            Section {
-                Button("退出所有设备", role: .destructive) { confirmAll = true }
-                    .disabled(sessions.isEmpty)
-                    .accessibilityIdentifier("sessions.logoutAll")
-            } footer: {
-                Text("退出所有设备也会退出当前设备。重新使用时需要登录。")
+            if loading && sessions.isEmpty && error == nil {
+                ProgressView("加载登录设备…")
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .padding(.vertical, 16)
+            } else if !loading && sessions.isEmpty && error == nil {
+                AccountSettingsNote("暂无可显示的登录设备，下拉可重新读取。")
+                    .padding(.vertical, 16)
             }
+
+            ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
+                sessionRow(session)
+                    .readingSpaceEntrance(index)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Button(role: .destructive) { confirmAll = true } label: {
+                    AccountSettingsActionLabel(
+                        title: "退出所有设备", symbol: "rectangle.portrait.and.arrow.right",
+                        isWorking: busy && removingSessionID == nil, destructive: true
+                    )
+                }
+                .disabled(sessions.isEmpty)
+                .accessibilityIdentifier("sessions.logoutAll")
+                AccountSettingsNote("退出所有设备也会退出当前设备。重新使用时需要登录。")
+            }
+            .padding(.top, 28)
         }
-        .appListStyle(.settings)
         .navigationTitle("登录设备")
         .navigationBarTitleDisplayMode(.inline)
         .disabled(busy)
@@ -77,6 +89,38 @@ struct AccountSessionsView: View {
             }
             Button("取消", role: .cancel) {}
         }
+    }
+
+    private func sessionRow(_ session: AccountSession) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            let heading = dynamicTypeSize >= .xxxLarge
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+            heading {
+                Text(session.deviceName.isEmpty ? "未知设备" : session.deviceName)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if session.current {
+                    Label("当前设备", systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.primary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            AccountSettingsNote("登录于 \(Date(timeIntervalSince1970: Double(session.createdAt) / 1000).formatted(date: .abbreviated, time: .shortened))")
+            if !session.current {
+                Button(role: .destructive) { pendingRemoval = session } label: {
+                    AccountSettingsActionLabel(
+                        title: "退出此设备", symbol: "rectangle.portrait.and.arrow.right",
+                        isWorking: removingSessionID == session.id, destructive: true
+                    )
+                }
+                .accessibilityIdentifier("sessions.remove.\(session.id)")
+            }
+        }
+        .padding(.vertical, 16)
+        .overlay(alignment: .bottom) { ReadingSpace.profileLine.frame(height: 0.5).accessibilityHidden(true) }
     }
 
     private func load() async {
@@ -104,7 +148,8 @@ struct AccountSessionsView: View {
         requestID = UUID()
         loading = false
         busy = true
-        defer { busy = false }
+        removingSessionID = session.id
+        defer { busy = false; removingSessionID = nil }
         do {
             let _: EmptyResponse = try await APIClient.shared.request(
                 "DELETE", "/api/auth/sessions?" + HomeView.query(["id": session.id]),

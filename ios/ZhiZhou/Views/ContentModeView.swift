@@ -190,12 +190,21 @@ private struct AdultReaderUnlockView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    Text("限制级作品可能包含成人主题。请确认你已年满 18 岁，并愿意查看此类内容。")
+            AccountSettingsPage {
+                AccountSettingsHeading("确认阅读偏好", detail: "限制级作品可能包含成人主题。请确认你已年满 18 岁，并愿意查看此类内容。")
+
+                AccountSettingsSection("年龄确认") {
                     Toggle("我已年满 18 岁", isOn: $confirmed)
+                        .font(.subheadline)
+                        .foregroundStyle(ReadingSpace.ink)
+                        .toggleStyle(.switch)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 8)
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                        .accessibilityIdentifier("content-mode.adult-confirmation")
                 }
-                Section("人机验证") {
+
+                AccountSettingsSection("人机验证") {
                     if confirmed {
                         AdultTurnstileView { result in
                             switch result {
@@ -205,17 +214,22 @@ private struct AdultReaderUnlockView: View {
                         }
                         .id(widgetID)
                         .frame(height: 180)
-                        Button("重新验证") { challengeToken = ""; errorMessage = nil; widgetID = UUID() }
+                        if !challengeToken.isEmpty {
+                            Label("验证已完成", systemImage: "checkmark.circle")
+                                .font(.footnote)
+                                .foregroundStyle(ReadingSpace.ink)
+                        }
+                        Button { challengeToken = ""; errorMessage = nil; widgetID = UUID() } label: {
+                            AccountSettingsActionLabel(title: "重新验证", symbol: "arrow.clockwise")
+                        }
                     } else {
-                        Text("确认成年后加载验证。")
-                            .foregroundStyle(AppTheme.textSecondary)
+                        AccountSettingsNote("确认成年后加载验证。")
                     }
+                    if let errorMessage { AccountSettingsNote(errorMessage, isError: true) }
                 }
-                if let errorMessage {
-                    Section { Text(errorMessage).foregroundStyle(AppTheme.danger) }
-                }
-                Section {
-                    Button(access.isBusy ? "正在验证…" : "确认并开启") {
+
+                VStack(alignment: .leading, spacing: 16) {
+                    Button {
                         Task {
                             do {
                                 try await access.unlock(challengeToken: challengeToken, confirmed: confirmed)
@@ -226,13 +240,15 @@ private struct AdultReaderUnlockView: View {
                                 widgetID = UUID()
                             }
                         }
+                    } label: {
+                        AccountSettingsActionLabel(title: "确认并开启", symbol: "checkmark", isWorking: access.isBusy, prominent: true)
                     }
                     .disabled(!confirmed || challengeToken.isEmpty || access.isBusy)
-                } footer: {
-                    Text("人机验证不等于年龄验证。已读章节支持阅读缓存，暂不开放限制级作品的离线下载。")
+                    .accessibilityIdentifier("content-mode.unlock")
+                    AccountSettingsNote("人机验证不等于年龄验证。已读章节支持阅读缓存，暂不开放限制级作品的离线下载。")
                 }
             }
-            .appListStyle(.settings)
+            .disabled(access.isBusy)
             .navigationTitle("开启 R18 阅读")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

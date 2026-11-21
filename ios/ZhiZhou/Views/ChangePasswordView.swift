@@ -14,42 +14,41 @@ struct ChangePasswordView: View {
     private enum Field: Hashable { case current, new, confirmation }
 
     var body: some View {
-        Form {
-            Section("当前密码") {
-                SecureField("当前密码", text: $currentPassword)
-                    .textContentType(.password)
-                    .focused($focusedField, equals: .current)
-                    .submitLabel(.next)
-                    .onSubmit { focusedField = .new }
+        AccountSettingsPage {
+            AccountSettingsHeading("更新登录密码", detail: "修改后，其他设备需要重新登录。")
+            AccountSettingsSection("验证身份") {
+                AccountSettingsField("当前密码", isFocused: focusedField == .current) {
+                    SecureField("当前密码", text: $currentPassword)
+                        .textContentType(.password)
+                        .focused($focusedField, equals: .current)
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .new }
+                }
             }
-            Section {
-                SecureField("新密码", text: $newPassword)
-                    .textContentType(.newPassword)
-                    .focused($focusedField, equals: .new)
-                    .submitLabel(.next)
-                    .onSubmit { focusedField = .confirmation }
-                SecureField("再次输入新密码", text: $confirmation)
-                    .textContentType(.newPassword)
-                    .focused($focusedField, equals: .confirmation)
-                    .submitLabel(.done)
-                    .onSubmit { if validationError == nil { Task { await save() } } }
-            } header: {
-                Text("新密码")
-            } footer: {
-                Text("至少 8 个字符。修改后，其他设备需要重新登录。")
-            }
-            if let message = errorMessage ?? visibleValidationError {
-                Section {
-                    Text(message).font(.footnote).foregroundStyle(AppTheme.danger)
+            AccountSettingsSection("设置新密码") {
+                AccountSettingsField("新密码", isFocused: focusedField == .new) {
+                    SecureField("新密码", text: $newPassword)
+                        .textContentType(.newPassword)
+                        .focused($focusedField, equals: .new)
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .confirmation }
+                }
+                AccountSettingsField("确认新密码", isFocused: focusedField == .confirmation) {
+                    SecureField("再次输入新密码", text: $confirmation)
+                        .textContentType(.newPassword)
+                        .focused($focusedField, equals: .confirmation)
+                        .submitLabel(.done)
+                        .onSubmit { if validationError == nil { Task { await save() } } }
+                }
+                AccountSettingsNote("至少 8 个字符。")
+                if let message = errorMessage ?? visibleValidationError {
+                    AccountSettingsNote(message, isError: true)
                 }
             }
         }
         .disabled(isSaving)
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
-        .scrollDismissesKeyboard(.interactively)
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
         .navigationTitle("修改密码")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isSaving)

@@ -58,22 +58,32 @@ struct AccountChallengeSheet: View {
     @State private var round = UUID()
     var body: some View {
         NavigationStack {
-            Form {
-                Section("安全验证") {
+            AccountSettingsPage {
+                AccountSettingsHeading("完成安全验证", detail: "验证用于保护账号操作与邮件发送额度，完成后继续原来的申请。")
+                AccountSettingsSection("人机验证") {
                     AccountChallengeWebView(action: action) { result in
                         switch result {
                         case .success(let value): token = value; errorMessage = nil
                         case .failure(let error): token = ""; errorMessage = error.localizedDescription
                         }
-                    }.id(round).frame(height: 180)
-                    Button("重新验证") { token = ""; errorMessage = nil; round = UUID() }
+                    }
+                    .id(round)
+                    .frame(height: 180)
+                    if !token.isEmpty {
+                        Label("验证已完成", systemImage: "checkmark.circle")
+                            .font(.footnote)
+                            .foregroundStyle(ReadingSpace.ink)
+                    }
+                    Button { token = ""; errorMessage = nil; round = UUID() } label: {
+                        AccountSettingsActionLabel(title: "重新验证", symbol: "arrow.clockwise")
+                    }
+                    if let errorMessage { AccountSettingsNote(errorMessage, isError: true) }
                 }
-                if let errorMessage { Section { Text(errorMessage).foregroundStyle(AppTheme.danger) } }
-                Section {
-                    Button("验证并继续") { finish(token) }.disabled(token.isEmpty)
-                } footer: { Text("验证用于保护账号操作与邮件发送额度，完成后继续原来的申请。") }
+                Button { finish(token) } label: {
+                    AccountSettingsActionLabel(title: "验证并继续", symbol: "checkmark", prominent: true)
+                }
+                .disabled(token.isEmpty)
             }
-            .appListStyle(.settings)
             .navigationTitle("账户安全验证")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { finish(nil) } } }

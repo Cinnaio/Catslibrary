@@ -11,19 +11,32 @@ struct PasskeySettingsView: View {
     @State private var pendingRevoke: PasskeyItem?
     @State private var editingPasskey: PasskeyItem?
     @State private var requestID = UUID()
+    @State private var workingPasskeyID: String?
+    @FocusState private var focusedField: RegistrationField?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private enum RegistrationField: Hashable { case password, name }
 
     var body: some View {
-        List {
-            if let errorMessage {
-                Section {
-                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
-                        Task { await load() }
-                    }
-                }
-            }
+        AccountSettingsList {
+            AccountSettingsHeading("免密码登录", detail: "Passkey 由设备或密码管理器保护，Cat’s Library 不会接触你的生物识别信息。")
+                .padding(.bottom, 28)
 
-            if isLoading && configuration == nil {
+            if let errorMessage {
+                VStack(alignment: .leading, spacing: 8) {
+                    AccountSettingsNote(errorMessage, isError: true)
+                    Button { Task { await load() } } label: {
+                        AccountSettingsActionLabel(title: "重新加载", symbol: "arrow.clockwise", isWorking: isLoading)
+                    }
+                    .disabled(isLoading)
+                }
+                .padding(.bottom, 20)
+            }
+            if isLoading && configuration == nil && errorMessage == nil {
                 ProgressView("加载 Passkey 设置…")
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .padding(.vertical, 16)
             }
 
             if let configuration, !configuration.enabled {
@@ -34,12 +47,13 @@ struct PasskeySettingsView: View {
                 registeredPasskeysSection
                 if let error = PasskeyService.shared.localAvailabilityError {
                     unavailableSection(error.localizedDescription)
+                        .padding(.top, 28)
                 } else {
                     registrationSection
+                        .padding(.top, 28)
                 }
             }
         }
-        .appListStyle(.settings)
         .navigationTitle("Passkey")
         .navigationBarTitleDisplayMode(.inline)
         .disabled(isBusy)
@@ -68,107 +82,137 @@ struct PasskeySettingsView: View {
         }
     }
 
-    @ViewBuilder
     private func unavailableSection(_ message: String) -> some View {
-        Section {
-            Label(message, systemImage: "person.badge.key.slash")
-                .foregroundStyle(AppTheme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        } footer: {
-            Text("密码登录和现有登录设备不受影响。")
-        }
-    }
-
-    private var registeredPasskeysSection: some View {
-        Section {
-            if passkeys.isEmpty {
-                Label("还没有注册 Passkey", systemImage: "person.badge.key")
-                    .foregroundStyle(AppTheme.textSecondary)
-            } else {
-                ForEach(passkeys) { passkey in
-                    passkeyRow(passkey)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button {
-                                editingPasskey = passkey
-                            } label: {
-                                Label("改名", systemImage: "pencil")
-                            }
-                            .tint(AppTheme.primary)
-
-                            Button(role: .destructive) {
-                                pendingRevoke = passkey
-                            } label: {
-                                Label("撤销", systemImage: "trash")
-                            }
-                        }
-                        .accessibilityIdentifier("passkey.item.\(passkey.id)")
-                }
+        AccountSettingsSection("暂不可用") {
+            Label {
+                Text(message).fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "person.badge.key.slash").accessibilityHidden(true)
             }
-        } header: {
-            Text("已注册的 Passkey")
-        } footer: {
-            Text("Passkey 由设备或密码管理器保护，Cat’s Library 不会接触你的生物识别信息。")
+            .font(.subheadline)
+            .foregroundStyle(ReadingSpace.ink)
+            AccountSettingsNote("密码登录和现有登录设备不受影响。")
         }
     }
 
+    @ViewBuilder
+    private var registeredPasskeysSection: some View {
+        Text("已注册的 Passkey")
+            .font(.system(.title3, design: .serif).weight(.medium))
+            .foregroundStyle(ReadingSpace.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+            .padding(.bottom, 8)
+        if passkeys.isEmpty {
+            if isLoading && errorMessage == nil {
+                ProgressView("读取已注册的 Passkey…")
+                    .font(.footnote)
+                    .padding(.vertical, 16)
+            } else if errorMessage == nil {
+                AccountSettingsNote("还没有注册 Passkey。")
+                    .padding(.vertical, 16)
+            }
+        } else {
+            ForEach(Array(passkeys.enumerated()), id: \.element.id) { index, passkey in
+                passkeyRow(passkey)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button { editingPasskey = passkey } label: {
+                            Label("改名", systemImage: "pencil")
+                        }
+                        .tint(AppTheme.primary)
+                        Button(role: .destructive) { pendingRevoke = passkey } label: {
+                            Label("撤销", systemImage: "trash")
+                        }
+                    }
+                    .accessibilityIdentifier("passkey.item.\(passkey.id)")
+                    .readingSpaceEntrance(index)
+            }
+        }
+    }
+
+    @ViewBuilder
     private var registrationSection: some View {
-        Group {
-            if configuration?.registrationEnabled == true {
-                Section {
+        if configuration?.registrationEnabled == true {
+            AccountSettingsSection("注册此设备") {
+                AccountSettingsField("当前密码", isFocused: focusedField == .password) {
                     SecureField("当前密码", text: $currentPassword)
                         .textContentType(.password)
-                    TextField("设备名称（可选）", text: $deviceName)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .password)
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .name }
+                }
+                AccountSettingsField("设备名称（可选）", isFocused: focusedField == .name) {
+                    TextField("例如：我的 iPhone", text: $deviceName)
                         .textInputAutocapitalization(.sentences)
                         .autocorrectionDisabled()
-                    Button {
-                        Task { await register() }
-                    } label: {
-                        Label("在此设备注册 Passkey", systemImage: "person.badge.key")
-                    }
-                    .disabled(currentPassword.isEmpty || isBusy)
-                    .accessibilityIdentifier("passkey.register")
-                } header: {
-                    Text("注册此设备")
-                } footer: {
-                    Text("注册前需要再次输入当前密码，随后由系统弹出 Face ID、Touch ID 或设备密码验证。")
+                        .focused($focusedField, equals: .name)
+                        .submitLabel(.done)
+                        .onSubmit { if !currentPassword.isEmpty { Task { await register() } } }
                 }
-            } else {
-                Section {
-                    Label("管理员暂未开放新增 Passkey", systemImage: "lock")
-                        .foregroundStyle(AppTheme.textSecondary)
+                AccountSettingsNote("注册前需要再次输入当前密码，随后由系统弹出 Face ID、Touch ID 或设备密码验证。")
+                Button { Task { await register() } } label: {
+                    AccountSettingsActionLabel(
+                        title: "在此设备注册 Passkey", symbol: "person.badge.key",
+                        isWorking: isBusy && workingPasskeyID == nil, prominent: true
+                    )
                 }
+                .disabled(currentPassword.isEmpty || isBusy)
+                .accessibilityIdentifier("passkey.register")
+            }
+        } else {
+            AccountSettingsSection("注册此设备") {
+                AccountSettingsNote("管理员暂未开放新增 Passkey。")
             }
         }
     }
 
     private func passkeyRow(_ passkey: PasskeyItem) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(passkey.name.isEmpty ? "未命名设备" : passkey.name)
-                    .font(.body.weight(.medium))
-                Spacer(minLength: 8)
-                if passkey.backupState {
-                    Text("已同步")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.primary)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                let heading = dynamicTypeSize >= .xxxLarge
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+                heading {
+                    Text(passkey.name.isEmpty ? "未命名设备" : passkey.name)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if passkey.backupState {
+                        Label("已同步", systemImage: "checkmark.icloud")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.primary)
+                    }
                 }
-            }
-            Text("注册于 \(formattedDate(passkey.createdAt))")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            if passkey.lastUsedAt > 0 {
-                Text("最后使用 \(formattedDate(passkey.lastUsedAt))")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
+                Menu {
+                    Button { editingPasskey = passkey } label: { Label("改名", systemImage: "pencil") }
+                    Button(role: .destructive) { pendingRevoke = passkey } label: { Label("撤销", systemImage: "trash") }
+                } label: {
+                    Group {
+                        if workingPasskeyID == passkey.id { ProgressView() }
+                        else { Image(systemName: "ellipsis") }
+                    }
+                    .font(.body)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
+                    .contentShape(Rectangle())
+                }
+                .accessibilityLabel("管理 \(passkey.name.isEmpty ? "未命名设备" : passkey.name)")
+                .accessibilityValue(workingPasskeyID == passkey.id ? "正在更新 Passkey" : "")
             }
             if !passkey.deviceName.isEmpty {
-                Text(passkey.deviceName)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                AccountSettingsNote(passkey.deviceName)
+            }
+            AccountSettingsNote("注册于 \(formattedDate(passkey.createdAt))")
+            if passkey.lastUsedAt > 0 {
+                AccountSettingsNote("最后使用 \(formattedDate(passkey.lastUsedAt))")
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 16)
+        .overlay(alignment: .bottom) { ReadingSpace.profileLine.frame(height: 0.5).accessibilityHidden(true) }
     }
 
     private func formattedDate(_ milliseconds: Int64) -> String {
@@ -204,6 +248,7 @@ struct PasskeySettingsView: View {
 
     private func register() async {
         guard !isBusy, !currentPassword.isEmpty else { return }
+        focusedField = nil
         isBusy = true
         errorMessage = nil
         defer { isBusy = false }
@@ -230,8 +275,9 @@ struct PasskeySettingsView: View {
     private func rename(_ passkey: PasskeyItem, name: String) async {
         guard !isBusy else { return }
         isBusy = true
+        workingPasskeyID = passkey.id
         errorMessage = nil
-        defer { isBusy = false }
+        defer { isBusy = false; workingPasskeyID = nil }
         do {
             if let updated = try await PasskeyService.shared.rename(id: passkey.id, name: name) {
                 replace(updated)
@@ -247,9 +293,11 @@ struct PasskeySettingsView: View {
     private func revoke(_ passkey: PasskeyItem) async {
         guard !isBusy else { return }
         isBusy = true
+        workingPasskeyID = passkey.id
         errorMessage = nil
         defer {
             isBusy = false
+            workingPasskeyID = nil
             pendingRevoke = nil
         }
         do {
@@ -283,14 +331,14 @@ private struct PasskeyRenameSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Passkey 名称") {
+            AccountSettingsPage {
+                AccountSettingsHeading("为密钥命名", detail: "使用容易辨认的名称，方便在多台设备间管理。")
+                AccountSettingsField("Passkey 名称") {
                     TextField("例如：iPhone", text: $name)
                         .textInputAutocapitalization(.sentences)
                         .autocorrectionDisabled()
                 }
             }
-            .appListStyle(.settings)
             .navigationTitle("重命名")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

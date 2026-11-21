@@ -11,32 +11,74 @@ struct AccountEmailView: View {
     @State private var errorMessage: String?
     @State private var challenge = AccountChallengeController()
 
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable { case identifier, password }
+
     private struct Response: Decodable { let message: String }
 
     var body: some View {
-        Form {
+        AccountSettingsPage {
+            AccountSettingsHeading(bindingEmail ? "账号邮箱" : "找回账号", detail: bindingEmail
+                ? "验证后的邮箱可用于找回密码。"
+                : "通过已验证邮箱接收密码重置链接。")
+
             if bindingEmail, let user = appState.user {
-                Section("当前邮箱") {
-                    Text(user.emailVerified == true ? (user.email ?? "已验证") : "尚未绑定已验证邮箱")
+                AccountSettingsSection("当前邮箱") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(user.emailVerified == true ? (user.email ?? "已验证") : "尚未绑定已验证邮箱")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                        if user.emailVerified == true {
+                            Label("已验证", systemImage: "checkmark.circle")
+                                .font(.footnote)
+                                .foregroundStyle(ReadingSpace.profileMuted)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
-            Section {
-                TextField(bindingEmail ? "邮箱地址" : "用户名或已验证邮箱", text: $identifier)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    .keyboardType(bindingEmail ? .emailAddress : .default)
+
+            AccountSettingsSection(bindingEmail ? "验证邮箱" : "账号信息") {
+                AccountSettingsField(bindingEmail ? "邮箱地址" : "用户名或已验证邮箱", isFocused: focusedField == .identifier) {
+                    TextField(bindingEmail ? "邮箱地址" : "用户名或已验证邮箱", text: $identifier)
+                        .textContentType(bindingEmail ? .emailAddress : .username)
+                        .keyboardType(bindingEmail ? .emailAddress : .default)
+                        .focused($focusedField, equals: .identifier)
+                        .submitLabel(bindingEmail ? .next : .send)
+                        .onSubmit {
+                            if bindingEmail { focusedField = .password }
+                            else if canSend { Task { await send() } }
+                        }
+                }
                 if bindingEmail {
-                    SecureField("当前密码", text: $password).textContentType(.password)
+                    AccountSettingsField("当前密码", isFocused: focusedField == .password) {
+                        SecureField("当前密码", text: $password)
+                            .textContentType(.password)
+                            .focused($focusedField, equals: .password)
+                            .submitLabel(.send)
+                            .onSubmit { if canSend { Task { await send() } } }
+                    }
                 }
-                Button(busy ? "发送中…" : bindingEmail ? "发送验证邮件" : "发送重置邮件") {
-                    Task { await send() }
-                }.disabled(busy || identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (bindingEmail && password.isEmpty))
-            } footer: {
-                Text(bindingEmail ? "新邮箱验证前，原邮箱保持有效。在邮件中打开网页确认后，需重新登录 App。" : "如果账号已绑定可用邮箱，你将收到密码重置链接。请在浏览器完成设置后返回 App 登录。")
+                AccountSettingsNote(bindingEmail
+                    ? "新邮箱验证前，原邮箱保持有效。在邮件中打开网页确认后，需重新登录 App。"
+                    : "如果账号已绑定可用邮箱，你将收到密码重置链接。请在浏览器完成设置后返回 App 登录。")
+                if let message { AccountSettingsNote(message) }
+                if let errorMessage { AccountSettingsNote(errorMessage, isError: true) }
+                Button { Task { await send() } } label: {
+                    AccountSettingsActionLabel(
+                        title: bindingEmail ? "发送验证邮件" : "发送重置邮件",
+                        symbol: "envelope", isWorking: busy, prominent: true
+                    )
+                }
+                .disabled(!canSend)
+                .accessibilityIdentifier("account.email.send")
             }
-            if let message { Section { Text(message) } }
-            if let errorMessage { Section { Text(errorMessage).foregroundStyle(AppTheme.danger) } }
         }
-        .appListStyle(.settings)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
         .disabled(busy)
         .navigationTitle(bindingEmail ? "邮箱与密码找回" : "找回密码")
         .navigationBarTitleDisplayMode(.inline)
@@ -51,8 +93,13 @@ struct AccountEmailView: View {
         .onDisappear { challenge.finish(nil) }
     }
 
+    private var canSend: Bool {
+        !busy && !identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (!bindingEmail || !password.isEmpty)
+    }
+
     @MainActor private func send() async {
         guard !busy else { return }
+        focusedField = nil
         let owner = appState.user?.id
         busy = true; errorMessage = nil; message = nil
         defer { busy = false }
