@@ -2,24 +2,28 @@ import SwiftUI
 import ZhiZhouCore
 
 struct AdminAIAgentConversationView: View {
+    let historyPresented: Bool
+    let usesWorkspaceSurface: Bool
     @Environment(\.scenePhase) private var scenePhase
     @State private var model: AdminAIAgentConversationModel
     @State private var panel: Panel?
 
     private enum Panel: Identifiable {
-        case outputs, artifact(String), settings, memory, findBook
+        case outputs, artifact(String), settings, memory
         var id: String {
             switch self {
             case .outputs: "outputs"
             case .artifact(let id): "artifact:\(id)"
             case .settings: "settings"
             case .memory: "memory"
-            case .findBook: "find-book"
             }
         }
     }
 
-    init(session: AIAgentSession, userID: String, token: String) {
+    init(session: AIAgentSession, userID: String, token: String,
+         historyPresented: Bool = false, usesWorkspaceSurface: Bool = false) {
+        self.historyPresented = historyPresented
+        self.usesWorkspaceSurface = usesWorkspaceSurface
         _model = State(initialValue: AdminAIAgentConversationModel(session: session, userID: userID, token: token))
     }
 
@@ -38,12 +42,12 @@ struct AdminAIAgentConversationView: View {
             }
         }
         .safeAreaBar(edge: .top, spacing: 0) { context }
-        .readingSpaceTopEdge()
-        .background(ReadingSpace.profilePaper)
+        .readingSpaceTopEdge(opaque: false)
+        .background(usesWorkspaceSurface ? Color.clear : ReadingSpace.profilePaper)
         .navigationTitle(model.session.novelTitle.isEmpty ? "对话创作" : model.session.novelTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
-        .toolbar(.visible, for: .navigationBar)
+        .toolbar(historyPresented ? .hidden : .visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 2) {
@@ -73,7 +77,6 @@ struct AdminAIAgentConversationView: View {
                     if !model.session.title.isEmpty { Text(model.session.title) }
                     Button("作品记忆", systemImage: "bookmark") { panel = .memory }
                     Button("会话设置", systemImage: "slider.horizontal.3") { panel = .settings }
-                    Button("找书入库", systemImage: "magnifyingglass") { panel = .findBook }
                 }
                 .disabled(!model.hasLoaded)
             }
@@ -84,13 +87,6 @@ struct AdminAIAgentConversationView: View {
             case .artifact(let id): AgentOutputSheet(model: model, artifactID: id)
             case .settings: AgentSettingsSheet(model: model)
             case .memory: AgentMemoryView(model: model)
-            case .findBook:
-                NavigationStack {
-                    AdminAgentBookDiscoveryView(token: model.api.token)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) { Button("关闭") { self.panel = nil } }
-                        }
-                }
             }
         }
         .sheet(item: Binding(get: { panel == nil ? model.selectedAction : nil },
@@ -127,7 +123,6 @@ struct AdminAIAgentConversationView: View {
         .padding(.horizontal, 20).padding(.vertical, 2)
         .frame(maxWidth: 760, alignment: .leading)
         .frame(maxWidth: .infinity)
-        .background(ReadingSpace.profilePaper, ignoresSafeAreaEdges: [])
     }
 
     private var contextSummary: String {

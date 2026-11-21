@@ -1,7 +1,7 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// A separate paper panel keeps history compact without replacing the mounted conversation.
+/// Flat history sits behind the conversation surface rather than inside another card.
 struct AdminAgentHistorySidebar: View {
     let sessions: [AIAgentSession]
     let selectedSessionID: String?
@@ -14,13 +14,15 @@ struct AdminAgentHistorySidebar: View {
     let deleting: Bool
     let error: String?
     let deleteError: String?
-    let canDiscover: Bool
     let onNewConversation: () -> Void
     let onOpen: (AIAgentSession) -> Void
     let onDelete: (AIAgentSession) -> Void
     let onRefresh: () async -> Void
     let onLoadMore: () async -> Void
-    let onDiscovery: () -> Void
+    @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isSearching = false
+    @FocusState private var searchFocused: Bool
 
     private var searchTerm: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -50,23 +52,53 @@ struct AdminAgentHistorySidebar: View {
     }
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 0) {
             List {
-                heading
-                    .listRowInsets(EdgeInsets(top: 18, leading: 20, bottom: 8, trailing: 20))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
                 Group {
-                    Section {
-                        searchField.padding(.horizontal, 4)
-                        if hasCurrentNovel { scopeMenu.padding(.horizontal, 4) }
-                        if !searchTerm.isEmpty {
-                            Text("仅搜索已载入的记录")
-                                .font(.caption2)
-                                .foregroundStyle(ReadingSpace.profileMuted)
-                                .padding(.horizontal, 4)
-                        }
+                    Text("Cat’s Library")
+                        .font(.system(.title2, design: .serif).weight(.semibold))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
+                        .accessibilityAddTraits(.isHeader)
+
+                    Button(action: onNewConversation) {
+                        Label("对话", systemImage: "bubble.left.and.bubble.right")
+                            .font(.body)
+                            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(ReadingSpace.ink)
+
+                    if isSearching || !search.isEmpty {
+                        searchField
+                    } else {
+                        Button {
+                            withAnimation(reduceMotion ? nil : AppMotion.state) { isSearching = true }
+                        } label: {
+                            Label("搜索对话", systemImage: "magnifyingglass")
+                                .font(.body)
+                                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(ReadingSpace.ink)
+                        .accessibilityIdentifier("agent.history.search.open")
+                    }
+                    if hasCurrentNovel { scopeMenu }
+                    if !searchTerm.isEmpty {
+                        Text("仅搜索已载入的记录")
+                            .font(.caption)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                    }
+
+                    Text(searchTerm.isEmpty ? "最近对话" : "搜索结果")
+                        .font(.caption)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .padding(.top, 20)
+                        .padding(.bottom, 6)
+                        .accessibilityAddTraits(.isHeader)
 
                     if let error {
                         LoadErrorNotice(message: error, isLoading: loading) { Task { await onRefresh() } }
@@ -78,119 +110,77 @@ struct AdminAgentHistorySidebar: View {
                         ProgressView(sessions.isEmpty ? "正在读取对话…" : "正在更新对话…")
                             .font(.footnote)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .padding(.horizontal, 8)
                     }
-                    if matches.isEmpty && !loading && error == nil {
-                        emptyState
-                    }
+                    if matches.isEmpty && !loading && error == nil { emptyState }
 
-                    ForEach(sections) { section in
-                        Section {
-                            ForEach(Array(section.sessions.enumerated()), id: \.element.id) { index, session in
-                                sessionButton(session)
-                                    .readingSpaceEntrance(index)
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button("删除", systemImage: "trash", role: .destructive) { onDelete(session) }
-                                            .disabled(deleting)
-                                    }
-                                    .contextMenu {
-                                        Button("删除对话", systemImage: "trash", role: .destructive) { onDelete(session) }
-                                            .disabled(deleting)
-                                    }
+                    ForEach(Array(sections.flatMap(\.sessions).enumerated()), id: \.element.id) { index, session in
+                        sessionButton(session)
+                            .readingSpaceEntrance(index)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button("删除", systemImage: "trash", role: .destructive) { onDelete(session) }
+                                    .disabled(deleting)
                             }
-                        } header: {
-                            Text(section.period.title)
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(ReadingSpace.profileMuted)
-                                .textCase(nil)
-                                .padding(.leading, 8)
-                                .padding(.top, 8)
-                        }
+                            .contextMenu {
+                                Button("删除对话", systemImage: "trash", role: .destructive) { onDelete(session) }
+                                    .disabled(deleting)
+                            }
                     }
                     .id("\(filterByBook):\(searchTerm)")
 
                     if hasMore {
-                        Button { Task { await onLoadMore() } } label: {
-                            HStack(spacing: 8) {
-                                Text("加载更早对话")
-                                Spacer(minLength: 8)
-                                Image(systemName: "arrow.down").accessibilityHidden(true)
-                            }
-                            .font(.caption)
+                        Button("加载更早对话") { Task { await onLoadMore() } }
+                            .font(.subheadline)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .padding(.horizontal, 12)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(loading)
-                        .foregroundStyle(ReadingSpace.profileMuted)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                            .disabled(loading)
                     }
                 }
-                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                .listRowInsets(EdgeInsets(top: 2, leading: 24, bottom: 2, trailing: 20))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
-                .listSectionSeparator(.hidden)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .contentMargins(.top, 0, for: .scrollContent)
-            .contentMargins(.bottom, 12, for: .scrollContent)
+            .contentMargins(.top, 8, for: .scrollContent)
+            .contentMargins(.bottom, 16, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
+            .scrollEdgeEffectHidden(true, for: .top)
             .refreshable { await onRefresh() }
 
-            if canDiscover {
-                Button(action: onDiscovery) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "books.vertical")
-                            .foregroundStyle(AppTheme.primary)
-                            .accessibilityHidden(true)
-                        Text("找书入库").foregroundStyle(ReadingSpace.ink)
-                        Spacer(minLength: 8)
-                        Image(systemName: "arrow.up.right")
-                            .foregroundStyle(ReadingSpace.profileMuted)
-                            .accessibilityHidden(true)
-                    }
-                    .font(.subheadline)
-                    .padding(.horizontal, 14)
-                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                    .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 14))
-                    .contentShape(RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
+            footer
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
                 .padding(.bottom, 16)
-            }
         }
         .frame(maxHeight: .infinity)
-        .background(ReadingSpace.profileFill)
-        .clipShape(RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
-        .overlay {
-            RoundedRectangle(cornerRadius: ReadingSpace.panelRadius)
-                .strokeBorder(ReadingSpace.profileLine, lineWidth: 0.5)
-                .allowsHitTesting(false)
-        }
+        .background(ReadingSpace.canvas)
+        .onChange(of: isSearching) { _, value in searchFocused = value }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("对话历史侧栏")
     }
 
-    private var heading: some View {
+    private var footer: some View {
         AppAdaptiveRow(spacing: 12) {
-            Text("对话记录")
-                .font(serifFont(.title2, .medium))
-                .foregroundStyle(ReadingSpace.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityAddTraits(.isHeader)
+            if let user = appState.user {
+                HStack {
+                    ProfileAvatar(user: user, size: 40)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("当前账户：\(user.displayName.isEmpty ? user.username : user.displayName)")
+            }
             Button(action: onNewConversation) {
-                Label("新对话", systemImage: "square.and.pencil")
+                Label("新建对话", systemImage: "plus")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(ReadingSpace.onSummary)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                     .frame(minHeight: 44)
-                    .background(ReadingSpace.summary, in: RoundedRectangle(cornerRadius: 12))
+                    .background(ReadingSpace.summary, in: Capsule())
             }
             .buttonStyle(ScaleButtonStyle())
             .fixedSize(horizontal: false, vertical: true)
-            .accessibilityLabel("新建对话")
             .accessibilityIdentifier("agent.history.new")
         }
     }
@@ -203,13 +193,15 @@ struct AdminAgentHistorySidebar: View {
             }
         } label: {
             AppAdaptiveRow(spacing: 8) {
-                HStack(spacing: 5) {
+                HStack(spacing: 12) {
+                    Image(systemName: "books.vertical").accessibilityHidden(true)
                     Text(filterByBook ? "当前作品" : "全部作品")
                     Image(systemName: "chevron.down")
                         .font(.caption2)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                         .accessibilityHidden(true)
                 }
-                .font(.caption.weight(.medium))
+                .font(.body)
                 .foregroundStyle(ReadingSpace.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if filterByBook {
@@ -217,10 +209,9 @@ struct AdminAgentHistorySidebar: View {
                         .font(.caption)
                         .foregroundStyle(ReadingSpace.profileMuted)
                         .appTextLineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -231,15 +222,14 @@ struct AdminAgentHistorySidebar: View {
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(searchTerm.isEmpty ? (filterByBook ? "这本书还没有对话" : "还没有对话") : "未找到匹配的对话")
-                .font(serifFont(.headline, .medium))
+                .font(.subheadline)
                 .foregroundStyle(ReadingSpace.ink)
-            Text(searchTerm.isEmpty ? "点击新对话，开始一段创作。"
+            Text(searchTerm.isEmpty ? "新建对话，开始一段创作。"
                  : (hasMore ? "可以加载更早的记录后继续查找。" : "试试其他标题、作品名或章节名。"))
                 .font(.footnote)
                 .foregroundStyle(ReadingSpace.profileMuted)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 24)
+        .padding(.vertical, 12)
     }
 
     private var searchField: some View {
@@ -247,69 +237,56 @@ struct AdminAgentHistorySidebar: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(ReadingSpace.profileMuted)
                 .accessibilityHidden(true)
-            TextField("搜索对话", text: $search)
+            TextField("搜索已载入的对话", text: $search)
                 .font(.subheadline)
                 .foregroundStyle(ReadingSpace.ink)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($searchFocused)
                 .accessibilityLabel("搜索已载入的对话")
-                .accessibilityHint("搜索已载入记录的标题、作品与续写起点")
                 .accessibilityIdentifier("agent.history.search")
-            if !search.isEmpty {
-                Button("清除搜索", systemImage: "xmark.circle.fill") { search = "" }
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(ReadingSpace.profileMuted)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .buttonStyle(.plain)
+            Button("清除并收起搜索", systemImage: "xmark") {
+                search = ""
+                searchFocused = false
+                withAnimation(reduceMotion ? nil : AppMotion.state) { isSearching = false }
             }
+            .labelStyle(.iconOnly)
+            .foregroundStyle(ReadingSpace.profileMuted)
+            .frame(minWidth: 44, minHeight: 44)
+            .buttonStyle(.plain)
         }
         .padding(.leading, 12)
-        .padding(.trailing, search.isEmpty ? 12 : 0)
-        .frame(minHeight: 44)
-        .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 12))
+        .frame(minHeight: 48)
+        .background(ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func sessionButton(_ session: AIAgentSession) -> some View {
         let isSelected = selectedSessionID == session.id
         let updated = Date(timeIntervalSince1970: Double(session.updatedAt) / 1000)
         return Button { onOpen(session) } label: {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(session.title.isEmpty ? "新的对话" : session.title)
-                    .font(serifFont(.body, .medium))
+                    .font(.subheadline)
                     .foregroundStyle(ReadingSpace.ink)
-                    .appTextLineLimit(2)
-                AppAdaptiveRow(spacing: 8) {
-                    Text(session.novelTitle.isEmpty ? "未命名作品" : session.novelTitle)
+                    .appTextLineLimit(1)
+                if !filterByBook && !session.novelTitle.isEmpty {
+                    Text(session.novelTitle)
                         .font(.caption)
-                        .appTextLineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(updated, format: .dateTime.month().day())
-                        .font(.caption2)
-                        .monospacedDigit()
-                        .accessibilityLabel("更新于 \(updated.formatted(.dateTime.year().month().day()))")
-                }
-                .foregroundStyle(ReadingSpace.profileMuted)
-                if isSelected {
-                    Text(session.anchorTitle.isEmpty ? "从头创作" : "续写起点 · \(session.anchorTitle)")
-                        .font(.caption2)
                         .foregroundStyle(ReadingSpace.profileMuted)
                         .appTextLineLimit(1)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background(isSelected ? ReadingSpace.paper : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 16))
-            .overlay(alignment: .leading) {
-                if isSelected {
-                    Capsule().fill(AppTheme.primary).frame(width: 3, height: 24)
-                }
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 16))
+            .background(isSelected ? ReadingSpace.profileFill : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, -10)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityValue("\(session.novelTitle)，更新于 \(updated.formatted(.dateTime.year().month().day()))")
         .accessibilityHint(session.anchorTitle.isEmpty ? "从头创作" : "续写起点：\(session.anchorTitle)")
         .accessibilityIdentifier("agent.history.session.\(session.id)")
     }

@@ -23,7 +23,6 @@ struct AdminAIAgentView: View {
     @State private var booksError: String?
     @State private var showPicker = false
     @State private var showCreate = false
-    @State private var showDiscovery = false
     @State private var created: AIAgentSession?
     @State private var listRequest = UUID()
     @State private var listNovelID = ""
@@ -53,8 +52,7 @@ struct AdminAIAgentView: View {
         }
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
-        .readingSpaceTopEdge()
+        .readingSpaceTopEdge(opaque: false)
         .task {
             if selectedID.isEmpty, let initialNovel { selectedID = initialNovel.id }
             await loadBooks()
@@ -75,12 +73,6 @@ struct AdminAIAgentView: View {
                     initialAnchor: initialNovel?.id == selectedID ? (afterChapterID ?? "") : "", token: token) { created = $0 }
             }
         }
-        .navigationDestination(isPresented: $showDiscovery) {
-            if let token = APIClient.shared.token {
-                AdminAgentBookDiscoveryView(token: token)
-                    .toolbar(.visible, for: .navigationBar)
-            }
-        }
     }
 
     private var workspace: some View {
@@ -88,49 +80,65 @@ struct AdminAIAgentView: View {
             let isWide = geometry.size.width >= 820 && !dynamicTypeSize.isAccessibilitySize
             let drawerOpen = showHistory && !isWide
             let historyVisible = isWide ? sidebarExpanded : drawerOpen
+            let historyWidth = min(340, max(0, geometry.size.width - (dynamicTypeSize.isAccessibilitySize ? 52 : 76)))
             ZStack(alignment: .leading) {
+                if drawerOpen {
+                    historySidebar
+                        .frame(width: historyWidth)
+                        .accessibilityAction(.escape) { setHistoryVisible(false) }
+                        .transition(sidebarTransition)
+                }
+
                 HStack(spacing: 0) {
                     if isWide && sidebarExpanded {
                         historySidebar
                             .frame(width: 300)
-                            .padding(.leading, 12)
-                            .padding(.vertical, 12)
-                            .padding(.trailing, 12)
                             .transition(sidebarTransition)
                     }
-                    mainWorkspace
+                    mainWorkspace(historyPresented: drawerOpen)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .disabled(drawerOpen)
                         .allowsHitTesting(!drawerOpen)
                         .accessibilityHidden(drawerOpen)
+                        .background {
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0,
+                                bottomLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0
+                            )
+                            .fill(ReadingSpace.profilePaper)
+                            .shadow(color: .black.opacity(drawerOpen ? 0.10 : 0), radius: 12, x: -4, y: 0)
+                        }
+                        .offset(x: drawerOpen ? historyWidth : 0)
                 }
 
                 if drawerOpen {
                     Button { setHistoryVisible(false) } label: {
-                        Color.black.opacity(0.22)
-                            .ignoresSafeArea(.container, edges: .bottom)
+                        Color.clear
                             .contentShape(Rectangle())
+                            .overlay(alignment: .topLeading) {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.body.weight(.light))
+                                    .foregroundStyle(ReadingSpace.profileMuted)
+                                    .frame(width: 44, height: 44)
+                                    .appGlassEffect(.regular, in: Circle())
+                                    .padding(12)
+                                    .allowsHitTesting(false)
+                            }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("关闭对话历史")
                     .accessibilityIdentifier("agent.history.dismiss")
-                    .transition(.opacity)
-
-                    historySidebar
-                        .frame(width: min(360, max(0, geometry.size.width - 44)))
-                        .shadow(color: .black.opacity(0.10), radius: 24, x: 6, y: 8)
-                        .padding(.leading, 10)
-                        .padding(.vertical, 10)
-                        .accessibilityAction(.escape) { setHistoryVisible(false) }
-                        .transition(sidebarTransition)
+                    .frame(width: max(0, geometry.size.width - historyWidth), height: geometry.size.height)
+                    .offset(x: historyWidth)
                 }
             }
-            .background(ReadingSpace.profilePaper)
+            .background((historyVisible ? ReadingSpace.canvas : ReadingSpace.profilePaper).ignoresSafeArea(.container))
+            .toolbar(drawerOpen ? .hidden : .visible, for: .navigationBar)
             .toolbar(activeSession != nil || drawerOpen ? .hidden : (isTabRoot ? .visible : .automatic), for: .tabBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { toggleHistory(isWide: isWide) } label: {
-                        Image(systemName: "sidebar.left")
+                        Image(systemName: "line.3.horizontal")
                     }
                     .accessibilityLabel(historyVisible ? "收起对话历史" : "打开对话历史")
                     .accessibilityValue(historyVisible ? "已展开" : "已收起")
@@ -166,7 +174,6 @@ struct AdminAIAgentView: View {
             deleting: deleting,
             error: error,
             deleteError: deleteError,
-            canDiscover: APIClient.shared.token != nil,
             onNewConversation: beginNewConversation,
             onOpen: openSession,
             onDelete: { session in
@@ -174,17 +181,14 @@ struct AdminAIAgentView: View {
                 showDelete = true
             },
             onRefresh: { await loadSessions() },
-            onLoadMore: { await loadSessions(more: true) },
-            onDiscovery: {
-                setHistoryVisible(false)
-                showDiscovery = true
-            }
+            onLoadMore: { await loadSessions(more: true) }
         )
     }
 
-    @ViewBuilder private var mainWorkspace: some View {
+    @ViewBuilder private func mainWorkspace(historyPresented: Bool) -> some View {
         if let activeSession, let user = appState.user, let token = APIClient.shared.token {
-            AdminAIAgentConversationView(session: activeSession, userID: user.id, token: token)
+            AdminAIAgentConversationView(session: activeSession, userID: user.id, token: token,
+                                         historyPresented: historyPresented, usesWorkspaceSurface: true)
                 .id(activeSession.id)
         } else {
             ScrollView {
@@ -206,22 +210,6 @@ struct AdminAIAgentView: View {
                     if let booksError {
                         LoadErrorNotice(message: booksError, isLoading: loadingBooks) { Task { await loadBooks() } }
                     }
-
-                    if APIClient.shared.token != nil {
-                        Button { showDiscovery = true } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "books.vertical").accessibilityHidden(true)
-                                Text("找书入库")
-                                Spacer(minLength: 8)
-                                Image(systemName: "arrow.up.right").accessibilityHidden(true)
-                            }
-                            .font(.subheadline)
-                            .foregroundStyle(ReadingSpace.profileMuted)
-                            .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 32)
@@ -230,7 +218,7 @@ struct AdminAIAgentView: View {
                 .frame(maxWidth: .infinity, alignment: .top)
             }
             .scrollDismissesKeyboard(.interactively)
-            .readingSpaceTopEdge()
+            .readingSpaceTopEdge(opaque: false)
             .refreshable { await loadBooks() }
         }
     }
@@ -439,116 +427,6 @@ struct AdminAIAgentView: View {
     }
 }
 
-struct AdminAgentBookDiscoveryView: View {
-    let token: String
-    @Environment(AppState.self) private var appState
-    @State private var query = ""
-    @State private var author = ""
-    @State private var result: AgentBookDiscoveryResult?
-    @State private var busy = false
-    @State private var error: String?
-    @State private var session: AIAgentSession?
-    @State private var showConversation = false
-
-    private var title: String {
-        let quoted = query.range(of: #"《[^》]+》|「[^」]+」|『[^』]+』"#, options: .regularExpression)
-        return (quoted.map { String(query[$0].dropFirst().dropLast()) } ?? query)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var candidates: [AgentBookDiscoveryResult.Source] {
-        var seen = Set<String>()
-        return (result?.sources.values.flatMap(\.results) ?? [])
-            .sorted { ($0.matchScore ?? 0) > ($1.matchScore ?? 0) }
-            .filter { seen.insert($0.url).inserted }
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                TextField("书名，或帮我找《书名》", text: $query)
-                    .submitLabel(.search).onSubmit { Task { await search() } }
-                TextField("作者（可选）", text: $author)
-                Button("找书", systemImage: "magnifyingglass") { Task { await search() } }
-                    .disabled(busy || title.isEmpty)
-                if busy { ProgressView("正在处理…") }
-                if let error { Text(verbatim: error).foregroundStyle(AppTheme.danger) }
-            }
-            if let result, !result.local.isEmpty {
-                Section("书库已有作品") {
-                    ForEach(result.local) { book in
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(verbatim: book.title).font(.headline)
-                            Text("\(book.author) · \(book.chapterCount) 章").foregroundStyle(.secondary)
-                            Button("开始对话") { Task { await open(book.id) } }
-                                .disabled(busy || book.chapterCount == 0)
-                                .frame(minHeight: AppLayout.minimumTouchTarget)
-                        }
-                    }
-                }
-            } else if let result {
-                Section("书源候选") {
-                    ForEach(candidates) { item in
-                        NavigationLink {
-                            AdminBookImportView(discoverySourceURL: item.url, discoveryToken: token)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(verbatim: item.title).font(.headline)
-                                Text("\(item.author) · \(item.siteName)").foregroundStyle(.secondary)
-                            }
-                            .frame(minHeight: AppLayout.minimumTouchTarget)
-                        }
-                    }
-                    if candidates.isEmpty {
-                        Text(result.sources.values.contains(where: \.ok)
-                             ? "已查完的书源没有匹配结果。" : "当前没有可完成搜索的书源。")
-                    }
-                    let unavailable = result.sources.values.filter { !$0.ok }.compactMap(\.siteName).sorted()
-                    if !unavailable.isEmpty { Text("暂未查完的书源：\(unavailable.joined(separator: "、"))").foregroundStyle(.secondary) }
-                }
-            }
-        }
-        .appListStyle(.settings)
-        .navigationTitle("找书入库")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(isPresented: $showConversation) {
-            if let session, let user = appState.user, APIClient.shared.token == token {
-                AdminAIAgentConversationView(session: session, userID: user.id, token: token)
-            }
-        }
-        .onChange(of: ContentAccessStore.shared.accountRevision) { _, _ in
-            query = ""; author = ""; result = nil; session = nil; error = nil; showConversation = false
-        }
-    }
-
-    private func search() async {
-        guard !title.isEmpty, !busy, APIClient.shared.token == token else { return }
-        result = nil; error = nil; busy = true
-        defer { busy = false }
-        do {
-            let found = try await AdminAgentAPI(token: token).discoverBook(title: title, author: author)
-            guard !Task.isCancelled, APIClient.shared.token == token else { return }
-            result = found
-        } catch {
-            guard !Task.isCancelled, APIClient.shared.token == token else { return }
-            self.error = AppCopy.friendlyError(error)
-        }
-    }
-
-    private func open(_ novelID: String) async {
-        guard !busy, APIClient.shared.token == token else { return }
-        error = nil; busy = true
-        defer { busy = false }
-        do {
-            let opened = try await AdminAgentAPI(token: token).startBookConversation(novelID)
-            guard !Task.isCancelled, APIClient.shared.token == token else { return }
-            session = opened; showConversation = true
-        } catch {
-            guard !Task.isCancelled, APIClient.shared.token == token else { return }
-            self.error = AppCopy.friendlyError(error)
-        }
-    }
-}
 
 private struct AgentNovelIndexPage: Decodable {
     let novels: [AdminNovelSummary]

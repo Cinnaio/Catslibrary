@@ -54,8 +54,8 @@ struct ReadingSpaceRoomListStyle: ViewModifier {
 }
 
 extension View {
-    func readingSpaceTopEdge() -> some View {
-        modifier(ReadingSpaceTopEdge())
+    func readingSpaceTopEdge(opaque: Bool = true) -> some View {
+        modifier(ReadingSpaceTopEdge(opaque: opaque))
     }
 
     func readingSpaceEntrance(_ index: Int = 0) -> some View {
@@ -63,15 +63,16 @@ extension View {
     }
 }
 
-/// 导航始终铺同色纸底，滚动柔化只负责控制区下沿的过渡。
+/// 默认保留纸底；创作空间可使用透明导航与原生滚动边缘。
 private struct ReadingSpaceTopEdge: ViewModifier {
+    let opaque: Bool
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
         content
-            .toolbarBackground(ReadingSpace.profilePaper, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(opaque ? ReadingSpace.profilePaper : Color.clear, for: .navigationBar)
+            .toolbarBackground(opaque ? .visible : .hidden, for: .navigationBar)
             .scrollEdgeEffectStyle(reduceTransparency || contrast == .increased ? .hard : .soft, for: .top)
     }
 }
