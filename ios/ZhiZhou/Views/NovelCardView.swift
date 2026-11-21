@@ -93,17 +93,3 @@ struct NovelCoverView: View {
         .accessibilityHidden(true)
     }
 }
-
-/// 书籍属性使用轻量语义标签，更新状态用品牌色强调。
-struct ThemeTagModifier: ViewModifier {
-    var emphasized: Bool = false
-
-    func body(content: Content) -> some View {
-        content
-            .font(.caption.weight(emphasized ? .semibold : .regular))
-            .foregroundStyle(emphasized ? AppTheme.primary : AppTheme.textSecondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(emphasized ? AppTheme.primaryLight : AppTheme.controlFill, in: Capsule())
-    }
-}

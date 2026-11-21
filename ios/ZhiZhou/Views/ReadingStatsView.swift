@@ -5,6 +5,7 @@ import ZhiZhouCore
 struct ReadingStatsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @State private var period: ReadingStatPeriod = .week
     @State private var offset = 0
@@ -14,6 +15,7 @@ struct ReadingStatsView: View {
     @State private var selectedDate: String?
     @State private var stats: ReadingStats?
     @State private var statsQuery: String?
+    @State private var loadedPeriod: ReadingStatPeriod = .week
     @State private var loading = false
     @State private var error: String?
     @State private var requestID = UUID()
@@ -31,6 +33,8 @@ struct ReadingStatsView: View {
                 Picker("统计周期", selection: $period) {
                     ForEach(ReadingStatPeriod.allCases) { item in Text(item.title).tag(item) }
                 }
+                .pickerStyle(.menu)
+                .frame(minHeight: AppLayout.minimumTouchTarget)
                 .onChange(of: period) { _, _ in
                     offset = 0
                     selectedDate = nil
@@ -47,7 +51,7 @@ struct ReadingStatsView: View {
                             .accessibilityLabel("上一周期")
                         Spacer(minLength: 4)
                         Text("\(dateText(range.start)) – \(dateText(max(range.start, range.end - 1)))")
-                            .font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                            .font(.footnote).foregroundStyle(ReadingSpace.profileMuted)
                             .multilineTextAlignment(.center).monospacedDigit()
                         Spacer(minLength: 4)
                         Button {
@@ -59,6 +63,8 @@ struct ReadingStatsView: View {
                     .buttonStyle(.borderless)
                 }
             }
+            .listRowBackground(ReadingSpace.paper)
+            .listRowInsets(EdgeInsets(top: 8, leading: 22, bottom: 8, trailing: 22))
 
             if let error {
                 Section {
@@ -74,27 +80,24 @@ struct ReadingStatsView: View {
                     Section { Text("下方暂时保留上一次加载的结果，当前周期尚未更新。")
                         .font(.footnote).foregroundStyle(AppTheme.textSecondary) }
                 }
-                Section("阅读概览") {
-                    LabeledContent("阅读时长", value: ReadingStats.duration(stats.milliseconds))
-                        .foregroundStyle(AppTheme.primary)
-                    LabeledContent("阅读次数", value: "\(stats.sessions) 次")
-                    LabeledContent("阅读章节", value: "\(stats.chapters) 章")
-                    LabeledContent("阅读天数", value: "\(stats.days) 天")
-                }
-                .monospacedDigit()
+                statsOverview(stats)
+                    .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 20, trailing: 22))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
 
-                let chartItems = buildChartItems(from: stats.trend, period: period, range: range)
+                let chartItems = buildChartItems(from: stats.trend, period: loadedPeriod,
+                                                range: (start: stats.start, end: stats.end))
                 let selectedChartItem = chartItems.first(where: { $0.id == selectedDate })
                 let avgMinutes = stats.days > 0 ? (Double(stats.milliseconds) / 60_000.0) / Double(stats.days) : 0
                 let avgSessions = stats.days > 0 ? Double(stats.sessions) / Double(stats.days) : 0
                 let averageValue = showSessions ? avgSessions : avgMinutes
-                let showAverageLine = period != .today && stats.days > 1 && averageValue > 0
+                let showAverageLine = loadedPeriod != .today && stats.days > 1 && averageValue > 0
 
-                Section("阅读趋势") {
+                Section {
                     Picker("趋势指标", selection: $showSessions) {
                         Text("时长").tag(false)
                         Text("次数").tag(true)
-                    }.pickerStyle(.segmented)
+                    }.accessibleSegmentedPicker()
 
                     if chartItems.isEmpty {
                         Text("这个周期还没有有效阅读记录。")
@@ -104,7 +107,6 @@ struct ReadingStatsView: View {
                             stats: stats,
                             selectedItem: selectedChartItem,
                             showSessions: showSessions,
-                            period: period,
                             onClearSelection: { selectedDate = nil }
                         )
 
@@ -115,7 +117,7 @@ struct ReadingStatsView: View {
                             showAverageLine: showAverageLine,
                             selectedDate: $selectedDate
                         )
-                        .frame(height: 190)
+                        .frame(height: dynamicTypeSize.isAccessibilitySize ? 240 : 190)
                         .padding(.vertical, 4)
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: showSessions)
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selectedDate)
@@ -129,28 +131,51 @@ struct ReadingStatsView: View {
                             }
                         }
                     }
+                } header: {
+                    sectionHeading("阅读趋势")
                 }
+                .listRowInsets(EdgeInsets(top: 10, leading: 22, bottom: 10, trailing: 22))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
-                Section("阅读作品") {
+                Section {
                     if stats.novels.isEmpty {
                         Text("开始阅读后，作品统计会显示在这里。")
                             .foregroundStyle(AppTheme.textSecondary)
                     }
-                    ForEach(stats.novels) { book in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(book.title).font(.headline)
+                    ForEach(Array(stats.novels.enumerated()), id: \.element.id) { index, book in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(book.title)
+                                .font(serifFont(.headline, .medium))
+                                .foregroundStyle(ReadingSpace.ink)
+                                .appTextLineLimit(2)
                             Text("\(ReadingStats.duration(book.milliseconds)) · \(book.chapters) 章")
                                 .font(.subheadline).foregroundStyle(AppTheme.textSecondary)
                             Text("最近阅读 \(dateText(book.lastReadAt))\(book.available ? "" : " · 作品已删除")")
                                 .font(.footnote).foregroundStyle(AppTheme.textMuted)
-                        }.padding(.vertical, 4).accessibilityElement(children: .combine)
+                        }
+                        .padding(.vertical, 8)
+                        .accessibilityElement(children: .combine)
+                        .readingSpaceEntrance(index)
                     }
+                } header: {
+                    sectionHeading("阅读作品")
                 }
+                .id(statsQuery)
+                .listRowInsets(EdgeInsets(top: 10, leading: 22, bottom: 10, trailing: 22))
+                .listRowBackground(Color.clear)
+                .listRowSeparatorTint(ReadingSpace.profileLine)
                 Section {
-                    if let since = stats.recordedSince { Text("统计起始于 \(dateText(since))。") }
-                    Text("北京时间，周一为每周起点。连续有效阅读满 30 秒计一次，切换章节不增加次数；离开超过 5 分钟后重新计次。后台、弹窗及长时间无操作暂停计时。章节与天数需累计阅读满 30 秒，重复章节去重；跨设备重叠时长只计一次。")
-                    Text("统计从功能启用后开始，旧阅读时长无法补算。")
-                }.font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                    DisclosureGroup("统计说明") {
+                        if let since = stats.recordedSince { Text("统计起始于 \(dateText(since))。") }
+                        Text("北京时间，周一为每周起点。连续有效阅读满 30 秒计一次，切换章节不增加次数；离开超过 5 分钟后重新计次。后台、弹窗及长时间无操作暂停计时。章节与天数需累计阅读满 30 秒，重复章节去重；跨设备重叠时长只计一次。")
+                        Text("统计从功能启用后开始，旧阅读时长无法补算。")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
             if ReadingStatsStore.shared.pendingCount > 0 {
                 Section {
@@ -160,7 +185,11 @@ struct ReadingStatsView: View {
                 }.font(.footnote)
             }
         }
-        .appListStyle(.settings)
+        .modifier(ReadingSpaceRoomListStyle())
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+        .background(ReadingSpace.profilePaper)
+        .tint(AppTheme.primary)
         .navigationTitle("阅读统计")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.timeZone, ReadingStatPeriod.calendar.timeZone)
@@ -173,10 +202,60 @@ struct ReadingStatsView: View {
         .onChange(of: appState.user?.id) { _, _ in stats = nil }
     }
 
+    private func statsOverview(_ stats: ReadingStats) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("阅读时长")
+                .font(.caption)
+                .foregroundStyle(ReadingSpace.summarySecondary)
+            Text(ReadingStats.duration(stats.milliseconds))
+                .font(serifFont(.largeTitle, .medium))
+                .foregroundStyle(ReadingSpace.onSummary)
+                .fixedSize(horizontal: false, vertical: true)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 24) {
+                    overviewMetric("阅读次数", value: stats.sessions)
+                    overviewMetric("阅读章节", value: stats.chapters)
+                    overviewMetric("阅读天数", value: stats.days)
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 16) {
+                    overviewMetric("阅读次数", value: stats.sessions)
+                    overviewMetric("阅读章节", value: stats.chapters)
+                    overviewMetric("阅读天数", value: stats.days)
+                }
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(ReadingSpace.summary, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
+    }
+
+    private func overviewMetric(_ title: String, value: Int) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(value, format: .number.grouping(.never))
+                .font(.title2.monospacedDigit())
+                .foregroundStyle(ReadingSpace.onSummary)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(ReadingSpace.summarySecondary)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(String(value))
+    }
+
+    private func sectionHeading(_ title: String) -> some View {
+        Text(title)
+            .font(serifFont(.title3, .medium))
+            .foregroundStyle(ReadingSpace.ink)
+            .textCase(nil)
+    }
+
     private func load() async {
         let id = UUID(); requestID = id
         let query = queryID
         let selected = range
+        let selectedPeriod = period
         error = nil
         guard selected.end > selected.start else {
             stats = nil; loading = false; error = "请选择有效的日期范围，结束日期不能早于开始日期。"; return
@@ -197,6 +276,7 @@ struct ReadingStatsView: View {
                   appState.user?.id == userID, APIClient.shared.token == token else { return }
             stats = result
             statsQuery = query
+            loadedPeriod = selectedPeriod
         } catch {
             guard !Task.isCancelled, requestID == id, queryID == query else { return }
             self.error = error.localizedDescription
@@ -406,20 +486,20 @@ private struct TrendSummaryHeader: View {
     let stats: ReadingStats
     let selectedItem: TrendChartItem?
     let showSessions: Bool
-    let period: ReadingStatPeriod
     let onClearSelection: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if let item = selectedItem {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                AppAdaptiveRow(spacing: 8) {
                     Text(showSessions ? "\(item.sessions) 次" : ReadingStats.duration(item.milliseconds))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(serifFont(.title2, .medium))
                         .foregroundStyle(AppTheme.primary)
                         .contentTransition(.numericText())
                         .monospacedDigit()
-                    Spacer()
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     Button(action: onClearSelection) {
                         HStack(spacing: 3) {
                             Text("恢复平均")
@@ -427,6 +507,7 @@ private struct TrendSummaryHeader: View {
                         }
                         .font(.caption)
                         .foregroundStyle(AppTheme.textSecondary)
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
                     .buttonStyle(.plain)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.85).combined(with: .opacity))
@@ -437,7 +518,7 @@ private struct TrendSummaryHeader: View {
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(primaryText)
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .font(serifFont(.title2, .medium))
                         .foregroundStyle(AppTheme.textPrimary)
                         .contentTransition(.numericText())
                         .monospacedDigit()
@@ -448,31 +529,20 @@ private struct TrendSummaryHeader: View {
             }
         }
         .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     private var primaryText: String {
+        guard stats.days > 0 else { return "暂无有效阅读" }
         if showSessions {
-            return "\(stats.sessions) 次"
+            return String(format: "%.1f 次", Double(stats.sessions) / Double(stats.days))
         } else {
-            return ReadingStats.duration(stats.milliseconds)
+            return ReadingStats.duration(stats.milliseconds / Int64(stats.days))
         }
     }
 
     private var subtitleText: String {
-        let periodName = period.title
-        let days = stats.days
-        let avgMinutes = days > 0 ? (stats.milliseconds / 60_000) / Int64(days) : 0
-        let avgSessions = days > 0 ? Double(stats.sessions) / Double(days) : 0
-        if days == 0 {
-            return "\(periodName)暂无有效阅读记录"
-        }
-        if showSessions {
-            let avgStr = String(format: "%.1f", avgSessions)
-            return "\(periodName)共 \(stats.sessions) 次 · 有效天日均 \(avgStr) 次 (\(days)天)"
-        } else {
-            return "\(periodName)共 \(ReadingStats.duration(stats.milliseconds)) · 有效天日均 \(ReadingStats.duration(avgMinutes * 60_000)) (\(days)天)"
-        }
+        "有效阅读日平均 · \(stats.days) 天有阅读"
     }
 
     private func selectedSubtitle(_ item: TrendChartItem) -> String {

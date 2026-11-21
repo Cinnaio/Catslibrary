@@ -37,8 +37,9 @@ struct OfflineReadingView: View {
                             .transition(selectionModeTransition)
                     }
                 }
+                .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))
 
-                ForEach(offlineStore.books) { book in
+                ForEach(Array(offlineStore.books.enumerated()), id: \.element.id) { bookIndex, book in
                     Section {
                         Button {
                             if isSelectingBooks {
@@ -50,6 +51,7 @@ struct OfflineReadingView: View {
                             bookHeader(book, selectionMode: isSelectingBooks)
                         }
                         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+                        .readingSpaceEntrance(bookIndex)
                         .listRowSeparator(.hidden)
                         .accessibilityLabel("\(book.novel.title)，\(displayAuthor(for: book.novel))")
                         .accessibilityValue(
@@ -66,7 +68,7 @@ struct OfflineReadingView: View {
                         )
 
                         if !isSelectingBooks && expandedBookIDs.contains(book.id) {
-                            ForEach(book.chapters) { chapter in
+                            ForEach(Array(book.chapters.enumerated()), id: \.element.id) { index, chapter in
                                 NavigationLink {
                                     ReaderView(
                                         novel: book.novel,
@@ -77,6 +79,10 @@ struct OfflineReadingView: View {
                                 } label: {
                                     chapterRow(chapter)
                                 }
+                                .navigationLinkIndicatorVisibility(.hidden)
+                                .readingSpaceEntrance(index)
+                                .listRowInsets(EdgeInsets(top: 12, leading: 34, bottom: 12, trailing: 22))
+                                .listRowSeparatorTint(ReadingSpace.profileLine)
                                 .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) {
                                         Task {
@@ -97,11 +103,16 @@ struct OfflineReadingView: View {
                             }
                         }
                     }
-                    .listRowBackground(AppTheme.canvas)
+                    .listRowInsets(EdgeInsets(top: 10, leading: 22, bottom: 10, trailing: 22))
+                    .listRowBackground(Color.clear)
                 }
             }
         }
-        .appListStyle(.browsing)
+        .modifier(ReadingSpaceRoomListStyle())
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+        .background(ReadingSpace.profilePaper)
+        .tint(AppTheme.primary)
         .navigationTitle("离线阅读")
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.selection, trigger: interactionFeedback)
@@ -213,26 +224,26 @@ struct OfflineReadingView: View {
     }
 
     private var summaryRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "arrow.down.circle.fill")
-                .font(.title3)
-                .foregroundStyle(AppTheme.primary)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("已保存到本机")
-                    .font(.subheadline.weight(.semibold))
-                Text("无网络时仍可打开这些章节")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-
-            Spacer()
-
-            Text("\(offlineStore.totalChapterCount) 章")
-                .font(.subheadline.monospacedDigit().weight(.semibold))
-                .foregroundStyle(AppTheme.textSecondary)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("已保存到本机")
+                .font(.caption)
+                .foregroundStyle(ReadingSpace.profileMuted)
+            Text("\(offlineStore.books.count) 本书 · \(offlineStore.totalChapterCount) 章")
+                .font(serifFont(.title2, .medium))
+                .foregroundStyle(ReadingSpace.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("无网络时仍可打开这些章节")
+                .font(.caption)
+                .foregroundStyle(ReadingSpace.profileMuted)
         }
-        .padding(.vertical, 6)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: ReadingSpace.panelRadius)
+                .strokeBorder(ReadingSpace.profileLine, lineWidth: 0.8)
+                .allowsHitTesting(false)
+        }
         .accessibilityElement(children: .combine)
     }
 
@@ -242,20 +253,16 @@ struct OfflineReadingView: View {
     }
 
     private var selectionSummaryRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle")
-                .font(.title3)
-                .foregroundStyle(AppTheme.primary)
-
+        AppAdaptiveRow(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("已选 \(selectedBookIDs.count) 本")
-                    .font(.subheadline.weight(.semibold))
+                    .font(serifFont(.headline, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
                 Text("选择要删除的离线书籍")
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Button(isAllBooksSelected ? "取消全选" : "全选") {
                 toggleAllBookSelection()
@@ -265,6 +272,8 @@ struct OfflineReadingView: View {
             .frame(minHeight: 44)
             .disabled(isRemovingSelectedBooks || offlineStore.isBatchDownloading)
         }
+        .padding(16)
+        .background(ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private var selectionModeTransition: AnyTransition {
@@ -278,7 +287,8 @@ struct OfflineReadingView: View {
         _ book: OfflineReadingStore.DownloadedBook,
         selectionMode: Bool = false
     ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        let metadata = bookMetadata(for: book.novel)
+        return HStack(alignment: .top, spacing: 12) {
             CachedAsyncImage(
                 url: APIClient.shared.coverURL(
                     novelId: book.novel.id,
@@ -289,20 +299,20 @@ struct OfflineReadingView: View {
                 image.resizable().scaledToFill()
             } placeholder: {
                 ZStack {
-                    AppTheme.primaryLight
+                    ReadingSpace.profileFill
                     Image(systemName: "book.closed")
                         .foregroundStyle(AppTheme.primary)
                 }
             }
             .frame(width: 68, height: 96)
-            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(book.novel.title)
-                        .font(serifFont(.headline, .semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                        .font(serifFont(.headline, .medium))
+                        .foregroundStyle(ReadingSpace.ink)
                         .appTextLineLimit(2)
                     Spacer(minLength: 0)
                     if selectionMode {
@@ -315,7 +325,7 @@ struct OfflineReadingView: View {
                         .foregroundStyle(
                             selectedBookIDs.contains(book.id)
                                 ? AppTheme.primary
-                                : AppTheme.textSecondary
+                                : ReadingSpace.profileMuted
                         )
                         .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                         .accessibilityHidden(true)
@@ -326,39 +336,33 @@ struct OfflineReadingView: View {
                                 : "chevron.down"
                         )
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                         .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                         .accessibilityHidden(true)
                     }
                 }
 
                 Text(displayAuthor(for: book.novel))
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                     .appTextLineLimit(1)
 
-                HStack(spacing: 6) {
-                    if let status = book.novel.statusLabel {
-                        Text(status)
-                            .modifier(ThemeTagModifier())
+                Text(savedProgressText(for: book))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(AppTheme.primary)
+                    .appTextLineLimit(2)
+
+                AppAdaptiveRow(spacing: 8) {
+                    if !metadata.isEmpty {
+                        Text(metadata).appTextLineLimit(2)
                     }
                     if book.novel.hasUpdate {
                         Text("有更新")
-                            .modifier(ThemeTagModifier(emphasized: true))
+                            .foregroundStyle(AppTheme.primary)
                     }
                 }
-
-                if !book.novel.categories.isEmpty {
-                    Text(book.novel.categories.prefix(2).joined(separator: " · "))
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .appTextLineLimit(1)
-                }
-
-                Text(savedProgressText(for: book))
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .appTextLineLimit(1)
+                .font(.caption)
+                .foregroundStyle(ReadingSpace.profileMuted)
             }
         }
         .padding(.vertical, 10)
@@ -368,6 +372,13 @@ struct OfflineReadingView: View {
 
     private func displayAuthor(for novel: Novel) -> String {
         novel.author.isEmpty ? "佚名" : novel.author
+    }
+
+    private func bookMetadata(for novel: Novel) -> String {
+        var parts: [String] = []
+        if let status = novel.statusLabel { parts.append(status) }
+        parts.append(contentsOf: novel.categories.prefix(2))
+        return parts.joined(separator: " · ")
     }
 
     private func savedProgressText(for book: OfflineReadingStore.DownloadedBook) -> String {
@@ -474,21 +485,22 @@ struct OfflineReadingView: View {
         HStack(spacing: 12) {
             Text("\(chapter.order)")
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(AppTheme.textSecondary)
+                .foregroundStyle(ReadingSpace.profileMuted)
                 .frame(minWidth: 28, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(chapter.title)
-                    .chapterTitleStyle()
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .font(serifFont(.body, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .appTextLineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Text("\(chapter.wordCount) 字 · 离线可读")
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
 
-            Spacer()
-
             Image(systemName: "checkmark.circle.fill")
+                .font(.caption)
                 .foregroundStyle(AppTheme.success)
                 .accessibilityHidden(true)
         }
