@@ -19,9 +19,9 @@ struct AdminAgentHistorySidebar: View {
     let onDelete: (AIAgentSession) -> Void
     let onRefresh: () async -> Void
     let onLoadMore: () async -> Void
-    @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isSearching = false
+    @State private var loadingEarlier = false
     @FocusState private var searchFocused: Bool
 
     private var searchTerm: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -106,12 +106,12 @@ struct AdminAgentHistorySidebar: View {
                     if let deleteError {
                         Text(deleteError).font(.footnote).foregroundStyle(AppTheme.danger).textSelection(.enabled)
                     }
-                    if loading {
-                        ProgressView(sessions.isEmpty ? "正在读取对话…" : "正在更新对话…")
+                    if loading && !loadingEarlier && (sessions.isEmpty || error != nil) {
+                        ProgressView(error == nil ? "正在读取对话…" : "正在重试…")
                             .font(.footnote)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     }
-                    if matches.isEmpty && !loading && error == nil { emptyState }
+                    if matches.isEmpty && (!loading || !sessions.isEmpty) && error == nil { emptyState }
 
                     ForEach(Array(sections.flatMap(\.sessions).enumerated()), id: \.element.id) { index, session in
                         sessionButton(session)
@@ -128,12 +128,24 @@ struct AdminAgentHistorySidebar: View {
                     .id("\(filterByBook):\(searchTerm)")
 
                     if hasMore {
-                        Button("加载更早对话") { Task { await onLoadMore() } }
+                        Button {
+                            guard !loading, !loadingEarlier else { return }
+                            loadingEarlier = true
+                            Task {
+                                defer { loadingEarlier = false }
+                                await onLoadMore()
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                if loadingEarlier { ProgressView().controlSize(.small) }
+                                Text(loadingEarlier ? "正在加载更早对话…" : "加载更早对话")
+                            }
                             .font(.subheadline)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .buttonStyle(.plain)
-                            .foregroundStyle(ReadingSpace.profileMuted)
-                            .disabled(loading)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .disabled(loading || loadingEarlier)
                     }
                 }
                 .listRowInsets(EdgeInsets(top: 2, leading: 24, bottom: 2, trailing: 20))
@@ -161,28 +173,19 @@ struct AdminAgentHistorySidebar: View {
     }
 
     private var footer: some View {
-        AppAdaptiveRow(spacing: 12) {
-            if let user = appState.user {
-                HStack {
-                    ProfileAvatar(user: user, size: 40)
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("当前账户：\(user.displayName.isEmpty ? user.username : user.displayName)")
-            }
-            Button(action: onNewConversation) {
-                Label("新建对话", systemImage: "plus")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(ReadingSpace.onSummary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .frame(minHeight: 44)
-                    .background(ReadingSpace.summary, in: Capsule())
-            }
-            .buttonStyle(ScaleButtonStyle())
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier("agent.history.new")
+        Button(action: onNewConversation) {
+            Label("新建对话", systemImage: "plus")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(ReadingSpace.onSummary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .frame(minHeight: 44)
+                .background(ReadingSpace.summary, in: Capsule())
         }
+        .buttonStyle(ScaleButtonStyle())
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("agent.history.new")
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     private var scopeMenu: some View {

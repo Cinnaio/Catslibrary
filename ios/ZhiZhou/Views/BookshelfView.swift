@@ -190,8 +190,8 @@ struct BookshelfView: View {
             if usesShelfSections {
                 shelfHeading
             }
-            if isLoading {
-                ProgressView(response == nil ? "正在加载书架…" : "正在更新书架…")
+            if isLoading && (response == nil || displayedQuery != shelfQuery || errorMessage != nil) {
+                ProgressView(response == nil ? "正在加载书架…" : (errorMessage == nil ? "正在载入结果…" : "正在重试…"))
                     .font(.footnote)
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)

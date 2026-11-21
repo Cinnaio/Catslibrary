@@ -17,6 +17,7 @@ struct ReadingStatsView: View {
     @State private var statsQuery: String?
     @State private var loadedPeriod: ReadingStatPeriod = .week
     @State private var loading = false
+    @State private var retrying = false
     @State private var error: String?
     @State private var requestID = UUID()
 
@@ -178,12 +179,19 @@ struct ReadingStatsView: View {
 
     @ViewBuilder private var loadFeedback: some View {
         if let error {
-            LoadErrorNotice(message: error, isLoading: loading) { Task { await load() } }
+            LoadErrorNotice(message: error, isLoading: loading || retrying) {
+                guard !loading, !retrying else { return }
+                retrying = true
+                Task {
+                    defer { retrying = false }
+                    await load()
+                }
+            }
         }
-        if loading {
+        if loading && (stats == nil || retrying) {
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
-                Text(stats == nil ? "正在读取统计…" : "正在更新统计…")
+                Text(retrying ? "正在重试…" : "正在读取统计…")
                     .font(.footnote)
                     .foregroundStyle(ReadingSpace.profileMuted)
             }

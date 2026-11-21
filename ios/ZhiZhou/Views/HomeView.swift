@@ -229,8 +229,8 @@ struct HomeView: View {
                         Task { await reload() }
                     }
                 }
-                if isLoading {
-                    ProgressView("正在更新书单…")
+                if isLoading && (displayedQuery != catalogQuery || errorMessage != nil) {
+                    ProgressView(errorMessage == nil ? "正在载入结果…" : "正在重试…")
                         .font(.footnote)
                         .foregroundStyle(ReadingSpace.profileMuted)
                         .frame(maxWidth: .infinity)
@@ -251,9 +251,9 @@ struct HomeView: View {
                     }
                 }
                 .id(displayedQuery)
-                .opacity(isLoading || displayedQuery != catalogQuery ? 0.45 : 1)
+                .opacity(displayedQuery != catalogQuery ? 0.45 : 1)
                 .disabled(isLoading || displayedQuery != catalogQuery)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isLoading)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: displayedQuery != catalogQuery)
 
                 if isLoadingMore {
                     ProgressView()
