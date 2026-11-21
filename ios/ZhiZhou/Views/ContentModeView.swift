@@ -16,7 +16,7 @@ struct ContentModeView: View {
                         .font(.caption)
                         .foregroundStyle(ReadingSpace.profileMuted)
                     Text(access.mode == "adult" ? "R18 阅读" : "安全模式")
-                        .font(.system(.title, design: .serif).weight(.medium))
+                        .font(serifFont(.title, .medium))
                         .foregroundStyle(ReadingSpace.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -138,7 +138,7 @@ struct ContentModeView: View {
     private func modeSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title)
-                .font(.system(.title3, design: .serif).weight(.medium))
+                .font(serifFont(.title3, .medium))
                 .foregroundStyle(ReadingSpace.ink)
                 .accessibilityAddTraits(.isHeader)
             content()

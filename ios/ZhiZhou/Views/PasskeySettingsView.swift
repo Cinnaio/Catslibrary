@@ -98,7 +98,7 @@ struct PasskeySettingsView: View {
     @ViewBuilder
     private var registeredPasskeysSection: some View {
         Text("已注册的 Passkey")
-            .font(.system(.title3, design: .serif).weight(.medium))
+            .font(serifFont(.title3, .medium))
             .foregroundStyle(ReadingSpace.ink)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)

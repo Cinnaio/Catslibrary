@@ -61,7 +61,7 @@ struct AccountSettingsHeading: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(.title, design: .serif).weight(.medium))
+                .font(serifFont(.title, .medium))
                 .foregroundStyle(ReadingSpace.ink)
                 .accessibilityAddTraits(.isHeader)
             AccountSettingsNote(detail)
@@ -83,7 +83,7 @@ struct AccountSettingsSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title)
-                .font(.system(.title3, design: .serif).weight(.medium))
+                .font(serifFont(.title3, .medium))
                 .foregroundStyle(ReadingSpace.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)

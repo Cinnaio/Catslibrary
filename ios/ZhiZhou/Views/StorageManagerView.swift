@@ -260,7 +260,7 @@ struct StorageManagerView: View {
     private func storageSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.system(.title3, design: .serif).weight(.medium))
+                .font(serifFont(.title3, .medium))
                 .foregroundStyle(ReadingSpace.ink)
                 .accessibilityAddTraits(.isHeader)
             content()
@@ -448,7 +448,7 @@ private struct CacheLimitEditor: View {
     private var editorHeading: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("给自动缓存留多少空间")
-                .font(.system(.title2, design: .serif).weight(.medium))
+                .font(serifFont(.title2, .medium))
                 .foregroundStyle(ReadingSpace.ink)
                 .accessibilityAddTraits(.isHeader)
             Text("按这台设备保存，图片与章节共用额度。")

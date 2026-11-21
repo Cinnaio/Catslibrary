@@ -1,5 +1,12 @@
 # 发布与版本管理
 
+## iOS 账户标题中文衬线统一（2026-11-21）
+
+- 将 AccountSettingsHeading／Section、账户昵称及「登录与找回」「设备与密钥」、Passkey 已注册列表、内容模式与存储管理分区和缓存上限弹窗共 9 处字体入口统一为现有 serifFont。共享组件同时覆盖个人资料／头像、邮箱／密码、登录设备及安全验证等内页，使用与个人首页一致的 Noto Serif SC／Songti SC 字体选择和 Dynamic Type 缩放。
+- 保留各处 title／title2／title3 与 medium 配置，未修改字体解析器、原生导航、功能行、字段标签、操作按钮、说明或英文品牌字标。布局、交互、无障碍标识与业务逻辑保持；DESIGN.md 补充个人与账户区域的字体层级及统一入口。
+- 五份 Swift 文件通过 Tree-sitter 语法解析，与 HEAD 对照仅替换预期的 9 处 font 表达式，差异检查通过；未运行单元或端到端测试。Windows 无 Swift/Xcode，未完成 SwiftUI 类型检查或原生字体渲染验证；中文标题一致性、字体下载前后、大字号及中英文混排需在真机复验。
+- 源码基于 `49d6ad1d`，继续并入 `ios/project.yml` 的 `1.4.0 / build 31` 源码候选；交付包含新源码的 IPA 时递增构建号。本轮未推送、构建或部署。
+
 ## iOS 个人资料与头像编辑重整（2026-11-21）
 
 - ProfileEditView 与内层 ProfileAvatarEditor 从系统分组 Form 切换至共享 AccountSettingsPage、Heading、Field、Note 与 ActionLabel，采用 700pt 连续暖纸、透明导航和正文衬线标题；关闭顶部滚动边缘效果，个人资料弹层底色同步为 profilePaper。原生取消／返回与保存操作保留。

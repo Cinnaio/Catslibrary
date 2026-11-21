@@ -103,7 +103,7 @@ struct ProfileAccountView: View {
                 ProfileAvatar(user: user, size: 64)
                 VStack(alignment: .leading, spacing: 8) {
                     Text(displayName)
-                        .font(.system(.title2, design: .serif).weight(.medium))
+                        .font(serifFont(.title2, .medium))
                         .foregroundStyle(ReadingSpace.ink)
                     Text("@\(user.username)")
                         .font(.subheadline)
@@ -134,7 +134,7 @@ struct ProfileAccountView: View {
     private func accountSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(.title3, design: .serif).weight(.medium))
+                .font(serifFont(.title3, .medium))
                 .foregroundStyle(ReadingSpace.ink)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0, content: content)
