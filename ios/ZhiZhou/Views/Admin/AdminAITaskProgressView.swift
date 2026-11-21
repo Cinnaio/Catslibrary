@@ -5,6 +5,7 @@ struct AdminAITaskProgressView: View {
     let task: AiTaskInfo
     var compact = false
     var showsPromptPreview = false
+    var showsError = true
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: task.isRunning ? 1 : 60)) { context in
@@ -56,7 +57,7 @@ struct AdminAITaskProgressView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                 }
 
-                if let error = task.error?.trimmingCharacters(in: .whitespacesAndNewlines), !error.isEmpty {
+                if showsError, let error = task.error?.trimmingCharacters(in: .whitespacesAndNewlines), !error.isEmpty {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(AppTheme.danger)

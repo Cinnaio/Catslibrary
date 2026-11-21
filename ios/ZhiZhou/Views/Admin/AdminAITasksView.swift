@@ -7,6 +7,7 @@ struct AdminAITasksView: View {
     init(taskID: String? = nil) { _focusedTaskID = State(initialValue: taskID) }
     @State private var requests = ListRequestGuard<[String]>()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tasks: [AiTaskInfo] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -21,86 +22,50 @@ struct AdminAITasksView: View {
     @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading(focusedTaskID == nil ? "AI 任务" : "AI 任务详情",
+                                  detail: focusedTaskID == nil ? "查看真实进度、失败原因和生成结果。" : "进度与操作随任务状态更新。")
+            if focusedTaskID == nil {
+                AdminFilterMenu("状态", value: taskStatusLabel) {
+                    Picker("状态", selection: $statusFilter) {
+                        Text("全部").tag("all")
+                        Text("排队中").tag("queued")
+                        Text("运行中").tag("running")
+                        Text("已完成").tag("completed")
+                        Text("已失败").tag("failed")
+                        Text("已取消").tag("cancelled")
+                    }
+                }
+            }
             if let errorMessage, !tasks.isEmpty {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await load() }
                 }
             }
-            Section {
-                AdminFilterBar {
-                    AdminFilterMenu("状态", value: taskStatusLabel) {
-                        Picker("状态", selection: $statusFilter) {
-                            Text("全部").tag("all")
-                            Text("排队中").tag("queued")
-                            Text("运行中").tag("running")
-                            Text("已完成").tag("completed")
-                            Text("已失败").tag("failed")
-                            Text("已取消").tag("cancelled")
-                        }
-                    }
-                }
+            if isTransitioning {
+                Label(isLoading ? "正在读取新条件，以下仍是上一次的任务" : "以下仍是上一次的任务，请重试读取",
+                      systemImage: "arrow.triangle.2.circlepath")
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
-
-            if isLoading && tasks.isEmpty {
-                Section {
-                    ProgressView("加载中…")
-                        .frame(maxWidth: .infinity, minHeight: 160)
-                        .listRowBackground(Color.clear)
-                }
-            } else if let errorMessage, tasks.isEmpty {
-                Section {
-                    ContentUnavailableView {
-                        Label("加载失败", systemImage: "wifi.slash")
-                    } description: {
-                        Text(errorMessage)
-                    } actions: {
-                        Button("重试") { Task { await load() } }
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-            } else {
-                if filteredTasks.isEmpty {
-                    Section {
-                        ContentUnavailableView {
-                            Label("暂无任务", systemImage: "tray")
-                        } description: {
-                            Text("当前过滤条件下没有 AI 任务。")
-                        }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    }
-                } else {
-                    Section("任务（\(filteredTasks.count) / \(totalTasks)）") {
-                        ForEach(Array(filteredTasks.enumerated()), id: \.element.id) { index, task in
-                            taskRow(task)
-                                .modifier(AdminTaskRowEntrance(index: index))
-                        }
-                    }
-                }
-            }
+            taskResults
+                .opacity(isTransitioning ? 0.45 : 1)
+                .disabled(isTransitioning)
             if focusedTaskID == nil && (totalTasks > pageSize || pageOffset > 0) {
-                Section {
-                    HStack {
-                        Button("上一页") { pageOffset = max(0, pageOffset - pageSize) }
-                            .disabled(isLoading || pageOffset == 0)
-                        Spacer()
-                        Text("第 \(pageOffset / pageSize + 1) 页")
-                            .foregroundStyle(AppTheme.textSecondary)
-                        Spacer()
-                        Button("下一页") { pageOffset += pageSize }
-                            .disabled(isLoading || pageOffset + pageSize >= totalTasks)
-                    }
-                    .buttonStyle(.borderless)
-                    .frame(minHeight: 44)
+                AppAdaptiveRow {
+                    Button("上一页") { pageOffset = max(0, pageOffset - pageSize) }
+                        .disabled(isLoading || isTransitioning || pageOffset == 0)
+                    Spacer()
+                    Text("第 \(pageOffset / pageSize + 1) 页")
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                    Spacer()
+                    Button("下一页") { pageOffset += pageSize }
+                        .disabled(isLoading || isTransitioning || pageOffset + pageSize >= totalTasks)
                 }
+                .buttonStyle(.borderless)
+                .frame(minHeight: AppLayout.minimumTouchTarget)
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("AI 任务")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .onChange(of: statusFilter) { _, _ in pageOffset = 0 }
         .task(id: "\(statusFilter)-\(pageOffset)-\(focusedTaskID ?? "")-\(scenePhase)") {
@@ -138,8 +103,43 @@ struct AdminAITasksView: View {
 
     // MARK: - 列表
 
+    @ViewBuilder
+    private var taskResults: some View {
+        if isLoading && tasks.isEmpty {
+            ProgressView("加载中…")
+                .frame(maxWidth: .infinity, minHeight: 160)
+        } else if let errorMessage, tasks.isEmpty {
+            ContentUnavailableView {
+                Label("加载失败", systemImage: "wifi.slash")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await load() } }
+            }
+        } else if filteredTasks.isEmpty {
+            ContentUnavailableView {
+                Label("暂无任务", systemImage: "tray")
+            } description: {
+                Text("当前过滤条件下没有 AI 任务。")
+            }
+        } else {
+            AdminWorkspaceSection(focusedTaskID == nil ? "任务（\(filteredTasks.count) / \(totalTasks)）" : "当前任务") {
+                ForEach(Array(filteredTasks.enumerated()), id: \.element.id) { index, task in
+                    taskRow(task)
+                        .readingSpaceEntrance(index)
+                        .transition(reduceMotion ? .identity : .opacity)
+                }
+            }
+        }
+    }
+
+    private var isTransitioning: Bool {
+        !tasks.isEmpty && loadedQuery != taskQuery
+    }
+
     private var filteredTasks: [AiTaskInfo] {
-        statusFilter == "all" ? tasks : tasks.filter { $0.status == statusFilter }
+        if isTransitioning || focusedTaskID != nil { return tasks }
+        return statusFilter == "all" ? tasks : tasks.filter { $0.status == statusFilter }
     }
 
     private var taskQuery: [String] {
@@ -159,22 +159,49 @@ struct AdminAITasksView: View {
 
     private func taskRow(_ task: AiTaskInfo) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            AdminAITaskProgressView(task: task, compact: true)
+            AdminAITaskProgressView(task: task, compact: focusedTaskID == nil, showsError: focusedTaskID == nil)
+            if focusedTaskID == nil {
+                NavigationLink("查看任务详情") { AdminAITasksView(taskID: task.id) }
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+            } else {
+                if let error = task.error, !error.isEmpty {
+                    AccountSettingsNote(error, isError: true)
+                }
+                LabeledContent("任务 ID") {
+                    Text(task.id).font(.caption.monospaced()).textSelection(.enabled)
+                }
+                .font(.footnote)
+                .foregroundStyle(ReadingSpace.profileMuted)
+            }
             if ["continue", "write_chapter", "write_outline"].contains(task.kind ?? "") {
                 NavigationLink("查看本次草稿与发布", destination: AdminAIGenerationsView(taskID: task.id))
                     .accessibilityIdentifier("admin.task.results.\(task.id)")
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
             }
             if let reportURL = analysisReportURL(task) {
                 Link("查看分析报告与核对记录", destination: reportURL)
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
             }
             if let novelID = task.novelId, !novelID.isEmpty {
                 NavigationLink("管理关联作品") { AdminNovelWorkspaceLoader(novelID: novelID) }
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
             }
             if let prompt = task.prompt, !prompt.isEmpty {
-                Text(prompt)
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .appTextLineLimit(1)
+                if focusedTaskID != nil {
+                    DisclosureGroup("任务输入") {
+                        Text(prompt)
+                            .font(.footnote)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                            .padding(.vertical, 8)
+                    }
+                } else {
+                    Text(prompt)
+                        .font(.caption2)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .appTextLineLimit(1)
+                }
             }
             HStack {
                 Spacer(minLength: 8)
@@ -199,7 +226,7 @@ struct AdminAITasksView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
-                            .foregroundStyle(AppTheme.textSecondary)
+                            .foregroundStyle(ReadingSpace.profileMuted)
                             .frame(width: 44, height: 44)
                     }
                     .disabled(busyId != nil)
@@ -208,6 +235,7 @@ struct AdminAITasksView: View {
             }
         }
         .padding(.vertical, 2)
+        .buttonStyle(.borderless)
         .contextMenu {
             if task.isRunning {
                 Button("取消任务", systemImage: "stop.circle") {
@@ -258,10 +286,6 @@ struct AdminAITasksView: View {
     private func load() async {
         let query = taskQuery
         let ticket = requests.begin(query)
-        if loadedQuery != query {
-            tasks = []
-            totalTasks = 0
-        }
         isLoading = true
         defer {
             if requests.accepts(ticket, query: taskQuery) {
@@ -278,9 +302,12 @@ struct AdminAITasksView: View {
                 r = try await AdminAPI.aiTasks(status: query[1], limit: pageSize, offset: Int(query[2]) ?? 0)
             }
             guard !Task.isCancelled, requests.accepts(ticket, query: taskQuery) else { return }
-            tasks = r.items
-            totalTasks = r.total ?? r.items.count
-            loadedQuery = query
+            let changesQuery = loadedQuery != query
+            withAnimation(changesQuery && !reduceMotion ? AppMotion.micro : nil) {
+                tasks = r.items
+                totalTasks = r.total ?? r.items.count
+                loadedQuery = query
+            }
             AdminAITaskCoordinator.shared.reconcile(tasks)
             errorMessage = nil
         } catch {
@@ -368,22 +395,5 @@ struct AdminAITasksView: View {
             get: { actionError != nil },
             set: { if !$0 { actionError = nil } }
         )
-    }
-}
-
-private struct AdminTaskRowEntrance: ViewModifier {
-    let index: Int
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var appeared = false
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(appeared ? 1 : 0)
-            .offset(y: appeared || reduceMotion ? 0 : 4)
-            .onAppear {
-                withAnimation(reduceMotion ? nil : AppMotion.micro.delay(Double(min(index, 6)) * 0.02)) {
-                    appeared = true
-                }
-            }
     }
 }

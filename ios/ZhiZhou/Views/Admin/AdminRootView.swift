@@ -99,14 +99,15 @@ struct AdminRootView: View {
                 ContentUnavailableView("需要管理员权限", systemImage: "lock.shield")
             }
         }
-        .navigationTitle("管理后台")
+        .background(ReadingSpace.profilePaper)
+        .readingSpaceNavigation()
     }
 
     private var workspace: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("管理工作台")
             if searchTerms.isEmpty {
-                shortcuts
-                AdminWorkspaceHomeSections(overview: overview)
+                AdminWorkspaceHomeSections(overview: overview) { shortcuts }
             } else {
                 let matches = matchingGroups
                 if matches.isEmpty {
@@ -118,7 +119,6 @@ struct AdminRootView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
         .searchable(text: Binding(get: { searchText }, set: updateSearch), prompt: "搜索管理功能")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -129,9 +129,10 @@ struct AdminRootView: View {
                 .disabled(overview.loading)
 
                 NavigationLink {
-                    List { moduleSections(moduleGroups) }
-                        .listStyle(.insetGrouped)
-                        .navigationTitle("全部管理功能")
+                    AdminWorkspaceList {
+                        AdminWorkspaceHeading("全部管理功能")
+                        moduleSections(moduleGroups, animateRows: true)
+                    }
                 } label: {
                     Label("全部功能", systemImage: "square.grid.2x2")
                         .labelStyle(.iconOnly)
@@ -148,7 +149,7 @@ struct AdminRootView: View {
     private var shortcuts: some View {
         let modules = moduleGroups.flatMap(\.modules)
         let frequent: [Destination] = [.novels, .bookImport, .jobs, .aiService]
-        return Section("常用操作") {
+        return AdminWorkspaceSection("常用操作") {
             ForEach(frequent.compactMap { destination in modules.first { $0.destination == destination } }) { module in
                 moduleLink(module, showsSummary: false)
             }
@@ -157,9 +158,10 @@ struct AdminRootView: View {
 
     private func moduleSections(_ groups: [AdminModuleGroup], animateRows: Bool = false) -> some View {
         ForEach(groups) { group in
-            Section(group.title) {
+            AdminWorkspaceSection(group.title) {
                 ForEach(Array(group.modules.enumerated()), id: \.element.id) { index, module in
                     moduleLink(module, showsSummary: true)
+                        .readingSpaceEntrance(index)
                         .transition(
                             animateRows && !reduceMotion
                                 ? .opacity.animation(AppMotion.micro.delay(Double(index) * 0.018))
@@ -197,18 +199,8 @@ struct AdminRootView: View {
                 ContentUnavailableView("需要管理员权限", systemImage: "lock.shield")
             }
         } label: {
-            Label {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(module.title)
-                    if showsSummary {
-                        Text(module.summary)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } icon: {
-                Image(systemName: module.systemImage)
-            }
+            AdminWorkspaceEntry(module.title, systemImage: module.systemImage,
+                                detail: showsSummary ? module.summary : "")
         }
         .accessibilityIdentifier("admin.module.\(module.id)")
     }

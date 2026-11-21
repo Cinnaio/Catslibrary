@@ -17,6 +17,7 @@ struct AdminChaptersView: View {
     @State private var requests = ListRequestGuard<String?>()
     @State private var novelOptions: [AdminNovelSummary] = []
     @State private var selectedNovel: AdminNovelSummary?
+    @State private var displayedNovelID: String?
     @State private var chapters: [ChapterMeta] = []
     @State private var chapterSearch = ""
     @State private var isLoading = true
@@ -29,91 +30,42 @@ struct AdminChaptersView: View {
     @State private var actionError: String?
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("章节管理")
+            if let selectedNovel {
+                AppAdaptiveRow(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(selectedNovel.title)
+                            .font(serifFont(.title3, .medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("\(selectedNovel.author) · \(selectedNovel.chapterCount) 章")
+                            .font(.footnote)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                    }
+                    Spacer(minLength: 8)
+                    Button("换一本") { showNovelPicker = true }
+                        .buttonStyle(.borderless)
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                        .disabled(busyChapterId != nil)
+                }
+            }
             if let errorMessage, !chapters.isEmpty {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await loadChapters() }
                 }
             }
-            if let selectedNovel {
-                Section("当前作品") {
-                    LabeledContent {
-                        Button("换一本") { showNovelPicker = true }
-                            .buttonStyle(.borderless)
-                    } label: {
-                        Label {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(selectedNovel.title)
-                                    .font(.headline)
-                                    .appTextLineLimit(2)
-                                Text("\(selectedNovel.author) · \(selectedNovel.chapterCount) 章")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "book.closed")
-                        }
-                    }
-                }
+            if isTransitioning {
+                Label(isLoading ? "正在读取所选作品，以下仍是上一本的章节" : "以下仍是上一本的章节，请重试读取",
+                      systemImage: "arrow.triangle.2.circlepath")
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .accessibilityValue(isLoading ? "正在加载" : "加载未完成")
             }
-
-            if isLoading && chapters.isEmpty {
-                Section {
-                    ProgressView(selectedNovel == nil ? "加载中…" : "加载章节…")
-                        .frame(maxWidth: .infinity, minHeight: 160)
-                        .listRowBackground(Color.clear)
-                }
-            } else if let errorMessage, chapters.isEmpty {
-                Section {
-                    ContentUnavailableView {
-                        Label("加载失败", systemImage: "wifi.slash")
-                    } description: {
-                        Text(errorMessage)
-                    } actions: {
-                        Button("重试") { Task { await loadChapters() } }
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-            } else if selectedNovel == nil {
-                Section {
-                    ContentUnavailableView {
-                        Label("未选择小说", systemImage: "book.closed")
-                    } description: {
-                        Text("先选择要管理章节的小说。")
-                    } actions: {
-                        Button("选择小说") { showNovelPicker = true }
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-            } else {
-                if filteredChapters.isEmpty {
-                    Section {
-                        ContentUnavailableView {
-                            Label("暂无章节", systemImage: "doc.text")
-                        } description: {
-                            Text(chapterSearch.isEmpty ? "这本书还没有章节，点右上角 + 新建。" : "没有匹配「\(chapterSearch)」的章节。")
-                        }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    }
-                } else {
-                    Section("章节（\(filteredChapters.count)）") {
-                        ForEach(Array(filteredChapters.enumerated()), id: \.element.id) { index, chapter in
-                            chapterRow(chapter)
-                                .transition(reduceMotion ? .identity : .asymmetric(
-                                    insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index, 12)) * 0.014)),
-                                    removal: .opacity
-                                ))
-                        }
-                    }
-                }
-            }
+            chapterResults
+                .opacity(isTransitioning ? 0.45 : 1)
+                .disabled(isTransitioning)
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle("章节管理")
-        .navigationBarTitleDisplayMode(.large)
         .searchable(text: Binding(get: { chapterSearch }, set: { value in
             withAnimation(reduceMotion ? nil : AppMotion.micro) { chapterSearch = value }
         }), prompt: "搜索章节标题")
@@ -123,10 +75,11 @@ struct AdminChaptersView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
                     Button("选择小说", systemImage: "book.closed") { showNovelPicker = true }
+                        .disabled(busyChapterId != nil)
                     Button("从源站融合", systemImage: "arrow.triangle.2.circlepath") {
                         showSourceSync = true
                     }
-                    .disabled(selectedNovel == nil)
+                    .disabled(selectedNovel == nil || isTransitioning)
                 } label: {
                     Label("更多", systemImage: "ellipsis")
                         .labelStyle(.iconOnly)
@@ -135,11 +88,11 @@ struct AdminChaptersView: View {
                     editorIntent = .create
                 }
                 .labelStyle(.iconOnly)
-                .disabled(selectedNovel == nil)
+                .disabled(selectedNovel == nil || isTransitioning || busyChapterId != nil)
             }
         }
         .sheet(isPresented: $showNovelPicker) {
-            NovelPickerSheet(options: novelOptions) { novel in
+            NovelPickerSheet(options: novelOptions, selectedNovelID: selectedNovel?.id) { novel in
                 selectedNovel = novel
                 Task { await loadChapters() }
             }
@@ -203,6 +156,48 @@ struct AdminChaptersView: View {
 
     // MARK: - 列表
 
+    private var isTransitioning: Bool {
+        !chapters.isEmpty && displayedNovelID != selectedNovel?.id
+    }
+
+    @ViewBuilder
+    private var chapterResults: some View {
+        if isLoading && chapters.isEmpty {
+            ProgressView(selectedNovel == nil ? "加载中…" : "加载章节…")
+                .frame(maxWidth: .infinity, minHeight: 160)
+        } else if let errorMessage, chapters.isEmpty {
+            ContentUnavailableView {
+                Label("加载失败", systemImage: "wifi.slash")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await loadChapters() } }
+            }
+        } else if selectedNovel == nil {
+            ContentUnavailableView {
+                Label("未选择小说", systemImage: "book.closed")
+            } description: {
+                Text("先选择要管理章节的小说。")
+            } actions: {
+                Button("选择小说") { showNovelPicker = true }
+            }
+        } else if filteredChapters.isEmpty {
+            ContentUnavailableView {
+                Label("暂无章节", systemImage: "doc.text")
+            } description: {
+                Text(chapterSearch.isEmpty ? "这本书还没有章节，点右上角 + 新建。" : "没有匹配「\(chapterSearch)」的章节。")
+            }
+        } else {
+            AdminWorkspaceSection("章节（\(filteredChapters.count)）") {
+                ForEach(Array(filteredChapters.enumerated()), id: \.element.id) { index, chapter in
+                    chapterRow(chapter)
+                        .readingSpaceEntrance(index)
+                        .transition(reduceMotion ? .identity : .opacity)
+                }
+            }
+        }
+    }
+
     private var filteredChapters: [ChapterMeta] {
         let trimmed = chapterSearch.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return chapters }
@@ -213,14 +208,15 @@ struct AdminChaptersView: View {
         HStack(spacing: 10) {
             Text("\(chapter.order)")
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 28, alignment: .trailing)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .frame(minWidth: 24, alignment: .leading)
             VStack(alignment: .leading, spacing: 3) {
                 Text(chapter.title)
-                    .chapterTitleStyle()
+                    .font(serifFont(.body, .medium))
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("\(chapter.wordCount) 字 · \(AdminFormat.relativeTime(chapter.createdAt))")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
             Spacer()
             if busyChapterId == chapter.id {
@@ -280,6 +276,7 @@ struct AdminChaptersView: View {
             let result = try await AdminAPI.chapters(novelId: selectedNovel.id)
             guard !Task.isCancelled, requests.accepts(ticket, query: self.selectedNovel?.id) else { return }
             chapters = result
+            displayedNovelID = selectedNovel.id
             errorMessage = nil
         } catch {
             guard !Task.isCancelled, requests.accepts(ticket, query: self.selectedNovel?.id) else { return }
@@ -321,6 +318,10 @@ private struct SourceSyncSheet: View {
     let onApplied: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var focusedField: Field?
+    private enum Field: Hashable { case title, author, url }
+    @State private var isApplying = false
     @State private var sourceURL = ""
     @State private var searchTitle = ""
     @State private var searchAuthor = ""
@@ -346,195 +347,43 @@ private struct SourceSyncSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("书名", text: $searchTitle)
-                    TextField("作者（可选）", text: $searchAuthor)
-                    Button {
-                        Task { await searchSources() }
-                    } label: {
-                        if isSearching {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Label("搜索原作者作品", systemImage: "magnifyingglass")
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .disabled(isLoading || isSearching || (searchTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && searchAuthor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
-                } header: {
-                    Text("搜索原作者源站")
-                } footer: {
-                    Text("先选择准确的作品，再读取详情和章节目录。每个源站默认显示前 5 条结果，展开后可查看全部。")
-                }
-
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("源站同步", detail: novel.title)
+                sourceSearchFields
                 if let sourceSearch {
                     ForEach(sourceSearch.sources.keys.sorted(), id: \.self) { id in
                         if let bucket = sourceSearch.sources[id] {
                             sourceCandidates(siteKey: id, title: bucket.siteName ?? bucket.results.first?.siteName ?? siteName(id), bucket: bucket)
+                                .opacity(isSearching ? 0.45 : 1)
+                                .disabled(isSearching || isLoading)
                         }
                     }
                 }
-
-                Section {
-                    TextField("原作者源站 URL", text: $sourceURL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    Button {
-                        Task { await loadPreview() }
-                    } label: {
-                        if isLoading {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Label("读取源站并预览", systemImage: "arrow.down.circle")
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .disabled(isLoading || sourceURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                } header: {
-                    Text("原作者源站")
-                } footer: {
-                    Text("这里只读取小说信息和章节目录。无法访问时可在 Web 端手动粘贴。")
-                }
-
-                if let preview {
-                    Section {
-                        LabeledContent("源站", value: preview.siteName ?? siteName(preview.site))
-                        LabeledContent("目录章节", value: "\(preview.sourceChapterCount) 章")
-                        LabeledContent("本地内容", value: "\(preview.localChapterCount) 节")
-                        LabeledContent("已匹配", value: "\(preview.matchedSourceCount) 章")
-                        if preview.splitLocalChapterCount > 0 {
-                            LabeledContent("拆分节", value: "\(preview.splitLocalChapterCount) 节")
-                        }
-                        if !preview.unmatchedSource.isEmpty || !preview.unmatchedLocal.isEmpty {
-                            Text("未匹配：源站 \(preview.unmatchedSource.count) 章，本地 \(preview.unmatchedLocal.count) 节")
-                                .foregroundStyle(AppTheme.warning)
-                        }
-                        ForEach(preview.warnings, id: \.self) { warning in
-                            Text(warning).foregroundStyle(AppTheme.warning)
-                        }
-                    } header: {
-                        Text("同步预览")
-                    }
-
-                    Section {
-                        ForEach(Array(metadataLabels.enumerated()), id: \.offset) { item in
-                            let key = item.element.0
-                            let label = item.element.1
-                            Toggle(isOn: Binding(
-                                get: { metadataFields.contains(key) },
-                                set: { enabled in
-                                    if enabled { metadataFields.insert(key) } else { metadataFields.remove(key) }
-                                }
-                            )) {
-                                HStack {
-                                    Text(label)
-                                    Spacer()
-                                    Text(metadataValue(key, preview: preview).isEmpty ? "未识别" : metadataValue(key, preview: preview))
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                        .appTextLineLimit(1)
-                                }
-                            }
-                            .disabled(metadataValue(key, preview: preview).isEmpty)
-                        }
-                        Toggle("覆盖已有小说信息", isOn: $replaceMetadata)
-                    } header: {
-                        Text("小说信息")
-                    } footer: {
-                        Text("默认只补全本地为空的字段；开启覆盖后才会替换已有标题、作者、简介等信息。")
-                    }
-
-                    if !preview.mappings.filter({ $0.relation == "split" }).isEmpty {
-                        Section("拆分章节映射") {
-                            ForEach(preview.mappings.filter { $0.relation == "split" }.prefix(30)) { mapping in
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("源站第 \(mapping.sourceOrder) 章「\(mapping.sourceTitle)」")
-                                    Text("→ 本地 \(mapping.localChapterIds.count) 节 · \(confidenceName(mapping.confidence))")
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                }
-                            }
-                        }
-                    }
-
-                    let automaticChanges = preview.changes.filter(\.eligible)
-                    let manualChanges = preview.changes.filter { !$0.eligible }
-                    let confirmedManualCount = manualChanges.filter { confirmedChangeIds.contains($0.id) }.count
-
-                    Section {
-                        if preview.changes.isEmpty {
-                            Text("没有需要变更的章节名")
-                                .foregroundStyle(AppTheme.textSecondary)
-                        } else {
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(AppTheme.success)
-                                Text("自动应用 \(automaticChanges.count) 项")
-                                    .font(.footnote)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                Spacer(minLength: 8)
-                                if !manualChanges.isEmpty {
-                                    Text("已确认 \(confirmedManualCount)/\(manualChanges.count) 项")
-                                        .font(.footnote)
-                                        .foregroundStyle(confirmedManualCount > 0 ? AppTheme.primary : AppTheme.textSecondary)
-                                }
-                            }
-
-                            if !manualChanges.isEmpty {
-                                Button {
-                                    let ids = manualChanges.map(\.id)
-                                    if confirmedManualCount == manualChanges.count {
-                                        confirmedChangeIds.subtract(ids)
-                                    } else {
-                                        confirmedChangeIds.formUnion(ids)
-                                    }
-                                } label: {
-                                    Label(
-                                        confirmedManualCount == manualChanges.count ? "取消全部人工确认" : "确认全部人工变更",
-                                        systemImage: confirmedManualCount == manualChanges.count ? "checkmark.circle" : "checkmark.circle.fill"
-                                    )
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-
-                            ForEach(preview.changes.prefix(80)) { change in
-                                sourceSyncChangeRow(change)
-                            }
-                            if preview.changes.count > 80 {
-                                Text("另有 \(preview.changes.count - 80) 项未显示")
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
-                        }
-                    } header: {
-                        HStack {
-                            Text("章节名变更")
-                            Spacer()
-                            Text("\(preview.changes.count) 项")
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
-                    } footer: {
-                        if manualChanges.isEmpty {
-                            Text("点击右上角“应用同步”后，将自动应用这些章节名变更。")
-                        } else {
-                            Text("高置信度变更会自动应用；低置信度变更需要先打开右侧开关确认，未确认的项目不会修改。")
-                        }
-                    }
-                }
+                sourceAddressFields
+                if let preview { previewSections(preview) }
             }
-            .appListStyle(.settings)
-            .navigationTitle("源站同步")
-            .navigationBarTitleDisplayMode(.inline)
+            .buttonStyle(.borderless)
+            .disabled(isApplying)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消") { dismiss() }.disabled(isApplying)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("应用同步") {
+                    Button {
+                        focusedField = nil
                         requestApplyPreview()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isApplying { ProgressView().controlSize(.small).accessibilityHidden(true) }
+                            Text("应用同步")
+                        }
                     }
-                    .disabled(preview == nil || isLoading)
+                    .disabled(preview == nil || isLoading || isSearching || isApplying)
+                    .accessibilityValue(isApplying ? "正在应用同步" : "")
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
                 }
             }
             .task {
@@ -555,23 +404,178 @@ private struct SourceSyncSheet: View {
                 Task { await applyPreview(operationID: operation.operationID) }
             }
         }
+        .presentationBackground(ReadingSpace.profilePaper)
+        .interactiveDismissDisabled(isApplying)
+    }
+
+    private var sourceSearchFields: some View {
+        AdminWorkspaceSection("搜索原作者源站") {
+            AccountSettingsField("书名", isFocused: focusedField == .title) {
+                TextField("书名", text: $searchTitle).focused($focusedField, equals: .title)
+            }
+            AccountSettingsField("作者", isFocused: focusedField == .author) {
+                TextField("作者（可选）", text: $searchAuthor).focused($focusedField, equals: .author)
+            }
+            Button {
+                focusedField = nil
+                Task { await searchSources() }
+            } label: {
+                AccountSettingsActionLabel(title: "搜索原作者作品", symbol: "magnifyingglass", isWorking: isSearching)
+            }
+            .disabled(isLoading || isSearching || (searchTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && searchAuthor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+            AccountSettingsNote("先选择准确的作品，再读取详情和章节目录。每个源站默认显示前 5 条结果，展开后可查看全部。")
+        }
+        .disabled(isSearching || isLoading)
+    }
+
+    private var sourceAddressFields: some View {
+        AdminWorkspaceSection("原作者源站") {
+            AccountSettingsField("源站地址", isFocused: focusedField == .url) {
+                TextField("原作者源站 URL", text: Binding(get: { sourceURL }, set: { value in
+                    sourceURL = value
+                    preview = nil
+                    confirmedChangeIds.removeAll()
+                }))
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: .url)
+            }
+            Button {
+                focusedField = nil
+                Task { await loadPreview() }
+            } label: {
+                AccountSettingsActionLabel(title: "读取源站并预览", symbol: "arrow.down.circle", isWorking: isLoading && !isApplying)
+            }
+            .disabled(isLoading || isSearching || sourceURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            AccountSettingsNote("这里只读取小说信息和章节目录。无法访问时可在 Web 端手动粘贴。")
+        }
+        .disabled(isLoading || isSearching)
+    }
+
+    @ViewBuilder
+    private func previewSections(_ preview: SourceSyncPreview) -> some View {
+        AdminWorkspaceSection("同步预览") {
+            LabeledContent("源站", value: preview.siteName ?? siteName(preview.site))
+            LabeledContent("目录章节", value: "\(preview.sourceChapterCount) 章")
+            LabeledContent("本地内容", value: "\(preview.localChapterCount) 节")
+            LabeledContent("已匹配", value: "\(preview.matchedSourceCount) 章")
+            if preview.splitLocalChapterCount > 0 {
+                LabeledContent("拆分节", value: "\(preview.splitLocalChapterCount) 节")
+            }
+            if !preview.unmatchedSource.isEmpty || !preview.unmatchedLocal.isEmpty {
+                Text("未匹配：源站 \(preview.unmatchedSource.count) 章，本地 \(preview.unmatchedLocal.count) 节")
+                    .foregroundStyle(AppTheme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(preview.warnings, id: \.self) { warning in
+                Text(warning).foregroundStyle(AppTheme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        AdminWorkspaceSection("小说信息") {
+            ForEach(Array(metadataLabels.enumerated()), id: \.offset) { item in
+                let key = item.element.0
+                let label = item.element.1
+                Toggle(isOn: Binding(
+                    get: { metadataFields.contains(key) },
+                    set: { enabled in
+                        if enabled { metadataFields.insert(key) } else { metadataFields.remove(key) }
+                    }
+                )) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(label)
+                        Text(metadataValue(key, preview: preview).isEmpty ? "未识别" : metadataValue(key, preview: preview))
+                            .font(.footnote)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                            .appTextLineLimit(3)
+                    }
+                }
+                .disabled(metadataValue(key, preview: preview).isEmpty)
+            }
+            Toggle("覆盖已有小说信息", isOn: $replaceMetadata)
+            AccountSettingsNote("默认只补全本地为空的字段；开启覆盖后才会替换已有标题、作者、简介等信息。")
+        }
+        if !preview.mappings.filter({ $0.relation == "split" }).isEmpty {
+            AdminWorkspaceSection("拆分章节映射") {
+                ForEach(preview.mappings.filter { $0.relation == "split" }.prefix(30)) { mapping in
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("源站第 \(mapping.sourceOrder) 章「\(mapping.sourceTitle)」")
+                            .font(serifFont(.body))
+                        Text("→ 本地 \(mapping.localChapterIds.count) 节 · \(confidenceName(mapping.confidence))")
+                            .font(.caption)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        chapterChanges(preview)
+    }
+
+    private func chapterChanges(_ preview: SourceSyncPreview) -> some View {
+        let automaticChanges = preview.changes.filter(\.eligible)
+        let manualChanges = preview.changes.filter { !$0.eligible }
+        let confirmedManualCount = manualChanges.filter { confirmedChangeIds.contains($0.id) }.count
+
+        return AdminWorkspaceSection("章节名变更（\(preview.changes.count)）") {
+            if preview.changes.isEmpty {
+                AccountSettingsNote("没有需要变更的章节名")
+            } else {
+                AppAdaptiveRow {
+                    Label("自动应用 \(automaticChanges.count) 项", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(AppTheme.success)
+                    Spacer(minLength: 8)
+                    if !manualChanges.isEmpty {
+                        Text("已确认 \(confirmedManualCount)/\(manualChanges.count) 项")
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                    }
+                }
+                .font(.footnote)
+                if !manualChanges.isEmpty {
+                    Button {
+                        let ids = manualChanges.map(\.id)
+                        if confirmedManualCount == manualChanges.count {
+                            confirmedChangeIds.subtract(ids)
+                        } else {
+                            confirmedChangeIds.formUnion(ids)
+                        }
+                    } label: {
+                        Label(
+                            confirmedManualCount == manualChanges.count ? "取消全部人工确认" : "确认全部人工变更",
+                            systemImage: confirmedManualCount == manualChanges.count ? "checkmark.circle" : "checkmark.circle.fill"
+                        )
+                        .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                    }
+                }
+                ForEach(preview.changes.prefix(80)) { change in
+                    sourceSyncChangeRow(change)
+                }
+                if preview.changes.count > 80 {
+                    AccountSettingsNote("另有 \(preview.changes.count - 80) 项未显示")
+                }
+            }
+            AccountSettingsNote(manualChanges.isEmpty
+                ? "点击右上角“应用同步”后，将自动应用这些章节名变更。"
+                : "高置信度变更会自动应用；低置信度变更需要先打开右侧开关确认，未确认的项目不会修改。")
+        }
     }
 
     private func sourceSyncChangeRow(_ change: SourceSyncChange) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Text("\(change.localOrder).")
                 .font(.footnote.monospacedDigit())
-                .foregroundStyle(AppTheme.textSecondary)
+                .foregroundStyle(ReadingSpace.profileMuted)
                 .frame(width: 30, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .top, spacing: 6) {
                     Text("本地")
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                     Text(change.oldTitle)
                         .font(.subheadline)
-                        .foregroundStyle(AppTheme.textPrimary)
+                        .foregroundStyle(ReadingSpace.ink)
                         .appTextLineLimit(2)
                 }
 
@@ -582,14 +586,14 @@ private struct SourceSyncSheet: View {
                         .frame(width: 16)
                     Text(change.newTitle)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(AppTheme.textPrimary)
+                        .foregroundStyle(ReadingSpace.ink)
                         .appTextLineLimit(2)
                 }
 
                 if change.partCount > 1 {
                     Text("拆分 \(change.partIndex)/\(change.partCount) · \(confidenceName(change.confidence))")
                         .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                 } else if change.eligible {
                     Text("高置信度 · 将自动应用")
                         .font(.caption)
@@ -661,7 +665,10 @@ private struct SourceSyncSheet: View {
         let isExpanded = expandedSearchSites.contains(siteKey)
         let visibleResults = isExpanded ? bucket.results : Array(bucket.results.prefix(5))
 
-        Section {
+        AdminWorkspaceSection(title) {
+            if !bucket.results.isEmpty {
+                AccountSettingsNote("\(bucket.results.count) 个结果")
+            }
             if let error = bucket.error, !error.isEmpty {
                 Text(error)
                     .font(.footnote)
@@ -671,10 +678,12 @@ private struct SourceSyncSheet: View {
             if bucket.results.isEmpty {
                 Text(bucket.ok ? "没有结果" : "搜索不可用")
                     .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             } else {
-                ForEach(visibleResults) { candidate in
+                ForEach(Array(visibleResults.enumerated()), id: \.element.id) { index, candidate in
                     sourceCandidateRow(candidate)
+                        .readingSpaceEntrance(index)
+                        .transition(reduceMotion ? .identity : .opacity)
                 }
 
                 if bucket.results.count > 5 {
@@ -699,13 +708,6 @@ private struct SourceSyncSheet: View {
                     .buttonStyle(.plain)
                 }
             }
-        } header: {
-            HStack {
-                Text(title)
-                Spacer()
-                Text(bucket.results.isEmpty ? (bucket.ok ? "没有结果" : "搜索不可用") : "\(bucket.results.count) 个结果")
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
         }
     }
 
@@ -718,8 +720,8 @@ private struct SourceSyncSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 7) {
                         Text(candidate.title.isEmpty ? "未识别书名" : candidate.title)
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(AppTheme.textPrimary)
+                            .font(serifFont(.body, .medium))
+                            .foregroundStyle(ReadingSpace.ink)
                             .appTextLineLimit(2)
                             .layoutPriority(1)
 
@@ -735,7 +737,7 @@ private struct SourceSyncSheet: View {
 
                     Text(candidate.author.isEmpty ? "作者未识别" : candidate.author)
                         .font(.footnote)
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                         .appTextLineLimit(1)
                 }
 
@@ -757,6 +759,7 @@ private struct SourceSyncSheet: View {
         let url = (overrideURL ?? sourceURL).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty else { return }
         sourceURL = url
+        preview = nil
         isLoading = true
         defer { isLoading = false }
         do {
@@ -786,9 +789,13 @@ private struct SourceSyncSheet: View {
     }
 
     private func applyPreview(operationID: String = "") async {
-        guard let preview else { return }
+        guard let preview, !isApplying else { return }
         isLoading = true
-        defer { isLoading = false }
+        isApplying = true
+        defer {
+            isLoading = false
+            isApplying = false
+        }
         do {
             _ = try await AdminAPI.sourceSyncApply(
                 runId: preview.runId,
@@ -860,7 +867,9 @@ private enum ChapterEditorIntent: Identifiable {
 
 private struct NovelPickerSheet: View {
     let options: [AdminNovelSummary]
+    let selectedNovelID: String?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var query = ""
     let onPick: (AdminNovelSummary) -> Void
 
@@ -874,53 +883,60 @@ private struct NovelPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("选择小说", detail: "按书名或作者查找要管理的作品。")
                 if filtered.isEmpty {
-                    Section {
-                        ContentUnavailableView {
-                            Label("没有找到小说", systemImage: "magnifyingglass")
-                        } description: {
-                            Text("试试其他关键词。")
-                        }
+                    ContentUnavailableView {
+                        Label(options.isEmpty ? "暂无小说" : "没有找到小说", systemImage: "magnifyingglass")
+                    } description: {
+                        Text(options.isEmpty ? "暂无可选择的作品。" : "试试其他关键词。")
                     }
                 } else {
-                    Section("全库索引（\(filtered.count)）") {
-                        ForEach(filtered) { novel in
+                    AdminWorkspaceSection("全库索引（\(filtered.count)）") {
+                        ForEach(Array(filtered.enumerated()), id: \.element.id) { index, novel in
                             Button {
                                 onPick(novel)
                                 dismiss()
                             } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 5) {
                                         Text(novel.title)
-                                            .font(.subheadline)
-                                            .foregroundStyle(AppTheme.textPrimary)
-                                            .appTextLineLimit(1)
+                                            .font(serifFont(.body, .medium))
+                                            .foregroundStyle(ReadingSpace.ink)
+                                            .fixedSize(horizontal: false, vertical: true)
                                         Text("\(novel.author) · \(novel.chapterCount) 章")
-                                            .font(.caption)
-                                            .foregroundStyle(AppTheme.textSecondary)
+                                            .font(.footnote)
+                                            .foregroundStyle(ReadingSpace.profileMuted)
                                     }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.textSecondary)
+                                    Spacer(minLength: 8)
+                                    if novel.id == selectedNovelID {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(AppTheme.primary)
+                                            .accessibilityHidden(true)
+                                    }
                                 }
+                                .frame(minHeight: AppLayout.minimumTouchTarget)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .listRowBackground(novel.id == selectedNovelID ? ReadingSpace.profileFill : Color.clear)
+                            .accessibilityAddTraits(novel.id == selectedNovelID ? .isSelected : [])
+                            .readingSpaceEntrance(index)
+                            .transition(reduceMotion ? .identity : .opacity)
                         }
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("选择小说")
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $query, prompt: "搜索书名 / 作者")
+            .searchable(text: Binding(get: { query }, set: { value in
+                withAnimation(reduceMotion ? nil : AppMotion.micro) { query = value }
+            }), prompt: "搜索书名 / 作者")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
             }
         }
+        .presentationBackground(ReadingSpace.profilePaper)
     }
 }
 
@@ -933,6 +949,9 @@ private struct ChapterEditSheet: View {
     @State private var order = 1
     @State private var title = ""
     @State private var content = ""
+    @FocusState private var focusedField: Field?
+    private enum Field: Hashable { case title, content }
+    @State private var detailLoaded = false
     @State private var loadingDetail = false
     @State private var saving = false
     @State private var errorMessage: String?
@@ -942,58 +961,69 @@ private struct ChapterEditSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("基本信息") {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading(isEditing ? "编辑章节" : "新建章节", detail: novel?.title ?? "")
+                AdminWorkspaceSection("基本信息") {
                     Stepper(value: $order, in: 1...100000) {
-                        HStack {
-                            Text("序号")
-                            Spacer()
-                            Text("\(order)")
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
+                        LabeledContent("序号", value: "\(order)")
                     }
-                    TextField("章节标题 *", text: $title)
+                    AccountSettingsField("章节标题（必填）", isFocused: focusedField == .title) {
+                        TextField("章节标题 *", text: $title)
+                            .focused($focusedField, equals: .title)
+                            .submitLabel(.next)
+                            .onSubmit { focusedField = .content }
+                    }
                 }
-                Section("正文") {
+                AdminWorkspaceSection("正文") {
                     if loadingDetail {
                         ProgressView("加载正文…")
                             .frame(maxWidth: .infinity, minHeight: 80)
-                    } else {
-                        TextEditor(text: $content)
-                            .frame(minHeight: 260)
+                    } else if !isEditing || detailLoaded {
+                        AccountSettingsField("章节内容", isFocused: focusedField == .content) {
+                            TextEditor(text: $content)
+                                .scrollContentBackground(.hidden)
+                                .frame(minHeight: 280)
+                                .focused($focusedField, equals: .content)
+                                .accessibilityLabel("章节正文")
+                        }
                     }
                 }
                 if let errorMessage {
-                    Section {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.danger)
+                    AccountSettingsNote(errorMessage, isError: true)
+                    if isEditing && !detailLoaded && !loadingDetail {
+                        Button("重试读取正文") { loadDetail() }
+                            .buttonStyle(.borderless)
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle(isEditing ? "编辑章节" : "新建章节")
-            .navigationBarTitleDisplayMode(.inline)
+            .disabled(saving)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消") { dismiss() }.disabled(saving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
+                        focusedField = nil
                         save()
                     } label: {
-                        if saving {
-                            ProgressView()
-                        } else {
+                        HStack(spacing: 6) {
+                            if saving { ProgressView().controlSize(.small).accessibilityHidden(true) }
                             Text(isEditing ? "保存" : "创建")
                         }
                     }
-                        .disabled(saving || loadingDetail)
+                    .disabled(saving || loadingDetail || (isEditing && !detailLoaded))
+                    .accessibilityValue(saving ? "正在保存" : "")
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
                 }
             }
             .onAppear(perform: seed)
         }
+        .presentationBackground(ReadingSpace.profilePaper)
+        .interactiveDismissDisabled(saving)
     }
 
     private func seed() {
@@ -1001,12 +1031,19 @@ private struct ChapterEditSheet: View {
         if !title.isEmpty { return }
         order = chapter.order
         title = chapter.title
+        loadDetail()
+    }
+
+    private func loadDetail() {
+        guard let chapter, !loadingDetail else { return }
+        errorMessage = nil
         loadingDetail = true
         Task {
             defer { loadingDetail = false }
             do {
                 let full = try await AdminAPI.chapterDetail(id: chapter.id)
                 content = full.content
+                detailLoaded = true
             } catch {
                 errorMessage = AppCopy.friendlyError(error)
             }
@@ -1014,6 +1051,7 @@ private struct ChapterEditSheet: View {
     }
 
     private func save() {
+        guard !saving, !loadingDetail, !isEditing || detailLoaded else { return }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else {
             errorMessage = "章节标题不能为空"

@@ -8,6 +8,7 @@ struct AdminJobsView: View {
     init(jobID: String? = nil) { focusedJobID = jobID }
     @State private var requests = ListRequestGuard<Bool>()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var jobs: [AdminJobItem] = []
     @State private var logs: [AdminDownloadLog] = []
     @State private var novelTitles: [String: String] = [:]
@@ -29,74 +30,27 @@ struct AdminJobsView: View {
     }
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading(focusedJobID == nil ? "抓取任务" : "抓取任务详情",
+                                  detail: "查看抓取进度、章节结果与失败原因。")
+            if focusedJobID == nil {
+                AdminFilterMenu("状态", value: filter.rawValue) {
+                    Picker("状态", selection: Binding(get: { filter }, set: { value in
+                        withAnimation(reduceMotion ? nil : AppMotion.micro) { filter = value }
+                    })) {
+                        ForEach(JobFilter.allCases) { item in
+                            Text(item.rawValue).tag(item)
+                        }
+                    }
+                }
+            }
             if let errorMessage, !jobs.isEmpty {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await loadAll() }
                 }
             }
-            Section {
-                AdminFilterBar {
-                    AdminFilterMenu("过滤", value: filter.rawValue) {
-                        Picker("过滤", selection: $filter) {
-                            ForEach(JobFilter.allCases) { item in
-                                Text(item.rawValue).tag(item)
-                            }
-                        }
-                    }
-                }
-            }
-
-            if isLoading && jobs.isEmpty {
-                Section {
-                    ProgressView("加载中…")
-                        .frame(maxWidth: .infinity, minHeight: 160)
-                        .listRowBackground(Color.clear)
-                }
-            } else if let errorMessage, jobs.isEmpty {
-                Section {
-                    ContentUnavailableView {
-                        Label("加载失败", systemImage: "wifi.slash")
-                    } description: {
-                        Text(errorMessage)
-                    } actions: {
-                        Button("重试") { Task { await loadAll() } }
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-            } else {
-                if filteredJobs.isEmpty {
-                    Section {
-                        ContentUnavailableView {
-                            Label("暂无任务", systemImage: "tray")
-                        } description: {
-                            Text("当前过滤条件下没有抓取任务。")
-                        }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    }
-                } else {
-                    Section("任务（\(filteredJobs.count)）") {
-                        ForEach(filteredJobs) { job in
-                            jobRow(job)
-                        }
-                    }
-                }
-
-                if focusedJobID == nil && !logs.isEmpty {
-                    Section("下载日志") {
-                        ForEach(logs) { log in
-                            logRow(log)
-                        }
-                    }
-                }
-            }
+            jobResults
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("抓取任务")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadAll() }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
@@ -138,6 +92,45 @@ struct AdminJobsView: View {
 
     // MARK: - 列表
 
+    @ViewBuilder
+    private var jobResults: some View {
+        if isLoading && jobs.isEmpty {
+            ProgressView("加载中…")
+                .frame(maxWidth: .infinity, minHeight: 160)
+        } else if let errorMessage, jobs.isEmpty {
+            ContentUnavailableView {
+                Label("加载失败", systemImage: "wifi.slash")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await loadAll() } }
+            }
+        } else {
+            if filteredJobs.isEmpty {
+                ContentUnavailableView {
+                    Label("暂无任务", systemImage: "tray")
+                } description: {
+                    Text("当前过滤条件下没有抓取任务。")
+                }
+            } else {
+                AdminWorkspaceSection(focusedJobID == nil ? "任务（\(filteredJobs.count)）" : "当前任务") {
+                    ForEach(Array(filteredJobs.enumerated()), id: \.element.id) { index, job in
+                        jobRow(job)
+                            .readingSpaceEntrance(index)
+                            .transition(reduceMotion ? .identity : .opacity)
+                    }
+                }
+            }
+            if focusedJobID == nil && !logs.isEmpty {
+                AdminWorkspaceSection("下载日志") {
+                    ForEach(Array(logs.enumerated()), id: \.element.id) { index, log in
+                        logRow(log).readingSpaceEntrance(index)
+                    }
+                }
+            }
+        }
+    }
+
     private var filteredJobs: [AdminJobItem] {
         if let focusedJobID { return jobs.filter { $0.id == focusedJobID } }
         switch filter {
@@ -149,34 +142,58 @@ struct AdminJobsView: View {
     }
 
     private func jobRow(_ job: AdminJobItem) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 8) {
+        let hasBookTitle = job.novelId.flatMap { novelTitles[$0] }?.isEmpty == false
+        return VStack(alignment: .leading, spacing: 5) {
+            AppAdaptiveRow(spacing: 8) {
                 Text(title(for: job))
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .appTextLineLimit(1)
-                Spacer()
+                    .font(hasBookTitle ? serifFont(.body, .medium) : .body.weight(.medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
                 AdminStatusBadge(
                     AdminFormat.jobStatus(job.status),
                     tint: jobTint(job.status)
                 )
             }
-            ProgressView(value: min(max(job.progress ?? 0, 0), 1))
-                .progressViewStyle(.linear)
-                .tint(jobTint(job.status))
-            HStack(spacing: 12) {
+            if let progress = job.progress {
+                ProgressView(value: min(max(progress, 0), 1))
+                    .progressViewStyle(.linear)
+                    .tint(jobTint(job.status))
+            } else if AdminFormat.isJobRunning(job.status) {
+                ProgressView("正在抓取…")
+                    .font(.caption)
+                    .tint(jobTint(job.status))
+            }
+            AppAdaptiveRow(spacing: 12) {
                 jobMetric("公开章节", value: job.publicChapterCount)
                 jobMetric("受保护正文", value: job.protectedChapterCount)
             }
             Text(subtitle(for: job))
                 .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+                .foregroundStyle(ReadingSpace.profileMuted)
             if let error = job.error, !error.isEmpty {
-                Text(error)
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.danger)
-                    .appTextLineLimit(2)
+                if focusedJobID != nil {
+                    AccountSettingsNote(error, isError: true)
+                } else {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.danger)
+                        .appTextLineLimit(2)
+                }
+            }
+            if focusedJobID == nil {
+                NavigationLink("查看任务详情") { AdminJobsView(jobID: job.id) }
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+            } else {
+                LabeledContent("任务 ID") {
+                    Text(job.id).font(.caption.monospaced()).textSelection(.enabled)
+                }
+                .font(.footnote)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                if let novelID = job.novelId, !novelID.isEmpty {
+                    NavigationLink("管理关联作品") { AdminNovelWorkspaceLoader(novelID: novelID) }
+                        .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                }
             }
             HStack {
                 Spacer()
@@ -206,6 +223,7 @@ struct AdminJobsView: View {
             }
         }
         .padding(.vertical, 2)
+        .buttonStyle(.borderless)
         .contextMenu {
             if AdminFormat.isJobRunning(job.status) {
                 Button("终止任务", systemImage: "stop.circle") {
@@ -222,24 +240,24 @@ struct AdminJobsView: View {
     }
 
     private func logRow(_ log: AdminDownloadLog) -> some View {
-        HStack {
+        AppAdaptiveRow(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(log.targetTitle.isEmpty ? log.targetId : log.targetTitle)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .font(serifFont(.body, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
                     .appTextLineLimit(1)
                 Text(typeLabel(log.type))
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 3) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text("\(log.itemCount) 项")
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                 Text(AdminFormat.dateTime(log.createdAt))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
         }
     }
@@ -397,12 +415,12 @@ struct AdminJobsView: View {
     private func jobMetric(_ title: String, value: Int?) -> some View {
         HStack(spacing: 3) {
             Text(title)
-            Text("\(value ?? 0)")
+            Text(value.map { String($0) } ?? "未提供")
                 .fontWeight(.semibold)
                 .monospacedDigit()
         }
         .font(.caption2)
-        .foregroundStyle(AppTheme.textSecondary)
+        .foregroundStyle(ReadingSpace.profileMuted)
     }
 
     private func jobTint(_ status: String) -> Color {

@@ -661,9 +661,11 @@ final class FrontendAuditTests: XCTestCase {
         selectTab("我的", app: app)
         reveal(app.buttons["管理后台"], app: app)
         tap(app.buttons["管理后台"])
-        XCTAssertTrue(app.buttons["小说管理"].waitForExistence(timeout: 10))
+        let novelsModule = app.buttons["admin.module.novels"]
+        reveal(novelsModule, app: app)
+        XCTAssertTrue(novelsModule.waitForExistence(timeout: 10))
         capture("admin-modules", app: app)
-        tap(app.buttons["小说管理"])
+        tap(novelsModule)
         XCTAssertTrue(app.staticTexts["山中来信"].firstMatch.waitForExistence(timeout: 15))
         capture("admin-novels", app: app)
         let search = app.searchFields.firstMatch
@@ -687,25 +689,25 @@ final class FrontendAuditTests: XCTestCase {
         for (index, title, author) in [(0, "山中来信", "林溪"), (1, "长街灯火里的旧日时光", "陈雨"), (0, "山中来信", "林溪")] {
             tap(app.buttons["小说操作"].element(boundBy: index))
             tap(app.buttons["编辑"])
-            XCTAssertTrue(app.navigationBars["编辑小说"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["编辑小说"].firstMatch.waitForExistence(timeout: 10))
             XCTAssertTrue(app.buttons["保存"].exists)
             XCTAssertFalse(app.buttons["创建"].exists)
             XCTAssertEqual(app.textFields["书名 *"].value as? String, title)
             XCTAssertEqual(app.textFields["作者 *"].value as? String, author)
             tap(app.buttons["取消"])
-            XCTAssertTrue(app.navigationBars["编辑小说"].waitForNonExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["编辑小说"].firstMatch.waitForNonExistence(timeout: 10))
         }
 
         tap(app.buttons["新建小说"])
-        XCTAssertTrue(app.navigationBars["新建小说"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["新建小说"].firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["创建"].exists)
         let newTitle = app.textFields["书名 *"].value as? String ?? ""
         XCTAssertTrue(newTitle.isEmpty || newTitle == "书名 *")
         tap(app.buttons["取消"])
-        XCTAssertTrue(app.navigationBars["新建小说"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["新建小说"].firstMatch.waitForNonExistence(timeout: 10))
         tap(app.buttons["小说操作"].element(boundBy: 0))
         tap(app.buttons["编辑"])
-        XCTAssertTrue(app.navigationBars["编辑小说"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["编辑小说"].firstMatch.waitForExistence(timeout: 10))
         XCTAssertEqual(app.textFields["书名 *"].value as? String, "山中来信")
     }
 
@@ -756,8 +758,11 @@ final class FrontendAuditTests: XCTestCase {
     func testAdminTaskCenterDownloadRecords() {
         let app = launch("admin-parity")
         openAdminModule("tasks", app: app)
+        reveal(app.buttons["抓取任务"], app: app)
         XCTAssertTrue(app.buttons["抓取任务"].exists)
+        reveal(app.buttons["AI 任务"], app: app)
         XCTAssertTrue(app.buttons["AI 任务"].exists)
+        reveal(app.buttons["下载记录"], app: app)
         tap(app.buttons["下载记录"])
         XCTAssertTrue(app.staticTexts["山中来信下载记录"].waitForExistence(timeout: 10))
         capture("admin-task-center-downloads", app: app)

@@ -22,13 +22,20 @@ struct AdminNovelsView: View {
     @State private var updatingNovelId: String?
     @State private var loadingMore = false
     @State private var requests = ListRequestGuard<[String]>()
+    @State private var displayedQuery: [String]?
 
     private var query: [String] {
         [searchText.trimmingCharacters(in: .whitespacesAndNewlines), statusFilter == "all" ? "" : statusFilter]
     }
 
+    private var resultsAreStale: Bool {
+        displayedQuery != nil && displayedQuery != query
+    }
+
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("小说管理")
+            listContext
             if isLoading && novels.isEmpty {
                 Section {
                     ProgressView("加载中…")
@@ -48,10 +55,6 @@ struct AdminNovelsView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
-                if isLoading {
-                    ProgressView("正在更新小说列表…")
-                        .controlSize(.small)
-                }
                 if let errorMessage {
                     LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                         Task { await reload() }
@@ -63,6 +66,9 @@ struct AdminNovelsView: View {
                 }
                 ForEach(Array(novels.enumerated()), id: \.element.id) { index, novel in
                     novelRow(novel)
+                        .readingSpaceEntrance(index)
+                        .opacity(resultsAreStale ? 0.5 : 1)
+                        .disabled(resultsAreStale)
                         .transition(reduceMotion ? .identity : .asymmetric(
                             insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index % 20, 10)) * 0.016)),
                             removal: .opacity
@@ -85,14 +91,11 @@ struct AdminNovelsView: View {
                             Spacer()
                         }
                     }
-                    .disabled(loadingMore || isLoading || errorMessage != nil)
+                    .disabled(loadingMore || isLoading || errorMessage != nil || resultsAreStale)
                     .listRowBackground(Color.clear)
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle("小说管理")
-        .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索书名 / 作者")
         .refreshable { await reload() }
         .task(id: query) {
@@ -131,6 +134,7 @@ struct AdminNovelsView: View {
         }
         .sheet(item: $workspaceNovel, onDismiss: { Task { await reload() } }) { novel in
             AdminNovelWorkspaceSheet(novel: novel)
+                .presentationBackground(ReadingSpace.profilePaper)
         }
         .sheet(item: $editorDestination) { destination in
             NovelEditSheet(novel: destination.novel) { saved in
@@ -165,6 +169,31 @@ struct AdminNovelsView: View {
         }
     }
 
+    private var listContext: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(novelStatusLabel)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                if resultsAreStale {
+                    Text(errorMessage == nil ? "正在检索，暂时保留上次结果" : "筛选尚未更新，下方为上次结果")
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                } else if displayedQuery != nil {
+                    Text("已载入 \(novels.count) / \(loadedTotal) 部作品")
+                        .monospacedDigit()
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
+            }
+            .font(.footnote)
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            if isLoading && !novels.isEmpty {
+                ProgressView().controlSize(.small).accessibilityLabel("正在更新小说列表")
+            }
+        }
+        .padding(.bottom, 6)
+    }
+
     // MARK: - 行
 
     private var novelStatusLabel: String {
@@ -182,37 +211,48 @@ struct AdminNovelsView: View {
             novel.statusLabel,
         ].compactMap { $0 }.joined(separator: " · ")
 
-        return HStack(spacing: 12) {
-            CachedAsyncImage(
-                url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
-                targetSize: AppLayout.coverListThumbnail
-            ) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                ZStack {
-                    Rectangle().fill(.quaternary)
-                    Image(systemName: "book")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: AppLayout.coverListThumbnail.width, height: AppLayout.coverListThumbnail.height)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
+        return HStack(alignment: .center, spacing: 8) {
+            Button { workspaceNovel = novel } label: {
+                HStack(alignment: .top, spacing: 14) {
+                    CachedAsyncImage(
+                        url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
+                        targetSize: AppLayout.coverListThumbnail
+                    ) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        ZStack {
+                            Rectangle().fill(ReadingSpace.profileFill)
+                            Image(systemName: "book").foregroundStyle(ReadingSpace.profileMuted)
+                        }
+                    }
+                    .frame(width: AppLayout.coverListThumbnail.width, height: AppLayout.coverListThumbnail.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(novel.title)
-                    .font(.headline)
-                    .appTextLineLimit(2)
-                Text(metadata)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .appTextLineLimit(2)
-                if novel.hasUpdate {
-                    Label("可更新至 \(novel.remoteChapterCount) 章", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.footnote)
-                        .foregroundStyle(.tint)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(novel.title)
+                            .font(serifFont(.headline, .medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .appTextLineLimit(2)
+                        Text(metadata)
+                            .font(.footnote)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                            .appTextLineLimit(2)
+                        if novel.hasUpdate {
+                            Label("可更新至 \(novel.remoteChapterCount) 章", systemImage: "arrow.triangle.2.circlepath")
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
+            .accessibilityHint("打开本书管理工作台")
+            .accessibilityIdentifier("admin.novel.open.\(novel.id)")
             if busyNovelId == novel.id || updatingNovelId == novel.id {
                 AdminInlineProgress()
             } else {
@@ -236,6 +276,8 @@ struct AdminNovelsView: View {
                 .accessibilityLabel("小说操作")
             }
         }
+        .padding(.vertical, 8)
+        .disabled(busyNovelId != nil || updatingNovelId != nil)
         .contextMenu {
             Button("管理这本书", systemImage: "slider.horizontal.3") { workspaceNovel = novel }
             Button("编辑", systemImage: "pencil") {
@@ -270,6 +312,7 @@ struct AdminNovelsView: View {
             page = r.page
             hasMore = r.hasMore
             loadedTotal = r.total
+            displayedQuery = ticket.query
             errorMessage = nil
             requests.finish(ticket, succeeded: true)
             isLoading = false
@@ -360,6 +403,8 @@ struct NovelEditSheet: View {
     @State private var saving = false
     @State private var errorMessage: String?
     let onSaved: (Novel) -> Void
+    @FocusState private var focusedField: Field?
+    private enum Field: Hashable { case title, author, categories, cover, source, description }
 
     init(novel: Novel?, onSaved: @escaping (Novel) -> Void) {
         self.novel = novel
@@ -377,55 +422,82 @@ struct NovelEditSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("基本信息") {
-                    TextField("书名 *", text: $title)
-                    TextField("作者 *", text: $author)
-                    Picker("状态", selection: $status) {
-                        Text("连载").tag("ongoing")
-                        Text("完结").tag("completed")
+            AdminWorkspaceList {
+                AdminWorkspaceHeading(isEditing ? "编辑小说" : "新建小说")
+                AdminWorkspaceSection("基本信息") {
+                    AccountSettingsField("书名（必填）", isFocused: focusedField == .title) {
+                        TextField("书名 *", text: $title).focused($focusedField, equals: .title)
                     }
-                    .pickerStyle(.menu)
+                    AccountSettingsField("作者（必填）", isFocused: focusedField == .author) {
+                        TextField("作者 *", text: $author).focused($focusedField, equals: .author)
+                    }
+                    AccountSettingsField("连载状态") {
+                        Picker("状态", selection: $status) {
+                            Text("连载").tag("ongoing")
+                            Text("完结").tag("completed")
+                        }
+                        .pickerStyle(.menu)
+                    }
                 }
-                Section("详情") {
-                    TextField("分类（逗号分隔）", text: $categories)
-                    TextField("封面 URL", text: $coverUrl)
-                    TextField("源站 URL", text: $sourceUrl)
+                AdminWorkspaceSection("分类与来源") {
+                    AccountSettingsField("分类", isFocused: focusedField == .categories) {
+                        TextField("分类（逗号分隔）", text: $categories).focused($focusedField, equals: .categories)
+                    }
+                    AccountSettingsField("封面地址", isFocused: focusedField == .cover) {
+                        TextField("封面 URL", text: $coverUrl)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .focused($focusedField, equals: .cover)
+                    }
+                    AccountSettingsField("源站地址", isFocused: focusedField == .source) {
+                        TextField("源站 URL", text: $sourceUrl)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .focused($focusedField, equals: .source)
+                    }
                 }
-                Section("简介") {
-                    TextEditor(text: $descriptionText)
-                        .frame(minHeight: 120)
+                AdminWorkspaceSection("简介") {
+                    AccountSettingsField("作品简介", isFocused: focusedField == .description) {
+                        TextEditor(text: $descriptionText)
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 160)
+                            .focused($focusedField, equals: .description)
+                            .accessibilityLabel("作品简介")
+                    }
                 }
                 if let errorMessage {
-                    Section {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.danger)
-                    }
+                    AccountSettingsNote(errorMessage, isError: true)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle(isEditing ? "编辑小说" : "新建小说")
-            .navigationBarTitleDisplayMode(.inline)
+            .disabled(saving)
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消") { dismiss() }.disabled(saving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
+                        focusedField = nil
                         save()
                     } label: {
-                        if saving {
-                            ProgressView()
-                        } else {
+                        HStack(spacing: 6) {
+                            if saving { ProgressView().controlSize(.small).accessibilityHidden(true) }
                             Text(isEditing ? "保存" : "创建")
                         }
                     }
-                        .disabled(saving)
+                    .disabled(saving)
+                    .accessibilityValue(saving ? "正在保存" : "")
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
                 }
             }
         }
+        .presentationBackground(ReadingSpace.profilePaper)
+        .interactiveDismissDisabled(saving)
     }
 
     private func save() {

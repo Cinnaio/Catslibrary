@@ -20,8 +20,8 @@ struct AdminNovelWorkspaceView: View {
             if appState.user?.isAdmin == true { workspace }
             else { ContentUnavailableView("需要管理员权限", systemImage: "lock.shield") }
         }
-        .navigationTitle("管理这本书")
-        .navigationBarTitleDisplayMode(.inline)
+        .background(ReadingSpace.profilePaper)
+        .readingSpaceNavigation()
         .task(id: ContentAccessStore.shared.accountRevision) { await refresh() }
         .sheet(isPresented: $showEditor) {
             NovelEditSheet(novel: book) { updated in
@@ -32,29 +32,30 @@ struct AdminNovelWorkspaceView: View {
     }
 
     private var workspace: some View {
-        List {
-            Section { bookHeader }
+        AdminWorkspaceList {
+            bookHeader
             if let error { LoadErrorNotice(message: error, isLoading: updating) { Task { await refresh() } } }
             if let notice {
                 Label(notice, systemImage: "checkmark.circle")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            Section("作品与章节") {
+            AdminWorkspaceSection("作品与章节") {
                 workspaceLink("管理章节", systemImage: "doc.text") { AdminChaptersView(initialNovel: book) }
                 workspaceLink("追更设置", systemImage: "clock.arrow.circlepath") { AdminFollowupView(novel: book) }
                 Button {
                     Task { await updateChapters() }
                 } label: {
-                    HStack {
-                        Label("检查并更新章节", systemImage: "arrow.triangle.2.circlepath")
-                        if updating { Spacer(); ProgressView() }
+                    HStack(spacing: 12) {
+                        AdminWorkspaceEntry("检查并更新章节", systemImage: "arrow.triangle.2.circlepath")
+                        if updating { ProgressView().controlSize(.small) }
                     }
                 }
+                .buttonStyle(.plain)
                 .disabled(updating)
                 .accessibilityIdentifier("admin.workspace.update")
             }
-            Section("创作与封面") {
+            AdminWorkspaceSection("创作与封面") {
                 workspaceLink(afterChapterID == nil ? "创作与续写" : "从当前章节续写", systemImage: "pencil.and.outline") {
                     AdminAIWritingView(initialNovel: book, afterChapterID: afterChapterID)
                 }
@@ -68,11 +69,10 @@ struct AdminNovelWorkspaceView: View {
                 workspaceLink("本书草稿与发布记录", systemImage: "doc.text.magnifyingglass") { AdminAIGenerationsView(novelID: book.id) }
                     .accessibilityIdentifier("admin.workspace.generations")
             }
-            Section {
+            AdminWorkspaceSection("任务记录") {
                 workspaceLink("本书任务", systemImage: "shippingbox") { AdminTaskInboxView(novelID: book.id) }
             }
         }
-        .listStyle(.insetGrouped)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("修改作品资料", systemImage: "pencil") { showEditor = true }
@@ -83,7 +83,7 @@ struct AdminNovelWorkspaceView: View {
     }
 
     private var bookHeader: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
+        let layout = dynamicTypeSize >= .xxxLarge
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
             : AnyLayout(HStackLayout(alignment: .center, spacing: 14))
 
@@ -95,7 +95,7 @@ struct AdminNovelWorkspaceView: View {
                 image.resizable().scaledToFill()
             } placeholder: {
                 ZStack {
-                    Rectangle().fill(.quaternary)
+                    Rectangle().fill(ReadingSpace.profileFill)
                     Image(systemName: "book.closed")
                         .font(.title3)
                         .foregroundStyle(.secondary)
@@ -106,8 +106,12 @@ struct AdminNovelWorkspaceView: View {
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 6) {
+                Text("作品工作台")
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                 Text(book.title)
-                    .font(.title2.weight(.semibold))
+                    .font(serifFont(.title2, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
                     .appTextLineLimit(2)
                     .accessibilityAddTraits(.isHeader)
                 Text("\(book.author.isEmpty ? "佚名" : book.author) · \(book.chapterCount) 章")
@@ -120,7 +124,8 @@ struct AdminNovelWorkspaceView: View {
                 }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
         .accessibilityIdentifier("admin.workspace.book")
     }
 
@@ -130,7 +135,7 @@ struct AdminNovelWorkspaceView: View {
         @ViewBuilder destination: () -> Destination
     ) -> some View {
         NavigationLink(destination: destination) {
-            Label(title, systemImage: systemImage)
+            AdminWorkspaceEntry(title, systemImage: systemImage)
         }
     }
 
@@ -192,6 +197,9 @@ struct AdminNovelWorkspaceLoader: View {
                 } description: { Text(error) } actions: { Button("重试") { Task { await load() } } }
             } else { ProgressView("正在读取作品…") }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(ReadingSpace.profilePaper)
+        .readingSpaceNavigation()
         .task(id: ContentAccessStore.shared.accountRevision) { await load() }
     }
     private func load() async {

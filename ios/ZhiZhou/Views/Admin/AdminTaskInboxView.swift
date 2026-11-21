@@ -18,20 +18,18 @@ struct AdminTaskInboxView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                taskFilters
-                if !overview.errors.isEmpty {
-                    LoadErrorNotice(message: overview.errors.joined(separator: "\n"), isLoading: overview.loading) {
-                        Task { await overview.load() }
-                    }
+        AdminWorkspaceList {
+            AdminWorkspaceHeading(novelID == nil ? "任务中心" : "本书任务",
+                                  detail: "先处理失败与中断，再查看正在进行的任务。")
+            taskFilters
+            if !overview.errors.isEmpty {
+                LoadErrorNotice(message: overview.errors.joined(separator: "\n"), isLoading: overview.loading) {
+                    Task { await overview.load() }
                 }
             }
-            Section("近期任务") { taskResults }
+            AdminWorkspaceSection("近期任务") { taskResults }
             records
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle(novelID == nil ? "任务中心" : "本书任务")
         .refreshable { await overview.load(forceMetadata: true) }
         .task(id: "\(scenePhase)-\(ContentAccessStore.shared.accountRevision)") {
             guard scenePhase == .active else { return }
@@ -72,32 +70,27 @@ struct AdminTaskInboxView: View {
         } else {
             ForEach(Array(tasks.enumerated()), id: \.element.id) { index, item in
                 AdminInboxTaskLink(item: item, bookTitle: item.novelID.flatMap { overview.bookTitles[$0] })
-                    .transition(reduceMotion ? .identity : .asymmetric(
-                        insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index, 10)) * 0.016)),
-                        removal: .opacity
-                    ))
+                    .readingSpaceEntrance(index)
+                    .transition(reduceMotion ? .identity : .opacity)
             }
         }
     }
 
     private var records: some View {
-        Section {
+        AdminWorkspaceSection("完整记录") {
             NavigationLink { AdminAIGenerationsView(novelID: novelID, initialStatus: "draft") } label: {
-                Label("待处理草稿", systemImage: "doc.text")
+                AdminWorkspaceEntry("待处理草稿", systemImage: "doc.text")
             }
             NavigationLink { AdminDownloadRecordsView() } label: {
-                Label("下载记录", systemImage: "arrow.down.circle")
+                AdminWorkspaceEntry("下载记录", systemImage: "arrow.down.circle")
             }
             NavigationLink { AdminAITasksView() } label: {
-                Label("AI 任务", systemImage: "sparkles")
+                AdminWorkspaceEntry("AI 任务", systemImage: "sparkles")
             }
             NavigationLink { AdminJobsView() } label: {
-                Label("抓取任务", systemImage: "scope")
+                AdminWorkspaceEntry("抓取任务", systemImage: "scope")
             }
-        } header: {
-            Text("完整记录")
-        } footer: {
-            Text("近期任务汇总最近 100 项 AI 任务及服务端返回的抓取任务。")
+            AccountSettingsNote("近期任务汇总最近 100 项 AI 任务及服务端返回的抓取任务。")
         }
     }
 }
@@ -127,20 +120,23 @@ struct AdminInboxTaskLink: View {
         Label {
             VStack(alignment: .leading, spacing: 4) {
                 Text(bookTitle ?? item.title)
-                    .font(.headline)
+                    .font(bookTitle == nil ? .body.weight(.medium) : serifFont(.body, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(bookTitle == nil ? status : "\(item.title) · \(status)")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                 if !item.detail.isEmpty {
                     Text(item.detail)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                         .appTextLineLimit(2)
                 }
             }
             .padding(.vertical, 4)
         } icon: {
             Image(systemName: systemImage)
+                .foregroundStyle(ReadingSpace.profileMuted)
         }
     }
 }
