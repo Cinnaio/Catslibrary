@@ -64,9 +64,7 @@ struct NovelDetailView: View {
         }
         .background { ReadingSpace.profilePaper.ignoresSafeArea() }
         .refreshable { await load(refresh: true) }
-        .navigationTitle("书籍详情")
-        .navigationBarTitleDisplayMode(.inline)
-        .readingSpaceTopEdge()
+        .readingSpaceNavigation()
         .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

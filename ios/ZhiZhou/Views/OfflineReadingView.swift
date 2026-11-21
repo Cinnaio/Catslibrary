@@ -18,6 +18,11 @@ struct OfflineReadingView: View {
 
     var body: some View {
         List {
+            ReaderPanelHeading("离线阅读")
+                .listRowInsets(EdgeInsets(top: 20, leading: 22, bottom: 12, trailing: 22))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
             if offlineStore.books.isEmpty {
                 ContentUnavailableView {
                     Label("还没有离线章节", systemImage: "arrow.down.circle")
@@ -115,8 +120,7 @@ struct OfflineReadingView: View {
         .frame(maxWidth: .infinity)
         .background(ReadingSpace.profilePaper)
         .tint(AppTheme.primary)
-        .navigationTitle("离线阅读")
-        .navigationBarTitleDisplayMode(.inline)
+        .readingSpaceNavigation()
         .sensoryFeedback(.selection, trigger: interactionFeedback)
         .toolbar {
             if !offlineStore.books.isEmpty {

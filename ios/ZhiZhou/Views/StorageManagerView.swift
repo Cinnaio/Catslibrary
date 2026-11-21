@@ -22,6 +22,7 @@ struct StorageManagerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
+                AccountSettingsHeading("存储管理")
                 usageOverview
                     .readingSpaceEntrance()
                 automaticCacheSection
@@ -38,12 +39,9 @@ struct StorageManagerView: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(ReadingSpace.profilePaper)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .scrollEdgeEffectHidden(true, for: .top)
+        .readingSpaceNavigation()
         .tint(AppTheme.primary)
         .buttonStyle(.plain)
-        .navigationTitle("存储管理")
-        .navigationBarTitleDisplayMode(.inline)
         .task {
             fontStore.registerCachedFonts()
             fontStore.refresh()
@@ -408,12 +406,9 @@ private struct CacheLimitEditor: View {
                 .frame(maxWidth: .infinity, alignment: .center)
             }
             .background(ReadingSpace.profilePaper)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .scrollEdgeEffectHidden(true, for: .top)
+            .readingSpaceNavigation()
             .tint(AppTheme.primary)
             .disabled(isSaving)
-            .navigationTitle("缓存大小")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }.disabled(isSaving)

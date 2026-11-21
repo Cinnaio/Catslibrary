@@ -80,8 +80,6 @@ struct AccountEmailView: View {
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .disabled(busy)
-        .navigationTitle(bindingEmail ? "邮箱与密码找回" : "找回密码")
-        .navigationBarTitleDisplayMode(.inline)
         .interactiveDismissDisabled(busy)
         .toolbar {
             if !bindingEmail { ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() }.disabled(busy) } }

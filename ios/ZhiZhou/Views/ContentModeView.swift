@@ -11,12 +11,14 @@ struct ContentModeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
+                AccountSettingsHeading("内容模式")
+
                 VStack(alignment: .leading, spacing: 10) {
                     Text("本机当前模式")
                         .font(.caption)
                         .foregroundStyle(ReadingSpace.profileMuted)
                     Text(access.mode == "adult" ? "R18 阅读" : "安全模式")
-                        .font(serifFont(.title, .medium))
+                        .font(serifFont(.title2, .medium))
                         .foregroundStyle(ReadingSpace.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -121,9 +123,7 @@ struct ContentModeView: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(ReadingSpace.profilePaper)
-        .readingSpaceTopEdge(opaque: false)
-        .navigationTitle("内容模式")
-        .navigationBarTitleDisplayMode(.inline)
+        .readingSpaceNavigation()
         .disabled(access.isBusy || isRefreshing)
         .task { await refresh() }
         .sheet(isPresented: $showUnlock) {
@@ -249,8 +249,6 @@ private struct AdultReaderUnlockView: View {
                 }
             }
             .disabled(access.isBusy)
-            .navigationTitle("开启 R18 阅读")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }.disabled(access.isBusy)

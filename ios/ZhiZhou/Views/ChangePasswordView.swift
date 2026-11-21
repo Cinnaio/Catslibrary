@@ -49,8 +49,6 @@ struct ChangePasswordView: View {
         .disabled(isSaving)
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
-        .navigationTitle("修改密码")
-        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isSaving)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

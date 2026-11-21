@@ -54,8 +54,6 @@ struct PasskeySettingsView: View {
                 }
             }
         }
-        .navigationTitle("Passkey")
-        .navigationBarTitleDisplayMode(.inline)
         .disabled(isBusy)
         .task { await load() }
         .refreshable { await load() }
@@ -339,8 +337,6 @@ private struct PasskeyRenameSheet: View {
                         .autocorrectionDisabled()
                 }
             }
-            .navigationTitle("重命名")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }

@@ -54,6 +54,15 @@ struct ReadingSpaceRoomListStyle: ViewModifier {
 }
 
 extension View {
+    /// 阅读与个人内页共用：标题随正文滚动，导航只保留原生操作。
+    func readingSpaceNavigation() -> some View {
+        self
+            .readingSpaceTopEdge(opaque: false)
+            .scrollEdgeEffectHidden(true, for: .top)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+    }
+
     func readingSpaceTopEdge(opaque: Bool = true) -> some View {
         modifier(ReadingSpaceTopEdge(opaque: opaque))
     }

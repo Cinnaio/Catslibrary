@@ -16,7 +16,7 @@ struct AccountSettingsPage<Content: View>: View {
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(ReadingSpace.profilePaper)
-        .readingSpaceTopEdge(opaque: false)
+        .readingSpaceNavigation()
         .scrollDismissesKeyboard(.interactively)
         .tint(AppTheme.primary)
         .buttonStyle(.plain)
@@ -42,7 +42,7 @@ struct AccountSettingsList<Content: View>: View {
         .frame(maxWidth: 700)
         .frame(maxWidth: .infinity)
         .background(ReadingSpace.profilePaper)
-        .readingSpaceTopEdge(opaque: false)
+        .readingSpaceNavigation()
         .scrollDismissesKeyboard(.interactively)
         .tint(AppTheme.primary)
         .buttonStyle(.plain)
@@ -53,7 +53,7 @@ struct AccountSettingsHeading: View {
     let title: String
     let detail: String
 
-    init(_ title: String, detail: String) {
+    init(_ title: String, detail: String = "") {
         self.title = title
         self.detail = detail
     }
@@ -64,7 +64,7 @@ struct AccountSettingsHeading: View {
                 .font(serifFont(.title, .medium))
                 .foregroundStyle(ReadingSpace.ink)
                 .accessibilityAddTraits(.isHeader)
-            AccountSettingsNote(detail)
+            if !detail.isEmpty { AccountSettingsNote(detail) }
         }
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)

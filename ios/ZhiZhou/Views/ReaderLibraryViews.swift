@@ -53,6 +53,11 @@ struct ReaderBookmarksView: View {
 
     var body: some View {
         List {
+            ReaderPanelHeading("我的书签")
+                .listRowInsets(EdgeInsets(top: 20, leading: 22, bottom: 20, trailing: 22))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
             if let error {
                 LoadErrorNotice(message: error, isLoading: loading) { attempt += 1 }
                     .listRowBackground(Color.clear)
@@ -107,8 +112,7 @@ struct ReaderBookmarksView: View {
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
         .background(ReadingSpace.profilePaper)
-        .navigationTitle("我的书签")
-        .navigationBarTitleDisplayMode(.inline)
+        .readingSpaceNavigation()
         .task(id: "\(ContentAccessStore.shared.revision):\(attempt)") { await load() }
         .refreshable { await load() }
         .sheet(item: $editing, onDismiss: { attempt += 1 }) { item in
@@ -279,6 +283,11 @@ struct MyThoughtsView: View {
 
     var body: some View {
         List {
+            ReaderPanelHeading("我的想法")
+                .listRowInsets(EdgeInsets(top: 20, leading: 22, bottom: 20, trailing: 22))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
             if let error {
                 LoadErrorNotice(message: error, isLoading: loading) { Task { await load(reset: items.isEmpty) } }
                     .listRowBackground(Color.clear)
@@ -348,8 +357,7 @@ struct MyThoughtsView: View {
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
         .background(ReadingSpace.profilePaper)
-        .navigationTitle("我的想法")
-        .navigationBarTitleDisplayMode(.inline)
+        .readingSpaceNavigation()
         .task(id: ContentAccessStore.shared.revision) { await load(reset: true) }
         .refreshable { await load(reset: true) }
     }

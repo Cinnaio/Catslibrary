@@ -78,7 +78,7 @@ struct ThoughtPanelView: View {
             }
             .background { ReadingSpace.profilePaper.ignoresSafeArea() }
             .scrollEdgeEffectStyle(.soft, for: .bottom)
-            .readerPanelNavigation()
+            .readingSpaceNavigation()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }

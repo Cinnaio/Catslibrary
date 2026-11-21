@@ -10,6 +10,8 @@ struct ProfileAccountView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
+                AccountSettingsHeading("账户与安全")
+
                 if let user = appState.user {
                     identity(user)
                 }
@@ -70,10 +72,8 @@ struct ProfileAccountView: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(ReadingSpace.profilePaper)
-        .readingSpaceTopEdge(opaque: false)
+        .readingSpaceNavigation()
         .disabled(isLoggingOut || appState.isUpdatingAccount)
-        .navigationTitle("账户与安全")
-        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isLoggingOut)
         .sheet(isPresented: $showEditProfile) {
             if let user = appState.user {

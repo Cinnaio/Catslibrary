@@ -123,7 +123,7 @@ struct ChapterListView: View {
                     .background(ReadingSpace.profilePaper)
                 }
             }
-            .readerPanelNavigation()
+            .readingSpaceNavigation()
             .searchable(text: Binding(get: { search }, set: { value in
                 withAnimation(reduceMotion ? nil : AppMotion.micro) { search = value }
             }), isPresented: $searchPresented, prompt: "搜索章名或章号")

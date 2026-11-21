@@ -16,19 +16,8 @@ struct ReaderPanelPage<Content: View>: View {
                 .frame(maxWidth: .infinity)
         }
         .background(ReadingSpace.profilePaper)
-        .readerPanelNavigation()
+        .readingSpaceNavigation()
         .tint(AppTheme.primary)
-    }
-}
-
-extension View {
-    /// 标题留在正文，顶部仅显示原生操作，不叠加整条背景或滚动遮罩。
-    func readerPanelNavigation() -> some View {
-        self
-            .readingSpaceTopEdge(opaque: false)
-            .scrollEdgeEffectHidden(true, for: .top)
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
     }
 }
 

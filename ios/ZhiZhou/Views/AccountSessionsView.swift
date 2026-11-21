@@ -67,8 +67,6 @@ struct AccountSessionsView: View {
             }
             .padding(.top, 28)
         }
-        .navigationTitle("登录设备")
-        .navigationBarTitleDisplayMode(.inline)
         .disabled(busy)
         .task(id: ContentAccessStore.shared.accountRevision) { sessions = []; await load() }
         .refreshable { await load() }

@@ -84,8 +84,6 @@ struct AccountChallengeSheet: View {
                 }
                 .disabled(token.isEmpty)
             }
-            .navigationTitle("账户安全验证")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { finish(nil) } } }
         }
     }

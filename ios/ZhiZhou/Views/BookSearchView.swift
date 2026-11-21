@@ -146,12 +146,9 @@ struct BookSearchView: View {
             }
             .scrollPosition(id: $visibleResultID, anchor: .top)
             .scrollDismissesKeyboard(.interactively)
-            .scrollEdgeEffectHidden(true, for: .top)
             .scrollEdgeEffectHidden(true, for: .bottom)
             .background(ReadingSpace.profilePaper)
-            .navigationTitle("书内搜索")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
+            .readingSpaceNavigation()
             .searchable(
                 text: Binding(get: { scope == currentScope ? query : "" }, set: updateQuery),
                 isPresented: $searchPresented,

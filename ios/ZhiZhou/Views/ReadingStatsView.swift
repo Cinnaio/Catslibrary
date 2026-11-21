@@ -31,6 +31,8 @@ struct ReadingStatsView: View {
     var body: some View {
         List {
             Group {
+                ReaderPanelHeading("阅读统计")
+                    .listRowInsets(EdgeInsets(top: 20, leading: 22, bottom: 16, trailing: 22))
                 periodControls
                     .listRowInsets(EdgeInsets(top: 8, leading: 22, bottom: 12, trailing: 22))
                 loadFeedback
@@ -93,13 +95,11 @@ struct ReadingStatsView: View {
         }
         .modifier(ReadingSpaceRoomListStyle())
         .contentMargins(.bottom, 24, for: .scrollContent)
-        .readingSpaceTopEdge()
+        .readingSpaceNavigation()
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
         .background(ReadingSpace.profilePaper)
         .tint(AppTheme.primary)
-        .navigationTitle("阅读统计")
-        .navigationBarTitleDisplayMode(.inline)
         .environment(\.timeZone, ReadingStatPeriod.calendar.timeZone)
         .onChange(of: period) { _, _ in
             offset = 0
