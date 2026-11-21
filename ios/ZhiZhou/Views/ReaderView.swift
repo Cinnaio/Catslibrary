@@ -69,6 +69,7 @@ struct ReaderView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.dismiss) private var dismiss
+    @ScaledMetric(relativeTo: .footnote) private var readerControlWidth: CGFloat = 300
 
     @State private var chapter: ChapterFull?
     @State private var chapterMetas: [ChapterMeta] = []
@@ -1054,7 +1055,7 @@ struct ReaderView: View {
                 .allowsHitTesting(atChapterEnd)
                 .accessibilityHidden(!atChapterEnd)
         }
-        .frame(maxWidth: 560)
+        .frame(maxWidth: min(560, readerControlWidth))
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 13)

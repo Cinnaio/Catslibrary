@@ -4,6 +4,11 @@ struct RootView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var privacyCoverVisible = false
+
+    private var requiresPrivacyCover: Bool {
+        scenePhase != .active && ContentAccessStore.shared.mode == "adult"
+    }
 
     var body: some View {
         Group {
@@ -16,12 +21,23 @@ struct RootView: View {
                     .id(ContentAccessStore.shared.accountRevision)
             }
         }
-        .accessibilityHidden(scenePhase != .active && ContentAccessStore.shared.mode == "adult")
+        .accessibilityHidden(requiresPrivacyCover)
         .overlay {
-            if scenePhase != .active && ContentAccessStore.shared.mode == "adult" {
-                AppPrivacyCover()
-                    .transition(.identity)
-            }
+            AppPrivacyCover()
+                // 离开前台直接全遮挡；可见状态只为回到前台保留一次柔和退场。
+                .opacity(requiresPrivacyCover || privacyCoverVisible ? 1 : 0)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.24), value: privacyCoverVisible)
+                .transaction { transaction in
+                    if requiresPrivacyCover || reduceMotion {
+                        transaction.animation = nil
+                        transaction.disablesAnimations = true
+                    }
+                }
+                .allowsHitTesting(requiresPrivacyCover)
+                .accessibilityHidden(!requiresPrivacyCover)
+        }
+        .onChange(of: requiresPrivacyCover, initial: true) { _, required in
+            privacyCoverVisible = required
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: appState.isBooting)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: appState.user != nil)
