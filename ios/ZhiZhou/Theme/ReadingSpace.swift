@@ -21,6 +21,25 @@ enum ReadingSpace {
     static let panelRadius: CGFloat = 24
 }
 
+/// 摘录沿纸面左缘标记，供想法列表和段评来源共用。
+struct ReadingSpaceQuote: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.subheadline)
+            .foregroundStyle(ReadingSpace.profileMuted)
+            .lineSpacing(4)
+            .appTextLineLimit(3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+            .padding(.leading, 14)
+            .overlay(alignment: .leading) {
+                Rectangle().fill(ReadingSpace.profileLine).frame(width: 2)
+            }
+    }
+}
+
 /// 原生 List 保留复用、侧滑和刷新，所有行落在同一张纸上。
 struct ReadingSpaceRoomListStyle: ViewModifier {
     func body(content: Content) -> some View {

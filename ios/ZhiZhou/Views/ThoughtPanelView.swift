@@ -60,12 +60,12 @@ struct ThoughtPanelView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 24) {
                     paragraphHeader
                     thoughtsContent
                     if dynamicTypeSize.isAccessibilitySize { composer }
                 }
-                .padding(.horizontal, AppLayout.pageInset)
+                .padding(.horizontal, 22)
                 .padding(.top, 12)
                 .padding(.bottom, 20)
                 .frame(maxWidth: AppLayout.readableWidth)
@@ -75,7 +75,8 @@ struct ThoughtPanelView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !dynamicTypeSize.isAccessibilitySize { composer }
             }
-            .pageBackground(.browsing)
+            .background { ReadingSpace.profilePaper.ignoresSafeArea() }
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
             .navigationTitle(panelTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -84,7 +85,7 @@ struct ThoughtPanelView: View {
                 }
             }
         }
-        .presentationBackground(AppTheme.canvas)
+        .presentationBackground(ReadingSpace.profilePaper)
         .presentationDragIndicator(.visible)
         .confirmationDialog(
             "删除这条段评？",
@@ -106,40 +107,26 @@ struct ThoughtPanelView: View {
     }
 
     private var paragraphHeader: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            metadataLayout {
-                Label(
-                    selectedText.isEmpty ? "评论这一段" : "评论选中文字",
-                    systemImage: selectedText.isEmpty ? "text.quote" : "character.cursor.ibeam"
-                )
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.primary)
-
-                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-
-                Text(chapterTitle)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .appTextLineLimit(1)
-            }
-
-            Text(selectedText.isEmpty ? paragraphExcerpt : selectedText)
-                .font(.callout)
-                .foregroundStyle(AppTheme.textSecondary)
-                .appTextLineLimit(3)
-                .multilineTextAlignment(.leading)
+        VStack(alignment: .leading, spacing: 12) {
+            Text(chapterTitle)
+                .font(serifFont(.title3, .medium))
+                .foregroundStyle(ReadingSpace.ink)
+                .appTextLineLimit(2)
+            Label(
+                selectedText.isEmpty ? "评论这一段" : "评论选中文字",
+                systemImage: selectedText.isEmpty ? "text.quote" : "character.cursor.ibeam"
+            )
+            .font(.caption)
+            .foregroundStyle(AppTheme.primary)
+            ReadingSpaceQuote(text: selectedText.isEmpty ? paragraphExcerpt : selectedText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 12)
-        .padding(.leading, 12)
-        .overlay(alignment: .leading) {
-            Rectangle().fill(AppTheme.border).frame(width: 2)
-        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             selectedText.isEmpty
-                ? "段落摘录：\(paragraphExcerpt)"
-                : "选中文字：\(selectedText)"
+                ? "\(chapterTitle)，段落摘录：\(paragraphExcerpt)"
+                : "\(chapterTitle)，选中文字：\(selectedText)"
         )
     }
 
@@ -151,7 +138,7 @@ struct ThoughtPanelView: View {
                     .tint(AppTheme.primary)
                 Text("正在加载段评…")
                     .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 30)
@@ -162,10 +149,10 @@ struct ThoughtPanelView: View {
                     .foregroundStyle(AppTheme.warning)
                 Text("段评暂时加载失败")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .foregroundStyle(ReadingSpace.ink)
                 Text(loadError)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                     .multilineTextAlignment(.center)
                 Button(action: onRetry) {
                     Label("重试", systemImage: "arrow.clockwise")
@@ -180,21 +167,21 @@ struct ThoughtPanelView: View {
             VStack(spacing: 8) {
                 Image(systemName: "text.bubble")
                     .font(.title3)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                 Text("这一段还没有段评")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                 Text("写下你的第一条想法吧")
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 26)
         } else {
-            VStack(spacing: 10) {
-                ForEach(thoughts) { thought in
+            VStack(spacing: 8) {
+                ForEach(Array(thoughts.enumerated()), id: \.element.id) { index, thought in
                     thoughtRow(thought)
-                    Divider()
+                        .readingSpaceEntrance(index)
                 }
 
                 if isLoading {
@@ -207,7 +194,7 @@ struct ThoughtPanelView: View {
                     HStack(spacing: 8) {
                         Text("更新失败：\(loadError)")
                             .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
+                            .foregroundStyle(ReadingSpace.profileMuted)
                             .appTextLineLimit(2)
                         Spacer(minLength: 8)
                         Button(action: onRetry) {
@@ -223,19 +210,20 @@ struct ThoughtPanelView: View {
     }
 
     private func thoughtRow(_ thought: Thought) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
             ThoughtAvatar(name: authorName(for: thought), url: avatarURL(for: thought))
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(authorName(for: thought))
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(ReadingSpace.profileMuted)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if !isGeneratedImagePlaceholder(thought) {
                     Text(thought.thoughtText)
-                        .font(.callout)
-                        .foregroundStyle(AppTheme.textPrimary)
+                        .font(.body)
+                        .foregroundStyle(ReadingSpace.ink)
+                        .lineSpacing(5)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }
@@ -253,7 +241,7 @@ struct ThoughtPanelView: View {
                 HStack(spacing: 8) {
                     Text(Self.relativeTime(for: thought.createdAt))
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                     Spacer(minLength: 0)
                     if currentUserID == thought.userId {
                         Button(role: .destructive) {
@@ -275,7 +263,7 @@ struct ThoughtPanelView: View {
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -294,16 +282,16 @@ struct ThoughtPanelView: View {
                         .focused($composerFocused)
                         .font(.body)
                         .lineLimit(1...4)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
+                        .foregroundStyle(ReadingSpace.ink)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
                         .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
-                        .appFieldSurface(isFocused: composerFocused)
-                        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: composerFocused)
                         .disabled(isSubmitting)
                         .onChange(of: draft) { _, value in
                             if value.count > 300 { draft = String(value.prefix(300)) }
                         }
                         .accessibilityLabel("段评内容")
+                        .accessibilityIdentifier("thought.compose")
 
                     Button {
                         Task { await submit() }
@@ -311,25 +299,34 @@ struct ThoughtPanelView: View {
                         Group {
                             if isSubmitting {
                                 ProgressView()
-                                    .tint(AppTheme.textMuted)
+                                    .tint(ReadingSpace.profileMuted)
                             } else {
                                 Image(systemName: "arrow.up")
                             }
                         }
                         .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
-                        .foregroundStyle(canSubmit ? AppTheme.onPrimary : AppTheme.textMuted)
-                        .background(canSubmit ? AppTheme.primary : AppTheme.controlFill, in: Circle())
+                        .foregroundStyle(canSubmit ? ReadingSpace.onSummary : ReadingSpace.profileMuted)
+                        .background(canSubmit ? ReadingSpace.summary : ReadingSpace.profileFill, in: Circle())
                     }
                     .font(.title3.weight(.semibold))
                     .buttonStyle(.plain)
                     .disabled(!canSubmit)
                     .accessibilityLabel(isSubmitting ? "正在发布段评" : "发布段评")
+                    .accessibilityIdentifier("thought.publish")
                 }
+                .padding(8)
+                .appGlassEffect(AppTheme.glass, fallback: ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 22))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22)
+                        .strokeBorder(composerFocused ? AppTheme.primary.opacity(0.5) : .clear, lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: composerFocused)
 
                 if draft.count >= 240 {
                     Text("\(draft.count)/300")
                         .font(.caption2.monospacedDigit())
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
                 if let submitError {
@@ -337,35 +334,29 @@ struct ThoughtPanelView: View {
                         .font(.caption)
                         .foregroundStyle(AppTheme.danger)
                         .appTextLineLimit(2)
+                        .textSelection(.enabled)
                 }
             } else {
                 Label(currentUserID == nil ? "登录后才能发布段评" : "此处仅供查看已有段评", systemImage: "person.crop.circle")
                     .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 8)
             }
         }
-        .padding(.horizontal, AppLayout.pageInset)
+        .padding(.horizontal, 22)
         .padding(.top, 12)
         .padding(.bottom, 10)
         .frame(maxWidth: AppLayout.readableWidth)
         .frame(maxWidth: .infinity)
-        .background(AppTheme.canvas)
-        .overlay(alignment: .top) {
-            Divider()
+        .background {
+            ReadingSpace.profilePaper.ignoresSafeArea(.container, edges: .bottom)
         }
     }
 
     private var canSubmit: Bool {
         !isSubmitting
             && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var metadataLayout: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 10))
     }
 
     private func authorName(for thought: Thought) -> String {
@@ -466,7 +457,7 @@ private struct ThoughtAvatar: View {
                 .scaledToFill()
         } placeholder: {
             ZStack {
-                AppTheme.primaryLight
+                ReadingSpace.profileFill
                 Text(String(name.first ?? "匿"))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(AppTheme.primary)
@@ -476,7 +467,7 @@ private struct ThoughtAvatar: View {
             .clipShape(Circle())
             .overlay {
                 Circle()
-                    .strokeBorder(AppTheme.border.opacity(0.45), lineWidth: 0.5)
+                    .strokeBorder(ReadingSpace.profileLine, lineWidth: 0.5)
             }
             .accessibilityHidden(true)
     }

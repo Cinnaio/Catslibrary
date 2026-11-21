@@ -53,28 +53,60 @@ struct ReaderBookmarksView: View {
 
     var body: some View {
         List {
-            if let error { LoadErrorNotice(message: error, isLoading: loading) { attempt += 1 } }
-            if loading && items.isEmpty { ProgressView("加载书签…") }
+            if let error {
+                LoadErrorNotice(message: error, isLoading: loading) { attempt += 1 }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+            if loading && items.isEmpty {
+                ProgressView("加载书签…")
+                    .frame(maxWidth: .infinity, minHeight: 88)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
             if !loading && error == nil && items.isEmpty {
                 ContentUnavailableView("还没有书签", systemImage: "bookmark", description: Text("阅读时从更多菜单保存当前章节。"))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
-            ForEach(items) { item in
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 NavigationLink {
                     SavedChapterDestination(novelID: item.novelId, chapterID: item.chapterId)
                 } label: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(item.novelTitle).font(.headline)
-                        Text(item.chapterTitle).font(.subheadline).foregroundStyle(.secondary)
-                        if !item.note.isEmpty { Text(item.note).font(.footnote).lineLimit(3) }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(item.novelTitle)
+                            .font(.caption)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                            .appTextLineLimit(1)
+                        Text(item.chapterTitle)
+                            .font(serifFont(.headline, .medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .appTextLineLimit(2)
+                        if !item.note.isEmpty {
+                            Text(item.note)
+                                .font(.subheadline)
+                                .foregroundStyle(ReadingSpace.ink)
+                                .lineSpacing(4)
+                                .appTextLineLimit(3)
+                        }
                     }
+                    .padding(.vertical, 10)
                 }
+                .navigationLinkIndicatorVisibility(.hidden)
+                .readingSpaceEntrance(index)
+                .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))
+                .listRowBackground(Color.clear)
+                .listRowSeparatorTint(ReadingSpace.profileLine)
                 .swipeActions {
                     Button("编辑", systemImage: "pencil") { editing = item }
                 }
                 .contextMenu { Button("编辑书签", systemImage: "pencil") { editing = item } }
             }
         }
-        .appListStyle(.browsing)
+        .modifier(ReadingSpaceRoomListStyle())
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+        .background(ReadingSpace.profilePaper)
         .navigationTitle("我的书签")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: "\(ContentAccessStore.shared.revision):\(attempt)") { await load() }
@@ -108,6 +140,7 @@ struct BookmarkEditorView: View {
     let chapterID: String
     let chapterTitle: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var existing: ReaderBookmark?
     @State private var note = ""
     @State private var loaded = false
@@ -122,15 +155,41 @@ struct BookmarkEditorView: View {
             Form {
                 Section {
                     Text(chapterTitle)
+                        .font(serifFont(.title3, .medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .listRowBackground(Color.clear)
+                Section {
                     TextField("为这个章节写一条备注", text: $note, axis: .vertical)
+                        .font(.body)
+                        .foregroundStyle(ReadingSpace.ink)
+                        .lineSpacing(5)
                         .lineLimit(3...8)
+                        .padding(.vertical, 8)
                         .disabled(!loaded || busy)
+                        .accessibilityLabel("书签备注")
                         .accessibilityIdentifier("bookmark.note")
-                    Text("\(note.utf16.count)/300").font(.caption).foregroundStyle(.secondary)
-                } footer: { Text("每章保留一个书签，打开时进入该章节。备注会在 Web 与 iOS 之间同步。") }
+                    Text("\(note.utf16.count)/300")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(note.utf16.count > 300 ? AppTheme.danger : ReadingSpace.profileMuted)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                } header: {
+                    Text("备注")
+                        .font(serifFont(.headline, .medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .textCase(nil)
+                } footer: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("每章保留一个书签，打开时进入该章节。备注会在 Web 与 iOS 之间同步。")
+                        if busy { ProgressView("正在更新书签…").font(.footnote) }
+                    }
+                }
+                .listRowBackground(ReadingSpace.paper)
                 if let error {
                     Section {
                         Text(error).foregroundStyle(AppTheme.danger)
+                            .textSelection(.enabled)
                         if !loaded { Button("重新加载") { attempt += 1 } }
                     }
                 }
@@ -143,6 +202,13 @@ struct BookmarkEditorView: View {
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .frame(maxWidth: 700)
+            .frame(maxWidth: .infinity)
+            .background(ReadingSpace.profilePaper)
+            .tint(AppTheme.primary)
             .navigationTitle(existing == nil ? "添加书签" : "编辑书签")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -159,7 +225,8 @@ struct BookmarkEditorView: View {
                 Button("取消", role: .cancel) {}
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+        .presentationBackground(ReadingSpace.profilePaper)
         .presentationDragIndicator(.visible)
     }
 
@@ -211,38 +278,73 @@ struct MyThoughtsView: View {
         List {
             if let error {
                 LoadErrorNotice(message: error, isLoading: loading) { Task { await load(reset: items.isEmpty) } }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
             if !loading && error == nil && items.isEmpty {
                 ContentUnavailableView("还没有想法", systemImage: "text.bubble", description: Text("阅读中写下的段评会汇总在这里。"))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
-            ForEach(items) { item in
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 VStack(alignment: .leading, spacing: 12) {
-                NavigationLink {
-                    SavedChapterDestination(novelID: item.novelId, chapterID: item.chapterId)
-                } label: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(item.novelTitle ?? "作品").font(.headline)
-                        Text(item.chapterTitle ?? "章节").font(.subheadline).foregroundStyle(.secondary)
-                        if !item.selectedText.isEmpty {
-                            Text(item.selectedText).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+                    NavigationLink {
+                        SavedChapterDestination(novelID: item.novelId, chapterID: item.chapterId)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if !item.selectedText.isEmpty {
+                                ReadingSpaceQuote(text: item.selectedText)
+                                    .accessibilityLabel("引用原文，\(item.selectedText)")
+                            }
+                            Text(item.thoughtText)
+                                .font(.body)
+                                .foregroundStyle(ReadingSpace.ink)
+                                .lineSpacing(5)
+                                .appTextLineLimit(6)
+                            AppAdaptiveRow(spacing: 8) {
+                                Text(item.novelTitle ?? "作品")
+                                    .appTextLineLimit(1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Text(Date(timeIntervalSince1970: Double(item.createdAt) / 1000), style: .date)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                            Text(item.chapterTitle ?? "章节")
+                                .font(.caption)
+                                .foregroundStyle(ReadingSpace.profileMuted)
+                                .appTextLineLimit(2)
                         }
-                        Text(item.thoughtText).lineLimit(6)
-                        Text(Date(timeIntervalSince1970: Double(item.createdAt) / 1000), style: .date)
-                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .navigationLinkIndicatorVisibility(.hidden)
+                    if item.imageUrl != nil {
+                        ReaderMediaView(path: "/api/thoughts/image/" + ReaderMediaAPI.pathSegment(item.id),
+                                        caption: "想法配图", aspectRatio: 4 / 3, maximumHeight: 260)
                     }
                 }
-                if item.imageUrl != nil {
-                    ReaderMediaView(path: "/api/thoughts/image/" + ReaderMediaAPI.pathSegment(item.id),
-                                    caption: "想法配图", aspectRatio: 4 / 3, maximumHeight: 260)
-                }
-                }
+                .padding(.vertical, 12)
+                .readingSpaceEntrance(index)
+                .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))
+                .listRowBackground(Color.clear)
+                .listRowSeparatorTint(ReadingSpace.profileLine)
             }
-            if loading { ProgressView("加载想法…") }
+            if loading {
+                ProgressView("加载想法…")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
             else if hasMore && error == nil {
                 Button("加载更多") { Task { await load(reset: false) } }
+                    .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+                    .foregroundStyle(AppTheme.primary)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
         }
-        .appListStyle(.browsing)
+        .modifier(ReadingSpaceRoomListStyle())
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+        .background(ReadingSpace.profilePaper)
         .navigationTitle("我的想法")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: ContentAccessStore.shared.revision) { await load(reset: true) }
