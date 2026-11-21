@@ -47,7 +47,7 @@ struct ProfileView: View {
         .sheet(isPresented: $showReaderSettings) {
             ReaderSettingsView()
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(ReadingSpace.profilePaper)
         }
     }
 

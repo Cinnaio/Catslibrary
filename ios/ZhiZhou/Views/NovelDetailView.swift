@@ -271,69 +271,76 @@ struct NovelDetailView: View {
 
     private var offlineDownloadSheet: some View {
         NavigationStack {
-            List {
-                Section {
-                    LabeledContent("已保存章节") {
-                        Text("\(offlineStore.downloadedCount(for: currentNovel.id)) / \(chapters.count)")
-                            .monospacedDigit()
+            ReaderPanelPage {
+                ReaderPanelHeading("离线下载", detail: currentNovel.title)
+                ReaderPanelSection("已保存章节") {
+                    let layout = dynamicTypeSize >= .xxxLarge
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                        : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
+                    layout {
+                        Text(offlineStore.downloadedCount(for: currentNovel.id), format: .number)
+                            .font(serifFont(.largeTitle, .medium)).monospacedDigit()
+                            .foregroundStyle(ReadingSpace.ink)
+                        Text("/ \(chapters.count) 章")
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(ReadingSpace.profileMuted)
                     }
-                    if offlineStore.batchNovelID == currentNovel.id {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ProgressView(value: offlineStore.batchProgress)
-                                .tint(AppTheme.primary)
-                            Text("已处理 \(offlineStore.batchCompleted) / \(offlineStore.batchTotal) 章")
-                                .font(.footnote)
-                                .foregroundStyle(AppTheme.textSecondary)
-                            Text("已保存 \(offlineStore.batchCompleted - offlineStore.batchFailed) 章 · 失败 \(offlineStore.batchFailed) 章")
-                                .font(.footnote)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("已保存章节")
+                    .accessibilityValue("\(offlineStore.downloadedCount(for: currentNovel.id)) / \(chapters.count) 章")
+                }
+                if offlineStore.batchNovelID == currentNovel.id {
+                    ReaderPanelSection("下载进度") {
+                        ProgressView(value: offlineStore.batchProgress)
+                            .tint(AppTheme.primary)
+                            .accessibilityLabel("下载进度")
+                            .accessibilityValue("已处理 \(offlineStore.batchCompleted) / \(offlineStore.batchTotal) 章")
+                        ReaderPanelFact(title: "已处理", value: "\(offlineStore.batchCompleted) / \(offlineStore.batchTotal) 章")
+                        ReaderPanelNote("已保存 \(offlineStore.batchCompleted - offlineStore.batchFailed) 章 · 失败 \(offlineStore.batchFailed) 章")
                         Button("停止下载", systemImage: "stop.circle") {
                             offlineStore.cancelBatch()
                         }
-                    } else if downloadableChapters.isEmpty {
-                        Label("全部章节已保存", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(AppTheme.success)
-                    } else {
+                        .buttonStyle(ReaderPanelButtonStyle())
+                    }
+                } else if downloadableChapters.isEmpty {
+                    Label("全部章节已保存", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(AppTheme.success)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
                         Button("下载全部章节", systemImage: "arrow.down.circle") {
                             showOfflineOptions = false
                             startAllDownload()
                         }
+                        .buttonStyle(ReaderPanelButtonStyle(prominent: true))
                         .disabled(offlineStore.isBatchDownloading)
 
                         Button("选择章节", systemImage: "checklist") {
                             showOfflineOptions = false
                             enterOfflineSelection()
                         }
+                        .buttonStyle(ReaderPanelButtonStyle())
                         .disabled(offlineStore.isBatchDownloading)
 
                         if offlineStore.isBatchDownloading {
-                            Text("另一本书正在下载")
-                                .font(.footnote)
-                                .foregroundStyle(AppTheme.textSecondary)
+                            ReaderPanelNote("另一本书正在下载")
                         }
                     }
-                } header: {
-                    Text(currentNovel.title)
-                        .textCase(nil)
                 }
                 if let failed = offlineStore.failedBatch, failed.novel.id == currentNovel.id, !offlineStore.isBatchDownloading {
-                    Section {
-                        Button("重试失败的 \(failed.chapters.count) 章", systemImage: "arrow.clockwise") {
-                            Task { await offlineStore.retryFailed() }
-                        }
+                    Button("重试失败的 \(failed.chapters.count) 章", systemImage: "arrow.clockwise") {
+                        Task { await offlineStore.retryFailed() }
                     }
+                    .buttonStyle(ReaderPanelButtonStyle())
                 }
                 if let error = offlineStore.lastError {
-                    Section {
-                        Label(error, systemImage: "exclamationmark.circle")
-                            .foregroundStyle(AppTheme.danger)
+                    VStack(alignment: .leading, spacing: 12) {
+                        ReaderPanelNote(error, color: AppTheme.danger)
                         Button("好") { offlineStore.clearError() }
+                            .buttonStyle(ReaderPanelButtonStyle())
                     }
                 }
             }
-            .navigationTitle("离线下载")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("关闭", systemImage: "xmark") { showOfflineOptions = false }
@@ -343,7 +350,8 @@ struct NovelDetailView: View {
             }
         }
         .tint(AppTheme.primary)
-        .presentationDetents([.medium, .large])
+        .presentationBackground(ReadingSpace.profilePaper)
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
     }
 

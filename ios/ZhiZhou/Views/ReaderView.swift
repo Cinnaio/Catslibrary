@@ -337,7 +337,7 @@ struct ReaderView: View {
                 go(to: order)
             }
             .preferredColorScheme(scheme)
-            .presentationBackground(AppTheme.canvas)
+            .presentationBackground(ReadingSpace.profilePaper)
             .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         }
         .sheet(isPresented: $showBodySearch) {
@@ -366,7 +366,7 @@ struct ReaderView: View {
         .sheet(isPresented: $showEdge) {
             ReaderEdgeSheet(store: edgeStore)
                 .preferredColorScheme(scheme)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(ReadingSpace.profilePaper)
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -396,7 +396,7 @@ struct ReaderView: View {
                     }
                 )
                 .preferredColorScheme(scheme)
-                .presentationBackground(AppTheme.canvas)
+                .presentationBackground(ReadingSpace.profilePaper)
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationDragIndicator(.visible)
             } else if let chapter, let unmatched = thoughtsByParagraph[-1], !unmatched.isEmpty {

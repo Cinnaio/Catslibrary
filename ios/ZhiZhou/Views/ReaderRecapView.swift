@@ -22,6 +22,7 @@ struct ReaderRecapView: View {
     }
     let source: Source
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var status: ReaderAIStatus?
     @State private var text = ""
     @State private var message: String?
@@ -42,47 +43,73 @@ struct ReaderRecapView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            ReaderPanelPage {
+                ReaderPanelHeading(title)
                 if case .chapter(_, let chapterTitle) = source {
-                    Section { Text("回顾上一章：\(chapterTitle)").font(.subheadline).foregroundStyle(.secondary) }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("回顾上一章").font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                        Text(chapterTitle)
+                            .font(serifFont(.title3, .medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                if loading { ProgressView("读取已保存的提要…") }
+                if loading {
+                    ProgressView("读取已保存的提要…")
+                        .font(.subheadline).tint(AppTheme.primary)
+                }
                 if let error {
-                    Section {
-                        Text(error).foregroundStyle(AppTheme.danger)
-                        if status == nil { Button("重试") { attempt += 1 } }
+                    VStack(alignment: .leading, spacing: 12) {
+                        ReaderPanelNote(error, color: AppTheme.danger)
+                        if status == nil {
+                            Button("重试", systemImage: "arrow.clockwise") { attempt += 1 }
+                                .buttonStyle(ReaderPanelButtonStyle())
+                        }
                     }
                 }
                 if !text.isEmpty {
-                    Section {
-                        Text(text).textSelection(.enabled)
-                    } footer: { Text("AI 生成的内容可能遗漏细节，请以原文为准。") }
-                } else if let message { Text(message).foregroundStyle(.secondary) }
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text(text)
+                            .font(.body).foregroundStyle(ReadingSpace.ink)
+                            .lineSpacing(6)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                        ReaderPanelNote("AI 生成的内容可能遗漏细节，请以原文为准。")
+                    }
+                } else if let message {
+                    ReaderPanelNote(message)
+                }
                 if !loading && text.isEmpty && enabled && message == nil {
-                    Section {
+                    VStack(alignment: .leading, spacing: 14) {
                         Button { Task { await generate() } } label: {
-                            if generating { ProgressView("正在生成…") }
-                            else { Label("生成\(title)", systemImage: "sparkles") }
-                        }
-                        .disabled(generating)
-                    } footer: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("点击后请求 AI；命中缓存不计次数，生成新内容会使用今日额度。")
-                            if let quota = status?.quota, quota.limit > 0 {
-                                Text("今日已使用 \(quota.used) / \(quota.limit) 次")
+                            HStack(spacing: 10) {
+                                Group {
+                                    if generating { ProgressView() }
+                                    else { Image(systemName: "sparkles") }
+                                }
+                                .frame(width: 20).accessibilityHidden(true)
+                                Text("生成\(title)")
                             }
+                        }
+                        .buttonStyle(ReaderPanelButtonStyle(prominent: true))
+                        .disabled(generating)
+                        .accessibilityValue(generating ? "正在生成" : "")
+                        ReaderPanelNote("点击后请求 AI；命中缓存不计次数，生成新内容会使用今日额度。")
+                        if let quota = status?.quota, quota.limit > 0 {
+                            ReaderPanelFact(title: "今日已使用", value: "\(quota.used) / \(quota.limit) 次")
                         }
                     }
                 }
-                if !loading && status != nil && !enabled { Text("服务器暂未开放此功能。") }
+                if !loading && status != nil && !enabled {
+                    ReaderPanelNote("服务器暂未开放此功能。")
+                }
             }
-            .appListStyle(.settings)
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { dismiss() } } }
             .task(id: "\(ContentAccessStore.shared.revision):\(attempt)") { await load() }
         }
-        .presentationDetents([.medium, .large])
+        .presentationBackground(ReadingSpace.profilePaper)
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
     }
 
