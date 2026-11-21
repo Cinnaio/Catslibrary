@@ -41,25 +41,14 @@ struct AdminAIAgentConversationView: View {
                 ProgressView("读取对话…").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .safeAreaBar(edge: .top, spacing: 0) { context }
         .toolbarBackground(.hidden, for: .navigationBar)
         .scrollEdgeEffectHidden(true, for: .top)
         .background(usesWorkspaceSurface ? Color.clear : ReadingSpace.profilePaper)
-        .navigationTitle(model.session.novelTitle.isEmpty ? "对话创作" : model.session.novelTitle)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 2) {
-                    Text(model.session.novelTitle.isEmpty ? "对话创作" : model.session.novelTitle)
-                        .font(serifFont(.headline, .semibold)).foregroundStyle(ReadingSpace.ink)
-                        .lineLimit(1)
-                    Text("创作对话").font(.caption2).foregroundStyle(AppTheme.textSecondary)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityHint(model.session.title)
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { panel = .outputs } label: {
                     HStack(spacing: 4) {
@@ -75,10 +64,20 @@ struct AdminAIAgentConversationView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu("更多", systemImage: "ellipsis") {
-                    if !model.session.title.isEmpty { Text(model.session.title) }
-                    Button("作品记忆", systemImage: "bookmark") { panel = .memory }
-                    Button("会话设置", systemImage: "slider.horizontal.3") { panel = .settings }
+                    Section {
+                        if !model.session.title.isEmpty { Text(model.session.title) }
+                        Text(contextSummary)
+                    } header: {
+                        Text(model.session.novelTitle.isEmpty ? "对话创作" : model.session.novelTitle)
+                    }
+                    Section {
+                        Button(model.pendingMemoryCount > 0 ? "作品记忆 · \(model.pendingMemoryCount) 条待确认" : "作品记忆",
+                               systemImage: "bookmark") { panel = .memory }
+                        Button("会话设置", systemImage: "slider.horizontal.3") { panel = .settings }
+                    }
                 }
+                .labelStyle(.iconOnly)
+                .accessibilityHint("查看作品、续写起点、作品记忆和会话设置")
                 .disabled(!model.hasLoaded)
             }
         }
@@ -99,31 +98,6 @@ struct AdminAIAgentConversationView: View {
             await model.monitor()
         }
         .onDisappear { model.pause() }
-    }
-
-    private var context: some View {
-        AppAdaptiveRow(spacing: 10) {
-            Label(contextSummary, systemImage: "text.book.closed")
-                .font(.caption).foregroundStyle(AppTheme.textSecondary)
-                .appTextLineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button { panel = .memory } label: {
-                Label(model.pendingMemoryCount > 0 ? "记忆 · \(model.pendingMemoryCount)" : "作品记忆",
-                      systemImage: "bookmark")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(AppTheme.primary)
-                    .frame(minHeight: AppLayout.minimumTouchTarget)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("作品记忆")
-            .accessibilityValue(model.pendingMemoryCount > 0 ? "\(model.pendingMemoryCount) 条待确认" : "无待确认提议")
-            .disabled(!model.hasLoaded)
-        }
-        .padding(.horizontal, 20).padding(.vertical, 2)
-        .frame(maxWidth: 760, alignment: .leading)
-        .frame(maxWidth: .infinity)
     }
 
     private var contextSummary: String {
@@ -811,6 +785,7 @@ private struct AgentComposerView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("作品记忆")
+        .accessibilityValue(model.pendingMemoryCount > 0 ? "\(model.pendingMemoryCount) 条待确认" : "无待确认提议")
     }
 
     private func pendingMessage(_ pending: AIAgentPendingMessage) -> some View {

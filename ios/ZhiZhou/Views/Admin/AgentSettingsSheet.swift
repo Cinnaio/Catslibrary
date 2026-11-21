@@ -4,6 +4,7 @@ import ZhiZhouCore
 struct AgentSettingsSheet: View {
     let model: AdminAIAgentConversationModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var brief: String
     @State private var preferences: AIAgentPreferences
     @State private var updatedAt: Int64
@@ -11,6 +12,7 @@ struct AgentSettingsSheet: View {
     @State private var useForNewConversations = true
     @State private var saving = false
     @State private var error: String?
+    @FocusState private var briefFocused: Bool
 
     init(model: AdminAIAgentConversationModel) {
         self.model = model
@@ -22,63 +24,111 @@ struct AgentSettingsSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("取材范围") {
-                    LabeledContent("作品", value: model.session.novelTitle)
-                    LabeledContent("续写起点", value: model.session.anchorTitle.isEmpty ? "从头创作" : model.session.anchorTitle)
+            AgentPanelPage {
+                AgentPanelHeading("会话设置", detail: "为这次创作定下方向。")
+                AgentPanelSection("取材范围") {
+                    AppAdaptiveRow(spacing: 20) {
+                        AgentPanelFact(title: "作品", value: model.session.novelTitle.isEmpty ? "当前作品" : model.session.novelTitle)
+                        AgentPanelFact(title: "续写起点", value: anchorTitle)
+                    }
                 }
-                Section("创作约定") {
-                    TextField("文风、情节方向、需要保留的设定…", text: $brief, axis: .vertical).lineLimit(4...12)
-                    Text("\(brief.utf16.count) / 4000").font(.caption).foregroundStyle(brief.utf16.count > 4000 ? Color.red : AppTheme.textSecondary)
+                AgentPanelSection("创作约定") {
+                    AgentPanelField("文风与情节方向", isFocused: briefFocused) {
+                        TextField("文风、情节方向、需要保留的设定…", text: $brief, axis: .vertical)
+                            .lineLimit(5...12).focused($briefFocused)
+                            .accessibilityLabel("创作约定")
+                    }
+                    Text("\(brief.utf16.count) / 4000")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(brief.utf16.count > 4000 ? Color.red : ReadingSpace.profileMuted)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                Section {
-                    Picker("内容尺度", selection: $preferences.adultContentMode) {
-                        Text("常规").tag("off")
-                        Text("成人").tag("explicit")
+                AgentPanelSection("内容偏好") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("内容尺度").font(.subheadline.weight(.medium))
+                        if dynamicTypeSize >= .xxxLarge {
+                            contentModePicker.pickerStyle(.menu)
+                                .frame(minHeight: 44).labelsHidden().accessibilityLabel("内容尺度")
+                        } else {
+                            contentModePicker.pickerStyle(.segmented).frame(minHeight: 44)
+                        }
                     }
                     if preferences.adultContentMode == "explicit" {
-                        Picker("亲密描写比重", selection: $preferences.intimacyWeight) {
-                            Text("少量").tag("low")
-                            Text("适中").tag("medium")
-                            Text("较多").tag("high")
+                        AppAdaptiveRow(spacing: 12) {
+                            Text("亲密描写比重").frame(maxWidth: .infinity, alignment: .leading)
+                            Picker("亲密描写比重", selection: $preferences.intimacyWeight) {
+                                Text("少量").tag("low")
+                                Text("适中").tag("medium")
+                                Text("较多").tag("high")
+                            }
+                            .pickerStyle(.menu).labelsHidden().accessibilityLabel("亲密描写比重")
                         }
-                        Picker("叙事约束", selection: Binding(get: { preferences.consentRuleTier ?? "default" }, set: { preferences.consentRuleTier = $0 })) {
-                            Text("默认规则").tag("default")
-                            Text("虚构非自愿情节").tag("fictional_nonconsent")
+                        .frame(minHeight: 44)
+                        Divider().overlay(ReadingSpace.profileLine)
+                        AppAdaptiveRow(spacing: 12) {
+                            Text("叙事约束").frame(maxWidth: .infinity, alignment: .leading)
+                            Picker("叙事约束", selection: Binding(get: { preferences.consentRuleTier ?? "default" }, set: { preferences.consentRuleTier = $0 })) {
+                                Text("默认规则").tag("default")
+                                Text("虚构非自愿情节").tag("fictional_nonconsent")
+                            }
+                            .pickerStyle(.menu).labelsHidden().accessibilityLabel("叙事约束")
                         }
-                        Text("所有涉及成人内容的角色均为成年人。")
-                            .font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                        .frame(minHeight: 44)
+                        AgentPanelNotice("所有涉及成人内容的角色均为成年人。")
                     }
-                } header: { Text("内容偏好") } footer: {
-                    Text("作品发布仍遵循现有分级规则。")
+                    AgentPanelNotice("作品发布仍遵循现有分级规则。")
                 }
                 if bookSettingsRevision != nil {
-                    Section {
-                        Toggle("同时设为本书新对话的默认设置", isOn: $useForNewConversations)
-                            .disabled(saving || model.working || model.replying || model.sending)
+                    AgentPanelSection("下次创作") {
+                        Toggle(isOn: $useForNewConversations) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("设为本书新对话的默认设置").font(.subheadline.weight(.medium))
+                                Text("已有对话继续使用各自的设置。")
+                                    .font(.footnote).foregroundStyle(ReadingSpace.profileMuted)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .disabled(saving || model.working || model.replying || model.sending)
                     }
                 }
-                if model.replying { Text("请等待或停止当前回复后再保存设置。").font(.footnote) }
+                if model.replying { AgentPanelNotice("请等待或停止当前回复后再保存设置。") }
                 if let error {
-                    Section {
-                        Text(error).foregroundStyle(.red)
-                        Button("载入最新设置，替换当前编辑") { Task { await reload() } }.disabled(saving || model.working)
+                    VStack(alignment: .leading, spacing: 14) {
+                        AgentPanelNotice(error, isError: true)
+                        Button("载入最新设置，替换当前编辑") { Task { await reload() } }
+                            .buttonStyle(AgentPanelButtonStyle())
+                            .disabled(saving || model.working)
                     }
                 }
             }
-            .appListStyle(.settings)
-            .navigationTitle("会话设置")
-            .navigationBarTitleDisplayMode(.inline)
+            .disabled(saving)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(saving) }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { Task { await save() } }
-                        .disabled(saving || model.working || model.replying || model.sending || brief.utf16.count > 4000)
+                    Button {
+                        briefFocused = false
+                        Task { await save() }
+                    } label: {
+                        HStack(spacing: 6) { Text("保存"); if saving { ProgressView() } }
+                    }
+                    .disabled(saving || model.working || model.replying || model.sending || brief.utf16.count > 4000)
                 }
             }
             .onChange(of: preferences.adultContentMode) { _, _ in preferences = preferences.normalized }
             .interactiveDismissDisabled(saving)
         }
+    }
+
+    private var contentModePicker: some View {
+        Picker("内容尺度", selection: $preferences.adultContentMode) {
+            Text("常规").tag("off")
+            Text("成人").tag("explicit")
+        }
+    }
+
+    private var anchorTitle: String {
+        if !model.session.anchorTitle.isEmpty { return model.session.anchorTitle }
+        return model.session.afterChapterId.isEmpty ? "从头创作" : "原章节不可用"
     }
 
     private func save() async {

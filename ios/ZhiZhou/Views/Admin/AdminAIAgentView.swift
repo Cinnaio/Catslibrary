@@ -40,17 +40,12 @@ struct AdminAIAgentView: View {
         books.first(where: { $0.id == selectedID })?.title ?? (initialNovel?.id == selectedID ? initialNovel?.title : nil) ?? "选择小说"
     }
 
-    private var navigationTitle: String {
-        guard let activeSession, !activeSession.novelTitle.isEmpty else { return "对话创作" }
-        return activeSession.novelTitle
-    }
-
     var body: some View {
         Group {
             if appState.user?.isAdmin == true { workspace }
             else { ContentUnavailableView("需要管理员权限", systemImage: "lock.shield") }
         }
-        .navigationTitle(navigationTitle)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .task {
@@ -151,7 +146,7 @@ struct AdminAIAgentView: View {
             NavigationStack {
                 mainWorkspace(historyPresented: drawerOpen)
                     .background(ReadingSpace.profilePaper)
-                    .navigationTitle(navigationTitle)
+                    .navigationTitle("")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbarBackground(.hidden, for: .navigationBar)
                     .toolbar {

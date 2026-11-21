@@ -57,66 +57,68 @@ private struct AgentArtifactsView: View {
     private var history: [AIAgentAction] { model.actions.filter { !$0.canConfirm } }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 24) {
-                if let error = model.operationError {
-                    Text(error).font(.footnote).foregroundStyle(.red).textSelection(.enabled)
-                }
-                if let error = model.loadError {
-                    LoadErrorNotice(message: error, isLoading: model.isRefreshing) { Task { await model.refresh() } }
-                }
-                if !pendingActions.isEmpty { actionSection("待确认", actions: pendingActions) }
-                if !model.artifacts.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if !model.actions.isEmpty { sectionTitle("生成产出") }
-                        ForEach(model.artifacts) { artifact in
-                            NavigationLink(value: AgentOutputRoute.artifact(artifact.id)) {
-                                outputRow(artifact)
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(model.working)
-                        }
+        AgentPanelPage {
+            AgentPanelHeading("产出与采纳", detail: "先读内容，再决定如何用到作品里。")
+            if let error = model.operationError { AgentPanelNotice(error, isError: true) }
+            if let error = model.loadError {
+                LoadErrorNotice(message: error, isLoading: model.isRefreshing) { Task { await model.refresh() } }
+            }
+            if !pendingActions.isEmpty {
+                AgentPanelSection("等待你的确认", count: pendingActions.count) {
+                    ForEach(Array(pendingActions.enumerated()), id: \.element.id) { index, action in
+                        actionRow(action).readingSpaceEntrance(index)
                     }
                 }
-                if !history.isEmpty { actionSection("采纳记录", actions: history) }
-                if model.artifacts.isEmpty, model.actions.isEmpty, model.loadError == nil {
-                    ContentUnavailableView("还没有产出", systemImage: "doc.on.doc",
-                        description: Text("生成的草稿、改写建议和封面候选会出现在这里。"))
+            }
+            if !model.artifacts.isEmpty {
+                AgentPanelSection("生成产出", count: model.artifacts.count) {
+                    ForEach(Array(model.artifacts.enumerated()), id: \.element.id) { index, artifact in
+                        NavigationLink(value: AgentOutputRoute.artifact(artifact.id)) { outputRow(artifact) }
+                            .buttonStyle(.plain).disabled(model.working).readingSpaceEntrance(index)
+                        if index < model.artifacts.count - 1 { Divider().overlay(ReadingSpace.profileLine) }
+                    }
                 }
             }
-            .padding(.horizontal, 20).padding(.vertical, 16)
-            .frame(maxWidth: AppLayout.readableWidth, alignment: .leading)
-            .frame(maxWidth: .infinity)
+            if !history.isEmpty {
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(history) { action in actionRow(action) }
+                    }
+                    .padding(.top, 12)
+                } label: {
+                    Text("采纳记录 · \(history.count)")
+                        .font(.subheadline.weight(.medium)).frame(minHeight: 44)
+                }
+            }
+            if model.artifacts.isEmpty, model.actions.isEmpty, model.loadError == nil {
+                ContentUnavailableView("还没有产出", systemImage: "doc.on.doc",
+                    description: Text("生成的草稿、改写建议和封面候选会出现在这里。"))
+            }
         }
-        .background(AppTheme.canvas)
-        .navigationTitle("产出与采纳")
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("刷新列表", systemImage: "arrow.clockwise") { Task { await model.refresh() } }
-                    .disabled(model.isRefreshing)
+                Button { Task { await model.refresh() } } label: {
+                    if model.isRefreshing { ProgressView() } else { Image(systemName: "arrow.clockwise") }
+                }
+                .accessibilityLabel("刷新列表").disabled(model.isRefreshing)
             }
         }
         .refreshable { await model.refresh() }
     }
 
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.textSecondary)
-            .padding(.bottom, 4).accessibilityAddTraits(.isHeader)
-    }
-
-    private func actionSection(_ title: String, actions: [AIAgentAction]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            sectionTitle(title)
-            ForEach(actions) { action in
-                Button { Task { await model.openAction(action.id) } } label: {
-                    AgentOutputRow(title: action.title, subtitle: AgentDisplay.status(action.status),
-                                   symbol: action.canConfirm ? "checkmark.circle" : "clock.arrow.circlepath", highlighted: action.canConfirm)
+    private func actionRow(_ action: AIAgentAction) -> some View {
+        Button { Task { await model.openAction(action.id) } } label: {
+            AgentOutputRow(title: action.title, subtitle: AgentDisplay.status(action.status),
+                           symbol: action.canConfirm ? "checkmark.circle" : "clock.arrow.circlepath", highlighted: action.canConfirm)
+                .padding(action.canConfirm ? 16 : 0)
+                .background(action.canConfirm ? ReadingSpace.paper : Color.clear, in: RoundedRectangle(cornerRadius: 20))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20)
+                        .strokeBorder(action.canConfirm ? ReadingSpace.profileLine : Color.clear, lineWidth: 1)
+                        .allowsHitTesting(false)
                 }
-                .buttonStyle(.plain)
-                .disabled(model.working)
-            }
         }
+        .buttonStyle(.plain).disabled(model.working)
     }
 
     private func outputRow(_ artifact: AIAgentArtifact) -> some View {
@@ -146,23 +148,22 @@ private struct AgentOutputRow: View {
     var highlighted = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 14) {
             Image(systemName: symbol)
                 .font(.body)
-                .foregroundStyle(highlighted ? AppTheme.primaryDeep : AppTheme.textSecondary)
-                .frame(width: 38, height: 38)
-                .background(highlighted ? AppTheme.primaryLight : AppTheme.surfaceSecondary, in: RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(highlighted ? AppTheme.primary : ReadingSpace.profileMuted)
+                .frame(width: 36, height: 40)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(verbatim: title).font(.body.weight(.medium)).foregroundStyle(AppTheme.textPrimary)
-                Text(verbatim: subtitle).font(.footnote).foregroundStyle(highlighted ? AppTheme.primaryDeep : AppTheme.textSecondary)
+            VStack(alignment: .leading, spacing: 7) {
+                Text(verbatim: title).font(serifFont(.headline, .medium)).foregroundStyle(ReadingSpace.ink)
+                Text(verbatim: subtitle).font(.footnote).foregroundStyle(highlighted ? AppTheme.primary : ReadingSpace.profileMuted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
-            Image(systemName: "chevron.right").font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.textSecondary).accessibilityHidden(true)
+            Image(systemName: "chevron.right").font(.caption.weight(.medium))
+                .foregroundStyle(ReadingSpace.profileMuted).frame(height: 40).accessibilityHidden(true)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .frame(minHeight: AppLayout.minimumTouchTarget)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -181,16 +182,12 @@ private struct AgentArtifactDetail: View {
     var body: some View {
         Group {
             if let artifact {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        if let error = model.operationError ?? model.artifactErrors[artifactID] {
-                            Text(error).font(.footnote).foregroundStyle(.red).textSelection(.enabled)
-                        }
-                        AgentArtifactContent(model: model, artifact: artifact, returnToConversation: returnToConversation)
+                AgentPanelPage {
+                    if let error = model.operationError ?? model.artifactErrors[artifactID] {
+                        AgentPanelNotice(error, isError: true)
                     }
-                    .padding(20).frame(maxWidth: AppLayout.readableWidth, alignment: .leading).frame(maxWidth: .infinity)
+                    AgentArtifactContent(model: model, artifact: artifact, returnToConversation: returnToConversation)
                 }
-                .scrollDismissesKeyboard(.interactively)
                 .refreshable { await load() }
             } else if !attemptedLoad || isLoading {
                 ProgressView("读取产出…").frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -204,9 +201,7 @@ private struct AgentArtifactDetail: View {
                 }
             }
         }
-        .background(AppTheme.canvas)
-        .navigationTitle(artifact.map { AgentDisplay.kind($0.task.kind) } ?? "产出详情")
-        .navigationBarTitleDisplayMode(.inline)
+        .agentPanelSurface()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if isLoading, artifact != nil {
@@ -240,15 +235,17 @@ private struct AgentArtifactContent: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 28) {
+            Text(AgentDisplay.kind(task.kind)).font(.caption.weight(.medium))
+                .foregroundStyle(ReadingSpace.profileMuted)
             if task.status != "completed" || !task.error.isEmpty { AgentTaskStatusView(task: task) }
             if task.isRunning {
                 Button("停止此任务", systemImage: "stop.circle") { Task { await model.stop(task.id) } }
-                    .disabled(model.working).frame(minHeight: 44)
+                    .buttonStyle(AgentPanelButtonStyle()).disabled(model.working)
             }
             if let progress = task.progress, !progress.preview.isEmpty, task.status != "completed" {
                 DisclosureGroup(task.isRunning ? "生成中的预览" : "未完成的预览") {
-                    Text(verbatim: progress.preview).font(.callout).textSelection(.enabled).padding(.top, 8)
+                    Text(verbatim: progress.preview).font(.callout).textSelection(.enabled).lineSpacing(5).padding(.top, 12)
                 }
             }
             ForEach(artifact.drafts) { draft in
@@ -256,83 +253,94 @@ private struct AgentArtifactContent: View {
                                      returnToConversation: returnToConversation)
             }
             if let report = artifact.analysisReport {
+                AgentPanelHeading(report.title)
                 if let analysisURL {
                     Link(destination: analysisURL) {
-                        AgentOutputRow(title: report.title, subtitle: "阅读报告", symbol: "text.magnifyingglass")
+                        Label("阅读分析报告", systemImage: "arrow.up.right")
                     }
+                    .buttonStyle(AgentPanelButtonStyle())
                 } else {
-                    Label("暂时无法打开报告", systemImage: "doc.text.magnifyingglass")
-                        .font(.subheadline).foregroundStyle(AppTheme.textSecondary)
+                    AgentPanelNotice("暂时无法打开报告")
                 }
             }
-            if let rewrite = artifact.rewrite {
-                rewriteResult(rewrite)
-            }
+            if let rewrite = artifact.rewrite { rewriteResult(rewrite) }
             if let edit = artifact.chapterEdit {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("原章节：\(edit.chapterTitle)").font(.headline)
-                    AgentPlainPreview(title: "修改前", text: edit.before)
+                VStack(alignment: .leading, spacing: 20) {
+                    AgentPanelHeading(edit.chapterTitle, detail: "章节修改建议")
+                    NavigationLink {
+                        AgentTextComparison(title: "章节修改对照", beforeTitle: "原章节", afterTitle: "建议正文", before: edit.before, after: edit.after)
+                    } label: {
+                        Label("对照原章节", systemImage: "rectangle.split.2x1")
+                    }
+                    .buttonStyle(AgentPanelButtonStyle())
                     AgentPlainPreview(title: "建议正文", text: edit.after)
                     Button("预览写回原章节") { Task { await model.prepare(.applyChapterEdit, targetID: artifact.id) } }
-                        .buttonStyle(.bordered).frame(minHeight: 44).disabled(model.working)
+                        .buttonStyle(AgentPanelButtonStyle(prominent: true)).disabled(model.working)
                 }
             }
-            ForEach(artifact.covers) { cover in
-                VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(artifact.covers.enumerated()), id: \.element.id) { index, cover in
+                VStack(alignment: .leading, spacing: 20) {
+                    AgentPanelHeading(artifact.covers.count > 1 ? "封面候选 \(index + 1)" : "封面候选")
                     AgentCoverPreview(sessionID: model.sessionID, candidateID: cover.id)
-                    DisclosureGroup("画面描述") { Text(verbatim: cover.prompt).font(.callout).textSelection(.enabled) }
+                        .frame(maxWidth: .infinity)
+                    DisclosureGroup {
+                        Text(verbatim: cover.prompt).font(.callout).lineSpacing(5).textSelection(.enabled).padding(.top, 12)
+                    } label: {
+                        Text("画面描述").font(.subheadline).frame(minHeight: 44)
+                    }
                     Button("预览设为封面") { Task { await model.prepare(.adoptCover, targetID: cover.id) } }
-                        .buttonStyle(.bordered).frame(minHeight: 44).disabled(model.working)
+                        .buttonStyle(AgentPanelButtonStyle(prominent: true)).disabled(model.working)
                 }
             }
             if task.status == "completed", artifact.drafts.isEmpty, artifact.covers.isEmpty, artifact.rewrite == nil, artifact.chapterEdit == nil, artifact.analysisReport == nil {
-                Text(task.kind == "cover" ? "候选可能已采纳或移除，可在产出与采纳中查看记录。" : "任务已完成，详细结果可在 AI 任务中查看。")
-                    .font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                AgentPanelNotice(task.kind == "cover" ? "候选可能已采纳或移除，可在产出与采纳中查看记录。" : "任务已完成，详细结果可在 AI 任务中查看。")
                 NavigationLink("查看 AI 任务") { AdminAITasksView() }
+                    .buttonStyle(AgentPanelButtonStyle())
             }
         }
     }
 
     private func rewriteResult(_ rewrite: AIAgentArtifact.Rewrite) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            AppAdaptiveRow(spacing: 12) {
-                Text("改写后").font(serifFont(.title3, .semibold))
-                    .accessibilityAddTraits(.isHeader)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                NavigationLink {
-                    AgentRewriteComparison(rewrite: rewrite)
-                } label: {
-                    Label("对照原文", systemImage: "text.alignleft")
-                        .font(.subheadline).frame(minHeight: AppLayout.minimumTouchTarget)
-                }
+        VStack(alignment: .leading, spacing: 20) {
+            AgentPanelHeading("改写建议", detail: "阅读新版文字，或展开原文逐段对照。")
+            NavigationLink {
+                AgentTextComparison(title: "原文与改写", beforeTitle: "原文", afterTitle: "改写后", before: rewrite.before, after: rewrite.after)
+            } label: {
+                Label("对照原文", systemImage: "rectangle.split.2x1")
             }
-            if let warning = rewrite.minimumLengthWarning {
-                Text(verbatim: warning).font(.footnote).foregroundStyle(AppTheme.textSecondary)
-            }
-            Text(verbatim: rewrite.after).textSelection(.enabled).lineSpacing(5)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(AgentPanelButtonStyle())
+            if let warning = rewrite.minimumLengthWarning { AgentPanelNotice(warning) }
+            AgentPlainPreview(title: "改写后", text: rewrite.after)
             Button { Task { await model.prepare(.applyRewrite, targetID: artifact.id) } } label: {
-                Text("预览采纳").frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+                Text("预览采纳")
             }
-            .buttonStyle(.borderedProminent).disabled(model.working)
+            .buttonStyle(AgentPanelButtonStyle(prominent: true)).disabled(model.working)
         }
     }
 }
 
-private struct AgentRewriteComparison: View {
-    let rewrite: AIAgentArtifact.Rewrite
+private struct AgentTextComparison: View {
+    let title: String
+    let beforeTitle: String
+    let afterTitle: String
+    let before: String
+    let after: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                AgentPlainPreview(title: "原文", text: rewrite.before)
-                AgentPlainPreview(title: "改写后", text: rewrite.after)
+        GeometryReader { geometry in
+            AgentPanelPage {
+                AgentPanelHeading(title)
+                let layout = geometry.size.width >= 820 && dynamicTypeSize < .xxxLarge
+                    ? AnyLayout(HStackLayout(alignment: .top, spacing: 24))
+                    : AnyLayout(VStackLayout(alignment: .leading, spacing: 28))
+                layout {
+                    AgentPlainPreview(title: beforeTitle, text: before)
+                    AgentPlainPreview(title: afterTitle, text: after)
+                }
             }
-            .padding(20).frame(maxWidth: AppLayout.readableWidth, alignment: .leading).frame(maxWidth: .infinity)
         }
-        .background(AppTheme.canvas)
-        .navigationTitle("原文与改写")
-        .navigationBarTitleDisplayMode(.inline)
+        .agentPanelSurface()
     }
 }
 
@@ -343,6 +351,7 @@ private struct AgentDraftResultView: View {
     let returnToConversation: () -> Void
     @State private var title: String
     @State private var showsPublishFields = false
+    @FocusState private var titleFocused: Bool
 
     init(model: AdminAIAgentConversationModel, draft: AIAgentArtifact.Draft, publishable: Bool, returnToConversation: @escaping () -> Void) {
         self.model = model
@@ -359,37 +368,37 @@ private struct AgentDraftResultView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: draft.title).font(serifFont(.title2, .semibold))
-                    .foregroundStyle(AppTheme.textPrimary).accessibilityAddTraits(.isHeader)
-                Text(draft.status == "draft" ? "未发布" : "已发布")
-                    .font(.subheadline).foregroundStyle(AppTheme.textSecondary)
-            }
+        VStack(alignment: .leading, spacing: 24) {
+            AgentPanelHeading(draft.title, detail: draft.status == "draft" ? "未发布草稿" : "已发布章节")
             let opening = excerpt
             if let warning = draft.minimumLengthWarning {
-                Text(verbatim: warning).font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                AgentPanelNotice(warning)
             } else if let length = draft.lengthCheck {
                 let target = length.minimumWords.map { "要求至少 \($0) 字" } ?? length.targetWords.map { "目标约 \($0) 字" } ?? ""
-                Text("正文 \(length.actualWords) 字（\(target)）").font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                Text(target.isEmpty ? "正文 \(length.actualWords) 字" : "正文 \(length.actualWords) 字 · \(target)")
+                    .font(.footnote).foregroundStyle(ReadingSpace.profileMuted)
             }
             if !opening.isEmpty {
-                Text(verbatim: opening).font(serifFont(.body)).lineSpacing(7).appTextLineLimit(5)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("正文节选").font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                    Text(verbatim: opening).font(serifFont(.body)).lineSpacing(7).appTextLineLimit(5)
+                        .foregroundStyle(ReadingSpace.ink).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(18)
+                .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 20))
             }
-            NavigationLink {
-                draftReader
-            } label: {
+            NavigationLink { draftReader } label: {
                 Label("阅读全文", systemImage: "doc.plaintext")
-                    .frame(minHeight: AppLayout.minimumTouchTarget)
             }
+            .buttonStyle(AgentPanelButtonStyle())
             if publishable && draft.status == "draft" {
-                DisclosureGroup("核对草稿") {
+                Divider().overlay(ReadingSpace.profileLine)
+                DisclosureGroup {
                     AgentDraftReviewContent(model: model, draft: draft, returnToConversation: returnToConversation)
                         .id(draft.revision)
+                } label: {
+                    Label("核对草稿", systemImage: "text.magnifyingglass")
+                        .font(.subheadline.weight(.medium)).frame(minHeight: 44)
                 }
                 publishFields
             }
@@ -397,46 +406,36 @@ private struct AgentDraftResultView: View {
     }
 
     private var draftReader: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(verbatim: draft.title).font(serifFont(.title2, .semibold)).accessibilityAddTraits(.isHeader)
-                Text(verbatim: draft.content).font(serifFont(.body)).textSelection(.enabled).lineSpacing(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .foregroundStyle(ReadingSpace.ink)
-            .padding(24).frame(maxWidth: AppLayout.readableWidth, alignment: .leading)
-            .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
-            .padding(.horizontal, 16).padding(.vertical, 20).frame(maxWidth: .infinity)
+        AgentPanelPage {
+            AgentPanelHeading(draft.title)
+            Text(verbatim: draft.content).font(serifFont(.body)).textSelection(.enabled).lineSpacing(8)
+                .foregroundStyle(ReadingSpace.ink).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(ReadingSpace.canvas)
-        .navigationTitle("草稿全文")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var publishFields: some View {
         DisclosureGroup(isExpanded: $showsPublishFields) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("发布章节标题").font(.subheadline).foregroundStyle(AppTheme.textSecondary)
-                TextField("输入章节标题", text: $title, axis: .vertical).lineLimit(1...3)
-                    .frame(minHeight: AppLayout.fieldMinHeight)
-                    .padding(.horizontal, AppLayout.fieldHorizontalInset)
-                    .appFieldSurface().accessibilityLabel("发布章节标题")
-                    .disabled(model.working)
+            VStack(alignment: .leading, spacing: 16) {
+                AgentPanelField("发布章节标题", isFocused: titleFocused) {
+                    TextField("输入章节标题", text: $title, axis: .vertical).lineLimit(1...3).focused($titleFocused)
+                        .accessibilityLabel("发布章节标题").disabled(model.working)
+                }
                 if title.utf16.count > 200 {
-                    Text("章节标题过长，请缩短后再预览。").font(.footnote).foregroundStyle(AppTheme.warning)
+                    AgentPanelNotice("章节标题过长，请缩短后再预览。", isError: true)
                 }
                 Button {
+                    titleFocused = false
                     Task { await model.prepare(.publishDraft, targetID: draft.id, title: title) }
                 } label: {
-                    Text("预览发布章节").frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+                    Text("预览发布章节")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(AgentPanelButtonStyle(prominent: true))
                 .disabled(model.working || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || title.utf16.count > 200)
             }
-            .padding(.top, 8)
+            .padding(.top, 16)
         } label: {
             Label("准备发布", systemImage: "square.and.arrow.up")
-                .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                .font(.subheadline.weight(.medium)).frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
         }
     }
 }
@@ -451,32 +450,43 @@ private struct AgentDraftReviewContent: View {
     @State private var requestVersion = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("核对任务保存的作者要求和作品资料。检查会调用文本模型，完整结果可复用。")
-                .font(.footnote).foregroundStyle(AppTheme.textSecondary)
-            Button(checking ? "正在检查…" : "检查草稿") { Task { await load(run: true) } }
-                .frame(minHeight: AppLayout.minimumTouchTarget)
-                .disabled(checking || model.working)
-            if let error { Text(verbatim: error).font(.footnote).foregroundStyle(.red) }
+        VStack(alignment: .leading, spacing: 20) {
+            AgentPanelNotice("核对任务保存的作者要求和作品资料。检查会调用文本模型，完整结果可复用。")
+            Button { Task { await load(run: true) } } label: {
+                HStack(spacing: 8) { Text(checking ? "正在检查…" : "检查草稿"); if checking { ProgressView() } }
+            }
+            .buttonStyle(AgentPanelButtonStyle()).disabled(checking || model.working)
+            if let error { AgentPanelNotice(error, isError: true) }
             if let report {
                 let stale = report.stale == true || report.draftRevision != draft.revision
-                if stale { Text("草稿或来源已变化，请重新检查。").font(.footnote) }
-                if report.completeness == "partial" { Text("检查结果不完整，下方仅显示通过校验的条目。").font(.footnote) }
+                if stale { AgentPanelNotice("草稿或来源已变化，请重新检查。") }
+                if report.completeness == "partial" { AgentPanelNotice("检查结果不完整，下方仅显示通过校验的条目。") }
                 if report.findings.isEmpty && report.completeness != "partial" {
-                    Text("本次材料范围内未发现有依据的问题。").font(.footnote)
+                    Label("本次材料范围内未发现有依据的问题。", systemImage: "checkmark.circle")
+                        .font(.subheadline).foregroundStyle(ReadingSpace.ink)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(report.findings.indices, id: \.self) { index in
                     let finding = report.findings[index]
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(finding.label).font(.subheadline.weight(.semibold))
-                        Text(verbatim: finding.description)
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(finding.label).font(serifFont(.title3, .medium)).accessibilityAddTraits(.isHeader)
+                        Text(verbatim: finding.description).lineSpacing(5).textSelection(.enabled)
                         if !finding.draftQuote.isEmpty {
                             AgentPlainPreview(title: "草稿原文", text: finding.draftQuote)
                         }
-                        ForEach(finding.evidence.indices, id: \.self) { evidenceIndex in
-                            let evidence = finding.evidence[evidenceIndex]
-                            let title = report.sources.first(where: { $0.id == evidence.sourceId })?.title ?? "引用依据"
-                            AgentPlainPreview(title: title, text: evidence.quote)
+                        if !finding.evidence.isEmpty {
+                            DisclosureGroup {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    ForEach(finding.evidence.indices, id: \.self) { evidenceIndex in
+                                        let evidence = finding.evidence[evidenceIndex]
+                                        let title = report.sources.first(where: { $0.id == evidence.sourceId })?.title ?? "引用依据"
+                                        AgentPlainPreview(title: title, text: evidence.quote)
+                                    }
+                                }
+                                .padding(.top, 12)
+                            } label: {
+                                Text("引用依据 · \(finding.evidence.count)").font(.subheadline).frame(minHeight: 44)
+                            }
                         }
                         if !stale && !finding.draftQuote.isEmpty {
                             Button("带到对话中修改") {
@@ -485,14 +495,16 @@ private struct AgentDraftReviewContent: View {
                                 model.localDraft.input = input.isEmpty ? prompt : input + "\n\n" + prompt
                                 returnToConversation()
                             }
-                            .frame(minHeight: AppLayout.minimumTouchTarget)
-                            .disabled(model.working)
+                            .buttonStyle(AgentPanelButtonStyle()).disabled(model.working)
                         }
                     }
+                    .padding(.vertical, 12)
+                    .readingSpaceEntrance(index)
+                    if index < report.findings.count - 1 { Divider().overlay(ReadingSpace.profileLine) }
                 }
             }
         }
-        .padding(.top, 8)
+        .padding(.top, 16)
         .task { await load(run: false) }
     }
 
@@ -517,17 +529,26 @@ private struct AgentDraftReviewContent: View {
 struct AgentPlainPreview: View {
     let title: String
     let text: String
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.textSecondary)
-            Text(verbatim: text).textSelection(.enabled).lineSpacing(5).frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.caption.weight(.medium)).foregroundStyle(ReadingSpace.profileMuted)
+                .accessibilityAddTraits(.isHeader)
+            Text(verbatim: text).font(serifFont(.body)).foregroundStyle(ReadingSpace.ink)
+                .textSelection(.enabled).lineSpacing(7).frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.leading, 16)
+        .overlay(alignment: .leading) {
+            Rectangle().fill(ReadingSpace.profileLine).frame(width: 2).allowsHitTesting(false)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 struct AgentCoverPreview: View {
     let sessionID: String
     let candidateID: String
+
     var body: some View {
         CachedAsyncImage(url: AdminAgentAPI.coverURL(sessionID: sessionID, candidateID: candidateID),
                          targetSize: CGSize(width: 300, height: 420)) { image in
@@ -537,12 +558,15 @@ struct AgentCoverPreview: View {
                 Image(systemName: "photo").font(.largeTitle)
                 Text("封面预览").font(.caption)
             }
-            .foregroundStyle(AppTheme.textSecondary)
+            .foregroundStyle(ReadingSpace.profileMuted)
             .frame(maxWidth: .infinity, minHeight: 220)
-            .background(AppTheme.surfaceSecondary)
+            .background(ReadingSpace.profileFill)
         }
         .frame(maxWidth: 300, maxHeight: 420)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18).strokeBorder(ReadingSpace.profileLine, lineWidth: 1).allowsHitTesting(false)
+        }
         .accessibilityLabel("候选封面")
     }
 }
@@ -586,56 +610,53 @@ private struct AgentActionPreview: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(action.title).font(serifFont(.title2, .semibold)).accessibilityAddTraits(.isHeader)
-                    Text("作品：\(model.session.novelTitle)").font(.subheadline).foregroundStyle(AppTheme.textSecondary)
-                    if let draftTitle { Text("草稿：\(draftTitle)").font(.subheadline).foregroundStyle(AppTheme.textSecondary) }
-                    Text(action.preview.description)
-                }
-                Label(AgentDisplay.status(action.status), systemImage: action.status == "completed" ? "checkmark.circle" : "doc.text")
-                    .font(.subheadline).foregroundStyle(action.status == "completed" ? AppTheme.success : AppTheme.textSecondary)
-                if let before = action.preview.before { AgentPlainPreview(title: "修改前", text: before) }
-                if let after = action.preview.after { AgentPlainPreview(title: action.kind == .publishDraft ? "发布内容" : "修改后", text: after) }
-                if let id = action.preview.candidateId { AgentCoverPreview(sessionID: model.sessionID, candidateID: id) }
-                if !action.error.isEmpty { Text(verbatim: action.error).foregroundStyle(.red).textSelection(.enabled) }
-                if let error = model.operationError { Text(error).foregroundStyle(.red).textSelection(.enabled) }
-                controls
+        AgentPanelPage {
+            AgentPanelHeading(action.title, detail: action.preview.description)
+            AppAdaptiveRow(spacing: 20) {
+                AgentPanelFact(title: "作品", value: model.session.novelTitle)
+                if let draftTitle { AgentPanelFact(title: "草稿", value: draftTitle) }
             }
-            .padding(20).frame(maxWidth: 820, alignment: .leading).frame(maxWidth: .infinity)
+            Label(AgentDisplay.status(action.status), systemImage: action.status == "completed" ? "checkmark.circle" : "doc.text")
+                .font(.subheadline).foregroundStyle(action.status == "completed" ? AppTheme.success : ReadingSpace.profileMuted)
+            if let before = action.preview.before { AgentPlainPreview(title: "修改前", text: before) }
+            if let after = action.preview.after { AgentPlainPreview(title: action.kind == .publishDraft ? "发布内容" : "修改后", text: after) }
+            if let id = action.preview.candidateId {
+                AgentCoverPreview(sessionID: model.sessionID, candidateID: id).frame(maxWidth: .infinity)
+            }
+            if !action.error.isEmpty { AgentPanelNotice(action.error, isError: true) }
+            if let error = model.operationError { AgentPanelNotice(error, isError: true) }
+            Divider().overlay(ReadingSpace.profileLine)
+            controls
         }
         .id(action.id)
-        .background(AppTheme.canvas)
-        .navigationTitle("预览与确认")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             if action.canConfirm {
+                Text("确认操作").font(serifFont(.title3, .medium)).accessibilityAddTraits(.isHeader)
                 Button { Task { await model.confirm(action) } } label: {
-                    HStack { Text(confirmLabel); if model.working { ProgressView() } }
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }.buttonStyle(.borderedProminent).disabled(model.working)
+                    HStack(spacing: 8) { Text(confirmLabel); if model.working { ProgressView() } }
+                }
+                .buttonStyle(AgentPanelButtonStyle(prominent: true)).disabled(model.working)
             }
             if action.status == "pending" {
                 Button("放弃这次采纳", role: .destructive) { Task { await model.reject(action) } }
-                    .frame(minHeight: 44).disabled(model.working)
+                    .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44).disabled(model.working)
             }
             if action.status == "completed", action.kind == .applyChapterEdit || action.kind == .restoreChapter {
                 Button("预览恢复修改前的章节") { Task { await model.prepare(.restoreChapter, targetID: action.id) } }
-                    .buttonStyle(.bordered).disabled(model.working)
+                    .buttonStyle(AgentPanelButtonStyle()).disabled(model.working)
             }
             if action.status == "completed", action.kind == .applyRewrite || action.kind == .restoreDraft {
                 Button("预览恢复修改前的草稿") { Task { await model.prepare(.restoreDraft, targetID: action.id) } }
-                    .frame(minHeight: 44).disabled(model.working)
+                    .buttonStyle(AgentPanelButtonStyle()).disabled(model.working)
             }
             if action.status == "failed" {
-                Text("请核对当前内容，返回产出区重新预览；已变化的版本不会被覆盖。")
-                    .font(.footnote).foregroundStyle(AppTheme.textSecondary)
+                AgentPanelNotice("请核对当前内容，返回产出区重新预览；已变化的版本不会被覆盖。")
             }
-            Button("刷新操作状态") { Task { await model.openAction(action.id) } }.frame(minHeight: 44).disabled(model.working)
+            Button("刷新操作状态", systemImage: "arrow.clockwise") { Task { await model.openAction(action.id) } }
+                .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44).disabled(model.working)
         }
     }
 }
