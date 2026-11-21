@@ -11,6 +11,7 @@ struct NovelDetailView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .caption) private var chapterNumberWidth: CGFloat = 24
 
     @State private var chapters: [ChapterMeta] = []
     @State private var isLoading = true
@@ -418,7 +419,7 @@ struct NovelDetailView: View {
 
     private func chapterRowLabel(_ chapter: ChapterMeta, selectionMode: Bool) -> some View {
         let isCurrent = chapter.id == progress?.chapterId
-        return HStack(alignment: .center, spacing: 14) {
+        return HStack(alignment: .center, spacing: selectionMode ? 14 : 10) {
             if selectionMode {
                 selectionIndicator(for: chapter)
                     .highPriorityGesture(selectionGesture(for: chapter))
@@ -427,7 +428,7 @@ struct NovelDetailView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(isCurrent ? AppTheme.primaryDeep : ReadingSpace.profileMuted)
                     .fixedSize(horizontal: true, vertical: false)
-                    .frame(minWidth: 28, alignment: .trailing)
+                    .frame(minWidth: chapterNumberWidth, alignment: .leading)
                     .accessibilityLabel("第 \(chapter.order) 章")
             }
 

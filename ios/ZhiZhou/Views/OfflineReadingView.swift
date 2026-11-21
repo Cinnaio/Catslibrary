@@ -4,6 +4,7 @@ import SwiftUI
 struct OfflineReadingView: View {
     @Environment(OfflineReadingStore.self) private var offlineStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .caption) private var chapterNumberWidth: CGFloat = 24
     @State private var showClearConfirm = false
     @State private var isRemovingAll = false
     @State private var expandedBookIDs: Set<String> = []
@@ -81,7 +82,8 @@ struct OfflineReadingView: View {
                                 }
                                 .navigationLinkIndicatorVisibility(.hidden)
                                 .readingSpaceEntrance(index)
-                                .listRowInsets(EdgeInsets(top: 12, leading: 34, bottom: 12, trailing: 22))
+                                .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))
+                                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                                 .listRowSeparatorTint(ReadingSpace.profileLine)
                                 .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) {
@@ -482,11 +484,12 @@ struct OfflineReadingView: View {
     }
 
     private func chapterRow(_ chapter: ChapterMeta) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Text("\(chapter.order)")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(ReadingSpace.profileMuted)
-                .frame(minWidth: 28, alignment: .trailing)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(minWidth: chapterNumberWidth, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(chapter.title)
