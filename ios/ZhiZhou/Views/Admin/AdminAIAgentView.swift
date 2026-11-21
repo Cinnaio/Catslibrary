@@ -85,25 +85,31 @@ struct AdminAIAgentView: View {
                 if !isWide {
                     historySidebar(isPresented: drawerOpen)
                         .frame(width: historyWidth)
-                        .opacity(drawerOpen ? 1 : 0)
                         .allowsHitTesting(drawerOpen)
                         .accessibilityHidden(!drawerOpen)
                         .accessibilityAction(.escape) { setHistoryVisible(false) }
                 }
 
                 HStack(spacing: 0) {
-                    if isWide && sidebarExpanded {
-                        historySidebar(isPresented: true)
+                    if isWide {
+                        historySidebar(isPresented: sidebarExpanded)
+                            .animation(nil, value: sidebarExpanded)
+                            .geometryGroup()
                             .frame(width: 300)
-                            .transition(sidebarTransition)
+                            .frame(width: sidebarExpanded ? 300 : 0, alignment: .leading)
+                            .clipped()
+                            .allowsHitTesting(sidebarExpanded)
+                            .accessibilityHidden(!sidebarExpanded)
                     }
                     navigationPane(isWide: isWide, historyVisible: historyVisible, drawerOpen: drawerOpen)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .background(ReadingSpace.profilePaper)
                         .disabled(drawerOpen)
                         .allowsHitTesting(!drawerOpen)
                         .accessibilityHidden(drawerOpen)
-                        .animation(nil, value: drawerOpen)
+                        .animation(nil, value: historyVisible)
+                        // Resolve the slide on the pane so native navigation and content move together.
+                        .geometryGroup()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .background(ReadingSpace.profilePaper)
                         .clipShape(UnevenRoundedRectangle(
                             topLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0,
                             bottomLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0
@@ -121,14 +127,12 @@ struct AdminAIAgentView: View {
                         }
                         .offset(x: drawerOpen ? historyWidth : 0)
                 }
+                .animation(reduceMotion ? nil : AppMotion.state, value: historyVisible)
             }
             .clipped()
-            .background {
-                (historyVisible ? ReadingSpace.canvas : ReadingSpace.profilePaper)
-                    .ignoresSafeArea(.container)
-                    .animation(nil, value: historyVisible)
-            }
-            .toolbar(activeSession != nil || drawerOpen ? .hidden : (isTabRoot ? .visible : .automatic), for: .tabBar)
+            .background(ReadingSpace.canvas.ignoresSafeArea(.container))
+            // Drawer visibility must not change the tab bar's safe-area height during the slide.
+            .toolbar(activeSession != nil ? .hidden : (isTabRoot ? .visible : .automatic), for: .tabBar)
             .onChange(of: isWide) { _, wide in
                 if wide { showHistory = false }
             }
@@ -173,10 +177,6 @@ struct AdminAIAgentView: View {
         .accessibilityLabel(historyVisible ? "收起对话历史" : "打开对话历史")
         .accessibilityValue(historyVisible ? "已展开" : "已收起")
         .accessibilityIdentifier("agent.history.toggle")
-    }
-
-    private var sidebarTransition: AnyTransition {
-        reduceMotion ? .identity : .move(edge: .leading).combined(with: .opacity)
     }
 
     private func historySidebar(isPresented: Bool) -> some View {
@@ -344,15 +344,13 @@ struct AdminAIAgentView: View {
     }
 
     private func setHistoryVisible(_ visible: Bool) {
-        withAnimation(reduceMotion ? nil : AppMotion.structural) { showHistory = visible }
+        showHistory = visible
     }
 
     private func toggleHistory(isWide: Bool) {
         let opens = isWide ? !sidebarExpanded : !showHistory
-        withAnimation(reduceMotion ? nil : AppMotion.structural) {
-            if isWide { sidebarExpanded = opens }
-            else { showHistory = opens }
-        }
+        if isWide { sidebarExpanded = opens }
+        else { showHistory = opens }
         if opens { Task { await loadSessions() } }
     }
 
