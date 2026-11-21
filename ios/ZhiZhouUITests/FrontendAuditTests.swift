@@ -561,6 +561,7 @@ final class FrontendAuditTests: XCTestCase {
         selectTab("我的", app: app)
         tap(app.buttons["profile.account"])
         capture("account", app: app)
+        reveal(app.buttons["account.logout"], app: app)
         tap(app.buttons["account.logout"])
         let confirm = app.buttons.matching(NSPredicate(
             format: "label == %@ AND identifier != %@", "退出登录", "account.logout"
