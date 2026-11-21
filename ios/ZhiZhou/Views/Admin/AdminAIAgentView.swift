@@ -93,10 +93,12 @@ struct AdminAIAgentView: View {
                     if isWide && sidebarExpanded {
                         historySidebar
                             .frame(width: 300)
+                            .padding(.leading, 12)
+                            .padding(.vertical, 12)
+                            .padding(.trailing, 12)
                             .transition(sidebarTransition)
-                        ReadingSpace.profileLine.frame(width: 1)
                     }
-                    mainWorkspace(height: geometry.size.height)
+                    mainWorkspace
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .disabled(drawerOpen)
                         .allowsHitTesting(!drawerOpen)
@@ -115,7 +117,10 @@ struct AdminAIAgentView: View {
                     .transition(.opacity)
 
                     historySidebar
-                        .frame(width: min(360, max(0, geometry.size.width - 40)))
+                        .frame(width: min(360, max(0, geometry.size.width - 44)))
+                        .shadow(color: .black.opacity(0.10), radius: 24, x: 6, y: 8)
+                        .padding(.leading, 10)
+                        .padding(.vertical, 10)
                         .accessibilityAction(.escape) { setHistoryVisible(false) }
                         .transition(sidebarTransition)
                 }
@@ -177,73 +182,103 @@ struct AdminAIAgentView: View {
         )
     }
 
-    @ViewBuilder private func mainWorkspace(height: CGFloat) -> some View {
+    @ViewBuilder private var mainWorkspace: some View {
         if let activeSession, let user = appState.user, let token = APIClient.shared.token {
             AdminAIAgentConversationView(session: activeSession, userID: user.id, token: token)
                 .id(activeSession.id)
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    bookSelection
-                        .padding(12)
-                        .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 16))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 16)
-                                .strokeBorder(ReadingSpace.profileLine, lineWidth: 0.5)
-                                .allowsHitTesting(false)
-                        }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("从这一页，继续故事。")
+                VStack(alignment: .leading, spacing: 28) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("继续你的故事")
                             .font(serifFont(.largeTitle, .medium))
                             .foregroundStyle(ReadingSpace.ink)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityAddTraits(.isHeader)
-                        Text(selectedID.isEmpty ? "选一本作品，开始新的创作。" : "写下一幕，或接着已有的故事往下聊。")
+                        Text("聊聊下一幕，或一起推敲文字。")
                             .font(.subheadline)
                             .foregroundStyle(ReadingSpace.profileMuted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.vertical, 12)
 
-                    Button {
-                        created = nil
-                        showCreate = true
-                    } label: {
-                        HStack(spacing: 12) {
-                            Text("新建对话").frame(maxWidth: .infinity, alignment: .leading)
-                            Image(systemName: "arrow.right").accessibilityHidden(true)
-                        }
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(selectedID.isEmpty ? ReadingSpace.profileMuted : ReadingSpace.onSummary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                        .background(selectedID.isEmpty ? ReadingSpace.profileFill : ReadingSpace.summary,
-                                    in: RoundedRectangle(cornerRadius: 16))
-                    }
-                    .buttonStyle(ScaleButtonStyle())
-                    .disabled(selectedID.isEmpty)
-                    .accessibilityIdentifier("agent.create")
-
-                    Text(initialNovel?.id == selectedID && !(afterChapterID ?? "").isEmpty
-                         ? "带入的续写起点将在开始前核对。" : "开始前可以确认这次对话的续写起点。")
-                        .font(.footnote)
-                        .foregroundStyle(ReadingSpace.profileMuted)
-                        .fixedSize(horizontal: false, vertical: true)
+                    creationPanel
 
                     if let booksError {
                         LoadErrorNotice(message: booksError, isLoading: loadingBooks) { Task { await loadBooks() } }
                     }
+
+                    if APIClient.shared.token != nil {
+                        Button { showDiscovery = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "books.vertical").accessibilityHidden(true)
+                                Text("找书入库")
+                                Spacer(minLength: 8)
+                                Image(systemName: "arrow.up.right").accessibilityHidden(true)
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                            .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(.horizontal, 22)
-                .padding(.vertical, 28)
+                .padding(.top, 32)
+                .padding(.bottom, 32)
                 .frame(maxWidth: 560)
-                .frame(maxWidth: .infinity, minHeight: max(0, height))
+                .frame(maxWidth: .infinity, alignment: .top)
             }
             .scrollDismissesKeyboard(.interactively)
             .readingSpaceTopEdge()
             .refreshable { await loadBooks() }
+        }
+    }
+
+    private var creationPanel: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            bookSelection
+
+            VStack(alignment: .leading, spacing: 12) {
+                Button {
+                    if selectedID.isEmpty {
+                        showPicker = true
+                    } else {
+                        created = nil
+                        showCreate = true
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Text(selectedID.isEmpty ? "选择作品" : "开始对话")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "arrow.right").accessibilityHidden(true)
+                    }
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(ReadingSpace.onSummary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(ReadingSpace.summary, in: RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(ScaleButtonStyle())
+                .disabled(selectedID.isEmpty && (loadingBooks || books.isEmpty))
+                .opacity(selectedID.isEmpty && (loadingBooks || books.isEmpty) ? 0.5 : 1)
+                .accessibilityIdentifier("agent.create")
+
+                Text(initialNovel?.id == selectedID && !(afterChapterID ?? "").isEmpty
+                     ? "开始前核对带入的续写起点，生成内容先存为草稿。"
+                     : "开始前确认续写起点，生成内容先存为草稿。")
+                    .font(.caption)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(18)
+        .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: ReadingSpace.panelRadius)
+                .strokeBorder(ReadingSpace.profileLine, lineWidth: 0.5)
+                .allowsHitTesting(false)
         }
     }
 
@@ -252,10 +287,11 @@ struct AdminAIAgentView: View {
             HStack(spacing: 12) {
                 selectedBookCover.accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(selectedID.isEmpty ? "先选一本作品" : "当前作品")
+                    Text(selectedID.isEmpty ? "创作作品" : "当前作品")
                         .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
-                    Text(bookTitle)
-                        .font(serifFont(.headline, .medium)).foregroundStyle(ReadingSpace.ink)
+                    Text(selectedID.isEmpty ? (books.isEmpty && !loadingBooks && booksError == nil
+                         ? "还没有可创作的作品" : "选一本想写的书") : bookTitle)
+                        .font(serifFont(.title3, .medium)).foregroundStyle(ReadingSpace.ink)
                         .multilineTextAlignment(.leading)
                         .appTextLineLimit(2)
                 }
@@ -263,11 +299,15 @@ struct AdminAIAgentView: View {
                 if loadingBooks {
                     ProgressView().tint(ReadingSpace.ink).accessibilityLabel("正在加载作品")
                 } else {
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption).foregroundStyle(ReadingSpace.profileMuted).accessibilityHidden(true)
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .frame(width: 28, height: 28)
+                        .background(ReadingSpace.profileFill, in: Circle())
+                        .accessibilityHidden(true)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -280,7 +320,7 @@ struct AdminAIAgentView: View {
         let updatedAt = book?.updatedAt ?? initialNovel?.updatedAt ?? 0
         return CachedAsyncImage(
             url: selectedID.isEmpty ? nil : APIClient.shared.coverURL(novelId: selectedID, updatedAt: updatedAt),
-            targetSize: CGSize(width: 32, height: 46),
+            targetSize: CGSize(width: 44, height: 64),
             showsRetry: false
         ) { image in
             image.resizable().scaledToFill()
@@ -292,7 +332,7 @@ struct AdminAIAgentView: View {
                     .foregroundStyle(AppTheme.primary)
             }
         }
-        .frame(width: 32, height: 46)
+        .frame(width: 44, height: 64)
         .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
