@@ -470,34 +470,72 @@ private struct AdminAIAgentCreateSheet: View {
     @State private var creating = false
     @State private var error: String?
 
+    private var anchorTitle: String {
+        if !loaded { return loading ? "读取章节…" : "尚未读取章节" }
+        if anchor.isEmpty { return chapters.isEmpty ? "从头创作" : "最新正式章节" }
+        return chapters.first { $0.id == anchor }?.title ?? "请重新选择续写起点"
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    Text(novelTitle).font(.headline)
-                    if loading { ProgressView("读取章节…") }
-                    Picker("续写起点", selection: $anchor) {
-                        Text(chapters.isEmpty ? "从头创作" : "最新正式章节").tag("")
-                        ForEach(chapters) { chapter in Text(chapter.title).tag(chapter.id) }
-                    }
-                    .disabled(!loaded || creating)
-                } footer: { Text("此起点用于本次对话取材；生成结果先保存为草稿。") }
-                if let error { Text(error).foregroundStyle(.red) }
-                if !loaded && !loading { Button("重试读取章节") { Task { await load() } } }
-                Section {
-                    Button { Task { await create() } } label: {
-                        HStack { Text("开始对话"); Spacer(); if creating { ProgressView() } }
-                    }
-                    .disabled(!loaded || creating || (!anchor.isEmpty && !chapters.contains { $0.id == anchor }))
+            AgentPanelPage {
+                AgentPanelHeading("新建对话", detail: "选定续写起点，开始这本作品的新对话。")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("当前作品").font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                    Text(novelTitle)
+                        .font(serifFont(.title3, .medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .accessibilityElement(children: .combine)
+
+                AgentPanelSection("续写起点") {
+                    Menu {
+                        Picker("续写起点", selection: $anchor) {
+                            Text(chapters.isEmpty ? "从头创作" : "最新正式章节").tag("")
+                            ForEach(chapters) { chapter in Text(chapter.title).tag(chapter.id) }
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(anchorTitle)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if loading { ProgressView() }
+                            else { Image(systemName: "chevron.up.chevron.down").font(.caption) }
+                        }
+                    }
+                    .buttonStyle(AgentPanelButtonStyle())
+                    .accessibilityLabel("续写起点")
+                    .accessibilityValue(anchorTitle)
+                    .disabled(!loaded || creating)
+                    AgentPanelNotice("此起点用于本次对话取材；生成结果先保存为草稿。")
+                    if let error { AgentPanelNotice(error, isError: true) }
+                    if !loaded && !loading {
+                        Button("重试读取章节", systemImage: "arrow.clockwise") { Task { await load() } }
+                            .buttonStyle(AgentPanelButtonStyle())
+                    }
+                }
+
+                Button { Task { await create() } } label: {
+                    HStack(spacing: 10) {
+                        Group {
+                            if creating { ProgressView() }
+                            else { Image(systemName: "bubble.left.and.bubble.right") }
+                        }
+                        .accessibilityHidden(true)
+                        Text("开始对话").fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .buttonStyle(AgentPanelButtonStyle(prominent: true))
+                .accessibilityValue(creating ? "正在创建对话" : "")
+                .disabled(!loaded || creating || (!anchor.isEmpty && !chapters.contains { $0.id == anchor }))
             }
-            .appListStyle(.settings)
-            .navigationTitle("新建对话")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(creating) } }
             .task { anchor = initialAnchor; await load() }
             .interactiveDismissDisabled(creating)
         }
+        .presentationBackground(ReadingSpace.profilePaper)
     }
 
     private func load() async {

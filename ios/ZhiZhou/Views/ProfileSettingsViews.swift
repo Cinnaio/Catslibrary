@@ -175,40 +175,55 @@ struct ProfileAboutView: View {
     #endif
 
     var body: some View {
-        List {
-            Section {
-                HStack(spacing: 16) {
-                    BrandMark(size: 48)
+        AccountSettingsPage {
+            AppAdaptiveRow(spacing: 16) {
+                BrandMark(size: 56)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Cat’s Library")
                         .font(.system(.title2, design: .serif).weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                        .foregroundStyle(ReadingSpace.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("阅读与创作空间")
+                        .font(.subheadline)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                 }
-                .padding(.vertical, 12)
-                LabeledContent("版本", value: version)
             }
-            Section("服务器") {
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("关于 Cat’s Library，阅读与创作空间")
+            .accessibilityAddTraits(.isHeader)
+
+            AccountSettingsSection("应用版本") {
+                Text(version)
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(ReadingSpace.ink)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            AccountSettingsSection("当前站点") {
                 Text(ServerConfig.serverURL)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .font(.body)
+                    .foregroundStyle(ReadingSpace.ink)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
             #if DEBUG
-            Section {
+            AccountSettingsSection("开发设置") {
                 Toggle("信任无效证书", isOn: $allowInvalidCert)
+                    .font(.body)
+                    .foregroundStyle(ReadingSpace.ink)
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                     .onChange(of: allowInvalidCert) { _, value in
                         APIClient.shared.allowsInvalidCertificates = value
                     }
-            } header: {
-                Text("开发设置")
-            } footer: {
-                Text("仅用于自签名或过期证书排查。")
+                AccountSettingsNote("仅用于自签名或过期证书排查。")
             }
             #endif
         }
-        .appListStyle(.settings)
-        .navigationTitle("关于 Cat’s Library")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .scrollEdgeEffectHidden(true, for: .top)
+        .accessibilityIdentifier("profile.about")
     }
 
     private var version: String {

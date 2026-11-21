@@ -1519,6 +1519,8 @@ struct AdminNovelPickerSheet: View {
     let selectedId: String
     let onSelect: (String) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var search = ""
 
     private var filtered: [AdminNovelSummary] {
@@ -1531,35 +1533,38 @@ struct AdminNovelPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            List(filtered) { novel in
-                Button {
-                    onSelect(novel.id)
-                    dismiss()
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(novel.title)
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textPrimary)
-                                .appTextLineLimit(1)
-                            Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
-                        Spacer()
-                        if novel.id == selectedId {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(AppTheme.primary)
+            GeometryReader { geometry in
+                List {
+                    Group {
+                        AgentPanelHeading("选择小说", detail: "选择要继续创作的作品。")
+                            .padding(.bottom, 16)
+                        if options.isEmpty {
+                            AgentPanelSection("暂无可用作品") {
+                                AgentPanelNotice("当前没有可以选择的作品。")
+                            }
+                        } else if filtered.isEmpty {
+                            AgentPanelSection("没有匹配的作品") {
+                                AgentPanelNotice("试试其他书名或作者。")
+                            }
+                        } else {
+                            ForEach(Array(filtered.enumerated()), id: \.element.id) { index, novel in
+                                novelRow(novel)
+                                    .readingSpaceEntrance(index)
+                            }
                         }
                     }
-                    .contentShape(Rectangle())
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
                 }
-                .buttonStyle(.plain)
+                .modifier(ReadingSpaceRoomListStyle())
+                .contentMargins(.horizontal, max(22, (geometry.size.width - 760) / 2), for: .scrollContent)
+                .contentMargins(.top, 20, for: .scrollContent)
+                .contentMargins(.bottom, 24, for: .scrollContent)
+                .scrollDismissesKeyboard(.interactively)
+                .animation(reduceMotion ? nil : AppMotion.state, value: search)
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("选择小说")
-            .navigationBarTitleDisplayMode(.inline)
+            .agentPanelSurface()
             .searchable(text: $search, prompt: "搜索书名 / 作者")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1567,6 +1572,41 @@ struct AdminNovelPickerSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationBackground(ReadingSpace.profilePaper)
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func novelRow(_ novel: AdminNovelSummary) -> some View {
+        Button {
+            onSelect(novel.id)
+            dismiss()
+        } label: {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(novel.title)
+                        .font(serifFont(.headline, .medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .appTextLineLimit(2)
+                    Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
+                        .font(.caption)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "checkmark")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.primary)
+                    .opacity(novel.id == selectedId ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .background(novel.id == selectedId ? ReadingSpace.profileFill : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 16))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(novel.id == selectedId ? .isSelected : [])
     }
 }
