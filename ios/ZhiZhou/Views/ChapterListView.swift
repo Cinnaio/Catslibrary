@@ -123,8 +123,7 @@ struct ChapterListView: View {
                     .background(ReadingSpace.profilePaper)
                 }
             }
-            .navigationTitle(directorySort == nil ? "目录" : "章节目录")
-            .navigationBarTitleDisplayMode(.inline)
+            .readerPanelNavigation()
             .searchable(text: Binding(get: { search }, set: { value in
                 withAnimation(reduceMotion ? nil : AppMotion.micro) { search = value }
             }), isPresented: $searchPresented, prompt: "搜索章名或章号")
@@ -140,13 +139,6 @@ struct ChapterListView: View {
                         Label("目录选项", systemImage: "line.3.horizontal.decrease.circle")
                     }
                     .disabled(availableChapters.isEmpty)
-                }
-                if showsOfflineCatalog {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Label("离线", systemImage: "wifi.slash")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(directorySort == nil ? "完成" : "关闭") { dismiss() }
@@ -186,6 +178,11 @@ struct ChapterListView: View {
                 Text(query.isEmpty ? "共 \(availableChapters.count) 章" : "\(matches.count) 章匹配")
                     .font(.caption)
                     .foregroundStyle(ReadingSpace.profileMuted)
+                if showsOfflineCatalog {
+                    Label("离线目录", systemImage: "wifi.slash")
+                        .font(.caption)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
             }
             .padding(.vertical, 12)
             .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))

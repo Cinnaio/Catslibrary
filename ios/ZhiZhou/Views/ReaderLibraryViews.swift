@@ -141,6 +141,8 @@ struct BookmarkEditorView: View {
     let chapterTitle: String
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var contrast
+    @FocusState private var noteFocused: Bool
     @State private var existing: ReaderBookmark?
     @State private var note = ""
     @State private var loaded = false
@@ -152,65 +154,66 @@ struct BookmarkEditorView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            ReaderPanelPage {
+                ReaderPanelHeading(loaded ? (existing == nil ? "添加书签" : "编辑书签") : "书签")
+
+                ReaderPanelSection("章节") {
                     Text(chapterTitle)
-                        .font(serifFont(.title3, .medium))
+                        .font(serifFont(.body, .medium))
                         .foregroundStyle(ReadingSpace.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .listRowBackground(Color.clear)
-                Section {
-                    TextField("为这个章节写一条备注", text: $note, axis: .vertical)
-                        .font(.body)
-                        .foregroundStyle(ReadingSpace.ink)
-                        .lineSpacing(5)
-                        .lineLimit(3...8)
-                        .padding(.vertical, 8)
-                        .disabled(!loaded || busy)
-                        .accessibilityLabel("书签备注")
-                        .accessibilityIdentifier("bookmark.note")
-                    Text("\(note.utf16.count)/300")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(note.utf16.count > 300 ? AppTheme.danger : ReadingSpace.profileMuted)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                } header: {
-                    Text("备注")
-                        .font(serifFont(.headline, .medium))
-                        .foregroundStyle(ReadingSpace.ink)
-                        .textCase(nil)
-                } footer: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("每章保留一个书签，打开时进入该章节。备注会在 Web 与 iOS 之间同步。")
-                        if busy { ProgressView("正在更新书签…").font(.footnote) }
+
+                ReaderPanelSection("备注") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        TextField("为这个章节写一条备注", text: $note, axis: .vertical)
+                            .textFieldStyle(.plain)
+                            .font(.body)
+                            .foregroundStyle(ReadingSpace.ink)
+                            .lineSpacing(5)
+                            .lineLimit(3...8)
+                            .padding(16)
+                            .frame(minHeight: 100, alignment: .topLeading)
+                            .background(ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: 16))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .strokeBorder(
+                                        noteFocused ? AppTheme.primary : contrast == .increased ? ReadingSpace.profileMuted : ReadingSpace.profileLine,
+                                        lineWidth: noteFocused || contrast == .increased ? 1.5 : 0.75
+                                    )
+                                    .allowsHitTesting(false)
+                            }
+                            .focused($noteFocused)
+                            .disabled(!loaded || busy)
+                            .accessibilityLabel("书签备注")
+                            .accessibilityIdentifier("bookmark.note")
+                        Text("\(note.utf16.count)/300")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(note.utf16.count > 300 ? AppTheme.danger : ReadingSpace.profileMuted)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
+                    ReaderPanelNote("每章保留一个书签，打开时进入该章节。备注会在 Web 与 iOS 之间同步。")
+                    if busy { ProgressView("正在更新书签…").font(.footnote) }
                 }
-                .listRowBackground(ReadingSpace.paper)
+
                 if let error {
-                    Section {
-                        Text(error).foregroundStyle(AppTheme.danger)
-                            .textSelection(.enabled)
-                        if !loaded { Button("重新加载") { attempt += 1 } }
+                    VStack(alignment: .leading, spacing: 12) {
+                        ReaderPanelNote(error, color: AppTheme.danger)
+                        if !loaded {
+                            Button("重新加载") { attempt += 1 }
+                                .buttonStyle(ReaderPanelButtonStyle())
+                        }
                     }
                 }
                 if !loaded && error == nil { ProgressView("加载书签…") }
                 if existing != nil {
-                    Section {
-                        Button("删除书签", role: .destructive) { confirmDelete = true }
-                            .disabled(busy)
-                            .accessibilityIdentifier("bookmark.delete")
-                    }
+                    Button("删除书签", role: .destructive) { confirmDelete = true }
+                        .buttonStyle(ReaderPanelButtonStyle())
+                        .disabled(busy)
+                        .accessibilityIdentifier("bookmark.delete")
                 }
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
-            .frame(maxWidth: 700)
-            .frame(maxWidth: .infinity)
-            .background(ReadingSpace.profilePaper)
-            .tint(AppTheme.primary)
-            .navigationTitle(existing == nil ? "添加书签" : "编辑书签")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(busy) }
                 ToolbarItem(placement: .confirmationAction) {

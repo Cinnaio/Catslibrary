@@ -61,12 +61,13 @@ struct ThoughtPanelView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    ReaderPanelHeading(panelTitle)
                     paragraphHeader
                     thoughtsContent
                     if dynamicTypeSize.isAccessibilitySize { composer }
                 }
                 .padding(.horizontal, 22)
-                .padding(.top, 12)
+                .padding(.top, 20)
                 .padding(.bottom, 20)
                 .frame(maxWidth: AppLayout.readableWidth)
                 .frame(maxWidth: .infinity)
@@ -77,8 +78,7 @@ struct ThoughtPanelView: View {
             }
             .background { ReadingSpace.profilePaper.ignoresSafeArea() }
             .scrollEdgeEffectStyle(.soft, for: .bottom)
-            .navigationTitle(panelTitle)
-            .navigationBarTitleDisplayMode(.inline)
+            .readerPanelNavigation()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }

@@ -18,16 +18,14 @@ struct ReaderSettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            ReaderPanelPage {
+                ReaderPanelHeading("阅读设置", detail: "调整即时生效，在下方预览阅读时的样子。")
+
+                ReaderPanelSection("正文预览") {
                     readingPreview
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                } header: {
-                    sectionHeading("正文预览")
                 }
 
-                Section {
+                ReaderPanelSection("文字排版") {
                     Stepper(value: Binding(
                         get: { settings.fontSizeIndex },
                         set: { settings.set("fontSize", String($0)) }
@@ -40,6 +38,7 @@ struct ReaderSettingsView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                     .accessibilityLabel("字号")
                     .accessibilityValue("第 \(settings.fontSizeIndex + 1) 档，\(Int(settings.bodyFontSize(for: dynamicTypeSize))) 磅")
 
@@ -51,12 +50,9 @@ struct ReaderSettingsView: View {
                               selection: preference("readerLineHeight", default: "1.95"))
                     choiceRow("段间距", values: [("1.0", "紧凑"), ("1.4", "标准"), ("1.8", "宽松")],
                               selection: preference("readerParagraphSpacing", default: "1.4"))
-                } header: {
-                    sectionHeading("文字排版")
                 }
-                .listRowBackground(ReadingSpace.paper)
 
-                Section {
+                ReaderPanelSection("纸面") {
                     LazyVGrid(
                         columns: Array(repeating: GridItem(.flexible(), spacing: 12),
                                        count: dynamicTypeSize >= .xxxLarge ? 2 : themes.count),
@@ -66,66 +62,47 @@ struct ReaderSettingsView: View {
                             themeButton(theme)
                         }
                     }
-                    .padding(.vertical, 8)
-                    .listRowBackground(Color.clear)
-                } header: {
-                    sectionHeading("纸面")
                 }
 
-                Section {
-                    Picker("翻页方式", selection: Binding(
+                ReaderPanelSection("阅读操作") {
+                    choiceRow("翻页方式", values: [("scroll", "上下滚动"), ("page", "左右翻页")], selection: Binding(
                         get: { settings.pageMode },
                         set: { set("readerPageMode", $0) }
-                    )) {
-                        Text("上下滚动").tag("scroll")
-                        Text("左右翻页").tag("page")
-                    }
-                    .accessibleSegmentedPicker()
+                    ))
                     Toggle("显示章节插图", isOn: Binding(
                         get: { settings.illustrationsEnabled },
                         set: { set("readerIllustrations", $0 ? "on" : "off") }
                     ))
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                     .accessibilityIdentifier("reader.settings.illustrations")
                     Toggle("左右区域点击翻页", isOn: Binding(
                         get: { settings.clickPagingEnabled },
                         set: { set("readerClickPaging", $0 ? "on" : "off") }
                     ))
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                     Toggle("阅读时保持屏幕常亮", isOn: Binding(
                         get: { settings.wakeLockEnabled },
                         set: { set("readerWakeLock", $0 ? "on" : "off") }
                     ))
-                } header: {
-                    sectionHeading("阅读操作")
-                } footer: {
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                     if settings.pageMode == "page" {
-                        Text("在正文区域向左滑动阅读下一页，向右滑动返回上一页。点击中间区域显示或隐藏阅读控制。")
+                        ReaderPanelNote("在正文区域向左滑动阅读下一页，向右滑动返回上一页。点击中间区域显示或隐藏阅读控制。")
                     } else {
-                        Text("上下滑动滚动正文。在正文区域向左滑动进入下一章，向右滑动返回上一章。")
+                        ReaderPanelNote("上下滑动滚动正文。在正文区域向左滑动进入下一章，向右滑动返回上一章。")
                     }
                 }
-                .listRowBackground(ReadingSpace.paper)
 
                 if settings.hasPendingSync || settings.lastSyncError != nil {
-                    Section {
-                        Label(
-                            settings.lastSyncError == nil ? "阅读设置等待同步" : "阅读设置同步失败，将自动重试",
-                            systemImage: settings.lastSyncError == nil ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle"
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(settings.lastSyncError == nil ? ReadingSpace.profileMuted : AppTheme.warning)
-                        .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .listRowBackground(Color.clear)
+                    Label(
+                        settings.lastSyncError == nil ? "阅读设置等待同步" : "阅读设置同步失败，将自动重试",
+                        systemImage: settings.lastSyncError == nil ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(settings.lastSyncError == nil ? ReadingSpace.profileMuted : AppTheme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .frame(maxWidth: 700)
-            .frame(maxWidth: .infinity)
-            .background(ReadingSpace.profilePaper)
-            .tint(AppTheme.primary)
-            .navigationTitle("阅读设置")
-            .navigationBarTitleDisplayMode(.inline)
+            .foregroundStyle(ReadingSpace.ink)
             .sensoryFeedback(.selection, trigger: settings.fontSizeIndex)
             .sensoryFeedback(.selection, trigger: interactionFeedback)
             .toolbar {
@@ -172,16 +149,9 @@ struct ReaderSettingsView: View {
         .accessibilityIdentifier("reader.settings.preview")
     }
 
-    private func sectionHeading(_ title: String) -> some View {
-        Text(title)
-            .font(serifFont(.headline, .medium))
-            .foregroundStyle(ReadingSpace.ink)
-            .textCase(nil)
-    }
-
     private func choiceRow(_ title: String, values: [(String, String)], selection: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.subheadline).foregroundStyle(ReadingSpace.profileMuted)
+            Text(title).font(.subheadline).foregroundStyle(ReadingSpace.ink)
             Picker(title, selection: selection) {
                 ForEach(values, id: \.0) { value in
                     Text(value.1).tag(value.0)
@@ -189,6 +159,7 @@ struct ReaderSettingsView: View {
             }
             .labelsHidden()
             .accessibleSegmentedPicker()
+            .accessibilityLabel(title)
         }
         .padding(.vertical, 6)
     }
