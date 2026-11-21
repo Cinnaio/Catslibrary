@@ -7,9 +7,15 @@ struct AdminAIAgentView: View {
     var afterChapterID: String? = nil
     var isTabRoot = false
     @Environment(AppState.self) private var appState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedID = ""
     @State private var books: [AdminNovelSummary] = []
     @State private var sessions: [AIAgentSession] = []
+    @State private var activeSession: AIAgentSession?
+    @State private var showHistory = false
+    @State private var sidebarExpanded = true
+    @State private var historySearch = ""
     @State private var hasMore = false
     @State private var loadingBooks = false
     @State private var loadingSessions = true
@@ -18,7 +24,6 @@ struct AdminAIAgentView: View {
     @State private var showPicker = false
     @State private var showCreate = false
     @State private var showDiscovery = false
-    @State private var showCreated = false
     @State private var created: AIAgentSession?
     @State private var listRequest = UUID()
     @State private var listNovelID = ""
@@ -29,10 +34,16 @@ struct AdminAIAgentView: View {
     @State private var deleting = false
     @State private var deleteError: String?
 
-    private var historyNovelID: String { filterByBook ? selectedID : "" }
+    private var currentNovelID: String { activeSession?.novelId ?? selectedID }
+    private var historyNovelID: String { filterByBook ? currentNovelID : "" }
 
     private var bookTitle: String {
         books.first(where: { $0.id == selectedID })?.title ?? (initialNovel?.id == selectedID ? initialNovel?.title : nil) ?? "选择小说"
+    }
+
+    private var navigationTitle: String {
+        guard let activeSession, !activeSession.novelTitle.isEmpty else { return "对话创作" }
+        return activeSession.novelTitle
     }
 
     var body: some View {
@@ -40,9 +51,10 @@ struct AdminAIAgentView: View {
             if appState.user?.isAdmin == true { workspace }
             else { ContentUnavailableView("需要管理员权限", systemImage: "lock.shield") }
         }
-        .navigationTitle("对话创作")
+        .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(isTabRoot ? .hidden : .visible, for: .navigationBar)
+        .toolbar(.visible, for: .navigationBar)
+        .readingSpaceTopEdge()
         .task {
             if selectedID.isEmpty, let initialNovel { selectedID = initialNovel.id }
             await loadBooks()
@@ -52,8 +64,9 @@ struct AdminAIAgentView: View {
             AdminNovelPickerSheet(options: books, selectedId: selectedID) { selectedID = $0 }
         }
         .sheet(isPresented: $showCreate, onDismiss: {
-            if created != nil {
-                showCreated = true
+            if let created {
+                openSession(created)
+                self.created = nil
                 Task { await loadSessions() }
             }
         }) {
@@ -68,104 +81,61 @@ struct AdminAIAgentView: View {
                     .toolbar(.visible, for: .navigationBar)
             }
         }
-        .navigationDestination(isPresented: $showCreated) {
-            if let created, let user = appState.user, let token = APIClient.shared.token {
-                AdminAIAgentConversationView(session: created, userID: user.id, token: token)
-                    .onDisappear { Task { await loadSessions() } }
-            }
-        }
     }
 
     private var workspace: some View {
-        List {
-            if isTabRoot {
-                Text("对话创作")
-                    .font(serifFont(.largeTitle, .medium))
-                    .foregroundStyle(ReadingSpace.ink)
-                    .accessibilityAddTraits(.isHeader)
-                    .listRowInsets(EdgeInsets(top: 28, leading: 22, bottom: 20, trailing: 22))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+        GeometryReader { geometry in
+            let isWide = geometry.size.width >= 820 && !dynamicTypeSize.isAccessibilitySize
+            let drawerOpen = showHistory && !isWide
+            let historyVisible = isWide ? sidebarExpanded : drawerOpen
+            ZStack(alignment: .leading) {
+                HStack(spacing: 0) {
+                    if isWide && sidebarExpanded {
+                        historySidebar
+                            .frame(width: 300)
+                            .transition(sidebarTransition)
+                        ReadingSpace.profileLine.frame(width: 1)
+                    }
+                    mainWorkspace(height: geometry.size.height)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .disabled(drawerOpen)
+                        .allowsHitTesting(!drawerOpen)
+                        .accessibilityHidden(drawerOpen)
+                }
+
+                if drawerOpen {
+                    Button { setHistoryVisible(false) } label: {
+                        Color.black.opacity(0.22)
+                            .ignoresSafeArea(.container, edges: .bottom)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("关闭对话历史")
+                    .accessibilityIdentifier("agent.history.dismiss")
+                    .transition(.opacity)
+
+                    historySidebar
+                        .frame(width: min(360, max(0, geometry.size.width - 40)))
+                        .accessibilityAction(.escape) { setHistoryVisible(false) }
+                        .transition(sidebarTransition)
+                }
             }
-            creationControls
-                .listRowInsets(EdgeInsets(top: isTabRoot ? 0 : 16, leading: 22, bottom: 22, trailing: 22))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .readingSpaceEntrance()
-            Section {
-                if !selectedID.isEmpty && (!sessions.isEmpty || filterByBook) {
-                    Picker("对话范围", selection: $filterByBook) {
-                        Text("全部作品").tag(false)
-                        Text("当前作品").tag(true)
+            .background(ReadingSpace.profilePaper)
+            .toolbar(activeSession != nil || drawerOpen ? .hidden : (isTabRoot ? .visible : .automatic), for: .tabBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { toggleHistory(isWide: isWide) } label: {
+                        Image(systemName: "sidebar.left")
                     }
-                    .accessibleSegmentedPicker()
-                    .listRowSeparator(.hidden)
+                    .accessibilityLabel(historyVisible ? "收起对话历史" : "打开对话历史")
+                    .accessibilityValue(historyVisible ? "已展开" : "已收起")
+                    .accessibilityIdentifier("agent.history.toggle")
                 }
-                if let error {
-                    LoadErrorNotice(message: error, isLoading: loadingSessions) { Task { await loadSessions() } }
-                        .listRowSeparator(.hidden)
-                }
-                if loadingSessions && !sessions.isEmpty {
-                    ProgressView("正在更新对话…").font(.footnote)
-                        .listRowSeparator(.hidden)
-                }
-                if let deleteError {
-                    Text(deleteError).font(.footnote).foregroundStyle(.red)
-                        .listRowSeparator(.hidden)
-                }
-                if sessions.isEmpty {
-                    Group {
-                        if loadingSessions { ProgressView().frame(maxWidth: .infinity).padding() }
-                        else if error == nil {
-                            ContentUnavailableView(historyNovelID.isEmpty ? "还没有对话" : "这本书还没有对话",
-                                systemImage: "bubble.left.and.bubble.right",
-                                description: Text("选择一本小说即可开始新对话。"))
-                        }
-                    }
-                    .listRowSeparator(.hidden)
-                }
-                ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
-                    if let user = appState.user, let token = APIClient.shared.token {
-                        NavigationLink {
-                            AdminAIAgentConversationView(session: session, userID: user.id, token: token)
-                                .onDisappear { Task { await loadSessions() } }
-                        } label: { sessionRow(session) }
-                        .listRowSeparator(.visible, edges: .bottom)
-                        .listRowSeparatorTint(ReadingSpace.profileLine)
-                        .readingSpaceEntrance(index)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button("删除", systemImage: "trash", role: .destructive) {
-                                deleteTarget = session
-                                showDelete = true
-                            }
-                            .disabled(deleting)
-                        }
-                    }
-                }
-                if hasMore {
-                    Button("加载更多对话") { Task { await loadSessions(more: true) } }
-                        .frame(minHeight: AppLayout.minimumTouchTarget)
-                        .disabled(loadingSessions)
-                        .listRowSeparator(.hidden)
-                }
-            } header: {
-                Text("最近对话")
-                    .font(serifFont(.title3, .semibold))
-                    .foregroundStyle(ReadingSpace.ink)
-                    .textCase(nil)
-                    .padding(.top, 8)
-                    .padding(.bottom, 8)
-                    .accessibilityAddTraits(.isHeader)
             }
-            .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 22))
-            .listRowBackground(Color.clear)
-            .listSectionSeparator(.hidden)
+            .onChange(of: isWide) { _, wide in
+                if wide { showHistory = false }
+            }
         }
-        .modifier(ReadingSpaceRoomListStyle())
-        .frame(maxWidth: 760)
-        .frame(maxWidth: .infinity)
-        .background(ReadingSpace.profilePaper)
-        .refreshable { await loadSessions() }
         .alert("删除对话？", isPresented: $showDelete, presenting: deleteTarget) { session in
             Button("取消", role: .cancel) { deleteTarget = nil }
             Button("删除", role: .destructive) { Task { await remove(session) } }
@@ -174,70 +144,115 @@ struct AdminAIAgentView: View {
         }
     }
 
-    private var creationControls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            creationDesk
-            if let booksError {
-                LoadErrorNotice(message: booksError, isLoading: loadingBooks) { Task { await loadBooks() } }
-            }
-            if APIClient.shared.token != nil {
-                Button { showDiscovery = true } label: {
-                    HStack(spacing: 8) {
-                        Label("找书入库", systemImage: "magnifyingglass")
-                        Spacer(minLength: 8)
-                        Image(systemName: "arrow.right").accessibilityHidden(true)
-                    }
-                    .font(.subheadline).foregroundStyle(AppTheme.primary)
-                    .frame(minHeight: AppLayout.minimumTouchTarget)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
+    private var sidebarTransition: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity)
     }
 
-    private var creationDesk: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            bookSelection
-            Button {
-                created = nil
-                showCreate = true
-            } label: {
-                HStack(spacing: 12) {
-                    Text("新建对话")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Image(systemName: "arrow.right")
-                        .accessibilityHidden(true)
-                }
-                .font(.body.weight(.medium))
-                .foregroundStyle(selectedID.isEmpty ? ReadingSpace.profileMuted : ReadingSpace.onSummary)
-                .multilineTextAlignment(.leading)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(selectedID.isEmpty ? ReadingSpace.profileFill : ReadingSpace.summary,
-                            in: RoundedRectangle(cornerRadius: 14))
+    private var historySidebar: some View {
+        AdminAgentHistorySidebar(
+            sessions: listNovelID == historyNovelID ? sessions : [],
+            selectedSessionID: activeSession?.id,
+            currentNovelTitle: activeSession?.novelTitle ?? bookTitle,
+            hasCurrentNovel: !currentNovelID.isEmpty,
+            filterByBook: $filterByBook,
+            search: $historySearch,
+            loading: loadingSessions || listNovelID != historyNovelID,
+            hasMore: listNovelID == historyNovelID && hasMore,
+            deleting: deleting,
+            error: error,
+            deleteError: deleteError,
+            canDiscover: APIClient.shared.token != nil,
+            onNewConversation: beginNewConversation,
+            onOpen: openSession,
+            onDelete: { session in
+                deleteTarget = session
+                showDelete = true
+            },
+            onRefresh: { await loadSessions() },
+            onLoadMore: { await loadSessions(more: true) },
+            onDiscovery: {
+                setHistoryVisible(false)
+                showDiscovery = true
             }
-            .buttonStyle(.plain)
-            .disabled(selectedID.isEmpty)
-            .accessibilityIdentifier("agent.create")
-        }
-        .padding(20)
-        .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
-        .overlay {
-            RoundedRectangle(cornerRadius: ReadingSpace.panelRadius)
-                .strokeBorder(ReadingSpace.profileLine, lineWidth: 0.8)
-                .allowsHitTesting(false)
+        )
+    }
+
+    @ViewBuilder private func mainWorkspace(height: CGFloat) -> some View {
+        if let activeSession, let user = appState.user, let token = APIClient.shared.token {
+            AdminAIAgentConversationView(session: activeSession, userID: user.id, token: token)
+                .id(activeSession.id)
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    bookSelection
+                        .padding(12)
+                        .background(ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 16))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16)
+                                .strokeBorder(ReadingSpace.profileLine, lineWidth: 0.5)
+                                .allowsHitTesting(false)
+                        }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("从这一页，继续故事。")
+                            .font(serifFont(.largeTitle, .medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityAddTraits(.isHeader)
+                        Text(selectedID.isEmpty ? "选一本作品，开始新的创作。" : "写下一幕，或接着已有的故事往下聊。")
+                            .font(.subheadline)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 12)
+
+                    Button {
+                        created = nil
+                        showCreate = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text("新建对话").frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: "arrow.right").accessibilityHidden(true)
+                        }
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(selectedID.isEmpty ? ReadingSpace.profileMuted : ReadingSpace.onSummary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(selectedID.isEmpty ? ReadingSpace.profileFill : ReadingSpace.summary,
+                                    in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                    .disabled(selectedID.isEmpty)
+                    .accessibilityIdentifier("agent.create")
+
+                    Text(initialNovel?.id == selectedID && !(afterChapterID ?? "").isEmpty
+                         ? "带入的续写起点将在开始前核对。" : "开始前可以确认这次对话的续写起点。")
+                        .font(.footnote)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let booksError {
+                        LoadErrorNotice(message: booksError, isLoading: loadingBooks) { Task { await loadBooks() } }
+                    }
+                }
+                .padding(.horizontal, 22)
+                .padding(.vertical, 28)
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity, minHeight: max(0, height))
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .readingSpaceTopEdge()
+            .refreshable { await loadBooks() }
         }
     }
 
     private var bookSelection: some View {
         Button { showPicker = true } label: {
             HStack(spacing: 12) {
-                selectedBookCover
-                    .accessibilityHidden(true)
+                selectedBookCover.accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(selectedID.isEmpty ? "先选一本作品" : "创作作品")
+                    Text(selectedID.isEmpty ? "先选一本作品" : "当前作品")
                         .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
                     Text(bookTitle)
                         .font(serifFont(.headline, .medium)).foregroundStyle(ReadingSpace.ink)
@@ -246,13 +261,10 @@ struct AdminAIAgentView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if loadingBooks {
-                    ProgressView()
-                        .tint(ReadingSpace.ink)
-                        .accessibilityLabel("正在加载作品")
+                    ProgressView().tint(ReadingSpace.ink).accessibilityLabel("正在加载作品")
                 } else {
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
-                        .accessibilityHidden(true)
+                        .font(.caption).foregroundStyle(ReadingSpace.profileMuted).accessibilityHidden(true)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
@@ -268,7 +280,7 @@ struct AdminAIAgentView: View {
         let updatedAt = book?.updatedAt ?? initialNovel?.updatedAt ?? 0
         return CachedAsyncImage(
             url: selectedID.isEmpty ? nil : APIClient.shared.coverURL(novelId: selectedID, updatedAt: updatedAt),
-            targetSize: CGSize(width: 42, height: 60),
+            targetSize: CGSize(width: 32, height: 46),
             showsRetry: false
         ) { image in
             image.resizable().scaledToFill()
@@ -276,30 +288,40 @@ struct AdminAIAgentView: View {
             ZStack {
                 ReadingSpace.profileFill
                 Image(systemName: "book.closed")
-                    .font(.system(size: 21, weight: .light))
+                    .font(.system(size: 18, weight: .light))
                     .foregroundStyle(AppTheme.primary)
             }
         }
-        .frame(width: 42, height: 60)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .frame(width: 32, height: 46)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
-    private func sessionRow(_ session: AIAgentSession) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(session.title.isEmpty ? "新的对话" : session.title)
-                .font(serifFont(.headline, .semibold)).foregroundStyle(ReadingSpace.ink).appTextLineLimit(2)
-            if historyNovelID.isEmpty && !session.novelTitle.isEmpty {
-                Text(session.novelTitle).font(.subheadline).foregroundStyle(AppTheme.textSecondary).appTextLineLimit(1)
-            }
-            AppAdaptiveRow(spacing: 8) {
-                Text(session.anchorTitle.isEmpty ? "从头创作" : "续写起点 · \(session.anchorTitle)")
-                    .appTextLineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                Text(Date(timeIntervalSince1970: Double(session.updatedAt) / 1000), format: .dateTime.month().day())
-                    .accessibilityLabel("更新于 \(Date(timeIntervalSince1970: Double(session.updatedAt) / 1000).formatted(.dateTime.year().month().day()))")
-            }
-            .font(.caption).foregroundStyle(AppTheme.textSecondary)
+    private func setHistoryVisible(_ visible: Bool) {
+        withAnimation(reduceMotion ? nil : AppMotion.structural) { showHistory = visible }
+    }
+
+    private func toggleHistory(isWide: Bool) {
+        let opens = isWide ? !sidebarExpanded : !showHistory
+        withAnimation(reduceMotion ? nil : AppMotion.structural) {
+            if isWide { sidebarExpanded = opens }
+            else { showHistory = opens }
         }
-        .padding(.vertical, 16)
+        if opens { Task { await loadSessions() } }
+    }
+
+    private func openSession(_ session: AIAgentSession) {
+        guard appState.user?.isAdmin == true, APIClient.shared.token != nil else { return }
+        activeSession = session
+        setHistoryVisible(false)
+    }
+
+    private func beginNewConversation() {
+        if let activeSession, books.contains(where: { $0.id == activeSession.novelId }) {
+            selectedID = activeSession.novelId
+        }
+        activeSession = nil
+        created = nil
+        setHistoryVisible(false)
     }
 
     private func loadBooks() async {
@@ -369,6 +391,7 @@ struct AdminAIAgentView: View {
             AIAgentDraftStore().remove(site: site, userID: user.id, sessionID: session.id)
             guard APIClient.shared.token == token else { return }
             sessions.removeAll { $0.id == session.id }
+            if activeSession?.id == session.id { activeSession = nil }
             await loadSessions()
         } catch {
             if APIClient.shared.token == token { deleteError = AppCopy.friendlyError(error) }
