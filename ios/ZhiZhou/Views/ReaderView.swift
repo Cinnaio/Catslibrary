@@ -336,9 +336,9 @@ struct ReaderView: View {
             .preferredColorScheme(scheme)
         }
         .sheet(isPresented: $showSettings) {
-            ReaderSettingsView()
+            ReaderSettingsView(previewTitle: chapter?.title, previewParagraphs: Array(paragraphs.prefix(2)))
                 .preferredColorScheme(scheme)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground(ReadingSpace.profilePaper)
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -1125,28 +1125,14 @@ struct ReaderView: View {
         .accessibilityHint("显示目录、阅读设置和章节切换")
     }
 
-    /// 顶部操作组：只保留图标与 44pt 点按区，不再叠加玻璃容器和按钮底板。
+    private var hasIllustrationNotice: Bool {
+        settings.illustrationsEnabled && (illustrationsError != nil
+            || (chapterIllustrations?.illustrations.count ?? 0) > illustrationPositions.count)
+    }
+
+    /// 目录、外观和计时集中排列，插图提示归入更多，保留 44pt 点按范围。
     private var readerToolbarGroup: some View {
-        HStack(spacing: 10) {
-            if settings.illustrationsEnabled && (illustrationsError != nil || (chapterIllustrations?.illustrations.count ?? 0) > illustrationPositions.count) {
-                Button { showIllustrationsNotice = true } label: {
-                    Image(systemName: "photo.badge.exclamationmark")
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("查看插图加载状态")
-            }
-            if !offlineOnly || settings.pageMode == "scroll" { readerMoreMenu }
-
-            if edgeContext != nil {
-                Button(action: openReaderEdge) {
-                    Image(systemName: "timer")
-                        .font(.system(size: 17, weight: .medium))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("计时：节拍指令")
-            }
-
+        HStack(spacing: 4) {
             Button {
                 showTOC = true
                 interactionFeedback += 1
@@ -1157,6 +1143,7 @@ struct ReaderView: View {
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("目录")
+            .accessibilityIdentifier("reader.toolbar.contents")
 
             Button {
                 showSettings = true
@@ -1168,6 +1155,21 @@ struct ReaderView: View {
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("阅读设置")
+            .accessibilityIdentifier("reader.toolbar.settings")
+
+            if edgeContext != nil {
+                Button(action: openReaderEdge) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("计时：节拍指令")
+            }
+
+            if !offlineOnly || settings.pageMode == "scroll" || hasIllustrationNotice {
+                readerMoreMenu
+            }
         }
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.92))
         .foregroundStyle(ink.opacity(0.82))
@@ -1176,11 +1178,15 @@ struct ReaderView: View {
 
     private var readerMoreMenu: some View {
         Menu {
-            if !offlineOnly, appState.user?.isAdmin == true {
-                Button("管理这本书", systemImage: "slider.horizontal.3") { showAdminWorkspace = true }
+            if hasIllustrationNotice {
+                Button("查看插图加载状态", systemImage: "photo.badge.exclamationmark") {
+                    showIllustrationsNotice = true
+                }
                 Divider()
             }
             if !offlineOnly {
+                Button("保存章节书签", systemImage: "bookmark") { showBookmark = true }
+                    .disabled(chapter == nil || appState.user == nil)
                 Button("书内正文搜索", systemImage: "text.magnifyingglass") { autoScrollPaused = true; showBodySearch = true }
                 if !searchQuery.isEmpty {
                     Button("结束搜索定位", systemImage: "xmark.circle") {
@@ -1189,8 +1195,6 @@ struct ReaderView: View {
                 }
                 Button("当前段评", systemImage: "text.bubble") { openCurrentThoughtPanel() }
                     .disabled(currentReadingParagraphIndex == nil)
-                Button("保存章节书签", systemImage: "bookmark") { showBookmark = true }
-                    .disabled(chapter == nil || appState.user == nil)
                 if let unmatched = thoughtsByParagraph[-1], !unmatched.isEmpty {
                     Button("原段落已变更的想法（\(unmatched.count)）", systemImage: "text.bubble") {
                         activeThoughtParagraph = nil
@@ -1215,12 +1219,18 @@ struct ReaderView: View {
                 }
                 .disabled(chapter == nil || isLoading)
             }
+            if !offlineOnly, appState.user?.isAdmin == true {
+                Divider()
+                Button("管理这本书", systemImage: "slider.horizontal.3") { showAdminWorkspace = true }
+            }
         } label: {
-            Image(systemName: "ellipsis.circle")
+            Image(systemName: hasIllustrationNotice ? "exclamationmark.circle" : "ellipsis.circle")
                 .font(.system(size: 17, weight: .medium))
                 .frame(width: 44, height: 44)
         }
         .accessibilityLabel("更多阅读操作")
+        .accessibilityValue(hasIllustrationNotice ? "有插图加载提示" : "")
+        .accessibilityIdentifier("reader.toolbar.more")
     }
 
     /// 底部阅读控制组：上一章、章节进度、下一章共享一块轻量分段表面。

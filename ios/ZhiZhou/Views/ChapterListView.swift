@@ -58,6 +58,10 @@ struct ChapterListView: View {
         return availableChapters.first { $0.order == order }
     }
 
+    private var currentChapter: ChapterMeta? {
+        availableChapters.first { $0.order == currentOrder }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -77,28 +81,46 @@ struct ChapterListView: View {
                     ContentUnavailableView("暂无章节", systemImage: "list.bullet", description: Text("这本书尚未发布章节"))
                 } else {
                     ScrollViewReader { proxy in
-                        if directorySort == nil {
-                            chapterList
-                                .refreshable { await load(refresh: true) }
-                                .onAppear { scrollToCurrent(proxy) }
-                                .onChange(of: chapters) { _, _ in
-                                    hasScrolledToCurrent = false
-                                    scrollToCurrent(proxy)
+                        Group {
+                            if directorySort == nil {
+                                chapterList
+                                    .refreshable { await load(refresh: true) }
+                                    .onAppear { scrollToCurrent(proxy) }
+                                    .onChange(of: chapters) { _, _ in
+                                        hasScrolledToCurrent = false
+                                        scrollToCurrent(proxy)
+                                    }
+                            } else {
+                                chapterList
+                            }
+                        }
+                        .toolbar {
+                            if currentChapter != nil {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button {
+                                        search = ""
+                                        searchPresented = false
+                                        hasScrolledToCurrent = false
+                                        scrollToCurrent(proxy)
+                                    } label: {
+                                        Label("定位当前章", systemImage: "bookmark")
+                                    }
+                                    .labelStyle(.iconOnly)
+                                    .accessibilityIdentifier("reader.contents.current")
                                 }
-                        } else {
-                            chapterList
+                            }
                         }
                     }
                 }
             }
-            .pageBackground(.browsing)
+            .background(ReadingSpace.profilePaper)
             .safeAreaInset(edge: .bottom) {
                 if let errorMessage, !chapters.isEmpty, !isShowingOffline {
                     LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                         Task { await load(refresh: true) }
                     }
                     .padding()
-                    .background(AppTheme.canvas)
+                    .background(ReadingSpace.profilePaper)
                 }
             }
             .navigationTitle(directorySort == nil ? "目录" : "章节目录")
@@ -146,7 +168,7 @@ struct ChapterListView: View {
                 Text("输入目录中已有的章号，直接打开该章节。")
             }
         }
-        .presentationBackground(AppTheme.canvas)
+        .presentationBackground(ReadingSpace.profilePaper)
         .presentationDragIndicator(.visible)
         .readerContentAccess(isRestricted: novel.isRestricted)
     }
@@ -155,25 +177,45 @@ struct ChapterListView: View {
         let matches = visibleChapters
 
         return List {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(novel.title)
+                    .font(serifFont(.title2, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Text(query.isEmpty ? "共 \(availableChapters.count) 章" : "\(matches.count) 章匹配")
+                    .font(.caption)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+            }
+            .padding(.vertical, 12)
+            .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            if isLoading {
+                ProgressView("正在更新目录…")
+                    .font(.footnote)
+                    .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
             if matches.isEmpty {
                 ContentUnavailableView.search(text: query)
+                    .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             } else {
-                Section {
-                    ForEach(Array(matches.enumerated()), id: \.element.id) { index, chapter in
-                        chapterButton(chapter)
-                            .id(chapter.id)
-                            .transition(reduceMotion ? .identity : .asymmetric(
-                                insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index, 12)) * 0.008)),
-                                removal: .opacity
-                            ))
-                    }
-                } header: {
-                    if !query.isEmpty { Text("\(matches.count) 章匹配") }
+                ForEach(Array(matches.enumerated()), id: \.element.id) { index, chapter in
+                    chapterButton(chapter)
+                        .id(chapter.id)
+                        .readingSpaceEntrance(index)
+                        .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))
+                        .listRowSeparatorTint(ReadingSpace.profileLine)
+                        .listRowBackground(chapter.order == currentOrder ? ReadingSpace.profileFill : .clear)
                 }
+                .id([query, String(sortOrder.wrappedValue)])
             }
         }
-        .listStyle(.plain)
+        .modifier(ReadingSpaceRoomListStyle())
         .scrollDismissesKeyboard(.interactively)
     }
 
@@ -184,19 +226,26 @@ struct ChapterListView: View {
             dismiss()
             onSelect(chapter.order)
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: 14) {
                 Text(chapter.order, format: .number.grouping(.never))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                     .frame(minWidth: 28, alignment: .trailing)
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(chapter.title)
-                        .chapterTitleStyle()
-                    if directorySort != nil {
+                        .font(serifFont(.body, .medium))
+                        .foregroundStyle(isCurrent ? AppTheme.primaryDeep : ReadingSpace.ink)
+                        .appTextLineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    AppAdaptiveRow(spacing: 8) {
                         Text("\(chapter.wordCount) 字")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if isCurrent {
+                            Text(directorySort == nil ? "正在阅读" : "上次读到")
+                                .foregroundStyle(AppTheme.primaryDeep)
+                        }
                     }
+                    .font(.caption)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                 }
                 if isCurrent {
                     Image(systemName: "checkmark")

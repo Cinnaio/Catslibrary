@@ -1,10 +1,13 @@
 import SwiftUI
 
-/// 阅读偏好即时生效，面板表面独立于正文纸面。
+/// 阅读偏好即时生效，预览与正文共用字体、间距和纸色。
 struct ReaderSettingsView: View {
+    var previewTitle: String? = nil
+    var previewParagraphs: [String] = []
     @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @State private var interactionFeedback = 0
 
     private let themes: [(id: String, title: String, swatch: Color)] = [
@@ -16,56 +19,57 @@ struct ReaderSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("字号") {
+                Section {
+                    readingPreview
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                } header: {
+                    sectionHeading("正文预览")
+                }
+
+                Section {
                     Stepper(value: Binding(
                         get: { settings.fontSizeIndex },
                         set: { settings.set("fontSize", String($0)) }
                     ), in: 0...(settings.fontLevelCount - 1)) {
-                        Text("第 \(settings.fontSizeIndex + 1) 档 · \(Int(settings.bodyFontSize)) pt")
-                            .monospacedDigit()
-                            .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("字号").font(.subheadline)
+                            Text("第 \(settings.fontSizeIndex + 1) 档 · \(Int(settings.bodyFontSize(for: dynamicTypeSize))) pt")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(ReadingSpace.profileMuted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     .accessibilityLabel("字号")
-                    .accessibilityValue("第 \(settings.fontSizeIndex + 1) 档，\(Int(settings.bodyFontSize)) 磅")
-                }
+                    .accessibilityValue("第 \(settings.fontSizeIndex + 1) 档，\(Int(settings.bodyFontSize(for: dynamicTypeSize))) 磅")
 
-                choiceSection(
-                    "字体",
-                    values: [("serif", "衬线"), ("sans", "无衬线")],
-                    selection: Binding(
+                    choiceRow("字体", values: [("serif", "衬线"), ("sans", "无衬线")], selection: Binding(
                         get: { settings.useSerif ? "serif" : "sans" },
                         set: { set("fontFamily", $0) }
-                    ),
-                    clearOuterContainer: true
-                )
-                choiceSection(
-                    "行距",
-                    values: [("1.75", "紧凑"), ("1.95", "标准"), ("2.15", "宽松")],
-                    selection: preference("readerLineHeight", default: "1.95"),
-                    clearOuterContainer: true
-                )
-                choiceSection(
-                    "段间距",
-                    values: [("1.0", "紧凑"), ("1.4", "标准"), ("1.8", "宽松")],
-                    selection: preference("readerParagraphSpacing", default: "1.4"),
-                    clearOuterContainer: true
-                )
+                    ))
+                    choiceRow("行距", values: [("1.75", "紧凑"), ("1.95", "标准"), ("2.15", "宽松")],
+                              selection: preference("readerLineHeight", default: "1.95"))
+                    choiceRow("段间距", values: [("1.0", "紧凑"), ("1.4", "标准"), ("1.8", "宽松")],
+                              selection: preference("readerParagraphSpacing", default: "1.4"))
+                } header: {
+                    sectionHeading("文字排版")
+                }
+                .listRowBackground(ReadingSpace.paper)
 
-                Section("纸面") {
+                Section {
                     LazyVGrid(
-                        columns: Array(
-                            repeating: GridItem(.flexible(), spacing: 16, alignment: .center),
-                            count: dynamicTypeSize.isAccessibilitySize ? 1 : themes.count
-                        ),
+                        columns: Array(repeating: GridItem(.flexible(), spacing: 12),
+                                       count: dynamicTypeSize >= .xxxLarge ? 2 : themes.count),
                         spacing: 16
                     ) {
                         ForEach(themes, id: \.id) { theme in
                             themeButton(theme)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 8)
                     .listRowBackground(Color.clear)
+                } header: {
+                    sectionHeading("纸面")
                 }
 
                 Section {
@@ -77,18 +81,6 @@ struct ReaderSettingsView: View {
                         Text("左右翻页").tag("page")
                     }
                     .accessibleSegmentedPicker()
-                    .listRowBackground(Color.clear)
-                } header: {
-                    Text("翻页方式")
-                } footer: {
-                    if settings.pageMode == "page" {
-                        Text("在整个正文区域向左滑动阅读下一页，向右滑动返回上一页。点击中间区域显示或隐藏阅读控制。")
-                    } else {
-                        Text("上下滑动滚动正文；在整个正文区域向左滑动进入下一章，向右滑动返回上一章。")
-                    }
-                }
-
-                Section {
                     Toggle("显示章节插图", isOn: Binding(
                         get: { settings.illustrationsEnabled },
                         set: { set("readerIllustrations", $0 ? "on" : "off") }
@@ -102,23 +94,35 @@ struct ReaderSettingsView: View {
                         get: { settings.wakeLockEnabled },
                         set: { set("readerWakeLock", $0 ? "on" : "off") }
                     ))
+                } header: {
+                    sectionHeading("阅读操作")
+                } footer: {
+                    if settings.pageMode == "page" {
+                        Text("在正文区域向左滑动阅读下一页，向右滑动返回上一页。点击中间区域显示或隐藏阅读控制。")
+                    } else {
+                        Text("上下滑动滚动正文。在正文区域向左滑动进入下一章，向右滑动返回上一章。")
+                    }
                 }
+                .listRowBackground(ReadingSpace.paper)
 
                 if settings.hasPendingSync || settings.lastSyncError != nil {
                     Section {
                         Label(
-                            settings.lastSyncError == nil
-                                ? "阅读设置等待同步"
-                                : "阅读设置同步失败，将自动重试",
+                            settings.lastSyncError == nil ? "阅读设置等待同步" : "阅读设置同步失败，将自动重试",
                             systemImage: settings.lastSyncError == nil ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle"
                         )
                         .font(.footnote)
-                        .foregroundStyle(settings.lastSyncError == nil ? AppTheme.textSecondary : AppTheme.warning)
+                        .foregroundStyle(settings.lastSyncError == nil ? ReadingSpace.profileMuted : AppTheme.warning)
                         .fixedSize(horizontal: false, vertical: true)
                     }
+                    .listRowBackground(Color.clear)
                 }
             }
-            .appListStyle(.settings)
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: 700)
+            .frame(maxWidth: .infinity)
+            .background(ReadingSpace.profilePaper)
             .tint(AppTheme.primary)
             .navigationTitle("阅读设置")
             .navigationBarTitleDisplayMode(.inline)
@@ -130,32 +134,67 @@ struct ReaderSettingsView: View {
                 }
             }
         }
-        .presentationBackground(AppTheme.background)
+        .presentationBackground(ReadingSpace.profilePaper)
         .presentationDragIndicator(.visible)
     }
 
-    private func choiceSection(
-        _ title: String,
-        values: [(String, String)],
-        selection: Binding<String>,
-        clearOuterContainer: Bool = false
-    ) -> some View {
-        Section(title) {
+    private var readingPreview: some View {
+        let samples = previewParagraphs.isEmpty
+            ? ["这段文字用于预览字号、字体与行距。", "段落之间的留白也会随设置变化。"]
+            : Array(previewParagraphs.prefix(2))
+        return ScrollView {
+            VStack(alignment: .leading, spacing: settings.paragraphSpacing(for: dynamicTypeSize)) {
+                Text(previewTitle ?? "排版示例")
+                    .font(settings.titleFont(for: dynamicTypeSize))
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(Array(samples.enumerated()), id: \.offset) { _, paragraph in
+                    let excerpt = String(paragraph.prefix(96))
+                    Text(paragraphIndent + excerpt + (excerpt.count < paragraph.count ? "…" : ""))
+                        .font(settings.bodyFont(for: dynamicTypeSize))
+                        .lineSpacing(settings.lineSpacing(for: dynamicTypeSize))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+        .frame(height: dynamicTypeSize.isAccessibilitySize ? 260 : 180)
+        .foregroundStyle(settings.textColor(systemDark: colorScheme == .dark))
+        .background(settings.backgroundColor(systemDark: colorScheme == .dark),
+                    in: RoundedRectangle(cornerRadius: 20))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(ReadingSpace.profileLine, lineWidth: 0.8)
+                .allowsHitTesting(false)
+        }
+        .transaction { $0.animation = nil }
+        .accessibilityIdentifier("reader.settings.preview")
+    }
+
+    private func sectionHeading(_ title: String) -> some View {
+        Text(title)
+            .font(serifFont(.headline, .medium))
+            .foregroundStyle(ReadingSpace.ink)
+            .textCase(nil)
+    }
+
+    private func choiceRow(_ title: String, values: [(String, String)], selection: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.subheadline).foregroundStyle(ReadingSpace.profileMuted)
             Picker(title, selection: selection) {
                 ForEach(values, id: \.0) { value in
                     Text(value.1).tag(value.0)
                 }
             }
+            .labelsHidden()
             .accessibleSegmentedPicker()
-            .modifier(ReaderSettingsRowBackgroundModifier(isClear: clearOuterContainer))
         }
+        .padding(.vertical, 6)
     }
 
     private func preference(_ key: String, default fallback: String) -> Binding<String> {
-        Binding(
-            get: { settings.values[key] ?? fallback },
-            set: { set(key, $0) }
-        )
+        Binding(get: { settings.values[key] ?? fallback }, set: { set(key, $0) })
     }
 
     private func set(_ key: String, _ value: String) {
@@ -170,28 +209,26 @@ struct ReaderSettingsView: View {
             set("readerTheme", theme.id)
         } label: {
             VStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(theme.swatch)
-                    .frame(maxWidth: 88)
-                    .frame(height: 44)
+                    .frame(height: 48)
                     .overlay {
-                        RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
-                            .strokeBorder(selected ? AppTheme.primary : AppTheme.border, lineWidth: selected ? 2 : 1)
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(selected ? AppTheme.primary : ReadingSpace.profileLine, lineWidth: selected ? 2 : 1)
                     }
                     .overlay {
                         if selected {
                             Image(systemName: "checkmark")
-                                .font(.body.weight(.semibold))
+                                .font(.caption.weight(.semibold))
                                 .foregroundStyle(AppTheme.primary)
                                 .padding(6)
-                                .background(AppTheme.canvas, in: Circle())
+                                .background(ReadingSpace.profilePaper, in: Circle())
                                 .accessibilityHidden(true)
                         }
                     }
                 Text(theme.title)
-                    .font(.subheadline)
-                    .foregroundStyle(selected ? AppTheme.primary : AppTheme.textSecondary)
-                    .multilineTextAlignment(.center)
+                    .font(.footnote)
+                    .foregroundStyle(selected ? AppTheme.primary : ReadingSpace.profileMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
@@ -200,18 +237,5 @@ struct ReaderSettingsView: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityLabel(theme.title)
-    }
-}
-
-private struct ReaderSettingsRowBackgroundModifier: ViewModifier {
-    let isClear: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if isClear {
-            content.listRowBackground(Color.clear)
-        } else {
-            content
-        }
     }
 }
