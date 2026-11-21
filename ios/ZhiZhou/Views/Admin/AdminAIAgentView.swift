@@ -92,7 +92,9 @@ struct AdminAIAgentView: View {
                             .geometryGroup()
                             .frame(width: 300)
                             .frame(width: sidebarExpanded ? 300 : 0, alignment: .leading)
-                            .clipped()
+                            .mask {
+                                Rectangle().ignoresSafeArea(.container, edges: .vertical)
+                            }
                             .allowsHitTesting(sidebarExpanded)
                             .accessibilityHidden(!sidebarExpanded)
                     }
@@ -105,10 +107,15 @@ struct AdminAIAgentView: View {
                         .geometryGroup()
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .background(ReadingSpace.profilePaper)
-                        .clipShape(UnevenRoundedRectangle(
-                            topLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0,
-                            bottomLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0
-                        ))
+                        // Round the full paper, including the status and home-indicator areas.
+                        // Clipping at the layout bounds would cut off the transparent navigation underlap.
+                        .mask {
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0,
+                                bottomLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0
+                            )
+                            .ignoresSafeArea(.container, edges: .vertical)
+                        }
                         .shadow(color: .black.opacity(drawerOpen ? 0.10 : 0), radius: 12, x: -4, y: 0)
                         .overlay {
                             Button { setHistoryVisible(false) } label: {
@@ -124,7 +131,11 @@ struct AdminAIAgentView: View {
                 }
                 .animation(reduceMotion ? nil : AppMotion.state, value: historyVisible)
             }
-            .clipped()
+            // Contain the horizontal slide without cutting off drawing in the vertical safe areas.
+            // Only the mask expands; navigation controls and keyboard avoidance keep their safe areas.
+            .mask {
+                Rectangle().ignoresSafeArea(.container, edges: .vertical)
+            }
             .background(ReadingSpace.canvas.ignoresSafeArea(.container))
             // Drawer visibility must not change the tab bar's safe-area height during the slide.
             .toolbar(activeSession != nil ? .hidden : (isTabRoot ? .visible : .automatic), for: .tabBar)
