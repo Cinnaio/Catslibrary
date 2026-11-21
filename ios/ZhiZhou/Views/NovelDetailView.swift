@@ -720,8 +720,10 @@ struct NovelDetailView: View {
         .padding(.vertical, isSelectingOffline ? 12 : 8)
         .frame(maxWidth: .infinity)
         .background {
-            ReadingSpace.profilePaper
-                .ignoresSafeArea(.container, edges: .bottom)
+            if isSelectingOffline {
+                ReadingSpace.profilePaper
+                    .ignoresSafeArea(.container, edges: .bottom)
+            }
         }
     }
 
