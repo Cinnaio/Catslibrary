@@ -1,40 +1,50 @@
 import SwiftUI
 
-/// 小说行（发现页列表项）：封面 + 标题/作者/状态/阅读元信息。
+/// 发现页作品在双列封面和紧凑列表之间共用书目信息。
 struct NovelCardView: View {
     let novel: Novel
     var isSelected = false
+    var isCoverLayout = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            NovelCoverView(novel: novel)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(novel.title)
-                        .font(serifFont(.headline, .semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .appTextLineLimit(2)
-                    if novel.hasUpdate {
-                        Text("更新")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.primary)
+        let layout = isCoverLayout
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 14))
+        layout {
+            if isCoverLayout {
+                Color.clear
+                    .aspectRatio(0.7, contentMode: .fit)
+                    .overlay {
+                        GeometryReader { geometry in
+                            NovelCoverView(novel: novel, size: geometry.size)
+                        }
                     }
-                }
+                    .shadow(color: AppTheme.cardShadow, radius: 8, y: 4)
+                    .accessibilityHidden(true)
+            } else {
+                NovelCoverView(novel: novel)
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                Text(novel.title)
+                    .font(serifFont(.headline, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .appTextLineLimit(2)
                 Text(novel.author.isEmpty ? "佚名" : novel.author)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                     .appTextLineLimit(1)
                 Text(metadataText)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(novel.hasUpdate ? AppTheme.primary : ReadingSpace.profileMuted)
+                    .appTextLineLimit(2)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 4)
+        .padding(.vertical, isCoverLayout ? 0 : 14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
-            isSelected ? AppTheme.primaryLight.opacity(0.42) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            isSelected ? ReadingSpace.profileFill : Color.clear,
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
@@ -51,10 +61,11 @@ struct NovelCardView: View {
 
     private var metadataText: String {
         var parts: [String] = []
+        if novel.hasUpdate { parts.append("有更新") }
         if let status = novel.statusLabel { parts.append(status) }
-        if let category = novel.categories.first, !category.isEmpty { parts.append(category) }
+        if !isCoverLayout, let category = novel.categories.first, !category.isEmpty { parts.append(category) }
         parts.append("\(novel.chapterCount) 章")
-        if novel.updatedAt > 0 { parts.append(AppFormat.relativeTime(novel.updatedAt)) }
+        if !isCoverLayout, novel.updatedAt > 0 { parts.append(AppFormat.relativeTime(novel.updatedAt)) }
         return parts.joined(separator: " · ")
     }
 }
@@ -71,7 +82,7 @@ struct NovelCoverView: View {
             image.resizable().scaledToFill()
         } placeholder: {
             ZStack {
-                AppTheme.primaryLight
+                ReadingSpace.profileFill
                 Image(systemName: "book.closed")
                     .foregroundStyle(AppTheme.primary.opacity(0.6))
             }

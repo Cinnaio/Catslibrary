@@ -35,6 +35,7 @@ struct ProfileView: View {
                 .buttonStyle(.plain)
             }
             .scrollIndicators(.hidden)
+            .coordinateSpace(.named("profileScroll"))
             .ignoresSafeArea(.container, edges: .top)
         }
         .background(ReadingSpace.profilePaper)
@@ -52,23 +53,28 @@ struct ProfileView: View {
 
     private func profileCover(topInset: CGFloat) -> some View {
         GeometryReader { geometry in
+            let pullDistance = max(0, geometry.frame(in: .named("profileScroll")).minY)
+            let coverScale = reduceMotion ? 1 : 1 + pullDistance / geometry.size.height * 0.08
+
             Image("ReadingWindow")
                 .resizable()
                 .scaledToFill()
-                .frame(width: geometry.size.width, height: geometry.size.height)
+                .frame(width: geometry.size.width, height: geometry.size.height + pullDistance)
+                .scaleEffect(coverScale)
                 .clipped()
                 .overlay(Color.black.opacity(0.22))
-                .accessibilityHidden(true)
-        }
-        .frame(height: max(222, topInset + 160))
-        .overlay(alignment: .top) {
-            // 轻薄渐变保留照片细节，同时照顾系统状态栏的文字对比度。
-            LinearGradient(colors: [ReadingSpace.profilePaper.opacity(0.4), .clear],
-                           startPoint: .top, endPoint: .bottom)
-                .frame(height: topInset + 40)
+                .overlay(alignment: .top) {
+                    // 渐变随照片一起贴住顶沿，回弹露出的区域也保持状态栏对比度。
+                    LinearGradient(colors: [ReadingSpace.profilePaper.opacity(0.4), .clear],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(height: topInset + 40)
+                }
+                // 反向位移让照片顶沿贴住滚动容器，底沿随纸面下移。
+                .offset(y: -pullDistance)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
+        .frame(height: max(222, topInset + 160))
         .overlay(alignment: .top) {
             HStack(spacing: 16) {
                 Text("My little library.")

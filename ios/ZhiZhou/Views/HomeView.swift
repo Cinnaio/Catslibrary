@@ -1,7 +1,7 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// 发现页：以继续阅读为首要入口，紧凑宽度使用单列导航，宽屏保留书单与详情列。
+/// 发现页以封面浏览和分类检索组织书库，宽屏保留书单与详情分栏。
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -25,6 +25,7 @@ struct HomeView: View {
     @State private var loadMoreError: String?
     @State private var reloadTask: Task<Void, Never>?
     @State private var requests = ListRequestGuard<[String]>()
+    @State private var displayedQuery: [String]?
     @State private var interactionFeedback = 0
     @Namespace private var categoryNamespace
 
@@ -39,6 +40,27 @@ struct HomeView: View {
 
     private var catalogQuery: [String] {
         [search.trimmingCharacters(in: .whitespacesAndNewlines), selectedCategory ?? "", selectedStatus, selectedSort]
+    }
+
+    private var usesCoverGrid: Bool {
+        horizontalSizeClass != .regular && dynamicTypeSize < .xxxLarge
+    }
+
+    private var isFilteringCatalog: Bool {
+        !catalogQuery[0].isEmpty || selectedCategory != nil || !selectedStatus.isEmpty
+    }
+
+    private var visibleNovels: [Novel] {
+        novels.filter { ContentAccessStore.shared.mode == "adult" || !$0.isRestricted }
+    }
+
+    private var catalogTitle: String {
+        if !catalogQuery[0].isEmpty { return "搜索结果" }
+        switch selectedSort {
+        case "title": return "按书名浏览"
+        case "chapter_count": return "章节最多"
+        default: return "最近更新"
+        }
     }
 
     var body: some View {
@@ -100,37 +122,34 @@ struct HomeView: View {
     private var homeList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if let recentReading {
-                    VStack(alignment: .leading, spacing: 0) {
-                        sectionHeader("继续阅读")
-                            .padding(.bottom, 12)
-                        continueReadingHero(recentReading)
-                    }
-                    .padding(.top, 16)
-                    .padding(.bottom, 28)
-                    .transition(readingContextTransition)
-                } else if bookshelf != nil {
-                    startExploringHint
-                        .padding(.top, 16)
-                        .padding(.bottom, 22)
+                if horizontalSizeClass != .regular {
+                    Text("发现")
+                        .font(serifFont(.largeTitle, .medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .accessibilityAddTraits(.isHeader)
+                        .padding(.bottom, 20)
+                }
+                if !isFilteringCatalog, let recentReading {
+                    continueReadingHero(recentReading)
+                        .padding(.bottom, 24)
                         .transition(readingContextTransition)
                 }
 
-                sectionHeader(
-                    selectedSort == "title" ? "按书名浏览" : (selectedSort == "chapter_count" ? "章节最多" : "最近更新"),
-                    trailing: totalNovelCount > 0 ? "\(totalNovelCount) 本" : nil
-                )
-                .padding(.bottom, 12)
-
                 if !categories.isEmpty {
                     categoryChipsBar
-                        .padding(.bottom, 12)
+                        .padding(.bottom, 18)
                 }
+
+                sectionHeader(catalogTitle, trailing: displayedQuery == catalogQuery ? "\(totalNovelCount) 本" : nil)
+                    .padding(.bottom, 16)
 
                 catalogContent
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 22)
+            .padding(.top, 16)
             .padding(.bottom, 24)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.always, axes: .vertical)
@@ -140,9 +159,9 @@ struct HomeView: View {
             Color.clear
                 .frame(height: 24)
         }
-        .pageBackground(.browsing)
-        .navigationTitle("发现")
-        .navigationBarTitleDisplayMode(.large)
+        .background(ReadingSpace.profilePaper)
+        .navigationTitle(horizontalSizeClass == .regular ? "发现" : "")
+        .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索书名或作者")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -210,16 +229,31 @@ struct HomeView: View {
                         Task { await reload() }
                     }
                 }
-                ForEach(novels.filter { ContentAccessStore.shared.mode == "adult" || !$0.isRestricted }) { novel in
-                    novelRow(novel)
-                        .onAppear {
-                            if novel.id == novels.last?.id { loadMoreIfNeeded() }
+                if isLoading {
+                    ProgressView("正在更新书单…")
+                        .font(.footnote)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, 16)
+                }
+                Group {
+                    if usesCoverGrid {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(minimum: 0), spacing: 20, alignment: .top),
+                            GridItem(.flexible(minimum: 0), alignment: .top)
+                        ], spacing: 26) {
+                            catalogItems
                         }
-                    if novel.id != novels.last?.id {
-                        Divider()
-                            .padding(.leading, 76)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            catalogItems
+                        }
                     }
                 }
+                .id(displayedQuery)
+                .opacity(isLoading || displayedQuery != catalogQuery ? 0.45 : 1)
+                .disabled(isLoading || displayedQuery != catalogQuery)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isLoading)
 
                 if isLoadingMore {
                     ProgressView()
@@ -232,6 +266,16 @@ struct HomeView: View {
                         .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
                 }
             }
+        }
+    }
+
+    private var catalogItems: some View {
+        ForEach(Array(visibleNovels.enumerated()), id: \.element.id) { index, novel in
+            novelRow(novel)
+                .readingSpaceEntrance(index)
+                .onAppear {
+                    if novel.id == visibleNovels.last?.id { loadMoreIfNeeded() }
+                }
         }
     }
 
@@ -248,7 +292,8 @@ struct HomeView: View {
         } label: {
             NovelCardView(
                 novel: novel,
-                isSelected: horizontalSizeClass == .regular && selectedNovel?.id == novel.id
+                isSelected: horizontalSizeClass == .regular && selectedNovel?.id == novel.id,
+                isCoverLayout: usesCoverGrid
             )
         }
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
@@ -261,11 +306,11 @@ struct HomeView: View {
         let trimmed = search.trimmingCharacters(in: .whitespaces)
         if !trimmed.isEmpty {
             ContentUnavailableView.search(text: trimmed)
-        } else if selectedCategory != nil {
+        } else if selectedCategory != nil || !selectedStatus.isEmpty {
             ContentUnavailableView(
-                "没有作品",
+                "没有匹配的作品",
                 systemImage: "tray",
-                description: Text("换个分类试试")
+                description: Text("换个分类或状态试试")
             )
         } else {
             ContentUnavailableView(
@@ -276,71 +321,65 @@ struct HomeView: View {
     }
 
     private func sectionHeader(_ title: String, trailing: String? = nil) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+        AppAdaptiveRow(spacing: 8) {
             Text(title)
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(AppTheme.textPrimary)
-            Spacer(minLength: 12)
+                .font(serifFont(.title3, .medium))
+                .foregroundStyle(ReadingSpace.ink)
+                .accessibilityAddTraits(.isHeader)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if let trailing {
                 Text(trailing)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
         }
     }
 
     private func continueReadingHero(_ item: RecentItem) -> some View {
-        let progress = min(max(item.scrollPercent, 0), 1)
+        let progress = item.scrollPercent.isFinite ? min(max(item.scrollPercent, 0), 1) : 0
+        let layout = dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 16))
         return Button {
             openRecent(item)
         } label: {
-            HStack(alignment: .top, spacing: 16) {
+            layout {
                 NovelCoverView(
                     novel: item.asNovel,
-                    size: CGSize(width: 88, height: 124)
+                    size: CGSize(width: 72, height: 104)
                 )
                 .shadow(color: AppTheme.cardShadow, radius: 8, y: 4)
 
-                VStack(alignment: .leading, spacing: 9) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("继续阅读")
+                        .font(.caption)
+                        .foregroundStyle(ReadingSpace.summarySecondary)
                     Text(item.novelTitle)
-                        .font(serifFont(.title3, .semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                        .font(serifFont(.headline, .medium))
+                        .foregroundStyle(ReadingSpace.onSummary)
                         .appTextLineLimit(2)
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("第 \(item.chapterOrder) 章")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AppTheme.primary)
-                        if let chapterTitle = continueReadingChapterTitle(item) {
-                            Text(chapterTitle)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(AppTheme.textSecondary)
-                                .appTextLineLimit(2)
-                        }
+                    if let chapterTitle = continueReadingChapterTitle(item) {
+                        Text(chapterTitle)
+                            .font(.footnote)
+                            .foregroundStyle(ReadingSpace.summarySecondary)
+                            .appTextLineLimit(1)
                     }
 
-                    VStack(alignment: .leading, spacing: 5) {
-                        progressLayout {
-                            Text("本章进度")
-                            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-                            Text("已读 \(Int((progress * 100).rounded()))%")
-                                .contentTransition(.numericText())
-                                .monospacedDigit()
-                        }
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.textSecondary)
+                    ProgressView(value: progress, total: 1)
+                        .tint(ReadingSpace.profileToday)
+                        .accessibilityHidden(true)
 
-                        ProgressView(value: progress, total: 1)
-                            .tint(AppTheme.primary)
-                    }
-
-                    Label("继续阅读", systemImage: "arrow.right")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.primary)
+                    Text("第 \(item.chapterOrder) 章 · 本章已读 \(Int((progress * 100).rounded()))%")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(ReadingSpace.summarySecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.vertical, 8)
+            .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(ReadingSpace.summary, in: RoundedRectangle(cornerRadius: ReadingSpace.panelRadius))
             .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
@@ -358,19 +397,6 @@ struct HomeView: View {
         return normalizedTitle == normalizedOrder ? nil : title
     }
 
-    private var progressLayout: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
-            : AnyLayout(HStackLayout())
-    }
-
-    private var startExploringHint: some View {
-        Label("从最近更新里挑一本开始阅读", systemImage: "sparkles")
-            .font(.subheadline)
-            .foregroundStyle(AppTheme.textSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var categoryChipsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -379,10 +405,10 @@ struct HomeView: View {
                     categoryChip(title: cat, category: cat)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 22)
             .padding(.vertical, 4)
         }
-        .padding(.horizontal, -16)
+        .padding(.horizontal, -22)
     }
 
     private func categoryChip(title: String, category: String?) -> some View {
@@ -395,13 +421,13 @@ struct HomeView: View {
         } label: {
             Text(title)
                 .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? AppTheme.primary : AppTheme.textSecondary)
+                .foregroundStyle(isSelected ? ReadingSpace.ink : ReadingSpace.profileMuted)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 7)
+                .frame(minHeight: AppLayout.minimumTouchTarget)
                 .background {
                     if isSelected {
                         Capsule()
-                            .fill(AppTheme.primary.opacity(0.12))
+                            .fill(ReadingSpace.profileFill)
                             .matchedGeometryEffect(id: "activeCategoryPill", in: categoryNamespace)
                     } else {
                         Capsule()
@@ -410,6 +436,7 @@ struct HomeView: View {
                 }
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private var categoryMenu: some View {
@@ -453,7 +480,7 @@ struct HomeView: View {
             Image(systemName: selectedCategory == nil && selectedStatus.isEmpty && selectedSort == "updated_at"
                 ? "line.3.horizontal.decrease.circle"
                 : "line.3.horizontal.decrease.circle.fill")
-                .contentTransition(.symbolEffect(.replace))
+                .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
         }
         .accessibilityLabel("筛选与排序")
     }
@@ -515,7 +542,7 @@ struct HomeView: View {
     }
 
     private func loadMoreIfNeeded() {
-        guard !isLoading, !isLoadingMore, errorMessage == nil, page < totalPages,
+        guard !isLoading, !isLoadingMore, displayedQuery == catalogQuery, errorMessage == nil, page < totalPages,
               let ticket = requests.beginNext(catalogQuery) else { return }
         isLoadingMore = true
         let target = page + 1
@@ -552,6 +579,7 @@ struct HomeView: View {
                 novels = r.novels
                 categories = r.availableCategories
                 totalNovelCount = r.total
+                displayedQuery = ticket.query
             }
             page = r.page
             totalPages = r.totalPages

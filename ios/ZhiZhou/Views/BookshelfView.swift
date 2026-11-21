@@ -469,6 +469,7 @@ struct BookshelfView: View {
             } label: {
                 recentRow(item, featured: featured)
             }
+            .navigationLinkIndicatorVisibility(.hidden)
             .contextMenu {
                 Button {
                     compactDetailNovel = item.asNovel
@@ -515,6 +516,7 @@ struct BookshelfView: View {
             } label: {
                 favoriteLabel(favorite, cover: cover)
             }
+            .navigationLinkIndicatorVisibility(.hidden)
             .contextMenu {
                 Button {
                     compactDetailNovel = favorite.asNovel
