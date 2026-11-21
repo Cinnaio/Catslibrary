@@ -64,6 +64,7 @@ struct NovelDetailView: View {
         .refreshable { await load(refresh: true) }
         .navigationTitle("书籍详情")
         .navigationBarTitleDisplayMode(.inline)
+        .readingSpaceTopEdge()
         .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -206,7 +207,6 @@ struct NovelDetailView: View {
             .listRowBackground(Color.clear)
         }
         .modifier(ReadingSpaceRoomListStyle())
-        .readingSpaceTopEdge()
         .scrollDismissesKeyboard(.interactively)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
     }
@@ -717,7 +717,7 @@ struct NovelDetailView: View {
             }
         }
         .padding(.horizontal, sideInset)
-        .padding(.vertical, 12)
+        .padding(.vertical, isSelectingOffline ? 12 : 8)
         .frame(maxWidth: .infinity)
         .background {
             ReadingSpace.profilePaper
@@ -733,19 +733,9 @@ struct NovelDetailView: View {
     }
 
     private var readingBar: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if !isLoadingProgress, let chapter = continueChapter, !chapter.title.isEmpty {
-                Text(chapter.title)
-                    .font(.footnote)
-                    .foregroundStyle(ReadingSpace.profileMuted)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityLabel("即将阅读，\(chapter.title)")
-            }
-            HStack(spacing: 12) {
-                readButton
-                bookshelfButton
-            }
+        HStack(spacing: 12) {
+            readButton
+            bookshelfButton
         }
     }
 
@@ -793,7 +783,7 @@ struct NovelDetailView: View {
 
     private func readingActionLabel(_ title: String, subtitle: String, enabled: Bool) -> some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.body.weight(.medium))
                     .foregroundStyle(enabled ? ReadingSpace.onSummary : ReadingSpace.ink)
@@ -814,10 +804,10 @@ struct NovelDetailView: View {
         }
         .multilineTextAlignment(.leading)
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(minHeight: 64)
-        .background(enabled ? ReadingSpace.summary : ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: 20))
-        .contentShape(RoundedRectangle(cornerRadius: 20))
+        .padding(.vertical, 6)
+        .frame(minHeight: 52)
+        .background(enabled ? ReadingSpace.summary : ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: 18))
+        .contentShape(RoundedRectangle(cornerRadius: 18))
         .accessibilityElement(children: .combine)
     }
 
@@ -839,7 +829,7 @@ struct NovelDetailView: View {
                         .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace.downUp))
                 }
             }
-            .frame(width: 56, height: 56)
+            .frame(width: 52, height: 52)
         }
         .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glass))
         .disabled(bookshelfBusy)

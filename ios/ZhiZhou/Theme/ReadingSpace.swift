@@ -63,13 +63,15 @@ extension View {
     }
 }
 
-/// 子页共用原生柔和顶部过渡，辅助功能模式保留清晰边界。
+/// 导航始终铺同色纸底，滚动柔化只负责控制区下沿的过渡。
 private struct ReadingSpaceTopEdge: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
         content
+            .toolbarBackground(ReadingSpace.profilePaper, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .scrollEdgeEffectStyle(reduceTransparency || contrast == .increased ? .hard : .soft, for: .top)
     }
 }

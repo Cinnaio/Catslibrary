@@ -127,6 +127,7 @@ struct AdminAIAgentConversationView: View {
         .padding(.horizontal, 20).padding(.vertical, 2)
         .frame(maxWidth: 760, alignment: .leading)
         .frame(maxWidth: .infinity)
+        .background(ReadingSpace.profilePaper, ignoresSafeAreaEdges: [])
     }
 
     private var contextSummary: String {
