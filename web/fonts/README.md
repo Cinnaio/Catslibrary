@@ -2,7 +2,7 @@
 
 保留项目原有的 Noto Serif SC Regular / Bold OTF，另从官方 Noto CJK 仓库取得同为 2.003 版本的 Black OTF，分别提供 400 / 700 / 900 字重。Black 来源：https://raw.githubusercontent.com/notofonts/noto-cjk/main/Serif/SubsetOTF/SC/NotoSerifSC-Black.otf 。字体版权及 SIL Open Font License 1.1 见 [OFL.txt](OFL.txt)，各生成字体也保留原有版权与授权元数据。
 
-应用只发布 `web/src/assets/fonts/` 的 WOFF2 分片，OTF 源文件不在 public 目录，不随应用构建复制到静态站点。Vite 为字体输出带内容哈希的 `/assets/` 地址，沿用现有 Node 静态资源入口；不需要新增 `/fonts/` 反代配置。
+Web 阅读器使用 `web/src/assets/fonts/` 的 WOFF2 分片，Vite 将其输出到带内容哈希的 `/assets/` 地址。此目录的 OTF 源文件仅用于生成分片。iOS 客户端的两个 OTF 下载文件与授权说明由 [ios/font-dist](../../ios/font-dist/README.md) 随发布包输出至 `/fonts/`，由 Node 静态入口提供。
 
 每档提供原有 Regular / Bold 的全部 7,814 个字符映射。分组为拉丁字母与符号、公开首页固定用字、GB2312 一级常用字及其他字符；正文用字每片最多 512 个。通过 `unicode-range` 按需请求，`font-display: swap` 保留立即可读的系统字体回退。Black 按同一字符集合生成，额外源字形不加入当前阅读字体包。
 

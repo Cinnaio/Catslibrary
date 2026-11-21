@@ -1,6 +1,6 @@
 # Noto Serif SC 子集字体
 
-将两个 `.otf` 文件上传到：
+Web 生产构建会从此目录将两个 `.otf` 文件与 `LICENSE-OFL.txt` 一并复制到 `web/dist/fonts/`。Node 随发布包提供以下下载地址：
 
 - `https://catrr.uk/fonts/NotoSerifSC-Regular.otf`
 - `https://catrr.uk/fonts/NotoSerifSC-Bold.otf`

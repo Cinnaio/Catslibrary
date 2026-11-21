@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { createHash } from 'node:crypto'
 import { readFile, mkdtemp, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -55,8 +56,25 @@ try {
   const entry = html.match(/(?:src|href)="(\/assets\/[^"?]+\.js)"/)?.[1]
   assert.ok(entry, '首页须引用真实构建的入口资源')
   assert.equal((await get(entry)).status, 200)
+  // Installed iOS versions verify these exact SHA-256 values in FontStore.swift.
+  const fonts = {
+    'NotoSerifSC-Regular.otf': 'b328106fab689870861986818ecdc94826059ec80ff8e552053a34c16f7c7b71',
+    'NotoSerifSC-Bold.otf': 'b265e5b787f9386e809c90b5cb69c83211e86e562d0c0cc78f188973cf1e8406',
+  }
+  for (const [file, checksum] of Object.entries(fonts)) {
+    const font = await get(`/fonts/${file}`)
+    assert.equal(font.status, 200, file)
+    assert.equal(font.headers.get('Content-Type'), 'font/otf', file)
+    assert.equal(createHash('sha256').update(Buffer.from(await font.arrayBuffer())).digest('hex'), checksum, file)
+  }
+  const license = await get('/fonts/LICENSE-OFL.txt')
+  assert.equal(license.status, 200)
+  assert.match(await license.text(), /SIL OPEN FONT LICENSE/i)
+  const missingFont = await get('/fonts/missing.otf')
+  assert.equal(missingFont.status, 404)
+  assert.doesNotMatch(missingFont.headers.get('Content-Type') ?? '', /^text\/html/i)
   assert.equal((await get('/api/novels?limit=1')).status, env.DATABASE_URL ? 200 : 503)
-  console.log(`隔离发布包启动、版本、页面与业务就绪检查通过 (${env.DATABASE_URL ? 'PostgreSQL' : '未配置数据库明确返回 503'})`)
+  console.log(`隔离发布包启动、版本、页面、iOS 字体下载与业务就绪检查通过 (${env.DATABASE_URL ? 'PostgreSQL' : '未配置数据库明确返回 503'})`)
 } finally {
   if (running()) {
     child.kill('SIGTERM')

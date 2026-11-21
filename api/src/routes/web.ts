@@ -80,6 +80,7 @@ export function createWebRoutes(
   routes.get('/api/*', (c) => c.notFound())
   routes.get('/assets/*', serveStatic({ root }))
   routes.get('/images/*', serveStatic({ root }))
+  routes.get('/fonts/*', serveStatic({ root }), (c) => c.notFound())
   routes.get('*', optionalUser(), async (c) => {
     c.header('X-Robots-Tag', 'noindex, follow')
     c.header('Cache-Control', 'no-store')

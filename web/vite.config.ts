@@ -1,13 +1,28 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 
 const sharedDir = fileURLToPath(new URL('../shared', import.meta.url))
 const srcDir = fileURLToPath(new URL('./src', import.meta.url))
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: 'ios-font-downloads',
+      apply: 'build',
+      async buildStart() {
+        // Keep the download paths and bytes expected by installed iOS clients.
+        for (const file of ['NotoSerifSC-Regular.otf', 'NotoSerifSC-Bold.otf', 'LICENSE-OFL.txt']) {
+          const source = await readFile(new URL(`../ios/font-dist/${file}`, import.meta.url))
+          this.emitFile({ type: 'asset', fileName: `fonts/${file}`, source })
+        }
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@shared': sharedDir,

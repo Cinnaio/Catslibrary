@@ -174,7 +174,7 @@ DATABASE_URL=postgres://... node api/dist/index.js
   }
   ```
 
-  若由 Nginx 单独托管 `/assets/` 和 `/images/` 以节省 Node 流量，可以保留对应静态 location；`/`、`/novel/*`、`/read/*`、后台和个人页面，以及 `/robots.txt`、`/sitemap.xml`、`/sitemaps/*` 必须交给 Node 页面入口。反代不得追加全站 `X-Robots-Tag: noindex`，HTML 与 sitemap 不应缓存，以便分级变更及时生效。Caddy 可使用 `reverse_proxy 127.0.0.1:8787`。
+  若由 Nginx 单独托管 `/assets/` 和 `/images/` 以节省 Node 流量，可以保留对应静态 location；`/`、`/novel/*`、`/read/*`、后台和个人页面，以及 `/robots.txt`、`/sitemap.xml`、`/sitemaps/*` 必须交给 Node 页面入口。`/fonts/` 也由 Node 提供，供 iOS 下载阅读字体。反代不得追加全站 `X-Robots-Tag: noindex`，HTML 与 sitemap 不应缓存，以便分级变更及时生效。Caddy 可使用 `reverse_proxy 127.0.0.1:8787`。
 
   部署后检查首页、general/restricted/unknown 详情、个人页面的实际 HTML 和 `X-Robots-Tag`，以及 sitemap 中的作品范围，再通过搜索引擎站长工具检查抓取和提交 sitemap。移除禁止规则不代表即时收录。
 - **SPA fallback**：前端是单页应用，`/novel/:id`、`/read/:novelId/:chapterId`、`/bookshelf` 等均为前端路由，服务器上只有一份 `index.html`。直接刷新或从外站深链进入非首页路由时，静态服务器找不到对应文件会返回 404。需在静态站点配置中把找不到的路径回退到 `index.html`，交由 React Router 解析：

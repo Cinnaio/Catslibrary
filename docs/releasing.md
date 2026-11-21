@@ -1,5 +1,11 @@
 # 发布与版本管理
 
+## iOS 阅读字体下载修复（2026-11-21）
+
+- 线上 `/fonts/NotoSerifSC-Regular.otf` 与 Bold 对应地址曾返回首页 HTML，导致现有客户端的 SHA-256 校验失败。Web 构建从 `ios/font-dist/` 输出原始分发文件和 OFL 授权，Node 提供下载并对缺失文件返回 404。Web 阅读器继续使用原有 WOFF2 分片。
+- 基于 `ac39516b` 修复，API `1.9.0` / Web `1.10.0` 已上线，本次将源码版本及锁文件中的 workspace 同步更新为 API `1.9.1` / Web `1.10.1`。API 与 Web 需成组部署，无新增数据库迁移，已安装的 iOS 客户端可沿用原地址。
+- Windows 本地生产构建、打包与隔离 HTTP 验收通过。Regular 和 Bold 均返回 `200` / `font/otf`，SHA-256 匹配 iOS 内置值，授权文件可访问，缺失字体返回 `404`。生产部署和 iOS 真机验收待完成。
+
 ## iOS 阅读器目录与设置更新（2026-11-21）
 
 - 目录采用暖纸列表、衬线书名与章名，字数与章序为次级信息。当前章提供文字、底色和勾选状态，工具栏定位入口清除检索后回到当前章。章节选择、按章号跳转、正倒序与离线目录读取沿用既有路径。
@@ -1305,8 +1311,8 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
 | iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.4.0 / 31` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
-| API | `api/package.json` | `1.7.0` | 同步 `package-lock.json` 的 `packages.api.version` |
-| Web | `web/package.json` | `1.8.0` | 同步锁文件 `packages.web.version` |
+| API | `api/package.json` | `1.9.1` | 同步 `package-lock.json` 的 `packages.api.version` |
+| Web | `web/package.json` | `1.10.1` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |
 
 这些是源码声明的版本，不代表对应 IPA 已构建、服务器已部署或设备已安装。iOS 与网站独立构建发布；同一仓库中的包不必使用同一个版本号。
