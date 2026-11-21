@@ -25,7 +25,6 @@ struct AdminAIAgentConversationView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            context
             if model.hasLoaded {
                 AgentMessagesView(model: model, readingOverlay: panel != nil || model.selectedAction != nil,
                                   showArtifact: { panel = .artifact($0) }, showOutputs: { panel = .outputs },
@@ -38,7 +37,9 @@ struct AdminAIAgentConversationView: View {
                 ProgressView("读取对话…").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(ReadingSpace.canvas)
+        .safeAreaBar(edge: .top, spacing: 0) { context }
+        .readingSpaceTopEdge()
+        .background(ReadingSpace.profilePaper)
         .navigationTitle(model.session.novelTitle.isEmpty ? "对话创作" : model.session.novelTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -125,7 +126,6 @@ struct AdminAIAgentConversationView: View {
         }
         .padding(.horizontal, 20).padding(.vertical, 2)
         .frame(maxWidth: 760, alignment: .leading)
-        .overlay(alignment: .bottom) { ReadingSpace.line.frame(height: 1).padding(.horizontal, 20) }
         .frame(maxWidth: .infinity)
     }
 
@@ -288,7 +288,7 @@ private struct AgentMessagesView: View {
         .padding(.top, 8)
         .frame(maxWidth: .infinity)
         .background {
-            if usesSolidBar { ReadingSpace.canvas.ignoresSafeArea(.container, edges: .bottom) }
+            if usesSolidBar { ReadingSpace.profilePaper.ignoresSafeArea(.container, edges: .bottom) }
         }
         .animation(reduceMotion ? nil : AppMotion.panel, value: followsBottom)
     }

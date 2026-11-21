@@ -54,8 +54,23 @@ struct ReadingSpaceRoomListStyle: ViewModifier {
 }
 
 extension View {
+    func readingSpaceTopEdge() -> some View {
+        modifier(ReadingSpaceTopEdge())
+    }
+
     func readingSpaceEntrance(_ index: Int = 0) -> some View {
         modifier(ReadingSpaceEntrance(index: index))
+    }
+}
+
+/// 子页共用原生柔和顶部过渡，辅助功能模式保留清晰边界。
+private struct ReadingSpaceTopEdge: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func body(content: Content) -> some View {
+        content
+            .scrollEdgeEffectStyle(reduceTransparency || contrast == .increased ? .hard : .soft, for: .top)
     }
 }
 

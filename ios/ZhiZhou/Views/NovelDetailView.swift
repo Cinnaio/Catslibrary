@@ -206,6 +206,7 @@ struct NovelDetailView: View {
             .listRowBackground(Color.clear)
         }
         .modifier(ReadingSpaceRoomListStyle())
+        .readingSpaceTopEdge()
         .scrollDismissesKeyboard(.interactively)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
     }

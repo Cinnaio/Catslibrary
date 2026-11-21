@@ -63,7 +63,8 @@ struct ReadingStatsView: View {
                     .buttonStyle(.borderless)
                 }
             }
-            .listRowBackground(ReadingSpace.paper)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 8, leading: 22, bottom: 8, trailing: 22))
 
             if let error {
@@ -186,6 +187,7 @@ struct ReadingStatsView: View {
             }
         }
         .modifier(ReadingSpaceRoomListStyle())
+        .readingSpaceTopEdge()
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
         .background(ReadingSpace.profilePaper)
