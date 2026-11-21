@@ -198,7 +198,8 @@ private struct AgentMessagesView: View {
     }
 
     private var transcript: some View {
-        LazyVStack(alignment: .leading, spacing: 22) {
+        let groups = AgentMessageGroup.grouped(model.events)
+        return LazyVStack(alignment: .leading, spacing: 16) {
             if model.hasEarlier {
                 Button {
                     followsBottom = false
@@ -212,12 +213,15 @@ private struct AgentMessagesView: View {
                 ContentUnavailableView("一起把故事往下写", systemImage: "sparkles",
                     description: Text("可以聊情节、调整草稿，也可以描述你想要的封面。"))
             }
-            ForEach(AgentMessageGroup.grouped(model.events)) { group in
-                if group.activities.isEmpty {
-                    AgentMessageRow(event: group.firstEvent, model: model, showArtifact: showArtifact,
-                                    pauseFollowing: { followsBottom = false })
-                } else {
-                    AgentActivityGroupView(events: group.activities, showArtifact: showArtifact) { followsBottom = false }
+            ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                VStack(alignment: .leading, spacing: 12) {
+                    replyHeading(for: group.firstEvent, after: index > 0 ? groups[index - 1].firstEvent : nil)
+                    if group.activities.isEmpty {
+                        AgentMessageRow(event: group.firstEvent, model: model, showArtifact: showArtifact,
+                                        pauseFollowing: { followsBottom = false })
+                    } else {
+                        AgentActivityGroupView(events: group.activities, showArtifact: showArtifact) { followsBottom = false }
+                    }
                 }
             }
             replyStatus
@@ -232,6 +236,21 @@ private struct AgentMessagesView: View {
             Color.clear.frame(height: 1).id("agent-bottom")
         }
         .padding(20).frame(maxWidth: 760, alignment: .leading).frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder private func replyHeading(for event: AIAgentEvent, after previous: AIAgentEvent?) -> some View {
+        if event.role != "user", event.role != "assistant", event.taskId.isEmpty {
+            AgentReplyHeading(createdAt: event.createdAt,
+                              title: event.metadata.actionId == nil ? "操作记录" : "采纳记录",
+                              symbol: "clock")
+                .padding(.top, 6)
+        } else if event.role != "user", !event.taskId.isEmpty,
+           previous?.role == "user" || previous?.taskId != event.taskId {
+            let followsRequest = previous?.role == "user" && previous?.taskId == event.taskId
+            let request = followsRequest ? nil : model.events.last { $0.role == "user" && $0.taskId == event.taskId }
+            AgentReplyHeading(createdAt: event.createdAt, request: request)
+                .padding(.top, 6)
+        }
     }
 
     @ViewBuilder private var replyStatus: some View {
@@ -285,12 +304,43 @@ private struct AgentMessagesView: View {
             }
             AgentComposerView(model: model, showMemory: showMemory)
         }
-        .padding(.top, 8)
+        .padding(.top, 4)
         .frame(maxWidth: .infinity)
         .background {
             if usesSolidBar { ReadingSpace.profilePaper.ignoresSafeArea(.container, edges: .bottom) }
         }
         .animation(reduceMotion ? nil : AppMotion.panel, value: followsBottom)
+    }
+}
+
+private struct AgentReplyHeading: View {
+    let createdAt: Int64
+    var request: AIAgentEvent? = nil
+    var title = "创作助手"
+    var symbol = "sparkle"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            AppAdaptiveRow(spacing: 8) {
+                Label(title, systemImage: symbol)
+                    .fontWeight(.medium)
+                    .foregroundStyle(AppTheme.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if createdAt > 0 {
+                    Text(Date(timeIntervalSince1970: Double(createdAt) / 1000),
+                         format: .dateTime.month().day().hour().minute())
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
+            }
+            .font(.caption)
+            if let request {
+                Text(verbatim: "回应「\(String(request.content.prefix(48)))\(request.content.count > 48 ? "…" : "")」")
+                    .font(.caption)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .appTextLineLimit(2)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -428,9 +478,10 @@ private struct AgentMessageRow: View {
                         topLeadingRadius: 20, bottomLeadingRadius: 20, bottomTrailingRadius: 6, topTrailingRadius: 20))
             }
         } else if event.role == "assistant" && event.metadata.error != true {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("创作助手", systemImage: "sparkle")
-                    .font(.caption.weight(.medium)).foregroundStyle(AppTheme.primary)
+            VStack(alignment: .leading, spacing: 10) {
+                if event.taskId.isEmpty {
+                    AgentReplyHeading(createdAt: event.createdAt)
+                }
                 AgentMarkdownView(content: event.content)
                     .foregroundStyle(ReadingSpace.ink)
             }
@@ -441,8 +492,8 @@ private struct AgentMessageRow: View {
                         Image(systemName: "exclamationmark.circle")
                             .foregroundStyle(AppTheme.danger).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 5) {
-                            Text("操作未完成").font(.footnote.weight(.semibold)).foregroundStyle(AppTheme.danger)
-                            Text(verbatim: event.content).font(.footnote).foregroundStyle(ReadingSpace.ink)
+                            Text(failureTitle).font(.footnote.weight(.semibold)).foregroundStyle(AppTheme.danger)
+                            Text(verbatim: failureReason).font(.footnote).foregroundStyle(ReadingSpace.ink)
                                 .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                         }
                     }
@@ -465,6 +516,19 @@ private struct AgentMessageRow: View {
         }
     }
 
+    private var failureTitle: String {
+        if let operation = AgentDisplay.operation(event.metadata.tool) { return "\(operation)未完成" }
+        if event.metadata.tool != nil { return "这一步未完成" }
+        return event.taskId.isEmpty ? "这次操作未完成" : "这次回复未完成"
+    }
+
+    private var failureReason: String {
+        guard let operation = AgentDisplay.operation(event.metadata.tool) else { return event.content }
+        let prefix = operation + "："
+        guard event.content.hasPrefix(prefix), event.content.count > prefix.count else { return event.content }
+        return String(event.content.dropFirst(prefix.count))
+    }
+
     private func artifactLink(_ id: String) -> some View {
         let artifact = model.artifacts.first(where: { $0.id == id })
         let task = model.tasks[id] ?? artifact?.task
@@ -477,19 +541,22 @@ private struct AgentMessageRow: View {
         let hasSuggestion = artifact?.rewrite != nil || artifact?.chapterEdit != nil
         return Button { showArtifact(id) } label: {
             VStack(alignment: .leading, spacing: 12) {
-                AppAdaptiveRow(spacing: 6) {
-                    Label(title == kind ? "创作产出" : kind, systemImage: "doc.text")
-                        .foregroundStyle(AppTheme.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                AppAdaptiveRow(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        if title != kind {
+                            Text(kind).font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                        }
+                        Text(title).font(serifFont(.title3, .semibold)).foregroundStyle(ReadingSpace.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     if let status {
                         Text(status)
+                            .font(.caption)
                             .foregroundStyle(task?.status == "failed" ? AppTheme.danger : AppTheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .font(.caption)
-                Text(title).font(serifFont(.title3, .semibold)).foregroundStyle(ReadingSpace.ink)
-                    .fixedSize(horizontal: false, vertical: true)
                 // The activity belongs to this result; keep its wording once inside the preview.
                 if event.metadata.error != true && !event.content.isEmpty && event.content != title {
                     Text(verbatim: event.content).font(.footnote).foregroundStyle(AppTheme.textSecondary)
@@ -498,13 +565,12 @@ private struct AgentMessageRow: View {
                 if task?.status == "completed" && !excerpt.isEmpty {
                     Text(verbatim: String(excerpt.prefix(360)))
                         .font(serifFont(.body)).foregroundStyle(ReadingSpace.ink).lineSpacing(5)
-                        .lineLimit(4)
+                        .appTextLineLimit(3)
                 }
                 if let warning, !warning.isEmpty {
                     Text(verbatim: warning).font(.caption).foregroundStyle(AppTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                ReadingSpace.line.frame(height: 1)
                 HStack {
                     Text(draft != nil ? "阅读草稿" : (hasSuggestion ? "查看建议" : "查看产出"))
                     Spacer(minLength: 8)
@@ -532,7 +598,7 @@ private struct AgentMessageRow: View {
             default: return draft.status
             }
         }
-        if artifact?.rewrite != nil || artifact?.chapterEdit != nil { return "已生成建议" }
+        if artifact?.rewrite != nil || artifact?.chapterEdit != nil { return "建议已生成" }
         return task.map { $0.status == "completed" ? "生成完成" : AgentDisplay.status($0.status) }
     }
 }
@@ -642,11 +708,11 @@ private struct AgentComposerView: View {
             if let pending = model.localDraft.pending {
                 pendingMessage(pending)
             }
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 0) {
                 TextField("和创作助手聊聊…", text: $model.localDraft.input, axis: .vertical)
-                    .lineLimit(2...6)
+                    .lineLimit(1...6)
                     .foregroundStyle(ReadingSpace.ink)
-                    .padding(.horizontal, 4).padding(.top, 4)
+                    .padding(.horizontal, 4)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .accessibilityLabel("消息")
                     .accessibilityIdentifier("agent.composer")
@@ -666,7 +732,7 @@ private struct AgentComposerView: View {
                     }
                 }
             }
-            .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 6)
+            .padding(.horizontal, 12).padding(.top, 6).padding(.bottom, 4)
             .appGlassEffect(.regular, fallback: ReadingSpace.paper,
                             in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             if model.localDraft.input.utf16.count > 8_000 {
@@ -799,6 +865,22 @@ struct AgentTaskStatusView: View {
 }
 
 enum AgentDisplay {
+    static func operation(_ tool: String?) -> String? {
+        guard let tool else { return nil }
+        return [
+            "read_overview": "读取小说和章节目录", "find_chapter": "定位原章节", "search_chapters": "检索章节依据",
+            "search_story": "检索人物与情节依据", "read_chapter": "阅读章节原文", "list_novel_analyses": "查看小说分析目录",
+            "read_novel_analysis": "查阅小说分析", "list_drafts": "查找草稿", "find_draft_version": "定位草稿版本",
+            "read_draft": "读取草稿", "list_covers": "查看封面候选", "read_task": "读取任务结果",
+            "read_conversation": "查阅早前对话", "read_conversation_sources": "核对作者原话",
+            "propose_chapter_plan": "整理章节计划", "generate_draft": "生成章节草稿",
+            "rewrite_chapter": "生成原章节改写建议", "refine_chapter_edit": "调整原章节建议",
+            "list_chapter_edits": "查看章节修改历史", "rewrite_draft": "生成改写建议",
+            "refine_rewrite": "调整上一版改写建议", "generate_cover": "生成封面候选",
+            "analyze_novel": "生成小说分析报告", "propose_memory": "提出创作记忆", "prepare_action": "准备采纳预览",
+        ][tool]
+    }
+
     static func recoveryPhase(_ value: String) -> String {
         ["context": "准备对话时中断", "retrieval": "查阅资料时中断", "model": "整理回复时中断",
          "generation": "提交创作操作时中断", "save": "保存回复时中断", "summary": "更新对话摘要时中断"][value] ?? "本轮回复中断"
