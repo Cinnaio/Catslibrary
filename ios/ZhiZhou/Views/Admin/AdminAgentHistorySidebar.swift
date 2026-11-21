@@ -3,6 +3,7 @@ import ZhiZhouCore
 
 /// Flat history sits behind the conversation surface rather than inside another card.
 struct AdminAgentHistorySidebar: View {
+    let isPresented: Bool
     let sessions: [AIAgentSession]
     let selectedSessionID: String?
     let currentNovelTitle: String
@@ -167,7 +168,10 @@ struct AdminAgentHistorySidebar: View {
         }
         .frame(maxHeight: .infinity)
         .background(ReadingSpace.canvas)
-        .onChange(of: isSearching) { _, value in searchFocused = value }
+        .onChange(of: isSearching) { _, value in searchFocused = value && isPresented }
+        .onChange(of: isPresented) { _, value in
+            if !value { searchFocused = false }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("对话历史侧栏")
     }

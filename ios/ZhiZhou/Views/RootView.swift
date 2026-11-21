@@ -130,7 +130,7 @@ struct MainTabView: View {
             }
             if appState.user?.isAdmin == true {
                 Tab("创作", systemImage: "bubble.left.and.bubble.right", value: "create") {
-                    NavigationStack { AdminAIAgentView(isTabRoot: true) }
+                    AdminAIAgentView(isTabRoot: true)
                 }
             }
             Tab("我的", systemImage: "person", value: "profile") {

@@ -30,7 +30,7 @@ struct AdminAIAgentConversationView: View {
     var body: some View {
         VStack(spacing: 0) {
             if model.hasLoaded {
-                AgentMessagesView(model: model, readingOverlay: panel != nil || model.selectedAction != nil,
+                AgentMessagesView(model: model, readingOverlay: historyPresented || panel != nil || model.selectedAction != nil,
                                   showArtifact: { panel = .artifact($0) }, showOutputs: { panel = .outputs },
                                   showMemory: { panel = .memory })
             } else if let error = model.loadError {
@@ -42,12 +42,13 @@ struct AdminAIAgentConversationView: View {
             }
         }
         .safeAreaBar(edge: .top, spacing: 0) { context }
-        .readingSpaceTopEdge(opaque: false)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .scrollEdgeEffectHidden(true, for: .top)
         .background(usesWorkspaceSurface ? Color.clear : ReadingSpace.profilePaper)
         .navigationTitle(model.session.novelTitle.isEmpty ? "对话创作" : model.session.novelTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
-        .toolbar(historyPresented ? .hidden : .visible, for: .navigationBar)
+        .toolbar(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 2) {

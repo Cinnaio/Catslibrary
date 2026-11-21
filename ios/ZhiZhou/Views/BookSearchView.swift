@@ -131,14 +131,14 @@ struct BookSearchView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
+                LazyVStack(alignment: .leading, spacing: trimmedQuery.isEmpty ? 12 : 24) {
                     searchContext.id(Self.topAnchorID)
                     if scope == currentScope {
                         searchContent
                     }
                 }
                 .padding(.horizontal, 22)
-                .padding(.top, 20)
+                .padding(.top, 8)
                 .padding(.bottom, 28)
                 .frame(maxWidth: 760)
                 .frame(maxWidth: .infinity)
@@ -177,13 +177,13 @@ struct BookSearchView: View {
     }
 
     private var searchContext: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(novel.title)
-                .font(serifFont(.title2, .medium))
-                .foregroundStyle(ReadingSpace.ink)
-                .appTextLineLimit(2)
-                .accessibilityAddTraits(.isHeader)
-            Text("仅检索本书已收录的正文，按字面匹配。")
+        VStack(alignment: .leading, spacing: 4) {
+            Text("在《\(novel.title)》中搜索")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .appTextLineLimit(1)
+                .truncationMode(.middle)
+            Text("仅搜索已收录正文，按字面匹配。")
                 .font(.caption)
                 .foregroundStyle(ReadingSpace.profileMuted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -198,17 +198,10 @@ struct BookSearchView: View {
         } else if !searched.isEmpty && searched == trimmedQuery {
             results
         } else if trimmedQuery.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("找回故事里的一句话")
-                    .font(serifFont(.title3, .medium))
-                    .foregroundStyle(ReadingSpace.ink)
-                    .accessibilityAddTraits(.isHeader)
-                Text("输入人物、句子或关键词，找到后可直接回到原文。")
-                    .font(.subheadline)
-                    .foregroundStyle(ReadingSpace.profileMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.top, 16)
+            Text("找到后，点选结果即可回到原文。")
+                .font(.footnote)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .fixedSize(horizontal: false, vertical: true)
         } else {
             searchAction(title: "搜索本书正文", systemImage: "magnifyingglass") { search() }
                 .disabled(!canSearch)

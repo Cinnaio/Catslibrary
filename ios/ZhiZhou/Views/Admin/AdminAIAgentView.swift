@@ -52,7 +52,7 @@ struct AdminAIAgentView: View {
         }
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .readingSpaceTopEdge(opaque: false)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             if selectedID.isEmpty, let initialNovel { selectedID = initialNovel.id }
             await loadBooks()
@@ -82,69 +82,53 @@ struct AdminAIAgentView: View {
             let historyVisible = isWide ? sidebarExpanded : drawerOpen
             let historyWidth = min(340, max(0, geometry.size.width - (dynamicTypeSize.isAccessibilitySize ? 52 : 76)))
             ZStack(alignment: .leading) {
-                if drawerOpen {
-                    historySidebar
+                if !isWide {
+                    historySidebar(isPresented: drawerOpen)
                         .frame(width: historyWidth)
+                        .opacity(drawerOpen ? 1 : 0)
+                        .allowsHitTesting(drawerOpen)
+                        .accessibilityHidden(!drawerOpen)
                         .accessibilityAction(.escape) { setHistoryVisible(false) }
-                        .transition(sidebarTransition)
                 }
 
                 HStack(spacing: 0) {
                     if isWide && sidebarExpanded {
-                        historySidebar
+                        historySidebar(isPresented: true)
                             .frame(width: 300)
                             .transition(sidebarTransition)
                     }
-                    mainWorkspace(historyPresented: drawerOpen)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    navigationPane(isWide: isWide, historyVisible: historyVisible, drawerOpen: drawerOpen)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .background(ReadingSpace.profilePaper)
                         .disabled(drawerOpen)
                         .allowsHitTesting(!drawerOpen)
                         .accessibilityHidden(drawerOpen)
-                        .background {
-                            UnevenRoundedRectangle(
-                                topLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0,
-                                bottomLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0
-                            )
-                            .fill(ReadingSpace.profilePaper)
-                            .shadow(color: .black.opacity(drawerOpen ? 0.10 : 0), radius: 12, x: -4, y: 0)
+                        .animation(nil, value: drawerOpen)
+                        .clipShape(UnevenRoundedRectangle(
+                            topLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0,
+                            bottomLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0
+                        ))
+                        .shadow(color: .black.opacity(drawerOpen ? 0.10 : 0), radius: 12, x: -4, y: 0)
+                        .overlay {
+                            Button { setHistoryVisible(false) } label: {
+                                Color.clear.contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("关闭对话历史")
+                            .accessibilityIdentifier("agent.history.dismiss")
+                            .allowsHitTesting(drawerOpen)
+                            .accessibilityHidden(!drawerOpen)
                         }
                         .offset(x: drawerOpen ? historyWidth : 0)
                 }
-
-                if drawerOpen {
-                    Button { setHistoryVisible(false) } label: {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .overlay(alignment: .topLeading) {
-                                Image(systemName: "line.3.horizontal")
-                                    .font(.body.weight(.light))
-                                    .foregroundStyle(ReadingSpace.profileMuted)
-                                    .frame(width: 44, height: 44)
-                                    .appGlassEffect(.regular, in: Circle())
-                                    .padding(12)
-                                    .allowsHitTesting(false)
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("关闭对话历史")
-                    .accessibilityIdentifier("agent.history.dismiss")
-                    .frame(width: max(0, geometry.size.width - historyWidth), height: geometry.size.height)
-                    .offset(x: historyWidth)
-                }
             }
-            .background((historyVisible ? ReadingSpace.canvas : ReadingSpace.profilePaper).ignoresSafeArea(.container))
-            .toolbar(drawerOpen ? .hidden : .visible, for: .navigationBar)
+            .clipped()
+            .background {
+                (historyVisible ? ReadingSpace.canvas : ReadingSpace.profilePaper)
+                    .ignoresSafeArea(.container)
+                    .animation(nil, value: historyVisible)
+            }
             .toolbar(activeSession != nil || drawerOpen ? .hidden : (isTabRoot ? .visible : .automatic), for: .tabBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { toggleHistory(isWide: isWide) } label: {
-                        Image(systemName: "line.3.horizontal")
-                    }
-                    .accessibilityLabel(historyVisible ? "收起对话历史" : "打开对话历史")
-                    .accessibilityValue(historyVisible ? "已展开" : "已收起")
-                    .accessibilityIdentifier("agent.history.toggle")
-                }
-            }
             .onChange(of: isWide) { _, wide in
                 if wide { showHistory = false }
             }
@@ -157,12 +141,47 @@ struct AdminAIAgentView: View {
         }
     }
 
-    private var sidebarTransition: AnyTransition {
-        reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity)
+    // The tab owns its navigation inside the moving pane. Pushed entries retain their parent stack and back button.
+    @ViewBuilder private func navigationPane(isWide: Bool, historyVisible: Bool, drawerOpen: Bool) -> some View {
+        if isTabRoot {
+            NavigationStack {
+                mainWorkspace(historyPresented: drawerOpen)
+                    .background(ReadingSpace.profilePaper)
+                    .navigationTitle(navigationTitle)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbarBackground(.hidden, for: .navigationBar)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            historyToggle(isWide: isWide, historyVisible: historyVisible)
+                        }
+                    }
+            }
+        } else {
+            mainWorkspace(historyPresented: drawerOpen)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        historyToggle(isWide: isWide, historyVisible: historyVisible)
+                    }
+                }
+        }
     }
 
-    private var historySidebar: some View {
+    private func historyToggle(isWide: Bool, historyVisible: Bool) -> some View {
+        Button { toggleHistory(isWide: isWide) } label: {
+            Image(systemName: "line.3.horizontal")
+        }
+        .accessibilityLabel(historyVisible ? "收起对话历史" : "打开对话历史")
+        .accessibilityValue(historyVisible ? "已展开" : "已收起")
+        .accessibilityIdentifier("agent.history.toggle")
+    }
+
+    private var sidebarTransition: AnyTransition {
+        reduceMotion ? .identity : .move(edge: .leading).combined(with: .opacity)
+    }
+
+    private func historySidebar(isPresented: Bool) -> some View {
         AdminAgentHistorySidebar(
+            isPresented: isPresented,
             sessions: listNovelID == historyNovelID ? sessions : [],
             selectedSessionID: activeSession?.id,
             currentNovelTitle: activeSession?.novelTitle ?? bookTitle,
@@ -218,7 +237,7 @@ struct AdminAIAgentView: View {
                 .frame(maxWidth: .infinity, alignment: .top)
             }
             .scrollDismissesKeyboard(.interactively)
-            .readingSpaceTopEdge(opaque: false)
+            .scrollEdgeEffectHidden(true, for: .top)
             .refreshable { await loadBooks() }
         }
     }
