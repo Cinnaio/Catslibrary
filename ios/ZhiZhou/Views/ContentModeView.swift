@@ -6,59 +6,172 @@ struct ContentModeView: View {
     @State private var access = ContentAccessStore.shared
     @State private var showUnlock = false
     @State private var errorMessage: String?
+    @State private var isRefreshing = false
 
     var body: some View {
-        List {
-            Section {
-                LabeledContent("当前模式", value: access.mode == "adult" ? "R18 阅读" : "安全模式")
-                Toggle("账号 R18 阅读开关", isOn: Binding(
-                    get: { access.accountMode == "adult" },
-                    set: { enabled in
-                        if enabled { showUnlock = true }
-                        else {
-                            Task {
-                                do { try await access.lock(); errorMessage = nil }
-                                catch { errorMessage = "本机已切回安全模式，但服务端撤销失败，请联网后重试：\(AppCopy.friendlyError(error))" }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 32) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("本机当前模式")
+                        .font(.caption)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                    Text(access.mode == "adult" ? "R18 阅读" : "安全模式")
+                        .font(.system(.title, design: .serif).weight(.medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("content-mode.current")
+
+                modeSection("账号设置") {
+                    Toggle("账号 R18 阅读开关", isOn: Binding(
+                        get: { access.accountMode == "adult" },
+                        set: { enabled in
+                            if enabled { showUnlock = true }
+                            else {
+                                Task {
+                                    do { try await access.lock(); errorMessage = nil }
+                                    catch { errorMessage = "本机已切回安全模式，但服务端撤销失败，请联网后重试：\(AppCopy.friendlyError(error))" }
+                                }
                             }
                         }
-                    }
-                ))
-                .disabled(access.needsLockRetry || (access.accountMode != "adult" && (!access.adultContentEnabled || !access.configured)))
-                if access.mode != "adult" {
-                    if access.needsLockRetry {
-                        Button("重试撤销服务端授权") {
-                            Task {
-                                do { try await access.lock(); errorMessage = nil }
-                                catch { errorMessage = AppCopy.friendlyError(error) }
+                    ))
+                    .font(.subheadline)
+                    .foregroundStyle(ReadingSpace.ink)
+                    .toggleStyle(.switch)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .tint(AppTheme.primary)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
+                    .accessibilityIdentifier("content-mode.account-toggle")
+                    .disabled(access.needsLockRetry || (access.accountMode != "adult" && (!access.adultContentEnabled || !access.configured)))
+
+                    if access.mode != "adult" {
+                        if access.needsLockRetry {
+                            Button {
+                                Task {
+                                    do { try await access.lock(); errorMessage = nil }
+                                    catch { errorMessage = AppCopy.friendlyError(error) }
+                                }
+                            } label: {
+                                Text("重试撤销服务端授权")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(AppTheme.primary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.vertical, 10)
+                                    .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                                    .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
                     }
+
+                    if let notice = access.notice {
+                        statusMessage(notice)
+                    }
+                    if access.hasSyncedStatus && (!access.adultContentEnabled || (!access.configured && access.accountMode != "adult")) {
+                        statusMessage(!access.adultContentEnabled ? "站点暂未开放成人内容。" : "站点尚未配置成人模式验证，请联系管理员。")
+                    }
+                    if let errorMessage {
+                        statusMessage(errorMessage, isError: true)
+                    }
+
+                    Button {
+                        guard !isRefreshing, !access.isBusy else { return }
+                        isRefreshing = true
+                        Task {
+                            await refresh()
+                            isRefreshing = false
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Group {
+                                if showsSyncProgress {
+                                    ProgressView().accessibilityLabel("正在同步账号状态")
+                                } else {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .accessibilityHidden(true)
+                                }
+                            }
+                            .frame(width: 24)
+                            Text("同步账号状态")
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(ReadingSpace.ink)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("同步账号状态")
+                    .accessibilityValue(showsSyncProgress ? "正在同步" : "")
+                    .accessibilityIdentifier("content-mode.sync")
                 }
-            } footer: {
-                Text("账号开关与 Web 同步，账号已开启时无需在此设备重复验证。首次开启账号模式需确认成年并完成人机验证。已读章节支持缓存，暂不开放限制级作品的离线下载。断网时沿用上次确认的状态，跨端关闭需联网同步后生效。")
-            }
-            if let notice = access.notice {
-                Section { Text(notice).foregroundStyle(AppTheme.textSecondary) }
-            }
-            Section { Button("同步账号状态") { Task { await refresh() } } }
-            if access.hasSyncedStatus && (!access.adultContentEnabled || (!access.configured && access.accountMode != "adult")) {
-                Section {
-                    Text(!access.adultContentEnabled ? "站点暂未开放成人内容。" : "站点尚未配置成人模式验证，请联系管理员。")
-                        .foregroundStyle(AppTheme.textSecondary)
+
+                modeSection("使用说明") {
+                    information("账号同步", text: "账号开关与 Web 同步，账号已开启时无需在此设备重复验证。首次开启账号模式需确认成年并完成人机验证。")
+                    information("离线使用", text: "已读章节支持缓存，暂不开放限制级作品的离线下载。断网时沿用上次确认的状态，跨端关闭需联网同步后生效。")
                 }
             }
-            if let errorMessage {
-                Section { Text(errorMessage).foregroundStyle(AppTheme.danger) }
-            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 32)
+            .frame(maxWidth: 700, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .appListStyle(.settings)
+        .background(ReadingSpace.profilePaper)
+        .readingSpaceTopEdge(opaque: false)
         .navigationTitle("内容模式")
         .navigationBarTitleDisplayMode(.inline)
-        .disabled(access.isBusy)
+        .disabled(access.isBusy || isRefreshing)
         .task { await refresh() }
         .sheet(isPresented: $showUnlock) {
             AdultReaderUnlockView()
         }
+    }
+
+    private var showsSyncProgress: Bool {
+        isRefreshing || (!access.hasSyncedStatus && access.isBusy)
+    }
+
+    private func modeSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(title)
+                .font(.system(.title3, design: .serif).weight(.medium))
+                .foregroundStyle(ReadingSpace.ink)
+                .accessibilityAddTraits(.isHeader)
+            content()
+        }
+    }
+
+    private func information(_ title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(ReadingSpace.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .lineSpacing(4)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func statusMessage(_ text: String, isError: Bool = false) -> some View {
+        Label {
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: isError ? "exclamationmark.circle" : "info.circle")
+                .accessibilityHidden(true)
+        }
+        .font(.footnote)
+        .foregroundStyle(isError ? AppTheme.danger : ReadingSpace.profileMuted)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private func refresh() async {
