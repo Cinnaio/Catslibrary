@@ -13,6 +13,9 @@ struct ProfileEditView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showDiscardConfirm = false
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable { case displayName, bio }
 
     init(user: User) {
         self.user = user
@@ -21,51 +24,46 @@ struct ProfileEditView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                NavigationLink {
-                    ProfileAvatarEditor()
-                } label: {
-                    HStack(spacing: 16) {
-                        ProfileAvatar(user: appState.user ?? user, size: 64)
-                        Text("头像")
+        AccountSettingsPage {
+            AccountSettingsHeading("个人资料", detail: "用户名：\(user.username)")
+
+            avatarLink
+
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 8) {
+                    AccountSettingsField("昵称", isFocused: focusedField == .displayName) {
+                        TextField("填写昵称", text: $displayName)
+                            .textContentType(.nickname)
+                            .autocorrectionDisabled()
+                            .focused($focusedField, equals: .displayName)
+                            .submitLabel(.next)
+                            .onSubmit { focusedField = .bio }
+                            .accessibilityLabel("昵称")
+                            .accessibilityIdentifier("profile.edit.displayName")
                     }
-                    .padding(.vertical, 6)
+                    characterCount(displayName, limit: 20)
                 }
-                LabeledContent("用户名", value: user.username)
-            }
-            Section {
-                TextField("昵称", text: $displayName)
-                    .textContentType(.nickname)
-                    .autocorrectionDisabled()
-                    .accessibilityLabel("昵称")
-            } header: {
-                Text("昵称")
-            } footer: {
-                characterCount(displayName, limit: 20)
-            }
-            Section {
-                TextField("个人简介", text: $bio, axis: .vertical)
-                    .lineLimit(3...6)
-                    .accessibilityLabel("个人简介")
-            } header: {
-                Text("简介")
-            } footer: {
-                characterCount(bio, limit: 80)
-            }
-            if let message = errorMessage ?? validationError {
-                Section {
-                    Text(message)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.danger)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    AccountSettingsField("简介", isFocused: focusedField == .bio) {
+                        TextField("写一句关于自己的介绍", text: $bio, axis: .vertical)
+                            .lineLimit(3...6)
+                            .focused($focusedField, equals: .bio)
+                            .accessibilityLabel("个人简介")
+                            .accessibilityIdentifier("profile.edit.bio")
+                    }
+                    characterCount(bio, limit: 80)
+                }
+
+                if let message = errorMessage ?? validationError {
+                    AccountSettingsNote(message, isError: true)
                 }
             }
         }
         .disabled(isSaving)
-        .scrollDismissesKeyboard(.interactively)
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("个人资料")
+        .scrollEdgeEffectHidden(true, for: .top)
+        .presentationBackground(ReadingSpace.profilePaper)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .interactiveDismissDisabled(hasChanges || isSaving || appState.isUpdatingAccount)
         .toolbar {
@@ -89,6 +87,36 @@ struct ProfileEditView: View {
         }
     }
 
+    private var avatarLink: some View {
+        NavigationLink {
+            ProfileAvatarEditor()
+        } label: {
+            VStack(spacing: 12) {
+                ProfileAvatar(user: appState.user ?? user, size: 96)
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(ReadingSpace.onSummary)
+                            .frame(width: 30, height: 30)
+                            .background(ReadingSpace.summary, in: Circle())
+                            .overlay { Circle().strokeBorder(ReadingSpace.profilePaper, lineWidth: 3) }
+                    }
+                    .accessibilityHidden(true)
+                Text("更换头像")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .disabled(appState.isUpdatingAccount)
+        .accessibilityLabel("更换头像")
+        .accessibilityHint("选择照片或恢复默认头像，头像单独保存")
+        .accessibilityIdentifier("profile.edit.avatar")
+    }
+
     private var hasChanges: Bool {
         displayName.trimmingCharacters(in: .whitespacesAndNewlines) != user.displayName ||
         bio.trimmingCharacters(in: .whitespacesAndNewlines) != (user.bio ?? "")
@@ -99,9 +127,9 @@ struct ProfileEditView: View {
     }
 
     private func characterCount(_ value: String, limit: Int) -> some View {
-        Text("\(value.utf16.count)/\(limit)")
-            .monospacedDigit()
-            .foregroundStyle(value.utf16.count > limit ? AppTheme.danger : AppTheme.textSecondary)
+        Text("\(value.utf16.count) / \(limit)")
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(value.utf16.count > limit ? AppTheme.danger : ReadingSpace.profileMuted)
             .frame(maxWidth: .infinity, alignment: .trailing)
             .accessibilityLabel("已输入 \(value.utf16.count) 个字符，最多 \(limit) 个")
     }
@@ -110,6 +138,7 @@ struct ProfileEditView: View {
         guard !isSaving, validationError == nil else { return }
         isSaving = true
         errorMessage = nil
+        focusedField = nil
         defer { isSaving = false }
         do {
             try await appState.updateProfile(displayName: displayName, bio: bio)
@@ -136,44 +165,30 @@ private struct ProfileAvatarEditor: View {
     @State private var showRemoveConfirm = false
 
     var body: some View {
-        Form {
-            Section {
-                HStack {
-                    Spacer()
-                    Group {
-                        if let preview {
-                            Image(uiImage: preview).resizable().scaledToFill()
-                        } else if let user = appState.user {
-                            ProfileAvatar(user: user, size: 144)
-                        }
-                    }
-                    .frame(width: 144, height: 144)
-                    .clipShape(Circle())
-                    .overlay {
-                        if isPreparing { ProgressView().tint(AppTheme.primary) }
-                    }
-                    .accessibilityLabel("头像预览")
-                    Spacer()
+        AccountSettingsPage {
+            AccountSettingsHeading("更换头像", detail: "选择照片后预览，保存后更新头像。")
+
+            avatarPreview
+
+            VStack(spacing: 8) {
+                Button { showPhotoPicker = true } label: {
+                    AccountSettingsActionLabel(title: "选择照片", symbol: "photo.on.rectangle", prominent: true)
                 }
-                .padding(.vertical, 24)
-                .listRowBackground(Color.clear)
-            }
-            Section {
-                Button("选择照片", systemImage: "photo.on.rectangle") { showPhotoPicker = true }
-                Button("恢复默认头像", systemImage: "person.crop.circle", role: .destructive) {
-                    showRemoveConfirm = true
+                .accessibilityIdentifier("profile.avatar.choose")
+
+                Button(role: .destructive) { showRemoveConfirm = true } label: {
+                    AccountSettingsActionLabel(title: "恢复默认头像", symbol: "person.crop.circle", destructive: true)
                 }
+                .accessibilityIdentifier("profile.avatar.reset")
             }
             .disabled(isSaving || isPreparing || appState.isUpdatingAccount)
+
             if let errorMessage {
-                Section {
-                    Text(errorMessage).font(.footnote).foregroundStyle(AppTheme.danger)
-                }
+                AccountSettingsNote(errorMessage, isError: true)
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("头像")
+        .scrollEdgeEffectHidden(true, for: .top)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isSaving)
         .interactiveDismissDisabled(isSaving)
@@ -215,6 +230,46 @@ private struct ProfileAvatarEditor: View {
                 Task { await saveAvatar(removing: true) }
             }
         }
+    }
+
+    private var avatarPreview: some View {
+        VStack(spacing: 16) {
+            Group {
+                if let preview {
+                    Image(uiImage: preview).resizable().scaledToFill()
+                } else if let user = appState.user {
+                    ProfileAvatar(user: user, size: 160)
+                } else {
+                    Image(systemName: "person.crop.circle")
+                        .resizable().scaledToFit()
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
+            }
+            .frame(width: 160, height: 160)
+            .clipShape(Circle())
+            .overlay { Circle().strokeBorder(ReadingSpace.profileLine, lineWidth: 1) }
+            .accessibilityHidden(true)
+
+            HStack(spacing: 8) {
+                if isPreparing {
+                    ProgressView().controlSize(.small).tint(AppTheme.primary)
+                        .accessibilityHidden(true)
+                }
+                Text(previewStatus)
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("头像预览")
+        .accessibilityValue(previewStatus)
+    }
+
+    private var previewStatus: String {
+        isPreparing ? "正在处理照片…" : pendingData == nil ? "当前头像" : "待保存预览"
     }
 
     private func saveAvatar(removing: Bool = false) async {
