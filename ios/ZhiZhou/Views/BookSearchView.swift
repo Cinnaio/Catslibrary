@@ -45,26 +45,84 @@ enum BookTextSearch {
     }
 }
 
-/// Online whole-book search. Each request scans a bounded part of the book; a cursor continues it.
+/// In-memory results belong to one presenting screen and one authorized book context.
+struct BookSearchSnapshot {
+    fileprivate let scope: BookSearchScope
+    fileprivate let query: String
+    fileprivate let searched: String
+    fileprivate let items: [BookSearchHit]
+    fileprivate let batchStartIndex: Int
+    fileprivate let cursor: String?
+    fileprivate let scanned: Int
+    fileprivate let visibleResultID: String?
+    fileprivate let error: String?
+    fileprivate let paused: Bool
+
+    @MainActor func hasSearch(for novelID: String) -> Bool {
+        scope == BookSearchScope.current(novelID: novelID) && !searched.isEmpty
+    }
+}
+
+fileprivate struct BookSearchScope: Equatable {
+    let novelID: String
+    let server: String
+    let account: String
+    let accessRevision: UUID
+
+    @MainActor static func current(novelID: String) -> Self {
+        Self(novelID: novelID, server: ServerConfig.shared.baseURL?.absoluteString ?? "",
+             account: APIClient.shared.imageCacheIdentity, accessRevision: ContentAccessStore.shared.revision)
+    }
+}
+
+/// Online whole-book search; the presenting screen keeps the last query and loaded results.
+@MainActor
 struct BookSearchView: View {
     let novel: Novel
     let onSelect: (BookSearchHit, String) -> Void
+    @Binding private var snapshot: BookSearchSnapshot?
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var queryFocused: Bool
-    @State private var searchPresented = true
-    @State private var query = ""
-    @State private var searched = ""
-    @State private var items: [BookSearchHit] = []
-    @State private var batchStartIndex = 0
+    @State private var searchPresented: Bool
+    @State private var query: String
+    @State private var searched: String
+    @State private var items: [BookSearchHit]
+    @State private var batchStartIndex: Int
     @State private var cursor: String?
-    @State private var scanned = 0
-    @State private var busy = false
+    @State private var scanned: Int
+    @State private var visibleResultID: String?
     @State private var error: String?
+    @State private var paused: Bool
+    @State private var scope: BookSearchScope
+    @State private var busy = false
     @State private var request: Task<Void, Never>?
     @State private var revision = UUID()
 
+    private static let topAnchorID = "book-search-top"
+
+    init(novel: Novel, state: Binding<BookSearchSnapshot?>, initialQuery: String = "",
+         onSelect: @escaping (BookSearchHit, String) -> Void) {
+        self.novel = novel
+        self.onSelect = onSelect
+        _snapshot = state
+        let context = BookSearchScope.current(novelID: novel.id)
+        let saved = state.wrappedValue.flatMap { $0.scope == context ? $0 : nil }
+        _searchPresented = State(initialValue: saved?.searched.isEmpty ?? true)
+        _scope = State(initialValue: context)
+        _query = State(initialValue: saved?.query ?? (state.wrappedValue == nil ? initialQuery : ""))
+        _searched = State(initialValue: saved?.searched ?? "")
+        _items = State(initialValue: saved?.items ?? [])
+        _batchStartIndex = State(initialValue: saved?.batchStartIndex ?? 0)
+        _cursor = State(initialValue: saved?.cursor)
+        _scanned = State(initialValue: saved?.scanned ?? 0)
+        _visibleResultID = State(initialValue: saved?.visibleResultID ?? Self.topAnchorID)
+        _error = State(initialValue: saved?.error)
+        _paused = State(initialValue: saved?.paused ?? false)
+    }
+
+    private var currentScope: BookSearchScope { .current(novelID: novel.id) }
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var queryTooLong: Bool { trimmedQuery.utf16.count > 80 }
     private var canSearch: Bool { !busy && !trimmedQuery.isEmpty && !queryTooLong }
@@ -72,30 +130,32 @@ struct BookSearchView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    Text(novel.title)
-                        .font(.headline)
-                        .appTextLineLimit(2)
-                        .accessibilityAddTraits(.isHeader)
-                } footer: {
-                    Text("仅检索本书已收录的正文，按字面匹配。")
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    searchContext.id(Self.topAnchorID)
+                    if scope == currentScope {
+                        searchContent
+                    }
                 }
-
-                if queryTooLong {
-                    Label("关键词过长，请缩短至 80 个字符以内。", systemImage: "exclamationmark.circle")
-                        .foregroundStyle(.secondary)
-                } else if !searched.isEmpty && searched == trimmedQuery {
-                    results
-                }
+                .padding(.horizontal, 22)
+                .padding(.top, 20)
+                .padding(.bottom, 28)
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity)
+                .scrollTargetLayout()
             }
-            .listStyle(.insetGrouped)
+            .scrollPosition(id: $visibleResultID, anchor: .top)
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("书内正文搜索")
+            .scrollEdgeEffectHidden(true, for: .top)
+            .scrollEdgeEffectHidden(true, for: .bottom)
+            .background(ReadingSpace.profilePaper)
+            .navigationTitle("书内搜索")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .searchable(
-                text: Binding(get: { query }, set: updateQuery),
+                text: Binding(get: { scope == currentScope ? query : "" }, set: updateQuery),
                 isPresented: $searchPresented,
+                placement: .navigationBarDrawer(displayMode: .always),
                 prompt: "人物、句子或关键词"
             )
             .searchFocused($queryFocused)
@@ -106,80 +166,179 @@ struct BookSearchView: View {
                         .labelStyle(.iconOnly)
                 }
             }
-            .onChange(of: appState.user?.id) { _, _ in invalidate(clear: true) }
-            .onChange(of: ContentAccessStore.shared.revision) { _, _ in invalidate(clear: true) }
-            .onDisappear { invalidate(clear: false) }
+            .task { if searched.isEmpty { queryFocused = true } }
+            .onChange(of: appState.user?.id) { _, _ in resetScope() }
+            .onChange(of: currentScope) { _, _ in resetScope() }
+            .onDisappear { pauseSearch() }
         }
+        .background(ReadingSpace.profilePaper)
+        .tint(AppTheme.primary)
         .readerContentAccess(isRestricted: novel.isRestricted)
     }
 
-    private var results: some View {
-        Section {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, hit in
-                resultRow(hit)
-                    .transition(resultTransition(at: index))
+    private var searchContext: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(novel.title)
+                .font(serifFont(.title2, .medium))
+                .foregroundStyle(ReadingSpace.ink)
+                .appTextLineLimit(2)
+                .accessibilityAddTraits(.isHeader)
+            Text("仅检索本书已收录的正文，按字面匹配。")
+                .font(.caption)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder private var searchContent: some View {
+        if queryTooLong {
+            Label("关键词过长，请缩短至 80 个字符以内。", systemImage: "exclamationmark.circle")
+                .font(.subheadline)
+                .foregroundStyle(ReadingSpace.profileMuted)
+        } else if !searched.isEmpty && searched == trimmedQuery {
+            results
+        } else if trimmedQuery.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("找回故事里的一句话")
+                    .font(serifFont(.title3, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Text("输入人物、句子或关键词，找到后可直接回到原文。")
+                    .font(.subheadline)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            resultStatus
-                .transition(.opacity)
-        } header: {
-            if scanned > 0 || (!busy && error == nil) {
-                Text("\(items.count) 章匹配")
-                    .monospacedDigit()
-            }
-        } footer: {
-            if scanned > 0 || (!busy && error == nil) {
-                Text(cursor == nil ? "已检索 \(scanned) 章" : "已检索 \(scanned) 章 · 后续章节待检索")
-                    .monospacedDigit()
+            .padding(.top, 16)
+        } else {
+            searchAction(title: "搜索本书正文", systemImage: "magnifyingglass") { search() }
+                .disabled(!canSearch)
+                .accessibilityIdentifier("bookSearch.submit")
+        }
+    }
+
+    @ViewBuilder private var results: some View {
+        if scanned > 0 || (!busy && error == nil && !paused) {
+            VStack(alignment: .leading, spacing: 8) {
+                AppAdaptiveRow(spacing: 8) {
+                    Text("\(items.count) 章匹配")
+                        .font(serifFont(.title3, .medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("已检索 \(scanned) 章")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
+                if cursor != nil || paused {
+                    Text("后续章节尚未检索完成")
+                        .font(.caption)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
             }
         }
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, hit in
+            resultRow(hit)
+                .id("chapter:\(hit.chapterId)")
+                .transition(resultTransition(at: index))
+        }
+        resultStatus.transition(.opacity)
     }
 
     private func resultRow(_ hit: BookSearchHit) -> some View {
         Button {
+            guard scope == currentScope, searched == trimmedQuery, !searched.isEmpty else { return }
+            queryFocused = false
+            saveSnapshot()
             onSelect(hit, searched)
             dismiss()
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(hit.chapterTitle)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    Text("本章 \(hit.matchCount) 处命中")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    excerpt(hit.snippet)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                AppAdaptiveRow(spacing: 8) {
+                    Text("第 \(hit.chapterOrder) 章")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("\(hit.matchCount) 处命中")
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Image(systemName: "chevron.forward")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
+                .font(.caption)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .monospacedDigit()
+                Text(hit.chapterTitle)
+                    .font(serifFont(.headline, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .appTextLineLimit(2)
+                excerpt(hit.snippet)
+                    .font(.subheadline)
+                    .foregroundStyle(ReadingSpace.ink)
+                    .lineSpacing(5)
+                    .appTextLineLimit(4)
             }
-            .padding(.vertical, 4)
-            .frame(minHeight: AppLayout.minimumTouchTarget)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+            .overlay(alignment: .bottom) {
+                ReadingSpace.profileLine.frame(height: 0.5).accessibilityHidden(true)
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("第 \(hit.chapterOrder) 章，\(hit.chapterTitle)，\(hit.matchCount) 处命中")
+        .accessibilityValue(hit.snippet)
+        .accessibilityHint("打开章节并定位首处命中，关键词会高亮")
+        .accessibilityIdentifier("bookSearch.hit.\(hit.chapterId)")
     }
 
-    @ViewBuilder
-    private var resultStatus: some View {
+    @ViewBuilder private var resultStatus: some View {
         if busy {
-            ProgressView(cursor == nil ? "正在搜索本书正文…" : "正在检索后续章节…")
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text(cursor == nil ? "正在搜索本书正文…" : "正在检索后续章节…")
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .accessibilityIdentifier("bookSearch.loading")
         } else if let error {
             LoadErrorNotice(message: error, isLoading: false) { search(more: cursor != nil) }
+        } else if paused {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("上次检索尚未完成")
+                    .font(.subheadline)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                searchAction(title: "继续检索", systemImage: "arrow.clockwise") { search(more: cursor != nil) }
+            }
         } else {
             if items.isEmpty {
-                Text(cursor == nil ? "试试更短的关键词，或换一段原文。" : "已检索的章节没有匹配，可以继续查找。")
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(cursor == nil ? "没有找到匹配的原文" : "已检索章节暂无匹配")
+                        .font(serifFont(.headline, .medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                    Text(cursor == nil ? "试试更短的关键词，或换一段原文。" : "可以继续检索后续章节。")
+                        .font(.subheadline)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
             }
             if cursor != nil {
-                Button("继续检索后续章节", systemImage: "arrow.down") { search(more: true) }
+                searchAction(title: "继续检索后续章节", systemImage: "arrow.down") { search(more: true) }
+                    .accessibilityIdentifier("bookSearch.more")
             }
         }
+    }
+
+    private func searchAction(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Text(title).frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: systemImage).accessibilityHidden(true)
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(ReadingSpace.ink)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .contentShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(ScaleButtonStyle())
+        .appGlassEffect(.regular, fallback: ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func resultTransition(at index: Int) -> AnyTransition {
@@ -211,25 +370,54 @@ struct BookSearchView: View {
             searched = ""
             cursor = nil
             scanned = 0
+            paused = false
+            visibleResultID = Self.topAnchorID
         }
+    }
+
+    private func resetScope() {
+        invalidate(clear: true)
+        query = ""
+        scope = currentScope
+        snapshot = nil
+        queryFocused = false
+    }
+
+    private func pauseSearch() {
+        let needsResume = busy || paused
+        let lastError = error
+        invalidate(clear: false)
+        paused = needsResume
+        error = lastError
+        saveSnapshot()
+    }
+
+    private func saveSnapshot() {
+        guard scope == currentScope else { snapshot = nil; return }
+        snapshot = BookSearchSnapshot(scope: scope, query: query, searched: searched, items: items,
+            batchStartIndex: batchStartIndex, cursor: cursor, scanned: scanned, visibleResultID: visibleResultID,
+            error: error, paused: busy || paused)
     }
 
     private func search(more: Bool = false) {
         let q = trimmedQuery
-        guard canSearch, !more || (searched == q && cursor != nil) else { return }
+        guard scope == currentScope, canSearch, !more || (searched == q && cursor != nil) else { return }
         queryFocused = false
+        let requestScope = scope
         request?.cancel()
         let seq = UUID(), identity = APIClient.shared.imageCacheIdentity
         let mode = ContentAccessStore.shared.mode, accessRevision = ContentAccessStore.shared.revision
         revision = seq
         withAnimation(searchAnimation) {
             busy = true
+            paused = false
             error = nil
             if !more {
                 items = []
                 scanned = 0
                 cursor = nil
                 searched = q
+                visibleResultID = Self.topAnchorID
             }
         }
         var components = URLComponents()
@@ -246,7 +434,7 @@ struct BookSearchView: View {
             do {
                 let response: BookSearchResponse = try await APIClient.shared.get("/api/chapters/search?\(encodedQuery)", auth: true)
                 guard !Task.isCancelled, seq == revision, identity == APIClient.shared.imageCacheIdentity,
-                      accessRevision == ContentAccessStore.shared.revision, response.novelId == novel.id, response.query == q else { return }
+                      accessRevision == ContentAccessStore.shared.revision, requestScope == currentScope, response.novelId == novel.id, response.query == q else { return }
                 let ids = Set(items.map(\.chapterId))
                 withAnimation(searchAnimation) {
                     batchStartIndex = items.count
@@ -256,7 +444,7 @@ struct BookSearchView: View {
                 }
             } catch {
                 guard !Task.isCancelled, seq == revision, identity == APIClient.shared.imageCacheIdentity,
-                      accessRevision == ContentAccessStore.shared.revision else { return }
+                      accessRevision == ContentAccessStore.shared.revision, requestScope == currentScope else { return }
                 if case APIError.http(let status, _) = error, status == 403 || status == 404 {
                     items = []; cursor = nil; scanned = 0
                 }

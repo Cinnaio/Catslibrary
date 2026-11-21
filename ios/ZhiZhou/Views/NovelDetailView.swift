@@ -33,6 +33,7 @@ struct NovelDetailView: View {
     @State private var showOfflineOptions = false
     @State private var showAdminWorkspace = false
     @State private var showBodySearch = false
+    @State private var bodySearchSnapshot: BookSearchSnapshot?
     @State private var searchLaunch: BookSearchLaunch?
     @State private var isSelectingOffline = false
     @State private var selectedChapterIDs: Set<String> = []
@@ -95,12 +96,13 @@ struct NovelDetailView: View {
             }
         }
         .sheet(isPresented: $showBodySearch) {
-            BookSearchView(novel: currentNovel) { hit, query in
+            BookSearchView(novel: currentNovel, state: $bodySearchSnapshot) { hit, query in
                 searchLaunch = BookSearchLaunch(hit: hit, query: query)
             }
         }
         .navigationDestination(item: $searchLaunch) { launch in
-            ReaderView(novel: currentNovel, chapterOrder: launch.hit.chapterOrder, searchQuery: launch.query, searchChapterID: launch.hit.chapterId)
+            ReaderView(novel: currentNovel, chapterOrder: launch.hit.chapterOrder, searchQuery: launch.query,
+                       searchChapterID: launch.hit.chapterId, searchSnapshot: bodySearchSnapshot)
         }
         .sheet(isPresented: $showChapterSearch) {
             ChapterListView(

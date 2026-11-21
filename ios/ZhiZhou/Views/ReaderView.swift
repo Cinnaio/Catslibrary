@@ -78,6 +78,7 @@ struct ReaderView: View {
     @State private var statsOwner = UUID()
     @State private var showTOC = false
     @State private var showBodySearch = false
+    @State private var bodySearchSnapshot: BookSearchSnapshot?
     @State private var searchQuery: String
     @State private var requestedChapterID: String
     @State private var searchNeedsJump: Bool
@@ -178,7 +179,8 @@ struct ReaderView: View {
         preloadedChapters: [ChapterMeta] = [],
         offlineOnly: Bool = false,
         searchQuery: String = "",
-        searchChapterID: String = ""
+        searchChapterID: String = "",
+        searchSnapshot: BookSearchSnapshot? = nil
     ) {
         self.novel = novel
         self.preloadedChapters = preloadedChapters
@@ -187,6 +189,7 @@ struct ReaderView: View {
         _searchQuery = State(initialValue: searchQuery)
         _requestedChapterID = State(initialValue: searchChapterID)
         _searchNeedsJump = State(initialValue: !searchQuery.isEmpty)
+        _bodySearchSnapshot = State(initialValue: searchSnapshot)
     }
 
     var totalOrderCount: Int {
@@ -337,7 +340,7 @@ struct ReaderView: View {
             .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         }
         .sheet(isPresented: $showBodySearch) {
-            BookSearchView(novel: novel) { hit, query in
+            BookSearchView(novel: novel, state: $bodySearchSnapshot, initialQuery: searchQuery) { hit, query in
                 autoScrollPaused = true
                 saveProgressNow()
                 searchQuery = query
@@ -1278,7 +1281,8 @@ struct ReaderView: View {
             if !offlineOnly {
                 Button("保存章节书签", systemImage: "bookmark") { showBookmark = true }
                     .disabled(chapter == nil || appState.user == nil)
-                Button("书内正文搜索", systemImage: "text.magnifyingglass") { autoScrollPaused = true; showBodySearch = true }
+                Button(bodySearchSnapshot?.hasSearch(for: novel.id) == true ? "返回搜索结果" : "书内正文搜索",
+                       systemImage: "text.magnifyingglass") { autoScrollPaused = true; showBodySearch = true }
                 if !searchQuery.isEmpty {
                     Button("结束搜索定位", systemImage: "xmark.circle") {
                         searchQuery = ""; pendingSearchCharacter = nil; searchNeedsJump = false
